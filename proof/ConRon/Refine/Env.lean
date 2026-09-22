@@ -784,49 +784,49 @@ theorem pi_sort_tele_len_refines {e : expr.Expr} (hwf : ExprWF e) :
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv hb
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | fvar hty hf _ihty =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv hf
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | sort hu hs =>
     intro o h
     obtain ⟨d, -, -, rfl, -, -, -⟩ := Expr.sort_inv hs
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | mk_const hn hus hc =>
     intro o h
     obtain ⟨d, -, -, rfl, -, -, -⟩ := Expr.mk_const_inv hc
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | app hf ha ha' _ihf _iha =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv ha'
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | lam hty hb hm hl _ihty _ihb =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv hl
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | forall_e hty hbo hm hfa _ihty ihbo =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv hfa
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨o', ho', h⟩ := h
     have ih := ihbo ho'
     cases o' with
@@ -845,21 +845,21 @@ theorem pi_sort_tele_len_refines {e : expr.Expr} (hwf : ExprWF e) :
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv hle
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | lit hl hli =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv hli
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | proj hs hx hp _ihx =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv hp
     rw [env.pi_sort_tele_len.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
 
 /-- The predicate con-leche's `indParamsOk` hands to `List.all`

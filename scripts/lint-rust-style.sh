@@ -65,32 +65,26 @@ check_str_consts() {
   fi
 }
 check_str_consts
-# `unsafe`.  The rule is none at all (the 2026-09-12 ruling: `std` does it if
-# it can).  The ONE exemption is `crates/con-ron-core/src/ron/tagged.rs`, the
-# generic tagged counted handle (task #94): the kind lives in the handle's low
-# four bits, so the pointee type is chosen at run time and no `std` smart
-# pointer can express it.  That file names no term type; its instantiation for
-# `Expr` (`ron/node.rs`) is a ten-line table and passes this lint like every
-# other file.  The surface is `tagged.rs`'s own module note -- four expressions,
-# two impls and one macro -- and `scripts/diff-e2e.sh` is what stands behind it.
+# `unsafe`.  **The rule is none at all, and since task #97-SWAP-2 there is no
+# exemption** (the 2026-09-12 ruling: `std` does it if it can).
 #
-# **Task #97-SWAP shrank what it is FOR, and not what it is.**  The arena
-# checker holds no `Expr` at all: the only `Expr` values a run builds are the
-# PINNED DATA (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,
-# trust_pins,pins_decode}`), walked once at startup by `arena::intern` and
-# never again, plus the unverified modeller's generated blocks.  So the
-# exemption's REACH is now a startup walk rather than every node of every
-# term -- but the `unsafe` count is unchanged at one file, and it stays until
-# that data is re-expressed handle-natively (the task #97-SWAP section's
-# finding, and DESIGN.md §8.6's follow-up).  The assertion below is therefore
-# still "one exempt file", not "zero `unsafe`".
+# Tasks #94-#97-SWAP had one: `crates/con-ron-core/src/ron/tagged.rs`, the
+# generic tagged counted handle, whose pointee type is chosen at run time from
+# four tag bits so that no `std` smart pointer can express it.  Task #97-SWAP
+# then measured what it was still FOR -- the arena checker holds no `Expr`, so
+# the only `Expr` values a run builds are the PINNED DATA
+# (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,trust_pins,
+# pins_decode}`), walked once at startup by `arena::intern` -- and task
+# #97-SWAP-2 put those few thousand nodes back on `ron::ptr::P` =
+# `std::sync::Arc` and deleted `ron/{tagged,node}.rs`.  So this check asserts
+# ZERO, and any `unsafe` in the verified crate is now a lint failure with no
+# path exemption to add.
 check_unsafe() {
   local hits
   hits=$(gather | grep -E '\bunsafe\b' \
-    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -v 'con-ron-core/src/ron/tagged.rs')   # unanchored: gates.sh passes an absolute dir
+    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow')
   if [ -n "$hits" ]; then
-    echo "== unsafe (only crates/con-ron-core/src/ron/tagged.rs may, task #94)"
+    echo "== unsafe (NONE is allowed in the verified crate, task #97-SWAP-2)"
     echo "$hits"; fail=1
   fi
 }

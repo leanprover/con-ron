@@ -351,7 +351,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case Bvar j => rw [Expr.u64_eq_test h]; simp [ConLeche.canonExprEqFast, beq_eq_decide]
     all_goals (simp only [Result.ok.injEq] at h; rw [← h]; simp [ConLeche.canonExprEqFast])
@@ -360,7 +360,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case Fvar j t2 =>
       rw [and_step (fun y hy => Expr.u64_eq_test hy)
@@ -372,7 +372,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case «Sort» v =>
       simp only [bind_eq_ok_iff] at h
@@ -387,7 +387,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case Const n2 us2 =>
       obtain ⟨hn, hus⟩ := ExprWF.const_kids w
@@ -405,7 +405,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case App f2 x2 =>
       rw [and_step (fun y hy => ihf (ExprWF.app_kids w).1 _ (ExprWF.app_kids hb).1 y hy)
@@ -417,7 +417,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case Lam ty2 bo2 m2 =>
       rw [and_step (fun y hy => ihty (ExprWF.lam_kids w).1 _ (ExprWF.lam_kids hb).1 y hy)
@@ -429,7 +429,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case ForallE ty2 bo2 m2 =>
       rw [and_step
@@ -442,7 +442,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case LetE ty2 v2 bo2 =>
       rw [and_step (fun y hy => ihty (ExprWF.let_e_kids w).1 _ (ExprWF.let_e_kids hb).1 y hy)
@@ -456,7 +456,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case Lit l2 =>
       rw [Expr.literal_beq_refines (ExprWF.lit_kids w) (ExprWF.lit_kids hb) h]
@@ -467,7 +467,7 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     obtain ⟨⟨d2, k2⟩⟩ := b
     rw [canon.canon_expr_eq_fast.eq_def] at h
     simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-      expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
+      expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
     cases k2
     case Proj s2 i2 x2 =>
       rw [and_step

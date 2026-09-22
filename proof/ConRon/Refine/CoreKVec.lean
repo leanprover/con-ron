@@ -720,37 +720,37 @@ theorem pi_residual_from_refines (N : Nat) :
       cases he with
       | @bvar i2 e h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @fvar idx ty e hty h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @sort u e hu h1 =>
         obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @mk_const n us e hn hus h1 =>
         obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @app f a e hf ha h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @lam ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @forall_e ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
         obtain ⟨x, hidx, b, hinst, i2, hi2, hrec⟩ := h
         obtain ⟨hlt', hxwf, hdrop⟩ := ExprOps.vec_index_expr hargs hidx
         obtain ⟨hiabs, hiwf⟩ := ExprOps.instantiate1_refines hbo hxwf hinst
@@ -763,17 +763,17 @@ theorem pi_residual_from_refines (N : Nat) :
         simp [ConLeche.piResidual]
       | @let_e ty w bo e hty hw hbo h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @lit l e hl h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @proj s i2 x e hs hx h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
 
@@ -808,28 +808,28 @@ theorem subst_const0_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.bvar h1⟩
   | @fvar idx ty e hty h1 ihty =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.fvar hty h1⟩
   | @sort u e hu h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.sort hu h1⟩
   | @mk_const cn cus e hcn hcus h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     have hwfe : ExprWF (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus))) :=
       ExprWF.mk_const hcn hcus h1
     have habse : absExpr (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus)))
@@ -869,7 +869,7 @@ theorem subst_const0_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨e1, he1, e2, he2, happ⟩ := h
     obtain ⟨h1abs, h1wf⟩ := ihf e1 he1
     obtain ⟨h2abs, h2wf⟩ := iha e2 he2
@@ -880,35 +880,35 @@ theorem subst_const0_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.lam hty hbo hm h1⟩
   | @forall_e ty bo m e hty hbo hm h1 ih1 ih2 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.forall_e hty hbo hm h1⟩
   | @let_e ty w bo e hty hw hbo h1 ih1 ih2 ih3 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.let_e hty hw hbo h1⟩
   | @lit l e hl h1 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.lit hl h1⟩
   | @proj s idx x e hs hx h1 ihx =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConst0], ExprWF.proj hs hx h1⟩
 
@@ -925,28 +925,28 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConstAll], ExprWF.bvar h1⟩
   | @fvar idx ty e hty h1 ihty =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConstAll], ExprWF.fvar hty h1⟩
   | @sort u e hu h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConstAll], ExprWF.sort hu h1⟩
   | @mk_const cn cus e hcn hcus h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     have hwfe : ExprWF (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus))) :=
       ExprWF.mk_const hcn hcus h1
     have habse : absExpr (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus)))
@@ -986,7 +986,7 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨e1, he1, e2, he2, happ⟩ := h
     obtain ⟨h1abs, h1wf⟩ := ihf e1 he1
     obtain ⟨h2abs, h2wf⟩ := iha e2 he2
@@ -997,7 +997,7 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨e1, he1, e2, he2, bm, hbm, hlam⟩ := h
     obtain ⟨h1abs, h1wf⟩ := ih1 e1 he1
     obtain ⟨h2abs, h2wf⟩ := ih2 e2 he2
@@ -1010,7 +1010,7 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨e1, he1, e2, he2, bm, hbm, hfa⟩ := h
     obtain ⟨h1abs, h1wf⟩ := ih1 e1 he1
     obtain ⟨h2abs, h2wf⟩ := ih2 e2 he2
@@ -1023,7 +1023,7 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨e1, he1, e2, he2, e3, he3, hlet⟩ := h
     obtain ⟨h1abs, h1wf⟩ := ih1 e1 he1
     obtain ⟨h2abs, h2wf⟩ := ih2 e2 he2
@@ -1035,14 +1035,14 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.substConstAll], ExprWF.lit hl h1⟩
   | @proj s idx x e hs hx h1 ihx =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, name_dup_eq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, name_dup_eq,
       bind_eq_ok_iff] at h
     obtain ⟨e1, he1, hproj⟩ := h
     obtain ⟨h1abs, h1wf⟩ := ihx e1 he1

@@ -32,6 +32,12 @@ def alloc.alloc.Global.Insts.CoreAllocAllocatorClone :
   cloneCloneInst := core.core.clone.CloneGlobal
 }
 
+/-- [con_ron_core::ron::ptr::new]:
+    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 102:0-104:1
+    Visibility: public -/
+def ron.ptr.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := do
+  alloc.sync.Arc.new x
+
 /-- [con_ron_core::kernel::prop_when::has_params]:
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 592:0-598:1
     Visibility: public -/
@@ -111,13 +117,14 @@ def kernel.prop_when.hash_pw
   kernel.prop_when.hash_repr pw.repr
 
 /-- [con_ron_core::kernel::expr::data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 417:0-419:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 441:0-443:1
     Visibility: public -/
 def kernel.expr.data (e : kernel.expr.Expr) : Result Std.U64 := do
-  ron.node.data e
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+  ok en.data
 
 /-- [con_ron_core::kernel::expr::sat_pred]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 323:0-331:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 321:0-329:1
     Visibility: public -/
 def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
   if x = 32767#u64
@@ -127,40 +134,40 @@ def kernel.expr.sat_pred (x : Std.U64) : Result Std.U64 := do
        else x - 1#u64
 
 /-- [con_ron_core::kernel::expr::hash32]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 302:0-304:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 300:0-302:1
     Visibility: public -/
 def kernel.expr.hash32 (w : Std.U64) : Result Std.U64 := do
   w % 4294967296#u64
 
 /-- [con_ron_core::kernel::expr::lp_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 296:0-298:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 294:0-296:1
     Visibility: public -/
 def kernel.expr.lp_of_data (w : Std.U64) : Result Bool := do
   let i ← w % 2#u64
   ok (i = 1#u64)
 
 /-- [con_ron_core::kernel::expr::fvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 290:0-292:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 288:0-290:1
     Visibility: public -/
 def kernel.expr.fvar_of_data (w : Std.U64) : Result Std.U64 := do
   let i ← w / 2#u64
   i % 32768#u64
 
 /-- [con_ron_core::kernel::expr::bvar_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 284:0-286:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 282:0-284:1
     Visibility: public -/
 def kernel.expr.bvar_of_data (w : Std.U64) : Result Std.U64 := do
   let i ← w / 65536#u64
   i % 32768#u64
 
 /-- [con_ron_core::kernel::expr::hash_of_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 278:0-280:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 276:0-278:1
     Visibility: public -/
 def kernel.expr.hash_of_data (w : Std.U64) : Result Std.U64 := do
   w / 4294967296#u64
 
 /-- [con_ron_core::kernel::expr::pack_data]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 268:0-274:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 266:0-272:1
     Visibility: public -/
 def kernel.expr.pack_data
   (h : Std.U64) (b : Std.U64) (f : Std.U64) (lp : Bool) : Result Std.U64 := do
@@ -175,7 +182,7 @@ def kernel.expr.pack_data
   ok (core.num.U64.wrapping_add i1 t)
 
 /-- [con_ron_core::kernel::expr::max_u64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 255:0-261:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 253:0-259:1
     Visibility: public -/
 def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
   if a < b
@@ -183,7 +190,7 @@ def kernel.expr.max_u64 (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
   else ok a
 
 /-- [con_ron_core::kernel::expr::forall_e]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 522:0-539:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 546:0-563:1
     Visibility: public -/
 def kernel.expr.forall_e
   (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -217,7 +224,10 @@ def kernel.expr.forall_e
       then ok true
       else kernel.prop_when.has_params m.pw
   let d ← kernel.expr.pack_data h i9 i12 b1
-  ron.node.alloc_forall_e d ty body m
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.ForallE ty
+      body m))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::prop_when::of_repr]:
     Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 305:0-307:1 -/
@@ -232,7 +242,7 @@ def kernel.prop_when.never : Result kernel.prop_when.PropWhen := do
   kernel.prop_when.of_repr kernel.prop_when.PropWhenRepr.Never
 
 /-- [con_ron_core::kernel::expr::binder_meta]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 129:0-131:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 127:0-129:1
     Visibility: public -/
 def kernel.expr.binder_meta
   (pw : kernel.prop_when.PropWhen) : Result kernel.expr.BinderMeta := do
@@ -254,12 +264,6 @@ def kernel.basis_builder.pi
   := do
   let bm ← kernel.basis_builder.never_meta
   kernel.expr.forall_e ty body bm
-
-/-- [con_ron_core::ron::ptr::new]:
-    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 100:0-102:1
-    Visibility: public -/
-def ron.ptr.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := do
-  alloc.sync.Arc.new x
 
 /-- [con_ron_core::kernel::level::zero]:
     Source: 'crates/con-ron-core/src/kernel/level.rs', lines 58:0-60:1
@@ -304,7 +308,7 @@ def kernel.level.level_has_param (u : kernel.level.Level) : Result Bool := do
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::sort]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 455:0-459:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 479:0-483:1
     Visibility: public -/
 def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
   let i ← kernel.level.level_hash u
@@ -312,7 +316,9 @@ def kernel.expr.sort (u : kernel.level.Level) : Result kernel.expr.Expr := do
   let h ← kernel.expr.hash32 i1
   let b ← kernel.level.level_has_param u
   let d ← kernel.expr.pack_data h 0#u64 0#u64 b
-  ron.node.alloc_sort d u
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Sort u))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::basis_builder::prop]:
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 93:0-95:1
@@ -328,7 +334,7 @@ def kernel.name.nat_hash (n : Std.U64) : Result Std.U64 := do
   ok n
 
 /-- [con_ron_core::kernel::expr::sat_succ]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 311:0-317:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 309:0-315:1
     Visibility: public -/
 def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
   if n >= 32766#u64
@@ -336,7 +342,7 @@ def kernel.expr.sat_succ (n : Std.U64) : Result Std.U64 := do
   else n + 1#u64
 
 /-- [con_ron_core::kernel::expr::bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 430:0-434:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 454:0-458:1
     Visibility: public -/
 def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
   let i1 ← kernel.name.nat_hash i
@@ -344,7 +350,9 @@ def kernel.expr.bvar (i : Std.U64) : Result kernel.expr.Expr := do
   let h ← kernel.expr.hash32 i2
   let i3 ← kernel.expr.sat_succ i
   let d ← kernel.expr.pack_data h i3 0#u64 false
-  ron.node.alloc_bvar d i
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Bvar i))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::basis_builder::bv]:
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 81:0-83:1
@@ -514,7 +522,7 @@ def kernel.basis_names.eq_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::expr::app]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 479:0-493:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 503:0-517:1
     Visibility: public -/
 def kernel.expr.app
   (f : kernel.expr.Expr) (a : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -536,7 +544,9 @@ def kernel.expr.app
              then ok true
              else kernel.expr.lp_of_data da
   let d ← kernel.expr.pack_data h i6 i9 b1
-  ron.node.alloc_app d f a
+  let a1 ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.App f a))
+  ok (kernel.expr.Expr.mk a1)
 
 /-- [con_ron_core::kernel::basis_builder::ap2]:
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 138:0-140:1
@@ -613,7 +623,7 @@ def kernel.level.levels_have_param
   kernel.level.levels_have_param_from us 0#usize
 
 /-- [con_ron_core::kernel::expr::mk_const]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 466:0-473:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 490:0-497:1
     Visibility: public -/
 def kernel.expr.mk_const
   (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level) :
@@ -627,7 +637,9 @@ def kernel.expr.mk_const
   let b ← kernel.level.levels_have_param us
   let d ← kernel.expr.pack_data h 0#u64 0#u64 b
   let a ← ron.ptr.new us
-  ron.node.alloc_const d n a
+  let a1 ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Const n a))
+  ok (kernel.expr.Expr.mk a1)
 
 /-- [con_ron_core::kernel::basis_builder::cnst]:
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 106:0-108:1
@@ -797,7 +809,7 @@ def kernel.basis_names.quot_ind_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::expr::lam]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 500:0-517:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 524:0-541:1
     Visibility: public -/
 def kernel.expr.lam
   (ty : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -831,7 +843,10 @@ def kernel.expr.lam
       then ok true
       else kernel.prop_when.has_params m.pw
   let d ← kernel.expr.pack_data h i9 i12 b1
-  ron.node.alloc_lam d ty body m
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Lam ty body
+      m))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::basis_builder::lm]:
     Source: 'crates/con-ron-core/src/kernel/basis_builder.rs', lines 132:0-134:1
@@ -1148,7 +1163,7 @@ def kernel.prop_when.name_cmp
 partial_fixpoint
 
 /-- [con_ron_core::ron::ptr::clone]:
-    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 106:0-108:1
+    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 108:0-110:1
     Visibility: public -/
 def ron.ptr.clone
   {T : Type} (p : alloc.sync.Arc T) : Result (alloc.sync.Arc T) := do
@@ -2072,7 +2087,7 @@ def kernel.env.reducibility_hint_dup
   | kernel.env.ReducibilityHint.Regular _ => ok h
 
 /-- [con_ron_core::kernel::expr::str_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 232:0-240:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 230:0-238:1
     Visibility: public -/
 def kernel.expr.str_copy_from
   (s : alloc.vec.Vec Std.U32) (i : Std.Usize) (out : alloc.vec.Vec Std.U32) :
@@ -2090,7 +2105,7 @@ def kernel.expr.str_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::str_copy]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 225:0-227:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 223:0-225:1
     Visibility: public -/
 def kernel.expr.str_copy
   (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
@@ -4296,7 +4311,7 @@ def ron.hashmap.HashMap.new
     }
 
 /-- [con_ron_core::ron::ptr::ptr_eq]:
-    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 114:0-116:1
+    Source: 'crates/con-ron-core/src/ron/ptr.rs', lines 116:0-118:1
     Visibility: public -/
 def ron.ptr.ptr_eq
   {T : Type} (a : alloc.sync.Arc T) (b : alloc.sync.Arc T) : Result Bool := do
@@ -4421,7 +4436,7 @@ def kernel.level.beq
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::proj_head_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1087:0-1093:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1082:0-1088:1
     Visibility: public -/
 def kernel.expr.proj_head_beq
   (s1 : kernel.name.Name) (i1 : Std.U64) (s2 : kernel.name.Name) (i2 : Std.U64)
@@ -4434,7 +4449,7 @@ def kernel.expr.proj_head_beq
   else ok false
 
 /-- [con_ron_core::kernel::expr::levels_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 815:0-823:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 810:0-818:1
     Visibility: public -/
 def kernel.expr.levels_beq_from
   (ls : alloc.vec.Vec kernel.level.Level)
@@ -4459,7 +4474,7 @@ def kernel.expr.levels_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::levels_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 805:0-811:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 800:0-806:1
     Visibility: public -/
 def kernel.expr.levels_beq
   (ls : alloc.vec.Vec kernel.level.Level)
@@ -4473,7 +4488,7 @@ def kernel.expr.levels_beq
   else kernel.expr.levels_beq_from ls rs 0#usize
 
 /-- [con_ron_core::kernel::expr::const_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1076:0-1082:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1071:0-1077:1
     Visibility: public -/
 def kernel.expr.const_beq
   (n : kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -4727,13 +4742,14 @@ def U64.Insts.Con_ron_coreRonHashmapHashable : ron.hashmap.Hashable Std.U64
 }
 
 /-- [con_ron_core::kernel::expr::dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 423:0-425:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 447:0-449:1
     Visibility: public -/
 def kernel.expr.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
-  ron.node.dup e
+  let a ← ron.ptr.clone e._0
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::beq_extend]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 994:0-1000:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 989:0-995:1
     Visibility: public -/
 def kernel.expr.beq_extend
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -4752,7 +4768,7 @@ def kernel.expr.beq_extend
   ok m1
 
 /-- [con_ron_core::kernel::expr::beq_record]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 977:0-986:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 972:0-981:1
     Visibility: public -/
 def kernel.expr.beq_record
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -4774,7 +4790,7 @@ def kernel.expr.beq_record
   | some v => kernel.expr.beq_extend m1 key v a b
 
 /-- [con_ron_core::kernel::expr::beq_finish]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 942:0-959:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 937:0-954:1
     Visibility: public -/
 def kernel.expr.beq_finish
   (r : Bool)
@@ -4832,14 +4848,14 @@ def ron.hashmap.HashMap.get
     ron.hashmap.list_get Eq2Inst a key
 
 /-- [con_ron_core::kernel::expr::ptr_eq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 686:0-688:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 681:0-683:1
     Visibility: public -/
 def kernel.expr.ptr_eq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
-  ron.node.ptr_eq a b
+  ron.ptr.ptr_eq a._0 b._0
 
 /-- [con_ron_core::kernel::expr::pair_is]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 795:0-801:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 790:0-796:1
     Visibility: public -/
 def kernel.expr.pair_is
   (p : (kernel.expr.Expr × kernel.expr.Expr)) (a : kernel.expr.Expr)
@@ -4853,7 +4869,7 @@ def kernel.expr.pair_is
   else ok false
 
 /-- [con_ron_core::kernel::expr::probe_hit_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 779:0-787:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 774:0-782:1
     Visibility: public -/
 def kernel.expr.probe_hit_from
   (ps : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.Expr)) (i : Std.Usize)
@@ -4875,7 +4891,7 @@ def kernel.expr.probe_hit_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::probe_hit]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 764:0-769:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 759:0-764:1
     Visibility: public -/
 def kernel.expr.probe_hit
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -4891,54 +4907,52 @@ def kernel.expr.probe_hit
   | some ps => kernel.expr.probe_hit_from ps 0#usize a b
 
 /-- [con_ron_core::kernel::expr::beq_key]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 750:0-752:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 745:0-747:1
     Visibility: public -/
 def kernel.expr.beq_key (ha : Std.U64) (hb : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_mul hb 11400714819323198485#u64)
   ok (ha ^^^ i)
 
 /-- [con_ron_core::kernel::expr::view]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 411:0-413:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 424:0-437:1
     Visibility: public -/
-def kernel.expr.view (e : kernel.expr.Expr) : Result ron.node.ExprView := do
-  ron.node.view e
+def kernel.expr.view (e : kernel.expr.Expr) : Result kernel.expr.ExprView := do
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar i => ok (kernel.expr.ExprView.Bvar i)
+  | kernel.expr.ExprKind.Fvar idx ty => ok (kernel.expr.ExprView.Fvar idx ty)
+  | kernel.expr.ExprKind.Sort u => ok (kernel.expr.ExprView.Sort u)
+  | kernel.expr.ExprKind.Const n us => ok (kernel.expr.ExprView.Const n us)
+  | kernel.expr.ExprKind.App f a => ok (kernel.expr.ExprView.App f a)
+  | kernel.expr.ExprKind.Lam ty body m =>
+    ok (kernel.expr.ExprView.Lam ty body m)
+  | kernel.expr.ExprKind.ForallE ty body m =>
+    ok (kernel.expr.ExprView.ForallE ty body m)
+  | kernel.expr.ExprKind.LetE ty value body =>
+    ok (kernel.expr.ExprView.LetE ty value body)
+  | kernel.expr.ExprKind.Lit l => ok (kernel.expr.ExprView.Lit l)
+  | kernel.expr.ExprKind.Proj n idx sub =>
+    ok (kernel.expr.ExprView.Proj n idx sub)
 
 /-- [con_ron_core::kernel::expr::beq_recursive]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 638:0-648:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 665:0-675:1
     Visibility: public -/
 def kernel.expr.beq_recursive (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok true
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok true
-  | ron.node.ExprView.Lam _ _ _ => ok true
-  | ron.node.ExprView.ForallE _ _ _ => ok true
-  | ron.node.ExprView.LetE _ _ _ => ok true
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok true
-
-/-- [con_ron_core::kernel::expr::beq_memoise]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 670:0-680:1
-    Visibility: public -/
-def kernel.expr.beq_memoise
-  (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
-  let b1 ← kernel.expr.beq_recursive a
-  if b1
-  then
-    let b2 ← ron.node.is_exclusive a
-    if b2
-    then ok false
-    else let b3 ← ron.node.is_exclusive b
-         if b3
-         then ok false
-         else ok true
-  else ok false
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok true
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok true
+  | kernel.expr.ExprView.Lam _ _ _ => ok true
+  | kernel.expr.ExprView.ForallE _ _ _ => ok true
+  | kernel.expr.ExprView.LetE _ _ _ => ok true
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok true
 
 /-- [con_ron_core::kernel::expr::hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 601:0-603:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 628:0-630:1
     Visibility: public -/
 def kernel.expr.hash (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
@@ -4996,7 +5010,7 @@ def ron.nat.beq (a : ron.nat.Nat) (b : ron.nat.Nat) : Result Bool := do
   | ron.nat.Cmp.Gt => ok false
 
 /-- [con_ron_core::kernel::expr::literal_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 190:0-196:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 188:0-194:1
     Visibility: public -/
 def kernel.expr.literal_beq
   (a : kernel.expr.Literal) (b : kernel.expr.Literal) : Result Bool := do
@@ -5143,7 +5157,7 @@ def kernel.prop_when.beq
   kernel.prop_when.equiv_r a.repr b.repr
 
 /-- [con_ron_core::kernel::expr::binder_meta_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 136:0-138:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 134:0-136:1
     Visibility: public -/
 def kernel.expr.binder_meta_beq
   (a : kernel.expr.BinderMeta) (b : kernel.expr.BinderMeta) : Result Bool := do
@@ -5152,7 +5166,7 @@ def kernel.expr.binder_meta_beq
 mutual
 
 /-- [con_ron_core::kernel::expr::beq_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 880:0-895:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 875:0-890:1
     Visibility: public -/
 def kernel.expr.beq_go
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -5169,7 +5183,7 @@ def kernel.expr.beq_go
     if i != i1
     then ok (false, m)
     else
-      let rec ← kernel.expr.beq_memoise a b
+      let rec ← kernel.expr.beq_recursive a
       let i2 ← kernel.expr.hash a
       let i3 ← kernel.expr.hash b
       let key ← kernel.expr.beq_key i2 i3
@@ -5187,7 +5201,7 @@ def kernel.expr.beq_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_arm]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 907:0-929:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 902:0-924:1
     Visibility: public -/
 def kernel.expr.beq_arm
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -5198,148 +5212,148 @@ def kernel.expr.beq_arm
   let ev ← kernel.expr.view a
   let ev1 ← kernel.expr.view b
   match ev with
-  | ron.node.ExprView.Bvar i =>
+  | kernel.expr.ExprView.Bvar i =>
     match ev1 with
-    | ron.node.ExprView.Bvar j =>
+    | kernel.expr.ExprView.Bvar j =>
       let b1 ← lift (core.cmp.impls.PartialEqU64.eq i j)
       ok (b1, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.Fvar i t =>
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.Fvar i t =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar j u =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar j u =>
       let b1 ← lift (core.cmp.impls.PartialEqU64.eq i j)
       kernel.expr.beq_when m b1 t u
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.Sort u =>
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.Sort u =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort v => let b1 ← kernel.level.beq u v
-                                  ok (b1, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.Const n us =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort v => let b1 ← kernel.level.beq u v
+                                     ok (b1, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.Const n us =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const n2 vs =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const n2 vs =>
       let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global vs
       let b1 ← kernel.expr.const_beq n v n2 v1
       ok (b1, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.App f x =>
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.App f x =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App g y => kernel.expr.beq_both m f g x y
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.Lam t1 b1 m1 =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App g y => kernel.expr.beq_both m f g x y
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.Lam t1 b1 m1 =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam t2 b2 m2 =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam t2 b2 m2 =>
       let b3 ← kernel.expr.binder_meta_beq m1 m2
       kernel.expr.beq_both_when m b3 t1 t2 b1 b2
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.ForallE t1 b1 m1 =>
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.ForallE t1 b1 m1 =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE t2 b2 m2 =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE t2 b2 m2 =>
       let b3 ← kernel.expr.binder_meta_beq m1 m2
       kernel.expr.beq_both_when m b3 t1 t2 b1 b2
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.LetE t1 v1 b1 =>
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.LetE t1 v1 b1 =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE t2 v2 b2 =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE t2 v2 b2 =>
       kernel.expr.beq_three m t1 t2 v1 v2 b1 b2
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.Lit l1 =>
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.Lit l1 =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit l2 =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit l2 =>
       let b1 ← kernel.expr.literal_beq l1 l2
       ok (b1, m)
-    | ron.node.ExprView.Proj _ _ _ => ok (false, m)
-  | ron.node.ExprView.Proj s1 i1 e1 =>
+    | kernel.expr.ExprView.Proj _ _ _ => ok (false, m)
+  | kernel.expr.ExprView.Proj s1 i1 e1 =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok (false, m)
-    | ron.node.ExprView.Fvar _ _ => ok (false, m)
-    | ron.node.ExprView.Sort _ => ok (false, m)
-    | ron.node.ExprView.Const _ _ => ok (false, m)
-    | ron.node.ExprView.App _ _ => ok (false, m)
-    | ron.node.ExprView.Lam _ _ _ => ok (false, m)
-    | ron.node.ExprView.ForallE _ _ _ => ok (false, m)
-    | ron.node.ExprView.LetE _ _ _ => ok (false, m)
-    | ron.node.ExprView.Lit _ => ok (false, m)
-    | ron.node.ExprView.Proj s2 i2 e2 =>
+    | kernel.expr.ExprView.Bvar _ => ok (false, m)
+    | kernel.expr.ExprView.Fvar _ _ => ok (false, m)
+    | kernel.expr.ExprView.Sort _ => ok (false, m)
+    | kernel.expr.ExprView.Const _ _ => ok (false, m)
+    | kernel.expr.ExprView.App _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lam _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.ForallE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.LetE _ _ _ => ok (false, m)
+    | kernel.expr.ExprView.Lit _ => ok (false, m)
+    | kernel.expr.ExprView.Proj s2 i2 e2 =>
       let b1 ← kernel.expr.proj_head_beq s1 i1 s2 i2
       kernel.expr.beq_when m b1 e1 e2
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_when]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1016:0-1022:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1011:0-1017:1
     Visibility: public -/
 def kernel.expr.beq_when
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -5354,7 +5368,7 @@ def kernel.expr.beq_when
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_both]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1027:0-1034:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1022:0-1029:1
     Visibility: public -/
 def kernel.expr.beq_both
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -5370,7 +5384,7 @@ def kernel.expr.beq_both
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_both_when]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1039:0-1052:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1034:0-1047:1
     Visibility: public -/
 def kernel.expr.beq_both_when
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -5385,7 +5399,7 @@ def kernel.expr.beq_both_when
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_three]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1056:0-1071:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1051:0-1066:1
     Visibility: public -/
 def kernel.expr.beq_three
   (m : ron.hashmap.HashMap Std.U64 (alloc.vec.Vec (kernel.expr.Expr ×
@@ -5404,7 +5418,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::kernel::expr::beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1108:0-1118:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1103:0-1113:1
     Visibility: public -/
 def kernel.expr.beq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
@@ -5424,14 +5438,14 @@ def kernel.expr.beq
       ok r
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}::eq2]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1210:4-1212:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1205:4-1207:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2
   (self : kernel.expr.Expr) (other : kernel.expr.Expr) : Result Bool := do
   kernel.expr.beq self other
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Eq2 for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1207:0-1213:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1202:0-1208:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
   kernel.expr.Expr := {
@@ -5439,14 +5453,14 @@ def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 : ron.hashmap.Eq2
 }
 
 /-- [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}::hash64]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1197:4-1199:5
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1192:4-1194:5
     Visibility: public -/
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable.hash64
   (self : kernel.expr.Expr) : Result Std.U64 := do
   kernel.expr.hash self
 
 /-- Trait implementation: [con_ron_core::kernel::expr::{impl con_ron_core::ron::hashmap::Hashable for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1194:0-1200:1 -/
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1189:0-1195:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable :
   ron.hashmap.Hashable kernel.expr.Expr := {
@@ -5454,7 +5468,7 @@ def kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::kernel::expr::literal_dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 213:0-218:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 211:0-216:1
     Visibility: public -/
 def kernel.expr.literal_dup
   (l : kernel.expr.Literal) : Result kernel.expr.Literal := do
@@ -5487,7 +5501,7 @@ def kernel.prop_when.dup
     kernel.prop_when.of_repr (kernel.prop_when.PropWhenRepr.Many a)
 
 /-- [con_ron_core::kernel::expr::binder_meta_dup]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 154:0-156:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 152:0-154:1
     Visibility: public -/
 def kernel.expr.binder_meta_dup
   (m : kernel.expr.BinderMeta) : Result kernel.expr.BinderMeta := do
@@ -6319,7 +6333,7 @@ def ron.nat.hash64 (a : ron.nat.Nat) : Result Std.U64 := do
   ron.nat.hash64_from a.limbs 0#usize 14695981039346656037#u64
 
 /-- [con_ron_core::kernel::expr::literal_hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 204:0-209:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 202:0-207:1
     Visibility: public -/
 def kernel.expr.literal_hash (l : kernel.expr.Literal) : Result Std.U64 := do
   match l with
@@ -9434,11 +9448,11 @@ def arena.intern.intern_expr_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar i =>
+  | kernel.expr.ExprView.Bvar i =>
     let (r, st1) ←
       arena.monad.intern_e pers st (arena.store.ENodeView.BVar i)
     ok (r, st1, m)
-  | ron.node.ExprView.Fvar _ _ =>
+  | kernel.expr.ExprView.Fvar _ _ =>
     let o ← arena.intern.memo_get m e
     match o with
     | none =>
@@ -9454,7 +9468,7 @@ def arena.intern.intern_expr_go
         ok (r, st1, m2)
       | core.result.Result.Err _ => ok (r, st1, m1)
     | some h => ok (core.result.Result.Ok h, st, m)
-  | ron.node.ExprView.Sort u =>
+  | kernel.expr.ExprView.Sort u =>
     let (r, st1) ← arena.monad.intern_level pers st u
     match r with
     | core.result.Result.Ok hu =>
@@ -9462,7 +9476,7 @@ def arena.intern.intern_expr_go
         arena.monad.intern_e pers st1 (arena.store.ENodeView.Sort hu)
       ok (r1, st2, m)
     | core.result.Result.Err err => ok (core.result.Result.Err err, st1, m)
-  | ron.node.ExprView.Const n us =>
+  | kernel.expr.ExprView.Const n us =>
     let (r, st1) ← arena.monad.intern_name pers st n
     match r with
     | core.result.Result.Ok hn =>
@@ -9475,7 +9489,7 @@ def arena.intern.intern_expr_go
         ok (r2, st3, m)
       | core.result.Result.Err err => ok (core.result.Result.Err err, st2, m)
     | core.result.Result.Err err => ok (core.result.Result.Err err, st1, m)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.App _ _ =>
     let o ← arena.intern.memo_get m e
     match o with
     | none =>
@@ -9491,7 +9505,7 @@ def arena.intern.intern_expr_go
         ok (r, st1, m2)
       | core.result.Result.Err _ => ok (r, st1, m1)
     | some h => ok (core.result.Result.Ok h, st, m)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let o ← arena.intern.memo_get m e
     match o with
     | none =>
@@ -9507,7 +9521,7 @@ def arena.intern.intern_expr_go
         ok (r, st1, m2)
       | core.result.Result.Err _ => ok (r, st1, m1)
     | some h => ok (core.result.Result.Ok h, st, m)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let o ← arena.intern.memo_get m e
     match o with
     | none =>
@@ -9523,7 +9537,7 @@ def arena.intern.intern_expr_go
         ok (r, st1, m2)
       | core.result.Result.Err _ => ok (r, st1, m1)
     | some h => ok (core.result.Result.Ok h, st, m)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let o ← arena.intern.memo_get m e
     match o with
     | none =>
@@ -9539,12 +9553,12 @@ def arena.intern.intern_expr_go
         ok (r, st1, m2)
       | core.result.Result.Err _ => ok (r, st1, m1)
     | some h => ok (core.result.Result.Ok h, st, m)
-  | ron.node.ExprView.Lit l =>
+  | kernel.expr.ExprView.Lit l =>
     let l1 ← kernel.expr.literal_dup l
     let (r, st1) ←
       arena.monad.intern_e pers st (arena.store.ENodeView.Lit l1)
     ok (r, st1, m)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let o ← arena.intern.memo_get m e
     match o with
     | none =>
@@ -9575,8 +9589,8 @@ def arena.intern.intern_expr_node
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => arena.intern.intern_expr_go pers st m e
-  | ron.node.ExprView.Fvar i ty =>
+  | kernel.expr.ExprView.Bvar _ => arena.intern.intern_expr_go pers st m e
+  | kernel.expr.ExprView.Fvar i ty =>
     let (r, st1, m1) ← arena.intern.intern_expr_go pers st m ty
     match r with
     | core.result.Result.Ok t =>
@@ -9584,9 +9598,9 @@ def arena.intern.intern_expr_node
         arena.monad.intern_e pers st1 (arena.store.ENodeView.FVar i t)
       ok (r1, st2, m1)
     | core.result.Result.Err _ => ok (r, st1, m1)
-  | ron.node.ExprView.Sort _ => arena.intern.intern_expr_go pers st m e
-  | ron.node.ExprView.Const _ _ => arena.intern.intern_expr_go pers st m e
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Sort _ => arena.intern.intern_expr_go pers st m e
+  | kernel.expr.ExprView.Const _ _ => arena.intern.intern_expr_go pers st m e
+  | kernel.expr.ExprView.App f a =>
     let (r, st1, m1) ← arena.intern.intern_expr_go pers st m f
     match r with
     | core.result.Result.Ok hf =>
@@ -9598,7 +9612,7 @@ def arena.intern.intern_expr_node
         ok (r2, st3, m2)
       | core.result.Result.Err _ => ok (r1, st2, m2)
     | core.result.Result.Err _ => ok (r, st1, m1)
-  | ron.node.ExprView.Lam ty b bi =>
+  | kernel.expr.ExprView.Lam ty b bi =>
     let (r, st1, m1) ← arena.intern.intern_expr_go pers st m ty
     match r with
     | core.result.Result.Ok ht =>
@@ -9611,7 +9625,7 @@ def arena.intern.intern_expr_node
         ok (r2, st3, m2)
       | core.result.Result.Err _ => ok (r1, st2, m2)
     | core.result.Result.Err _ => ok (r, st1, m1)
-  | ron.node.ExprView.ForallE ty b bi =>
+  | kernel.expr.ExprView.ForallE ty b bi =>
     let (r, st1, m1) ← arena.intern.intern_expr_go pers st m ty
     match r with
     | core.result.Result.Ok ht =>
@@ -9625,7 +9639,7 @@ def arena.intern.intern_expr_node
         ok (r2, st3, m2)
       | core.result.Result.Err _ => ok (r1, st2, m2)
     | core.result.Result.Err _ => ok (r, st1, m1)
-  | ron.node.ExprView.LetE ty v b =>
+  | kernel.expr.ExprView.LetE ty v b =>
     let (r, st1, m1) ← arena.intern.intern_expr_go pers st m ty
     match r with
     | core.result.Result.Ok ht =>
@@ -9641,8 +9655,8 @@ def arena.intern.intern_expr_node
         | core.result.Result.Err _ => ok (r2, st3, m3)
       | core.result.Result.Err _ => ok (r1, st2, m2)
     | core.result.Result.Err _ => ok (r, st1, m1)
-  | ron.node.ExprView.Lit _ => arena.intern.intern_expr_go pers st m e
-  | ron.node.ExprView.Proj n i sub =>
+  | kernel.expr.ExprView.Lit _ => arena.intern.intern_expr_go pers st m e
+  | kernel.expr.ExprView.Proj n i sub =>
     let (r, st1) ← arena.monad.intern_name pers st n
     match r with
     | core.result.Result.Ok hn =>
@@ -10102,7 +10116,7 @@ def kernel.level.dup (u : kernel.level.Level) : Result kernel.level.Level := do
   ok (kernel.level.Level.mk a)
 
 /-- [con_ron_core::kernel::expr::mk_bvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1152:0-1154:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1147:0-1149:1
     Visibility: public -/
 def kernel.expr.mk_bvar (i : Std.U64) : Result kernel.expr.Expr := do
   kernel.expr.bvar i
@@ -16022,7 +16036,7 @@ def arena.expr_ops.cons_binder
   arena.expr_ops.binder_copy_from xs 0#usize out
 
 /-- [con_ron_core::arena::expr_ops::strip_pis]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2944:0-2966:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2946:0-2968:1
     Visibility: public -/
 def arena.expr_ops.strip_pis
   (pers : arena.store.PersTier) (st : arena.monad.AState) (k : Std.U64)
@@ -16797,7 +16811,7 @@ def arena.monad.view_fvar_ty
   arena.store.EStore.view_fvar_ty st.store pers h
 
 /-- [con_ron_core::arena::expr_ops::fvar_type_d]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3262:0-3271:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3264:0-3273:1
     Visibility: public -/
 def arena.expr_ops.fvar_type_d
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -17228,7 +17242,7 @@ def kernel.level.zeroness_of
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::literal_nat]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 178:0-180:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 176:0-178:1
     Visibility: public -/
 def kernel.expr.literal_nat
   (n : ron.nat.Nat) : Result kernel.expr.Literal := do
@@ -18030,7 +18044,7 @@ def arena.expr_ops.M_FUEL_APP_FN : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::get_app_fn]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2627:0-2638:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2629:0-2640:1
     Visibility: public -/
 def arena.expr_ops.get_app_fn
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19027,7 +19041,7 @@ def arena.monad.eidx_nat_key
   ok { h := e, d }
 
 /-- [con_ron_core::kernel::expr::sat_range]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 249:0-251:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 247:0-249:1
     Visibility: public -/
 def kernel.expr.sat_range : Result Std.U64 := do
   ok 32767#u64
@@ -19106,7 +19120,7 @@ def arena.expr_ops.M_FUEL_FVAR_RANGE : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::fvar_range_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3599:0-3665:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3601:0-3667:1
     Visibility: public -/
 def arena.expr_ops.fvar_range_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19226,7 +19240,7 @@ def arena.expr_ops.fvar_range_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::fvar_range_memo]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3670:0-3684:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3672:0-3686:1
     Visibility: public -/
 def arena.expr_ops.fvar_range_memo
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19243,7 +19257,7 @@ def arena.expr_ops.fvar_range_memo
   | core.result.Result.Err _ => ok (r, st2)
 
 /-- [con_ron_core::arena::expr_ops::fvar_b]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3704:0-3712:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3706:0-3714:1
     Visibility: public -/
 def arena.expr_ops.fvar_b
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19366,7 +19380,7 @@ def arena.expr_ops.M_FUEL_ABS_RANGE : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::abstract_range_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3981:0-4163:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3983:0-4165:1
     Visibility: public -/
 def arena.expr_ops.abstract_range_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (d : Std.U64)
@@ -19599,7 +19613,7 @@ def arena.expr_ops.abstract_range_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::abstract_range_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4172:0-4193:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4174:0-4195:1
     Visibility: public -/
 def arena.expr_ops.abstract_range_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19621,7 +19635,7 @@ def arena.expr_ops.abstract_range_fast
     | core.result.Result.Err _ => ok (r, st2)
 
 /-- [con_ron_core::arena::expr_ops::has_fvar_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3717:0-3727:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3719:0-3729:1
     Visibility: public -/
 def arena.expr_ops.has_fvar_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19645,7 +19659,7 @@ def arena.expr_ops.M_FUEL_PI_RESULT : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::pi_result]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2971:0-2984:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2973:0-2986:1
     Visibility: public -/
 def arena.expr_ops.pi_result
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19675,7 +19689,7 @@ def arena.expr_ops.pi_result
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::mk_app_n_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2706:0-2721:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2708:0-2723:1
     Visibility: public -/
 def arena.expr_ops.mk_app_n_from
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -19704,7 +19718,7 @@ def arena.expr_ops.mk_app_n_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::mk_app_n]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2694:0-2701:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2696:0-2703:1
     Visibility: public -/
 def arena.expr_ops.mk_app_n
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -19726,7 +19740,7 @@ def arena.expr_ops.M_FUEL_APP_ARGS : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::get_app_args_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2660:0-2688:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2662:0-2690:1
     Visibility: public -/
 def arena.expr_ops.get_app_args_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19763,7 +19777,7 @@ def arena.expr_ops.get_app_args_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::get_app_args]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2644:0-2651:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2646:0-2653:1
     Visibility: public -/
 def arena.expr_ops.get_app_args
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -19774,7 +19788,7 @@ def arena.expr_ops.get_app_args
   arena.expr_ops.get_app_args_go pers st fuel h 0#usize
 
 /-- [con_ron_core::arena::expr_ops::lam_pw]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2527:0-2536:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2529:0-2538:1
     Visibility: public -/
 def arena.expr_ops.lam_pw
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21488,7 +21502,7 @@ def arena.monad.inst_lp_ls_get
     ok (some li)
 
 /-- [con_ron_core::arena::expr_ops::subst_level_list_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4668:0-4682:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4670:0-4684:1
     Visibility: public -/
 def arena.expr_ops.subst_level_list_from
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -21510,7 +21524,7 @@ def arena.expr_ops.subst_level_list_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::subst_level_list]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4661:0-4663:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4663:0-4665:1
     Visibility: public -/
 def arena.expr_ops.subst_level_list
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -21521,7 +21535,7 @@ def arena.expr_ops.subst_level_list
     kernel.level.Level)
 
 /-- [con_ron_core::arena::expr_ops::subst_ls_memo_at]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4727:0-4750:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4729:0-4752:1
     Visibility: public -/
 def arena.expr_ops.subst_ls_memo_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21580,7 +21594,7 @@ def arena.monad.inst_lp_l_get
     ok (some l)
 
 /-- [con_ron_core::arena::expr_ops::subst_l_memo_at]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4696:0-4719:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4698:0-4721:1
     Visibility: public -/
 def arena.expr_ops.subst_l_memo_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21711,7 +21725,7 @@ def arena.expr_ops.M_FUEL_INST_LP : Array Std.U32 38#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::inst_lp_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4759:0-4933:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4761:0-4935:1
     Visibility: public -/
 def arena.expr_ops.inst_lp_go
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21958,7 +21972,7 @@ def arena.expr_ops.inst_lp_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_lp_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4939:0-4975:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4941:0-4977:1
     Visibility: public -/
 def arena.expr_ops.inst_lp_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -23552,7 +23566,7 @@ def arena.expr_ops.M_FUEL_ABS1 : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::abstract1_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3757:0-3926:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3759:0-3928:1
     Visibility: public -/
 def arena.expr_ops.abstract1_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (d : Std.U64)
@@ -23770,7 +23784,7 @@ def arena.expr_ops.abstract1_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::abstract1_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3931:0-3947:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3933:0-3949:1
     Visibility: public -/
 def arena.expr_ops.abstract1_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24240,7 +24254,7 @@ def arena.core.rec_fire_comparands_plain
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::expr_ops::inst_spine_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3291:0-3309:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3293:0-3311:1
     Visibility: public -/
 def arena.expr_ops.inst_spine_from
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24269,7 +24283,7 @@ def arena.expr_ops.inst_spine_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_spine]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3276:0-3285:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3278:0-3287:1
     Visibility: public -/
 def arena.expr_ops.inst_spine
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24457,7 +24471,7 @@ def arena.expr_ops.M_FUEL_BVAR_BOUND : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::bvar_bound_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3505:0-3573:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3507:0-3575:1
     Visibility: public -/
 def arena.expr_ops.bvar_bound_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24580,7 +24594,7 @@ def arena.expr_ops.bvar_bound_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::bvar_bound_memo]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3578:0-3592:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3580:0-3594:1
     Visibility: public -/
 def arena.expr_ops.bvar_bound_memo
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24597,7 +24611,7 @@ def arena.expr_ops.bvar_bound_memo
   | core.result.Result.Err _ => ok (r, st2)
 
 /-- [con_ron_core::arena::expr_ops::bvar_b]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3690:0-3698:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3692:0-3700:1
     Visibility: public -/
 def arena.expr_ops.bvar_b
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24613,7 +24627,7 @@ def arena.expr_ops.bvar_b
   else ok (core.result.Result.Ok r, st)
 
 /-- [con_ron_core::arena::expr_ops::loose_bvars_bounded_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3732:0-3743:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3734:0-3745:1
     Visibility: public -/
 def arena.expr_ops.loose_bvars_bounded_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24627,7 +24641,7 @@ def arena.expr_ops.loose_bvars_bounded_fast
   | core.result.Result.Err er => ok (core.result.Result.Err er, st1)
 
 /-- [con_ron_core::arena::expr_ops::leaves_sub_set]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2303:0-2307:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2305:0-2309:1
     Visibility: public -/
 def arena.expr_ops.leaves_sub_set
   (memo : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (h : arena.handle.EIdx)
@@ -24642,7 +24656,7 @@ def arena.expr_ops.leaves_sub_set
   ok memo1
 
 /-- [con_ron_core::arena::expr_ops::leaves_sub_get]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2293:0-2298:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2295:0-2300:1
     Visibility: public -/
 def arena.expr_ops.leaves_sub_get
   (memo : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (h : arena.handle.EIdx)
@@ -24658,7 +24672,7 @@ def arena.expr_ops.leaves_sub_get
   | some _ => ok o
 
 /-- [con_ron_core::arena::expr_ops::leaf_mem_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2280:0-2288:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2282:0-2290:1
     Visibility: public -/
 def arena.expr_ops.leaf_mem_from
   (bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (idx : Std.U64)
@@ -24684,7 +24698,7 @@ def arena.expr_ops.leaf_mem_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::leaf_mem]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2273:0-2275:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2275:0-2277:1
     Visibility: public -/
 def arena.expr_ops.leaf_mem
   (bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (idx : Std.U64)
@@ -24707,7 +24721,7 @@ def arena.expr_ops.M_FUEL_LEAVES_SUB_GO : Array Std.U32 27#usize :=
 mutual
 
 /-- [con_ron_core::arena::expr_ops::leaves_sub_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2314:0-2338:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2316:0-2340:1
     Visibility: public -/
 def arena.expr_ops.leaves_sub_go
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -24748,7 +24762,7 @@ def arena.expr_ops.leaves_sub_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::leaves_sub_node]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2343:0-2373:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2345:0-2375:1
     Visibility: public -/
 def arena.expr_ops.leaves_sub_node
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -24788,7 +24802,7 @@ def arena.expr_ops.leaves_sub_node
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::leaves_sub_two]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2378:0-2392:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2380:0-2394:1
     Visibility: public -/
 def arena.expr_ops.leaves_sub_two
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -24811,7 +24825,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::expr_ops::fvl_record]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2164:0-2168:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2166:0-2170:1
     Visibility: public -/
 def arena.expr_ops.fvl_record
   (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (h : arena.handle.EIdx)
@@ -24826,7 +24840,7 @@ def arena.expr_ops.fvl_record
   ok seen1
 
 /-- [con_ron_core::arena::expr_ops::fvl_seen]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2154:0-2159:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2156:0-2161:1
     Visibility: public -/
 def arena.expr_ops.fvl_seen
   (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (h : arena.handle.EIdx)
@@ -24855,7 +24869,7 @@ def arena.expr_ops.M_FUEL_FVAR_LEAVES_GO : Array Std.U32 28#usize :=
 mutual
 
 /-- [con_ron_core::arena::expr_ops::fvar_leaves_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2180:0-2200:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2182:0-2202:1
     Visibility: public -/
 def arena.expr_ops.fvar_leaves_go
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -24893,7 +24907,7 @@ def arena.expr_ops.fvar_leaves_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::fvar_leaves_node]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2205:0-2232:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2207:0-2234:1
     Visibility: public -/
 def arena.expr_ops.fvar_leaves_node
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -24931,7 +24945,7 @@ def arena.expr_ops.fvar_leaves_node
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::fvar_leaves_two]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2237:0-2250:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2239:0-2252:1
     Visibility: public -/
 def arena.expr_ops.fvar_leaves_two
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -24953,7 +24967,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::expr_ops::fvar_leaves_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2255:0-2266:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2257:0-2268:1
     Visibility: public -/
 def arena.expr_ops.fvar_leaves_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24971,7 +24985,7 @@ def arena.expr_ops.fvar_leaves_fast
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::arena::expr_ops::leaf_guard]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2402:0-2423:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2404:0-2425:1
     Visibility: public -/
 def arena.expr_ops.leaf_guard
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -24995,7 +25009,7 @@ def arena.expr_ops.leaf_guard
     | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::arena::expr_ops::wscoped_memo_set]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2036:0-2044:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2038:0-2046:1
     Visibility: public -/
 def arena.expr_ops.wscoped_memo_set
   (memo : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
@@ -25009,7 +25023,7 @@ def arena.expr_ops.wscoped_memo_set
   ok memo1
 
 /-- [con_ron_core::arena::expr_ops::wscoped_memo_get]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2026:0-2031:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2028:0-2033:1
     Visibility: public -/
 def arena.expr_ops.wscoped_memo_get
   (memo : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
@@ -25038,7 +25052,7 @@ def arena.expr_ops.M_FUEL_WSCOPED_GO : Array Std.U32 26#usize :=
 mutual
 
 /-- [con_ron_core::arena::expr_ops::wscoped_b_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2051:0-2076:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2053:0-2078:1
     Visibility: public -/
 def arena.expr_ops.wscoped_b_go
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25079,7 +25093,7 @@ def arena.expr_ops.wscoped_b_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::wscoped_b_node]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2082:0-2112:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2084:0-2114:1
     Visibility: public -/
 def arena.expr_ops.wscoped_b_node
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25117,7 +25131,7 @@ def arena.expr_ops.wscoped_b_node
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::wscoped_b_two]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2118:0-2132:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2120:0-2134:1
     Visibility: public -/
 def arena.expr_ops.wscoped_b_two
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25139,7 +25153,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::expr_ops::wscoped_b_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2137:0-2149:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2139:0-2151:1
     Visibility: public -/
 def arena.expr_ops.wscoped_b_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -35246,7 +35260,7 @@ def arena.inductives.native_parts.struct_rule_body_r
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::expr_ops::strip_lams]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2917:0-2939:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2919:0-2941:1
     Visibility: public -/
 def arena.expr_ops.strip_lams
   (pers : arena.store.PersTier) (st : arena.monad.AState) (k : Std.U64)
@@ -35989,7 +36003,7 @@ def arena.inductives.sum_parts.major_idx
   i + p.n_idx
 
 /-- [con_ron_core::arena::expr_ops::bvar_range]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3316:0-3334:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3318:0-3336:1
     Visibility: public -/
 def arena.expr_ops.bvar_range
   (pers : arena.store.PersTier) (st : arena.monad.AState) (m_i : Std.U64)
@@ -36056,7 +36070,7 @@ def arena.expr_ops.eidx_take_beq
   else arena.expr_ops.eidx_prefix_beq args want 0#usize
 
 /-- [con_ron_core::arena::expr_ops::rec_rule_plain]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3344:0-3375:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3346:0-3377:1
     Visibility: public -/
 def arena.expr_ops.rec_rule_plain
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -36854,7 +36868,7 @@ def arena.expr_ops.M_FUEL_INST1_LIFT : Array Std.U32 32#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::instantiate1_lift_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4385:0-4542:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4387:0-4544:1
     Visibility: public -/
 def arena.expr_ops.instantiate1_lift_go
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -37027,7 +37041,7 @@ def arena.expr_ops.instantiate1_lift_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::instantiate1_lift_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4547:0-4563:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4549:0-4565:1
     Visibility: public -/
 def arena.expr_ops.instantiate1_lift_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -37098,7 +37112,7 @@ def arena.inductives.struct_parts.struct_proj_ps
   arena.inductives.struct_parts.struct_ps_at pers st 1#u64 n_p
 
 /-- [con_ron_core::arena::expr_ops::inst_pis_at_lift_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4581:0-4607:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4583:0-4609:1
     Visibility: public -/
 def arena.expr_ops.inst_pis_at_lift_from
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -37138,7 +37152,7 @@ def arena.expr_ops.inst_pis_at_lift_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_pis_at_lift]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4568:0-4576:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4570:0-4578:1
     Visibility: public -/
 def arena.expr_ops.inst_pis_at_lift
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -46266,7 +46280,7 @@ def arena.expr_ops.M_FUEL_RENAME : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::rename_consts_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2749:0-2884:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2751:0-2886:1
     Visibility: public -/
 def arena.expr_ops.rename_consts_go
   {F : Type} (NIdxToNIdxInst : arena.expr_ops.NIdxToNIdx F)
@@ -46438,7 +46452,7 @@ def arena.expr_ops.rename_consts_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::rename_consts_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2889:0-2907:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2891:0-2909:1
     Visibility: public -/
 def arena.expr_ops.rename_consts_fast
   {F : Type} (NIdxToNIdxInst : arena.expr_ops.NIdxToNIdx F)
@@ -46756,7 +46770,7 @@ def arena.core.proj_fn_rule
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::expr_ops::pis_to_lams]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3382:0-3411:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3384:0-3413:1
     Visibility: public -/
 def arena.expr_ops.pis_to_lams
   (pers : arena.store.PersTier) (st : arena.monad.AState) (k : Std.U64)
@@ -46798,7 +46812,7 @@ def arena.expr_ops.pis_to_lams
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_pis_at_f_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3147:0-3181:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3149:0-3183:1
     Visibility: public -/
 def arena.expr_ops.inst_pis_at_f_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -46856,7 +46870,7 @@ def arena.expr_ops.inst_pis_at_f_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_pis_at_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3052:0-3082:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3054:0-3084:1
     Visibility: public -/
 def arena.expr_ops.inst_pis_at_from
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -46909,7 +46923,7 @@ def arena.expr_ops.inst_pis_at_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_pis_at]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3038:0-3046:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3040:0-3048:1
     Visibility: public -/
 def arena.expr_ops.inst_pis_at
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -46920,7 +46934,7 @@ def arena.expr_ops.inst_pis_at
   arena.expr_ops.inst_pis_at_from pers st fuel args 0#usize h
 
 /-- [con_ron_core::arena::expr_ops::inst_pis_at_f]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3187:0-3200:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3189:0-3202:1
     Visibility: public -/
 def arena.expr_ops.inst_pis_at_f
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -46939,7 +46953,7 @@ def arena.expr_ops.inst_pis_at_f
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::expr_ops::inst_lams_at_f_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3205:0-3239:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3207:0-3241:1
     Visibility: public -/
 def arena.expr_ops.inst_lams_at_f_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -46997,7 +47011,7 @@ def arena.expr_ops.inst_lams_at_f_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_lams_at_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3100:0-3130:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3102:0-3132:1
     Visibility: public -/
 def arena.expr_ops.inst_lams_at_from
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -47050,7 +47064,7 @@ def arena.expr_ops.inst_lams_at_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_lams_at]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3087:0-3095:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3089:0-3097:1
     Visibility: public -/
 def arena.expr_ops.inst_lams_at
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -47061,7 +47075,7 @@ def arena.expr_ops.inst_lams_at
   arena.expr_ops.inst_lams_at_from pers st fuel args 0#usize h
 
 /-- [con_ron_core::arena::expr_ops::inst_lams_at_f]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3244:0-3257:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3246:0-3259:1
     Visibility: public -/
 def arena.expr_ops.inst_lams_at_f
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -50762,7 +50776,7 @@ def arena.expr_ops.M_FUEL_LOWER : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::arena::expr_ops::lower_bvars_go]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4204:0-4347:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4206:0-4349:1
     Visibility: public -/
 def arena.expr_ops.lower_bvars_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (amount : Std.U64)
@@ -50932,7 +50946,7 @@ def arena.expr_ops.lower_bvars_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::lower_bvars_fast]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4352:0-4368:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4354:0-4370:1
     Visibility: public -/
 def arena.expr_ops.lower_bvars_fast
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -65162,7 +65176,7 @@ def arena.expr_ops.wscoped_b
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::loose_bvars_bounded]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2430:0-2503:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2432:0-2505:1
     Visibility: public -/
 def arena.expr_ops.loose_bvars_bounded
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -65240,7 +65254,7 @@ def arena.expr_ops.loose_bvars_bounded
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::is_lam]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2512:0-2521:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2514:0-2523:1
     Visibility: public -/
 def arena.expr_ops.is_lam
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65257,7 +65271,7 @@ def arena.expr_ops.is_lam
   else ok (core.result.Result.Ok false)
 
 /-- [con_ron_core::arena::expr_ops::forall_pw]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2541:0-2550:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2543:0-2552:1
     Visibility: public -/
 def arena.expr_ops.forall_pw
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65276,7 +65290,7 @@ def arena.expr_ops.forall_pw
   else ok (core.result.Result.Ok none)
 
 /-- [con_ron_core::arena::expr_ops::has_fvar]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2555:0-2618:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2557:0-2620:1
     Visibility: public -/
 def arena.expr_ops.has_fvar
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -65348,7 +65362,7 @@ def arena.expr_ops.has_fvar
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_pis_from]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3004:0-3030:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3006:0-3032:1
     Visibility: public -/
 def arena.expr_ops.inst_pis_from
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -65388,7 +65402,7 @@ def arena.expr_ops.inst_pis_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::inst_pis]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2991:0-2999:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2993:0-3001:1
     Visibility: public -/
 def arena.expr_ops.inst_pis
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -65399,7 +65413,7 @@ def arena.expr_ops.inst_pis
   arena.expr_ops.inst_pis_from pers st fuel e args 0#usize
 
 /-- [con_ron_core::arena::expr_ops::replace_pi_body]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3417:0-3446:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3419:0-3448:1
     Visibility: public -/
 def arena.expr_ops.replace_pi_body
   (pers : arena.store.PersTier) (st : arena.monad.AState) (k : Std.U64)
@@ -65440,7 +65454,7 @@ def arena.expr_ops.replace_pi_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::pi_arity]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3451:0-3467:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3453:0-3469:1
     Visibility: public -/
 def arena.expr_ops.pi_arity
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -65472,7 +65486,7 @@ def arena.expr_ops.pi_arity
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::result_sort]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3472:0-3488:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 3474:0-3490:1
     Visibility: public -/
 def arena.expr_ops.result_sort
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -65507,7 +65521,7 @@ def arena.expr_ops.result_sort
 partial_fixpoint
 
 /-- [con_ron_core::arena::expr_ops::expr_ptr_beq]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4621:0-4623:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4623:0-4625:1
     Visibility: public -/
 def arena.expr_ops.expr_ptr_beq
   (a : arena.handle.EIdx) (b : arena.handle.EIdx) : Result Bool := do
@@ -65524,7 +65538,7 @@ def arena.monad.derived_l
   arena.store.EStore.lder st.store pers h
 
 /-- [con_ron_core::arena::expr_ops::lidx_has_param]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4633:0-4635:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4635:0-4637:1
     Visibility: public -/
 def arena.expr_ops.lidx_has_param
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65535,7 +65549,7 @@ def arena.expr_ops.lidx_has_param
   ok l.has_param
 
 /-- [con_ron_core::arena::expr_ops::eidx_has_level_param]:
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4642:0-4644:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 4644:0-4646:1
     Visibility: public -/
 def arena.expr_ops.eidx_has_level_param
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -69933,7 +69947,7 @@ def frontend.export_c.parse_level_entry_d
   | core.result.Result.Err _ => ok (r1, ar, st)
 
 /-- [con_ron_core::kernel::expr::literal_str]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 184:0-186:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 182:0-184:1
     Visibility: public -/
 def kernel.expr.literal_str
   (s : alloc.vec.Vec Std.U32) : Result kernel.expr.Literal := do
@@ -90056,7 +90070,7 @@ def kernel.basis_names.and_intro_name : Result kernel.name.Name := do
   kernel.name.mk_str n v
 
 /-- [con_ron_core::kernel::expr::exprs_beq_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 841:0-849:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 836:0-844:1
     Visibility: public -/
 def kernel.expr.exprs_beq_from
   (xs : alloc.vec.Vec kernel.expr.Expr) (ys : alloc.vec.Vec kernel.expr.Expr)
@@ -90081,7 +90095,7 @@ def kernel.expr.exprs_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::exprs_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 831:0-837:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 826:0-832:1
     Visibility: public -/
 def kernel.expr.exprs_beq
   (xs : alloc.vec.Vec kernel.expr.Expr) (ys : alloc.vec.Vec kernel.expr.Expr) :
@@ -90592,55 +90606,55 @@ def kernel.canon.canon_expr_eq_fast
   let ev ← kernel.expr.view a
   let ev1 ← kernel.expr.view b
   match ev with
-  | ron.node.ExprView.Bvar i =>
+  | kernel.expr.ExprView.Bvar i =>
     match ev1 with
-    | ron.node.ExprView.Bvar j => lift (core.cmp.impls.PartialEqU64.eq i j)
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Fvar i t =>
+    | kernel.expr.ExprView.Bvar j => lift (core.cmp.impls.PartialEqU64.eq i j)
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Fvar i t =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar j t2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar j t2 =>
       let b1 ← lift (core.cmp.impls.PartialEqU64.eq i j)
       if b1
       then kernel.canon.canon_expr_eq_fast ps ps2 t t2
       else ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Sort u =>
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Sort u =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort v =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort v =>
       let l ← kernel.canon.canon_level ps u
       let l1 ← kernel.canon.canon_level ps2 v
       kernel.level.beq l l1
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Const n us =>
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Const n us =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const n2 us2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const n2 us2 =>
       let b1 ← kernel.name.beq n n2
       if b1
       then
@@ -90650,70 +90664,70 @@ def kernel.canon.canon_expr_eq_fast
         let v3 ← kernel.canon.canon_level_list ps2 v2
         kernel.expr.levels_beq v1 v3
       else ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.App f x =>
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App f x =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App f2 x2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App f2 x2 =>
       let b1 ← kernel.canon.canon_expr_eq_fast ps ps2 f f2
       if b1
       then kernel.canon.canon_expr_eq_fast ps ps2 x x2
       else ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Lam t bd _ =>
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Lam t bd _ =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam t2 bd2 _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam t2 bd2 _ =>
       let b1 ← kernel.canon.canon_expr_eq_fast ps ps2 t t2
       if b1
       then kernel.canon.canon_expr_eq_fast ps ps2 bd bd2
       else ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.ForallE t bd _ =>
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE t bd _ =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE t2 bd2 _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE t2 bd2 _ =>
       let b1 ← kernel.canon.canon_expr_eq_fast ps ps2 t t2
       if b1
       then kernel.canon.canon_expr_eq_fast ps ps2 bd bd2
       else ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.LetE t v bd =>
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.LetE t v bd =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE t2 v2 bd2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE t2 v2 bd2 =>
       let b1 ← kernel.canon.canon_expr_eq_fast ps ps2 t t2
       if b1
       then
@@ -90722,32 +90736,32 @@ def kernel.canon.canon_expr_eq_fast
         then kernel.canon.canon_expr_eq_fast ps ps2 bd bd2
         else ok false
       else ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Lit l =>
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Lit l =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit l2 => kernel.expr.literal_beq l l2
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Proj s i e =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit l2 => kernel.expr.literal_beq l l2
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Proj s i e =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj s2 i2 e2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj s2 i2 e2 =>
       let b1 ← kernel.name.beq s s2
       if b1
       then
@@ -91574,22 +91588,22 @@ def kernel.core_k.proj_model_name
   kernel.name.mk_str head s4
 
 /-- [con_ron_core::kernel::expr_ops::get_app_fn]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1123:0-1128:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1131:0-1136:1
     Visibility: public -/
 def kernel.expr_ops.get_app_fn
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => kernel.expr.dup e
-  | ron.node.ExprView.Fvar _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const _ _ => kernel.expr.dup e
-  | ron.node.ExprView.App f _ => kernel.expr_ops.get_app_fn f
-  | ron.node.ExprView.Lam _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.ForallE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.LetE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lit _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.App f _ => kernel.expr_ops.get_app_fn f
+  | kernel.expr.ExprView.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.ForallE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj _ _ _ => kernel.expr.dup e
 partial_fixpoint
 
 /-- [con_ron_core::kernel::core_k::is_ctor_info]:
@@ -91614,38 +91628,38 @@ def kernel.core_k.is_ctor_app
   let f ← kernel.expr_ops.get_app_fn e
   let ev ← kernel.expr.view f
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const c _ =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const c _ =>
     let o ← kernel.fenv.find fe c
     match o with
     | none => ok false
     | some ci => kernel.core_k.is_ctor_info ci
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::expr_ops::pi_result]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1337:0-1342:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1345:0-1350:1
     Visibility: public -/
 def kernel.expr_ops.pi_result
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => kernel.expr.dup e
-  | ron.node.ExprView.Fvar _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const _ _ => kernel.expr.dup e
-  | ron.node.ExprView.App _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lam _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.ForallE _ b _ => kernel.expr_ops.pi_result b
-  | ron.node.ExprView.LetE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lit _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.App _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.ForallE _ b _ => kernel.expr_ops.pi_result b
+  | kernel.expr.ExprView.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj _ _ _ => kernel.expr.dup e
 partial_fixpoint
 
 /-- [con_ron_core::kernel::core_k::pi_result_is_prop]:
@@ -91655,9 +91669,9 @@ def kernel.core_k.pi_result_is_prop (e : kernel.expr.Expr) : Result Bool := do
   let r ← kernel.expr_ops.pi_result e
   let ev ← kernel.expr.view r
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort u =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort u =>
     let l ← kernel.level.zero
     let o ← kernel.level.is_equiv u l
     match o with
@@ -91665,13 +91679,13 @@ def kernel.core_k.pi_result_is_prop (e : kernel.expr.Expr) : Result Bool := do
     | some b => if b
                 then ok true
                 else ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::pi_result_z]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 449:0-455:1
@@ -91681,24 +91695,24 @@ def kernel.core_k.pi_result_z
   let r ← kernel.expr_ops.pi_result e
   let ev ← kernel.expr.view r
   match ev with
-  | ron.node.ExprView.Bvar _ =>
+  | kernel.expr.ExprView.Bvar _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.Fvar _ _ =>
+  | kernel.expr.ExprView.Fvar _ _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.Sort u => kernel.level.zeroness_of u
-  | ron.node.ExprView.Const _ _ =>
+  | kernel.expr.ExprView.Sort u => kernel.level.zeroness_of u
+  | kernel.expr.ExprView.Const _ _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.App _ _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.Lit _ =>
+  | kernel.expr.ExprView.Lit _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Proj _ _ _ =>
     kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
 
 /-- [con_ron_core::kernel::core_k::pi_result_never_zero]:
@@ -91712,18 +91726,18 @@ def kernel.core_k.pi_result_never_zero
   let r ← kernel.expr_ops.pi_result e
   let ev ← kernel.expr.view r
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort u =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort u =>
     let l ← kernel.level.subst lps us u
     kernel.level.is_never_zero l
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::caps_never_zero]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 473:0-475:1
@@ -91791,10 +91805,10 @@ def kernel.core_k.is_unit_like_ty
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const c _ =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const c _ =>
     let n ← kernel.basis_names.punit_name
     let b ← kernel.name.beq c n
     if b
@@ -91804,12 +91818,12 @@ def kernel.core_k.is_unit_like_ty
       then kernel.core_k.is_punit_rec_shape fe
       else ok false
     else ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::unfoldable_head]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 539:0-549:1
@@ -91819,10 +91833,10 @@ def kernel.core_k.unfoldable_head
   let f ← kernel.expr_ops.get_app_fn e
   let ev ← kernel.expr.view f
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const n us =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const n us =>
     let o ← kernel.fenv.find fe n
     match o with
     | none => ok false
@@ -91839,12 +91853,12 @@ def kernel.core_k.unfoldable_head
       | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok false
       | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
       | kernel.env.ConstantInfo.ProjInfo _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::head_hint]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 555:0-564:1
@@ -91856,21 +91870,21 @@ def kernel.core_k.head_hint
   let f ← kernel.expr_ops.get_app_fn e
   let ev ← kernel.expr.view f
   match ev with
-  | ron.node.ExprView.Bvar _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.Fvar _ _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.Sort _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.Const n _ =>
+  | kernel.expr.ExprView.Bvar _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.Fvar _ _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.Sort _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.Const n _ =>
     let o ← kernel.core_k.defn_probe fe n
     match o with
     | none => ok kernel.env.ReducibilityHint.Opaque
     | some t => let (_, _, hint) := t
                 ok hint
-  | ron.node.ExprView.App _ _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.Lam _ _ _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.ForallE _ _ _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.LetE _ _ _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.Lit _ => ok kernel.env.ReducibilityHint.Opaque
-  | ron.node.ExprView.Proj _ _ _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.App _ _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.Lam _ _ _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.ForallE _ _ _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.LetE _ _ _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.Lit _ => ok kernel.env.ReducibilityHint.Opaque
+  | kernel.expr.ExprView.Proj _ _ _ => ok kernel.env.ReducibilityHint.Opaque
 
 /-- [con_ron_core::kernel::core_k::same_const_heads]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 570:0-588:1
@@ -91879,64 +91893,66 @@ def kernel.core_k.same_const_heads
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view a
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App f1 _ =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App f1 _ =>
     let ev1 ← kernel.expr.view b
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App f2 _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App f2 _ =>
       let g1 ← kernel.expr_ops.get_app_fn f1
       let g2 ← kernel.expr_ops.get_app_fn f2
       let ev2 ← kernel.expr.view g1
       match ev2 with
-      | ron.node.ExprView.Bvar _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const n1 _ =>
+      | kernel.expr.ExprView.Bvar _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const n1 _ =>
         let ev3 ← kernel.expr.view g2
         match ev3 with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort _ => ok false
-        | ron.node.ExprView.Const n2 _ => kernel.name.beq n1 n2
-        | ron.node.ExprView.App _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE _ _ _ => ok false
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE _ _ _ => ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort _ => ok false
+        | kernel.expr.ExprView.Const n2 _ => kernel.name.beq n1 n2
+        | kernel.expr.ExprView.App _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::expr::lit]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 572:0-576:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 596:0-600:1
     Visibility: public -/
 def kernel.expr.lit (l : kernel.expr.Literal) : Result kernel.expr.Expr := do
   let i ← kernel.expr.literal_hash l
   let i1 ← kernel.name.mix_hash 31#u64 i
   let h ← kernel.expr.hash32 i1
   let d ← kernel.expr.pack_data h 0#u64 0#u64 false
-  ron.node.alloc_lit d l
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Lit l))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::core_k::nat_lit_to_constructor]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 598:0-607:1
@@ -92024,25 +92040,25 @@ def kernel.core_k.nat_succ_ok
       then
         let ev ← kernel.expr.view cv.ty
         match ev with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort _ => ok false
-        | ron.node.ExprView.Const _ _ => ok false
-        | ron.node.ExprView.App _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE dom body _ =>
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort _ => ok false
+        | kernel.expr.ExprView.Const _ _ => ok false
+        | kernel.expr.ExprView.App _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE dom body _ =>
           let ev1 ← kernel.expr.view dom
           match ev1 with
-          | ron.node.ExprView.Bvar _ => ok false
-          | ron.node.ExprView.Fvar _ _ => ok false
-          | ron.node.ExprView.Sort _ => ok false
-          | ron.node.ExprView.Const c1 us1 =>
+          | kernel.expr.ExprView.Bvar _ => ok false
+          | kernel.expr.ExprView.Fvar _ _ => ok false
+          | kernel.expr.ExprView.Sort _ => ok false
+          | kernel.expr.ExprView.Const c1 us1 =>
             let ev2 ← kernel.expr.view body
             match ev2 with
-            | ron.node.ExprView.Bvar _ => ok false
-            | ron.node.ExprView.Fvar _ _ => ok false
-            | ron.node.ExprView.Sort _ => ok false
-            | ron.node.ExprView.Const c2 us2 =>
+            | kernel.expr.ExprView.Bvar _ => ok false
+            | kernel.expr.ExprView.Fvar _ _ => ok false
+            | kernel.expr.ExprView.Sort _ => ok false
+            | kernel.expr.ExprView.Const c2 us2 =>
               let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
               let i1 := alloc.vec.Vec.len v
               if i1 = 0#usize
@@ -92059,21 +92075,21 @@ def kernel.core_k.nat_succ_ok
                   else ok false
                 else ok false
               else ok false
-            | ron.node.ExprView.App _ _ => ok false
-            | ron.node.ExprView.Lam _ _ _ => ok false
-            | ron.node.ExprView.ForallE _ _ _ => ok false
-            | ron.node.ExprView.LetE _ _ _ => ok false
-            | ron.node.ExprView.Lit _ => ok false
-            | ron.node.ExprView.Proj _ _ _ => ok false
-          | ron.node.ExprView.App _ _ => ok false
-          | ron.node.ExprView.Lam _ _ _ => ok false
-          | ron.node.ExprView.ForallE _ _ _ => ok false
-          | ron.node.ExprView.LetE _ _ _ => ok false
-          | ron.node.ExprView.Lit _ => ok false
-          | ron.node.ExprView.Proj _ _ _ => ok false
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
+            | kernel.expr.ExprView.App _ _ => ok false
+            | kernel.expr.ExprView.Lam _ _ _ => ok false
+            | kernel.expr.ExprView.ForallE _ _ _ => ok false
+            | kernel.expr.ExprView.LetE _ _ _ => ok false
+            | kernel.expr.ExprView.Lit _ => ok false
+            | kernel.expr.ExprView.Proj _ _ _ => ok false
+          | kernel.expr.ExprView.App _ _ => ok false
+          | kernel.expr.ExprView.Lam _ _ _ => ok false
+          | kernel.expr.ExprView.ForallE _ _ _ => ok false
+          | kernel.expr.ExprView.LetE _ _ _ => ok false
+          | kernel.expr.ExprView.Lit _ => ok false
+          | kernel.expr.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
       else ok false
     | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
     | kernel.env.ConstantInfo.ProjInfo _ => ok false
@@ -92170,28 +92186,28 @@ def kernel.core_k.consts_resolve
   (fe : kernel.fenv.FEnv) (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok true
-  | ron.node.ExprView.Fvar _ ty => kernel.core_k.consts_resolve fe ty
-  | ron.node.ExprView.Sort _ => ok true
-  | ron.node.ExprView.Const n _ =>
+  | kernel.expr.ExprView.Bvar _ => ok true
+  | kernel.expr.ExprView.Fvar _ ty => kernel.core_k.consts_resolve fe ty
+  | kernel.expr.ExprView.Sort _ => ok true
+  | kernel.expr.ExprView.Const n _ =>
     let o ← kernel.fenv.find fe n
     ok (core.option.Option.is_some o)
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.App f a =>
     let b ← kernel.core_k.consts_resolve fe f
     if b
     then kernel.core_k.consts_resolve fe a
     else ok false
-  | ron.node.ExprView.Lam ty body _ =>
+  | kernel.expr.ExprView.Lam ty body _ =>
     let b ← kernel.core_k.consts_resolve fe ty
     if b
     then kernel.core_k.consts_resolve fe body
     else ok false
-  | ron.node.ExprView.ForallE ty body _ =>
+  | kernel.expr.ExprView.ForallE ty body _ =>
     let b ← kernel.core_k.consts_resolve fe ty
     if b
     then kernel.core_k.consts_resolve fe body
     else ok false
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let b ← kernel.core_k.consts_resolve fe ty
     if b
     then
@@ -92200,7 +92216,7 @@ def kernel.core_k.consts_resolve
       then kernel.core_k.consts_resolve fe body
       else ok false
     else ok false
-  | ron.node.ExprView.Lit l =>
+  | kernel.expr.ExprView.Lit l =>
     match l with
     | kernel.expr.Literal.NatVal _ => kernel.core_k.nat_trio_stored fe
     | kernel.expr.Literal.StrVal _ =>
@@ -92208,7 +92224,7 @@ def kernel.core_k.consts_resolve
       if b
       then kernel.core_k.str_support_stored fe
       else ok false
-  | ron.node.ExprView.Proj s _ pe =>
+  | kernel.expr.ExprView.Proj s _ pe =>
     let o ← kernel.fenv.find fe s
     let b := core.option.Option.is_some o
     if b
@@ -92225,15 +92241,15 @@ def kernel.core_k.lit_to_ctor_if_nat
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => kernel.expr.dup e
-  | ron.node.ExprView.Fvar _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const _ _ => kernel.expr.dup e
-  | ron.node.ExprView.App _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lam _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.ForallE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.LetE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lit l =>
+  | kernel.expr.ExprView.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.App _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.ForallE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lit l =>
     match l with
     | kernel.expr.Literal.NatVal n =>
       let b ← kernel.core_k.nat_lit_supported fe
@@ -92243,7 +92259,7 @@ def kernel.core_k.lit_to_ctor_if_nat
         kernel.core_k.nat_lit_to_constructor n1
       else kernel.expr.dup e
     | kernel.expr.Literal.StrVal _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj _ _ _ => kernel.expr.dup e
 
 /-- [con_ron_core::kernel::core_k::raw_nat_lit]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 821:0-833:1
@@ -92252,10 +92268,10 @@ def kernel.core_k.raw_nat_lit
   (e : kernel.expr.Expr) : Result (Option ron.nat.Nat) := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok none
-  | ron.node.ExprView.Fvar _ _ => ok none
-  | ron.node.ExprView.Sort _ => ok none
-  | ron.node.ExprView.Const c us =>
+  | kernel.expr.ExprView.Bvar _ => ok none
+  | kernel.expr.ExprView.Fvar _ _ => ok none
+  | kernel.expr.ExprView.Sort _ => ok none
+  | kernel.expr.ExprView.Const c us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
@@ -92267,18 +92283,18 @@ def kernel.core_k.raw_nat_lit
            ok (some n1)
       else ok none
     else ok none
-  | ron.node.ExprView.App _ _ => ok none
-  | ron.node.ExprView.Lam _ _ _ => ok none
-  | ron.node.ExprView.ForallE _ _ _ => ok none
-  | ron.node.ExprView.LetE _ _ _ => ok none
-  | ron.node.ExprView.Lit l =>
+  | kernel.expr.ExprView.App _ _ => ok none
+  | kernel.expr.ExprView.Lam _ _ _ => ok none
+  | kernel.expr.ExprView.ForallE _ _ _ => ok none
+  | kernel.expr.ExprView.LetE _ _ _ => ok none
+  | kernel.expr.ExprView.Lit l =>
     match l with
     | kernel.expr.Literal.NatVal n =>
       let n1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n
       let n2 ← ron.nat.clone n1
       ok (some n2)
     | kernel.expr.Literal.StrVal _ => ok none
-  | ron.node.ExprView.Proj _ _ _ => ok none
+  | kernel.expr.ExprView.Proj _ _ _ => ok none
 
 /-- [con_ron_core::kernel::core_k::str_lit_cons_from]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 859:0-883:1
@@ -92383,23 +92399,23 @@ def kernel.core_k.list_ty_ok
           kernel.name.Name) cv.level_params 0#usize
       let ev ← kernel.expr.view cv.ty
       match ev with
-      | ron.node.ExprView.Bvar _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE dom body _ =>
+      | kernel.expr.ExprView.Bvar _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE dom body _ =>
         let ev1 ← kernel.expr.view dom
         match ev1 with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort u1 =>
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort u1 =>
           let ev2 ← kernel.expr.view body
           match ev2 with
-          | ron.node.ExprView.Bvar _ => ok false
-          | ron.node.ExprView.Fvar _ _ => ok false
-          | ron.node.ExprView.Sort u2 =>
+          | kernel.expr.ExprView.Bvar _ => ok false
+          | kernel.expr.ExprView.Fvar _ _ => ok false
+          | kernel.expr.ExprView.Sort u2 =>
             let n ← kernel.name.dup p
             let l ← kernel.level.param n
             let want ← kernel.level.succ l
@@ -92407,23 +92423,23 @@ def kernel.core_k.list_ty_ok
             if b
             then kernel.level.beq u2 want
             else ok false
-          | ron.node.ExprView.Const _ _ => ok false
-          | ron.node.ExprView.App _ _ => ok false
-          | ron.node.ExprView.Lam _ _ _ => ok false
-          | ron.node.ExprView.ForallE _ _ _ => ok false
-          | ron.node.ExprView.LetE _ _ _ => ok false
-          | ron.node.ExprView.Lit _ => ok false
-          | ron.node.ExprView.Proj _ _ _ => ok false
-        | ron.node.ExprView.Const _ _ => ok false
-        | ron.node.ExprView.App _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE _ _ _ => ok false
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
+          | kernel.expr.ExprView.Const _ _ => ok false
+          | kernel.expr.ExprView.App _ _ => ok false
+          | kernel.expr.ExprView.Lam _ _ _ => ok false
+          | kernel.expr.ExprView.ForallE _ _ _ => ok false
+          | kernel.expr.ExprView.LetE _ _ _ => ok false
+          | kernel.expr.ExprView.Lit _ => ok false
+          | kernel.expr.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.Const _ _ => ok false
+        | kernel.expr.ExprView.App _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
     else ok false
 
 /-- [con_ron_core::kernel::core_k::list_nil_ty_ok]:
@@ -92443,36 +92459,36 @@ def kernel.core_k.list_nil_ty_ok
           kernel.name.Name) cv.level_params 0#usize
       let ev ← kernel.expr.view cv.ty
       match ev with
-      | ron.node.ExprView.Bvar _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE dom body _ =>
+      | kernel.expr.ExprView.Bvar _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE dom body _ =>
         let ev1 ← kernel.expr.view dom
         match ev1 with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort u1 =>
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort u1 =>
           let ev2 ← kernel.expr.view body
           match ev2 with
-          | ron.node.ExprView.Bvar _ => ok false
-          | ron.node.ExprView.Fvar _ _ => ok false
-          | ron.node.ExprView.Sort _ => ok false
-          | ron.node.ExprView.Const _ _ => ok false
-          | ron.node.ExprView.App hd arg =>
+          | kernel.expr.ExprView.Bvar _ => ok false
+          | kernel.expr.ExprView.Fvar _ _ => ok false
+          | kernel.expr.ExprView.Sort _ => ok false
+          | kernel.expr.ExprView.Const _ _ => ok false
+          | kernel.expr.ExprView.App hd arg =>
             let ev3 ← kernel.expr.view arg
             match ev3 with
-            | ron.node.ExprView.Bvar i1 =>
+            | kernel.expr.ExprView.Bvar i1 =>
               match i1 with
               | 0#uscalar =>
                 let ev4 ← kernel.expr.view hd
                 match ev4 with
-                | ron.node.ExprView.Bvar _ => ok false
-                | ron.node.ExprView.Fvar _ _ => ok false
-                | ron.node.ExprView.Sort _ => ok false
-                | ron.node.ExprView.Const l1 us1 =>
+                | kernel.expr.ExprView.Bvar _ => ok false
+                | kernel.expr.ExprView.Fvar _ _ => ok false
+                | kernel.expr.ExprView.Sort _ => ok false
+                | kernel.expr.ExprView.Const l1 us1 =>
                   let n ← kernel.name.dup p
                   let l ← kernel.level.param n
                   let l2 ← kernel.level.succ l
@@ -92490,37 +92506,37 @@ def kernel.core_k.list_nil_ty_ok
                       kernel.expr.levels_beq v v1
                     else ok false
                   else ok false
-                | ron.node.ExprView.App _ _ => ok false
-                | ron.node.ExprView.Lam _ _ _ => ok false
-                | ron.node.ExprView.ForallE _ _ _ => ok false
-                | ron.node.ExprView.LetE _ _ _ => ok false
-                | ron.node.ExprView.Lit _ => ok false
-                | ron.node.ExprView.Proj _ _ _ => ok false
+                | kernel.expr.ExprView.App _ _ => ok false
+                | kernel.expr.ExprView.Lam _ _ _ => ok false
+                | kernel.expr.ExprView.ForallE _ _ _ => ok false
+                | kernel.expr.ExprView.LetE _ _ _ => ok false
+                | kernel.expr.ExprView.Lit _ => ok false
+                | kernel.expr.ExprView.Proj _ _ _ => ok false
               | _ => ok false
-            | ron.node.ExprView.Fvar _ _ => ok false
-            | ron.node.ExprView.Sort _ => ok false
-            | ron.node.ExprView.Const _ _ => ok false
-            | ron.node.ExprView.App _ _ => ok false
-            | ron.node.ExprView.Lam _ _ _ => ok false
-            | ron.node.ExprView.ForallE _ _ _ => ok false
-            | ron.node.ExprView.LetE _ _ _ => ok false
-            | ron.node.ExprView.Lit _ => ok false
-            | ron.node.ExprView.Proj _ _ _ => ok false
-          | ron.node.ExprView.Lam _ _ _ => ok false
-          | ron.node.ExprView.ForallE _ _ _ => ok false
-          | ron.node.ExprView.LetE _ _ _ => ok false
-          | ron.node.ExprView.Lit _ => ok false
-          | ron.node.ExprView.Proj _ _ _ => ok false
-        | ron.node.ExprView.Const _ _ => ok false
-        | ron.node.ExprView.App _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE _ _ _ => ok false
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
+            | kernel.expr.ExprView.Fvar _ _ => ok false
+            | kernel.expr.ExprView.Sort _ => ok false
+            | kernel.expr.ExprView.Const _ _ => ok false
+            | kernel.expr.ExprView.App _ _ => ok false
+            | kernel.expr.ExprView.Lam _ _ _ => ok false
+            | kernel.expr.ExprView.ForallE _ _ _ => ok false
+            | kernel.expr.ExprView.LetE _ _ _ => ok false
+            | kernel.expr.ExprView.Lit _ => ok false
+            | kernel.expr.ExprView.Proj _ _ _ => ok false
+          | kernel.expr.ExprView.Lam _ _ _ => ok false
+          | kernel.expr.ExprView.ForallE _ _ _ => ok false
+          | kernel.expr.ExprView.LetE _ _ _ => ok false
+          | kernel.expr.ExprView.Lit _ => ok false
+          | kernel.expr.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.Const _ _ => ok false
+        | kernel.expr.ExprView.App _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
     else ok false
 
 /-- [con_ron_core::kernel::core_k::list_cons_tail_ok]:
@@ -92533,40 +92549,40 @@ def kernel.core_k.list_cons_tail_ok
   := do
   let ev ← kernel.expr.view d3
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App h1 a1 =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App h1 a1 =>
     let ev1 ← kernel.expr.view b3
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App h2 a2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App h2 a2 =>
       let ev2 ← kernel.expr.view a1
       match ev2 with
-      | ron.node.ExprView.Bvar i =>
+      | kernel.expr.ExprView.Bvar i =>
         match i with
         | 1#uscalar =>
           let ev3 ← kernel.expr.view a2
           match ev3 with
-          | ron.node.ExprView.Bvar i1 =>
+          | kernel.expr.ExprView.Bvar i1 =>
             match i1 with
             | 2#uscalar =>
               let ev4 ← kernel.expr.view h1
               match ev4 with
-              | ron.node.ExprView.Bvar _ => ok false
-              | ron.node.ExprView.Fvar _ _ => ok false
-              | ron.node.ExprView.Sort _ => ok false
-              | ron.node.ExprView.Const l1 us1 =>
+              | kernel.expr.ExprView.Bvar _ => ok false
+              | kernel.expr.ExprView.Fvar _ _ => ok false
+              | kernel.expr.ExprView.Sort _ => ok false
+              | kernel.expr.ExprView.Const l1 us1 =>
                 let ev5 ← kernel.expr.view h2
                 match ev5 with
-                | ron.node.ExprView.Bvar _ => ok false
-                | ron.node.ExprView.Fvar _ _ => ok false
-                | ron.node.ExprView.Sort _ => ok false
-                | ron.node.ExprView.Const l2 us2 =>
+                | kernel.expr.ExprView.Bvar _ => ok false
+                | kernel.expr.ExprView.Fvar _ _ => ok false
+                | kernel.expr.ExprView.Sort _ => ok false
+                | kernel.expr.ExprView.Const l2 us2 =>
                   let n ← kernel.name.dup p
                   let l ← kernel.level.param n
                   let want ← kernel.level.singleton l
@@ -92596,48 +92612,48 @@ def kernel.core_k.list_cons_tail_ok
                       else ok false
                     else ok false
                   else ok false
-                | ron.node.ExprView.App _ _ => ok false
-                | ron.node.ExprView.Lam _ _ _ => ok false
-                | ron.node.ExprView.ForallE _ _ _ => ok false
-                | ron.node.ExprView.LetE _ _ _ => ok false
-                | ron.node.ExprView.Lit _ => ok false
-                | ron.node.ExprView.Proj _ _ _ => ok false
-              | ron.node.ExprView.App _ _ => ok false
-              | ron.node.ExprView.Lam _ _ _ => ok false
-              | ron.node.ExprView.ForallE _ _ _ => ok false
-              | ron.node.ExprView.LetE _ _ _ => ok false
-              | ron.node.ExprView.Lit _ => ok false
-              | ron.node.ExprView.Proj _ _ _ => ok false
+                | kernel.expr.ExprView.App _ _ => ok false
+                | kernel.expr.ExprView.Lam _ _ _ => ok false
+                | kernel.expr.ExprView.ForallE _ _ _ => ok false
+                | kernel.expr.ExprView.LetE _ _ _ => ok false
+                | kernel.expr.ExprView.Lit _ => ok false
+                | kernel.expr.ExprView.Proj _ _ _ => ok false
+              | kernel.expr.ExprView.App _ _ => ok false
+              | kernel.expr.ExprView.Lam _ _ _ => ok false
+              | kernel.expr.ExprView.ForallE _ _ _ => ok false
+              | kernel.expr.ExprView.LetE _ _ _ => ok false
+              | kernel.expr.ExprView.Lit _ => ok false
+              | kernel.expr.ExprView.Proj _ _ _ => ok false
             | _ => ok false
-          | ron.node.ExprView.Fvar _ _ => ok false
-          | ron.node.ExprView.Sort _ => ok false
-          | ron.node.ExprView.Const _ _ => ok false
-          | ron.node.ExprView.App _ _ => ok false
-          | ron.node.ExprView.Lam _ _ _ => ok false
-          | ron.node.ExprView.ForallE _ _ _ => ok false
-          | ron.node.ExprView.LetE _ _ _ => ok false
-          | ron.node.ExprView.Lit _ => ok false
-          | ron.node.ExprView.Proj _ _ _ => ok false
+          | kernel.expr.ExprView.Fvar _ _ => ok false
+          | kernel.expr.ExprView.Sort _ => ok false
+          | kernel.expr.ExprView.Const _ _ => ok false
+          | kernel.expr.ExprView.App _ _ => ok false
+          | kernel.expr.ExprView.Lam _ _ _ => ok false
+          | kernel.expr.ExprView.ForallE _ _ _ => ok false
+          | kernel.expr.ExprView.LetE _ _ _ => ok false
+          | kernel.expr.ExprView.Lit _ => ok false
+          | kernel.expr.ExprView.Proj _ _ _ => ok false
         | _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE _ _ _ => ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::list_cons_ty_ok]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1004:0-1034:1
@@ -92656,68 +92672,68 @@ def kernel.core_k.list_cons_ty_ok
           kernel.name.Name) cv.level_params 0#usize
       let ev ← kernel.expr.view cv.ty
       match ev with
-      | ron.node.ExprView.Bvar _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE d1 b1 _ =>
+      | kernel.expr.ExprView.Bvar _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE d1 b1 _ =>
         let ev1 ← kernel.expr.view d1
         match ev1 with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort u1 =>
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort u1 =>
           let ev2 ← kernel.expr.view b1
           match ev2 with
-          | ron.node.ExprView.Bvar _ => ok false
-          | ron.node.ExprView.Fvar _ _ => ok false
-          | ron.node.ExprView.Sort _ => ok false
-          | ron.node.ExprView.Const _ _ => ok false
-          | ron.node.ExprView.App _ _ => ok false
-          | ron.node.ExprView.Lam _ _ _ => ok false
-          | ron.node.ExprView.ForallE d2 b2 _ =>
+          | kernel.expr.ExprView.Bvar _ => ok false
+          | kernel.expr.ExprView.Fvar _ _ => ok false
+          | kernel.expr.ExprView.Sort _ => ok false
+          | kernel.expr.ExprView.Const _ _ => ok false
+          | kernel.expr.ExprView.App _ _ => ok false
+          | kernel.expr.ExprView.Lam _ _ _ => ok false
+          | kernel.expr.ExprView.ForallE d2 b2 _ =>
             let ev3 ← kernel.expr.view d2
             match ev3 with
-            | ron.node.ExprView.Bvar i1 =>
+            | kernel.expr.ExprView.Bvar i1 =>
               match i1 with
               | 0#uscalar =>
                 let ev4 ← kernel.expr.view b2
                 match ev4 with
-                | ron.node.ExprView.Bvar _ => ok false
-                | ron.node.ExprView.Fvar _ _ => ok false
-                | ron.node.ExprView.Sort _ => ok false
-                | ron.node.ExprView.Const _ _ => ok false
-                | ron.node.ExprView.App _ _ => ok false
-                | ron.node.ExprView.Lam _ _ _ => ok false
-                | ron.node.ExprView.ForallE d3 b3 _ =>
+                | kernel.expr.ExprView.Bvar _ => ok false
+                | kernel.expr.ExprView.Fvar _ _ => ok false
+                | kernel.expr.ExprView.Sort _ => ok false
+                | kernel.expr.ExprView.Const _ _ => ok false
+                | kernel.expr.ExprView.App _ _ => ok false
+                | kernel.expr.ExprView.Lam _ _ _ => ok false
+                | kernel.expr.ExprView.ForallE d3 b3 _ =>
                   kernel.core_k.list_cons_tail_ok u1 d3 b3 p
-                | ron.node.ExprView.LetE _ _ _ => ok false
-                | ron.node.ExprView.Lit _ => ok false
-                | ron.node.ExprView.Proj _ _ _ => ok false
+                | kernel.expr.ExprView.LetE _ _ _ => ok false
+                | kernel.expr.ExprView.Lit _ => ok false
+                | kernel.expr.ExprView.Proj _ _ _ => ok false
               | _ => ok false
-            | ron.node.ExprView.Fvar _ _ => ok false
-            | ron.node.ExprView.Sort _ => ok false
-            | ron.node.ExprView.Const _ _ => ok false
-            | ron.node.ExprView.App _ _ => ok false
-            | ron.node.ExprView.Lam _ _ _ => ok false
-            | ron.node.ExprView.ForallE _ _ _ => ok false
-            | ron.node.ExprView.LetE _ _ _ => ok false
-            | ron.node.ExprView.Lit _ => ok false
-            | ron.node.ExprView.Proj _ _ _ => ok false
-          | ron.node.ExprView.LetE _ _ _ => ok false
-          | ron.node.ExprView.Lit _ => ok false
-          | ron.node.ExprView.Proj _ _ _ => ok false
-        | ron.node.ExprView.Const _ _ => ok false
-        | ron.node.ExprView.App _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE _ _ _ => ok false
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
+            | kernel.expr.ExprView.Fvar _ _ => ok false
+            | kernel.expr.ExprView.Sort _ => ok false
+            | kernel.expr.ExprView.Const _ _ => ok false
+            | kernel.expr.ExprView.App _ _ => ok false
+            | kernel.expr.ExprView.Lam _ _ _ => ok false
+            | kernel.expr.ExprView.ForallE _ _ _ => ok false
+            | kernel.expr.ExprView.LetE _ _ _ => ok false
+            | kernel.expr.ExprView.Lit _ => ok false
+            | kernel.expr.ExprView.Proj _ _ _ => ok false
+          | kernel.expr.ExprView.LetE _ _ _ => ok false
+          | kernel.expr.ExprView.Lit _ => ok false
+          | kernel.expr.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.Const _ _ => ok false
+        | kernel.expr.ExprView.App _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
     else ok false
 
 /-- [con_ron_core::kernel::core_k::char_of_nat_ty_ok]:
@@ -92734,25 +92750,25 @@ def kernel.core_k.char_of_nat_ty_ok
     then
       let ev ← kernel.expr.view cv.ty
       match ev with
-      | ron.node.ExprView.Bvar _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE dom body _ =>
+      | kernel.expr.ExprView.Bvar _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE dom body _ =>
         let ev1 ← kernel.expr.view dom
         match ev1 with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort _ => ok false
-        | ron.node.ExprView.Const c1 us1 =>
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort _ => ok false
+        | kernel.expr.ExprView.Const c1 us1 =>
           let ev2 ← kernel.expr.view body
           match ev2 with
-          | ron.node.ExprView.Bvar _ => ok false
-          | ron.node.ExprView.Fvar _ _ => ok false
-          | ron.node.ExprView.Sort _ => ok false
-          | ron.node.ExprView.Const c2 us2 =>
+          | kernel.expr.ExprView.Bvar _ => ok false
+          | kernel.expr.ExprView.Fvar _ _ => ok false
+          | kernel.expr.ExprView.Sort _ => ok false
+          | kernel.expr.ExprView.Const c2 us2 =>
             let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us1
             let i1 := alloc.vec.Vec.len v
             if i1 = 0#usize
@@ -92771,21 +92787,21 @@ def kernel.core_k.char_of_nat_ty_ok
                 else ok false
               else ok false
             else ok false
-          | ron.node.ExprView.App _ _ => ok false
-          | ron.node.ExprView.Lam _ _ _ => ok false
-          | ron.node.ExprView.ForallE _ _ _ => ok false
-          | ron.node.ExprView.LetE _ _ _ => ok false
-          | ron.node.ExprView.Lit _ => ok false
-          | ron.node.ExprView.Proj _ _ _ => ok false
-        | ron.node.ExprView.App _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE _ _ _ => ok false
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
+          | kernel.expr.ExprView.App _ _ => ok false
+          | kernel.expr.ExprView.Lam _ _ _ => ok false
+          | kernel.expr.ExprView.ForallE _ _ _ => ok false
+          | kernel.expr.ExprView.LetE _ _ _ => ok false
+          | kernel.expr.ExprView.Lit _ => ok false
+          | kernel.expr.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.App _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
     else ok false
 
 /-- [con_ron_core::kernel::core_k::string_of_list_ty_ok]:
@@ -92802,38 +92818,38 @@ def kernel.core_k.string_of_list_ty_ok
     then
       let ev ← kernel.expr.view cv.ty
       match ev with
-      | ron.node.ExprView.Bvar _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE dom body _ =>
+      | kernel.expr.ExprView.Bvar _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE dom body _ =>
         let ev1 ← kernel.expr.view dom
         match ev1 with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort _ => ok false
-        | ron.node.ExprView.Const _ _ => ok false
-        | ron.node.ExprView.App hd arg =>
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort _ => ok false
+        | kernel.expr.ExprView.Const _ _ => ok false
+        | kernel.expr.ExprView.App hd arg =>
           let ev2 ← kernel.expr.view body
           match ev2 with
-          | ron.node.ExprView.Bvar _ => ok false
-          | ron.node.ExprView.Fvar _ _ => ok false
-          | ron.node.ExprView.Sort _ => ok false
-          | ron.node.ExprView.Const c2 us2 =>
+          | kernel.expr.ExprView.Bvar _ => ok false
+          | kernel.expr.ExprView.Fvar _ _ => ok false
+          | kernel.expr.ExprView.Sort _ => ok false
+          | kernel.expr.ExprView.Const c2 us2 =>
             let ev3 ← kernel.expr.view hd
             match ev3 with
-            | ron.node.ExprView.Bvar _ => ok false
-            | ron.node.ExprView.Fvar _ _ => ok false
-            | ron.node.ExprView.Sort _ => ok false
-            | ron.node.ExprView.Const l1 us1 =>
+            | kernel.expr.ExprView.Bvar _ => ok false
+            | kernel.expr.ExprView.Fvar _ _ => ok false
+            | kernel.expr.ExprView.Sort _ => ok false
+            | kernel.expr.ExprView.Const l1 us1 =>
               let ev4 ← kernel.expr.view arg
               match ev4 with
-              | ron.node.ExprView.Bvar _ => ok false
-              | ron.node.ExprView.Fvar _ _ => ok false
-              | ron.node.ExprView.Sort _ => ok false
-              | ron.node.ExprView.Const c1 us_c =>
+              | kernel.expr.ExprView.Bvar _ => ok false
+              | kernel.expr.ExprView.Fvar _ _ => ok false
+              | kernel.expr.ExprView.Sort _ => ok false
+              | kernel.expr.ExprView.Const c1 us_c =>
                 let v ←
                   alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
                 let i1 := alloc.vec.Vec.len v
@@ -92866,32 +92882,32 @@ def kernel.core_k.string_of_list_ty_ok
                     else ok false
                   else ok false
                 else ok false
-              | ron.node.ExprView.App _ _ => ok false
-              | ron.node.ExprView.Lam _ _ _ => ok false
-              | ron.node.ExprView.ForallE _ _ _ => ok false
-              | ron.node.ExprView.LetE _ _ _ => ok false
-              | ron.node.ExprView.Lit _ => ok false
-              | ron.node.ExprView.Proj _ _ _ => ok false
-            | ron.node.ExprView.App _ _ => ok false
-            | ron.node.ExprView.Lam _ _ _ => ok false
-            | ron.node.ExprView.ForallE _ _ _ => ok false
-            | ron.node.ExprView.LetE _ _ _ => ok false
-            | ron.node.ExprView.Lit _ => ok false
-            | ron.node.ExprView.Proj _ _ _ => ok false
-          | ron.node.ExprView.App _ _ => ok false
-          | ron.node.ExprView.Lam _ _ _ => ok false
-          | ron.node.ExprView.ForallE _ _ _ => ok false
-          | ron.node.ExprView.LetE _ _ _ => ok false
-          | ron.node.ExprView.Lit _ => ok false
-          | ron.node.ExprView.Proj _ _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE _ _ _ => ok false
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
+              | kernel.expr.ExprView.App _ _ => ok false
+              | kernel.expr.ExprView.Lam _ _ _ => ok false
+              | kernel.expr.ExprView.ForallE _ _ _ => ok false
+              | kernel.expr.ExprView.LetE _ _ _ => ok false
+              | kernel.expr.ExprView.Lit _ => ok false
+              | kernel.expr.ExprView.Proj _ _ _ => ok false
+            | kernel.expr.ExprView.App _ _ => ok false
+            | kernel.expr.ExprView.Lam _ _ _ => ok false
+            | kernel.expr.ExprView.ForallE _ _ _ => ok false
+            | kernel.expr.ExprView.LetE _ _ _ => ok false
+            | kernel.expr.ExprView.Lit _ => ok false
+            | kernel.expr.ExprView.Proj _ _ _ => ok false
+          | kernel.expr.ExprView.App _ _ => ok false
+          | kernel.expr.ExprView.Lam _ _ _ => ok false
+          | kernel.expr.ExprView.ForallE _ _ _ => ok false
+          | kernel.expr.ExprView.LetE _ _ _ => ok false
+          | kernel.expr.ExprView.Lit _ => ok false
+          | kernel.expr.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
     else ok false
 
 /-- [con_ron_core::kernel::core_k::str_lit_supported]:
@@ -92948,22 +92964,22 @@ def kernel.core_k.str_lit_supported (fe : kernel.fenv.FEnv) : Result Bool := do
 def kernel.core_k.is_bool_true (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const c us =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const c us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
     then let n ← kernel.core_k.bool_true_name
          kernel.name.beq c n
     else ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::is_lam_k]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1405:0-1410:1
@@ -92971,16 +92987,16 @@ def kernel.core_k.is_bool_true (e : kernel.expr.Expr) : Result Bool := do
 def kernel.core_k.is_lam_k (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok true
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok true
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::is_forall]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1396:0-1401:1
@@ -92988,16 +93004,16 @@ def kernel.core_k.is_lam_k (e : kernel.expr.Expr) : Result Bool := do
 def kernel.core_k.is_forall (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok true
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok true
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::is_lit]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1387:0-1392:1
@@ -93005,16 +93021,16 @@ def kernel.core_k.is_forall (e : kernel.expr.Expr) : Result Bool := do
 def kernel.core_k.is_lit (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok true
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok true
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::is_sort]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1378:0-1383:1
@@ -93022,16 +93038,16 @@ def kernel.core_k.is_lit (e : kernel.expr.Expr) : Result Bool := do
 def kernel.core_k.is_sort (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok true
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok true
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::quick_pair]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1363:0-1371:1
@@ -93040,16 +93056,16 @@ def kernel.core_k.quick_pair
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view a
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => kernel.core_k.is_sort b
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => kernel.core_k.is_lam_k b
-  | ron.node.ExprView.ForallE _ _ _ => kernel.core_k.is_forall b
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => kernel.core_k.is_lit b
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => kernel.core_k.is_sort b
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => kernel.core_k.is_lam_k b
+  | kernel.expr.ExprView.ForallE _ _ _ => kernel.core_k.is_forall b
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => kernel.core_k.is_lit b
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::nat_op_names]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1414:0-1424:1
@@ -93264,7 +93280,7 @@ def kernel.core_k.nat_eq_ap2
   kernel.expr.app e1 b
 
 /-- [con_ron_core::kernel::expr::fvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 441:0-449:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 465:0-473:1
     Visibility: public -/
 def kernel.expr.fvar
   (idx : Std.U64) (ty : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -93277,7 +93293,9 @@ def kernel.expr.fvar
   let i4 ← kernel.expr.sat_succ idx
   let b ← kernel.expr.lp_of_data dt
   let d ← kernel.expr.pack_data h 0#u64 i4 b
-  ron.node.alloc_fvar d idx ty
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Fvar idx ty))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::core_k::nat_op_equations]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1539:0-1620:1
@@ -93747,10 +93765,10 @@ def kernel.core_k.subst_const0
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => kernel.expr.dup e
-  | ron.node.ExprView.Fvar _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const c us =>
+  | kernel.expr.ExprView.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const c us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
@@ -93760,19 +93778,19 @@ def kernel.core_k.subst_const0
       then kernel.expr.dup r
       else kernel.expr.dup e
     else kernel.expr.dup e
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.App f a =>
     let e1 ← kernel.core_k.subst_const0 n r f
     let e2 ← kernel.core_k.subst_const0 n r a
     kernel.expr.app e1 e2
-  | ron.node.ExprView.Lam _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.ForallE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.LetE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lit _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.ForallE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj _ _ _ => kernel.expr.dup e
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::proj]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 582:0-593:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 606:0-620:1
     Visibility: public -/
 def kernel.expr.proj
   (struct_name : kernel.name.Name) (idx : Std.U64) (e : kernel.expr.Expr) :
@@ -93790,10 +93808,13 @@ def kernel.expr.proj
   let i7 ← kernel.expr.fvar_of_data de
   let b ← kernel.expr.lp_of_data de
   let d ← kernel.expr.pack_data h i6 i7 b
-  ron.node.alloc_proj d struct_name idx e
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.Proj
+      struct_name idx e))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::expr::let_e]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 545:0-566:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 569:0-590:1
     Visibility: public -/
 def kernel.expr.let_e
   (ty : kernel.expr.Expr) (value : kernel.expr.Expr) (body : kernel.expr.Expr)
@@ -93832,7 +93853,10 @@ def kernel.expr.let_e
       then ok true
       else kernel.expr.lp_of_data db
   let d ← kernel.expr.pack_data h i11 i16 b1
-  ron.node.alloc_let_e d ty value body
+  let a ←
+    ron.ptr.new (kernel.expr.ExprNode.mk d (kernel.expr.ExprKind.LetE ty value
+      body))
+  ok (kernel.expr.Expr.mk a)
 
 /-- [con_ron_core::kernel::core_k::subst_const_all]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1795:0-1823:1
@@ -93843,10 +93867,10 @@ def kernel.core_k.subst_const_all
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => kernel.expr.dup e
-  | ron.node.ExprView.Fvar _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const c us =>
+  | kernel.expr.ExprView.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const c us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
@@ -93856,27 +93880,27 @@ def kernel.core_k.subst_const_all
       then kernel.expr.dup r
       else kernel.expr.dup e
     else kernel.expr.dup e
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.App f a =>
     let e1 ← kernel.core_k.subst_const_all n r f
     let e2 ← kernel.core_k.subst_const_all n r a
     kernel.expr.app e1 e2
-  | ron.node.ExprView.Lam ty b mb =>
+  | kernel.expr.ExprView.Lam ty b mb =>
     let e1 ← kernel.core_k.subst_const_all n r ty
     let e2 ← kernel.core_k.subst_const_all n r b
     let bm ← kernel.expr.binder_meta_dup mb
     kernel.expr.lam e1 e2 bm
-  | ron.node.ExprView.ForallE ty b mb =>
+  | kernel.expr.ExprView.ForallE ty b mb =>
     let e1 ← kernel.core_k.subst_const_all n r ty
     let e2 ← kernel.core_k.subst_const_all n r b
     let bm ← kernel.expr.binder_meta_dup mb
     kernel.expr.forall_e e1 e2 bm
-  | ron.node.ExprView.LetE ty v b =>
+  | kernel.expr.ExprView.LetE ty v b =>
     let e1 ← kernel.core_k.subst_const_all n r ty
     let e2 ← kernel.core_k.subst_const_all n r v
     let e3 ← kernel.core_k.subst_const_all n r b
     kernel.expr.let_e e1 e2 e3
-  | ron.node.ExprView.Lit _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj s i pe =>
+  | kernel.expr.ExprView.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj s i pe =>
     let n1 ← kernel.name.dup s
     let e1 ← kernel.core_k.subst_const_all n r pe
     kernel.expr.proj n1 i e1
@@ -93949,39 +93973,39 @@ def kernel.core_k.nat_op_ty_pinned
   then
     let ev ← kernel.expr.view ty
     match ev with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE dom body _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE dom body _ =>
       let b1 ← kernel.expr.beq dom nat_ty
       if b1
       then kernel.core_k.nat_op_cod fe c body
       else ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
   else
     let ev ← kernel.expr.view ty
     match ev with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE dom inner _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE dom inner _ =>
       let ev1 ← kernel.expr.view inner
       match ev1 with
-      | ron.node.ExprView.Bvar _ => ok false
-      | ron.node.ExprView.Fvar _ _ => ok false
-      | ron.node.ExprView.Sort _ => ok false
-      | ron.node.ExprView.Const _ _ => ok false
-      | ron.node.ExprView.App _ _ => ok false
-      | ron.node.ExprView.Lam _ _ _ => ok false
-      | ron.node.ExprView.ForallE dom2 body _ =>
+      | kernel.expr.ExprView.Bvar _ => ok false
+      | kernel.expr.ExprView.Fvar _ _ => ok false
+      | kernel.expr.ExprView.Sort _ => ok false
+      | kernel.expr.ExprView.Const _ _ => ok false
+      | kernel.expr.ExprView.App _ _ => ok false
+      | kernel.expr.ExprView.Lam _ _ _ => ok false
+      | kernel.expr.ExprView.ForallE dom2 body _ =>
         let b1 ← kernel.expr.beq dom nat_ty
         if b1
         then
@@ -93990,12 +94014,12 @@ def kernel.core_k.nat_op_ty_pinned
           then kernel.core_k.nat_op_cod fe c body
           else ok false
         else ok false
-      | ron.node.ExprView.LetE _ _ _ => ok false
-      | ron.node.ExprView.Lit _ => ok false
-      | ron.node.ExprView.Proj _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
+      | kernel.expr.ExprView.LetE _ _ _ => ok false
+      | kernel.expr.ExprView.Lit _ => ok false
+      | kernel.expr.ExprView.Proj _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::nat_op_stored_ok]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 1899:0-1910:1
@@ -94168,7 +94192,7 @@ def kernel.expr_ops.expr_nat_key
   ok { e := e1, d }
 
 /-- [con_ron_core::kernel::expr_ops::instantiate1_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 303:0-357:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 311:0-365:1
     Visibility: public -/
 def kernel.expr_ops.instantiate1_go
   (v : kernel.expr.Expr)
@@ -94179,7 +94203,7 @@ def kernel.expr_ops.instantiate1_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar i =>
+  | kernel.expr.ExprView.Bvar i =>
     if i = d
     then let r ← kernel.expr.dup v
          ok (r, memo)
@@ -94190,42 +94214,42 @@ def kernel.expr_ops.instantiate1_go
            ok (r, memo)
       else let r ← kernel.expr.bvar i
            ok (r, memo)
-  | ron.node.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
-                                  ok (r, memo)
-  | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                ok (r, memo)
-  | ron.node.ExprView.Const _ _ => let r ← kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+  | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
                                    ok (r, memo)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.Const _ _ => let r ← kernel.expr.dup e
+                                      ok (r, memo)
+  | kernel.expr.ExprView.App _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate1_go v memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate1_go v memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94233,7 +94257,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94241,7 +94265,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate1_go v memo2 val d
@@ -94249,11 +94273,11 @@ def kernel.expr_ops.instantiate1_go
           let (b, memo4) ← kernel.expr_ops.instantiate1_go v memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate1_go v memo sub d
           let n ← kernel.name.dup s
@@ -94266,36 +94290,36 @@ def kernel.expr_ops.instantiate1_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate1_go v memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate1_go v memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94303,7 +94327,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94311,7 +94335,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate1_go v memo2 val d
@@ -94319,11 +94343,11 @@ def kernel.expr_ops.instantiate1_go
           let (b, memo4) ← kernel.expr_ops.instantiate1_go v memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate1_go v memo sub d
           let n ← kernel.name.dup s
@@ -94336,36 +94360,36 @@ def kernel.expr_ops.instantiate1_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate1_go v memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate1_go v memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94373,7 +94397,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94381,7 +94405,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate1_go v memo2 val d
@@ -94389,11 +94413,11 @@ def kernel.expr_ops.instantiate1_go
           let (b, memo4) ← kernel.expr_ops.instantiate1_go v memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate1_go v memo sub d
           let n ← kernel.name.dup s
@@ -94406,36 +94430,36 @@ def kernel.expr_ops.instantiate1_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate1_go v memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate1_go v memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94443,7 +94467,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94451,7 +94475,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate1_go v memo2 val d
@@ -94459,11 +94483,11 @@ def kernel.expr_ops.instantiate1_go
           let (b, memo4) ← kernel.expr_ops.instantiate1_go v memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate1_go v memo sub d
           let n ← kernel.name.dup s
@@ -94476,38 +94500,38 @@ def kernel.expr_ops.instantiate1_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                               ok (r, memo)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                  ok (r, memo)
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate1_go v memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate1_go v memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94515,7 +94539,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let i ← d + 1#u64
@@ -94523,7 +94547,7 @@ def kernel.expr_ops.instantiate1_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate1_go v memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate1_go v memo2 val d
@@ -94531,11 +94555,11 @@ def kernel.expr_ops.instantiate1_go
           let (b, memo4) ← kernel.expr_ops.instantiate1_go v memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate1_go v memo sub d
           let n ← kernel.name.dup s
@@ -94551,7 +94575,7 @@ def kernel.expr_ops.instantiate1_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::instantiate1]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 367:0-370:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 375:0-378:1
     Visibility: public -/
 def kernel.expr_ops.instantiate1
   (e : kernel.expr.Expr) (v : kernel.expr.Expr) (d : Std.U64) :
@@ -94577,22 +94601,22 @@ def kernel.core_k.pi_residual_from
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE _ b _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ b _ =>
       let e1 ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           kernel.expr.Expr) args i
       let next ← kernel.expr_ops.instantiate1 b e1 0#u64
       let i2 ← i + 1#usize
       kernel.core_k.pi_residual_from next args i2
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::core_k::pi_residual]:
@@ -94721,7 +94745,7 @@ def kernel.fenv.tower_slots_all_f
   kernel.fenv.tower_slots_all_f_from fe t n_f 0#u64
 
 /-- [con_ron_core::kernel::expr_ops::mk_app_n_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1161:0-1167:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1169:0-1175:1
     Visibility: public -/
 def kernel.expr_ops.mk_app_n_from
   (f : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr)
@@ -94742,7 +94766,7 @@ def kernel.expr_ops.mk_app_n_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::mk_app_n]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1155:0-1157:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1163:0-1165:1
     Visibility: public -/
 def kernel.expr_ops.mk_app_n
   (f : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr) :
@@ -94914,7 +94938,7 @@ def kernel.core_k.struct_eta_shape_ok
   else ok false
 
 /-- [con_ron_core::kernel::expr_ops::get_app_args_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1141:0-1150:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1149:0-1158:1
     Visibility: public -/
 def kernel.expr_ops.get_app_args_go
   (e : kernel.expr.Expr) (out : alloc.vec.Vec kernel.expr.Expr) :
@@ -94922,23 +94946,23 @@ def kernel.expr_ops.get_app_args_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok out
-  | ron.node.ExprView.Fvar _ _ => ok out
-  | ron.node.ExprView.Sort _ => ok out
-  | ron.node.ExprView.Const _ _ => ok out
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Bvar _ => ok out
+  | kernel.expr.ExprView.Fvar _ _ => ok out
+  | kernel.expr.ExprView.Sort _ => ok out
+  | kernel.expr.ExprView.Const _ _ => ok out
+  | kernel.expr.ExprView.App f a =>
     let out2 ← kernel.expr_ops.get_app_args_go f out
     let e1 ← kernel.expr.dup a
     alloc.vec.Vec.push out2 e1
-  | ron.node.ExprView.Lam _ _ _ => ok out
-  | ron.node.ExprView.ForallE _ _ _ => ok out
-  | ron.node.ExprView.LetE _ _ _ => ok out
-  | ron.node.ExprView.Lit _ => ok out
-  | ron.node.ExprView.Proj _ _ _ => ok out
+  | kernel.expr.ExprView.Lam _ _ _ => ok out
+  | kernel.expr.ExprView.ForallE _ _ _ => ok out
+  | kernel.expr.ExprView.LetE _ _ _ => ok out
+  | kernel.expr.ExprView.Lit _ => ok out
+  | kernel.expr.ExprView.Proj _ _ _ => ok out
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::get_app_args]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1133:0-1135:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1141:0-1143:1
     Visibility: public -/
 def kernel.expr_ops.get_app_args
   (e : kernel.expr.Expr) : Result (alloc.vec.Vec kernel.expr.Expr) := do
@@ -94952,10 +94976,10 @@ def kernel.core_k.eta_ctor_shape
   let f ← kernel.expr_ops.get_app_fn a
   let ev ← kernel.expr.view f
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const c _ =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const c _ =>
     let o ← kernel.fenv.find fe c
     match o with
     | none => ok false
@@ -94973,12 +94997,12 @@ def kernel.core_k.eta_ctor_shape
         ok (i1 = i2)
       | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok false
       | kernel.env.ConstantInfo.ProjInfo _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::unit_shape_ok]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 2090:0-2106:1
@@ -95131,7 +95155,7 @@ def kernel.expr_ops.memo_n_get
   | some _ => ok o
 
 /-- [con_ron_core::kernel::expr_ops::bvar_bound_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1688:0-1725:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1696:0-1733:1
     Visibility: public -/
 def kernel.expr_ops.bvar_bound_go
   (memo : ron.hashmap.HashMap kernel.expr.Expr Std.U64) (e : kernel.expr.Expr)
@@ -95144,33 +95168,33 @@ def kernel.expr_ops.bvar_bound_go
     let ev ← kernel.expr.view e
     let (memo1, r) ←
       match ev with
-      | ron.node.ExprView.Bvar i => do
-                                    let r1 ← i + 1#u64
-                                    ok (memo, r1)
-      | ron.node.ExprView.Fvar _ _ => ok (memo, 0#u64)
-      | ron.node.ExprView.Sort _ => ok (memo, 0#u64)
-      | ron.node.ExprView.Const _ _ => ok (memo, 0#u64)
-      | ron.node.ExprView.App f a =>
+      | kernel.expr.ExprView.Bvar i => do
+                                       let r1 ← i + 1#u64
+                                       ok (memo, r1)
+      | kernel.expr.ExprView.Fvar _ _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.Sort _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.Const _ _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.App f a =>
         do
         let (rf, memo2) ← kernel.expr_ops.bvar_bound_go memo f
         let (ra, memo3) ← kernel.expr_ops.bvar_bound_go memo2 a
         let r1 ← kernel.expr.max_u64 rf ra
         ok (memo3, r1)
-      | ron.node.ExprView.Lam ty body _ =>
+      | kernel.expr.ExprView.Lam ty body _ =>
         do
         let (rt, memo2) ← kernel.expr_ops.bvar_bound_go memo ty
         let (rb, memo3) ← kernel.expr_ops.bvar_bound_go memo2 body
         let i ← kernel.expr_ops.sub_nat rb 1#u64
         let r1 ← kernel.expr.max_u64 rt i
         ok (memo3, r1)
-      | ron.node.ExprView.ForallE ty body _ =>
+      | kernel.expr.ExprView.ForallE ty body _ =>
         do
         let (rt, memo2) ← kernel.expr_ops.bvar_bound_go memo ty
         let (rb, memo3) ← kernel.expr_ops.bvar_bound_go memo2 body
         let i ← kernel.expr_ops.sub_nat rb 1#u64
         let r1 ← kernel.expr.max_u64 rt i
         ok (memo3, r1)
-      | ron.node.ExprView.LetE ty val body =>
+      | kernel.expr.ExprView.LetE ty val body =>
         do
         let (rt, memo2) ← kernel.expr_ops.bvar_bound_go memo ty
         let (rv, memo3) ← kernel.expr_ops.bvar_bound_go memo2 val
@@ -95179,8 +95203,8 @@ def kernel.expr_ops.bvar_bound_go
         let i1 ← kernel.expr_ops.sub_nat rb 1#u64
         let r1 ← kernel.expr.max_u64 i i1
         ok (memo4, r1)
-      | ron.node.ExprView.Lit _ => ok (memo, 0#u64)
-      | ron.node.ExprView.Proj _ _ sub =>
+      | kernel.expr.ExprView.Lit _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.Proj _ _ sub =>
         do
         let (r1, memo2) ← kernel.expr_ops.bvar_bound_go memo sub
         ok (memo2, r1)
@@ -95194,7 +95218,7 @@ def kernel.expr_ops.bvar_bound_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::bvar_bound_memo]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1730:0-1733:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1738:0-1741:1
     Visibility: public -/
 def kernel.expr_ops.bvar_bound_memo
   (e : kernel.expr.Expr) : Result Std.U64 := do
@@ -95203,14 +95227,14 @@ def kernel.expr_ops.bvar_bound_memo
   ok i
 
 /-- [con_ron_core::kernel::expr::bvar_b_raw]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 618:0-620:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 645:0-647:1
     Visibility: public -/
 def kernel.expr.bvar_b_raw (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
   kernel.expr.bvar_of_data i
 
 /-- [con_ron_core::kernel::expr_ops::bvar_b]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1790:0-1797:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1798:0-1805:1
     Visibility: public -/
 def kernel.expr_ops.bvar_b (e : kernel.expr.Expr) : Result Std.U64 := do
   let r ← kernel.expr.bvar_b_raw e
@@ -95220,7 +95244,7 @@ def kernel.expr_ops.bvar_b (e : kernel.expr.Expr) : Result Std.U64 := do
   else ok r
 
 /-- [con_ron_core::kernel::expr_ops::loose_bvars_bounded]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1075:0-1077:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1083:0-1085:1
     Visibility: public -/
 def kernel.expr_ops.loose_bvars_bounded
   (k : Std.U64) (e : kernel.expr.Expr) : Result Bool := do
@@ -95228,35 +95252,35 @@ def kernel.expr_ops.loose_bvars_bounded
   ok (i <= k)
 
 /-- [con_ron_core::kernel::expr_ops::wscoped_b]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1022:0-1066:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1030:0-1074:1
     Visibility: public -/
 def kernel.expr_ops.wscoped_b
   (d : Std.U64) (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok true
-  | ron.node.ExprView.Fvar idx ty =>
+  | kernel.expr.ExprView.Bvar _ => ok true
+  | kernel.expr.ExprView.Fvar idx ty =>
     if idx < d
     then kernel.expr_ops.wscoped_b idx ty
     else ok false
-  | ron.node.ExprView.Sort _ => ok true
-  | ron.node.ExprView.Const _ _ => ok true
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Sort _ => ok true
+  | kernel.expr.ExprView.Const _ _ => ok true
+  | kernel.expr.ExprView.App f a =>
     let b ← kernel.expr_ops.wscoped_b d f
     if b
     then kernel.expr_ops.wscoped_b d a
     else ok false
-  | ron.node.ExprView.Lam ty body _ =>
+  | kernel.expr.ExprView.Lam ty body _ =>
     let b ← kernel.expr_ops.wscoped_b d ty
     if b
     then kernel.expr_ops.wscoped_b d body
     else ok false
-  | ron.node.ExprView.ForallE ty body _ =>
+  | kernel.expr.ExprView.ForallE ty body _ =>
     let b ← kernel.expr_ops.wscoped_b d ty
     if b
     then kernel.expr_ops.wscoped_b d body
     else ok false
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let b ← kernel.expr_ops.wscoped_b d ty
     if b
     then
@@ -95265,12 +95289,12 @@ def kernel.expr_ops.wscoped_b
       then kernel.expr_ops.wscoped_b d body
       else ok false
     else ok false
-  | ron.node.ExprView.Lit _ => ok true
-  | ron.node.ExprView.Proj _ _ sub => kernel.expr_ops.wscoped_b d sub
+  | kernel.expr.ExprView.Lit _ => ok true
+  | kernel.expr.ExprView.Proj _ _ sub => kernel.expr_ops.wscoped_b d sub
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::fvar_leaves_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 989:0-1015:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 997:0-1023:1
     Visibility: public -/
 def kernel.expr_ops.fvar_leaves_go
   (e : kernel.expr.Expr) (out : alloc.vec.Vec (Std.U64 × kernel.expr.Expr)) :
@@ -95278,32 +95302,32 @@ def kernel.expr_ops.fvar_leaves_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok out
-  | ron.node.ExprView.Fvar idx ty =>
+  | kernel.expr.ExprView.Bvar _ => ok out
+  | kernel.expr.ExprView.Fvar idx ty =>
     let e1 ← kernel.expr.dup ty
     let out1 ← alloc.vec.Vec.push out (idx, e1)
     kernel.expr_ops.fvar_leaves_go ty out1
-  | ron.node.ExprView.Sort _ => ok out
-  | ron.node.ExprView.Const _ _ => ok out
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Sort _ => ok out
+  | kernel.expr.ExprView.Const _ _ => ok out
+  | kernel.expr.ExprView.App f a =>
     let out2 ← kernel.expr_ops.fvar_leaves_go f out
     kernel.expr_ops.fvar_leaves_go a out2
-  | ron.node.ExprView.Lam ty b _ =>
+  | kernel.expr.ExprView.Lam ty b _ =>
     let out2 ← kernel.expr_ops.fvar_leaves_go ty out
     kernel.expr_ops.fvar_leaves_go b out2
-  | ron.node.ExprView.ForallE ty b _ =>
+  | kernel.expr.ExprView.ForallE ty b _ =>
     let out2 ← kernel.expr_ops.fvar_leaves_go ty out
     kernel.expr_ops.fvar_leaves_go b out2
-  | ron.node.ExprView.LetE t v b =>
+  | kernel.expr.ExprView.LetE t v b =>
     let out2 ← kernel.expr_ops.fvar_leaves_go t out
     let out3 ← kernel.expr_ops.fvar_leaves_go v out2
     kernel.expr_ops.fvar_leaves_go b out3
-  | ron.node.ExprView.Lit _ => ok out
-  | ron.node.ExprView.Proj _ _ sub => kernel.expr_ops.fvar_leaves_go sub out
+  | kernel.expr.ExprView.Lit _ => ok out
+  | kernel.expr.ExprView.Proj _ _ sub => kernel.expr_ops.fvar_leaves_go sub out
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::fvar_leaves]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 981:0-983:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 989:0-991:1
     Visibility: public -/
 def kernel.expr_ops.fvar_leaves
   (e : kernel.expr.Expr) :
@@ -95345,10 +95369,10 @@ def kernel.core_k.rec_rule_k_of
     let head ← kernel.expr_ops.get_app_fn res
     let ev ← kernel.expr.view head
     match ev with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const t1 _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const t1 _ =>
       let o1 ← kernel.core_k.ind_probe fe t1
       match o1 with
       | none => ok false
@@ -95357,12 +95381,12 @@ def kernel.core_k.rec_rule_k_of
         if caps.rule_k
         then ok (cn_f = 0#u64)
         else ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::rec_rule_eta_of]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 2271:0-2296:1
@@ -95381,10 +95405,10 @@ def kernel.core_k.rec_rule_eta_of
     let head ← kernel.expr_ops.get_app_fn res
     let ev ← kernel.expr.view head
     match ev with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const t1 _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const t1 _ =>
       let o1 ← kernel.core_k.ind_probe fe t1
       match o1 with
       | none => ok false
@@ -95401,12 +95425,12 @@ def kernel.core_k.rec_rule_eta_of
             else kernel.prop_when.names_beq cvj.level_params cvt.level_params
           else ok false
         else ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::rec_rule_bits]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 2302:0-2309:1
@@ -95421,7 +95445,7 @@ def kernel.core_k.rec_rule_bits
   ok { rl with k, eta }
 
 /-- [con_ron_core::kernel::expr_ops::rec_rule_args_eq]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1554:0-1567:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1562:0-1575:1
     Visibility: public -/
 def kernel.expr_ops.rec_rule_args_eq
   (args : alloc.vec.Vec kernel.expr.Expr) (m_i : Std.U64) (cn_p : Std.U64)
@@ -95452,7 +95476,7 @@ def kernel.expr_ops.rec_rule_args_eq
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::strip_pis_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1293:0-1309:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1301:0-1317:1
     Visibility: public -/
 def kernel.expr_ops.strip_pis_go
   (k : Std.U64) (e : kernel.expr.Expr)
@@ -95466,25 +95490,25 @@ def kernel.expr_ops.strip_pis_go
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE ty b m =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE ty b m =>
       let e1 ← kernel.expr.dup ty
       let bm ← kernel.expr.binder_meta_dup m
       let out1 ← alloc.vec.Vec.push out (e1, bm)
       let i ← k - 1#u64
       kernel.expr_ops.strip_pis_go i b out1
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::strip_pis]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1287:0-1289:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1295:0-1297:1
     Visibility: public -/
 def kernel.expr_ops.strip_pis
   (k : Std.U64) (e : kernel.expr.Expr) :
@@ -95495,7 +95519,7 @@ def kernel.expr_ops.strip_pis
     kernel.expr.BinderMeta))
 
 /-- [con_ron_core::kernel::expr_ops::rec_rule_plain]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1531:0-1550:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1539:0-1558:1
     Visibility: public -/
 def kernel.expr_ops.rec_rule_plain
   (rec_ty : kernel.expr.Expr) (m_i : Std.U64) (r_p : Std.U64) (cn_p : Std.U64)
@@ -95513,18 +95537,18 @@ def kernel.expr_ops.rec_rule_plain
         let (_, e) := r
         let ev ← kernel.expr.view e
         match ev with
-        | ron.node.ExprView.Bvar _ => ok false
-        | ron.node.ExprView.Fvar _ _ => ok false
-        | ron.node.ExprView.Sort _ => ok false
-        | ron.node.ExprView.Const _ _ => ok false
-        | ron.node.ExprView.App _ _ => ok false
-        | ron.node.ExprView.Lam _ _ _ => ok false
-        | ron.node.ExprView.ForallE dom _ _ =>
+        | kernel.expr.ExprView.Bvar _ => ok false
+        | kernel.expr.ExprView.Fvar _ _ => ok false
+        | kernel.expr.ExprView.Sort _ => ok false
+        | kernel.expr.ExprView.Const _ _ => ok false
+        | kernel.expr.ExprView.App _ _ => ok false
+        | kernel.expr.ExprView.Lam _ _ _ => ok false
+        | kernel.expr.ExprView.ForallE dom _ _ =>
           let args ← kernel.expr_ops.get_app_args dom
           kernel.expr_ops.rec_rule_args_eq args m_i cn_p 0#u64
-        | ron.node.ExprView.LetE _ _ _ => ok false
-        | ron.node.ExprView.Lit _ => ok false
-        | ron.node.ExprView.Proj _ _ _ => ok false
+        | kernel.expr.ExprView.LetE _ _ _ => ok false
+        | kernel.expr.ExprView.Lit _ => ok false
+        | kernel.expr.ExprView.Proj _ _ _ => ok false
     else ok false
   else ok false
 
@@ -95621,7 +95645,7 @@ def kernel.core_k.fire_is_inert
   | kernel.env.RecRuleFire.Nested _ _ => ok false
 
 /-- [con_ron_core::kernel::expr_ops::levels_subst_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1902:0-1915:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1910:0-1923:1
     Visibility: public -/
 def kernel.expr_ops.levels_subst_from
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -95643,7 +95667,7 @@ def kernel.expr_ops.levels_subst_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::levels_subst]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1919:0-1921:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1927:0-1929:1
     Visibility: public -/
 def kernel.expr_ops.levels_subst
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -95671,14 +95695,14 @@ def kernel.expr_ops.memo_e_get
               ok (some e)
 
 /-- [con_ron_core::kernel::expr::has_lp]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 608:0-610:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 635:0-637:1
     Visibility: public -/
 def kernel.expr.has_lp (e : kernel.expr.Expr) : Result Bool := do
   let i ← kernel.expr.data e
   kernel.expr.lp_of_data i
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_level_params_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1937:0-1992:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1945:0-2000:1
     Visibility: public -/
 def kernel.expr_ops.instantiate_level_params_go
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -95692,33 +95716,33 @@ def kernel.expr_ops.instantiate_level_params_go
   then
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar i => let r ← kernel.expr.bvar i
-                                  ok (r, memo)
-    | ron.node.ExprView.Fvar _ _ =>
+    | kernel.expr.ExprView.Bvar i => let r ← kernel.expr.bvar i
+                                     ok (r, memo)
+    | kernel.expr.ExprView.Fvar _ _ =>
       let o ← kernel.expr_ops.memo_e_get memo e
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar idx ty =>
+          | kernel.expr.ExprView.Fvar idx ty =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let r1 ← kernel.expr.fvar idx t
             ok (memo2, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo f
@@ -95726,7 +95750,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo2 a
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95736,7 +95760,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95746,7 +95770,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95756,11 +95780,11 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo3 body
             let r1 ← kernel.expr.let_e t w b1
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i sub =>
+          | kernel.expr.ExprView.Proj s i sub =>
             do
             let (u2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo sub
@@ -95775,41 +95799,41 @@ def kernel.expr_ops.instantiate_level_params_go
             kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Sort u =>
+    | kernel.expr.ExprView.Sort u =>
       let l ← kernel.level.subst ks us u
       let r ← kernel.expr.sort l
       ok (r, memo)
-    | ron.node.ExprView.Const n vs =>
+    | kernel.expr.ExprView.Const n vs =>
       let n1 ← kernel.name.dup n
       let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global vs
       let v1 ← kernel.expr_ops.levels_subst ks us v
       let r ← kernel.expr.mk_const n1 v1
       ok (r, memo)
-    | ron.node.ExprView.App _ _ =>
+    | kernel.expr.ExprView.App _ _ =>
       let o ← kernel.expr_ops.memo_e_get memo e
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar idx ty =>
+          | kernel.expr.ExprView.Fvar idx ty =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let r1 ← kernel.expr.fvar idx t
             ok (memo2, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo f
@@ -95817,7 +95841,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo2 a
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95827,7 +95851,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95837,7 +95861,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95847,11 +95871,11 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo3 body
             let r1 ← kernel.expr.let_e t w b1
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i sub =>
+          | kernel.expr.ExprView.Proj s i sub =>
             do
             let (u2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo sub
@@ -95866,31 +95890,31 @@ def kernel.expr_ops.instantiate_level_params_go
             kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lam _ _ _ =>
+    | kernel.expr.ExprView.Lam _ _ _ =>
       let o ← kernel.expr_ops.memo_e_get memo e
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar idx ty =>
+          | kernel.expr.ExprView.Fvar idx ty =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let r1 ← kernel.expr.fvar idx t
             ok (memo2, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo f
@@ -95898,7 +95922,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo2 a
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95908,7 +95932,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95918,7 +95942,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95928,11 +95952,11 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo3 body
             let r1 ← kernel.expr.let_e t w b1
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i sub =>
+          | kernel.expr.ExprView.Proj s i sub =>
             do
             let (u2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo sub
@@ -95947,31 +95971,31 @@ def kernel.expr_ops.instantiate_level_params_go
             kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.ForallE _ _ _ =>
+    | kernel.expr.ExprView.ForallE _ _ _ =>
       let o ← kernel.expr_ops.memo_e_get memo e
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar idx ty =>
+          | kernel.expr.ExprView.Fvar idx ty =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let r1 ← kernel.expr.fvar idx t
             ok (memo2, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo f
@@ -95979,7 +96003,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo2 a
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95989,7 +96013,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -95999,7 +96023,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -96009,11 +96033,11 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo3 body
             let r1 ← kernel.expr.let_e t w b1
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i sub =>
+          | kernel.expr.ExprView.Proj s i sub =>
             do
             let (u2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo sub
@@ -96028,31 +96052,31 @@ def kernel.expr_ops.instantiate_level_params_go
             kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.LetE _ _ _ =>
+    | kernel.expr.ExprView.LetE _ _ _ =>
       let o ← kernel.expr_ops.memo_e_get memo e
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar idx ty =>
+          | kernel.expr.ExprView.Fvar idx ty =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let r1 ← kernel.expr.fvar idx t
             ok (memo2, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo f
@@ -96060,7 +96084,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo2 a
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -96070,7 +96094,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -96080,7 +96104,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -96090,11 +96114,11 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo3 body
             let r1 ← kernel.expr.let_e t w b1
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i sub =>
+          | kernel.expr.ExprView.Proj s i sub =>
             do
             let (u2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo sub
@@ -96109,35 +96133,35 @@ def kernel.expr_ops.instantiate_level_params_go
             kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lit l =>
+    | kernel.expr.ExprView.Lit l =>
       let l1 ← kernel.expr.literal_dup l
       let r ← kernel.expr.lit l1
       ok (r, memo)
-    | ron.node.ExprView.Proj _ _ _ =>
+    | kernel.expr.ExprView.Proj _ _ _ =>
       let o ← kernel.expr_ops.memo_e_get memo e
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar idx ty =>
+          | kernel.expr.ExprView.Fvar idx ty =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
             let r1 ← kernel.expr.fvar idx t
             ok (memo2, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo f
@@ -96145,7 +96169,7 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo2 a
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -96155,7 +96179,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.lam t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -96165,7 +96189,7 @@ def kernel.expr_ops.instantiate_level_params_go
             let bm ← kernel.expr.binder_meta pw
             let r1 ← kernel.expr.forall_e t b1 bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo ty
@@ -96175,11 +96199,11 @@ def kernel.expr_ops.instantiate_level_params_go
               kernel.expr_ops.instantiate_level_params_go ks us memo3 body
             let r1 ← kernel.expr.let_e t w b1
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i sub =>
+          | kernel.expr.ExprView.Proj s i sub =>
             do
             let (u2, memo2) ←
               kernel.expr_ops.instantiate_level_params_go ks us memo sub
@@ -96199,7 +96223,7 @@ def kernel.expr_ops.instantiate_level_params_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_level_params]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1998:0-2001:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2006:0-2009:1
     Visibility: public -/
 def kernel.expr_ops.instantiate_level_params
   (ks : alloc.vec.Vec kernel.name.Name) (us : alloc.vec.Vec kernel.level.Level)
@@ -96211,7 +96235,7 @@ def kernel.expr_ops.instantiate_level_params
   ok e1
 
 /-- [con_ron_core::kernel::expr_ops::exprs_copy_upto]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 243:0-250:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 251:0-258:1
     Visibility: public -/
 def kernel.expr_ops.exprs_copy_upto
   (xs : alloc.vec.Vec kernel.expr.Expr) (k : Std.Usize) (i : Std.Usize)
@@ -96235,7 +96259,7 @@ def kernel.expr_ops.exprs_copy_upto
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::take_exprs]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 254:0-256:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 262:0-264:1
     Visibility: public -/
 def kernel.expr_ops.take_exprs
   (xs : alloc.vec.Vec kernel.expr.Expr) (k : Std.Usize) :
@@ -96245,7 +96269,7 @@ def kernel.expr_ops.take_exprs
   kernel.expr_ops.exprs_copy_upto xs k 0#usize v
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_list]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 386:0-432:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 394:0-440:1
     Visibility: public -/
 def kernel.expr_ops.instantiate_list
   (e : kernel.expr.Expr) (vs : alloc.vec.Vec kernel.expr.Expr) (d : Std.U64) :
@@ -96253,7 +96277,7 @@ def kernel.expr_ops.instantiate_list
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar j =>
+  | kernel.expr.ExprView.Bvar j =>
     if j < d
     then kernel.expr.bvar j
     else
@@ -96270,40 +96294,40 @@ def kernel.expr_ops.instantiate_list
         kernel.expr_ops.instantiate_list e1 pre d
       else let i2 ← j - n
            kernel.expr.bvar i2
-  | ron.node.ExprView.Fvar _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const _ _ => kernel.expr.dup e
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.App f a =>
     let f2 ← kernel.expr_ops.instantiate_list f vs d
     let a2 ← kernel.expr_ops.instantiate_list a vs d
     kernel.expr.app f2 a2
-  | ron.node.ExprView.Lam ty body bi =>
+  | kernel.expr.ExprView.Lam ty body bi =>
     let t ← kernel.expr_ops.instantiate_list ty vs d
     let i ← d + 1#u64
     let b ← kernel.expr_ops.instantiate_list body vs i
     let bm ← kernel.expr.binder_meta_dup bi
     kernel.expr.lam t b bm
-  | ron.node.ExprView.ForallE ty body bi =>
+  | kernel.expr.ExprView.ForallE ty body bi =>
     let t ← kernel.expr_ops.instantiate_list ty vs d
     let i ← d + 1#u64
     let b ← kernel.expr_ops.instantiate_list body vs i
     let bm ← kernel.expr.binder_meta_dup bi
     kernel.expr.forall_e t b bm
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let t ← kernel.expr_ops.instantiate_list ty vs d
     let w ← kernel.expr_ops.instantiate_list val vs d
     let i ← d + 1#u64
     let b ← kernel.expr_ops.instantiate_list body vs i
     kernel.expr.let_e t w b
-  | ron.node.ExprView.Lit _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj s i sub =>
+  | kernel.expr.ExprView.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj s i sub =>
     let u ← kernel.expr_ops.instantiate_list sub vs d
     let n ← kernel.name.dup s
     kernel.expr.proj n i u
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_list_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 438:0-489:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 446:0-497:1
     Visibility: public -/
 def kernel.expr_ops.instantiate_list_go
   (vs : alloc.vec.Vec kernel.expr.Expr)
@@ -96314,45 +96338,45 @@ def kernel.expr_ops.instantiate_list_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ =>
+  | kernel.expr.ExprView.Bvar _ =>
     let r ← kernel.expr_ops.instantiate_list e vs d
     ok (r, memo)
-  | ron.node.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
-                                  ok (r, memo)
-  | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                ok (r, memo)
-  | ron.node.ExprView.Const _ _ => let r ← kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+  | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
                                    ok (r, memo)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.Const _ _ => let r ← kernel.expr.dup e
+                                      ok (r, memo)
+  | kernel.expr.ExprView.App _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate_list_go vs memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96361,7 +96385,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96370,7 +96394,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 val d
@@ -96379,11 +96403,11 @@ def kernel.expr_ops.instantiate_list_go
             kernel.expr_ops.instantiate_list_go vs memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate_list_go vs memo sub d
           let n ← kernel.name.dup s
@@ -96396,36 +96420,36 @@ def kernel.expr_ops.instantiate_list_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate_list_go vs memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96434,7 +96458,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96443,7 +96467,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 val d
@@ -96452,11 +96476,11 @@ def kernel.expr_ops.instantiate_list_go
             kernel.expr_ops.instantiate_list_go vs memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate_list_go vs memo sub d
           let n ← kernel.name.dup s
@@ -96469,36 +96493,36 @@ def kernel.expr_ops.instantiate_list_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate_list_go vs memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96507,7 +96531,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96516,7 +96540,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 val d
@@ -96525,11 +96549,11 @@ def kernel.expr_ops.instantiate_list_go
             kernel.expr_ops.instantiate_list_go vs memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate_list_go vs memo sub d
           let n ← kernel.name.dup s
@@ -96542,36 +96566,36 @@ def kernel.expr_ops.instantiate_list_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate_list_go vs memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96580,7 +96604,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96589,7 +96613,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 val d
@@ -96598,11 +96622,11 @@ def kernel.expr_ops.instantiate_list_go
             kernel.expr_ops.instantiate_list_go vs memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate_list_go vs memo sub d
           let n ← kernel.name.dup s
@@ -96615,38 +96639,38 @@ def kernel.expr_ops.instantiate_list_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                               ok (r, memo)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                  ok (r, memo)
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e d
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.instantiate_list_go vs memo f d
           let (a2, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 a d
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body bi =>
+        | kernel.expr.ExprView.Lam ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96655,7 +96679,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body bi =>
+        | kernel.expr.ExprView.ForallE ty body bi =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let i ← d + 1#u64
@@ -96664,7 +96688,7 @@ def kernel.expr_ops.instantiate_list_go
           let bm ← kernel.expr.binder_meta_dup bi
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.instantiate_list_go vs memo ty d
           let (w, memo3) ← kernel.expr_ops.instantiate_list_go vs memo2 val d
@@ -96673,11 +96697,11 @@ def kernel.expr_ops.instantiate_list_go
             kernel.expr_ops.instantiate_list_go vs memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.instantiate_list_go vs memo sub d
           let n ← kernel.name.dup s
@@ -96693,7 +96717,7 @@ def kernel.expr_ops.instantiate_list_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::instantiate_list_fast]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 494:0-497:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 502:0-505:1
     Visibility: public -/
 def kernel.expr_ops.instantiate_list_fast
   (e : kernel.expr.Expr) (vs : alloc.vec.Vec kernel.expr.Expr) (d : Std.U64) :
@@ -96988,22 +97012,22 @@ def kernel.core_k.infer_proj_at
   let f ← kernel.expr_ops.get_app_fn te
   let ev ← kernel.expr.view f
   match ev with
-  | ron.node.ExprView.Bvar _ =>
+  | kernel.expr.ExprView.Bvar _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.Fvar _ _ =>
+  | kernel.expr.ExprView.Fvar _ _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.Sort _ =>
+  | kernel.expr.ExprView.Sort _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.Const t us =>
+  | kernel.expr.ExprView.Const t us =>
     let o ← kernel.fenv.find_proj fe t i
     match o with
     | none =>
@@ -97015,32 +97039,32 @@ def kernel.core_k.infer_proj_at
       let targs ← kernel.expr_ops.get_app_args te
       let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       kernel.core_k.proj_type_at_checked entry sn t v targs pe
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.App _ _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.Lit _ =>
+  | kernel.expr.ExprView.Lit _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
     ok (core.result.Result.Err ce)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let s ← lift (Array.to_slice kernel.core_k.infer_proj_at.M_NOENTRY)
     let v ← kernel.core_types.code_points s
     let ce ← kernel.core_types.not_implemented v
@@ -97057,10 +97081,10 @@ def kernel.core_k.succ_of
   else
     let ev ← kernel.expr.view f
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const c us =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const c us =>
       let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
       let i := alloc.vec.Vec.len v
       if i = 0#usize
@@ -97072,12 +97096,12 @@ def kernel.core_k.succ_of
              ok (some n1)
         else ok none
       else ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE _ _ _ => ok none
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 
 /-- [con_ron_core::kernel::core_k::str_expansion_fires]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 2646:0-2657:1
@@ -97086,10 +97110,10 @@ def kernel.core_k.str_expansion_fires
   (fe : kernel.fenv.FEnv) (f : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view f
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const c us =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const c us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     if i = 0#usize
@@ -97100,12 +97124,12 @@ def kernel.core_k.str_expansion_fires
       then kernel.core_k.str_lit_supported fe
       else ok false
     else ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok false
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::core_k::defeq_loop_fuel]:
     Source: 'crates/con-ron-core/src/kernel/core_k.rs', lines 2664:0-2666:1
@@ -97407,21 +97431,21 @@ def kernel.env.pi_sort_tele_len
   (e : kernel.expr.Expr) : Result (Option Std.U64) := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok none
-  | ron.node.ExprView.Fvar _ _ => ok none
-  | ron.node.ExprView.Sort _ => ok (some 0#u64)
-  | ron.node.ExprView.Const _ _ => ok none
-  | ron.node.ExprView.App _ _ => ok none
-  | ron.node.ExprView.Lam _ _ _ => ok none
-  | ron.node.ExprView.ForallE _ body _ =>
+  | kernel.expr.ExprView.Bvar _ => ok none
+  | kernel.expr.ExprView.Fvar _ _ => ok none
+  | kernel.expr.ExprView.Sort _ => ok (some 0#u64)
+  | kernel.expr.ExprView.Const _ _ => ok none
+  | kernel.expr.ExprView.App _ _ => ok none
+  | kernel.expr.ExprView.Lam _ _ _ => ok none
+  | kernel.expr.ExprView.ForallE _ body _ =>
     let o ← kernel.env.pi_sort_tele_len body
     match o with
     | none => ok none
     | some n => let i ← n + 1#u64
                 ok (some i)
-  | ron.node.ExprView.LetE _ _ _ => ok none
-  | ron.node.ExprView.Lit _ => ok none
-  | ron.node.ExprView.Proj _ _ _ => ok none
+  | kernel.expr.ExprView.LetE _ _ _ => ok none
+  | kernel.expr.ExprView.Lit _ => ok none
+  | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::env::ind_params_ok_one]:
@@ -97679,7 +97703,7 @@ def kernel.env.block_rec_suffix_ok
   kernel.env.recs_form_suffix block
 
 /-- [con_ron_core::kernel::expr::binder_meta_hash]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 146:0-148:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 144:0-146:1
     Visibility: public -/
 def kernel.expr.binder_meta_hash
   (m : kernel.expr.BinderMeta) : Result Std.U64 := do
@@ -97687,20 +97711,20 @@ def kernel.expr.binder_meta_hash
   kernel.name.mix_hash 0#u64 i
 
 /-- [con_ron_core::kernel::expr::fvar_b_raw]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 624:0-626:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 651:0-653:1
     Visibility: public -/
 def kernel.expr.fvar_b_raw (e : kernel.expr.Expr) : Result Std.U64 := do
   let i ← kernel.expr.data e
   kernel.expr.fvar_of_data i
 
 /-- [con_ron_core::kernel::expr::bvar_pool_size]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1127:0-1129:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 1122:0-1124:1
     Visibility: public -/
 def kernel.expr.bvar_pool_size : Result Std.U64 := do
   ok 4096#u64
 
 /-- [con_ron_core::kernel::expr_ops::memo1_get_if]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 182:0-188:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 190:0-196:1
     Visibility: public -/
 def kernel.expr_ops.memo1_get_if
   (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
@@ -97712,7 +97736,7 @@ def kernel.expr_ops.memo1_get_if
   else kernel.expr_ops.memo1_get memo k
 
 /-- [con_ron_core::kernel::expr_ops::memo1_insert_if]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 197:0-201:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 205:0-209:1
     Visibility: public -/
 def kernel.expr_ops.memo1_insert_if
   (memo : ron.hashmap.HashMap kernel.expr_ops.ExprNatKey kernel.expr.Expr)
@@ -97730,7 +97754,7 @@ def kernel.expr_ops.memo1_insert_if
     ok memo1
 
 /-- [con_ron_core::kernel::expr_ops::memo_e_probe]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 205:0-211:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 213:0-219:1
     Visibility: public -/
 def kernel.expr_ops.memo_e_probe
   (memo : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr) (excl : Bool)
@@ -97742,7 +97766,7 @@ def kernel.expr_ops.memo_e_probe
   else kernel.expr_ops.memo_e_get memo e
 
 /-- [con_ron_core::kernel::expr_ops::memo_e_record]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 215:0-219:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 223:0-227:1
     Visibility: public -/
 def kernel.expr_ops.memo_e_record
   (memo : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr) (excl : Bool)
@@ -97761,7 +97785,7 @@ def kernel.expr_ops.memo_e_record
     ok memo1
 
 /-- [con_ron_core::kernel::expr_ops::memo_b_get]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2013:0-2018:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2021:0-2026:1
     Visibility: public -/
 def kernel.expr_ops.memo_b_get
   (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (k : kernel.expr.Expr) :
@@ -97776,7 +97800,7 @@ def kernel.expr_ops.memo_b_get
   | some _ => ok o
 
 /-- [con_ron_core::kernel::expr_ops::memo_b_probe]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 223:0-229:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 231:0-237:1
     Visibility: public -/
 def kernel.expr_ops.memo_b_probe
   (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (excl : Bool)
@@ -97788,7 +97812,7 @@ def kernel.expr_ops.memo_b_probe
   else kernel.expr_ops.memo_b_get memo e
 
 /-- [con_ron_core::kernel::expr_ops::memo_b_record]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 233:0-237:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 241:0-245:1
     Visibility: public -/
 def kernel.expr_ops.memo_b_record
   (memo : ron.hashmap.HashMap kernel.expr.Expr Bool) (excl : Bool)
@@ -97806,7 +97830,7 @@ def kernel.expr_ops.memo_b_record
     ok memo1
 
 /-- [con_ron_core::kernel::expr_ops::cons_expr]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 264:0-268:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 272:0-276:1
     Visibility: public -/
 def kernel.expr_ops.cons_expr
   (a : kernel.expr.Expr) (acc : alloc.vec.Vec kernel.expr.Expr) :
@@ -97821,7 +97845,7 @@ def kernel.expr_ops.cons_expr
   kernel.expr_ops.exprs_copy_upto acc i2 0#usize out1
 
 /-- [con_ron_core::kernel::expr_ops::levels_copy_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 272:0-279:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 280:0-287:1
     Visibility: public -/
 def kernel.expr_ops.levels_copy_from
   (us : alloc.vec.Vec kernel.level.Level) (i : Std.Usize)
@@ -97842,7 +97866,7 @@ def kernel.expr_ops.levels_copy_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::levels_copy]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 283:0-285:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 291:0-293:1
     Visibility: public -/
 def kernel.expr_ops.levels_copy
   (us : alloc.vec.Vec kernel.level.Level) :
@@ -97853,7 +97877,7 @@ def kernel.expr_ops.levels_copy
   kernel.expr_ops.levels_copy_from us 0#usize v
 
 /-- [con_ron_core::kernel::expr_ops::lift_loose_bvars_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 507:0-564:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 515:0-572:1
     Visibility: public -/
 def kernel.expr_ops.lift_loose_bvars_go
   (amount : Std.U64)
@@ -97864,43 +97888,43 @@ def kernel.expr_ops.lift_loose_bvars_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar i =>
+  | kernel.expr.ExprView.Bvar i =>
     if i >= c
     then let i1 ← i + amount
          let r ← kernel.expr.bvar i1
          ok (r, memo)
     else let r ← kernel.expr.bvar i
          ok (r, memo)
-  | ron.node.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
-                                  ok (r, memo)
-  | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                ok (r, memo)
-  | ron.node.ExprView.Const _ _ => let r ← kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
+                                     ok (r, memo)
+  | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
                                    ok (r, memo)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.Const _ _ => let r ← kernel.expr.dup e
+                                      ok (r, memo)
+  | kernel.expr.ExprView.App _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e c
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo a c
@@ -97908,7 +97932,7 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -97918,7 +97942,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -97928,7 +97952,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -97939,11 +97963,11 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo sub c
@@ -97957,30 +97981,30 @@ def kernel.expr_ops.lift_loose_bvars_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e c
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo a c
@@ -97988,7 +98012,7 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -97998,7 +98022,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98008,7 +98032,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98019,11 +98043,11 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo sub c
@@ -98037,30 +98061,30 @@ def kernel.expr_ops.lift_loose_bvars_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e c
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo a c
@@ -98068,7 +98092,7 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98078,7 +98102,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98088,7 +98112,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98099,11 +98123,11 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo sub c
@@ -98117,30 +98141,30 @@ def kernel.expr_ops.lift_loose_bvars_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e c
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo a c
@@ -98148,7 +98172,7 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98158,7 +98182,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98168,7 +98192,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98179,11 +98203,11 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo sub c
@@ -98197,32 +98221,32 @@ def kernel.expr_ops.lift_loose_bvars_go
           kernel.expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo1 k e1
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                               ok (r, memo)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                  ok (r, memo)
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let k ← kernel.expr_ops.expr_nat_key e c
     let o ← kernel.expr_ops.memo1_get memo k
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ _ =>
+        | kernel.expr.ExprView.Fvar _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo a c
@@ -98230,7 +98254,7 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo2 b c
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98240,7 +98264,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98250,7 +98274,7 @@ def kernel.expr_ops.lift_loose_bvars_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo ty c
@@ -98261,11 +98285,11 @@ def kernel.expr_ops.lift_loose_bvars_go
             kernel.expr_ops.lift_loose_bvars_go amount memo3 body i
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.lift_loose_bvars_go amount memo sub c
@@ -98282,7 +98306,7 @@ def kernel.expr_ops.lift_loose_bvars_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::lift_loose_bvars]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 570:0-573:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 578:0-581:1
     Visibility: public -/
 def kernel.expr_ops.lift_loose_bvars
   (amount : Std.U64) (c : Std.U64) (e : kernel.expr.Expr) :
@@ -98294,7 +98318,7 @@ def kernel.expr_ops.lift_loose_bvars
   ok e1
 
 /-- [con_ron_core::kernel::expr_ops::reset_meta_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 584:0-630:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 592:0-638:1
     Visibility: public -/
 def kernel.expr_ops.reset_meta_go
   (memo : ron.hashmap.HashMap kernel.expr.Expr kernel.expr.Expr)
@@ -98304,112 +98328,38 @@ def kernel.expr_ops.reset_meta_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => let r ← kernel.expr.dup e
-                                ok (r, memo)
-  | ron.node.ExprView.Fvar _ _ =>
-    let o ← kernel.expr_ops.memo_e_get memo e
-    match o with
-    | none =>
-      let (memo1, r) ←
-        match ev with
-        | ron.node.ExprView.Bvar _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
-          do
-          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
-          let r1 ← kernel.expr.fvar i t
-          ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | ron.node.ExprView.App f a =>
-          do
-          let (f2, memo2) ← kernel.expr_ops.reset_meta_go memo f
-          let (a2, memo3) ← kernel.expr_ops.reset_meta_go memo2 a
-          let r1 ← kernel.expr.app f2 a2
-          ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body _ =>
-          do
-          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
-          let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
-          let pw ← kernel.prop_when.never
-          let bm ← kernel.expr.binder_meta pw
-          let r1 ← kernel.expr.lam t b bm
-          ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body _ =>
-          do
-          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
-          let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
-          let pw ← kernel.prop_when.never
-          let bm ← kernel.expr.binder_meta pw
-          let r1 ← kernel.expr.forall_e t b bm
-          ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
-          do
-          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
-          let (w, memo3) ← kernel.expr_ops.reset_meta_go memo2 val
-          let (b, memo4) ← kernel.expr_ops.reset_meta_go memo3 body
-          let r1 ← kernel.expr.let_e t w b
-          ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
-          do
-          let r1 ← kernel.expr.dup e
-          ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
-          do
-          let (u, memo2) ← kernel.expr_ops.reset_meta_go memo sub
-          let n ← kernel.name.dup s
-          let r1 ← kernel.expr.proj n i u
-          ok (memo2, r1)
-      let e1 ← kernel.expr.dup e
-      let e2 ← kernel.expr.dup r
-      let (_, memo2) ←
-        ron.hashmap.HashMap.insert
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
-          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
-      ok (r, memo2)
-    | some r => ok (r, memo)
-  | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                ok (r, memo)
-  | ron.node.ExprView.Const _ _ => let r ← kernel.expr.dup e
+  | kernel.expr.ExprView.Bvar _ => let r ← kernel.expr.dup e
                                    ok (r, memo)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.Fvar _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.reset_meta_go memo f
           let (a2, memo3) ← kernel.expr_ops.reset_meta_go memo2 a
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body _ =>
+        | kernel.expr.ExprView.Lam ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98417,7 +98367,7 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body _ =>
+        | kernel.expr.ExprView.ForallE ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98425,18 +98375,18 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (w, memo3) ← kernel.expr_ops.reset_meta_go memo2 val
           let (b, memo4) ← kernel.expr_ops.reset_meta_go memo3 body
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.reset_meta_go memo sub
           let n ← kernel.name.dup s
@@ -98450,36 +98400,40 @@ def kernel.expr_ops.reset_meta_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
+                                   ok (r, memo)
+  | kernel.expr.ExprView.Const _ _ => let r ← kernel.expr.dup e
+                                      ok (r, memo)
+  | kernel.expr.ExprView.App _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.reset_meta_go memo f
           let (a2, memo3) ← kernel.expr_ops.reset_meta_go memo2 a
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body _ =>
+        | kernel.expr.ExprView.Lam ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98487,7 +98441,7 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body _ =>
+        | kernel.expr.ExprView.ForallE ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98495,18 +98449,18 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (w, memo3) ← kernel.expr_ops.reset_meta_go memo2 val
           let (b, memo4) ← kernel.expr_ops.reset_meta_go memo3 body
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.reset_meta_go memo sub
           let n ← kernel.name.dup s
@@ -98520,36 +98474,36 @@ def kernel.expr_ops.reset_meta_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.reset_meta_go memo f
           let (a2, memo3) ← kernel.expr_ops.reset_meta_go memo2 a
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body _ =>
+        | kernel.expr.ExprView.Lam ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98557,7 +98511,7 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body _ =>
+        | kernel.expr.ExprView.ForallE ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98565,18 +98519,18 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (w, memo3) ← kernel.expr_ops.reset_meta_go memo2 val
           let (b, memo4) ← kernel.expr_ops.reset_meta_go memo3 body
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.reset_meta_go memo sub
           let n ← kernel.name.dup s
@@ -98590,36 +98544,36 @@ def kernel.expr_ops.reset_meta_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.reset_meta_go memo f
           let (a2, memo3) ← kernel.expr_ops.reset_meta_go memo2 a
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body _ =>
+        | kernel.expr.ExprView.Lam ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98627,7 +98581,7 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body _ =>
+        | kernel.expr.ExprView.ForallE ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98635,18 +98589,18 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (w, memo3) ← kernel.expr_ops.reset_meta_go memo2 val
           let (b, memo4) ← kernel.expr_ops.reset_meta_go memo3 body
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.reset_meta_go memo sub
           let n ← kernel.name.dup s
@@ -98660,38 +98614,36 @@ def kernel.expr_ops.reset_meta_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                               ok (r, memo)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (f2, memo2) ← kernel.expr_ops.reset_meta_go memo f
           let (a2, memo3) ← kernel.expr_ops.reset_meta_go memo2 a
           let r1 ← kernel.expr.app f2 a2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body _ =>
+        | kernel.expr.ExprView.Lam ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98699,7 +98651,7 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body _ =>
+        | kernel.expr.ExprView.ForallE ty body _ =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
@@ -98707,18 +98659,90 @@ def kernel.expr_ops.reset_meta_go
           let bm ← kernel.expr.binder_meta pw
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty val body =>
+        | kernel.expr.ExprView.LetE ty val body =>
           do
           let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
           let (w, memo3) ← kernel.expr_ops.reset_meta_go memo2 val
           let (b, memo4) ← kernel.expr_ops.reset_meta_go memo3 body
           let r1 ← kernel.expr.let_e t w b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
+          do
+          let (u, memo2) ← kernel.expr_ops.reset_meta_go memo sub
+          let n ← kernel.name.dup s
+          let r1 ← kernel.expr.proj n i u
+          ok (memo2, r1)
+      let e1 ← kernel.expr.dup e
+      let e2 ← kernel.expr.dup r
+      let (_, memo2) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
+      ok (r, memo2)
+    | some r => ok (r, memo)
+  | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                  ok (r, memo)
+  | kernel.expr.ExprView.Proj _ _ _ =>
+    let o ← kernel.expr_ops.memo_e_get memo e
+    match o with
+    | none =>
+      let (memo1, r) ←
+        match ev with
+        | kernel.expr.ExprView.Bvar _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprView.Fvar i ty =>
+          do
+          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
+          let r1 ← kernel.expr.fvar i t
+          ok (memo2, r1)
+        | kernel.expr.ExprView.Sort _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprView.Const _ _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprView.App f a =>
+          do
+          let (f2, memo2) ← kernel.expr_ops.reset_meta_go memo f
+          let (a2, memo3) ← kernel.expr_ops.reset_meta_go memo2 a
+          let r1 ← kernel.expr.app f2 a2
+          ok (memo3, r1)
+        | kernel.expr.ExprView.Lam ty body _ =>
+          do
+          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
+          let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
+          let pw ← kernel.prop_when.never
+          let bm ← kernel.expr.binder_meta pw
+          let r1 ← kernel.expr.lam t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprView.ForallE ty body _ =>
+          do
+          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
+          let (b, memo3) ← kernel.expr_ops.reset_meta_go memo2 body
+          let pw ← kernel.prop_when.never
+          let bm ← kernel.expr.binder_meta pw
+          let r1 ← kernel.expr.forall_e t b bm
+          ok (memo3, r1)
+        | kernel.expr.ExprView.LetE ty val body =>
+          do
+          let (t, memo2) ← kernel.expr_ops.reset_meta_go memo ty
+          let (w, memo3) ← kernel.expr_ops.reset_meta_go memo2 val
+          let (b, memo4) ← kernel.expr_ops.reset_meta_go memo3 body
+          let r1 ← kernel.expr.let_e t w b
+          ok (memo4, r1)
+        | kernel.expr.ExprView.Lit _ =>
+          do
+          let r1 ← kernel.expr.dup e
+          ok (memo, r1)
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ← kernel.expr_ops.reset_meta_go memo sub
           let n ← kernel.name.dup s
@@ -98735,7 +98759,7 @@ def kernel.expr_ops.reset_meta_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::reset_meta]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 636:0-639:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 644:0-647:1
     Visibility: public -/
 def kernel.expr_ops.reset_meta
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
@@ -98744,7 +98768,7 @@ def kernel.expr_ops.reset_meta
   ok e1
 
 /-- [con_ron_core::kernel::expr_ops::lower_bvars_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 652:0-713:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 660:0-721:1
     Visibility: public -/
 def kernel.expr_ops.lower_bvars_go
   (amount : Std.U64)
@@ -98761,49 +98785,50 @@ def kernel.expr_ops.lower_bvars_go
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar i2 =>
+    | kernel.expr.ExprView.Bvar i2 =>
       if i2 >= i1
       then let i3 ← i2 - amount
            let r ← kernel.expr.bvar i3
            ok (r, memo)
       else let r ← kernel.expr.bvar i2
            ok (r, memo)
-    | ron.node.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
-                                    ok (r, memo)
-    | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                  ok (r, memo)
-    | ron.node.ExprView.Const _ _ => let r ← kernel.expr.dup e
+    | kernel.expr.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
+                                       ok (r, memo)
+    | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
                                      ok (r, memo)
-    | ron.node.ExprView.App _ _ =>
+    | kernel.expr.ExprView.Const _ _ =>
+      let r ← kernel.expr.dup e
+      ok (r, memo)
+    | kernel.expr.ExprView.App _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e c
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.lower_bvars_go amount memo f c
             let (a2, memo3) ← kernel.expr_ops.lower_bvars_go amount memo2 a c
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -98812,7 +98837,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -98821,7 +98846,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let (w, memo3) ←
@@ -98831,11 +98856,11 @@ def kernel.expr_ops.lower_bvars_go
               kernel.expr_ops.lower_bvars_go amount memo3 body i2
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i2 sub =>
+          | kernel.expr.ExprView.Proj s i2 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.lower_bvars_go amount memo sub c
             let n ← kernel.name.dup s
@@ -98849,36 +98874,36 @@ def kernel.expr_ops.lower_bvars_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lam _ _ _ =>
+    | kernel.expr.ExprView.Lam _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e c
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.lower_bvars_go amount memo f c
             let (a2, memo3) ← kernel.expr_ops.lower_bvars_go amount memo2 a c
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -98887,7 +98912,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -98896,7 +98921,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let (w, memo3) ←
@@ -98906,11 +98931,11 @@ def kernel.expr_ops.lower_bvars_go
               kernel.expr_ops.lower_bvars_go amount memo3 body i2
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i2 sub =>
+          | kernel.expr.ExprView.Proj s i2 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.lower_bvars_go amount memo sub c
             let n ← kernel.name.dup s
@@ -98924,36 +98949,36 @@ def kernel.expr_ops.lower_bvars_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.ForallE _ _ _ =>
+    | kernel.expr.ExprView.ForallE _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e c
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.lower_bvars_go amount memo f c
             let (a2, memo3) ← kernel.expr_ops.lower_bvars_go amount memo2 a c
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -98962,7 +98987,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -98971,7 +98996,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let (w, memo3) ←
@@ -98981,11 +99006,11 @@ def kernel.expr_ops.lower_bvars_go
               kernel.expr_ops.lower_bvars_go amount memo3 body i2
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i2 sub =>
+          | kernel.expr.ExprView.Proj s i2 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.lower_bvars_go amount memo sub c
             let n ← kernel.name.dup s
@@ -98999,36 +99024,36 @@ def kernel.expr_ops.lower_bvars_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.LetE _ _ _ =>
+    | kernel.expr.ExprView.LetE _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e c
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.lower_bvars_go amount memo f c
             let (a2, memo3) ← kernel.expr_ops.lower_bvars_go amount memo2 a c
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -99037,7 +99062,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -99046,7 +99071,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let (w, memo3) ←
@@ -99056,11 +99081,11 @@ def kernel.expr_ops.lower_bvars_go
               kernel.expr_ops.lower_bvars_go amount memo3 body i2
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i2 sub =>
+          | kernel.expr.ExprView.Proj s i2 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.lower_bvars_go amount memo sub c
             let n ← kernel.name.dup s
@@ -99074,38 +99099,38 @@ def kernel.expr_ops.lower_bvars_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                                 ok (r, memo)
-    | ron.node.ExprView.Proj _ _ _ =>
+    | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                    ok (r, memo)
+    | kernel.expr.ExprView.Proj _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e c
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.lower_bvars_go amount memo f c
             let (a2, memo3) ← kernel.expr_ops.lower_bvars_go amount memo2 a c
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -99114,7 +99139,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let i2 ← c + 1#u64
@@ -99123,7 +99148,7 @@ def kernel.expr_ops.lower_bvars_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.lower_bvars_go amount memo ty c
             let (w, memo3) ←
@@ -99133,11 +99158,11 @@ def kernel.expr_ops.lower_bvars_go
               kernel.expr_ops.lower_bvars_go amount memo3 body i2
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i2 sub =>
+          | kernel.expr.ExprView.Proj s i2 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.lower_bvars_go amount memo sub c
             let n ← kernel.name.dup s
@@ -99154,7 +99179,7 @@ def kernel.expr_ops.lower_bvars_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::lower_bvars]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 719:0-722:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 727:0-730:1
     Visibility: public -/
 def kernel.expr_ops.lower_bvars
   (amount : Std.U64) (c : Std.U64) (e : kernel.expr.Expr) :
@@ -99166,7 +99191,7 @@ def kernel.expr_ops.lower_bvars
   ok e1
 
 /-- [con_ron_core::kernel::expr_ops::instantiate1_lift_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 734:0-797:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 742:0-805:1
     Visibility: public -/
 def kernel.expr_ops.instantiate1_lift_go
   (v : kernel.expr.Expr)
@@ -99182,7 +99207,7 @@ def kernel.expr_ops.instantiate1_lift_go
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar i1 =>
+    | kernel.expr.ExprView.Bvar i1 =>
       if i1 = d
       then let r ← kernel.expr_ops.lift_loose_bvars d 0#u64 v
            ok (r, memo)
@@ -99193,43 +99218,44 @@ def kernel.expr_ops.instantiate1_lift_go
              ok (r, memo)
         else let r ← kernel.expr.bvar i1
              ok (r, memo)
-    | ron.node.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
-                                    ok (r, memo)
-    | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                  ok (r, memo)
-    | ron.node.ExprView.Const _ _ => let r ← kernel.expr.dup e
+    | kernel.expr.ExprView.Fvar _ _ => let r ← kernel.expr.dup e
+                                       ok (r, memo)
+    | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
                                      ok (r, memo)
-    | ron.node.ExprView.App _ _ =>
+    | kernel.expr.ExprView.Const _ _ =>
+      let r ← kernel.expr.dup e
+      ok (r, memo)
+    | kernel.expr.ExprView.App _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e d
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo f d
             let (a2, memo3) ←
               kernel.expr_ops.instantiate1_lift_go v memo2 a d
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99238,7 +99264,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99247,7 +99273,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let (w, memo3) ←
@@ -99257,11 +99283,11 @@ def kernel.expr_ops.instantiate1_lift_go
               kernel.expr_ops.instantiate1_lift_go v memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ←
               kernel.expr_ops.instantiate1_lift_go v memo sub d
@@ -99276,37 +99302,37 @@ def kernel.expr_ops.instantiate1_lift_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lam _ _ _ =>
+    | kernel.expr.ExprView.Lam _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e d
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo f d
             let (a2, memo3) ←
               kernel.expr_ops.instantiate1_lift_go v memo2 a d
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99315,7 +99341,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99324,7 +99350,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let (w, memo3) ←
@@ -99334,11 +99360,11 @@ def kernel.expr_ops.instantiate1_lift_go
               kernel.expr_ops.instantiate1_lift_go v memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ←
               kernel.expr_ops.instantiate1_lift_go v memo sub d
@@ -99353,37 +99379,37 @@ def kernel.expr_ops.instantiate1_lift_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.ForallE _ _ _ =>
+    | kernel.expr.ExprView.ForallE _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e d
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo f d
             let (a2, memo3) ←
               kernel.expr_ops.instantiate1_lift_go v memo2 a d
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99392,7 +99418,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99401,7 +99427,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let (w, memo3) ←
@@ -99411,11 +99437,11 @@ def kernel.expr_ops.instantiate1_lift_go
               kernel.expr_ops.instantiate1_lift_go v memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ←
               kernel.expr_ops.instantiate1_lift_go v memo sub d
@@ -99430,37 +99456,37 @@ def kernel.expr_ops.instantiate1_lift_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.LetE _ _ _ =>
+    | kernel.expr.ExprView.LetE _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e d
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo f d
             let (a2, memo3) ←
               kernel.expr_ops.instantiate1_lift_go v memo2 a d
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99469,7 +99495,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99478,7 +99504,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let (w, memo3) ←
@@ -99488,11 +99514,11 @@ def kernel.expr_ops.instantiate1_lift_go
               kernel.expr_ops.instantiate1_lift_go v memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ←
               kernel.expr_ops.instantiate1_lift_go v memo sub d
@@ -99507,39 +99533,39 @@ def kernel.expr_ops.instantiate1_lift_go
             e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                                 ok (r, memo)
-    | ron.node.ExprView.Proj _ _ _ =>
+    | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                    ok (r, memo)
+    | kernel.expr.ExprView.Proj _ _ _ =>
       let k ← kernel.expr_ops.expr_nat_key e d
       let o ← kernel.expr_ops.memo1_get memo k
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo f d
             let (a2, memo3) ←
               kernel.expr_ops.instantiate1_lift_go v memo2 a d
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99548,7 +99574,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let i1 ← d + 1#u64
@@ -99557,7 +99583,7 @@ def kernel.expr_ops.instantiate1_lift_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.instantiate1_lift_go v memo ty d
             let (w, memo3) ←
@@ -99567,11 +99593,11 @@ def kernel.expr_ops.instantiate1_lift_go
               kernel.expr_ops.instantiate1_lift_go v memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ←
               kernel.expr_ops.instantiate1_lift_go v memo sub d
@@ -99589,7 +99615,7 @@ def kernel.expr_ops.instantiate1_lift_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::instantiate1_lift]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 803:0-806:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 811:0-814:1
     Visibility: public -/
 def kernel.expr_ops.instantiate1_lift
   (e : kernel.expr.Expr) (v : kernel.expr.Expr) (d : Std.U64) :
@@ -99601,45 +99627,45 @@ def kernel.expr_ops.instantiate1_lift
   ok e1
 
 /-- [con_ron_core::kernel::expr_ops::size_b]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 818:0-831:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 826:0-839:1
     Visibility: public -/
 def kernel.expr_ops.size_b (e : kernel.expr.Expr) : Result Std.U64 := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok 1#u64
-  | ron.node.ExprView.Fvar _ _ => ok 1#u64
-  | ron.node.ExprView.Sort _ => ok 1#u64
-  | ron.node.ExprView.Const _ _ => ok 1#u64
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Bvar _ => ok 1#u64
+  | kernel.expr.ExprView.Fvar _ _ => ok 1#u64
+  | kernel.expr.ExprView.Sort _ => ok 1#u64
+  | kernel.expr.ExprView.Const _ _ => ok 1#u64
+  | kernel.expr.ExprView.App f a =>
     let i ← kernel.expr_ops.size_b f
     let i1 ← kernel.expr_ops.size_b a
     let i2 ← i + i1
     i2 + 1#u64
-  | ron.node.ExprView.Lam ty body _ =>
+  | kernel.expr.ExprView.Lam ty body _ =>
     let i ← kernel.expr_ops.size_b ty
     let i1 ← kernel.expr_ops.size_b body
     let i2 ← i + i1
     i2 + 1#u64
-  | ron.node.ExprView.ForallE ty body _ =>
+  | kernel.expr.ExprView.ForallE ty body _ =>
     let i ← kernel.expr_ops.size_b ty
     let i1 ← kernel.expr_ops.size_b body
     let i2 ← i + i1
     i2 + 1#u64
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let i ← kernel.expr_ops.size_b ty
     let i1 ← kernel.expr_ops.size_b val
     let i2 ← i + i1
     let i3 ← kernel.expr_ops.size_b body
     let i4 ← i2 + i3
     i4 + 1#u64
-  | ron.node.ExprView.Lit _ => ok 1#u64
-  | ron.node.ExprView.Proj _ _ sub =>
+  | kernel.expr.ExprView.Lit _ => ok 1#u64
+  | kernel.expr.ExprView.Proj _ _ sub =>
     let i ← kernel.expr_ops.size_b sub
     i + 1#u64
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::fvar_range_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1737:0-1774:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1745:0-1782:1
     Visibility: public -/
 def kernel.expr_ops.fvar_range_go
   (memo : ron.hashmap.HashMap kernel.expr.Expr Std.U64) (e : kernel.expr.Expr)
@@ -99652,31 +99678,32 @@ def kernel.expr_ops.fvar_range_go
     let ev ← kernel.expr.view e
     let (memo1, r) ←
       match ev with
-      | ron.node.ExprView.Bvar _ => ok (memo, 0#u64)
-      | ron.node.ExprView.Fvar idx _ => do
-                                        let r1 ← idx + 1#u64
-                                        ok (memo, r1)
-      | ron.node.ExprView.Sort _ => ok (memo, 0#u64)
-      | ron.node.ExprView.Const _ _ => ok (memo, 0#u64)
-      | ron.node.ExprView.App f a =>
+      | kernel.expr.ExprView.Bvar _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.Fvar idx _ =>
+        do
+        let r1 ← idx + 1#u64
+        ok (memo, r1)
+      | kernel.expr.ExprView.Sort _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.Const _ _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.App f a =>
         do
         let (rf, memo2) ← kernel.expr_ops.fvar_range_go memo f
         let (ra, memo3) ← kernel.expr_ops.fvar_range_go memo2 a
         let r1 ← kernel.expr.max_u64 rf ra
         ok (memo3, r1)
-      | ron.node.ExprView.Lam ty body _ =>
+      | kernel.expr.ExprView.Lam ty body _ =>
         do
         let (rt, memo2) ← kernel.expr_ops.fvar_range_go memo ty
         let (rb, memo3) ← kernel.expr_ops.fvar_range_go memo2 body
         let r1 ← kernel.expr.max_u64 rt rb
         ok (memo3, r1)
-      | ron.node.ExprView.ForallE ty body _ =>
+      | kernel.expr.ExprView.ForallE ty body _ =>
         do
         let (rt, memo2) ← kernel.expr_ops.fvar_range_go memo ty
         let (rb, memo3) ← kernel.expr_ops.fvar_range_go memo2 body
         let r1 ← kernel.expr.max_u64 rt rb
         ok (memo3, r1)
-      | ron.node.ExprView.LetE ty val body =>
+      | kernel.expr.ExprView.LetE ty val body =>
         do
         let (rt, memo2) ← kernel.expr_ops.fvar_range_go memo ty
         let (rv, memo3) ← kernel.expr_ops.fvar_range_go memo2 val
@@ -99684,8 +99711,8 @@ def kernel.expr_ops.fvar_range_go
         let i ← kernel.expr.max_u64 rt rv
         let r1 ← kernel.expr.max_u64 i rb
         ok (memo4, r1)
-      | ron.node.ExprView.Lit _ => ok (memo, 0#u64)
-      | ron.node.ExprView.Proj _ _ sub =>
+      | kernel.expr.ExprView.Lit _ => ok (memo, 0#u64)
+      | kernel.expr.ExprView.Proj _ _ sub =>
         do
         let (r1, memo2) ← kernel.expr_ops.fvar_range_go memo sub
         ok (memo2, r1)
@@ -99699,7 +99726,7 @@ def kernel.expr_ops.fvar_range_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::fvar_range_memo]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1779:0-1782:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1787:0-1790:1
     Visibility: public -/
 def kernel.expr_ops.fvar_range_memo
   (e : kernel.expr.Expr) : Result Std.U64 := do
@@ -99708,7 +99735,7 @@ def kernel.expr_ops.fvar_range_memo
   ok i
 
 /-- [con_ron_core::kernel::expr_ops::fvar_b]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1802:0-1809:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1810:0-1817:1
     Visibility: public -/
 def kernel.expr_ops.fvar_b (e : kernel.expr.Expr) : Result Std.U64 := do
   let r ← kernel.expr.fvar_b_raw e
@@ -99718,7 +99745,7 @@ def kernel.expr_ops.fvar_b (e : kernel.expr.Expr) : Result Std.U64 := do
   else ok r
 
 /-- [con_ron_core::kernel::expr_ops::abstract1_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 841:0-897:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 849:0-905:1
     Visibility: public -/
 def kernel.expr_ops.abstract1_go
   (d : Std.U64)
@@ -99734,48 +99761,50 @@ def kernel.expr_ops.abstract1_go
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar i1 => let r ← kernel.expr.bvar i1
-                                   ok (r, memo)
-    | ron.node.ExprView.Fvar idx _ =>
+    | kernel.expr.ExprView.Bvar i1 =>
+      let r ← kernel.expr.bvar i1
+      ok (r, memo)
+    | kernel.expr.ExprView.Fvar idx _ =>
       if idx = d
       then let r ← kernel.expr.bvar k
            ok (r, memo)
       else let r ← kernel.expr.dup e
            ok (r, memo)
-    | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                  ok (r, memo)
-    | ron.node.ExprView.Const _ _ => let r ← kernel.expr.dup e
+    | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
                                      ok (r, memo)
-    | ron.node.ExprView.App _ _ =>
+    | kernel.expr.ExprView.Const _ _ =>
+      let r ← kernel.expr.dup e
+      ok (r, memo)
+    | kernel.expr.ExprView.App _ _ =>
       let key ← kernel.expr_ops.expr_nat_key e k
       let o ← kernel.expr_ops.memo1_get memo key
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.abstract1_go d memo f k
             let (a2, memo3) ← kernel.expr_ops.abstract1_go d memo2 a k
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -99783,7 +99812,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -99791,7 +99820,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let (w, memo3) ← kernel.expr_ops.abstract1_go d memo2 val k
@@ -99799,11 +99828,11 @@ def kernel.expr_ops.abstract1_go
             let (b, memo4) ← kernel.expr_ops.abstract1_go d memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.abstract1_go d memo sub k
             let n ← kernel.name.dup s
@@ -99817,36 +99846,36 @@ def kernel.expr_ops.abstract1_go
             key e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lam _ _ _ =>
+    | kernel.expr.ExprView.Lam _ _ _ =>
       let key ← kernel.expr_ops.expr_nat_key e k
       let o ← kernel.expr_ops.memo1_get memo key
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.abstract1_go d memo f k
             let (a2, memo3) ← kernel.expr_ops.abstract1_go d memo2 a k
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -99854,7 +99883,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -99862,7 +99891,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let (w, memo3) ← kernel.expr_ops.abstract1_go d memo2 val k
@@ -99870,11 +99899,11 @@ def kernel.expr_ops.abstract1_go
             let (b, memo4) ← kernel.expr_ops.abstract1_go d memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.abstract1_go d memo sub k
             let n ← kernel.name.dup s
@@ -99888,36 +99917,36 @@ def kernel.expr_ops.abstract1_go
             key e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.ForallE _ _ _ =>
+    | kernel.expr.ExprView.ForallE _ _ _ =>
       let key ← kernel.expr_ops.expr_nat_key e k
       let o ← kernel.expr_ops.memo1_get memo key
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.abstract1_go d memo f k
             let (a2, memo3) ← kernel.expr_ops.abstract1_go d memo2 a k
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -99925,7 +99954,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -99933,7 +99962,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let (w, memo3) ← kernel.expr_ops.abstract1_go d memo2 val k
@@ -99941,11 +99970,11 @@ def kernel.expr_ops.abstract1_go
             let (b, memo4) ← kernel.expr_ops.abstract1_go d memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.abstract1_go d memo sub k
             let n ← kernel.name.dup s
@@ -99959,36 +99988,36 @@ def kernel.expr_ops.abstract1_go
             key e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.LetE _ _ _ =>
+    | kernel.expr.ExprView.LetE _ _ _ =>
       let key ← kernel.expr_ops.expr_nat_key e k
       let o ← kernel.expr_ops.memo1_get memo key
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.abstract1_go d memo f k
             let (a2, memo3) ← kernel.expr_ops.abstract1_go d memo2 a k
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -99996,7 +100025,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -100004,7 +100033,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let (w, memo3) ← kernel.expr_ops.abstract1_go d memo2 val k
@@ -100012,11 +100041,11 @@ def kernel.expr_ops.abstract1_go
             let (b, memo4) ← kernel.expr_ops.abstract1_go d memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.abstract1_go d memo sub k
             let n ← kernel.name.dup s
@@ -100030,38 +100059,38 @@ def kernel.expr_ops.abstract1_go
             key e1
         ok (r, memo2)
       | some r => ok (r, memo)
-    | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                                 ok (r, memo)
-    | ron.node.ExprView.Proj _ _ _ =>
+    | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                    ok (r, memo)
+    | kernel.expr.ExprView.Proj _ _ _ =>
       let key ← kernel.expr_ops.expr_nat_key e k
       let o ← kernel.expr_ops.memo1_get memo key
       match o with
       | none =>
         let (memo1, r) ←
           match ev with
-          | ron.node.ExprView.Bvar _ =>
+          | kernel.expr.ExprView.Bvar _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Fvar _ _ =>
+          | kernel.expr.ExprView.Fvar _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Sort _ =>
+          | kernel.expr.ExprView.Sort _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Const _ _ =>
+          | kernel.expr.ExprView.Const _ _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.App f a =>
+          | kernel.expr.ExprView.App f a =>
             do
             let (f2, memo2) ← kernel.expr_ops.abstract1_go d memo f k
             let (a2, memo3) ← kernel.expr_ops.abstract1_go d memo2 a k
             let r1 ← kernel.expr.app f2 a2
             ok (memo3, r1)
-          | ron.node.ExprView.Lam ty body m =>
+          | kernel.expr.ExprView.Lam ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -100069,7 +100098,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.lam t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.ForallE ty body m =>
+          | kernel.expr.ExprView.ForallE ty body m =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let i1 ← k + 1#u64
@@ -100077,7 +100106,7 @@ def kernel.expr_ops.abstract1_go
             let bm ← kernel.expr.binder_meta_dup m
             let r1 ← kernel.expr.forall_e t b bm
             ok (memo3, r1)
-          | ron.node.ExprView.LetE ty val body =>
+          | kernel.expr.ExprView.LetE ty val body =>
             do
             let (t, memo2) ← kernel.expr_ops.abstract1_go d memo ty k
             let (w, memo3) ← kernel.expr_ops.abstract1_go d memo2 val k
@@ -100085,11 +100114,11 @@ def kernel.expr_ops.abstract1_go
             let (b, memo4) ← kernel.expr_ops.abstract1_go d memo3 body i1
             let r1 ← kernel.expr.let_e t w b
             ok (memo4, r1)
-          | ron.node.ExprView.Lit _ =>
+          | kernel.expr.ExprView.Lit _ =>
             do
             let r1 ← kernel.expr.dup e
             ok (memo, r1)
-          | ron.node.ExprView.Proj s i1 sub =>
+          | kernel.expr.ExprView.Proj s i1 sub =>
             do
             let (u, memo2) ← kernel.expr_ops.abstract1_go d memo sub k
             let n ← kernel.name.dup s
@@ -100106,7 +100135,7 @@ def kernel.expr_ops.abstract1_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::abstract1]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 904:0-907:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 912:0-915:1
     Visibility: public -/
 def kernel.expr_ops.abstract1
   (e : kernel.expr.Expr) (d : Std.U64) (k : Std.U64) :
@@ -100118,7 +100147,7 @@ def kernel.expr_ops.abstract1
   ok e1
 
 /-- [con_ron_core::kernel::expr_ops::abstract_range]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 915:0-958:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 923:0-966:1
     Visibility: public -/
 def kernel.expr_ops.abstract_range
   (e : kernel.expr.Expr) (d : Std.U64) (k : Std.U64) (c : Std.U64) :
@@ -100126,8 +100155,8 @@ def kernel.expr_ops.abstract_range
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar i => kernel.expr.bvar i
-  | ron.node.ExprView.Fvar idx _ =>
+  | kernel.expr.ExprView.Bvar i => kernel.expr.bvar i
+  | kernel.expr.ExprView.Fvar idx _ =>
     if d <= idx
     then
       let i ← d + k
@@ -100139,143 +100168,143 @@ def kernel.expr_ops.abstract_range
         kernel.expr.bvar i3
       else kernel.expr.dup e
     else kernel.expr.dup e
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const _ _ => kernel.expr.dup e
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.App f a =>
     let f2 ← kernel.expr_ops.abstract_range f d k c
     let a2 ← kernel.expr_ops.abstract_range a d k c
     kernel.expr.app f2 a2
-  | ron.node.ExprView.Lam ty body m =>
+  | kernel.expr.ExprView.Lam ty body m =>
     let t ← kernel.expr_ops.abstract_range ty d k c
     let i ← c + 1#u64
     let b ← kernel.expr_ops.abstract_range body d k i
     let bm ← kernel.expr.binder_meta_dup m
     kernel.expr.lam t b bm
-  | ron.node.ExprView.ForallE ty body m =>
+  | kernel.expr.ExprView.ForallE ty body m =>
     let t ← kernel.expr_ops.abstract_range ty d k c
     let i ← c + 1#u64
     let b ← kernel.expr_ops.abstract_range body d k i
     let bm ← kernel.expr.binder_meta_dup m
     kernel.expr.forall_e t b bm
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let t ← kernel.expr_ops.abstract_range ty d k c
     let w ← kernel.expr_ops.abstract_range val d k c
     let i ← c + 1#u64
     let b ← kernel.expr_ops.abstract_range body d k i
     kernel.expr.let_e t w b
-  | ron.node.ExprView.Lit _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj s i sub =>
+  | kernel.expr.ExprView.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj s i sub =>
     let u ← kernel.expr_ops.abstract_range sub d k c
     let n ← kernel.name.dup s
     kernel.expr.proj n i u
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::size_f]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 963:0-976:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 971:0-984:1
     Visibility: public -/
 def kernel.expr_ops.size_f (e : kernel.expr.Expr) : Result Std.U64 := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok 1#u64
-  | ron.node.ExprView.Fvar _ ty =>
+  | kernel.expr.ExprView.Bvar _ => ok 1#u64
+  | kernel.expr.ExprView.Fvar _ ty =>
     let i ← kernel.expr_ops.size_f ty
     i + 1#u64
-  | ron.node.ExprView.Sort _ => ok 1#u64
-  | ron.node.ExprView.Const _ _ => ok 1#u64
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Sort _ => ok 1#u64
+  | kernel.expr.ExprView.Const _ _ => ok 1#u64
+  | kernel.expr.ExprView.App f a =>
     let i ← kernel.expr_ops.size_f f
     let i1 ← kernel.expr_ops.size_f a
     let i2 ← i + i1
     i2 + 1#u64
-  | ron.node.ExprView.Lam ty body _ =>
+  | kernel.expr.ExprView.Lam ty body _ =>
     let i ← kernel.expr_ops.size_f ty
     let i1 ← kernel.expr_ops.size_f body
     let i2 ← i + i1
     i2 + 1#u64
-  | ron.node.ExprView.ForallE ty body _ =>
+  | kernel.expr.ExprView.ForallE ty body _ =>
     let i ← kernel.expr_ops.size_f ty
     let i1 ← kernel.expr_ops.size_f body
     let i2 ← i + i1
     i2 + 1#u64
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let i ← kernel.expr_ops.size_f ty
     let i1 ← kernel.expr_ops.size_f val
     let i2 ← i + i1
     let i3 ← kernel.expr_ops.size_f body
     let i4 ← i2 + i3
     i4 + 1#u64
-  | ron.node.ExprView.Lit _ => ok 1#u64
-  | ron.node.ExprView.Proj _ _ sub =>
+  | kernel.expr.ExprView.Lit _ => ok 1#u64
+  | kernel.expr.ExprView.Proj _ _ sub =>
     let i ← kernel.expr_ops.size_f sub
     i + 1#u64
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::is_lam]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1081:0-1086:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1089:0-1094:1
     Visibility: public -/
 def kernel.expr_ops.is_lam (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ _ => ok false
-  | ron.node.ExprView.Sort _ => ok false
-  | ron.node.ExprView.Const _ _ => ok false
-  | ron.node.ExprView.App _ _ => ok false
-  | ron.node.ExprView.Lam _ _ _ => ok true
-  | ron.node.ExprView.ForallE _ _ _ => ok false
-  | ron.node.ExprView.LetE _ _ _ => ok false
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ _ => ok false
+  | kernel.expr.ExprView.Sort _ => ok false
+  | kernel.expr.ExprView.Const _ _ => ok false
+  | kernel.expr.ExprView.App _ _ => ok false
+  | kernel.expr.ExprView.Lam _ _ _ => ok true
+  | kernel.expr.ExprView.ForallE _ _ _ => ok false
+  | kernel.expr.ExprView.LetE _ _ _ => ok false
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ _ => ok false
 
 /-- [con_ron_core::kernel::expr_ops::lam_pw]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1090:0-1095:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1098:0-1103:1
     Visibility: public -/
 def kernel.expr_ops.lam_pw
   (e : kernel.expr.Expr) : Result (Option kernel.prop_when.PropWhen) := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok none
-  | ron.node.ExprView.Fvar _ _ => ok none
-  | ron.node.ExprView.Sort _ => ok none
-  | ron.node.ExprView.Const _ _ => ok none
-  | ron.node.ExprView.App _ _ => ok none
-  | ron.node.ExprView.Lam _ _ m =>
+  | kernel.expr.ExprView.Bvar _ => ok none
+  | kernel.expr.ExprView.Fvar _ _ => ok none
+  | kernel.expr.ExprView.Sort _ => ok none
+  | kernel.expr.ExprView.Const _ _ => ok none
+  | kernel.expr.ExprView.App _ _ => ok none
+  | kernel.expr.ExprView.Lam _ _ m =>
     let pw ← kernel.prop_when.dup m.pw
     ok (some pw)
-  | ron.node.ExprView.ForallE _ _ _ => ok none
-  | ron.node.ExprView.LetE _ _ _ => ok none
-  | ron.node.ExprView.Lit _ => ok none
-  | ron.node.ExprView.Proj _ _ _ => ok none
+  | kernel.expr.ExprView.ForallE _ _ _ => ok none
+  | kernel.expr.ExprView.LetE _ _ _ => ok none
+  | kernel.expr.ExprView.Lit _ => ok none
+  | kernel.expr.ExprView.Proj _ _ _ => ok none
 
 /-- [con_ron_core::kernel::expr_ops::forall_pw]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1099:0-1104:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1107:0-1112:1
     Visibility: public -/
 def kernel.expr_ops.forall_pw
   (e : kernel.expr.Expr) : Result (Option kernel.prop_when.PropWhen) := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok none
-  | ron.node.ExprView.Fvar _ _ => ok none
-  | ron.node.ExprView.Sort _ => ok none
-  | ron.node.ExprView.Const _ _ => ok none
-  | ron.node.ExprView.App _ _ => ok none
-  | ron.node.ExprView.Lam _ _ _ => ok none
-  | ron.node.ExprView.ForallE _ _ m =>
+  | kernel.expr.ExprView.Bvar _ => ok none
+  | kernel.expr.ExprView.Fvar _ _ => ok none
+  | kernel.expr.ExprView.Sort _ => ok none
+  | kernel.expr.ExprView.Const _ _ => ok none
+  | kernel.expr.ExprView.App _ _ => ok none
+  | kernel.expr.ExprView.Lam _ _ _ => ok none
+  | kernel.expr.ExprView.ForallE _ _ m =>
     let pw ← kernel.prop_when.dup m.pw
     ok (some pw)
-  | ron.node.ExprView.LetE _ _ _ => ok none
-  | ron.node.ExprView.Lit _ => ok none
-  | ron.node.ExprView.Proj _ _ _ => ok none
+  | kernel.expr.ExprView.LetE _ _ _ => ok none
+  | kernel.expr.ExprView.Lit _ => ok none
+  | kernel.expr.ExprView.Proj _ _ _ => ok none
 
 /-- [con_ron_core::kernel::expr_ops::has_fvar]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1113:0-1115:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1121:0-1123:1
     Visibility: public -/
 def kernel.expr_ops.has_fvar (e : kernel.expr.Expr) : Result Bool := do
   let i ← kernel.expr_ops.fvar_b e
   ok (i != 0#u64)
 
 /-- [con_ron_core::kernel::expr_ops::rename_consts_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1188:0-1237:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1196:0-1245:1
     Visibility: public -/
 def kernel.expr_ops.rename_consts_go
   {F : Type} (NameToNameInst : kernel.expr_ops.NameToName F) (f : F)
@@ -100286,33 +100315,33 @@ def kernel.expr_ops.rename_consts_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => let r ← kernel.expr.dup e
-                                ok (r, memo)
-  | ron.node.ExprView.Fvar _ _ =>
+  | kernel.expr.ExprView.Bvar _ => let r ← kernel.expr.dup e
+                                   ok (r, memo)
+  | kernel.expr.ExprView.Fvar _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo a
@@ -100320,7 +100349,7 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo2 b
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100329,7 +100358,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100338,7 +100367,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100348,11 +100377,11 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo3 body
           let r1 ← kernel.expr.let_e t v2 b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo sub
@@ -100367,39 +100396,39 @@ def kernel.expr_ops.rename_consts_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Sort _ => let r ← kernel.expr.dup e
-                                ok (r, memo)
-  | ron.node.ExprView.Const n us =>
+  | kernel.expr.ExprView.Sort _ => let r ← kernel.expr.dup e
+                                   ok (r, memo)
+  | kernel.expr.ExprView.Const n us =>
     let n1 ← NameToNameInst.rename f n
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let v1 ← kernel.expr_ops.levels_copy v
     let r ← kernel.expr.mk_const n1 v1
     ok (r, memo)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.App _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo a
@@ -100407,7 +100436,7 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo2 b
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100416,7 +100445,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100425,7 +100454,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100435,11 +100464,11 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo3 body
           let r1 ← kernel.expr.let_e t v2 b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo sub
@@ -100454,31 +100483,31 @@ def kernel.expr_ops.rename_consts_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo a
@@ -100486,7 +100515,7 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo2 b
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100495,7 +100524,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100504,7 +100533,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100514,11 +100543,11 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo3 body
           let r1 ← kernel.expr.let_e t v2 b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo sub
@@ -100533,31 +100562,31 @@ def kernel.expr_ops.rename_consts_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo a
@@ -100565,7 +100594,7 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo2 b
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100574,7 +100603,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100583,7 +100612,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100593,11 +100622,11 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo3 body
           let r1 ← kernel.expr.let_e t v2 b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo sub
@@ -100612,31 +100641,31 @@ def kernel.expr_ops.rename_consts_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo a
@@ -100644,7 +100673,7 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo2 b
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100653,7 +100682,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100662,7 +100691,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100672,11 +100701,11 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo3 body
           let r1 ← kernel.expr.let_e t v2 b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo sub
@@ -100691,33 +100720,33 @@ def kernel.expr_ops.rename_consts_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 e2
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lit _ => let r ← kernel.expr.dup e
-                               ok (r, memo)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Lit _ => let r ← kernel.expr.dup e
+                                  ok (r, memo)
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let o ← kernel.expr_ops.memo_e_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar i ty =>
+        | kernel.expr.ExprView.Fvar i ty =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
           let r1 ← kernel.expr.fvar i t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.App a b =>
+        | kernel.expr.ExprView.App a b =>
           do
           let (a2, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo a
@@ -100725,7 +100754,7 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo2 b
           let r1 ← kernel.expr.app a2 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam ty body m =>
+        | kernel.expr.ExprView.Lam ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100734,7 +100763,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.lam t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE ty body m =>
+        | kernel.expr.ExprView.ForallE ty body m =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100743,7 +100772,7 @@ def kernel.expr_ops.rename_consts_go
           let bm ← kernel.expr.binder_meta_dup m
           let r1 ← kernel.expr.forall_e t b bm
           ok (memo3, r1)
-        | ron.node.ExprView.LetE ty v body =>
+        | kernel.expr.ExprView.LetE ty v body =>
           do
           let (t, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo ty
@@ -100753,11 +100782,11 @@ def kernel.expr_ops.rename_consts_go
             kernel.expr_ops.rename_consts_go NameToNameInst f memo3 body
           let r1 ← kernel.expr.let_e t v2 b
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr.dup e
           ok (memo, r1)
-        | ron.node.ExprView.Proj s i sub =>
+        | kernel.expr.ExprView.Proj s i sub =>
           do
           let (u, memo2) ←
             kernel.expr_ops.rename_consts_go NameToNameInst f memo sub
@@ -100775,7 +100804,7 @@ def kernel.expr_ops.rename_consts_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::rename_consts]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1243:0-1249:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1251:0-1257:1
     Visibility: public -/
 def kernel.expr_ops.rename_consts
   {F : Type} (NameToNameInst : kernel.expr_ops.NameToName F) (f : F)
@@ -100787,7 +100816,7 @@ def kernel.expr_ops.rename_consts
   ok e1
 
 /-- [con_ron_core::kernel::expr_ops::strip_lams_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1267:0-1283:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1275:0-1291:1
     Visibility: public -/
 def kernel.expr_ops.strip_lams_go
   (k : Std.U64) (e : kernel.expr.Expr)
@@ -100801,25 +100830,25 @@ def kernel.expr_ops.strip_lams_go
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam ty b m =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam ty b m =>
       let e1 ← kernel.expr.dup ty
       let bm ← kernel.expr.binder_meta_dup m
       let out1 ← alloc.vec.Vec.push out (e1, bm)
       let i ← k - 1#u64
       kernel.expr_ops.strip_lams_go i b out1
-    | ron.node.ExprView.ForallE _ _ _ => ok none
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::strip_lams]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1258:0-1260:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1266:0-1268:1
     Visibility: public -/
 def kernel.expr_ops.strip_lams
   (k : Std.U64) (e : kernel.expr.Expr) :
@@ -100830,7 +100859,7 @@ def kernel.expr_ops.strip_lams
     kernel.expr.BinderMeta))
 
 /-- [con_ron_core::kernel::expr_ops::dom_at_n_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1325:0-1333:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1333:0-1341:1
     Visibility: public -/
 def kernel.expr_ops.dom_at_n_from
   (doms : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
@@ -100855,7 +100884,7 @@ def kernel.expr_ops.dom_at_n_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::dom_at_n]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1318:0-1320:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1326:0-1328:1
     Visibility: public -/
 def kernel.expr_ops.dom_at_n
   (doms : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
@@ -100865,7 +100894,7 @@ def kernel.expr_ops.dom_at_n
   kernel.expr_ops.dom_at_n_from doms i 0#usize
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1353:0-1365:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1361:0-1373:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_from
   (e : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr)
@@ -100879,26 +100908,26 @@ def kernel.expr_ops.inst_pis_from
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE _ body _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ body _ =>
       let e1 ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           kernel.expr.Expr) args i
       let b ← kernel.expr_ops.instantiate1 body e1 0#u64
       let i2 ← i + 1#usize
       kernel.expr_ops.inst_pis_from b args i2
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1347:0-1349:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1355:0-1357:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis
   (e : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr) :
@@ -100907,7 +100936,7 @@ def kernel.expr_ops.inst_pis
   kernel.expr_ops.inst_pis_from e args 0#usize
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1377:0-1395:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1385:0-1403:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at_from
   (args : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
@@ -100921,13 +100950,13 @@ def kernel.expr_ops.inst_pis_at_from
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE dom body _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE dom body _ =>
       let e1 ← kernel.expr.dup dom
       let out1 ← alloc.vec.Vec.push out e1
       let e2 ←
@@ -100936,13 +100965,13 @@ def kernel.expr_ops.inst_pis_at_from
       let b ← kernel.expr_ops.instantiate1 body e2 0#u64
       let i2 ← i + 1#usize
       kernel.expr_ops.inst_pis_at_from args i2 b out1
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1370:0-1372:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1378:0-1380:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at
   (args : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) :
@@ -100952,7 +100981,7 @@ def kernel.expr_ops.inst_pis_at
     kernel.expr.Expr)
 
 /-- [con_ron_core::kernel::expr_ops::inst_lams_at_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1405:0-1423:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1413:0-1431:1
     Visibility: public -/
 def kernel.expr_ops.inst_lams_at_from
   (args : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
@@ -100966,12 +100995,12 @@ def kernel.expr_ops.inst_lams_at_from
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam dom body _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam dom body _ =>
       let e1 ← kernel.expr.dup dom
       let out1 ← alloc.vec.Vec.push out e1
       let e2 ←
@@ -100980,14 +101009,14 @@ def kernel.expr_ops.inst_lams_at_from
       let b ← kernel.expr_ops.instantiate1 body e2 0#u64
       let i2 ← i + 1#usize
       kernel.expr_ops.inst_lams_at_from args i2 b out1
-    | ron.node.ExprView.ForallE _ _ _ => ok none
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_lams_at]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1399:0-1401:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1407:0-1409:1
     Visibility: public -/
 def kernel.expr_ops.inst_lams_at
   (args : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) :
@@ -100997,7 +101026,7 @@ def kernel.expr_ops.inst_lams_at
     kernel.expr.Expr)
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at_f_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1429:0-1448:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1437:0-1456:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at_f_go
   (acc : alloc.vec.Vec kernel.expr.Expr)
@@ -101013,13 +101042,13 @@ def kernel.expr_ops.inst_pis_at_f_go
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE dom body _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE dom body _ =>
       let e1 ← kernel.expr_ops.instantiate_list_fast dom acc 0#u64
       let out1 ← alloc.vec.Vec.push out e1
       let e2 ←
@@ -101028,13 +101057,13 @@ def kernel.expr_ops.inst_pis_at_f_go
       let acc2 ← kernel.expr_ops.cons_expr e2 acc
       let i2 ← i + 1#usize
       kernel.expr_ops.inst_pis_at_f_go acc2 args i2 body out1
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at_f]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1453:0-1459:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1461:0-1467:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at_f
   (args : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) :
@@ -101048,7 +101077,7 @@ def kernel.expr_ops.inst_pis_at_f
   | some _ => ok o
 
 /-- [con_ron_core::kernel::expr_ops::inst_lams_at_f_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1463:0-1482:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1471:0-1490:1
     Visibility: public -/
 def kernel.expr_ops.inst_lams_at_f_go
   (acc : alloc.vec.Vec kernel.expr.Expr)
@@ -101064,12 +101093,12 @@ def kernel.expr_ops.inst_lams_at_f_go
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam dom body _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam dom body _ =>
       let e1 ← kernel.expr_ops.instantiate_list_fast dom acc 0#u64
       let out1 ← alloc.vec.Vec.push out e1
       let e2 ←
@@ -101078,14 +101107,14 @@ def kernel.expr_ops.inst_lams_at_f_go
       let acc2 ← kernel.expr_ops.cons_expr e2 acc
       let i2 ← i + 1#usize
       kernel.expr_ops.inst_lams_at_f_go acc2 args i2 body out1
-    | ron.node.ExprView.ForallE _ _ _ => ok none
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_lams_at_f]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1486:0-1492:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1494:0-1500:1
     Visibility: public -/
 def kernel.expr_ops.inst_lams_at_f
   (args : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) :
@@ -101099,25 +101128,25 @@ def kernel.expr_ops.inst_lams_at_f
   | some _ => ok o
 
 /-- [con_ron_core::kernel::expr_ops::fvar_type_d]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1497:0-1502:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1505:0-1510:1
     Visibility: public -/
 def kernel.expr_ops.fvar_type_d
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => kernel.expr.dup e
-  | ron.node.ExprView.Fvar _ ty => kernel.expr.dup ty
-  | ron.node.ExprView.Sort _ => kernel.expr.dup e
-  | ron.node.ExprView.Const _ _ => kernel.expr.dup e
-  | ron.node.ExprView.App _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lam _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.ForallE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.LetE _ _ _ => kernel.expr.dup e
-  | ron.node.ExprView.Lit _ => kernel.expr.dup e
-  | ron.node.ExprView.Proj _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Fvar _ ty => kernel.expr.dup ty
+  | kernel.expr.ExprView.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.App _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.ForallE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprView.Proj _ _ _ => kernel.expr.dup e
 
 /-- [con_ron_core::kernel::expr_ops::inst_spine_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1514:0-1521:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1522:0-1529:1
     Visibility: public -/
 def kernel.expr_ops.inst_spine_from
   (args : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) (t : Std.U64)
@@ -101138,7 +101167,7 @@ def kernel.expr_ops.inst_spine_from
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_spine]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1507:0-1509:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1515:0-1517:1
     Visibility: public -/
 def kernel.expr_ops.inst_spine
   (args : alloc.vec.Vec kernel.expr.Expr) (t : Std.U64) (e : kernel.expr.Expr)
@@ -101148,7 +101177,7 @@ def kernel.expr_ops.inst_spine
   kernel.expr_ops.inst_spine_from args 0#usize t e
 
 /-- [con_ron_core::kernel::expr_ops::pis_to_lams]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1574:0-1590:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1582:0-1598:1
     Visibility: public -/
 def kernel.expr_ops.pis_to_lams
   (k : Std.U64) (e : kernel.expr.Expr) (body : kernel.expr.Expr) :
@@ -101160,13 +101189,13 @@ def kernel.expr_ops.pis_to_lams
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE ty rest _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE ty rest _ =>
       let i ← k - 1#u64
       let o ← kernel.expr_ops.pis_to_lams i rest body
       match o with
@@ -101177,13 +101206,13 @@ def kernel.expr_ops.pis_to_lams
         let bm ← kernel.expr.binder_meta pw
         let e2 ← kernel.expr.lam e1 b bm
         ok (some e2)
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::replace_pi_body]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1595:0-1607:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1603:0-1615:1
     Visibility: public -/
 def kernel.expr_ops.replace_pi_body
   (k : Std.U64) (e : kernel.expr.Expr) (b : kernel.expr.Expr) :
@@ -101195,13 +101224,13 @@ def kernel.expr_ops.replace_pi_body
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE ty rest m =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE ty rest m =>
       let i ← k - 1#u64
       let o ← kernel.expr_ops.replace_pi_body i rest b
       match o with
@@ -101211,120 +101240,120 @@ def kernel.expr_ops.replace_pi_body
         let bm ← kernel.expr.binder_meta_dup m
         let e2 ← kernel.expr.forall_e e1 r bm
         ok (some e2)
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::pi_arity]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1611:0-1616:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1619:0-1624:1
     Visibility: public -/
 def kernel.expr_ops.pi_arity (e : kernel.expr.Expr) : Result Std.U64 := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok 0#u64
-  | ron.node.ExprView.Fvar _ _ => ok 0#u64
-  | ron.node.ExprView.Sort _ => ok 0#u64
-  | ron.node.ExprView.Const _ _ => ok 0#u64
-  | ron.node.ExprView.App _ _ => ok 0#u64
-  | ron.node.ExprView.Lam _ _ _ => ok 0#u64
-  | ron.node.ExprView.ForallE _ b _ =>
+  | kernel.expr.ExprView.Bvar _ => ok 0#u64
+  | kernel.expr.ExprView.Fvar _ _ => ok 0#u64
+  | kernel.expr.ExprView.Sort _ => ok 0#u64
+  | kernel.expr.ExprView.Const _ _ => ok 0#u64
+  | kernel.expr.ExprView.App _ _ => ok 0#u64
+  | kernel.expr.ExprView.Lam _ _ _ => ok 0#u64
+  | kernel.expr.ExprView.ForallE _ b _ =>
     let i ← kernel.expr_ops.pi_arity b
     i + 1#u64
-  | ron.node.ExprView.LetE _ _ _ => ok 0#u64
-  | ron.node.ExprView.Lit _ => ok 0#u64
-  | ron.node.ExprView.Proj _ _ _ => ok 0#u64
+  | kernel.expr.ExprView.LetE _ _ _ => ok 0#u64
+  | kernel.expr.ExprView.Lit _ => ok 0#u64
+  | kernel.expr.ExprView.Proj _ _ _ => ok 0#u64
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::result_sort]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1620:0-1626:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1628:0-1634:1
     Visibility: public -/
 def kernel.expr_ops.result_sort
   (e : kernel.expr.Expr) : Result (Option kernel.level.Level) := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok none
-  | ron.node.ExprView.Fvar _ _ => ok none
-  | ron.node.ExprView.Sort u => let l ← kernel.level.dup u
-                                ok (some l)
-  | ron.node.ExprView.Const _ _ => ok none
-  | ron.node.ExprView.App _ _ => ok none
-  | ron.node.ExprView.Lam _ _ _ => ok none
-  | ron.node.ExprView.ForallE _ b _ => kernel.expr_ops.result_sort b
-  | ron.node.ExprView.LetE _ _ _ => ok none
-  | ron.node.ExprView.Lit _ => ok none
-  | ron.node.ExprView.Proj _ _ _ => ok none
+  | kernel.expr.ExprView.Bvar _ => ok none
+  | kernel.expr.ExprView.Fvar _ _ => ok none
+  | kernel.expr.ExprView.Sort u => let l ← kernel.level.dup u
+                                   ok (some l)
+  | kernel.expr.ExprView.Const _ _ => ok none
+  | kernel.expr.ExprView.App _ _ => ok none
+  | kernel.expr.ExprView.Lam _ _ _ => ok none
+  | kernel.expr.ExprView.ForallE _ b _ => kernel.expr_ops.result_sort b
+  | kernel.expr.ExprView.LetE _ _ _ => ok none
+  | kernel.expr.ExprView.Lit _ => ok none
+  | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::bvar_bound]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1640:0-1658:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1648:0-1666:1
     Visibility: public -/
 def kernel.expr_ops.bvar_bound (e : kernel.expr.Expr) : Result Std.U64 := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar i => i + 1#u64
-  | ron.node.ExprView.Fvar _ _ => ok 0#u64
-  | ron.node.ExprView.Sort _ => ok 0#u64
-  | ron.node.ExprView.Const _ _ => ok 0#u64
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Bvar i => i + 1#u64
+  | kernel.expr.ExprView.Fvar _ _ => ok 0#u64
+  | kernel.expr.ExprView.Sort _ => ok 0#u64
+  | kernel.expr.ExprView.Const _ _ => ok 0#u64
+  | kernel.expr.ExprView.App f a =>
     let i ← kernel.expr_ops.bvar_bound f
     let i1 ← kernel.expr_ops.bvar_bound a
     kernel.expr.max_u64 i i1
-  | ron.node.ExprView.Lam ty body _ =>
+  | kernel.expr.ExprView.Lam ty body _ =>
     let i ← kernel.expr_ops.bvar_bound ty
     let i1 ← kernel.expr_ops.bvar_bound body
     let i2 ← kernel.expr_ops.sub_nat i1 1#u64
     kernel.expr.max_u64 i i2
-  | ron.node.ExprView.ForallE ty body _ =>
+  | kernel.expr.ExprView.ForallE ty body _ =>
     let i ← kernel.expr_ops.bvar_bound ty
     let i1 ← kernel.expr_ops.bvar_bound body
     let i2 ← kernel.expr_ops.sub_nat i1 1#u64
     kernel.expr.max_u64 i i2
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let i ← kernel.expr_ops.bvar_bound ty
     let i1 ← kernel.expr_ops.bvar_bound val
     let i2 ← kernel.expr.max_u64 i i1
     let i3 ← kernel.expr_ops.bvar_bound body
     let i4 ← kernel.expr_ops.sub_nat i3 1#u64
     kernel.expr.max_u64 i2 i4
-  | ron.node.ExprView.Lit _ => ok 0#u64
-  | ron.node.ExprView.Proj _ _ sub => kernel.expr_ops.bvar_bound sub
+  | kernel.expr.ExprView.Lit _ => ok 0#u64
+  | kernel.expr.ExprView.Proj _ _ sub => kernel.expr_ops.bvar_bound sub
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::fvar_range]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1665:0-1681:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1673:0-1689:1
     Visibility: public -/
 def kernel.expr_ops.fvar_range (e : kernel.expr.Expr) : Result Std.U64 := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok 0#u64
-  | ron.node.ExprView.Fvar idx _ => idx + 1#u64
-  | ron.node.ExprView.Sort _ => ok 0#u64
-  | ron.node.ExprView.Const _ _ => ok 0#u64
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.Bvar _ => ok 0#u64
+  | kernel.expr.ExprView.Fvar idx _ => idx + 1#u64
+  | kernel.expr.ExprView.Sort _ => ok 0#u64
+  | kernel.expr.ExprView.Const _ _ => ok 0#u64
+  | kernel.expr.ExprView.App f a =>
     let i ← kernel.expr_ops.fvar_range f
     let i1 ← kernel.expr_ops.fvar_range a
     kernel.expr.max_u64 i i1
-  | ron.node.ExprView.Lam ty body _ =>
+  | kernel.expr.ExprView.Lam ty body _ =>
     let i ← kernel.expr_ops.fvar_range ty
     let i1 ← kernel.expr_ops.fvar_range body
     kernel.expr.max_u64 i i1
-  | ron.node.ExprView.ForallE ty body _ =>
+  | kernel.expr.ExprView.ForallE ty body _ =>
     let i ← kernel.expr_ops.fvar_range ty
     let i1 ← kernel.expr_ops.fvar_range body
     kernel.expr.max_u64 i i1
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let i ← kernel.expr_ops.fvar_range ty
     let i1 ← kernel.expr_ops.fvar_range val
     let i2 ← kernel.expr.max_u64 i i1
     let i3 ← kernel.expr_ops.fvar_range body
     kernel.expr.max_u64 i2 i3
-  | ron.node.ExprView.Lit _ => ok 0#u64
-  | ron.node.ExprView.Proj _ _ sub => kernel.expr_ops.fvar_range sub
+  | kernel.expr.ExprView.Lit _ => ok 0#u64
+  | kernel.expr.ExprView.Proj _ _ sub => kernel.expr_ops.fvar_range sub
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at_lift_from]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1834:0-1846:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1842:0-1854:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at_lift_from
   (args : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize)
@@ -101338,26 +101367,26 @@ def kernel.expr_ops.inst_pis_at_lift_from
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE _ body _ =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ body _ =>
       let e1 ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           kernel.expr.Expr) args i
       let b ← kernel.expr_ops.instantiate1_lift body e1 0#u64
       let i2 ← i + 1#usize
       kernel.expr_ops.inst_pis_at_lift_from args i2 b
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::inst_pis_at_lift]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1827:0-1829:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1835:0-1837:1
     Visibility: public -/
 def kernel.expr_ops.inst_pis_at_lift
   (args : alloc.vec.Vec kernel.expr.Expr) (e : kernel.expr.Expr) :
@@ -101366,7 +101395,7 @@ def kernel.expr_ops.inst_pis_at_lift
   kernel.expr_ops.inst_pis_at_lift_from args 0#usize e
 
 /-- [con_ron_core::kernel::expr_ops::expr_ptr_beq]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1856:0-1862:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1864:0-1870:1
     Visibility: public -/
 def kernel.expr_ops.expr_ptr_beq
   (a : kernel.expr.Expr) (b : kernel.expr.Expr) : Result Bool := do
@@ -101376,23 +101405,23 @@ def kernel.expr_ops.expr_ptr_beq
   else kernel.expr.beq a b
 
 /-- [con_ron_core::kernel::expr_ops::has_level_param]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1879:0-1898:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1887:0-1906:1
     Visibility: public -/
 def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok false
-  | ron.node.ExprView.Fvar _ ty => kernel.expr_ops.has_level_param ty
-  | ron.node.ExprView.Sort u => kernel.level.level_has_param u
-  | ron.node.ExprView.Const _ us =>
+  | kernel.expr.ExprView.Bvar _ => ok false
+  | kernel.expr.ExprView.Fvar _ ty => kernel.expr_ops.has_level_param ty
+  | kernel.expr.ExprView.Sort u => kernel.level.level_has_param u
+  | kernel.expr.ExprView.Const _ us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     kernel.level.levels_have_param v
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.App f a =>
     let b ← kernel.expr_ops.has_level_param f
     if b
     then ok true
     else kernel.expr_ops.has_level_param a
-  | ron.node.ExprView.Lam ty body m =>
+  | kernel.expr.ExprView.Lam ty body m =>
     let b ← kernel.expr_ops.has_level_param ty
     if b
     then ok true
@@ -101401,7 +101430,7 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
       if b1
       then ok true
       else kernel.prop_when.has_params m.pw
-  | ron.node.ExprView.ForallE ty body m =>
+  | kernel.expr.ExprView.ForallE ty body m =>
     let b ← kernel.expr_ops.has_level_param ty
     if b
     then ok true
@@ -101410,7 +101439,7 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
       if b1
       then ok true
       else kernel.prop_when.has_params m.pw
-  | ron.node.ExprView.LetE ty val body =>
+  | kernel.expr.ExprView.LetE ty val body =>
     let b ← kernel.expr_ops.has_level_param ty
     if b
     then ok true
@@ -101419,12 +101448,12 @@ def kernel.expr_ops.has_level_param (e : kernel.expr.Expr) : Result Bool := do
       if b1
       then ok true
       else kernel.expr_ops.has_level_param body
-  | ron.node.ExprView.Lit _ => ok false
-  | ron.node.ExprView.Proj _ _ sub => kernel.expr_ops.has_level_param sub
+  | kernel.expr.ExprView.Lit _ => ok false
+  | kernel.expr.ExprView.Proj _ _ sub => kernel.expr_ops.has_level_param sub
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::bool_and]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2029:0-2035:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2037:0-2043:1
     Visibility: public -/
 def kernel.expr_ops.bool_and (a : Bool) (b : Bool) : Result Bool := do
   if a
@@ -101432,7 +101461,7 @@ def kernel.expr_ops.bool_and (a : Bool) (b : Bool) : Result Bool := do
   else ok false
 
 /-- [con_ron_core::kernel::expr_ops::bool_and3]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2039:0-2041:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2047:0-2049:1
     Visibility: public -/
 def kernel.expr_ops.bool_and3
   (a : Bool) (b : Bool) (c : Bool) : Result Bool := do
@@ -101440,7 +101469,7 @@ def kernel.expr_ops.bool_and3
   kernel.expr_ops.bool_and b1 c
 
 /-- [con_ron_core::kernel::expr_ops::levels_all_params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2104:0-2112:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2112:0-2120:1
     Visibility: public -/
 def kernel.expr_ops.levels_all_params_defined
   (params : alloc.vec.Vec kernel.name.Name)
@@ -101463,7 +101492,7 @@ def kernel.expr_ops.levels_all_params_defined
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::all_level_params_defined]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2051:0-2100:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2059:0-2108:1
     Visibility: public -/
 def kernel.expr_ops.all_level_params_defined
   (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
@@ -101471,19 +101500,19 @@ def kernel.expr_ops.all_level_params_defined
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok true
-  | ron.node.ExprView.Fvar _ t =>
+  | kernel.expr.ExprView.Bvar _ => ok true
+  | kernel.expr.ExprView.Fvar _ t =>
     kernel.expr_ops.all_level_params_defined params t
-  | ron.node.ExprView.Sort u => kernel.level.all_params_defined params u
-  | ron.node.ExprView.Const _ us =>
+  | kernel.expr.ExprView.Sort u => kernel.level.all_params_defined params u
+  | kernel.expr.ExprView.Const _ us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     kernel.expr_ops.levels_all_params_defined params v 0#usize
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.App f a =>
     let b ← kernel.expr_ops.all_level_params_defined params f
     if b
     then kernel.expr_ops.all_level_params_defined params a
     else ok false
-  | ron.node.ExprView.Lam t b m =>
+  | kernel.expr.ExprView.Lam t b m =>
     let b1 ← kernel.expr_ops.all_level_params_defined params t
     if b1
     then
@@ -101492,7 +101521,7 @@ def kernel.expr_ops.all_level_params_defined
       then kernel.prop_when.params_defined params m.pw
       else ok false
     else ok false
-  | ron.node.ExprView.ForallE t b m =>
+  | kernel.expr.ExprView.ForallE t b m =>
     let b1 ← kernel.expr_ops.all_level_params_defined params t
     if b1
     then
@@ -101501,7 +101530,7 @@ def kernel.expr_ops.all_level_params_defined
       then kernel.prop_when.params_defined params m.pw
       else ok false
     else ok false
-  | ron.node.ExprView.LetE t v b =>
+  | kernel.expr.ExprView.LetE t v b =>
     let b1 ← kernel.expr_ops.all_level_params_defined params t
     if b1
     then
@@ -101510,13 +101539,13 @@ def kernel.expr_ops.all_level_params_defined
       then kernel.expr_ops.all_level_params_defined params b
       else ok false
     else ok false
-  | ron.node.ExprView.Lit _ => ok true
-  | ron.node.ExprView.Proj _ _ sub =>
+  | kernel.expr.ExprView.Lit _ => ok true
+  | kernel.expr.ExprView.Proj _ _ sub =>
     kernel.expr_ops.all_level_params_defined params sub
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::all_level_params_defined_go]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2121:0-2167:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2129:0-2175:1
     Visibility: public -/
 def kernel.expr_ops.all_level_params_defined_go
   (params : alloc.vec.Vec kernel.name.Name)
@@ -101525,31 +101554,31 @@ def kernel.expr_ops.all_level_params_defined_go
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok (true, memo)
-  | ron.node.ExprView.Fvar _ _ =>
+  | kernel.expr.ExprView.Bvar _ => ok (true, memo)
+  | kernel.expr.ExprView.Fvar _ _ =>
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ t =>
+        | kernel.expr.ExprView.Fvar _ t =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo f
@@ -101557,7 +101586,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo2 a
           let r1 ← kernel.expr_ops.bool_and b1 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam t b m =>
+        | kernel.expr.ExprView.Lam t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101566,7 +101595,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE t b m =>
+        | kernel.expr.ExprView.ForallE t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101575,7 +101604,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.LetE t v b =>
+        | kernel.expr.ExprView.LetE t v b =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101585,11 +101614,11 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo3 b
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Proj _ _ sub =>
+        | kernel.expr.ExprView.Proj _ _ sub =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo sub
@@ -101601,37 +101630,37 @@ def kernel.expr_ops.all_level_params_defined_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Sort u =>
+  | kernel.expr.ExprView.Sort u =>
     let r ← kernel.level.all_params_defined params u
     ok (r, memo)
-  | ron.node.ExprView.Const _ us =>
+  | kernel.expr.ExprView.Const _ us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let r ← kernel.expr_ops.levels_all_params_defined params v 0#usize
     ok (r, memo)
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.App _ _ =>
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ t =>
+        | kernel.expr.ExprView.Fvar _ t =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo f
@@ -101639,7 +101668,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo2 a
           let r1 ← kernel.expr_ops.bool_and b1 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam t b m =>
+        | kernel.expr.ExprView.Lam t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101648,7 +101677,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE t b m =>
+        | kernel.expr.ExprView.ForallE t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101657,7 +101686,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.LetE t v b =>
+        | kernel.expr.ExprView.LetE t v b =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101667,11 +101696,11 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo3 b
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Proj _ _ sub =>
+        | kernel.expr.ExprView.Proj _ _ sub =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo sub
@@ -101683,30 +101712,30 @@ def kernel.expr_ops.all_level_params_defined_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ t =>
+        | kernel.expr.ExprView.Fvar _ t =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo f
@@ -101714,7 +101743,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo2 a
           let r1 ← kernel.expr_ops.bool_and b1 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam t b m =>
+        | kernel.expr.ExprView.Lam t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101723,7 +101752,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE t b m =>
+        | kernel.expr.ExprView.ForallE t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101732,7 +101761,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.LetE t v b =>
+        | kernel.expr.ExprView.LetE t v b =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101742,11 +101771,11 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo3 b
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Proj _ _ sub =>
+        | kernel.expr.ExprView.Proj _ _ sub =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo sub
@@ -101758,30 +101787,30 @@ def kernel.expr_ops.all_level_params_defined_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ t =>
+        | kernel.expr.ExprView.Fvar _ t =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo f
@@ -101789,7 +101818,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo2 a
           let r1 ← kernel.expr_ops.bool_and b1 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam t b m =>
+        | kernel.expr.ExprView.Lam t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101798,7 +101827,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE t b m =>
+        | kernel.expr.ExprView.ForallE t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101807,7 +101836,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.LetE t v b =>
+        | kernel.expr.ExprView.LetE t v b =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101817,11 +101846,11 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo3 b
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Proj _ _ sub =>
+        | kernel.expr.ExprView.Proj _ _ sub =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo sub
@@ -101833,30 +101862,30 @@ def kernel.expr_ops.all_level_params_defined_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ t =>
+        | kernel.expr.ExprView.Fvar _ t =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo f
@@ -101864,7 +101893,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo2 a
           let r1 ← kernel.expr_ops.bool_and b1 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam t b m =>
+        | kernel.expr.ExprView.Lam t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101873,7 +101902,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE t b m =>
+        | kernel.expr.ExprView.ForallE t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101882,7 +101911,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.LetE t v b =>
+        | kernel.expr.ExprView.LetE t v b =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101892,11 +101921,11 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo3 b
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Proj _ _ sub =>
+        | kernel.expr.ExprView.Proj _ _ sub =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo sub
@@ -101908,31 +101937,31 @@ def kernel.expr_ops.all_level_params_defined_go
           kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 memo1 e1 r
       ok (r, memo2)
     | some r => ok (r, memo)
-  | ron.node.ExprView.Lit _ => ok (true, memo)
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Lit _ => ok (true, memo)
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let o ← kernel.expr_ops.memo_b_get memo e
     match o with
     | none =>
       let (memo1, r) ←
         match ev with
-        | ron.node.ExprView.Bvar _ =>
+        | kernel.expr.ExprView.Bvar _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Fvar _ t =>
+        | kernel.expr.ExprView.Fvar _ t =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
           ok (memo2, r1)
-        | ron.node.ExprView.Sort _ =>
+        | kernel.expr.ExprView.Sort _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Const _ _ =>
+        | kernel.expr.ExprView.Const _ _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.App f a =>
+        | kernel.expr.ExprView.App f a =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo f
@@ -101940,7 +101969,7 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo2 a
           let r1 ← kernel.expr_ops.bool_and b1 b2
           ok (memo3, r1)
-        | ron.node.ExprView.Lam t b m =>
+        | kernel.expr.ExprView.Lam t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101949,7 +101978,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.ForallE t b m =>
+        | kernel.expr.ExprView.ForallE t b m =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101958,7 +101987,7 @@ def kernel.expr_ops.all_level_params_defined_go
           let b3 ← kernel.prop_when.params_defined params m.pw
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo3, r1)
-        | ron.node.ExprView.LetE t v b =>
+        | kernel.expr.ExprView.LetE t v b =>
           do
           let (b1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo t
@@ -101968,11 +101997,11 @@ def kernel.expr_ops.all_level_params_defined_go
             kernel.expr_ops.all_level_params_defined_go params memo3 b
           let r1 ← kernel.expr_ops.bool_and3 b1 b2 b3
           ok (memo4, r1)
-        | ron.node.ExprView.Lit _ =>
+        | kernel.expr.ExprView.Lit _ =>
           do
           let r1 ← kernel.expr_ops.all_level_params_defined params e
           ok (memo, r1)
-        | ron.node.ExprView.Proj _ _ sub =>
+        | kernel.expr.ExprView.Proj _ _ sub =>
           do
           let (r1, memo2) ←
             kernel.expr_ops.all_level_params_defined_go params memo sub
@@ -101987,7 +102016,7 @@ def kernel.expr_ops.all_level_params_defined_go
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr_ops::all_level_params_defined_fast]:
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2174:0-2177:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 2182:0-2185:1
     Visibility: public -/
 def kernel.expr_ops.all_level_params_defined_fast
   (params : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
@@ -103907,21 +103936,21 @@ def kernel.prop_read.peel_never_pis
   else
     let ev ← kernel.expr.view e
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort _ => ok none
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE _ b m =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ b m =>
       let b1 ← kernel.prop_when.is_never m.pw
       if b1
       then let i ← k - 1#u64
            kernel.prop_read.peel_never_pis i b
       else ok none
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_read::num_args]:
@@ -103930,18 +103959,18 @@ partial_fixpoint
 def kernel.prop_read.num_args (e : kernel.expr.Expr) : Result Std.U64 := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok 0#u64
-  | ron.node.ExprView.Fvar _ _ => ok 0#u64
-  | ron.node.ExprView.Sort _ => ok 0#u64
-  | ron.node.ExprView.Const _ _ => ok 0#u64
-  | ron.node.ExprView.App f _ =>
+  | kernel.expr.ExprView.Bvar _ => ok 0#u64
+  | kernel.expr.ExprView.Fvar _ _ => ok 0#u64
+  | kernel.expr.ExprView.Sort _ => ok 0#u64
+  | kernel.expr.ExprView.Const _ _ => ok 0#u64
+  | kernel.expr.ExprView.App f _ =>
     let i ← kernel.prop_read.num_args f
     i + 1#u64
-  | ron.node.ExprView.Lam _ _ _ => ok 0#u64
-  | ron.node.ExprView.ForallE _ _ _ => ok 0#u64
-  | ron.node.ExprView.LetE _ _ _ => ok 0#u64
-  | ron.node.ExprView.Lit _ => ok 0#u64
-  | ron.node.ExprView.Proj _ _ _ => ok 0#u64
+  | kernel.expr.ExprView.Lam _ _ _ => ok 0#u64
+  | kernel.expr.ExprView.ForallE _ _ _ => ok 0#u64
+  | kernel.expr.ExprView.LetE _ _ _ => ok 0#u64
+  | kernel.expr.ExprView.Lit _ => ok 0#u64
+  | kernel.expr.ExprView.Proj _ _ _ => ok 0#u64
 partial_fixpoint
 
 /-- [con_ron_core::kernel::prop_read::residual_pw]:
@@ -103956,18 +103985,18 @@ def kernel.prop_read.residual_pw
   | some r =>
     let ev ← kernel.expr.view r
     match ev with
-    | ron.node.ExprView.Bvar _ => ok none
-    | ron.node.ExprView.Fvar _ _ => ok none
-    | ron.node.ExprView.Sort u =>
+    | kernel.expr.ExprView.Bvar _ => ok none
+    | kernel.expr.ExprView.Fvar _ _ => ok none
+    | kernel.expr.ExprView.Sort u =>
       let pw ← kernel.level.zeroness_of u
       ok (some pw)
-    | ron.node.ExprView.Const _ _ => ok none
-    | ron.node.ExprView.App _ _ => ok none
-    | ron.node.ExprView.Lam _ _ _ => ok none
-    | ron.node.ExprView.ForallE _ _ _ => ok none
-    | ron.node.ExprView.LetE _ _ _ => ok none
-    | ron.node.ExprView.Lit _ => ok none
-    | ron.node.ExprView.Proj _ _ _ => ok none
+    | kernel.expr.ExprView.Const _ _ => ok none
+    | kernel.expr.ExprView.App _ _ => ok none
+    | kernel.expr.ExprView.Lam _ _ _ => ok none
+    | kernel.expr.ExprView.ForallE _ _ _ => ok none
+    | kernel.expr.ExprView.LetE _ _ _ => ok none
+    | kernel.expr.ExprView.Lit _ => ok none
+    | kernel.expr.ExprView.Proj _ _ _ => ok none
 
 /-- [con_ron_core::kernel::prop_read::stored_cv_at]:
     Source: 'crates/con-ron-core/src/kernel/prop_read.rs', lines 92:0-108:1
@@ -103999,12 +104028,12 @@ def kernel.prop_read.head_type_pw
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok none
-  | ron.node.ExprView.Fvar _ ty =>
+  | kernel.expr.ExprView.Bvar _ => ok none
+  | kernel.expr.ExprView.Fvar _ ty =>
     let o ← kernel.prop_read.peel_never_pis n ty
     kernel.prop_read.residual_pw o
-  | ron.node.ExprView.Sort _ => ok none
-  | ron.node.ExprView.Const i us =>
+  | kernel.expr.ExprView.Sort _ => ok none
+  | kernel.expr.ExprView.Const i us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i1 := alloc.vec.Vec.len v
     let o ← kernel.prop_read.stored_cv_at fe i i1
@@ -104018,12 +104047,12 @@ def kernel.prop_read.head_type_pw
       | some pw =>
         let pw1 ← kernel.level.subst_pw cv.level_params v pw
         ok (some pw1)
-  | ron.node.ExprView.App _ _ => ok none
-  | ron.node.ExprView.Lam _ _ _ => ok none
-  | ron.node.ExprView.ForallE _ _ _ => ok none
-  | ron.node.ExprView.LetE _ _ _ => ok none
-  | ron.node.ExprView.Lit _ => ok none
-  | ron.node.ExprView.Proj _ _ _ => ok none
+  | kernel.expr.ExprView.App _ _ => ok none
+  | kernel.expr.ExprView.Lam _ _ _ => ok none
+  | kernel.expr.ExprView.ForallE _ _ _ => ok none
+  | kernel.expr.ExprView.LetE _ _ _ => ok none
+  | kernel.expr.ExprView.Lit _ => ok none
+  | kernel.expr.ExprView.Proj _ _ _ => ok none
 
 /-- [con_ron_core::kernel::prop_read::type_sort_pw]:
     Source: 'crates/con-ron-core/src/kernel/prop_read.rs', lines 133:0-139:1
@@ -104034,40 +104063,41 @@ def kernel.prop_read.type_sort_pw
   := do
   let ev ← kernel.expr.view t
   match ev with
-  | ron.node.ExprView.Bvar _ =>
+  | kernel.expr.ExprView.Bvar _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
-  | ron.node.ExprView.Fvar _ _ =>
+  | kernel.expr.ExprView.Fvar _ _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
-  | ron.node.ExprView.Sort _ => let pw ← kernel.prop_when.never
-                                ok (some pw)
-  | ron.node.ExprView.Const _ _ =>
+  | kernel.expr.ExprView.Sort _ =>
+    let pw ← kernel.prop_when.never
+    ok (some pw)
+  | kernel.expr.ExprView.Const _ _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.App _ _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
-  | ron.node.ExprView.Lam _ _ _ =>
+  | kernel.expr.ExprView.Lam _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
-  | ron.node.ExprView.ForallE _ _ m =>
+  | kernel.expr.ExprView.ForallE _ _ m =>
     let pw ← kernel.prop_when.dup m.pw
     ok (some pw)
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
-  | ron.node.ExprView.Lit _ =>
+  | kernel.expr.ExprView.Lit _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn t
     let i ← kernel.prop_read.num_args t
     kernel.prop_read.head_type_pw fe e i
@@ -104081,11 +104111,12 @@ def kernel.prop_read.head_proof_pw
   := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar _ => ok none
-  | ron.node.ExprView.Fvar _ ty => kernel.prop_read.type_sort_pw fe ty
-  | ron.node.ExprView.Sort _ => let pw ← kernel.prop_when.never
-                                ok (some pw)
-  | ron.node.ExprView.Const c us =>
+  | kernel.expr.ExprView.Bvar _ => ok none
+  | kernel.expr.ExprView.Fvar _ ty => kernel.prop_read.type_sort_pw fe ty
+  | kernel.expr.ExprView.Sort _ =>
+    let pw ← kernel.prop_when.never
+    ok (some pw)
+  | kernel.expr.ExprView.Const c us =>
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let i := alloc.vec.Vec.len v
     let o ← kernel.prop_read.stored_cv_at fe c i
@@ -104098,15 +104129,16 @@ def kernel.prop_read.head_proof_pw
       | some pw =>
         let pw1 ← kernel.level.subst_pw cv.level_params v pw
         ok (some pw1)
-  | ron.node.ExprView.App _ _ => ok none
-  | ron.node.ExprView.Lam _ _ _ => ok none
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.App _ _ => ok none
+  | kernel.expr.ExprView.Lam _ _ _ => ok none
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let pw ← kernel.prop_when.never
     ok (some pw)
-  | ron.node.ExprView.LetE _ _ _ => ok none
-  | ron.node.ExprView.Lit _ => let pw ← kernel.prop_when.never
-                               ok (some pw)
-  | ron.node.ExprView.Proj _ _ _ => ok none
+  | kernel.expr.ExprView.LetE _ _ _ => ok none
+  | kernel.expr.ExprView.Lit _ =>
+    let pw ← kernel.prop_when.never
+    ok (some pw)
+  | kernel.expr.ExprView.Proj _ _ _ => ok none
 
 /-- [con_ron_core::kernel::prop_read::proof_pw]:
     Source: 'crates/con-ron-core/src/kernel/prop_read.rs', lines 165:0-170:1
@@ -104117,34 +104149,34 @@ def kernel.prop_read.proof_pw
   := do
   let ev ← kernel.expr.view a
   match ev with
-  | ron.node.ExprView.Bvar _ =>
+  | kernel.expr.ExprView.Bvar _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.Fvar _ _ =>
+  | kernel.expr.ExprView.Fvar _ _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.Sort _ =>
+  | kernel.expr.ExprView.Sort _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.Const _ _ =>
+  | kernel.expr.ExprView.Const _ _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.App _ _ =>
+  | kernel.expr.ExprView.App _ _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.Lam _ _ m =>
+  | kernel.expr.ExprView.Lam _ _ m =>
     let pw ← kernel.prop_when.dup m.pw
     ok (some pw)
-  | ron.node.ExprView.ForallE _ _ _ =>
+  | kernel.expr.ExprView.ForallE _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.LetE _ _ _ =>
+  | kernel.expr.ExprView.LetE _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.Lit _ =>
+  | kernel.expr.ExprView.Lit _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
-  | ron.node.ExprView.Proj _ _ _ =>
+  | kernel.expr.ExprView.Proj _ _ _ =>
     let e ← kernel.expr_ops.get_app_fn a
     kernel.prop_read.head_proof_pw fe e
 
@@ -104293,40 +104325,41 @@ def kernel.std_axioms.erase_pw
   (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
   let ev ← kernel.expr.view e
   match ev with
-  | ron.node.ExprView.Bvar i => kernel.expr.bvar i
-  | ron.node.ExprView.Fvar i ty =>
+  | kernel.expr.ExprView.Bvar i => kernel.expr.bvar i
+  | kernel.expr.ExprView.Fvar i ty =>
     let e1 ← kernel.std_axioms.erase_pw ty
     kernel.expr.fvar i e1
-  | ron.node.ExprView.Sort u => let l ← kernel.level.dup u
-                                kernel.expr.sort l
-  | ron.node.ExprView.Const n us =>
+  | kernel.expr.ExprView.Sort u =>
+    let l ← kernel.level.dup u
+    kernel.expr.sort l
+  | kernel.expr.ExprView.Const n us =>
     let n1 ← kernel.name.dup n
     let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
     let v1 ← kernel.env.levels_copy v
     kernel.expr.mk_const n1 v1
-  | ron.node.ExprView.App f a =>
+  | kernel.expr.ExprView.App f a =>
     let e1 ← kernel.std_axioms.erase_pw f
     let e2 ← kernel.std_axioms.erase_pw a
     kernel.expr.app e1 e2
-  | ron.node.ExprView.Lam ty b _ =>
+  | kernel.expr.ExprView.Lam ty b _ =>
     let e1 ← kernel.std_axioms.erase_pw ty
     let e2 ← kernel.std_axioms.erase_pw b
     let bm ← kernel.basis_builder.never_meta
     kernel.expr.lam e1 e2 bm
-  | ron.node.ExprView.ForallE ty b _ =>
+  | kernel.expr.ExprView.ForallE ty b _ =>
     let e1 ← kernel.std_axioms.erase_pw ty
     let e2 ← kernel.std_axioms.erase_pw b
     let bm ← kernel.basis_builder.never_meta
     kernel.expr.forall_e e1 e2 bm
-  | ron.node.ExprView.LetE ty v b =>
+  | kernel.expr.ExprView.LetE ty v b =>
     let e1 ← kernel.std_axioms.erase_pw ty
     let e2 ← kernel.std_axioms.erase_pw v
     let e3 ← kernel.std_axioms.erase_pw b
     kernel.expr.let_e e1 e2 e3
-  | ron.node.ExprView.Lit l =>
+  | kernel.expr.ExprView.Lit l =>
     let l1 ← kernel.expr.literal_dup l
     kernel.expr.lit l1
-  | ron.node.ExprView.Proj s i sub =>
+  | kernel.expr.ExprView.Proj s i sub =>
     let n ← kernel.name.dup s
     let e1 ← kernel.std_axioms.erase_pw sub
     kernel.expr.proj n i e1
@@ -104359,51 +104392,51 @@ def kernel.std_axioms.erase_pw_eq
   let ev ← kernel.expr.view a
   let ev1 ← kernel.expr.view b
   match ev with
-  | ron.node.ExprView.Bvar i =>
+  | kernel.expr.ExprView.Bvar i =>
     match ev1 with
-    | ron.node.ExprView.Bvar j => ok (i = j)
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Fvar i t =>
+    | kernel.expr.ExprView.Bvar j => ok (i = j)
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Fvar i t =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar j t2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar j t2 =>
       if i = j
       then kernel.std_axioms.erase_pw_eq t t2
       else ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Sort u =>
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Sort u =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort v => kernel.level.beq u v
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Const n us =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort v => kernel.level.beq u v
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Const n us =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const n2 us2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const n2 us2 =>
       let b1 ← kernel.name.beq n n2
       if b1
       then
@@ -104411,70 +104444,70 @@ def kernel.std_axioms.erase_pw_eq
         let v1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us2
         kernel.expr.levels_beq v v1
       else ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.App f x =>
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.App f x =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App f2 x2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App f2 x2 =>
       let b1 ← kernel.std_axioms.erase_pw_eq f f2
       if b1
       then kernel.std_axioms.erase_pw_eq x x2
       else ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Lam t b1 _ =>
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Lam t b1 _ =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam t2 b2 _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam t2 b2 _ =>
       let b3 ← kernel.std_axioms.erase_pw_eq t t2
       if b3
       then kernel.std_axioms.erase_pw_eq b1 b2
       else ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.ForallE t b1 _ =>
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.ForallE t b1 _ =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE t2 b2 _ =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE t2 b2 _ =>
       let b3 ← kernel.std_axioms.erase_pw_eq t t2
       if b3
       then kernel.std_axioms.erase_pw_eq b1 b2
       else ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.LetE t v b1 =>
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.LetE t v b1 =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE t2 v2 b2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE t2 v2 b2 =>
       let b3 ← kernel.std_axioms.erase_pw_eq t t2
       if b3
       then
@@ -104483,32 +104516,32 @@ def kernel.std_axioms.erase_pw_eq
         then kernel.std_axioms.erase_pw_eq b1 b2
         else ok false
       else ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Lit l =>
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Lit l =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit l2 => kernel.expr.literal_beq l l2
-    | ron.node.ExprView.Proj _ _ _ => ok false
-  | ron.node.ExprView.Proj s i e =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit l2 => kernel.expr.literal_beq l l2
+    | kernel.expr.ExprView.Proj _ _ _ => ok false
+  | kernel.expr.ExprView.Proj s i e =>
     match ev1 with
-    | ron.node.ExprView.Bvar _ => ok false
-    | ron.node.ExprView.Fvar _ _ => ok false
-    | ron.node.ExprView.Sort _ => ok false
-    | ron.node.ExprView.Const _ _ => ok false
-    | ron.node.ExprView.App _ _ => ok false
-    | ron.node.ExprView.Lam _ _ _ => ok false
-    | ron.node.ExprView.ForallE _ _ _ => ok false
-    | ron.node.ExprView.LetE _ _ _ => ok false
-    | ron.node.ExprView.Lit _ => ok false
-    | ron.node.ExprView.Proj s2 j e2 =>
+    | kernel.expr.ExprView.Bvar _ => ok false
+    | kernel.expr.ExprView.Fvar _ _ => ok false
+    | kernel.expr.ExprView.Sort _ => ok false
+    | kernel.expr.ExprView.Const _ _ => ok false
+    | kernel.expr.ExprView.App _ _ => ok false
+    | kernel.expr.ExprView.Lam _ _ _ => ok false
+    | kernel.expr.ExprView.ForallE _ _ _ => ok false
+    | kernel.expr.ExprView.LetE _ _ _ => ok false
+    | kernel.expr.ExprView.Lit _ => ok false
+    | kernel.expr.ExprView.Proj s2 j e2 =>
       let b1 ← kernel.name.beq s s2
       if b1
       then if i = j
@@ -105155,13 +105188,5 @@ def ron.hashmap2.HashMap2.capacity
   Result Std.Usize
   := do
   ok (alloc.vec.Vec.len self.slots)
-
-/-- Trait implementation: [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 447:0-451:1 -/
-@[reducible]
-def kernel.expr.Expr.Insts.CoreOpsDropDrop : core.ops.drop.Drop
-  kernel.expr.Expr := {
-  drop := kernel.expr.Expr.Insts.CoreOpsDropDrop.drop
-}
 
 end ConRon.Generated

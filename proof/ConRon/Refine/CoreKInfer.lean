@@ -638,7 +638,7 @@ theorem infer_proj_at_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name
   obtain ⟨⟨fd, fk⟩⟩ := f
   cases fk
   case Const t us' =>
-    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨o, ho, h⟩ := h
     obtain ⟨hnwf, huswf⟩ := constKind_wf_inv hfnwf rfl
     obtain ⟨hoabs, howf⟩ := find_proj_refines hrel hfwf hnwf ho
@@ -661,7 +661,7 @@ theorem infer_proj_at_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name
       simp only [inferProjAtL, hgf, ← hoabs, ← htabs]
       exact hres
   all_goals
-    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨_, -, _, -, ce1, hce1, hr⟩ := h
     refine not_implemented_arm (ls := "projection without a native entry")
       hce1 hr ?_
@@ -701,7 +701,7 @@ theorem infer_proj_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.
   obtain ⟨⟨fd, fk⟩⟩ := f
   cases fk
   case Const t us' =>
-    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+    simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨o, ho, h⟩ := h
     obtain ⟨hnwf, huswf⟩ := constKind_wf_inv hfnwf rfl
     obtain ⟨hoabs, howf⟩ := find_proj_refines hrel hfwf hnwf ho
@@ -722,7 +722,7 @@ theorem infer_proj_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.
       simp only [inferProjAtL, hgf, ← hoabs, ← htabs]
       exact hres
   all_goals
-    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, lift_eq, Result.ok.injEq,
+    simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff, lift_eq, Result.ok.injEq,
       reduceCtorEq, and_false, exists_false] at h
 
 /-! ## The `.proj` arm of `annotateBody` -/

@@ -610,7 +610,7 @@ theorem is_sort_refines {e : expr.Expr} {b : Bool} (h : core_k.is_sort e = ok b)
     b = (match absExpr e with | .sort _ => true | _ => false) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.is_sort.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k <;> simp only [Result.ok.injEq] at h <;> rw [← h] <;> simp
 
 /-- **`core_k::is_lit`** (`Core.lean:531-543 Expr.quickPair`). -/
@@ -618,7 +618,7 @@ theorem is_lit_refines {e : expr.Expr} {b : Bool} (h : core_k.is_lit e = ok b) :
     b = (match absExpr e with | .lit _ => true | _ => false) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.is_lit.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k <;> simp only [Result.ok.injEq] at h <;> rw [← h] <;> simp
 
 /-- **`core_k::is_forall`** (`Core.lean:531-543 Expr.quickPair`). -/
@@ -626,7 +626,7 @@ theorem is_forall_refines {e : expr.Expr} {b : Bool} (h : core_k.is_forall e = o
     b = (match absExpr e with | .forallE .. => true | _ => false) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.is_forall.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k <;> simp only [Result.ok.injEq] at h <;> rw [← h] <;> simp
 
 /-- **`core_k::is_lam_k`** (`Core.lean:531-543 Expr.quickPair`).  (`is_lam_k`,
@@ -635,7 +635,7 @@ theorem is_lam_k_refines {e : expr.Expr} {b : Bool} (h : core_k.is_lam_k e = ok 
     b = (match absExpr e with | .lam .. => true | _ => false) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.is_lam_k.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k <;> simp only [Result.ok.injEq] at h <;> rw [← h] <;> simp
 
 /-- **`core_k::quick_pair` refines `Expr.quickPair`** (`Core.lean:531-543`).
@@ -647,7 +647,7 @@ theorem quick_pair_refines {a b : expr.Expr} {c : Bool}
     c = ConLeche.Expr.quickPair (absExpr a) (absExpr b) := by
   obtain ⟨⟨d, k⟩⟩ := a
   rw [core_k.quick_pair.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | «Sort» u =>
     rw [is_sort_refines h]
@@ -777,7 +777,7 @@ theorem pi_result_is_prop_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
   obtain ⟨habs, hprwf⟩ := ExprOps.pi_result_refines he hpr
   rw [ConLeche.piResultIsProp, ← habs]
   obtain ⟨⟨d, k⟩⟩ := pr
-  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | «Sort» u =>
     have huwf : LevelWF u := wf_sort_inv hprwf rfl
@@ -806,7 +806,7 @@ theorem pi_result_z_refines {e : expr.Expr} {r : prop_when.PropWhen} (he : ExprW
   obtain ⟨habs, hprwf⟩ := ExprOps.pi_result_refines he hpr
   rw [ConLeche.piResultZ, ← habs]
   obtain ⟨⟨d, k⟩⟩ := pr
-  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   have hnew : NamesWF (alloc.vec.Vec.new name.Name) := by
     intro n hn; simp [alloc.vec.Vec.new] at hn
   cases k with
@@ -835,7 +835,7 @@ theorem pi_result_never_zero_refines {lps : alloc.vec.Vec name.Name}
   obtain ⟨habs, hprwf⟩ := ExprOps.pi_result_refines he hpr
   rw [ConLeche.piResultNeverZero, ← habs]
   obtain ⟨⟨d, k⟩⟩ := pr
-  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | «Sort» u =>
     have huwf : LevelWF u := wf_sort_inv hprwf rfl
@@ -871,7 +871,7 @@ theorem same_const_heads_refines {a b : expr.Expr} {c : Bool}
   obtain ⟨⟨da, ka⟩⟩ := a
   obtain ⟨⟨db, kb⟩⟩ := b
   rw [core_k.same_const_heads.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases ka with
   | App f1 a1 =>
     cases kb with
@@ -885,7 +885,7 @@ theorem same_const_heads_refines {a b : expr.Expr} {c : Bool}
       simp only [absExpr_mk, absExprKind, ConLeche.sameConstHeads, ← habs1, ← habs2]
       obtain ⟨⟨d1, k1⟩⟩ := g1
       obtain ⟨⟨d2, k2⟩⟩ := g2
-      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+      simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
       cases k1 with
       | Const n1 us1 =>
         cases k2 with
@@ -953,7 +953,7 @@ theorem is_ctor_app_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Exp
   obtain ⟨habs, hfwf⟩ := ExprOps.get_app_fn_refines he hf
   rw [← habs]
   obtain ⟨⟨d, k⟩⟩ := f
-  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | Const c us =>
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
@@ -990,7 +990,7 @@ theorem unfoldable_head_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   obtain ⟨habs, hfwf⟩ := ExprOps.get_app_fn_refines he hf
   rw [← habs]
   obtain ⟨⟨d, k⟩⟩ := f
-  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | Const n us =>
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
@@ -1053,7 +1053,7 @@ theorem head_hint_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
   obtain ⟨habs, hfwf⟩ := ExprOps.get_app_fn_refines he hf
   rw [← habs]
   obtain ⟨⟨d, k⟩⟩ := f
-  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | Const n us =>
     obtain ⟨o, hop, h⟩ := bind_eq_ok_iff.mp h
@@ -1192,7 +1192,7 @@ theorem is_unit_like_ty_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
          | _ => false) := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.is_unit_like_ty.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | Const c us =>
     have hcwf := (wf_const_inv he rfl).1
@@ -1252,7 +1252,7 @@ theorem str_expansion_fires_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
          | _ => false) := by
   obtain ⟨⟨d, k⟩⟩ := f
   rw [core_k.str_expansion_fires.eq_def] at h
-  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
   cases k with
   | Const c us =>
     have hcwf := (wf_const_inv hf rfl).1

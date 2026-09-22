@@ -70,17 +70,19 @@
 //! no longer slower in wall — task #89 re-measured it) and the ways back.
 //!
 //! What the swap buys, asserted by a compile-only test in `tests/`: `Name`,
-//! `Level`, `Expr`, `Env`, `FEnv` and `CState` are all `Send + Sync` with no
-//! `unsafe` and no other change.  Under `Rc` that test fails with errors that
-//! name **only** `Rc<NameNode>`, `Rc<LevelNode>` and `Rc<ConstantInfo>`:
-//! nothing else in the core — no `Cell`, no `RefCell`, no handle outside this
-//! alias — stands between the checker and a thread pool.
+//! `Level`, `Expr`, `Env` and `FEnv` are all `Send + Sync` with no `unsafe`
+//! and no other change.  Under `Rc` that test fails with errors that name
+//! **only** `Rc<NameNode>`, `Rc<LevelNode>`, `Rc<ExprNode>` and
+//! `Rc<ConstantInfo>`: nothing else in the core — no `Cell`, no `RefCell`, no
+//! handle outside this alias — stands between the checker and a thread pool.
 //!
-//! **`Expr` is no longer one of them** (task #94's spike).  Its node carries
-//! its kind in the handle's low bits and so cannot be an `Arc<T>` for any one
-//! `T`; `ron::node` owns that handle, its count and its `Send`/`Sync`, with
-//! the same discipline and the same §3.2 model.  Everything else in the core
-//! is still `P<T>` and still swings on the one line below.
+//! **`Expr` is one of them again (task #97-SWAP-2).**  Between tasks #94 and
+//! #97-SWAP-2 its node carried its kind in a handle's low bits and so could
+//! not be an `Arc<T>` for any one `T`, and a crate-private `ron::tagged`
+//! owned that handle — the crate's only `unsafe`.  Task #97-SWAP measured
+//! that the checking path builds no `Expr` at all (the arena's `u32` records
+//! do), so the compactness bought nothing and the module was retired: all
+//! four node types are `P<T>` again and swing on the one line below.
 
 /// con-leche: none — the shared pointer itself (DESIGN.md §3.2)
 /// The core's shared pointer: a counted handle to an immutable `T`.

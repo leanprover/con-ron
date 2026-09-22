@@ -2015,9 +2015,11 @@ pub fn wscoped_b(
 // whether an `Expr` node's reference count is one and skips the memo when it
 // is; the arena has no reference counts — a term is a `u32` handle into a
 // per-constructor `Vec`, shared by construction — so the question has no
-// answer in this crate.  `con-ron-core`'s `ron::node::is_exclusive` (hole #23,
-// task #98) is the `Expr`-tier port's answer to that same upstream change; the
-// memo policy of DESIGN.md §8.3 is the arena's own and unchanged.
+// answer in this crate.  The `Expr` tier had one — `ron::node::is_exclusive`,
+// a hole read by `expr::beq_memoise` (task #98) — and task #97-SWAP-2 retired
+// it with the tagged handle, so no reference count is read anywhere in the
+// crate now; the memo policy of DESIGN.md §8.3 is the arena's own and
+// unchanged.
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:682-714 wscopedBGo` — probe the

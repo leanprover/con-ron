@@ -211,16 +211,24 @@ def alloc.sync.Arc.clone (x : Arc T) : Result (Arc T) := ok x
 def alloc.sync.Arc.ptr_eq (a b : Arc T) : Result Bool := ok false
 ```
 
-**`Expr`'s nodes left `Arc` at task #94; `Name`, `Level` and `PropWhen` did
-not.**  Everything in this section from here to the end of the `Rc` paragraph
-is the rule for a node behind `ron::ptr::P`, and that is still three of the
-four node types.  An `Expr`'s node is a **tagged handle** since task #94 —
-still one machine word, still counted, still modeled as its contents, but the
-constructor lives in the handle's low four bits and each constructor's block is
-as wide as *it* needs rather than as wide as the widest.  The next-but-one
-paragraph block ("The node layout") is that design, its trust accounting and
-its measurement; the rest of this section is unchanged and still governs the
-other three.
+**`Expr`'s nodes left `Arc` at task #94 and came back at task #97-SWAP-2**, so
+this section governs all four node types again, exactly as written.  Between
+those two tasks an `Expr` was a *tagged handle* — still one machine word,
+still counted, still modeled as its contents, but with the constructor in the
+handle's low four bits and each constructor's block as wide as *it* needs
+rather than as wide as the widest.  It bought −41 % of Mathlib's peak for the
+`Expr`-tree checker and it cost the crate its only `unsafe`, which is the
+trade the next-but-one paragraph block ("The node layout") records.  Task
+#97-SWAP retired that checker: the arena's terms are `u32` handles into
+per-constructor `Vec`s, and the only `Expr` values a run builds are the
+PINNED DATA, a few thousand nodes interned once at startup (§8.7's "the port
+imports the data, it does not copy it").  On that workload compactness is not
+a lever and `unsafe` is a cost with nothing on the other side, so task
+#97-SWAP-2 put `Expr` back on `P<ExprNode>` and deleted
+`ron/{tagged,node}.rs`: the hole list is one type and five functions, all of
+them `std`'s, and the verified crate has **no `unsafe` in it**.  The node
+layout paragraph below is kept as the record of what the tagged handle was and
+what it measured.
 
 **The crate names the pointer once, as `ron::ptr::P` (task #44).**  Every
 handle in the core is `P<T>`, and every use of it goes through the four
@@ -382,7 +390,9 @@ and three times task #44's budget for a memory trade.  The first needs
 of those two moves the number at all, and neither is currently affordable.
 
 **The node layout: a one-word tagged handle, per-kind blocks (task #94,
-2026-09-14/15).**  The corollary above — "nothing smaller than one of those two
+2026-09-14/15; RETIRED at task #97-SWAP-2 — see §3.2's opening and the
+task-#97-SWAP-2 section.  What follows is the record of what it was and what
+it measured, on the `Expr`-tree checker it was built for).**  The corollary above — "nothing smaller than one of those two
 moves the number at all, and neither is currently affordable" — was true of a
 *uniform* node and false of a per-kind one.  **The bound was on the wrong
 object.**  What task #94 built:
@@ -658,24 +668,23 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   anchored `^\s*(while|…)` against lines that `gather` prefixes with
   `file:line:`, so it had never matched anything since it was written; the
   core turned out to be clean under the repaired check.
-* **`unsafe`, the one exemption (2026-09-15, task #94).**
-  `crates/con-ron-core/src/ron/tagged.rs` — the generic tagged counted handle,
-  and only that file — may write `unsafe`.  The reason is the 2026-09-12
-  ruling's own test, applied honestly: the ruling is "`std` (or a common crate)
-  does it if it can", and here it cannot.  The exemption is a *path* and not a
-  budget, and what keeps it honest is that the file is `pub(crate)`: an
-  external review of 2026-09-15 found that a public, safe API over that
-  `unsafe` is a soundness hole whether or not the `unsafe` itself is right.  An `Expr`'s constructor lives in the
-  low four bits of its handle, so the pointee type is chosen at run time and no
-  `std` smart pointer expresses it; the two tagged-pointer crates on crates.io
-  model *a pointer to one `T` plus a tag*, which is the opposite problem (§3.2
-  has the argument).  What the exemption buys is measured — **−41 % of
-  Mathlib's peak** — and what it costs is nine lines in one file, whose
-  soundness argument is that module's note and rests on a single invariant.
-  The file names no term type; its instantiation for `Expr` (`ron/node.rs`) is
-  a ten-line table and passes this lint like every other file, which is the
-  point of the split.  `lint-rust-style.sh` enforces the boundary by path, as
-  it does for `frontend/`'s loops.
+* **No `unsafe`, and no exemption (2026-09-12; the exemption taken at task
+  #94 and retired at task #97-SWAP-2).**  The ruling is "`std` (or a common
+  crate) does it if it can", and for every shared node in the crate it can:
+  `std::sync::Arc`.  Tasks #94-#97-SWAP had one *path* exemption,
+  `crates/con-ron-core/src/ron/tagged.rs`, the generic tagged counted handle —
+  an `Expr`'s constructor lived in the low four bits of its handle, so the
+  pointee type was chosen at run time and no `std` smart pointer expresses it
+  (the two tagged-pointer crates on crates.io model *a pointer to one `T` plus
+  a tag*, which is the opposite problem).  It bought a measured −41 % of
+  Mathlib's peak on the `Expr`-tree checker and cost nine lines in one
+  `pub(crate)` file, because an external review of 2026-09-15 found that a
+  public, safe API over that `unsafe` is a soundness hole whether or not the
+  `unsafe` itself is right.  **Task #97-SWAP-2 deleted the module**: the
+  shipping checker is the arena, which builds no `Expr`, so the compactness
+  bought nothing and `unsafe` was a cost with nothing on the other side (§3.2
+  and the task section).  `lint-rust-style.sh` now asserts ZERO `unsafe` in
+  `crates/con-ron-core/src`, with no path to add.
 * **No `&str` constant** (2026-09-14, task #86).  A string literal in the core
   is `const S: [u8; N] = *b"…";`, compared as bytes.  Aeneas emits a `&str`
   constant as `toStr "…"` and discharges `toStr`'s size bound with
@@ -2251,19 +2260,28 @@ no `ron::ptr`, no `unsafe`; the trust-surface table (OVERVIEW §8) loses its
 `unsafe` row and the sixteen tagged-handle holes.  The frontend parses into
 the persistent tier (the byte recogniser is unchanged).
 
-**AMENDED (task #97-SWAP, 2026-09-22): that sentence is true of the CHECKING
-PATH and not of the crate.**  It says what the swap delivered — no `Expr` is
-built while a declaration is checked, and the sixteen `ron.node.alloc_*`
-holes are unreachable from the fold — but `kernel::expr`, `ron::node` and
-`ron::tagged` are STILL IN THE CRATE and still holes, because the pinned data
+**AMENDED (task #97-SWAP, 2026-09-22): that sentence was true of the CHECKING
+PATH and not of the crate.**  The swap delivered the checking path — no `Expr`
+is built while a declaration is checked, and the sixteen `ron.node.alloc_*`
+holes were unreachable from the fold — but `kernel::expr`, `ron::node` and
+`ron::tagged` stayed IN THE CRATE and stayed holes, because the pinned data
 the checker compares against is con-leche's own constants as
 `Expr`/`ConstantInfo` VALUES (`kernel::{basis_raw,basis_tables,std_axioms,
 trust_axioms,trust_pins,pins_decode}`, §8.7's "the port imports the data, it
-does not copy it") and `arena::intern` walks them once at startup.  So the
-trust-surface table keeps its `unsafe` row and its twenty-one function holes
-until that data is re-expressed handle-natively, which is a task of its own
-and the one thing §8.5's paragraph promised that the swap did not do.  Task
-#97-SWAP §5 has the measurement of what it would cost and what it would buy.
+does not copy it") and `arena::intern` walks them once at startup.
+
+**RESOLVED (task #97-SWAP-2, 2026-09-22), and not the way the sentence
+expected.**  Re-expressing five generated or hand-written data modules over
+handles was one candidate; the other was to put `Expr` back on `P` = `Arc`,
+and that is the coordinator's decision: the data is interned ONCE, so it does
+not need the tagged node's compactness.  `ron/{tagged,node}.rs` are deleted,
+`Expr` is a `P<ExprNode>` as it was before task #94, and the trust surface
+loses **both** the `unsafe` row and the sixteen tagged-handle holes — one type
+and five functions left, all of them `std`'s.  The paragraph above is
+therefore true of the crate as well, with one correction: `ron::ptr` and
+`Arc` DO still appear in it, for the startup-only `Expr` data and for `Name`,
+`Level` and `PropWhen`, which never left them.  What §8.5 promised and
+#97-SWAP-2 delivered is "no `ron::tagged`, no `unsafe`".
 
 ### 8.6 Phases
 
@@ -36296,3 +36314,224 @@ its own — as is the §7.x number refresh that task #97-P6-17 already owed.
    so the two cannot be confused (nine module names are common to `arena/` and
    `kernel/`, and without it `Refine/Canon`'s 793 proof lines were booked
    against `arena::canon`).
+
+### Task #97-SWAP-2 — no `unsafe` (2026-09-22, Opus under Fable)
+
+The one thing §8.5 promised that task #97-SWAP did not deliver.  That task's
+finding 1 is why it did not: `Expr`, `ron::node`, `ron::tagged` and the twelve
+`unsafe` lines SURVIVE the swap, because three families of con-leche
+declaration are pure `Expr`/`ConstantInfo` VALUES — the pinned basis blocks
+(`kernel::basis_tables`), the standard- and compiler-trust axiom pins
+(`std_axioms`/`trust_*`) and the `Nat`-operation pin variants (`pins_decode`
+over `PINS_TEXT`) — which §8.7 rules the port IMPORTS rather than copies, and
+which `arena::intern` walks into the store ONCE at startup.  It named two ways
+out: re-express five generated or hand-written data modules over handles, or
+back `Expr` with `P` = `Arc` again.
+
+**The coordinator's decision is the second one, and the reason is the word
+ONCE.**  26 721 pin records and the basis blocks, interned at startup and
+never touched again, do not need the tagged node's compactness — which is what
+the tagged node was *for* (−45 % of Mathlib's peak on the `Expr`-tree checker,
+task #94's table).  The arena's terms are `u32` handles into per-constructor
+`Vec`s; nothing on the hot path is an `Expr` at all.  So the trade task #94
+made is off, and it comes off the way it went on: one representation change in
+one file.
+
+Branch `swap-2` off `arena`'s tip `2b45bf15`; scratch in `_tmp/swap2-*`.  A
+concurrent agent (P3-0) owns `proof/ConRon/Bridge/**` and one `lean_lib` in
+`proof/lakefile.toml`; neither is touched here.
+
+#### 1. What the Rust change is
+
+`ron/{tagged,node}.rs` are **deleted** — 1 125 lines, the crate's only
+`unsafe` — and `kernel/expr.rs` is task #94's own diff, backwards:
+
+| | tasks #94-#97-SWAP | task #97-SWAP-2 |
+|---|---|---|
+| the handle | `Expr(pub(crate) node::ExprHandle)`, one word, tag in the low four bits | `Expr(pub P<ExprNode>)` = `std::sync::Arc<ExprNode>` |
+| the node | ten `#[repr(C)]` per-kind cells, 32 or 48 bytes | one `ExprNode { data: u64, kind: ExprKind }`, 48 bytes, a 64-byte block |
+| a constructor | `node::alloc_app(d, f, a)` | `Expr(ptr::new(ExprNode { data: d, kind: ExprKind::App(f, a) }))` |
+| `data` / `dup` / `ptr_eq` | `node::data` / `node::dup` / `node::ptr_eq` | `e.0.data` / `ptr::clone` / `ptr::ptr_eq` |
+| `Drop for Expr` | the table's `release` | `Arc`'s, derived |
+| the `[package.metadata.charon]` block | `opaque = [ron::tagged, ron::node]`, `include = [ExprView]` | **gone**: nothing in the crate is opaque to Charon |
+
+**`view` and `ExprView` survive, and that is the whole reason the proof tier
+did not have to be rewritten.**  They move from `ron/node.rs` into
+`kernel/expr.rs` as ordinary Rust — the borrowed ten-arm enum, and `view` as
+the `match &e.0.kind` that builds it — so the 303 reader sites in the crate
+and the 723 `expr_view_eq` sites in `Refine/` are untouched, while `view` stops
+being an axiom and becomes a definition Charon translates (`Generated/Funs.lean`:
+one `Arc::deref` and a ten-arm `match`).
+
+**One thing did not survive: the exclusivity read.**  `expr::beq_memoise`
+(task #98's port of con-leche's `withExclusive` gate in `beqGo`) asked
+`ron::node::is_exclusive` whether a node's reference count was one.  `ron::ptr`
+has no such operation and §3.2 does not allow a fifth; the model answered
+`ok false` at every site, i.e. "always memoise"; and the walks it was written
+for are the `Expr`-tree ones task #97-SWAP deleted.  So `beq_go` is
+`beq_recursive a` again, which is what the model always said it was — the
+generated `beq_go` changes one call and nothing else, and `Refine/Expr.lean`'s
+`beq_go_arm` is unchanged.  `kernel::expr_ops`'s six `memo*_if` helpers keep
+their `excl` parameter (con-leche's shape) and no caller computes a `true` for
+it; their module note says so.
+
+Also deleted, as superseded: the throwaway spike crate `crates/arena-spike`
+(394 lines) with its `exclude` line and `scripts/extract-spike.sh`, and the
+spike Lean library `proof/ConRon/Arena/Spike/**` with its `ConRonArenaSpike`
+`lean_lib` — 7 273 lines in all.  The idiom they priced is task #97s's DESIGN
+section and P3's `ConRon/Bridge/`.  (`provenance.py`'s `ARENA_EXEMPT` keeps
+the `Arena/Spike/` prefix: `provenance-selftest.py` asserts the exemption set,
+and the next spike goes back under that path.)
+
+Net: the verified crate is 115 928 → **114 789** lines, and its `unsafe` count
+is **0** — `grep -E '\bunsafe\b' crates/con-ron-core/src` finds fifteen hits
+and every one of them is a comment saying there is none.
+
+#### 2. The hole list, before and after
+
+`scripts/extract.sh` regenerates the model with no change to the script:
+`charon cargo` 9 s, Aeneas 96 s, `Funs.lean` 105 167 → **105 192** lines
+(`view`'s body, minus `beq_memoise`), `Types.lean` **1 851** unchanged except
+that `Expr.mk` takes an `alloc.sync.Arc kernel.expr.ExprNode` where it took a
+`ron.tagged.Raw`, and `ExprView` is `kernel.expr.ExprView` where it was
+`ron.node.ExprView`.
+
+| | task #97-SWAP | **task #97-SWAP-2** |
+|---|---|---|
+| types | `alloc.sync.Arc`, `ron.tagged.Raw` | **`alloc.sync.Arc`** |
+| `Arc` fns | `new`, `clone`, `deref`, `ptr_eq` | the same four |
+| `str` | `core.str.Str.as_bytes` | the same one |
+| the tagged `Expr` node | `Expr::drop`, `ron.node.{view,data,dup,ptr_eq,is_exclusive}`, the ten `alloc_*` | **none** |
+| total | 2 types, 21 fns | **1 type, 5 fns** |
+
+**Six holes, and every one of them is the standard library's.**  There is
+nothing of the project's own in the list for the first time since task #94 —
+and, since `ron::hashmap`/`ron::hashmap2`/`ron::nat` were always ordinary
+verified Rust, for the first time ever at this crate's size.
+`scripts/holes.sh --check` is green at "1 type(s), 5 fn(s)".
+
+What that cost in hand-written Lean: `TypesExternal.lean` loses the
+`ron.tagged.Raw` block (36 lines), `FunsExternal.lean` loses the whole
+`ron::node` section (179 lines changed) and keeps **one** declaration from it,
+`ExprView.ofKind`, renamed `kernel.expr.ExprView.ofKind`.  That `def` is not a
+hole and carries no trust: `ExprView` and `ExprKind` are two inductives with
+the same ten arms, and it is the bijection `view` is `ofKind` after the deref.
+It stays in `Generated/FunsExternal.lean` rather than moving to `Refine/` so
+that it keeps the namespace the 719 proof sites that name it are written in.
+
+#### 3. The proof tier: 47 modules, one repaired by hand, the rest by a rename
+
+All 47 surviving `Refine` modules build.  The repair is smaller than the
+brief allowed for, because the plumbing was in one place:
+
+* **`Refine/Abs.lean`** — sixteen `ron.node.*` `rfl` lemmas out, three in.
+  `expr_view_eq` keeps its *statement* (`expr.view e = ok (ofKind e._0.kind)`)
+  and changes its *proof*: `rfl` does not reduce through the `Result` bind of a
+  translated body, so it is `cases`-to-the-constructor then `simp [expr.view,
+  ofKind]`.  `node_data_eq` and `node_ptr_eq_eq` are restated about
+  `expr.data`/`expr.ptr_eq` (the crate functions) instead of the two holes, and
+  `node_view_eq`, `node_dup_eq` and the ten `node_alloc_*_eq` are deleted —
+  `arc_deref_eq` and `ptr_new_eq`, which were always there for `Name` and
+  `Level`, do their work now.  The `rust_reduce`/`rust_invert` sets shrink by
+  thirteen names; `bind_expr_view` and the ten `of_kind_*_iff` are unchanged.
+* **`Refine/BasisTables.lean`** — the eleven `@[local step]` node specs out
+  (`ptr_new_spec`/`arc_deref_spec` cover them), `expr_dup_eq` unchanged.
+* **`Refine/Expr.lean`** — the ten `*_inv` lemmas' `simp only` lists and
+  `obtain` patterns are task #94's diff backwards: `node_alloc_X_eq` becomes
+  `ptr_new_eq` and each pattern grows the `_, hnd,` the extra `ok (Expr.mk a)`
+  bind produces.  These are **verbatim the pre-#94 proofs**, recovered from
+  master at `6ce02e9c`; the file's diff against that version is now only the
+  `expr_view_eq`/`ofKind` lines, which the swap does not touch.
+* **The other 21 modules that named `ron.node`** — `Canon`, `Env`,
+  `PropRead`, `StdAxioms`, `ExprOps{,Fields,Subst,Spine,Meta}`, the seven
+  `CoreK*` — are a **pure rename**, `ron.node.ExprView` →
+  `kernel.expr.ExprView`, 720 occurrences.  Nothing else in them moved, and
+  that is the point of keeping `view`: their statements were always about the
+  same model (`Raw T := T` ≡ `Arc T := T`, `view` ≡ the match), so the swap is
+  invisible to them.
+
+**No module moved to `RefineOld/`.**  The `_refines` ledger is unchanged at
+`progress.py`'s **700** (3 208 `_refines` mentions across the 47 files), with
+the verified core at 114 789 Rust lines against 14 136 con-leche lines.
+
+#### 4. The numbers
+
+A **sync-kind task** by §7.x: the data this touches is walked once at startup,
+so the instruction count must be unchanged within noise, and Mathlib is not
+needed — nothing on the hot path allocates or reads an `Expr`, so the peak-RSS
+question the tagged node existed to answer does not arise at all.  `Init`
+only, `--verified --jobs=1`, under `timeout` and `ulimit -v 8388608`:
+
+| | task #97-SWAP | **task #97-SWAP-2** | Δ |
+|---|---:|---:|---:|
+| instructions:u | 211 795 787 839 | **211 817 648 975 / 211 816 844 617** | **+0.010 %** |
+| cycles:u | 104.11 G *(under load)* | 97.46 / 97.89 G | — |
+| wall | 24.57 s *(under load)* | 22.22 / 22.34 s | — |
+| peak RSS (`VmHWM`) | 640.9 MB | **591.0 MB** | inside the tip's own 574-642 MB spread |
+| verdict | `accepted 57977` | **`accepted 57977`** | = |
+
+Two runs, spread 8 × 10⁵ instructions (0.0004 %).  **+0.010 % is the
+result**: the pinned data now costs a 64-byte block per node where it cost 34
+on average, and 26 721 pin records' worth of that is invisible against a
+212-billion-instruction run.  The cycles and wall columns are the first idle
+figures since the swap (task #97-SWAP's own were measured under its `lake
+build`), so they are not a comparison in either direction; they are within the
+`arena` tip's 97.30/97.51 G and 22.20/22.27 s.
+
+#### 5. The documents the gates forced
+
+* **OVERVIEW §8.1** — the intro goes "twenty-three, two types and twenty-one
+  functions" → "**six**, one type and five functions, and every one of them is
+  the standard library's", and the seven tagged-handle rows go (gate-forced:
+  `holes.sh --check` named each one).
+* **OVERVIEW §8.2** — the `unsafe` row is **deleted**, which is this task's
+  point, and replaced by a sentence under the table: no `unsafe` in the
+  verified crate, `scripts/lint-rust-style.sh` asserts it.  The `rustc`/allocator
+  row drops its tagged-handle-alignment clause.
+* **OVERVIEW §4.1/§4.2/§4.3** — §4.1's "no `unsafe` (one exemption, §4.2)"
+  becomes "no `unsafe` at all"; §4.2 is rewritten (all four node types are
+  `Arc` again; the per-kind block table and the twelve-lines-of-`unsafe`
+  paragraph become the record of what tasks #94-#97-SWAP had and why it went);
+  §4.3 loses the `is_exclusive` half of the memo gate.
+* **README** — its "Unsafe code" section said "for now we include our own
+  pointer abstraction… future work will involve refactoring the code to use a
+  nanoda-style explicit expression DAG; then this module can be dropped."  It
+  now says there is none, and that the refactoring happened.
+* **`scripts/overview-links.sh`** — 67 links → **49**, 18 of them into the two
+  deleted modules; four anchors MOVED and are repointed — `Cargo.toml`'s
+  release profile (four lines up now that the workspace `exclude` is gone) and
+  three into `Refine/Abs.lean`, which lost 60 lines.  Those three turned out
+  to be pointing at their neighbours rather than at the declarations they are
+  labelled with (the gate checks content stability, not the label), so each is
+  repointed at the item its sentence names: `ExprWF`, `ErrSim`, `rust_grind`.
+* **DESIGN** — §3.2's opening amendment (this section governs all four node
+  types again), the node-layout block marked RETIRED and kept as the record,
+  §3.4's `unsafe` rule ("no exemption", and what the one it had bought and
+  cost), and §8.5's amendment RESOLVED.
+
+`AENEAS_FINDINGS.md` is unchanged: the re-extraction found nothing new.  It is
+worth recording *why* — the one thing that could have gone wrong is that
+`view` returns an enum of shared reborrows into its argument, and Aeneas
+translates that with no ceremony at all (`kernel.expr.view` is `let en ←
+Arc::deref …; match en.kind with | .Bvar i => ok (.Bvar i) | …`, ten arms,
+lifetimes erased).
+
+#### 6. The gates
+
+| gate | result |
+|---|---|
+| `cargo build` / `cargo test` (`-D warnings`) | green; **279 tests** pass (282 before: `ron::node`'s two size/kind tests went with it, and `beq_memoise`'s gate test folded back into `beq_go`'s) |
+| `scripts/lint-rust-style.sh crates/con-ron-core/src` | clean, and it now asserts **zero** `unsafe` |
+| `scripts/provenance.py check` | **0 findings** — `6281 item(s) (4099 Rust, 2182 arena Lean), 4101 citation(s), all current at pin 78ded4b6` |
+| `scripts/provenance-selftest.py` | green (8 clean shapes, 8 findings, 2 exempt paths) |
+| `scripts/overview-links.sh` | green — **49 links, 32 files** (67 and 33 before) |
+| `scripts/holes.sh --check` | green, **1 type(s), 5 fn(s)**, all in OVERVIEW §8.1 |
+| `scripts/gen-pins.sh --check`, `gen-prelude{,-lean}.sh --check` | green |
+| `scripts/extract.sh --check` | green (80 s) |
+| `cd proof && lake build` | green, **2 208 jobs** (the deleted `ConRonArenaSpike` was never a default target, so the count does not move) |
+| `scripts/diff-e2e.sh`, all four modes | **383/383 agree, 0 DIFFER, 0 timed out** — `--verified` and `--trusted`, each at `--jobs=1` and `--jobs=8` |
+
+#### 7. What this leaves
+
+Task #97-SWAP §10's item 1 is closed.  Items 2-4 stand, less what §5 above
+did: OVERVIEW §4 and §8 are current, §7/§11/§12 and the §7.x numbers are not.

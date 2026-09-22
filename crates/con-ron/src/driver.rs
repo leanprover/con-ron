@@ -366,7 +366,7 @@ pub fn name_of(pers: &PersTier, ar: &EStore, h: &con_ron_core::arena::handle::NI
 /// turns off the Lean runtime's reference counting on the installed
 /// environment; con-ron's counts are `std::sync::Arc`'s, atomic by type with
 /// no runtime mark to clear.  **The arena has no reference counts at all**
-/// (DESIGN.md §8.5: no `Arc`, no `ron::ptr`, no `ron::tagged`): a term is a
+/// (DESIGN.md §8.5: no `Arc`, no `ron::ptr`): a term is a
 /// `u32` handle into a `Vec`, and the persistent tier is immutable in phase B
 /// by construction.  So there is nothing the flag could turn off, and a run
 /// that passes it says so rather than letting a log read as an A/B lane that

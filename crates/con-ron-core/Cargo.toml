@@ -10,19 +10,9 @@ path = "src/lib.rs"
 
 [dependencies]
 
-# `charon cargo` reads its options from here as well as from the command line
-# (task #94).  Two modules are outside Aeneas's subset by construction and must
-# not need to be inside it: `ron::tagged` is the tagged counted handle (raw
-# pointers, an `AtomicUsize`, `Box::into_raw`) and `ron::node` is its
-# instantiation for `Expr`'s ten cells.  Together they are an *external hole*
-# in exactly the sense DESIGN.md §3.2 gives `alloc::sync::Arc`, modeled by hand
-# in `TypesExternal.lean` / `FunsExternal.lean`.  Marking them opaque declares
-# their items without their bodies, which is what puts them in the templates
-# that `scripts/extract.sh`'s unmodelled-external rule then checks.
-#
-# `ExprView` is the exception and is pulled back to transparent: it is a plain
-# enum of shared borrows with no `unsafe` anywhere near it, every reader in the
-# core matches on it, and the model wants it as the ordinary inductive it is.
-[package.metadata.charon]
-opaque = ["con_ron_core::ron::tagged", "con_ron_core::ron::node"]
-include = ["con_ron_core::ron::node::ExprView"]
+# No `[package.metadata.charon]`: nothing in this crate is opaque to Charon.
+# Tasks #94-#97-SWAP marked `ron::tagged` and `ron::node` opaque, the tagged
+# `Expr` handle being outside Aeneas's subset by construction; task #97-SWAP-2
+# retired both modules and put `Expr` back on `ron::ptr::P` = `std::sync::Arc`,
+# so the crate's whole external surface is `std`'s again -- the four `Arc`
+# operations and `str::as_bytes` (DESIGN.md §3.2, OVERVIEW §8.1).

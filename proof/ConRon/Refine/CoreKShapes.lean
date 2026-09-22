@@ -289,28 +289,28 @@ theorem name_is_proj_fn_shape_refines {n : name.Name} {b : Bool} (hn : NameWF n)
   | @anonymous n ha =>
     rw [name_anonymous_inv ha] at h ⊢
     rw [level.name_is_proj_fn_shape] at h
-    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, kernel.expr.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
   | @str pre s n hpre hs hmk =>
     obtain ⟨hh, rfl⟩ := mk_str_inv hmk
     rw [level.name_is_proj_fn_shape] at h
-    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, kernel.expr.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
   | @num pre m n hpre hmk =>
     obtain ⟨hh, rfl⟩ := mk_num_inv hmk
     rw [level.name_is_proj_fn_shape] at h
-    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, kernel.expr.ExprView.ofKind, bind_tc_ok] at h
     cases hpre with
     | @anonymous p ha =>
       rw [name_anonymous_inv ha] at h ⊢
-      simp only [name_node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      simp only [name_node_kind, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h, absName_mk, absNameKind, absName_mk, absNameKind]
       rfl
     | @str p2 s2 p hp2 hs2 hmk2 =>
       obtain ⟨hh2, rfl⟩ := mk_str_inv hmk2
-      simp only [name_node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
+      simp only [name_node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       have e1 := is_proj_str_refines hb1
       have hp : (absString s2 = "proj") ↔ s2.val = [112#u32, 114#u32, 111#u32, 106#u32] := by
@@ -332,7 +332,7 @@ theorem name_is_proj_fn_shape_refines {n : name.Name} {b : Bool} (hn : NameWF n)
         rw [is_proj_table_str_refines h, hb1f, Bool.false_or]
     | @num p2 m2 p hp2 hmk2 =>
       obtain ⟨hh2, rfl⟩ := mk_num_inv hmk2
-      simp only [name_node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
+      simp only [name_node_kind, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h, absName_mk, absNameKind, absName_mk, absNameKind]
       rfl
 

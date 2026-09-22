@@ -43,7 +43,7 @@
 //! read, and there is no `unsafe`.
 
 use con_ron_core::kernel::expr::Expr;
-use con_ron_core::ron::node;
+use con_ron_core::kernel::expr::ExprNode;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
@@ -55,7 +55,7 @@ pub struct ExprKey(pub Expr);
 impl std::hash::Hash for ExprKey {
     /// con-leche: none — the node's address as the hash.
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(node::addr_word(&self.0));
+        state.write_usize(&*self.0 .0 as *const ExprNode as usize);
     }
 }
 
@@ -64,7 +64,7 @@ impl PartialEq for ExprKey {
     /// con-leche: none — `Expr.beqPtr` without the structural fallback (the
     /// module note says why).
     fn eq(&self, other: &ExprKey) -> bool {
-        node::addr_word(&self.0) == node::addr_word(&other.0)
+        &*self.0 .0 as *const ExprNode == &*other.0 .0 as *const ExprNode
     }
 }
 

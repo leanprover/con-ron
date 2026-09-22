@@ -16,11 +16,9 @@ This is not a high assurance verification effort, given the reliance on Aeneas a
 
 ## Unsafe code
 
-The con-leche code and data structures are tailored for a reference-counting runtime, and for efficient representation of inductives/enum, so a direct translation incurs a sizable memory usage penalty.
+There is none. The verified crate uses `std::sync::Arc` for every shared node, and [`scripts/lint-rust-style.sh`](https://github.com/leanprover/con-ron/blob/master/scripts/lint-rust-style.sh#L68-L88) asserts that no `unsafe` appears in it.
 
-So for now we include our own pointer abstraction that takes care of reference counting and pointer tagging ([`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L1-L20)), replacing the use of `std::Arc` here. This is unsafe code outside the proof, and should be considered part of the “run-time”. More details in the OVERVIEW.
-
-This is not a satisfying state of affairs, and future work will involve refactoring the code to use a nanoda-style explicit expression DAG; then this module can be dropped.
+That was not always so. The con-leche code and data structures are tailored for a reference-counting runtime and for an efficient representation of inductives, so a direct translation incurred a sizable memory penalty, and for a while we carried our own pointer abstraction that did the reference counting and the pointer tagging itself — unsafe code outside the proof, to be considered part of the “run-time”. The refactoring that was supposed to retire it happened: the checker is a nanoda-style explicit expression DAG now, terms are `u32` handles into per-constructor vectors, and the tagged pointer went with the tree it was for. More details in the [OVERVIEW](./OVERVIEW.md#42-terms).
 
 ## Performance
 

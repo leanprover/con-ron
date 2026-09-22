@@ -96,6 +96,9 @@ ARENA_ROOTS = [
 #
 # Everything else under `ARENA_ROOTS` is the port, and carries citations.
 # Prefix match on the repository-relative path, `/`-separated.
+# (`Arena/Spike/` was deleted at task #97-SWAP-2, the question it answered
+# being settled; the entry stays because `provenance-selftest.py` asserts the
+# exemption set, and because the next spike goes back under that path.)
 ARENA_EXEMPT = (
     "proof/ConRon/Arena/StoreTest.lean",
     "proof/ConRon/Arena/Spike/",
