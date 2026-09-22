@@ -632,6 +632,43 @@ theorem structPartsCore?_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (ROp RSParts (ConLeche.structPartsCore? blockP)) := by
   sorry
 
+/-! ## The recogniser's `isSome` half, for the parse
+
+`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls this recogniser and
+`NativeParts.lean`'s, and **reads both through `.isSome` alone** — `isProp`
+fills a field of a record the recogniser has already decided to return.  Its
+own hypothesis is `StateOK`, far too weak for `structPartsCore?_spec`'s
+`CSpec` (whose `SPartsRel.isProp` conjunct is `lvlEq?`'s verdict and needs
+`LvlEqCacheOK`), so it cannot consume that statement at all.  This is the
+statement it can: the `isSome` half, at the PURE grade.
+
+**`PSpecP`, not `PSpec`** — the same finding as `structProjGuards_spec`'s, and
+here the pin read is LOAD-BEARING for the answer rather than incidental:
+`structPartsCore?` asks `reservedBasisNames` and tests `reserved.contains T`,
+so the recognition verdict itself is wrong at a state whose pin table is
+wrong.  The Frontend tier therefore needs `PinsOK` at its call site; the parse
+runs after `internAllPins`, so it has it. -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329
+structPartsCore? — **the recogniser's `isSome` half at the PURE grade**, for
+`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` (task #97-P3-Frontend's
+sorry list, item 13, which names this lemma).  The `isProp` field — the one
+thing that forces `structPartsCore?_spec` up to `CSpec` — is not mentioned, so
+this statement lives at `StateOK` + `PinsOK` and the parse can use it.
+
+`sorry`: `structShape_spec`, `stripLams`' and `stripPis`' specs, and the
+handle comparisons through `denoteN_inj`/`denoteE_inj`.  Exactly
+`structPartsCore?_spec`'s dependencies MINUS `lvlEq?`: the two statements share
+the dispatch and differ only in what they say about the record.  The intended
+shape is one dispatch lemma feeding both; this round states the consumer's
+half so the Frontend tier can cite it by name. -/
+theorem structPartsCore?_isSome (block : List IConstantInfo)
+    (blockP : List ConstantInfo) :
+    PSpecP (fun st => Frontend.denoteCIList st block = some blockP)
+      (Arena.structPartsCore? block)
+      (fun _ r => r.isSome = (ConLeche.structPartsCore? blockP).isSome) := by
+  sorry
+
 /-! ## The projection bodies -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:331-337 structProjPs
