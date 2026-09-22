@@ -393,6 +393,24 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
 **the check half of a value declaration**, at the environment the constant was
 installed at.
 
+**THE STATEMENT WAS UNDER-HYPOTHESISED, and the two `WScoped` clauses are
+the repair** (task #97-P3-Checker round 5 — the campaign's seventh statement
+defect in this tier, found by taking the proof on).  `checkValueGroup`'s FIRST
+operation is `inferTypeCore … 0 g.cvA.type`, and the only route from an arena
+core run to con-leche's is `KnotSpec.infer`, whose precondition is
+`Expr.WScoped 0` of the DENOTED argument.  Nothing in round 1's hypotheses
+delivers it: `FoldOK` speaks about the environment and the store, not about a
+pending record's header, and `gP.cvA` is not (as far as this statement says) a
+constant of `env`, so `EnvWF`'s `hasFvar = false` clause does not reach it
+either.  The same holds of `gP.jv` at the second inference, in the `defn` and
+`opaque` arms where the value reaches `inferTypeCore` unannotated.
+
+At depth 0 `WScoped` IS `hasFvar = false` (`Expr.WScoped.of_not_hasFvar`), so
+both clauses are free at the one call site: phase A's `installConstantVal` and
+`installValue` test exactly that guard, and `annotateCore_WScoped` carries it
+to the annotated term.  `Arena.checkPending_bridge` is where they are
+discharged.
+
 `sorry`: `KnotSpec.infer`, `EnsureSortSpec.ensureSort`, the level
 comparison (`lvlEq?` through `CacheOK.lvlEq`), `installValue_bridge` for a
 theorem's own value, and `KnotSpec.defeq`.  Task #97-P3-Checker's sorry
@@ -405,6 +423,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cvA = some gP.cvA)
     (hjv : denoteE s.store g.jv = some gP.jv)
+    (hwsty : Expr.WScoped 0 gP.cvA.type) (hwsjv : Expr.WScoped 0 gP.jv)
     (hrun : checkValueGroup μ fe g s = .ok ((), s')) :
     CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
