@@ -51,6 +51,64 @@ def MentionsMemoOK (T : ConLeche.Name) (tbl : Std.HashMap EIdx Bool)
   ∀ (k : EIdx) (r : Bool), tbl[k]? = some r →
     ∃ e, denoteE st k = some e ∧ r = Expr.mentionsConst T e
 
+/-- con-leche: none — the empty memo is sound. -/
+theorem LooseMemoOK.empty {st : EStore} : LooseMemoOK ∅ st := by
+  intro k r h; simp at h
+
+/-- con-leche: none — the invariant is about DENOTATIONS, so it survives an
+arena extension: the tier's memos travel through interning walks. -/
+theorem LooseMemoOK.mono {tbl : Std.HashMap (EIdx × Nat) Bool}
+    {st st' : EStore} (hm : LooseMemoOK tbl st) (hx : Ext st st') :
+    LooseMemoOK tbl st' := by
+  intro k r hk
+  obtain ⟨e, he, hr⟩ := hm k r hk
+  exact ⟨e, denote_ext he hx, hr⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:435-440
+LooseBVarMemoInv.insert — recording a TRUE answer keeps the memo sound.  This
+is `Arena.hasLooseBVarBIns` read as an invariant step. -/
+theorem LooseMemoOK.insert {tbl : Std.HashMap (EIdx × Nat) Bool} {st : EStore}
+    (hm : LooseMemoOK tbl st) {h : EIdx} {i : Nat} {hP : Expr} {r : Bool}
+    (hd : denoteE st h = some hP) (heq : r = Expr.hasLooseBVarB i hP) :
+    LooseMemoOK (tbl.insert (h, i) r) st := by
+  intro k r' hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, heq⟩
+  · exact hm k r' hk
+
+/-- con-leche: none — the empty `mentionsConst` memo is sound. -/
+theorem MentionsMemoOK.empty {T : ConLeche.Name} {st : EStore} :
+    MentionsMemoOK T ∅ st := by
+  intro k r h; simp at h
+
+/-- con-leche: none — and it survives an arena extension. -/
+theorem MentionsMemoOK.mono {T : ConLeche.Name} {tbl : Std.HashMap EIdx Bool}
+    {st st' : EStore} (hm : MentionsMemoOK T tbl st) (hx : Ext st st') :
+    MentionsMemoOK T tbl st' := by
+  intro k r hk
+  obtain ⟨e, he, hr⟩ := hm k r hk
+  exact ⟨e, denote_ext he hx, hr⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:806-812
+MentionsMemoInv.insert — the same invariant step for the name walk. -/
+theorem MentionsMemoOK.insert {T : ConLeche.Name}
+    {tbl : Std.HashMap EIdx Bool} {st : EStore} (hm : MentionsMemoOK T tbl st)
+    {h : EIdx} {hP : Expr} {r : Bool} (hd : denoteE st h = some hP)
+    (heq : r = Expr.mentionsConst T hP) :
+    MentionsMemoOK T (tbl.insert h r) st := by
+  intro k r' hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, heq⟩
+  · exact hm k r' hk
+
 /-! ## Level lists over handles -/
 
 /-- con-leche: none — `lps.map .param`, interned.  con-leche writes the list
@@ -482,7 +540,13 @@ theorem structFamI_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
 Does the constructor's residual target the family?  A `Bool` answer, so `RV`
 and no target store — task #97-P3-0 §5's finding 1.
 
-`sorry`: `structFamI_spec` and one handle equality, which is `denoteE_inj`. -/
+**CLOSED** (task #97-P3-Ind round 3): `paramLevels_spec` and
+`structPsAt_spec` (both closed in round 2), `Bridge/ExprOps/Spine.lean`'s
+closed `getAppFn_spec`/`getAppArgs_spec` in run form, and the THREE handle
+comparisons — one at a handle (`beq_ehandle_eq`), one at a length
+(`denoteEList_len`) and one at a handle LIST (`beq_ehandleList_eq` after
+`denoteEList_take`).  Two of the three are `denoteE_inj`, DESIGN §8.3's
+soundness obligation: this is the tier's first cash of it. -/
 theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP o nIdx : Nat)
     (cbody : EIdx) (cbodyP : Expr) :
@@ -491,7 +555,31 @@ theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
         denoteE st cbody = some cbodyP)
       (Arena.structCtorResidOk T lps nP o nIdx cbody)
       (RV (ConLeche.structCtorResidOk TP lpsP nP o nIdx cbodyP)) := by
-  sorry
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hT, hlps, hcb⟩ := hp
+  simp only [Arena.structCtorResidOk] at hrun
+  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hs1, hus⟩ := paramLevels_spec lps lpsP _ _ us hok hlps h1
+  obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hs2, hhd⟩ := internConstE_run hs1.ok (denoteN_ext hT hs1.ext) hus h3
+  have hcb2 : denoteE s₂.store cbody = some cbodyP :=
+    denote_ext hcb (hs1.ext.trans hs2.ext)
+  obtain ⟨fn, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨he3, hfn⟩ := getAppFn_run hs2.ok hcb2 h5
+  rw [he3] at h6
+  obtain ⟨args, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨he4, hargs⟩ := getAppArgs_run hs2.ok hcb2 h7
+  rw [he4] at h8
+  obtain ⟨ps, s₅, h9, h10⟩ := bindOk h8
+  obtain ⟨hs5, hps⟩ := structPsAt_spec o nP _ _ ps hs2.ok trivial h9
+  obtain ⟨rfl, rfl⟩ := pureOk h10
+  refine ⟨hs1.trans (hs2.trans hs5), ?_⟩
+  show _ = ConLeche.structCtorResidOk TP lpsP nP o nIdx cbodyP
+  rw [ConLeche.structCtorResidOk,
+    beq_ehandle_eq hs5.ok.wf (denote_ext hfn hs5.ext) (denote_ext hhd hs5.ext),
+    beq_ehandleList_eq hs5.ok.wf
+      (denoteEList_take (denoteEList_ext hs5.ext _ _ hargs) nP) hps,
+    denoteEList_len (denoteEList_ext hs5.ext _ _ hargs)]
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:204-211 structMotiveTyI
 The motive's type at the parameters' frame.
@@ -572,6 +660,43 @@ theorem structPartsCore?_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (ROp RSParts (ConLeche.structPartsCore? blockP)) := by
   sorry
 
+/-! ## The recogniser's `isSome` half, for the parse
+
+`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls this recogniser and
+`NativeParts.lean`'s, and **reads both through `.isSome` alone** — `isProp`
+fills a field of a record the recogniser has already decided to return.  Its
+own hypothesis is `StateOK`, far too weak for `structPartsCore?_spec`'s
+`CSpec` (whose `SPartsRel.isProp` conjunct is `lvlEq?`'s verdict and needs
+`LvlEqCacheOK`), so it cannot consume that statement at all.  This is the
+statement it can: the `isSome` half, at the PURE grade.
+
+**`PSpecP`, not `PSpec`** — the same finding as `structProjGuards_spec`'s, and
+here the pin read is LOAD-BEARING for the answer rather than incidental:
+`structPartsCore?` asks `reservedBasisNames` and tests `reserved.contains T`,
+so the recognition verdict itself is wrong at a state whose pin table is
+wrong.  The Frontend tier therefore needs `PinsOK` at its call site; the parse
+runs after `internAllPins`, so it has it. -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329
+structPartsCore? — **the recogniser's `isSome` half at the PURE grade**, for
+`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` (task #97-P3-Frontend's
+sorry list, item 13, which names this lemma).  The `isProp` field — the one
+thing that forces `structPartsCore?_spec` up to `CSpec` — is not mentioned, so
+this statement lives at `StateOK` + `PinsOK` and the parse can use it.
+
+`sorry`: `structShape_spec`, `stripLams`' and `stripPis`' specs, and the
+handle comparisons through `denoteN_inj`/`denoteE_inj`.  Exactly
+`structPartsCore?_spec`'s dependencies MINUS `lvlEq?`: the two statements share
+the dispatch and differ only in what they say about the record.  The intended
+shape is one dispatch lemma feeding both; this round states the consumer's
+half so the Frontend tier can cite it by name. -/
+theorem structPartsCore?_isSome (block : List IConstantInfo)
+    (blockP : List ConstantInfo) :
+    PSpecP (fun st => Frontend.denoteCIList st block = some blockP)
+      (Arena.structPartsCore? block)
+      (fun _ r => r.isSome = (ConLeche.structPartsCore? blockP).isSome) := by
+  sorry
+
 /-! ## The projection bodies -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:331-337 structProjPs
@@ -624,6 +749,20 @@ theorem structProjResidP_spec (T : NIdx) (TP : ConLeche.Name) (nP : Nat)
       (ROp RE (ConLeche.structProjResidP TP nP ctyP i)) := by
   sorry
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — **the cutoff's
+run form**, at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s `bvarB_run`
+answers `Expr.bvarB` and moves nothing but the `bvarBound` memo, which
+`PStep` does not frame. -/
+theorem bvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
+    {r : Nat} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.bvarB fuel e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.bvarB eP := by
+  obtain ⟨h1, h2, h3, _, h5⟩ :=
+    ExprOps.bvarB_run hok (by rw [hd]; rfl) hrun
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, h5 eP hd⟩
+  · rw [h1]; exact Ext.refl _
+  · rw [h1]; exact BMExt.refl _
+
 /-! ## `hasLooseBVarB`, memoised
 
 `hasLooseBVarBIns` has NO statement of its own: it is the memo-insert helper
@@ -631,64 +770,410 @@ theorem structProjResidP_spec (T : NIdx) (TP : ConLeche.Name) (nP : Nat)
 Std.HashMap` with no handle in it, and its content is entirely inside
 `hasLooseBVarBGo_spec`'s invariant step.  Census class (S). -/
 
+/-! ### The pure side's own equations
+
+`Expr.hasLooseBVarB` is `if e.bvarB ≤ i then false else <the ten-way walk>`,
+so every arm of the twin's dispatch needs the same two-step unfolding.  These
+are con-leche's `hasLooseBVarB_eq` proof's first line, once per shape. -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:378-390 (the `if`)
+— **the cutoff's own fact**: a node whose loose-bvar bound is at or below `i`
+has no `bvar i`.  This is what the twin's early return computes. -/
+theorem hasLooseBVarB_cut {i : Nat} {e : Expr} (hc : e.bvarB ≤ i) :
+    Expr.hasLooseBVarB i e = false := by
+  cases e <;> (rw [Expr.hasLooseBVarB]; exact if_pos hc)
+
+theorem hasLooseBVarB_bvar {i j : Nat} (hc : ¬ (Expr.bvar j).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.bvar j) = (i == j) := by
+  rw [Expr.hasLooseBVarB]; exact if_neg hc
+
+theorem hasLooseBVarB_app {i : Nat} {f a : Expr}
+    (hc : ¬ (Expr.app f a).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.app f a) =
+      (Expr.hasLooseBVarB i f || Expr.hasLooseBVarB i a) := by
+  rw [Expr.hasLooseBVarB]; exact if_neg hc
+
+theorem hasLooseBVarB_lam {i : Nat} {ty b : Expr} {m : BinderMeta}
+    (hc : ¬ (Expr.lam ty b m).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.lam ty b m) =
+      (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
+  rw [Expr.hasLooseBVarB]; exact if_neg hc
+
+theorem hasLooseBVarB_forallE {i : Nat} {ty b : Expr} {m : BinderMeta}
+    (hc : ¬ (Expr.forallE ty b m).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.forallE ty b m) =
+      (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
+  rw [Expr.hasLooseBVarB]; exact if_neg hc
+
+theorem hasLooseBVarB_letE {i : Nat} {t v b : Expr}
+    (hc : ¬ (Expr.letE t v b).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.letE t v b) =
+      (Expr.hasLooseBVarB i t || Expr.hasLooseBVarB i v ||
+        Expr.hasLooseBVarB (i + 1) b) := by
+  rw [Expr.hasLooseBVarB]; exact if_neg hc
+
+theorem hasLooseBVarB_proj {i : Nat} {n : ConLeche.Name} {k : Nat} {e : Expr}
+    (hc : ¬ (Expr.proj n k e).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.proj n k e) = Expr.hasLooseBVarB i e := by
+  rw [Expr.hasLooseBVarB]; exact if_neg hc
+
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:442-478 Expr.hasLooseBVarBGo
 The memoised walk: the answer is the real one AND the memo it hands back is
 still sound.
 
-`sorry`: a fuel induction with the memo threaded, in
-`Bridge/ExprOps/Walks.lean`'s shape, plus the `bvarB` cutoff
-(`Bridge/ExprOps/Ranges.lean`'s `bvarB_spec`, closed) for the early return. -/
+**CLOSED** (task #97-P3-Ind round 3): a fuel induction generalising the memo,
+the cursor and the handle, with the ten-way `view` dispatch as its arm.  The
+memo travels as a HYPOTHESIS (`LooseMemoOK`) and comes back as a CONCLUSION,
+so a hit is discharged by the invariant itself (`hit`) and a miss by
+`LooseMemoOK.insert` (`fin`); the early return is
+`Bridge/ExprOps/Ranges.lean`'s `bvarB_run` (closed) read through
+`bvarB_pstep` plus `hasLooseBVarB_cut`. -/
 theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
     (fuel : Nat) (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteE st h = some hP ∧ LooseMemoOK memo st)
       (Arena.hasLooseBVarBGo memo i fuel h)
       (fun st r => r.1 = Expr.hasLooseBVarB i hP ∧ LooseMemoOK r.2 st) := by
-  sorry
+  induction fuel generalizing memo i h hP with
+  | zero =>
+    intro s₀ s' r hok hp hrun
+    simp only [Arena.hasLooseBVarBGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hd, hm⟩ := hp
+    simp only [Arena.hasLooseBVarBGo] at hrun
+    obtain ⟨bb, s₁, hb, h2⟩ := bindOk hrun
+    obtain ⟨hstep0, hst0, rfl⟩ := bvarB_pstep hok hd hb
+    have hok1 : StateOK s₁ := hstep0.ok
+    have hd1 : denoteE s₁.store h = some hP := by rw [hst0]; exact hd
+    have hm1 : LooseMemoOK memo s₁.store := by rw [hst0]; exact hm
+    -- the shared tail: record the answer in the memo and stop
+    have fin : ∀ {s₂ s₃ : AState} {y r' : Bool × Std.HashMap (EIdx × Nat) Bool},
+        PStep s₁ s₂ → y.1 = Expr.hasLooseBVarB i hP →
+        LooseMemoOK y.2 s₂.store →
+        (pure (Arena.hasLooseBVarBIns h i y) :
+            AM (Bool × Std.HashMap (EIdx × Nat) Bool)) s₂ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.hasLooseBVarB i hP ∧
+          LooseMemoOK r'.2 s₃.store := by
+      intro s₂ s₃ y r' hs hy hmy hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hstep0.trans hs, hy,
+        LooseMemoOK.insert hmy (denote_ext hd1 hs.ext) hy⟩
+    -- the shared memo HIT: the invariant is exactly what makes it sound
+    have hit : ∀ {s₃ : AState} {r₀ : Bool}
+        {r' : Bool × Std.HashMap (EIdx × Nat) Bool},
+        memo[(h, i)]? = some r₀ →
+        (pure ((r₀, memo) : Bool × Std.HashMap (EIdx × Nat) Bool) :
+            AM (Bool × Std.HashMap (EIdx × Nat) Bool)) s₁ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.hasLooseBVarB i hP ∧
+          LooseMemoOK r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm1 (h, i) r₀ hlk
+      obtain rfl := Option.some.inj (hd1.symm.trans he)
+      exact ⟨hstep0, hre, hm1⟩
+    split at h2
+    · -- the packed-bound cutoff
+      rename_i hc
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      exact ⟨hstep0, (hasLooseBVarB_cut hc).symm, hm1⟩
+    · rename_i hc
+      obtain ⟨v, s₂, hv, h3⟩ := bindOk h2
+      obtain ⟨rfl, hw⟩ := view_run hv
+      cases v
+      case bvar j =>
+        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain rfl := denote_bvar_inv hok1.wf hw hd1
+        exact ⟨hstep0, (hasLooseBVarB_bvar hc).symm, hm1⟩
+      case fvar k ty =>
+        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok1.wf hw hd1
+        exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
+      case sort u =>
+        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨l, rfl, _⟩ := denote_sort_inv hok1.wf hw hd1
+        exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
+      case const n us =>
+        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok1.wf hw hd1
+        exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
+      case lit l =>
+        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain rfl := denote_lit_inv hok1.wf hw hd1
+        exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
+      case app f a =>
+        obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hok1.wf hw hd1
+        cases hlk : memo[(h, i)]? with
+        | some r₀ => rw [hlk] at h3; exact hit hlk h3
+        | none =>
+          rw [hlk] at h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨b1, m1⟩ := p1
+          obtain ⟨hsA, hrA, hmA⟩ :=
+            ih memo i f ef _ _ (b1, m1) hok1 ⟨hf, hm1⟩ hc1
+          have hrA' : b1 = Expr.hasLooseBVarB i ef := hrA
+          cases b1
+          · obtain ⟨p2, s₃, hc2, hz⟩ := bindOk h4
+            obtain ⟨b2, m2⟩ := p2
+            obtain ⟨hsB, hrB, hmB⟩ :=
+              ih m1 i a ea _ _ (b2, m2) hsA.ok
+                ⟨denote_ext ha hsA.ext, hmA⟩ hc2
+            have hrB' : b2 = Expr.hasLooseBVarB i ea := hrB
+            exact fin (hsA.trans hsB)
+              (by simp [hasLooseBVarB_app hc, ← hrA', ← hrB']) hmB hz
+          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
+            obtain ⟨rfl, rfl⟩ := pureOk hy
+            exact fin hsA (by simp [hasLooseBVarB_app hc, ← hrA']) hmA hz
+      case lam ty b m =>
+        obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok1.wf hw hd1
+        cases hlk : memo[(h, i)]? with
+        | some r₀ => rw [hlk] at h3; exact hit hlk h3
+        | none =>
+          rw [hlk] at h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨b1, m1⟩ := p1
+          obtain ⟨hsA, hrA, hmA⟩ :=
+            ih memo i ty et _ _ (b1, m1) hok1 ⟨hty, hm1⟩ hc1
+          have hrA' : b1 = Expr.hasLooseBVarB i et := hrA
+          cases b1
+          · obtain ⟨p2, s₃, hc2, hz⟩ := bindOk h4
+            obtain ⟨b2, m2⟩ := p2
+            obtain ⟨hsB, hrB, hmB⟩ :=
+              ih m1 (i + 1) b eb _ _ (b2, m2) hsA.ok
+                ⟨denote_ext hbd hsA.ext, hmA⟩ hc2
+            have hrB' : b2 = Expr.hasLooseBVarB (i + 1) eb := hrB
+            exact fin (hsA.trans hsB)
+              (by simp [hasLooseBVarB_lam hc, ← hrA', ← hrB']) hmB hz
+          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
+            obtain ⟨rfl, rfl⟩ := pureOk hy
+            exact fin hsA (by simp [hasLooseBVarB_lam hc, ← hrA']) hmA hz
+      case forallE ty b m =>
+        obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok1.wf hw hd1
+        cases hlk : memo[(h, i)]? with
+        | some r₀ => rw [hlk] at h3; exact hit hlk h3
+        | none =>
+          rw [hlk] at h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨b1, m1⟩ := p1
+          obtain ⟨hsA, hrA, hmA⟩ :=
+            ih memo i ty et _ _ (b1, m1) hok1 ⟨hty, hm1⟩ hc1
+          have hrA' : b1 = Expr.hasLooseBVarB i et := hrA
+          cases b1
+          · obtain ⟨p2, s₃, hc2, hz⟩ := bindOk h4
+            obtain ⟨b2, m2⟩ := p2
+            obtain ⟨hsB, hrB, hmB⟩ :=
+              ih m1 (i + 1) b eb _ _ (b2, m2) hsA.ok
+                ⟨denote_ext hbd hsA.ext, hmA⟩ hc2
+            have hrB' : b2 = Expr.hasLooseBVarB (i + 1) eb := hrB
+            exact fin (hsA.trans hsB)
+              (by simp [hasLooseBVarB_forallE hc, ← hrA', ← hrB']) hmB hz
+          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
+            obtain ⟨rfl, rfl⟩ := pureOk hy
+            exact fin hsA (by simp [hasLooseBVarB_forallE hc, ← hrA']) hmA hz
+      case letE lt lv lb =>
+        obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ :=
+          denote_letE_inv hok1.wf hw hd1
+        cases hlk : memo[(h, i)]? with
+        | some r₀ => rw [hlk] at h3; exact hit hlk h3
+        | none =>
+          rw [hlk] at h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨b1, m1⟩ := p1
+          obtain ⟨hsA, hrA, hmA⟩ :=
+            ih memo i lt et _ _ (b1, m1) hok1 ⟨hty, hm1⟩ hc1
+          have hrA' : b1 = Expr.hasLooseBVarB i et := hrA
+          cases b1
+          · obtain ⟨p2, s₃, hc2, h5⟩ := bindOk h4
+            obtain ⟨b2, m2⟩ := p2
+            obtain ⟨hsB, hrB, hmB⟩ :=
+              ih m1 i lv ev _ _ (b2, m2) hsA.ok
+                ⟨denote_ext hval hsA.ext, hmA⟩ hc2
+            have hrB' : b2 = Expr.hasLooseBVarB i ev := hrB
+            cases b2
+            · obtain ⟨p3, s₄, hc3, hz⟩ := bindOk h5
+              obtain ⟨b3, m3⟩ := p3
+              obtain ⟨hsC, hrC, hmC⟩ :=
+                ih m2 (i + 1) lb eb _ _ (b3, m3) hsB.ok
+                  ⟨denote_ext (denote_ext hbd hsA.ext) hsB.ext, hmB⟩ hc3
+              have hrC' : b3 = Expr.hasLooseBVarB (i + 1) eb := hrC
+              exact fin ((hsA.trans hsB).trans hsC)
+                (by simp [hasLooseBVarB_letE hc, ← hrA', ← hrB', ← hrC'])
+                hmC hz
+            · obtain ⟨y, s₃', hy, hz⟩ := bindOk h5
+              obtain ⟨rfl, rfl⟩ := pureOk hy
+              exact fin (hsA.trans hsB)
+                (by simp [hasLooseBVarB_letE hc, ← hrA', ← hrB']) hmB hz
+          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
+            obtain ⟨rfl, rfl⟩ := pureOk hy
+            exact fin hsA (by simp [hasLooseBVarB_letE hc, ← hrA']) hmA hz
+      case proj pn pk psub =>
+        obtain ⟨nm, es, rfl, _, hsub⟩ := denote_proj_inv hok1.wf hw hd1
+        cases hlk : memo[(h, i)]? with
+        | some r₀ => rw [hlk] at h3; exact hit hlk h3
+        | none =>
+          rw [hlk] at h3
+          obtain ⟨p1, s₂, hc1, hz⟩ := bindOk h3
+          obtain ⟨b1, m1⟩ := p1
+          obtain ⟨hsA, hrA, hmA⟩ :=
+            ih memo i psub es _ _ (b1, m1) hok1 ⟨hsub, hm1⟩ hc1
+          have hrA' : b1 = Expr.hasLooseBVarB i es := hrA
+          exact fin hsA (by simp [hasLooseBVarB_proj hc, ← hrA']) hmA hz
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:624-626 Expr.hasLooseBVarBFast
 The entry: an empty memo is sound, so the answer is the real one.
 
-`sorry`: `hasLooseBVarBGo_spec` at the empty memo. -/
+**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBGo_spec` at the empty
+memo, which `LooseMemoOK.empty` says is sound. -/
 theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
       (Arena.hasLooseBVarBFast i e) (RV (Expr.hasLooseBVarB i eP)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.hasLooseBVarBFast] at hrun
+  obtain ⟨p, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ :=
+    hasLooseBVarBGo_spec ∅ i Arena.coreWalkFuel e eP s₀ s₁ p hok
+      ⟨hd, LooseMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, hr⟩
+
+/-! ### `stripPis`, in run form
+
+`Bridge/ExprOps/Spine.lean`'s `stripPis_spec` is CLOSED and this tier's three
+telescope readers (`structUsedLater`, `structUsedLaterGo` and, through them,
+`structProjGuards`) are its only consumers here.  Two inversions of
+`denoteBP` are all the shape they need: this tier never looks at the peeled
+binders, only at the residual. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the run form
+at this tier's frame; `stripPis` is read-only, so the state does not move at
+all. -/
+theorem stripPis_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
+    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    (hd : denoteE s₀.store c = some cP)
+    (hrun : Arena.stripPis k c s₀ = .ok (r, s')) :
+    s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripPis k cP) := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.stripPis_spec k s₀ c hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 cP hd⟩
+
+/-- con-leche: none — a `none` answer is `none` on the pure side too: the
+two-sidedness `stripPis`' dispatch needs. -/
+theorem stripPis_none {st : EStore} {k : Nat} {cP : Expr}
+    (h : ExprOps.denoteBP st none = some (Expr.stripPis k cP)) :
+    Expr.stripPis k cP = none := (Option.some.inj h).symm
+
+/-- con-leche: none — and a `some` answer names the pure residual. -/
+theorem stripPis_some {st : EStore} {k : Nat} {cP : Expr}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
+    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
 
 /-! ## The projection guards -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:633-641 structUsedLater
 Is field `j` mentioned by a later field's domain?
 
-`sorry`: `hasLooseBVarBFast_spec` under the constructor type's telescope. -/
+**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBFast_spec` under the
+constructor type's telescope, with `stripPis_pstep`'s two inversions for the
+dispatch. -/
 theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
     PSpec (fun st => denoteE st cty = some ctyP)
       (Arena.structUsedLater cty nP j)
       (RV (ConLeche.structUsedLater ctyP nP j)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.structUsedLater] at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  show PStep s₀ s' ∧ r = ConLeche.structUsedLater ctyP nP j
+  rw [ConLeche.structUsedLater]
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    rw [stripPis_none hbp]
+    exact ⟨PStep.refl hok, rfl⟩
+  | some p =>
+    obtain ⟨bs, rest⟩ := p
+    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    rw [hsp]
+    exact hasLooseBVarBFast_spec 0 rest x _ _ r hok hx h2
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:669-674 structUsedLaterGo
 The same with the memo threaded (task #236's one shared memo across `nF`
 calls).
 
-`sorry`: `hasLooseBVarBGo_spec` under the telescope. -/
+**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBGo_spec` under the
+telescope, the memo travelling verbatim through the `none` arm. -/
 theorem structUsedLaterGo_spec (memo : Std.HashMap (EIdx × Nat) Bool)
     (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
     PSpec (fun st => denoteE st cty = some ctyP ∧ LooseMemoOK memo st)
       (Arena.structUsedLaterGo memo cty nP j)
       (fun st r => r.1 = ConLeche.structUsedLater ctyP nP j ∧
         LooseMemoOK r.2 st) := by
-  sorry
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hd, hm⟩ := hp
+  simp only [Arena.structUsedLaterGo] at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  show PStep s₀ s' ∧ r.1 = ConLeche.structUsedLater ctyP nP j ∧
+    LooseMemoOK r.2 s'.store
+  rw [ConLeche.structUsedLater]
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    rw [stripPis_none hbp]
+    exact ⟨PStep.refl hok, rfl, hm⟩
+  | some p =>
+    obtain ⟨bs, rest⟩ := p
+    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    rw [hsp]
+    exact hasLooseBVarBGo_spec memo 0 Arena.coreWalkFuel rest x _ _ r hok
+      ⟨hx, hm⟩ h2
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:685-692 structUsedLaterList
 The `n` answers from `base` up, one memo through all of them.
 
-`sorry`: a `Nat` recursion over `structUsedLaterGo_spec`. -/
+**CLOSED** (task #97-P3-Ind round 3): a `Nat` recursion over
+`structUsedLaterGo_spec`, generalising the memo AND the base.  Stronger than
+con-leche's own `structUsedLaterList_spec`, which says only what the `t`-th
+entry is: here the LIST is named, which is what `structProjGuards_spec`'s
+fold needs. -/
 theorem structUsedLaterList_spec (cty : EIdx) (ctyP : Expr) (nP : Nat)
     (memo : Std.HashMap (EIdx × Nat) Bool) (n base : Nat) :
     PSpec (fun st => denoteE st cty = some ctyP ∧ LooseMemoOK memo st)
       (Arena.structUsedLaterList cty nP memo n base)
       (RV ((List.range n).map fun k => ConLeche.structUsedLater ctyP nP (base + k))) := by
-  sorry
+  induction n generalizing memo base with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.structUsedLaterList] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, by simp⟩
+  | succ n ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hd, hm⟩ := hp
+    simp only [Arena.structUsedLaterList] at hrun
+    obtain ⟨p, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨hsA, hrA, hmA⟩ :=
+      structUsedLaterGo_spec memo cty ctyP nP base _ _ p hok ⟨hd, hm⟩ h1
+    obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨hsB, hrB⟩ :=
+      ih p.2 (base + 1) _ _ rest hsA.ok ⟨denote_ext hd hsA.ext, hmA⟩ h3
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨hsA.trans hsB, ?_⟩
+    show p.1 :: rest = _
+    rw [hrA, hrB, List.range_succ_eq_map]
+    simp only [List.map_cons, List.map_map, Function.comp_def, Nat.add_zero]
+    congr 1
+    exact List.map_congr_left (fun k _ => by congr 1; omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:643-656
 structProjGuards — **the guard list has one entry per field**, by
@@ -710,15 +1195,123 @@ The guard level of each field: `Prop` where the field is used later, the
 field's own sort otherwise.  The answer is a `List LIdx` and NOT an `LsIdx`
 (task #97d-2's deviation 6), so the relation is `RLL`.
 
-`sorry`: `structUsedLaterList_spec` and `zeroLevel`'s pin read
-(`Bridge/Specs.lean`, closed). -/
+**CLOSED** (task #97-P3-Ind round 3), and **at `PSpecP`, not `PSpec`** —
+round 3's finding, the campaign's sixth statement defect.  The twin opens with
+`let z ← zeroLevel`, a PIN READ, and `PSpec`'s precondition is a predicate on
+the STORE: it cannot say what `s.pins.zeroLevel` denotes, and
+`Arena/Pins.lean`'s `pinsReady` tests only the name array's SIZE.  At a state
+whose `pins.zeroLevel` denotes `.param foo` the run accepts and answers
+something else — take `sorts = []`, `sortsP = []`, `nF = 1`, where the
+statement reduces to exactly `denoteL st.ls z = some .zero`.  `PinsOK` is the
+missing licence and `PSpecP` is the shape that carries it; this is the only
+twin of the tier under a `PSpec` that reads the pin table (the other four pin
+readers — `withSort`, `structPartsCore?`, `nativeShape?`, `checkSumCtor` —
+are already at `CSpec`, which has `CheckOK.pins`).
+
+The proof: `structUsedLaterList_spec` for the answer table, then the two
+`let rec`s by their own inductions — `col` over `List.range' j k` and `row`
+over `List.range' i k`, the guard `j < nF` travelling as `j + k ≤ nF`. -/
 theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
     (sorts : List LIdx) (sortsP : List Level) :
-    PSpec (fun st => denoteE st cty = some ctyP ∧
+    PSpecP (fun st => denoteE st cty = some ctyP ∧
         denoteLList st.ls sorts = some sortsP)
       (Arena.structProjGuards cty nP nF sorts)
       (RLL (ConLeche.structProjGuards ctyP nP nF sortsP)) := by
-  sorry
+  intro s₀ s' r hok hpins hp hrun
+  obtain ⟨hd, hs⟩ := hp
+  simp only [Arena.structProjGuards] at hrun
+  obtain ⟨z, s₁, hz, h2⟩ := bindOk hrun
+  obtain ⟨rfl, hzd⟩ := zeroLevel_run hpins hz
+  obtain ⟨used, s₂, hu, h3⟩ := bindOk h2
+  obtain ⟨hsU, hrU⟩ :=
+    structUsedLaterList_spec cty ctyP nP ∅ nF 0 _ _ used hok
+      ⟨hd, LooseMemoOK.empty⟩ hu
+  -- the answer table reads back, entry by entry
+  have hused : ∀ m, m < nF →
+      used.getD m false = ConLeche.structUsedLater ctyP nP m := by
+    intro m hm
+    rw [show used = _ from hrU, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_range hm]
+    simp
+  -- `col`: the inner fold, over `List.range' j k`
+  have hcol : ∀ (k j : Nat) (acc : LIdx) (accP : Level) (sa sb : AState)
+      (rr : LIdx), StateOK sa →
+      denoteLList sa.store.ls sorts = some sortsP →
+      denoteL sa.store.ls z = some .zero →
+      denoteL sa.store.ls acc = some accP → j + k ≤ nF →
+      Arena.structProjGuards.col sorts z used j k acc sa = .ok (rr, sb) →
+      PStep sa sb ∧ denoteL sb.store.ls rr =
+        some ((List.range' j k).foldl (fun a m =>
+          if ConLeche.structUsedLater ctyP nP m then
+            Level.max a (sortsP.getD m .zero) else a) accP) := by
+    intro k
+    induction k with
+    | zero =>
+      intro j acc accP sa sb rr hoka _ _ hacc _ hr
+      simp only [Arena.structProjGuards.col] at hr
+      obtain ⟨rfl, rfl⟩ := pureOk hr
+      exact ⟨PStep.refl hoka, by simpa using hacc⟩
+    | succ k ih =>
+      intro j acc accP sa sb rr hoka hsa hza hacc hle hr
+      have hjn : j < nF := by omega
+      simp only [Arena.structProjGuards.col] at hr
+      rw [List.range'_succ]
+      simp only [List.foldl_cons, Nat.add_one]
+      rw [hused j hjn] at hr
+      split at hr
+      · rename_i hcond
+        rw [if_pos hcond]
+        obtain ⟨m, sm, hm, hr'⟩ := bindOk hr
+        obtain ⟨hstepM, hmd⟩ :=
+          internMaxL_run hoka hacc (denoteLList_getD hsa hza j) hm
+        obtain ⟨hstepR, hrd⟩ :=
+          ih (j + 1) m _ sm sb rr hstepM.ok
+            (denoteLList_ext hstepM.ext.lss.ls _ _ hsa) (denoteL_ext hza hstepM.ext)
+            hmd (by omega) hr'
+        exact ⟨hstepM.trans hstepR, hrd⟩
+      · rename_i hcond
+        rw [if_neg hcond]
+        exact ih (j + 1) acc accP sa sb rr hoka hsa hza hacc (by omega) hr
+  -- `row`: the outer map, over `List.range' i k`
+  have hrow : ∀ (k i : Nat) (sa sb : AState) (rr : List LIdx), StateOK sa →
+      denoteLList sa.store.ls sorts = some sortsP →
+      denoteL sa.store.ls z = some .zero → i + k ≤ nF →
+      Arena.structProjGuards.row sorts z used i k sa = .ok (rr, sb) →
+      PStep sa sb ∧ denoteLList sb.store.ls rr =
+        some ((List.range' i k).map fun m =>
+          (List.range m).foldl (fun a n =>
+            if ConLeche.structUsedLater ctyP nP n then
+              Level.max a (sortsP.getD n .zero) else a) (sortsP.getD m .zero)) := by
+    intro k
+    induction k with
+    | zero =>
+      intro i sa sb rr hoka _ _ _ hr
+      simp only [Arena.structProjGuards.row] at hr
+      obtain ⟨rfl, rfl⟩ := pureOk hr
+      exact ⟨PStep.refl hoka, by simp [denoteLList]⟩
+    | succ k ih =>
+      intro i sa sb rr hoka hsa hza hle hr
+      simp only [Arena.structProjGuards.row] at hr
+      obtain ⟨g, sg, hg, hr1⟩ := bindOk hr
+      obtain ⟨hstepG, hgd⟩ :=
+        hcol i 0 (sorts.getD i z) (sortsP.getD i .zero) sa sg g hoka hsa hza
+          (denoteLList_getD hsa hza i) (by omega) hg
+      obtain ⟨rest, sr, hrest, hr2⟩ := bindOk hr1
+      obtain ⟨hstepR, hrd⟩ :=
+        ih (i + 1) sg sr rest hstepG.ok (denoteLList_ext hstepG.ext.lss.ls _ _ hsa)
+          (denoteL_ext hza hstepG.ext) (by omega) hrest
+      obtain ⟨rfl, rfl⟩ := pureOk hr2
+      refine ⟨hstepG.trans hstepR, ?_⟩
+      rw [List.range'_succ]
+      simp only [List.map_cons, Nat.add_one]
+      simp only [denoteLList, opt2, denoteL_ext hgd hstepR.ext, hrd,
+        ← List.range_eq_range']
+  obtain ⟨hstepRow, hrowd⟩ :=
+    hrow nF 0 _ _ r hsU.ok (denoteLList_ext hsU.ext.lss.ls _ _ hs)
+      (denoteL_ext hzd hsU.ext) (by omega) h3
+  refine ⟨hsU.trans hstepRow, ?_⟩
+  show denoteLList s'.store.ls r = some _
+  rw [hrowd, ConLeche.structProjGuards, ← List.range_eq_range']
 
 /-! ## The projection bodies -/
 
@@ -753,9 +1346,12 @@ The memoised walk.  Note the `fvar` arm: a free variable carries its type, and
 the walk descends into it — DESIGN §8.3's "a handle determines its own typing
 context".
 
-`sorry`: a fuel induction with the memo threaded; the name equality is
-`denoteN_inj` (`Bridge/Rel.lean`), which is what makes handle inequality
-structural inequality. -/
+**CLOSED** (task #97-P3-Ind round 3): the same fuel induction as
+`hasLooseBVarBGo_spec`, without the cutoff — `mentionsConst` has no packed
+bound to stop at.  The `.const` and `.proj` arms RETURN a handle comparison,
+so they need `beq_handle_eq` (`Bridge/Inductives/Rel.lean`) at both signs, and
+its `false` half is `denoteN_inj`: DESIGN §8.3's soundness obligation, cashed
+here twice. -/
 theorem mentionsConstGo_spec (T : NIdx) (TP : ConLeche.Name)
     (memo : Std.HashMap EIdx Bool) (fuel : Nat) (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP ∧
@@ -763,16 +1359,200 @@ theorem mentionsConstGo_spec (T : NIdx) (TP : ConLeche.Name)
       (Arena.mentionsConstGo T memo fuel h)
       (fun st r => r.1 = Expr.mentionsConst TP hP ∧
         MentionsMemoOK TP r.2 st) := by
-  sorry
+  induction fuel generalizing memo h hP with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.mentionsConstGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hT, hd, hm⟩ := hp
+    simp only [Arena.mentionsConstGo] at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    -- the shared tail: record the answer in the memo and stop
+    have fin : ∀ {s₂ s₃ : AState} {b : Bool} {mm : Std.HashMap EIdx Bool}
+        {r' : Bool × Std.HashMap EIdx Bool},
+        PStep s₀ s₂ → b = Expr.mentionsConst TP hP →
+        MentionsMemoOK TP mm s₂.store →
+        (pure ((b, mm.insert h b) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₂ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsConst TP hP ∧
+          MentionsMemoOK TP r'.2 s₃.store := by
+      intro s₂ s₃ b mm r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, MentionsMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    -- the shared memo HIT
+    have hit : ∀ {s₃ : AState} {r₀ : Bool}
+        {r' : Bool × Std.HashMap EIdx Bool},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsConst TP hP ∧
+          MentionsMemoOK TP r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case const n us =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨nm, ls, rfl, hn, _⟩ := denote_const_inv hok.wf hw hd
+      refine ⟨PStep.refl hok, ?_, hm⟩
+      simp only [Expr.mentionsConst]
+      exact beq_handle_eq hok.wf hn hT
+    case fvar k ty =>
+      obtain ⟨t, rfl, hty⟩ := denote_fvar_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p, s₂, hin, hz⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo ty t _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hin
+        have hrA' : b1 = Expr.mentionsConst TP t := hrA
+        exact fin hsA (by simp only [Expr.mentionsConst]; exact hrA') hmA hz
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo f ef _ _ (b1, m1) hok ⟨hT, hf, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP ef := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 a ea _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext ha hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP ea := hrB
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB']) hmB hz
+    case lam ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP et := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 b eb _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP eb := hrB
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB']) hmB hz
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP et := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 b eb _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP eb := hrB
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB']) hmB hz
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ :=
+        denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo lt et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP et := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 lv ev _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext hval hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP ev := hrB
+        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨b3, m3⟩ := p3
+        obtain ⟨hsC, hrC, hmC⟩ :=
+          ih m2 lb eb _ _ (b3, m3) hsB.ok
+            ⟨denoteN_ext (denoteN_ext hT hsA.ext) hsB.ext,
+             denote_ext (denote_ext hbd hsA.ext) hsB.ext, hmB⟩ hc3
+        have hrC' : b3 = Expr.mentionsConst TP eb := hrC
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB', hrC']) hmC hz
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo psub es _ _ (b1, m1) hok ⟨hT, hsub, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP es := hrA
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin hsA
+          (by simp only [Expr.mentionsConst]
+              rw [hrA', beq_handle_eq hok.wf hn hT]) hmA hz
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
 The entry at an empty memo.
 
-`sorry`: `mentionsConstGo_spec`. -/
+**CLOSED** (task #97-P3-Ind round 3): `mentionsConstGo_spec` at the empty
+memo, which `MentionsMemoOK.empty` says is sound. -/
 theorem mentionsConst_spec (T : NIdx) (TP : ConLeche.Name) (e : EIdx)
     (eP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st e = some eP)
       (Arena.mentionsConst T e) (RV (Expr.mentionsConst TP eP)) := by
-  sorry
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hT, hd⟩ := hp
+  simp only [Arena.mentionsConst] at hrun
+  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ :=
+    mentionsConstGo_spec T TP ∅ Arena.coreWalkFuel e eP s₀ s₁ q hok
+      ⟨hT, hd, MentionsMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, hr⟩
 
 end ConRon.Bridge.Inductives

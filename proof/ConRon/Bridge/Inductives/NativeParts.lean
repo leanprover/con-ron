@@ -658,4 +658,29 @@ theorem nativeParts?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
       (ROp RParts (ConLeche.nativeParts? nPd blockP)) := by
   sorry
 
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean nativeParts? —
+**the recogniser's `isSome` half at the PURE grade**, the companion of
+`StructParts.lean`'s `structPartsCore?_isSome` and the second half of what
+`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` asks of this tier (task
+#97-P3-Frontend's sorry list, item 13).  `projRecOwners` reads both
+recognisers through `.isSome` alone and its hypothesis is `StateOK`, so it
+cannot consume `nativeParts?_spec`'s `CSpec` — whose `RParts` carries
+`ShapeRel.isProp`, which is `lvlEq?`'s verdict.
+
+**`PSpecP`, not `PSpec`**: `nativeShape?` reads `zeroLevel` off the pin table
+(`Arena/Inductives/NativeParts.lean:502-504`) and the recogniser tests pinned
+names, so `PinsOK` is the licence — task #97-P3-Ind round 3's finding at
+`structProjGuards_spec`, applied here.
+
+`sorry`: `nativeShape?_spec`'s dependencies MINUS `lvlEq?` —
+`nativeCounts?_spec`, `recFamOk_spec`, `recPositivity_spec`,
+`recCtorKinds_spec` and the handle comparisons through
+`denoteN_inj`/`denoteE_inj`. -/
+theorem nativeParts?_isSome (nPd : Nat) (block : List IConstantInfo)
+    (blockP : List ConstantInfo) :
+    PSpecP (fun st => Frontend.denoteCIList st block = some blockP)
+      (Arena.nativeParts? nPd block)
+      (fun _ r => r.isSome = (ConLeche.nativeParts? nPd blockP).isSome) := by
+  sorry
+
 end ConRon.Bridge.Inductives

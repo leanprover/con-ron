@@ -109,6 +109,8 @@ name.
 -/
 import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.ExprOps.Spine
+import ConRon.Bridge.ExprOps.Ranges
 
 namespace ConRon.Bridge.Inductives
 
@@ -184,6 +186,31 @@ def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → P
 all `Nat`s. -/
 abbrev PT : EStore → Prop := fun _ => True
 
+/-- con-leche: none — **the PURE grade AT A PIN READ** (task #97-P3-Ind round
+3's finding; see `Bridge/Inductives/StructParts.lean`'s `structProjGuards_spec`).
+
+`PSpec`'s precondition is a predicate on the STORE, so it cannot see the pin
+table — and `Arena/Pins.lean`'s `pinsReady` tests only that the name array has
+`pinCount` entries, not that any of the three nullary slots denotes what it
+claims.  A twin that reads `zeroLevel`, `sortOne` or `emptyLevels` therefore
+has no `PSpec`: at a state whose `pins.zeroLevel` denotes `.param foo` the
+run ACCEPTS and answers something else.  `PinsOK` is the missing licence, and
+this is the only shape that carries it while keeping `PStep`: the twin is
+still pure — it interns and reads, it calls no knot — so dropping to `CSpec`
+(the other statement that has `PinsOK`, through `CheckOK`) would give away the
+`BMExt` and cache-frame conjuncts for nothing. -/
+def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+    Prop :=
+  ∀ (s₀ s' : AState) (r : α), StateOK s₀ → PinsOK s₀ → P s₀.store →
+    c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
+
+/-- con-leche: none — a twin that does NOT read the pin table has the
+stronger statement, and every consumer may use it at the weaker one. -/
+theorem PSpec.toPSpecP {α : Type} {P : EStore → Prop} {c : AM α}
+    {R : EStore → α → Prop} (h : PSpec P c R) : PSpecP P c R :=
+  fun s₀ s' r hok _ hp hrun => h s₀ s' r hok hp hrun
+
+
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
 statement**: the same at a function that calls the knot, so the invariant is
 `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
@@ -201,6 +228,15 @@ theorem PSpec.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
     (fe : IFEnv) : CSpec μ env fe P c R := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hp hrun
+  exact ⟨hstep.toCore hok, hr⟩
+
+/-- con-leche: none — and a pin-reading pure twin is a core-grade twin at any
+environment: `CheckOK.pins` is exactly what it was missing. -/
+theorem PSpecP.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
+    {R : EStore → α → Prop} (h : PSpecP P c R) (μ : CheckMode) (env : Env)
+    (fe : IFEnv) : CSpec μ env fe P c R := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
   exact ⟨hstep.toCore hok, hr⟩
 
 /-! ### The `Option` lift
@@ -700,6 +736,225 @@ theorem internParamL_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
   rw [hx]
   rfl
 
+/-- con-leche: none — `internLNode` at a `.max`: `structProjGuards`' fold
+step, and the one level node of this tier with two children. -/
+theorem internMaxL_run {s s' : AState} {a b : LIdx} {aP bP : Level} {h : LIdx}
+    (hok : StateOK s) (ha : denoteL s.store.ls a = some aP)
+    (hb : denoteL s.store.ls b = some bP)
+    (hrun : internLNode (.max a b) s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = some (.max aP bP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internLNode_run hok
+      ⟨by intro c hc
+          simp only [LNodeView.lchildren, List.mem_cons] at hc
+          rcases hc with rfl | rfl | hc
+          · exact lview_isSome_of_denote ha
+          · exact lview_isSome_of_denote hb
+          · exact absurd hc (by simp),
+       by simp [LNodeView.nchildren]⟩ hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteLView, denoteL_ext ha hstep.ext, denoteL_ext hb hstep.ext,
+    opt2]
+
+/-- con-leche: none — **a handle comparison IS a name comparison**, as an
+equation between `Bool`s: `Bridge/Checker/Base.lean`'s `beq_handle_iff` read
+at both signs (restated here rather than imported: that module is not in this
+tier's closure), which is the shape a walk that RETURNS the comparison needs
+(`mentionsConstGo`'s `.const` and `.proj` arms).  The `false` half is
+`denoteN_inj` — DESIGN §8.3's soundness obligation. -/
+theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {n p : NIdx}
+    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
+    (hp : denoteN st.ns p = some x) : (n == p) = (nm == x) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  cases hb : n == p with
+  | true =>
+    obtain rfl := eq_of_beq hb
+    rw [hn] at hp
+    obtain rfl := Option.some.inj hp
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (n == p) = true := beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hp)
+    rw [hb] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — **an EXPRESSION-handle comparison is a structural
+comparison**, at both signs.  The `false` half is `denoteE_inj`
+(`Arena/WFProofs.lean`) — DESIGN §8.3's soundness obligation, which the two
+recognisers cash at every `==`. -/
+theorem beq_ehandle_eq {st : EStore} (hwf : StoreWF st) {a b : EIdx}
+    {x y : Expr} (ha : denoteE st a = some x) (hb : denoteE st b = some y) :
+    (a == b) = (x == y) := by
+  cases h1 : a == b with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (a == b) = true := beq_iff_eq.mpr (denoteE_inj hwf ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — `denoteE_inj` at a LIST: two handle lists that denote
+the same terms ARE the same list. -/
+theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ {as bs : List EIdx} {xs : List Expr},
+      Frontend.denoteEList st as = some xs →
+      Frontend.denoteEList st bs = some xs → as = bs := by
+  intro as
+  induction as with
+  | nil =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteEList] at ha
+    obtain rfl := Option.some.inj ha
+    cases bs with
+    | nil => rfl
+    | cons b bs =>
+      simp only [Frontend.denoteEList] at hb
+      split at hb
+      · exact absurd hb (by simp)
+      · exact absurd hb (by simp)
+  | cons a as ih =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteEList] at ha
+    cases hx : denoteE st a with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : Frontend.denoteEList st as with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        obtain rfl := Option.some.inj ha
+        cases bs with
+        | nil => simp only [Frontend.denoteEList] at hb; exact absurd hb (by simp)
+        | cons b bs =>
+          simp only [Frontend.denoteEList] at hb
+          cases hy : denoteE st b with
+          | none => rw [hy] at hb; simp at hb
+          | some z =>
+            cases hys : Frontend.denoteEList st bs with
+            | none => rw [hy, hys] at hb; simp at hb
+            | some zs =>
+              rw [hy, hys] at hb
+              obtain ⟨rfl, rfl⟩ := List.cons.inj (Option.some.inj hb)
+              rw [denoteE_inj hwf hx hy, ih hxs hys]
+
+/-- con-leche: none — and so a handle-LIST comparison is a structural one. -/
+theorem beq_ehandleList_eq {st : EStore} (hwf : StoreWF st)
+    {as bs : List EIdx} {xs ys : List Expr}
+    (ha : Frontend.denoteEList st as = some xs)
+    (hb : Frontend.denoteEList st bs = some ys) : (as == bs) = (xs == ys) := by
+  cases h1 : as == bs with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteEList_inj hwf ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — a denoting handle list denotes at a PREFIX. -/
+theorem denoteEList_take {st : EStore} :
+    ∀ {hs : List EIdx} {xs : List Expr},
+      Frontend.denoteEList st hs = some xs → ∀ (n : Nat),
+        Frontend.denoteEList st (hs.take n) = some (xs.take n) := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs h n
+    simp only [Frontend.denoteEList] at h
+    obtain rfl := Option.some.inj h
+    simp [Frontend.denoteEList]
+  | cons a as ih =>
+    intro xs h n
+    simp only [Frontend.denoteEList] at h
+    cases hx : denoteE st a with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      cases hxs : Frontend.denoteEList st as with
+      | none => rw [hx, hxs] at h; simp at h
+      | some ys =>
+        rw [hx, hxs] at h
+        obtain rfl := Option.some.inj h
+        cases n with
+        | zero => simp [Frontend.denoteEList]
+        | succ n =>
+          simp only [List.take_succ_cons, Frontend.denoteEList, hx, ih hxs n]
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean getAppFn — the run form of
+`Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
+theorem getAppFn_run {fuel : Nat} {s₀ s' : AState} {h r : EIdx} {hP : Expr}
+    (hok : StateOK s₀) (hd : denoteE s₀.store h = some hP)
+    (hrun : Arena.getAppFn fuel h s₀ = .ok (r, s')) :
+    s' = s₀ ∧ denoteE s₀.store r = some hP.getAppFn := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.getAppFn_spec fuel s₀ h hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 hP hd⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean getAppArgs — the same for the
+argument list. -/
+theorem getAppArgs_run {fuel : Nat} {s₀ s' : AState} {h : EIdx}
+    {rs : List EIdx} {hP : Expr} (hok : StateOK s₀)
+    (hd : denoteE s₀.store h = some hP)
+    (hrun : Arena.getAppArgs fuel h s₀ = .ok (rs, s')) :
+    s' = s₀ ∧ Frontend.denoteEList s₀.store rs = some hP.getAppArgs := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.getAppArgs_spec fuel s₀ h hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 hP hd⟩
+
+/-- con-leche: none — **the level list reads at an INDEX**, with the fallback
+carried through: `structProjGuards`' `sorts.getD j z` against con-leche's
+`sorts.getD j .zero`. -/
+theorem denoteLList_getD {st : LStore} : ∀ {us : List LIdx} {xs : List Level},
+    denoteLList st us = some xs → ∀ {z : LIdx} {zP : Level},
+      denoteL st z = some zP → ∀ (j : Nat),
+        denoteL st (us.getD j z) = some (xs.getD j zP) := by
+  intro us
+  induction us with
+  | nil =>
+    intro xs h z zP hz j
+    simp only [denoteLList] at h
+    obtain rfl := Option.some.inj h
+    simpa using hz
+  | cons u us ih =>
+    intro xs h z zP hz j
+    simp only [denoteLList, opt2] at h
+    cases hu : denoteL st u with
+    | none => rw [hu] at h; simp at h
+    | some y =>
+      cases hus : denoteLList st us with
+      | none => rw [hu, hus] at h; simp at h
+      | some ys =>
+        rw [hu, hus] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero => simpa using hu
+        | succ j => simpa using ih hus hz j
+
+/-- con-leche: none — **`zeroLevel`, as a run**: the pin read this tier's
+`structProjGuards` and `structPartsCore?` open with, and the reason
+`PSpecP` exists. -/
+theorem zeroLevel_run {s s' : AState} {u : LIdx} (hp : PinsOK s)
+    (hrun : Arena.zeroLevel s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls u = some .zero := by
+  simp only [Arena.zeroLevel] at hrun
+  exact AM.of_run (P := fun t => t = s) rfl hrun (pinZeroLevel_spec s hp)
+
 /-- con-leche: none — **`internLsNode`, as a run**: a universe-argument list
 node, which is what `paramLevels` answers. -/
 theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
@@ -834,6 +1089,143 @@ theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
         rw [hn, hl, ht] at h
         obtain rfl := Option.some.inj h
         rfl
+
+
+/-! ### The `.projInfo` NAME GAP
+
+`Frontend.denoteProjTable` drops `tableName`, so
+`Frontend.denoteCI st ci = some c` does NOT give
+`denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
+STORED `t.tableName` and the pure side is the RECOMPUTED
+`projTableName t.structName`.  Three sites above this tier have hit the same
+wall — `IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and (task #97-P3-Checker
+round 2) `installBasisDecl_bridge` — and the fix is NOT to add a hypothesis to
+any of them, nor to make `denoteProjTable` read `tableName` (the denotation is
+deliberately forgetful; `tableName` is the arena's own redundancy, kept so the
+index's key is pure).
+
+The fix is these three lemmas.  `IProjTableOK.named` is the invariant that
+ties the two names, and it is available at every site that needs it: inside
+the index through `IFEnvOK.proj`, and at the ONE install that creates a
+`.projInfo` row (`checkStructProjTable`, this tier's) because the table was
+just built there.  Everywhere else `ci` is provably not a `.projInfo` and the
+first lemma applies with no invariant at all.
+
+**They belong in `Bridge/StateOK.lean`, beside `IProjTableOK`** — that is the
+lowest module that has both `Frontend.denoteCI` and the invariant, and it is
+below the Checker tier, which cannot see this file.  They are proved here
+because this tier owns `IProjTableOK`'s `named` clause and its debtor. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:644 ConstantInfo.name — **a stored
+constant that is not a projection table is named by its own handle.**  Six of
+the seven constructors carry an `IConstantVal` and `denoteCV_name` is the
+whole proof. -/
+theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (hnp : ∀ t, ci ≠ .projInfo t)
+    (h : Frontend.denoteCI st ci = some c) :
+    denoteN st.ns ci.name = some c.name := by
+  cases ci with
+  | axiomInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact denoteCV_name hcv
+  | ctorInfo v nP nF =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact denoteCV_name hcv
+  | defnInfo v e hh =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hcv, he] at h; simp at h
+      | some x =>
+        rw [hcv, he] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | thmInfo v e =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hcv, he] at h; simp at h
+      | some x =>
+        rw [hcv, he] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | indInfo v caps =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases hc : Frontend.denoteCaps st caps with
+      | none => rw [hcv, hc] at h; simp at h
+      | some x =>
+        rw [hcv, hc] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | recInfo v mI rP rs =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases hr : Frontend.denoteRules st rs with
+      | none => rw [hcv, hr] at h; simp at h
+      | some x =>
+        rw [hcv, hr] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | projInfo t => exact absurd rfl (hnp t)
+
+/-- con-leche: ConLeche/Kernel/Env.lean:642 ConstantInfo.toConstantVal (the
+`.projInfo` arm) — **and a projection table is named by its handle exactly
+when `IProjTableOK.named` says so.**  That clause is not decoration: it is the
+only thing that ties the stored `tableName` to the recomputed
+`projTableName`. -/
+theorem denoteCI_name_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
+    (hok : IProjTableOK st t)
+    (h : Frontend.denoteCI st (.projInfo t) = some c) :
+    denoteN st.ns (IConstantInfo.name (.projInfo t)) = some c.name := by
+  obtain ⟨sn, hsn, htn⟩ := hok.named
+  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+  obtain ⟨pt, hpt, rfl⟩ := h
+  simp only [Frontend.denoteProjTable, hsn] at hpt
+  cases hlps : Frontend.denoteNList st.ns t.levelParams with
+  | none => rw [hlps] at hpt; simp at hpt
+  | some lps =>
+    cases hc : denoteN st.ns t.ctor with
+    | none => rw [hlps, hc] at hpt; simp at hpt
+    | some cn =>
+      cases hss : denoteL st.ls t.structSort with
+      | none => rw [hlps, hc, hss] at hpt; simp at hpt
+      | some ss =>
+        cases hbs : Frontend.denoteEArray st t.bodies with
+        | none => rw [hlps, hc, hss, hbs] at hpt; simp at hpt
+        | some bs =>
+          cases hgs : denoteLList st.ls t.guards with
+          | none => rw [hlps, hc, hss, hbs, hgs] at hpt; simp at hpt
+          | some gs =>
+            rw [hlps, hc, hss, hbs, hgs] at hpt
+            obtain rfl := Option.some.inj hpt
+            exact htn
+
+/-- con-leche: none — **the two halves as one**: the name fact at any stored
+constant, asking for `IProjTableOK` only where it is a projection table.  This
+is the shape the three stuck sites want. -/
+theorem denoteCI_name_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (hproj : ∀ t, ci = .projInfo t → IProjTableOK st t)
+    (h : Frontend.denoteCI st ci = some c) :
+    denoteN st.ns ci.name = some c.name := by
+  cases ci with
+  | projInfo t => exact denoteCI_name_proj (hproj t rfl) h
+  | axiomInfo v => exact denoteCI_name (by simp) h
+  | defnInfo v e hh => exact denoteCI_name (by simp) h
+  | thmInfo v e => exact denoteCI_name (by simp) h
+  | indInfo v caps => exact denoteCI_name (by simp) h
+  | ctorInfo v nP nF => exact denoteCI_name (by simp) h
+  | recInfo v mI rP rs => exact denoteCI_name (by simp) h
 
 /-- con-leche: none — a binder telescope's denotation keeps its length. -/
 theorem denoteBinders_length {st : EStore} :
@@ -1035,27 +1427,6 @@ theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv} {st₁ st₂ : EStore}
     · exact Or.inl h''
     · exact Or.inr (h''.mono hx)
   · exact Or.inr h'
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — every counter the
-index build hands out is BELOW the counter it stops at.  What `ProjOut.push`
-needs and the only `mkIFEnvGo` fact outside `Bridge/Promote/Exact.lean`;
-**it belongs there**, beside `IFEnvCoh.push`, and is proved here because this
-round's `ProjOut` is the first consumer. -/
-theorem mkIFEnvGo_counter_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
-    (c : Nat) (ci : IConstantInfo),
-    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < (mkIFEnvGo cs).1 := by
-  intro cs
-  induction cs with
-  | nil => intro n c ci h; simp [mkIFEnvGo] at h
-  | cons a as ih =>
-    intro n c ci h
-    simp only [mkIFEnvGo] at h ⊢
-    rw [Std.HashMap.getElem?_insert] at h
-    split at h
-    · rename_i hEq
-      obtain rfl := Prod.mk.inj (Option.some.inj h) |>.1
-      omega
-    · exact Nat.lt_succ_of_lt (ih n c ci h)
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push that is
 not a projection table owes nothing**.  Thirteen of this tier's fourteen
