@@ -397,6 +397,118 @@ is `Bridge/Promote/Exact.lean`'s business. -/
 
 /-- The name walk, by the fuel's measure; `promote_n_node` derived inside the
 successor step. -/
+/-- `promote_n_node` at the fuel `promote_n` calls it with, from that call's
+own induction hypothesis — the mutual block's second half, which needs no
+induction of its own. -/
+private theorem promote_n_node_aux (n : Nat)
+    (ih : ∀ {pers st lst rm lm} {fuel : Std.U64} {h : arena.handle.NIdx} {o},
+      absU fuel = n → AStateRel pers st lst → AStateInv pers st →
+      PMemoRel rm lm →
+      arena.promote.promote_n pers st rm fuel h = ok o →
+      SimPMF absNIdx pers lst o (promoteN lm n (absNIdx h))) :
+    ∀ {pers st lst rm lm} {fu : Std.U64} {v : arena.store.NNodeView} {o},
+      absU fu = n → AStateRel pers st lst → AStateInv pers st →
+      PMemoRel rm lm →
+      arena.promote.promote_n_node pers st rm fu v = ok o →
+      SimPMF absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) := by
+    intro pers st lst rm lm fu v o hk hrel hinv hm hrun
+    cases v with
+    | Anonymous =>
+      rw [arena.promote.promote_n_node] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨qr, qst⟩ := q
+      have hI := intern_persistent_n_run hrel hinv .Anonymous hq
+      simp only [Sim, AOut, absNNodeView] at hI
+      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
+        StateT.run_bind]
+      cases hqr : qr with
+      | Err e =>
+        rw [hqr] at hI hrun
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho]
+        exact AErrSim.bind hI _
+      | Ok r1 =>
+        rw [hqr] at hI hrun
+        obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := hI
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+        exact ⟨lm, absNIdx r1, lst1, by rw [hx]; rfl, rfl, hm, hrel1, hinv1,
+          hext1⟩
+    | Str p str =>
+      rw [arena.promote.promote_n_node] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hP := ih (h := p) hk hrel hinv hm hq
+      obtain ⟨qr, qst⟩ := q
+      simp only [SimPMF, SimPM, POut] at hP
+      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
+        StateT.run_bind]
+      cases hqr : qr with
+      | Err e =>
+        rw [hqr] at hP hrun
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho]
+        exact AErrSim.bind hP _
+      | Ok p1 =>
+        rw [hqr] at hP hrun
+        obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
+        subst hv
+        obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨q2r, q2st⟩ := q2
+        have hI := intern_persistent_n_run hrel1 hinv1 (.Str p1.2 str) hq2
+        simp only [Sim, AOut, absNNodeView] at hI
+        rw [hx]
+        cases hq2r : q2r with
+        | Err e =>
+          rw [hq2r] at hI hrun
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho]
+          exact AErrSim.bind hI _
+        | Ok r2 =>
+          rw [hq2r] at hI hrun
+          obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+          exact ⟨m', absNIdx r2, lst2,
+            by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
+            hinv2, Ext.trans hext1 hext2⟩
+    | Num p num =>
+      rw [arena.promote.promote_n_node] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hP := ih (h := p) hk hrel hinv hm hq
+      obtain ⟨qr, qst⟩ := q
+      simp only [SimPMF, SimPM, POut] at hP
+      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
+        StateT.run_bind]
+      cases hqr : qr with
+      | Err e =>
+        rw [hqr] at hP hrun
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho]
+        exact AErrSim.bind hP _
+      | Ok p1 =>
+        rw [hqr] at hP hrun
+        obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
+        subst hv
+        obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨q2r, q2st⟩ := q2
+        have hI := intern_persistent_n_run hrel1 hinv1 (.Num p1.2 num) hq2
+        simp only [Sim, AOut, absNNodeView] at hI
+        rw [hx]
+        cases hq2r : q2r with
+        | Err e =>
+          rw [hq2r] at hI hrun
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho]
+          exact AErrSim.bind hI _
+        | Ok r2 =>
+          rw [hq2r] at hI hrun
+          obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+          exact ⟨m', absNIdx r2, lst2,
+            by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
+            hinv2, Ext.trans hext1 hext2⟩
+
 private theorem promote_n_aux (n : Nat) :
     ∀ {pers st lst rm lm} {fuel : Std.U64} {h : arena.handle.NIdx} {o},
       absU fuel = n → AStateRel pers st lst → AStateInv pers st →
@@ -419,109 +531,7 @@ private theorem promote_n_aux (n : Nat) :
     subst ho
     exact POut.err (AErrSim.internal (by rw [promoteN]; rfl))
   | succ n ih =>
-    have hnode : ∀ {pers st lst rm lm} {fu : Std.U64}
-        {v : arena.store.NNodeView} {o},
-        absU fu = n → AStateRel pers st lst → AStateInv pers st →
-        PMemoRel rm lm →
-        arena.promote.promote_n_node pers st rm fu v = ok o →
-        SimPMF absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) := by
-      intro pers st lst rm lm fu v o hk hrel hinv hm hrun
-      cases v with
-      | Anonymous =>
-        rw [arena.promote.promote_n_node] at hrun
-        obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨qr, qst⟩ := q
-        have hI := intern_persistent_n_run hrel hinv .Anonymous hq
-        simp only [Sim, AOut, absNNodeView] at hI
-        simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
-          StateT.run_bind]
-        cases hqr : qr with
-        | Err e =>
-          rw [hqr] at hI hrun
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho]
-          exact AErrSim.bind hI _
-        | Ok r1 =>
-          rw [hqr] at hI hrun
-          obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := hI
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
-          exact ⟨lm, absNIdx r1, lst1, by rw [hx]; rfl, rfl, hm, hrel1, hinv1,
-            hext1⟩
-      | Str p str =>
-        rw [arena.promote.promote_n_node] at hrun
-        obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hP := ih (h := p) hk hrel hinv hm hq
-        obtain ⟨qr, qst⟩ := q
-        simp only [SimPMF, SimPM, POut] at hP
-        simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
-          StateT.run_bind]
-        cases hqr : qr with
-        | Err e =>
-          rw [hqr] at hP hrun
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho]
-          exact AErrSim.bind hP _
-        | Ok p1 =>
-          rw [hqr] at hP hrun
-          obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
-          subst hv
-          obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          obtain ⟨q2r, q2st⟩ := q2
-          have hI := intern_persistent_n_run hrel1 hinv1 (.Str p1.2 str) hq2
-          simp only [Sim, AOut, absNNodeView] at hI
-          rw [hx]
-          cases hq2r : q2r with
-          | Err e =>
-            rw [hq2r] at hI hrun
-            have ho := Result.ok_injective hrun
-            rw [← congrArg Prod.fst ho]
-            exact AErrSim.bind hI _
-          | Ok r2 =>
-            rw [hq2r] at hI hrun
-            obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
-            have ho := Result.ok_injective hrun
-            rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
-            exact ⟨m', absNIdx r2, lst2,
-              by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
-              hinv2, Ext.trans hext1 hext2⟩
-      | Num p num =>
-        rw [arena.promote.promote_n_node] at hrun
-        obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hP := ih (h := p) hk hrel hinv hm hq
-        obtain ⟨qr, qst⟩ := q
-        simp only [SimPMF, SimPM, POut] at hP
-        simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
-          StateT.run_bind]
-        cases hqr : qr with
-        | Err e =>
-          rw [hqr] at hP hrun
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho]
-          exact AErrSim.bind hP _
-        | Ok p1 =>
-          rw [hqr] at hP hrun
-          obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
-          subst hv
-          obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          obtain ⟨q2r, q2st⟩ := q2
-          have hI := intern_persistent_n_run hrel1 hinv1 (.Num p1.2 num) hq2
-          simp only [Sim, AOut, absNNodeView] at hI
-          rw [hx]
-          cases hq2r : q2r with
-          | Err e =>
-            rw [hq2r] at hI hrun
-            have ho := Result.ok_injective hrun
-            rw [← congrArg Prod.fst ho]
-            exact AErrSim.bind hI _
-          | Ok r2 =>
-            rw [hq2r] at hI hrun
-            obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
-            have ho := Result.ok_injective hrun
-            rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
-            exact ⟨m', absNIdx r2, lst2,
-              by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
-              hinv2, Ext.trans hext1 hext2⟩
+    have hnode := promote_n_node_aux n ih
     intro pers st lst rm lm fuel h o hn hrel hinv hm hrun
     rw [arena.promote.promote_n] at hrun
     have hnz : ¬ (fuel = 0#u64) := by
@@ -613,8 +623,10 @@ theorem promote_n_node_refines {pers st lst rm lm} {fuel : Std.U64}
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n_node pers st rm fuel v = ok o) :
     SimPMF absNIdx pers lst o
-      (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) := by
-  sorry
+      (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) :=
+  promote_n_node_aux (absU fuel)
+    (fun hk hrel' hinv' hm' hq => hk ▸ promote_n_refines hrel' hinv' hm' hq)
+    rfl hrel hinv hm hrun
 
 /-- `promote_l` ⊑ `promoteL`. -/
 theorem promote_l_refines {pers st lst rm lm} {fuel : Std.U64}
