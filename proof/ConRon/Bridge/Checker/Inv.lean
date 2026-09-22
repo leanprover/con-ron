@@ -573,11 +573,36 @@ denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
 and "the index is its list's index", because `IEnv.find?` and `Env.find?` are
 the same linear search and `denoteN` is injective on a well-formed store.
 
+**NOT PROVABLE AS STATED** (task #97-P3-Checker-2's second statement
+defect, and it is one clause of the FRONTEND tier's `denoteCI`).  Both halves
+need "the index's key denotes the constant's own name", i.e.
+
+    denoteN st.ns ci.name = some (Frontend.denoteCI st ci).get.name
+
+and at `.projInfo` that is **false of `denoteCI` as it stands**.
+`IConstantInfo.name (.projInfo t)` is the STORED `t.tableName`
+(`Arena/Env.lean`'s "the one field con-leche's `ProjTable` does not have",
+kept so that `IConstantInfo.name` is pure), while `ConstantInfo.name
+(.projInfo tbl)` is the RECOMPUTED `projTableName tbl.structName` — and
+`Frontend.denoteProjTable` **drops `tableName`**, so nothing in the
+denotation constrains it.  A store in which `t.tableName` denotes some other
+name satisfies every hypothesis above and refutes the conclusion.
+
+**The fix is one clause in `Arena/Frontend/Readback.lean`** (the Frontend
+tier's file, not this one): `denoteProjTable` must require
+`denoteN st.ns t.tableName = some (projTableName sn)` — the invariant the
+field exists to make cheap, and which `checkStructProjTable` establishes when
+it builds the table.  With it this theorem is the induction below and nothing
+more.  Until then it is stated, and the consumer that needs it is
+`Arena.checkDeclStep_bridge`'s `ienv` clause and nothing else — the seven arms
+take `IFEnvOK` from `FoldOK.check.ienv`, which is why task
+#97-P3-Checker-2 could prove six of them without this.
+
 `sorry`: the `hit`/`cover` pair is an induction on `fe.env.consts` through
-`mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality.  It is the
-one place `IFEnvCoh` is consumed rather than propagated, and the argument is
-con-leche's `mkFEnv_find?` at a denoted list.  Task #97-P3-Checker's sorry
-list, item 6. -/
+`mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality, PLUS the
+clause above.  It is the one place `IFEnvCoh` is consumed rather than
+propagated, and the argument is con-leche's `mkFEnv_find?` at a denoted list.
+Task #97-P3-Checker's sorry list, item 6. -/
 theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
     (hd : denoteFEnv s.store fe = some env) : IFEnvOK env fe s := by
