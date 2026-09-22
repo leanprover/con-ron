@@ -662,18 +662,30 @@ algorithm"), which is what makes every level-algorithm obligation a pure
 The obligation is a MEMO obligation and not a new algorithm: `denoteL`,
 `denoteN` and `denoteLs` are functions of the store, so a hit answers with the
 row the miss stored.  Which is why these three specs have the SAME conclusion
-as their unmemoised siblings, plus the cache frame. -/
+as their unmemoised siblings, plus the cache frame.
+
+**The frame is a record EQUATION and not a table equation** (task
+#97-P3-CoreWalks): `s'.caches = { s₀.caches with readLC := s'.caches.readLC }`
+says in one line that the call moved this readback memo and *none of the
+other thirteen tables*, which is what a caller rebuilding `CheckOK` needs and
+what the first spelling of these three omitted.  Without it no walk of
+`Arena/Core.lean` that reads a name, a level or a universe-argument list back
+could keep the state invariant, and — since `[spec]` cannot be erased — a
+caller could not prove the missing conjunct for itself either.  It costs
+these three proofs one `rfl` each. -/
 
 @[spec] theorem readLevelM_spec (s₀ : AState) (h : LIdx)
     (hc : ReadLCacheOK s₀.caches.readLC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelM h
     ⦃⇓? u s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
-        s'.pins = s₀.pins ∧ denoteL s₀.store.ls h = some u ∧
+        s'.pins = s₀.pins ∧
+        s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
+        denoteL s₀.store.ls h = some u ∧
         ReadLCacheOK s'.caches.readLC s'.store⌝⦄ := by
   mvcgen [readLevelM]
   all_goals (bridge_peel; subst_vars) <;>
     first
-    | (refine ⟨rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
+    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadLCacheOK]
 
@@ -681,12 +693,14 @@ as their unmemoised siblings, plus the cache frame. -/
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readNameM h
     ⦃⇓? x s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
-        s'.pins = s₀.pins ∧ denoteN s₀.store.ns h = some x ∧
+        s'.pins = s₀.pins ∧
+        s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
+        denoteN s₀.store.ns h = some x ∧
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
   mvcgen [readNameM]
   all_goals (bridge_peel; subst_vars) <;>
     first
-    | (refine ⟨rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
+    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadNCacheOK]
 
@@ -694,12 +708,14 @@ as their unmemoised siblings, plus the cache frame. -/
     (hc : ReadLsCacheOK s₀.caches.readLsC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelsM h
     ⦃⇓? us s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
-        s'.pins = s₀.pins ∧ denoteLs s₀.store.lss h = some us ∧
+        s'.pins = s₀.pins ∧
+        s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
+        denoteLs s₀.store.lss h = some us ∧
         ReadLsCacheOK s'.caches.readLsC s'.store⌝⦄ := by
   mvcgen [readLevelsM]
   all_goals (bridge_peel; subst_vars) <;>
     first
-    | (refine ⟨rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
+    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadLsCacheOK]
 

@@ -7575,6 +7575,193 @@ theorem EStore.dropScratch_spec {st : EStore} (h : StoreWF st) :
    fun _ _ hp hd => EStore.dropScratch_denote_pers h hp hd,
    fun _ hp => denoteE_dropScratch_scr st hp⟩
 
+/-! ### `enableScratch`'s DENOTE half (task #97-P3-CoreWalks, the Checker
+tier's ask 3)
+
+`EStore.dropScratch_spec` carries three conjuncts — the invariant, the view
+and **the denotation** — and `EStore.enableScratch_spec` carried only two.
+The declaration bracket needs the third (`Bridge/Checker/**`'s
+`PExt.enterScratch`: a pin handle interned before the prelude must still
+denote after the scratch tier is opened), so here it is.
+
+**The proof is one observation and no induction of its own.**
+`enableScratch` and `dropScratch` differ in exactly one field, `scratchOn`,
+and both set the scratch tier to `empty`.  A handle's `view` therefore does
+not tell them apart: a persistent handle reads the same `pers` array in both,
+and a scratch handle reads `none` in both — in `dropScratch` because the flag
+is off, in `enableScratch` because the table it reads is empty.  So
+`denote… st.enableScratch = denote… st.dropScratch` **as functions**, at all
+four stores, and every `enableScratch` fact is the corresponding
+`dropScratch` fact rewritten.  That is also why this is the honest way to
+state it: the two operations really do have the same denotation, and the
+`scratchOn` flag is about what `intern` will do NEXT, not about what the
+store means. -/
+
+theorem NStore.view_enableScratch_eq_dropScratch (st : NStore) (i : NIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [NStore.view, NStore.enableScratch, NStore.dropScratch]
+  split
+  · rfl
+  · simp [NTables.get_empty]
+
+theorem LStore.view_enableScratch_eq_dropScratch (st : LStore) (i : LIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [LStore.view, LStore.enableScratch, LStore.dropScratch]
+  split
+  · rfl
+  · simp [LTables.get_empty]
+
+theorem LsStore.view_enableScratch_eq_dropScratch (st : LsStore) (i : LsIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [LsStore.view, LsStore.enableScratch, LsStore.dropScratch]
+  split
+  · rfl
+  · simp [LsTables.get_empty]
+
+theorem EStore.viewBM_enableScratch_eq_dropScratch (st : EStore) (i : BMIdx) :
+    st.enableScratch.viewBM i = st.dropScratch.viewBM i := by
+  simp only [EStore.viewBM, EStore.enableScratch, EStore.dropScratch,
+    EStore.persGetBM]
+  split
+  · rfl
+  · simp [ETables.getBM_empty]
+
+theorem EStore.viewBindI_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
+    st.enableScratch.viewBindI i = st.dropScratch.viewBindI i := by
+  simp only [EStore.viewBindI, EStore.enableScratch, EStore.dropScratch,
+    EStore.persGetBind]
+  split
+  · rfl
+  · simp [ETables.getBind_empty]
+
+theorem EStore.viewBind_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
+    st.enableScratch.viewBind i = st.dropScratch.viewBind i := by
+  simp only [EStore.viewBind, EStore.viewBindI_enableScratch_eq_dropScratch,
+    EStore.viewBM_enableScratch_eq_dropScratch]
+
+theorem EStore.view_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [EStore.view, EStore.viewBind_enableScratch_eq_dropScratch]
+  split
+  · rfl
+  · simp only [EStore.enableScratch, EStore.dropScratch]
+    split
+    · rfl
+    · simp [ETables.get_empty]
+
+/-! The projections through the nesting, so that the congruences below can
+rewrite with the store-level lemmas instead of unfolding the record. -/
+
+theorem LStore.ns_enableScratch (st : LStore) :
+    st.enableScratch.ns = st.ns.enableScratch := rfl
+theorem LStore.ns_dropScratch (st : LStore) :
+    st.dropScratch.ns = st.ns.dropScratch := rfl
+theorem LsStore.ls_enableScratch (st : LsStore) :
+    st.enableScratch.ls = st.ls.enableScratch := rfl
+theorem LsStore.ls_dropScratch (st : LsStore) :
+    st.dropScratch.ls = st.ls.dropScratch := rfl
+theorem EStore.lss_enableScratch (st : EStore) :
+    st.enableScratch.lss = st.lss.enableScratch := rfl
+theorem EStore.lss_dropScratch (st : EStore) :
+    st.dropScratch.lss = st.lss.dropScratch := rfl
+theorem EStore.ls_enableScratch (st : EStore) :
+    st.enableScratch.ls = st.ls.enableScratch := rfl
+theorem EStore.ls_dropScratch (st : EStore) :
+    st.dropScratch.ls = st.ls.dropScratch := rfl
+theorem EStore.ns_enableScratch (st : EStore) :
+    st.enableScratch.ns = st.ns.enableScratch := rfl
+theorem EStore.ns_dropScratch (st : EStore) :
+    st.dropScratch.ns = st.ns.dropScratch := rfl
+
+theorem denoteNAux_enableScratch_eq (st : NStore) :
+    ∀ (f : Nat) (i : NIdx),
+      denoteNAux st.enableScratch f i = denoteNAux st.dropScratch f i := by
+  intro f
+  induction f with
+  | zero => intro _; rfl
+  | succ k ih =>
+    intro i
+    simp only [denoteNAux, NStore.view_enableScratch_eq_dropScratch, ih]
+
+theorem denoteN_enableScratch_eq (st : NStore) (i : NIdx) :
+    denoteN st.enableScratch i = denoteN st.dropScratch i := by
+  show denoteNAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
+  rw [denoteNAux_enableScratch_eq]
+  rfl
+
+theorem denoteLAux_enableScratch_eq (st : LStore) :
+    ∀ (f : Nat) (i : LIdx),
+      denoteLAux st.enableScratch f i = denoteLAux st.dropScratch f i := by
+  intro f
+  induction f with
+  | zero => intro _; rfl
+  | succ k ih =>
+    intro i
+    simp only [denoteLAux, LStore.view_enableScratch_eq_dropScratch, ih,
+      LStore.ns_enableScratch, LStore.ns_dropScratch, denoteN_enableScratch_eq]
+
+theorem denoteL_enableScratch_eq (st : LStore) (i : LIdx) :
+    denoteL st.enableScratch i = denoteL st.dropScratch i := by
+  show denoteLAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
+  rw [denoteLAux_enableScratch_eq]
+  rfl
+
+theorem denoteLList_enableScratch_eq (st : LStore) :
+    ∀ (us : List LIdx),
+      denoteLList st.enableScratch us = denoteLList st.dropScratch us
+  | [] => rfl
+  | u :: us => by
+    simp only [denoteLList, denoteL_enableScratch_eq,
+      denoteLList_enableScratch_eq st us]
+
+theorem denoteLs_enableScratch_eq (st : LsStore) (i : LsIdx) :
+    denoteLs st.enableScratch i = denoteLs st.dropScratch i := by
+  simp only [denoteLs, LsStore.view_enableScratch_eq_dropScratch,
+    LsStore.ls_enableScratch, LsStore.ls_dropScratch,
+    denoteLList_enableScratch_eq]
+
+theorem denoteEAux_enableScratch_eq (st : EStore) :
+    ∀ (f : Nat) (i : EIdx),
+      denoteEAux st.enableScratch f i = denoteEAux st.dropScratch f i := by
+  intro f
+  induction f with
+  | zero => intro _; rfl
+  | succ k ih =>
+    intro i
+    simp only [denoteEAux, EStore.view_enableScratch_eq_dropScratch, ih,
+      EStore.ls_enableScratch, EStore.ls_dropScratch, EStore.ns_enableScratch,
+      EStore.ns_dropScratch, EStore.lss_enableScratch, EStore.lss_dropScratch,
+      denoteL_enableScratch_eq, denoteN_enableScratch_eq,
+      denoteLs_enableScratch_eq]
+
+theorem denoteE_enableScratch_eq (st : EStore) (i : EIdx) :
+    denoteE st.enableScratch i = denoteE st.dropScratch i := by
+  show denoteEAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
+  rw [denoteEAux_enableScratch_eq]
+  rfl
+
+/-- con-leche: none — arena infrastructure; **opening the scratch tier keeps
+every persistent denotation**.  The `dropScratch` half has been there since
+task #97a; this is its twin, and `Bridge/Checker/**`'s `PExt.enterScratch`
+is what wanted it (task #97-P3-CoreWalks). -/
+theorem EStore.enableScratch_denote_pers {st : EStore} (h : StoreWF st)
+    {i : EIdx} {e : Expr} (hp : i.isPersistent = true)
+    (hd : denoteE st i = some e) : denoteE st.enableScratch i = some e := by
+  rw [denoteE_enableScratch_eq]
+  exact EStore.dropScratch_denote_pers h hp hd
+
+/-- con-leche: none — arena infrastructure; `EStore.enableScratch_spec` with
+the denote conjunct `EStore.dropScratch_spec` has had all along. -/
+theorem EStore.enableScratch_spec' {st : EStore} (h : StoreWF st) :
+    StoreWF st.enableScratch ∧
+      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) ∧
+      (∀ i e, i.isPersistent = true → denoteE st i = some e →
+        denoteE st.enableScratch i = some e) ∧
+      (∀ i, i.isPersistent = false → denoteE st.enableScratch i = none) :=
+  ⟨EStore.enableScratch_wf h, fun _ hp => EStore.view_enableScratch_pers_wf h hp,
+   fun _ _ hp hd => EStore.enableScratch_denote_pers h hp hd,
+   fun _ hp => denoteE_enableScratch_scr st hp⟩
+
 /-! ### The same, for the three stores underneath
 
 Names, levels and level lists have the identical shape; their `Ext`,
