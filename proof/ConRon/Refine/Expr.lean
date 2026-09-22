@@ -35,7 +35,9 @@ from its children, and equal children give an equal call.
 -/
 import ConRon.Refine.Level
 import ConRon.Refine.PropWhen
-import ConRon.Refine.Excl
+-- `ConRon.Refine.Excl` (the exclusive-memo gate of `cached::expr_ops_c`) went to
+-- `ConRon.RefineOld` at task #97-SWAP with the rest of the cached tier; nothing
+-- here used it.
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
