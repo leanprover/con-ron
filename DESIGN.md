@@ -41060,3 +41060,214 @@ axiom at all; they are not censused.)
 | `scripts/overview-links.sh` | OK |
 | `scripts/holes.sh --check` | OK |
 | the diff | `proof/ConRon/Refine2/Frontend/**`, `proof/ConRon/Refine2.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, nothing under `Refine2/` but the new directory and the root index — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+### Task #97-CENSUS — the arena's own ledger (2026-09-22, Opus under Fable)
+
+`scripts/progress.py` has been the repository's standing progress report
+since §7, and since task #97-SWAP it has been reporting on a tower that no
+longer exists: it credits a con-leche declaration when some Rust item cites
+it and when `proof/ConRon/Refine/<M>.lean` states that item's `f_refines`,
+and `Refine/` was deleted.  It still describes master, so it stays; the
+arena branch needed a second report, about the two theorems it is actually
+building.  Branch `census` off `arena`'s tip `e0616fdf`; nothing under
+`proof/` or `crates/` is touched.
+
+#### 1. What the census counts, and why the unit is the twin
+
+The unit is **one top-level `def` of `proof/ConRon/Arena/**`** — the Lean
+twin (B) — and each one is asked the two questions the phase plan asks:
+
+* **T1**, the bridge (B ⇒ A): does `proof/ConRon/Bridge/**` state a theorem
+  about it, and is the block `sorry`-free?
+* **T2**, the refinement (C ⇒ B): which Rust function cites it as its `Lean
+  twin:`, does `proof/ConRon/Refine2/**` state that function's
+  `<rust_fn>_refines`, and is that block `sorry`-free?
+
+Everything is read out of the source tree — python3 stdlib, no build,
+**1.7 s** over 1 564 twins, 1 311 Bridge theorems, 1 259 Refine2 theorems
+and 1 924 `Lean twin:` citations.  The `Lean twin:` parser is
+`scripts/twin-lines.py`'s, imported and not copied, and the Lean declaration
+parser under both is `provenance.py`'s: one parser, one set of rules about
+what a top-level declaration is, three scripts.
+
+Three decisions about the unit, each of which changes the denominator:
+
+1. **Arms belong to their dispatcher.**  Task #97-TWIN's rule — "one Rust
+   function ↔ the twin's DISPATCHER; the arms are the twin's own shape" — is
+   followed in both directions: an arm contributes no row, its own bridge
+   theorems (`instantiate1ArmApp_spec`) count toward the dispatcher's T1, and
+   a `sorry` in any of them un-closes the dispatcher.  **99 arms fold in**,
+   all of them `Arena/ExprOps.lean`'s, and the rule that finds them is
+   structural rather than name-based: an `Arm[A-Z]` definition that exactly
+   ONE non-arm definition of its file mentions.  That reproduces all 99
+   dispatcher pairs including the six whose stems differ from their
+   dispatcher's (`instListArmApp` under `instantiateList`, `liftArmApp`
+   under `liftLooseBVarsGo`) and the one arm that sits outside its mutual
+   block because it does not recurse (`instantiate1ArmBVar`).
+2. **`abbrev` is not a twin.**  The arena's 33 are type synonyms (`abbrev
+   EIdx := Idx .expr`, `abbrev AM := StateT AState (Except CheckError)`) and
+   `@f` aliases of a `def` that already has a row (`abbrev checkSumTeleF :=
+   @checkSumTele`).  Counting them put `EIdx`, `NIdx` and `AM` at the top of
+   the "no bridge theorem" list, which is noise.
+3. **A skip needs a reason**, in `scripts/arena-census-skip.txt`, in
+   `provenance-skip.txt`'s shape plus a scope column:
+   `<path> <decl|*> <T1|T2|BOTH> <reason>`.  **360 twins are skipped for T1
+   and 291 for T2** — the six executable-fixture modules and `Bench.lean`,
+   `Main.lean` (the unverified driver, whose one seam `runPipeline` is a
+   `Checker.lean` row), `Frontend/PreludeText.lean` for T1 only (generated
+   bytes, already held to the byte by `gen-prelude-lean.sh --check`; its T2
+   is owed and stated, because `prelude.rs` cites `preludeText`), the three
+   class-(S) gated/io knot variants, and the six fuel constants (Theorem 1
+   quantifies the fuel existentially, so no theorem mentions their values).
+   A skip naming no definition is reported STALE, one whose twin is stated
+   anyway REDUNDANT, one with no reason MALFORMED.
+
+#### 2. The conventions, discovered rather than decreed
+
+The T1 conventions were read off the tree: every `theorem` of `Bridge/**`
+was attributed to the longest twin name it starts with, and the suffix
+distribution tabulated.  What counts as *the statement about `X`*:
+
+| suffix | what it is | at the tip |
+|---|---|---:|
+| `_spec` | the Hoare triple, `⦃fun s => ⌜s = s₀⌝⦄ X … ⦃…⦄` | 373 |
+| `_run` | the run form, `X … s = .ok (r, s') → …` | 79 |
+| `_bridge`, `_bridge_defn`/`_thm`/`_ind`/… | §8.2's own name for the join point | 23 |
+| `_specV` / `_specI` / `_specG` / `_specF` / `_spec'` | the value, invariant, generic, fuelled and second spellings | 24 |
+| `_exact` | the frontend tier's exactness statement | 2 |
+
+Everything else (`_ext`, `_pext`, `_step`, `_of_not_lam`, `_leaf`, …) is a
+side lemma and does not count as stated.  T2's convention is prescriptive:
+`<rust_fn>_refines`, or `<rust_fn>_no_claim` (15 of those, which count as
+stated AND closed and are flagged `(N)`).  A twin cited by several Rust
+functions needs one lemma EACH — `checkDecl` is cited by 18 — so the row is
+stated only when every citing function has one, and a row where some do is
+`part` rather than either.
+
+**The self-check line is the part that matters**, and it exists because a
+convention the script does not know would otherwise pass silently as
+"unstated".  It reports four populations, and the second one is a finding:
+
+* **658 twins with NO Bridge theorem naming them at all** — genuinely
+  unstated;
+* **79 matched ONLY by an unrecognised suffix** (Store 41, Frontend 19, Core
+  10, Checker 4, ExprOps 4, Promote 1).  At least one of those IS the
+  statement: `Bridge/ExprOps/Subst.lean`'s `eidxCopyUpto_toList` says
+  "**Theorem 1 for `eidxCopyUpto`**" in its own doc comment.  So the 737
+  "T1 unstated" rows are an upper bound, over by up to 79, and closing that
+  gap is a naming decision for the coordinator rather than a script change;
+* **31 Bridge theorems credited to more than one twin** — one unqualified
+  `viewApp_spec` and two twins with the leaf `viewApp` (`Monad.lean`'s
+  wrapper and `Store.lean`'s projection).  Both rows read "stated";
+* on the T2 side, **379 cited twins with no Refine2 theorem naming their
+  Rust function at all**, against **176 named by a theorem under another
+  shape** (Store 163) — the store tier's specs are `estore_view_app_abs` and
+  `derived_e_run`, not `view_app_refines`, so its `6/315` T2 column is a
+  statement about the NAMING and not about the work.
+
+#### 3. The numbers at `e0616fdf`
+
+| tier | twins | T1 owed | T1 stated | T1 closed | T2 owed | T2 cited | T2 stated | T2 closed |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `Arena/Store` | 315 | 315 | 116 (36%) | 111 (35%) | 315 | 218 (69%) | 6 (1%) | 1 (0%) |
+| `Arena/ExprOps` | 92 | 92 | 86 (93%) | 74 (80%) | 92 | 86 (93%) | 86 (93%) | 10 (10%) |
+| `Arena/Core` | 232 | 213 | 38 (17%) | 13 (6%) | 213 | 197 (92%) | 13 (6%) | 6 (2%) |
+| `Arena/Checker` | 294 | 292 | 45 (15%) | 8 (2%) | 292 | 170 (58%) | 150 (51%) | 1 (0%) |
+| `Arena/Inductives` | 130 | 130 | 127 (97%) | 9 (6%) | 130 | 130 (100%) | 1 (0%) | 0 (0%) |
+| `Arena/Frontend` | 257 | 141 | 46 (32%) | 2 (1%) | 210 | 110 (52%) | 101 (48%) | 5 (2%) |
+| `Arena/Promote` | 21 | 21 | 9 (42%) | 0 (0%) | 21 | 21 (100%) | 20 (95%) | 0 (0%) |
+| `Arena/Driver` | 25 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
+| `Arena/Tests` | 198 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
+| **total** | **1564** | **1204** | **467 (38%)** | **217 (18%)** | **1273** | **932 (73%)** | **377 (29%)** | **23 (1%)** |
+
+`T1 owed` / `T2 owed` are the twins less that tier's skips; every percentage
+is against those.  The `--summary` line `scripts/gates.sh` now prints is the
+same table plus:
+
+    arena census: 1564 twins (+99 arms folded in, 360 skipped for T1, 291 for T2)
+      | T1 stated 38% closed 18% | T2 stated 29% closed 1%
+
+Read across the two halves, the shape of the campaign is legible in one
+glance:
+
+* **`ExprOps` is the tier that is actually finished on the bridge side** —
+  86 of 92 stated, 74 closed — and it is the tier that went through
+  P3-0/P3-1's exemplar and arm split.  Its T2 column is stated 93 % and
+  closed 10 %: the statements are all there, the proofs are not;
+* **`Inductives` is stated 97 % and closed 6 %**, which is P3-Ind's own
+  report ("the statements first, the arms after") turned into a number;
+* **`Core` and `Checker` are where the bridge work is**: 38 of 213 and 45 of
+  292 stated.  Those two tiers hold 422 of the 737 unstated rows;
+* **T2 closed is 23 of 1 273**, i.e. the refinement tier is a statement
+  layer at this point and almost nothing in it is discharged.  `ExprOps` (10)
+  and `Core` (6) hold most of what is;
+* the **`Store` T2 column (6 stated of 315)** is the naming artefact of §2,
+  not a hole: 163 of its rows have a Refine2 theorem naming their Rust
+  function under the `_abs`/`_run` shape.
+
+#### 4. `--open`, the work list
+
+`scripts/arena-census.py --open` groups exactly the rows with something
+missing, which is what a coordinator hands out.  Per tier at this tip:
+
+| what is missing | total | Store | ExprOps | Core | Checker | Inductives | Frontend | Promote |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| T1 UNSTATED — no Bridge theorem | 737 | 199 | 6 | 175 | 247 | 3 | 95 | 12 |
+| T1 SORRY — stated, not closed | 250 | 5 | 12 | 25 | 37 | 118 | 44 | 9 |
+| T2 UNCITED — no Rust function names it | 341 | 97 | 6 | 16 | 122 | 0 | 100 | 0 |
+| T2 UNSTATED — cited, no `<fn>_refines` | 555 | 212 | 0 | 184 | 20 | 129 | 9 | 1 |
+| T2 SORRY — stated, not closed | 354 | 5 | 76 | 7 | 149 | 1 | 96 | 20 |
+
+The **341 T2-UNCITED** rows are the one group that is not proof work: a twin
+no Rust function cites is either a definition the Rust inlined, one that
+exists only for the bridge (`WF.lean`'s `StoreWF`, `Tbl.Sized` — `Prop`s,
+which the Rust has no counterpart for at all), or a genuine gap in the
+`Lean twin:` ledger.  Sorting that group is the cheapest thing on this list
+and it is worth doing before the T1 rounds are handed out, because a twin
+with no Rust side is a twin whose T2 row is noise.
+
+#### 5. The self-test
+
+`scripts/arena-census.py --selftest` runs the WHOLE census over
+`scripts/testdata/arena-census/`, a **twenty-row miniature** of the real
+tree — its own `Arena/`, `Bridge/`, `Refine2/`, `crates/` and skip file —
+and compares every verdict with `expected.txt`.  The twenty were picked by
+hand across the tiers and each one's verdict confirmed against the real
+files before being copied in: `instantiate1Go` (closed / `sorry`, with an
+ARM's `_spec` counted into it), `exprPtrBEq` (closed / closed, the `_exact`
+convention), `iotaRec` (`sorry` / `part`, two citing functions and one
+lemma), `checkDecl` (`_bridge_defn`), `checkDeclsPure` (a namespaced
+`Arena.checkDeclsPure_bridge`), `reboundError` (a `_no_claim`),
+`eidxCopyUpto` and `PMemo.empty` (the unrecognised-suffix case),
+`coreWalkFuel` and `StoreTest.lean`'s `fixture` (skipped), `preludeText`
+and `P00` (skipped for T1, not for T2), `internE` (`_specV`), `flushCaches`
+(`_run`), `derivedE` / `viewApp` / `isBoolTrue` (stated on the bridge,
+nothing on the refinement), `instantiateList` and `promoteN` (`sorry` both
+sides), `wscopedBFast` (closed both sides).
+
+A fixture and not the repository, because eight agents are writing under
+`proof/` at any moment: an expectation pinned to the live tree would go red
+every hour and say nothing about the script.  This one does not move, so a
+red `--selftest` is always a bug in `arena-census.py` — verified by flipping
+`isBoolTrue_spec`'s proof to `sorry` in the fixture, which turns exactly one
+row and nothing else.  It runs in **0.07 s**.
+
+#### 6. The gate hook, and what this is not
+
+`scripts/gates.sh` prints `arena-census.py --summary` after `progress.py`'s
+summary and before `loc.py`'s, with `|| true` and a comment saying why: **a
+census that can FAIL is a census people route around.**  The gates' thirteen
+steps are unchanged, so the numbered list in the header and OVERVIEW §12's
+table of gates do not move — the census is in the report block below
+`gates: all 13 OK`, where `progress.py` already lives.
+
+And `scripts/progress.py` is deliberately untouched.  It reports on master's
+tower, which is still the shipping one; when the arena lands, the two reports
+swap places rather than one being edited into the other.
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | all 13 OK, and the hook prints (below) |
+| `scripts/arena-census.py --selftest` | 20 fixture rows, every verdict as recorded (0.07 s) |
+| `scripts/arena-census.py --summary` | 1.7 s, no STALE / REDUNDANT / MALFORMED skip, no orphan arm |
+| the diff | `scripts/arena-census.py` (new), `scripts/arena-census-skip.txt` (new), `scripts/testdata/arena-census/**` (new), `scripts/gates.sh` (one hook line and its comment), this section.  **No file under `proof/` or `crates/`**, no generated model |
