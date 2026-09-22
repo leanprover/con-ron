@@ -39720,7 +39720,7 @@ con-leche's own generator.
 hypotheses of the statements, not axioms of the environment, which is what
 makes "four named hypotheses" a checkable claim rather than an editorial one.
 
-#### 7. The sorry list — twenty-six items, 56 declarations
+#### 7. The sorry list — twenty-four open items (of twenty-six), 56 declarations
 
 Each is `sorry` with its reason at the site.  Grouped by what discharges it.
 
@@ -39729,7 +39729,7 @@ Each is `sorry` with its reason at the site.  Grouped by what discharges it.
 | 1 | `denoteEGo_spec`, `denoteEShared_isSome`, `denoteCVGo_spec`, `denoteCIListGo_spec`, `readExpr_run`, `readCIList_run`, `denoteBlockRec_eq_of_rel` | the memoised readback's ten-arm fuel induction with `DMemoOK`, then the record layers over it.  The memo is WHITE (a node is inserted after its children are built), so unlike `Bridge/ExprOps/Leaves.lean`'s `fvarLeavesGo_spec` there is no gray phase and no second induction on `StoreWF`'s rank |
 | 2 | `internExpr_run`, `internDecls_run` | the intern direction: a structural recursion over `ConLeche.Expr`, each arm one `Bridge/Specs.lean` `internE` face, with `EMemoOK` carried |
 | 3 | `ctxOf_eq_of_rel` | `nameHandle?`'s exactness plus `denoteN_inj` — the one place the delegation's three closures meet the relation |
-| 4 | (closed — §4) | — |
+| 4 | `StateDRel.ext`, `ParseResultRel.ext` | **closed during the round** (§4): eighteen clauses, one `Bridge/Rel.lean` `…_ext` lemma each, over four transports the library did not have (`denoteCIList_ext`, `denoteDecl_ext`, `denoteDecls_ext`, `denoteDeclArray_ext`) |
 | 5 | `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run`, `parsePwD_run`, `parseCVD_run` | the three entry parsers.  `parseExprEntryD_run` is the tier's real work: ten constructors over `Bridge/Specs.lean`'s ten `internE` faces, with `lam`/`forallE` through `Bridge/StoreBind.lean`'s `internBindIE_spec'`.  This is where DESIGN §8.3's "the export's sharing is preserved exactly (lesson 25)" becomes a theorem |
 | 6 | `noteDecl_run`, `pushDecl_run`, `parseRuleD_run`, `blockRecOf_run` | `MapRel.insert` at `constTypes`/`heights`, and the three `mapM`s |
 | 7 | `validateIndD_run`, `installIndD_run` | the inductive record's two halves; `installIndD_run` is the ONE consumer of the modeller's promises |
@@ -39739,7 +39739,7 @@ Each is `sorry` with its reason at the site.  Grouped by what discharges it.
 | 11 | `occursConstFast_run`, `stripPisAll_run`, `mkLams_run` | the three term walks; `occursConstFast_run` has the GRAY `seen`-set shape `fvarLeavesGo_spec` is open on |
 | 12 | `projRecValue_run`, `projRewriteD_run` | the rewrite, over items 10-11 and the `ProjBinderKind` dispatch |
 | 13 | `projRecOwners_run`, `registerProjOwners_run` | the owner census and §5's finding 5 (the reordering), plus the two recognisers' exactness, which is the Inductives tier's |
-| 14 | (closed — §5's finding 3) | — |
+| 14 | `parseChunksC_eq`, `parseChunks_eq` | **closed during the round** (§5's finding 3): con-leche's `where go` is nameable across the package boundary, so the escape hatch is a six-line list induction rather than an assumption |
 | 15 | `StateD_init_run` | two intern specs and `IdTableRel.singleton`; the base case of the whole induction, and the one place this tier would use `mvcgen` |
 | 16 | `applyFinalLine_run`, `feedChunk_run` | **the tier's second critical path**: `feedChunk`'s strong induction on `b.size - i.toNat` (the twin's own `termination_by`), with `applyLine_run` at the step.  The two guards are con-leche's own functions on the same bytes, evaluated once and shared |
 | 17 | `chunkStep_run`, `chunkFinish_run` | the size guard, the `carry ++ buf0` concatenation (the same `ByteArray` on both sides) and item 16 |
