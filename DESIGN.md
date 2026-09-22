@@ -43181,6 +43181,196 @@ a search.
 | `scripts/gates.sh` | all 13 OK |
 | the diff | `proof/ConRon/Bridge/Frontend/{Capstone,Shared,Modeller,ProjRec,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module — `Bridge/Specs.lean` was not touched after all (finding 13) |
 
+#### Round 4 — the three table entries, the projection artifact, and two frames that were not true
+
+Off `arena`'s tip `c80e9c34`, merged forward to `65a2aa9e`, on the same nine
+modules.  Brief: take `projRecOwners_run` now that the Inductives tier has
+stated the two `isSome` lemmas, and if `ProjRec.lean` stalls take `Lines.lean`
+or `Prepare.lean` and get one of them to zero.
+
+**Eight of the twenty-four closed**, and the tier's closed census is **153**
+(was 121).  The two things worth the round, though, are not the eight: they
+are **two statement defects, both of the "says too much to be true" kind**
+(round 3's finding 14, again) — one repaired and closed here, one reported and
+deliberately left open because its repair is a hypothesis and therefore the
+maintainer's call.
+
+| item | declarations | |
+|---|---|---|
+| 5 | `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run` | **the three table entries**, the `.expr` one ten constructors wide |
+| 6 (part) | `blockRecOf_run` | the parsed block the seam is handed |
+| 10 | `isProjIotaName_run`, `projIotaLevel_run` | the artifact's recogniser and its `Eq` level — the second one **restated** (finding 15) |
+| 11 (part) | `stripPisAll_run`, `mkLams_run` | the rewrite's two telescope peels |
+
+**`Lines.lean` did not reach zero and `Prepare.lean` cannot**, and finding 16
+is why: **eight of the eleven still open in those two modules** (both of
+`Lines.lean`'s item 6 and every one of `Prepare.lean`'s six) are blocked on a
+statement question and not on a proof.
+
+##### Finding 15 — `projIotaLevel_run`'s frame said `s' = s` of a walk that INTERNS
+
+`Arena/Frontend/projIotaLevel` ends in
+
+    let eqH ← internName ConLeche.eqName
+    pure (if n == eqH then some l else none)
+
+— the twin SPEAKS the name `Eq` in order to compare the head constant against
+it, and speaking a name means interning it (the module note's own third
+bullet: *"a name the rewrite needs to SPEAK … is interned"*).  On a store that
+does not already hold `Eq` the run extends the arena, so round 1's `s' = s` is
+not true of it.  This is finding 14's shape exactly: a promise that holds only
+of the states where the function happens to do nothing.
+
+The repair is a STRENGTHENING and not a weakening, so round 4 made it and
+proved the result:
+
+* the frame is `ParseStep s s'`, which the one consumer (`noteProjIota`,
+  `Arena/Frontend/ExportC.lean:325-334`) can carry — it inserts the answer
+  into `StateD.projLevels`, whose relation is read at the state the step
+  LEAVES;
+* the answer is an `OptRel` and **not** the accept direction alone.  Round 1
+  wrote `∀ l, o = some l → …`, and that is too weak for the consumer:
+  `projLevels` is a `MapRel`, `MapRel`'s `cover` clause reads the `none` case,
+  and a level con-leche registers that the twin does not would break it.  The
+  two-sided statement is where **`denoteN_inj` becomes load-bearing** in this
+  module — the twin compares HANDLES where con-leche compares names, and only
+  injectivity rules out a twin miss at a con-leche hit.
+
+##### Finding 16 — `IDeclaration.names` and `IConstantInfo.toConstantVal` are not exact at a `.projInfo`, and eight statements assume they are
+
+This is the round's real result and it is a defect in the STATEMENTS, not in
+the port.  Two halves, both at `.projInfo`:
+
+**(a) The frame.**  `IConstantInfo.toConstantVal` (`Arena/Env.lean:224-230`)
+has a `.projInfo` arm that interns — `internLNode .zero`,
+`internLNode (.succ z)`, `internE (.sort one)` — because con-leche's
+`ConstantInfo.toConstantVal` builds the closed dummy type `Sort 1` as a VALUE
+(`ConLeche/Kernel/Env.lean:642`).  So `noteDecl` (its `.indDecl` arm maps
+`toConstantVal` over the block) and `IDeclaration.usedConsts` (through
+`usedConstsBlock`) both MOVE the store, and `noteDecl_run`, `pushDecl_run`,
+`usedConsts_run`, `hoistTargets_run` and `hoistNatOpGround_run` all say
+`s' = s`.
+
+**(b) The name.**  `IConstantInfo.name` at a `.projInfo tbl` is the STORED
+handle `tbl.tableName`, where con-leche's is
+`ConLeche.projTableName tbl.structName` — and `denoteProjTable`
+(`Arena/Frontend/Readback.lean:159-168`) **does not mention `tableName` at
+all**.  `Bridge/StateOK.lean:507-511`'s `IProjTableOK.named` is the only thing
+that ties the two.  So `denoteDecl st d = some dP` does NOT give
+`denoteNList st.ns d.names = some dP.names`, and `noteDecl_run`,
+`preludeKey_run`, `pick_denote`, `frontOf_run` and `hoistTargets_run` all need
+exactly that.
+
+**Why it cannot be discharged at the call site.**  Neither half is reachable
+from a PARSED record — a parsed `.indDecl` block holds `indInfo`/`ctorInfo`/
+`recInfo` only.  But these theorems quantify over every `IDeclaration` that
+denotes, and `pushGenList` pushes what the **modeller** generated, which
+`ModellerWF`/`ModellerRefines` constrain only by
+`(denoteDecls s'.store hs).isSome`.  So the missing fact is not available
+upstream either.  **Two repairs are possible and they are not equivalent**:
+
+1. give each statement an `IProjTableOK` side condition for the projection
+   tables of its block — honest, local, and it propagates as an obligation all
+   the way up to `processLineCoreD_run` and the capstone's `hmw`/`hmr`; or
+2. strengthen the seam's promise (`Bridge/Frontend/Modeller.lean`) to say that
+   a generated record's projection tables are well formed — one place instead
+   of eight, at the cost of asking more of an unverified modeller.
+
+Round 4 did neither: adding a hypothesis is a weakening of a stated theorem
+and the campaign's rule is to stop and say so.  **The eight statements carry
+the finding in their `sorry` notes** so the next round starts from the
+decision rather than from the surprise.
+
+##### The three table entries, and what made them cheap
+
+Item 5 is the line's parse proper — a name entry, a level entry and an
+expression entry — and after round 3's intern direction it is four moves each:
+read the children out of the three tables (`StateD_{name,level,expr}_run`,
+plus the new `StateD_levels_run` for the `const` arm's universe list), intern
+the node in `Bridge/Frontend/Shared.lean`'s `IStep` frame, transport the
+children's denotations across the append, and write the table.  What the round
+added to the vocabulary is small and all of it is reused:
+
+* `freshName_run` / `freshLevel_run` / `freshExpr_run` — the rebinding guards,
+  whose agreement with con-leche's is `IdTableRel.bound` and nothing else;
+* `PersStateD.insert{Name,Level,Expr}` — the persistence half of a table
+  write, one `IdTable.get?_insert` apiece;
+* `internLNode_istep` and `internLsNode_istep` in `Shared.lean`, beside the
+  seven `…_istep` wrappers round 3 put there.
+
+**`parseExprEntryD_run`'s ten arms needed no `internBindIE`.**  Round 1's note
+said the `lam`/`forallE` arms would go through `Bridge/StoreBind.lean`; they
+do not, because `ENodeView.lam` carries con-leche's `BinderMeta` as a VALUE
+(`Arena/Store.lean:348`: *"`BinderMeta` and `Literal` stay values"*), so
+`parsePwD_run`'s equation is the whole of what the binder datum costs.
+
+##### Two tactic notes, both about `match`
+
+* **A string-literal pattern does not reduce under `simp only`**, even when
+  the discriminant is a constructor: the matcher is `String.decEq`-based and
+  `simp` has nothing to fire on.  `split` does the job — but only while the
+  discriminant is still a VARIABLE, so `isProjIotaName_run` splits on the
+  `viewN` result before destructuring it.  ("Internal error in `split`:
+  Failed to find match-expression discriminants" is what the other order
+  gives.)
+* **`rw [f]` at a pattern-matching `def` can pick a LATER equation and leave
+  its side condition as a goal.**  `rw [ConLeche.Frontend.isProjIotaName]` in
+  a `… = false` goal closes the goal and hands back
+  `∀ pre s, nP ≠ ((pre.str "_model").str s).str "iota"`, which is exactly the
+  fact wanted — pleasant here, confusing the first time.  Where the equation
+  is needed as an equation, a `rfl` lemma restating the `match` is the stable
+  form; `clProjIotaLevel_eq` is one.
+
+##### The sorry list after round 4 — sixteen declarations
+
+| module | open | |
+|---|---:|---|
+| `ProjRec.lean` | 5 | `occursConstFast_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run` |
+| `Lines.lean` | 5 | `noteDecl_run`, `pushDecl_run` (finding 16), `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Prepare.lean` | 6 | items 20-21, **all six touched by finding 16** |
+| `Rel`, `Shared`, `Modeller`, `Chunks`, `Capstone` | **0** | |
+
+**`projRecOwners_run` did not land, and the blocker moved one node further
+in.**  Every LEAF the route needs now exists — `stripPisAll_run` and
+`mkLams_run` are closed, `stripPis`/`readLevel`/`view` have run forms here,
+and the Inductives tier has STATED `structPartsCore?_isSome` and
+`nativeParts?_isSome` (both open, both at `PSpecP`, i.e. `StateOK` **plus
+`PinsOK`**; the parse has `PinsOK` because it runs after `internAllPins`, and
+`projRecOwners_run`'s hypothesis list will have to say so).  What is missing is
+the middle: `ctorsMentionBlock_run` waits on `occursConstFast_run`, and that
+waits on **two con-leche-tier facts con-leche does not have** —
+`occursConstB n 4096 e = (some r, _) → r = occursConst n e` and
+`(occursConstGo n ∅ e).1 = occursConst n e`.  `ConLeche/Verify/` mentions
+neither `occursConstB` nor `occursConstGo`: the memoised and budgeted walks
+are unverified on con-leche's side, and the pure `occursConst` is their only
+specification.  They belong here in finding 6's shape (a con-leche-tier lemma
+stated in this tier so the gap is a lemma and not a hole).
+
+##### The import rule widens by one, inside `Bridge/`
+
+`Bridge/Frontend/ProjRec.lean` adds **`ConRon.Bridge.ExprOps.Spine`**, for the
+closed `piResult_spec` and `getAppFn_spec` that `projIotaLevel` reads.  Their
+run forms (`piResult_run`, `getAppFn_run`) are local here; `Bridge/Inductives/
+Rel.lean` has the same four-line bridges and is not on this cone.
+
+##### The axiom census after round 4
+
+`Bridge/Frontend/Axioms.lean`: **153 closed results** (was 121), every one
+within `[propext, Classical.choice, Quot.sound]` — five of them at `[propext]`
+alone, four more at `[propext, Quot.sound]` (the three new `denoteLList`
+lemmas among them), and `ListRel.mono` still at no axiom at all.  The eighteen `sorryAx` entries are
+unchanged in kind: fourteen proved-but-resting-on-a-leaf and the four
+headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
+`ModellerWF` nor `ModellerRefines`**.
+
+##### Gates, round 4
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors**; 16 of this tier's declarations open |
+| `scripts/gates.sh` | all 13 OK |
+| the diff | `proof/ConRon/Bridge/Frontend/{ProjRec,Lines,Shared,Prepare,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at
