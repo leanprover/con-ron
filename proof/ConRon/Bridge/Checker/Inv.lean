@@ -550,6 +550,12 @@ theorem IFEnvOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
     obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hf
     obtain ⟨hpn, hpci⟩ := hp.find h2
     exact ⟨n, ci, denoteN_pext hx hpn h1, h2, denoteCI_pext hx hpci h3⟩
+  proj := by
+    intro n t hf
+    obtain ⟨hpn, hpci⟩ := hp.find hf
+    obtain ⟨sn, h1, h2⟩ := (h.proj n t hf).named
+    exact ⟨(h.proj n t hf).bodies, (h.proj n t hf).guards, sn,
+      denoteN_pext hx hpci.structName h1, denoteN_pext hx hpci.tableName h2⟩
 
 /-! ## The fold-step invariant -/
 
@@ -573,40 +579,71 @@ denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
 and "the index is its list's index", because `IEnv.find?` and `Env.find?` are
 the same linear search and `denoteN` is injective on a well-formed store.
 
-**NOT PROVABLE AS STATED** (task #97-P3-Checker-2's second statement
-defect, and it is one clause of the FRONTEND tier's `denoteCI`).  Both halves
-need "the index's key denotes the constant's own name", i.e.
+**It needs one thing the denotation does not carry** (task
+#97-P3-Checker-2's second statement defect, now fixed where it belongs).
+Both halves want "the index's key denotes the constant's own name", i.e.
 
     denoteN st.ns ci.name = some (Frontend.denoteCI st ci).get.name
 
-and at `.projInfo` that is **false of `denoteCI` as it stands**.
-`IConstantInfo.name (.projInfo t)` is the STORED `t.tableName`
-(`Arena/Env.lean`'s "the one field con-leche's `ProjTable` does not have",
-kept so that `IConstantInfo.name` is pure), while `ConstantInfo.name
-(.projInfo tbl)` is the RECOMPUTED `projTableName tbl.structName` — and
-`Frontend.denoteProjTable` **drops `tableName`**, so nothing in the
-denotation constrains it.  A store in which `t.tableName` denotes some other
-name satisfies every hypothesis above and refutes the conclusion.
+and at `.projInfo` that is **false of `denoteCI`**: `IConstantInfo.name
+(.projInfo t)` is the STORED `t.tableName` (`Arena/Env.lean`'s "the one field
+con-leche's `ProjTable` does not have", kept so that the index's key is pure)
+while `ConstantInfo.name (.projInfo tbl)` is the RECOMPUTED
+`projTableName tbl.structName`, and `Frontend.denoteProjTable` **drops
+`tableName`** — so nothing in the denotation constrains it.  A store whose
+`t.tableName` denotes another name satisfies every other hypothesis and
+refutes the conclusion.
 
-**The fix is one clause in `Arena/Frontend/Readback.lean`** (the Frontend
-tier's file, not this one): `denoteProjTable` must require
-`denoteN st.ns t.tableName = some (projTableName sn)` — the invariant the
-field exists to make cheap, and which `checkStructProjTable` establishes when
-it builds the table.  With it this theorem is the induction below and nothing
-more.  Until then it is stated, and the consumer that needs it is
-`Arena.checkDeclStep_bridge`'s `ienv` clause and nothing else — the seven arms
-take `IFEnvOK` from `FoldOK.check.ienv` (and, in the `.defnDecl` arm, from
-`checkDefnVal_bridge`'s own `IFEnvOK env2 fe2 s'`), which is why task
-#97-P3-Checker-2 could prove ALL SEVEN without this.
+**The fix is NOT in `Arena/Frontend/Readback.lean`.**  A simulation B ⇒ A
+takes invariants on the REFINED side only, and this is a fact about OUR
+stored table, so it is a clause of `IFEnvOK` — `Bridge/StateOK.lean`'s
+`IProjTableOK.named`, which is the hypothesis this theorem now takes and its
+conclusion re-delivers.  The same clause record carries task #97-P3-Core-2's
+`ProjTablesShaped`: they are one problem (the projection-table denotation does
+not carry what its consumers need) and one fix.
 
 `sorry`: the `hit`/`cover` pair is an induction on `fe.env.consts` through
-`mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality, PLUS the
-clause above.  It is the one place `IFEnvCoh` is consumed rather than
-propagated, and the argument is con-leche's `mkFEnv_find?` at a denoted list.
-Task #97-P3-Checker's sorry list, item 6. -/
+`mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality and
+`hproj` at the `.projInfo` arm.  It is the one place `IFEnvCoh` is consumed
+rather than propagated, and the argument is con-leche's `mkFEnv_find?` at a
+denoted list.  Task #97-P3-Checker's sorry list, item 6. -/
 theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
+    (hproj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t)
     (hd : denoteFEnv s.store fe = some env) : IFEnvOK env fe s := by
+  sorry
+
+/-! ## The one debtor of `IFEnvOK.proj`
+
+`IProjTableOK` is true of every table the checker stores, and the only place
+it can be discharged is the install that builds one.  Naming it here keeps
+`Bridge/Core/Walks/Proj.lean`'s `IFEnv.findProj?_spec` free of a hypothesis a
+walk cannot discharge (task #97-P3-Core-2's second finding, answered). -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86
+checkStructProjTable — **the install's obligation**: the table
+`checkStructProjTable` pushes satisfies `IProjTableOK`.
+
+All three clauses are true by construction, and the twin already tests two of
+them: `unless bodies.size = nF` is the `bodies` clause verbatim, and
+`let tn ← projTableName T` is the `named` clause's second half.  The `guards`
+clause is the ONE the install itself does not test — `guards` is an argument —
+so its discharge site is the CALLER, the structure route that builds
+`structProjGuards T nF` and passes it beside `nF`.
+
+**OWNER: the Inductives tier** — `Bridge/Inductives/StructInstall.lean`'s
+`checkStructProjTable_spec` (task #97-P3-Ind's sorry list, item 8), whose
+`InstRel` conclusion is where the clause belongs.  Stated here so that
+`IFEnvOK`'s new field has exactly one named debtor rather than a free
+hypothesis at every consumer. -/
+theorem projTableOK_of_install {T C : NIdx} {lps : List NIdx} {nP nF : Nat}
+    {resSort : LIdx} {guards : List LIdx} {off : Nat} {cvCa : IConstantVal}
+    {fe fe' : IFEnv} {s s' : AState} (hok : StateOK s)
+    (hg : guards.length = nF)
+    (hrun : Arena.checkStructProjTable T C lps nP nF resSort guards off cvCa fe s
+      = .ok (fe', s')) :
+    ∀ n t, fe'.find? n = some (.projInfo t) →
+      fe.find? n = some (.projInfo t) ∨ IProjTableOK s'.store t := by
   sorry
 
 end ConRon.Bridge

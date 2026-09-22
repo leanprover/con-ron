@@ -39092,6 +39092,62 @@ Task #97-P3-Ind found one; trying to prove the arms found four more.
 every slot of `KnotSpec` and into `EnsureSortSpec`, which is exactly what the
 parent section asked the Core tier for, so `CoreSpec` is two fields again.
 
+##### 8.1 `IProjTableOK` — item 5 and task #97-P3-Core-2's `ProjTablesShaped` are ONE problem
+
+Task #97-P3-Core-2 landed `Bridge/Core/Walks/Proj.lean` with a free
+hypothesis on `IFEnv.findProj?_spec`,
+
+    ProjTablesShaped fe : ∀ n t, fe.find? n = some (.projInfo t) →
+      t.bodies.size = t.numFields ∧ t.guards.length = t.numFields
+
+booked as an upstream ask ("con-leche's `ConstWF` records the `bodies` half
+and not the `guards` half").  **That is the wrong side.**  A simulation
+B ⇒ A takes invariants on the REFINED side only; `denoteProjTable` transports
+both columns pointwise and copies `numFields` verbatim, so the pure table's
+sizes ARE ours, and nothing about con-leche's invariant is needed to know
+that our own columns are long enough.
+
+It is also the SAME problem as §8's item 5: both are the projection-table
+denotation not carrying what its consumers need, and both are facts about the
+arena's `IProjTable` that no strengthening of `denoteCI` should be asked to
+supply.  So there is **no `Arena/Frontend/Readback.lean` edit to route** —
+the fix is one record and one field, on our side:
+
+```lean
+structure IProjTableOK (st : EStore) (t : IProjTable) : Prop where
+  bodies : t.bodies.size = t.numFields
+  guards : t.guards.length = t.numFields
+  named : ∃ sn, denoteN st.ns t.structName = some sn ∧
+    denoteN st.ns t.tableName = some (ConLeche.projTableName sn)
+```
+
+as a third field of `Bridge/StateOK.lean`'s `IFEnvOK`
+(`proj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t`),
+carried by `IFEnvOK.mono` (an `Ext` transports the two `denoteN`s; the sizes
+mention no store) and by `IFEnvOK.pmono` (`PersProjTable` has both handles).
+`IFEnv.findProj?_spec` now reads `hok.ienv.proj` and `ProjTablesShaped` is
+deleted; `IFEnvOK_of_denote` takes the `named` half as its missing
+hypothesis and re-delivers it, which is what unblocks item 6.
+
+**Its one debtor** is `Bridge/Checker/Inv.lean`'s `projTableOK_of_install`,
+stated here so that the new field is never a free hypothesis at a consumer.
+Two of the three clauses are already TESTED by the twin
+(`Arena/Inductives/StructInstall.lean`: `unless bodies.size = nF` is the
+`bodies` clause verbatim, `let tn ← projTableName T` is `named`'s second
+half); the `guards` clause is the one the install does not test — `guards` is
+an argument — so its discharge site is the CALLER that builds
+`structProjGuards T nF` and passes it beside `nF`.  **OWNER: the Inductives
+tier**, in `Bridge/Inductives/StructInstall.lean`'s
+`checkStructProjTable_spec` (task #97-P3-Ind's sorry list, item 8), whose
+`InstRel` conclusion is where the clause belongs.
+
+The edit touches four files outside this round's two directories, three of
+them by necessity: `Bridge/StateOK.lean` (the field and `IFEnvOK.mono`),
+`Bridge/Core/Memo.lean` (`CheckOK.ofCache`'s `IFEnvOK` literal),
+`Bridge/Frontend/Capstone.lean` (`FoldOK_of_start`'s, vacuous at
+`mkIFEnv IEnv.empty`) and `Bridge/Core/Walks/Proj.lean` (the hypothesis
+deleted).
+
 ##### 9. `Arena.checkDeclStep_bridge` (item 8) and the `defn` arm — what each is waiting on
 
 **Item 8's stated blocker is gone** (§2) and three others are named in its
@@ -39117,7 +39173,7 @@ need at the next declaration) and **`IFEnvOK env' fe' s'`** (§8's item 2).
 | `Bridge/Promote/Pers.lean` | 557 | 472 | 68 | **0** | 1.2 s |
 | `Bridge/Promote/StoreP.lean` | 247 | 214 | 12 | 5 | 1.1 s |
 | `Bridge/Promote/Exact.lean` | 367 | 308 | 28 | 9 | 1.1 s |
-| `Bridge/Checker/Inv.lean` | 611 | 558 | 28 | 1 | 1.2 s |
+| `Bridge/Checker/Inv.lean` | 611 | 558 | 29 | 2 | 1.2 s |
 | `Bridge/Checker/Hyp.lean` | 213 | 179 | 11 | **0** | 0.89 s |
 | `Bridge/Checker/Decl.lean` | 153 | 130 | 4 | **0** | 0.74 s |
 | `Bridge/Checker/Base.lean` | 1 122 | 1 054 | 35 | 2 | **65 s** (§6) |
@@ -39131,15 +39187,15 @@ need at the next declaration) and **`IFEnvOK env' fe' s'`** (§8's item 2).
 | `Bridge/Checker/Split.lean` | 233 | 197 | 8 | 7 | 0.85 s |
 | `Bridge/Checker/Capstone.lean` | 124 | 107 | 3 | **0** | 0.83 s |
 | `Bridge/Checker/Axioms.lean` | 218 | 188 | — | — | 0.79 s |
-| **the tier** | **6 055** | **5 398** | **271** | **55** | **~82 s**, of which §6 is 63 |
+| **the tier** | **6 055** | **5 398** | **271** | **56** | **~82 s**, of which §6 is 63 |
 
-##### 11. The sorry list as this round leaves it — 55 declarations
+##### 11. The sorry list as this round leaves it — 56 declarations
 
 | where | open | what |
 |---|---:|---|
 | `Promote/StoreP.lean` | 5 | items 1-2: `StoreWFP.dropScratch_wf` and the four `internPersistent_spec` — **the store layer's**, beside `intern_wf` |
 | `Promote/Exact.lean` | 9 | items 3-5: the four promotion inductions, the four declaration-layer wrappers, `promoteNew_spec` |
-| `Checker/Inv.lean` | 1 | item 6 — **not provable**, §8's item 5 |
+| `Checker/Inv.lean` | 2 | item 6 (now provable — §8.1 gave it the clause it lacked) and §8.1's `projTableOK_of_install`, whose owner is the Inductives tier |
 | `Checker/Base.lean` | 2 | item 9: `allLevelParamsDefined_run`, `constsResolveFFast_run`, the two memoised DAG walks of the front door |
 | `Checker/Canon.lean` | 4 | item 14: `canonExprEq`'s fuel induction at four entry points |
 | `Checker/Basis.lean` | 9 | items 15-16: the interned literals, the two recognisers, the two installs, the three axiom shapes |
