@@ -473,7 +473,8 @@ index's does. -/
 def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
   Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
     rf.visible_below.val ≤ rf.env.consts.val.length ∧
-    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max
+    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
+      p.2.val < rf.env.consts.val.length
 
 theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx := h.1
@@ -497,6 +498,30 @@ models as a truncating cast — is the identity at every reachable row, and
 the Rust needs no test it does not already have. -/
 theorem IFEnvInv.idxPos {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max :=
+  fun n p hp => le_of_lt (lt_of_lt_of_le (h.2.2 n p hp) rf.env.consts.property)
+
+/-- **Every position the index stores is IN RANGE of the constant list** —
+task #97-P5-Checker round 3's strengthening of the clause above, and the one
+`ifenv_push` needs.
+
+The weaker clause (*"the position fits a `usize`"*) is not enough to push:
+`IFEnvRel.idx` reads the port's index through `consts[p.2]?`, and an
+OUT-OF-RANGE stored position answers `none`, which the relation matches
+against a twin index that has no entry there.  Append one constant and that
+same row is suddenly in range and answers `some ci` — against a twin index
+that still has nothing.  So `IFEnvRel rf' (lf.push …)` is **false** unless
+the index is known to store no position at or past the end, and
+`ifenv_push_refines` below cannot be proved from the weaker clause.
+
+It is an invariant of the port for exactly the reason the weaker one was:
+`mk_ifenv_go` stores its `Vec` cursor `i < len`, `ifenv_push` and
+`ifenv_push_temp` store the length BEFORE the `push` that makes it an index,
+`arena::promote::index_promoted` stores `(j - 1)` for a cursor `j ≥ 1`, and
+`ifenv_pop_temp` puts back a row it took out.  There is no other writer, and
+no Rust test is missing. -/
+theorem IFEnvInv.idxRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p →
+      p.2.val < rf.env.consts.val.length :=
   h.2.2
 
 /-! ## The environment relation a FOLD has to carry (task #97-P5-Checker-2)
@@ -530,6 +555,130 @@ theorem IFEnvRelI.rel {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI rf lf) 
 
 theorem IFEnvRelI.inv {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI rf lf) :
     IFEnvInv rf := h.2
+
+/-! ## `arena::env::ifenv_push` — the one environment write every install route
+folds over (task #97-P5-Checker round 3)
+
+`ifenv_push` is the port's `IFEnv.push`: the index row is written at the
+constant list's CURRENT length and the list grows by one, where the twin
+conses onto a newest-first list and inserts the constant itself.  Every
+`cons_*` fold of the install routes — `arena::inductives`' `cons_sum_ctors`
+and `cons_sum_ctors_f` above all — is this step iterated, so this is the step
+that has to be stated once rather than fifty times.
+
+It lives here because both halves are this file's: `IFEnvRel` composes the
+index probe with the array read (`Refine2/AbsState.lean`), and `IFEnvInv` is
+what makes that composition survive an append (`IFEnvInv.idxRange`). -/
+
+/-- `arena::env::i_constant_info_name` is the twin's `IConstantInfo.name`.
+
+**A private duplicate of `Refine2/Inductives/Shape.lean`'s
+`i_constant_info_name_abs`**, which is declared ABOVE this file and so cannot
+be used here.  The two should become one the next time the two tiers are
+touched together; the statement is character for character the same. -/
+private theorem ci_name_abs {c : arena.env.IConstantInfo}
+    {o : arena.handle.NIdx} (h : arena.env.i_constant_info_name c = ok o) :
+    absNIdx o = (absIConstantInfo c).name := by
+  rw [arena.env.i_constant_info_name.eq_def] at h
+  cases c <;> simp only [absIConstantInfo, IConstantInfo.name, absIConstantVal,
+    absIProjTable, dupId_nidx _ _ h]
+
+/-- **`ifenv_push` ⊑ `IFEnv.push`, relation and invariant together.**
+
+The three clauses, in order:
+
+* `env` — the port appends and `absIEnv` reverses, so the appended constant is
+  the twin's HEAD;
+* `idx` — at the pushed name the port's row is `(visible_below, |consts|)` and
+  `consts[|consts|]?` of the GROWN list is the pushed constant, which is the
+  twin's `(visibleBelow, ci)`; at every other name `IFEnvInv.idxRange` says the
+  stored position was already in range, so the append does not change what it
+  reads;
+* `visibleBelow` — both counters advance by one.
+
+and the invariant: the index's `Inv` is `HashMap2::insert`'s, the counter
+bound is the old one plus one on both sides, and the new row's position is
+`|consts|`, which is in range of `|consts| + 1`. -/
+theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
+    {ci : arena.env.IConstantInfo}
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (h : arena.env.ifenv_push rf ci = ok rf') :
+    IFEnvRel rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf' := by
+  rw [arena.env.ifenv_push] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  -- the cast on the length is the identity
+  have hsv : s.val = rf.env.consts.val.length := by
+    simp only [lift, Result.ok.injEq] at hs
+    subst hs
+    rw [usize_cast_u64_val']
+    simp [alloc.vec.Vec.len]
+  -- the index row written, and the table's `Inv` re-established
+  obtain ⟨hinv', -, hupd, -⟩ :=
+    ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+      hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+  have hvv : v.val = rf.env.consts.val ++ [ci] := ConRon.Refine.vec_push_val hv
+  have hc1v : c1.val = rf.visible_below.val + 1 := by
+    simpa using ConRon.Refine.Nat.uadd_val hc1
+  have hrf' : rf' = { env := { consts := v }, idx := q.2, visible_below := c1 } :=
+    (Result.ok_injective h).symm
+  subst hrf'
+  have hname : absNIdx n = (absIConstantInfo ci).name := ci_name_abs hn
+  refine ⟨⟨?_, ?_, ?_⟩, hinv', ?_, ?_⟩
+  · -- the constant list
+    show (lf.push (absIConstantInfo ci)).env = absIEnv _
+    simp only [IFEnv.push, absIEnv, hvv, List.map_append, List.reverse_append]
+    rw [hfe.env]
+    simp [absIEnv]
+  · -- the index
+    intro m
+    rw [hupd]
+    simp only [IFEnv.push, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
+    by_cases hm : m = n
+    · subst hm
+      rw [if_pos rfl, if_pos (by simp [hname])]
+      simp only [Option.bind, hvv]
+      rw [List.getElem?_append_right (by omega), hsv, Nat.sub_self]
+      simp only [List.getElem?_cons_zero, Option.map_some]
+      rw [hfe.visibleBelow]
+    · rw [if_neg hm]
+      have hne : ¬ ((absIConstantInfo ci).name == absNIdx m) = true := by
+        simp only [beq_iff_eq]
+        intro hc
+        exact hm (absNIdx_inj (hc.symm.trans hname.symm))
+      rw [if_neg hne, ← hfe.idx m]
+      cases hp : ConRon.Refine.HashMap2.toFun rf.idx m with
+      | none => simp
+      | some p =>
+        simp only [Option.bind, hvv]
+        rw [List.getElem?_append_left (hfinv.idxRange m p hp)]
+  · -- the counter
+    show (lf.push (absIConstantInfo ci)).visibleBelow = absU c1
+    simp only [IFEnv.push]
+    rw [hfe.visibleBelow]
+    simp [absU, hc1v]
+  · -- the counter is still a bound
+    rw [hvv, hc1v]
+    have := hfinv.visBound
+    simp only [List.length_append, List.length_cons, List.length_nil]
+    omega
+  · -- every stored position is still in range
+    intro m p hp
+    rw [hupd, Function.update_apply] at hp
+    rw [hvv]
+    simp only [List.length_append, List.length_cons, List.length_nil]
+    by_cases hm : m = n
+    · subst hm
+      rw [if_pos rfl] at hp
+      obtain rfl : p = (rf.visible_below, s) := (Option.some_injective _ hp).symm
+      simp only [hsv]
+      omega
+    · rw [if_neg hm] at hp
+      have := hfinv.idxRange m p hp
+      omega
 
 /-! ## The Inductives seam (task #97-P5-Checker's finding 14)
 
@@ -636,5 +785,8 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 
 /-- info: 'ConRon.Refine2.SimRel.mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms SimRel.mono
+
+/-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ifenv_push_refines
 
 end ConRon.Refine2
