@@ -1,5 +1,5 @@
 /-
-# `ConRon.Bridge.Core.Walks.Owed` — the seventeen statements the round did not reach
+# `ConRon.Bridge.Core.Walks.Owed` — the sixteen statements the round did not reach
 
 Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 ends with the
 round's own estimate of where the next tier's work is:
@@ -14,9 +14,9 @@ round's own estimate of where the next tier's work is:
 This module is that list, **stated**.  `lvlEq?`/`lvlsEq?` and the readbacks
 are `Bridge/Core/Walks/{Cached,Frame}.lean` and are CLOSED; `ensureSort` is
 `Bridge/Core/EnsureSort.lean` and is CLOSED; `IProjEntry.typeAt` is the one
-name of the list that is NOT here, and §3 says why.  The seventeen below are
-what is left of it, each with the con-leche function it refines named
-through
+name of the list that is NOT here, and §3 says why; `isBoolTrue` is
+`Bridge/Core/Walks/Guards.lean` and is CLOSED.  The sixteen below are what is
+left of it, each with the con-leche function it refines named through
 `Verify/Knot.lean`'s own `…Fueled` abbreviation, and each `sorry` with what
 it is waiting on written at the site.
 
@@ -35,10 +35,11 @@ abstracted:
 | `SimEOp` — an `EIdx` answer | `projLitToCtor` |
 | `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList`, `isPropType` |
 | `SimVOp` — any shared type | `annotPwPi`, `annotPwLam` (`PropWhen`), `headHint` (`ReducibilityHint`) |
-| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads`, `isBoolTrue` |
+| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads` (and `isBoolTrue`, CLOSED in `Walks/Guards.lean`) |
 
-**The last row is the cheap one and it is worth naming.**  Four of the
-seventeen refine a con-leche function that is not in `CheckM` at all
+**The last row is the cheap one and it is worth naming.**  Four walks of the
+group (three here, `isBoolTrue` in `Walks/Guards.lean`) refine a con-leche
+function that is not in `CheckM` at all
 (`unfoldDefinition env e : Option Expr`, `unfoldableHead env e : Bool`,
 `sameConstHeads a b : Bool`, `Expr.isBoolTrue e : Bool`), so there is no
 `∃ F` and no fuel bookkeeping: the conclusion is an equation between the
@@ -46,7 +47,7 @@ arena's answer and con-leche's.  They are the first four of these to write.
 
 ## 2. What they are all waiting on, in one sentence each
 
-Ten of the seventeen wait on an `ExprOps`-tier callee rule that this tier
+Ten of the sixteen wait on an `ExprOps`-tier callee rule that this tier
 does not import (`getAppFn`, `getAppArgs`, `mkAppN`, `instLPFast`,
 `liftLooseBVars`, `typeSortPW`), one waits on §3's missing denotation, one on
 `Bridge/Core/Walks/Cached.lean`'s `constValAt_spec` (itself waiting on
@@ -79,11 +80,13 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## 1. The four with an unfueled pure side
+/-! ## 1. The three with an unfueled pure side
 
 con-leche's comparand is a plain function of the environment, so the
 conclusion is an equation and there is no fuel existential anywhere in the
-statement.  These are the cheapest four walks of the tier. -/
+statement.  These are the cheapest walks of the tier — their fourth,
+`isBoolTrue`, is CLOSED in `Bridge/Core/Walks/Guards.lean`, and the three
+here differ from it only by needing `getAppFn`. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead —
 **THEOREM 1 for `unfoldableHead`**: the delta step's DECISION, taken before
@@ -128,19 +131,10 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
         s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y⌝⦄ := by
   sorry
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue —
-**THEOREM 1 for `isBoolTrue`**: is `e` the constant `Bool.true`?
-
-**OPEN**, and it is the smallest of the fourteen: one `view`, one pin read
-(`pinBoolTrue`, whose denotation is `PinsOK.names`) and `denoteN_inj`.  It
-needs nothing from any other tier and is where the next round should
-start. -/
-theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isBoolTrue h
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x⌝⦄ := by
-  sorry
+/-! `isBoolTrue` was the fourth of this group and is **CLOSED** —
+`Bridge/Core/Walks/Guards.lean`.  It was the cheapest of the seventeen (five
+verification conditions, no `ExprOps` rule, no new denotation), and closing
+it is this round's evidence that the row above really is the cheap one. -/
 
 /-! ## 2. The delta step and the literal acceleration
 

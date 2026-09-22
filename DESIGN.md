@@ -39459,8 +39459,8 @@ sits on three to six more.  `iotaRec` alone (`Arena/Core.lean:2049`) is
 `iotaCerts` — six W-class walks under one statement.
 
 **The round's own scope, against that:** the tier's FOUNDATION built and
-closed, one group of five closed or stated, the fifteen named walks stated,
-and the Checker tier's three asks taken.  §7 is the honest remainder.
+closed, **three walks closed** (`lvlEq?`, `lvlsEq?`, `isBoolTrue`), the
+fifteen named walks stated, and the Checker tier's three asks taken.  §7 is the honest remainder.
 
 #### 2. What is CLOSED
 
@@ -39469,17 +39469,19 @@ and the Checker tier's three asks taken.  §7 is the honest remainder.
 | `Bridge/Core/Walks/Frame.lean` — `ReadbackFrame`, the three readback bodies and their frame specs | 254 | 221 | 15 | **1.2 s** |
 | `Bridge/Core/Walks/Spec.lean` — the five answer relations and their eliminators | 185 | 151 | 14 | **0.88 s** |
 | `Bridge/Core/Walks/Cached.lean` — the five cached verdict walks, two of them closed | 440 | 396 | 12 | **1.0 s** |
-| `Bridge/Core/Walks/Owed.lean` — the seventeen statements | 445 | 383 | 17 | **0.94 s** |
+| `Bridge/Core/Walks/Guards.lean` — `isBoolTrue`, CLOSED | 154 | 135 | 3 | **0.94 s** |
+| `Bridge/Core/Walks/Owed.lean` — the sixteen statements | 439 | 378 | 16 | **0.88 s** |
 | `Bridge/Core/Walks.lean` — the index and the census | 56 | 46 | — | — |
 | `Bridge/Core/EnsureSort.lean` — the seventh entry point | 119 | 96 | 5 | **0.88 s** |
-| **total** | **1 499** | **1 293** | **63** | **4.9 s gross** |
+| **total** | **1 647** | **1 423** | **66** | **5.8 s gross** |
 
 **Nothing in the round is near the 20 s flag**, and the slowest module of the
-whole Core tier is still `Bridge/Core/Memo.lean` at 2.2 s.  The two closed
-walk theorems are the measurement that matters: `lvlEq?_spec` and
-`lvlsEq?_spec` together are **five verification conditions each and 1.0 s for
-the module that holds both plus five insert lemmas**, against
-`ExprOps/Inst1.lean`'s 72 s for one walk on an inline-armed twin.  The reason
+whole Core tier is still `Bridge/Core/Memo.lean` at 2.2 s.  The three closed
+walk theorems are the measurement that matters: `lvlEq?_spec`,
+`lvlsEq?_spec` and `isBoolTrue_spec` are **five verification conditions
+each**, at 1.0 s for the module holding the first two plus five insert
+lemmas and 0.94 s for the third — against `ExprOps/Inst1.lean`'s 72 s for one
+walk on an inline-armed twin.  The reason
 is the same one task #97-P3-Core gave — there is no `grind` closer over a
 twin's arms anywhere in this tier, because the branch structure is a memo
 probe and not a constructor dispatch.
@@ -39601,7 +39603,7 @@ walks tier needs, it belongs beside the other ten transports in
 on the tier's list that is not labour.  **It should be the next round's first
 commit.**
 
-#### 6. The seventeen statements, and what each waits on
+#### 6. The sixteen statements, and what each waits on
 
 `Bridge/Core/Walks/Owed.lean`, in `Bridge/ExprOps/Owed.lean`'s role one tier
 up.  Every one is `sorry`; the point is the interface, because the six body
@@ -39612,7 +39614,6 @@ walks cannot be written against a walk with no statement.
 | `unfoldableHead_spec` | an EQUATION (con-leche's is unfueled) | `ExprOps.getAppFn_spec`, `IFEnvOK` |
 | `headHint_spec` | an EQUATION | the same |
 | `sameConstHeads_spec` | an EQUATION | the same, plus `denoteN_inj` |
-| `isBoolTrue_spec` | an EQUATION | **nothing** — one `view`, one pin read, `denoteN_inj` |
 | `unfoldDefinition_spec` | a `denoteEO` equation | `getAppFn`/`getAppArgs`/`mkAppN` + `constValAt_spec` → `ExprOps.instLPFast_spec`.  **The deepest chain on the list** |
 | `reduceNat_spec` | `SimOOp` | `rawNatLit?`, `natLitSupported`, `natOpStored`, `natBinOpName`, `natOpResult` — five S-class walks.  Nothing from `ExprOps` |
 | `iotaRec_spec` | `SimOOp` | **the largest single item of the tier** — six W-class walks under it, plus `ruleRhsAt_spec` |
@@ -39626,12 +39627,15 @@ walks cannot be written against a walk with no statement.
 | `isPropType_spec` | `SimBOp` | `KnotSpec.annotate` (in hand) + `typeSortPW` (`ExprOps`) |
 | `annotPwPi_spec` / `annotPwLam_spec` | `SimVOp` | `isPropType_spec` + the `forallPw`/`lamPw` readers |
 
-**One of the seventeen waits on nothing at all** — `isBoolTrue_spec`: one
-`view`, one pin read (`pinBoolTrue`, whose denotation is `PinsOK.names`) and
-`denoteN_inj`/`denoteLs_inj`, all of which exist.  `defEqList_spec` is the
-next nearest and needs only §6.1.  They are where the next round should
-start, because each closes a callee slot of `defeqBody_spec` without any
-other con-ron tier moving.
+**The one that waited on nothing at all is now CLOSED**: `isBoolTrue_spec`
+(`Bridge/Core/Walks/Guards.lean`) — one `view`, one pin read (`pinBoolTrue`,
+whose denotation is `PinsOK.names`, reached at the NAMED slot by the one-line
+`pinNames_boolTrue`), and `denoteLs_inj`/`denoteN_inj` for the two handle
+tests.  Five verification conditions, ~45 proof lines, no `ExprOps` rule and
+no new denotation — **the round's evidence that the cheap row really is
+cheap**, and DESIGN §8.3's "index inequality IS structural inequality" cashed
+twice in one walk.  `defEqList_spec` is the next nearest and needs only
+§6.1's fuel merge.
 
 ##### 6.1 The fuel merge — where this tier DOES pay for what `FueledM` buys con-leche
 
@@ -39671,7 +39675,7 @@ the relation cannot take `d` and `e` the way `SimE` does.
 | declaration | file | what is missing |
 |---|---|---|
 | `constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec` | `Walks/Cached.lean` | `ExprOps.instLPFast_spec` (task #97-P3-0's open list); the insert lemmas are written |
-| the seventeen of `Walks/Owed.lean` | | §6's table |
+| the sixteen of `Walks/Owed.lean` | | §6's table |
 | the eleven of task #97-P3-Core | `Core/{Arms/*,Knot}.lean` | unchanged, and §9 says why this round did not move them |
 
 **`knot_spec_checkFuel` still carries `sorryAx`**, so this round's item (3)
@@ -39689,7 +39693,8 @@ does not).
 `read*MB_frame`, the three `read*M_eq`, the five `*CacheOK.insert_capped`,
 `CacheOK.insertLvlEq`/`insertLvlsEq`, `lvlEq?_spec`, `lvlsEq?_spec`, the five
 `Sim*Op` eliminators, `SimL.ext`, `ensureSortCore_of_whnf`,
-`ensureSortCore_spec`, `EStore.enableScratch_denote_pers` — **twenty-four
+`ensureSortCore_spec`, `pinNames_boolTrue`, `isBoolTrue_of_not_const`,
+`isBoolTrue_spec`, `EStore.enableScratch_denote_pers` — **twenty-seven
 new results, every one at `[propext, Classical.choice, Quot.sound]`**, no
 `sorryAx`, no `bv_decide` axiom, as everywhere in this library.  The three
 that DO carry `sorryAx` are `constTyAt_spec`, `constValAt_spec` and
@@ -39701,7 +39706,7 @@ They are each blocked on a walk theorem, and every walk theorem is blocked on
 one of four things: `ExprOps.instLPFast_spec` / `instantiateList_spec` /
 `abstractRangeFast_spec` (task #97-P3-0's own open list), §5's
 `denoteProjEntry`, another walk theorem, or simply the work.  The round's
-judgment was that a foundation plus two closed exemplars plus a correct
+judgment was that a foundation plus three closed exemplars plus a correct
 statement layer is worth more to the next round than one more `sorry`ed body,
 and §1's census is the evidence: at 133 theorems the tier needs an interface
 before it needs another attempt at a body.
@@ -39732,8 +39737,8 @@ five S-class walks and nothing else; the second waits on the `ExprOps` tier.
 | gate | |
 |---|---|
 | `scripts/gates.sh` | **all 13 OK** (`extract-check` 115 s, `lake-build` 451 s) |
-| `lake build ConRonBridge` | **0 errors, 527 jobs**; `sorry` count as §7 |
-| `#print axioms` | §8 — twenty-four new CLOSED results, every one at the three standard axioms; `sorryAx` on exactly the three of `Walks/Cached.lean` and the seventeen of `Walks/Owed.lean` |
+| `lake build ConRonBridge` | **0 errors, 528 jobs**; `sorry` count as §7 |
+| `#print axioms` | §8 — twenty-seven new CLOSED results, every one at the three standard axioms (`pinNames_boolTrue` at `[propext]` alone); `sorryAx` on exactly the three of `Walks/Cached.lean` and the sixteen of `Walks/Owed.lean` |
 | `scripts/twin-lines.py check` | 1 924 citations, all current (the `core_gated.rs` block relocated by `update` after the twin fix) |
 | `scripts/provenance.py check` | 0 findings, 6 465 items at pin 78ded4b6 |
 | the diff | `proof/ConRon/Bridge/Core/**`, `proof/ConRon/Bridge/Checker/Hyp.lean` (the two discharges and one clause), `proof/ConRon/Arena/WFProofs.lean` (one lemma group), `proof/ConRon/Arena/CoreGated.lean` + the `Lean twin:` lines of `crates/con-ron-core/src/arena/core_gated.rs` (the twin fix), and this section.  **No Rust source change and no generated model change** — `extract.sh --check` and `diff-e2e.sh` cannot be affected |

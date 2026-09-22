@@ -27,8 +27,9 @@ steps, one knot induction**:
   NOT knot slots**, 133 of them by the census in `Core/Walks.lean`: the
   readback frame (`Walks/Frame.lean`), the five answer relations
   (`Walks/Spec.lean`), the five cached verdict walks (`Walks/Cached.lean`,
-  two of them CLOSED) and the sixteen statements the round did not reach
-  (`Walks/Owed.lean`).
+  two of them CLOSED), the `defeq` body's cheap tests (`Walks/Guards.lean`,
+  `isBoolTrue_spec` CLOSED) and the sixteen statements the round did not
+  reach (`Walks/Owed.lean`).
 
 **This module imports none of them** — the same rule
 `ConRon/Bridge/ExprOps.lean` carries and for the same reason
@@ -42,8 +43,8 @@ them as siblings; this file is the index.
 Closed: the statement layer, the whole memo layer (all six wrappers), the
 stuck-tag branch, **fifty-two per-arm step lemmas** over the six pure bodies,
 **the seventh entry point** and **the non-slot walk tier's foundation plus
-its first two walks** (task #97-P3-CoreWalks).  Open: the six `…Body_spec`
-walks, the four batched-clause carries they wait on, and 131 of the 133
+its first three walks** (task #97-P3-CoreWalks).  Open: the six `…Body_spec`
+walks, the four batched-clause carries they wait on, and 130 of the 133
 non-slot walks — see DESIGN §8's `### Task #97-P3-Core` and
 `### Task #97-P3-CoreWalks` for the tables and the reason at each site.
 -/

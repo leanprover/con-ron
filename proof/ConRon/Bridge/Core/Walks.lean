@@ -37,10 +37,15 @@ six more.
   `Arena/Core.lean` with a theorem — and are the tier's exemplar; the three
   instantiated-constant caches are stated and wait on
   `ExprOps.instLPFast_spec`.
-* `Walks/Owed.lean` — **the seventeen statements the round did not reach**,
-  each with what it is waiting on written at the site.  `isBoolTrue_spec`
-  waits on nothing at all and `defEqList_spec` waits only on the fuel merge
-  (DESIGN §8's `### Task #97-P3-CoreWalks` §6.1).
+* `Walks/Guards.lean` — the `defeq` body's cheap scalar tests.
+  **`isBoolTrue_spec` is CLOSED**, the tier's third closed walk and the first
+  that is not a memo wrapper: five verification conditions, no `ExprOps`
+  callee rule, no new denotation, and DESIGN §8.3's "index inequality IS
+  structural inequality" cashed twice in one walk.
+* `Walks/Owed.lean` — **the sixteen statements the round did not reach**,
+  each with what it is waiting on written at the site.  `defEqList_spec` is
+  the nearest and waits only on the fuel merge (DESIGN §8's
+  `### Task #97-P3-CoreWalks` §6.1).
 
 **This module imports none of them** — the rule `Bridge/Core.lean` and
 `Bridge/ExprOps.lean` carry, for the reason `lakefile.toml`'s `ConRonBridge`
