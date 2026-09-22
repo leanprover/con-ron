@@ -89,6 +89,7 @@ are named in its section note.
 -/
 import ConRon.Refine2.Specs
 import ConRon.Refine2.ExprOps.Pure
+import ConRon.Refine2.ExprOps.Read
 import ConRon.Arena.ExprOps
 
 open Aeneas Aeneas.Std Result
@@ -99,6 +100,7 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
+open ConRon.Refine2.ExprOps (aout_err_bind aout_rebase EResolves)
 
 /-! ## The handle-vector abstractions
 
@@ -1020,7 +1022,7 @@ interning walk of this file descends into a node WITH children and is blocked
 on §6's finding 16.
 
 Two local names, because `ExprOps/Read.lean` is not imported here:
-`aout_err_bind_v` is its `aout_err_bind`, and `cons_eidx_list` is
+`aout_err_bind` is its `aout_err_bind`, and `cons_eidx_list` is
 `ExprOps/Pure.lean`'s `cons_eidx_refines` at this file's own list
 abstraction (`absEIdxList` here, `absEIdxL` there — P5-0 §9's first small
 merge, still owed).
@@ -1028,18 +1030,6 @@ merge, still owed).
 **The keying measurement** task #97-P5-3 round 3 §6 reports was taken on this
 lemma: the four leaf closings below against `rust_grind2` over a keyed leaf
 vocabulary.  Keying LOSES, and the section says why. -/
-
-/-- `Read.lean`'s `aout_err_bind`, local copy (see the note above). -/
-theorem aout_err_bind_v {β γ δ : Type} {A : γ → β} {C : Type} {AC : C → δ}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {lstA lstB : AState} {stA stB : arena.monad.AState}
-    {x : AM β} {f : β → AM δ}
-    (h : AOut A (fun _ => True) pers lstA (.Err e) stA (x.run lstA)) :
-    AOut AC (fun _ => True) pers lstB (.Err e) stB
-      ((do let v ← x; f v).run lstA) := by
-  refine AOut.err ?_
-  rw [StateT.run_bind]
-  exact AErrSim.bind h _
 
 /-- `Pure.lean`'s `cons_eidx_refines`, at this file's list abstraction. -/
 theorem cons_eidx_list {a : arena.handle.EIdx}
@@ -1091,7 +1081,7 @@ private theorem bvar_range_aux (p : Nat) :
     | Err e =>
       have ho := Result.ok_injective (hr ▸ hrun)
       rw [← ho]
-      exact aout_err_bind_v (hr ▸ hsim)
+      exact aout_err_bind (hr ▸ hsim)
     | Ok b =>
       rw [hr] at hrun
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1120,7 +1110,7 @@ private theorem bvar_range_aux (p : Nat) :
       | Err e =>
         have ho := Result.ok_injective (hr1 ▸ hrun)
         rw [← ho]
-        exact aout_err_bind_v (hr1 ▸ hrec)
+        exact aout_err_bind (hr1 ▸ hrec)
       | Ok rest =>
         rw [hr1] at hrun
         obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1179,35 +1169,10 @@ memoised exactly as con-leche's is.  `Specs.lean` primitives: `derivedE`,
 `bvarBGet`/`bvarBSet`/`bvarBClear`, `fvarBGet`/`fvarBSet`/`fvarBClear`, the
 five projections. -/
 
-/-! ## The two `AOut` combinators, and the port's two `Nat` scalars -/
+/-! ## The port's two `Nat` scalars
 
-/-- The error arm of a chained recursive call: the callee threw, so the whole
-bind throws, whatever the base states are. -/
-theorem aout_err_bind {β γ δ : Type} {A : γ → β} {C : Type} {AC : C → δ}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {lstA lstB : AState} {stA stB : arena.monad.AState}
-    {x : AM β} {f : β → AM δ}
-    (h : AOut A (fun _ => True) pers lstA (.Err e) stA (x.run lstA)) :
-    AOut AC (fun _ => True) pers lstB (.Err e) stB
-      ((do let v ← x; f v).run lstA) := by
-  refine AOut.err ?_
-  rw [StateT.run_bind]
-  exact AErrSim.bind h _
-
-/-- An outcome measured from a later state is one measured from an earlier
-one, `Ext` composed. -/
-theorem aout_rebase {γ δ : Type} {AC : γ → δ} {pers : arena.store.PersTier}
-    {lst lst1 : AState} {st2 : arena.monad.AState}
-    {o : core.result.Result γ kernel.core_types.CheckError}
-    {y : Except Arena.CheckError (δ × AState)}
-    (hext : Ext lst.store lst1.store)
-    (h : AOut AC (fun _ => True) pers lst1 o st2 y) :
-    AOut AC (fun _ => True) pers lst o st2 y := by
-  cases o with
-  | Err e => exact h
-  | Ok c =>
-    obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := h
-    exact AOut.ok hy hrel2 hinv2 (Ext.trans hext hext2) trivial
+`aout_err_bind` and `aout_rebase` now come from `ExprOps/Read.lean`, which
+this file imports (task #97-P5-0 §9's owed merge, paid here). -/
 
 
 /-! ## `bvarBoundGo`'s node step, as an object -/
