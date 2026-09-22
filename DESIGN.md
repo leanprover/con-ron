@@ -39405,7 +39405,7 @@ pin sets) and the promotion tier.
 
 | gate | |
 |---|---|
-| `scripts/gates.sh` | **all 13 OK** (`extract-check` 103 s, `lake-build` 147 s); re-run after merging `arena` at `d9f38ae8` — **all 13 OK** again (`extract-check` 299 s, `lake-build` 2 s: task #97-P5-Core-2's `Arena/CoreGated.lean` edit is a twin body the Bridge tier never names, so `ConRonArena` had already been re-elaborated by the concurrent `lake build ConRonBridge`) |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 103 s, `lake-build` 147 s); re-run at three successive `arena` tips — `d9f38ae8`, `0e13370e` and `55d2fe02` — **all 13 OK** each time, and `lake build ConRonBridge` **616 jobs, 0 errors** on the last, with 56 of the tier's `sorry`s (§11 plus §8.1's `projTableOK_of_install`).  Task #97-P5-Core-2's `Arena/CoreGated.lean` edit is a twin body the Bridge tier never names (`grep -l Gated proof/ConRon/Bridge` is empty), so its rebuild is a pure re-elaboration |
 | `cd proof && lake build ConRonBridge` | **0 errors, 614 jobs**; 255 `sorry` warnings, of which **55** are this tier's (§11) |
 | `#print axioms` | `Bridge/Checker/Axioms.lean` lists **128 results: 115 closed** (111 at `[propext, Classical.choice, Quot.sound]`, three at `[propext, Quot.sound]`, one at `[propext]` alone) **and 13 with `sorryAx`** — the seven proved arms, `Arena.checkDecl_bridge`, `checkDeclsPure_bridge`, `model_exists`, `no_proof_of_False`, `installThenCheck_bridge` and `CoreSpec.of_knot`.  **None of them carries `CoreSpec` or `IndSpec`**, which are hypotheses of the statements; no `bv_decide` axiom anywhere |
 | per-theorem elaboration | one theorem above the 20 s flag, `reservedBasisNames_run` at ~63 s (§6); the next is 2.8 s for a whole module |
