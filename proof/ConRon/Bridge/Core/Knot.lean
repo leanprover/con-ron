@@ -219,6 +219,133 @@ theorem knotSpec_zero (mode : CheckMode) (env : Env) (fe : IFEnv) :
   annotate := fun _ _ _ _ _ _ _ => by intro _ _; trivial
   inferIO := fun _ _ _ _ _ _ _ => by intro _ _; trivial
 
+/-! ## The six slots in ANSWER shape (task #97-P3-Core round 3)
+
+`KnotSpec`'s six fields take the subject's denotation as an explicit
+`(e : Expr)` argument with a `denoteE s₀.store i = some e` hypothesis.  That
+is the right shape for a caller that already holds the denotation, and it is
+the WRONG shape for a caller that reaches the slot through another call —
+task #97-P3-Core-2's finding 5.2, which re-shaped `reduceNat_spec` and
+`unfoldDefinition_spec` for exactly this reason:
+
+> `mvcgen` must guess `e` when it applies the spec; it guesses the only
+> `Expr` in scope — the *original* subject — and the side goal it leaves is
+> false.
+
+`isPropType` is the smallest walk that meets it (`r.inferIO d ty'` on
+`r.annotate`'s ANSWER), and every remaining walk of
+`Bridge/Core/Walks/Owed.lean` that chains two knot calls meets it too.  So
+rather than re-derive the existential/universal form at each site, the six
+slots are restated here, once: **the denotation goes IN as an existential
+(which names no metavariable) and OUT as a universal**.  Each is four lines
+over its own field, and `denoteE`'s functionality at one handle is the whole
+argument.
+
+The primed forms do not replace the unprimed ones — a caller that holds the
+denotation should keep using the field, which leaves it one fewer `∀` to
+instantiate. -/
+
+theorem KnotSpec.whnfCore' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ e, denoteE s₀.store i = some e →
+          SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
+  obtain ⟨e₀, hd, hwf⟩ := hdw
+  have hb := hsim.whnfCore s₀ d i e₀ hok hd hwf
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  refine ⟨h1, h2, h3, fun e he => ?_⟩
+  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
+
+theorem KnotSpec.whnf' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ e, denoteE s₀.store i = some e →
+          SimE (ConLeche.whnf mode env) d e s'.store r⌝⦄ := by
+  obtain ⟨e₀, hd, hwf⟩ := hdw
+  have hb := hsim.whnf s₀ d i e₀ hok hd hwf
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  refine ⟨h1, h2, h3, fun e he => ?_⟩
+  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
+
+theorem KnotSpec.infer' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).infer d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ e, denoteE s₀.store i = some e →
+          SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+  obtain ⟨e₀, hd, hwf⟩ := hdw
+  have hb := hsim.infer s₀ d i e₀ hok hd hwf
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  refine ⟨h1, h2, h3, fun e he => ?_⟩
+  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
+
+theorem KnotSpec.annotate' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).annotate d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ e, denoteE s₀.store i = some e →
+          SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+  obtain ⟨e₀, hd, hwf⟩ := hdw
+  have hb := hsim.annotate s₀ d i e₀ hok hd hwf
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  refine ⟨h1, h2, h3, fun e he => ?_⟩
+  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
+
+theorem KnotSpec.inferIO' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).inferIO d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ e, denoteE s₀.store i = some e →
+          SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+  obtain ⟨e₀, hd, hwf⟩ := hdw
+  have hb := hsim.inferIO s₀ d i e₀ hok hd hwf
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  refine ⟨h1, h2, h3, fun e he => ?_⟩
+  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
+
+theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i j : EIdx) (hok : CheckOK mode env fe s₀)
+    (hda : ∃ a, denoteE s₀.store i = some a ∧ Expr.WScoped d a)
+    (hdb : ∃ b, denoteE s₀.store j = some b ∧ Expr.WScoped d b) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).defeq d i j
+    ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ a b, denoteE s₀.store i = some a → denoteE s₀.store j = some b →
+          SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄ := by
+  obtain ⟨a₀, hda1, hda2⟩ := hda
+  obtain ⟨b₀, hdb1, hdb2⟩ := hdb
+  have hb := hsim.defeq s₀ d i j a₀ b₀ hok hda1 hdb1 hda2 hdb2
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  refine ⟨h1, h2, h3, fun a b ha hbb => ?_⟩
+  rw [hda1] at ha; rw [hdb1] at hbb
+  obtain rfl := (Option.some.inj ha).symm
+  obtain rfl := (Option.some.inj hbb).symm
+  exact h4
+
 /-! ## The body statement, once
 
 Every one of the six body theorems has the same shape — the body at a knot
