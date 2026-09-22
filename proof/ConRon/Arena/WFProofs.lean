@@ -2554,7 +2554,7 @@ theorem NStore.derOfView_congr {st st' : NStore} {v : NNodeView}
   | num p n => simp only [NStore.derOfView, hd p (by simp [NNodeView.children])]
 
 /-- Emptying the scratch tier keeps the invariant, at the same rank. -/
-theorem NStore.wf_of_scr_empty {st st' : NStore} {rk : NIdx → Nat} (h : NWFAt st rk)
+theorem NStore.wf_of_scr_empty {st st' : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = NTables.empty) :
     NWFAt st' rk := by
   have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
@@ -2637,10 +2637,10 @@ theorem NStore.view_enableScratch_pers (st : NStore) {i : NIdx}
   simp [NStore.view, NStore.enableScratch, hp]
 
 theorem NStore.dropScratch_wfAt {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk) :
-    NWFAt st.dropScratch rk := NStore.wf_of_scr_empty h rfl rfl
+    NWFAt st.dropScratch rk := NStore.wf_of_scr_empty (NWFAt'.of_wf h) rfl rfl
 
 theorem NStore.enableScratch_wfAt {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk) :
-    NWFAt st.enableScratch rk := NStore.wf_of_scr_empty h rfl rfl
+    NWFAt st.enableScratch rk := NStore.wf_of_scr_empty (NWFAt'.of_wf h) rfl rfl
 
 /-- A persistent name keeps its readback across `dropScratch`: the recursion
 never leaves the persistent tier, because a persistent node's children are
@@ -2735,7 +2735,7 @@ theorem LStore.derOfView_congr {st st' : LStore} {v : LNodeView}
       hl w (by simp [LNodeView.lchildren])]
   | param n => simp only [LStore.derOfView, hn n (by simp [LNodeView.nchildren])]
 
-theorem LStore.wf_of_scr_empty {st st' : LStore} {rk : LIdx → Nat} (h : LWFAt st rk)
+theorem LStore.wf_of_scr_empty {st st' : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = LTables.empty)
     (hnsWF : NStoreWF st'.ns)
     (hnsv : ∀ c : NIdx, c.isPersistent = true → st'.ns.view c = st.ns.view c)
@@ -2835,14 +2835,14 @@ theorem LStore.derived_enableScratch_pers (st : LStore) {i : LIdx}
 theorem LStore.dropScratch_wfAt {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     LWFAt st.dropScratch rk := by
   obtain ⟨rkn, hn⟩ := h.ns
-  exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.dropScratch_wfAt hn⟩
+  exact LStore.wf_of_scr_empty (LWFAt'.of_wf h) rfl rfl ⟨rkn, NStore.dropScratch_wfAt hn⟩
     (fun c hp => NStore.view_dropScratch_pers st.ns hp)
     (fun c hp => NStore.derived_dropScratch_pers st.ns hp) rfl
 
 theorem LStore.enableScratch_wfAt {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     LWFAt st.enableScratch rk := by
   obtain ⟨rkn, hn⟩ := h.ns
-  exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.enableScratch_wfAt hn⟩
+  exact LStore.wf_of_scr_empty (LWFAt'.of_wf h) rfl rfl ⟨rkn, NStore.enableScratch_wfAt hn⟩
     (fun c hp => NStore.view_enableScratch_pers st.ns hp)
     (fun c hp => NStore.derived_enableScratch_pers st.ns hp) rfl
 
@@ -2936,7 +2936,7 @@ theorem LsStore.derOfView_congr {st st' : LsStore} :
     intro hd
     simp only [LsStore.derOfView, hd u (by simp), ih (fun c hc => hd c (by simp [hc]))]
 
-theorem LsStore.wf_of_scr_empty {st st' : LsStore} (h : LsWF st)
+theorem LsStore.wf_of_scr_empty {st st' : LsStore} (h : LsWF' st)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = LsTables.empty)
     (hlsWF : LStoreWF st'.ls)
     (hlv : ∀ c : LIdx, c.isPersistent = true → st'.ls.view c = st.ls.view c)
@@ -3011,14 +3011,14 @@ theorem LsStore.view_enableScratch_pers (st : LsStore) {i : LsIdx}
 
 theorem LsStore.dropScratch_wf {st : LsStore} (h : LsWF st) : LsWF st.dropScratch := by
   obtain ⟨rkl, hl⟩ := h.ls
-  exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.dropScratch_wfAt hl⟩
+  exact LsStore.wf_of_scr_empty (LsWF'.of_wf h) rfl rfl ⟨rkl, LStore.dropScratch_wfAt hl⟩
     (fun c hp => LStore.view_dropScratch_pers st.ls hp)
     (fun c hp => LStore.derived_dropScratch_pers st.ls hp) rfl
 
 theorem LsStore.enableScratch_wf {st : LsStore} (h : LsWF st) :
     LsWF st.enableScratch := by
   obtain ⟨rkl, hl⟩ := h.ls
-  exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.enableScratch_wfAt hl⟩
+  exact LsStore.wf_of_scr_empty (LsWF'.of_wf h) rfl rfl ⟨rkl, LStore.enableScratch_wfAt hl⟩
     (fun c hp => LStore.view_enableScratch_pers st.ls hp)
     (fun c hp => LStore.derived_enableScratch_pers st.ls hp) rfl
 
@@ -3128,8 +3128,31 @@ theorem EWFAt.viewBM_of_findBM {st : EStore} {rk : EIdx → Nat} (h : EWFAt st r
     · exact ((h.bmConsS m mi).mp hf).1
     · exact absurd hf (by simp)
 
-theorem EWFAt.persFindBM_of_view_pers {st : EStore} {rk : EIdx → Nat}
-    (h : EWFAt st rk) {i : EIdx} {v : ENodeView} {m : ConLeche.BinderMeta}
+/-! ### Forgetting the freshness clauses at the expression store
+
+`Arena/WF.lean` has the other three `of_wf`; this one is here because the
+weakened `bmKeyS` needs `EWFAt.viewBM_of_findBM`. -/
+
+theorem EWFAt'.of_wf {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
+    EWFAt' st rk :=
+  { lss := LsStoreWF'.of_wf h.lss, childOK := h.childOK, nchildOK := h.nchildOK,
+    lchildOK := h.lchildOK, lschildOK := h.lschildOK, rankP := h.rankP,
+    rankS := h.rankS, bmChildOK := h.bmChildOK, consP := h.consP,
+    consSof := fun v i hf => (h.consS v i).mp hf,
+    bmConsP := h.bmConsP, bmConsS := h.bmConsS,
+    bmKeyP := h.bmKeyP,
+    bmKeyS := fun v mj i hf => (h.bmKeyS v mj i hf).imp id
+      (fun hm => by obtain ⟨m, hm⟩ := hm; rw [h.viewBM_of_findBM hm]; rfl),
+    derExact := h.derExact,
+    bmDerExact := h.bmDerExact, sizedP := h.sizedP, sizedS := h.sizedS,
+    capP := h.capP, capS := h.capS, bmCapP := h.bmCapP, bmCapS := h.bmCapS,
+    scrOff := h.scrOff, sync := h.sync }
+
+theorem StoreWF'.of_wf {st : EStore} (h : StoreWF st) : StoreWF' st :=
+  let ⟨rk, h⟩ := h; ⟨rk, EWFAt'.of_wf h⟩
+
+theorem EWFAt'.persFindBM_of_view_pers {st : EStore} {rk : EIdx → Nat}
+    (h : EWFAt' st rk) {i : EIdx} {v : ENodeView} {m : ConLeche.BinderMeta}
     (hp : i.isPersistent = true) (hv : st.view i = some v) (hm : v.bmOf = some m) :
     ∃ mp, mp.isPersistent = true ∧ st.viewBM mp = some m ∧
       st.pers.findBM m = some mp := by
@@ -3223,7 +3246,7 @@ theorem EWFAt.findBM_of_view {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
         rw [EStore.viewBindI_scr hp' hc]; exact hg
       exact ⟨mj, h.findBM_of_viewBM (h.bmChildOK i ty b mj hvb).2.2 hbm⟩
 
-theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
+theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = ETables.empty)
     (hlssWF : LsStoreWF st'.lss)
     (hnsv : ∀ c : NIdx, c.isPersistent = true → st'.ns.view c = st.ns.view c)
@@ -3439,7 +3462,7 @@ theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt 
 theorem EStore.dropScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
     EWFAt st.dropScratch rk := by
   have hlsw : LsWF st.lss := h.lss
-  refine EStore.wf_of_scr_empty h rfl rfl (LsStore.dropScratch_wf hlsw)
+  refine EStore.wf_of_scr_empty (EWFAt'.of_wf h) rfl rfl (LsStore.dropScratch_wf hlsw)
     (fun c hp => NStore.view_dropScratch_pers st.ns hp)
     (fun c hp => LStore.view_dropScratch_pers st.ls hp)
     (fun c hp => LsStore.view_dropScratch_pers st.lss hp)
@@ -3453,7 +3476,7 @@ theorem EStore.dropScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st 
 theorem EStore.enableScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
     EWFAt st.enableScratch rk := by
   have hlsw : LsWF st.lss := h.lss
-  refine EStore.wf_of_scr_empty h rfl rfl (LsStore.enableScratch_wf hlsw)
+  refine EStore.wf_of_scr_empty (EWFAt'.of_wf h) rfl rfl (LsStore.enableScratch_wf hlsw)
     (fun c hp => NStore.view_enableScratch_pers st.ns hp)
     (fun c hp => LStore.view_enableScratch_pers st.ls hp)
     (fun c hp => LsStore.view_enableScratch_pers st.lss hp)
@@ -3935,7 +3958,8 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     cases hb : w.bmOf with
     | none => exact ETables.find?_bmOf_none hb _ _
     | some m =>
-      rw [EStore.findBMOfView_eq_findBM _ hb, h.findBM_of_viewBM hmi0 (hmi m hb)] at hw
+      rw [EStore.findBMOfView_eq_findBM _ hb,
+        h.findBM_of_viewBM hmi0 (hmi m hb)] at hw
       rw [Option.some.inj hw]
   -- the appended column, read back
   have hgetnew : tb.getWith st.viewBM inew = some w := by
@@ -3962,7 +3986,8 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     rw [← htb, ← hid, ETables.find?_push_gen]
     by_cases hk : ETables.consKeyEq w mi u mj = true
     · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi0 hmi hmj).mp hk)]
-    · rw [if_neg hk, if_neg (fun he => hk ((h.consKeyEq_iff hmi0 hmi hmj).mpr he))]
+    · rw [if_neg hk,
+        if_neg (fun he => hk ((h.consKeyEq_iff hmi0 hmi hmj).mpr he))]
   have hdertb : ∀ i, st.scr.Decodes i → tb.derAt i = st.scr.derAt i := by
     intro i hi; rw [← htb]; exact ETables.derAt_push_of_decodes h.sizedS hi
   have hdernew : tb.derAt inew = st.derOfView w := by
@@ -5012,7 +5037,8 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     cases hb : w.bmOf with
     | none => exact ETables.find?_bmOf_none hb _ _
     | some m =>
-      rw [EStore.findBMOfView_eq_findBM _ hb, h.findBM_of_viewBM hmi0 (hmi m hb)] at hw
+      rw [EStore.findBMOfView_eq_findBM _ hb,
+        h.findBM_of_viewBM hmi0 (hmi m hb)] at hw
       rw [Option.some.inj hw]
   -- the appended column, read back
   have hgetnew : tb.getWith st.viewBM inew = some w := by
@@ -5039,7 +5065,8 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     rw [← htb, ← hid, ETables.find?_push_gen]
     by_cases hk : ETables.consKeyEq w mi u mj = true
     · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi0 hmi hmj).mp hk)]
-    · rw [if_neg hk, if_neg (fun he => hk ((h.consKeyEq_iff hmi0 hmi hmj).mpr he))]
+    · rw [if_neg hk,
+        if_neg (fun he => hk ((h.consKeyEq_iff hmi0 hmi hmj).mpr he))]
   have hdertb : ∀ i, st.pers.Decodes i → tb.derAt i = st.pers.derAt i := by
     intro i hi; rw [← htb]; exact ETables.derAt_push_of_decodes h.sizedP hi
   have hdernew : tb.derAt inew = st.derOfView w := by
@@ -9232,5 +9259,1505 @@ theorem NStore.internPersistent_breaks_fresh {st : NStore} {v : NNodeView}
   have hf := hwf.fresh v i h1
   rw [h2] at hf
   simp at hf
+
+
+/-! ### ============================================================
+    `internPersistent` AT A LIVE SCRATCH TIER — the promote window
+    (task #97-P5-Fresh)
+
+Finding 17's ruling, discharged: `fresh` holds only locally
+(`Arena/WF.lean`'s section note has the parallel-checking argument), so each
+`internPersistent` is stated at the WEAK invariant `…StoreWF'` on both sides.
+Everything else about it is `wf_push_pers`'s own argument with three
+substitutions:
+
+* the scratch tier no longer has to be empty — `st'.scr = st.scr` and
+  `st'.scratchOn = st.scratchOn` replace `scrOff`, so a scratch handle's
+  `view` and `derived` simply do not move;
+* `childOK`'s persistence conjunct for the NEW node came from `scrOff` (every
+  live handle was persistent) and now comes from the added precondition
+  `NViewPers w`, which a promotion has by construction — it promotes the
+  children first;
+* `fresh` is gone from both sides, which is the whole point.
+
+The rank function is `wf_push_pers`'s, unchanged: the new node takes
+`st.persCount`, which is above every persistent rank and below the new
+`persCount`, and a scratch node's rank is left alone (`rankS` only wants
+`< nodeCount`, and `nodeCount` grew). -/
+
+/-- con-leche: none — arena infrastructure; appending a name to the persistent
+tier with the SCRATCH TIER LIVE keeps the promote-window invariant. -/
+theorem NStore.wf_push_pers' {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView}
+    {tb : NTables} {inew : NIdx}
+    (h : NWFAt' st rk) (hv : st.ViewOK w) (hp : NViewPers w)
+    (hon : st'.scratchOn = st.scratchOn)
+    (hscr : st'.scr = st.scr)
+    (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
+    (hpers : st'.pers = tb)
+    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) :
+    NStoreWF' st' := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  have htb : (st.pers.push w (st.derOfView w) Idx.tierP).1 = tb := by rw [hpush]
+  have hid : (st.pers.push w (st.derOfView w) Idx.tierP).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (NTables.push_spec st.pers w _ Idx.tierP htr hcap).1
+  have hnp : inew.isPersistent = true := by
+    show (inew.tier == 0) = true
+    rw [← hid, (NTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact NTables.push_tag htr hcap
+  have hix : inew.idxNat = st.pers.sizeOf w := by
+    rw [← hid]; exact NTables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact NTables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.pers.get i = some u ∨ (i.tag = w.tagOf ∧ i.idxNat = st.pers.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact NTables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.pers.find? u := by
+    intro u; rw [← htb, ← hid]; exact NTables.find?_push
+  have hdertb : ∀ i u, st.pers.get i = some u → tb.derAt i = st.pers.derAt i := by
+    intro i u hi; rw [← htb]; exact NTables.derAt_push_of_get h.sizedP hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact NTables.derAt_push_new h.sizedP htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact NTables.Sized_push h.sizedP
+  have hcounttb : tb.count = st.pers.count + 1 := by rw [← htb]; exact NTables.count_push
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u
+    rw [← htb]
+    rcases NTables.sizeOf_push_cases (t := st.pers) (w := w) (v := u)
+      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _⟩
+    · rw [h1]; exact h.capP u
+    · rw [h1]; omega
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = tb.get i := by
+    intro i hp'; rw [NStore.view_pers hp', hpers]
+  -- the scratch tier does not move, so a scratch handle's view is untouched
+  have hviewS : ∀ i, i.isPersistent = false → st'.view i = st.view i := by
+    intro i hp'; simp only [NStore.view, hp', hon, hscr, Bool.false_eq_true, if_false]
+  have hnew_none : st.view inew = none := by
+    rw [NStore.view_pers hnp]; exact NTables.get_eq_none_of_size htag hix
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp']
+      exact hmonotb i u (by rwa [NStore.view_pers hp'] at hu)
+    · rw [hviewS i (by simpa using hp')]; exact hu
+  have hmoneS : ∀ i, (st.view i).isSome = true → (st'.view i).isSome = true := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    rw [hmono i u hu]; rfl
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp'] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [NStore.view_pers hp']; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
+          (h3.trans hix.symm), h4⟩
+    · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu
+  have hpc : st'.persCount = st.persCount + 1 := by
+    simp only [NStore.persCount, hpers, hcounttb]
+  have hnc : st'.nodeCount = st.nodeCount + 1 := by
+    simp only [NStore.nodeCount, NStore.persCount, NStore.scrCount, hpers, hscr,
+      hcounttb]
+    omega
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    by_cases hp' : i.isPersistent = true
+    · obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+      rw [NStore.derived_pers hp', NStore.derived_pers hp', hpers]
+      exact hdertb i u (by rwa [NStore.view_pers hp'] at hu)
+    · simp only [NStore.derived, hp', hon, hscr, Bool.false_eq_true, if_false]
+  have hdov : ∀ u : NNodeView, (∀ c ∈ u.children, (st.view c).isSome = true) →
+      st'.derOfView u = st.derOfView u :=
+    fun u hu => NStore.derOfView_congr (fun c hc => hder c (hu c hc))
+  have hrkold : ∀ c, (st.view c).isSome = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) = rk c := by
+    intro c hc
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+    rw [hu]; rfl
+  have hrknew : (if (st.view inew).isNone = true then st.persCount else rk inew)
+      = st.persCount := by rw [hnew_none]; rfl
+  have hrkle : ∀ c, c.isPersistent = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) ≤ st.persCount := by
+    intro c hcp
+    by_cases hc : (st.view c).isSome = true
+    · rw [hrkold c hc]
+      exact Nat.le_of_lt (h.rankP c hcp hc)
+    · have hh : st.view c = none := by
+        cases hv' : st.view c with
+        | none => rfl
+        | some u => rw [hv'] at hc; exact absurd rfl hc
+      rw [hh]; exact Nat.le_refl _
+  refine ⟨fun c => if (st.view c).isNone = true then st.persCount else rk c,
+    { childOK := ?childOK, rankP := ?rankP, rankS := ?rankS, consP := ?consP,
+      consS := ?consS, derExact := ?derExact, sizedP := ?sizedP,
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+  case childOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · have hch := h.childOK i u hi' c hc
+      refine ⟨hmoneS c hch.1, ?_, hch.2.2⟩
+      rw [hrkold c hch.1, hrkold i (by rw [hi']; rfl)]
+      exact hch.2.1
+    · have hcs : (st.view c).isSome = true := hv c hc
+      have hcp : c.isPersistent = true := hp c hc
+      refine ⟨hmoneS c hcs, ?_, fun _ => hcp⟩
+      rw [hrkold c hcs, hrknew]
+      exact h.rankP c hcp hcs
+  case rankP =>
+    intro i hip _
+    rw [hpc]
+    have := hrkle i hip
+    omega
+  case rankS =>
+    intro i hip hi
+    rw [hviewS i hip] at hi
+    rw [hrkold i hi, hnc]
+    have := h.rankS i hip hi
+    omega
+  case consP =>
+    intro u i
+    rw [hpers, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consP u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfp] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case consS =>
+    intro u i
+    rw [hscr]
+    constructor
+    · intro hf
+      obtain ⟨h1, h2⟩ := (h.consS u i).mp hf
+      exact ⟨by rw [hviewS i h2]; exact h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rw [hviewS i h2] at h1
+      exact (h.consS u i).mpr ⟨h1, h2⟩
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u (fun c hc => (h.childOK i u hi' c hc).1), hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u hv, NStore.derived_pers hnp, hpers, hdernew]
+  case sizedP => rw [hpers]; exact hsizedtb
+  case sizedS => rw [hscr]; exact h.sizedS
+  case capP => rw [hpers]; exact hcaptb
+  case capS => rw [hscr]; exact h.capS
+  case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
+
+/-- con-leche: none — arena infrastructure; **`NStore.internPersistent`
+preserves the promote-window invariant.**  The `fresh`-free half of finding
+17's answer at the name tier. -/
+theorem NStore.internPersistent_wf' {st : NStore} {w : NNodeView}
+    (h : NStoreWF' st) (hv : st.ViewOK w) (hp : NViewPers w)
+    (hcap : st.capOKPersistent w) : NStoreWF' (st.internPersistent w).1 := by
+  obtain ⟨rk, h⟩ := h
+  simp only [NStore.capOKPersistent] at hcap
+  simp only [NStore.internPersistent]
+  split
+  · exact ⟨rk, h⟩
+  · rename_i hfp
+    exact NStore.wf_push_pers' h hv hp rfl rfl rfl rfl hcap hfp
+
+
+/-- con-leche: none — arena infrastructure; appending a level to the
+persistent tier with the SCRATCH TIER LIVE keeps the promote-window
+invariant.  `NStore.wf_push_pers'`'s argument one tier up; `hsync` is not
+needed any more, because the name children's persistence is the added
+precondition rather than a consequence of `scrOff`. -/
+theorem LStore.wf_push_pers' {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView}
+    {tb : LTables} {inew : LIdx}
+    (h : LWFAt' st rk) (hv : st.ViewOK w) (hp : LViewPers w)
+    (hon : st'.scratchOn = st.scratchOn)
+    (hns : st'.ns = st.ns) (hscr : st'.scr = st.scr)
+    (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
+    (hpers : st'.pers = tb)
+    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) :
+    LStoreWF' st' := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  have htb : (st.pers.push w (st.derOfView w) Idx.tierP).1 = tb := by rw [hpush]
+  have hid : (st.pers.push w (st.derOfView w) Idx.tierP).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (LTables.push_spec st.pers w _ Idx.tierP htr hcap).1
+  have hnp : inew.isPersistent = true := by
+    show (inew.tier == 0) = true
+    rw [← hid, (LTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact LTables.push_tag htr hcap
+  have hix : inew.idxNat = st.pers.sizeOf w := by
+    rw [← hid]; exact LTables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact LTables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.pers.get i = some u ∨ (i.tag = w.tagOf ∧ i.idxNat = st.pers.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact LTables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.pers.find? u := by
+    intro u; rw [← htb, ← hid]; exact LTables.find?_push
+  have hdertb : ∀ i u, st.pers.get i = some u → tb.derAt i = st.pers.derAt i := by
+    intro i u hi; rw [← htb]; exact LTables.derAt_push_of_get h.sizedP hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact LTables.derAt_push_new h.sizedP htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact LTables.Sized_push h.sizedP
+  have hcounttb : tb.count = st.pers.count + 1 := by rw [← htb]; exact LTables.count_push
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u
+    rw [← htb]
+    rcases LTables.sizeOf_push_cases (t := st.pers) (w := w) (v := u)
+      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _⟩
+    · rw [h1]; exact h.capP u
+    · rw [h1]; omega
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = tb.get i := by
+    intro i hp'; rw [LStore.view_pers hp', hpers]
+  have hviewS : ∀ i, i.isPersistent = false → st'.view i = st.view i := by
+    intro i hp'; simp only [LStore.view, hp', hon, hscr, Bool.false_eq_true, if_false]
+  have hnew_none : st.view inew = none := by
+    rw [LStore.view_pers hnp]; exact LTables.get_eq_none_of_size htag hix
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp']
+      exact hmonotb i u (by rwa [LStore.view_pers hp'] at hu)
+    · rw [hviewS i (by simpa using hp')]; exact hu
+  have hmoneS : ∀ i, (st.view i).isSome = true → (st'.view i).isSome = true := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    rw [hmono i u hu]; rfl
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp'] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [LStore.view_pers hp']; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
+          (h3.trans hix.symm), h4⟩
+    · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu
+  have hpc : st'.persCount = st.persCount + 1 := by
+    simp only [LStore.persCount, hpers, hcounttb]
+  have hnc : st'.nodeCount = st.nodeCount + 1 := by
+    simp only [LStore.nodeCount, LStore.persCount, LStore.scrCount, hpers, hscr,
+      hcounttb]
+    omega
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    by_cases hp' : i.isPersistent = true
+    · obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+      rw [LStore.derived_pers hp', LStore.derived_pers hp', hpers]
+      exact hdertb i u (by rwa [LStore.view_pers hp'] at hu)
+    · simp only [LStore.derived, hp', hon, hscr, Bool.false_eq_true, if_false]
+  have hdov : ∀ u : LNodeView, (∀ c ∈ u.lchildren, (st.view c).isSome = true) →
+      st'.derOfView u = st.derOfView u :=
+    fun u hu => LStore.derOfView_congr (fun c hc => hder c (hu c hc))
+      (fun c _ => by rw [hns])
+  have hrkold : ∀ c, (st.view c).isSome = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) = rk c := by
+    intro c hc
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+    rw [hu]; rfl
+  have hrknew : (if (st.view inew).isNone = true then st.persCount else rk inew)
+      = st.persCount := by rw [hnew_none]; rfl
+  have hrkle : ∀ c, c.isPersistent = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) ≤ st.persCount := by
+    intro c hcp
+    by_cases hc : (st.view c).isSome = true
+    · rw [hrkold c hc]
+      exact Nat.le_of_lt (h.rankP c hcp hc)
+    · have hh : st.view c = none := by
+        cases hv' : st.view c with
+        | none => rfl
+        | some u => rw [hv'] at hc; exact absurd rfl hc
+      rw [hh]; exact Nat.le_refl _
+  refine ⟨fun c => if (st.view c).isNone = true then st.persCount else rk c,
+    { ns := by rw [hns]; exact h.ns, childOK := ?childOK, nchildOK := ?nchildOK,
+      rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
+      derExact := ?derExact, sizedP := ?sizedP,
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff,
+      sync := by rw [hon, hns]; exact h.sync }⟩
+  case childOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · have hch := h.childOK i u hi' c hc
+      refine ⟨hmoneS c hch.1, ?_, hch.2.2⟩
+      rw [hrkold c hch.1, hrkold i (by rw [hi']; rfl)]
+      exact hch.2.1
+    · have hcs : (st.view c).isSome = true := hv.lvl c hc
+      have hcp : c.isPersistent = true := hp.lvl c hc
+      refine ⟨hmoneS c hcs, ?_, fun _ => hcp⟩
+      rw [hrkold c hcs, hrknew]
+      exact h.rankP c hcp hcs
+  case nchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hns]; exact h.nchildOK i u hi' c hc
+    · exact ⟨by rw [hns]; exact hv.nm c hc, fun _ => hp.nm c hc⟩
+  case rankP =>
+    intro i hip _
+    rw [hpc]
+    have := hrkle i hip
+    omega
+  case rankS =>
+    intro i hip hi
+    rw [hviewS i hip] at hi
+    rw [hrkold i hi, hnc]
+    have := h.rankS i hip hi
+    omega
+  case consP =>
+    intro u i
+    rw [hpers, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consP u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfp] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case consS =>
+    intro u i
+    rw [hscr]
+    constructor
+    · intro hf
+      obtain ⟨h1, h2⟩ := (h.consS u i).mp hf
+      exact ⟨by rw [hviewS i h2]; exact h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rw [hviewS i h2] at h1
+      exact (h.consS u i).mpr ⟨h1, h2⟩
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u (fun c hc => (h.childOK i u hi' c hc).1), hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u hv.lvl, LStore.derived_pers hnp, hpers, hdernew]
+  case sizedP => rw [hpers]; exact hsizedtb
+  case sizedS => rw [hscr]; exact h.sizedS
+  case capP => rw [hpers]; exact hcaptb
+  case capS => rw [hscr]; exact h.capS
+  case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
+
+/-- con-leche: none — arena infrastructure; **`LStore.internPersistent`
+preserves the promote-window invariant.** -/
+theorem LStore.internPersistent_wf' {st : LStore} {w : LNodeView}
+    (h : LStoreWF' st) (hv : st.ViewOK w) (hp : LViewPers w)
+    (hcap : st.capOKPersistent w) : LStoreWF' (st.internPersistent w).1 := by
+  obtain ⟨rk, h⟩ := h
+  simp only [LStore.capOKPersistent] at hcap
+  simp only [LStore.internPersistent]
+  split
+  · exact ⟨rk, h⟩
+  · rename_i hfp
+    exact LStore.wf_push_pers' h hv hp rfl rfl rfl rfl rfl hcap hfp
+
+
+/-- con-leche: none — arena infrastructure; appending a level list to the
+persistent tier with the SCRATCH TIER LIVE keeps the promote-window
+invariant.  No rank clause at this store (a list node has no `LsIdx`
+children), so this is the shortest of the four. -/
+theorem LsStore.wf_push_pers' {st st' : LsStore} {w : LsNodeView}
+    {tb : LsTables} {inew : LsIdx}
+    (h : LsWF' st) (hv : st.ViewOK w) (hp : LsViewPers w)
+    (hon : st'.scratchOn = st.scratchOn)
+    (hls : st'.ls = st.ls) (hscr : st'.scr = st.scr)
+    (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
+    (hpers : st'.pers = tb)
+    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) :
+    LsStoreWF' st' := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  have htb : (st.pers.push w (st.derOfView w) Idx.tierP).1 = tb := by rw [hpush]
+  have hid : (st.pers.push w (st.derOfView w) Idx.tierP).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (LsTables.push_spec st.pers w _ Idx.tierP htr hcap).1
+  have hnp : inew.isPersistent = true := by
+    show (inew.tier == 0) = true
+    rw [← hid, (LsTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
+  have htag : inew.tag = LsTag.list := by rw [← hid]; exact LsTables.push_tag htr hcap
+  have hix : inew.idxNat = st.pers.sizeOf w := by
+    rw [← hid]; exact LsTables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact LsTables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.pers.get i = some u ∨ (i.tag = LsTag.list ∧ i.idxNat = st.pers.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact LsTables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.pers.find? u := by
+    intro u; rw [← htb, ← hid]; exact LsTables.find?_push
+  have hdertb : ∀ i u, st.pers.get i = some u → tb.derAt i = st.pers.derAt i := by
+    intro i u hi; rw [← htb]; exact LsTables.derAt_push_of_get h.sizedP hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact LsTables.derAt_push_new h.sizedP htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact LsTables.Sized_push h.sizedP
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u; rw [← htb, LsTables.sizeOf_push]; omega
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = tb.get i := by
+    intro i hp'; rw [LsStore.view_pers hp', hpers]
+  have hviewS : ∀ i, i.isPersistent = false → st'.view i = st.view i := by
+    intro i hp'; simp only [LsStore.view, hp', hon, hscr, Bool.false_eq_true, if_false]
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp']
+      exact hmonotb i u (by rwa [LsStore.view_pers hp'] at hu)
+    · rw [hviewS i (by simpa using hp')]; exact hu
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp'] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [LsStore.view_pers hp']; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
+          (h3.trans hix.symm), h4⟩
+    · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    by_cases hp' : i.isPersistent = true
+    · obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+      rw [LsStore.derived_pers hp', LsStore.derived_pers hp', hpers]
+      exact hdertb i u (by rwa [LsStore.view_pers hp'] at hu)
+    · simp only [LsStore.derived, hp', hon, hscr, Bool.false_eq_true, if_false]
+  have hdov : ∀ u : LsNodeView, st'.derOfView u = st.derOfView u :=
+    fun u => LsStore.derOfView_congr u (fun c _ => by rw [hls])
+  refine { ls := by rw [hls]; exact h.ls, lchildOK := ?lchildOK, consP := ?consP,
+           consS := ?consS, derExact := ?derExact,
+           sizedP := ?sizedP, sizedS := ?sizedS, capP := ?capP, capS := ?capS,
+           scrOff := ?scrOff, sync := by rw [hon, hls]; exact h.sync }
+  case lchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hls]; exact h.lchildOK i u hi' c hc
+    · exact ⟨by rw [hls]; exact hv c hc, fun _ => hp c hc⟩
+  case consP =>
+    intro u i
+    rw [hpers, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consP u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfp] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case consS =>
+    intro u i
+    rw [hscr]
+    constructor
+    · intro hf
+      obtain ⟨h1, h2⟩ := (h.consS u i).mp hf
+      exact ⟨by rw [hviewS i h2]; exact h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rw [hviewS i h2] at h1
+      exact (h.consS u i).mpr ⟨h1, h2⟩
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u, hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u, LsStore.derived_pers hnp, hpers, hdernew]
+  case sizedP => rw [hpers]; exact hsizedtb
+  case sizedS => rw [hscr]; exact h.sizedS
+  case capP => rw [hpers]; exact hcaptb
+  case capS => rw [hscr]; exact h.capS
+  case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
+
+/-- con-leche: none — arena infrastructure; **`LsStore.internPersistent`
+preserves the promote-window invariant.** -/
+theorem LsStore.internPersistent_wf' {st : LsStore} {w : LsNodeView}
+    (h : LsStoreWF' st) (hv : st.ViewOK w) (hp : LsViewPers w)
+    (hcap : st.capOKPersistent w) : LsStoreWF' (st.internPersistent w).1 := by
+  simp only [LsStore.capOKPersistent] at hcap
+  simp only [LsStore.internPersistent]
+  split
+  · exact h
+  · rename_i hfp
+    exact LsStore.wf_push_pers' h hv hp rfl rfl rfl rfl rfl hcap hfp
+
+
+/-! ### The two `EWFAt` helpers the weak invariant still has
+
+`findBM_of_viewBM` needs `bmFresh` at a SCRATCH datum handle, so the weak
+invariant only has it at a persistent one — which is all `internPersistent`
+ever asks for, because `internBMOfViewPersistent` probes `persFindBM` and
+answers a persistent handle. -/
+
+theorem EWFAt'.viewBM_of_findBM {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk)
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (hf : st.findBM m = some mi) :
+    st.viewBM mi = some m := by
+  simp only [EStore.findBM, EStore.persFindBM] at hf
+  split at hf
+  · rename_i j hj
+    rw [← Option.some.inj hf]
+    exact ((h.bmConsP m j).mp hj).1
+  · split at hf
+    · exact ((h.bmConsS m mi).mp hf).1
+    · exact absurd hf (by simp)
+
+theorem EWFAt'.findBM_of_viewBM_pers {st : EStore} {rk : EIdx → Nat}
+    (h : EWFAt' st rk) {mi : BMIdx} {m : ConLeche.BinderMeta} (h0 : mi.tag = 0)
+    (hp : mi.isPersistent = true) (hv : st.viewBM mi = some m) :
+    st.findBM m = some mi := by
+  have hf : st.pers.findBM m = some mi := (h.bmConsP m mi).mpr ⟨hv, hp, h0⟩
+  simp only [EStore.findBM, EStore.persFindBM, hf]
+
+theorem EWFAt'.consKeyEq_iff {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk)
+    {w u : ENodeView} {mi mj : BMIdx} (hmi0 : mi.tag = 0)
+    (hmiP : mi.isPersistent = true)
+    (hmi : ENodeView.BMOK st.viewBM w mi)
+    (hmj : st.findBMOfView u = some mj) :
+    ETables.consKeyEq w mi u mj = true ↔ w = u := by
+  cases w
+  case lam ty b m =>
+    have hbm : st.viewBM mi = some m := hmi m rfl
+    cases u
+    case lam ty' b' m' =>
+      have hmj' : st.findBM m' = some mj := by
+        rw [← EStore.findBMOfView_eq_findBM st
+          (rfl : (ENodeView.lam ty' b' m').bmOf = some m')]
+        exact hmj
+      constructor
+      · intro hk
+        simp only [ETables.consKeyEq, Bool.and_eq_true, beq_iff_eq] at hk
+        obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hk
+        have hvv := h.viewBM_of_findBM hmj'
+        rw [hbm] at hvv
+        rw [Option.some.inj hvv]
+      · intro he
+        simp only [ENodeView.lam.injEq] at he
+        obtain ⟨rfl, rfl, rfl⟩ := he
+        have hf := h.findBM_of_viewBM_pers hmi0 hmiP hbm
+        rw [hf] at hmj'
+        have hij : mi = mj := Option.some.inj hmj'
+        subst hij
+        simp [ETables.consKeyEq]
+    all_goals simp [ETables.consKeyEq]
+  case forallE ty b m =>
+    have hbm : st.viewBM mi = some m := hmi m rfl
+    cases u
+    case forallE ty' b' m' =>
+      have hmj' : st.findBM m' = some mj := by
+        rw [← EStore.findBMOfView_eq_findBM st
+          (rfl : (ENodeView.forallE ty' b' m').bmOf = some m')]
+        exact hmj
+      constructor
+      · intro hk
+        simp only [ETables.consKeyEq, Bool.and_eq_true, beq_iff_eq] at hk
+        obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hk
+        have hvv := h.viewBM_of_findBM hmj'
+        rw [hbm] at hvv
+        rw [Option.some.inj hvv]
+      · intro he
+        simp only [ENodeView.forallE.injEq] at he
+        obtain ⟨rfl, rfl, rfl⟩ := he
+        have hf := h.findBM_of_viewBM_pers hmi0 hmiP hbm
+        rw [hf] at hmj'
+        have hij : mi = mj := Option.some.inj hmj'
+        subst hij
+        simp [ETables.consKeyEq]
+    all_goals simp [ETables.consKeyEq]
+  all_goals (cases u <;> simp [ETables.consKeyEq, and_assoc])
+
+/-- con-leche: none — arena infrastructure; appending an expression node to
+the persistent tier with the SCRATCH TIER LIVE keeps the promote-window
+invariant.  `EStore.wf_push_pers` with `fresh`/`bmFresh` dropped, `scrOff`
+replaced by "the scratch tier does not move", and the three child-persistence
+facts taken as the precondition `EViewPers w` instead of read off `scrOff`.
+`hmiP` is the datum handle's own persistence, which
+`internBMOfViewPersistent` supplies because it probes `persFindBM` only. -/
+theorem EStore.wf_push_pers' {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
+    {tb : ETables} {inew : EIdx}
+    (h : EWFAt' st rk) (hv : st.ViewOK w) (hp : EViewPers w)
+    (hon : st'.scratchOn = st.scratchOn)
+    (hlss : st'.lss = st.lss) (hscr : st'.scr = st.scr)
+    {mi : BMIdx} (hmi0 : mi.tag = 0) (hmiP : mi.isPersistent = true)
+    (hmi : ENodeView.BMOK st.viewBM w mi)
+    (hpush : st.pers.push w (st.derOfView w) mi Idx.tierP = (tb, inew))
+    (hpers : st'.pers = tb)
+    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w mi = none) :
+    StoreWF' st' ∧ st'.view inew = some w ∧ inew.isPersistent = true := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  have htb : (st.pers.push w (st.derOfView w) mi Idx.tierP).1 = tb := by rw [hpush]
+  have hid : (st.pers.push w (st.derOfView w) mi Idx.tierP).2 = inew := by rw [hpush]
+  -- the datum store is untouched, so `viewBM` and `findBM` do not move
+  have hvbm : ∀ j : BMIdx, st'.viewBM j = st.viewBM j := by
+    intro j
+    by_cases hjp : j.isPersistent = true
+    · rw [EStore.viewBM_pers hjp, EStore.viewBM_pers hjp, hpers, ← htb,
+        ETables.getBM_push]
+    · have hjp' : j.isPersistent = false := by simpa using hjp
+      simp only [EStore.viewBM, hjp', hon, hscr, Bool.false_eq_true, if_false]
+  have hfbm : ∀ m : ConLeche.BinderMeta, st'.findBM m = st.findBM m := by
+    intro m
+    simp only [EStore.findBM, EStore.persFindBM, hpers, hscr, hon, ← htb,
+      ETables.findBM_push]
+  have hfov : ∀ v : ENodeView, st'.findBMOfView v = st.findBMOfView v := by
+    intro v
+    cases hb : v.bmOf with
+    | none =>
+      rw [EStore.findBMOfView_eq_zero _ hb, EStore.findBMOfView_eq_zero _ hb]
+    | some m =>
+      rw [EStore.findBMOfView_eq_findBM _ hb, EStore.findBMOfView_eq_findBM _ hb,
+        hfbm]
+  have hfovw : ∃ mw, st.findBMOfView w = some mw := by
+    cases hb : w.bmOf with
+    | none => exact ⟨_, EStore.findBMOfView_eq_zero _ hb⟩
+    | some m =>
+      exact ⟨mi, by rw [EStore.findBMOfView_eq_findBM _ hb,
+        h.findBM_of_viewBM_pers hmi0 hmiP (hmi m hb)]⟩
+  have hprobe : ∀ (t : ETables) (mw : BMIdx), st.findBMOfView w = some mw →
+      t.find? w mw = t.find? w mi := by
+    intro t mw hw
+    cases hb : w.bmOf with
+    | none => exact ETables.find?_bmOf_none hb _ _
+    | some m =>
+      rw [EStore.findBMOfView_eq_findBM _ hb,
+        h.findBM_of_viewBM_pers hmi0 hmiP (hmi m hb)] at hw
+      rw [Option.some.inj hw]
+  -- the appended column, read back
+  have hgetnew : tb.getWith st.viewBM inew = some w := by
+    rw [← htb, ← hid]
+    exact (ETables.getWith_push_spec st.pers st.viewBM w _ mi Idx.tierP hmi htr hcap).1
+  have hnp : inew.isPersistent = true := by
+    show (inew.tier == 0) = true
+    rw [← hid,
+      (ETables.getWith_push_spec st.pers st.viewBM w _ mi Idx.tierP hmi htr hcap).2]
+    decide
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag htr hcap
+  have hix : inew.idxNat = st.pers.sizeOf w := by
+    rw [← hid]; exact ETables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.pers.getWith st.viewBM i = some u →
+      tb.getWith st.viewBM i = some u := by
+    intro i u hi; rw [← htb]; exact ETables.getWith_push_mono _ _ _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.getWith st.viewBM i = some u →
+      st.pers.getWith st.viewBM i = some u ∨
+        (i.tag = w.tagOf ∧ i.idxNat = st.pers.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact ETables.getWith_push_inv hmi hi
+  have hfindtb : ∀ u mj, st.findBMOfView u = some mj →
+      tb.find? u mj = if w = u then some inew else st.pers.find? u mj := by
+    intro u mj hmj
+    rw [← htb, ← hid, ETables.find?_push_gen]
+    by_cases hk : ETables.consKeyEq w mi u mj = true
+    · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi0 hmiP hmi hmj).mp hk)]
+    · rw [if_neg hk,
+        if_neg (fun he => hk ((h.consKeyEq_iff hmi0 hmiP hmi hmj).mpr he))]
+  have hdertb : ∀ i, st.pers.Decodes i → tb.derAt i = st.pers.derAt i := by
+    intro i hi; rw [← htb]; exact ETables.derAt_push_of_decodes h.sizedP hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact ETables.derAt_push_new h.sizedP htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact ETables.Sized_push h.sizedP
+  have hcounttb : tb.count = st.pers.count + 1 := by rw [← htb]; exact ETables.count_push
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u
+    rw [← htb]
+    rcases ETables.sizeOf_push_cases (t := st.pers) (w := w) (v := u)
+      (d := st.derOfView w) (mi := mi) (tr := Idx.tierP) with h1 | ⟨h1, _⟩
+    · rw [h1]; exact h.capP u
+    · rw [h1]; omega
+  -- the sub-stores are untouched
+  have hns : st'.ns = st.ns := by simp only [EStore.ns, hlss]
+  have hls : st'.ls = st.ls := by simp only [EStore.ls, hlss]
+  -- the two tiers, as `view` sees them
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = tb.getWith st.viewBM i := by
+    intro i hp'
+    rw [EStore.view_pers hp', hpers]
+    exact ETables.getWith_congr (fun ty b mj _ => hvbm mj)
+  have hviewPold : ∀ i, i.isPersistent = true →
+      st.view i = st.pers.getWith st.viewBM i := fun i hp' => EStore.view_pers hp'
+  have hviewS : ∀ i, i.isPersistent = false → st'.view i = st.view i := by
+    intro i hp'
+    by_cases hsc : st.scratchOn = true
+    · rw [EStore.view_scr hp' (by rw [hon]; exact hsc), EStore.view_scr hp' hsc,
+        hscr]
+      exact ETables.getWith_congr (fun ty b mj _ => hvbm mj)
+    · have hoff : st.scratchOn = false := by simpa using hsc
+      rw [EStore.view_off hp' (by rw [hon]; exact hoff), EStore.view_off hp' hoff]
+  have hvbi : ∀ i, i.isPersistent = false → st'.viewBindI i = st.viewBindI i := by
+    intro i hp'
+    simp only [EStore.viewBindI, hp', hon, hscr, Bool.false_eq_true, if_false]
+  have hnew_none : st.view inew = none := by
+    rw [hviewPold inew hnp]; exact ETables.getWith_eq_none_of_size htag hix
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp']
+      exact hmonotb i u (by rwa [hviewPold i hp'] at hu)
+    · rw [hviewS i (by simpa using hp')]; exact hu
+  have hmoneS : ∀ i, (st.view i).isSome = true → (st'.view i).isSome = true := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    rw [hmono i u hu]; rfl
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp' : i.isPersistent = true
+    · rw [hviewP i hp'] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [hviewPold i hp']; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierP hp').trans (Idx.tier_eq_tierP hnp).symm)
+          (h3.trans hix.symm), h4⟩
+    · rw [hviewS i (by simpa using hp')] at hu; exact Or.inl hu
+  have hpc : st'.persCount = st.persCount + 1 := by
+    simp only [EStore.persCount, hpers, hcounttb]
+  have hnc : st'.nodeCount = st.nodeCount + 1 := by
+    simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount, hpers, hscr,
+      hcounttb]
+    omega
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    by_cases hp' : i.isPersistent = true
+    · obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+      rw [EStore.derived_pers hp', EStore.derived_pers hp', hpers]
+      exact hdertb i (ETables.Decodes_of_getWith (by rwa [hviewPold i hp'] at hu))
+    · have hp'' : i.isPersistent = false := by simpa using hp'
+      simp only [EStore.derived, hp'', hon, hscr, Bool.false_eq_true, if_false]
+  have hdov : ∀ u : ENodeView, (∀ c ∈ u.echildren, (st.view c).isSome = true) →
+      st'.derOfView u = st.derOfView u := by
+    intro u hu
+    refine EStore.derOfView_congr (fun c hc => hder c (hu c hc)) ?_ ?_ ?_ <;>
+      intro c _ <;>
+      simp only [EStore.nder, EStore.lder, EStore.lsder, hns, hls, hlss]
+  have hrkold : ∀ c, (st.view c).isSome = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) = rk c := by
+    intro c hc
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+    rw [hu]; rfl
+  have hrknew : (if (st.view inew).isNone = true then st.persCount else rk inew)
+      = st.persCount := by rw [hnew_none]; rfl
+  have hrkle : ∀ c, c.isPersistent = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) ≤ st.persCount := by
+    intro c hcp
+    by_cases hc : (st.view c).isSome = true
+    · rw [hrkold c hc]
+      exact Nat.le_of_lt (h.rankP c hcp hc)
+    · have hh : st.view c = none := by
+        cases hv' : st.view c with
+        | none => rfl
+        | some u => rw [hv'] at hc; exact absurd rfl hc
+      rw [hh]; exact Nat.le_refl _
+  refine ⟨?wf, by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+  case wf =>
+  refine ⟨fun c => if (st.view c).isNone = true then st.persCount else rk c,
+    { lss := ?lss, childOK := ?childOK, nchildOK := ?nchildOK,
+      lchildOK := ?lchildOK, lschildOK := ?lschildOK,
+      rankP := ?rankP, rankS := ?rankS, bmChildOK := ?bmChildOK,
+      consP := ?consP, consSof := ?consSof,
+      bmConsP := ?bmConsP, bmConsS := ?bmConsS,
+      bmKeyP := ?bmKeyP, bmKeyS := ?bmKeyS,
+      derExact := ?derExact, bmDerExact := ?bmDerExact, sizedP := ?sizedP,
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, bmCapP := ?bmCapP,
+      bmCapS := ?bmCapS, scrOff := ?scrOff,
+      sync := by rw [hon, hlss]; exact h.sync }⟩
+  case lss => rw [hlss]; exact h.lss
+  case childOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · have hch := h.childOK i u hi' c hc
+      refine ⟨hmoneS c hch.1, ?_, hch.2.2⟩
+      rw [hrkold c hch.1, hrkold i (by rw [hi']; rfl)]
+      exact hch.2.1
+    · have hcs : (st.view c).isSome = true := hv.expr c hc
+      have hcp : c.isPersistent = true := hp.expr c hc
+      refine ⟨hmoneS c hcs, ?_, fun _ => hcp⟩
+      rw [hrkold c hcs, hrknew]
+      exact h.rankP c hcp hcs
+  case nchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hns]; exact h.nchildOK i u hi' c hc
+    · exact ⟨by rw [hns]; exact hv.nm c hc, fun _ => hp.nm c hc⟩
+  case lchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hls]; exact h.lchildOK i u hi' c hc
+    · exact ⟨by rw [hls]; exact hv.lvl c hc, fun _ => hp.lvl c hc⟩
+  case lschildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hlss]; exact h.lschildOK i u hi' c hc
+    · exact ⟨by rw [hlss]; exact hv.lst c hc, fun _ => hp.lst c hc⟩
+  case rankP =>
+    intro i hip _
+    rw [hpc]
+    have := hrkle i hip
+    omega
+  case rankS =>
+    intro i hip hi
+    rw [hviewS i hip] at hi
+    rw [hrkold i hi, hnc]
+    have := h.rankS i hip hi
+    omega
+  case bmChildOK =>
+    intro i ty b mj hvb
+    by_cases hp' : i.isPersistent = true
+    · rw [EStore.viewBindI_pers hp', hpers, ← htb] at hvb
+      rcases ETables.getBind_push_inv hvb with hold | ⟨h1, _, h3, _⟩
+      · have hvb' : st.viewBindI i = some (ty, b, mj) := by
+          rw [EStore.viewBindI_pers hp']; exact hold
+        have hch := h.bmChildOK i ty b mj hvb'
+        exact ⟨by rw [hvbm mj]; exact hch.1, hch.2⟩
+      · subst h3
+        obtain ⟨m0, hm0⟩ := ENodeView.bmOf_of_isBind
+          (by rw [← h1]; exact ETables.isBind_of_getBind hvb)
+        have hbm0 := hmi m0 hm0
+        exact ⟨by rw [hvbm _, hbm0]; rfl, fun _ => hmiP, hmi0⟩
+    · have hp'' : i.isPersistent = false := by simpa using hp'
+      rw [hvbi i hp''] at hvb
+      have hch := h.bmChildOK i ty b mj hvb
+      exact ⟨by rw [hvbm mj]; exact hch.1, hch.2⟩
+  case consP =>
+    intro u i
+    cases hmj : st.findBMOfView u with
+    | none =>
+      have hpf : st'.persFind? u = none := by
+        simp only [EStore.persFind?, hfov, hmj]
+      have hpfold : st.persFind? u = none := by
+        simp only [EStore.persFind?, hmj]
+      rw [hpf]
+      refine ⟨fun hf => absurd hf (by simp), ?_⟩
+      rintro ⟨h1, h2⟩
+      exfalso
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · rw [(h.consP u i).mpr ⟨h3, h2⟩] at hpfold; exact absurd hpfold (by simp)
+      · obtain ⟨mw, hw⟩ := hfovw; rw [hw] at hmj; exact absurd hmj (by simp)
+    | some mj =>
+      have hpf : st'.persFind? u = tb.find? u mj := by
+        simp only [EStore.persFind?, hfov, hmj, hpers]
+      have hpfold : st.persFind? u = st.pers.find? u mj := by
+        simp only [EStore.persFind?, hmj]
+      rw [hpf, hfindtb u mj hmj]
+      constructor
+      · intro hf
+        by_cases hw : w = u
+        · rw [if_pos hw] at hf
+          have hii : inew = i := Option.some.inj hf
+          subst hii; subst hw
+          exact ⟨by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+        · rw [if_neg hw] at hf
+          have hf' : st.persFind? u = some i := by rw [hpfold]; exact hf
+          obtain ⟨h1, h2⟩ := (h.consP u i).mp hf'
+          exact ⟨hmono i u h1, h2⟩
+      · rintro ⟨h1, h2⟩
+        rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+        · have hf := (h.consP u i).mpr ⟨h3, h2⟩
+          rw [hpfold] at hf
+          have hw : w ≠ u := by
+            rintro rfl
+            rw [hprobe st.pers mj hmj, hfp] at hf
+            exact absurd hf (by simp)
+          rw [if_neg hw]; exact hf
+        · rw [if_pos rfl]
+  case consSof =>
+    intro u i
+    have hsf : st'.scrFind? u = st.scrFind? u := by
+      simp only [EStore.scrFind?, hfov, hscr]
+    rw [hsf]
+    intro hf
+    obtain ⟨h1, h2⟩ := h.consSof u i hf
+    exact ⟨by rw [hviewS i h2]; exact h1, h2⟩
+  case bmConsP =>
+    intro m j
+    rw [hpers, ← htb, ETables.findBM_push, hvbm j]
+    exact h.bmConsP m j
+  case bmConsS =>
+    intro m j
+    rw [hscr, hvbm j]
+    exact h.bmConsS m j
+  case bmKeyP =>
+    intro u mj i hf
+    have hpfbm : ∀ m : ConLeche.BinderMeta, st'.pers.findBM m = st.pers.findBM m := by
+      intro m; rw [hpers, ← htb, ETables.findBM_push]
+    rw [hpers, ← htb, ETables.find?_push_gen] at hf
+    cases hb : u.bmOf with
+    | none => exact Or.inl rfl
+    | some m0 =>
+      by_cases hk : ETables.consKeyEq w mi u mj = true
+      · obtain ⟨rfl, m', hm'⟩ := ETables.consKeyEq_bmOf hk hb
+        refine Or.inr ⟨m', ?_⟩
+        rw [hpfbm]
+        exact (h.bmConsP m' mi).mpr ⟨hmi m' hm', hmiP, hmi0⟩
+      · rw [if_neg hk] at hf
+        rcases h.bmKeyP u mj i hf with h1 | ⟨m', h2⟩
+        · rw [h1] at hb; exact absurd hb (by simp)
+        · exact Or.inr ⟨m', by rw [hpfbm]; exact h2⟩
+  case bmKeyS =>
+    intro u mj i hf
+    rw [hscr] at hf
+    rcases h.bmKeyS u mj i hf with h1 | h2
+    · exact Or.inl h1
+    · exact Or.inr (by rw [hvbm mj]; exact h2)
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u (fun c hc => (h.childOK i u hi' c hc).1), hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u hv.expr, EStore.derived_pers hnp, hpers, hdernew]
+  case bmDerExact =>
+    intro j m hj
+    rw [hvbm j] at hj
+    have hbd : st'.bmDer j = st.bmDer j := by
+      by_cases hjp : j.isPersistent = true
+      · simp only [EStore.bmDer, EStore.persGetBMDer, hjp, if_true, hpers, ← htb,
+          ETables.getBMDer_push]
+      · have hjp' : j.isPersistent = false := by simpa using hjp
+        simp only [EStore.bmDer, hjp', hon, hscr, Bool.false_eq_true, if_false]
+    rw [hbd]
+    exact h.bmDerExact j m hj
+  case sizedP => rw [hpers]; exact hsizedtb
+  case sizedS => rw [hscr]; exact h.sizedS
+  case capP => rw [hpers]; exact hcaptb
+  case capS => rw [hscr]; exact h.capS
+  case bmCapP => rw [hpers, ← htb, ETables.bmSize_push]; exact h.bmCapP
+  case bmCapS => rw [hscr]; exact h.bmCapS
+  case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
+
+
+
+/-! ### The three nested promote-interns, lifted
+
+`Arena/Promote.lean`'s `internPersistentN` / `internPersistentL` /
+`internPersistentLs` run through `EStore.internNamePersistent` /
+`internLevelPersistent` / `internLevelsPersistent`, which move ONE nested
+store and leave every level above it alone.  These are the
+`EStore.internName_wf` family with `intern` replaced by `internPersistent`,
+`StoreWF` by `StoreWF'`, and the extra `…ViewPers` precondition threaded
+through. -/
+
+theorem NStore.derived_internPersistent_eq' {st : NStore} (h : NStoreWF' st)
+    (w : NNodeView) {i : NIdx} {v : NNodeView} (hi : st.view i = some v) :
+    (st.internPersistent w).1.derived i = st.derived i := by
+  obtain ⟨rk, hwf⟩ := h
+  simp only [NStore.internPersistent]
+  split
+  · rfl
+  · exact NStore.derived_congr hi rfl
+      (fun j x hj => NTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
+
+theorem LStore.derived_internPersistent_eq' {st : LStore} (h : LStoreWF' st)
+    (w : LNodeView) {i : LIdx} {v : LNodeView} (hi : st.view i = some v) :
+    (st.internPersistent w).1.derived i = st.derived i := by
+  obtain ⟨rk, hwf⟩ := h
+  simp only [LStore.internPersistent]
+  split
+  · rfl
+  · exact LStore.derived_congr hi rfl
+      (fun j x hj => LTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
+
+theorem LsStore.derived_internPersistent_eq' {st : LsStore} (h : LsStoreWF' st)
+    (w : LsNodeView) {i : LsIdx} {v : LsNodeView} (hi : st.view i = some v) :
+    (st.internPersistent w).1.derived i = st.derived i := by
+  simp only [LsStore.internPersistent]
+  split
+  · rfl
+  · exact LsStore.derived_congr hi rfl
+      (fun j x hj => LsTables.derAt_push_of_get h.sizedP hj) (fun j x hj => rfl)
+
+/-! #### A name, promoted -/
+
+theorem LStore.internNamePersistent_wf' {st : LStore} (h : LStoreWF' st)
+    {v : NNodeView} (hv : st.ns.ViewOK v) (hp : NViewPers v)
+    (hcap : st.ns.capOKPersistent v) :
+    LStoreWF' (st.internNamePersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  refine ⟨rk, ?_⟩
+  have hns : (st.internNamePersistent v).1.ns = (st.ns.internPersistent v).1 := rfl
+  constructor
+  case ns => rw [hns]; exact NStore.internPersistent_wf' hwf.ns hv hp hcap
+  case childOK => exact hwf.childOK
+  case nchildOK =>
+    intro i u hi c hc
+    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
+    rw [hns]
+    have := (hwf.nchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp this
+    rw [NStore.view_internPersistent_mono _ _ hx]; rfl
+  case rankP => exact hwf.rankP
+  case rankS => exact hwf.rankS
+  case consP => exact hwf.consP
+  case consS => exact hwf.consS
+  case derExact =>
+    intro i u hi
+    have hcongr : (st.internNamePersistent v).1.derOfView u = st.derOfView u := by
+      refine LStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
+      have hs := (hwf.nchildOK i u hi c hc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
+      show (st.ns.internPersistent v).1.derived c = st.ns.derived c
+      exact NStore.derived_internPersistent_eq' hwf.ns v hx
+    show st.derived i = _
+    rw [hcongr]
+    exact hwf.derExact i u hi
+  case sizedP => exact hwf.sizedP
+  case sizedS => exact hwf.sizedS
+  case capP => exact hwf.capP
+  case capS => exact hwf.capS
+  case scrOff => exact hwf.scrOff
+  case sync => rw [hns, NStore.scratchOn_internPersistent]; exact hwf.sync
+
+theorem LsStore.internNamePersistent_wf' {st : LsStore} (h : LsStoreWF' st)
+    {v : NNodeView} (hv : st.ls.ns.ViewOK v) (hp : NViewPers v)
+    (hcap : st.ls.ns.capOKPersistent v) :
+    LsStoreWF' (st.internNamePersistent v).1 := by
+  refine { h with
+    ls := LStore.internNamePersistent_wf' h.ls hv hp hcap,
+    derExact := ?_ }
+  intro i u hi
+  have hc : (st.internNamePersistent v).1.derOfView u = st.derOfView u :=
+    LsStore.derOfView_congr (st' := (st.internNamePersistent v).1) u (fun c _ => rfl)
+  show st.derived i = _
+  rw [hc]
+  exact h.derExact i u hi
+
+theorem EStore.internNamePersistent_wf' {st : EStore} (h : StoreWF' st)
+    {v : NNodeView} (hv : st.ns.ViewOK v) (hp : NViewPers v)
+    (hcap : st.ns.capOKPersistent v) :
+    StoreWF' (st.internNamePersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  have hns : (st.internNamePersistent v).1.ns = (st.ns.internPersistent v).1 := rfl
+  refine ⟨rk, { hwf with lss := ?_, nchildOK := ?_, derExact := ?_ }⟩
+  · exact LsStore.internNamePersistent_wf' hwf.lss hv hp hcap
+  · intro i u hi c hc
+    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
+    rw [hns]
+    have hs := (hwf.nchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
+    rw [NStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hcongr : (st.internNamePersistent v).1.derOfView u = st.derOfView u := by
+      refine EStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
+        (fun c _ => rfl) (fun c _ => rfl)
+      have hs := (hwf.nchildOK i u hi c hc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
+      show (st.ns.internPersistent v).1.derived c = st.ns.derived c
+      obtain ⟨rkl, hl⟩ := hwf.lss.ls
+      exact NStore.derived_internPersistent_eq' hl.ns v hx
+    show st.derived i = _
+    rw [hcongr]
+    exact hwf.derExact i u hi
+
+/-! #### A level, promoted -/
+
+theorem LsStore.internLevelPersistent_wf' {st : LsStore} (h : LsStoreWF' st)
+    {v : LNodeView} (hv : st.ls.ViewOK v) (hp : LViewPers v)
+    (hcap : st.ls.capOKPersistent v) :
+    LsStoreWF' (st.internLevelPersistent v).1 := by
+  have hls : (st.internLevelPersistent v).1.ls = (st.ls.internPersistent v).1 := rfl
+  refine { h with ls := ?_, lchildOK := ?_, derExact := ?_, sync := ?_ }
+  · rw [hls]; exact LStore.internPersistent_wf' h.ls hv hp hcap
+  · intro i u hi c hc
+    refine ⟨?_, (h.lchildOK i u hi c hc).2⟩
+    rw [hls]
+    have hsm := (h.lchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+    rw [LStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hc : (st.internLevelPersistent v).1.derOfView u = st.derOfView u := by
+      refine LsStore.derOfView_congr (st' := (st.internLevelPersistent v).1) u
+        (fun c hcc => ?_)
+      have hsm := (h.lchildOK i u hi c hcc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+      show (st.ls.internPersistent v).1.derived c = st.ls.derived c
+      exact LStore.derived_internPersistent_eq' h.ls v hx
+    show st.derived i = _
+    rw [hc]
+    exact h.derExact i u hi
+  · rw [hls, LStore.scratchOn_internPersistent]; exact h.sync
+
+theorem EStore.internLevelPersistent_wf' {st : EStore} (h : StoreWF' st)
+    {v : LNodeView} (hv : st.ls.ViewOK v) (hp : LViewPers v)
+    (hcap : st.ls.capOKPersistent v) :
+    StoreWF' (st.internLevelPersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  have hls : (st.internLevelPersistent v).1.ls = (st.ls.internPersistent v).1 := rfl
+  have hnsE : (st.internLevelPersistent v).1.ns = st.ns :=
+    LStore.ns_internPersistent st.ls v
+  refine ⟨rk, { hwf with lss := ?_, lchildOK := ?_, nchildOK := ?_, derExact := ?_ }⟩
+  · exact LsStore.internLevelPersistent_wf' hwf.lss hv hp hcap
+  · intro i u hi c hc
+    rw [hnsE]
+    exact hwf.nchildOK i u hi c hc
+  · intro i u hi c hc
+    refine ⟨?_, (hwf.lchildOK i u hi c hc).2⟩
+    rw [hls]
+    have hsm := (hwf.lchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+    rw [LStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hcg : (st.internLevelPersistent v).1.derOfView u = st.derOfView u := by
+      refine EStore.derOfView_congr (fun c _ => rfl)
+        (fun c _ => by
+          show (st.ls.internPersistent v).1.ns.derived c = st.ns.derived c
+          rw [LStore.ns_internPersistent]; rfl)
+        (fun c hcc => ?_) (fun c _ => rfl)
+      have hsm := (hwf.lchildOK i u hi c hcc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+      show (st.ls.internPersistent v).1.derived c = st.ls.derived c
+      obtain ⟨rkl, hl⟩ := hwf.lss.ls
+      exact LStore.derived_internPersistent_eq' ⟨rkl, hl⟩ v hx
+    show st.derived i = _
+    rw [hcg]
+    exact hwf.derExact i u hi
+
+/-! #### A level list, promoted -/
+
+theorem EStore.internLevelsPersistent_wf' {st : EStore} (h : StoreWF' st)
+    {v : LsNodeView} (hv : st.lss.ViewOK v) (hp : LsViewPers v)
+    (hcap : st.lss.capOKPersistent v) :
+    StoreWF' (st.internLevelsPersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  have hlss : (st.internLevelsPersistent v).1.lss = (st.lss.internPersistent v).1 :=
+    rfl
+  have hlsE : (st.internLevelsPersistent v).1.ls = st.ls :=
+    LsStore.ls_internPersistent st.lss v
+  have hnsE : (st.internLevelsPersistent v).1.ns = st.ns := by
+    show (st.lss.internPersistent v).1.ls.ns = st.lss.ls.ns
+    rw [LsStore.ls_internPersistent]
+  refine ⟨rk, { hwf with
+    lss := ?_, nchildOK := ?_, lchildOK := ?_, lschildOK := ?_,
+    derExact := ?_, sync := ?_ }⟩
+  · exact LsStore.internPersistent_wf' hwf.lss hv hp hcap
+  · intro i u hi c hc
+    rw [hnsE]
+    exact hwf.nchildOK i u hi c hc
+  · intro i u hi c hc
+    rw [hlsE]
+    exact hwf.lchildOK i u hi c hc
+  · intro i u hi c hc
+    refine ⟨?_, (hwf.lschildOK i u hi c hc).2⟩
+    rw [hlss]
+    have hsm := (hwf.lschildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+    rw [LsStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hcg : (st.internLevelsPersistent v).1.derOfView u = st.derOfView u := by
+      refine EStore.derOfView_congr (fun c _ => rfl)
+        (fun c _ => by
+          show (st.lss.internPersistent v).1.ls.ns.derived c = st.ns.derived c
+          rw [LsStore.ls_internPersistent]; rfl)
+        (fun c _ => by
+          show (st.lss.internPersistent v).1.ls.derived c = st.ls.derived c
+          rw [LsStore.ls_internPersistent]; rfl)
+        (fun c hcc => ?_)
+      have hsm := (hwf.lschildOK i u hi c hcc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+      show (st.lss.internPersistent v).1.derived c = st.lss.derived c
+      exact LsStore.derived_internPersistent_eq' hwf.lss v hx
+    show st.derived i = _
+    rw [hcg]
+    exact hwf.derExact i u hi
+  · rw [hlss, LsStore.scratchOn_internPersistent]; exact hwf.sync
+
+
+/-! ### What a promote-intern ANSWERS
+
+Two conjuncts of `Bridge/Promote/StoreP.lean`'s `internPersistent_spec`, at
+the weak invariant: the handle is PERSISTENT (which is the whole purpose of
+`internPersistent` — a promotion must hand back a handle that survives
+`dropScratch`) and it decodes to the view that was interned.  Both split
+hit/miss: the hit reads `consP`, the miss reads the push. -/
+
+theorem NStore.internPersistent_pers {st : NStore} (h : NStoreWF' st)
+    {w : NNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    ((st.internPersistent w).2).isPersistent = true := by
+  obtain ⟨rk, h⟩ := h
+  simp only [NStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).2
+  · rename_i hf
+    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
+    rw [(NTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
+
+theorem NStore.internPersistent_view {st : NStore} (h : NStoreWF' st)
+    {w : NNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
+  obtain ⟨rk, h⟩ := h
+  simp only [NStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).1
+  · rename_i hf
+    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+    have hspec := NTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
+    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+      show (_ == 0) = true
+      rw [hspec.2]; decide
+    simp only [NStore.view]
+    rw [if_pos hp]
+    exact hspec.1
+
+theorem LStore.internPersistent_pers {st : LStore} (h : LStoreWF' st)
+    {w : LNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    ((st.internPersistent w).2).isPersistent = true := by
+  obtain ⟨rk, h⟩ := h
+  simp only [LStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).2
+  · rename_i hf
+    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
+    rw [(LTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
+
+theorem LStore.internPersistent_view {st : LStore} (h : LStoreWF' st)
+    {w : LNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
+  obtain ⟨rk, h⟩ := h
+  simp only [LStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).1
+  · rename_i hf
+    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+    have hspec := LTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
+    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+      show (_ == 0) = true
+      rw [hspec.2]; decide
+    simp only [LStore.view]
+    rw [if_pos hp]
+    exact hspec.1
+
+theorem LsStore.internPersistent_pers {st : LsStore} (h : LsStoreWF' st)
+    {w : LsNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    ((st.internPersistent w).2).isPersistent = true := by
+  simp only [LsStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).2
+  · rename_i hf
+    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
+    rw [(LsTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
+
+theorem LsStore.internPersistent_view {st : LsStore} (h : LsStoreWF' st)
+    {w : LsNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
+  simp only [LsStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).1
+  · rename_i hf
+    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+    have hspec := LsTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
+    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+      show (_ == 0) = true
+      rw [hspec.2]; decide
+    simp only [LsStore.view]
+    rw [if_pos hp]
+    exact hspec.1
+
+
+/-! ### The three nested stores, extracted from the weak invariant -/
+
+theorem EWFAt'.lssWF {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    LsStoreWF' st.lss := h.lss
+
+theorem EWFAt'.lsWF {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    LStoreWF' st.ls := h.lss.ls
+
+theorem EWFAt'.nsWF {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    NStoreWF' st.ns := by
+  obtain ⟨rkl, hl⟩ := h.lss.ls; exact hl.ns
+
+theorem StoreWF'.lssWF {st : EStore} (h : StoreWF' st) : LsStoreWF' st.lss := by
+  obtain ⟨rk, h⟩ := h; exact h.lssWF
+
+theorem StoreWF'.lsWF {st : EStore} (h : StoreWF' st) : LStoreWF' st.ls := by
+  obtain ⟨rk, h⟩ := h; exact h.lsWF
+
+theorem StoreWF'.nsWF {st : EStore} (h : StoreWF' st) : NStoreWF' st.ns := by
+  obtain ⟨rk, h⟩ := h; exact h.nsWF
+
+
+/-! ### THE BRACKET CLOSES — `dropScratch` restores `fresh` vacuously
+
+`Arena/Store.lean`'s `internPersistent` note: *"the obligation P3 owes is
+stated for the BRACKET: `StoreWF` minus `fresh` is preserved by each
+`internPersistent`, and `promote … dropScratch` as a whole takes `StoreWF` to
+`StoreWF`"*.  The first half is `wf_push_pers'` above; this is the second, and
+it cost **four lines**, because `wf_of_scr_empty` never read a freshness
+clause of its INPUT in the first place — it establishes the output's
+`fresh`/`bmFresh`/`consS` from `scr = empty`.  So the four `wf_of_scr_empty`
+now take the WEAK invariant (one word each, and not a line of their proofs
+moved), and the bracket's closing step is their instance at `dropScratch`.
+
+This is `Bridge/Promote/StoreP.lean`'s `StoreWFP.dropScratch_wf`, discharged
+one tier down where it belongs. -/
+
+theorem NStore.dropScratch_wfAt' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
+    NWFAt st.dropScratch rk := NStore.wf_of_scr_empty h rfl rfl
+
+theorem NStoreWF'.dropScratch_wf {st : NStore} (h : NStoreWF' st) :
+    NStoreWF st.dropScratch := by
+  obtain ⟨rk, h⟩ := h; exact ⟨rk, NStore.dropScratch_wfAt' h⟩
+
+theorem LStore.dropScratch_wfAt' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
+    LWFAt st.dropScratch rk := by
+  obtain ⟨rkn, hn⟩ := h.ns
+  exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.dropScratch_wfAt' hn⟩
+    (fun c hp => NStore.view_dropScratch_pers st.ns hp)
+    (fun c hp => NStore.derived_dropScratch_pers st.ns hp) rfl
+
+theorem LStoreWF'.dropScratch_wf {st : LStore} (h : LStoreWF' st) :
+    LStoreWF st.dropScratch := by
+  obtain ⟨rk, h⟩ := h; exact ⟨rk, LStore.dropScratch_wfAt' h⟩
+
+theorem LsStoreWF'.dropScratch_wf {st : LsStore} (h : LsStoreWF' st) :
+    LsStoreWF st.dropScratch := by
+  obtain ⟨rkl, hl⟩ := h.ls
+  exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.dropScratch_wfAt' hl⟩
+    (fun c hp => LStore.view_dropScratch_pers st.ls hp)
+    (fun c hp => LStore.derived_dropScratch_pers st.ls hp) rfl
+
+theorem EStore.dropScratch_wfAt' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    EWFAt st.dropScratch rk := by
+  have hlsw : LsWF' st.lss := h.lss
+  refine EStore.wf_of_scr_empty h rfl rfl (LsStoreWF'.dropScratch_wf hlsw)
+    (fun c hp => NStore.view_dropScratch_pers st.ns hp)
+    (fun c hp => LStore.view_dropScratch_pers st.ls hp)
+    (fun c hp => LsStore.view_dropScratch_pers st.lss hp)
+    (fun c hp => NStore.derived_dropScratch_pers st.ns hp)
+    (fun c hp => LStore.derived_dropScratch_pers st.ls hp)
+    ?_ rfl
+  intro c hp
+  show (st.lss.dropScratch).derived c = st.lss.derived c
+  rw [LsStore.derived_pers hp, LsStore.derived_pers hp]; rfl
+
+/-- con-leche: none — arena infrastructure; **the promotion bracket's closing
+step**: dropping the scratch tier turns the promote-window invariant back into
+the store invariant, `fresh` and all. -/
+theorem StoreWF'.dropScratch_wf {st : EStore} (h : StoreWF' st) :
+    StoreWF st.dropScratch := by
+  obtain ⟨rk, h⟩ := h; exact ⟨rk, EStore.dropScratch_wfAt' h⟩
+
+
+/-! ### THE SECOND FINDING: promoting a DATUM re-keys the scratch cons table
+    (task #97-P5-Fresh)
+
+Finding 17 named `fresh` and, in passing, `EWFAt.childOK`.  There is a third
+clause that promotion breaks, and it is the one that makes the scratch cons
+table an inverse of `get`: **`EWFAt.consS`, in its `←` direction**.
+
+The mechanism is `EStore.internBMPersistent`, the DATUM half of
+`EStore.internPersistent`.  A binder node's cons key holds the datum HANDLE,
+not the datum; `EStore.findBM` probes the persistent datum table FIRST; and
+`internBMPersistent` appends to the persistent table whatever tier the store
+is in.  So promoting a datum that only the SCRATCH tier held moves the key
+under which `findBMOfView` looks up every binder view carrying that datum,
+from the scratch handle to the new persistent one — while the scratch binder
+nodes interned under the old key stay exactly where they were, still
+decoding, and now unreachable through `scrFind?`.
+
+`internBMPersistent_breaks_consS` is that, proved: a scratch `lam` node that
+`view` still answers, whose view `scrFind?` now answers `none` for.
+
+**What survives**, and what `EWFAt'` therefore keeps, is the `→` direction —
+*"the scratch cons table never lies"* (`consSof`) — plus `bmKeyS` weakened
+from *"`findBM` answers this key"* to *"this key decodes"*, which is exactly
+the part `findBM`'s probe order cannot invalidate.  The consequence in the
+running code is the same one `fresh` has: a duplicate scratch node next time
+that view is interned, never a wrong denotation and never a wrong verdict.
+
+`Bridge/Promote/StoreP.lean`'s `EWFAtP` keeps `consS` as an `↔`, so
+`EStore.internPersistent_spec` there is false as stated at a binder view whose
+datum is not yet persistent; see this task's DESIGN section. -/
+
+theorem ETables.getBM_eq_none_of_size {t : ETables} {i : BMIdx}
+    (hix : i.idxNat = t.bms.size) : t.getBM i = none := by
+  simp [ETables.getBM, hix, Tbl.node?_size]
+
+theorem EStore.internBMPersistent_breaks_consS {st : EStore} {rk : EIdx → Nat}
+    (h : EWFAt st rk) {m : ConLeche.BinderMeta} {i ty b : EIdx}
+    (hpf : st.persFindBM m = none) (hcap : st.pers.bms.size < Idx.idxCap)
+    (hv : st.view i = some (.lam ty b m)) (hip : i.isPersistent = false) :
+    (st.internBMPersistent m).1.view i = some (.lam ty b m) ∧
+      i.isPersistent = false ∧
+      (st.internBMPersistent m).1.scrFind? (.lam ty b m) = none := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  obtain ⟨mp, hmpdef⟩ : ∃ x, x = (st.pers.pushBM m (hash m.pw) Idx.tierP).2 :=
+    ⟨_, rfl⟩
+  have hst : (st.internBMPersistent m).1
+      = { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 } := by
+    simp only [EStore.internBMPersistent, hpf]
+  -- the scratch tier is live, or the node would not decode
+  have hon : st.scratchOn = true := by
+    cases hc : st.scratchOn with
+    | false => rw [EStore.view_off hip hc] at hv; exact absurd hv (by simp)
+    | true => rfl
+  -- the new datum handle is persistent and did not decode before
+  have hmpP : mp.isPersistent = true := by
+    show (mp.tier == 0) = true
+    rw [hmpdef, ETables.pushBM_tier htr hcap]; decide
+  have hmpIx : mp.idxNat = st.pers.bms.size := by
+    rw [hmpdef]; exact ETables.pushBM_idxNat htr hcap
+  have hmpOld : st.viewBM mp = none := by
+    rw [EStore.viewBM_pers hmpP]
+    exact ETables.getBM_eq_none_of_size hmpIx
+  -- the node still decodes: the datum table only grew, at a handle no node names
+  have hviewBM : ∀ (t b' : EIdx) (mj : BMIdx), st.scr.getBind i = some (t, b', mj) →
+      (st.internBMPersistent m).1.viewBM mj = st.viewBM mj := by
+    intro t b' mj hg
+    have hsome : (st.viewBM mj).isSome = true := by
+      refine (h.bmChildOK i t b' mj ?_).1
+      rw [EStore.viewBindI_scr hip hon]; exact hg
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsome
+    rw [hx]
+    by_cases hjp : mj.isPersistent = true
+    · rw [hst, EStore.viewBM_pers hjp]
+      show (st.pers.pushBM m (hash m.pw) Idx.tierP).1.getBM mj = some x
+      rw [EStore.viewBM_pers hjp] at hx
+      exact ETables.getBM_pushBM_mono hx
+    · have hjp' : mj.isPersistent = false := by simpa using hjp
+      rw [hst]
+      simp only [EStore.viewBM, hjp', Bool.false_eq_true, if_false] at hx ⊢
+      exact hx
+  refine ⟨?_, hip, ?_⟩
+  · rw [EStore.view_scr hip (by rw [hst]; exact hon), hst]
+    show st.scr.getWith (EStore.viewBM
+      { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 }) i = _
+    rw [ETables.getWith_congr (t := st.scr) (bm := st.viewBM)
+      (fun t b' mj hg => by rw [← hst]; exact hviewBM t b' mj hg)]
+    rw [← EStore.view_scr hip hon]
+    exact hv
+  · -- `findBMOfView` now answers the PERSISTENT handle, and the scratch table
+    -- holds nothing under it
+    have hfbm : (st.internBMPersistent m).1.findBM m = some mp := by
+      have hp' : (st.internBMPersistent m).1.pers.findBM m = some mp := by
+        rw [hst]
+        show (st.pers.pushBM m (hash m.pw) Idx.tierP).1.findBM m = some mp
+        rw [ETables.findBM_pushBM, if_pos rfl, hmpdef]
+      simp only [EStore.findBM, EStore.persFindBM, hp']
+    have hfov : (st.internBMPersistent m).1.findBMOfView (.lam ty b m) = some mp := by
+      rw [EStore.findBMOfView_eq_findBM _ (rfl : (ENodeView.lam ty b m).bmOf = some m)]
+      exact hfbm
+    simp only [EStore.scrFind?, hfov]
+    have hscr : (st.internBMPersistent m).1.scr = st.scr := by rw [hst]
+    rw [hscr]
+    cases hq : st.scr.find? (ENodeView.lam ty b m) mp with
+    | none => rfl
+    | some j =>
+      exfalso
+      rcases h.bmKeyS _ mp j hq with hb | ⟨m', hm'⟩
+      · simp [ENodeView.bmOf] at hb
+      · rw [h.viewBM_of_findBM hm'] at hmpOld; exact absurd hmpOld (by simp)
 
 end ConRon.Arena
