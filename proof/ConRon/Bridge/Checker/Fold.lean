@@ -37,10 +37,12 @@ Everything in this module is CLOSED except what it delegates:
 
 * `Arena.checkDecl_bridge` is `cases pd` over `Bridge/Checker/Decl.lean`'s
   seven arm theorems — the arms carry the tier's remaining `sorry`s;
-* `Arena.checkDeclStep_bridge` is the per-declaration bracket, and it is
-  proved: `flushCaches` / `enterScratch` / `promoteNew` / `dropScratch`
-  composed, over `Bridge/Promote/Exact.lean`'s `promoteNew_spec` and
-  `Bridge/Promote/Pers.lean`'s `PExt.dropScratch`;
+* `Arena.checkDeclStep_bridge` is the per-declaration bracket —
+  `flushCaches` / `enterScratch` / `promoteNew` / `dropScratch` composed over
+  `Bridge/Promote/Exact.lean`'s `promoteNew_spec` and
+  `Bridge/Promote/Pers.lean`'s `PExt.{enterScratch,dropScratch}` — and it is
+  the ONE `sorry` of this module, waiting on the store-layer gap the first of
+  those two names;
 * `Arena.checkDeclsPure_bridge` is the list induction, and it is proved.
 
 So the shape of the whole tier is: one induction (here), one bracket (here),
@@ -145,10 +147,10 @@ and where the tier's remaining `sorry`s live.
 `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
 `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the
 total extension holds here and weakens one level up. -/
-theorem Arena.checkDecl_bridge {μ : CheckMode} {F : Nat}
+theorem Arena.checkDecl_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s')) :
@@ -219,17 +221,21 @@ earns its keep: after `promoteNew` the environment names persistent handles
 only, so `PExt.dropScratch` carries its denotation across the drop and the
 next step starts from a `FoldOK` again.
 
-`sorry`: the do-block composition itself — the five stages are each spec'd
-(`flushCaches_run`, `enterScratch_run`, `promoteNew_spec`, `dropScratch_run`,
-`PExt.dropScratch`) and `AM.bind_ok` inverts the binds, but the `let (_, fe) ←
-promoteNew …` pattern binder and the `enterScratch` store's `StoreWF`
-bookkeeping were not finished in this round.  Task #97-P3-Checker's sorry
-list, item 8 — the ONE sorry of this module, and the only one of the tier
-that is pure plumbing. -/
-theorem Arena.checkDeclStep_bridge {μ : CheckMode} {F : Nat}
+`sorry`, and **the reason is a one-lemma gap in the store layer** (task
+#97-P3-Checker, finding 4): the five stages are each spec'd
+(`flushCaches_run`, `enterScratch_run`, `Arena.checkDecl_bridge`,
+`promoteNew_spec`, `dropScratch_run` / `PExt.dropScratch`) and `AM.bind_ok`
+inverts the binds, but re-establishing `FoldOK` *after the `enterScratch`* —
+which is where the composition starts — needs the persistent denotation to
+survive the flag flip, and `Arena/WFProofs.lean` states that for
+`dropScratch` and not for `enableScratch`.  `Bridge/Promote/Pers.lean`'s
+`PExt.enterScratch` is that gap, named as a lemma; with it this proof is the
+mechanical composition it looks like.  Task #97-P3-Checker's sorry list,
+item 8. -/
+theorem Arena.checkDeclStep_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hpp : PersPinSets pins) (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.checkDeclStep μ pins fe pd s = .ok (fe', s')) :
@@ -251,9 +257,9 @@ The `max` is `Bridge/Checker/Mono.lean`'s `checkDecl_mono` at work: the step
 gives a fuel `F₁` and the tail gives `F₂`, and both runs are reproduced at
 `max F₁ F₂`, which is con-leche's own idiom
 (`Verify/Cached/InstalledC.lean:416`'s `⟨max F₁ F, …⟩`). -/
-theorem Arena.checkDeclsPureGo_bridge {μ : CheckMode} {F : Nat}
+theorem Arena.checkDeclsPureGo_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hpp : PersPinSets pins) :
     ∀ (ds : List IDeclaration) (dsP : List Declaration) (env : Env)
       (fe fe' : IFEnv) (s s' : AState),
@@ -330,11 +336,11 @@ FOLD OF THEOREM 1**, at the empty environment: DESIGN §8.2's
 
 which `Model/Fold.lean:254 checkDeclsPure_sound_of` consumes with zero
 model-tier work. -/
-theorem Arena.checkDeclsPure_bridge {μ : CheckMode} {F : Nat}
+theorem Arena.checkDeclsPure_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : List IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
     {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hpp : PersPinSets pins)
     (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
     (hpins : PinsDenote s.store pins pinsP)

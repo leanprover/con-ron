@@ -157,11 +157,11 @@ arm) — a definition, with the two `Nat`-operation pin gates behind it.
 (`Bridge/Checker/Base.lean`), then `natOpGuard` / `certifyNatEqs` /
 `checkDivModPin` (`Arena/DeclCheck.lean`), each of which is a `KnotSpec`
 consumer over a pinned term.  Task #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_defn {μ : CheckMode} {F : Nat}
+theorem checkDecl_bridge_defn {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {hint : ReducibilityHint} {c : ConstantVal} {x : Expr}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
@@ -174,11 +174,11 @@ arm).
 
 `sorry`: `checkConstantVal_bridge` and `checkThmVal_bridge`.  Task
 #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_thm {μ : CheckMode} {F : Nat}
+theorem checkDecl_bridge_thm {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
@@ -191,11 +191,11 @@ theorem checkDecl_bridge_thm {μ : CheckMode} {F : Nat}
 
 `sorry`: `checkConstantVal_bridge`, `checkOpaqueVal_bridge` and
 `checkReducePin`.  Task #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_opaque {μ : CheckMode} {F : Nat}
+theorem checkDecl_bridge_opaque {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
@@ -211,10 +211,10 @@ positively-declined standard shapes and `sorryAx`.
 `sorry`: `IConstantInfo.canonEq`'s exactness (`Bridge/Checker/Canon.lean`),
 `stdAxiomOk` / `trustCompilerOk` / `ofReduceAxOk` (`Arena/DeclCheck.lean`) and
 the pin readers' denotations.  Task #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_axiom {μ : CheckMode} {F : Nat}
+theorem checkDecl_bridge_axiom {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {c : ConstantVal}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : Arena.checkDecl μ pins fe (.axiomDecl cv) s = .ok (fe', s')) :
@@ -226,10 +226,10 @@ arm) — the fold's own pinned-block record.
 
 `sorry`: `checkBasisDecl_bridge` (`Bridge/Checker/Basis.lean`).  Task
 #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_basis {μ : CheckMode} {F : Nat}
+theorem checkDecl_bridge_basis {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {kind : BasisKind}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hrun : Arena.checkDecl μ pins fe (.basisDecl kind) s = .ok (fe', s')) :
     DeclOut μ pinsP env (.basisDecl kind) s fe fe' s' := by
@@ -243,11 +243,11 @@ arm) — **the one arm this tier does not own**.  The recogniser
 `sorry`: `basisPinHit`'s exactness, and then `IndSpec.run` verbatim.  Task
 #97-P3-Checker's sorry list, item 7 — the only one of the seven whose
 remaining content is a *hypothesis* rather than a proof. -/
-theorem checkDecl_bridge_ind {μ : CheckMode} {F : Nat}
+theorem checkDecl_bridge_ind {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
     {b : List ConstantInfo} {nP : Nat}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hb : Frontend.denoteCIList s.store block = some b)
     (hrun : Arena.checkDecl μ pins fe (.indDecl block nP) s = .ok (fe', s')) :
@@ -261,11 +261,11 @@ the pinned block whole.
 `sorry`: `quotPinHit`'s exactness (`Bridge/Checker/Basis.lean`) and
 `checkBasisDecl_bridge` at `.quotK`.  Task #97-P3-Checker's sorry list,
 item 7. -/
-theorem checkDecl_bridge_quot {μ : CheckMode} {F : Nat}
+theorem checkDecl_bridge_quot {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {k : QuotKind} {cv : IConstantVal}
     {c : ConstantVal}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : Arena.checkDecl μ pins fe (.quotDecl k cv) s = .ok (fe', s')) :

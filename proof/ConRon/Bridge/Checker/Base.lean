@@ -179,17 +179,17 @@ because the arena's acceptance has to imply con-leche's.
 `sorry`: the six guards (`fe.find?` through `IFEnvOK`, `reservedBasisNames`
 and `isProjFnShape` through the two lemmas above, `nameNodup`,
 `looseBVarsBoundedFast` and `hasFvarFast` through `Bridge/ExprOps/Walks.lean`),
-then `KnotSpec.annotateCore`, `allLevelParamsDefined_run`,
-`constsResolveFFast_run`, `KnotSpec.inferTypeCore` and
-`KnotSpec.ensureSortCore`, in that order.  Task #97-P3-Checker's sorry list,
+then `KnotSpec.annotate`, `allLevelParamsDefined_run`,
+`constsResolveFFast_run`, `KnotSpec.infer` and
+`EnsureSortSpec.ensureSort`, in that order.  Task #97-P3-Checker's sorry list,
 item 11 — the single highest-value remaining proof of the tier, since all
 seven arms wait on it. -/
-theorem checkConstantVal_bridge {μ : CheckMode} {F : Nat} {env : Env}
+theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : checkConstantVal μ fe cv s = .ok (cvA, s')) :
-    CoreStep μ env fe s s' ∧ ∃ cA, Frontend.denoteCV s'.store cvA = some cA ∧
+    CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
       ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA := by
   sorry
 
@@ -202,47 +202,47 @@ is `Frontend.denoteEList`'s. -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList.
 
-`sorry`: a list induction over `KnotSpec.inferTypeCore` and
-`KnotSpec.isDefEqCore`.  Task #97-P3-Checker's sorry list, item 12. -/
-theorem checkTypedList_bridge {μ : CheckMode} {F : Nat} {env : Env}
+`sorry`: a list induction over `KnotSpec.infer` and
+`KnotSpec.defeq`.  Task #97-P3-Checker's sorry list, item 12. -/
+theorem checkTypedList_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {depth : Nat} {as ts : List EIdx} {xs ys : List Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : CheckOK μ env fe s)
     (ha : Frontend.denoteEList s.store as = some xs)
     (ht : Frontend.denoteEList s.store ts = some ys)
     (hrun : checkTypedList μ fe depth as ts s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧
+    CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkTypedList (ConLeche.fueledOps μ F) env depth xs ys
         = .ok () := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList.
 
-`sorry`: a list induction over `KnotSpec.annotateCore` and `denoteE`'s
+`sorry`: a list induction over `KnotSpec.annotate` and `denoteE`'s
 injectivity (the twin compares HANDLES where con-leche compares terms).  Task
 #97-P3-Checker's sorry list, item 12. -/
-theorem checkAnnotList_bridge {μ : CheckMode} {F : Nat} {env : Env}
+theorem checkAnnotList_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {depth : Nat} {as : List EIdx} {xs : List Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : CheckOK μ env fe s)
     (ha : Frontend.denoteEList s.store as = some xs)
     (hrun : checkAnnotList μ fe depth as s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧
+    CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkAnnotList (ConLeche.fueledOps μ F) env depth xs = .ok () := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList.
 
-`sorry`: a list induction over `KnotSpec.isDefEqCore`.  Task
+`sorry`: a list induction over `KnotSpec.defeq`.  Task
 #97-P3-Checker's sorry list, item 12. -/
-theorem checkDefEqList_bridge {μ : CheckMode} {F : Nat} {env : Env}
+theorem checkDefEqList_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {depth : Nat} {as bs : List EIdx} {xs ys : List Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : CheckOK μ env fe s)
     (ha : Frontend.denoteEList s.store as = some xs)
     (hb : Frontend.denoteEList s.store bs = some ys)
     (hrun : checkDefEqList μ fe depth as bs s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧
+    CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkDefEqList (ConLeche.fueledOps μ F) env depth xs ys
         = .ok () := by
   sorry

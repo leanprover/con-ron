@@ -15,7 +15,8 @@ here is the hook.
 
 ## The two named hypotheses
 
-`KnotSpec μ F` and `IndSpec μ` (`Bridge/Checker/Hyp.lean`) travel to the
+`CoreSpec μ F` (whose main field is `Bridge/Core/Knot.lean`'s own
+`KnotSpec`) and `IndSpec μ` (`Bridge/Checker/Hyp.lean`) travel to the
 capstone as hypotheses, exactly as the original campaign's
 `conron.model_exists` (`proof/ConRon/RefineOld/Main.lean:174`) carried
 `hk : Core.KnotSpec .Verified IndAbs.checkFuelU` and
@@ -54,14 +55,14 @@ a model in every set theory.
 
 `ConLeche.Model.checkDeclsPure_sound_of` at
 `Arena.checkDeclsPure_bridge`'s run.  The two named hypotheses are the Core
-tier's (`KnotSpec`) and the Inductives tier's (`IndSpec`); everything else is
+tier's (`CoreSpec`) and the Inductives tier's (`IndSpec`); everything else is
 input-level or the frontend's (module note). -/
 theorem Arena.model_exists (V : Type w) [ConLeche.SetTheory V]
-    {μ : CheckMode} {F : Nat} {pins : List INatOpPinSet}
+    {μ : CheckMode} {pins : List INatOpPinSet}
     {pinsP : List NatOpPinSet} {ds : List IDeclaration}
     {dsP : List Declaration} {fe' : IFEnv} {s s' : AState}
     (hμ : μ.verifiedChecks = true)
-    (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hpp : PersPinSets pins)
     (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
     (hpins : PinsDenote s.store pins pinsP)
@@ -81,11 +82,11 @@ holds no constant of type `False`.
 The same letter as `conron.no_proof_of_False`
 (`proof/ConRon/RefineOld/Main.lean:195`), at (B) instead of at the Rust. -/
 theorem Arena.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
-    {μ : CheckMode} {F : Nat} {pins : List INatOpPinSet}
+    {μ : CheckMode} {pins : List INatOpPinSet}
     {pinsP : List NatOpPinSet} {ds : List IDeclaration}
     {dsP : List Declaration} {fe' : IFEnv} {s s' : AState}
     (hμ : μ.verifiedChecks = true)
-    (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hpp : PersPinSets pins)
     (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
     (hpins : PinsDenote s.store pins pinsP)
@@ -102,11 +103,11 @@ theorem Arena.no_proof_of_False (V : Type w) [ConLeche.SetTheory V]
 /-- con-leche: ConLeche/Model/Fold.lean:291 no_proof_of_Empty_pure — the same
 letter about `Empty`. -/
 theorem Arena.no_proof_of_Empty (V : Type w) [ConLeche.SetTheory V]
-    {μ : CheckMode} {F : Nat} {pins : List INatOpPinSet}
+    {μ : CheckMode} {pins : List INatOpPinSet}
     {pinsP : List NatOpPinSet} {ds : List IDeclaration}
     {dsP : List Declaration} {fe' : IFEnv} {s s' : AState}
     (hμ : μ.verifiedChecks = true)
-    (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hpp : PersPinSets pins)
     (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
     (hpins : PinsDenote s.store pins pinsP)

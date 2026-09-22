@@ -71,12 +71,12 @@ the header's guards and annotation, without the inference.
 (`Bridge/Checker/Base.lean`) minus the last two calls; in fact the two share a
 proof and this one is the shorter half.  Task #97-P3-Checker's sorry list,
 item 17. -/
-theorem installConstantVal_bridge {μ : CheckMode} {F : Nat} {env : Env}
+theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : installConstantVal μ fe cv s = .ok (cvA, s')) :
-    CoreStep μ env fe s s' ∧ ∃ cA, Frontend.denoteCV s'.store cvA = some cA ∧
+    CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
       ConLeche.installConstantVal (ConLeche.fueledOps μ F) env c = .ok cA := by
   sorry
 
@@ -84,15 +84,15 @@ theorem installConstantVal_bridge {μ : CheckMode} {F : Nat} {env : Env}
 value's guards and annotation.
 
 `sorry`: `looseBVarsBoundedFast` / `hasFvarFast` (`Bridge/ExprOps/Walks.lean`),
-`KnotSpec.annotateCore`, `allLevelParamsDefined_run`,
+`KnotSpec.annotate`, `allLevelParamsDefined_run`,
 `constsResolveFFast_run`.  Task #97-P3-Checker's sorry list, item 17. -/
-theorem installValue_bridge {μ : CheckMode} {F : Nat} {env : Env} {fe : IFEnv}
+theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cv : IConstantVal} {c : ConstantVal} {value jv : EIdx} {x : Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : installValue μ fe cv value s = .ok (jv, s')) :
-    CoreStep μ env fe s s' ∧ ∃ y, denoteE s'.store jv = some y ∧
+    CoreStep μ env fe s s' ∧ ∃ y F, denoteE s'.store jv = some y ∧
       ConLeche.installValue (ConLeche.fueledOps μ F) env c x = .ok y := by
   sorry
 
@@ -102,20 +102,20 @@ theorem installValue_bridge {μ : CheckMode} {F : Nat} {env : Env} {fe : IFEnv}
 **the check half of a value declaration**, at the environment the constant was
 installed at.
 
-`sorry`: `KnotSpec.inferTypeCore`, `KnotSpec.ensureSortCore`, the level
+`sorry`: `KnotSpec.infer`, `EnsureSortSpec.ensureSort`, the level
 comparison (`lvlEq?` through `CacheOK.lvlEq`), `installValue_bridge` for a
-theorem's own value, and `KnotSpec.isDefEqCore`.  Task #97-P3-Checker's sorry
+theorem's own value, and `KnotSpec.defeq`.  Task #97-P3-Checker's sorry
 list, item 17. -/
-theorem checkValueGroup_bridge {μ : CheckMode} {F : Nat} {env : Env}
+theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {g : Arena.ValueGroup} {gP : ConLeche.ValueGroup}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s)
     (hkind : g.kind = .defn ∧ gP.kind = .defn ∨ g.kind = .thm ∧ gP.kind = .thm ∨
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cvA = some gP.cvA)
     (hjv : denoteE s.store g.jv = some gP.jv)
     (hrun : checkValueGroup μ fe g s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧
+    CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
   sorry
 
@@ -160,11 +160,11 @@ conclusion is `Bridge/Checker/Decl.lean`'s `DeclOut`.
 `promoteVG_spec` and `promoteNew_spec` at ONE memo, then `PExt.dropScratch`.
 The bracket is `Arena.checkDeclStep_bridge`'s with one operation more.  Task
 #97-P3-Checker's sorry list, item 19. -/
-theorem Arena.annotStep_bridge {μ : CheckMode} {F : Nat}
+theorem Arena.annotStep_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
     {pd : IDeclaration} {d : Declaration} {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
     (hpp : PersPinSets pins) (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.annotStep μ pins i fe pend pd s = .ok ((fe', pend'), s')) :
@@ -182,15 +182,15 @@ B's check of one record**, against the prefix view, inside its own bracket.
 bracket with nothing to promote (`Arena/Checker.lean`: "Nothing crosses back,
 so there is nothing to promote").  Task #97-P3-Checker's sorry list,
 item 19. -/
-theorem Arena.checkPending_bridge {μ : CheckMode} {F : Nat} {env : Env}
+theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpers : PersVG pc.vg)
     (hnd : (env.consts.map (·.name)).Nodup)
     (hcv : Frontend.denoteCV s.store pc.vg.cvA = some gP.cvA)
     (hjv : denoteE s.store pc.vg.jv = some gP.jv)
     (hrun : Arena.checkPending μ fe pc s = .ok ((), s')) :
-    ∃ envK, FoldOK μ env fe s' ∧ PExt s.store s'.store ∧
+    ∃ envK F, FoldOK μ env fe s' ∧ PExt s.store s'.store ∧
       envK.find? = (env.prefixTo pc.vis).find? ∧
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) envK gP = .ok () := by
   sorry
@@ -214,11 +214,11 @@ combines them into `ConLeche.checkDecl`, and `checkDecl_mono` raises the fuels
 to one.  Task #97-P3-Checker's sorry list, item 20 — the largest remaining
 item after the seven arms, and the only one that is a *fold* rather than a
 *step*. -/
-theorem Arena.installThenCheck_bridge {μ : CheckMode} {F : Nat}
+theorem Arena.installThenCheck_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
     {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : KnotSpec μ F) (hind : IndSpec μ)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hpp : PersPinSets pins)
     (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
     (hpins : PinsDenote s.store pins pinsP)

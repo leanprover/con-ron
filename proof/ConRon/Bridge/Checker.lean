@@ -18,9 +18,9 @@ In dependency order:
   `Arena.checkDeclStep_bridge` and **`Arena.checkDeclsPure_bridge`**;
 * `Bridge/Checker/Capstone.lean` — **`Arena.model_exists`** and the two
   letters, through `Model/Fold.lean`'s `checkDeclsPure_sound_of`;
-* `Bridge/Checker/Base.lean`, `Canon.lean`, `Basis.lean`, `Pins.lean` — the
-  specs of `Arena/{CheckerBase,Canon,Basis,StdAxioms,TrustAxioms,Pins,
-  NatOpPinSet,Intern}.lean`;
+* `Bridge/Checker/Base.lean`, `Canon.lean`, `Basis.lean`, `Pins.lean`,
+  `DeclVal.lean` — the specs of `Arena/{CheckerBase,Canon,Basis,StdAxioms,
+  TrustAxioms,Pins,NatOpPinSet,Intern,DeclCheck}.lean`;
 * `Bridge/Checker/Split.lean` — the install/check seam and
   `Arena.installThenCheck_bridge`, the binary's own fold;
 * `Bridge/Checker/Axioms.lean` — the trust census.
@@ -35,5 +35,6 @@ import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Pins
+import ConRon.Bridge.Checker.DeclVal
 import ConRon.Bridge.Checker.Split
 import ConRon.Bridge.Checker.Axioms

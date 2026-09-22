@@ -28,9 +28,15 @@ survives the next `dropScratch`:
 * `PersIFEnv fe` and `PersPins s` — everything the step hands on is in the
   persistent tier.  Without these two the very next `dropScratch` makes the
   environment undecodable, and the fold's second declaration would have
-  nothing to say.
+  nothing to say;
+* `EnvWF env` — con-leche's own environment well-formedness, which
+  `Verify/Cached/BridgeC.lean:609`'s join point takes as `henv` and which
+  `Bridge/Core`'s `knot_spec` takes for the same reason.  The Core tier's
+  theorem is stated AT a well-formed environment, so the fold has to carry
+  one.
 -/
 import ConRon.Bridge.Promote.Exact
+import ConLeche.Verify.EnvWF
 
 namespace ConRon.Bridge
 
@@ -488,6 +494,7 @@ and everything handed on is persistent. -/
 structure FoldOK (μ : CheckMode) (env : Env) (fe : IFEnv) (s : AState) :
     Prop where
   check : CheckOK μ env fe s
+  envWF : EnvWF env
   persPins : PersPins s
   persEnv : PersIFEnv fe
   coh : IFEnvCoh fe

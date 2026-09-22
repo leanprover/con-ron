@@ -15,7 +15,7 @@ repository already carries.
 `Arena.checkDeclsPure_bridge` and `Arena.model_exists` are the deliverable's
 (3), and each prints `sorryAx` beside the three: the tier's twenty open items
 (DESIGN, task #97-P3-Checker's sorry list) are reached from them.  What they
-do NOT print is `KnotSpec` or `IndSpec` — those are HYPOTHESES of the
+do NOT print is `CoreSpec` or `IndSpec` — those are HYPOTHESES of the
 statements, not axioms of the environment, which is exactly the discipline
 `proof/ConRon/RefineOld/Main.lean`'s `conron.model_exists` kept with `hk` and
 `hind`, and it is what makes "two named hypotheses" a checkable claim rather
@@ -26,6 +26,7 @@ import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Pins
 import ConRon.Bridge.Checker.Split
+import ConRon.Bridge.Checker.DeclVal
 
 namespace ConRon.Bridge
 
@@ -96,7 +97,7 @@ namespace ConRon.Bridge
 
 /-! ## Group 2 — the three headline theorems
 
-Each carries `sorryAx` from the tier's open items; neither carries `KnotSpec`
+Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`
 nor `IndSpec`, which are hypotheses of the statement. -/
 
 #print axioms Arena.checkDecl_bridge

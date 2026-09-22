@@ -118,6 +118,35 @@ theorem PExt.dropScratch {st : EStore} (h : StoreWF st) :
     fun i us hp hd => (LsStore.dropScratch_spec hlss).2.2 i us hp hd⟩,
     fun i e hp hd => EStore.dropScratch_denote_pers hw hp hd⟩
 
+/-- con-leche: none — **the bracket's OPENING step, and the one-lemma gap in
+`Arena/WFProofs.lean`** (task #97-P3-Checker, finding 4).
+
+`enterScratch` turns the scratch tier on.  It changes nothing persistent —
+`enableScratch` and `dropScratch` "differ only in the flag they leave behind"
+(`WFProofs.lean`'s own section note), both replacing the scratch tier by
+`empty` — so a persistent handle keeps its denotation across it, exactly as it
+does across a drop.
+
+**But `WFProofs.lean` states that only for `dropScratch`.**  For
+`enableScratch` it states the `view` half (`EStore.view_enableScratch_pers`,
+`NStore.view_enableScratch_pers`, …) and the scratch half
+(`denoteE_enableScratch_scr`) and stops; there is no
+`denoteE_enableScratch_pers` to match `denoteE_dropScratch_pers`, and
+`EStore.enableScratch_spec`'s three conjuncts are `StoreWF`, `view` and the
+scratch handles' `none`.  So the persistent DENOTATION across an
+`enterScratch` cannot be assembled from the store layer as it stands, and
+`Arena.checkDeclStep_bridge` — whose first two operations are `flushCaches`
+and `enterScratch` — stops here.
+
+`sorry`: the missing lemma is the `dropScratch` one's argument verbatim
+(`denoteEAux_dropScratch` + `denoteEAux_congr`, over stores whose `pers` are
+equal and whose `scr` are both `ETables.empty`), and it belongs in
+`Arena/WFProofs.lean` beside `EStore.dropScratch_denote_pers`, not here.  Task
+#97-P3-Checker's sorry list, item 21. -/
+theorem PExt.enterScratch {st : EStore} (h : StoreWF st) :
+    PExt st st.enableScratch := by
+  sorry
+
 /-! ## Persistence of a handle, and of everything built out of handles
 
 A `Pers…` predicate looks only at the tier bits, so it is a fact about the

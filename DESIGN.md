@@ -37661,3 +37661,341 @@ waits on a primitive** and the tier is fuel inductions and nothing else.
 | `scripts/provenance.py check` | 0 findings (no `Arena/` or Rust file changed) |
 | `scripts/overview-links.sh` | OK |
 | the diff | `proof/ConRon/Refine2/{AbsStore,Shape,Specs}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+### Task #97-P3-Checker — Theorem 1: the declaration checker and the join point (2026-09-22, Opus under Fable)
+
+Phase **P3** of §8.6, the tier that reaches con-leche: DESIGN §8.2's
+**Theorem 1** at the join point `_tmp/t97/conleche-arena-history.md` §5.2
+identifies, its fold, and the capstone.  Branch `p3-checker` off `arena`'s tip
+`7a92f794`.  Two new directories under the `ConRonBridge` library —
+`proof/ConRon/Bridge/Promote/**` (the store-adjacent tier the spec layer left
+to the checker) and `proof/ConRon/Bridge/Checker/**` — plus their two index
+modules and the root's two imports.  **No Rust file, no generated model, no
+`Arena/`, no `Refine/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/`
+module.**
+
+#### 1. The layer, and its size
+
+| module | raw | non-blank | decls | open | elab |
+|---|---:|---:|---:|---:|---:|
+| `Bridge/Promote/Pers.lean` — `PExt` and the `Pers…` vocabulary | 275 | 225 | 40 | 1 | 0.8 s |
+| `Bridge/Promote/StoreP.lean` — `StoreWFP` and the `internPersistent` obligations | 247 | 214 | 12 | 5 | 0.8 s |
+| `Bridge/Promote/Exact.lean` — the promotion's exactness and `PMemoOK` | 333 | 278 | 26 | 9 | 0.8 s |
+| `Bridge/Checker/Inv.lean` — `FoldOK`, and the declaration layer across a drop | 519 | 477 | 25 | 1 | 1.1 s |
+| `Bridge/Checker/Hyp.lean` — `CoreSpec` (P3-Core's `KnotSpec`) and `IndSpec` | 222 | 186 | 12 | 0 | 0.8 s |
+| `Bridge/Checker/Decl.lean` — `checkDecl`'s seven arms, `PinsDenote` | 275 | 237 | 11 | 7 | 0.8 s |
+| `Bridge/Checker/Mono.lean` — one fuel for the whole fold | 53 | 41 | 1 | 0 | 0.7 s |
+| `Bridge/Checker/Fold.lean` — **THE PER-DECLARATION BRIDGE and its fold** | 350 | 313 | 10 | 1 | 0.9 s |
+| `Bridge/Checker/Capstone.lean` — **`Arena.model_exists`** and the two letters | 124 | 107 | 3 | 0 | 1.3 s |
+| `Bridge/Checker/Base.lean` — `CheckerBase`'s specs | 250 | 210 | 11 | 8 | 0.8 s |
+| `Bridge/Checker/Canon.lean` — the pinned-block comparison | 92 | 77 | 4 | 4 | 0.7 s |
+| `Bridge/Checker/Basis.lean` — the pinned blocks and the axiom installs | 151 | 124 | 7 | 7 | 0.7 s |
+| `Bridge/Checker/Pins.lean` — the startup walk | 97 | 80 | 3 | 3 | 0.7 s |
+| `Bridge/Checker/DeclVal.lean` — the three value checks and the three pin gates | 180 | 148 | 6 | 6 | 0.8 s |
+| `Bridge/Checker/Split.lean` — the install/check seam, `installThenCheck` | 233 | 197 | 8 | 7 | 0.9 s |
+| `Bridge/Checker/Axioms.lean` — the trust census | 108 | 91 | — | 0 | 0.7 s |
+| the two index modules | 59 | 54 | — | — | 1.3 s |
+| **the tier** | **≈3 570** | **≈3 060** | **179** | **59** | **~14 s** |
+
+**No theorem is near the 20 s flag** — the slowest module of the tier is
+`Bridge/Checker/Capstone.lean` at 1.3 s, and that is olean loading
+(`ConLeche.Model.Fold`'s closure is 480 build jobs, every one prebuilt) rather
+than elaboration.  The contrast with the `ExprOps` tier (72 s for
+`ExprOps/Inst1.lean`, 338 s for `ExprOps/Subst.lean`) is the whole story of
+this tier's shape: **there is no `grind` here and no `mvcgen`.**  The
+declaration checker's bridge is composition, inversion and list induction, not
+verification conditions, so the closer that task #97-P3-0 §4 measured at 66 of
+71 net seconds on one function never runs.  Whatever the coordinator decides
+about the arm split (task #97-P3-0 §4's ruling), it does not bear on this
+tier.  P3-Core reports the same shape for the memo layer (2.2 s for its
+biggest module): **the cost of this campaign is in the `ExprOps` walks and the
+Core arms, not in the tiers above them.**
+
+#### 2. Four findings about DESIGN §8.2's own statement
+
+**Finding 1 — the `Ext` conjunct is false at the STEP, and the fix is
+`PExt`.**  §8.2 states Theorem 1 with `Ext st st'`, which is TOTAL: *every*
+handle of `st` denotes the same in `st'`.  `Arena/Checker.lean`'s
+`checkDeclStep` ends in `dropScratch`, and `Arena/WFProofs.lean`'s own
+`dropScratch_spec` says what then happens to a scratch handle —
+`denoteE st.dropScratch i = none`.  So a bracketed step cannot deliver `Ext`
+and never could; what it delivers, and what the fold actually needs, is
+
+    PExt st st' :  every PERSISTENT handle that denotes in `st`
+                   denotes the same in `st'`
+
+`Bridge/Promote/Pers.lean` is that relation with `refl`/`trans`/`of_ext` and
+`PExt.dropScratch`, and everything the fold carries across a step boundary —
+the environment, the pending records, the pin table, the declaration stream —
+gets a `…_pext` transport in `Bridge/Checker/Inv.lean`, each with a `Pers…`
+hypothesis that `Arena/Promote.lean` establishes.  **`checkDecl` itself still
+gets the total `Ext`** (it is the unbracketed call, as `Arena/Checker.lean`'s
+module note says), so §8.2's letter survives exactly where it is true.
+
+**Finding 2 — `denoteEnv st` is not a projection of the state, and it is
+partial.**  §8.2 writes `denoteEnv st` as though the environment were a field
+of the arena state.  It is not: the environment is `Arena/Env.lean`'s `IFEnv`,
+threaded as a *value*, and its readback through
+`Arena/Frontend/Readback.lean`'s `denoteCIList` can FAIL.  So the conclusion is
+`∃ env', denoteFEnv s'.store fe' = some env' ∧ … = .ok env'` — which is
+con-leche's own join-point shape (`Verify/Cached/BridgeC.lean:609`'s
+`fe' = mkFEnv fe'.env ∧ ∃ F, … = .ok fe'.env`) with the readback where
+con-leche has the identity.  `denoteFEnv` and `IFEnvCoh` (con-leche's
+`fe = mkFEnv fe.env`, letter for letter) are defined in
+`Bridge/Promote/Exact.lean` and `Bridge/Checker/Inv.lean`, and `FoldOK`
+bundles them with `Bridge/StateOK.lean`'s `CheckOK`, `PersIFEnv`, `PersPins`
+and `EnvWF env`.
+
+**Finding 3 — the history report's fine print 2 is discharged, in six lines.**
+§8.2's per-declaration `∃ F` and `checkDeclsPure_sound_of`'s single `F` are
+reconciled by fuel monotonicity of `checkDecl`, which con-leche does not state
+— but con-leche *has* it one layer down.  `Verify/Fueled.lean`'s `FueledM` is
+the SUBTYPE of monotone fuel-indexed computations, and
+`Verify/BridgeDecl.lean:997`'s `checkDecl_datF` says that `checkDecl` at the
+fueled record, read at fuel `F`, IS `checkDecl` at `fueledOps μ F`.  So
+
+```lean
+theorem checkDecl_mono (hle : F ≤ F')
+    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pins env d = .ok env') :
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F') pins env d = .ok env' := by
+  rw [← ConLeche.checkDecl_datF (mode := μ) (pins := pins)] at h ⊢
+  exact (ConLeche.checkDecl μ (ConLeche.fueledOpsM μ) pins env d).property hle h
+```
+
+is the whole thing, and the fold's `max F₁ F₂` follows.
+`Bridge/Checker/Mono.lean`, **closed**,
+`[propext, Classical.choice, Quot.sound]`.
+
+**Finding 4 — a one-lemma gap in `Arena/WFProofs.lean`: `enableScratch` has
+no `denote` half.**  `WFProofs.lean`'s section note says `enableScratch` and
+`dropScratch` "differ only in the flag they leave behind" — both replace the
+scratch tier by `empty` — and it proves, for `dropScratch`, both halves:
+`EStore.view_dropScratch_pers` AND `EStore.dropScratch_denote_pers`.  For
+`enableScratch` it proves the `view` half and the *scratch* half
+(`denoteE_enableScratch_scr`) and stops.  There is no
+`denoteE_enableScratch_pers`, and `EStore.enableScratch_spec`'s three
+conjuncts do not include one.
+
+That is exactly what `Arena.checkDeclStep_bridge` needs, because the bracket's
+FIRST two operations are `flushCaches` and `enterScratch` and the proof has to
+re-establish `FoldOK` after them.  The missing lemma is the `dropScratch`
+one's argument verbatim (`denoteEAux_dropScratch` + `denoteEAux_congr`, over
+stores whose `pers` are equal and whose `scr` are both `ETables.empty`) and it
+belongs in `WFProofs.lean` beside the original.  It is named here as
+`Bridge/Promote/Pers.lean`'s `PExt.enterScratch` so that the gap is a lemma
+rather than a hole in a proof.
+
+#### 3. The capstone, at its exact letter
+
+```lean
+theorem Arena.model_exists (V : Type w) [ConLeche.SetTheory V]
+    {μ : CheckMode} {F : Nat} {pins : List INatOpPinSet}
+    {pinsP : List NatOpPinSet} {ds : List IDeclaration}
+    {dsP : List Declaration} {fe' : IFEnv} {s s' : AState}
+    (hμ : μ.verifiedChecks = true)
+    (hk : CoreSpec μ F) (hind : IndSpec μ)
+    (hpp : PersPinSets pins)
+    (hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s)
+    (hpins : PinsDenote s.store pins pinsP)
+    (hpd : ∀ x ∈ ds, PersDecl x) (hden : denoteDecls s.store ds = some dsP)
+    (hrun : Arena.checkDeclsPure μ pins ds s = .ok (fe', s')) :
+    ∃ env', denoteFEnv s'.store fe' = some env' ∧
+      Nonempty (ConLeche.Model.EnvModelM V μ env')
+```
+
+with `Arena.no_proof_of_False` and `Arena.no_proof_of_Empty` beside it at the
+same hypotheses.  The proof is two lines: `Arena.checkDeclsPure_bridge`, then
+`ConLeche.Model.checkDeclsPure_sound_of`.  *Zero model-tier work*, as the
+history report promised.
+
+**The hypotheses, and who owns each.**
+
+| hypothesis | owner |
+|---|---|
+| `hμ : μ.verifiedChecks = true` | input-level; part of the goal's letter |
+| `hk : CoreSpec μ F` | **the Core tier** (P3-Core, `Bridge/Core/**`) — named, not discharged |
+| `hind : IndSpec μ` | **the Inductives tier** — named, not discharged |
+| `hok : FoldOK μ Env.empty (mkIFEnv IEnv.empty) s` | the driver: the state after `internReservedPins` and the parse |
+| `hpins`, `hpp` | `internAllPins` (`Bridge/Checker/Pins.lean`, stated here) |
+| `hpd`, `hden` | the frontend tier: §8.2's `denoteDecls (Arena.parse chunks) = parseChunks chunks`, plus persistence |
+| `hrun` | the accepted run |
+
+This is the same discipline as the original campaign's
+`conron.model_exists` (`proof/ConRon/RefineOld/Main.lean:174`), which carried
+`hk : Core.KnotSpec .Verified IndAbs.checkFuelU` and
+`hind : IndRoutesSpec .Verified` in exactly these positions.  **`#print
+axioms` confirms it**: the capstone depends on
+`[propext, sorryAx, Classical.choice, Quot.sound]` and on NEITHER `CoreSpec`
+nor `IndSpec` — they are hypotheses of the statement, not axioms of the
+environment, which is what makes "two named hypotheses" a checkable claim.
+
+#### 4. What is closed, and what the shape of the tier is
+
+**46 results are closed**, every one at
+`[propext, Classical.choice, Quot.sound]` (`Bridge/Checker/Axioms.lean`; one,
+`orElseStepOf_ok_iff`, needs only `propext`).  No `sorryAx`, and — the point
+of task #97a's arithmetic packing — no `bv_decide` axiom anywhere.
+
+The closed results are not incidental: they are the tier's whole PLUMBING, and
+what remains open is its per-function content.
+
+* **the persistent extension and the bracket** — `PExt.{refl,trans,of_ext,
+  dropScratch}`, assembled from `Arena/WFProofs.lean`'s four
+  `dropScratch_spec`s;
+* **the declaration layer across a drop** — nineteen `…_pext` transports
+  (`denoteN` through `denoteDecls`), `PinsOK.pmono`, `PersPins.mono`,
+  `PinsDenote.{mono,pmono}`.  These are `Bridge/Rel.lean`'s ten `…_ext`
+  lemmas' twins at the weaker extension, and they are what makes the
+  promotion's investment pay: after `promoteNew` the fold's environment is
+  persistent, so `PExt.dropScratch` carries it and the next step starts from a
+  `FoldOK` again;
+* **the `AM` do-block** — `AM.bind_ok` (the bind's inversion) and the three
+  `rfl` equations `flushCaches_run` / `enterScratch_run` / `dropScratch_run`.
+  After these no proof in the tier mentions `StateT`;
+* **`orElseAttempt_run`** — the variant fallback, and the one thing
+  `Arena/CheckerBase.lean` flagged as a (B)/(C) deviation.  On a recovered
+  error the state handed back is *literally* the pre-attempt state, because
+  `attemptRestore s (attemptSnapshot s)` is `{s with memos := s.memos,
+  caches := s.caches}`, which is `s` by structure eta.  The snapshot/restore
+  pair is invisible to the bridge; in the port it is not (the port keeps the
+  attempt's appended nodes), and `Arena/CheckerBase.lean`'s module note already
+  prices that at `Ext` rather than store equality;
+* **`checkDecl_mono`** — §2's finding 3;
+* **`Arena.checkDecl_bridge`** — `cases pd` over seven arm theorems, so the
+  per-declaration theorem itself is assembled rather than asserted;
+* **`Arena.checkDeclsPureGo_bridge` / `checkDeclsPure_bridge`** — the list
+  induction, with the fuel raised by `max` at each step and a `foldlM_mono`
+  helper for the tail.  This is the fold DESIGN §8.2 asks for and it is
+  closed;
+* **`Arena.model_exists`** and the two letters — §3.
+
+So the tier's shape is: **one induction, one bracket, seven arms and two named
+hypotheses.**  Everything between the arms and the capstone is proved.
+
+#### 5. The sorry list — twenty-four items, 59 declarations
+
+Each is `sorry` with its reason at the site.  Grouped by what discharges it.
+
+| # | declarations | what it needs |
+|---|---|---|
+| 1 | `StoreWFP.dropScratch_wf` | `Arena/WFProofs.lean`'s `EStore.wf_of_scr_empty` re-run from `EWFAtP` (a mechanical weakening: it establishes `fresh`/`bmFresh` vacuously from `scr = empty` and never uses the input's) |
+| 2 | `{N,L,Ls,E}Store.internPersistent_spec` | `Arena/WFProofs.lean`'s `intern_wf` / `intern_ext` / `intern_view_spec` at the persistent branch.  **The largest single item of the tier** — `WFProofs.lean` is 7 658 lines of exactly that argument for `intern`, and this is a second entry point.  It belongs in `WFProofs.lean`, beside the original, not here |
+| 3 | `promote{N,L,Ls,E}_spec` | the four fuel inductions; `promoteE_spec` is the ten-arm one, in `Bridge/ExprOps/Inst1.lean`'s shape |
+| 4 | `promote{CV,CI,CIList,VG}_spec` | mechanical do-notation over item 3 |
+| 5 | `promoteNew_spec` | item 4 on the `take k`, plus the index bookkeeping (`eraseInstalled` / `indexPromoted` rebuild exactly the rows `mkIFEnv` would give, which `IFEnvCoh` on both sides reduces the index clause to) |
+| 6 | `IFEnvOK_of_denote` | the `hit`/`cover` pair from `denoteFEnv` + `IFEnvCoh`, by induction through `mkIFEnvGo` with `denoteN_inj` where con-leche uses name equality |
+| 7 | `checkDecl_bridge_{defn,thm,opaque,axiom,basis,ind,quot}` | **the seven arms** — each bottoms out in item 11, plus its own gate (items 14-16 for `axiom`/`basis`/`quot`, `IndSpec` for `ind`) |
+| 8 | `Arena.checkDeclStep_bridge` | the do-block composition of the five bracket stages, blocked on item 21 (§2's finding 4).  Every other stage is spec'd and `AM.bind_ok` inverts the binds |
+| 9 | `allLevelParamsDefined_run`, `constsResolveFFast_run` | the two memoised DAG walks of the front door, each a fuel induction with an explicitly threaded memo, in `Bridge/ExprOps/Walks.lean`'s shape |
+| 10 | `nameNodup_spec`, `isProjFnShape_run` | `denoteN_inj` (DESIGN §8.3's soundness obligation) at a list and at two `viewN`s |
+| 11 | `checkConstantVal_bridge` | **the single highest-value remaining proof**: all seven arms wait on it.  Six guards, the annotation, the inference and the sort test, over `KnotSpec`/`EnsureSortSpec` and items 9-10 |
+| 12 | `check{Typed,Annot,DefEq}List_bridge` | list inductions over one `KnotSpec` clause each |
+| 13 | `internReservedPins_run`, `internPinSets_run`, `internAllPins_run` | `Bridge/StoreNested.lean`'s `EStore.internName` spec (49 + 19 interns) and the frontend tier's intern exactness |
+| 14 | `canonNames_run`, `IConstantVal.canonEq_run`, `IConstantInfo.canonEq_run`, `canonEqList_run` | `canonExprEq`'s fuel induction in the `RelV` shape (a `Bool` answer names no handle, so task #97-P3-0 §5's finding 1 applies and the closer should take every arm) |
+| 15 | `BasisKind.{decls,declsA}_run`, `basisPinHit_run`, `quotPinHit_run`, `installBasisDecl_bridge`, `checkBasisDecl_bridge` | the interned literals through the frontend tier's exactness, then item 14 for the recognisers |
+| 16 | `stdAxiomOk_run` | `IFEnvOK` at the `Iff`/`Nonempty` family lookups, and `erasePwEq` |
+| 17 | `installConstantVal_bridge`, `installValue_bridge`, `checkValueGroup_bridge` | the install/check halves; `installConstantVal_bridge` shares a proof with item 11 and is its shorter half |
+| 18 | `denoteFEnv_restrictTo` | con-leche's `mkFEnv_find?_visibleBelow` (`Verify/EnvBound.lean:141`) through `IFEnvCoh` |
+| 19 | `Arena.annotStep_bridge`, `Arena.checkPending_bridge` | phase A's and phase B's brackets; phase A's is item 8's with `promoteVG` added |
+| 20 | `Arena.installThenCheck_bridge` | **the second fold**: the `InstallRun` induction (con-leche's `Verify/Cached/InstalledC.lean:456 installRun_model` is the same walk at the model instead of at `checkDeclsPure`), with `checkDecl_of_split_*` combining the halves and `checkDecl_mono` raising the fuels.  The largest remaining item after the seven arms |
+| 21 | `PExt.enterScratch` | §2's finding 4 — a `WFProofs.lean` one-liner-shaped gap, and the only thing between item 8 and a closed bracket |
+| 22 | `check{Defn,Thm,Opaque}Val_bridge` | `installValue_bridge` (item 17) plus one `KnotSpec.infer` and one `KnotSpec.defeq` each, then `IFEnv.push` |
+| 23 | `certifyNatEqs_bridge` | a list induction over `KnotSpec.defeq`, plus `substConst0Pairs` / `natOpEquations`' pinned-term exactness |
+| 24 | `checkDivModPin_bridge`, `checkReducePin_bridge` | the two pinned-variant gates.  `checkDivModPin_bridge` is the ONE consumer of `orElseAttempt_run` — each variant is an attempt, and a throw inside one is "this variant does not match", recovered at the pre-attempt state |
+
+**The critical path is items 11 → 7 → (the capstone closes).**  Items 1-5 are
+the promotion tier and gate nothing but item 8; items 13-16 gate three of the
+seven arms; item 21 is one lemma in a file this task does not own.
+
+#### 6. The join point, checked against the history report's five fine prints
+
+| fine print | status |
+|---|---|
+| 1. *a refinement, per declaration, at SOME fuel — not an agreement* | as stated: every clause of `KnotSpec`, every arm theorem and the capstone are `accept ⇒ ∃ F, accept`, and a `native` decline claims nothing |
+| 2. *`checkDeclsPure_sound_of` is at `fueledOps μ F` specifically* | **discharged** — §2's finding 3, `Bridge/Checker/Mono.lean`, closed |
+| 3. *the statement is over con-leche's types; an arena core must reintroduce a `denote` seam* | that seam is `Arena/Frontend/Readback.lean` + `Bridge/Rel.lean` + this tier's nineteen `…_pext` twins.  The `_pext` twins are the *cost of the tier regime on top of the denotation*, and they are 477 non-blank lines in `Bridge/Checker/Inv.lean` |
+| 4. *`pins` threads through every fold function; `μ.verifiedChecks = true` is everywhere* | `PinsDenote` is a standing hypothesis of every theorem of `Bridge/Checker/Decl.lean` and `hμ` of every one that reaches con-leche |
+| 5. *the two-phase fold needs `checkDecl_of_split_*` and `mkFEnv_find?_visibleBelow`* | both exist at `78ded4b6` (`Verify/CheckerSplit.lean:319/344/364`, `Verify/EnvBound.lean:141`) and neither has to be re-derived — they have to be REACHED, which is `Bridge/Checker/Split.lean`'s items 17-20 |
+
+#### 7. The Core tier's statement, taken as written
+
+P3-Core's `Bridge/Core/Knot.lean` landed on the concurrent branch while this
+round ran, so `Bridge/Checker/Hyp.lean`'s `KnotSpec` is **P3-Core's own
+statement, field for field**: the same six slots of
+`ConRon.Arena.coreKnot mode fe id f`, the same `CheckOK`/`Ext` frame, the same
+`SimE`/`SimV` answer relations (the pure side's fuel existential and the
+answer's `Expr.WScoped` folded in) and the same `WScoped d e` precondition.
+Three deltas, all deliberate, and none of them a disagreement:
+
+1. **The RUN form.**  P3-Core states each slot as a `Std.Do` triple because
+   its arms use `mvcgen`; this tier states them as runs because its proofs are
+   `AM.bind_ok` inversions and never call `mvcgen`.  The two are one
+   `Bridge/Rel.lean`-`AM.of_run` apart, so **the merge's adapter is six
+   lines**, one per slot, and neither statement changes.
+2. **`ensureSortCore` is not a slot.**  `coreKnot` has six; `Arena/Core.lean`
+   builds `ensureSortCore` on top of them, and the declaration front door calls
+   it at every constant.  `EnsureSortSpec` is that seventh obligation, at the
+   same frame.  It is one `whnf` call and a tag test, so it is the Core tier's
+   to discharge and cheap — **it should move into `Bridge/Core` at the
+   merge.**
+3. **Quantified over `env` and `fe`.**  P3-Core's `knot_spec` fixes one
+   environment (`(henv : EnvWF env) (hμ) : ∀ f, KnotSpec mode env fe f`); the
+   FOLD's environment changes at every declaration.  So `CoreSpec mode f`
+   bundles `∀ env fe, EnvWF env → KnotSpec mode env fe f` with the same for
+   `EnsureSortSpec`, and `FoldOK` carries `EnvWF env` as a clause — which
+   con-leche's own join point (`BridgeC.lean:609`'s `henv`) carries too.
+
+#### 8. What the next tiers need
+
+* **The Core tier (P3-Core)**: §7.  At the merge, delete this tier's copy of
+  `KnotSpec`/`SimE`/`SimV`, keep `CoreSpec`'s two quantified fields as the
+  adapter, and move `EnsureSortSpec` down.
+* **The Inductives tier**: `IndSpec μ` is one clause about
+  `Inductives.checkIndDecl`, at the route `basisPinHit` did NOT recognise (the
+  recogniser's exactness is item 15 and stays here).  Its conclusion is
+  `DeclOut`'s minus the `Pushed` clause plus
+  `fe.visibleBelow ≤ fe'.visibleBelow`; it also owes `PersIFEnv fe'` and
+  `IFEnvCoh fe'`, which the value arms get from `IFEnv.push` and the inductive
+  route has to establish for whatever it installs.  The one thing the tier
+  must watch is **task #97-P3-0 §7's open item**: `IFEnvOK`'s `cover` clause at
+  a GROWING environment, which `IFEnvOK.mono` does not give.  Here that is
+  subsumed — `FoldOK` carries `denoteFEnv` as a FUNCTION and `IFEnvOK` is
+  derived from it (item 6), so a growing environment is a growing list and
+  `cover` is recomputed rather than transported.
+* **The frontend tier**: it owes `denoteDecls s.store ds = some dsP` (DESIGN
+  §8.2's parser statement, at `Bridge/Checker/Inv.lean`'s `denoteDecls`) AND
+  `∀ x ∈ ds, PersDecl x`.  The second clause is new and it is free — the parse
+  runs with the scratch tier closed — but it has to be *stated*, because
+  without it the first declaration's `dropScratch` makes the rest of the stream
+  undecodable.  It also owes `FoldOK μ Env.empty (mkIFEnv IEnv.empty) s` at the
+  post-parse state, whose `PinsOK`/`PersPins` half is item 13 and whose
+  `EnvWF Env.empty` half is immediate.
+* **The store layer**: items 2 and 21 are `WFProofs.lean` tasks, not bridge
+  tasks.  Whoever takes them should put `{N,L,Ls,E}Store.internPersistent_spec`
+  beside `intern_spec` and `denote*_enableScratch_pers` beside
+  `denote*_dropScratch_pers`, and leave `Bridge/Promote/StoreP.lean` and
+  `PExt.enterScratch` as the consumers; `StoreWFP` (the `EWFAt` minus
+  `fresh`/`bmFresh` that `Arena/Store.lean`'s own section note asks for) may
+  move down with them.
+* **`scripts/provenance.py`'s `ARENA_ROOTS` still does not include
+  `proof/ConRon/Bridge`** (task #97-P3-0 §7), so the `con-leche:` citations in
+  these seventeen modules are stylistic rather than gate-enforced.  Every
+  declaration carries one anyway.
+* **The import rule widens by three modules.**  Task #97-P3-0's was con-leche's
+  `Kernel/*` only.  This tier adds `ConLeche.Verify.BridgeDecl`
+  (`checkDecl_datF`), `ConLeche.Verify.EnvBound`
+  (`mkFEnv_find?_visibleBelow`), `ConLeche.Verify.EnvWF` (`EnvWF`),
+  `ConLeche.Verify.Shift` (`Expr.WScoped`, which P3-Core's statement names) and
+  `ConLeche.Model.Fold` (`checkDeclsPure_sound_of` — the capstone cannot be
+  stated without it).  Each is used in ONE file for one or two declarations,
+  and all are prebuilt in con-leche's `.lake`, so none costs elaboration here.
+* **`ConRonBridge` stays out of `defaultTargets`** while the tier carries
+  `sorry`s.  `lake build ConRonBridge` is the command.
+
+#### 9. Gates
+
+| gate | |
+|---|---|
+| `lake build ConRonBridge` | 0 errors; `ConRon/Bridge/**` only |
+| `#print axioms` | `Bridge/Checker/Axioms.lean`: 46 closed results, every one `[propext, Classical.choice, Quot.sound]`; the five headline theorems carry `sorryAx` and **neither `CoreSpec` nor `IndSpec`** |
+| the diff | `proof/ConRon/Bridge/Promote{,/*}.lean`, `proof/ConRon/Bridge/Checker{,/*}.lean`, `proof/ConRon/Bridge.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh`/`provenance.py check`/`overview-links.sh` cannot be affected and are not re-run |
