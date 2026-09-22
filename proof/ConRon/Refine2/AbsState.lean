@@ -294,13 +294,43 @@ structure PinsRel (rp : arena.pins.Pins) (lp : Pins) : Prop where
 
 /-! ## The whole state -/
 
-/-- **`absState`**, as a relation: `(pers, st)` against the twin's `AState`. -/
+/-- **`absState`**, as a relation: `(pers, st)` against the twin's `AState`.
+
+**`storeWF` — finding 16's clause, task #97-P5-Specs.**  Task #97-P5-3 round 3
+measured that an interning walk's every step needs `StoreWF` at the store it
+stands on: `EStore.intern`'s own `intern_wf` is stated against it, and round 3
+§2's `hchild_*` derive finding 14's child condition from it.  `AOut` said
+nothing about well-formedness, so 81 % of the inductives tier and 43 of the 44
+interning walks of `Refine2/ExprOps/Mut.lean` could not travel.  Task
+#97-P5-Bracket then met the same gap from the other end: `AOutRel`'s `Ext`
+conjunct is FALSE across a declaration bracket without it, because a
+persistent node whose child is a scratch handle denotes before the drop and
+not after.
+
+The clause lives HERE, on the relation, rather than as a conditional conjunct
+`StoreWF lst.store → StoreWF lst'.store` on `AOut`'s success arm, and that is
+the cheaper of the two by a wide margin:
+
+* `AOut`'s success arm already delivers `AStateRel pers st' lst'`, so the STEP
+  form falls out of the STATE form — no new conjunct, and no implication to
+  thread through the tier's 185 `AOut.ok` sites and 31 `SimS.mk` sites;
+* it is proved once per PRODUCER — twelve sites, all in `Refine2/Specs.lean`
+  — instead of once per consumer;
+* and the Theorem-2 capstones keep `AStateRel`/`AStateInv` and nothing else,
+  instead of growing a universally quantified `TwinWF` side condition.
+
+`Arena/WFProofs.lean`'s `EStore.intern_wf` is what discharges it at an intern,
+with `ECapAt` (round 3 §1, from the port's own `Tbl::full`) for its `capOK`
+and an explicit `ViewOK` hypothesis for its children. -/
 structure AStateRel (pers : arena.store.PersTier) (rs : arena.monad.AState)
     (ls : AState) : Prop where
   store : StoreRel pers rs.store ls.store
   memos : MemosRel rs.memos ls.memos
   caches : CachesRel rs.caches ls.caches
   pins : PinsRel rs.pins ls.pins
+  /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,
+  carried by Theorem 2's relation. -/
+  storeWF : StoreWF ls.store
 
 /-- The Rust-side invariant of the whole state. -/
 structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
