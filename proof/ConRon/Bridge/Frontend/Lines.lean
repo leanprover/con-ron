@@ -389,9 +389,10 @@ LAYER**: one scanned line applied.  Six arms; the two trivial ones (`header`,
 `blank`) are `rfl` on both sides and the scanner's record is the same value,
 which is the whole point of reusing `Scan/Fast.lean` rather than twinning it.
 
-`sorry`: `parseExprEntryD_run` / `parseNameEntryD_run` / `parseLevelEntryD_run`
-/ `applyDeclD_run` and two `rfl`s.  Task #97-P3-Frontend's sorry list, item
-9. -/
+Six arms over `parseExprEntryD_run` / `parseNameEntryD_run` /
+`parseLevelEntryD_run` / `applyDeclD_run`, and two `rfl`s: the `header` and
+`blank` lines move nothing on either side, which is the whole point of reusing
+`Scan/Fast.lean` rather than twinning it. -/
 theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {sd : StateD}
@@ -401,6 +402,57 @@ theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
     (hrun : applyLine md sd r s = .ok (x, s')) :
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
       ∃ y, ConLeche.Frontend.applyLine sc r = .ok y ∧ SumRel s'.store x y := by
-  sorry
+  cases r with
+  | expr i e =>
+    rw [applyLine] at hrun
+    obtain ⟨sd₁, s₁, hentry, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+    subst hv; subst hs
+    obtain ⟨hstep, hpers, sc', hcl, hrel'⟩ :=
+      parseExprEntryD_run hok hoff hrel hp hentry
+    exact ⟨hstep, fun _ h => by cases h; exact hpers, .inl sc',
+      by rw [ConLeche.Frontend.applyLine]; simp only [hcl]; rfl,
+      SumRel.of_state hrel'⟩
+  | name i n =>
+    rw [applyLine] at hrun
+    obtain ⟨sd₁, s₁, hentry, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+    subst hv; subst hs
+    obtain ⟨hstep, hpers, sc', hcl, hrel'⟩ :=
+      parseNameEntryD_run hok hoff hrel hp hentry
+    exact ⟨hstep, fun _ h => by cases h; exact hpers, .inl sc',
+      by rw [ConLeche.Frontend.applyLine]; simp only [hcl]; rfl,
+      SumRel.of_state hrel'⟩
+  | level i l =>
+    rw [applyLine] at hrun
+    obtain ⟨sd₁, s₁, hentry, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+    subst hv; subst hs
+    obtain ⟨hstep, hpers, sc', hcl, hrel'⟩ :=
+      parseLevelEntryD_run hok hoff hrel hp hentry
+    exact ⟨hstep, fun _ h => by cases h; exact hpers, .inl sc',
+      by rw [ConLeche.Frontend.applyLine]; simp only [hcl]; rfl,
+      SumRel.of_state hrel'⟩
+  | decl d =>
+    rw [applyLine] at hrun
+    obtain ⟨hstep, hpers, y, hcl, hxy⟩ :=
+      applyDeclD_run hmw hmr hok hoff hrel hp hrun
+    exact ⟨hstep, hpers, y, by rw [ConLeche.Frontend.applyLine]; exact hcl, hxy⟩
+  | header =>
+    rw [applyLine] at hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrun
+    subst hs
+    obtain rfl : x = .inl sd := hv
+    exact ⟨ParseStep.refl hok, fun sd₂ h => by
+      obtain rfl : sd = sd₂ := by injection h
+      exact hp, .inl sc, rfl, SumRel.of_state hrel⟩
+  | blank =>
+    rw [applyLine] at hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrun
+    subst hs
+    obtain rfl : x = .inl sd := hv
+    exact ⟨ParseStep.refl hok, fun sd₂ h => by
+      obtain rfl : sd = sd₂ := by injection h
+      exact hp, .inl sc, rfl, SumRel.of_state hrel⟩
 
 end ConRon.Bridge.Frontend
