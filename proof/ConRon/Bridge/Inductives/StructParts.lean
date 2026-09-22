@@ -28,6 +28,7 @@ predicate at handle keys, through `denoteE`.
 -/
 import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.Spine
 
 namespace ConRon.Bridge.Inductives
 
@@ -956,36 +957,121 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:624-626 Expr.hasLooseBVarBFast
 The entry: an empty memo is sound, so the answer is the real one.
 
-`sorry`: `hasLooseBVarBGo_spec` at the empty memo. -/
+**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBGo_spec` at the empty
+memo, which `LooseMemoOK.empty` says is sound. -/
 theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
       (Arena.hasLooseBVarBFast i e) (RV (Expr.hasLooseBVarB i eP)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.hasLooseBVarBFast] at hrun
+  obtain ⟨p, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ :=
+    hasLooseBVarBGo_spec ∅ i Arena.coreWalkFuel e eP s₀ s₁ p hok
+      ⟨hd, LooseMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, hr⟩
+
+/-! ### `stripPis`, in run form
+
+`Bridge/ExprOps/Spine.lean`'s `stripPis_spec` is CLOSED and this tier's three
+telescope readers (`structUsedLater`, `structUsedLaterGo` and, through them,
+`structProjGuards`) are its only consumers here.  Two inversions of
+`denoteBP` are all the shape they need: this tier never looks at the peeled
+binders, only at the residual. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the run form
+at this tier's frame; `stripPis` is read-only, so the state does not move at
+all. -/
+theorem stripPis_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
+    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    (hd : denoteE s₀.store c = some cP)
+    (hrun : Arena.stripPis k c s₀ = .ok (r, s')) :
+    s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripPis k cP) := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.stripPis_spec k s₀ c hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 cP hd⟩
+
+/-- con-leche: none — a `none` answer is `none` on the pure side too: the
+two-sidedness `stripPis`' dispatch needs. -/
+theorem stripPis_none {st : EStore} {k : Nat} {cP : Expr}
+    (h : ExprOps.denoteBP st none = some (Expr.stripPis k cP)) :
+    Expr.stripPis k cP = none := (Option.some.inj h).symm
+
+/-- con-leche: none — and a `some` answer names the pure residual. -/
+theorem stripPis_some {st : EStore} {k : Nat} {cP : Expr}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
+    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
 
 /-! ## The projection guards -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:633-641 structUsedLater
 Is field `j` mentioned by a later field's domain?
 
-`sorry`: `hasLooseBVarBFast_spec` under the constructor type's telescope. -/
+**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBFast_spec` under the
+constructor type's telescope, with `stripPis_pstep`'s two inversions for the
+dispatch. -/
 theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
     PSpec (fun st => denoteE st cty = some ctyP)
       (Arena.structUsedLater cty nP j)
       (RV (ConLeche.structUsedLater ctyP nP j)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.structUsedLater] at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  show PStep s₀ s' ∧ r = ConLeche.structUsedLater ctyP nP j
+  rw [ConLeche.structUsedLater]
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    rw [stripPis_none hbp]
+    exact ⟨PStep.refl hok, rfl⟩
+  | some p =>
+    obtain ⟨bs, rest⟩ := p
+    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    rw [hsp]
+    exact hasLooseBVarBFast_spec 0 rest x _ _ r hok hx h2
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:669-674 structUsedLaterGo
 The same with the memo threaded (task #236's one shared memo across `nF`
 calls).
 
-`sorry`: `hasLooseBVarBGo_spec` under the telescope. -/
+**CLOSED** (task #97-P3-Ind round 3): `hasLooseBVarBGo_spec` under the
+telescope, the memo travelling verbatim through the `none` arm. -/
 theorem structUsedLaterGo_spec (memo : Std.HashMap (EIdx × Nat) Bool)
     (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
     PSpec (fun st => denoteE st cty = some ctyP ∧ LooseMemoOK memo st)
       (Arena.structUsedLaterGo memo cty nP j)
       (fun st r => r.1 = ConLeche.structUsedLater ctyP nP j ∧
         LooseMemoOK r.2 st) := by
-  sorry
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hd, hm⟩ := hp
+  simp only [Arena.structUsedLaterGo] at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  show PStep s₀ s' ∧ r.1 = ConLeche.structUsedLater ctyP nP j ∧
+    LooseMemoOK r.2 s'.store
+  rw [ConLeche.structUsedLater]
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    rw [stripPis_none hbp]
+    exact ⟨PStep.refl hok, rfl, hm⟩
+  | some p =>
+    obtain ⟨bs, rest⟩ := p
+    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    rw [hsp]
+    exact hasLooseBVarBGo_spec memo 0 Arena.coreWalkFuel rest x _ _ r hok
+      ⟨hx, hm⟩ h2
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:685-692 structUsedLaterList
 The `n` answers from `base` up, one memo through all of them.

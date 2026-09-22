@@ -184,6 +184,31 @@ def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → P
 all `Nat`s. -/
 abbrev PT : EStore → Prop := fun _ => True
 
+/-- con-leche: none — **the PURE grade AT A PIN READ** (task #97-P3-Ind round
+3's finding; see `Bridge/Inductives/StructParts.lean`'s `structProjGuards_spec`).
+
+`PSpec`'s precondition is a predicate on the STORE, so it cannot see the pin
+table — and `Arena/Pins.lean`'s `pinsReady` tests only that the name array has
+`pinCount` entries, not that any of the three nullary slots denotes what it
+claims.  A twin that reads `zeroLevel`, `sortOne` or `emptyLevels` therefore
+has no `PSpec`: at a state whose `pins.zeroLevel` denotes `.param foo` the
+run ACCEPTS and answers something else.  `PinsOK` is the missing licence, and
+this is the only shape that carries it while keeping `PStep`: the twin is
+still pure — it interns and reads, it calls no knot — so dropping to `CSpec`
+(the other statement that has `PinsOK`, through `CheckOK`) would give away the
+`BMExt` and cache-frame conjuncts for nothing. -/
+def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+    Prop :=
+  ∀ (s₀ s' : AState) (r : α), StateOK s₀ → PinsOK s₀ → P s₀.store →
+    c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
+
+/-- con-leche: none — a twin that does NOT read the pin table has the
+stronger statement, and every consumer may use it at the weaker one. -/
+theorem PSpec.toPSpecP {α : Type} {P : EStore → Prop} {c : AM α}
+    {R : EStore → α → Prop} (h : PSpec P c R) : PSpecP P c R :=
+  fun s₀ s' r hok _ hp hrun => h s₀ s' r hok hp hrun
+
+
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
 statement**: the same at a function that calls the knot, so the invariant is
 `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
@@ -201,6 +226,15 @@ theorem PSpec.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
     (fe : IFEnv) : CSpec μ env fe P c R := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hp hrun
+  exact ⟨hstep.toCore hok, hr⟩
+
+/-- con-leche: none — and a pin-reading pure twin is a core-grade twin at any
+environment: `CheckOK.pins` is exactly what it was missing. -/
+theorem PSpecP.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
+    {R : EStore → α → Prop} (h : PSpecP P c R) (μ : CheckMode) (env : Env)
+    (fe : IFEnv) : CSpec μ env fe P c R := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
   exact ⟨hstep.toCore hok, hr⟩
 
 /-! ### The `Option` lift
