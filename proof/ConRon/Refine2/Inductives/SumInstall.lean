@@ -152,7 +152,36 @@ theorem eidx_contains_refines {xs : alloc.vec.Vec arena.handle.EIdx}
     {x : arena.handle.EIdx} {i : Std.Usize} {o}
     (hrun : arena.inductives.sum_install.eidx_contains xs x i = ok o) :
     o = (absEIdxLFrom xs i).contains (absEIdx x) := by
-  sorry
+  simp only [absEIdxLFrom, List.contains_eq_any_beq, List.any_map, Function.comp_def]
+  refine vec_cursor_any xs _
+    (arena.inductives.sum_install.eidx_contains xs x) ?_ ?_ i o hrun
+  · intro i o hn h
+    rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+  · intro i y o hy h
+    have hlt : i.val < xs.val.length := (List.getElem?_eq_some_iff.mp hy).1
+    rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hey : e = y := by
+      have h1 := vec_index_some he; rw [hy] at h1; exact (Option.some_inj.mp h1).symm
+    subst hey
+    have hbv : b = (absEIdx x == absEIdx e) := by
+      rw [eidx_eq2_abs hb]
+      by_cases hcc : absEIdx e = absEIdx x
+      · simp [hcc]
+      · have hcc' : ¬ absEIdx x = absEIdx e := fun z => hcc z.symm
+        simp [hcc, hcc']
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      exact Or.inl ⟨hbv.symm, h.symm⟩
 
 /-- `field_sort_bound` ⊑ `checkStructFieldSortsI`'s per-field universe
 bound. -/
