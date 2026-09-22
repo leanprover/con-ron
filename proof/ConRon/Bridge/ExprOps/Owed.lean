@@ -85,15 +85,19 @@ theorem abstractRangeFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
 
 /-! ## `resetMeta`'s entry -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:688 resetMetaFast — **OPEN**
-(task #97-P3-0): the bracket over `Reset.lean`'s `resetMetaGo_spec`. -/
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:688 resetMetaFast — the bracket
+over `Reset.lean`'s `resetMetaGo_spec`, in `ExprOps/Inst1.lean`'s
+`instantiate1Fast_spec` shape: the memo is cleared before and after, and the
+cleared memo satisfies `ResetMemoA` for free (`MemoOK.of_empty`). -/
 theorem resetMetaFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ resetMetaFast fuel e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.resetC = ∅ ∧
         RelE Expr.resetMeta s₀.store e s'.store r⌝⦄ := by
-  sorry
+  have hr := (resetMetaGo_spec fuel).run
+  mvcgen [resetMetaFast, hr]
+  all_goals bridge_vcs [Expr.resetMeta]
 
 /-! ## `renameConsts`
 

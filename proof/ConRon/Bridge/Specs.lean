@@ -151,7 +151,19 @@ for exactly this reason. -/
         denoteE s'.store h = denoteEView s'.store w⌝⦄ := by
   mvcgen [internE]
   spec_fails
-  rename_i s hs _n _nbm hcap _st _s'
+  -- **The cons HIT** (task #97-P5-1's finding 9, fixed in the twin at
+  -- #97-P3-1): `internE` probes before it tests the capacity, exactly as the
+  -- Rust does, so this branch answers the handle the cons table already
+  -- holds and moves nothing.  `EStore.view_of_find` is `StoreWF`'s own
+  -- `consP`/`consS` clause read left to right — no capacity in it.
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview := EStore.view_of_find hwf hfind
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, hview,
+      denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n _nbm hcap _st _s'
   subst hs
   simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq,
     Bool.not_eq_true'] at hcap
@@ -505,7 +517,17 @@ fact under the wrapper's own capacity branch. -/
         denoteN s'.store.ns h = denoteNView s'.store.ns v⌝⦄ := by
   mvcgen [internNNode]
   spec_fails
-  rename_i s hs _ns _n hcap _st _s'
+  -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
+  -- it tests the capacity, exactly as the Rust does.
+  case vc1.h_1 =>
+    rename_i s hs _ns i hfind
+    subst hs
+    obtain ⟨rk, hwf'⟩ := hwf
+    obtain ⟨rkn, hnw⟩ := hwf'.nsWF
+    have hview := NStore.view_of_find ⟨rkn, hnw⟩ hfind
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
+      denoteN_unfold hnw hview⟩
+  rename_i s hs _ns _hfind _n hcap _st _s'
   subst hs
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
     EStore.internName_spec hwf hv (by exact hcap)
@@ -573,7 +595,17 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         denoteL s'.store.ls h = denoteLView s'.store.ls v⌝⦄ := by
   mvcgen [internLNode]
   spec_fails
-  rename_i s hs _ls _n hcap _st _s'
+  -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
+  -- it tests the capacity, exactly as the Rust does.
+  case vc1.h_1 =>
+    rename_i s hs _ls i hfind
+    subst hs
+    obtain ⟨rk, hwf'⟩ := hwf
+    obtain ⟨rkl, hlw⟩ := hwf'.lsWF
+    have hview := LStore.view_of_find ⟨rkl, hlw⟩ hfind
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
+      denoteL_unfold hlw hview⟩
+  rename_i s hs _ls _hfind _n hcap _st _s'
   subst hs
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
     EStore.internLevel_spec hwf hv (by exact hcap)
@@ -610,7 +642,16 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         denoteLs s'.store.lss h = denoteLsView s'.store.lss v⌝⦄ := by
   mvcgen [internLsNode]
   spec_fails
-  rename_i s hs _lss _n hcap _st _s'
+  -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
+  -- it tests the capacity, exactly as the Rust does.
+  case vc1.h_1 =>
+    rename_i s hs _lss i hfind
+    subst hs
+    obtain ⟨rk, hwf'⟩ := hwf
+    have hview := LsStore.view_of_find hwf'.lssWF hfind
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
+      denoteLs_unfold hview⟩
+  rename_i s hs _lss _hfind _n hcap _st _s'
   subst hs
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
     EStore.internLevels_spec hwf hv (by exact hcap)

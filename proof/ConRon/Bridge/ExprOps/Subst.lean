@@ -1312,13 +1312,13 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
   | zero =>
     constructor
     intro s₀ h c _ _ _
-    mvcgen [liftLooseBVarsGo]
+    mvcgen [liftLooseBVarsGo_zero]
     all_goals bridge_vcs [Expr.liftLooseBVars]
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
     have hrec := ih.run
-    mvcgen [liftLooseBVarsGo, hrec]
+    mvcgen [liftLooseBVarsGo_succ, liftArmApp, liftArmLam, liftArmForallE, liftArmLet, liftArmProj, hrec]
     all_goals try exact fun cc e => Expr.liftLooseBVars amount cc e
     all_goals try bridge_vcs [Expr.liftLooseBVars]
     -- the derived-word cutoff
@@ -1528,14 +1528,14 @@ theorem lowerBVarsGo_spec (amount : Nat) (hbb : ∀ f, BvarBSpec (bvarB f)) :
   | zero =>
     constructor
     intro s₀ h c _ _ _
-    mvcgen [lowerBVarsGo]
+    mvcgen [lowerBVarsGo_zero]
     all_goals bridge_vcs [Expr.lowerBVars]
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
     have hrec := ih.run
     have hbbr := (hbb fuel).run
-    mvcgen [lowerBVarsGo, hrec, hbbr]
+    mvcgen [lowerBVarsGo_succ, lowerArmApp, lowerArmLam, lowerArmForallE, lowerArmLet, lowerArmProj, hrec, hbbr]
     all_goals try exact fun cc e => Expr.lowerBVars amount cc e
     all_goals try bridge_vcs [Expr.lowerBVars]
     all_goals clear hbbr
@@ -1695,7 +1695,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr)
   | zero =>
     constructor
     intro s₀ h d _ _ _ _
-    mvcgen [instantiate1LiftGo]
+    mvcgen [instantiate1LiftGo_zero]
     all_goals bridge_vcs [Expr.instantiate1Lift]
   | succ fuel ih =>
     constructor
@@ -1703,7 +1703,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr)
     have hrec := ih.run
     have hbbr := (hbb fuel).run
     have hlift := fun (s : AState) (e : EIdx) => liftLooseBVarsFast_spec fuel d 0 s e
-    mvcgen [instantiate1LiftGo, hrec, hbbr, hlift]
+    mvcgen [instantiate1LiftGo_succ, inst1LiftArmApp, inst1LiftArmLam, inst1LiftArmForallE, inst1LiftArmLet, inst1LiftArmProj, hrec, hbbr, hlift]
     all_goals try exact fun dd e => Expr.instantiate1Lift e ve dd
     all_goals try bridge_vcs [Expr.instantiate1Lift]
     all_goals clear hbbr hlift
@@ -2031,7 +2031,7 @@ theorem instantiateList_spec :
     intro vs ws
     constructor
     intro s₀ h d _ _ _
-    mvcgen [instantiateList]
+    mvcgen [instantiateList_zero]
     all_goals bridge_vcs [Expr.instantiateList]
   | succ fuel ih =>
     intro vs ws
@@ -2039,7 +2039,7 @@ theorem instantiateList_spec :
     intro s₀ h d hok hvec hden
     have hrec := (ih vs ws).run
     have hrec2 := fun (m : Nat) => (ih (lastEidx vs m) (ws.take m)).run
-    mvcgen [instantiateList, hrec, hrec2]
+    mvcgen [instantiateList_succ, instListArmApp, instListArmBind, instListArmLet, instListArmProj, instListArmBVar, hrec, hrec2]
     all_goals try bridge_vcs [Expr.instantiateList, InstLVec.last,
       InstLVec.ext, InstLVec.length]
     all_goals try (bridge_peel
@@ -2131,14 +2131,14 @@ theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
   | zero =>
     constructor
     intro s₀ h d _ _ _ _
-    mvcgen [instantiateListGo]
+    mvcgen [instantiateListGo_zero]
     all_goals bridge_vcs [Expr.instantiateList]
   | succ fuel ih =>
     constructor
     intro s₀ h d hok hm hvec hden
     have hrec := ih.run
     have hpure := (instantiateList_spec fuel vs ws).run
-    mvcgen [instantiateListGo, hrec, hpure]
+    mvcgen [instantiateListGo_succ, instListGoArmApp, instListGoArmBind, instListGoArmLet, instListGoArmProj, hrec, hpure]
     all_goals try exact fun dd e => Expr.instantiateList e ws dd
     all_goals try bridge_vcs [Expr.instantiateList, InstLVec.last,
       InstLVec.ext, InstLVec.length]

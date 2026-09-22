@@ -193,11 +193,17 @@ def internE (v : ENodeView) : AM EIdx := do
     -- a `lam`/`forallE` view interns a `BMNode` too, and a `BMIdx` past
     -- `idxCap` would wrap into the tier bit.  Only the two binder arms reach
     -- the datum store, so only they are tested — which is where the Rust's
-    -- `intern_bm` makes the same test, and raises the same `Native`.  And it
-    -- is tested only when the DATUM itself is a cons miss, for the same
-    -- reason the node's array is: `intern_bm` tests `full` where it appends.
+    -- `intern_bm` makes the same test, and raises the same `Native`.
+    --
+    -- **What is still stricter than the Rust here**, and deliberately so
+    -- (task #97-P3-1): `intern_bm` tests `full` only where IT appends, so a
+    -- node-cons MISS whose DATUM is a cons hit needs no room in `bms` at all.
+    -- Saying that needs `EStore.intern_spec` at a capacity that is the node
+    -- array's alone, i.e. a change to a frozen store theorem's statement;
+    -- the datum array holds one entry per distinct `PropWhen`, so the corner
+    -- is unreachable, and it is recorded rather than closed.
     let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
-    if n < Idx.idxCap && ((s.store.findBMOfView v).isSome || nbm < Idx.idxCap) then
+    if n < Idx.idxCap && (!EStore.eViewNeedsBM v || nbm < Idx.idxCap) then
       let st := s.store
       let s := { s with store := EStore.empty }
       let (st, h) := st.intern v
@@ -621,17 +627,6 @@ one at the same place, against the persistent array; the error is the same
 `Native` kind.  `Arena/Promote.lean` is the only caller.
 -/
 
-/-- con-leche: none — arena infrastructure; the PERSISTENT tier's datum probe
-for a whole node view, which is what `internBMOfViewPersistent` would hit.  It
-is `EStore.findBMOfView` with the scratch tier left out, and it is what makes
-`internPersistentE`'s capacity test fire only where an APPEND happens (task
-#97-P5-1's finding 9). -/
-def persFindBMOfView (st : EStore) (v : ENodeView) : Option BMIdx :=
-  match v with
-  | .lam _ _ m => st.persFindBM m
-  | .forallE _ _ m => st.persFindBM m
-  | _ => some (Idx.ofWord 0)
-
 /-- con-leche: none — arena infrastructure; hash-cons an expression node into
 the persistent tier. -/
 def internPersistentE (v : ENodeView) : AM EIdx := do
@@ -642,8 +637,7 @@ def internPersistentE (v : ENodeView) : AM EIdx := do
   | some h => pure h
   | none =>
     if s.store.pers.sizeOf v < Idx.idxCap &&
-        ((persFindBMOfView s.store v).isSome ||
-          s.store.pers.bmSize < Idx.idxCap) then
+        (!EStore.eViewNeedsBM v || s.store.pers.bmSize < Idx.idxCap) then
       let st := s.store
       let s := { s with store := EStore.empty }
       let (st, h) := st.internPersistent v

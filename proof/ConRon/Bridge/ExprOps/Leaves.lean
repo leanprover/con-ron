@@ -428,13 +428,13 @@ theorem fvarLeaves_spec : ∀ fuel, FvarLeavesSpec (fvarLeaves fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _
-    mvcgen [fvarLeaves]
+    mvcgen [fvarLeaves_zero]
     all_goals bridge_vcs [denoteLeaves_nil]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hden
     have hrec := ih.run
-    mvcgen [fvarLeaves, hrec]
+    mvcgen [fvarLeaves_succ, fvarLeavesArmFVar, fvarLeavesArmApp, fvarLeavesArmBind, fvarLeavesArmLet, hrec]
     all_goals bridge_vcs [denoteLeaves_nil]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the run
