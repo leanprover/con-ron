@@ -176,6 +176,23 @@ theorem Sim.toSimRel {α β : Type} {A : α → β} {pers : arena.store.PersTier
     rintro ⟨lst', hx, h1, h2, h3, -⟩
     exact ⟨A r, lst', hx, rfl, h1, h2, h3⟩
 
+/-- **The result relation, weakened.**  The fold's statements conclude
+`IFEnvRelI` (related AND well formed) because the next step needs both; the
+capstone's public conclusion is DESIGN §8.2's `IFEnvRel` alone, and this is
+the one step between them. -/
+theorem SimRel.mono {α β : Type} {R R' : α → β → Prop}
+    {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : SimRel R pers lst o x) (hRR : ∀ r v, R r v → R' r v) :
+    SimRel R' pers lst o x := by
+  revert h
+  unfold SimRel AOutRel
+  cases o.1 with
+  | Err e => exact id
+  | Ok r =>
+    rintro ⟨v, lst', hx, hr, h1, h2, h3⟩
+    exact ⟨v, lst', hx, hRR _ _ hr, h1, h2, h3⟩
+
 /-! ## `SimRE` — a reader that can FAIL
 
 `Refine2/Shape.lean`'s `SimR` is `Result`-valued but never `Err`, which is
@@ -450,7 +467,8 @@ by one.  It belongs here, beside the index's `Inv`, for the same reason the
 index's does. -/
 def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
   Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
-    rf.visible_below.val ≤ rf.env.consts.val.length
+    rf.visible_below.val ≤ rf.env.consts.val.length ∧
+    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max
 
 theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
     Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx := h.1
@@ -458,7 +476,23 @@ theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
 /-- The counter is a bound on the constant list — finding C, at the call
 site. -/
 theorem IFEnvInv.visBound {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
-    rf.visible_below.val ≤ rf.env.consts.val.length := h.2
+    rf.visible_below.val ≤ rf.env.consts.val.length := h.2.1
+
+/-- **Every position the index stores fits a `usize`** — task #97-P5-Core-2's
+`CoreCtx.idxPos`, which `ifenv_find_abs` is the only consumer of.
+
+It is an INVARIANT and not a platform assumption, and the write sites are why:
+every position ever stored is a `Vec` index or a `Vec` length cast up from
+`usize` — `arena::env::mk_ifenv_go` stores `i as u64` for the cursor `i`,
+`ifenv_push` and `ifenv_push_temp` store `fe.env.consts.len() as u64`,
+`arena::promote::index_promoted` stores `(j - 1) as u64` for its `usize`
+cursor, and `ifenv_pop_temp` puts back a row it took OUT of the index.  There
+is no other writer.  So the `pos as usize` in `ifenv_find` — which Aeneas
+models as a truncating cast — is the identity at every reachable row, and
+the Rust needs no test it does not already have. -/
+theorem IFEnvInv.idxPos {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max :=
+  h.2.2
 
 /-! ## The environment relation a FOLD has to carry (task #97-P5-Checker-2)
 
@@ -586,5 +620,16 @@ def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
 
 attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
   absINatOpPinSet absINatOpPinSetL absINatOpPinSetLFrom
+
+/-! ## The axiom census — rule 11's four, and the relation's weakening -/
+
+/-- info: 'ConRon.Refine2.am_ite_bind' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms am_ite_bind
+
+/-- info: 'ConRon.Refine2.am_bind_congr' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms am_bind_congr
+
+/-- info: 'ConRon.Refine2.SimRel.mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SimRel.mono
 
 end ConRon.Refine2

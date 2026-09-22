@@ -288,14 +288,14 @@ theorem constsResolveFGo_unfold (fe : IFEnv) (memo : Std.HashMap EIdx Bool)
           let p ← constsResolveFNodeSpec fe memo fuel h (← view h)
           pure (p.1, p.2.insert h p.1)) := by
   rw [constsResolveFGo]
-  refine am_bind_congr _ ?_
+  refine ConRon.Refine2.am_bind_congr _ ?_
   intro v
   cases v <;> try rfl
   all_goals
     (cases hm : memo[h]? with
      | some r => rfl
      | none =>
-       refine am_bind_congr _ ?_
+       refine ConRon.Refine2.am_bind_congr _ ?_
        intro v2
        cases v2 <;> twin_reduce [constsResolveFNodeSpec])
 
@@ -304,8 +304,10 @@ theorem indParamsOk_unfold (nP : Nat) (ci : IConstantInfo)
     (rest : List IConstantInfo) :
     indParamsOk nP (ci :: rest) = (do
       if ← indParamsOkAtSpec nP ci then indParamsOk nP rest else pure false) := by
-  rw [indParamsOk]
-  cases ci <;> twin_reduce [indParamsOkAtSpec]
+  cases ci <;> twin_reduce [indParamsOk, indParamsOkAtSpec]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro x
+  cases x <;> twin_reduce
 
 /-- `checkProjRule` is its six pieces. -/
 theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
@@ -316,7 +318,14 @@ theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
         | fail (.notImplemented "projection rule telescope")
       checkProjRuleScopedSpec mode fe pty cvj lps nP nF bv rhs) := by
   rw [checkProjRule]
-  twin_reduce
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro bv
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro r
+  cases r <;>
+    twin_reduce [checkProjRuleScopedSpec, checkProjRuleWfSpec,
+      checkProjRuleShapeSpec, checkProjRuleCertsSpec, checkProjRuleFrameSpec] <;>
+    try rfl
 
 
 /-! ## `arena::decl_check`'s splits (finding 11)
@@ -1017,5 +1026,23 @@ def internAllBasisSpec : List BasisKind → AM Unit
     let _ ← BasisKind.decls k
     let _ ← BasisKind.declsA k
     internAllBasisSpec ks
+
+/-! ## The axiom census
+
+**Task #97-P5-Checker-2**: the seven `_unfold`s that closed.  They are the
+only obligations of this file about the TWIN rather than the port, and rule
+11 (`Refine2/Checker/Shape.lean`'s `twin_reduce`) is what closes them. -/
+
+/-- info: 'ConRon.Arena.checkConstantVal_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkConstantVal_unfold
+
+/-- info: 'ConRon.Arena.checkValueGroup_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkValueGroup_unfold
+
+/-- info: 'ConRon.Arena.constsResolveFGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms constsResolveFGo_unfold
+
+/-- info: 'ConRon.Arena.checkProjRule_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkProjRule_unfold
 
 end ConRon.Arena

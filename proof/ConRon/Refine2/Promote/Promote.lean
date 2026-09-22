@@ -778,4 +778,13 @@ handle type. -/
 /-- info: 'ConRon.Refine2.pmemo_set_ls_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pmemo_set_ls_refines
 
+/-- info: 'ConRon.Refine2.pmemo_empty_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pmemo_empty_refines
+
+/-- info: 'ConRon.Refine2.promoteE_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteE_unfold
+
+/-- info: 'ConRon.Refine2.promoteN_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteN_unfold
+
 end ConRon.Refine2

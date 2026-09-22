@@ -76,6 +76,32 @@ def SimFold {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier
       ∃ le lst', x.run lst = .ok (.error (le, absU p.2), lst') ∧
         lAErrKind le = some k
 
+/-! ## The cursor at zero, and the empty pending list
+
+The two capstones call their folds at cursor `0`, where the `…From`
+abstraction (DESIGN §3.4's `List`-as-cursor deviation) is the plain one. -/
+
+private theorem absIDeclLFrom_zero (ds : alloc.vec.Vec arena.env.IDeclaration) :
+    absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
+
+private theorem absPendingCheckLFrom_zero
+    (v : alloc.vec.Vec arena.checker.PendingCheck) :
+    absPendingCheckLFrom v 0#usize = absPendingCheckL v := by simp
+
+private theorem absPendingCheckL_new :
+    absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck) = [] := rfl
+
+private theorem absU_zero : absU (0#u64) = 0 := rfl
+
+private theorem absPendingCheckL_new_toArray :
+    (absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck)).toArray
+      = (#[] : Array PendingCheck) := rfl
+
+private theorem toList_toArray' {α : Type} (l : List α) : l.toArray.toList = l := rfl
+
+private theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
+    (Except.ok a : Except ε α) >>= f = f a := rfl
+
 /-! ## The empty environment, on both sides
 
 `check_decls_pure` and `install_then_check` both open with
@@ -105,13 +131,15 @@ private theorem mk_ifenv_empty_refines {e f}
   simp only [alloc.vec.Vec.new, alloc.vec.Vec.len, ge_iff_le, le_refl, if_pos] at hq
   have hq' : q = (0#u64, hm) := (Result.ok_injective hq).symm
   subst hq'
-  have hf' : f = { env := { consts := alloc.vec.Vec.new arena.env.IConstantInfo },
-      idx := hm, visible_below := 0#u64 } := (Result.ok_injective hf).symm
+  have hf' := (Result.ok_injective hf).symm
   subst hf'
-  refine ⟨⟨rfl, ?_, rfl⟩, hinv0, by simp⟩
-  intro n
-  rw [hnone n]
-  rfl
+  refine ⟨⟨rfl, ?_, rfl⟩, hinv0, by simp, ?_⟩
+  · intro n
+    rw [hnone n]
+    simp [mkIFEnv, mkIFEnvGo, IEnv.empty]
+  · intro n p hp
+    rw [hnone n] at hp
+    exact absurd hp (by simp)
 
 /-! ## The basis and quotient arms -/
 
@@ -424,9 +452,9 @@ private theorem check_decls_pure_go_aux (n : Nat) :
       have hlen : ds.val.length ≤ i.val := by
         have := alloc.vec.Vec.len_val ds; scalar_tac
       have ho := Result.ok_injective hrun
-      rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+      subst ho
       simp only [absIDeclLFrom, List.drop_eq_nil_of_le hlen, List.map_nil,
-        checkDeclsPureGo]
+        checkDeclsPureGo, SimRel, AOutRel]
       exact AOutRel.ok rfl ⟨hfe, hfinv⟩ hrel hinv (Ext.refl _)
     · rename_i hge
       have hlt : i.val < ds.val.length := by
@@ -438,14 +466,14 @@ private theorem check_decls_pure_go_aux (n : Nat) :
       obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hS := check_decl_step_refines (lf := lf) (d := d) hrel hinv hfe hfinv hq
       obtain ⟨qr, qst⟩ := q
+      simp only [SimRel, AOutRel] at hS ⊢
       simp only [absIDeclLFrom, List.drop_eq_getElem_cons hlt, hd, List.map_cons,
         checkDeclsPureGo, am_run_bind]
-      simp only [SimRel, AOutRel] at hS ⊢
       cases hqr : qr with
       | Err e =>
         rw [hqr] at hS hrun
         have ho := Result.ok_injective hrun
-        rw [← congrArg Prod.fst ho]
+        subst ho
         exact AErrSim.bind hS _
       | Ok fe2 =>
         rw [hqr] at hS hrun
@@ -457,11 +485,11 @@ private theorem check_decls_pure_go_aux (n : Nat) :
         simp only [SimRel, AOutRel, absIDeclLFrom, hi2v] at hrec
         rw [hx]
         cases hor : o.1 with
-        | Err e => rw [hor] at hrec ⊢; exact hrec
+        | Err e => rw [hor] at hrec; exact hrec
         | Ok r =>
-          rw [hor] at hrec ⊢
+          rw [hor] at hrec
           obtain ⟨w, lst2, hy, hw, hrel2, hinv2, hext2⟩ := hrec
-          exact ⟨w, lst2, by rw [← hy], hw, hrel2, hinv2, Ext.trans hext1 hext2⟩
+          exact ⟨w, lst2, by rw [← hy]; rfl, hw, hrel2, hinv2, Ext.trans hext1 hext2⟩
 
 /-- `check_decls_pure_go` ⊑ `checkDeclsPureGo` at the cursor. -/
 theorem check_decls_pure_go_refines {pers st lst} {rf lf}
@@ -498,7 +526,8 @@ theorem check_decls_pure_refines {pers st lst}
   obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨f, hf, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hfe, hfinv⟩ := mk_ifenv_empty_refines he hf
-  have h := check_decls_pure_go_refines hrel hinv hfe hfinv hrun
+  have h := (check_decls_pure_go_refines hrel hinv hfe hfinv hrun).mono
+    (fun _ _ hr => hr.rel)
   rw [checkDeclsPure]
   simpa using h
 
@@ -652,21 +681,20 @@ theorem annot_decl_step_refines {pers st lst} {lf}
         (absU p.1, lf, (absPendingCheckL p.2.2).toArray) (absIDeclaration pd)) := by
   obtain ⟨pi, prf, ppend⟩ := p
   rw [arena.checker.annot_decl_step] at hrun
-  dsimp only at hrun
   obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hA := annot_step_refines (lf := lf) (i := pi) (pend := ppend) (pd := pd)
     hrel hinv hfe hfinv hq
   obtain ⟨qr, qst⟩ := q
-  simp only [SimRel, AOutRel] at hA
-  simp only [SimFold, annotDeclStep]
+  simp only [SimRel, AOutRel, StateT.run] at hA
+  simp only [SimFold, StateT.run, annotDeclStep]
   cases hqr : qr with
   | Err e =>
     rw [hqr] at hA hrun
     have ho := Result.ok_injective hrun
-    rw [← congrArg Prod.fst ho]
+    subst ho
     intro k hk
     obtain ⟨le, hle, hlk⟩ := hA k hk
-    exact ⟨le, AState.abandoned, by rw [hle], hlk⟩
+    exact ⟨le, AState.abandoned, by rw [hle]; try rfl, hlk⟩
   | Ok q' =>
     rw [hqr] at hA hrun
     obtain ⟨v, lst1, hx, hv, hrel1, hinv1, hext1⟩ := hA
@@ -677,7 +705,7 @@ theorem annot_decl_step_refines {pers st lst} {lf}
     obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hi2v : i2.val = pi.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
     have ho := Result.ok_injective hrun
-    rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+    subst ho
     exact ⟨(absU pi + 1, v1, (absPendingCheckL qpend).toArray), lst1,
       by rw [hx], ⟨by simp [hi2v], hv1, rfl⟩, hrel1, hinv1, hext1⟩
 
@@ -706,7 +734,7 @@ private theorem annot_fold_aux (n : Nat) :
       have hlen : ds.val.length ≤ i.val := by
         have := alloc.vec.Vec.len_val ds; scalar_tac
       have ho := Result.ok_injective hrun
-      rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+      subst ho
       simp only [absIDeclLFrom, List.drop_eq_nil_of_le hlen, List.map_nil,
         annotFold, SimFold]
       exact ⟨(absU p.1, lf, (absPendingCheckL p.2.2).toArray), lst, rfl,
@@ -722,14 +750,14 @@ private theorem annot_fold_aux (n : Nat) :
       have hA := annot_decl_step_refines (lf := lf) (p := p) (pd := d)
         hrel hinv hfe hfinv hq
       obtain ⟨qr, qst⟩ := q
+      simp only [SimFold] at hA ⊢
       simp only [absIDeclLFrom, List.drop_eq_getElem_cons hlt, hd, List.map_cons,
         annotFold, am_run_bind]
-      simp only [SimFold] at hA ⊢
       cases hqr : qr with
       | Err pr =>
         rw [hqr] at hA hrun
         have ho := Result.ok_injective hrun
-        rw [← congrArg Prod.fst ho]
+        subst ho
         intro k hk
         obtain ⟨le, lst1, hx, hlk⟩ := hA k hk
         exact ⟨le, lst1, by rw [hx]; rfl, hlk⟩
@@ -747,14 +775,14 @@ private theorem annot_fold_aux (n : Nat) :
         rw [hx]
         cases hor : o.1 with
         | Err pr =>
-          rw [hor] at hrec ⊢
+          rw [hor] at hrec
           intro k hk
           obtain ⟨le, lst2, hy, hlk⟩ := hrec k hk
-          exact ⟨le, lst2, by rw [← hy], hlk⟩
+          exact ⟨le, lst2, by rw [← hy]; rfl, hlk⟩
         | Ok r =>
-          rw [hor] at hrec ⊢
+          rw [hor] at hrec
           obtain ⟨w, lst2, hy, hw, hrel2, hinv2, hext2⟩ := hrec
-          exact ⟨w, lst2, by rw [← hy], hw, hrel2, hinv2, Ext.trans hext1 hext2⟩
+          exact ⟨w, lst2, by rw [← hy]; rfl, hw, hrel2, hinv2, Ext.trans hext1 hext2⟩
 
 /-- **`annot_fold` ⊑ `annotFold`** at the cursor. -/
 theorem annot_fold_refines {pers st lst} {lf}
@@ -810,7 +838,7 @@ private theorem check_pending_list_aux (n : Nat) :
       have hlen : pend.val.length ≤ i.val := by
         have := alloc.vec.Vec.len_val pend; scalar_tac
       have ho := Result.ok_injective hrun
-      rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+      subst ho
       simp only [absPendingCheckLFrom, List.drop_eq_nil_of_le hlen, List.map_nil,
         checkPendingList, SimFold]
       exact ⟨(), lst, rfl, trivial, hrel, hinv, Ext.refl _⟩
@@ -824,17 +852,17 @@ private theorem check_pending_list_aux (n : Nat) :
       obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hP := check_pending_refines (lf := lf) (pc := pc) hrel hinv hfe hfinv hq
       obtain ⟨qr, qst⟩ := q
+      simp only [Sim, AOut, StateT.run] at hP
       simp only [absPendingCheckLFrom, List.drop_eq_getElem_cons hlt, hpc,
-        List.map_cons, checkPendingList, SimFold]
-      simp only [Sim, AOut] at hP
+        List.map_cons, SimFold, StateT.run, checkPendingList]
       cases hqr : qr with
       | Err e =>
         rw [hqr] at hP hrun
         have ho := Result.ok_injective hrun
-        rw [← congrArg Prod.fst ho]
+        subst ho
         intro k hk
         obtain ⟨le, hle, hlk⟩ := hP k hk
-        exact ⟨le, AState.abandoned, by rw [hle], hlk⟩
+        exact ⟨le, AState.abandoned, by rw [hle]; try rfl, hlk⟩
       | Ok _ =>
         rw [hqr] at hP hrun
         obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := hP
@@ -842,15 +870,15 @@ private theorem check_pending_list_aux (n : Nat) :
         have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
         have hrec := ih (pend.val.length - i2.val) (by omega) (i := i2) (lf := lf)
           rfl hrel1 hinv1 hfe hfinv hrun
-        simp only [SimFold, absPendingCheckLFrom, hi2v] at hrec
+        simp only [SimFold, StateT.run, absPendingCheckLFrom, hi2v] at hrec
         cases hor : o.1 with
         | Err pr =>
-          rw [hor] at hrec ⊢
+          rw [hor] at hrec
           intro k hk
           obtain ⟨le, lst2, hy, hlk⟩ := hrec k hk
           exact ⟨le, lst2, by rw [hx]; exact hy, hlk⟩
         | Ok _ =>
-          rw [hor] at hrec ⊢
+          rw [hor] at hrec
           obtain ⟨w, lst2, hy, -, hrel2, hinv2, hext2⟩ := hrec
           exact ⟨w, lst2, by rw [hx]; exact hy, trivial, hrel2, hinv2,
             Ext.trans hext1 hext2⟩
@@ -908,15 +936,16 @@ theorem install_then_check_refines {pers st lst}
   obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hA := annot_fold_refines
     (p := (0#u64, f, alloc.vec.Vec.new arena.checker.PendingCheck))
-    (lf := mkIFEnv IEnv.empty) hrel hinv hfe hfinv hq
-  rw [installThenCheck, am_run_bind]
+    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hfe hfinv hq
+  simp only [SimFold, absIDeclLFrom_zero, absPendingCheckL_new_toArray, absU_zero] at hA
   obtain ⟨qr, qst⟩ := q
   simp only [SimFold] at hA ⊢
+  simp only [installThenCheck, am_run_bind, toList_toArray']
   cases hqr : qr with
   | Err pr =>
     rw [hqr] at hA hrun
     have ho := Result.ok_injective hrun
-    rw [← congrArg Prod.fst ho]
+    subst ho
     intro k hk
     obtain ⟨le, lst', hx, hlk⟩ := hA k hk
     exact ⟨le, lst', by rw [hx]; rfl, hlk⟩
@@ -930,27 +959,28 @@ theorem install_then_check_refines {pers st lst}
     obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hB := check_pending_list_refines (lf := fe1)
       (pend := pd1) (i := 0#usize) hrel1 hinv1 hv2.rel hv2.inv hq2
+    simp only [SimFold, absPendingCheckLFrom_zero] at hB
     obtain ⟨q2r, q2st⟩ := q2
     rw [hx]
-    simp only [SimFold] at hB
+    simp only [toList_toArray']
     cases hq2r : q2r with
     | Err pr =>
       rw [hq2r] at hB hrun
       have ho := Result.ok_injective hrun
-      rw [← congrArg Prod.fst ho]
+      subst ho
       intro k hk
       obtain ⟨le, lst2, hy, hlk⟩ := hB k hk
       refine ⟨le, lst2, ?_, hlk⟩
-      rw [am_run_bind, hy]
-      rfl
+      simp only [except_ok_bind, toList_toArray', am_run_bind, hy]
+      try rfl
     | Ok _ =>
       rw [hq2r] at hB hrun
       obtain ⟨_, lst2, hy, -, hrel2, hinv2, hext2⟩ := hB
       have ho := Result.ok_injective hrun
-      rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+      subst ho
       refine ⟨fe1, lst2, ?_, hv2.rel, hrel2, hinv2, Ext.trans hext1 hext2⟩
-      rw [am_run_bind, hy]
-      rfl
+      simp only [except_ok_bind, toList_toArray', am_run_bind, hy]
+      try rfl
 
 /-! ## The error tag and the startup walk -/
 
@@ -1069,7 +1099,22 @@ theorem intern_all_pins_refines {pers st lst}
   sorry
 
 
-/-! ## The axiom census -/
+/-! ## The axiom census
+
+**The two capstones read `sorryAx`, and that is the honest row.**  Their
+proofs are complete — `install_then_check_refines` is `annot_fold_refines`
+and `check_pending_list_refines` composed, `check_decls_pure_refines` is
+`check_decls_pure_go_refines` at the empty environment — and what the
+`sorryAx` stands for is the three LEAVES the fold stands on:
+`annot_step_refines`, `check_pending_refines` and `check_decl_step_refines`.
+Task #97-P5-Checker-2's section lists them.  Writing the rows out is what
+keeps *"the spine is closed and its leaves are not"* visible. -/
+
+/-- info: 'ConRon.Refine2.install_then_check_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms install_then_check_refines
+
+/-- info: 'ConRon.Refine2.check_decls_pure_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_decls_pure_refines
 
 /-- info: 'ConRon.Refine2.at_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms at_decl_refines
