@@ -739,7 +739,7 @@ structure arena.core_state.Caches where
     kernel.level.Level)
 
 /-- [con_ron_core::arena::monad::AState]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 289:0-305:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 302:0-318:1
     Visibility: public -/
 structure arena.monad.AState where
   store : arena.store.EStore

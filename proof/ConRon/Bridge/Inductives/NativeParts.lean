@@ -103,13 +103,58 @@ theorem recCtorKinds_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
 Peel `fuel` Π binders; the twin's fuel is invisible under partial correctness
 (see the module note).
 
-`sorry`: a fuel induction over `Bridge/Rel.lean`'s `forallE` inversion. -/
-theorem piBinders_spec (fuel : Nat) (h : EIdx) (hP : Expr) :
+**CLOSED** (task #97-P3-Ind round 2): a fuel induction over
+`Bridge/Rel.lean`'s `forallE` inversion, with the nine arms that are not a
+binder stopping on both sides (`Bridge/Inductives/Rel.lean`'s
+`piSortTeleLen?_spec` has the same ten-way shape). -/
+theorem piBinders_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
     PSpec (fun st => denoteE st h = some hP)
       (Arena.piBinders fuel h)
       (fun st r => denoteBinders st r.1 = some (Expr.piBinders hP).1 ∧
         denoteE st r.2 = some (Expr.piBinders hP).2) := by
-  sorry
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h hP s₀ s' r hok hd hrun
+    simp only [Arena.piBinders] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro h hP s₀ s' r hok hd hrun
+    simp only [Arena.piBinders] at hrun
+    obtain ⟨v, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨hs1, hw⟩ := view_run h1
+    rw [hs1] at h2
+    have hde : denoteEView s₀.store v = some hP := by
+      rw [denoteE_view_eq hok.wf hw] at hd; exact hd
+    cases v
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, hty, hb⟩ := denote_forallE_inv hok.wf hw hd
+      obtain ⟨q, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨hstep, hq1, hq2⟩ := ih b eb s₀ s₂ q hok hb h3
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      refine ⟨hstep, ?_, ?_⟩
+      · simp only [Expr.piBinders, denoteBinders,
+          denote_ext hty hstep.ext, hq1]
+      · simpa only [Expr.piBinders] using hq2
+    all_goals
+      (obtain ⟨rfl, rfl⟩ := pureOk h2
+       refine ⟨PStep.refl hok, ?_, ?_⟩
+       · simp only [denoteEView] at hde
+         first
+         | (obtain ⟨x, y, z, _, _, _, rfl⟩ := opt3_eq_some_iff.mp hde; rfl)
+         | (obtain ⟨x, y, _, _, rfl⟩ := opt2_eq_some_iff.mp hde; rfl)
+         | (obtain ⟨x, _, rfl⟩ := Option.map_eq_some_iff.mp hde; rfl)
+         | (obtain rfl := Option.some.inj hde; rfl)
+       · simp only [denoteEView] at hde
+         first
+         | (obtain ⟨x, y, z, _, _, _, rfl⟩ := opt3_eq_some_iff.mp hde
+            simpa only [Expr.piBinders] using hd)
+         | (obtain ⟨x, y, _, _, rfl⟩ := opt2_eq_some_iff.mp hde
+            simpa only [Expr.piBinders] using hd)
+         | (obtain ⟨x, _, rfl⟩ := Option.map_eq_some_iff.mp hde
+            simpa only [Expr.piBinders] using hd)
+         | (obtain rfl := Option.some.inj hde
+            simpa only [Expr.piBinders] using hd))
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:156-161 structFieldTeleOf
 Field `i`'s own Π-telescope.
@@ -179,11 +224,30 @@ theorem withKinds_spec {st : EStore} {p : Arena.NativeParts}
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:230-235 structRecPrefixAt
 The recursor's leading spine `p⃗ motive m⃗` as seen from under the fields.
 
-`sorry`: `structPsAt_spec` twice and `internBVarE_spec`. -/
+**CLOSED** (task #97-P3-Ind round 2): `structPsAt_spec` twice,
+`internBVarE_run` for the motive, and `denoteEList_append` for the two
+joins. -/
 theorem structRecPrefixAt_spec (nP n nF e : Nat) :
     PSpec PT (Arena.structRecPrefixAt nP n nF e)
       (REL (ConLeche.structRecPrefixAt nP n nF e)) := by
-  sorry
+  intro s₀ s' r hok _ hrun
+  simp only [Arena.structRecPrefixAt] at hrun
+  obtain ⟨ps, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hps⟩ :=
+    structPsAt_spec (e + nF + n + 1) nP s₀ s₁ ps hok trivial h1
+  obtain ⟨motive, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hstep2, hmv⟩ := internBVarE_run hstep1.ok h3
+  obtain ⟨minors, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨hstep3, hmn⟩ :=
+    structPsAt_spec (e + nF) n s₂ s₃ minors hstep2.ok trivial h5
+  obtain ⟨rfl, rfl⟩ := pureOk h6
+  refine ⟨hstep1.trans (hstep2.trans hstep3), ?_⟩
+  have hmv' : Frontend.denoteEList s'.store [motive]
+      = some [Expr.bvar (e + nF + n)] := by
+    simp only [Frontend.denoteEList, denote_ext hmv hstep3.ext]
+  have hps' := denoteEList_ext (hstep2.ext.trans hstep3.ext) _ _ hps
+  simp only [ConLeche.structRecPrefixAt, ConLeche.structPsAt] at *
+  exact denoteEList_append (denoteEList_append hps' hmv') hmn
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:237-244 structIdxAt
 A recursive field's index expression relocated to the rule frame.
@@ -207,32 +271,100 @@ theorem structTeleAt_spec (nF o i l : Nat) (pw : PropWhen)
   sorry
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:254-255 structTeleVars
-`bvarsDesc m`; con-leche's is the same `List.range` map. -/
+`bvarsDesc m`; con-leche's is the same `List.range` map.
+
+**CLOSED** (task #97-P3-Ind round 2): `bvarsDesc_spec` and
+`bvarRange_congr`. -/
 theorem structTeleVars_spec (m : Nat) :
     PSpec PT (Arena.structTeleVars m) (REL (ConLeche.structTeleVars m)) := by
-  sorry
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hstep, hr⟩ := bvarsDesc_spec m s₀ s' r hok hp hrun
+  refine ⟨hstep, ?_⟩
+  have : ConLeche.structTeleVars m = ConLeche.structPsAt 0 m := by
+    simp only [ConLeche.structTeleVars, ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  rw [this]
+  exact hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:257-260 Expr.mkPisOf
 Close a body under a telescope of Π binders.
 
-`sorry`: a list induction over `internE_spec` at `.forallE`. -/
-theorem mkPisOf_spec (bs : List (EIdx × BinderMeta))
-    (bsP : List (Expr × BinderMeta)) (body : EIdx) (bodyP : Expr) :
+**CLOSED** (task #97-P3-Ind round 2): a list induction over
+`internForallEE_run`. -/
+theorem mkPisOf_spec : ∀ (bs : List (EIdx × BinderMeta))
+    (bsP : List (Expr × BinderMeta)) (body : EIdx) (bodyP : Expr),
     PSpec (fun st => denoteBinders st bs = some bsP ∧
         denoteE st body = some bodyP)
       (Arena.mkPisOf bs body) (RE (Expr.mkPisOf bsP bodyP)) := by
-  sorry
+  intro bs
+  induction bs with
+  | nil =>
+    intro bsP body bodyP s₀ s' r hok hpre hrun
+    obtain ⟨hbs, hbody⟩ := hpre
+    simp only [denoteBinders, Option.some.injEq] at hbs
+    subst hbs
+    simp only [Arena.mkPisOf] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, hbody⟩
+  | cons a as ih =>
+    intro bsP body bodyP s₀ s' r hok hpre hrun
+    obtain ⟨hbs, hbody⟩ := hpre
+    obtain ⟨ty, mt⟩ := a
+    simp only [denoteBinders] at hbs
+    cases hty : denoteE s₀.store ty with
+    | none => rw [hty] at hbs; simp at hbs
+    | some tyP =>
+      cases has : denoteBinders s₀.store as with
+      | none => rw [hty, has] at hbs; simp at hbs
+      | some rest =>
+        rw [hty, has] at hbs
+        obtain rfl := Option.some.inj hbs
+        simp only [Arena.mkPisOf] at hrun
+        obtain ⟨x, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨hstep1, hx⟩ := ih rest body bodyP s₀ s₁ x hok ⟨has, hbody⟩ h1
+        obtain ⟨hstep2, hr⟩ :=
+          internForallEE_run hstep1.ok (denote_ext hty hstep1.ext) hx h2
+        exact ⟨hstep1.trans hstep2, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:261-263 Expr.mkLamsOf
 The same with `.lam`.
 
-`sorry`: `mkPisOf_spec`'s argument. -/
-theorem mkLamsOf_spec (bs : List (EIdx × BinderMeta))
-    (bsP : List (Expr × BinderMeta)) (body : EIdx) (bodyP : Expr) :
+**CLOSED** (task #97-P3-Ind round 2): `mkPisOf_spec`'s proof with
+`internLamE_run`. -/
+theorem mkLamsOf_spec : ∀ (bs : List (EIdx × BinderMeta))
+    (bsP : List (Expr × BinderMeta)) (body : EIdx) (bodyP : Expr),
     PSpec (fun st => denoteBinders st bs = some bsP ∧
         denoteE st body = some bodyP)
       (Arena.mkLamsOf bs body) (RE (Expr.mkLamsOf bsP bodyP)) := by
-  sorry
+  intro bs
+  induction bs with
+  | nil =>
+    intro bsP body bodyP s₀ s' r hok hpre hrun
+    obtain ⟨hbs, hbody⟩ := hpre
+    simp only [denoteBinders, Option.some.injEq] at hbs
+    subst hbs
+    simp only [Arena.mkLamsOf] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, hbody⟩
+  | cons a as ih =>
+    intro bsP body bodyP s₀ s' r hok hpre hrun
+    obtain ⟨hbs, hbody⟩ := hpre
+    obtain ⟨ty, mt⟩ := a
+    simp only [denoteBinders] at hbs
+    cases hty : denoteE s₀.store ty with
+    | none => rw [hty] at hbs; simp at hbs
+    | some tyP =>
+      cases has : denoteBinders s₀.store as with
+      | none => rw [hty, has] at hbs; simp at hbs
+      | some rest =>
+        rw [hty, has] at hbs
+        obtain rfl := Option.some.inj hbs
+        simp only [Arena.mkLamsOf] at hrun
+        obtain ⟨x, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨hstep1, hx⟩ := ih rest body bodyP s₀ s₁ x hok ⟨has, hbody⟩ h1
+        obtain ⟨hstep2, hr⟩ :=
+          internLamE_run hstep1.ok (denote_ext hty hstep1.ext) hx h2
+        exact ⟨hstep1.trans hstep2, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:265-277 structIhApp
 The inductive-hypothesis application inside a minor premise.
@@ -379,13 +511,42 @@ recursive-field positions.  Pure on both sides.
 
 `sorry`: a list zip induction over `recIdxOf_spec` (closed above) and the
 `denoteCtors`/`denoteCtors4` clauses. -/
-theorem nativeCtors4_spec (st : EStore) (ctorsA : List (IConstantVal × Nat))
-    (ctorsAP : List (ConstantVal × Nat))
-    (kinds : List (List Arena.RecFieldKind))
-    (h : denoteCtors st ctorsA = some ctorsAP) :
+theorem nativeCtors4_spec {st : EStore} :
+    ∀ (ctorsA : List (IConstantVal × Nat)) (ctorsAP : List (ConstantVal × Nat))
+      (kinds : List (List Arena.RecFieldKind)),
+    denoteCtors st ctorsA = some ctorsAP →
     denoteCtors4 st (Arena.nativeCtors4 ctorsA kinds)
       = some (ConLeche.nativeCtors4 ctorsAP (kinds.map (·.map kindOf))) := by
-  sorry
+  intro ctorsA
+  induction ctorsA with
+  | nil =>
+    intro ctorsAP kinds h
+    simp only [denoteCtors, Option.some.injEq] at h
+    subst h
+    simp only [Arena.nativeCtors4, ConLeche.nativeCtors4, List.zipWith_nil_left,
+      denoteCtors4]
+  | cons a as ih =>
+    intro ctorsAP kinds h
+    obtain ⟨cv, n⟩ := a
+    simp only [denoteCtors] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some c =>
+      cases has : denoteCtors st as with
+      | none => rw [hcv, has] at h; simp at h
+      | some rs =>
+        rw [hcv, has] at h
+        obtain rfl := Option.some.inj h
+        cases kinds with
+        | nil =>
+          simp only [Arena.nativeCtors4, ConLeche.nativeCtors4,
+            List.zipWith_nil_right, List.map_nil, denoteCtors4]
+        | cons k ks =>
+          have hih := ih rs ks has
+          simp only [Arena.nativeCtors4, ConLeche.nativeCtors4,
+            recIdxOf_spec] at hih ⊢
+          simp only [List.map_cons, List.zipWith_cons_cons, denoteCtors4,
+            denoteCV_name hcv, denoteCV_type hcv, hih]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
 The stream rule's λ prefix is the generated one.
@@ -460,11 +621,17 @@ theorem nativeRecLpsOk_spec (st : EStore) (p : Arena.InductiveShape)
 Read a block into the shape record, or refuse it.  **Two-sided**: the dispatch
 reads it.
 
-`sorry`: `sumSplit_spec`, `nativeCounts?_spec`, `nativeRecPinOk_spec`,
-`nativeRecLpsOk_spec` and `internNNode_spec` at `T.str "rec"`. -/
-theorem nativeShape?_spec (nPd : Nat) (block : List IConstantInfo)
-    (blockP : List ConstantInfo) :
-    PSpec (fun st => Frontend.denoteCIList st block = some blockP)
+**CORE grade, not pure** (task #97-P3-Ind round 2's finding; the argument is
+in `Bridge/Inductives/Rel.lean`'s frame section).  Like `structPartsCore?`
+this recogniser asks `lvlEq? s z` for `isProp`, and `lvlEq?` moves two of the
+fourteen per-declaration cache tables, so `PStep` is the wrong frame.
+
+`sorry`: `sumSplit_spec` (closed), `nativeCounts?_spec`, `nativeRecPinOk_spec`,
+`nativeRecLpsOk_spec`, `lvlEq?_spec` (closed) and `internNNode_spec` at
+`T.str "rec"`. -/
+theorem nativeShape?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) :
+    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.nativeShape? nPd block)
       (ROp RShape (ConLeche.nativeShape? nPd blockP)) := by
   sorry
@@ -473,11 +640,16 @@ theorem nativeShape?_spec (nPd : Nat) (block : List IConstantInfo)
 **THE DISPATCH'S RECOGNISER** — `checkIndDecl` routes on this and on nothing
 else (task #219), so its two-sidedness is the soundness of the route choice.
 
+**CORE grade, not pure**, because `nativeShape?` is (task #97-P3-Ind round 2's
+finding).  This is the statement `checkIndDecl_bridge` consumes, so round 1's
+`PSpec` form was a false lemma UNDER A PROVED THEOREM — the one place in the
+tier where the defect was load-bearing rather than merely stated.
+
 `sorry`: `nativeShape?_spec`, `recCtorKinds_spec` at each constructor and
 `withKinds_spec` (closed above). -/
-theorem nativeParts?_spec (nPd : Nat) (block : List IConstantInfo)
-    (blockP : List ConstantInfo) :
-    PSpec (fun st => Frontend.denoteCIList st block = some blockP)
+theorem nativeParts?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) :
+    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.nativeParts? nPd block)
       (ROp RParts (ConLeche.nativeParts? nPd blockP)) := by
   sorry

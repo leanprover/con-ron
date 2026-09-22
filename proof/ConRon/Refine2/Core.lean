@@ -18,6 +18,7 @@ entries against `Arena/Core.lean`'s `coreKnot`, `Arena/CoreGated.lean`'s
 | `Core/Arms/Delta.lean` | the `whnf` loop's delta leaf: `ifenv_find_abs`, the `const` tag/view agreement, `const_val_at_refines` and **`unfold_definition_refines`** (task #97-P5-Core-2) | all |
 | `Core/Arms/Loops.lean` | the two loops' second fuel dimension — `whnf_step`/`whnf_loop`/`whnf_body` closed modulo ONE leaf (`reduce_nat`); the `defeq` triple stated | 11 of 14 |
 | `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14 | 0 of 5 |
+| `Core/Bracket.lean` | **the per-declaration bracket** (task #97-P5-Bracket): `ScratchClosed`, `ext_bracket`, and `flush_caches` / `enter_scratch` / `drop_scratch` — one bracket lemma with a side condition, because `drop_scratch` cannot be a `SimS` | all |
 
 **The tier's one idea** is `KnotRel`: §3.4 forbids the port a record of
 closures, so `arena::core` dispatches on a `lane : u32` where the twin picks a
@@ -30,3 +31,4 @@ import ConRon.Refine2.Core.Induction
 import ConRon.Refine2.Core.Entries
 import ConRon.Refine2.Core.Eqns
 import ConRon.Refine2.Core.Arms
+import ConRon.Refine2.Core.Bracket
