@@ -521,11 +521,15 @@ recursive calls ago and cannot.  The fix is to stop asking:
   not in the persistent table.  One generic lemma per child kind, and the six
   per-constructor corollaries below are `rfl` on top of them.
 
-The one place this does NOT reach is the two BINDER arrays, and the reason is
-a twin debt task #97-P5-2 §10 already booked: `Arena/Monad.lean`'s
-`internLamIE` / `internForallEIE` test capacity BEFORE the cons probe, so on a
-cons hit at a full array the twin fails where the port answers `Ok` and no
-hypothesis-free statement is true.  See this task's **finding 15**. -/
+The two BINDER arrays used to be the one place this did NOT reach, because of
+a twin debt task #97-P5-2 §10 booked and task #97-P5-3 round 3 stated as
+**finding 15**: `Arena/Monad.lean`'s `internLamIE` / `internForallEIE` tested
+capacity BEFORE the cons probe (and on BOTH tiers), so on a cons hit at a full
+array the twin failed where the port answers `Ok` and no hypothesis-free
+statement was true.  **Task #97-P5-Twin fixed the twin** — they probe
+`EStore.findBindI` first and test the one tier the append goes to — so
+`EBindCapAt` below is `ECapAt` at those two arrays, and it is a side condition
+of the MISS path like every other. -/
 
 /-- The capacity side condition the probe-first `Arena.internE` tests on its
 MISS path (task #97-P5-2 finding 9's replacement), named so that it can be
@@ -564,6 +568,33 @@ theorem ECapAt.of_scr_size {st : EStore} {v : ENodeView} (hon : st.scratchOn = t
 /-- `ECapAt` on the PERSISTENT append arm. -/
 theorem ECapAt.of_pers_size {st : EStore} {v : ENodeView} (hoff : st.scratchOn = false)
     (h : st.pers.sizeOf v < Idx.idxCap) : ECapAt st v := by
+  intro _; rw [if_neg (by rw [hoff]; simp)]; exact h
+
+/-- `ECapAt` at the two BINDER arrays (task #97-P5-Twin).  The cons key there
+is the datum's HANDLE, so the twin's probe is `EStore.findBindI` rather than
+`EStore.find?` and the array is picked by the tag; everything else is
+`ECapAt`'s own shape — the bound is tested only on the MISS, and only at the
+tier the append goes to. -/
+def EBindCapAt (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) : Prop :=
+  st.findBindI tag ty b mi = none →
+    (if st.scratchOn then st.scr.bindSizeOf tag else st.pers.bindSizeOf tag)
+      < Idx.idxCap
+
+/-- `EBindCapAt` is VACUOUS wherever the binder cons probe hit. -/
+theorem EBindCapAt.of_find_ne {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} (h : st.findBindI tag ty b mi ≠ none) :
+    EBindCapAt st tag ty b mi := fun hn => absurd hn h
+
+/-- `EBindCapAt` on the SCRATCH append arm. -/
+theorem EBindCapAt.of_scr_size {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} (hon : st.scratchOn = true)
+    (h : st.scr.bindSizeOf tag < Idx.idxCap) : EBindCapAt st tag ty b mi := by
+  intro _; rw [if_pos hon]; exact h
+
+/-- `EBindCapAt` on the PERSISTENT append arm. -/
+theorem EBindCapAt.of_pers_size {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} (hoff : st.scratchOn = false)
+    (h : st.pers.bindSizeOf tag < Idx.idxCap) : EBindCapAt st tag ty b mi := by
   intro _; rw [if_neg (by rw [hoff]; simp)]; exact h
 
 /-- **Finding 14's first half, at an expression child.**  A view one of whose
@@ -8135,34 +8166,100 @@ did not have.  It has it now (task #97a follow-up 4: `EStore.internBindI_ext`
 and its `internLamI` / `internForallEI` instances), so the three that go
 straight to `internBindI` are `intern_e_lit_run`'s proof at the binder array
 — the hypotheses being finding 7's `hchild` (the skipped persistent probe),
-finding 8's `hfrozen`, and the twin's own capacity test, which at a binder is
-`bindSizeOf` on BOTH tiers rather than `sizeOf` on the one the store is in. -/
+finding 8's `hfrozen`, and the twin's own capacity test.
 
-/-- `Arena.internLamIE`'s run below the binder array's cap. -/
+**Since task #97-P5-Twin that last one is `EBindCapAt`**, not a naked
+conjunction over both tiers: the twin probes `EStore.findBindI` first and
+tests `bindSizeOf` on the tier it is about to append to, which is the Rust's
+own order (finding 15).  So these two runs have `internE_run_of_caps`'s two
+arms — a cons HIT, where `internBindI_of_findBindI` says the store does not
+move, and a MISS, which is the side condition. -/
+
+/-- **A binder cons hit interns nothing** — the datum is part of the key the
+probe matched, so `internBindI` returns at its first `match`.  This is what
+the probe-first `internLamIE` / `internForallEIE` (task #97-P5-Twin) need of
+the store tier, and it is `internAt_of_findAt` at the binder arrays. -/
+theorem internBindI_of_findBindI {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {h : EIdx} (hf : st.findBindI tag ty b mi = some h) :
+    st.internBindI tag ty b mi = (st, h) := by
+  simp only [EStore.findBindI] at hf
+  simp only [EStore.internBindI]
+  cases hp : st.pers.findBind tag ⟨ty, b, mi⟩ with
+  | some j =>
+    simp only [hp, Option.some.injEq] at hf
+    simp only [hp, hf]
+  | none =>
+    simp only [hp] at hf ⊢
+    by_cases hon : st.scratchOn = true
+    · simp only [hon, if_true] at hf ⊢
+      cases hs : st.scr.findBind tag ⟨ty, b, mi⟩ with
+      | some j =>
+        simp only [hs, Option.some.injEq] at hf
+        simp only [hs, hf]
+      | none => simp only [hs] at hf; simp at hf
+    · simp only [hon, if_false] at hf; simp at hf
+
+/-- **Finding 16's clause at the two BINDER arrays, on the MISS path only.**
+
+Task #97-P5-Specs put `StoreWF` on the twin store into `AStateRel`, so the two
+`_i` wrappers owe it of the store `internBindI` hands back.  They cannot prove
+it: `internAt_wf_view` wants `findBMOfView w = some mi` — *"the datum handle is
+the cons table's"* — and the `_i` family takes a raw `BMIdx`, so the claim is
+FALSE at an arbitrary one.  It is therefore assumed, and the owner is
+`Arena/WFProofs.lean`.
+
+What task #97-P5-Twin's probe-first `internLamIE` buys is that it need only be
+assumed on the **miss**: a cons hit interns nothing
+(`internBindI_of_findBindI`), so the store does not move and `hrel.storeWF` is
+the whole answer there.  That is `EBindCapAt`'s shape exactly, and the two
+side conditions now read the same way. -/
+def EBindWFAt (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) : Prop :=
+  st.findBindI tag ty b mi = none → StoreWF (st.internBindI tag ty b mi).1
+
+/-- The unconditional form, at a well-formed store. -/
+theorem EBindWFAt.apply {st : EStore} {tag : UInt32} {ty b : EIdx} {mi : BMIdx}
+    (h : EBindWFAt st tag ty b mi) (hwf : StoreWF st) :
+    StoreWF (st.internBindI tag ty b mi).1 := by
+  cases hf : st.findBindI tag ty b mi with
+  | some j => rw [internBindI_of_findBindI hf]; exact hwf
+  | none => exact h hf
+
+/-- `Arena.internLamIE`'s run: the cons hit moves nothing, and the miss is
+below the `lams` array's cap. -/
 theorem internLamIE_run_of_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
-    (hcap : lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
-      lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap) :
+    (hcap : EBindCapAt lst.store ETag.lam ty b mi) :
     (Arena.internLamIE ty b mi).run lst
       = .ok ((lst.store.internLamI ty b mi).2,
              { lst with store := (lst.store.internLamI ty b mi).1 }) := by
-  rw [Arena.internLamIE, run_get_bind, if_pos hcap]
-  show (match lst.store.internLamI ty b mi with
-        | (st, h) => (do set { lst with store := st }; pure h : AM EIdx)).run lst = _
-  cases hi : lst.store.internLamI ty b mi with
-  | mk st1 h1 => rfl
+  rw [Arena.internLamIE, run_get_bind]
+  cases hf : lst.store.findBindI ETag.lam ty b mi with
+  | some h =>
+    rw [EStore.internLamI, internBindI_of_findBindI hf]
+    rfl
+  | none =>
+    rw [if_pos (hcap hf)]
+    show (match lst.store.internLamI ty b mi with
+          | (st, h) => (do set { lst with store := st }; pure h : AM EIdx)).run lst = _
+    cases hi : lst.store.internLamI ty b mi with
+    | mk st1 h1 => rfl
 
-/-- `Arena.internForallEIE`'s run below the binder array's cap. -/
+/-- `Arena.internForallEIE`'s run, the same at the other array. -/
 theorem internForallEIE_run_of_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
-    (hcap : lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
-      lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap) :
+    (hcap : EBindCapAt lst.store ETag.forallE ty b mi) :
     (Arena.internForallEIE ty b mi).run lst
       = .ok ((lst.store.internForallEI ty b mi).2,
              { lst with store := (lst.store.internForallEI ty b mi).1 }) := by
-  rw [Arena.internForallEIE, run_get_bind, if_pos hcap]
-  show (match lst.store.internForallEI ty b mi with
-        | (st, h) => (do set { lst with store := st }; pure h : AM EIdx)).run lst = _
-  cases hi : lst.store.internForallEI ty b mi with
-  | mk st1 h1 => rfl
+  rw [Arena.internForallEIE, run_get_bind]
+  cases hf : lst.store.findBindI ETag.forallE ty b mi with
+  | some h =>
+    rw [EStore.internForallEI, internBindI_of_findBindI hf]
+    rfl
+  | none =>
+    rw [if_pos (hcap hf)]
+    show (match lst.store.internForallEI ty b mi with
+          | (st, h) => (do set { lst with store := st }; pure h : AM EIdx)).run lst = _
+    cases hi : lst.store.internForallEI ty b mi with
+    | mk st1 h1 => rfl
 
 /-- `arena::monad::intern_e_lam_i` against `Arena.internLamIE`. -/
 theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
@@ -8172,9 +8269,8 @@ theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
     (hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
       lst.store.pers.lams.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
-    (hcap : lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
-      lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap)
-    (hwfI : StoreWF (lst.store.internLamI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
+    (hcap : EBindCapAt lst.store ETag.lam (absEIdx ty) (absEIdx b) (absBMIdx mi))
+    (hwfI : EBindWFAt lst.store ETag.lam (absEIdx ty) (absEIdx b) (absBMIdx mi))
     {o}
     (hrun : arena.monad.intern_e_lam_i pers st ty b mi = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -8195,7 +8291,7 @@ theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
       (lst' := { lst with store :=
         (lst.store.internLamI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1 }) ?_
       ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
-        hwfI⟩
+        hwfI.apply hrel.storeWF⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.internLamI_ext _ _ _ _) trivial
     rw [internLamIE_run_of_cap hcap, hhd]
@@ -8209,9 +8305,8 @@ theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
     (hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
       lst.store.pers.foralls.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
-    (hcap : lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
-      lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap)
-    (hwfI : StoreWF (lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
+    (hcap : EBindCapAt lst.store ETag.forallE (absEIdx ty) (absEIdx b) (absBMIdx mi))
+    (hwfI : EBindWFAt lst.store ETag.forallE (absEIdx ty) (absEIdx b) (absBMIdx mi))
     {o}
     (hrun : arena.monad.intern_e_forall_e_i pers st ty b mi = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -8233,7 +8328,7 @@ theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
       (lst' := { lst with store :=
         (lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1 }) ?_
       ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
-        hwfI⟩
+        hwfI.apply hrel.storeWF⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.internForallEI_ext _ _ _ _) trivial
     rw [internForallEIE_run_of_cap hcap, hhd]
@@ -8255,15 +8350,13 @@ theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
         (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
       lst.store.pers.foralls.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
     (hcapL : absU32 tag = ETag.lam →
-      lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
-        lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap)
+      EBindCapAt lst.store ETag.lam (absEIdx ty) (absEIdx b) (absBMIdx mi))
     (hcapF : absU32 tag ≠ ETag.lam →
-      lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
-        lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap)
+      EBindCapAt lst.store ETag.forallE (absEIdx ty) (absEIdx b) (absBMIdx mi))
     (hwfL : absU32 tag = ETag.lam →
-      StoreWF (lst.store.internLamI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
+      EBindWFAt lst.store ETag.lam (absEIdx ty) (absEIdx b) (absBMIdx mi))
     (hwfF : absU32 tag ≠ ETag.lam →
-      StoreWF (lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
+      EBindWFAt lst.store ETag.forallE (absEIdx ty) (absEIdx b) (absBMIdx mi))
     {o}
     (hrun : arena.monad.intern_e_bind_i pers st tag ty b mi = ok o) :
     Sim absEIdx (fun _ => True) pers lst o

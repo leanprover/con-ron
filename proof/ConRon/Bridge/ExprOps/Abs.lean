@@ -890,14 +890,23 @@ theorem internLamIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
   unfold internLamIE
   mvcgen
   spec_fails
-  rename_i s hs hcap _s'
+  -- **The cons HIT** (task #97-P5-Twin): the probe comes first, the store does
+  -- not move, and view monotonicity is `id`.
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview :=
+      EStore.view_of_findBindI (tag := ETag.lam) hwf (by decide) hbm hmi0 hfind
+    have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
+      simp [eBindView]
+    rw [heb] at hview
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
+      fun _ _ hj => hj, hview, denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n hcap _s'
   subst hs
   have hcap' : (if s.store.scratchOn then s.store.scr.bindSizeOf ETag.lam
-      else s.store.pers.bindSizeOf ETag.lam) < Idx.idxCap := by
-    by_cases hon : s.store.scratchOn = true
-    · rw [if_pos hon]; exact hcap.1
-    · simp only [Bool.not_eq_true] at hon
-      rw [hon]; simp only [Bool.false_eq_true, if_false]; exact hcap.2
+      else s.store.pers.bindSizeOf ETag.lam) < Idx.idxCap := hcap
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb
       hcap'
@@ -925,14 +934,23 @@ theorem internForallEIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
   unfold internForallEIE
   mvcgen
   spec_fails
-  rename_i s hs hcap _s'
+  -- **The cons HIT** (task #97-P5-Twin): the probe comes first, the store does
+  -- not move, and view monotonicity is `id`.
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview :=
+      EStore.view_of_findBindI (tag := ETag.forallE) hwf (by decide) hbm hmi0 hfind
+    have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
+      simp [eBindView, ETag.lam, ETag.forallE]
+    rw [heb] at hview
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
+      fun _ _ hj => hj, hview, denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n hcap _s'
   subst hs
   have hcap' : (if s.store.scratchOn then s.store.scr.bindSizeOf ETag.forallE
-      else s.store.pers.bindSizeOf ETag.forallE) < Idx.idxCap := by
-    by_cases hon : s.store.scratchOn = true
-    · rw [if_pos hon]; exact hcap.1
-    · simp only [Bool.not_eq_true] at hon
-      rw [hon]; simp only [Bool.false_eq_true, if_false]; exact hcap.2
+      else s.store.pers.bindSizeOf ETag.forallE) < Idx.idxCap := hcap
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty
       hb hcap'

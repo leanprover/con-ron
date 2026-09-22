@@ -170,6 +170,50 @@ theorem EStore.internBindI_eq_internAt {st : EStore} {tag : UInt32} {ty b : EIdx
     ETables.findBind_eq_find? (m := m) _ htag,
     ETables.pushBind_eq_push (m := m) _ _ _ htag]
 
+/-! ## The cons PROBE, likewise: `findBindI` IS `findAt`
+
+Task #97-P5-Twin.  `internLamIE` / `internForallEIE` now probe before they
+test the capacity (`Arena/Monad.lean`'s note, and task #97-P5-3 round 3's
+finding 15), so the bridge owes the hit path the same fact `internE`'s hit
+path owes: a handle the binder cons table answers decodes to the binder view
+the datum spells out.  It is `internBindI_eq_internAt` one clause earlier —
+the same `Tbl.find?` at the same key — followed by `EStore.view_of_find`. -/
+
+/-- con-leche: none — arena infrastructure; the two-tier probe at a binder
+RECORD is the two-tier probe at the VIEW that record spells out. -/
+theorem EStore.findBindI_eq_findAt {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true) :
+    st.findBindI tag ty b mi = st.findAt (eBindView tag ty b m) mi := by
+  simp only [EStore.findBindI, EStore.findAt,
+    ETables.findBind_eq_find? (m := m) _ htag]
+
+/-- con-leche: none — arena infrastructure; and therefore it is `find?` at
+that view, because the datum handle the probe is taken at is the one
+`findBMOfView` answers (`EWFAt.findBM_of_viewBM`, whose `mi.tag = 0` is the
+module note's hypothesis). -/
+theorem EStore.findBindI_eq_find? {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (h : StoreWF st)
+    (htag : ETag.isBind tag = true) (hbm : st.viewBM mi = some m)
+    (hmi0 : mi.tag = 0) :
+    st.findBindI tag ty b mi = st.find? (eBindView tag ty b m) := by
+  obtain ⟨rk, hwf⟩ := h
+  have hfov : st.findBMOfView (eBindView tag ty b m) = some mi := by
+    rw [EStore.findBMOfView_eq_findBM _ (ENodeView.bmOf_eBindView tag ty b m)]
+    exact hwf.findBM_of_viewBM hmi0 hbm
+  rw [EStore.findBindI_eq_findAt (m := m) htag, EStore.find?, hfov]
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — **the hit path's
+fact**: a binder cons hit names a node whose view is the binder view the datum
+spells out.  `StoreWF`'s own `consP`/`consS` clause read left to right — no
+capacity in it, which is the point of probing first. -/
+theorem EStore.view_of_findBindI {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {m : ConLeche.BinderMeta} {i : EIdx} (h : StoreWF st)
+    (htag : ETag.isBind tag = true) (hbm : st.viewBM mi = some m)
+    (hmi0 : mi.tag = 0) (hf : st.findBindI tag ty b mi = some i) :
+    st.view i = some (eBindView tag ty b m) :=
+  EStore.view_of_find h
+    ((EStore.findBindI_eq_find? h htag hbm hmi0).symm.trans hf)
+
 /-! ## `internAt`'s scratch flag
 
 `Ext` for the node half is `Arena/WFProofs.lean`'s own

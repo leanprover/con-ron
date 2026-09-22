@@ -416,15 +416,13 @@ theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
         (absEIdx body).isPersistent = false ∨ (absBMIdx m).isPersistent = false) →
       lst.store.pers.foralls.find? ⟨absEIdx ty, absEIdx body, absBMIdx m⟩ = none)
     (hcapL : same = false → absU32 tag = ETag.lam →
-      lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
-        lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap)
+      EBindCapAt lst.store ETag.lam (absEIdx ty) (absEIdx body) (absBMIdx m))
     (hcapF : same = false → absU32 tag ≠ ETag.lam →
-      lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
-        lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap)
+      EBindCapAt lst.store ETag.forallE (absEIdx ty) (absEIdx body) (absBMIdx m))
     (hwfL : same = false → absU32 tag = ETag.lam →
-      StoreWF (lst.store.internLamI (absEIdx ty) (absEIdx body) (absBMIdx m)).1)
+      EBindWFAt lst.store ETag.lam (absEIdx ty) (absEIdx body) (absBMIdx m))
     (hwfF : same = false → absU32 tag ≠ ETag.lam →
-      StoreWF (lst.store.internForallEI (absEIdx ty) (absEIdx body) (absBMIdx m)).1)
+      EBindWFAt lst.store ETag.forallE (absEIdx ty) (absEIdx body) (absBMIdx m))
     (hrun : arena.expr_ops.intern_rebuilt_bind_i pers st h same tag ty body m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltBindI (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx body)

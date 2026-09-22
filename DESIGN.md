@@ -46261,6 +46261,128 @@ make that cheap, and is the natural follow-up.
   self-contained repro ready to file.
 * The available saving is in the *number* of equations we derive, not in the
   block.
+### Task #97-P5-Twin — the binder intern probes BEFORE it tests capacity (2026-09-22, Opus under Fable)
+
+**One twin bug, found by a proof, and the repair it forces.**  Task #97-P5-3
+round 3's **finding 15** said it exactly: `Arena/Monad.lean`'s `internLamIE` /
+`internForallEIE` tested the binder array's capacity BEFORE the cons probe,
+where the port probes first and tests `Tbl::full` only where it is about to
+APPEND.  On a cons HIT at a full `lams` / `foralls` array the twin threw
+`native` and the port answered `Ok` — a behavioural divergence between layer B
+(the Lean twin) and layer C (the Rust), not a proof artefact, and one no work
+on the proof side can absorb.  Task #97-P3-1 had already made this change to
+`internE`, `internNNode`, `internLNode`, `internLsNode` and the four
+persistent siblings (its own **finding 9**); the two `_i` faces were left
+behind because they do not go through `internE`.  This task makes them match.
+
+#### 1. The port is right, and the twin was wrong twice
+
+`crates/con-ron-core/src/arena/store.rs`'s `intern_lam_i` (and
+`intern_forall_e_i`) reads, in order: the persistent probe under the
+scratch-child skip, the scratch probe via `find_slot`, `self.scr.lams.full()`
+**inside the scratch-miss arm**, the append; and, when the scratch tier is
+closed, `self.pers.lams.full()` **inside the persistent-miss arm**.  So the
+port makes TWO decisions the old twin did not:
+
+* **a cons hit needs no room at all** — the node is already in the array, and
+  con-leche's pure checker (layer A) has no capacity notion whatsoever, so
+  there is nothing on that path to decline;
+* **the tier that is not being appended to is irrelevant** — the old twin's
+  test was `scr.bindSizeOf tag < idxCap ∧ pers.bindSizeOf tag < idxCap`, a
+  conjunction over BOTH tiers, so it declined on the strength of an array the
+  append never touches.  Finding 15 called this out as the worse half for a
+  walk: "the conjunct is about the tier the port does NOT append to, which the
+  port's success cannot prove even on the miss".
+
+Both are fixed, and the shape is `internE`'s own, copied and not invented.
+
+#### 2. The edit, in two files of `Arena/`
+
+**`Arena/Store.lean`, +17 lines** — `EStore.findBindI tag ty b mi`, the
+two-tier cons probe at a binder record whose datum is already a HANDLE.  It is
+literally `internBindI`'s own two `match` scrutinees in `internBindI`'s order
+(persistent, then scratch when the scratch tier is open), named so the monad
+can probe without interning.  `EStore.find?` played this part for `internE`;
+there was no `_i` analogue because nothing needed one.
+
+**`Arena/Monad.lean`** — `internLamIE` and `internForallEIE` become
+
+```
+  match s.store.findBindI ETag.lam ty b mi with
+  | some h => pure h
+  | none =>
+    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.lam
+             else s.store.pers.bindSizeOf ETag.lam
+    if n < Idx.idxCap then … else fail (.native …)
+```
+
+which is `internE`'s text with `find?`/`sizeOf` replaced by
+`findBindI`/`bindSizeOf` and the datum test dropped — a `_i` face's datum is
+already interned, it IS the cons key, so it needs no room on either path.
+`internBindIE` (the tag dispatcher) is unchanged, and so is every caller in
+`Arena/ExprOps.lean`.
+
+**The double probe is the precedent's cost, carried.**  The twin now probes
+once in `findBindI` and again inside `internBindI`, exactly as `internE` has
+probed twice since #97-P3-1.  The twin is the SPECIFICATION the two theorems
+talk about, not the deliverable — the Rust probes once — so the shape that
+makes the refinement statable wins over the shape that would run faster, and
+`con-ron-lean` pays for it only at binder interns.
+
+#### 3. The fallout, and how it was repaired
+
+Five files, and every repair is the same two-armed shape: the HIT arm is new,
+the MISS arm is the old proof with its capacity derivation deleted.
+
+| file | what the edit forced |
+|---|---|
+| `Bridge/StoreBind.lean` | three lemmas, +44 lines: `EStore.findBindI_eq_findAt` (the probe at a binder RECORD is the probe at the VIEW the datum spells out — `ETables.findBind_eq_find?`, which this file already had for `internBindI_eq_internAt`), `findBindI_eq_find?` (…and therefore `find?`, because `EWFAt.findBM_of_viewBM` says the datum handle is the one `findBMOfView` answers), and `EStore.view_of_findBindI`, the HIT path's fact: a binder cons hit names a node whose view is `eBindView tag ty b m`.  It is `Arena/WFProofs.lean`'s `EStore.view_of_find` at the binder arrays, i.e. `StoreWF`'s own `consP`/`consS` read left to right, with no capacity in it |
+| `Bridge/Specs.lean` | `internLamIE_spec` / `internForallEIE_spec` grow the `vc1.h_1` (cons-hit) case — store unmoved, `Ext.refl`, `BMExt.refl`, `view_of_findBindI`, `denoteE_unfold` — and their miss arm LOSES the seven-line `hcap'` derivation, because `mvcgen` now hands over the `if scratchOn …` form the store spec wants.  `internBindIE_spec` and `internBindIE_spec'` are unchanged: their statements never mentioned the capacity |
+| `Bridge/ExprOps/Abs.lean` | `internLamIE_specV` / `internForallEIE_specV` — the same two changes, plus `fun _ _ hj => hj` for the view-monotonicity conjunct on the hit arm (a store that did not move carries every view forward by `id`) |
+| `Refine2/Specs.lean` | `EBindCapAt st tag ty b mi`, `ECapAt`'s binder twin (`findBindI … = none → (if scratchOn then scr else pers).bindSizeOf tag < idxCap`) with its three `of_find_ne` / `of_scr_size` / `of_pers_size` constructors; `internBindI_of_findBindI` (a binder cons hit interns nothing — `internAt_of_findAt` at the binder arrays); `internLamIE_run_of_cap` / `internForallEIE_run_of_cap` re-proved with the two arms; and the `hcap` hypotheses of `intern_e_lam_i_run`, `intern_e_forall_e_i_run` and `intern_e_bind_i_run` weakened from the both-tier conjunction to `EBindCapAt` |
+| `Refine2/ExprOps/Mut.lean` | `intern_rebuilt_bind_i_refines`'s `hcapL` / `hcapF`, the same weakening.  Nothing else in the file: it has no callers yet, so the change stops here |
+
+**What was deliberately NOT done.**  `EBindCapAt` is now *dischargeable from
+the port* — that is the whole dividend of the twin change, and it is the
+mirror of what finding 14 §1 did for `ECapAt` — but actually discharging it
+needs `estore_intern_lam_i_abs` / `estore_intern_forall_e_i_abs` to grow the
+conjunct, which is the Refine2 tier's own work and is left to it.  No `sorry`
+was closed, opened or moved anywhere; no statement was weakened to absorb the
+change; and the three walks finding 15 named (`instantiate1_go`,
+`instantiate_list`, `instantiate_list_go`) are now blocked on finding 16
+alone.
+
+#### 4. The `sorry` count in each affected tier, before and after
+
+| tier | before | after |
+|---|---|---|
+| `ConRonArena` (the twin, layer B) | **0** | **0** |
+| `ConRonBridge` (Theorem 1) | **214** | **214** |
+| `ConRonBridge`, the `ExprOps` tier's thirteen modules | **0** | **0** |
+| `ConRonRefine2` (Theorem 2) | **875** | **875** |
+
+Both "before" columns are the count at the SAME merged state (`arena`
+`dea5d114`, the second merge), and they are the "after" count because
+the diff adds and removes exactly zero lines containing `sorry` —
+`git diff 55d2fe02 -- '*.lean' | grep -c '^[+-].*sorry'` reads **0**, which is
+the statement that the repair is a repair and not an absorption.
+`Refine2/Specs.lean` still reads **20** and `Refine2/ExprOps/Mut.lean` **44**,
+the numbers task #97-P5-3 round 3 left them at.
+
+#### 5. The gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` (`LAKE_JOBS=4`) | **all 13 OK** — `cargo-build` 2 s, `cargo-test` 5 s, `lint-rust` 1 s, `provenance` `6 651 item(s) (4 099 Rust, 2 552 arena Lean), 4 201 citation(s), all current at pin 78ded4b6`, `provenance-self`, `twin-lines` 1 983 citations in 42 files, `overview-links` 48 links / 31 files, `holes` 1 type / 5 fns, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 92 s OK** (THIS task's Rust diff is `Lean twin:` DIGITS only, so it alone does not move the generated model; the second `arena` merge does), `lake-build` 111 s / **2 209 jobs** |
+| `cd proof && lake build ConRonArena` | **green**, 106 jobs, **0 `sorry`** — and `ExprOpsTest` / `CheckerTest` elaborate, so their `#guard`s pass on the probe-first twin |
+| `cd proof && lake build ConRonBridge` | **green**, **616 jobs**, **214 `sorry`** — `Bridge/ExprOps/**` still **0 across all thirteen modules**, which is the number this task was told not to lose |
+| `cd proof && lake build ConRonRefine2` | **green**, **2 220 jobs**, **875 `sorry`** — `Specs.lean` 20, `ExprOps/Mut.lean` 44, both unchanged |
+| `scripts/twin-lines.py update` | **103 citations relocated, 0 GONE** — `Arena/Store.lean` gained a `def` and `Arena/Monad.lean` twenty-two lines, so every `Lean twin:` range below them moved.  Digits only in four Rust files (`arena/{env,intern,monad,store}.rs`), no prose rewrapped, `extract.sh --check` unaffected |
+| `scripts/arena-census.py --summary` | runs; `Arena/ExprOps` **92/92 stated, 92 closed** for T1 and **89/92 stated, 52 closed** for T2, unchanged (whole tree: T1 stated 39% closed 23%, T2 stated 65% closed 24%).  Its self-check lists `EStore.findBindI_eq_findAt` (and the `eBindView` shape lemmas it sits beside) under "T1 unrecognised": they are helper equations of `StoreBind.lean`, not a twin's Theorem-1 statement, which is the same reading `ETables.findBind_eq_find?` already had |
+| merged `arena` **three times** — `0b79feae` at `226980af`, `dea5d114` at `86287ca1`, `2688664c` at `6783fe5a` (DESIGN.md only, so the gates are not re-run for it, per CLAUDE.md's merge rule) | the first merge auto-merged every hunk.  The second conflicted in DESIGN.md only (two task sections appended at the same place, resolved by keeping both in landing order) and auto-merged `arena/monad.rs`, where task #97-P5-Bracket's `Memos::reset` fix and this task's `Lean twin:` digits touch different hunks.  **The second merge moves `Generated/Funs.lean`**, so `Core/Eqns.lean` re-derived (~17 min, 6 GB) and every number in this table is from AFTER it.  What moved on `arena` is `Bridge/Inductives/**`, `Refine2/{Checker,Promote,Inductives,Core}/**`, `crates/.../arena/monad.rs` and DESIGN.md — no file this task edits, so the merge cannot interact with the edit |
+| the diff | `proof/ConRon/Arena/{Monad,Store}.lean`, `proof/ConRon/Bridge/{Specs,StoreBind,ExprOps/Abs}.lean`, `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean`, the four Rust files' `Lean twin:` digits, and this section |
+
+
 
 ### Task #97-P5-Specs — Theorem 2: finding 16's clause, and the eight readbacks (2026-09-22, Opus under Fable)
 
@@ -46273,8 +46395,10 @@ own list: **`Specs.lean` 20 → 11**, the eight `read_*` and the ten-way
 `intern_e` dispatcher closed, the eleven remaining interning lemmas left with
 their route named and priced.
 
-Branch `p5-specs` off `arena` `ff4af5f8`; merged `arena` twice (`73c4c141`,
-then `dea5d114`).
+Branch `p5-specs` off `arena` `ff4af5f8`; merged `arena` four times
+(`73c4c141`, `dea5d114`, `2688664c`, `19aa6e2e`).  The last of those is task
+#97-P5-Twin's **finding 15 fix**, which lands in the same two files this round
+rewrote; §11 is the reconciliation.
 
 #### 1. The clause goes in `AStateRel`, not in `AOut` — and that is a real saving
 
@@ -46330,14 +46454,21 @@ lst.store` comes OFF `intern_e_lam_run` / `intern_e_forall_e_run` (it is
 `hrel.storeWF`) and off all three binder `intern_rebuilt_*_refines` in
 `ExprOps/Mut.lean`.  Two hypotheses deleted for one added, at those five.
 
-**The `_i` family keeps an assumed clause.**  `intern_e_lam_i_run`,
-`intern_e_forall_e_i_run` and `intern_e_bind_i_run` take a raw `BMIdx`, and
-`StoreWF (st.internLamI ty b mi).1` is false unless `mi` is the cons table's
-datum for the view — `internAt_wf_view` wants `findBMOfView w = some mi`, which
-is Arena-side work this tier may not do.  They therefore take the clause as a
-hypothesis (`hwfI`), which is honest and costs nothing today: their only
-consumer is `internRebuiltBindI`, blocked on **finding 15**'s twin change
-anyway.
+**The `_i` family keeps an assumed clause, on the MISS path only.**
+`intern_e_lam_i_run`, `intern_e_forall_e_i_run` and `intern_e_bind_i_run` take
+a raw `BMIdx`, and `StoreWF (st.internLamI ty b mi).1` is FALSE at an arbitrary
+one — `internAt_wf_view` wants `findBMOfView w = some mi`, *"the datum handle is
+the cons table's"*, which is Arena-side work this tier may not do.  So the
+clause is assumed, as `EBindWFAt` (§11):
+
+    EBindWFAt st tag ty b mi : Prop :=
+      st.findBindI tag ty b mi = none → StoreWF (st.internBindI tag ty b mi).1
+
+and it is assumed on the **miss** only, because task #97-P5-Twin's probe-first
+`internLamIE` makes a cons hit intern nothing (`internBindI_of_findBindI`), so
+`hrel.storeWF` is the whole answer there.  That is `EBindCapAt`'s shape
+exactly; the two side conditions of the `_i` family now read the same way, and
+the owner of both is named.
 
 #### 3. Finding 16's other half, for free: `TwinWF` is discharged
 
@@ -46452,8 +46583,15 @@ ten** — round 3 §2's `hchild_{fvar,sort,const,app,let_e,proj}` derive it from
 `StoreWF`, and `hrel.storeWF` is that now, so the clause pays here a second
 time.  What survives is exactly what is not the port's to give: `ViewOK`, the
 literal's own well-formedness, and at the two binder arms the datum-array
-capacity, the `PropWhen` shape, the persistent binder probe and `ECapAt`
-(finding 15 is why the last two are not free at a binder either).
+capacity, the `PropWhen` shape, the persistent binder probe and `ECapAt`.
+The last two are the ones worth a line: round 3 §1 made `ECapAt` a CONCLUSION
+of the **eight non-binder** `estore_intern_*_abs` and round 3 §2's `hchild_*`
+cover the same six constructors, but `estore_intern_{lam,forall_e}_abs` are
+§3's COMPOSITIONS (`estore_intern_bm_abs` ∘ the `_i` lemma) and conclude
+neither — and the binder's persistent probe is at the *shifted* store
+`(internBM m).1`, which `persFind?_none_of_echild` does not reach.  Deriving
+those two at a binder is one more round-3-shaped edit and would take the arm
+count from six to eight.
 
 (One syntax note for the next writer: `ENodeView`'s constructor is `Sort`, and
 `| Sort u =>` does not parse — `| «Sort» u =>` does.)
@@ -46533,3 +46671,42 @@ both minimal: `Refine2/Core/Bracket.lean` (two `storeWF` fields, four lines)
 and `Refine2/ExprOps/Mut.lean` (the eleven call sites of the changed
 `intern_e_*_run`, plus the three `hwf` deletions the clause pays for).
 `Refine2/Inductives/**` was not staffed and was not touched.
+
+#### 11. The fourth `arena` merge — task #97-P5-Twin's finding-15 fix, reconciled
+
+The twin round landed after this branch's third merge and touched **the same
+two files**: `Refine2/Specs.lean` and `Refine2/ExprOps/Mut.lean`, both at the
+`_i` family, where this round had just added the `StoreWF` clause.  Three
+conflicts in `Specs.lean`, one in `ExprOps/Mut.lean`, and they are a genuine
+overlap rather than two edits that happen to be adjacent — so neither side was
+taken wholesale.
+
+**What each side was saying.**  Theirs: `hcap` at the two binder arrays stops
+being a naked conjunction over BOTH tiers and becomes `EBindCapAt`, a side
+condition of the MISS path at the ONE tier the append goes to, because
+`internLamIE` / `internForallEIE` now probe `EStore.findBindI` first.  Ours:
+the `_i` family owes `AStateRel`'s new `storeWF`, assumed because a raw
+`BMIdx` makes it false in general.
+
+**The resolution takes both, and their change makes ours strictly weaker.**
+A cons hit at a binder array now interns nothing — that is their
+`internBindI_of_findBindI` — so the store does not move and `hrel.storeWF` is
+the whole answer on the hit path.  Our assumed clause therefore needs the miss
+path only, and it is named to say so:
+
+    def EBindWFAt (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) : Prop :=
+      st.findBindI tag ty b mi = none → StoreWF (st.internBindI tag ty b mi).1
+
+    theorem EBindWFAt.apply (h : EBindWFAt st tag ty b mi) (hwf : StoreWF st) :
+        StoreWF (st.internBindI tag ty b mi).1
+
+`EBindWFAt.apply` is the six-line case split (their lemma on the hit, the
+hypothesis on the miss), and the five `hwf*` hypotheses of `intern_e_lam_i_run`
+/ `intern_e_forall_e_i_run` / `intern_e_bind_i_run` and
+`intern_rebuilt_bind_i_refines` all weaken to it.  **The two side conditions of
+the `_i` family now have the same shape, the same trigger and a named owner
+each** — which is what finding 15's fix was for, one clause further on than it
+was written.
+
+`DESIGN.md`'s conflict was two sections appended at the same place; both kept,
+theirs first.

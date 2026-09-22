@@ -1612,6 +1612,23 @@ the Rust's ten paths explicit. -/
 @[inline] def internProj (st : EStore) (n : NIdx) (i : Nat) (e : EIdx) : EStore × EIdx :=
   st.intern (.proj n i e)
 
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two-tier
+cons probe at a binder record whose datum is already a HANDLE: literally
+`internBindI`'s own two `match` scrutinees, in `internBindI`'s order
+(persistent first, scratch only when the scratch tier is open).
+
+It exists so that `Arena/Monad.lean`'s `internLamIE` / `internForallEIE` can
+PROBE BEFORE they test the capacity, which is what the Rust does — see
+`internE`'s note there (task #97-P5-1's finding 9, at the `_i` family by task
+#97-P5-Twin).  `Bridge/StoreBind.lean` proves it is `EStore.findAt` at the
+view the datum spells out, exactly as `internBindI` is `internAt`. -/
+def findBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
+    Option EIdx :=
+  let r : BindNode := ⟨ty, b, mi⟩
+  match st.pers.findBind tag r with
+  | some hp => some hp
+  | none => if st.scratchOn then st.scr.findBind tag r else none
+
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `intern`'s
 clauses at a binder record whose datum is already a HANDLE (task #97-P6-16).
 

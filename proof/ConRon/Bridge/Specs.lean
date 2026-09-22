@@ -307,7 +307,12 @@ for exactly this reason. -/
 `EStore.internLamI` / `internForallEI`, whose cons key is the datum's handle
 and which never decode it.  `Bridge/StoreBind.lean`'s
 `EStore.internBindI_spec` is the store fact; the two specs below are that fact
-under the monadic wrapper's own capacity branch. -/
+under the monadic wrapper's own capacity branch.
+
+Both wrappers PROBE FIRST since task #97-P5-Twin, as `internE` has since
+#97-P3-1, so each proof has two arms: the cons HIT, where the store does not
+move and `EStore.view_of_findBindI` names the handle's view, and the MISS,
+which is `internBindI_spec` at the tier the append goes to. -/
 
 @[spec] theorem internLamIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
@@ -323,16 +328,23 @@ under the monadic wrapper's own capacity branch. -/
         denoteE s'.store h = denoteEView s'.store (.lam ty b m)⌝⦄ := by
   mvcgen [internLamIE]
   spec_fails
-  rename_i s hs hcap _st _s'
+  -- **The cons HIT**: the probe comes first, so this arm answers the handle
+  -- the `lams` table already holds and moves nothing.
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview :=
+      EStore.view_of_findBindI (tag := ETag.lam) hwf (by decide) hbm hmi0 hfind
+    have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
+      simp [eBindView]
+    rw [heb] at hview
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
+      denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n hcap _st _s'
   subst hs
-  have hcap' : (if s.store.scratchOn then s.store.scr.bindSizeOf ETag.lam
-      else s.store.pers.bindSizeOf ETag.lam) < Idx.idxCap := by
-    by_cases hon : s.store.scratchOn = true
-    · rw [if_pos hon]; exact hcap.1
-    · simp only [Bool.not_eq_true] at hon
-      rw [hon]; simp only [Bool.false_eq_true, if_false]; exact hcap.2
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
-    EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb hcap'
+    EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb hcap
   have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
     simp [eBindView]
   rw [heb] at h5 h6
@@ -352,16 +364,21 @@ under the monadic wrapper's own capacity branch. -/
         denoteE s'.store h = denoteEView s'.store (.forallE ty b m)⌝⦄ := by
   mvcgen [internForallEIE]
   spec_fails
-  rename_i s hs hcap _st _s'
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview :=
+      EStore.view_of_findBindI (tag := ETag.forallE) hwf (by decide) hbm hmi0 hfind
+    have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
+      simp [eBindView, ETag.lam, ETag.forallE]
+    rw [heb] at hview
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
+      denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n hcap _st _s'
   subst hs
-  have hcap' : (if s.store.scratchOn then s.store.scr.bindSizeOf ETag.forallE
-      else s.store.pers.bindSizeOf ETag.forallE) < Idx.idxCap := by
-    by_cases hon : s.store.scratchOn = true
-    · rw [if_pos hon]; exact hcap.1
-    · simp only [Bool.not_eq_true] at hon
-      rw [hon]; simp only [Bool.false_eq_true, if_false]; exact hcap.2
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
-    EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty hb hcap'
+    EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty hb hcap
   have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
     simp [eBindView, ETag.lam, ETag.forallE]
   rw [heb] at h5 h6
