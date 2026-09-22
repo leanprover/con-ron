@@ -631,13 +631,32 @@ stands.  Nothing here moves up to `CheckOK`, and nothing needs to:
   needs from that tier is an `isSome`-only lemma at `StateOK`, named in the
   `sorry` below.)
 
+**What round 4 changed under this sorry.**  Every LEAF the route needs now
+exists: `stripPisAll_run` and `mkLams_run` are closed above, `stripPis`'s and
+`readLevel`'s specs are in hand (`Bridge/ExprOps/Spine.lean`,
+`Bridge/Specs.lean`), and the Inductives tier has STATED the two `isSome`
+lemmas this walk consumes — `structPartsCore?_isSome`
+(`Bridge/Inductives/StructParts.lean:693`) and `nativeParts?_isSome`
+(`Bridge/Inductives/NativeParts.lean:679`), both at grade `PSpecP`, i.e.
+`StateOK` **plus `PinsOK`** in.  **The `PinsOK` is a hypothesis this statement
+does not yet carry**: `structPartsCore?` tests `reservedBasisNames.contains T`,
+so the pin read decides the answer.  The parse runs after `internAllPins`, so
+the call site has it; when this theorem is proved, `PinsOK s` joins its
+hypothesis list (and `registerProjOwners_run`'s, and their callers').
+
+What is still missing is the middle: `ctorsMentionBlock_run`, which waits on
+`occursConstFast_run` (item 11, the memoised walk above) and on the two con
+-leche-tier facts that walk needs and con-leche does not have —
+`occursConstB n 4096 e = (some r, _) → r = occursConst n e` and
+`(occursConstGo n ∅ e).1 = occursConst n e` (con-leche's `Verify/` has
+neither; they are this tier's to state, in finding 6's shape).
+
 `sorry`: `projRecCandidates_run` (the `filterMap`, a list induction over
-`findCtorRec_run` / `findRecRec_run`), then the reordering argument — a
+`findCtorRec_run` / `findRecRec_run` and `denoteN_inj` at the two handle
+comparisons), `ctorsMentionBlock_run`, then the reordering argument — a
 `cases` on the candidate list with the empty arm closing by `rfl` on both
-sides — and the two recognisers' `isSome` exactness AT `StateOK`, which
-belongs to the Inductives tier (`Arena/Inductives/StructParts.lean`,
-`NativeParts.lean`) and is imported here as a hypothesis-free call once that
-tier states it.  Task #97-P3-Frontend's sorry list, item 13. -/
+sides — and finally the two `isSome` lemmas above, under `PinsOK`.  Task
+#97-P3-Frontend's sorry list, item 13. -/
 theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {fuel : Nat} {block : List IConstantInfo}
     {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)

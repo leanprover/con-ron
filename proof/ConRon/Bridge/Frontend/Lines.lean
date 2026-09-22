@@ -852,8 +852,39 @@ only because `.basisDecl` fails loudly (`Arena/Frontend/ExportC.lean`'s own
 note: no frontend function produces one), so the theorem is an equation at the
 two maps.
 
-`sorry`: `MapRel.insert` at `constTypes` and `heights`, six arms.  Task
-#97-P3-Frontend's sorry list, item 6. -/
+**Round 4's finding 16 — this statement is false at a `.projInfo`, twice, and
+it is NOT the proof that is missing.**  The `.indDecl` arm runs
+`block.mapM fun ci => do let v ← ci.toConstantVal; …`, and
+`IConstantInfo.toConstantVal` (`Arena/Env.lean:224-230`) has a `.projInfo`
+arm that INTERNS — `internLNode .zero`, `internLNode (.succ z)`,
+`internE (.sort one)`, because con-leche's `ConstantInfo.toConstantVal` builds
+the closed dummy type `Sort 1` as a VALUE (`ConLeche/Kernel/Env.lean:642`).
+So
+
+1. **the frame is wrong**: the store moves, and `s' = s` is not true of that
+   run.  `ParseStep s s'` is, with the relation read at `s'.store` — the same
+   repair round 4 made to `projIotaLevel_run` (finding 15);
+2. **the name is not determined**: the twin keys `constTypes` by
+   `v.name = tbl.tableName`, a STORED handle, where con-leche keys it by
+   `ConLeche.projTableName tbl.structName`; and `denoteProjTable`
+   (`Arena/Frontend/Readback.lean:159-168`) does not mention `tableName` at
+   all.  `Bridge/StateOK.lean:507-511`'s `IProjTableOK.named` is the only
+   thing that ties the two, so `denoteDecl st d = some dP` alone does not give
+   `denoteN st.ns (IConstantInfo.name ci) = some (ConstantInfo.name ciP)`.
+
+Neither is reachable from a PARSED record (a parsed `.indDecl` block holds
+`indInfo`/`ctorInfo`/`recInfo` only), but this theorem quantifies over every
+`IDeclaration` that denotes, and its caller `pushGenList` pushes what the
+MODELLER generated — which `ModellerWF`/`ModellerRefines`
+(`Bridge/Frontend/Modeller.lean`) constrain only by
+`(denoteDecls s'.store hs).isSome`.  So the missing hypothesis cannot be
+discharged at the call site either: **either this statement takes an
+`IProjTableOK` side condition for the projection tables of its block, or the
+seam's promise is strengthened to give one.**  That is a design decision, not
+a proof step, so round 4 left it open rather than weakening the statement.
+
+`sorry`: `MapRel.insert` at `constTypes` and `heights`, six arms — and
+finding 16 first.  Task #97-P3-Frontend's sorry list, item 6. -/
 theorem noteDecl_run {s s' : AState} (hok : StateOK s) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {d : IDeclaration} {dP : Declaration}
@@ -863,7 +894,12 @@ theorem noteDecl_run {s s' : AState} (hok : StateOK s) {sd sd' : StateD}
   sorry
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:161 pushDecl — the record
-appended, then noted. -/
+appended, then noted.
+
+`sorry`: `noteDecl_run` at the appended state — and round 4's finding 16
+(above) first: `pushDecl` IS `noteDecl` of the pushed record, so this
+statement's `s' = s` is false in exactly the same place and for exactly the
+same reason.  Task #97-P3-Frontend's sorry list, item 6. -/
 theorem pushDecl_run {s s' : AState} (hok : StateOK s) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : IDeclaration} {dP : Declaration}
