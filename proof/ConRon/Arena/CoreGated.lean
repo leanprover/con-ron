@@ -108,19 +108,36 @@ def whnfCoreBodyGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated — **the P
 knot**: `coreKnot`'s tie with `whnfCoreBodyGated` in the `whnfCore` slot;
 `whnf`, `infer`, `defeq` and `annotate` are the *same bodies*, tied to this
-knot one fuel level down. -/
+knot one fuel level down.
+
+**The stuck-tag test sits ABOVE the fuel dispatch in the two reduction
+slots** (task #97-P3-CoreWalks, fixing finding 3 of task #97-P5-Core).  The
+Rust tests `whnf_core_stuck_tag` above the LANE dispatch — so in the gated
+lane at fuel `0` it answers `Ok e` where a twin that tested the tag only
+inside the memoized slot threw `internal`.  Task #97-P6-7's lever 2 is a test
+on the handle word alone: it reads no store and no memo, so hoisting it over
+the fuel check changes nothing but the divergence, and it lets
+`Refine2/Core/KnotRel.lean` drop `KnotRel.whnf`'s
+`lane = LANE_GATED → 2 ≤ f` side condition. -/
 def coreKnotGated (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
   | 0 =>
-    { whnfCore := fun _ _ => fail (.internal "fuel exhausted: whnfCore")
-      whnf := fun _ _ => fail (.internal "fuel exhausted: whnf")
+    { whnfCore := fun _ e =>
+        if whnfCoreStuckTag e then pure e
+        else fail (.internal "fuel exhausted: whnfCore")
+      whnf := fun _ e =>
+        if whnfStuckTag e then pure e
+        else fail (.internal "fuel exhausted: whnf")
       infer := fun _ _ => fail (.internal "fuel exhausted: infer")
       defeq := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
       annotate := fun _ _ => fail (.internal "fuel exhausted: annotate")
       inferIO := fun _ _ => fail (.internal "fuel exhausted: infer") }
   | fuel + 1 =>
     { whnfCore := fun d e =>
-        whnfCoreBodyGated mode (coreKnotGated mode fe fuel) fe d e
-      whnf := fun d e => whnfBody (coreKnotGated mode fe fuel) fe d e
+        if whnfCoreStuckTag e then pure e
+        else whnfCoreBodyGated mode (coreKnotGated mode fe fuel) fe d e
+      whnf := fun d e =>
+        if whnfStuckTag e then pure e
+        else whnfBody (coreKnotGated mode fe fuel) fe d e
       infer := fun d e => inferBody mode (coreKnotGated mode fe fuel) fe d e
       defeq := fun d a b =>
         defeqBody mode (coreKnotGated mode fe fuel) fe d a b
