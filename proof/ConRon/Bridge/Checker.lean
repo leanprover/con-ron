@@ -10,8 +10,11 @@ In dependency order:
   declaration layer's transport across a `dropScratch`;
 * `Bridge/Checker/Hyp.lean` — the two named hypotheses, `KnotSpec` (the Core
   tier's) and `IndSpec` (the Inductives tier's);
-* `Bridge/Checker/Decl.lean` — `checkDecl`'s seven arms, one theorem each,
-  and `PinsDenote`;
+* `Bridge/Checker/Decl.lean` — what an arm concludes (`DeclOut`) and what
+  relates the two pin lists (`PinsDenote`);
+* `Bridge/Checker/Arms.lean` — **`checkDecl`'s seven arms**, one theorem each.
+  They sit above `Base.lean` / `DeclVal.lean` / `Basis.lean` because that is
+  where their content is, and those three import `Decl.lean`;
 * `Bridge/Checker/Mono.lean` — one fuel for the whole fold, from con-leche's
   `FueledM`;
 * `Bridge/Checker/Fold.lean` — **`Arena.checkDecl_bridge`**,
@@ -28,6 +31,7 @@ In dependency order:
 import ConRon.Bridge.Checker.Inv
 import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Checker.Decl
+import ConRon.Bridge.Checker.Arms
 import ConRon.Bridge.Checker.Mono
 import ConRon.Bridge.Checker.Fold
 import ConRon.Bridge.Checker.Capstone

@@ -35,10 +35,12 @@ before the fold starts (`Bridge/Checker/Pins.lean`).  They are a PARAMETER of
 `checkDecl` on both sides and no arm changes them, so the relation is a
 standing hypothesis of every theorem here.
 
-## The sorry list
+## Where the arms are
 
-The seven arms are the tier's remaining proof obligations, and each needs a
-different thing:
+The seven arm theorems moved to `Bridge/Checker/Arms.lean` in task
+#97-P3-Checker-2, because proving them needs `Bridge/Checker/Base.lean`,
+`DeclVal.lean` and `Basis.lean`, all three of which import THIS module for
+`DeclOut` and `PinsDenote`.  What each arm needs is still:
 
 | arm | what it needs |
 |---|---|
@@ -147,129 +149,5 @@ structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
   pushed : Pushed fe fe'
   run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env'
-
-/-! ## The seven arms -/
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl (the `.defnDecl`
-arm) — a definition, with the two `Nat`-operation pin gates behind it.
-
-`sorry`: `checkConstantVal_bridge` and `checkDefnVal_bridge`
-(`Bridge/Checker/Base.lean`), then `natOpGuard` / `certifyNatEqs` /
-`checkDivModPin` (`Arena/DeclCheck.lean`), each of which is a `KnotSpec`
-consumer over a pinned term.  Task #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_defn {μ : CheckMode}
-    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-    {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
-    {hint : ReducibilityHint} {c : ConstantVal} {x : Expr}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hcv : Frontend.denoteCV s.store cv = some c)
-    (hv : denoteE s.store value = some x)
-    (hrun : Arena.checkDecl μ pins fe (.defnDecl cv value hint) s = .ok (fe', s')) :
-    DeclOut μ pinsP env (.defnDecl c x hint) s fe fe' s' := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:486-489 checkDecl (the `.thmDecl`
-arm).
-
-`sorry`: `checkConstantVal_bridge` and `checkThmVal_bridge`.  Task
-#97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_thm {μ : CheckMode}
-    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-    {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
-    {c : ConstantVal} {x : Expr}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hcv : Frontend.denoteCV s.store cv = some c)
-    (hv : denoteE s.store value = some x)
-    (hrun : Arena.checkDecl μ pins fe (.thmDecl cv value) s = .ok (fe', s')) :
-    DeclOut μ pinsP env (.thmDecl c x) s fe fe' s' := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:491-500 checkDecl (the
-`.opaqueDecl` arm), with the compiler-trust `reduce*` gate behind it.
-
-`sorry`: `checkConstantVal_bridge`, `checkOpaqueVal_bridge` and
-`checkReducePin`.  Task #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_opaque {μ : CheckMode}
-    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-    {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
-    {c : ConstantVal} {x : Expr}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hcv : Frontend.denoteCV s.store cv = some c)
-    (hv : denoteE s.store value = some x)
-    (hrun : Arena.checkDecl μ pins fe (.opaqueDecl cv value) s = .ok (fe', s')) :
-    DeclOut μ pinsP env (.opaqueDecl c x) s fe fe' s' := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl (the
-`.axiomDecl` arm) — the widest arm of the seven: `Quot.sound`'s own record,
-the standard axioms, `Lean.trustCompiler`, the two `ofReduce*` axioms, the two
-positively-declined standard shapes and `sorryAx`.
-
-`sorry`: `IConstantInfo.canonEq`'s exactness (`Bridge/Checker/Canon.lean`),
-`stdAxiomOk` / `trustCompilerOk` / `ofReduceAxOk` (`Arena/DeclCheck.lean`) and
-the pin readers' denotations.  Task #97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_axiom {μ : CheckMode}
-    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-    {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {c : ConstantVal}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hcv : Frontend.denoteCV s.store cv = some c)
-    (hrun : Arena.checkDecl μ pins fe (.axiomDecl cv) s = .ok (fe', s')) :
-    DeclOut μ pinsP env (.axiomDecl c) s fe fe' s' := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:562 checkDecl (the `.basisDecl`
-arm) — the fold's own pinned-block record.
-
-`sorry`: `checkBasisDecl_bridge` (`Bridge/Checker/Basis.lean`).  Task
-#97-P3-Checker's sorry list, item 7. -/
-theorem checkDecl_bridge_basis {μ : CheckMode}
-    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-    {fe fe' : IFEnv} {s s' : AState} {kind : BasisKind}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hrun : Arena.checkDecl μ pins fe (.basisDecl kind) s = .ok (fe', s')) :
-    DeclOut μ pinsP env (.basisDecl kind) s fe fe' s' := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:564-600 checkDecl (the `.indDecl`
-arm) — **the one arm this tier does not own**.  The recogniser
-(`basisPinHit`) is `Bridge/Checker/Basis.lean`'s and the route behind it is
-`IndSpec`, the named hypothesis.
-
-`sorry`: `basisPinHit`'s exactness, and then `IndSpec.run` verbatim.  Task
-#97-P3-Checker's sorry list, item 7 — the only one of the seven whose
-remaining content is a *hypothesis* rather than a proof. -/
-theorem checkDecl_bridge_ind {μ : CheckMode}
-    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-    {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
-    {b : List ConstantInfo} {nP : Nat}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hb : Frontend.denoteCIList s.store block = some b)
-    (hrun : Arena.checkDecl μ pins fe (.indDecl block nP) s = .ok (fe', s')) :
-    DeclOut μ pinsP env (.indDecl b nP) s fe fe' s' := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:602-626 checkDecl (the `.quotDecl`
-arm) — the four-record quotient package, the first matching record installing
-the pinned block whole.
-
-`sorry`: `quotPinHit`'s exactness (`Bridge/Checker/Basis.lean`) and
-`checkBasisDecl_bridge` at `.quotK`.  Task #97-P3-Checker's sorry list,
-item 7. -/
-theorem checkDecl_bridge_quot {μ : CheckMode}
-    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
-    {fe fe' : IFEnv} {s s' : AState} {k : QuotKind} {cv : IConstantVal}
-    {c : ConstantVal}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hcv : Frontend.denoteCV s.store cv = some c)
-    (hrun : Arena.checkDecl μ pins fe (.quotDecl k cv) s = .ok (fe', s')) :
-    DeclOut μ pinsP env (.quotDecl k c) s fe fe' s' := by
-  sorry
 
 end ConRon.Bridge

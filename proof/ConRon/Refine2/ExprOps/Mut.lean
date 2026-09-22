@@ -88,6 +88,7 @@ what makes it worth anything.  The `Specs.lean` primitives each group waits on
 are named in its section note.
 -/
 import ConRon.Refine2.Specs
+import ConRon.Refine2.ExprOps.Pure
 import ConRon.Arena.ExprOps
 
 open Aeneas Aeneas.Std Result
@@ -146,6 +147,17 @@ def RenameRel {F : Type} (inst : arena.expr_ops.NIdxToNIdx F) (f : F)
     (g : NIdx → NIdx) : Prop :=
   ∀ n r, inst.rename f n = ok r → g (absNIdx n) = absNIdx r
 
+/-- `kernel::expr_ops::sub_nat` is `Nat` subtraction on the abstraction. -/
+theorem sub_nat_val {a b r : Std.U64}
+    (h : kernel.expr_ops.sub_nat a b = ok r) : absU r = absU a - absU b := by
+  rw [kernel.expr_ops.sub_nat] at h
+  split at h <;> rename_i hge
+  · exact (ConRon.Refine.Nat.usub_val h).2
+  · simp only [Result.ok.injEq] at h
+    rw [← h]
+    show (0 : Nat) = a.val - b.val
+    scalar_tac
+
 /-! ## `internRebuilt` and its twelve per-constructor entries
 
 Task #97-P6-5's upward cutoff (`internRebuilt`) and task #97-P6-15's
@@ -158,9 +170,6 @@ theorem intern_rebuilt_bvar_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {i : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hcap : same = false → lst.store.find? (.bvar (absU i)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.bvar (absU i))
-        else lst.store.pers.sizeOf (.bvar (absU i))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_bvar pers st h same i = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltBVar (absEIdx h) same (absU i)) := by
@@ -180,7 +189,7 @@ theorem intern_rebuilt_bvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_bvar_run hrel hinv hfrozen i (hcap rfl) hrun
+    exact intern_e_bvar_run hrel hinv hfrozen i hrun
 
 /-- `arena::expr_ops::intern_rebuilt_fvar` against `Arena.internRebuiltFVar`. -/
 theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
@@ -190,9 +199,6 @@ theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       (absEIdx ty).isPersistent = false →
       lst.store.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
-    (hcap : same = false → lst.store.find? (.fvar (absU idx) (absEIdx ty)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.fvar (absU idx) (absEIdx ty))
-        else lst.store.pers.sizeOf (.fvar (absU idx) (absEIdx ty))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_fvar pers st h same idx ty = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltFVar (absEIdx h) same (absU idx) (absEIdx ty)) := by
@@ -212,7 +218,7 @@ theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_fvar_run hrel hinv hfrozen idx ty (hchild rfl) (hcap rfl) hrun
+    exact intern_e_fvar_run hrel hinv hfrozen idx ty (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_sort` against `Arena.internRebuiltSort`. -/
 theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
@@ -222,9 +228,6 @@ theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       (absLIdx u).isPersistent = false →
       lst.store.pers.sorts.find? ⟨absLIdx u⟩ = none)
-    (hcap : same = false → lst.store.find? (.sort (absLIdx u)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.sort (absLIdx u))
-        else lst.store.pers.sizeOf (.sort (absLIdx u))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_sort pers st h same u = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltSort (absEIdx h) same (absLIdx u)) := by
@@ -244,7 +247,7 @@ theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_sort_run hrel hinv hfrozen u (hchild rfl) (hcap rfl) hrun
+    exact intern_e_sort_run hrel hinv hfrozen u (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_const` against `Arena.internRebuiltConst`. -/
 theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
@@ -254,9 +257,6 @@ theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
       lst.store.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
-    (hcap : same = false → lst.store.find? (.const (absNIdx n) (absLsIdx us)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.const (absNIdx n) (absLsIdx us))
-        else lst.store.pers.sizeOf (.const (absNIdx n) (absLsIdx us))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_const pers st h same n us = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltConst (absEIdx h) same (absNIdx n) (absLsIdx us)) := by
@@ -276,7 +276,7 @@ theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_const_run hrel hinv hfrozen n us (hchild rfl) (hcap rfl) hrun
+    exact intern_e_const_run hrel hinv hfrozen n us (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_app` against `Arena.internRebuiltApp`. -/
 theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
@@ -286,9 +286,6 @@ theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
       lst.store.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
-    (hcap : same = false → lst.store.find? (.app (absEIdx f) (absEIdx a)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.app (absEIdx f) (absEIdx a))
-        else lst.store.pers.sizeOf (.app (absEIdx f) (absEIdx a))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_app pers st h same f a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltApp (absEIdx h) same (absEIdx f) (absEIdx a)) := by
@@ -308,7 +305,7 @@ theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_app_run hrel hinv hfrozen f a (hchild rfl) (hcap rfl) hrun
+    exact intern_e_app_run hrel hinv hfrozen f a (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_let_e` against `Arena.internRebuiltLetE`. -/
 theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
@@ -319,9 +316,6 @@ theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
       ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨
         (absEIdx body).isPersistent = false) →
       lst.store.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx body⟩ = none)
-    (hcap : same = false → lst.store.find? (.letE (absEIdx ty) (absEIdx val) (absEIdx body)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.letE (absEIdx ty) (absEIdx val) (absEIdx body))
-        else lst.store.pers.sizeOf (.letE (absEIdx ty) (absEIdx val) (absEIdx body))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_let_e pers st h same ty val body = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltLetE (absEIdx h) same (absEIdx ty) (absEIdx val) (absEIdx body)) := by
@@ -341,7 +335,7 @@ theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_let_e_run hrel hinv hfrozen ty val body (hchild rfl) (hcap rfl) hrun
+    exact intern_e_let_e_run hrel hinv hfrozen ty val body (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_lit` against `Arena.internRebuiltLit`. -/
 theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
@@ -349,9 +343,6 @@ theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hwf : ConRon.Refine.LiteralWF l)
-    (hcap : same = false → lst.store.find? (.lit (ConRon.Refine.absLiteral l)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.lit (ConRon.Refine.absLiteral l))
-        else lst.store.pers.sizeOf (.lit (ConRon.Refine.absLiteral l))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_lit pers st h same l = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltLit (absEIdx h) same (ConRon.Refine.absLiteral l)) := by
@@ -371,7 +362,7 @@ theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_lit_run hrel hinv hfrozen l hwf (hcap rfl) hrun
+    exact intern_e_lit_run hrel hinv hfrozen l hwf hrun
 
 /-- `arena::expr_ops::intern_rebuilt_proj` against `Arena.internRebuiltProj`. -/
 theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
@@ -381,9 +372,6 @@ theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       ((absNIdx n).isPersistent = false ∨ (absEIdx e).isPersistent = false) →
       lst.store.pers.projs.find? ⟨absNIdx n, absU i, absEIdx e⟩ = none)
-    (hcap : same = false → lst.store.find? (.proj (absNIdx n) (absU i) (absEIdx e)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.proj (absNIdx n) (absU i) (absEIdx e))
-        else lst.store.pers.sizeOf (.proj (absNIdx n) (absU i) (absEIdx e))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_proj pers st h same n i e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltProj (absEIdx h) same (absNIdx n) (absU i) (absEIdx e)) := by
@@ -403,7 +391,7 @@ theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_proj_run hrel hinv hfrozen n i e (hchild rfl) (hcap rfl) hrun
+    exact intern_e_proj_run hrel hinv hfrozen n i e (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_bind_i` against `Arena.internRebuiltBindI`. -/
 theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
@@ -467,21 +455,81 @@ theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Boo
 theorem intern_rebuilt_lam_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hwf : same = false → StoreWF lst.store)
+    (hbmcap : same = false → lst.store.capOKBM)
+    (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
+    (hchild : same = false →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.lams.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hcap : same = false → ECapAt lst.store
+      (.lam (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
     (hrun : arena.expr_ops.intern_rebuilt_lam pers st h same ty body m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absBinderMeta m)) := by
-  sorry
+  rw [arena.expr_ops.intern_rebuilt_lam] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx body)
+      (ConRon.Refine.absBinderMeta m)).run lst)
+  rw [internRebuiltLam]
+  by_cases hs : same = true
+  · subst hs
+    rw [if_pos rfl] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    simp only [if_true]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · simp only [Bool.not_eq_true] at hs
+    subst hs
+    simp only [Bool.false_eq_true, if_false]
+    exact intern_e_lam_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+      (hpw rfl) (hchild rfl) (hcap rfl) hrun
 
 /-- `Arena/ExprOps.lean:163 internRebuiltForallE`. -/
 theorem intern_rebuilt_forall_e_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hwf : same = false → StoreWF lst.store)
+    (hbmcap : same = false → lst.store.capOKBM)
+    (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
+    (hchild : same = false →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.foralls.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hcap : same = false → ECapAt lst.store
+      (.forallE (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
     (hrun : arena.expr_ops.intern_rebuilt_forall_e pers st h same ty body m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absBinderMeta m)) := by
-  sorry
+  rw [arena.expr_ops.intern_rebuilt_forall_e] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx body)
+      (ConRon.Refine.absBinderMeta m)).run lst)
+  rw [internRebuiltForallE]
+  by_cases hs : same = true
+  · subst hs
+    rw [if_pos rfl] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    simp only [if_true]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · simp only [Bool.not_eq_true] at hs
+    subst hs
+    simp only [Bool.false_eq_true, if_false]
+    exact intern_e_forall_e_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+      (hpw rfl) (hchild rfl) (hcap rfl) hrun
 
 
 
@@ -491,11 +539,62 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {tag : Std.U32} {ty body : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hwf : same = false → StoreWF lst.store)
+    (hbmcap : same = false → lst.store.capOKBM)
+    (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
+    (hchildL : same = false → absU32 tag = ETag.lam →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.lams.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hchildF : same = false → absU32 tag ≠ ETag.lam →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.foralls.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hcapL : same = false → absU32 tag = ETag.lam → ECapAt lst.store
+      (.lam (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
+    (hcapF : same = false → absU32 tag ≠ ETag.lam → ECapAt lst.store
+      (.forallE (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
     (hrun : arena.expr_ops.intern_rebuilt_bind pers st h same tag ty body m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absBinderMeta m)) := by
-  sorry
+  rw [arena.expr_ops.intern_rebuilt_bind] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx body)
+      (ConRon.Refine.absBinderMeta m)).run lst)
+  rw [internRebuiltBind]
+  by_cases hs : same = true
+  · subst hs
+    rw [if_pos rfl] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    simp only [if_true]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · simp only [Bool.not_eq_true] at hs
+    subst hs
+    simp only [Bool.false_eq_true, if_false]
+    by_cases hc : tag = arena.handle.ETAG_LAM
+    · subst hc
+      rw [if_pos rfl] at hrun
+      rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
+        rw [etag_lam_abs]; simp)]
+      exact intern_e_lam_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+        (hpw rfl) (hchildL rfl (by rw [etag_lam_abs])) (hcapL rfl (by rw [etag_lam_abs]))
+        hrun
+    · rw [if_neg hc] at hrun
+      have hne : absU32 tag ≠ ETag.lam := by
+        rw [← etag_lam_abs]
+        intro hcc; exact hc (absU32_inj hcc)
+      rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
+      exact intern_e_forall_e_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+        (hpw rfl) (hchildF rfl hne) (hcapF rfl hne) hrun
 
 
 /-! ## `instantiate1` — the memoised single substitution
@@ -895,15 +994,139 @@ theorem inst_pis_at_lift_from_refines {pers st lst} {fuel : Std.U64}
 `Specs.lean` primitives: `view`, `internE`, `internBVarE`, plus `stripPis`
 and `getAppArgs` through `ExprOps/Read.lean`. -/
 
+/-! ## `bvarRange` — the tier's first INTERNING walk, and the keying measurement
+
+**The one walk of this file that finding 14 fully unblocks.**  `bvarRange`
+interns `bvar` nodes and nothing else, so its leaf wrapper
+(`intern_e_bvar_run`) has no `hchild` at all (a `bvar` has no children) and,
+after this round, no `hcap` either — leaving `hfrozen` as the only side
+condition, which `intern_e_bvar_flags` carries across a step.  Every other
+interning walk of this file descends into a node WITH children and is blocked
+on §6's finding 16.
+
+Two local names, because `ExprOps/Read.lean` is not imported here:
+`aout_err_bind_v` is its `aout_err_bind`, and `cons_eidx_list` is
+`ExprOps/Pure.lean`'s `cons_eidx_refines` at this file's own list
+abstraction (`absEIdxList` here, `absEIdxL` there — P5-0 §9's first small
+merge, still owed).
+
+**The keying measurement** task #97-P5-3 round 3 §6 reports was taken on this
+lemma: the four leaf closings below against `rust_grind2` over a keyed leaf
+vocabulary.  Keying LOSES, and the section says why. -/
+
+/-- `Read.lean`'s `aout_err_bind`, local copy (see the note above). -/
+theorem aout_err_bind_v {β γ δ : Type} {A : γ → β} {C : Type} {AC : C → δ}
+    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
+    {lstA lstB : AState} {stA stB : arena.monad.AState}
+    {x : AM β} {f : β → AM δ}
+    (h : AOut A (fun _ => True) pers lstA (.Err e) stA (x.run lstA)) :
+    AOut AC (fun _ => True) pers lstB (.Err e) stB
+      ((do let v ← x; f v).run lstA) := by
+  refine AOut.err ?_
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+/-- `Pure.lean`'s `cons_eidx_refines`, at this file's list abstraction. -/
+theorem cons_eidx_list {a : arena.handle.EIdx}
+    {xs r : alloc.vec.Vec arena.handle.EIdx}
+    (h : arena.expr_ops.cons_eidx a xs = ok r) :
+    absEIdxList r = absEIdx a :: absEIdxList xs := ExprOps.cons_eidx_refines h
+
+private theorem bvar_range_aux (p : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {m_i n k : Std.U64} {o},
+      n.val = p → AStateRel pers st lst → AStateInv pers st →
+      (st.store.shared_on = true → st.store.scratch_on = true) →
+      arena.expr_ops.bvar_range pers st m_i n k = ok o →
+      Sim absEIdxList (fun _ => True) pers lst o
+        (bvarRange (absU m_i) (absU n) (absU k)) := by
+  induction p with
+  | zero =>
+    intro pers st lst m_i n k o hn hrel hinv hfrozen hrun
+    rw [arena.expr_ops.bvar_range] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : n = 0#u64)] at hrun
+    have ho := Result.ok_injective hrun
+    show AOut absEIdxList (fun _ => True) pers lst o.1 o.2 _
+    rw [← ho, show absU n = 0 from hn]
+    refine AOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _) trivial
+    show (bvarRange (absU m_i) 0 (absU k)).run lst
+      = .ok (absEIdxList (alloc.vec.Vec.new arena.handle.EIdx), lst)
+    rw [bvarRange]
+    simp only [absEIdxList, alloc.vec.Vec.new, List.map_nil]
+    rfl
+  | succ q ih =>
+    intro pers st lst m_i n k o hn hrel hinv hfrozen hrun
+    rw [arena.expr_ops.bvar_range] at hrun
+    have hne : ¬ (n = 0#u64) := by
+      intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r, st1⟩ := p1
+    have hidx : absU i1 = absU m_i - 1 - absU k := by
+      rw [sub_nat_val hi1, sub_nat_val hi]; rfl
+    have hsim := intern_e_bvar_run hrel hinv hfrozen i1 hp1
+    have hflags := intern_e_bvar_flags hrel hinv hfrozen hp1
+    show AOut absEIdxList (fun _ => True) pers lst o.1 o.2 _
+    rw [show absU n = q + 1 from hn, bvarRange]
+    rw [hidx] at hsim
+    simp only [Arena.internBVarE] at hsim
+    cases hr : r with
+    | Err e =>
+      have ho := Result.ok_injective (hr ▸ hrun)
+      rw [← ho]
+      exact aout_err_bind_v (hr ▸ hsim)
+    | Ok b =>
+      rw [hr] at hrun
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st2⟩ := p2
+      obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ := (hr ▸ hsim : AOut _ _ _ _ (.Ok b) _ _)
+      rw [StateT.run_bind, hy1]
+      have hi2v : i2.val = q := by
+        have h1 := (ConRon.Refine.Nat.usub_val hi2).2
+        rw [h1, hn]; rfl
+      have hi3v : absU i3 = absU k + 1 := by
+        have h1 := ConRon.Refine.Nat.uadd_val hi3
+        simpa using h1
+      have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+        intro hs
+        have h1 : st1.store.shared_on = st.store.shared_on := hflags.1
+        have h2 : st1.store.scratch_on = st.store.scratch_on := hflags.2
+        rw [h2]; exact hfrozen (h1 ▸ hs)
+      have hrec := ih (st := st1) (lst := lst1) hi2v hrel1 hinv1 hfroz1 hp2
+      rw [show absU i2 = q from hi2v, hi3v] at hrec
+      show AOut absEIdxList (fun _ => True) pers lst o.1 o.2
+        ((do let rest ← bvarRange (absU m_i) q (absU k + 1)
+             pure (absEIdx b :: rest)).run lst1)
+      cases hr1 : r1 with
+      | Err e =>
+        have ho := Result.ok_injective (hr1 ▸ hrun)
+        rw [← ho]
+        exact aout_err_bind_v (hr1 ▸ hrec)
+      | Ok rest =>
+        rw [hr1] at hrun
+        obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have ho := Result.ok_injective hrun
+        obtain ⟨lst2, hy2, hrel2, hinv2, hext2, -⟩ :=
+          (hr1 ▸ hrec : AOut _ _ _ _ (.Ok rest) _ _)
+        rw [← ho]
+        refine AOut.ok (lst' := lst2) ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+        rw [StateT.run_bind, hy2, cons_eidx_list hv]
+        rfl
+
 /-- `Arena/ExprOps.lean:1318 bvarRange` — the Rust's `Vec` is built with
 `cons_eidx` on the way out, so the two orders agree and the abstraction is
 `absEIdxList` with no reversal. -/
 theorem bvar_range_refines {pers st lst} {m_i n k : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.expr_ops.bvar_range pers st m_i n k = ok o) :
     Sim absEIdxList (fun _ => True) pers lst o
-      (bvarRange (absU m_i) (absU n) (absU k)) := by
-  sorry
+      (bvarRange (absU m_i) (absU n) (absU k)) :=
+  bvar_range_aux n.val rfl hrel hinv hfrozen hrun
 
 /-- `Arena/ExprOps.lean:1330 recRulePlain`. -/
 theorem rec_rule_plain_refines {pers st lst} {fuel : Std.U64}
@@ -971,16 +1194,6 @@ theorem aout_rebase {γ δ : Type} {AC : γ → δ} {pers : arena.store.PersTier
     obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := h
     exact AOut.ok hy hrel2 hinv2 (Ext.trans hext hext2) trivial
 
-/-- `kernel::expr_ops::sub_nat` is `Nat` subtraction on the abstraction. -/
-theorem sub_nat_val {a b r : Std.U64}
-    (h : kernel.expr_ops.sub_nat a b = ok r) : absU r = absU a - absU b := by
-  rw [kernel.expr_ops.sub_nat] at h
-  split at h <;> rename_i hge
-  · exact (ConRon.Refine.Nat.usub_val h).2
-  · simp only [Result.ok.injEq] at h
-    rw [← h]
-    show (0 : Nat) = a.val - b.val
-    scalar_tac
 
 /-! ## `bvarBoundGo`'s node step, as an object -/
 

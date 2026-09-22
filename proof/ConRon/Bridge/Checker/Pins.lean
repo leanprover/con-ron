@@ -65,7 +65,8 @@ theorem internPinSets_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
     (hrun : internPinSets ps s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ PinsDenote s'.store r ps ∧
-      PersPinSets r ∧ s'.store.scratchOn = false ∧ s'.pins = s.pins := by
+      PersPinSets r ∧ s'.store.scratchOn = false ∧ s'.pins = s.pins ∧
+      s'.caches = s.caches ∧ s'.memos = s.memos := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
@@ -82,6 +83,13 @@ and the driver runs it first (`Arena/Main.lean`).  So `PinsOK` and `PersPins`
 are hypotheses here and travel through: the walk only appends, and
 `PinsOK.mono` carries them.
 
+**The per-call frame** (asked for by the Frontend tier, task
+#97-P3-Checker-2): the walk touches the four stores and the pin record and
+NOTHING else, so `s'.caches = s.caches` and `s'.memos = s.memos` come out
+with the rest.  `Bridge/Frontend/Capstone.lean`'s
+`no_False_declaration_pipeline` needs them for the `internAllPins` call
+`runPipelineM` makes between `preparePrelude` and `installThenCheck`.
+
 `sorry`: twenty-nine pin reads (each with a `@[spec]` theorem already in
 `Bridge/Specs.lean`) composed with `internPinSets_run`.  Task
 #97-P3-Checker's sorry list, item 13. -/
@@ -91,7 +99,8 @@ theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
     (hrun : internAllPins ps s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ PinsOK s' ∧ PersPins s' ∧
       PinsDenote s'.store r ps ∧ PersPinSets r ∧
-      s'.store.scratchOn = false := by
+      s'.store.scratchOn = false ∧
+      s'.caches = s.caches ∧ s'.memos = s.memos := by
   sorry
 
 end ConRon.Bridge

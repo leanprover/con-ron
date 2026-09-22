@@ -78,7 +78,9 @@ commutes with the denotation*), and `Walks/Proj.lean` is what it unblocks.
 Its one caveat is recorded there and in DESIGN: the exactness lemma holds
 **in range**, because both `entry` functions read their two indexed columns
 with a DEFAULT and the two defaults are unrelated across the denotation.
-con-leche's `ConstWF` records `bodies.size = numFields` and says nothing
-about `guards`, so `ProjTablesShaped` carries that one clause as a
-hypothesis until the install's own invariant reaches this tier.
+That the two columns have `numFields` entries is a clause of OUR
+environment invariant (`Bridge/StateOK.lean`'s `IProjTableOK`, a field of
+`IFEnvOK`) and not of con-leche's `ConstWF`, which is the wrong side of a
+B ⇒ A simulation to take an invariant from; `findProj?_spec` reads it off
+`hok.ienv.proj` (task #97-P3-Checker-2).
 -/

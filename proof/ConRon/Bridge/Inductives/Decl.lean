@@ -55,10 +55,10 @@ and two of those seven clauses are wrong for this arm.
 
 `IndOut` (`Bridge/Inductives/Rel.lean`) is `IndSpec`'s conclusion with those
 two corrected — `PersIFEnv` dropped, `Pushed` added — and `checkIndDecl_bridge`
-below is proved at it.  `indSpec_of_bridge` then adapts it to `Hyp.lean`'s
-letter and is the ONE `sorry` of this module whose reason is not "an unproved
-sub-statement": its `PersIFEnv` conjunct is not provable, and the fix is a
-two-line edit to `Bridge/Checker/Hyp.lean`, which this task does not own.
+below is proved at it.  **The correction has landed** (task #97-P3-Checker-2):
+`Bridge/Checker/Hyp.lean`'s `IndSpec.run` is `IndOut`'s seven clauses, so
+`indSpec_of_bridge` is a record projection and this module has no `sorry` that
+is not an unproved sub-statement.
 -/
 import ConRon.Bridge.Inductives.Modeled
 
@@ -190,36 +190,25 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
 arm) — **`Bridge/Checker/Hyp.lean`'s `IndSpec`, adapted from
 `checkIndDecl_bridge`.**
 
-Five of the seven conjuncts are `IndOut`'s own (`state`, `ext`, `pins`, `coh`,
-`visible`, `denote`).  The sixth, `PersIFEnv fe'`, is **not provable** — see
-the module note's finding 1: the route runs inside the bracket with the
-scratch tier open, so the constants it installs are scratch handles and
-persistence is `promoteNew`'s business one level up.  `Bridge/Checker/Decl.lean`'s
-`DeclOut` already says so in prose and omits the clause.
+All seven conjuncts are `IndOut`'s own (`state`, `ext`, `pins`, `coh`,
+`pushed`, `visible`, `denote`) — which they were not when this module was
+written: `IndSpec` then asked for `PersIFEnv fe'`, which is **false of this
+arm** (the route runs inside the bracket with the scratch tier open, so the
+constants it installs are scratch handles and persistence is `promoteNew`'s
+business one level up) and did not ask for `Pushed fe fe'`, which the consumer
+needs.  `Bridge/Checker/Decl.lean`'s `DeclOut` always said so in prose.
 
-**What the coordinator should change**, in `Bridge/Checker/Hyp.lean` and
-nowhere else: drop `PersIFEnv fe'` from `IndSpec.run` and add `Pushed fe fe'`
-in its place.  `Bridge/Checker/Capstone.lean` does not read `IndSpec` at all —
-it passes it to `checkDecl_bridge_ind`, whose conclusion (`DeclOut`) wants
-exactly `Pushed` and does not want `PersIFEnv` — so the edit is
-consumer-compatible and this theorem then closes with no `sorry` of its own.
-
-**The `sorry` is ONE conjunct**, deliberately: six of the seven come from
-`checkIndDecl_bridge` and the seventh is written out as its own `sorry` so
-that "which clause is unprovable" is a fact of the source and not of this
-docstring. -/
+**DONE (task #97-P3-Checker-2).**  `Bridge/Checker/Hyp.lean`'s `IndSpec.run`
+now drops `PersIFEnv fe'` and asks for `Pushed fe fe'` in its place, so the
+seven conjuncts are `IndOut`'s seven and this theorem is a record projection
+with no `sorry` of its own.  Its `sorryAx` is `checkIndDecl_bridge`'s four
+sub-statements and nothing else. -/
 theorem indSpec_of_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) : IndSpec μ := by
   refine ⟨fun {env fe fe' s s' block b nP pinsP} hok hb hpin hrun => ?_⟩
   have out := checkIndDecl_bridge (pinsP := pinsP) hμ hk hok hb hpin hrun
   obtain ⟨env', hden, F, hrunP⟩ := out.denote
-  refine ⟨out.state, out.ext, out.pins, ?_, out.coh, out.visible, env', F,
-    hden, hrunP⟩
-  -- **NOT PROVABLE** — the module note's finding 1: `checkIndDecl` runs
-  -- inside the bracket with the scratch tier open, so the constants it
-  -- installs are scratch handles and `PersIFEnv fe'` is false.  The clause
-  -- belongs to `promoteNew`, one level up, and `Bridge/Checker/Decl.lean`'s
-  -- `DeclOut` — the consumer — does not ask for it.
-  sorry
+  exact ⟨out.state, out.ext, out.pins, out.coh, out.pushed, out.visible, env',
+    F, hden, hrunP⟩
 
 end ConRon.Bridge.Inductives
