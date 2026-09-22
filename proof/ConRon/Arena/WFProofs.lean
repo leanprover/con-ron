@@ -2395,7 +2395,7 @@ handle, which is what the scratch bracket's two `_pers` lemmas ask for. -/
 theorem EWFAt.bmPers {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) (i : EIdx)
     (hp : i.isPersistent = true) :
     ∀ ty b mi, st.viewBindI i = some (ty, b, mi) → mi.isPersistent = true :=
-  fun ty b mi hh => (h.bmChildOK i ty b mi hh).2 hp
+  fun ty b mi hh => (h.bmChildOK i ty b mi hh).2.1 hp
 
 theorem EStore.view_dropScratch_pers_wf {st : EStore} (h : StoreWF st) {i : EIdx}
     (hp : i.isPersistent = true) : st.dropScratch.view i = st.view i := by
@@ -3021,17 +3021,18 @@ theorem EStore.viewBM_off {st : EStore} {i : BMIdx} (hp : i.isPersistent = false
   simp only [EStore.viewBM, EStore.persGetBM, hp, hon, Bool.false_eq_true, if_false]
 
 theorem EWFAt.findBM_of_viewBM {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
-    {mi : BMIdx} {m : ConLeche.BinderMeta} (hv : st.viewBM mi = some m) :
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (h0 : mi.tag = 0)
+    (hv : st.viewBM mi = some m) :
     st.findBM m = some mi := by
   by_cases hp : mi.isPersistent = true
-  · have hf : st.pers.findBM m = some mi := (h.bmConsP m mi).mpr ⟨hv, hp⟩
+  · have hf : st.pers.findBM m = some mi := (h.bmConsP m mi).mpr ⟨hv, hp, h0⟩
     simp only [EStore.findBM, EStore.persFindBM, hf]
   · have hp' : mi.isPersistent = false := by simpa using hp
     have hon : st.scratchOn = true := by
       cases hc : st.scratchOn with
       | false => rw [EStore.viewBM_off hp' hc] at hv; exact absurd hv (by simp)
       | true => rfl
-    have hf : st.scr.findBM m = some mi := (h.bmConsS m mi).mpr ⟨hv, hp'⟩
+    have hf : st.scr.findBM m = some mi := (h.bmConsS m mi).mpr ⟨hv, hp', h0⟩
     have hfp : st.pers.findBM m = none := h.bmFresh m mi hf
     simp only [EStore.findBM, EStore.persFindBM, hfp, hon, if_true, hf]
 
@@ -3071,10 +3072,14 @@ theorem EWFAt.persFindBM_of_view_pers {st : EStore} {rk : EIdx → Nat}
         have hmm : m' = m := Option.some.inj hm
         subst hmm
         have hmpP : mp.isPersistent = true := by
-          refine (h.bmChildOK i ty b mp ?_).2 hp
+          refine (h.bmChildOK i ty b mp ?_).2.1 hp
           simp only [EStore.viewBindI, EStore.persGetBind, hp, if_true]
           exact hg
-        exact ⟨mp, hmpP, hbm, (h.bmConsP _ mp).mpr ⟨hbm, hmpP⟩⟩
+        have hmp0 : mp.tag = 0 := by
+          refine (h.bmChildOK i ty b mp ?_).2.2
+          simp only [EStore.viewBindI, EStore.persGetBind, hp, if_true]
+          exact hg
+        exact ⟨mp, hmpP, hbm, (h.bmConsP _ mp).mpr ⟨hbm, hmpP, hmp0⟩⟩
   · rw [ETables.bmOf_get hv] at hm
     exact absurd hm (by simp)
 theorem EStore.viewBindI_pers {st : EStore} {i : EIdx} (hp : i.isPersistent = true) :
@@ -3116,7 +3121,7 @@ theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt 
     rw [EStore.view_pers hp, EStore.view_pers hp, hpers]
     refine ETables.getWith_congr ?_
     intro ty b mi hg
-    refine hbmP mi ((h.bmChildOK i ty b mi ?_).2 hp)
+    refine hbmP mi ((h.bmChildOK i ty b mi ?_).2.1 hp)
     rw [EStore.viewBindI_pers hp]; exact hg
   have hviewN : ∀ i, i.isPersistent = false → st'.view i = none := by
     intro i hp
@@ -3226,8 +3231,8 @@ theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt 
         rw [EStore.viewBindI_pers hp, ← hpers, ← EStore.viewBindI_pers hp]
         exact hvb
       have hch := h.bmChildOK i ty b mi hvb'
-      have hmp : mi.isPersistent = true := hch.2 hp
-      exact ⟨by rw [hbmP mi hmp]; exact hch.1, fun _ => hmp⟩
+      have hmp : mi.isPersistent = true := hch.2.1 hp
+      exact ⟨by rw [hbmP mi hmp]; exact hch.1, fun _ => hmp, hch.2.2⟩
     · exfalso
       have hp' : i.isPersistent = false := by simpa using hp
       cases hc : st'.scratchOn with
@@ -3258,15 +3263,15 @@ theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt 
     rw [hpers]
     constructor
     · intro hf
-      obtain ⟨h1, h2⟩ := (h.bmConsP m j).mp hf
-      exact ⟨by rw [hbmP j h2]; exact h1, h2⟩
-    · rintro ⟨h1, h2⟩
-      exact (h.bmConsP m j).mpr ⟨by rw [← hbmP j h2]; exact h1, h2⟩
+      obtain ⟨h1, h2, h3⟩ := (h.bmConsP m j).mp hf
+      exact ⟨by rw [hbmP j h2]; exact h1, h2, h3⟩
+    · rintro ⟨h1, h2, h3⟩
+      exact (h.bmConsP m j).mpr ⟨by rw [← hbmP j h2]; exact h1, h2, h3⟩
   case bmConsS =>
     intro m j
     rw [hscr, ETables.findBM_empty]
     refine ⟨fun hf => absurd hf (by simp), ?_⟩
-    rintro ⟨h1, h2⟩
+    rintro ⟨h1, h2, _⟩
     rw [hbmN j h2] at h1; exact absurd h1 (by simp)
   case bmFresh =>
     intro m j hf
@@ -3663,7 +3668,8 @@ theorem ETables.getWith_push_inv {t : ETables}
 the views do: the datum's handle is the datum, because `findBM` and `viewBM`
 are inverse on a well-formed store (task #97-P6-16). -/
 theorem EWFAt.consKeyEq_iff {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
-    {w u : ENodeView} {mi mj : BMIdx} (hmi : ENodeView.BMOK st.viewBM w mi)
+    {w u : ENodeView} {mi mj : BMIdx} (hmi0 : mi.tag = 0)
+    (hmi : ENodeView.BMOK st.viewBM w mi)
     (hmj : st.findBMOfView u = some mj) :
     ETables.consKeyEq w mi u mj = true ↔ w = u := by
   cases w
@@ -3685,7 +3691,7 @@ theorem EWFAt.consKeyEq_iff {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
       · intro he
         simp only [ENodeView.lam.injEq] at he
         obtain ⟨rfl, rfl, rfl⟩ := he
-        have hf := h.findBM_of_viewBM hbm
+        have hf := h.findBM_of_viewBM hmi0 hbm
         rw [hf] at hmj'
         have hij : mi = mj := Option.some.inj hmj'
         subst hij
@@ -3709,7 +3715,7 @@ theorem EWFAt.consKeyEq_iff {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
       · intro he
         simp only [ENodeView.forallE.injEq] at he
         obtain ⟨rfl, rfl, rfl⟩ := he
-        have hf := h.findBM_of_viewBM hbm
+        have hf := h.findBM_of_viewBM hmi0 hbm
         rw [hf] at hmj'
         have hij : mi = mj := Option.some.inj hmj'
         subst hij
@@ -3720,6 +3726,15 @@ theorem EWFAt.consKeyEq_iff {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
 theorem EStore.intern_view_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
     (_hv : st.ViewOK w) (hcap : st.capOK w) :
     (st.intern w).1.view (st.intern w).2 = some w := by
+-- MISSING: `EWFAt` does not say that the cons tables' KEYS are real.  `consP`
+-- and `consS` constrain `ETables.find? v mj` only at `mj = st.findBMOfView v`,
+-- so for a FRESH datum handle — which is exactly what `internBM` hands
+-- `internAt` when the datum is new — nothing rules out a junk key
+-- `⟨ty, b, mj⟩` already sitting in `pers.lams` / `scr.lams` and answering the
+-- probe with a handle that decodes to something else.  The fix is one more
+-- pair of `EWFAt` clauses (`∀ v mj i, st.pers.find? v mj = some i →
+-- v.bmOf = none ∨ ∃ m, st.findBM m = some mj`, and the same for `scr`), which
+-- both pushes preserve; see the report for the preservation argument.
   sorry
 theorem ETables.findBM_push (t : ETables) (w : ENodeView) (d : UInt64) (mi : BMIdx)
     (tr : UInt32) (m : ConLeche.BinderMeta) :
@@ -3756,7 +3771,7 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     (h : EWFAt st rk) (hv : st.ViewOK w)
     (hon : st.scratchOn = true) (hon' : st'.scratchOn = true)
     (hlss : st'.lss = st.lss) (hpers : st'.pers = st.pers)
-    {mi : BMIdx} (hmi : ENodeView.BMOK st.viewBM w mi)
+    {mi : BMIdx} (hmi0 : mi.tag = 0) (hmi : ENodeView.BMOK st.viewBM w mi)
     (hpush : st.scr.push w (st.derOfView w) mi Idx.tierS = (tb, inew))
     (hscr : st'.scr = tb)
     (hcap : st.scr.sizeOf w < Idx.idxCap)
@@ -3791,14 +3806,14 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     | none => exact ⟨_, EStore.findBMOfView_eq_zero _ hb⟩
     | some m =>
       exact ⟨mi, by rw [EStore.findBMOfView_eq_findBM _ hb,
-        h.findBM_of_viewBM (hmi m hb)]⟩
+        h.findBM_of_viewBM hmi0 (hmi m hb)]⟩
   have hprobe : ∀ (t : ETables) (mw : BMIdx), st.findBMOfView w = some mw →
       t.find? w mw = t.find? w mi := by
     intro t mw hw
     cases hb : w.bmOf with
     | none => exact ETables.find?_bmOf_none hb _ _
     | some m =>
-      rw [EStore.findBMOfView_eq_findBM _ hb, h.findBM_of_viewBM (hmi m hb)] at hw
+      rw [EStore.findBMOfView_eq_findBM _ hb, h.findBM_of_viewBM hmi0 (hmi m hb)] at hw
       rw [Option.some.inj hw]
   -- the appended column, read back
   have hgetnew : tb.getWith st.viewBM inew = some w := by
@@ -3824,8 +3839,8 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     intro u mj hmj
     rw [← htb, ← hid, ETables.find?_push_gen]
     by_cases hk : ETables.consKeyEq w mi u mj = true
-    · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi hmj).mp hk)]
-    · rw [if_neg hk, if_neg (fun he => hk ((h.consKeyEq_iff hmi hmj).mpr he))]
+    · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi0 hmi hmj).mp hk)]
+    · rw [if_neg hk, if_neg (fun he => hk ((h.consKeyEq_iff hmi0 hmi hmj).mpr he))]
   have hdertb : ∀ i, st.scr.Decodes i → tb.derAt i = st.scr.derAt i := by
     intro i hi; rw [← htb]; exact ETables.derAt_push_of_decodes h.sizedS hi
   have hdernew : tb.derAt inew = st.derOfView w := by
@@ -3981,7 +3996,7 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
       · subst h3
         obtain ⟨m0, hm0⟩ := ENodeView.bmOf_of_isBind
           (by rw [← h1]; exact ETables.isBind_of_getBind hvb)
-        refine ⟨by rw [hvbm mj, hmi m0 hm0]; rfl, ?_⟩
+        refine ⟨by rw [hvbm mj, hmi m0 hm0]; rfl, ?_, hmi0⟩
         intro hpp; exact absurd (hpp.symm.trans hp') (by simp)
   case consP =>
     intro u i
@@ -4813,7 +4828,7 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     (h : EWFAt st rk) (hv : st.ViewOK w) (hsync : st.ScratchSync)
     (hon : st.scratchOn = false) (hon' : st'.scratchOn = false)
     (hlss : st'.lss = st.lss) (hscr : st'.scr = st.scr)
-    {mi : BMIdx} (hmi : ENodeView.BMOK st.viewBM w mi)
+    {mi : BMIdx} (hmi0 : mi.tag = 0) (hmi : ENodeView.BMOK st.viewBM w mi)
     (hpush : st.pers.push w (st.derOfView w) mi Idx.tierP = (tb, inew))
     (hpers : st'.pers = tb)
     (hcap : st.pers.sizeOf w < Idx.idxCap)
@@ -4848,14 +4863,14 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     | none => exact ⟨_, EStore.findBMOfView_eq_zero _ hb⟩
     | some m =>
       exact ⟨mi, by rw [EStore.findBMOfView_eq_findBM _ hb,
-        h.findBM_of_viewBM (hmi m hb)]⟩
+        h.findBM_of_viewBM hmi0 (hmi m hb)]⟩
   have hprobe : ∀ (t : ETables) (mw : BMIdx), st.findBMOfView w = some mw →
       t.find? w mw = t.find? w mi := by
     intro t mw hw
     cases hb : w.bmOf with
     | none => exact ETables.find?_bmOf_none hb _ _
     | some m =>
-      rw [EStore.findBMOfView_eq_findBM _ hb, h.findBM_of_viewBM (hmi m hb)] at hw
+      rw [EStore.findBMOfView_eq_findBM _ hb, h.findBM_of_viewBM hmi0 (hmi m hb)] at hw
       rw [Option.some.inj hw]
   -- the appended column, read back
   have hgetnew : tb.getWith st.viewBM inew = some w := by
@@ -4881,8 +4896,8 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
     intro u mj hmj
     rw [← htb, ← hid, ETables.find?_push_gen]
     by_cases hk : ETables.consKeyEq w mi u mj = true
-    · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi hmj).mp hk)]
-    · rw [if_neg hk, if_neg (fun he => hk ((h.consKeyEq_iff hmi hmj).mpr he))]
+    · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi0 hmi hmj).mp hk)]
+    · rw [if_neg hk, if_neg (fun he => hk ((h.consKeyEq_iff hmi0 hmi hmj).mpr he))]
   have hdertb : ∀ i, st.pers.Decodes i → tb.derAt i = st.pers.derAt i := by
     intro i hi; rw [← htb]; exact ETables.derAt_push_of_decodes h.sizedP hi
   have hdernew : tb.derAt inew = st.derOfView w := by
@@ -5052,7 +5067,7 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
           · exact hjp
           · rw [EStore.viewBM_off (by simpa using hjp) hon] at hbm0
             exact absurd hbm0 (by simp)
-        exact ⟨by rw [hvbm mj, hbm0]; rfl, fun _ => hmjP⟩
+        exact ⟨by rw [hvbm mj, hbm0]; rfl, fun _ => hmjP, hmi0⟩
     · have hp' : i.isPersistent = false := by simpa using hp
       rw [EStore.viewBindI_off hp' hon'] at hvb
       exact absurd hvb (by simp)
@@ -5159,6 +5174,15 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
 theorem EStore.intern_wf_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
     (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
     StoreWF (st.intern w).1 := by
+-- MISSING: `EWFAt` does not say that the cons tables' KEYS are real.  `consP`
+-- and `consS` constrain `ETables.find? v mj` only at `mj = st.findBMOfView v`,
+-- so for a FRESH datum handle — which is exactly what `internBM` hands
+-- `internAt` when the datum is new — nothing rules out a junk key
+-- `⟨ty, b, mj⟩` already sitting in `pers.lams` / `scr.lams` and answering the
+-- probe with a handle that decodes to something else.  The fix is one more
+-- pair of `EWFAt` clauses (`∀ v mj i, st.pers.find? v mj = some i →
+-- v.bmOf = none ∨ ∃ m, st.findBM m = some mj`, and the same for `scr`), which
+-- both pushes preserve; see the report for the preservation argument.
   sorry
 
 theorem EStore.intern_spec_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
@@ -5177,6 +5201,15 @@ theorem EStore.intern_spec_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st
 theorem EStore.intern_isPersistent_of_off {st : EStore} {w : ENodeView}
     (h : StoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
     (st.intern w).2.isPersistent = true := by
+-- MISSING: `EWFAt` does not say that the cons tables' KEYS are real.  `consP`
+-- and `consS` constrain `ETables.find? v mj` only at `mj = st.findBMOfView v`,
+-- so for a FRESH datum handle — which is exactly what `internBM` hands
+-- `internAt` when the datum is new — nothing rules out a junk key
+-- `⟨ty, b, mj⟩` already sitting in `pers.lams` / `scr.lams` and answering the
+-- probe with a handle that decodes to something else.  The fix is one more
+-- pair of `EWFAt` clauses (`∀ v mj i, st.pers.find? v mj = some i →
+-- v.bmOf = none ∨ ∃ m, st.findBM m = some mj`, and the same for `scr`), which
+-- both pushes preserve; see the report for the preservation argument.
   sorry
 
 /-- con-leche: none — the constructor tag a level node view lands under. -/
