@@ -50,7 +50,7 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:48-50 RecordVerdict` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:49-56 RecordVerdict` —
 /// what a declaration record carries out of the parse when it does not produce
 /// a state: a positive DECLINE, or a REJECT (the record's redundant fields
 /// contradict the block's own declarations).  A message is a `Vec<u32>` of
@@ -61,7 +61,7 @@ pub enum RecordVerdict {
 }
 
 /// con-leche: ConLeche/Frontend/Export.lean:81-85 RecordVerdict.toError
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:55-57 RecordVerdict.toError`
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:58-63 RecordVerdict.toError`
 /// — the checker error a record verdict becomes; the caller pairs it with the
 /// line the record was read at.
 pub fn record_verdict_to_error(v: RecordVerdict) -> CheckError {
@@ -76,7 +76,7 @@ pub fn record_verdict_to_error(v: RecordVerdict) -> CheckError {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:83-104 ProjRecOwner
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:68-79 ProjRecOwner` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:67-83 ProjRecOwner` —
 /// what the projection-function rewrite needs to know about one
 /// structure-like owner `T` of a parsed inductive block the direct install
 /// does not serve.  A field-for-field mirror.  `super::proj_rec` is what
@@ -108,7 +108,7 @@ pub struct ProjRecOwner {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:81-90 IndTypeRec
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:92-100 MIndTypeRec` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:93-103 MIndTypeRec` —
 /// one type former of a parsed block, resolved.
 pub struct MIndTypeRec {
     pub cv: IConstantVal,
@@ -121,7 +121,7 @@ pub struct MIndTypeRec {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:104-108 MIndCtorRec` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:105-111 MIndCtorRec` —
 /// one constructor of a parsed block, resolved.
 pub struct MIndCtorRec {
     pub cv: IConstantVal,
@@ -130,7 +130,7 @@ pub struct MIndCtorRec {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:112-119 MIndRecRec` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:113-122 MIndRecRec` —
 /// one recursor of a parsed block, resolved.
 pub struct MIndRecRec {
     pub cv: IConstantVal,
@@ -142,7 +142,7 @@ pub struct MIndRecRec {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-115 BlockRec
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:123-127 BlockRec` — a
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:124-130 BlockRec` — a
 /// parsed inductive block.
 pub struct BlockRec {
     pub types: Vec<MIndTypeRec>,
@@ -155,7 +155,7 @@ pub struct BlockRec {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:131 ConstTable` — the
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:132-134 ConstTable` — the
 /// declared types of the constants pushed so far, by name.
 ///
 /// Deviation: the twin's `NIdx → Option (List NIdx × EIdx)` is a Lean
@@ -165,7 +165,7 @@ pub struct BlockRec {
 pub type ConstTable = HashMap<NIdx, (Vec<NIdx>, EIdx)>;
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:135-138 Ctx` — what the
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:136-141 Ctx` — what the
 /// generator reads besides the block.  The three function fields become three
 /// borrows (the [`ConstTable`] deviation); a lifetime-parameterised struct is
 /// established vocabulary in the port (`kernel::level::SubstZ<'a>`).
@@ -198,7 +198,7 @@ pub fn ctx_block<'a>(ctx: &'a ModelCtx<'a>, n: &NIdx) -> Option<&'a BlockRec> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:142-144 hintHeight` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:143-147 hintHeight` —
 /// the definitional height a reducibility hint carries.  It is `InModel`'s,
 /// and the parse needs it at one place only (`export_c::note_decl`, which
 /// books a pushed definition's height for the generator's hint arithmetic),
@@ -216,7 +216,7 @@ pub fn hint_height(h: &ReducibilityHint) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel.lean:34-37 wants
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:149-152 wants` — is the
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:149-153 wants` — is the
 /// block one the modeller is for: mutual (several types) or nested
 /// (`numNested > 0`)?  It reads counts and no term, so it is the same function
 /// over handles and stays beside the seam rather than inside it.
@@ -241,7 +241,7 @@ pub fn wants_nested(b: &BlockRec, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:163-164 Modeller` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:155-169 Modeller` —
 /// **the modeller seam** (DESIGN.md §8.2's `Modeller`).  One method: a block
 /// in, the model records it generates in stream order or the reason it is
 /// declined.  Handles in, handles out — nothing in (B) may build an `Expr`
@@ -271,7 +271,7 @@ pub trait Modeller {
 }
 
 /// con-leche: none — the declining stub (B) ships until the generator is ported (task #97e part 2)
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:172-173 declineModeller`
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:171-179 declineModeller`
 /// — the modeller that declines every block `wants` routes to it.  A decline
 /// here is `install_ind_d`'s own `.declined` verdict naming the block: the
 /// same positive statement con-leche makes when its own generator declines a
@@ -280,7 +280,7 @@ pub trait Modeller {
 pub struct DeclineModeller {}
 
 /// con-leche: none — the declining stub (B) ships until the generator is ported (task #97e part 2)
-/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:172-173 declineModeller`
+/// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:171-179 declineModeller`
 impl Modeller for DeclineModeller {
     /// con-leche: none — the declining stub (B) ships until the generator is ported (task #97e part 2)
     /// The twin's sentence, verbatim: `"the arena's in-process modeller is not
