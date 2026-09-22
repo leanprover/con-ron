@@ -1332,6 +1332,44 @@ above leaves open, settled by the implementation:
   neither text matches), and it never adds a second marker to a citation
   that already carries one.
 
+**The other half of the ledger: `Lean twin:` and `scripts/twin-lines.py`**
+(task #97-TWIN).  Since the arena rewrite every ported Rust item carries a
+second doc line naming the declaration of `proof/ConRon/**` it is the port
+*of*, beside the con-leche line naming what it was ported *from*:
+
+```
+/// con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:277-303 instantiate1Go` —
+/// the `bvar` substitution's fuel step.
+```
+
+It is the same `(path, range, name)` fact, and it rots FASTER: a con-leche
+citation moves when the pin moves, a twin line moves whenever anyone edits
+our own arena Lean, which is every task.  `scripts/twin-lines.py check` is
+the gate (step 6), `update` the repair, and both import `provenance.py`'s
+Lean parser rather than copying it.  Three rules are this side's own:
+
+* **`update` rewrites only the DIGITS** — never the path, the name or the
+  porter's prose.  A doc comment is not code, but Aeneas records
+  `Source: 'file.rs', lines A:0-B:1` for every definition, so rewrapping a
+  doc block moves line numbers in the committed model (task #97-SWAP §6
+  moved 740 that way).  Digits-only means `extract.sh --check` stays green
+  with nothing regenerated.
+* **A name that is GONE is never guessed.**  Which dispatcher, which
+  renamed helper, is a porting decision; the gate reports and stops.
+* **One Rust function cites ONE twin**, and for a walk split into a
+  dispatcher and one `def` per constructor arm (task #97-P3-1) that twin is
+  the DISPATCHER: the arms are the twin's own proof shape, not a second
+  ledger for the Rust to mirror.
+
+Two locators the con-leche side never needed, because a twin line cites what
+the arena's Lean happens to spell: Lean's generated name for an ANONYMOUS
+`instance` (`instance : BEq AnonNode` is `instBEqAnonNode`, derived as
+`inst` + the uppercase-initial identifiers of the type ascription), and the
+narrowing of a `where` member to its own block rather than its parent's —
+`provenance.py`'s parent rule is right for con-leche and too wide here,
+where the Rust function is the port of that inner loop and of nothing else.
+
 ### 3.8 The parser in the core, the modeller behind a trait (2026-09-14)
 
 Until task #84 the export parser was in the **unverified** crate and the
@@ -38980,3 +39018,137 @@ carried as a `StateOK` clause).  All three stand.  This round adds four:
 | `scripts/provenance.py check` | 0 findings (no `Arena/` or Rust file changed) |
 | `scripts/overview-links.sh` | OK |
 | the diff | `proof/ConRon/Refine2/{AbsStore,Inv,Specs}.lean`, `proof/ConRon/Refine2/ExprOps/{Read,Mut}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+### Task #97-TWIN — the twin-line gate (2026-09-22, Opus under Fable)
+
+The debt task #97-P3-1 booked in its own words — "the Rust is untouched, and
+owes a repoint" — paid, and made impossible to run up again.  Branch
+`twin-repoint` off `arena`'s tip `be5aab5d`; no Lean file is touched.
+
+#### 1. What was wrong, and why nothing noticed
+
+`scripts/provenance.py` keeps the Rust honest about con-leche, the tree it
+was ported FROM.  Nothing kept it honest about `proof/ConRon/**`, the tree it
+is a port OF — the second half of the same doc block:
+
+    /// con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go
+    /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:277-303 instantiate1Go` —
+    /// the `bvar` substitution's fuel step.
+
+**And this half rots faster than the other one**, which is the finding.  A
+con-leche citation moves when the PIN moves, which is a task of its own.  A
+twin line moves when anyone edits our own arena Lean, which is every task: the
+arm split moved all 23 walks of `Arena/ExprOps.lean` in one afternoon, and
+the ranges were already stale before it.  A fact no gate reads is not a fact.
+
+#### 2. `scripts/twin-lines.py`
+
+`check` and `update`, the same two modes and the same vocabulary as
+`provenance.py`, whose Lean parser it imports rather than copies
+(`comment_lines`, `decl_name_at`, `extend_block`, `locate_decl`,
+`first_decl_line`): one parser, one set of rules about what a top-level
+declaration is.
+
+* **`check`** — every `Lean twin:` citation resolves: the `.lean` file
+  exists, it has a top-level declaration whose name answers to the cited
+  one, and that declaration's BLOCK (its doc comment and attributes down to
+  the next top-level declaration, `provenance.locate_decl`'s own convention)
+  contains the cited lines.  Containment, not equality, so a hand-narrowed
+  citation survives.  0.5 s over the whole tree.
+* **`update`** — relocate by NAME, and rewrite **only the digits**.  The
+  path, the name and the porter's prose are left exactly as they are, so no
+  doc block is ever rewrapped.  That is the load-bearing property: a doc
+  comment is not code, but Aeneas records `Source: 'file.rs', lines A:0-B:1`
+  for every definition, and rewrapping one moved 740 line numbers in the
+  model when task #97-SWAP did it.  Digits-only is 1 887 insertions and
+  1 887 deletions, `Generated/` byte-identical, `extract.sh --check` green
+  with nothing regenerated.
+* **A name that is gone is NOT rewritten.**  `update` prints `GONE` and
+  moves on: a vanished twin is a porting decision — which dispatcher, which
+  renamed helper — and the script must not guess it.
+
+Two locators the con-leche side never needed, because a twin line cites what
+the ARENA's Lean happens to spell:
+
+* **anonymous instances.**  `instance : BEq AnonNode := …` has no name in
+  the source and so no entry in any index built from it, but it has one in
+  Lean — `instBEqAnonNode` — and that is what the Rust cites (task #97-SWAP
+  §6 wrote six of them out by hand).  The gate now derives the name the way
+  Lean does for these shapes: `inst`, then every uppercase-initial
+  identifier of the type ascription, in order, which is why `BEq (Idx k)` is
+  `instBEqIdx`.  A heuristic, and a safe one: a name it gets wrong resolves
+  to nothing and the gate says `GONE`.
+* **`where` members.**  `locate_decl` answers `hoistClosure.pushOne` with
+  the PARENT's block, which is the rule the con-leche ledger wants.  A twin
+  line wants the narrower answer — the Rust function is the port of that
+  inner loop and of nothing else — so the gate narrows to the member's own
+  block when the citation is a genuine `parent.leaf`.
+
+#### 3. The numbers
+
+**1 924 `Lean twin:` citations in 42 Rust files** — 1 909 in
+`crates/con-ron-core/src/{arena,frontend}`, 15 in `crates/con-ron/src/
+in_model.rs`, the unverified crate's one module with a twin.  Thirteen are a
+bare path with no declaration name ("the persistent arm of `NStore.view`"
+and its eleven siblings): a branch of a twin rather than a twin, so the FILE
+is checked and nothing else.  The other **1 911 name a declaration**, and
+1 901 of them carried a line range.
+
+| the gate's first run | |
+|---|---:|
+| findings | **1 117** |
+| the cited lines are not the declaration's | 1 046 |
+| the name does not resolve (`GONE`) | 62 |
+| a name with no line range at all | 9 |
+
+Every one of the 62 `GONE`s is now accounted for, and none of them was the
+arm split: **`expr_ops.rs` has no `GONE` at all**, because a split walk's
+dispatcher kept the walk's name.  The convention the repoint follows is
+therefore the one the split implies and needed no new rows — *one Rust
+function ↔ the twin's DISPATCHER; the arms are the twin's own shape*, a Lean
+proof obligation per constructor and not a second ledger for the Rust to
+mirror.
+
+| `GONE` | how many | resolved |
+|---|---:|---|
+| anonymous `instance`s | 54 | by the derived-name rule (`instBEqAnonNode`, `instHashableIdx`, the sixteen node-`BEq`s, …) |
+| `where` members cited by their leaf name | 6 | by hand, re-spelled with their parent: `checkSumTele.checkSumTeleSlow`, `hoistClosure.pushOne` (×2), `hoistTargetsGo.hoistDeps`, `projRecValue.internParamLevels` (×2) |
+| `builtinPreludeText` | 1 | by hand: con-leche's name has no twin in `Arena/Frontend/Prelude.lean` — the arena keeps the bytes in the generated module, so the twin is `Arena/Frontend/PreludeText.lean preludeText` |
+| `denoteLList` | 1 | by hand: it lives in `Arena/Denote.lean`, not `Arena/Frontend/Readback.lean` |
+
+Then `update`: **1 885 citations relocated, 26 already exact**, 0 `GONE`.
+Per file, the largest: `core.rs` 349 of 349, `store.rs` 302 of 333,
+`monad.rs` 113 of 113, **`expr_ops.rs` 111 of 111** — the arm split moved
+every one of them, as §1 of task #97-P3-1 predicted.  Ten citations gained a
+range they never had.
+
+The ledger now resolves as: **1 832 top-level declarations, 54 anonymous
+instances, 25 `where` members**, 13 bare paths.
+
+#### 4. The gate
+
+`scripts/twin-lines.py check` is step **6** of `scripts/gates.sh`, right
+after `provenance` and its selftest, with the comment that says why the two
+are a pair.  OVERVIEW §12's list gains the row and is renumbered to
+thirteen; its `gates.sh#L57-L67` anchor moves to `#L59-L75` and
+`scripts/overview-links.sh --update` regenerates the committed expectation
+(48 links, 31 files — the gates.sh block is the only one that changed).  §3.7 of this document — the provenance section — gains the
+convention itself: the shape of a `Lean twin:` line, the digits-only
+rule, the never-guess rule, and the two locators.
+
+| gate | |
+|---|---|
+| `LAKE_JOBS=8 scripts/gates.sh` | **all 13 OK** (`cargo-test` 7 s, `lint-rust` 2 s, `twin-lines` 11 s, `extract-check` 101 s, `lake-build` 358 s; everything else 0–1 s) |
+| `scripts/twin-lines.py check` | 1 924 citations, 42 files, **0 findings**.  The 11 s the gate run recorded is the un-memoised first cut: `locate_decl` re-parses the file per lookup and `Arena/Core.lean` is cited 349 times, which was nine of those seconds.  Memoising `comment_lines` by file, which went in with it, makes it **0.5 s**, and that is what the gate costs from here on |
+| `scripts/provenance.py check` | **0 findings**, 6 438 items (4 099 Rust, 2 339 arena Lean), 4 200 citations at pin `78ded4b6` |
+| `scripts/extract.sh --check` | green **with no regeneration** — the rewrite is digits only, so no definition's `Source:` range moved |
+| the diff | `scripts/twin-lines.py` (new), `scripts/gates.sh`, `scripts/overview-links-expected.txt`, `OVERVIEW.md` §12, this document's §3.7 (the convention and its rules), 42 `.rs` files (1 887 lines, all of them a range inside a `Lean twin:` line) and this section.  **No file under `proof/`**, no generated model |
+
+#### 5. What this buys the next round
+
+The twin ledger is now a checked fact, so the next task that moves a walk in
+`Arena/Core.lean` — §7 of task #97-P3-1 asks for exactly that, the same arm
+split over 3 757 lines — finds out at its own gate run rather than three
+rounds later, and pays for it with one `scripts/twin-lines.py update`.  The
+`GONE` list is the part that still needs a human, and it is the part that
+should: it is where a Rust function's twin stopped being the thing it was
+ported against.

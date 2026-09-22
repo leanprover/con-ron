@@ -100,7 +100,7 @@ const M_FUEL_PROMOTE_E: [u32; 24] = [
 // The memo (`Promote.lean:56-77`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:62-72 PMemo
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:58-70 PMemo
 /// The promotion's memo: the persistent handle each promoted scratch handle
 /// was copied to, one table per handle kind.  Threaded as an
 /// argument-and-result pair (the module note), fresh at every declaration.
@@ -115,11 +115,11 @@ pub struct PMemo {
     pub ls_m: HashMap<LsIdx, LsIdx>,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:74 PMemo.empty
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:72-74 PMemo.empty
 /// The empty promotion memo, which is what every declaration's promotion
 /// starts from.  `HashMap::new` allocates nothing (task #35).
 impl PMemo {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:74 PMemo.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:72-74 PMemo.empty
     pub fn empty() -> PMemo {
         PMemo {
             e_m: HashMap::new(),
@@ -134,7 +134,7 @@ impl PMemo {
 // The four handle kinds (`Promote.lean:80-208`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:89 promoteN
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:80-101 promoteN
 /// Probe the name memo (extraction rule 5: a `HashMap::get` match that
 /// produces a value is its own function; never inlined).
 pub fn pmemo_get_n(m: &PMemo, h: &NIdx) -> Option<NIdx> {
@@ -144,7 +144,7 @@ pub fn pmemo_get_n(m: &PMemo, h: &NIdx) -> Option<NIdx> {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:101 promoteN
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:80-101 promoteN
 /// Record a promoted name, on the owned memo.
 pub fn pmemo_set_n(m: PMemo, h: &NIdx, r: &NIdx) -> PMemo {
     let mut m2: PMemo = m;
@@ -152,7 +152,7 @@ pub fn pmemo_set_n(m: PMemo, h: &NIdx, r: &NIdx) -> PMemo {
     m2
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:84-101 promoteN
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:80-101 promoteN
 /// **Promote a NAME handle.**  A name's children are names, so the recursion
 /// is the prefix chain and the fuel is the store's own bound
 /// (`core::CORE_WALK_FUEL`, DESIGN.md §8.4 lesson 7).
@@ -184,7 +184,7 @@ pub fn promote_n(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:91-100 promoteN
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:80-101 promoteN
 /// The three name arms, past the probe — split off so the `view`'s loans are
 /// dead at the memo's join (extraction rule 5).
 pub fn promote_n_node(
@@ -216,7 +216,7 @@ pub fn promote_n_node(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:109 promoteL
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:103-129 promoteL
 /// Probe the level memo (extraction rule 5).
 pub fn pmemo_get_l(m: &PMemo, h: &LIdx) -> Option<LIdx> {
     match m.l_m.get(h) {
@@ -225,7 +225,7 @@ pub fn pmemo_get_l(m: &PMemo, h: &LIdx) -> Option<LIdx> {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:128 promoteL
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:103-129 promoteL
 /// Record a promoted level, on the owned memo.
 pub fn pmemo_set_l(m: PMemo, h: &LIdx, r: &LIdx) -> PMemo {
     let mut m2: PMemo = m;
@@ -233,7 +233,7 @@ pub fn pmemo_set_l(m: PMemo, h: &LIdx, r: &LIdx) -> PMemo {
     m2
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:104-128 promoteL
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:103-129 promoteL
 /// **Promote a LEVEL handle.**
 pub fn promote_l(
     pers: &PersTier,
@@ -263,7 +263,7 @@ pub fn promote_l(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:112-127 promoteL
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:103-129 promoteL
 /// The five level arms, past the probe (extraction rule 5).
 pub fn promote_l_node(
     pers: &PersTier,
@@ -308,7 +308,7 @@ pub fn promote_l_node(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:116-123 promoteL
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:103-129 promoteL
 /// The two-child level arms' pair of promotions, in the twin's order.
 pub fn promote_l_two(
     pers: &PersTier,
@@ -327,7 +327,7 @@ pub fn promote_l_two(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:133-138 promoteLList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:131-138 promoteLList
 /// Promote the levels of a universe-argument list.
 pub fn promote_l_list(
     pers: &PersTier,
@@ -339,7 +339,7 @@ pub fn promote_l_list(
     promote_l_list_from(pers, st, m, fuel, us, 0, Vec::new())
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:133-138 promoteLList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:131-138 promoteLList
 /// The cursor recursion the cited `List` recursion becomes (DESIGN.md §3.4).
 pub fn promote_l_list_from(
     pers: &PersTier,
@@ -364,7 +364,7 @@ pub fn promote_l_list_from(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:144 promoteLs
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:140-150 promoteLs
 /// Probe the level-list memo (extraction rule 5).
 pub fn pmemo_get_ls(m: &PMemo, h: &LsIdx) -> Option<LsIdx> {
     match m.ls_m.get(h) {
@@ -373,7 +373,7 @@ pub fn pmemo_get_ls(m: &PMemo, h: &LsIdx) -> Option<LsIdx> {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:150 promoteLs
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:140-150 promoteLs
 /// Record a promoted level list, on the owned memo.
 pub fn pmemo_set_ls(m: PMemo, h: &LsIdx, r: &LsIdx) -> PMemo {
     let mut m2: PMemo = m;
@@ -381,7 +381,7 @@ pub fn pmemo_set_ls(m: PMemo, h: &LsIdx, r: &LsIdx) -> PMemo {
     m2
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:142-151 promoteLs
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:140-150 promoteLs
 /// **Promote a universe-argument LIST handle.**  The list node has no fuel
 /// clause in the twin: its children are levels and the walk is one level down.
 pub fn promote_ls(
@@ -413,7 +413,7 @@ pub fn promote_ls(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:162 promoteE
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:152-200 promoteE
 /// Probe the expression memo (extraction rule 5).
 pub fn pmemo_get_e(m: &PMemo, h: &EIdx) -> Option<EIdx> {
     match m.e_m.get(h) {
@@ -422,7 +422,7 @@ pub fn pmemo_get_e(m: &PMemo, h: &EIdx) -> Option<EIdx> {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:202 promoteE
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:152-200 promoteE
 /// Record a promoted expression, on the owned memo.
 pub fn pmemo_set_e(m: PMemo, h: &EIdx, r: &EIdx) -> PMemo {
     let mut m2: PMemo = m;
@@ -430,7 +430,7 @@ pub fn pmemo_set_e(m: PMemo, h: &EIdx, r: &EIdx) -> PMemo {
     m2
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:157-202 promoteE
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:152-200 promoteE
 /// **Promote an EXPRESSION handle**: the structural copy of DESIGN.md §8.3,
 /// memoised on the node.  Ten clauses, the store's ten constructors, each
 /// promoting its own children first — `BinderMeta` and `Literal` are values
@@ -463,7 +463,7 @@ pub fn promote_e(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:165-201 promoteE
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:152-200 promoteE
 /// The ten expression arms, past the probe (extraction rule 5).
 pub fn promote_e_node(
     pers: &PersTier,
@@ -549,7 +549,7 @@ pub fn promote_e_node(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:173-194 promoteE
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:152-200 promoteE
 /// The two-child expression arms' pair of promotions, in the twin's order.
 pub fn promote_e_two(
     pers: &PersTier,
@@ -572,7 +572,7 @@ pub fn promote_e_two(
 // The lists (`Promote.lean:196-212`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:205-210 promoteNList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:204-210 promoteNList
 /// Promote a list of name handles.
 pub fn promote_n_list(
     pers: &PersTier,
@@ -584,7 +584,7 @@ pub fn promote_n_list(
     promote_n_list_from(pers, st, m, fuel, ns, 0, Vec::new())
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:205-210 promoteNList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:204-210 promoteNList
 /// The cursor recursion behind `promote_n_list` (DESIGN.md §3.4).
 pub fn promote_n_list_from(
     pers: &PersTier,
@@ -609,7 +609,7 @@ pub fn promote_n_list_from(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:214-219 promoteEList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:212-219 promoteEList
 /// Promote a list of expression handles at ONE memo, so a block's sharing
 /// survives the copy.
 pub fn promote_e_list(
@@ -622,7 +622,7 @@ pub fn promote_e_list(
     promote_e_list_from(pers, st, m, fuel, es, 0, Vec::new())
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:214-219 promoteEList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:212-219 promoteEList
 /// The cursor recursion behind `promote_e_list` (DESIGN.md §3.4).
 pub fn promote_e_list_from(
     pers: &PersTier,
@@ -658,7 +658,7 @@ pub fn promote_e_list_from(
 // direction in the twin, which walks the same records for the same reason.
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:231-237 promoteCV
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:230-236 promoteCV
 /// Promote a `ConstantVal`.
 pub fn promote_cv(
     pers: &PersTier,
@@ -686,7 +686,7 @@ pub fn promote_cv(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:239-247 promoteFire
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:238-246 promoteFire
 /// Promote a rule's firing mode.
 pub fn promote_fire(
     pers: &PersTier,
@@ -708,7 +708,7 @@ pub fn promote_fire(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:249-255 promoteRule
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:248-254 promoteRule
 /// Promote one recursor rule.
 pub fn promote_rule(
     pers: &PersTier,
@@ -741,7 +741,7 @@ pub fn promote_rule(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:257-263 promoteRules
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:256-263 promoteRules
 /// Promote a rule list.
 pub fn promote_rules(
     pers: &PersTier,
@@ -753,7 +753,7 @@ pub fn promote_rules(
     promote_rules_from(pers, st, m, fuel, rs, 0, Vec::new())
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:257-263 promoteRules
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:256-263 promoteRules
 /// The cursor recursion behind `promote_rules` (DESIGN.md §3.4).
 pub fn promote_rules_from(
     pers: &PersTier,
@@ -778,7 +778,7 @@ pub fn promote_rules_from(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:268-272 promoteCaps
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:265-271 promoteCaps
 /// Promote an inductive's capabilities.  `sort_z` is a `PropWhen` over
 /// con-leche `Name`s and carries no handle.
 pub fn promote_caps(
@@ -798,7 +798,7 @@ pub fn promote_caps(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:276-288 promoteProjTable
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:273-285 promoteProjTable
 /// Promote a projection table, `table_name` included (it is a stored handle,
 /// not a recomputed name — `arena::env`'s one added field).
 pub fn promote_proj_table(
@@ -820,7 +820,7 @@ pub fn promote_proj_table(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:281-288 promoteProjTable
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:273-285 promoteProjTable
 /// The table's second half — the constructor, the sort, the bodies and the
 /// guards — split at the twin's own `let` boundary (task #97-P4c's rule).
 #[allow(clippy::too_many_arguments)]
@@ -863,7 +863,7 @@ pub fn promote_proj_table_rest(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:290-318 promoteCI
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:287-316 promoteCI
 /// **Promote a stored constant** — the seven `IConstantInfo` constructors,
 /// which is what "the handles the environment keeps" means.
 pub fn promote_ci(
@@ -920,7 +920,7 @@ pub fn promote_ci(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:320-326 promoteCIList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:318-326 promoteCIList
 /// Promote a block's constants at ONE memo, so that the sharing between a
 /// block's members survives.
 pub fn promote_ci_list(
@@ -933,7 +933,7 @@ pub fn promote_ci_list(
     promote_ci_list_from(pers, st, m, fuel, cs, 0, Vec::new())
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:320-326 promoteCIList
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:318-326 promoteCIList
 /// The cursor recursion behind `promote_ci_list` (DESIGN.md §3.4).
 pub fn promote_ci_list_from(
     pers: &PersTier,
@@ -958,7 +958,7 @@ pub fn promote_ci_list_from(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:332-358 promoteDecl
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:328-355 promoteDecl
 /// Promote a declaration record.  Not on the fold's path — the records arrive
 /// from the parse and are persistent — and written because the layer is
 /// twinned whole (the twin's `Frontend/Readback.lean` has the same seven
@@ -1011,7 +1011,7 @@ pub fn promote_decl(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:361-367 promoteVG
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:357-365 promoteVG
 /// Promote the datum that crosses the install/check seam
 /// (`arena::checker_split`'s `ValueGroup`).  An `opaque`'s value is NOT in the
 /// environment — only the pending record holds it — so the seam is promoted
@@ -1045,7 +1045,7 @@ pub fn promote_vg(
 // (`Promote.lean:368-410`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:375-379 eraseInstalled
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:369-378 eraseInstalled
 /// Forget the index rows of the constants a step installed — `consts[i..]`,
 /// which over this `Vec`'s oldest-first order is the twin's `consts.take k`
 /// over its newest-first list.
@@ -1066,8 +1066,8 @@ pub fn erase_installed(fe: IFEnv, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:383-387 indexPromoted
-/// Lean twin: `proof/ConRon/Arena/Promote.lean:399-409 promoteNew`
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:380-386 indexPromoted
+/// Lean twin: `proof/ConRon/Arena/Promote.lean:388-408 promoteNew`
 /// Promote the constants of slots `start..j` and re-index them at the
 /// installation counters they were pushed with, walking DOWN — the twin's list
 /// is newest-first and its counters run down from `c`, which over this `Vec`
@@ -1104,7 +1104,7 @@ pub fn index_promoted(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:399-409 promoteNew
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:388-408 promoteNew
 /// **The phase-A bracket's promotion half**: the `k` constants the step just
 /// installed, copied into the persistent tier and re-indexed, everything below
 /// them untouched.
