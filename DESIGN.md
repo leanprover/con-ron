@@ -41128,7 +41128,9 @@ same note task #97-P5-Arms §9 makes about `EStore_view_tagOf`.
 | the capstone spine (§5) plus `mk_ifenv_empty_refines` and four cursor helpers | `Checker/Top.lean` | **12** |
 | **the round** | | **39** |
 
-`ConRonRefine2` stands at **904 `sorry`** and 2 219 jobs, green.  The two
+`ConRonRefine2` stands at **898 `sorry`** and 2 219 jobs, green (the six
+between the second and third `arena` merge are task #97-P5-3 round 3's, in
+`Refine2/Specs.lean` and `Refine2/ExprOps/Mut.lean`).  The two
 tiers' own open count is **342** (was 360): `Promote/Intern.lean` 24,
 `Promote/Promote.lean` 29, `Checker/Axioms.lean` 59, `Checker/Canon.lean` 30,
 `Checker/Pins.lean` 6, `Checker/Spec.lean` 1, `Checker/Base.lean` 61,
@@ -41207,9 +41209,9 @@ lemma this round claims is closed.
 
 #### 10. The merges, and the gates
 
-`arena` moved twice under this branch and both are merged, with **no `.lean`
-conflict either time** — the only textual conflict was DESIGN.md's task log,
-which is append-both.
+`arena` moved **three times** under this branch and all three are merged,
+with **no `.lean` conflict any time** — the only textual conflict was
+DESIGN.md's task log, which is append-both.
 
 * **`d9f38ae8`** (task #97-P5-Core-2): brought `Core/Arms/Delta.lean`,
   `CoreCtx`'s two new clauses and the `KnotRel` side condition's removal.  §4
@@ -41223,10 +41225,17 @@ which is append-both.
   §12), so the merge costs a 1 020 s re-derivation of the 109 unfolding
   equations before anything above it rebuilds.  That is a build cost and not a
   proof cost: no statement of this tier changed, and the tower came back green.
+* **`4137393b`** (tasks #97-P5-3 round 3, #97-P3-2, #97-P3-Checker-2 and the
+  `drop-worktree.sh` rule): `Refine2/Specs.lean` +1 010 lines and
+  `Refine2/ExprOps/Mut.lean` +307, which is the `intern_*` family this tier
+  waits on moving under it — and `Refine2/{Checker,Promote}/**` untouched, so
+  the merge is textually free.  `Generated/**` did NOT move, so `Core/Eqns.lean`
+  stayed cached and the rebuild was minutes rather than the hour the second
+  merge cost.  The gates below are this tip's.
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green, 2 219 jobs**, 0 errors, **904 `sorry`** |
+| `cd proof && lake build ConRonRefine2` | **green, 2 219 jobs**, 0 errors, **898 `sorry`** |
 | `cd proof && lake build` | **green, 2 209 jobs** — the default targets are untouched (`ConRonRefine2` is deliberately not one) |
 | `scripts/provenance.py check` | 0 findings — `6 650 item(s) (4 099 Rust, 2 551 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
