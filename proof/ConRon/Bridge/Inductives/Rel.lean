@@ -823,6 +823,23 @@ theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {n p : NIdx}
     rw [hb] at hne
     exact absurd hne (by simp)
 
+/-- con-leche: none — `beq_handle_eq` with the pure side FLIPPED, which is
+the shape `Arena/Inductives/Modeled.lean`'s `renameBy` needs: its lookup
+compares `tbl.1 == n` where con-leche's rename compares `n` against the name
+the entry stands for. -/
+theorem beq_handle_eq' {st : EStore} (hwf : StoreWF st) {n p : NIdx}
+    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
+    (hp : denoteN st.ns p = some x) : (n == p) = (x == nm) := by
+  rw [beq_handle_eq hwf hn hp]
+  cases h : (nm == x) with
+  | true => obtain rfl := eq_of_beq h; simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro hc
+    subst hc
+    simp at h
+
 /-- con-leche: none — **an EXPRESSION-handle comparison is a structural
 comparison**, at both signs.  The `false` half is `denoteE_inj`
 (`Arena/WFProofs.lean`) — DESIGN §8.3's soundness obligation, which the two
@@ -1232,6 +1249,37 @@ theorem internNNode_run {s s' : AState} {v : NNodeView} {h : NIdx}
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
   exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8, h10⟩
+
+/-- con-leche: none — `internNNode` at a `.str`: every name this tier builds
+(`N._model`, `T.proj`, `T._model.proj_i`) goes through it. -/
+theorem internStrN_run {s s' : AState} {p : NIdx} {pm : ConLeche.Name}
+    {str : String} {h : NIdx} (hok : StateOK s)
+    (hp : denoteN s.store.ns p = some pm)
+    (hrun : internNNode (.str p str) s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = some (pm.str str) := by
+  obtain ⟨hstep, hd⟩ := internNNode_run hok
+    (by intro c hc
+        simp only [NNodeView.children, List.mem_singleton] at hc
+        subst hc
+        exact nview_isSome_of_denote hp) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteNView, denoteN_ext hp hstep.ext, Option.map_some]
+
+/-- con-leche: none — and at a `.num`: `projFnName`'s last component. -/
+theorem internNumN_run {s s' : AState} {p : NIdx} {pm : ConLeche.Name}
+    {i : Nat} {h : NIdx} (hok : StateOK s)
+    (hp : denoteN s.store.ns p = some pm)
+    (hrun : internNNode (.num p i) s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = some (pm.num i) := by
+  obtain ⟨hstep, hd⟩ := internNNode_run hok
+    (by intro c hc
+        simp only [NNodeView.children, List.mem_singleton] at hc
+        subst hc
+        exact nview_isSome_of_denote hp) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteNView, denoteN_ext hp hstep.ext, Option.map_some]
 
 /-- con-leche: none — a handle list's denotation splits over an append, which
 is what the two-spine generators (`structCtorSpine`, `structFamI`) need before
