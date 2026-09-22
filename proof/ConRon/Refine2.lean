@@ -27,6 +27,7 @@ readings of the machine-word operations are all imported rather than rebuilt.
 | `Refine2/Specs.lean` | the inversion layer, one `_run` lemma per primitive, keyed on the Rust equation |
 | `Refine2/ExprOps/*.lean` | the `arena::expr_ops` tier: 120 functions, one `_refines` each |
 | `Refine2/Core/*.lean` | the `arena::core` tier: `KnotRel`, the knot's memo floor, the fuel induction and the six entry points |
+| `Refine2/Inductives/*.lean` | the `arena::inductives` tier: 306 functions, one `_refines` each, and `IndRel` |
 -/
 import ConRon.Refine2.Idiom
 import ConRon.Refine2.AbsStore
@@ -49,3 +50,4 @@ import ConRon.Refine2.Checker.Spec
 import ConRon.Refine2.Checker.Base
 import ConRon.Refine2.Checker.DeclCheck
 import ConRon.Refine2.Checker.Top
+import ConRon.Refine2.Inductives.Top
