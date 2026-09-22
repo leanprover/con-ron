@@ -67,7 +67,38 @@ section for every task you land.
   re-deriving `Refine2/Core/Eqns.lean`'s 109 `partial_fixpoint` equations.
   `cp -a --reflink=auto <a tree that has it>/proof/.lake/build
   proof/.lake/build` is instantaneous on this filesystem.  Do it before the
-  first `lake build` in any new worktree.
+  first `lake build` in any new worktree.  It needs a *source tree that
+  still has the build*, which is why the shared Lake cache below is the
+  better answer when it has been seeded.
+* **The shared Lake artifact cache** (task #97-CACHE).  Lake 5 keeps a
+  content-addressed local cache keyed by each module's *input hash* — source
+  bytes, import artifact hashes, toolchain, options, module name — with **no
+  absolute path in the key**, so one cache serves every worktree, every
+  branch, and survives a worktree being deleted.  `flake.nix` points
+  `LAKE_CACHE_DIR` at `$CON_RON_ROOT/_tmp/lake-cache`, which is the shared
+  `_tmp/`, so all worktrees already read the same cache; Lake's own default
+  (`$ELAN_HOME/toolchains/<tc>/lake/cache`) is a separate bind mount in the
+  sandbox and would *copy* instead of hard-link, so do not use it.
+  * **Reading is automatic and free**: a fresh worktree restores every
+    module the cache has, hard-linked into `proof/.lake/build` (0 bytes of
+    disk), in seconds.  An empty cache changes nothing.
+  * **Writing is opt-in.**  Seeding it is one build, run from a tree that
+    already has the artifacts: `LAKE_ARTIFACT_CACHE=true
+    LAKE_RESTORE_ARTIFACTS=true lake build <target>` — this re-elaborates
+    nothing when the tree is up to date, it just hard-links what is already
+    there into the cache.  **Do this after building
+    `Refine2/Core/Eqns.lean`**; that one module is the whole prize.
+  * `lake cache get`/`put` are for *remote* services (Reservoir/S3) and are
+    irrelevant here.  `lake cache clean` (or `rm -rf _tmp/lake-cache`) is
+    the only GC there is: the cache pins every artifact ever written to it,
+    so it grows across bumps and wants an occasional sweep.
+  * **Caveat for the shared `_tmp/aeneas-lean`**: a writable-cache build
+    also caches the *dependency* packages in the target's import closure,
+    which chmods their build files to `r--r--r--` and rewrites their
+    `.hash` files.  That is Lake's normal behaviour and is harmless, but it
+    is a write to shared state — so seed from a tree whose packages are its
+    own, or accept it deliberately; never turn `LAKE_ARTIFACT_CACHE` on
+    project-wide without saying so.
 * **Shared state between agent worktrees.** `_tmp/` is one directory shared
   through a symlink by every worktree: never rebuild, clean or re-copy
   `_tmp/aeneas-lean` (the patched Aeneas library and Mathlib) from a worktree
