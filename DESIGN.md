@@ -45905,8 +45905,8 @@ four first: it took the one thing round 2's §6 table said was blocking three
 walks at once — *"no import of the `ExprOps` tier is made by
 `Bridge/Core/Walks/**` this round, which is the only reason this is not
 proved here"* — and found that the import is both free and impossible,
-depending on WHICH module makes it.  That is finding 17 below and it is the
-round's most useful result for scheduling.
+depending on WHICH module makes it.  That is **finding 18** below and it is
+the round's most useful result for scheduling.
 
 **Six of `Walks/Owed.lean`'s sixteen are closed** (`unfoldableHead`,
 `headHint`, `sameConstHeads`, `defeqSpine`, `isPropType`, `defEqList`), the
