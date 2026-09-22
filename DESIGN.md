@@ -42476,3 +42476,315 @@ swap places rather than one being edited into the other.
 | `scripts/arena-census.py --selftest` | 20 fixture rows, every verdict as recorded (0.07 s) |
 | `scripts/arena-census.py --summary` | 1.7 s, no STALE / REDUNDANT / MALFORMED skip, no orphan arm |
 | the diff | `scripts/arena-census.py` (new), `scripts/arena-census-skip.txt` (new), `scripts/testdata/arena-census/**` (new), `scripts/gates.sh` (one hook line and its comment), this section.  **No file under `proof/` or `crates/`**, no generated model |
+
+### Task #97-P3-Core-2 — Theorem 1: the projection denotation, the fuel merge, and the first of the six bodies closed (2026-09-22, Opus under Fable)
+
+Phase **P3** of §8.6, the Core round's third: the two items task
+#97-P3-CoreWalks named as the tier's own next steps — its §5 (*"the projection
+table has no denotation … **it should be the next round's first commit**"*)
+and its §6.1 (*"the bridge owes one `…_mono` per LOOPING walk … **it is not a
+gap in the argument; it is a line item nobody had costed**"*) — and what they
+unblock.  Branch `p3-core-2` off `arena`'s `e0616fdf`, merged forward once
+(to `2fca3435`).
+
+**Both are done, and the third thing is the payoff**: with the merge in hand
+**`whnfBody_spec` is PROVED** — the first of the six body walks with no proof
+obligation of its own left, inheriting `sorryAx` from exactly two walk
+theorems and from nothing else.
+
+#### 1. What the round landed
+
+| module | raw | non-blank | decls | elaboration |
+|---|---:|---:|---:|---:|
+| `Bridge/Rel.lean` — `denoteProjEntry` and its ten lemmas (§2) | 1 865 (+334) | 1 663 | +12 | **3.3 s** |
+| `Bridge/Core/Walks/Mono.lean` — the fuel merge, NEW | 494 | 421 | 45 | **0.90 s** |
+| `Bridge/Core/Walks/Proj.lean` — the projection table, NEW | 380 | 339 | 10 | **1.3 s** |
+| `Bridge/Core/Walks/Spec.lean` — two `SimOOp` inversions | 209 (+24) | 173 | +2 | **0.77 s** |
+| `Bridge/Core/Walks/Cached.lean` — `lvlEq?`/`lvlsEq?` at both signs (§5.1) | 444 (±0) | 399 | — | **1.1 s** |
+| `Bridge/Core/Walks/Owed.lean` — two statements re-shaped (§5.2) | 469 (+46) | 405 | — | **0.80 s** |
+| `Bridge/Core/Arms/Whnf.lean` — `whnfLoop_spec`, `whnfBody_spec` (§4) | 294 (+198) | 267 | +3 | **1.2 s** |
+
+`lake build ConRonBridge` on the merged tree: **0 errors, 615 jobs** (612
+before this round).  **Nothing in the round is anywhere near the 20 s flag** —
+the slowest module the round touches is `Bridge/Rel.lean` at 3.3 s and the
+slowest it wrote is `Walks/Proj.lean` at 1.3 s; the seven modules of the whole
+`ConRonBridge` library that DO cross 20 s are all in `Bridge/ExprOps/**` and
+all pre-date this branch (`Subst` 372 s, `Abs` 129 s, `Reset` 113 s, `Walks`
+39 s, `Ranges` 35 s, `Guards` 31 s, `Spine` 30 s).  That is the third round in
+a row where the Core tier's cost is ~1 s per module, and §8 of task
+#97-P3-Core says why: there is no `grind` closer over a twin's arms anywhere
+in it.
+
+#### 2. `denoteProjEntry` — the design, and the one clause neither tier records
+
+`Arena/Env.lean:150`'s `IProjEntry` has ten fields: six handles
+(`structName`, `levelParams`, `ctor`, `body`, `fieldSort`, `structSort`) and
+four scalars the two tiers share (`idx`, `numParams`, `numFields`, `off`).
+`denoteProjEntry st e` denotes the six and copies the four — exactly
+`Arena/Frontend/Readback.lean`'s `denoteProjTable` shape, minus the
+`tableName` field an entry does not carry.  It lives in `Bridge/Rel.lean`
+beside the other ten transports, with
+
+* `denoteProjEntry_inv` — the field-by-field inversion, the workhorse of every
+  walk that reads an entry;
+* `denoteProjEntry_ext` — the `Ext` transport;
+* **`denoteProjTable_entry` — the exactness lemma**: *taking the per-field
+  view commutes with the denotation*,
+  `denoteProjTable st t = some p → denoteProjEntry st (t.entry i) = some (p.entry i)`;
+* `denoteProjTable_sizes` and `denoteProjTable_fields` — the two indexed
+  columns keep their lengths and the four scalars survive literally;
+* `denoteCI_projInfo` — the denotation does not change a constant's
+  CONSTRUCTOR, which is what turns *"the environment stores a table here"*
+  into *"the index stores one too"*;
+* four list lemmas the exactness lemma runs on (`denoteEList_len`,
+  `denoteLList_len`, `denoteEList_getD`, `denoteLList_getD`).
+
+**The finding.**  `denoteProjTable_entry` is exact **in range and not outside
+it**, and that is arithmetic, not a proof weakness.  Both `entry` functions
+read their two indexed columns with a DEFAULT (`bodies.getD i default`,
+`guards.getD i default` against con-leche's `guards.getD i .zero`) and the two
+defaults are unrelated across the denotation: `(default : EIdx)` need not
+denote `(default : Expr)` in any store, and `(default : LIdx)` need not denote
+`Level.zero` — the arena keeps `.zero` in a table like every other level node,
+so whether handle `default` decodes at all is a property of the state.
+
+So the lemma takes `i < t.bodies.size` and `i < t.guards.length`, and both
+`findProj?`s guard on `i < tbl.numFields`.  What is wanted is therefore
+`numFields ≤ both columns` — and **con-leche records half of it**:
+`Verify/EnvWF.lean:191`'s `ConstWF` clause for a stored `.projInfo tbl` says
+`tbl.bodies.size = tbl.numFields` and says **nothing about `tbl.guards`**.
+(The install builds the two together, `structProjBodies` / `structProjGuards`,
+so the fact is true; it is simply not in the invariant.)
+`Bridge/Core/Walks/Proj.lean`'s `ProjTablesShaped` is that missing clause,
+carried as a named hypothesis of `IFEnv.findProj?_spec` so that it can be
+discharged once, at the checker tier, when the install's own invariant reaches
+here.  **It is a clause nobody had written down, not a gap in the argument** —
+and the honest home for it is con-leche's own `ConstWF`.
+
+What `denoteProjEntry` unblocks, all of it in `Bridge/Core/Walks/Proj.lean`:
+
+| theorem | status |
+|---|---|
+| `projTableName_spec` — the reserved table name, interned | **CLOSED** |
+| `IFEnv.findProj?_spec` — the indexed lookup, both directions | **CLOSED** (on `ProjTablesShaped`) |
+| `IProjEntry.fireOk_spec` — the tower-fire guard | **CLOSED** |
+| `IProjEntry.typeAt_spec` | stated; waits on `ExprOps.instLPFast_spec` + `instantiateList_spec` |
+| `projCert_spec` | stated; waits on `constTyAt_spec` and an `iotaCerts_spec` |
+
+`IProjEntry.fireOk_spec` is the round's exemplar walk: seven verification
+conditions (the pin read, the `lvlEq?` call's own precondition, the three
+readbacks' preconditions and the guard's two arms), `lvlEq?_spec` for the
+structure sort, the three
+readbacks for the level parameters / instantiation levels / field sort, and
+then `Level.subst` and `Level.isEquiv` on values both tiers share — **no
+`ExprOps` rule, no fuel, no `∃ F`**.
+
+#### 3. The fuel merge — `Bridge/Core/Walks/Mono.lean`, cheaper than it was priced
+
+DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 priced it at *"ten lines in
+`Verify/Mono.lean`'s own shape"* per looping walk.  **It is five**, and it
+covers every knot-calling walk rather than only the looping ones, because
+con-leche's `Verify/PairM.lean` already has the two projection lemmas for all
+of them — it built them for its own six bodies and they cover the helpers on
+the way down.  Each row is
+
+```lean
+theorem defEqList_mono (h : FnsRefines r₁ r₂) (d : Nat) (as bs : List Expr) :
+    MRefines (defEqList r₁ env d as bs) (defEqList r₂ env d as bs) := by
+  have := (defEqList (pairFns r₁ r₂ h) env d as bs).property
+  rwa [defEqList_fst, defEqList_snd] at this
+```
+
+and its fueled corollary is one line over `Verify/Mono.lean`'s `pureFns_mono`.
+**Twenty-two of each, plus `merge2`** (the `max`-and-lift idiom every caller
+repeats):
+
+`reduceNat`, `iotaCerts`, `defEqList`, `iotaIndexOk`, `proofIrrel`,
+`propIrrel`, `structEtaProjCerts`, `structEtaCertWith`, `structEtaCert`,
+`structUnitCert`, `etaCert`, `stuckIrrel`, `majorToCtor`, `litMajorToCtor`,
+`prepareMajor`, `projLitToCtor`, `projCert`, `projCertAt`, `iotaRec`,
+`boolTrueShortcut`, `defeqSpine` — and the two LOOPS **at an arbitrary
+budget**, `whnfLoop` and `defeqLoop`, which con-leche's own `whnfBody_mono` /
+`defeqBody_mono` give only at `whnfLoopFuel` / `defeqLoopFuel` and which the
+two body inductions need at every `n`.
+
+The module **mentions no arena state at all**: it imports `ConLeche.Verify.Mono`
+and nothing of `ConRon.Arena`, elaborates in **0.90 s**, and **every one of
+its forty-five results was right on the first elaboration**.  It is the
+cheapest module of the whole Core tier, and §6.1's *"unpriced line item"* is
+paid in full and for every walk, not only the three that motivated it.
+
+#### 4. `whnfBody_spec` — PROVED, and what "proved" means here
+
+DESIGN §8's `### Task #97-P3-CoreWalks` §9 said *"`whnfBody_spec` is the
+nearest of the six — one `Nat` induction on the loop's budget over three
+CLOSED step lemmas — and it needs exactly two walk theorems … **so
+`whnfBody_spec` closes the day `instLPFast_spec` does**, and not before."*
+That sentence is now literally true: the induction, the merge and the entry
+bracket are written, and the only thing between `whnfBody_spec` and a
+sorry-free proof is those two walk theorems.
+
+Three pieces, all in `Bridge/Core/Arms/Whnf.lean`:
+
+1. **`whnfLoopFuel_eq`** — `ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel`.
+   Task #97c twinned con-leche's number verbatim, but con-leche's is
+   `@[irreducible]`, so the equation needs one `unseal`.  One line, and the
+   kind of thing only a proof finds.
+2. **`whnfLoop_spec`** — Theorem 1 for the loop at an ARBITRARY step budget,
+   one `Nat` induction over §1's three step lemmas.  Thirteen verification
+   conditions: two preconditions of the `whnfCore` slot, two of `reduceNat`,
+   two of `unfoldDefinition`, four for the induction hypothesis in the two
+   continuing arms, and the three arms' conclusions.  **Each conclusion is the
+   fuel merge in one line**: `max F₁ (max F₂ F₃)` and three lifts —
+   `whnfCore_mono` from con-leche, `reduceNatFueled_mono` and
+   `whnfLoopFueled_mono` from §3 — then `whnfLoop_reduceNat` /
+   `whnfLoop_delta` / `whnfLoop_done`, which task #97-P3-Core had already
+   closed.
+3. **`whnfBody_spec`** — `mvcgen [whnfBody, whnfLoop_spec]` and three
+   verification conditions, the last of which is `whnfLoopFuel_eq` followed by
+   `whnf_of_loop`.
+
+`#print axioms whnfBody_spec` reads `[propext, sorryAx, Classical.choice,
+Quot.sound]`, and the `sorryAx` comes from `reduceNat_spec` and
+`unfoldDefinition_spec` **and from nothing else**.
+
+#### 5. The three findings
+
+##### 5.1 A one-directional verdict spec cannot decide a guard
+
+`lvlEq?_spec` (task #97-P3-CoreWalks, CLOSED) concluded
+`∀ b, r = some b → … Level.isEquiv lu lv = some b` — the `some` half only —
+with the note *"`none` is con-leche's own fuel exhaustion inside `isEquiv` and
+claims nothing"*.  **`IProjEntry.fireOk` needs the other half.**  The guard
+fires the projection rule when the structure sort is NOT provably zero, i.e.
+it reads `lvlEq? ≠ some true`, and con-leche's `ProjEntry.fireOk` reads
+`!(Level.isEquiv structSort .zero == some true)`; the two agree only if the
+walk's `none` IS `isEquiv`'s `none`.  It is — `lvlEq?` returns the memo row or
+`Level.isEquiv lu lv` itself and nothing else — so both specs are strengthened
+to the EQUATION `r = Level.isEquiv lu lv`.  It costs the two proofs one
+`.symm` in three branches each, **the two modules' elaboration does not move**,
+and `Bridge/Inductives/SumParts.lean`'s own note had already asked for it in
+its words: *"`lvlEq?_spec` read at both signs"*.
+
+The rule: *a verdict walk's spec is an equation on the whole `Option`, not an
+implication out of its `some` half — a caller that decides a GUARD needs the
+negative half and cannot recover it.*
+
+##### 5.2 A walk whose subject is another walk's ANSWER must not take that answer's denotation as an explicit argument
+
+The sixteen statements of `Bridge/Core/Walks/Owed.lean` were written with the
+subject's denotation as an explicit `(x : Expr)` argument and a
+`denoteE s₀.store e = some x` hypothesis.  **That shape cannot be used from a
+caller that reaches the walk through another call**, and `whnfStep` is exactly
+such a caller: it runs `r.whnfCore` first and hands `reduceNat` the REDUCT,
+whose denotation is not known until the first call's postcondition is in hand.
+`mvcgen` must guess `x` when it applies the spec; it guesses the only `Expr`
+in scope — the *original* subject — and the side goal it leaves,
+`denoteE s.store <reduct> = some <original>`, is false.  Measured: the first
+attempt at `whnfLoop_spec` came back with verification conditions of the form
+`(s : AState) → … → Expr` — *"supply the witness yourself"* — around an
+already-mis-instantiated spec, and with a side goal that cannot be proved.
+
+The fix is task #97-P3-0's **rule 4** one step further: the denotation goes
+into the hypothesis as an **existential**
+(`∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x`, which names no
+metavariable) and out of the postcondition as a **universal**
+(`∀ x, denoteE s₀.store e = some x → …`).  `reduceNat_spec` and
+`unfoldDefinition_spec` are restated that way, and `whnfLoop_spec` is stated
+that way.  The other fourteen keep the explicit-argument shape until their
+callers are written; the rule is *a walk whose subject is another walk's
+answer must not take that answer's denotation as an explicit argument*.  It is
+`Bridge/Core/Walks/Cached.lean`'s own shape, which is why the previous round's
+two closed exemplars never met this.
+
+`unfoldDefinition_spec` gained one conjunct with the re-shape, and it is a
+real obligation rather than bookkeeping: *the delta reduct is well scoped at
+the query's depth*, which `whnfLoop`'s next iteration needs and which nothing
+had stated.
+
+##### 5.3 Finding 3 of the previous round, one rung down — and an ask
+
+Task #97-P3-CoreWalks' finding 3 was *"a registered `@[spec]` is a commitment;
+state the frame in it the first time, because a caller cannot add one later"*,
+and its fix strengthened `Bridge/Specs.lean`'s three readback specs with the
+`caches` frame conjunct.  **`Bridge/SpecsL.lean`'s `readNamesM_spec` was not
+strengthened**, and `IProjEntry.fireOk` reads a level-parameter list back — so
+no caller of it can rebuild `CacheOK`.
+
+`SpecsL.lean` is not this round's lane, and `Bridge/ExprOps/**` is being
+closed concurrently against `readNamesM` through `instLPFast_spec`; a spec
+strengthened under a live proof is how a merge breaks.  So this round took the
+*first* shape the previous round describes and then discarded: a **body copy
+with no spec of its own** (`readNamesMB`, `= rfl` to `readNamesM`), a frame
+theorem about the copy, and one `simp only [readNamesM_eq]` in front of the
+walk's `mvcgen`.  Twenty-five lines, all of them inside `Bridge/Core/**`.
+
+**Ask for the coordinator**: one conjunct in `Bridge/SpecsL.lean`'s
+`readNamesM_spec` —
+`s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧` — deletes the
+detour whole, at the same cost (`rfl`) as the previous round's three.  It
+should be taken in the same window as whatever next touches `SpecsL.lean`, not
+under a live `instLPFast_spec` proof.
+
+#### 6. The sorry list, per file — thirty-one
+
+| file | count | what |
+|---|---:|---|
+| `Core/Arms/WhnfCore.lean` | 2 | `whnfCoreBody_app_batched`, `whnfCoreBody_spec` |
+| `Core/Arms/Whnf.lean` | **0** | — (`whnfBody_spec` PROVED, §4) |
+| `Core/Arms/Infer.lean` | 3 | `inferBody_app_batched`, `inferBody_binders_batched`, `inferBody_spec` |
+| `Core/Arms/InferIO.lean` | 1 | `inferBodyIO_spec` |
+| `Core/Arms/Defeq.lean` | 2 | `defeqPeel_chain`, `defeqBody_spec` |
+| `Core/Arms/Annotate.lean` | 2 | `annotateBody_binders_batched`, `annotateBody_spec` |
+| `Core/Walks/Cached.lean` | 3 | `constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec` — all on `ExprOps.instLPFast_spec` |
+| `Core/Walks/Owed.lean` | 16 | task #97-P3-CoreWalks §6's table, unchanged except the two re-shaped in §5.2 |
+| `Core/Walks/Proj.lean` | 2 | `IProjEntry.typeAt_spec`, `projCert_spec` (§2) |
+| **total** | **31** | was 30 before the round: −1 (`whnfBody_spec`) +2 (`Proj.lean`'s two new statements) |
+
+**`knot_spec` and `knot_spec_checkFuel` still inherit**, from the five
+remaining `…Body_spec` — one fewer than before.
+
+#### 7. The axiom census
+
+`#print axioms` at the round's new CLOSED results — `denoteProjEntry_inv`,
+`denoteProjEntry_ext`, `denoteProjTable_entry`, `denoteProjTable_sizes`,
+`denoteProjTable_fields`, `denoteCI_projInfo` and the four list lemmas;
+`SimOOp.some_inv` / `.none_inv`; the forty-five of `Walks/Mono.lean`;
+`projTableName_spec`, `readNamesM_eq`, `readNamesMB_frame`,
+`IFEnv.findProj?_spec`, `IProjEntry.fireOk_spec`; `whnfLoopFuel_eq` and the
+four step lemmas — **every one at `[propext, Classical.choice, Quot.sound]`**,
+with the single exception of `merge2`, which is at **`[propext]` alone**.  No
+`sorryAx` on a closed result, no `bv_decide` axiom, as everywhere in this
+library.  `lvlEq?_spec` and `lvlsEq?_spec` stay at the three standard axioms
+after the strengthening.
+
+The two that DO carry `sorryAx` and should: `whnfLoop_spec` and
+`whnfBody_spec`, from §4's two walk theorems.
+
+#### 8. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK**, on the merged tree |
+| `cd proof && lake build ConRonBridge` | **0 errors, 615 jobs** (612 before); 31 `sorry`, all in §6 |
+| `#print axioms` | §7 — every new closed result at the three standard axioms (`merge2` at `[propext]`); `sorryAx` on exactly `whnfLoop_spec`, `whnfBody_spec` and §6's thirty-one |
+| elaboration | §1 — nothing the round wrote is above **1.3 s**, and the 20 s flag is not approached; the seven modules of the library that do cross it are all `Bridge/ExprOps/**` and all pre-date the branch |
+| `scripts/provenance.py check` | 0 findings, 6 465 items at pin 78ded4b6 |
+| `scripts/twin-lines.py check` | 1 924 citations, all current |
+| the diff | `proof/ConRon/Bridge/Core/**`, `proof/ConRon/Bridge/Rel.lean` (one definition and its lemmas) and this section.  **No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module** — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
+#### 9. What the next round of this tier should take
+
+1. **`reduceNat_spec`** — the one walk `whnfBody_spec` waits on that needs
+   nothing from the `ExprOps` tier.  Five state-only walks under it
+   (`rawNatLit?`, `natLitSupported`, `natOpStored`, `natBinOpName`,
+   `natOpResult`), all of them pin reads and one `internE`, and §5.2's shape
+   is already in its statement.  It would make `whnfBody_spec` wait on
+   `unfoldDefinition_spec` alone, i.e. on `instLPFast_spec` alone.
+2. **`defEqList_spec`**, whose only missing piece before this round was the
+   fuel merge — `defEqListFueled_mono` is now in hand, and what is left is the
+   `List` induction over `KnotSpec.defeq`.
+3. **`iotaCerts_spec`**, which `projCert_spec` and `iotaRec_spec` both sit on
+   and whose merge (`iotaCertsFueled_mono`) is also in hand.
+4. The `SpecsL.lean` conjunct of §5.3, in a window where `Bridge/ExprOps/**`
+   is quiet.
