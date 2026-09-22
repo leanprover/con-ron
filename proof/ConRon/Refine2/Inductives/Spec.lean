@@ -942,7 +942,80 @@ theorem nativeShape_unfold (nPd : Nat) (block : List IConstantInfo) :
           nativeShapeAtSpec nPd cvT cs cvR mI rP rules
         | none => pure none
       | _ => pure none) := by
-  sorry
+  rw [nativeShape?.eq_def]
+  rcases block with _ | ⟨ci, rest⟩
+  · rfl
+  · cases ci
+    case indInfo cvT caps =>
+      simp only []
+      rcases hs : sumSplit rest with _ | ⟨cs, cvR, mI, rP, rules⟩
+      · rfl
+      · simp only []
+        rw [nativeShapeAtSpec.eq_def]
+        refine am_bind_congr _ ?_
+        intro a
+        cases a with
+        | none => rfl
+        | some q =>
+          obtain ⟨nP, nIdx⟩ := q
+          refine am_bind_congr _ ?_
+          intro reserved
+          simp only [ctorsPinOkSpec]
+          split
+          · rw [nativeShapeSortSpec.eq_def]
+            have hK : ∀ (lvl : LIdx), (do
+                let z ← zeroLevel
+                let isProp := (← lvlEq? lvl z) == some true
+                let ctors := cs.map fun c => (c.1, c.2.2)
+                let rhss := rules.map (·.rhs)
+                let large? : Option NIdx := match cvR.levelParams with
+                  | elim :: relps =>
+                    if relps == cvT.levelParams && !cvT.levelParams.contains elim then
+                      some elim else none
+                  | [] => none
+                match large? with
+                | some elim =>
+                  pure (some ⟨cvT, ctors, nP, nIdx, cvR, elim, lvl, rhss, true, isProp⟩)
+                | none => do
+                  let anon ← internNNode .anonymous
+                  pure (some ⟨cvT, ctors, nP, nIdx, cvR, anon, lvl, rhss, false, isProp⟩))
+              = nativeShapeElimSpec cvT cs cvR rules nP nIdx lvl := by
+              intro lvl
+              rw [nativeShapeElimSpec.eq_def]
+              refine am_bind_congr _ ?_
+              intro z
+              refine am_bind_congr _ ?_
+              intro v
+              rcases hl : cvR.levelParams with _ | ⟨elim, relps⟩
+              · simp only []
+                rw [nativeShapeSmallSpec.eq_def]
+              · simp only []
+                by_cases hc :
+                    (relps == cvT.levelParams && !cvT.levelParams.contains elim) = true
+                · rw [if_pos hc, if_pos hc]
+                · rw [if_neg hc, if_neg hc, nativeShapeSmallSpec.eq_def]
+            twin_reduce
+            refine am_bind_congr _ ?_
+            intro sp
+            cases sp with
+            | none =>
+              twin_reduce
+              refine am_bind_congr _ ?_
+              intro lvl
+              exact hK lvl
+            | some pr =>
+              obtain ⟨fst, body⟩ := pr
+              twin_reduce
+              refine am_bind_congr _ ?_
+              intro v
+              cases v <;> twin_reduce <;>
+                first
+                  | exact hK _
+                  | (refine am_bind_congr _ ?_
+                     intro lvl
+                     exact hK lvl)
+          · rfl
+    all_goals rfl
 
 /-! # `arena::inductives::native_install` -/
 
