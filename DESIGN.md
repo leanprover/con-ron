@@ -37876,7 +37876,7 @@ waits on a primitive** and the tier is fuel inductions and nothing else.
   findings 7 and 8's clauses**, all of which P3 should carry as clauses of
   `StateOK` rather than let each tier restate.
 
-#### 9. The gates
+#### 10. The gates
 
 | gate | result |
 |---|---|
@@ -40107,7 +40107,7 @@ whose proof is the next round's**:
   LANE_GATED`) consumes `KnotRel` at `LANE_GATED`, and therefore owes
   `2 ≤ f` wherever it calls `whnf` — finding 12.  At `checkFuel` that is free.
 
-#### 9. The gates
+#### 10. The gates
 
 | gate | result |
 |---|---|
@@ -46045,8 +46045,9 @@ well-formedness at all, and that 81 % of the inductives tier and 43 of the 44
 interning walks of `Refine2/ExprOps/Mut.lean` could not travel because of it.
 Task #97-P5-Bracket then met the same gap from the other end.  This round
 lands the clause and then spends the rest of itself on `Refine2/Specs.lean`'s
-own list: **`Specs.lean` 20 → 12**, the eight `read_*` closed, the twelve
-interning lemmas left with their route named.
+own list: **`Specs.lean` 20 → 11**, the eight `read_*` and the ten-way
+`intern_e` dispatcher closed, the eleven remaining interning lemmas left with
+their route named and priced.
 
 Branch `p5-specs` off `arena` `ff4af5f8`; merged `arena` twice (`73c4c141`,
 then `dea5d114`).
@@ -46214,47 +46215,66 @@ memo will want.
 sibling `view_*_run` already took it, so this is the statement catching up with
 its own shape rather than a weakening.
 
-#### 5. What is left in `Specs.lean`, exactly, and what it needs
+#### 5. `intern_e_run`, the ten-way dispatcher — and the clause's second dividend
 
-**Twelve, and all twelve are the interning family.**  Unchanged in kind from
-round 3's §10, minus the eight readbacks:
+`EStore::intern` is a `match` on the view that calls `intern_bvar` …
+`intern_proj`, and `arena::monad::intern_e_bvar` … `intern_e_proj` wrap the
+same ten at the same place, so **each arm is definitionally its wrapper** and
+the proof is `cases v` above ten `exact`s: **44 lines, eleven port call
+sites.**
+
+The interesting half is the hypothesis list.  **`hchild` is gone at six of the
+ten** — round 3 §2's `hchild_{fvar,sort,const,app,let_e,proj}` derive it from
+`StoreWF`, and `hrel.storeWF` is that now, so the clause pays here a second
+time.  What survives is exactly what is not the port's to give: `ViewOK`, the
+literal's own well-formedness, and at the two binder arms the datum-array
+capacity, the `PropWhen` shape, the persistent binder probe and `ECapAt`
+(finding 15 is why the last two are not free at a binder either).
+
+(One syntax note for the next writer: `ENodeView`'s constructor is `Sort`, and
+`| Sort u =>` does not parse — `| «Sort» u =>` does.)
+
+#### 6. What is left in `Specs.lean`, exactly, and what it needs
+
+**Eleven, and all eleven are the interning family.**  Unchanged in kind from
+round 3's §10, minus the eight readbacks and the dispatcher:
 
 | group | count | port call sites | what it needs |
 |---|---:|---:|---|
 | `intern_{n,l,ls}_node_run` | 3 | **56** | the `{N,L,Ls}store_intern_*_abs` layer — nine per-constructor lemmas (3 name, 5 level, 1 level-list) of the shape `estore_intern_bvar_abs` has, ≈ 190 lines each |
 | `intern_{name,level,level_list,levels}_run` | 4 | 30 | the three above, then a structural walk each (no fuel: "the tree is a value, not a DAG") |
 | `intern_persistent_{e,n,l,ls}_run` | 4 | 19 | the same nine lemmas at the PERSISTENT tier, plus `StoreWF (st.internPersistent w).1`, which `Arena/WFProofs.lean` does not have (only `_ext`) |
-| `intern_e_run` | 1 | 11 | a ten-way `cases` over `absENodeView` above ten closed wrappers; the hypotheses have to be collected per constructor, and `hchild` is now free from `hrel.storeWF` via round 3 §2's `hchild_*` |
+
 
 The schedule that follows: **the nine `{N,L,Ls}store_intern_*_abs` are the
-whole bottleneck** — they unblock 7 of the 12 and 86 of the 105 port call
-sites, and they are mechanical (the E tier's eight are the template, and the
+whole bottleneck** — they unblock 7 of the 11 and 86 of the 94 remaining port
+call sites, and they are mechanical (the E tier's eight are the template, and the
 name/level/level-list tiers have no binder datum, so each should be *shorter*
-than its E counterpart, not longer).  `intern_e_run` is independent and
-bounded.  Nothing here is blocked on an idea.
+than its E counterpart, not longer).  Nothing here is blocked on an idea.
 
-#### 6. Elaboration
+#### 7. Elaboration
 
 `LEAN_NUM_THREADS=1`, one file.
 
 | file | lines | `sorry` | note |
 |---|---:|---:|---|
-| `Refine2/Specs.lean` | **10 074** | **12** (from 20) | +1 636 lines |
+| `Refine2/Specs.lean` | **10 176** | **11** (from 20) | +1 738 lines |
 | `Refine2/ExprOps/Mut.lean` | 2 419 | 44 | eleven call sites re-typed, `hwf` deleted at three |
 | `Refine2/Core/Bracket.lean` | 891 | 0 | two producers |
 | `Refine2/AbsState.lean` | 415 | 0 | the clause and its note |
 
-#### 7. The axiom census
+#### 8. The axiom census
 
-**Sixteen more `#print axioms` rows under `#guard_msgs`** in `Specs.lean`
+**Seventeen more `#print axioms` rows under `#guard_msgs`** in `Specs.lean`
 (`denote_n_aux_abs`, `denote_n_abs`, `read_name_run`, `denote_l_abs`,
 `read_level_run`, `denote_ls_abs`, `read_levels_run`, `read_names_run`,
 `denote_n_wf`, `denote_l_wf`, `denote_ls_wf`, `memo_insert_vals`,
 `read_name_m_run`, `read_level_m_run`, `read_levels_m_run`,
-`read_names_m_run`), every one `[propext, Classical.choice, Quot.sound]`.  No
+`read_names_m_run`, `intern_e_run`), every one
+`[propext, Classical.choice, Quot.sound]`.  No
 `sorryAx` on a closed lemma, and still no `bv_decide` axiom anywhere.
 
-#### 8. Two rules confirmed, one re-measured
+#### 9. Two rules confirmed, one re-measured
 
 * **`grind` is still nowhere in this tier** and nothing here wanted it.  The
   readbacks are equations about `denote*Aux` at a *fuel*, so their leaves have
@@ -46275,12 +46295,12 @@ bounded.  Nothing here is blocked on an idea.
   the other.  Draft in a scratch file for speed — the import baseline is 2 s
   against 20 s — but expect a last mile, and budget for it.
 
-#### 9. The gates
+#### 10. The gates
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green** — `Specs.lean` **12**, `ExprOps/Mut.lean` 44, `Core/Bracket.lean` 0 |
-| `scripts/gates.sh` | see the landing row below |
+| `cd proof && lake build ConRonRefine2` | **green** — `Specs.lean` **11**, `ExprOps/Mut.lean` 44, `Core/Bracket.lean` 0; **866** `sorry` declarations across the whole tier |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 92 s, `lake-build` 116 s; no Rust or generated file moved, so the first eleven are formalities) |
 | merged `arena` twice — `73c4c141`, then `dea5d114` | the first brought `Core/Bracket.lean` and a regenerated model (`Memos::reset`), and cost `Core/Eqns.lean` its ~1 000 s once; the second is documentation and `flake.nix` only |
 | the diff | `proof/ConRon/Refine2/{AbsState,Specs}.lean`, `proof/ConRon/Refine2/ExprOps/Mut.lean`, `proof/ConRon/Refine2/Core/Bracket.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` |
 
