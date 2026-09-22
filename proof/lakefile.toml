@@ -56,6 +56,16 @@ roots = ["ConRon.Arena"]
 [[lean_lib]]
 name = "ConRonBridge"
 roots = ["ConRon.Bridge"]
+# Every module under `ConRon/Bridge/` is built, not only what the root
+# imports.  Two modules of the `ExprOps` tier cannot sit in ONE import
+# closure — `grind` generates the same `match`-auxiliary for an
+# `Arena/ExprOps.lean` definition in each, and Lean refuses the second
+# ("environment already contains
+# 'ConRon.Arena.forallPw.match_1.congr_eq_1._sparseCasesOn_2'").  The tier's
+# theorems are independent of one another, so building them as siblings is
+# the right shape anyway; `ConRon/Bridge/ExprOps.lean` is the index that says
+# what they are.
+globs = ["ConRon.Bridge.+"]
 
 # The P2s spike (DESIGN.md §8.6, task #97s): a FOURTH root, not a default
 # target and not imported by `ConRon.Arena`.  It prices the proof idioms of
