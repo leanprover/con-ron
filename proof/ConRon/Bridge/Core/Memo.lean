@@ -543,6 +543,7 @@ theorem memoWhnfCore_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (hw : Expr.WScoped d e) :
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).whnfCore d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_whnfCore_succ]
   have hb := hbody
@@ -552,7 +553,7 @@ theorem memoWhnfCore_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   -- pure body answers with its own argument
   · rename_i hs _ hst
     subst hst
-    exact ⟨hok, Ext.refl _, e, hden, hw, 1,
+    exact ⟨hok, Ext.refl _, rfl, e, hden, hw, 1,
       whnfCore_of_stuck
         (denote_stuck_of_whnfCoreStuckTag hok.state.wf hden hs) 0 d⟩
   -- **the hit**: `CacheOK`'s depth-universal row, consumed at the query's
@@ -563,8 +564,8 @@ theorem memoWhnfCore_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
-    exact ⟨hok, Ext.refl _, b, hb', ConLeche.whnfCore_WScoped henv F hrun hw,
-      F, hrun⟩
+    exact ⟨hok, Ext.refl _, rfl, b, hb',
+      ConLeche.whnfCore_WScoped henv F hrun hw, F, hrun⟩
   -- the body call's two preconditions
   · rename_i _ _ hst _; subst hst; exact hok
   · rename_i _ _ hst _; subst hst; exact hden
@@ -572,13 +573,13 @@ theorem memoWhnfCore_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   · rename_i _ _ hst2 _ r s1 hpost _ _ hst3
     subst hst3
     subst hst2
-    obtain ⟨hck, hx, v, hv, hwv, F, hF⟩ := hpost
+    obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertWhnfCore hck.caches (denote_ext hden hx) hv
           ⟨F, fun d' hd' => by
             rw [ConLeche.whnfCore_depth_inv henv F hd' hw.to_wscopedB]
             exact hF⟩) rfl rfl,
-      hx, v, hv, hwv, F, hF⟩
+      hx, hpn, v, hv, hwv, F, hF⟩
 
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — **the
@@ -594,6 +595,7 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (hw : Expr.WScoped d e) :
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).whnf d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.whnf mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_whnf_succ]
   have hb := hbody
@@ -601,7 +603,7 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   mvcgen [hb]
   · rename_i hs _ hst
     subst hst
-    exact ⟨hok, Ext.refl _, e, hden, hw, 2,
+    exact ⟨hok, Ext.refl _, rfl, e, hden, hw, 2,
       whnf_of_stuck (denote_stuck_of_whnfStuckTag hok.state.wf hden hs) 0 d⟩
   · rename_i _ _ hst x hx
     subst hst
@@ -609,20 +611,20 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
-    exact ⟨hok, Ext.refl _, b, hb', ConLeche.whnf_WScoped henv F hrun hw,
-      F, hrun⟩
+    exact ⟨hok, Ext.refl _, rfl, b, hb',
+      ConLeche.whnf_WScoped henv F hrun hw, F, hrun⟩
   · rename_i _ _ hst _; subst hst; exact hok
   · rename_i _ _ hst _; subst hst; exact hden
   · rename_i _ _ hst2 _ r s1 hpost _ _ hst3
     subst hst3
     subst hst2
-    obtain ⟨hck, hx, v, hv, hwv, F, hF⟩ := hpost
+    obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertWhnf hck.caches (denote_ext hden hx) hv
           ⟨F, fun d' hd' => by
             rw [ConLeche.whnf_depth_inv henv F hd' hw.to_wscopedB]
             exact hF⟩) rfl rfl,
-      hx, v, hv, hwv, F, hF⟩
+      hx, hpn, v, hv, hwv, F, hF⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim — **the
 `infer` wrapper**.  Two branches only: inference has no answer-is-the-argument
@@ -637,6 +639,7 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (hw : Expr.WScoped d e) :
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).infer d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_infer_succ]
   have hb := hbody
@@ -648,20 +651,20 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
-    exact ⟨hok, Ext.refl _, b, hb',
+    exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.inferTypeCore_WScoped henv F hrun hw, F, hrun⟩
   · rename_i _ hst _; subst hst; exact hok
   · rename_i _ hst _; subst hst; exact hden
   · rename_i _ hst2 _ r s1 hpost _ _ hst3
     subst hst3
     subst hst2
-    obtain ⟨hck, hx, v, hv, hwv, F, hF⟩ := hpost
+    obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertInfer hck.caches (denote_ext hden hx) hv
           ⟨F, fun d' hd' => by
             rw [ConLeche.inferTypeCore_depth_inv henv F hd' hw.to_wscopedB]
             exact hF⟩) rfl rfl,
-      hx, v, hv, hwv, F, hF⟩
+      hx, hpn, v, hv, hwv, F, hF⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:408 memoEI_annotate_sim —
 **the `annotate` wrapper**. -/
@@ -675,6 +678,7 @@ theorem memoAnnotate_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (hw : Expr.WScoped d e) :
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).annotate d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_annotate_succ]
   have hb := hbody
@@ -686,20 +690,20 @@ theorem memoAnnotate_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
-    exact ⟨hok, Ext.refl _, b, hb',
+    exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.annotateCore_WScoped F _ hrun hw, F, hrun⟩
   · rename_i _ hst _; subst hst; exact hok
   · rename_i _ hst _; subst hst; exact hden
   · rename_i _ hst2 _ r s1 hpost _ _ hst3
     subst hst3
     subst hst2
-    obtain ⟨hck, hx, v, hv, hwv, F, hF⟩ := hpost
+    obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertAnnot hck.caches (denote_ext hden hx) hv
           ⟨F, fun d' hd' => by
             rw [ConLeche.annotateCore_depth_inv henv F hd' hw.to_wscopedB]
             exact hF⟩) rfl rfl,
-      hx, v, hv, hwv, F, hF⟩
+      hx, hpn, v, hv, hwv, F, hF⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim —
 **the io wrapper**, at the gated mode (`mode.ioGate = true`, which every
@@ -716,6 +720,7 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (hw : Expr.WScoped d e) :
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).inferIO d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_inferIO_succ, if_pos hg]
   have hb := hbody
@@ -727,20 +732,20 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
-    exact ⟨hok, Ext.refl _, b, hb',
+    exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.inferTypeIO_WScoped henv F hrun hw, F, hrun⟩
   · rename_i _ hst _; subst hst; exact hok
   · rename_i _ hst _; subst hst; exact hden
   · rename_i _ hst2 _ r s1 hpost _ _ hst3
     subst hst3
     subst hst2
-    obtain ⟨hck, hx, v, hv, hwv, F, hF⟩ := hpost
+    obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertInferIO hck.caches (denote_ext hden hx) hv
           ⟨F, fun d' hd' => by
             rw [ConLeche.inferTypeIO_depth_inv henv F hd' hw.to_wscopedB]
             exact hF⟩) rfl rfl,
-      hx, v, hv, hwv, F, hF⟩
+      hx, hpn, v, hv, hwv, F, hF⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim — **the
 `defeq` wrapper**: two subjects, a `Bool` answer, and the row carries the
@@ -757,6 +762,7 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (hwa : Expr.WScoped d a) (hwb : Expr.WScoped d b) :
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).defeq d i j
     ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄ := by
   rw [coreKnot_defeq_succ]
   -- the spec is instantiated at THIS pair before `mvcgen` sees it: with the
@@ -767,6 +773,7 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
       denoteE s₁.store i = some a → denoteE s₁.store j = some b →
       ⦃fun s => ⌜s = s₁⌝⦄ defeqBody mode (coreKnot mode fe id fuel) fe d i j
       ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+          s'.pins = s₁.pins ∧
           SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄ :=
     fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb
   mvcgen [hb]
@@ -777,20 +784,20 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     rw [hdb] at hb'
     obtain rfl := Option.some.inj ha'
     obtain rfl := Option.some.inj hb'
-    exact ⟨hok, Ext.refl _, F, hall d hwa.to_wscopedB hwb.to_wscopedB⟩
+    exact ⟨hok, Ext.refl _, rfl, F, hall d hwa.to_wscopedB hwb.to_wscopedB⟩
   · rename_i _ hst _; subst hst; exact hok
   · rename_i _ hst _; subst hst; exact hda
   · rename_i _ hst _; subst hst; exact hdb
   · rename_i _ hst2 _ r s1 hpost _ _ hst3
     subst hst3
     subst hst2
-    obtain ⟨hck, hx, F, hF⟩ := hpost
+    obtain ⟨hck, hx, hpn, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertDefeq hck.caches (denote_ext hda hx) (denote_ext hdb hx)
           ⟨F, fun d' hda' hdb' => by
             rw [ConLeche.isDefEqCore_depth_inv henv F hda' hdb'
               hwa.to_wscopedB hwb.to_wscopedB]
             exact hF⟩) rfl rfl,
-      hx, F, hF⟩
+      hx, hpn, F, hF⟩
 
 end ConRon.Bridge.Core

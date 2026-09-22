@@ -158,6 +158,7 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Expr.WScoped d e →
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄
   /-- The full reduction loop. -/
   whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
@@ -165,6 +166,7 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Expr.WScoped d e →
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.whnf mode env) d e s'.store r⌝⦄
   /-- Full-grade type inference. -/
   infer : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
@@ -172,6 +174,7 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Expr.WScoped d e →
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).infer d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄
   /-- Definitional equality, at the ORDERED pair the memo is keyed by. -/
   defeq : ∀ (s₀ : AState) (d : Nat) (i j : EIdx) (a b : Expr),
@@ -180,6 +183,7 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Expr.WScoped d a → Expr.WScoped d b →
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).defeq d i j
     ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄
   /-- The annotation pass. -/
   annotate : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
@@ -187,6 +191,7 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Expr.WScoped d e →
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).annotate d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄
   /-- The io grade (con-leche's task #170): its own body, its own table. -/
   inferIO : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
@@ -194,6 +199,7 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Expr.WScoped d e →
     ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).inferIO d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄
 
 /-! ## The base case
@@ -241,6 +247,7 @@ def BodySpec (mode : CheckMode) (env : Env) (fe : IFEnv)
     Expr.WScoped d e →
     ⦃fun s => ⌜s = s₀⌝⦄ body d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE op d e s'.store r⌝⦄
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC6.lean defeqBodyC_sim — the same
@@ -254,6 +261,7 @@ def BodySpecV (mode : CheckMode) (env : Env) (fe : IFEnv)
     Expr.WScoped d a → Expr.WScoped d b →
     ⦃fun s => ⌜s = s₀⌝⦄ body d i j
     ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimV op d a b x⌝⦄
 
 end ConRon.Bridge.Core

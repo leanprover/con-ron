@@ -443,7 +443,7 @@ pub const M_FUEL_ANNOTATE: [u32; 24] = [
 pub const LANE_FULL: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-132 coreKnotGated` — the P
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated` — the P
 /// knot: `whnfCore` is the gated body and no slot carries a memo.
 pub const LANE_GATED: u32 = 1;
 
@@ -11247,7 +11247,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 /// con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3568-3658 coreKnot`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-132 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
 /// (`coreKnotIO`'s slot *is* the full knot's, at the same fuel); at
@@ -11289,7 +11289,7 @@ pub fn knot_whnf_core(
 /// con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3568-3658 coreKnot`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-132 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
     pers: &PersTier,
@@ -11327,7 +11327,7 @@ pub fn knot_whnf(
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3568-3658 coreKnot`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-132 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `infer`
 /// slot.**  At `LANE_FULL` it is `inferBody` under `inferC`; at `LANE_GATED`
 /// it is `inferBody` tied to the gated knot, unmemoized; at `LANE_IO` it is
@@ -11368,7 +11368,7 @@ pub fn knot_infer(
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3568-3658 coreKnot`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-132 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `inferIO`
 /// slot.**  At `LANE_FULL` the selector is `mode.betaGate`, con-leche's
 /// `Kernel/Core.lean` spelling and not `Cached/CoreC.lean`'s `mode.ioGate`;
@@ -11452,7 +11452,7 @@ pub fn knot_infer_at(
 /// con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3568-3658 coreKnot`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-132 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
 pub fn knot_defeq(
@@ -11490,7 +11490,7 @@ pub fn knot_defeq(
 /// con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3568-3658 coreKnot`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-132 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `annotate`
 /// slot.
 pub fn knot_annotate(
