@@ -1115,7 +1115,8 @@ theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
     StateOK s₀ → (denoteE s₀.store f).isSome = true →
     (Frontend.denoteEList s₀.store args).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ mkAppN f args
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEA Expr.mkAppN s₀.store f args s'.store r⌝⦄ := by
   intro args
@@ -1126,7 +1127,7 @@ theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
          RelEA.nil (fun _ => rfl) (Ext.refl _)⟩)
   | cons a as ih =>
     intro s₀ f hok hf hargs
@@ -1137,7 +1138,8 @@ theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
       (arm_pre
        first
        | exact denote_isSome_of_intern_app (by arm_hyp) (by grind) (by grind)
-       | (refine ⟨by arm_hyp, by grind only [Ext.trans], by grind, by grind,
+       | (refine ⟨by arm_hyp, by grind only [Ext.trans],
+       by grind only [BMExt.trans, BMExt.refl], by grind, by grind,
             by grind, ?_⟩
           exact RelEA.cons_step (fun _ _ _ => rfl) (by arm_hyp) (by arm_hyp)
             (by arm_hyp)))
@@ -1187,7 +1189,8 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
     (denoteE s₀.store f).isSome = true →
     (Frontend.denoteEList s₀.store (args.toList.drop i)).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ mkAppNFrom f args i
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEA Expr.mkAppN s₀.store f (args.toList.drop i) s'.store r⌝⦄ := by
   intro n
@@ -1202,7 +1205,7 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
          RelEA.nil (fun _ => rfl) (Ext.refl _)⟩)
   | succ n ih =>
     intro s₀ f args i hn hok hf hargs
@@ -1220,7 +1223,8 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
          first
          | omega
          | exact denote_isSome_of_intern_app (by arm_hyp) (by grind) (by grind)
-         | (refine ⟨by arm_hyp, by grind only [Ext.trans], by grind, by grind,
+         | (refine ⟨by arm_hyp, by grind only [Ext.trans],
+         by grind only [BMExt.trans, BMExt.refl], by grind, by grind,
               by grind, ?_⟩
             exact RelEA.cons_step (fun _ _ _ => rfl) (by arm_hyp) (by arm_hyp)
               (by arm_hyp)))
@@ -1232,7 +1236,7 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
       all_goals try bridge_vcs [Expr.mkAppN]
       all_goals
         (arm_pre
-         exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+         exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
            RelEA.nil (fun _ => rfl) (Ext.refl _)⟩)
 
 /-- con-leche: none — `bvarRange`'s answer, as the recursion the twin itself
@@ -1267,7 +1271,8 @@ consumes is that the answered handle list DENOTES `bvarRangeSpec`, and
 `bvarRangeSpec_eq_range` turns that into con-leche's `List.range` literal. -/
 theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s₀ →
     ⦃fun s => ⌜s = s₀⌝⦄ bvarRange mI n k
-    ⦃⇓? rs s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
+    ⦃⇓? rs s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         Frontend.denoteEList s'.store rs = some (bvarRangeSpec mI n k)⌝⦄ := by
   intro n
@@ -1278,14 +1283,15 @@ theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s�
     all_goals try bridge_vcs [bvarRangeSpec]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, rfl, rfl⟩)
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl⟩)
   | succ n ih =>
     intro s₀ mI k hok
     mvcgen [bvarRange, ih]
     all_goals try bridge_vcs [bvarRangeSpec]
     all_goals
       (arm_pre
-       refine ⟨by arm_hyp, by grind only [Ext.trans], by grind, by grind,
+       refine ⟨by arm_hyp, by grind only [Ext.trans],
+       by grind only [BMExt.trans, BMExt.refl], by grind, by grind,
          by grind, ?_⟩
        rw [bvarRangeSpec]
        exact denoteEList_cons_of
@@ -1415,7 +1421,8 @@ theorem pisToLams_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
     StateOK s₀ → (denoteE s₀.store h).isSome = true →
     (denoteE s₀.store body).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ pisToLams k h body
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEOB (Expr.pisToLams k) s₀.store h body s'.store r⌝⦄ := by
   intro k
@@ -1426,7 +1433,7 @@ theorem pisToLams_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
     all_goals try bridge_vcs [Expr.pisToLams]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
          RelEOB.self_body (fun _ _ => rfl) (Ext.refl _)⟩)
   | succ k ih =>
     intro s₀ h body hok hden hbody
@@ -1438,7 +1445,8 @@ theorem pisToLams_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
        | exact RelEOB.isSome (by arm_hyp) (by grind) (by grind)
        | exact viewOK_lam (by grind) (by grind)
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
           first
           | exact RelEOB.lam_step (Fb := Expr.pisToLams k)
               (m' := ⟨.never⟩) hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -1447,7 +1455,7 @@ theorem pisToLams_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
           | exact RelEOB.none_step (Fb := Expr.pisToLams k) hok.wf
               (by arm_hyp) (by intro x y z hh; simp [Expr.pisToLams, hh])
               (by arm_hyp))
-       | exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
            RelEOB.none_of_view hok.wf (by arm_hyp) (fun e eb he =>
              pisToLams_of_not_forallE
                (denoteEView_not_forallE he (by assumption)))⟩)
@@ -1459,7 +1467,8 @@ theorem replacePiBody_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
     StateOK s₀ → (denoteE s₀.store h).isSome = true →
     (denoteE s₀.store body).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ replacePiBody k h body
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEOB (Expr.replacePiBody k) s₀.store h body s'.store r⌝⦄ := by
   intro k
@@ -1470,7 +1479,7 @@ theorem replacePiBody_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
     all_goals try bridge_vcs [Expr.replacePiBody]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
          RelEOB.self_body (fun _ _ => rfl) (Ext.refl _)⟩)
   | succ k ih =>
     intro s₀ h body hok hden hbody
@@ -1482,7 +1491,8 @@ theorem replacePiBody_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
        | exact RelEOB.isSome (by arm_hyp) (by grind) (by grind)
        | exact viewOK_forallE (by grind) (by grind)
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
           first
           | exact RelEOB.forallE_step (Fb := Expr.replacePiBody k) hok.wf
               (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -1490,7 +1500,7 @@ theorem replacePiBody_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
           | exact RelEOB.none_step (Fb := Expr.replacePiBody k) hok.wf
               (by arm_hyp) (by intro x y z hh; simp [Expr.replacePiBody, hh])
               (by arm_hyp))
-       | exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
            RelEOB.none_of_view hok.wf (by arm_hyp) (fun e eb he =>
              replacePiBody_of_not_forallE
                (denoteEView_not_forallE he (by assumption)))⟩)
@@ -1540,6 +1550,7 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     (Frontend.denoteEList s₀.store as).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ instSpine fuel as t e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEA (fun x xs => Expr.instSpine xs t x) s₀.store e as s'.store r⌝⦄ := by
   intro as
@@ -1550,7 +1561,7 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     all_goals try bridge_vcs [Expr.instSpine]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, RelEA.nil (fun _ => rfl) (Ext.refl _)⟩)
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, RelEA.nil (fun _ => rfl) (Ext.refl _)⟩)
   | cons a as ih =>
     intro s₀ t e hok hden hargs
     obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
@@ -1559,6 +1570,7 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
         denoteE s.store a = some ea → (denoteE s.store x).isSome = true →
         ⦃fun u => ⌜u = s⌝⦄ instantiate1Fast fuel x a d
         ⦃⇓? rr s' => ⌜StateOK s' ∧ Ext s.store s'.store ∧
+            BMExt s.store s'.store ∧
             s'.caches = s.caches ∧ s'.pins = s.pins ∧
             s'.memos.inst1C = ∅ ∧
             Inst1At ea d s.store x s'.store rr⌝⦄ :=
@@ -1570,7 +1582,8 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
        first
        | exact hea
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           exact RelEA.inst_step hea (by arm_hyp) (by arm_hyp) (by arm_hyp)
             (fun _ _ => rfl)))
 
@@ -1643,6 +1656,7 @@ theorem instPis_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     (Frontend.denoteEList s₀.store as).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ instPis fuel h as
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEOA Expr.instPis s₀.store h as s'.store r⌝⦄ := by
   intro as
@@ -1653,7 +1667,7 @@ theorem instPis_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     all_goals try bridge_vcs [Expr.instPis]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, RelEOA.nil (fun _ => rfl) (Ext.refl _)⟩)
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, RelEOA.nil (fun _ => rfl) (Ext.refl _)⟩)
   | cons a as ih =>
     intro s₀ h hok hden hargs
     obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
@@ -1662,6 +1676,7 @@ theorem instPis_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
         denoteE s.store a = some ea → (denoteE s.store x).isSome = true →
         ⦃fun u => ⌜u = s⌝⦄ instantiate1Fast fuel x a d
         ⦃⇓? rr s' => ⌜StateOK s' ∧ Ext s.store s'.store ∧
+            BMExt s.store s'.store ∧
             s'.caches = s.caches ∧ s'.pins = s.pins ∧
             s'.memos.inst1C = ∅ ∧
             Inst1At ea d s.store x s'.store rr⌝⦄ :=
@@ -1673,10 +1688,11 @@ theorem instPis_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
        first
        | exact hea
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           exact RelEOA.inst_step hok.wf (by arm_hyp) hea (by arm_hyp)
             (by arm_hyp) (by arm_hyp) (fun _ _ _ => rfl))
-       | exact ⟨hok, Ext.refl _, rfl, rfl,
+       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl,
            RelEOA.none_of_view_cons hok.wf (by arm_hyp) (fun e x xs he =>
              instPis_of_not_forallE
                (denoteEView_not_forallE he (by assumption)))⟩)
@@ -1847,6 +1863,7 @@ theorem instPisAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     (Frontend.denoteEList s₀.store as).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ instPisAt fuel as h
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEPA (fun e es => Expr.instPisAt es e) s₀.store h as s'.store r⌝⦄ := by
   intro as
@@ -1857,7 +1874,7 @@ theorem instPisAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     all_goals try bridge_vcs [Expr.instPisAt]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, RelEPA.nil (fun _ => rfl) (Ext.refl _)⟩)
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, RelEPA.nil (fun _ => rfl) (Ext.refl _)⟩)
   | cons a as ih =>
     intro s₀ h hok hden hargs
     obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
@@ -1866,6 +1883,7 @@ theorem instPisAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
         denoteE s.store a = some ea → (denoteE s.store x).isSome = true →
         ⦃fun u => ⌜u = s⌝⦄ instantiate1Fast fuel x a d
         ⦃⇓? rr s' => ⌜StateOK s' ∧ Ext s.store s'.store ∧
+            BMExt s.store s'.store ∧
             s'.caches = s.caches ∧ s'.pins = s.pins ∧
             s'.memos.inst1C = ∅ ∧
             Inst1At ea d s.store x s'.store rr⌝⦄ :=
@@ -1877,7 +1895,8 @@ theorem instPisAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
        first
        | exact hea
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           first
           | exact RelEPA.forallE_step (Fr := fun e es => Expr.instPisAt es e)
               hok.wf (by arm_hyp) hea (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -1886,7 +1905,7 @@ theorem instPisAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
           | exact RelEPA.noneF_step (Fr := fun e es => Expr.instPisAt es e)
               hok.wf (by arm_hyp) hea (by arm_hyp) (by arm_hyp) (by arm_hyp)
               (by intro x y ys hh; simp [Expr.instPisAt, hh]))
-       | exact ⟨hok, Ext.refl _, rfl, rfl,
+       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl,
            RelEPA.none_of_view_cons hok.wf (by arm_hyp) (fun e x xs he =>
              instPisAt_of_not_forallE
                (denoteEView_not_forallE he (by assumption)))⟩)
@@ -1898,6 +1917,7 @@ theorem instLamsAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     (Frontend.denoteEList s₀.store as).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ instLamsAt fuel as h
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEPA (fun e es => Expr.instLamsAt es e) s₀.store h as s'.store r⌝⦄ := by
   intro as
@@ -1908,7 +1928,7 @@ theorem instLamsAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     all_goals try bridge_vcs [Expr.instLamsAt]
     all_goals
       (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, RelEPA.nil (fun _ => rfl) (Ext.refl _)⟩)
+       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, RelEPA.nil (fun _ => rfl) (Ext.refl _)⟩)
   | cons a as ih =>
     intro s₀ h hok hden hargs
     obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
@@ -1917,6 +1937,7 @@ theorem instLamsAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
         denoteE s.store a = some ea → (denoteE s.store x).isSome = true →
         ⦃fun u => ⌜u = s⌝⦄ instantiate1Fast fuel x a d
         ⦃⇓? rr s' => ⌜StateOK s' ∧ Ext s.store s'.store ∧
+            BMExt s.store s'.store ∧
             s'.caches = s.caches ∧ s'.pins = s.pins ∧
             s'.memos.inst1C = ∅ ∧
             Inst1At ea d s.store x s'.store rr⌝⦄ :=
@@ -1928,7 +1949,8 @@ theorem instLamsAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
        first
        | exact hea
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           first
           | exact RelEPA.lam_step (Fr := fun e es => Expr.instLamsAt es e)
               hok.wf (by arm_hyp) hea (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -1937,7 +1959,7 @@ theorem instLamsAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
           | exact RelEPA.noneL_step (Fr := fun e es => Expr.instLamsAt es e)
               hok.wf (by arm_hyp) hea (by arm_hyp) (by arm_hyp) (by arm_hyp)
               (by intro x y ys hh; simp [Expr.instLamsAt, hh]))
-       | exact ⟨hok, Ext.refl _, rfl, rfl,
+       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl,
            RelEPA.none_of_view_cons hok.wf (by arm_hyp) (fun e x xs he =>
              instLamsAt_of_not_lam
                (denoteEView_not_lam he (by assumption)))⟩)
