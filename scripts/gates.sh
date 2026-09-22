@@ -55,7 +55,7 @@ run() { # run <name> <cmd...>
 # enforce by itself: `-D warnings` does.
 run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
 run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src" "$root/crates/arena-core/src"
+run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
 run provenance    python3 "$root/scripts/provenance.py" check
 run provenance-self python3 "$root/scripts/provenance-selftest.py"
 run overview-links "$root/scripts/overview-links.sh"

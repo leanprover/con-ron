@@ -1,5 +1,12 @@
-//! con-ron's **unverified crate**: the in-process modeller for mutual and
-//! nested inductive blocks, the driver, and the check phase's worker pool.
+//! con-ron's **unverified crate**: the driver and CLI, the check phase's
+//! worker pool, and the in-process modeller for mutual and nested inductive
+//! blocks.
+//!
+//! ```text
+//! con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+//!         [--progress[=<stride>]] [--pins FILE|--no-pins] FILE.ndjson
+//! con-ron --help
+//! ```
 //!
 //! DESIGN.md §1 puts all three *outside* the main theorem — "the Rust parser,
 //! the frontend rewrites (prelude, Nat-op reordering, projection rewrite, the
@@ -9,17 +16,23 @@
 //! does not apply (it uses `for`, `while`, `?`, `std::collections`, closures
 //! and `derive(Debug)` freely).  There is no `unsafe`.
 //!
+//! **Task #97-SWAP made this the arena's driver** (DESIGN.md §8.6).  The
+//! crate that held it through the campaign was `con-ron-arena`, beside the
+//! `Expr`-tree binary; the swap deleted the old `driver`/`pool`/`bin` and put
+//! `con-ron-arena`'s in their place, under the old name and with the same
+//! command line to the letter.  `crates/con-ron-arena` no longer exists, and
+//! neither does the `Expr`-tree checker the old driver drove.
+//!
 //! **The parser left at task #84** (DESIGN.md §3.8, OVERVIEW §3.7).  con-leche
 //! states its main corollary over the file's byte chunks now, so the whole
 //! path from the bytes to `check_decls` had to be inside the extraction; the
-//! eight modules that were `crate::frontend::*` are
-//! `con_ron_core::frontend::*`.  What of that path stays here is exactly what
-//! is not a function of the input: the **reads** (`driver::read_up_to`,
-//! `parse_export_handle_d`, `parse_export_stream_d` — the loop whose pure
-//! counterpart `parse_chunks` is the core's), and the **modeller**, which the
-//! core calls through the one-method trait
-//! `con_ron_core::frontend::in_model_rec::Modeller` and this crate implements
-//! as `in_model::InProcess`.
+//! modules that were `crate::frontend::*` are `con_ron_core::frontend::*`.
+//! What of that path stays here is exactly what is not a function of the
+//! input: the **reads** (`driver::read_up_to` and the handle/stream parse
+//! loops, whose pure counterpart `parse_chunks` is the core's), and the
+//! **modeller**, which the core calls through the one-method trait
+//! `con_ron_core::frontend::types::Modeller` and this crate implements as
+//! `in_model::InProcess`.
 //!
 //! What this crate *does* keep is §3.1's mirroring and §3.7's citations: one
 //! Rust module per con-leche file, functions in the same order, every item
@@ -27,17 +40,18 @@
 //! mode is the only sync signal an unverified module will ever have (§3.7:
 //! "for the unverified frontend it is the only sync signal there is").
 //!
-//! | Rust | con-leche |
-//! |---|---|
-//! | `in_model` | `ConLeche/Frontend/InModel.lean`, plus the `Modeller` impl |
-//! | `in_model::kit` | `ConLeche/Frontend/InModel/Kit.lean` |
-//! | `in_model::mutual` | `ConLeche/Frontend/InModel/Mutual.lean` |
-//! | `in_model::nested` | `ConLeche/Frontend/InModel/Nested.lean` |
-//! | `driver` | `Main.lean` (the phases, the flags, the verdict, the reads) |
-//! | `pool` | `Main.lean:193-316` (phase B on a pool of check workers) |
-//! | `keys` | none — `std::hash::Hash`/`Eq` wrappers for `Expr` and `Name` |
-//! | `render` | none — `Name.toString`, which the core's skip list keeps out |
-//! | `src/bin/con-ron.rs` | `Main.lean` (the binary) |
+//! | Rust | con-leche | Lean twin |
+//! |---|---|---|
+//! | `driver` | `Main.lean` (the phases, the flags, the verdict, the reads) | `Arena/Main.lean` |
+//! | `pool` | `Main.lean:193-316` (phase B on a pool of check workers) | `Arena/Main.lean` |
+//! | `in_model` | `ConLeche/Frontend/InModel.lean`, plus the `Modeller` impl | `Arena/Frontend/InModel.lean` |
+//! | `in_model::kit` | `ConLeche/Frontend/InModel/Kit.lean` | — |
+//! | `in_model::mutual` | `ConLeche/Frontend/InModel/Mutual.lean` | — |
+//! | `in_model::nested` | `ConLeche/Frontend/InModel/Nested.lean` | — |
+//! | `keys` | none — `std::hash::Hash`/`Eq` wrappers for `Expr` and `Name` | — |
+//! | `render` | none — `Name.toString`, which the core's skip list keeps out | — |
+//! | `tree` | the six `Expr`-value helpers the modeller builds trees with (task #97-SWAP) | — |
+//! | `src/bin/con-ron.rs` | `Main.lean` (the binary) | `Arena/Main.lean`'s `main` |
 //!
 //! **Two things are deliberately not ported at all**, and each is a
 //! `scripts/provenance-skip.txt` entry with its reason (§3.7 — the skip file
@@ -51,11 +65,15 @@
 //!    debug splice, which is built on that writer and is likewise not on the
 //!    checking path (`in_model`'s module note).
 //!
-//! `Main.lean`'s **worker pool** is here since task #48: `pool` is `checkOne`,
-//! `checkWorker`, `mergeResults` and `checkPool`, and `--jobs=<n>` runs it.
+//! **The worker pool** (`pool`, task #48; task #97-P6-6b over the arena) is
+//! DESIGN.md §8.3's "the persistent tier is immutable in phase B, each worker
+//! owns a scratch tier — no atomics anywhere", with the tier frozen at the
+//! phase boundary and shared by reference.  Threads live here and never in
+//! `con-ron-core` (§8.5).
 
 pub mod driver;
 pub mod in_model;
 pub mod keys;
 pub mod pool;
 pub mod render;
+pub mod tree;

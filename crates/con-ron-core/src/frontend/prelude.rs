@@ -1,69 +1,69 @@
-//! `ConLeche/Frontend/Prelude.lean` — the built-in prelude.
+//! `proof/ConRon/Arena/Frontend/Prelude.lean` — **the built-in prelude**
+//! (task #97 P4e part 1).
 //!
-//! **What it is.**  The checker's own little prelude: the six pinned basis
-//! blocks (`Eq`, `Nat`, `PUnit`, `Empty`, `False`, `Quot` with its soundness
-//! axiom), the `Bool` block — every declaration the pin-certified `Nat`
-//! operations' install needs that is neither in the operation's own
-//! dependency closure nor a stream-certified operation itself — and the `And`
-//! block, pinned by design (the one propositional structure whose recursor
-//! the stuck-major rescue serves, keyed on the name, so the name must denote
-//! the toolchain's `And` in every fold).
+//! con-leche's `ConLeche/Frontend/Prelude.lean`: the checker's own little
+//! prelude — the six pinned basis blocks (`Eq`, `Nat`, `PUnit`, `Empty`,
+//! `False`, `Quot` with its soundness axiom), the `Bool` block, and the `And`
+//! block pinned by design — as a lean4export-format stream parsed by the
+//! ORDINARY parser into declaration records.  `prepare::prepare_prelude` puts
+//! them at the front of every stream it prepares, which is what "in the env
+//! initially and unconditionally" means in practice.
 //!
-//! **Why.**  A user report (2026-09-06): the Nat-op pins were sensitive to
-//! the stream's installation order — an export that emits `Nat.shiftLeft`
-//! before the `Bool`/`Eq` blocks its certificate statements are spelled over
-//! declined at the install.  The user's directive: *"add Bool and what else
-//! is needed … and actually add them to the env initially and
-//! unconditionally (our own little prelude).  when they come later in the
-//! stream, just compare and decline if different."*
+//! **Where the text comes from.**  con-leche's `builtinPreludeText` is an
+//! `include_str` of its committed `pins/<toolchain>.prelude.ndjson`; the Lean
+//! twin reaches the same file through the lake package directory, and files
+//! the path-outside-the-repository objection as a follow-up.  The Rust does
+//! not have to: `con_ron_core::frontend::prelude_text::prelude_text()` is that
+//! file already, as a *generated* constant committed inside `con-ron-core`
+//! with `scripts/gen-prelude.sh --check` as its freshness gate.  Reusing it
+//! across the crate boundary (this directory's `mod.rs`) is one more entry on
+//! the boundary's hole list and one fewer fork of a generated 1 500-line file;
+//! DESIGN.md §8.6's swap retires the hole.
 //!
-//! **How.**  The prelude is a lean4export-format stream, embedded as
-//! `prelude_text::PRELUDE_TEXT` and parsed by the ordinary direct parser into
-//! `Declaration` records.  `prepare::prepare_prelude` puts the prelude's
-//! declarations at the front of every stream it prepares — **the stream's OWN
-//! record where the stream has one**, and one of these only where it has none
-//! — so "in the env initially and unconditionally" is "first in every fold",
-//! and a stream that declares the toolchain's `Bool` is checked on its own
-//! `Bool` record.  The records install by exactly the routes a stream's
-//! records install by, the pinned blocks among them recognised by the fold
-//! (`basis_raw::basis_pin_hit`).
+//! **Why the parse takes the store where con-leche's is a 0-ary `def`.**
+//! con-leche parses the text once at module initialisation, because its parse
+//! is pure and its result owns nothing but `Expr` trees.  The arena's parse
+//! INTERNS into the `EStore`, so the prelude's nodes must land in the same
+//! store the stream's do — that is the whole point of the persistent tier, and
+//! the twin's own measurement is that on `Init` they coincide exactly: all 196
+//! prelude expression nodes are hash-consed into nodes the stream declares
+//! anyway.  It is the same deviation
+//! `crates/con-ron-core/src/frontend/prelude.rs` records, for the same reason.
 //!
-//! A parse failure — a corrupted committed file — is an `Err`, which the CLI
-//! reports as exit 3 before reading any input.
-//!
-//! **Two deviations.**
-//!
-//! * con-leche's `builtinPreludeE` is a 0-ary `def`, so Lean parses the text
-//!   once at process initialisation; Rust has no such thing for a value that
-//!   owns counted pointers, so this is a function the caller calls once.
-//! * con-leche's `builtinPreludeText` is an `include_str` of
-//!   `pins/<toolchain>.prelude.ndjson`; the port's is a generated constant in
-//!   the crate (`prelude_text`, `scripts/gen-prelude.sh`, gated by
-//!   `--check`), for the reason `kernel/pins_text.rs` gives for the pin list,
-//!   and a `[u8; N]` rather than that module's `&str` for the reason
-//!   `prelude_text`'s own note gives — in fact thirty-four of them, joined by
-//!   `prelude_text::prelude_text()`.  So this is `parse_bytes` of those bytes
-//!   where con-leche is `parseExportD` of a `String`.
-//! * the parse needs a **modeller** (`in_model_rec::Modeller`), because the
-//!   parse in general does; the prelude has no mutual or nested block, so
-//!   which modeller is passed cannot change the result, and the CLI passes
-//!   the same one it parses the stream with.
+//! The prelude has no mutual or nested block, so the `Modeller` it is parsed
+//! with cannot change the result; the driver passes the same one it parses the
+//! stream with, as both other ports do.
 
+use crate::arena::monad::AState;
 use crate::frontend::export_c;
-use crate::frontend::in_model_rec::Modeller;
-use crate::frontend::prelude_text::prelude_text;
 use crate::frontend::prepare::PreludeIx;
+use crate::frontend::types::Modeller;
+use crate::frontend::prelude_text::prelude_text;
 use crate::kernel::core_types::CheckError;
+use crate::arena::store::PersTier;
+
+/// con-leche: ConLeche/Frontend/Prelude.lean:57-62 builtinPreludeText
+/// Lean twin: `proof/ConRon/Arena/Frontend/Prelude.lean:47-48 builtinPreludeText`
+/// — the committed prelude for the pinned toolchain, as bytes.  A toolchain
+/// bump regenerates `crates/con-ron-core/src/frontend/prelude_text.rs` (and
+/// con-leche's own `pins/` file behind it) and re-points all three spellings.
+pub fn builtin_prelude_text() -> Vec<u8> {
+    prelude_text()
+}
 
 /// con-leche: ConLeche/Frontend/Prelude.lean:64-68 builtinPreludeE
-/// The parsed, indexed prelude: `Result` because a committed file can in
-/// principle be corrupted, and a prelude that does not parse must be a loud
-/// error rather than a silently empty prelude.  The index is the records
-/// alone since con-leche task #293 — the by-name and by-kind tables the
-/// dropped dedupe needed are gone with it.
-pub fn builtin_prelude_e<M: Modeller>(m: &M) -> Result<PreludeIx, (CheckError, u64)> {
-    let text: Vec<u8> = prelude_text();
-    match export_c::parse_bytes(m, &text, true, false) {
+/// Lean twin: `proof/ConRon/Arena/Frontend/Prelude.lean:53-56 builtinPreludeE`
+/// — the parsed, indexed prelude: an error channel because a committed file
+/// can in principle be corrupted, and a prelude that does not parse must be a
+/// loud error rather than a silently empty prelude.  The index is the records
+/// alone since con-leche's task #293.
+pub fn builtin_prelude_e<G: Modeller>(
+    pers: &PersTier,
+    m: &G,
+    ar: &mut AState,
+) -> Result<PreludeIx, (CheckError, u64)> {
+    let text: Vec<u8> = builtin_prelude_text();
+    match export_c::parse_bytes(pers, m, ar, &text, true, false) {
         Err(e) => Err(e),
         Ok(r) => Ok(PreludeIx { decls: r.decls }),
     }
@@ -72,70 +72,89 @@ pub fn builtin_prelude_e<M: Modeller>(m: &M) -> Result<PreludeIx, (CheckError, u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::in_model_rec::{BlockRec, ModelCtx};
-    use crate::kernel::env::Declaration;
+    use crate::arena::env::i_declaration_names;
+    use crate::frontend::types::DeclineModeller;
 
-    /// A modeller that declines everything: the prelude has no mutual or
-    /// nested block, so it is never asked.
-    struct NoModel;
-
-    impl Modeller for NoModel {
-        fn generate(
-            &self,
-            _ctx: &ModelCtx,
-            _b: &BlockRec,
-        ) -> Result<Vec<Declaration>, Vec<u32>> {
-            Err(Vec::new())
-        }
-    }
-
-    /// The constant is the committed ndjson byte for byte: same length, same
-    /// record count, and the two non-ASCII entries survive as UTF-8.
-    /// `scripts/gen-prelude.sh --check` is the gate; this states the same
-    /// fact where `cargo test` sees it.
-    #[test]
-    fn prelude_text_is_the_committed_ndjson() {
-        let bytes = prelude_text();
-        assert_eq!(bytes.len(), 16922);
-        assert_eq!(bytes[bytes.len() - 1], b'\n');
-        let text = std::str::from_utf8(&bytes).expect("the prelude is UTF-8");
-        let lines: Vec<&str> = text.lines().collect();
-        assert_eq!(lines.len(), 267);
-        assert!(lines[0].contains("con-leche-prelude"));
-        assert!(lines[266].starts_with("{\"inductive\":"));
-        assert!(text.contains("\u{3b1}"));
-        assert!(text.contains("\u{3b2}"));
-        // and it IS the committed file, byte for byte.  con-leche is a plain
-        // lake dependency of proof/ (task #91, not vendored), so its
-        // directory is resolved through `scripts/provenance.py dir` rather
-        // than a fixed repository-relative path; skip the byte comparison
-        // if that fails (e.g. `lake update` has not run in proof/ yet) --
-        // `scripts/gen-prelude.sh --check` is the gate of record for this.
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        if let Ok(out) = std::process::Command::new("python3")
-            .arg("scripts/provenance.py")
-            .arg("dir")
-            .current_dir(&root)
-            .output()
-        {
-            if out.status.success() {
-                let cl = String::from_utf8(out.stdout).unwrap().trim().to_string();
-                let p = std::path::Path::new(&cl)
-                    .join("pins/leanprover-lean4-v4.33.0.prelude.ndjson");
-                if let Ok(f) = std::fs::read(&p) {
-                    assert_eq!(&f[..], &bytes[..]);
-                }
-            }
+    /// con-leche: none — a test fixture
+    /// The state the driver builds: an empty store with the reserved-name
+    /// pins interned (task #97-P6-4a).  `export_c`'s projection-rewrite seam
+    /// reads a pin, so this is the only state the prelude parses in.
+    fn pinned_state() -> AState {
+        let pers: &PersTier = &PersTier::empty();
+        let mut ar = AState::init(crate::arena::store::EStore::empty());
+        match crate::arena::pins::intern_reserved_pins(pers, &mut ar) {
+            Ok(()) => ar,
+            Err(_) => panic!("the reserved-name pins must intern"),
         }
     }
 
     /// The prelude parses, and holds the declarations the fold expects of it.
     #[test]
     fn builtin_prelude_parses() {
-        let p = match builtin_prelude_e(&NoModel) {
+        let pers: &PersTier = &PersTier::empty();
+        let mut ar = pinned_state();
+        let p = match builtin_prelude_e(pers, &DeclineModeller {}, &mut ar) {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
         };
         assert!(!p.decls.is_empty());
+        // every record declares at least one name
+        for d in p.decls.iter() {
+            assert!(!i_declaration_names(d).is_empty());
+        }
+    }
+
+    /// **The Lean twin's own number, to the node.**  Task #97e measured the
+    /// arena checker on an *empty* input — i.e. with nothing in the store but
+    /// the prelude — and got **196 expression, 5 level, 55 name** nodes.  The
+    /// Rust parse of the same bytes into the same representation must give the
+    /// same three counts, and this is where that is checked: it exercises the
+    /// whole of `export_c` (every record kind the prelude uses), the derived
+    /// word, the cons tables and the level-list interning at once, and it is
+    /// the cheapest cross-check of the transliteration there is.
+    #[test]
+    fn the_prelude_interns_the_twins_own_node_counts() {
+        let pers: &PersTier = &PersTier::empty();
+        let mut ar = pinned_state();
+        // What the reserved-name pins put in the store before the prelude is
+        // read (task #97-P6-4a); the twin's numbers are about the PRELUDE, so
+        // the three counts below are differences.
+        let (e0, l0, n0) = (
+            ar.store.node_count(pers),
+            ar.store.ls().node_count(pers),
+            ar.store.ns().node_count(pers),
+        );
+        let p = match builtin_prelude_e(pers, &DeclineModeller {}, &mut ar) {
+            Ok(p) => p,
+            Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
+        };
+        assert_eq!(p.decls.len(), 12, "prelude declaration records");
+        // The reserved-name pins are interned first and the store is
+        // hash-consed, so what the prelude ADDS is the twin's count minus
+        // what the two share: the pins' one expression node (`Sort 1`) and
+        // both its level nodes (`0`, `1`) are the prelude's too, and 24 of
+        // their 64 name nodes are.
+        assert_eq!(e0, 1, "the pins' expression nodes");
+        assert_eq!(l0, 2, "the pins' level nodes");
+        assert_eq!(n0, 64, "the pins' name nodes");
+        assert_eq!(ar.store.node_count(pers) - e0, 195, "expression nodes added");
+        assert_eq!(ar.store.ls().node_count(pers) - l0, 3, "level nodes added");
+        assert_eq!(ar.store.ns().node_count(pers) - n0, 31, "name nodes added");
+        // …so the UNION is still the twin's own 196 and 5 on the two stores
+        // whose pinned nodes the prelude re-declares.
+        assert_eq!(ar.store.node_count(pers), 196, "expression nodes");
+        assert_eq!(ar.store.ls().node_count(pers), 5, "level nodes");
+        assert_eq!(ar.store.ns().node_count(pers), 55 + 40, "name nodes");
+    }
+
+    /// The prelude text is `con-ron-core`'s generated constant, byte for byte
+    /// the committed `pins/<toolchain>.prelude.ndjson`
+    /// (`scripts/gen-prelude.sh --check` is the gate of record; this states
+    /// the same fact where `cargo test` sees it).
+    #[test]
+    fn the_prelude_text_is_the_committed_ndjson() {
+        let b = builtin_prelude_text();
+        assert_eq!(b.len(), 16922);
+        assert_eq!(b[b.len() - 1], b'\n');
     }
 }
