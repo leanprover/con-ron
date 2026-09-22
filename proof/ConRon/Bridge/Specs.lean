@@ -141,6 +141,87 @@ theorem matchOwner_forallPw (x : ENodeView) :
       (fun _ _ _ => 1) (fun _ => 0) ≤ 1 := by
   grind
 
+/-- con-leche: none — `ConRon.Arena.isLam`'s (`ExprOps/Spine.lean` against
+`ExprOps/Walks.lean`). -/
+theorem matchOwner_isLam (x : ENodeView) :
+    ConRon.Arena.isLam.match_1 (motive := fun _ => Nat) x
+      (fun _ _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — `ConRon.Arena.isCtorApp`'s (`Core/Walks/Guards.lean`
+against `Core/Walks/Spine.lean`). -/
+theorem matchOwner_isCtorApp (x : ENodeView) :
+    ConRon.Arena.isCtorApp.match_5 (motive := fun _ => Nat) x
+      (fun _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — `ConRon.Arena.denoteLs`' (`Frontend` against
+`Inductives`). -/
+theorem matchOwner_denoteLs (x : Option LsNodeView) :
+    ConRon.Arena.denoteLs.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — the five `instantiate1Arm*` probe matches, shared by
+`ExprOps/{Abs,Inst1,Reset,Subst}.lean`.  They are the `Option` shape of a
+memo probe and of a `viewApp`/`viewBindI` projection, so every rebuilding
+walk of the tier grinds over one. -/
+theorem matchOwner_instantiate1ArmApp (x : Option (EIdx × EIdx)) :
+    ConRon.Arena.instantiate1ArmApp.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmApp3 (x : Option EIdx) :
+    ConRon.Arena.instantiate1ArmApp.match_3 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmBVar (x : Option Nat) :
+    ConRon.Arena.instantiate1ArmBVar.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmBind (x : Option (EIdx × EIdx × BMIdx)) :
+    ConRon.Arena.instantiate1ArmBind.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmLet (x : Option (EIdx × EIdx × EIdx)) :
+    ConRon.Arena.instantiate1ArmLet.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmProj (x : Option (NIdx × Nat × EIdx)) :
+    ConRon.Arena.instantiate1ArmProj.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — the three TEN-way `ENodeView` dispatch matches:
+`fvarLeaves` (`ExprOps/{Leaves,Walks}.lean`), `liftLooseBVarsGo`
+(`ExprOps/{Abs,Ranges,Walks}.lean`) and `resetMetaGo`
+(`ExprOps/{Leaves,Reset,Walks}.lean`).  Ten `congr_eq`s each, and one `grind`
+derives all ten. -/
+theorem matchOwner_fvarLeaves (x : ENodeView) :
+    ConRon.Arena.fvarLeaves.match_1 (motive := fun _ => Nat) x
+      (fun _ _ => 1) (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
+      (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ => 1) (fun _ => 1)
+      (fun _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
+    ConRon.Arena.liftLooseBVarsGo.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1)
+      (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
+      (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_resetMetaGo (x : ENodeView) :
+    ConRon.Arena.resetMetaGo.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1)
+      (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
+      (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
 /-! ## The failure primitives (template rule 7) -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — **the failure
