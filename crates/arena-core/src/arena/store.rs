@@ -278,8 +278,12 @@ where
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-17); Lean twin:
-    /// OWED — `Tbl.findSlot`, the cons-table probe that also hands back the
-    /// slot a miss would be written at.  `find?` is its second component.
+    /// **none owed** — the cons-table probe that also hands back the slot a
+    /// miss would be written at.  `find?` is its second component, and the
+    /// twin keeps `find?` then `push`: the pair is `Refine/HashMap2.lean`'s
+    /// `find_or_insert_refines`, which says it means what `insert` means, so
+    /// the refinement ABSORBS the split (the slot index is a representation
+    /// and `find_slot`'s `ensure_slots` is an allocation).
     ///
     /// It is what makes an interning miss cost ONE hash and ONE probe run
     /// instead of two (task #97-survey's N2): `find` then `push` probed the
@@ -290,7 +294,7 @@ where
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-17); Lean twin:
-    /// OWED — `Tbl.pushAt`, `Tbl.push` with the cons row written at the slot
+    /// **none owed** — `Tbl.push` with the cons row written at the slot
     /// `find_slot` returned.  Same value as `push`; see `find_slot`.
     pub fn push_at(&mut self, at: usize, a: A, d: D, i: I) {
         self.cons.insert_at(at, a.dup2(), i);

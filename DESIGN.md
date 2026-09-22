@@ -34512,6 +34512,13 @@ corner, not merely unprovable.  `ron/hashmap2.rs`'s own doc comment says so in
 passing ("`num_entries` … is at most `max_load` after an `insert` returns
 **unless the table is `saturated`**").
 
+**CLOSED by task #97-P6-17** (2026-09-22), in the Rust and in the direction
+§3.5 asks for: the `saturated` field is deleted, `try_resize` doubles
+unconditionally, its `capacity * 2` fails in the model past the limit, and
+**all five statements below drop the hypothesis** while `Inv` and `InvNoRun`
+lose their `sat` clause.  The paragraphs below are the state of this task and
+are kept for the record.
+
 It needs a table of `2^63` slots (`2^63 · 20` bytes) and cannot happen; but it
 is a model state, and **no capacity clause of `Inv` is preserved by the
 doubling that reaches it** (a table of `2^62` slots doubles to `2^63`, which
@@ -34531,6 +34538,11 @@ report "no room" rather than "this slot is free").  This task touches no Rust
 next edits `hashmap2.rs`; with that guard the hypothesis disappears from all
 five statements.  This is DESIGN.md §3.5's own rule — *"a strengthening that
 turns out false is a port bug; fix the Rust"* — deferred, not waived.
+**Taken up and done by task #97-P6-17**, which found a cheaper guard than the
+one prescribed here: rather than a test inside `insert`, the saturating arm
+of `try_resize` is *deleted*, so the arithmetic that cannot be performed past
+the limit is what stops the model, and the hypothesis is discharged by the
+`ok` premise at every one of the five.
 
 #### 5. `remove`, and the second fuel obligation
 
@@ -35055,6 +35067,339 @@ queue for the maintainer**, not P6 items: N2 and N4 reach into `con-ron-core`
 and into the owed `HashMap2` re-proof, N5 is a build setting, and N1's sign is
 unknown by its own account.  P6 closes on its own list.
 
+### Task #97-P6-17 — the survey's natural takes, and the hash map's saturation fix (2026-09-22, Opus under Fable)
+
+**P6 is DONE; this is its appendix.**  Task #97-P6-16 §8 closed the phase and
+left one list that was explicitly *not* P6's — task #97-survey's N1, N2, N4
+and N5, "a separately schedulable queue for the maintainer" — and task
+#97-HM2 §4 left a *correctness* item: a real, unreachable port bug in
+`ron::hashmap2`, "recorded here and left to whoever next edits `hashmap2.rs`".
+This task is both.  Branch `p6-17` off `arena`'s tip `433afd13`; the scratch,
+the two throwaway counting builds and the PGO profile are `_tmp/t97-p6-17/`.
+
+**The measure**, task #97-P6-16's own: `perf stat -e instructions:u,cycles:u`
+of `--verified --jobs=1 --progress=1000000`, every run under `timeout` and
+under `ulimit -v` — 8 388 608 KB for `Init`, 12 582 912 KB for the Mathlib
+25 % prefix (`head -26948621`), 27 000 000 KB for Mathlib.  **Read the
+instruction column**: every `Init` and prefix row below is two passes and they
+agree to nine digits, while cycles and wall move by up to 5 % at load.  Task
+#97-P6-13's re-uplift trap was respected with the same harness discipline
+(`_tmp/t97-p6-17/try.sh` builds and `md5sum`s the binary it copies,
+`run.sh` measures one already built) — **and it earned its keep again**: the
+first `target-cpu=native` attempt was measured on a binary the harness had
+rebuilt WITHOUT the flag, and the `md5sum` said so (byte-identical to the
+previous variant) before a single number was written down.  The tip's own
+`Init` and prefix rows reproduce task #97-P6-16's to nine digits (216 182 844
+805 against 216 183 546 996; 858 278 556 405 against 858 282 679 886), so the
+two tasks measure the same binary on the same files.
+
+#### 1. Item 1 — the saturation corner, closed in the Rust
+
+Task #97-HM2 §4's finding, restated: `try_resize` set `saturated := true` when
+the slot count passed `usize::MAX / 2`; from then on `insert` never resized,
+`num_entries` could climb to `slots.len()`, `probe`'s `fuel == 0` arm became
+reachable and an `insert` **overwrote a live entry**.  For a memo that is a
+lost cache row; for a **cons table it is two handles denoting one term**,
+which is exactly what §8.3 makes `denote`'s injectivity a *soundness*
+obligation about — so a silent drop is no better.  It needs a table of `2^63`
+slots (184 exabytes) and cannot happen, but it is a model state, and
+DESIGN.md §3.5's rule is that a strengthening which turns out false is a port
+bug.  Its price in the spec tier was the hypothesis
+`2 * m.slots.val.length ≤ Usize.max` on `try_resize_spec`,
+`insert_refines_gen`, `insert_refines`, `Rel_insert` and the two `_wf`
+siblings, plus a `sat` clause in `Inv` and in `InvNoRun`.
+
+**The fix, and why this shape.**  The brief offered two: `insert` returns a
+`Result` at that one point, or the caller tests `is_saturated_full()` first.
+A `Result`-returning `insert` is 58 call sites in `arena-core`, most of them
+inside functions that return nothing, and it puts a `core::result::Result`
+layer inside every consumer's statement.  What is landed instead is neither
+and better than both:
+
+  * the `saturated` field is **deleted**, and `try_resize` doubles
+    unconditionally.  Its `capacity * 2` is then the module's limit — the same
+    kind of limit `slots[i]`'s bound already is, and discharged the same way.
+  * In the **model** that multiplication FAILS past `usize::MAX / 2`, so
+    `try_resize m = ok m'` now *implies* the old hypothesis: **all five
+    statements drop it**, `Inv` loses `sat`, `InvNoRun` loses `sat`, and
+    every operation of `Refine/HashMap2.lean` is unconditional.  The premise
+    discharges what the hypothesis used to assume, which is the shape the rest
+    of the tier already had.
+  * In the **port** the limit is a declared precondition with a query to test
+    it, `HashMap2::is_saturated_full()`, and the arena tests it: `Tbl::full`
+    is "this constructor's array of this tier has no room", which is the
+    handle-index cap (`IDX_CAP`, 2^27) **or** the cons table's own, and it
+    replaces the bare `size() >= IDX_CAP` at all 39 capacity sites of
+    `arena::store` (`NTables`/`LTables`/`LsTables`/`ETables::full_of` and the
+    four `pers_full_of` are `size_of`'s Boolean siblings; the four now-unused
+    private `pers_size_of` are deleted).  So a table at either limit declines
+    with the port's **`Native`** error, as §8.3's index cap already did.
+
+**And it is free.**  `Init` 216 182 733 862 → 216 179 340 466 (**−0.002 %**),
+the prefix 858 279 598 606 → 858 268 989 887 (**−0.001 %**): the new test pays
+for itself against the `saturated` load `insert` used to do on every call, and
+the record is eight bytes narrower.  `lake build ConRon.Refine.HashMap2WF` is
+green and sorry-free and the twenty `#print axioms` are still the three.
+
+#### 2. Item 2 — N2, the fused find-or-push
+
+Task #97-survey's one item "with a mechanism the arena visibly lacks", and its
+"N2 regardless of N1".  `Tbl::find` then `Tbl::push` probed the same cons
+table for the same record TWICE on every interning miss — 372 M of them on the
+prefix — because `push`'s `insert` hashes the record and walks the probe run
+again.  Between the two the caller computes only the derived word and the
+handle, so the slot the first probe found is still the slot the second would
+find.
+
+`HashMap2::find_slot` is the fused probe: it allocates the table on the way in
+and returns `(at, hit)`, the bound value and the slot a miss must be written
+at.  `HashMap2::insert_at` writes there, bumps the counter and grows if that
+passed the threshold.  `Tbl::find_slot` / `Tbl::push_at` are their cons-table
+wrappers and the **eleven scratch-tier interning paths** of `EStore` — the ten
+`intern_<ctor>` and `intern_bm` — use them.  The persistent-push arm is left
+alone by design: its probe is the `hit` computation's, a three-way choice over
+two tiers, and it is the parse phase's, ~3 % of the interns.
+
+**`Init` 216 179 340 466 → 212 349 229 991 (−1.77 %)**, the prefix
+858 268 989 887 → 843 559 481 257 (**−1.71 %**), inside the survey's own
+"1–3 % of `Init`" estimate.
+
+**The spec tier cost ONE lemma, not a second development** — which is the
+half of this item that matters, since the survey priced N2 as "+1 op on the
+owed `HashMap2` re-proof".  `find_slot_spec` says what the probe answered
+(`o = toFun m key`, with `Inv`, `KeysOk` and `toFun` carried through
+`ensure_slots`) *and* hands back the identification **`find_slot` then
+`insert_at` = `insert`**, which is a computation and not an argument:
+`insert_no_resize` re-runs the very same hash, home index and probe on the
+very same table, and `insert_at`'s write, counter bump and load test are that
+function's `b = false` arm followed by `insert`'s own tail.
+`find_or_insert_refines` then reads `insert_refines_gen` through it, so the
+fused pair carries `insert`'s conclusion verbatim.  Both are in the axiom
+census at the three axioms.  Two mechanical notes to add to task #97-HM2 §7's
+two: **`rw` cannot see through the pattern `let`s either** — the fix for a
+GOAL is the mirror of that section's fix for a hypothesis, `refine
+bind_eq_ok_iff.mpr ⟨…, ?_⟩` rather than `rw [bind_eq_ok_iff]`, because
+`refine` unifies up to `whnf` and `rw` does not; and **`congrArg Prod.snd e`
+is not an `rw` argument** unless it is given a type ascription first, since
+its statement is about `(a, b).snd` and not about `b`.
+
+#### 3. Item 3 — N1, decided by its counters and NOT taken
+
+The survey's verdict was "counters first ... hit-persistent / hit-scratch /
+miss-both on the `sk == false` interning path", and its own estimate was
+"0–3 % of `Init`, **sign unknown** — may be negative".  A throwaway
+instrumented build (relaxed atomics on the eleven fused paths; the
+persistent-probe hit is counted where `match hit { Some(hp) => … }` fires,
+which is reachable only when the probe ran) answers it:
+
+| export | `sk == false` interns | hit persistent | hit scratch | miss both |
+|---|---:|---:|---:|---:|
+| `Init` | 79 158 967 | **65 686 538 (83.0 %)** | 8 312 185 (10.5 %) | 5 160 244 (6.5 %) |
+| Mathlib 25 % prefix | 339 772 936 | **297 543 547 (87.6 %)** | 17 115 390 (5.0 %) | 25 113 999 (7.4 %) |
+
+(for scale, the `sk == true` population — where the persistent probe is
+already skipped, which is still-nanoda's own largest published win and has
+been the arena's since task #97-P4a — is 162 444 754 on `Init` and
+612 282 700 on the prefix, i.e. **two thirds of all interns never probe the
+persistent tier at all**.)
+
+**N1 is a loss and is not taken.**  Reordering can only touch the `sk ==
+false` population, and 83–88 % of it hits the persistent tier: probing scratch
+first would add a failed scratch probe before every one of those, to save a
+failed persistent probe on the 5–10 % that hit scratch.  The survey's own
+reasoning is confirmed exactly — *"unlike nanoda we already skip the
+persistent probe when it cannot hit, so `sk == false` is exactly the
+population that plausibly IS persistent, where persistent-first is the right
+guess"*.
+
+#### 4. Item 4 — N4, the def-eq memo's admission filter, measured and priced out
+
+The survey asked for "the tag profile of the pairs stored" at
+`core::defeq_set`.  A second throwaway build counts every `defeq_set` by the
+constructor tags of the pair, every `defeq_probe` and every probe HIT the same
+way.  The headline first:
+
+| export | probes | hits | hit rate | stores | of them negative |
+|---|---:|---:|---:|---:|---:|
+| `Init` | 13 474 784 | 10 056 344 | **74.6 %** | 3 418 440 | 4 467 (0.13 %) |
+| prefix | 45 213 621 | 32 568 069 | **72.0 %** | 12 645 552 | 21 903 (0.17 %) |
+
+and the classes that carry the mass, as *hits returned per row stored* — the
+only ratio an admission filter can trade:
+
+| pair class | `Init` stores | `Init` hits/store | prefix stores | prefix hits/store |
+|---|---:|---:|---:|---:|
+| `app`×`app` | 2 377 086 (69.5 %) | **0.85** | 8 667 322 (68.5 %) | **1.33** |
+| `forallE`×`forallE` | 317 677 | 1.39 | 962 401 | 1.32 |
+| `const`×`const` | 216 623 | **18.2** | 905 169 | 4.78 |
+| `sort`×`sort` | 160 232 | **17.9** | 698 954 | **15.3** |
+| `fvar`×`fvar` | 49 509 | 5.9 | 358 574 | 9.6 |
+| `lam`×`lam` | 27 436 | 0.43 | 262 020 | 0.34 |
+
+**There is nothing to filter.**  The table is read back at 72–75 %, its
+biggest class returns 1.33 hits per row on the benchmark that matters, and the
+only class below 1.0 on both exports (`lam`×`lam`) is 2 % of the stores.  The
+two A/Bs confirm the counts, and the second is the one that settles the
+family: **dropping `lam`×`lam` is +0.03 % of `Init`** (212 349 229 991 →
+212 417 758 053) and **dropping `app`×`app` is +6.19 %** (→ 225 489 121 605)
+at **+12 % peak RSS** (574 → 645 MB), because every lost hit is a full `defeq`
+recomputation that also builds nodes.  A cheap insert traded for an expensive
+recomputation is the wrong direction, and sokonanoda's `is_cacheable` exists
+to exclude verdicts obtained inside a *speculation*, which this checker does
+not have (§2 of the survey: the arena's proof irrelevance is unconditional and
+cached).  **N4 joins task #97-P6-7's negative and congruence caches: priced
+out by counting, not by taste.**
+
+#### 5. Item 5 — N5, PGO, measured ONCE and NOT landed
+
+Per the brief and the survey's own verdict ("N5 measured once, reported, and
+kept out of the default build unless the maintainer wants the kernel-arena
+entry to carry it").  The training run is `Init` under
+`-Cprofile-generate`, merged with the *toolchain's own* `llvm-profdata` (the
+system one is a raw-format version behind and refuses the profile), and the
+measured binaries are built with `-Cprofile-use` over this branch's tree.
+**The prefix is out of the training set**, which is the honest column.
+
+| build | `Init` instructions | Δ | prefix instructions | Δ |
+|---|---:|---:|---:|---:|
+| this branch, as it ships | 212 349 229 991 | — | 843 559 481 257 | — |
+| `-C target-cpu=native` | 212 322 947 532 | −0.01 % | — | |
+| **PGO** (trained on `Init`) | **178 568 377 598** | **−15.9 %** | **705 888 089 905** | **−16.3 %** |
+| PGO + `target-cpu=native` | 178 356 118 638 | −16.0 % | 704 218 804 049 | **−16.5 %** |
+
+with `Init` cycles 98.32 → 91.57–91.83 G (−6.7 %) and wall 22.4 → 21.0 s
+(−6.3 %), and the prefix's wall 90.8 → 84.5 s (−7.0 %).
+
+Three things worth recording.  **The survey's estimate was wrong in the
+arena's favour**: it priced N5 at "5–10 % cycles/wall, little on
+instructions", and the instruction column is where it lands hardest — −16 %,
+which is larger than every lever of P6 bar the first three.  **It
+transfers**: the profile is trained on `Init` and the *larger* saving is on
+the Mathlib prefix, so this is not overfitting to the training input.  And
+**`target-cpu=native` is worth nothing on its own** (−0.01 % instructions,
+−1.0 % cycles) and −0.24 % on top of PGO, so the architecture-specific half of
+the item is noise; PGO is the whole of it.
+
+**Not landed**, as instructed.  It is a *build* setting: Charon never reads
+`[profile.release]`, so the extraction and every proof are indifferent, and
+the twin ledger is empty for this item.  What it costs to adopt is a training
+corpus in the repository, a `.profdata` artefact or a two-stage CI build, and
+a decision about whether the number the project reports is the one a plain
+`cargo build --release` produces.  That is the maintainer's call; the figure
+above is what it is worth.
+
+#### 6. The per-item table
+
+Each item measured on its own, `--verified --jobs=1`, both columns two passes
+agreeing to nine digits on instructions.
+
+| step | `Init` instructions | Δ | prefix instructions | Δ |
+|---|---:|---:|---:|---:|
+| the `arena` tip `433afd13` | 216 182 844 805 | — | 858 278 556 405 | — |
+| + item 1 — the saturation fix and `Tbl::full` | 216 179 340 466 | −0.002 % | 858 268 989 887 | −0.001 % |
+| + item 2 — N2, the fused find-or-push | **212 349 229 991** | **−1.77 %** | **843 559 481 257** | **−1.71 %** |
+| | | **−1.77 %** | | **−1.71 %** |
+| item 3 — N1, scratch-first probe order | not taken (counters: 83–88 % hit persistent) | | | |
+| item 4 — N4, def-eq memo admission filter | not taken (+0.03 % / +6.19 % measured) | | | |
+| item 5 — N5, PGO | not landed (−15.9 % / −16.3 %, a build setting) | | | |
+
+#### 7. The table, beside `con-ron` at master and nanoda
+
+The `arena` tip `433afd13` against this branch, one tree, one
+`[profile.release]`, both binaries `md5sum`ed against a fresh build of their
+own tree, every pair run back to back on an otherwise idle machine.  The
+baselines are task #97-P6-16's closing table, quoted.
+
+| export | | `arena` tip | **this branch** | Δ |
+|---|---|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 216 182 844 805 / 216 181 740 365 | **212 349 229 991 / 212 349 271 593** | **−1.77 %** |
+| | cycles:u | 98.44 / 98.32 G | 97.30 / 97.51 G | −1.0 % |
+| | wall | 22.54 / 22.44 s | 22.20 / 22.27 s | −1.1 % |
+| | peak RSS | 641.8 / 574.2 MB | 574.2 MB (twice) | ±0 |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 858 278 556 405 / 858 275 969 821 | **843 559 481 257 / 843 559 586 009** | **−1.71 %** |
+| | cycles:u | 399.20 / 400.18 G | 398.73 / 397.78 G | −0.4 % |
+| | wall | 91.29 / 91.58 s | 90.82 / 90.68 s | −0.8 % |
+| | peak RSS | 1 840.1 / 1 876.4 MB | 1 884.7 MB (twice) | +0.9 % |
+| **Mathlib, 691 128** | instructions:u | 3 978 018 461 637 / 3 978 005 371 949 | **3 904 413 412 802** | **−1.85 %** |
+| | cycles:u | 2 007.37 / 2 195.05 G | 2 146.08 G | inside the range |
+| | wall | 464.17 / 527.72 s | 511.32 s | inside the range |
+| | peak RSS | 6 573.9 / 6 776.5 MB | 6 775.7 MB | ±0 |
+
+The verdicts are unchanged at every size: `accepted 57977`, `accepted 155288`,
+`accepted 691128`.  The Mathlib row is ONE pass of this branch against the
+tip's two (task #97-P6-16's own, quoted): its instruction count is
+deterministic and is the result; its cycles and wall fall inside the tip's own
+two-pass spread, which is what CLAUDE.md's rule about one run of a large
+benchmark predicts and is not a result either way.
+
+| export | `arena` tip | **this branch** | vs `con-ron` master | vs nanoda |
+|---|---:|---:|---:|---:|
+| `Init` | 216.18 G | **212.35 G** | 0.554× → **0.544×** | 0.936× → **0.919×** |
+| Mathlib 25 % prefix | 858.28 G | **843.56 G** | — | 0.723× → **0.711×** |
+| **Mathlib** | 3 978.01 G | **3 904.41 G** | 0.542× → **0.532×** | 0.657× → **0.645×** |
+| Mathlib peak RSS | 6.78 GB | **6.78 GB** | 0.795× | — |
+
+(the `con-ron` and nanoda figures are the P6 closing table's: `Init`
+390 101 035 158 and 231 036 202 585, Mathlib 7 336 854 370 831 and
+6 053 881 171 452, Mathlib peak 8 526 MB.)  **The arena checks Mathlib in
+64.5 % of nanoda's instructions and 53.2 % of `con-ron` at master's**, and
+with PGO — measured, not landed — it would be 53 % and 44 %.
+
+#### 8. The twin ledger (§8.6's P6 rule)
+
+| arena item | what it is | the twin's clause | owed or absorbed |
+|---|---|---|---|
+| `ron::hashmap2`: `saturated` deleted, `try_resize` unconditional, `is_saturated_full` | a `con-ron-core` change, **proved** | — | **none owed**: `con-ron-core`'s model is regenerated and committed, and `Refine/HashMap2.lean` is re-proved against it.  The twin's `Tbl` is a Lean `HashMap`, which has no capacity at all, so the corner does not exist there |
+| `Tbl::full`, `{N,L,Ls,E}Tables::full_of`, the four `pers_full_of`, replacing `size_of … >= IDX_CAP` at 39 sites | the capacity test, now "the index cap OR the cons table's own" | **OWED**, one `def` and four dispatches | owed and cheap: `Tbl.full t := t.size ≥ IDX_CAP ∨ t.cons.isSaturatedFull`, and the second disjunct is **provably false under the first** (`IDX_CAP` is 2^27 and saturation needs 2^62 entries), so the twin may spell it either way.  §8.2's rule that "the port's `Native` error claims nothing" means the refinement is indifferent to the extra arm in any case — this is a **new `Native` site** and it is sound by construction |
+| the four private `pers_size_of`, deleted (their only caller was the cap test) | — | — | **absorbed**: `sizeOf` survives as the tables' own clause; nothing read `persSizeOf` but the test that is now `persFullOf` |
+| `HashMap2::find_slot` / `insert_at`, `Tbl::find_slot` / `push_at`, and the eleven scratch interning paths | `find?` then `push`, taken apart at the probe | — | **ABSORBED by the refinement**: `Refine/HashMap2.lean`'s `find_or_insert_refines` says the pair means what `insert` means, so the twin keeps `Tbl.find?` then `Tbl.push` unchanged.  What the Rust adds is a slot index (a representation) and `find_slot`'s `ensure_slots` (an allocation, §3.2) |
+| `Refine/HashMap2.lean`: `Inv`/`InvNoRun` lose `sat`; five statements lose `2 * slots.len ≤ Usize.max`; `find_slot_spec` and `find_or_insert_refines` are new | the spec tier of `con-ron-core`'s map | — | **not a twin item at all**: it is the owed `HashMap2` re-proof of task #97-P6-4b, landed by task #97-HM2 and extended here.  Recorded so the catch-up knows the hypothesis is gone from every call site it will write |
+| N1, N4, N5 | — | — | **nothing**: N1 and N4 are not taken and N5 is not landed; a `[profile.release]` setting is invisible to Charon in any case |
+
+Nothing here is a different algorithm.  The interns are the same clauses with
+one probe instead of two, the capacity test is the same test with a second
+disjunct that cannot fire, and the map is the same map with a state it could
+not reach removed from its model.
+
+#### 9. Gates
+
+| gate | |
+|---|---|
+| `LEAN_NUM_THREADS=4 LAKE_JOBS=8 scripts/gates.sh` | **all 12 OK** (`cargo-build` 3 s, `cargo-test` 7 s, `lint-rust` 3 s, `provenance`, `provenance-self`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean` 0–1 s, `extract-check` 82 s, `lake-build` 215 s) |
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | clean, 0 failures (one new unit test, `a_growing_table_is_never_saturated_full`) |
+| `scripts/lint-rust-style.sh` and `… crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6745 item(s) (4992 Rust, 1753 arena Lean), 4968 citation(s), all current at pin 78ded4b6` |
+| `scripts/extract.sh --check` | clean — `con-ron-core`'s committed model is regenerated and committed in the same commits as the `hashmap2.rs` changes |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 213 function holes** against the tip's 210: `is_saturated_full`, `find_slot` and `insert_at` are three new crate-boundary axioms, exactly like the eight `con_ron_core::ron::hashmap2` entries beside them, and `con-ron-core`'s own model translates all three |
+| `lake build ConRon.Refine.HashMap2WF` | green, **sorry-free**, and the census is now **twenty-two** `#print axioms` at `[propext, Classical.choice, Quot.sound]` |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena --jobs=1` | **383/383 agree**, 0 differ, 0 timed out, at `--verified` and at `--trusted` |
+| the diff | `crates/con-ron-core/src/ron/hashmap2.rs`, `crates/arena-core/src/arena/store.rs`, `proof/ConRon/Generated/{Types,Funs}.lean`, `proof/ConRon/Refine/HashMap2{,WF}.lean` — nothing else |
+
+`crates/con-ron`, `crates/con-ron-arena`, `OVERVIEW.md` and `README.md` are
+untouched.  `proof/ConRon/Arena/**` is untouched (a concurrent agent owns it).
+
+#### 10. What this leaves
+
+**The survey's queue is exhausted**: N2 is taken and is worth 1.7 %, N1 and N4
+are measured and refused, N3 was a rounding error by the survey's own account,
+A1 and A3 were already ours or already priced out, and A2/A4/A5/A6 are not to
+be taken.  N5 is the one live item and it is the maintainer's, not a
+porter's — **PGO is −16 % of the instruction column on an export it was not
+trained on**, which is larger than any code lever left anywhere in the
+profile, and it costs a build-process decision rather than a line of Rust or a
+line of proof.
+
+**The correctness item is closed and it made the proof smaller**: five
+statements lost a hypothesis, `Inv` lost a clause, and the module no longer
+has a model state it cannot handle.  The rule it instances — DESIGN.md §3.5,
+"a strengthening that turns out false is a port bug; fix the Rust" — was
+applied in the direction the rule intends, and the fix cost 0.00 % of the run.
+
+What is still owed is unchanged and is not this task's: the Lean twin's
+catch-up (§8.6's P6 rule, one task before P3/P5), and the OVERVIEW numbers
+(§7.x, a post-merge task of their own — the Mathlib row this task measured,
+3 904.41 G at 6.78 GB, is the one it will quote).
+
 ### P6 closing table (task #97-P6-16, 2026-09-21)
 
 **What P6 was**: DESIGN §8.6's performance phase, sixteen items from task
@@ -35199,5 +35544,9 @@ budget.
 **5. What is not done.**  The Lean twin is a round behind: every P6 task since
 the RUST-FIRST ruling keeps a twin ledger, and the Lean catch-up that consumes
 them all runs once before P3/P5.  The OVERVIEW numbers are a post-merge task
-of their own (§7.x).  And task #97-survey's N1/N2/N4/N5 are a separate queue
-the maintainer may schedule — they are not P6 items.
+of their own (§7.x).  And task #97-survey's N1/N2/N4/N5 were a separate queue
+the maintainer may schedule — not P6 items — which **task #97-P6-17 has now
+worked through** (N2 taken, −1.7 %; N1 and N4 measured and refused; N5
+measured at −16 % and left to the maintainer as a build decision), together
+with task #97-HM2 §4's deferred port bug.  See its section, which is P6's
+appendix and not a seventeenth item.
