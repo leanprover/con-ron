@@ -49,6 +49,7 @@ So the shape of the whole tier is: one induction (here), one bracket (here),
 seven arms (`Decl.lean`), and two named hypotheses (`Hyp.lean`).
 -/
 import ConRon.Bridge.Checker.Mono
+import ConRon.Bridge.Checker.Arms
 
 open ConLeche ConRon.Arena
 

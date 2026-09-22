@@ -782,6 +782,15 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       (ConLeche.ensureSortCore_mono hle11 hF11)
 
 
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean:279 checkConstantVal_datF —
+one fuel for the front door, through con-leche's own monotone family. -/
+theorem checkConstantVal_mono {μ : CheckMode} {env : Env} {c cA : ConstantVal}
+    {F F' : Nat} (hle : F ≤ F')
+    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA) :
+    ConLeche.checkConstantVal (ConLeche.fueledOps μ F') env c = .ok cA := by
+  rw [← ConLeche.checkConstantVal_datF (mode := μ)] at h ⊢
+  exact (ConLeche.checkConstantVal (ConLeche.fueledOpsM μ) env c).property hle h
+
 /-! ## The three list checks
 
 `checkTypedList`, `checkAnnotList` and `checkDefEqList` are the nested-pin and
