@@ -20,6 +20,14 @@ the fixpoint route.  So a twin that answered `none` where con-leche answers
 `some` would take the OTHER route, and Theorem 1 would be about a different
 program.  `ROp` (`Bridge/Inductives/Rel.lean`) is that two-sidedness, and it
 is why the tier's `Option` relation is not a one-sided implication.
+
+## Status: CLOSED (task #97-P3-Ind round 2)
+
+**No `sorry` in this module**, and it is the tier's first file at zero.
+`withSort_spec` moved from `PSpec` to `CSpec` on the way — round 2's finding,
+argued in `Bridge/Inductives/Rel.lean`'s frame section: `lvlEq?` fills two of
+the fourteen per-declaration cache tables, so `PStep`'s `caches` clause is
+false of any twin that calls it.
 -/
 import ConRon.Bridge.Inductives.StructParts
 
@@ -170,16 +178,48 @@ tables move.  `lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`, closed) is
 stated at `CheckOK`/`CoreStep` for exactly that reason, and this statement now
 matches it.  Its one caller, `checkSumInd`, is core grade already.
 
-`sorry`: `pinZeroLevel_spec` and `lvlEq?_spec` (both closed) plus
-`ShapeRel.ext` for the nine fields that do not move.  The one content step is
-that `lvlEq? s z = some true` iff `Level.isEquiv sP .zero = some true`, which
-is `lvlEq?_spec` read at both signs. -/
+**CLOSED** (task #97-P3-Ind round 2): `pinZeroLevel_spec` and `lvlEq?_spec`
+(both closed elsewhere), then the nine fields that do not move.  The one
+content step is that the twin's verdict IS `Level.isEquiv sP .zero` — which is
+`lvlEq?_spec` read as an EQUATION between `Option Bool`s rather than at its
+`some true` half, task #97-P3-Core-2's strengthening, and what this module's
+round-1 note asked for in the words "read at both signs".  The store does not
+move at all (`lvlEq?` only fills caches), so there is no transport. -/
 theorem withSort_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (p : Arena.InductiveShape) (q : ConLeche.InductiveShape)
     (s : LIdx) (sP : Level) :
     CSpec μ env fe (fun st => ShapeRel st p q ∧ denoteL st.ls s = some sP)
       (Arena.InductiveShape.withSort p s)
       (RShape (ConLeche.InductiveShape.withSort q sP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hrel, hs⟩ := hpre
+  simp only [Arena.InductiveShape.withSort, Arena.zeroLevel] at hrun
+  obtain ⟨z, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hz1, hz2⟩ :=
+    AM.of_run (P := fun t => t = s₀) rfl h1 (pinZeroLevel_spec s₀ hok.pins)
+  rw [hz1] at h2
+  obtain ⟨a, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hck, hst, hpin, lu, lv, hlu, hlv, ha⟩ :=
+    AM.of_run (P := fun t => t = s₀) rfl h3 (Core.lvlEq?_spec s₀ s z hok)
+  obtain ⟨hr1, hr2⟩ := pureOk h4
+  subst hr1
+  subst hr2
+  -- the two levels the verdict is about ARE the result sort and `zero`
+  obtain rfl : lu = sP := Option.some.inj (hlu.symm.trans hs)
+  obtain rfl : lv = Level.zero := Option.some.inj (hlv.symm.trans hz2)
+  refine ⟨⟨hck, by rw [hst]; exact Ext.refl _, hpin⟩, ?_⟩
+  show ShapeRel _ _ _
+  rw [hst]
+  exact
+    { cvT := hrel.cvT
+      ctors := hrel.ctors
+      nP := hrel.nP
+      nIdx := hrel.nIdx
+      cvR := hrel.cvR
+      elim := hrel.elim
+      resSort := hs
+      rhss := hrel.rhss
+      large := hrel.large
+      isProp := by rw [ha]; rfl }
 
 end ConRon.Bridge.Inductives
