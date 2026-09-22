@@ -48207,7 +48207,7 @@ row changed**.
 | `cd proof && lake build ConRonBridge` | **green** — the whole point of the additive shape: `denoteN_inj` / `denoteE_inj` / `denoteL_inj` and their 27 consumer files are untouched, and not one `Bridge/**` file was edited; 616 jobs |
 | `cd proof && lake build ConRonRefine2` | **green** — 2 220 jobs |
 | `scripts/gates.sh` | **all 13 OK** (`extract-check` 87 s, `lake-build` 112 s; no Rust file and no generated file moved, so the first eleven are formalities) |
-| merged `arena` twice (`95acf308`, `a063de72`) | task #97-P3-Frame's and task #97-P5-Checker-3's landings; `DESIGN.md` and `Bridge/**` only, no overlap with this round's five files.  Both builds and the gates were re-run after the second |
+| merged `arena` three times (`95acf308`, `a063de72`, `72f5994d`) | three other rounds' landings; `DESIGN.md` and `Bridge/**` only, no overlap with this round's five files.  Both builds and the gates were re-run after each of the last two.  Nothing outside `Arena/WFProofs.lean` names either of this round's two in-place edits (`wf_of_scr_empty`'s hypothesis and `EWFAt.persFindBM_of_view_pers`'s rename), so a later `arena` cannot collide with them |
 | the diff | `proof/ConRon/Arena/{WF,WFProofs}.lean`, `proof/ConRon/Refine2/Specs.lean`, `proof/ConRon/Refine2/Promote/{Intern,Promote}.lean` and this section.  No Rust file, no generated model, no `Refine/`, no `RefineOld/`, **no `Bridge/`**, no `Refine2/Core/**` |
 
 **Lanes entered outside this task's own**: none.  `Refine2/Shape.lean` would
