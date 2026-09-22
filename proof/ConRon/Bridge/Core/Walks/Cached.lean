@@ -394,4 +394,47 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
           some (rl.rhs.instantiateLevelParams cv.levelParams ls)⌝⦄ := by
   sorry
 
+
+/-! ## 5. The axiom census
+
+DESIGN §8's gate for every tier of this library, at this module's closed
+results and at `Bridge/Core/Walks/Frame.lean`'s (which it imports): the three
+standard axioms and no `sorryAx`.  The three come in through `Std.HashMap`,
+`Classical` in `Option`'s lemmas and `Quot` in `String`. -/
+
+section Census
+
+#print axioms ReadbackFrame.refl
+#print axioms ReadbackFrame.trans
+#print axioms ReadbackFrame.ext
+#print axioms CacheOK.ofReadbackFrame
+#print axioms CheckOK.ofReadbackFrame
+#print axioms readLevelM_eq
+#print axioms readNameM_eq
+#print axioms readLevelsM_eq
+#print axioms readLevelMB_frame
+#print axioms readNameMB_frame
+#print axioms readLevelsMB_frame
+
+#print axioms LvlEqCacheOK.insert_capped
+#print axioms LvlsEqCacheOK.insert_capped
+#print axioms ConstTyCacheOK.insert_capped
+#print axioms ConstValCacheOK.insert_capped
+#print axioms RuleRhsCacheOK.insert_capped
+#print axioms CacheOK.insertLvlEq
+#print axioms CacheOK.insertLvlsEq
+
+/-! **The tier's own result**: the first two non-slot walks of
+`Arena/Core.lean` with a theorem, and both sorry-free. -/
+#print axioms lvlEq?_spec
+#print axioms lvlsEq?_spec
+
+/-! The three that are `sorry` — `sorryAx` is EXPECTED on exactly these
+(DESIGN §8's `### Task #97-P3-CoreWalks` §7). -/
+#print axioms constTyAt_spec
+#print axioms constValAt_spec
+#print axioms ruleRhsAt_spec
+
+end Census
+
 end ConRon.Bridge.Core

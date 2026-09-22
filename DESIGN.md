@@ -39425,3 +39425,315 @@ UNCONDITIONALLY, no `StoreWF`"*.  If that holds, the `StoreWF lst.store`
 half of §3's pair can come OUT of `KnotRel` and `BodyRel`'s thirteen fields
 and only `EResolves` stays; the Core tier's statements should be re-cut
 against it rather than keep a hypothesis that turns out to be free.
+
+### Task #97-P3-CoreWalks — Theorem 1: the Core tier's non-slot walks (2026-09-22, Opus under Fable)
+
+Phase **P3** of §8.6, the Core round's second half: the walks of
+`Arena/Core.lean` that are **not** knot slots, which task #97-P3-Core's §6
+named as what the six body walks are waiting on and estimated as *"bigger
+than the six bodies"*.  Branch `p3-corewalks` off `arena`'s `50a80f5b`,
+merged forward three times while it ran (the Checker tier `dd369780`, the
+`ExprOps` arm split `be5aab5d`, Theorem 2's Core round `827c4be8`).
+
+**The estimate was right and the number was low.**  §1 is the census.
+
+#### 1. The census: 190 definitions, and where the work is
+
+`Arena/Core.lean` is 3 757 lines and **190 definitions**.  Classified by what
+a bridge theorem for each would have to be:
+
+| class | count | what it is | what it needs |
+|---|---:|---|---|
+| **K** knot slots, bodies, loops, entries | 20 | `coreKnot`, `pureFnsA`, the seven entry points, the six bodies, `whnfStep`/`whnfLoop`/`defeqStep`/`defeqLoop`, `CoreFnsA.ioView` | task #97-P3-Core's, and `ensureSortCore` is now CLOSED (§4) |
+| **C** numeric constants | 6 | `coreWalkFuel`, `whnfCoreLoopFuel`, `whnfLoopFuel`, `defeqLoopFuel`, `peelFuel`, `checkFuel` | nothing — a `Nat` is a `Nat` |
+| **P** pin readers | 25 | `emptyLevels`, `zeroLevel`, `sortOne`, the fifteen `nat*Name`, the three `bool*Name`, `reservedBasisNames`, `natOpNames`, `natDivModNames`, `natOpWfNames` | nothing new — `PinsOK` (`Bridge/StateOK.lean`) plus `Bridge/Specs.lean`'s five pin specs already say it |
+| **F** non-monadic | 6 | `quickPair`, `recRuleK`, `fvarLeavesSubset`, `findRule`, `annotBinderMeta`, `liftFueled` | a plain equation, no triple |
+| **W** knot-calling walks | **49** | every walk that takes `r : CoreFnsA` and is not in **K** | a `BodySpec`-shaped theorem with `KnotSpec` as a hypothesis |
+| **S** state-only walks | **84** | every other `AM`-valued definition | a `BodySpec`-shaped theorem without one |
+
+So the deliverable §6 of task #97-P3-Core asked for is **133 theorems, not
+15**: the fifteen it named are the *top* of the W column, and each of them
+sits on three to six more.  `iotaRec` alone (`Arena/Core.lean:2049`) is
+`iotaRecAt` over `findRule`, and `iotaRecAt` is 85 lines over `prepareMajor`
+(which is 120 lines of `majorToCtor`), `recFireComparands`, `ruleRhsAt` and
+`iotaCerts` — six W-class walks under one statement.
+
+**The round's own scope, against that:** the tier's FOUNDATION built and
+closed, one group of five closed or stated, the fifteen named walks stated,
+and the Checker tier's three asks taken.  §7 is the honest remainder.
+
+#### 2. What is CLOSED
+
+| module | raw | non-blank | decls | elaboration |
+|---|---:|---:|---:|---:|
+| `Bridge/Core/Walks/Frame.lean` — `ReadbackFrame`, the three readback bodies and their frame specs | 254 | 221 | 15 | **1.2 s** |
+| `Bridge/Core/Walks/Spec.lean` — the five answer relations and their eliminators | 185 | 151 | 14 | **0.88 s** |
+| `Bridge/Core/Walks/Cached.lean` — the five cached verdict walks, two of them closed | 440 | 396 | 12 | **1.0 s** |
+| `Bridge/Core/Walks/Owed.lean` — the seventeen statements | 445 | 383 | 17 | **0.94 s** |
+| `Bridge/Core/Walks.lean` — the index and the census | 56 | 46 | — | — |
+| `Bridge/Core/EnsureSort.lean` — the seventh entry point | 119 | 96 | 5 | **0.88 s** |
+| **total** | **1 499** | **1 293** | **63** | **4.9 s gross** |
+
+**Nothing in the round is near the 20 s flag**, and the slowest module of the
+whole Core tier is still `Bridge/Core/Memo.lean` at 2.2 s.  The two closed
+walk theorems are the measurement that matters: `lvlEq?_spec` and
+`lvlsEq?_spec` together are **five verification conditions each and 1.0 s for
+the module that holds both plus five insert lemmas**, against
+`ExprOps/Inst1.lean`'s 72 s for one walk on an inline-armed twin.  The reason
+is the same one task #97-P3-Core gave — there is no `grind` closer over a
+twin's arms anywhere in this tier, because the branch structure is a memo
+probe and not a constructor dispatch.
+
+The import baseline of this tier is the Core tier's **0.72 s**, so its net
+elaboration is **about 1.7 s for the whole of it** — the same shape task
+#97-P3-Core measured, and for the same reason (§9).  Nothing here is near
+the 20 s flag.
+
+**`Bridge/Core/Walks/Frame.lean` — the per-call memo FRAME**, which task
+#97-P3-0's §7 listed as owed and which is the reason no non-slot walk had a
+theorem before this round.  `Bridge/Specs.lean`'s three readback specs
+conclude `s'.store = s₀.store ∧ s'.memos = s₀.memos ∧ s'.pins = s₀.pins` plus
+the readback table's own invariant, and say **nothing about the other
+thirteen cache tables** — so a walk that reads one level back cannot rebuild
+`CheckOK`, and most of the 133 read one.  `ReadbackFrame s₀ s'` is the
+missing fact as ONE equation (*the cache record after the call is the cache
+record before it with the three readback tables replaced*) plus the three
+tables' invariants carried as IMPLICATIONS, which is what makes `.refl` `id`
+and `.trans` compose.  `CheckOK.ofReadbackFrame` is then the theorem every
+walk of the tier ends on.
+
+**`Bridge/Core/Walks/Cached.lean` — `lvlEq?` and `lvlsEq?`, the first two
+non-slot walks of `Arena/Core.lean` to have a theorem at all.**  They are the
+memo-wrapper shape one rung down from `Bridge/Core/Memo.lean`'s six: probe,
+hit, miss-and-insert, over `CacheOK`'s `lvlEqC`/`lvlsEqC` clauses.  Five
+verification conditions each — the three branches plus the two readbacks'
+preconditions — and the five insert lemmas (`LvlEqCacheOK.insert_capped` and
+its four siblings) are written for all five tables, including the three this
+round leaves open.  **The pure side of this group takes no fuel**
+(`Level.isEquiv` is a total function of two trees), so the conclusion is an
+equation and not a `∃ F`: that is the one structural difference between this
+group and every other group of the tier, and it is why it is the cheap one.
+
+**`Bridge/Core/EnsureSort.lean` — the seventh entry point** (§4).
+
+#### 3. The finding: `@[spec]` cannot be erased, and what that costs
+
+`mvcgen` prefers a registered `@[spec]` theorem to unfolding the definition.
+For the frame that is fatal: the frame's `caches` equation is exactly what
+the registered spec omits, so the frame cannot be proved *from* it — and
+`attribute [-spec] ConRon.Bridge.readLevelM_spec` is rejected,
+***`[spec]` cannot be erased***.
+
+The tier's way round it is **a body copy per readback**, not per walk:
+`readLevelMB`/`readNameMB`/`readLevelsMB` are `Arena/Monad.lean`'s bodies
+verbatim, each `= rfl` to the real function, each with no spec of its own.
+A walk's proof then opens
+
+```lean
+simp only [lvlEq?, readLevelM_eq]
+mvcgen [readLevelMB_frame]
+```
+
+— the `simp only` unfolds the walk and rewrites its readbacks to the copies
+in one step, after which `mvcgen` has no registered spec to prefer.  **One
+line per walk, three copies for the whole tier**; a body copy per WALK would
+not have scaled to 133.  If `Bridge/Specs.lean`'s three specs are ever
+strengthened with the `caches` equation, the three copies and the `simp only`
+line go away and nothing else in the tier changes.  *Recommendation for the
+coordinator: strengthen them.  It is a three-line edit to a file this round
+was told not to touch, and it deletes 90 lines and a workaround.*
+
+#### 4. The Checker tier's three asks, all taken
+
+1. **`s'.pins = s₀.pins` in `KnotSpec`** (`Bridge/Core/Knot.lean`), and in
+   `BodySpec`/`BodySpecV` with it: eight postconditions, and the six memo
+   wrappers re-proved (one extra `rfl` in each non-miss branch, one extra
+   component out of `hpost` in each of the six miss branches).  It is free,
+   as the Checker tier said — no core entry writes `s.pins` — and it is the
+   only way `PersPins` transports.
+2. **`ensureSortCore` — the seventh entry point, CLOSED.**
+   `Bridge/Core/EnsureSort.lean`: `KnotSpec.whnf`, then `Bridge/Rel.lean`'s
+   `denote_sort_inv`, then con-leche's own `ensureSort_def`
+   (`Verify/Knot.lean:215`, which is `rfl`).  One step lemma
+   (`ensureSortCore_of_whnf`) and one `mvcgen`.  `Bridge/Checker/Hyp.lean`
+   gains `ensureSortSpec_of_knot` and **`CoreSpec.of_core`**, which
+   discharges the capstone's Core-tier hypothesis OUTRIGHT — both fields,
+   nothing left to supply, modulo the six body walks `KnotSpec` itself waits
+   on.  `EnsureSortSpec` gains the pin clause too, for (1)'s reason.
+3. **`EStore.enableScratch_denote_pers`** (`Arena/WFProofs.lean`), sorry-free,
+   plus `EStore.enableScratch_spec'` with the conjunct `dropScratch_spec` has
+   had since task #97a.  **The proof is one observation and no induction of
+   its own**: `enableScratch` and `dropScratch` differ in exactly one field,
+   `scratchOn`, and both set the scratch tier to `empty`, so a handle's `view`
+   cannot tell them apart — a persistent handle reads the same `pers` array in
+   both, and a scratch handle reads `none` in both (in `dropScratch` because
+   the flag is off, in `enableScratch` because the table it reads is empty).
+   So `denote… st.enableScratch = denote… st.dropScratch` **as functions**, at
+   all four stores, and every `enableScratch` fact is the corresponding
+   `dropScratch` fact rewritten.  That is also the honest statement of the
+   tier discipline: *the `scratchOn` flag is about what `intern` will do next,
+   not about what the store means.*
+
+And the twin fix from Theorem 2's Core round (**finding 3 of #97-P5-Core
+fixed in the twin**): the Rust tests `whnf_core_stuck_tag` above the LANE
+dispatch while the twin tested it only inside the memoized slot, so in the
+gated lane at fuel `0` the Rust answered `Ok e` where the twin threw
+`internal`.  `Arena/CoreGated.lean`'s `coreKnotGated` now carries the
+stuck-tag test **above the fuel dispatch** in both reduction slots, in both
+the `0` and the `fuel + 1` arm — task #97-P6-7's lever 2 reads the handle
+word alone, so hoisting it over the fuel check changes nothing but the
+divergence.  `Refine2/Core/KnotRel.lean` can drop `KnotRel.whnf`'s
+`lane = LANE_GATED → 2 ≤ f` side condition.
+
+#### 5. The one STRUCTURAL gap, and it is not a proof
+
+**The projection table has no denotation.**  `Arena/Frontend/Readback.lean`
+has `denoteCI` for an `IConstantInfo` and `denoteCV` for an `IConstantVal`,
+and nothing for an `IProjEntry` (`Arena/Env.lean:150`, ten fields, four of
+them handles).  So `IProjEntry.typeAt` — one of the fifteen names task
+#97-P3-Core listed — **cannot be stated**, and neither can `projCert`,
+`IProjEntry.fireOk`, or the `.proj` arm of `whnfCoreBody` and `inferBody`
+below the guard.
+
+`denoteProjEntry` is the one piece of *new* denotation machinery the Core
+walks tier needs, it belongs beside the other ten transports in
+`Bridge/Rel.lean` (which this round does not edit), and it is the single item
+on the tier's list that is not labour.  **It should be the next round's first
+commit.**
+
+#### 6. The seventeen statements, and what each waits on
+
+`Bridge/Core/Walks/Owed.lean`, in `Bridge/ExprOps/Owed.lean`'s role one tier
+up.  Every one is `sorry`; the point is the interface, because the six body
+walks cannot be written against a walk with no statement.
+
+| theorem | answer shape | waits on |
+|---|---|---|
+| `unfoldableHead_spec` | an EQUATION (con-leche's is unfueled) | `ExprOps.getAppFn_spec`, `IFEnvOK` |
+| `headHint_spec` | an EQUATION | the same |
+| `sameConstHeads_spec` | an EQUATION | the same, plus `denoteN_inj` |
+| `isBoolTrue_spec` | an EQUATION | **nothing** — one `view`, one pin read, `denoteN_inj` |
+| `unfoldDefinition_spec` | a `denoteEO` equation | `getAppFn`/`getAppArgs`/`mkAppN` + `constValAt_spec` → `ExprOps.instLPFast_spec`.  **The deepest chain on the list** |
+| `reduceNat_spec` | `SimOOp` | `rawNatLit?`, `natLitSupported`, `natOpStored`, `natBinOpName`, `natOpResult` — five S-class walks.  Nothing from `ExprOps` |
+| `iotaRec_spec` | `SimOOp` | **the largest single item of the tier** — six W-class walks under it, plus `ruleRhsAt_spec` |
+| `projLitToCtor_spec` | `SimEOp` | `strLitSupported`, `strLitToConstructor`, `litMajorToCtor` |
+| `projCertAt_spec` | `SimBOp` | §5's `denoteProjEntry` |
+| `propIrrel_spec` | `SimBOp` | `notProofFast`, then `KnotSpec.inferIO`/`.defeq` |
+| `stuckIrrel_spec` | `SimBOp` | `structEtaCert`, `structUnitCert` (two more W walks) |
+| `etaCert_spec` | `SimBOp` | `ExprOps.liftLooseBVars`'s spec (closed) and `KnotSpec.defeq` one depth down |
+| `defeqSpine_spec` | `SimBOp` | `getAppFn`/`getAppArgs`, `lvlsEq?_spec` (**CLOSED**), `defEqList_spec` — three of four in hand |
+| `defEqList_spec` | `SimBOp` | a `List` induction over `KnotSpec.defeq`, plus §6.1's fuel merge (one `defEqList_mono`, ten lines in `Verify/Mono.lean`'s shape) |
+| `isPropType_spec` | `SimBOp` | `KnotSpec.annotate` (in hand) + `typeSortPW` (`ExprOps`) |
+| `annotPwPi_spec` / `annotPwLam_spec` | `SimVOp` | `isPropType_spec` + the `forallPw`/`lamPw` readers |
+
+**One of the seventeen waits on nothing at all** — `isBoolTrue_spec`: one
+`view`, one pin read (`pinBoolTrue`, whose denotation is `PinsOK.names`) and
+`denoteN_inj`/`denoteLs_inj`, all of which exist.  `defEqList_spec` is the
+next nearest and needs only §6.1.  They are where the next round should
+start, because each closes a callee slot of `defeqBody_spec` without any
+other con-ron tier moving.
+
+##### 6.1 The fuel merge — where this tier DOES pay for what `FueledM` buys con-leche
+
+Task #97-P3-Core's §2 recorded that *"con-leche's `FueledM` wrapper is not
+needed: it exists to carry fuel monotonicity through a `bind`, and the
+arena's side of every statement is a triple rather than a monadic value that
+has to be composed, so the fuel existential sits inside the answer relation
+and `mvcgen` never touches it."*  **That is true of a body and false of a
+LOOP**, and this round found the line.
+
+A walk that calls the knot ONCE per clause hands its `∃ F` straight out.  A
+walk that calls it in a `List` recursion (`defEqList`, `iotaCerts`,
+`structEtaProjCerts`, `defEqList`'s three siblings) or in a fuel loop
+(`whnfLoop`, `defeqLoop`) gets one existential per iteration and has to merge
+them into one — which is exactly `Verify/Mono.lean`'s job.  con-leche has
+`isDefEqCore_mono` and `pureFns_mono`; it does NOT have `defEqList_mono`,
+because its own proof never needed one (`FueledM` did the merging).
+
+So the bridge owes one `…_mono` per LOOPING walk, each ten lines in
+`Verify/Mono.lean`'s own shape, and `Bridge/Core/Arms/Whnf.lean`'s three
+closed step lemmas already take a single `F` for the whole loop — which is
+the same debt at `whnfBody_spec`, unpaid there too.  **It is not a gap in the
+argument; it is a line item nobody had costed.**
+
+The five answer shapes they are stated with are
+`Bridge/Core/Walks/Spec.lean`'s: `SimEOp` (a handle), `SimOOp` (an
+`Option` handle, through `denoteEO`), `SimBOp` (a `Bool`), `SimLOp` (a
+level), `SimVOp` (any type both tiers share), each taking the pure call
+**already applied to everything but the fuel**, as a `Nat → CheckM α`.
+`Bridge/Core/Knot.lean`'s `SimE` and `SimV` are two of them at the applied
+call, and the two bridging lemmas are `Iff.rfl`.  That is the one shape
+decision of the round: the walks' pure comparands do not share an arity, so
+the relation cannot take `d` and `e` the way `SimE` does.
+
+#### 7. The sorry list
+
+| declaration | file | what is missing |
+|---|---|---|
+| `constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec` | `Walks/Cached.lean` | `ExprOps.instLPFast_spec` (task #97-P3-0's open list); the insert lemmas are written |
+| the seventeen of `Walks/Owed.lean` | | §6's table |
+| the eleven of task #97-P3-Core | `Core/{Arms/*,Knot}.lean` | unchanged, and §9 says why this round did not move them |
+
+**`knot_spec_checkFuel` still carries `sorryAx`**, so this round's item (3)
+is NOT met: it inherits from the six `…Body_spec`, which inherit from the
+walks above.  What did change is that `ensureSortCore_spec` — the seventh
+entry point, the only member of the Checker tier's `CoreSpec` that was not
+inherited — is now sorry-free, so `CoreSpec`'s two fields are
+`knot_spec_checkFuel` (which inherits) and `ensureSortSpec_of_knot` (which
+does not).
+
+#### 8. The axiom census
+
+`#print axioms` at the new results: `ReadbackFrame.refl`/`.trans`/`.ext`,
+`CacheOK.ofReadbackFrame`, `CheckOK.ofReadbackFrame`, the three
+`read*MB_frame`, the three `read*M_eq`, the five `*CacheOK.insert_capped`,
+`CacheOK.insertLvlEq`/`insertLvlsEq`, `lvlEq?_spec`, `lvlsEq?_spec`, the five
+`Sim*Op` eliminators, `SimL.ext`, `ensureSortCore_of_whnf`,
+`ensureSortCore_spec`, `EStore.enableScratch_denote_pers` — **twenty-four
+new results, every one at `[propext, Classical.choice, Quot.sound]`**, no
+`sorryAx`, no `bv_decide` axiom, as everywhere in this library.  The three
+that DO carry `sorryAx` are `constTyAt_spec`, `constValAt_spec` and
+`ruleRhsAt_spec`, exactly as §7 says.
+
+#### 9. Why the six body walks did not move, stated plainly
+
+They are each blocked on a walk theorem, and every walk theorem is blocked on
+one of four things: `ExprOps.instLPFast_spec` / `instantiateList_spec` /
+`abstractRangeFast_spec` (task #97-P3-0's own open list), §5's
+`denoteProjEntry`, another walk theorem, or simply the work.  The round's
+judgment was that a foundation plus two closed exemplars plus a correct
+statement layer is worth more to the next round than one more `sorry`ed body,
+and §1's census is the evidence: at 133 theorems the tier needs an interface
+before it needs another attempt at a body.
+
+`whnfBody_spec` is the nearest of the six — one `Nat` induction on the loop's
+budget over three CLOSED step lemmas — and it needs exactly two walk
+theorems, `reduceNat_spec` and `unfoldDefinition_spec`.  The first waits on
+five S-class walks and nothing else; the second waits on the `ExprOps` tier.
+**So `whnfBody_spec` closes the day `instLPFast_spec` does**, and not before.
+
+#### 10. Two notes for the coordinator
+
+1. **The `partial_fixpoint` unfolding cost does not arise in `Bridge/Core`.**
+   Task #97-P5-Core measured ~9 s per `knot_*` equation and asked for a
+   module that forces them once.  Those equations belong to
+   `ConRon.Generated` (the Aeneas model of the Rust), which `ConRon.Bridge`
+   does not import at all — the Lean twin's knot is *structurally* recursive
+   on the fuel, so `Bridge/Core/Memo.lean`'s six `coreKnot_*_succ` unfoldings
+   are `rfl` and cost nothing.  The advice is `Refine2/`'s to take, not this
+   tier's.
+2. **Strengthen `Bridge/Specs.lean`'s three readback specs** (§3), and add
+   `denoteProjEntry` to `Bridge/Rel.lean` (§5).  Those are the only two
+   places where a rule this round was given cost the tier real lines or a
+   whole statement.
+
+#### 11. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 115 s, `lake-build` 451 s) |
+| `lake build ConRonBridge` | **0 errors, 527 jobs**; `sorry` count as §7 |
+| `#print axioms` | §8 — twenty-four new CLOSED results, every one at the three standard axioms; `sorryAx` on exactly the three of `Walks/Cached.lean` and the seventeen of `Walks/Owed.lean` |
+| `scripts/twin-lines.py check` | 1 924 citations, all current (the `core_gated.rs` block relocated by `update` after the twin fix) |
+| `scripts/provenance.py check` | 0 findings, 6 465 items at pin 78ded4b6 |
+| the diff | `proof/ConRon/Bridge/Core/**`, `proof/ConRon/Bridge/Checker/Hyp.lean` (the two discharges and one clause), `proof/ConRon/Arena/WFProofs.lean` (one lemma group), `proof/ConRon/Arena/CoreGated.lean` + the `Lean twin:` lines of `crates/con-ron-core/src/arena/core_gated.rs` (the twin fix), and this section.  **No Rust source change and no generated model change** — `extract.sh --check` and `diff-e2e.sh` cannot be affected |

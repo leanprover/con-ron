@@ -103,4 +103,17 @@ theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
       | (exact hok)
       | (exact hden)
 
+
+/-! ## 4. The axiom census -/
+
+section Census
+
+#print axioms SimL.ext
+#print axioms ensureSortCore_of_whnf
+/-! **The seventh entry point, sorry-free**: the Checker tier's
+`EnsureSortSpec` is discharged outright (task #97-P3-CoreWalks, ask 2). -/
+#print axioms ensureSortCore_spec
+
+end Census
+
 end ConRon.Bridge.Core

@@ -165,4 +165,21 @@ theorem SimOOp.of_some {P : Nat → CheckM (Option Expr)} {d : Nat}
     cases hx
     exact hw
 
+
+/-! ## 4. The axiom census -/
+
+section Census
+
+#print axioms SimE_eq_SimEOp
+#print axioms SimV_eq_SimBOp
+#print axioms SimEOp.ext
+#print axioms SimOOp.ext
+#print axioms SimLOp.ext
+#print axioms SimEOp.denote
+#print axioms SimEOp.wscoped
+#print axioms SimOOp.of_none
+#print axioms SimOOp.of_some
+
+end Census
+
 end ConRon.Bridge.Core
