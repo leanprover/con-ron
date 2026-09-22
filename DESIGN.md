@@ -41262,6 +41262,202 @@ DESIGN.md's task log, which is append-both.
 * **`divModCertStmts_unfold` wants the binder peel, not a bigger simp set**
   (§2).  It is 21 `am_bind_congr`s and a seven-way `split`, and it is the last
   `_unfold` of either tier.
+### Task #97-P5-Bracket — Theorem 2: the per-declaration bracket (2026-09-22, Opus under Fable)
+
+Branch `p5-bracket` off `arena`'s tip `0b79feae`.  The brief: close
+`annot_step_refines`, `check_pending_refines` and `check_decl_step_refines` —
+the three leaves task #97-P5-Checker-2 §5 left under Theorem 2's two capstones
+— by stating `arena::core::{flush_caches, enter_scratch, drop_scratch}` as
+**one bracket lemma with a side condition**, not as three `SimS`s.
+
+**The bracket lemma is written and closed.  The three leaves are not, and the
+reason is three findings — one of them a port defect, now fixed.**
+
+#### 1. The side condition is a DECLARATION BOUNDARY, and `Ext` needs more than it
+
+The brief predicted the side condition would be *"about the subject handles
+being persistent, or about the scratch watermark"*.  It is the watermark, and
+it is exactly
+
+    ScratchClosed st  :=  st.dropScratch = st
+
+— *`dropScratch` is a fixpoint of the store*: the flag is off AND the scratch
+tier is empty, which is what the PREVIOUS bracket left behind.  Stated as the
+fixpoint rather than as four flag equations because one `rw` then turns any
+`dropScratch` fact into a fact about the store itself.  It is free from
+Theorem 1's invariant: `Arena/WF.lean`'s four `scrOff` fields say *"the flag
+off means the tier is empty"* and the three `sync` fields carry the flag down
+through the four stores, so
+
+    ScratchClosed.of_wf : StoreWF st → st.scratchOn = false → ScratchClosed st
+
+and the boundary is `StoreWF` plus one bit.  `Refine2/Core/Bracket.lean`'s
+`BrOK` is that pair at the whole `AState`.
+
+**The bracket lemma is then two halves and no `SimS` at either end.**
+
+| | claim | why not a `SimS` |
+|---|---|---|
+| `flush_caches` | `SimS` — the store is untouched, so `Ext.refl` | it IS one (`flush_caches_sim`) |
+| `enter_scratch` | relation and invariant transported; `Ext` only as `ScratchClosed.ext` | opening the tier discards the scratch arrays, so a handle that decoded through a LIVE tier stops decoding |
+| `drop_scratch` | relation and invariant transported; **no `Ext` at all** | the un-decoding step, exactly as task #97-P5-Checker-2 §5 item 2 predicted |
+
+and the composite is
+
+    ext_bracket : ScratchClosed a → StoreWF b → Ext a.enableScratch b →
+                  Ext a b.dropScratch
+
+— the `Ext` a bracketed step owes, produced from the `Ext` its BODY delivers.
+`bracket_open` and `bracket_close` are that at the whole state, with the
+`AStateRel`/`AStateInv` transport beside it; the caller puts its own body
+between them.  All of it is closed, and the file's `#print axioms` rows read
+`[propext, Classical.choice, Quot.sound]`.
+
+**`StoreWF b` cannot be dropped, and that is the first finding.**  `Ext` does
+not compose across the drop even at a closed entry: a persistent node whose
+child is a SCRATCH handle denotes before the drop and not after, and only the
+tier discipline rules that out.  The tier discipline on the TWIN's store is
+`StoreWF` — Theorem 1's invariant — and `AStateRel`/`AStateInv` do not carry
+it and cannot: they relate the port's state to the twin's and say nothing
+about the twin's own well-formedness.  So
+
+> **Theorem 2's `Ext` conjunct is not a free rider at the bracket.**
+> `Refine2/Shape.lean`'s module note says `Ext` *"is free, `Ext.refl` for a
+> function that appends nothing and `Ext.trans` through a bind"*.  That is
+> true of every UNBRACKETED statement of the tier and false of the three
+> bracketed ones: as written, `check_decl_step_refines`,
+> `annot_step_refines` and `check_pending_refines` — and with them
+> `install_then_check_refines` and `check_decls_pure_refines`, whose `Ext`
+> is the fold's — are **false**.
+
+The counterexample is one line: take `lst` with `scratchOn = true` and one row
+in the scratch `bvars` table.  `AStateRel` and `AStateInv` hold of it (they
+are a field-for-field relation and a `HashMap2` invariant); that scratch
+handle denotes in `lst`; `enterScratch` replaces the tier by the empty one and
+it does not denote in the post-state.  `Ext lst.store lst'.store` is false.
+
+`Refine2/Core/Bracket.lean`'s `TwinWF` is the round's one **named
+hypothesis** and its owner is the Bridge:
+
+    def TwinWF (x : AM α) : Prop :=
+      ∀ ls ls' v, StoreWF ls.store → x.run ls = .ok (v, ls') → StoreWF ls'.store
+
+*"the twin action `x` keeps the store well formed"* — which is precisely the
+`StateOK st'` conjunct of `Bridge/Checker/Fold.lean`'s `Arena.checkDecl_bridge`
+and its siblings.  It is universally quantified over the state, so it threads
+through a fold unchanged, which is what a hypothesis on an EXISTENTIAL
+post-state could not do.
+
+**What that costs the two capstones**, and it is the brief's own sentence that
+has to move: they cannot carry `AStateRel`/`AStateInv` and nothing else.  They
+must also carry `BrOK lst` — the boundary they are entered at, which is a real
+precondition of the Rust `install_then_check` and one the driver satisfies
+(`internAllPins` runs before the parse with the scratch tier closed) — and
+`TwinWF` of the bodies the bracket wraps.  Three binders, all true of the run,
+none of them dischargeable inside Theorem 2.  The alternative is to put
+`StoreWF ls.store` into `AStateRel` as a fifth clause, where it would thread
+by itself; that is one line in `Refine2/AbsState.lean` and an obligation on
+every lemma of every tier that concludes `AStateRel`, so it is a campaign
+decision and not this round's.
+
+#### 2. Finding — `Memos::reset` missed two of the thirteen per-call memo tables
+
+`enter_scratch` is `Memos::reset` and `EStore::enable_scratch`; the twin's
+`enterScratch` sets `memos := Memos.empty`.  **They did not agree.**
+`arena::monad::Memos::reset` reset eleven tables and left `inst_lp_l_c` and
+`inst_lp_ls_c` — task #97-P6-16's level-substitution memos at a `LIdx` and at
+a `LsIdx` — untouched, in a `{ self with … }` whose own doc comment claimed
+*"the same value as `empty`, reached in place"*.  The two were added to the
+record after the body was written and were never added to the body.
+
+**The run never noticed and could not have**: `inst_lp_clear` clears all three
+at every entry to `instantiate_level_params_fast` (`expr_ops.rs:4971`), which
+is the only reader, so the stale rows were dead before they were read.
+Theorem 2 noticed immediately: `MemosRel _ Memos.empty` is false of a table
+that still holds a row, so `enter_scratch_refines` was unprovable.
+
+Fixed in the port — two `reset_map` calls — because the twin is the
+specification and resetting two more tables can only be safe.  The model is
+regenerated in the same commit; `Generated/Funs.lean` moves, so `Core/Eqns.lean`
+pays its ≈ 1 000 s re-derivation once (CLAUDE.md's own warning).
+
+#### 3. Finding — `CoreCtx`'s split scalar cannot express `check_pending`'s view
+
+This is what stops `check_pending_refines`, and it is a statement problem in a
+tier this round may not edit.
+
+`arena::checker_split::check_value_group(pers, vis, st, mode, fe, g)` takes the
+visibility cutoff as its own argument — task #97-P6-6b's split scalar — and the
+twin writes it as a restriction of the environment,
+`checkValueGroup mode (fe.restrictTo pc.vis) pc.vg`.  `check_pending` is the
+ONE call site where the two genuinely differ: a pending record carries the
+`vis` the declaration had when it was installed, and `fe` is the WHOLE
+environment phase A ended with.  That is the entire point of phase B.
+
+But `Refine2/Core/KnotRel.lean`'s
+
+    structure CoreCtx (vis) (fe) (lfe) where
+      fenv : IFEnvRel fe lfe
+      vis  : absU vis = lfe.visibleBelow
+      …
+
+pairs an `IFEnvRel` — whose third clause is `lfe.visibleBelow =
+absU fe.visible_below` — with `absU vis = lfe.visibleBelow`, and the two
+together force `vis.val = fe.visible_below.val`.  So `CoreCtx`, and
+`Refine2/Checker/Base.lean`'s `check_value_group_refines` and
+`Refine2/Checker/KnotHyp.lean`'s `IFEnvInv.coreCtx` above it, are satisfiable
+only where the split scalar is NOT split — and `check_pending` is precisely
+where it is.
+
+**The fix is small and belongs to those files**: move the restriction from the
+hypothesis to the conclusion — take `hfe : IFEnvRel rf lf` at the unrestricted
+environment, drop `hvis`, and conclude about
+`checkValueGroup (absMode mode) (lf.restrictTo (absU vis)) (absValueGroup g)`,
+with `CoreCtx vis fe lfe` re-read as `lfe = lfe₀.restrictTo (absU vis)`.  Until
+then `check_pending_refines` can only be proved by supplying
+`check_value_group_refines` a fabricated `{ rf with visible_below := pc.vis }`
+and a congruence *"`check_value_group` reads visibility from its argument and
+never from `fe.visible_below`"* which is `arena::checker_split`'s to prove —
+i.e. by writing the fix badly in someone else's lane.
+
+#### 4. What closed, by group
+
+| group | file | closed |
+|---|---|---:|
+| `ScratchClosed` at the four stores, `.of_wf`, `.off`, `.pers`, `.ext` | `Core/Bracket.lean` | **16** |
+| `ext_dropScratch`, **`ext_bracket`** | `Core/Bracket.lean` | **2** |
+| `tbl_reset_rel` / `tbl_reset_inv` and the four tiers' resets | `Core/Bracket.lean` | **6** |
+| the four stores opened and closed (`{n,l,ls,e}store_{enable,drop}`) | `Core/Bracket.lean` | **8** |
+| `reset_map_{rel,inv,nil}`, `caches_reset`, `memos_reset` | `Core/Bracket.lean` | **5** |
+| **`flush_caches_refines`**, `flush_caches_sim`, **`enter_scratch_refines`**, **`drop_scratch_refines`** | `Core/Bracket.lean` | **4** |
+| `BrOK`, `bracket_open`, `bracket_close` | `Core/Bracket.lean` | **3** |
+| **the round** | | **44** |
+
+`Refine2/Core/Bracket.lean` is imported by `Refine2/Core.lean` and carries no
+`sorry`.  `TwinWF` is a definition, not a theorem: nothing in the file assumes
+it, and the three leaves that will consume it still read `sorry`.
+
+#### 5. What the capstones read, and the next round
+
+`install_then_check_refines` and `check_decls_pure_refines` still print
+`[propext, sorryAx, Classical.choice, Quot.sound]` through the same three
+leaves.  **That is unchanged by design**: §1 says the three cannot be closed
+in their present statements, because those statements are false.  The next
+round's order is forced:
+
+1. **Decide where `StoreWF lst.store` lives** — a fifth clause of `AStateRel`
+   (threads by itself, costs every tier one obligation) or three binders on the
+   capstones (`BrOK` + `TwinWF`, costs nothing else).  §1 has the argument for
+   both; the decision is the campaign's.
+2. **Fix `CoreCtx`'s split scalar** (§3), in `Refine2/Core/KnotRel.lean`,
+   `Refine2/Checker/KnotHyp.lean` and `Refine2/Checker/Base.lean`.  Until then
+   phase B has no statement it can be proved from.
+3. Then the three leaves are `bracket_open` / body / `bracket_close` and
+   nothing else — `check_pending` in about forty lines, `check_decl_step` and
+   `annot_step` in about eighty each, all three resting on the body lemmas
+   (`check_decl_refines`, `annot_step_go_refines`, `annot_step_promote_refines`,
+   `check_value_group_refines`, `promote_new_refines`) that are already stated.
+
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, and `IndRel` (2026-09-22, Opus under Fable)
 
 Phase **P5** of DESIGN §8.6, fourth round: DESIGN §8.2's **Theorem 2** at

@@ -51,6 +51,7 @@ than existentially (`SimS` quantifies it), because the bracket has to name it
 to chain the three store facts across it.
 -/
 import ConRon.Refine2.Specs
+import ConRon.Arena.Core
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -770,5 +771,118 @@ theorem drop_scratch_refines {pers st lst st'}
   refine ⟨rfl, ?_, ?_⟩
   · exact { hr1 with store := hsr }
   · exact { hi1 with store := hsi }
+
+/-! ## The boundary, at the whole state, and the named hypothesis
+
+`BrOK` is the declaration boundary as the bracket's consumers want it: one
+`StoreWF` and one flag, from which `ScratchClosed` follows.  It is what a
+bracketed step is entered at and what it leaves behind, so it THREADS through
+a fold — the property the three statements of `Refine2/Checker/Top.lean` need
+and that `SimRel`'s existential post-state cannot carry on its own.
+
+**`TwinWF` is the round's one named hypothesis, and its owner is the Bridge.**
+`Ext` across a `dropScratch` is false without the tier discipline
+(`ext_dropScratch`'s note), and the tier discipline on the TWIN's store is
+`StoreWF` — Theorem 1's invariant, which `AStateRel`/`AStateInv` do not carry
+and cannot: they relate the port's state to the twin's and say nothing about
+the twin's own well-formedness.  `TwinWF x` is *"the twin action `x` keeps the
+store well formed"*, which is the `StateOK st'` conjunct of
+`Bridge/Checker/Fold.lean`'s `Arena.checkDecl_bridge` and its siblings.  It is
+universally quantified over the state, so it threads through a fold unchanged.
+-/
+
+/-- con-leche: none — **the declaration boundary**: the twin's store is well
+formed and its scratch tier is closed.  Entered and left by every bracketed
+step. -/
+structure BrOK (ls : AState) : Prop where
+  wf : StoreWF ls.store
+  off : ls.store.scratchOn = false
+
+theorem BrOK.closedStore {ls : AState} (h : BrOK ls) : ScratchClosed ls.store :=
+  ScratchClosed.of_wf h.wf h.off
+
+/-- **NAMED HYPOTHESIS** — the twin action `x` keeps the store well formed;
+Theorem 1's `StateOK` conjunct, at one action.  OWNER: `Bridge/Checker/**`
+(`Arena.checkDecl_bridge` and its siblings already conclude it). -/
+def TwinWF {α : Type} (x : AM α) : Prop :=
+  ∀ (ls ls' : AState) (v : α), StoreWF ls.store →
+    x.run ls = .ok (v, ls') → StoreWF ls'.store
+
+/-! ## The bracket, as two halves
+
+Two lemmas, and between them the caller puts its own body.  `bracket_open` is
+`flushCaches; enterScratch` (`check_decl_step` and `annot_step`);
+`enter_scratch_refines` alone is `check_pending`'s, which has no cache flush
+of its own.  `bracket_close` is the half that needs the named hypothesis. -/
+
+/-- con-leche: none — the twin state a bracket is entered INTO: the caches
+dropped, the memos cleared and the scratch tier on. -/
+def brEntered (ls : AState) : AState :=
+  { ls with
+    store := ls.store.enableScratch,
+    memos := Memos.empty,
+    caches := Caches.empty }
+
+/-- con-leche: none — the twin state a bracket LEAVES: the caches dropped and
+the scratch tier gone. -/
+def brLeft (ls : AState) : AState :=
+  { ls with
+    store := ls.store.dropScratch,
+    caches := Caches.empty }
+
+theorem brLeft_brOK {ls : AState} (h : StoreWF ls.store) : BrOK (brLeft ls) :=
+  ⟨EStore.dropScratch_wf h, rfl⟩
+
+/-- con-leche: none — **the bracket's front half**: the caches dropped, the
+memos cleared, the scratch tier on, and every denotation of the boundary
+carried across. -/
+theorem bracket_open {pers st st1 st2 lst}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
+    (hflush : arena.core.flush_caches st = ok st1)
+    (henter : arena.core.enter_scratch st1 = ok st2) :
+    ((flushCaches >>= fun _ => enterScratch : AM Unit)).run lst
+        = .ok ((), (brEntered lst)) ∧
+      AStateRel pers st2 (brEntered lst) ∧ AStateInv pers st2 ∧
+      Ext lst.store (brEntered lst).store := by
+  obtain ⟨hr1, hrel1, hinv1⟩ := flush_caches_refines hrel hinv hflush
+  obtain ⟨hr2, hrel2, hinv2⟩ := enter_scratch_refines hrel1 hinv1 henter
+  refine ⟨?_, hrel2, hinv2, hbr.closedStore.ext⟩
+  have : ((flushCaches >>= fun _ => enterScratch : AM Unit)).run lst
+      = ((flushCaches : AM Unit).run lst) >>= fun p => (enterScratch : AM Unit).run p.2 :=
+    rfl
+  rw [this, hr1]
+  exact hr2
+
+/-- con-leche: none — **the bracket's back half**, and the `Ext` it owes.  The
+body's `Ext` is measured from the OPENED store; this hands back the `Ext` from
+the boundary, which is what `AOutRel` asks of a bracketed step.  `hwf` is the
+named hypothesis, discharged at the call site from `TwinWF` of the body. -/
+theorem bracket_close {pers st st' lst lst2}
+    (hbr : BrOK lst) (hrel : AStateRel pers st lst2) (hinv : AStateInv pers st)
+    (hext : Ext lst.store.enableScratch lst2.store) (hwf : StoreWF lst2.store)
+    (hdrop : arena.core.drop_scratch st = ok st') :
+    (dropScratch : AM Unit).run lst2 = .ok ((), (brLeft lst2)) ∧
+      AStateRel pers st' (brLeft lst2) ∧ AStateInv pers st' ∧
+      Ext lst.store (brLeft lst2).store ∧ BrOK (brLeft lst2) := by
+  obtain ⟨hr, hrel', hinv'⟩ := drop_scratch_refines hrel hinv hdrop
+  exact ⟨hr, hrel', hinv', ext_bracket hbr.closedStore hwf hext,
+    brLeft_brOK hwf⟩
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.ext_bracket' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ext_bracket
+
+/-- info: 'ConRon.Refine2.bracket_open' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bracket_open
+
+/-- info: 'ConRon.Refine2.bracket_close' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bracket_close
+
+/-- info: 'ConRon.Refine2.enter_scratch_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms enter_scratch_refines
+
+/-- info: 'ConRon.Refine2.drop_scratch_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms drop_scratch_refines
 
 end ConRon.Refine2
