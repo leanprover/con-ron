@@ -67,15 +67,12 @@ roots = ["ConRon.Bridge"]
 # what they are.
 globs = ["ConRon.Bridge.+"]
 
-# The P2s spike (DESIGN.md §8.6, task #97s): a FOURTH root, not a default
-# target and not imported by `ConRon.Arena`.  It prices the proof idioms of
-# §8's two theorems (`mvcgen` + `@[spec]` against a hand proof) on three
-# functions before P2b-P2d start at scale.  Kept out of `defaultTargets`
-# because it is a measurement, not a deliverable: build it with
-# `lake build ConRonArenaSpike`.
-[[lean_lib]]
-name = "ConRonArenaSpike"
-roots = ["ConRon.Arena.Spike"]
+# (The P2s spike of task #97s was a fourth root here, `ConRonArenaSpike` over
+# `ConRon.Arena.Spike`, which priced the proof idioms of §8's two theorems on
+# three functions before P2b-P2d started at scale.  Task #97-SWAP-2 deleted
+# it, with `crates/arena-spike` and `scripts/extract-spike.sh`: the idiom it
+# chose is DESIGN.md's task-#97s section, and P3's `ConRon/Bridge/` is where
+# it is written at scale.)
 
 # The build-time table generator (DESIGN.md §5 P1.5, task #22): prints Rust
 # source that rebuilds con-leche's elaboration-time tables
@@ -114,3 +111,13 @@ root = "ConRon.Arena.Main"
 [[lean_exe]]
 name = "con-ron-arena-bench"
 root = "ConRon.Arena.Bench"
+
+# **THEOREM 2, the Aeneas refinement of the arena checker** (DESIGN.md §8.2,
+# task #97 P5).  A library root of its own rather than a subdirectory of
+# `ConRon`, for the reason `ConRonArena` is one: it is a *new* tower over
+# `ConRon.Generated` + `ConRon.Arena` + the surviving leaf tiers of
+# `ConRon.Refine`, and keeping it out of the `ConRon` root means a P5 agent's
+# half-built tier never blocks `lake build`'s default targets.  Task #97-P5-0.
+[[lean_lib]]
+name = "ConRonRefine2"
+roots = ["ConRon.Refine2"]

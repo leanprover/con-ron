@@ -23,6 +23,7 @@ use std::collections::HashSet;
 
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::Expr;
+use con_ron_core::kernel::expr::ExprNode;
 use con_ron_core::kernel::expr::ExprView;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::level::LevelKind;
@@ -30,7 +31,6 @@ use con_ron_core::kernel::level::LevelNode;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::name::NameKind;
 use con_ron_core::kernel::name::NameNode;
-use con_ron_core::ron::node;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
@@ -47,7 +47,7 @@ pub struct Census {
 struct Walk {
     names: HashSet<*const NameNode>,
     levels: HashSet<*const LevelNode>,
-    exprs: HashSet<usize>,
+    exprs: HashSet<*const ExprNode>,
 }
 
 impl Walk {
@@ -93,7 +93,7 @@ impl Walk {
     fn expr(&mut self, root: &Expr) {
         let mut stack: Vec<Expr> = vec![expr::dup(root)];
         while let Some(e) = stack.pop() {
-            if !self.exprs.insert(node::addr_word(&e)) {
+            if !self.exprs.insert(&*e.0 as *const ExprNode) {
                 continue;
             }
             match expr::view(&e) {

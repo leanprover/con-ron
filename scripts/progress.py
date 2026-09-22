@@ -327,16 +327,28 @@ def lemma_for(lemmas, module, fn):
 def rust_module_of(item):
     """The Rust module name a lemma file is matched against.  Modules in a
     subdirectory carry the directory as a prefix (`inductives/struct_parts.rs`
-    → `indstructparts`, matching `Refine/IndStructParts.lean`; `core_c.rs`
-    under `cached/` stays `corec`, its lemmas live in `Refine/Core/*`; every
-    module under `frontend/` is `frontend`, because the parser's lemma files
-    are split by the Lean's sections and not one per Rust module — see
-    `refine_lemmas` (task #87))."""
+    → `indstructparts`, matching `Refine/IndStructParts.lean`; every module
+    under `frontend/` is `frontend`, because the parser's lemma files are split
+    by the Lean's sections and not one per Rust module — see `refine_lemmas`
+    (task #87)).
+
+    **`arena/` carries its own prefix** (task #97-SWAP).  The arena checker and
+    the surviving `kernel/` types have nine module names in common — `canon`,
+    `env`, `fenv`, `expr_ops`, `prop_read`, `std_axioms`, `trust_axioms`,
+    `checker_base`, `checker_split` — and without the prefix a `Refine/Canon`
+    lemma about `kernel::canon` was booked against `arena::canon` (which has no
+    refinement yet and will have its own `Refine/Arena*` files).  So
+    `arena/canon.rs` is `arenacanon` and `arena/inductives/modeled.rs` is
+    `arenaindmodeled`."""
     base = os.path.basename(item.file)
     name = base[:-3].lower().replace("_", "") if base.endswith(".rs") else base
-    parent = os.path.basename(os.path.dirname(item.file))
+    parts = item.file.split(os.sep)
+    parent = parts[-2] if len(parts) >= 2 else ""
+    grandparent = parts[-3] if len(parts) >= 3 else ""
     if parent == "inductives":
-        return "ind" + name
+        return ("arenaind" if grandparent == "arena" else "ind") + name
+    if parent == "arena":
+        return "arena" + name
     if parent == "frontend":
         return "frontend"
     return name

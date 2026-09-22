@@ -1,7 +1,24 @@
 /-
 con-ron's proof library: the Aeneas model of `crates/con-ron-core`
 (`ConRon.Generated`, produced by `scripts/extract.sh`), the refinement tier
-being grown on top of it (`ConRon.Refine`), and the `DeclC` dump of §3.6.
+that is still stated about it (`ConRon.Refine`), and the `DeclC` dump of §3.6.
+
+**Task #97-SWAP moved the checker.**  `crates/con-ron-core` is the ARENA now
+(DESIGN.md §8): the `Expr`-tree checker `ConRon.Refine` was grown over is
+deleted, so the 76 modules of that proof went to `ConRon.RefineOld`, out of
+this import graph — `ConRon/RefineOld/README.md` says why they are kept and
+what replaces them (§8.6's phases P3 and P5).  What is imported below is the
+47 modules whose SUBJECT survived the swap, in tier order: the runtime
+primitives (`Nat`, `HashMap`, `HashMap2`), the representation-free types
+(`Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `Env`, `FEnv`, `Canon`), the
+`core_k` readers and shape guards, the pinned data (`Basis*`, `StdAxioms`,
+`TrustAxioms`) and the `con-ron-pins/1` decoder (`Pins*`).  Those are exactly
+the modules the arena still calls, so every lemma here is still a lemma about
+code that ships.
+
+`ConRon/Refine/README.md` has the tier map.  The arena checker itself is a
+separate library root (`ConRonArena`, `ConRon.Arena.*`) and is not imported
+here.
 
 The task-#3/#5 spike (`ConRon.Spike.LevelName`) is *not* imported here: it
 carries its own copy of the §3.2 pointer model -- `alloc.rc.Rc`, from a
@@ -12,10 +29,16 @@ which cannot live in one import graph.  It is a second library root
 it.
 -/
 import ConRon.Generated
+import ConRon.Refine.SimpSets
+import ConRon.Refine.Scalars
 import ConRon.Refine.Abs
+import ConRon.Refine.Nat
+import ConRon.Refine.HashMap
+import ConRon.Refine.HashMapWF
+import ConRon.Refine.HashMap2
+import ConRon.Refine.HashMap2WF
 import ConRon.Refine.Name
 import ConRon.Refine.Level
-import ConRon.Refine.Excl
 import ConRon.Refine.PropWhen
 import ConRon.Refine.Expr
 import ConRon.Refine.ExprOps
@@ -23,27 +46,11 @@ import ConRon.Refine.ExprOpsFields
 import ConRon.Refine.ExprOpsSubst
 import ConRon.Refine.ExprOpsSpine
 import ConRon.Refine.ExprOpsMeta
-import ConRon.Refine.ExprOpsC
-import ConRon.Refine.ExprOpsCSubst
-import ConRon.Refine.ExprOpsCAbs
-import ConRon.Refine.ExprOpsCGuards
-import ConRon.Refine.HashMap
-import ConRon.Refine.Core.Statements
-import ConRon.Refine.Automation.Study
-import ConRon.Refine.Core.Knot
-import ConRon.Refine.HashMapWF
-import ConRon.Refine.HashMap2
-import ConRon.Refine.HashMap2WF
-import ConRon.Refine.Nat
 import ConRon.Refine.Env
-import ConRon.Refine.Canon
 import ConRon.Refine.FEnv
-import ConRon.Refine.State
-import ConRon.Refine.StateC
-import ConRon.Refine.StateCResolve
+import ConRon.Refine.Canon
 import ConRon.Refine.BasisTables
 import ConRon.Refine.CoreKBase
-import ConRon.Refine.CoreKProj
 import ConRon.Refine.BasisNames
 import ConRon.Refine.BasisRaw
 import ConRon.Refine.CoreKNames
@@ -55,75 +62,18 @@ import ConRon.Refine.CoreKNatOps
 import ConRon.Refine.PropRead
 import ConRon.Refine.CoreKShapes
 import ConRon.Refine.CoreKInfer
+import ConRon.Refine.CoreKProj
 import ConRon.Refine.CoreKPinned
-import ConRon.Refine.IndAbs
-import ConRon.Refine.IndStructParts
-import ConRon.Refine.IndSumParts
-import ConRon.Refine.IndNativeParts
-import ConRon.Refine.IndStructInstall
-import ConRon.Refine.IndSumInstall
-import ConRon.Refine.IndNativeInstall
-import ConRon.Refine.IndModeled
-import ConRon.Refine.IndSpec
-import ConRon.Refine.IndIngredients
-import ConRon.Refine.IndC
+import ConRon.Refine.PinsDec
+import ConRon.Refine.PinsAscii
+import ConRon.Refine.PinsBytes
+import ConRon.Refine.PinsAbs
+import ConRon.Refine.PinsSplit
+import ConRon.Refine.PinsRecords
+import ConRon.Refine.PinsRead
+import ConRon.Refine.PinsRun
 import ConRon.Refine.Pins
-import ConRon.Refine.Core.Arms.Shape
-import ConRon.Refine.Core.Arms.Bridge
-import ConRon.Refine.Core.Arms.Shared
-import ConRon.Refine.Core.Arms.Certs
-import ConRon.Refine.Core.Arms.InferTele
-import ConRon.Refine.Core.Arms.DefEq
-import ConRon.Refine.Core.Arms.DefEqStruct
-import ConRon.Refine.Core.Arms.Arms
-import ConRon.Refine.Core.Arms.Iota
-import ConRon.Refine.Core.Arms.Major
-import ConRon.Refine.Core.Arms.Infer
-import ConRon.Refine.Core.Arms.InferIO
-import ConRon.Refine.Core.Arms.Annotate
-import ConRon.Refine.Core.Arms.Lits
-import ConRon.Refine.Core.Arms.Whnf
-import ConRon.Refine.Core.Arms.WhnfCore
-import ConRon.Refine.Core.Arms.App
-import ConRon.Refine.Core.Arms.InferSpine
-import ConRon.Refine.Core.Arms.InferSpineIO
-import ConRon.Dump.Pins
-import ConRon.Refine.TypeChecker
-import ConRon.Refine.IndSpec
-import ConRon.Refine.CheckerC
 import ConRon.Refine.BasisPins
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
-import ConRon.Refine.ErrKinds
-import ConRon.Refine.CheckerBase
-import ConRon.Refine.DeclCheck
-import ConRon.Refine.CheckerPinned
-import ConRon.Refine.CheckerSplit
-import ConRon.Refine.Checker
-import ConRon.Refine.CheckerPins
-import ConRon.Refine.PinsWF
-import ConRon.Refine.CheckerDecl
-import ConRon.Refine.Installed
-import ConRon.Refine.Main
-import ConRon.Refine.Frontend.Base
-import ConRon.Refine.Frontend.Prepare
-import ConRon.Refine.Frontend.Readers
-import ConRon.Refine.Frontend.Ind
-import ConRon.Refine.Frontend.ProjRec
-import ConRon.Refine.Frontend.ScanWF
-import ConRon.Refine.Frontend.Chunks
-import ConRon.Refine.Frontend.Abs
-import ConRon.Refine.Frontend.ScanKit
-import ConRon.Refine.Frontend.ScanStr
-import ConRon.Refine.Frontend.ScanObj
-import ConRon.Refine.Frontend.ScanExpr
-import ConRon.Refine.Frontend.ScanInd
-import ConRon.Refine.Frontend.ScanLine
-import ConRon.Refine.Frontend.StateDR
-import ConRon.Refine.Frontend.IndR
-import ConRon.Refine.Frontend.IndValidateR
-import ConRon.Refine.Frontend.IndInstallR
-import ConRon.Refine.Frontend.ProjRecR
-import ConRon.Refine.Frontend.PrepareR
-import ConRon.Refine.Frontend.ChunksR
-import ConRon.Refine.Frontend.IndSpecR
+import ConRon.Dump.Pins

@@ -157,11 +157,19 @@ pub fn memo_n_get(memo: &HashMap<Expr, u64>, k: &Expr) -> Option<u64> {
 //
 // The six functions below are the whole of con-leche's task #317/#319 memo
 // discipline as this port expresses it: a walk reads the exclusivity of the
-// BORROWED node it is about to rebuild (`ron::node::is_exclusive`) and hands
-// the answer to a probe and a record, which spend nothing at all on an
-// exclusive node — no key, no hash, no bucket, no stored `dup`.  A node with
-// one reference cannot be reached twice by the walk that is inside its only
-// parent, so an entry for it can never be read.
+// BORROWED node it is about to rebuild and hands the answer to a probe and a
+// record, which spend nothing at all on an exclusive node — no key, no hash,
+// no bucket, no stored `dup`.  A node with one reference cannot be reached
+// twice by the walk that is inside its only parent, so an entry for it can
+// never be read.
+//
+// **Task #97-SWAP-2 left them without a reader of the count.**  The count
+// read was `ron::node::is_exclusive`, and that module went with the tagged
+// handle; `ron::ptr`'s four operations do not include one (DESIGN.md §3.2),
+// and the model's answer was `false` either way.  So `excl` is a parameter
+// here and nothing in the crate computes a `true` for it any more — the
+// callers these were written for were the `Expr`-tree walks, retired at task
+// #97-SWAP, and the arena has its own store-level discipline.
 //
 // **They exist so that the key is built on the shared path only.**  A
 // `KEY = expr_nat_key(e, d)` in front of the branch would be a second share
@@ -170,10 +178,10 @@ pub fn memo_n_get(memo: &HashMap<Expr, u64>, k: &Expr) -> Option<u64> {
 // con-leche's borrowed-parameter requirement, in the one shape Rust can
 // violate it.  Hence `e` and the cursor, never a prebuilt key.
 //
-// **In the model `excl` is `false`** (`ron::node::is_exclusive` is modelled
-// `ok false`, OVERVIEW §8.1), so each of these is definitionally its
-// unguarded predecessor and the walks' refinement lemmas are the ones this
-// port already had.
+// **In the model `excl` is `false`** — it was `ron::node::is_exclusive`,
+// modelled `ok false`, and since task #97-SWAP-2 there is no such read at all
+// — so each of these is definitionally its unguarded predecessor and the
+// walks' refinement lemmas are the ones this port already had.
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:231-248 MemoXP.shared
 /// The cursored node→node probe, `excl`-gated: an exclusive node is not
@@ -2209,8 +2217,10 @@ mod tests {
     use crate::kernel::expr;
     use crate::kernel::expr::BinderMeta;
     use crate::kernel::expr::Expr;
+    use crate::kernel::expr::ExprKind;
+    use crate::kernel::expr::ExprNode;
     use crate::kernel::expr::ExprView;
-    use crate::ron::node;
+    use crate::ron::ptr;
     use crate::kernel::expr_ops;
     use crate::kernel::expr_ops::NameToName;
     use crate::kernel::level;
@@ -2383,16 +2393,20 @@ mod tests {
         expr::pack_data(0, b, f, false)
     }
 
+    fn with_word(kind: ExprKind, b: u64, f: u64) -> Expr {
+        Expr(ptr::new(ExprNode { data: word(b, f), kind }))
+    }
+
     fn bvar_with_word(i: u64, b: u64, f: u64) -> Expr {
-        node::alloc_bvar(word(b, f), i)
+        with_word(ExprKind::Bvar(i), b, f)
     }
 
     fn fvar_with_word(idx: u64, ty: Expr, b: u64, f: u64) -> Expr {
-        node::alloc_fvar(word(b, f), idx, ty)
+        with_word(ExprKind::Fvar(idx, ty), b, f)
     }
 
     fn lam_with_word(ty: Expr, body: Expr, m: BinderMeta, b: u64, f: u64) -> Expr {
-        node::alloc_lam(word(b, f), ty, body, m)
+        with_word(ExprKind::Lam(ty, body, m), b, f)
     }
 
     #[test]

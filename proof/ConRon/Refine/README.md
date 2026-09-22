@@ -5,6 +5,38 @@ stated about the *generated* model of `crates/con-ron-core` rather than about
 the task-#3 spike.  `ConRon/Spike/LevelName/` stays where it is: it is task
 #3/#5's recorded evidence and is never moved or edited.
 
+## What is here after the arena swap (task #97-SWAP)
+
+`crates/con-ron-core` is the ARENA checker now (DESIGN.md §8), and the
+`Expr`-tree checker this tier was grown over is deleted.  **47 modules stayed
+and 76 went to `ConRon/RefineOld/`**, out of the build; the line between the
+two is "does the module mention a declaration the model no longer has",
+computed once and then checked by building.  What stayed is every tier whose
+SUBJECT the arena still calls:
+
+| tier | modules |
+|---|---|
+| infrastructure | `SimpSets`, `Scalars`, `Abs` |
+| runtime primitives (`ron/`) | `Nat`, `HashMap`, `HashMapWF`, `HashMap2`, `HashMap2WF` |
+| representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsSpine`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
+| `core_k`'s readers, names, literals and shape guards | `CoreKBase`, `CoreKNames`, `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKShapes`, `CoreKInfer`, `CoreKProj`, `CoreKPinned` |
+| the pinned data | `BasisTables`, `BasisNames`, `BasisRaw`, `BasisPins`, `StdAxioms`, `TrustAxioms` |
+| the `con-ron-pins/1` decoder | `PinsDec`, `PinsAscii`, `PinsBytes`, `PinsAbs`, `PinsSplit`, `PinsRecords`, `PinsRead`, `PinsRun`, `Pins` |
+
+Every lemma in those is still a lemma about code that ships: the arena reads
+`Name`, `Level`, `PropWhen` and `HashMap` directly, and it interns the
+`Expr`-valued pinned data at startup (`crates/con-ron-core/src/lib.rs`, "Why
+`Expr` survives the arena rewrite").  What is NOT here any more is the
+checker's own tier — the knot's arms, the declaration checker, the install
+routes, the cached state, the `Expr`-tree parse and the capstones of
+`Main.lean`.  `ConRon/RefineOld/README.md` says why those are kept and what
+replaces them (§8.6's phases P3 and P5).
+
+**`Refine/<Module>.lean` names a `kernel/` or `ron/` module, not an `arena/`
+one.**  The arena's own refinement will be `Refine/Arena*.lean`;
+`scripts/progress.py`'s `rust_module_of` gives `arena/` its own key prefix so
+that the two cannot be confused (nine module names are common to both).
+
 ## The rule
 
 | thing | where it lives | how it is named |

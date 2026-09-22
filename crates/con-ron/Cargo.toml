@@ -3,7 +3,7 @@ name = "con-ron"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "The con-ron frontend and CLI: the lean4export NDJSON parser and the pure stream transformations con-leche's `Main.lean` runs before `checkDecls`.  UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §1, task #37)"
+description = "con-ron's driver, CLI, worker pool and modeller seam: con-leche's `Main.lean` over the arena checker, the binary `scripts/diff-e2e.sh` runs.  UNVERIFIED tooling outside the Aeneas subset (DESIGN.md §1, tasks #37, #48, #97-P4f)"
 
 [lib]
 name = "con_ron"

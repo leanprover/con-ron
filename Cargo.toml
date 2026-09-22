@@ -1,22 +1,20 @@
 [workspace]
 resolver = "2"
-# `con-ron-core` is the verified core (DESIGN.md §3.4: the Aeneas subset, the
-# style lint, the provenance gate, the extraction); `arena-core` is the
-# rewrite's second verified crate (§8.6).  `con-ron-dump` is *unverified*
-# tooling -- the `con-ron-pins/1` reader of §3.6 (task #31) -- which Charon
-# never sees and which `scripts/extract.sh`, `scripts/lint-rust-style.sh` and
-# `scripts/provenance.py` are scoped away from; it is in the workspace so that
-# `scripts/gates.sh` covers it.  `con-ron` is the frontend and the CLI (task
-# #37) and `con-ron-arena` is the rewrite's binary (task #97 P4f: the driver,
-# the CLI and the modeller seam over `arena-core`), which §1 puts outside the
-# theorem: both are unverified like `con-ron-dump`, outside the style lint and
-# the extraction for the same reason, and inside `provenance.py`'s roots --
-# the citation gate is the only sync signal an unverified crate will have.
-members = ["crates/arena-core", "crates/con-ron-core", "crates/con-ron-dump", "crates/con-ron", "crates/con-ron-arena"]
-# The P2s spike's throw-away Rust (task #97s, DESIGN.md §8.6): excluded from
-# the workspace so that nothing the gates run touches it.  `charon cargo` is
-# run inside its own directory by `scripts/extract-spike.sh`.
-exclude = ["crates/arena-spike"]
+# `con-ron-core` is THE verified crate (DESIGN.md §3.4: the Aeneas subset, the
+# style lint, the provenance gate, the extraction).  Task #97-SWAP made it one
+# crate again: the arena rewrite's `arena-core` was folded into it and the
+# `Expr`-tree checker it grew beside was deleted, which is what retires the
+# ~213-hole crate boundary of task #97-P4a (§8.6).  `con-ron-dump` is
+# *unverified* tooling -- the `con-ron-pins/1` reader of §3.6 (task #31) --
+# which Charon never sees and which `scripts/extract.sh`,
+# `scripts/lint-rust-style.sh` and `scripts/provenance.py` are scoped away
+# from; it is in the workspace so that `scripts/gates.sh` covers it.
+# `con-ron` is the driver, the CLI and the modeller seam (tasks #37, #48 and
+# #97-P4f), which §1 puts outside the theorem: unverified like
+# `con-ron-dump`, outside the style lint and the extraction for the same
+# reason, and inside `provenance.py`'s roots -- the citation gate is the only
+# sync signal an unverified crate will have.
+members = ["crates/con-ron-core", "crates/con-ron-dump", "crates/con-ron"]
 
 # The Aeneas model of the code is the checked-arithmetic one (an overflow is
 # a `fail`), so the shipped binary must check too, or the model would not
@@ -26,6 +24,8 @@ overflow-checks = true
 # Task #97-P6-8b: fat LTO with one codegen unit is -11.6 % instructions on
 # Init (413.8 -> 365.7 G) -- it removes the GOT-indirect calls between the
 # arena's walks and the store.  A build setting: Charon never reads it, the
-# model and the verdicts are unchanged.
+# model and the verdicts are unchanged.  (It cost nothing to keep after task
+# #97-SWAP put the walks and the store in one crate: LTO still earns its
+# place across the `con-ron` / `con-ron-core` edge.)
 lto = "fat"
 codegen-units = 1

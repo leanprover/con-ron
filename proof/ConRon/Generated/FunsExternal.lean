@@ -72,33 +72,31 @@ def alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
 def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
 
 
-/- ## `ron::node`, the `Expr` handle (task #94)
+/- ## `ExprView.ofKind`: NOT a hole, and here because it used to be one
 
-   Fifteen holes, all of them one line, all of them `rfl` against
-   `Generated/Types.lean`'s unchanged `Expr`/`ExprNode`/`ExprKind`.  The rule is
-   `TypesExternal.lean`'s: `ron.tagged.Raw T := T`, so an `Expr` *is* its
-   `ExprNode`, and then
+   `kernel::expr::view` is the projection every reader of the core goes
+   through, and between tasks #94 and #97-SWAP-2 it was an axiom: the kind
+   lived in a tagged handle's low bits, `ron::node` was opaque to Charon, and
+   this bijection was what its model was written in.  Task #97-SWAP-2 put
+   `Expr` back on `ron::ptr::P` = `std::sync::Arc`, so `view` is an ordinary
+   translated definition (`Generated/Funs.lean`: one `Arc::deref` and a
+   `match`) and the whole `ron::node` block of holes is gone — the crate's
+   external surface is `std`'s again, one type and five functions.
 
-     * the ten `alloc_*` are the **constructors** — `alloc_app d f a` is
-       `Expr.mk (ExprNode.mk d (ExprKind.App f a))`;
-     * `view` is the **projection** — the node's `ExprKind` read back out, as
-       the `ExprView` Charon generates for `ron::node`'s borrowed enum (the two
-       have the same ten arms, `ExprView`'s fields being the shared borrows
-       Aeneas erases to values);
-     * `data` is the `@[computed_field]`, `dup` the identity and `ptr_eq`
-       `false`, i.e. the `Arc` twins above, verbatim.
+   What is left of that block is this one `def`, which is not an axiom and
+   carries no trust: `ExprView` and `ExprKind` are two distinct inductives
+   with the same ten arms (the first's fields are the shared borrows Aeneas
+   erases to values), and `view` is `ofKind` after the deref.
+   `Refine/Abs.lean`'s `expr_view_eq` is that equation, by `cases`, and the
+   719 proof sites that read a reader's `match` in terms of `ofKind k` are
+   unchanged by the swap for exactly that reason.  It lives in this file
+   rather than in `Refine/Abs.lean` so that it keeps the name it had, in the
+   namespace the generated model is in. -/
 
-   The `Drop` impl is the fifteenth: Charon sees it because `Expr` has one
-   (`ron::tagged::Raw` deliberately has not — only a scheme's table knows which
-   type a tag names, so the owning newtype is what releases), and Aeneas never
-   calls it: nothing in `Generated/Funs.lean` mentions it but the instance
-   record.  It is modeled as the identity so that the instance is well-typed
-   and for no other purpose — the model has no deallocation, exactly as it has
-   no allocation. -/
-
-/-- [con_ron_core::ron::node::ExprView]: the projection's target, as the
+/-- [con_ron_core::kernel::expr::ExprView]: the projection's target, as the
     `ExprKind` it mirrors arm for arm. -/
-def ron.node.ExprView.ofKind : kernel.expr.ExprKind → ron.node.ExprView
+def kernel.expr.ExprView.ofKind :
+  kernel.expr.ExprKind → kernel.expr.ExprView
   | .Bvar i => .Bvar i
   | .Fvar idx ty => .Fvar idx ty
   | .«Sort» u => .«Sort» u
@@ -109,132 +107,3 @@ def ron.node.ExprView.ofKind : kernel.expr.ExprKind → ron.node.ExprView
   | .LetE ty v b => .LetE ty v b
   | .Lit l => .Lit l
   | .Proj s i e => .Proj s i e
-
-/-- [con_ron_core::ron::node::view]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 319:0-367:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::view"]
-def ron.node.view (e : kernel.expr.Expr) : Result ron.node.ExprView :=
-  match e with
-  | .mk (.mk _data k) => ok (ron.node.ExprView.ofKind k)
-
-/-- [con_ron_core::ron::node::data]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 477:0-479:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::data"]
-def ron.node.data (e : kernel.expr.Expr) : Result Std.U64 :=
-  match e with
-  | .mk (.mk data _k) => ok data
-
-/-- [con_ron_core::ron::node::dup]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 484:0-491:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::dup"]
-def ron.node.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := ok e
-
-/- Modeled as `false`, as `Arc::ptr_eq` is (DESIGN.md §3.2): the model always
-   takes the slow path, and each fast path is discharged by a reflexivity
-   lemma about the walk that uses it. -/
-/-- [con_ron_core::ron::node::ptr_eq]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 500:0-502:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::ptr_eq"]
-def ron.node.ptr_eq (_a _b : kernel.expr.Expr) : Result Bool := ok false
-
-/- Modeled as `false` — "not known to be exclusive", the conservative answer
-   and the one that always memoises, so the model is the walk that records
-   every compound node it meets: the walk this port had before con-leche's
-   tasks #317/#319 and the one every `_refines` lemma below is about.  The
-   binary may answer `true` instead and then rebuild the node with its table
-   untouched, which spends no key, no probe and no entry on a node that has
-   one reference and so cannot be met again.  That is a choice of HOW, never
-   of WHAT: the fast path stores and reads nothing, where `ptr_eq`'s fast path
-   at least asserts an equality.  OVERVIEW.md §8.1 carries the argument. -/
-/-- [con_ron_core::ron::node::is_exclusive]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::is_exclusive"]
-def ron.node.is_exclusive (_e : kernel.expr.Expr) : Result Bool := ok false
-
-/-- [con_ron_core::ron::node::alloc_bvar]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_bvar"]
-def ron.node.alloc_bvar (data i : Std.U64) : Result kernel.expr.Expr :=
-  ok (.mk (.mk data (.Bvar i)))
-
-/-- [con_ron_core::ron::node::alloc_fvar]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 409:0-411:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_fvar"]
-def ron.node.alloc_fvar (data idx : Std.U64) (ty : kernel.expr.Expr) :
-  Result kernel.expr.Expr := ok (.mk (.mk data (.Fvar idx ty)))
-
-/-- [con_ron_core::ron::node::alloc_sort]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 416:0-418:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_sort"]
-def ron.node.alloc_sort (data : Std.U64) (u : kernel.level.Level) :
-  Result kernel.expr.Expr := ok (.mk (.mk data (.«Sort» u)))
-
-/-- [con_ron_core::ron::node::alloc_const]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 423:0-425:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_const"]
-def ron.node.alloc_const (data : Std.U64) (n : kernel.name.Name)
-  (us : alloc.sync.Arc (alloc.vec.Vec kernel.level.Level)) :
-  Result kernel.expr.Expr := ok (.mk (.mk data (.Const n us)))
-
-/-- [con_ron_core::ron::node::alloc_app]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 430:0-432:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_app"]
-def ron.node.alloc_app (data : Std.U64) (f a : kernel.expr.Expr) :
-  Result kernel.expr.Expr := ok (.mk (.mk data (.App f a)))
-
-/-- [con_ron_core::ron::node::alloc_lam]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_lam"]
-def ron.node.alloc_lam (data : Std.U64) (ty body : kernel.expr.Expr)
-  (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
-  ok (.mk (.mk data (.Lam ty body m)))
-
-/-- [con_ron_core::ron::node::alloc_forall_e]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 444:0-446:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_forall_e"]
-def ron.node.alloc_forall_e (data : Std.U64) (ty body : kernel.expr.Expr)
-  (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
-  ok (.mk (.mk data (.ForallE ty body m)))
-
-/-- [con_ron_core::ron::node::alloc_let_e]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 451:0-453:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_let_e"]
-def ron.node.alloc_let_e (data : Std.U64)
-  (ty value body : kernel.expr.Expr) : Result kernel.expr.Expr :=
-  ok (.mk (.mk data (.LetE ty value body)))
-
-/-- [con_ron_core::ron::node::alloc_lit]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 458:0-460:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_lit"]
-def ron.node.alloc_lit (data : Std.U64) (l : kernel.expr.Literal) :
-  Result kernel.expr.Expr := ok (.mk (.mk data (.Lit l)))
-
-/-- [con_ron_core::ron::node::alloc_proj]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 465:0-467:1
-    Visibility: public -/
-@[rust_fun "con_ron_core::ron::node::alloc_proj"]
-def ron.node.alloc_proj (data : Std.U64) (n : kernel.name.Name)
-  (idx : Std.U64) (e : kernel.expr.Expr) : Result kernel.expr.Expr :=
-  ok (.mk (.mk data (.Proj n idx e)))
-
-/-- [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}::drop]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 566:4-568:5
-    Visibility: public -/
-@[rust_fun
-  "con_ron_core::ron::node::{core::ops::drop::Drop<con_ron_core::kernel::expr::Expr>}::drop"]
-def kernel.expr.Expr.Insts.CoreOpsDropDrop.drop (e : kernel.expr.Expr) :
-  Result kernel.expr.Expr := ok e

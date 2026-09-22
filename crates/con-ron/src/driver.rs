@@ -1,42 +1,19 @@
-//! `driver` — con-leche's `Main.lean`: **the** driver (task #40).
+//! `driver` — con-leche's `Main.lean`, over the ARENA (tasks #37, #48 and
+//! #97-P4f), and the Rust side of the Lean twin's
+//! `proof/ConRon/Arena/Main.lean`.
 //!
-//! Before this module `con-ron` (task #37) and the checker-only
-//! `con-ron-check` (task #28) each carried their own copy of the pieces of
-//! `Main.lean` that sit *above* `check_decls`: the exit-code mapping, the
-//! declaration label, the two phase loops with the boundary visible, and the
-//! verdict lines.  Two copies of a rule that decides an exit code is one copy
-//! too many, so the loops and the verdict lines moved here and the binaries
-//! became argument parsers around them.  Task #80 retired `con-ron-check`
-//! with the declaration dump it read, so `con-ron` is now the only such
-//! parser; the split earns its keep anyway, because it is what keeps the
-//! fold's body one readable function.
+//! The module is con-leche's `Main.lean` in `Main.lean`'s order: the reads,
+//! the two phases with the boundary visible, the `--progress` heartbeat behind
+//! one observer trait, the verdict lines, the exit-code mapping, and the flag
+//! parsers.  Task #97-SWAP put it here, under the name the shipping driver
+//! always had: it was `crates/con-ron-arena/src/driver.rs` through the arena
+//! campaign, beside the `Expr`-tree driver it has now replaced, and the
+//! eleven representation-free items it used to import across the crate line
+//! ([`exit_code`], `verdict_word`, `message`, `ms_secs`, `progress_stride`,
+//! `jobs_count`, `default_jobs`, [`workers_for`], `mark_persistent_note`,
+//! `read_up_to`, `STACK_BYTES`) are back in it, unchanged.
 //!
-//! What is *not* here is that binary's own front matter: `con-ron` reads a
-//! raw lean4export stream (`frontend::export_c`), prepares it
-//! (`frontend::prepare`), and has its own flags and its own usage text.  What
-//! *is* here is everything from the prepared `Vec<Declaration>` on.
-//!
-//! ## The two phases, and why they are spelled out here
-//!
-//! `check_decls_driver` is `installed::check_decls`' body with the phase
-//! boundary visible (`Main.lean:318-421 checkDeclsIO`): phase A installs every
-//! record with `annot_decl_step`, phase B checks every recorded declaration
-//! from a fresh `CState` with `check_pending`.  It is step for step the fold
-//! `ConLeche/Cached/Installed.lean:438-455 checkDecls` — which is why an
-//! observer that prints between the steps changes no verdict, and why ONE
-//! loop serves the plain run and the `--progress` heartbeat alike.
-//! A run with no observer calls `installed::check_decls` itself and never
-//! comes through here at all.
-//!
-//! `PhaseObserver` is the seam: con-leche prints its heartbeat from inside
-//! `installLoop`/`checkLoop`, which it can because printing is in `IO` there;
-//! the port's loops are pure over a `&mut O` instead, so `con-ron`'s
-//! `Heartbeat` is an implementation of one trait rather than a second copy of
-//! the loop.
-//!
-//! ## Exit codes, and the two conventions that are *not* exit codes
-//!
-//! `Main.lean:15-31` and `OVERVIEW.md` §0:
+//! ## THE EXIT CODES
 //!
 //! | exit | verdict | meaning |
 //! |---|---|---|
@@ -45,62 +22,86 @@
 //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
 //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
 //!
-//! The 1/2 distinction is deliberate and is con-leche's: a reject is a verdict
-//! about the input, a decline a statement about the checker, and a decline is
-//! never "something unexpectedly went wrong" — that is 3.  Only 0 carries the
-//! theorem's guarantee.
+//! ## What the arena changed about the driver
 //!
-//! **Every switch that shapes a verdict is a command-line flag** (con-leche
-//! task #287).  No environment variable the binary reads can move an outcome:
-//! the three hooks that once could — the certificate switch, the infer-only
-//! lane and the install-route trace — are gone from con-leche and from here,
-//! and what is left is the in-process modeller's debug switches, which go with
-//! the modeller.  A verdict's provenance is readable off the invocation and
-//! off nothing else.
+//! 1. **The state is one `AState`** (`con_ron_core::arena::monad::AState`: the
+//!    store, the per-call memos, the per-declaration caches), threaded as a
+//!    `&mut` through the parse, the preparation, the pin walk and both phases.
+//!    The `Expr`-tree driver threaded a `CState` and the declarations carried
+//!    their own terms; here the terms are in the state and the records are
+//!    handles into it, so nothing may be run against a state that is not the
+//!    one they were interned into.
+//! 2. **`intern_all_pins` runs once, before the fold, with the scratch tier
+//!    off** (DESIGN.md §8.6 P2d, task #97-P4d's "for P4f"): every pinned datum
+//!    is in the PERSISTENT cons table before any declaration's check can
+//!    intern one into a tier that is about to vanish.  Its result — the
+//!    interned pin list — is the fold's parameter.
+//! 3. **Phase B's bracket is `check_pending`'s**, which turns the scratch tier
+//!    on and drops it.  A driver that checked records itself without it would
+//!    grow the scratch tier without bound; the loop below calls it once per
+//!    record and nothing else opens a tier.
+//! 4. **`--jobs=<n>` runs [`crate::pool`]** (task #97-P6-6b), which is
+//!    DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
+//!    is immutable in phase B, so it is shared by reference, and each worker
+//!    owns a scratch tier, its own caches and a copy of the pin handles.
+//!    Phase B reads `fe` and the pending list and writes only the per-record
+//!    state, which is what lets the pool slot in where the `while` is.
+//! 5. **`--no-mark-persistent` has a stronger reason to be a no-op here.**
+//!    The mark it turns off is a Lean-runtime reference-counting device, and
+//!    the checking path has no reference counts at all — a term is a `u32`
+//!    handle into a `Vec` (DESIGN.md §8.5) — so [`mark_persistent_note`] says
+//!    so rather than letting a log read as an A/B lane that was never run.
 //!
-//! **Out of memory is not an exit code here, and con-leche's is.**  con-leche
-//! documents OOM as exit 1: the Lean runtime's
-//! `lean_internal_panic_out_of_memory` prints `INTERNAL PANIC: out of memory`
-//! and calls `exit(1)`, uncatchable in process, so the stderr message is what
-//! tells it from a reject.  The port has no such handler: a Rust allocation
-//! failure goes to `alloc::handle_alloc_error`, which prints `memory
-//! allocation of <n> bytes failed` and **aborts** — `SIGABRT`, which a shell
-//! reports as **134**, never 1 — and an exhausted address space (`ulimit -v`)
-//! or a blown 1 GiB stack aborts the same way.  So the two checkers' OOM
-//! *codes* differ by construction, and a differential sweep must read the
-//! stderr line, not the code; nothing in the port can narrow that, because
-//! catching an abort would mean surviving the allocation that failed.
+//! ## The read loop
 //!
-//! **A panic is exit 3.**  The fold runs on a spawned thread (`STACK_BYTES`),
-//! so a panic in it — a `debug` overflow, an index out of range, an
-//! `unwrap` — comes back as a `join` error and the binary turns that into 3,
-//! "an internal failure of unclear cause", never a verdict on the input.  The
-//! panic message is on stderr above it.
+//! [`parse_export_handle_d`] is `ConLeche/Frontend/ExportC.lean:903-931`'s
+//! `parseExportHandleD` over the arena's `chunk_step`: the handle read
+//! strictly forward 4 MiB at a time, each buffer fed to the step and dropped,
+//! the first empty read its end of file and `chunk_finish` the close.  Never
+//! seeked, never re-opened, never asked for its size — so the source may be a
+//! pipe and no scratch file exists (con-leche task #180).  It is the same fold
+//! as `export_c::parse_chunks` with the reads interleaved, which is the Lean
+//! twin's `readFold` and its argument for why the two are one computation.
 
 use std::io::Read;
-use std::sync::Mutex;
 use std::time::Instant;
 
-use con_ron_core::cached::installed;
-use con_ron_core::cached::parsed_c::PendingCheck;
-use con_ron_core::cached::parsed_c::ValueKind;
-use con_ron_core::cached::state_c;
-use con_ron_core::cached::state_c::CState;
-use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::env;
-use con_ron_core::kernel::env::CheckMode;
-use con_ron_core::kernel::env::Declaration;
-use con_ron_core::kernel::env::Env;
-use con_ron_core::kernel::fenv;
-use con_ron_core::kernel::fenv::FEnv;
+use con_ron_core::arena::checker;
+use con_ron_core::arena::checker::PendingCheck;
+use con_ron_core::arena::checker_split::ValueKind;
+use con_ron_core::arena::env as ienv;
+use con_ron_core::arena::env::{IDeclaration, IFEnv};
+use con_ron_core::arena::monad::AState;
+use con_ron_core::arena::nat_op_pin_set::INatOpPinSet;
+use con_ron_core::arena::pins::Pins;
+use con_ron_core::arena::store::EStore;
+use con_ron_core::arena::store::ETables;
+use con_ron_core::arena::store::LTables;
+use con_ron_core::arena::store::LsTables;
+use con_ron_core::arena::store::NTables;
 use con_ron_core::frontend::export_c;
 use con_ron_core::frontend::export_c::ParseResultD;
-use con_ron_core::frontend::in_model_rec::Modeller;
+use con_ron_core::frontend::types::Modeller;
+
+use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::pins_decode;
+use con_ron_core::ron::hashmap::Dup;
+use con_ron_core::kernel::env::CheckMode;
 
-use crate::pool;
-use crate::render::name_str;
+use con_ron_core::arena::store::PersTier;
+
+// ---------------------------------------------------------------------------
+// The flags, the messages and the reads (task #97-SWAP)
+//
+// These eleven items are `Main.lean`'s own and say nothing about the term
+// representation: the flag parsers and their caps, the exit-code mapping, the
+// verdict word, the `CheckError` rendering and the read loop.  They were
+// `crates/con-ron`'s before the swap and `con-ron` imported them across
+// the crate line so that the two binaries of the differential sweep could not
+// disagree about a command line; the swap deleted the other binary, so they
+// live here, unchanged.
+// ---------------------------------------------------------------------------
 
 /// con-leche: none — the Lean runtime's per-thread stack reservation, which
 /// `Main.lean`'s `--jobs` note measures at 1 GiB per worker.  The fold's
@@ -108,9 +109,45 @@ use crate::render::name_str;
 /// (`canon_expr_eq_fast`, `occurs_const_go`), so the whole run is on one.
 pub const STACK_BYTES: usize = 1 << 30;
 
-// ---------------------------------------------------------------------------
-// Rendering: the exit-code mapping, the verdict words, the labels
-// ---------------------------------------------------------------------------
+/// con-leche: none — rendering a `CheckError`'s payload, which `core_types`
+/// carries as a `Vec<u32>` of code points (DESIGN.md §3.4) where Lean carries
+/// a `String`.
+pub fn message(e: &CheckError) -> String {
+    let cps: &Vec<u32> = match e {
+        CheckError::NotImplemented(m) => m,
+        CheckError::Invalid(m) => m,
+        CheckError::Internal(m) => m,
+        CheckError::Native(m) => m,
+    };
+    cps.iter()
+        .map(|c| char::from_u32(*c).unwrap_or('\u{fffd}'))
+        .collect()
+}
+
+/// con-leche: ConLeche/Cached/ParsedC.lean:263-265 msSecs
+/// Milliseconds as seconds.  Also a deliberate skip in the core, for
+/// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
+/// one.
+pub fn ms_secs(ms: u128) -> String {
+    format!("{}.{:03}", ms / 1000, ms % 1000)
+}
+
+/// con-leche: none — `IO.FS.Handle.read`, which returns *up to* `n` bytes and
+/// an empty buffer at end of file; `Read::read` may also stop short of a full
+/// buffer mid-file, so the port loops until the buffer is full or the reader
+/// is done.
+pub fn read_up_to<R: Read>(h: &mut R, buf: &mut [u8]) -> std::io::Result<usize> {
+    let mut got = 0usize;
+    while got < buf.len() {
+        match h.read(&mut buf[got..]) {
+            Ok(0) => break,
+            Ok(n) => got += n,
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(got)
+}
 
 /// con-leche: Main.lean:48-51 ConLeche.CheckError.exitCode
 /// The cited three codes, plus the port's own fourth constructor
@@ -141,19 +178,86 @@ pub fn verdict_word(code: u8) -> &'static str {
     }
 }
 
-/// con-leche: none — rendering a `CheckError`'s payload, which `core_types`
-/// carries as a `Vec<u32>` of code points (DESIGN.md §3.4) where Lean carries
-/// a `String`.
-pub fn message(e: &CheckError) -> String {
-    let cps: &Vec<u32> = match e {
-        CheckError::NotImplemented(m) => m,
-        CheckError::Invalid(m) => m,
-        CheckError::Internal(m) => m,
-        CheckError::Native(m) => m,
+/// con-leche: none — the port's cap on the `--jobs` default
+/// **The cap on the default worker count, and the memory arithmetic behind
+/// it.**  con-leche's default is one worker per hardware thread, and on a big
+/// machine that default *aborts*: every worker reserves ~1 GiB of address space
+/// for its stack, so 96 workers ask for 96 GiB of it and
+/// `_tmp/corpus/baseline.md`'s last row is con-leche at its own default —
+/// exit 134, "failed to create thread", under `ulimit -v 22000000`.
+///
+/// The port keeps con-leche's default *rule* and caps it: the default is
+/// `min(hardware threads, JOBS_DEFAULT_CAP)`, and an explicit `--jobs=<n>` is
+/// obeyed to the letter (a measurement must be able to ask for 96).  The
+/// arithmetic a caller under `ulimit -v` needs is
+///
+/// ```text
+/// address space >= 3 x (the checker's resident set) + 1 GiB per worker
+/// ```
+///
+/// — the `3x` is CLAUDE.md's rule for the checker itself, and the per-worker
+/// gigabyte is the stack reservation `STACK_BYTES` asks for, which counts
+/// against `ulimit -v` whether or not it is ever touched.  The *resident* cost
+/// of a worker is much smaller: one `fenv::dup` of the installed index
+/// (`pool`'s module note), tens of MB.
+pub const JOBS_DEFAULT_CAP: u64 = 16;
+
+/// con-leche: Main.lean:992-1019 main
+/// The `--jobs` default, which con-leche reads in `main` off
+/// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
+/// hardware thread", and one worker on a machine that reports none — capped
+/// here at `JOBS_DEFAULT_CAP` for the reason that constant's note gives.
+pub fn default_jobs() -> u64 {
+    let hw: u64 = match std::thread::available_parallelism() {
+        Ok(n) => n.get() as u64,
+        Err(_) => 1,
     };
-    cps.iter()
-        .map(|c| char::from_u32(*c).unwrap_or('\u{fffd}'))
-        .collect()
+    if hw < JOBS_DEFAULT_CAP {
+        hw
+    } else {
+        JOBS_DEFAULT_CAP
+    }
+}
+
+/// con-leche: Main.lean:436-459 jobsCount
+/// The worker count: a decimal numeral of at least 1, `1` being the sequential
+/// lane (one worker, no shared counter and no result table).  `0` and a
+/// non-numeral are usage errors (exit 3), as in con-leche, so a script that
+/// lowers the count for an address-space limit behaves the same against both
+/// binaries.  Since task #48 the value is **acted on**: `crate::pool` is phase
+/// B at every count above 1.
+pub fn jobs_count(v: &str) -> Result<u64, String> {
+    match v.parse::<u64>() {
+        Ok(0) => Err("--jobs takes a worker count of at least 1 \
+                      (a decimal numeral); omit the flag for one worker per \
+                      hardware thread"
+            .to_string()),
+        Ok(n) => Ok(n),
+        Err(_) => Err(format!(
+            "--jobs takes a worker count \
+             (a decimal numeral of at least 1), got {:?}",
+            v
+        )),
+    }
+}
+
+/// con-leche: Main.lean:423-434 progressStride
+/// The progress heartbeat's stride: no flag is off; bare `--progress` is
+/// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
+/// for no heartbeat — are usage errors: a run's output must be readable off
+/// its invocation, never silently degraded.
+pub fn progress_stride(v: &str) -> Result<u64, String> {
+    match v.parse::<u64>() {
+        Ok(0) => Err("--progress takes a declaration stride of at least 1 \
+                      (a decimal numeral); omit the flag for no heartbeat"
+            .to_string()),
+        Ok(n) => Ok(n),
+        Err(_) => Err(format!(
+            "--progress takes a declaration stride \
+             (a decimal numeral of at least 1), got {:?}",
+            v
+        )),
+    }
 }
 
 /// con-leche: none — how a run *chooses* `checkDecls`' pin argument, which
@@ -200,12 +304,15 @@ pub fn pins_for_run(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Rendering: the labels the arena has to read back
+// ---------------------------------------------------------------------------
+
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:44-48 ValueKind.word
-/// The kind's word.  con-leche uses it in `checkDecl`'s type-mismatch message
-/// *and* on the check phase's heartbeat line (`checkHeartbeat` prints
-/// `e.pend[k].vg.kind.word`), which is why the port has it: DESIGN.md §3.7
-/// keeps it out of the verified core as driver-only rendering, so the driver
-/// carries it.
+/// The kind's word, for the check phase's heartbeat line.  `crate::driver`
+/// has the same three words against `con_ron_core`'s `ValueKind`; the arena
+/// has its own enum, so the three arms are spelled once more here rather than
+/// converted.
 pub fn value_kind_word(k: &ValueKind) -> &'static str {
     match k {
         ValueKind::Defn => "definition",
@@ -216,34 +323,25 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
 
 /// con-leche: ConLeche/Cached/ParsedC.lean:267-276 declCLabel
 /// con-leche: Main.lean:61-65 declCName
-/// A parsed declaration's display label.  DESIGN.md §3.7 kept it out of the
-/// verified core as driver-only rendering ("the theorem never reads a
-/// message"), so the driver carries it — and con-leche makes the same split
-/// for the same reason: `declCLabel` lives beside the checker "because the
-/// progress heartbeat's compiled hook prints it too, and the two must never
-/// drift apart".
-///
-/// One record kind is new since con-leche task #285 merged `DeclC` into
-/// `Declaration` and task #293 took the quotient fold out of the parser: a
-/// `#QUOT` record is a `quotDecl` of its kind and its constant, and its label
-/// is `quot <name>`, so a stream's four quotient records are four lines where
-/// they used to be folded into one basis block.  Deviation: `basisDecl`
-/// renders as `basis` rather than `basis block <repr k>` (the port has no
-/// `Repr`).
-pub fn decl_label(d: &Declaration) -> String {
+/// A record's display label, `crate::driver::decl_label`'s seven arms with
+/// the names READ BACK out of the store: a handle is not a name until the
+/// store is asked, which is the one thing every rendering in this crate has to
+/// do that con-ron's does not.  A dangling handle renders as `?` rather than
+/// failing — this is a log line, never a verdict.
+pub fn decl_label(pers: &PersTier, ar: &EStore, d: &IDeclaration) -> String {
     let (kind, n) = match d {
-        Declaration::AxiomDecl(cv) => ("axiom", Some(name_str(&cv.name))),
-        Declaration::DefnDecl(cv, _, _) => ("def", Some(name_str(&cv.name))),
-        Declaration::ThmDecl(cv, _) => ("theorem", Some(name_str(&cv.name))),
-        Declaration::OpaqueDecl(cv, _) => ("opaque", Some(name_str(&cv.name))),
-        Declaration::BasisDecl(_) => ("basis", None),
-        Declaration::IndDecl(block, _) => (
+        IDeclaration::AxiomDecl(cv) => ("axiom", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::DefnDecl(cv, _, _) => ("def", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::ThmDecl(cv, _) => ("theorem", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::OpaqueDecl(cv, _) => ("opaque", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::BasisDecl(_) => ("basis", None),
+        IDeclaration::IndDecl(block, _) => (
             "inductive",
             block
                 .first()
-                .map(|ci| name_str(&env::constant_info_name(ci))),
+                .map(|ci| name_of(pers, ar, &ienv::i_constant_info_name(ci))),
         ),
-        Declaration::QuotDecl(_, cv) => ("quot", Some(name_str(&cv.name))),
+        IDeclaration::QuotDecl(_, cv) => ("quot", Some(name_of(pers, ar, &cv.name))),
     };
     match n {
         Some(n) => format!("{} {}", kind, n),
@@ -251,104 +349,40 @@ pub fn decl_label(d: &Declaration) -> String {
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:263-265 msSecs
-/// Milliseconds as seconds.  Also a deliberate skip in the core, for
-/// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
-/// one.
-pub fn ms_secs(ms: u128) -> String {
-    format!("{}.{:03}", ms / 1000, ms % 1000)
-}
-
-// ---------------------------------------------------------------------------
-// Flag values (`Main.lean:962-990 parseArgs`)
-// ---------------------------------------------------------------------------
-
-/// con-leche: Main.lean:423-434 progressStride
-/// The progress heartbeat's stride: no flag is off; bare `--progress` is
-/// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
-/// for no heartbeat — are usage errors: a run's output must be readable off
-/// its invocation, never silently degraded.
-pub fn progress_stride(v: &str) -> Result<u64, String> {
-    match v.parse::<u64>() {
-        Ok(0) => Err("--progress takes a declaration stride of at least 1 \
-                      (a decimal numeral); omit the flag for no heartbeat"
-            .to_string()),
-        Ok(n) => Ok(n),
-        Err(_) => Err(format!(
-            "--progress takes a declaration stride \
-             (a decimal numeral of at least 1), got {:?}",
-            v
-        )),
-    }
-}
-
-/// con-leche: Main.lean:436-459 jobsCount
-/// The worker count: a decimal numeral of at least 1, `1` being the sequential
-/// lane (one worker, no shared counter and no result table).  `0` and a
-/// non-numeral are usage errors (exit 3), as in con-leche, so a script that
-/// lowers the count for an address-space limit behaves the same against both
-/// binaries.  Since task #48 the value is **acted on**: `crate::pool` is phase
-/// B at every count above 1.
-pub fn jobs_count(v: &str) -> Result<u64, String> {
-    match v.parse::<u64>() {
-        Ok(0) => Err("--jobs takes a worker count of at least 1 \
-                      (a decimal numeral); omit the flag for one worker per \
-                      hardware thread"
-            .to_string()),
-        Ok(n) => Ok(n),
-        Err(_) => Err(format!(
-            "--jobs takes a worker count \
-             (a decimal numeral of at least 1), got {:?}",
-            v
-        )),
-    }
-}
-
-/// con-leche: none — the port's cap on the `--jobs` default
-/// **The cap on the default worker count, and the memory arithmetic behind
-/// it.**  con-leche's default is one worker per hardware thread, and on a big
-/// machine that default *aborts*: every worker reserves ~1 GiB of address space
-/// for its stack, so 96 workers ask for 96 GiB of it and
-/// `_tmp/corpus/baseline.md`'s last row is con-leche at its own default —
-/// exit 134, "failed to create thread", under `ulimit -v 22000000`.
-///
-/// The port keeps con-leche's default *rule* and caps it: the default is
-/// `min(hardware threads, JOBS_DEFAULT_CAP)`, and an explicit `--jobs=<n>` is
-/// obeyed to the letter (a measurement must be able to ask for 96).  The
-/// arithmetic a caller under `ulimit -v` needs is
-///
-/// ```text
-/// address space >= 3 x (the checker's resident set) + 1 GiB per worker
-/// ```
-///
-/// — the `3x` is CLAUDE.md's rule for the checker itself, and the per-worker
-/// gigabyte is the stack reservation `STACK_BYTES` asks for, which counts
-/// against `ulimit -v` whether or not it is ever touched.  The *resident* cost
-/// of a worker is much smaller: one `fenv::dup` of the installed index
-/// (`pool`'s module note), tens of MB.
-pub const JOBS_DEFAULT_CAP: u64 = 16;
-
-/// con-leche: Main.lean:992-1019 main
-/// The `--jobs` default, which con-leche reads in `main` off
-/// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
-/// hardware thread", and one worker on a machine that reports none — capped
-/// here at `JOBS_DEFAULT_CAP` for the reason that constant's note gives.
-pub fn default_jobs() -> u64 {
-    let hw: u64 = match std::thread::available_parallelism() {
-        Ok(n) => n.get() as u64,
-        Err(_) => 1,
-    };
-    if hw < JOBS_DEFAULT_CAP {
-        hw
-    } else {
-        JOBS_DEFAULT_CAP
+/// con-leche: none — `Name.toString` of a handle, for a log line
+/// A name handle, rendered.  `con_ron_core::arena::env::read_name` is the
+/// readback and `crate::render::name_str` the rendering; a handle the store
+/// does not know renders as `?`.
+pub fn name_of(pers: &PersTier, ar: &EStore, h: &con_ron_core::arena::handle::NIdx) -> String {
+    match ienv::read_name(pers, ar, h) {
+        Ok(n) => crate::render::name_str(&n),
+        Err(_) => "?".to_string(),
     }
 }
 
 /// con-leche: Main.lean:318-421 checkDeclsIO
-/// The cited `workers := max 1 (min jobs pend.size)`: the count the summary
-/// reports and the pool spawns.  A stream with fewer pending checks than `jobs`
-/// gets one worker per check and no more.
+/// **`--no-mark-persistent`: accepted, and a no-op** — and here for a stronger
+/// reason than `crate::driver::mark_persistent_note`'s.  con-leche's mark
+/// turns off the Lean runtime's reference counting on the installed
+/// environment; con-ron's counts are `std::sync::Arc`'s, atomic by type with
+/// no runtime mark to clear.  **The arena has no reference counts at all**
+/// (DESIGN.md §8.5: no `Arc`, no `ron::ptr`): a term is a
+/// `u32` handle into a `Vec`, and the persistent tier is immutable in phase B
+/// by construction.  So there is nothing the flag could turn off, and a run
+/// that passes it says so rather than letting a log read as an A/B lane that
+/// was never run.
+pub fn mark_persistent_note() -> &'static str {
+    "--no-mark-persistent accepted and ignored: the persistent mark is a Lean-runtime \
+     reference-counting device (Runtime.markPersistent), and the arena has no reference \
+     counts to mark — a term is a u32 handle into a Vec and the persistent tier is \
+     immutable in phase B (DESIGN.md section 8.5)"
+}
+
+/// con-leche: Main.lean:318-421 checkDeclsIO
+/// The worker count a run reports and the pool spawns: `max 1 (min jobs
+/// pend.size)`, which is `workers_for` and nothing else —
+/// the two binaries cannot drift on what `--jobs=<n>` means (task #97-P6-6b;
+/// until then this clamped to ONE, because phase B was single-lane).
 pub fn workers_for(jobs: u64, m: usize) -> usize {
     let w = if (jobs as usize) < m { jobs as usize } else { m };
     if w < 1 {
@@ -358,120 +392,59 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
     }
 }
 
-/// con-leche: Main.lean:318-421 checkDeclsIO
-/// **`--no-mark-persistent`: accepted, and a no-op here.**  The line this
-/// function returns is what a run that passes the flag prints, and the reason
-/// is that the mark it turns off does not exist in Rust.
-///
-/// con-leche marks the installed environment persistent once at the phase
-/// boundary (`unsafe Runtime.markPersistent`): the graph is read-only from
-/// there on, and handing it to a worker task makes the Lean runtime mark it
-/// MULTI-THREADED, after which every reference count on it is an atomic
-/// read-modify-write on cache lines all the workers touch — pure overhead,
-/// since nothing in the graph is freed or mutated again.  The mark removes the
-/// counting altogether and is worth 18-32 % of wall time on the pool and 3.5 %
-/// at one worker; `--no-mark-persistent` is the switch that measures it.
-///
-/// Every word of that is about the **Lean runtime's** reference counting, and
-/// the port has no equivalent to switch off.  Its counts are
-/// `std::sync::Arc`'s (§3.2, task #45) — atomic *by type*, on every handle,
-/// in every lane, which is the ~15 % single-threaded the maintainer decided to
-/// pay for the pool; there is no runtime-owned mark to set, no per-object
-/// multi-threaded bit and no way to make a subgraph count-free short of
-/// `unsafe` (§3's "Decisions of 2026-09-12" keeps that design written down as
-/// the fallback).  So the flag is accepted — a script that measures both
-/// checkers passes it to both — and does nothing, and a run that passes it
-/// says so rather than letting a log read as an A/B lane that was never run.
-///
-/// **What that costs the pool is measured, not argued** (task #48): the port's
-/// workers pay the atomic traffic con-leche's mark removes, on a graph that is
-/// read-only for the whole of phase B, and the pool's speedup is short of
-/// con-leche's for exactly the reason con-leche's own
-/// `--no-mark-persistent` row prices at 18-32 % of pool wall time.  The
-/// `Arc`-free way back is a type-level split of the handle (task #44's second
-/// way out), not a flag.
-pub fn mark_persistent_note() -> &'static str {
-    "--no-mark-persistent accepted and ignored: the persistent mark is a Lean-runtime \
-     reference-counting device (Runtime.markPersistent), and the port's counts are \
-     std::sync::Arc counts — atomic by type, in every lane, with no runtime mark to clear"
-}
-
 // ---------------------------------------------------------------------------
 // The two phases (`Main.lean:67-141 installLoop`, `:160-191 checkLoop`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:143-158 checkHeartbeat
 /// con-leche: Main.lean:318-421 checkDeclsIO
-/// What a caller wants to know between the steps of the fold.  Every method
-/// defaults to nothing, so a caller implements the lines it prints and no
-/// more; a run with no observer does not use this trait at all
-/// (`installed::check_decls` is called directly).
-///
-/// The cited `checkHeartbeat` is the check phase's method here
-/// (`check_after`), and it is `check_after` for con-leche's reason: the
-/// counter is the number of COMPLETED checks and the line is printed *after*
-/// the check rather than before it, so "a check that is running is not on any
-/// line, the gap between two lines is where it sits".  Phase A is the other
-/// way round (`install_before`): with stride 1 every declaration is announced
-/// *before* it is installed, so a run that dies — an OOM, a timeout, a
-/// `SIGKILL` — names on its last line the declaration it died in.
+/// What a caller wants to know between the steps of the fold —
+/// `crate::driver::PhaseObserver` over the arena's records, with the store
+/// passed to every method because a handle is not a label until the store is
+/// asked.  Every method defaults to nothing, so a caller implements the lines
+/// it prints and no more.
 pub trait PhaseObserver {
     /// con-leche: Main.lean:67-141 installLoop
     /// Before record `pos` of `total` is installed.
-    fn install_before(&mut self, _pos: u64, _total: usize, _d: &Declaration) {}
-
-    /// con-leche: Main.lean:67-141 installLoop
-    /// After record `done` of `total` was installed, with the memo state and
-    /// the index it produced (a statistics observer reads them; the
-    /// `--progress` heartbeat does not).
-    fn install_after(&mut self, _done: usize, _total: usize, _st: &CState, _fe: &FEnv, _pend: usize) {
-    }
+    fn install_before(&mut self, _pers: &PersTier, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// Phase A failed at fold position `pos`, in this memo state.  The index
-    /// is *not* passed: `annot_decl_step` consumed it and the error came back
-    /// in its place, which is con-leche's shape too (`installLoop` returns
-    /// `.error e` and the environment it had is gone).
-    fn install_failed(&mut self, _pos: u64, _total: usize, _st: &CState) {}
+    /// Phase A failed at fold position `pos`.
+    fn install_failed(&mut self, _pos: u64, _total: usize) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// The phase boundary: every record installed, `pend` checks pending.
-    fn install_done(&mut self, _total: usize, _pend: usize, _st: &CState, _fe: &FEnv) {}
+    /// The phase boundary: every record installed, `pend` checks pending, and
+    /// the store as phase A left it — the node counts are the one number P6
+    /// asked this line for, because they are what the install ADDED to the
+    /// persistent tier on top of the parse's.  Since task #97-P6-2 phase A
+    /// runs in the SCRATCH tier and promotes what the environment keeps, so
+    /// the figure to compare with the Lean twin's (`Init`: **6 508 719**, the
+    /// parse's 6 137 973 plus 370 746) is the PERSISTENT one, printed beside
+    /// the total; phase B promotes nothing, so it is also the count at the
+    /// end of the run.
+    fn install_done(&mut self, _pers: &PersTier, _ar: &EStore, _total: usize, _pend: usize) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// The worker count phase B is about to run on (the cited `workers`), so
-    /// that the summary reports the lane the run actually took.
+    /// The worker count phase B is about to run on, so that the summary
+    /// reports the lane the run actually took.
     fn phase_b_workers(&mut self, _workers: usize) {}
 
     /// con-leche: Main.lean:240-260 checkOne
-    /// **Does this observer want a line per completed check?**  The port's
-    /// spelling of the cited `stride > 0` guard, which con-leche reads off the
-    /// stride the pool was handed: `false` and no worker touches the shared
-    /// completed-counter or this observer at all, which is the difference
-    /// between a plain pooled run and the `--progress` lane.  The sequential
-    /// lane does not consult it — there `check_after` is one call on the
-    /// checking thread and the stride test inside it is free.
+    /// Does this observer print a line per check?  The pool asks ONCE, before
+    /// it spawns: off, no worker touches the completed-count atomic or the
+    /// observer lock at all, which is the difference between a plain pooled
+    /// run and the `--progress` lane.
     fn wants_check_lines(&self) -> bool {
         false
     }
 
     /// con-leche: Main.lean:143-158 checkHeartbeat
-    /// After the `done`-th of `m` recorded checks completed — the record it
-    /// was, the memo state it used, the index it left.
-    fn check_after(
-        &mut self,
-        _done: usize,
-        _m: usize,
-        _pc: &PendingCheck,
-        _st: &CState,
-        _fe: &FEnv,
-    ) {
-    }
+    /// After the `done`-th of `m` recorded checks completed.
+    fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// Phase B failed at fold position `pos`, in this record's own memo
-    /// state.
-    fn check_failed(&mut self, _pos: u64, _st: &CState) {}
+    /// Phase B failed at fold position `pos`.
+    fn check_failed(&mut self, _pos: u64) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Every recorded check passed.
@@ -479,125 +452,155 @@ pub trait PhaseObserver {
 }
 
 /// con-leche: Main.lean:318-421 checkDeclsIO
-/// con-leche: Main.lean:67-141 installLoop
-/// con-leche: Main.lean:160-191 checkLoop
+/// The observer a plain run (no `--progress`) hands the driver: it prints
+/// nothing and wants no check lines, so no worker touches the completed-count
+/// atomic or the observer lock at all.  ONE lane serves both runs since task
+/// #97-P6-6b — the phase boundary freezes the tier, and a second path that
+/// did not would be a second computation.
+pub struct Silent;
+
+/// con-leche: Main.lean:318-421 checkDeclsIO
+impl PhaseObserver for Silent {}
+
 /// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
-/// **The driver**: phase A installs every record, phase B checks every
-/// recorded declaration against the prefix view of the installed index from a
-/// fresh memo state.  This IS `check_decls`' body with the boundary visible,
-/// step for step, which is why an observer printing between the steps changes
-/// no outcome.
+/// **The driver**: `checker::install_then_check`'s body with the phase
+/// boundary visible — phase A installs every record with
+/// `checker::annot_decl_step`, phase B checks every recorded declaration with
+/// `checker::check_pending` from the installed index.  It is step for step
+/// the fold (the twin's `installThenCheck`), which is why an observer printing
+/// between the steps changes no verdict and why ONE loop serves the plain run
+/// and the `--progress` heartbeat alike.  A run with no observer calls
+/// `install_then_check` itself and never comes through here.
 ///
-/// The records are walked **by index**, which is what con-leche's `installLoop`
-/// does too since task #295 put arrays on the run path: nothing materialises a
-/// million records as a list.  The accepting run that loop carries beside them
-/// is over `ds.toList.take i` — a proposition, so nothing at run time, and
-/// deviation 1 below.
-///
-/// Four deviations from `checkDeclsIO`, all of them recorded elsewhere and
-/// none of them a verdict:
-///
-/// 1. The `Prop`-indexed driver evidence (`InstallRun`, `GroupChecked`,
-///    `FullyChecked`, and the subtype `checkDeclsIO` returns) is not ported —
-///    DESIGN.md §3.7's skip list has that family and `installed.rs`'s module
-///    note says why.  What comes back is the `Env`, and the caller's licence
-///    to print an accept is that this is `check_decls`' body.
-/// 2. **At `jobs <= 1` phase B runs on the calling thread**, where con-leche
-///    task #269 moves it to a dedicated one whatever `--jobs` said.  That
-///    finding is about Lean's per-thread mimalloc heaps and the main thread's
-///    fragmentation after the install; the port's allocator is one heap for the
-///    process, and the binary already runs the whole fold on one spawned
-///    big-stack thread.
-/// 3. There is no persistent mark at the boundary (`mark_persistent_note`).
-/// 4. On a **pool** failure the observer's `check_failed` gets a fresh empty
-///    memo state: the failing record's own state belongs to the worker that
-///    built it and is gone by the join.  An observer that reports the memo
-///    state therefore sees an empty one for a pooled failure, which is
-///    rendering, never a verdict.
-///
-/// The pool itself is `crate::pool` (task #48): `jobs` workers claiming records
-/// off a shared counter, their results merged by record index and walked in
-/// record order, so the verdict and the failing record are the sequential
-/// walk's at every count.  `jobs = 1` is the plain loop below, with no counter
-/// and no table.
+/// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
+/// owns its persistent tier and appends to it; at the boundary the driver
+/// moves the four stores' persistent tables out into one `PersTier`, sets the
+/// `shared_on` flag that makes every later persistent read go to it and every
+/// persistent append a decline, and hands `&` it to `pool::check_pool`.  The
+/// installed index goes the same way, by reference, since `check_pending`
+/// takes the visibility bound as a scalar — so `n` workers share one
+/// environment and one term DAG and own nothing but a scratch tier, their
+/// caches and a copy of the pin handles.  That is DESIGN.md §8.3's "no
+/// atomics anywhere" with the two atomics the CLAIM needs and no more.
 pub fn check_decls_driver<O: PhaseObserver + Send>(
+    pers: &PersTier,
+    st: &mut AState,
     mode: &CheckMode,
-    pins: &Vec<NatOpPinSet>,
-    ds: &Vec<Declaration>,
+    pins: &Vec<INatOpPinSet>,
+    ds: &Vec<IDeclaration>,
     jobs: u64,
     obs: &mut O,
-) -> Result<Env, (CheckError, u64)> {
+) -> Result<IFEnv, (CheckError, u64)> {
     let total = ds.len();
-    let mut st: CState = state_c::cstate_new();
-    let mut p: (u64, FEnv, Vec<PendingCheck>) = (0, fenv::mk_fenv(env::empty()), Vec::new());
+    let mut p: (u64, IFEnv, Vec<PendingCheck>) = (0, ienv::mk_ifenv(ienv::i_env_empty()), Vec::new());
     let mut i = 0usize;
     while i < total {
-        obs.install_before(p.0, total, &ds[i]);
-        match installed::annot_decl_step(mode, pins, &mut st, p, &ds[i]) {
+        obs.install_before(pers, &st.store, p.0, total, &ds[i]);
+        match checker::annot_decl_step(pers, st, mode, pins, p, &ds[i]) {
             Err(e) => {
-                obs.install_failed(e.1, total, &st);
+                obs.install_failed(e.1, total);
                 return Err(e);
             }
             Ok(q) => p = q,
         }
         i += 1;
-        obs.install_after(i, total, &st, &p.1, p.2.len());
     }
     let pend: Vec<PendingCheck> = p.2;
     let m = pend.len();
-    let mut fe: FEnv = p.1;
-    obs.install_done(total, m, &st, &fe);
-    // The install-phase memo state dies at the phase boundary, as con-leche's
-    // does: `checkDeclsIO` (`Main.lean:342-355`) puts `installLoop`'s returned
-    // `s` only into `InstalledEnv.run`, a `Prop` field the compiler erases, so
-    // the Lean checker's CState is unreachable from here on.  Rust keeps `st`
-    // live to the end of the enclosing scope unless it is dropped, and phase B
-    // never reads it — every check below starts from `cstate_new()`, per
-    // §3.1's memo policy.  Task #88 priced the leak at 18 MB on `core` (13 of
-    // the 14 tables are already empty at this point; `CState::flushed` clears
-    // them at each environment transition, so what dies here is `ienv`).
-    drop(st);
+    let fe: IFEnv = p.1;
+    obs.install_done(pers, &st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
-    if workers > 1 {
-        // Phase B on the pool (`Main.lean:289-316 checkPool`): the installed
-        // index is read-only from here on, every worker checks its claimed
-        // records against it from a fresh `CState`, and the merged table is
-        // walked in RECORD order — so this branch's verdict is the loop
-        // below's, whichever worker computed which check (`pool`'s note).
-        let cell = Mutex::new(&mut *obs);
-        let r = pool::check_pool(mode, &fe, &pend, workers, &cell);
-        drop(cell);
-        match r {
-            Err((e, pos)) => {
-                obs.check_failed(pos, &state_c::cstate_new());
-                return Err((e, pos));
-            }
-            Ok(()) => {}
+    // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
+    // value every worker reads (the doc comment above).  `st` keeps its
+    // (empty) store with the flags set, so the observer can still read a
+    // label back through the shared tier.
+    let tier: PersTier = freeze_tier(&mut st.store);
+    let pins_b: Pins = pins_ref(&st.pins);
+    // Phase B, `checker::check_pending_list`'s walk on `workers` threads: every
+    // record checked at its own prefix view, inside its own scratch tier
+    // (`check_pending` is the bracket, task #97-P4d), the results merged by
+    // record index and walked in record order — so the verdict and the record
+    // a rejection names are the sequential walk's at every `--jobs`.
+    let lock = std::sync::Mutex::new(obs);
+    let r = crate::pool::check_pool(&tier, mode, &fe, &pend, &pins_b, workers, &lock);
+    let obs: &mut O = match lock.into_inner() {
+        Ok(o) => o,
+        Err(e) => e.into_inner(),
+    };
+    // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
+    // declaration label, the failing record's name, the receipts — reads a
+    // handle back out of `st`, and a state left frozen over a tier that has
+    // gone out of scope answers `None` to every one of them (the first
+    // version of this printed `at theorem ?` where the tip printed `at
+    // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
+    thaw_tier(&mut st.store, tier);
+    match r {
+        Err((e, pos)) => {
+            obs.check_failed(pos);
+            Err((e, pos))
         }
-        obs.check_done(m);
-        return Ok(fe.env);
-    }
-    // Phase B at one worker, `installed::check_pending_list`'s walk: a fresh
-    // `CState` per record (§3.1's memo policy — a record is checked at its own
-    // prefix view, where another record's entries would be unsound), the index
-    // threaded through, no shared counter and no result table (`--jobs=1`'s
-    // lane in `Main.lean:393-404`).
-    let mut j = 0usize;
-    while j < m {
-        let mut stb: CState = state_c::cstate_new();
-        match installed::check_pending(mode, &mut stb, fe, &pend[j]) {
-            Err(e) => {
-                obs.check_failed(pend[j].pos, &stb);
-                return Err((e, pend[j].pos));
-            }
-            Ok(fe2) => fe = fe2,
+        Ok(()) => {
+            obs.check_done(m);
+            Ok(fe)
         }
-        j += 1;
-        obs.check_after(j, m, &pend[j - 1], &stb, &fe);
     }
-    obs.check_done(m);
-    Ok(fe.env)
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// **The persistent tier out of the state and into a value** (task
+/// #97-P6-6b), and the four stores marked as reading a shared one.  This is
+/// the ONE operation of the split that is not `arena-core`'s: the verified
+/// crate never moves a tier, it only ever reads one it is handed, and the
+/// driver is where a phase boundary belongs.
+///
+/// After it the store is empty and frozen — `arena::store`'s guard declines a
+/// persistent append — which is exactly the invariant phase B needs and which
+/// task #97-P6-6 read out of the code before any of this was written
+/// (`check_pending` is the bracket; `intern_persistent`'s only caller is
+/// phase A's `arena::promote`).
+pub fn freeze_tier(ar: &mut EStore) -> PersTier {
+    let tier = PersTier {
+        n: std::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty()),
+        l: std::mem::replace(&mut ar.lss.ls.pers, LTables::empty()),
+        ls: std::mem::replace(&mut ar.lss.pers, LsTables::empty()),
+        e: std::mem::replace(&mut ar.pers, ETables::empty()),
+    };
+    ar.shared_on = true;
+    ar.lss.shared_on = true;
+    ar.lss.ls.shared_on = true;
+    ar.lss.ls.ns.shared_on = true;
+    tier
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// **`freeze_tier` inverted**: the tier back into the store and the flags
+/// down, so that everything after phase B — the verdict line's label, the
+/// failing record's name, the receipts — reads the handles it was given.
+/// `thaw_tier(ar, freeze_tier(ar))` leaves `ar` as it found it, which is what
+/// makes the boundary invisible to every reader outside phase B.
+pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
+    ar.lss.ls.ns.pers = tier.n;
+    ar.lss.ls.pers = tier.l;
+    ar.lss.pers = tier.ls;
+    ar.pers = tier.e;
+    ar.shared_on = false;
+    ar.lss.shared_on = false;
+    ar.lss.ls.shared_on = false;
+    ar.lss.ls.ns.shared_on = false;
+}
+
+/// con-leche: none — the pin table is handles, so a worker's copy is a memcpy
+/// The driver's `Pins` as the pool's parameter (`pool::worker_state` copies it
+/// per worker): sixty-eight handles into the now-frozen tier.
+fn pins_ref(p: &Pins) -> Pins {
+    Pins {
+        names: ienv::nidx_vec_dup(&p.names),
+        reserved: ienv::nidx_vec_dup(&p.reserved),
+        empty_levels: p.empty_levels.dup2(),
+        zero_level: p.zero_level.dup2(),
+        sort_one: p.sort_one.dup2(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -606,38 +609,24 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
 
 /// con-leche: Main.lean:318-421 checkDeclsIO
 /// con-leche: Main.lean:143-158 checkHeartbeat
-/// **The heartbeat**, `OVERVIEW.md` §0's line shapes with con-leche's
-/// `con-leche: ` prefix replaced by `con-ron: `:
+/// **The heartbeat**, `crate::driver::Heartbeat`'s line shapes with
+/// `con-ron: ` for the prefix:
 ///
 /// ```text
-/// con-ron: parse done: <N> fold records — ... t=<s>s (parse <s>s)
+/// con-ron: parse done: <N> fold records — … t=<s>s (parse <s>s)
 /// con-ron: install <i>/<N> <decl> t=<s>s
 /// con-ron: install done: <N>/<N> declarations installed, <M> checks pending t=<s>s (install <s>s)
 /// con-ron: check <done>/<M> <kind> <name> t=<s>s
 /// con-ron: check done: <M>/<M> t=<s>s (check <s>s)
-/// con-ron: done: parse <p>s, install <i>s, check <c>s, <n> worker(s) t=<s>s
+/// con-ron: done: parse <p>s, install <i>s, check <c>s, <n> worker t=<s>s
 /// ```
 ///
-/// and on a failure the phase's closing line says so (`install failed at`,
-/// `check failed at`) and the summary still prints, with `check not reached`
-/// when phase A is the one that failed.  `<i>` on an install line is the FOLD
-/// position, not the file's record index: the preparation puts the prelude's
-/// records in front of the stream's and the in-process modeller *adds*
-/// records, so the two drift apart by a stream-dependent amount — calibrate by
-/// NAME.
-///
-/// The worker count on the summary is the count phase B actually ran on — the
-/// driver hands it over at the boundary (`phase_b_workers`), which is
-/// `max(1, min(jobs, M))`, so a stream with fewer pending checks than `--jobs`
-/// asked for says so rather than reporting the request.
-///
-/// The three durations are measured here rather than passed in, because
-/// con-leche measures them at the same three points: `t0` at the start of the
-/// run, the parse's end when the caller calls `parse_done`, and the two phase
-/// boundaries as the observer sees them.
+/// An install line is printed BEFORE the record it names, so a run that dies
+/// in phase A names on its last line the declaration it died in; a check line
+/// is printed AFTER the check, so "a check that is running is not on any line,
+/// the gap between two lines is where it sits".
 pub struct Heartbeat {
-    /// The stride; `0` is no flag and no heartbeat (every method returns at
-    /// once, so a plain run pays one comparison per record).
+    /// The stride; `0` is no flag and no heartbeat.
     pub stride: u64,
     /// The start of the run, which every `t=` is measured from.
     pub t0: Instant,
@@ -645,14 +634,13 @@ pub struct Heartbeat {
     pub t_parse: u128,
     /// When phase A finished, in ms since `t0` — `Main.lean`'s `tCheck`.
     pub t_install: u128,
-    /// The worker count phase B ran on, for the summary: `Main.lean`'s
-    /// `workers`, set by the driver at the boundary (`phase_b_workers`).
+    /// The worker count phase B ran on, for the summary.
     pub workers: usize,
 }
 
 /// con-leche: Main.lean:318-421 checkDeclsIO
-/// The heartbeat's own lines: the parse's, and the closing summary the
-/// failure and success arms share.
+/// The heartbeat's own lines: the parse's, and the closing summary the failure
+/// and success arms share.
 impl Heartbeat {
     /// con-leche: Main.lean:461-711 checkMain
     /// A heartbeat at `stride` (0 for none), starting now.
@@ -672,24 +660,15 @@ impl Heartbeat {
     }
 
     /// con-leche: Main.lean:461-711 checkMain
-    /// `con-leche: parse done: …`, the heartbeat's first line: the parse and
-    /// the preparation are done and the fold is about to start on this many
-    /// records.  Records `t_parse`, so the summary can price the parse
-    /// whatever happens next.
-    ///
-    /// The numbers beside the fold-record count are con-leche's, and two of
-    /// them moved with task #293: the FILE's own records (`file_records`, the
-    /// modeller's `gen_records` among them) and the prelude records the stream
-    /// did **not** declare, which `prepare_prelude` synthesised.  There is no
-    /// "dropped" number any more — the preparation drops nothing, it moves the
-    /// stream's own copy of a prelude record to the front and synthesises only
-    /// what is missing.
+    /// `con-ron: parse done: …`, the heartbeat's first line.  Records
+    /// `t_parse`, so the summary can price the parse whatever happens next.
     pub fn parse_done(
         &mut self,
         fold_records: usize,
         file_records: usize,
         gen_records: u64,
         synthesised: u64,
+        nodes: (usize, usize, usize),
     ) {
         self.t_parse = self.now();
         if self.stride == 0 {
@@ -697,12 +676,15 @@ impl Heartbeat {
         }
         eprintln!(
             "con-ron: parse done: {} fold records — the file's {} ({} of them \
-             generated in-process), {} built-in prelude records synthesised \
-             t={}s (parse {}s)",
+             generated in-process), {} built-in prelude records synthesised; store \
+             {} expression, {} level, {} name nodes t={}s (parse {}s)",
             fold_records,
             file_records,
             gen_records,
             synthesised,
+            nodes.0,
+            nodes.1,
+            nodes.2,
             ms_secs(self.t_parse),
             ms_secs(self.t_parse)
         );
@@ -710,8 +692,6 @@ impl Heartbeat {
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The `done:` summary — the three phase durations and the worker count.
-    /// `check`'s duration is `None` when phase A failed, which is con-leche's
-    /// `check not reached`.
     fn summary(&self, check_ms: Option<u128>) {
         if self.stride == 0 {
             return;
@@ -742,22 +722,29 @@ impl Heartbeat {
 /// The heartbeat as an observer of the two phases.
 impl PhaseObserver for Heartbeat {
     /// con-leche: Main.lean:67-141 installLoop
-    /// `con-leche: install <i>/<N> <decl> t=<s>s`, before the install.
-    fn install_before(&mut self, pos: u64, total: usize, d: &Declaration) {
+    /// `con-ron: install <i>/<N> <decl> t=<s>s`, before the install.
+    fn install_before(
+        &mut self,
+        pers: &PersTier,
+        ar: &EStore,
+        pos: u64,
+        total: usize,
+        d: &IDeclaration,
+    ) {
         if self.stride > 0 && pos % self.stride == 0 {
             eprintln!(
                 "con-ron: install {}/{} {} t={}s",
                 pos,
                 total,
-                decl_label(d),
+                decl_label(pers, ar, d),
                 ms_secs(self.now())
             );
         }
     }
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// `con-leche: install failed at <i>/<N> …`, then the summary.
-    fn install_failed(&mut self, pos: u64, total: usize, _st: &CState) {
+    /// `con-ron: install failed at <i>/<N> …`, then the summary.
+    fn install_failed(&mut self, pos: u64, total: usize) {
         if self.stride > 0 {
             let now = self.now();
             eprintln!(
@@ -772,53 +759,64 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// The cited `workers`, for the summary's last field.
-    fn phase_b_workers(&mut self, workers: usize) {
-        self.workers = workers;
-    }
-
-    /// con-leche: Main.lean:240-260 checkOne
-    /// The cited `stride > 0`: with no heartbeat no worker bumps the shared
-    /// completed-counter.
-    fn wants_check_lines(&self) -> bool {
-        self.stride > 0
-    }
-
-    /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// `con-leche: install done: <N>/<N> …, <M> checks pending …`.
-    fn install_done(&mut self, total: usize, pend: usize, _st: &CState, _fe: &FEnv) {
+    /// `con-ron: install done: <N>/<N> …, <M> checks pending …`.
+    fn install_done(&mut self, pers: &PersTier, ar: &EStore, total: usize, pend: usize) {
         self.t_install = self.now();
         if self.stride > 0 {
             eprintln!(
                 "con-ron: install done: {}/{} declarations installed, {} checks \
-                 pending t={}s (install {}s)",
+                 pending; store {} expression ({} persistent), {} level, {} name nodes \
+                 t={}s (install {}s)",
                 total,
                 total,
                 pend,
+                ar.node_count(pers),
+                ar.pers_count(pers),
+                ar.ls().node_count(pers),
+                ar.ns().node_count(pers),
                 ms_secs(self.t_install),
                 ms_secs(self.t_install - self.t_parse)
             );
         }
     }
 
+    /// con-leche: Main.lean:318-421 checkDeclsIO
+    /// The cited `workers`, for the summary's last field.
+    fn phase_b_workers(&mut self, workers: usize) {
+        self.workers = workers;
+    }
+
+    /// con-leche: Main.lean:240-260 checkOne
+    /// The heartbeat prints a check line exactly when it has a stride.
+    fn wants_check_lines(&self) -> bool {
+        self.stride > 0
+    }
+
     /// con-leche: Main.lean:143-158 checkHeartbeat
-    /// `con-leche: check <done>/<M> <kind> <name> t=<s>s`, after the check.
-    fn check_after(&mut self, done: usize, m: usize, pc: &PendingCheck, _st: &CState, _fe: &FEnv) {
+    /// `con-ron: check <done>/<M> <kind> <name> t=<s>s`, after the check.
+    fn check_after(
+        &mut self,
+        pers: &PersTier,
+        ar: &EStore,
+        done: usize,
+        m: usize,
+        pc: &PendingCheck,
+    ) {
         if self.stride > 0 && (done as u64) % self.stride == 0 {
             eprintln!(
                 "con-ron: check {}/{} {} {} t={}s",
                 done,
                 m,
                 value_kind_word(&pc.vg.kind),
-                name_str(&pc.vg.cv_a.name),
+                name_of(pers, ar, &pc.vg.cv_a.name),
                 ms_secs(self.now())
             );
         }
     }
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// `con-leche: check failed at fold position <i> …`, then the summary.
-    fn check_failed(&mut self, pos: u64, _st: &CState) {
+    /// `con-ron: check failed at fold position <i> …`, then the summary.
+    fn check_failed(&mut self, pos: u64) {
         let now = self.now();
         if self.stride > 0 {
             eprintln!(
@@ -832,7 +830,7 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// `con-leche: check done: <M>/<M> …`, then the summary.
+    /// `con-ron: check done: <M>/<M> …`, then the summary.
     fn check_done(&mut self, m: usize) {
         let now = self.now();
         if self.stride > 0 {
@@ -853,50 +851,35 @@ impl PhaseObserver for Heartbeat {
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:461-711 checkMain
-/// **The accept line.**  `records` is the FILE's declaration-record count —
-/// what the parse produced, less the records the in-process modeller
-/// generated — and nothing the preparation does moves it: the prelude's own
-/// records are not the file's, and the stream's copy of one is a record of the
-/// file and is counted (it is what installs).  Since con-leche task #293 a
-/// stream's four quotient records and its `Quot.sound` axiom record count as
-/// the five records they are, where the parser used to fold them into one
-/// basis block.
-///
-/// It is **not** the environment's constant count: an inductive record
-/// installs a type former, its constructors, its recursor and its projection
-/// table, so that number is a property of the port's representation, where the
-/// record count is a property of the input.
-///
-/// con-leche prints the accept on STDOUT, which is where a caller greps for a
-/// verdict; the code returned is 0, the only code that carries the theorem's
-/// guarantee.
+/// **The accept line**, `crate::driver::verdict_accept`'s with this
+/// binary's name: `records` is the FILE's declaration-record count — what the
+/// parse produced, less the records the in-process modeller generated — and
+/// nothing the preparation does moves it.  It is not the environment's
+/// constant count, which is a property of the representation and not of the
+/// input.  Printed on STDOUT, where a caller greps for a verdict.
 pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
-    println!("con-ron: accepted {} declarations ({})", records, mode_tag);
+    println!(
+        "con-ron: accepted {} declarations ({})",
+        records, mode_tag
+    );
     0
 }
 
 /// con-leche: Main.lean:461-711 checkMain
 /// The failure line: the error, the declaration it names and its FOLD
-/// position, the mode, the elapsed time.  There is **no second pass** — the
-/// fold's error carries the position, so the message is read off the record
-/// array the driver already holds; con-leche deleted its diagnostic re-run
-/// (`diagLoopC`) for the reason a re-check of the accepted prefix is "a lie
-/// waiting to happen if the two runs ever disagreed".
+/// position, the mode, the elapsed time.  There is no second pass — the fold's
+/// error carries the position, so the label is read off the record array the
+/// driver already holds.
 ///
-/// `i` is the fold position and is NOT the file's declaration-record index
-/// (the prepared list starts with the prelude's records and carries the ones
-/// the in-process modeller generated); the declaration NAME on the line is the
-/// portable handle.  `owner` is the inductive block a generated `_model`
-/// record belongs to, where the caller can say — the file has no position for
-/// such a record, so the block is the handle.
-///
-/// Deviation: the line opens with `verdict_word`'s word (`rejected`,
-/// `declined`, `error`) where con-leche opens with the message.  §3.1 lets
-/// message strings differ, and the word is what `scripts/corpus.sh` greps a
-/// run's output for — con-leche's own verdict vocabulary, put where a log can
-/// find it.
+/// `i` is the fold position and is NOT the file's record index (the prepared
+/// list starts with the prelude's records and carries the ones the in-process
+/// modeller generated); the declaration NAME on the line is the portable
+/// handle.  `owner` is the inductive block a generated `_model` record belongs
+/// to, where the caller can say.
 pub fn verdict_failure(
-    ds: &Vec<Declaration>,
+    pers: &PersTier,
+    ar: &EStore,
+    ds: &Vec<IDeclaration>,
     e: &CheckError,
     i: u64,
     owner: Option<String>,
@@ -909,11 +892,11 @@ pub fn verdict_failure(
         Some(d) => match owner {
             Some(t) => format!(
                 " [at {}, a generated model record of inductive {}, fold position {}]",
-                decl_label(d),
+                decl_label(pers, ar, d),
                 t,
                 i
             ),
-            None => format!(" [at {}, fold position {}]", decl_label(d), i),
+            None => format!(" [at {}, fold position {}]", decl_label(pers, ar, d), i),
         },
     };
     eprintln!(
@@ -928,49 +911,49 @@ pub fn verdict_failure(
 }
 
 // ---------------------------------------------------------------------------
-// The streaming reader (task #84)
+// The streaming reader
 //
 // `ConLeche/Frontend/ExportC.lean`'s `parseExportHandleD` and
-// `parseExportStreamD`: the *loop with the reads interleaved*, whose pure
-// counterpart `parseChunks` is in the verified core
-// (`con_ron_core::frontend::export_c`).  They are here and not there because
-// they are the one part of the parse that is not a function of the input:
-// `IO.FS.Handle.read` has no model, and a theorem about the file is a theorem
-// about its bytes, which `parse_chunks` takes as a list of chunks.  What this
-// pair adds is exactly the reads, and `chunk_step`/`chunk_finish` — the steps
-// it takes — are the core's.
+// `parseExportStreamD` over the ARENA's `chunk_step`/`chunk_finish` — the loop
+// with the reads interleaved, whose pure counterpart `parse_chunks` is
+// `con_ron_core::frontend::export_c`'s.  It is here and not there for
+// `crate::driver`'s reason: `IO.FS.Handle.read` has no model, and a theorem
+// about the file is a theorem about its bytes.
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
-/// Streaming direct parse off an open reader.
-///
-/// The reader is read strictly forward, 4 MiB at a time, and is never seeked,
-/// re-opened or asked for its size — so the source may be a *pipe* just as
-/// well as a file (con-leche task #180: no scratch file at all, anywhere).
-/// It is a property to preserve: a seek or a re-open here would silently
-/// re-introduce a temp file.  The unconsumed tail of a chunk — at most one
-/// incomplete line — is carried into the next one.  Each step is the core's
-/// `chunk_step`, the end its `chunk_finish`: the loop is `parse_chunks`' with
-/// the reads interleaved, stopping at the first empty read.
+/// Streaming direct parse off an open reader, into the persistent tier of
+/// `ar`.  The unconsumed tail of a chunk — at most one incomplete line — is
+/// carried into the next one.  Each step is the core's `chunk_step`, the end
+/// its `chunk_finish`; the loop is `parse_chunks`' with the reads interleaved,
+/// stopping at the first empty read.  The chunk count comes back for the
+/// heartbeat, as the Lean twin's `readFold` returns it.
 pub fn parse_export_handle_d<R: Read, M: Modeller>(
+    pers: &PersTier,
     m: &M,
+    ar: &mut AState,
     h: &mut R,
     in_model: bool,
     census: bool,
     chunk: usize,
-) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
-    let mut st = export_c::state_d_init(in_model, census);
+) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
+    let mut st = match export_c::state_d_init(pers, &mut ar.store, in_model, census) {
+        Ok(s) => s,
+        Err(e) => return Ok((Err((e, 0)), 0)),
+    };
     let mut carry: Vec<u8> = Vec::new();
     let mut line_no: u64 = 0;
     let mut total: u64 = 0;
+    let mut chunks: u64 = 0;
     let mut buf0: Vec<u8> = vec![0u8; chunk];
     loop {
         let n = read_up_to(h, &mut buf0)?;
         if n == 0 {
-            return Ok(export_c::chunk_finish(m, st, &carry, line_no));
+            return Ok((export_c::chunk_finish(pers, m, ar, st, &carry[..], line_no), chunks));
         }
-        match export_c::chunk_step(m, &mut st, carry, line_no, total, &buf0[..n]) {
-            Err(e) => return Ok(Err(e)),
+        chunks += 1;
+        match export_c::chunk_step(pers, m, ar, &mut st, carry, line_no, total, &buf0[..n]) {
+            Err(e) => return Ok((Err(e), chunks)),
             Ok((c, l, t)) => {
                 carry = c;
                 line_no = l;
@@ -980,68 +963,35 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
     }
 }
 
-/// con-leche: none — `IO.FS.Handle.read`, which returns *up to* `n` bytes and
-/// an empty buffer at end of file; `Read::read` may also stop short of a full
-/// buffer mid-file, so the port loops until the buffer is full or the reader
-/// is done.
-pub fn read_up_to<R: Read>(h: &mut R, buf: &mut [u8]) -> std::io::Result<usize> {
-    let mut got = 0usize;
-    while got < buf.len() {
-        match h.read(&mut buf[got..]) {
-            Ok(0) => break,
-            Ok(n) => got += n,
-            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(got)
-}
-
 /// con-leche: ConLeche/Frontend/ExportC.lean:933-938 parseExportStreamD
 /// Streaming direct parse of a file.
 pub fn parse_export_stream_d<M: Modeller>(
+    pers: &PersTier,
     m: &M,
+    ar: &mut AState,
     path: &str,
     in_model: bool,
     census: bool,
     chunk: usize,
-) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
+) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
     let mut f = std::fs::File::open(path)?;
-    parse_export_handle_d(m, &mut f, in_model, census, chunk)
+    parse_export_handle_d(pers, m, ar, &mut f, in_model, census, chunk)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use con_ron_core::frontend::export_c::{concat_bytes, parse_chunks};
-    use con_ron_core::frontend::in_model_rec::{BlockRec, ModelCtx};
-    use con_ron_core::kernel::env::Declaration;
+    use con_ron_core::frontend::types::DeclineModeller;
 
-    /// A modeller that declines everything: the streams below have no mutual
-    /// or nested block, so it is never asked.
-    struct NoModel;
-
-    impl Modeller for NoModel {
-        fn generate(
-            &self,
-            _ctx: &ModelCtx,
-            _b: &BlockRec,
-        ) -> Result<Vec<Declaration>, Vec<u32>> {
-            Err(Vec::new())
-        }
-    }
-
-    /// **The reader loop is `parse_chunks` with the reads interleaved.**
-    /// con-leche's `parseChunks` is the *specification* of
-    /// `parseExportHandleD` (its own doc comment says so), and the core proves
-    /// nothing about the reader — it cannot, `IO.FS.Handle.read` has no model.
-    /// So the agreement is a test: at every chunk size, including sizes that
-    /// cut inside a line and one byte at a time, the streaming parse and the
-    /// pure fold over the same chunks produce the same records.  Task #84
-    /// moved this half of `export_c`'s `chunking_does_not_change_the_parse`
-    /// here with the reader.
+    /// **The reader loop is `parse_chunks` with the reads interleaved.**  The
+    /// core proves nothing about the reader — it cannot, `IO.FS.Handle.read`
+    /// has no model — so the agreement is a test: at every chunk size,
+    /// including sizes that cut inside a line and one byte at a time, the
+    /// streaming parse and the pure fold over the same chunks produce the same
+    /// records.  `crate::driver`'s own test, over the arena's parser.
     #[test]
     fn the_reader_is_parse_chunks_with_the_reads() {
+        let pers: &PersTier = &PersTier::empty();
         let s = concat!(
             "{\"meta\":{\"exporter\":{\"name\":\"lean4export\"}}}\n",
             "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"A\"}}\n",
@@ -1050,94 +1000,84 @@ mod tests {
         );
         let b = s.as_bytes();
         for chunk in [1usize, 2, 7, 8, 13, 64, 4096] {
+            let mut ar = AState::init(EStore::empty());
             let mut r = std::io::Cursor::new(b.to_vec());
-            let streamed = parse_export_handle_d(&NoModel, &mut r, true, false, chunk)
-                .expect("no io error")
+            let (streamed, _) =
+                parse_export_handle_d(pers, &DeclineModeller {}, &mut ar, &mut r, true, false, chunk)
+                    .expect("no io error");
+            let streamed = streamed
                 .unwrap_or_else(|(e, l)| panic!("chunk {} line {}: {}", chunk, l, message(&e)));
+            let mut ar2 = AState::init(EStore::empty());
             let cs: Vec<Vec<u8>> = b.chunks(chunk).map(|c| c.to_vec()).collect();
-            assert_eq!(concat_bytes(&cs), b, "chunk {}", chunk);
-            let pure = parse_chunks(&NoModel, &cs, true, false)
-                .unwrap_or_else(|(e, l)| panic!("pure chunk {} line {}: {}", chunk, l, message(&e)));
+            let pure = export_c::parse_chunks(pers, &DeclineModeller {}, &mut ar2, &cs, true, false)
+                .unwrap_or_else(|(e, l)| {
+                    panic!("pure chunk {} line {}: {}", chunk, l, message(&e))
+                });
             assert_eq!(streamed.decls.len(), pure.decls.len(), "chunk {}", chunk);
             assert_eq!(streamed.decls.len(), 1, "chunk {}", chunk);
+            assert_eq!(ar.store.node_count(pers), ar2.store.node_count(pers), "chunk {}", chunk);
         }
     }
 
-    /// `read_up_to` fills the buffer even when the reader stops short, which
-    /// is the one thing `IO.FS.Handle.read` does not need to be told.
+    /// The three words of the arena's own `ValueKind`, and the flag values,
+    /// which are `crate::driver`'s and are called across the crate line so
+    /// that the two binaries cannot drift.
     #[test]
-    fn read_up_to_fills_or_ends() {
-        struct Dribble(Vec<u8>, usize);
-        impl std::io::Read for Dribble {
-            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-                if self.1 >= self.0.len() {
-                    return Ok(0);
-                }
-                // one byte at a time, whatever the caller asked for
-                buf[0] = self.0[self.1];
-                self.1 += 1;
-                Ok(1)
-            }
-        }
-        let mut d = Dribble(b"abcdefgh".to_vec(), 0);
-        let mut buf = [0u8; 5];
-        assert_eq!(read_up_to(&mut d, &mut buf).unwrap(), 5);
-        assert_eq!(&buf, b"abcde");
-        assert_eq!(read_up_to(&mut d, &mut buf).unwrap(), 3);
-        assert_eq!(&buf[..3], b"fgh");
-        assert_eq!(read_up_to(&mut d, &mut buf).unwrap(), 0);
-    }
-
-    /// `Main.lean:48-51`'s three arms, and `OVERVIEW.md` §0's words.
-    #[test]
-    fn exit_codes_are_con_leches() {
-        assert_eq!(exit_code(&CheckError::NotImplemented(Vec::new())), 2);
-        assert_eq!(exit_code(&CheckError::Invalid(Vec::new())), 1);
-        assert_eq!(exit_code(&CheckError::Internal(Vec::new())), 3);
-        assert_eq!(verdict_word(0), "accepted");
-        assert_eq!(verdict_word(1), "rejected");
-        assert_eq!(verdict_word(2), "declined");
-        assert_eq!(verdict_word(3), "error");
-    }
-
-    /// `progressStride`/`jobsCount`: `0` and a non-numeral are usage errors,
-    /// and the message names the flag.
-    #[test]
-    fn flag_values_reject_zero_and_junk() {
-        assert_eq!(progress_stride("1"), Ok(1));
-        assert_eq!(progress_stride("1000"), Ok(1000));
-        assert!(progress_stride("0").unwrap_err().contains("--progress"));
-        assert!(progress_stride("x").unwrap_err().contains("--progress"));
-        assert!(progress_stride("-1").is_err());
-        assert_eq!(jobs_count("8"), Ok(8));
-        assert!(jobs_count("0").unwrap_err().contains("--jobs"));
-        assert!(jobs_count("many").unwrap_err().contains("--jobs"));
-    }
-
-    /// `Main.lean:318-421`'s `workers := max 1 (min jobs pend.size)`, and the
-    /// capped default: never 0, never more workers than records, and an
-    /// explicit count obeyed to the letter.
-    #[test]
-    fn the_worker_count_is_clamped_to_the_records() {
-        assert_eq!(workers_for(1, 100), 1);
-        assert_eq!(workers_for(8, 100), 8);
-        assert_eq!(workers_for(8, 3), 3);
-        assert_eq!(workers_for(8, 0), 1);
-        assert_eq!(workers_for(96, 1_000_000), 96);
-        let d = default_jobs();
-        assert!(d >= 1 && d <= JOBS_DEFAULT_CAP);
-    }
-
-    /// `ValueKind.word` and `msSecs`, the two renderings the core deliberately
-    /// does not carry.
-    #[test]
-    fn driver_only_rendering() {
+    fn rendering_and_flag_values() {
         assert_eq!(value_kind_word(&ValueKind::Defn), "definition");
         assert_eq!(value_kind_word(&ValueKind::Thm), "theorem");
         assert_eq!(value_kind_word(&ValueKind::Opaque), "opaque");
-        assert_eq!(ms_secs(0), "0.000");
-        assert_eq!(ms_secs(7), "0.007");
-        assert_eq!(ms_secs(1234), "1.234");
-        assert_eq!(ms_secs(60_000), "60.000");
+        assert_eq!(progress_stride("1"), Ok(1));
+        assert!(progress_stride("0").is_err());
+        assert_eq!(jobs_count("8"), Ok(8));
+        assert!(jobs_count("0").is_err());
+        // the worker count is `workers_for` and nothing else
+        // (task #97-P6-6b): the two binaries cannot drift on `--jobs`
+        assert_eq!(workers_for(8, 100), 8);
+        assert_eq!(workers_for(8, 3), 3);
+        assert_eq!(workers_for(1, 0), 1);
+        assert_eq!(workers_for(8, 100), workers_for(8, 100));
+    }
+
+    /// **The phase boundary is invisible to every reader outside phase B**
+    /// (task #97-P6-6b).  `freeze_tier` takes the persistent tier out of the
+    /// store and `thaw_tier` puts it back; between them a worker reads the
+    /// tier it was handed, and after them the store answers exactly as it did
+    /// before — which is what the verdict line needs, because it renders the
+    /// failing record's NAME out of the store after the fold has returned.
+    /// The first version of the pool dropped the tier at the end of the
+    /// driver and printed `at theorem ?`; this is the regression.
+    #[test]
+    fn freezing_and_thawing_leave_every_handle_readable() {
+        let empty: &PersTier = &PersTier::empty();
+        let mut st = AState::init(EStore::empty());
+        let anon = match con_ron_core::arena::monad::intern_n_node(
+            empty,
+            &mut st,
+            con_ron_core::arena::store::NNodeView::Anonymous,
+        ) {
+            Ok(h) => h,
+            Err(_) => panic!("the anonymous name interns"),
+        };
+        let n = match con_ron_core::arena::monad::intern_n_node(
+            empty,
+            &mut st,
+            con_ron_core::arena::store::NNodeView::Str(anon, vec![0x61, 0x64, 0x64]),
+        ) {
+            Ok(h) => h,
+            Err(_) => panic!("`add` interns"),
+        };
+        assert_eq!(name_of(empty, &st.store, &n), "add");
+        // frozen: the store's own tier is empty and the shared one answers
+        let tier = freeze_tier(&mut st.store);
+        assert!(st.store.shared_on);
+        assert_eq!(name_of(&tier, &st.store, &n), "add");
+        // and a worker, whose store is its own, reads it too
+        let w = crate::pool::worker_state(&st.pins);
+        assert_eq!(name_of(&tier, &w.store, &n), "add");
+        // thawed: the store is what phase A left
+        thaw_tier(&mut st.store, tier);
+        assert!(!st.store.shared_on);
+        assert_eq!(name_of(empty, &st.store, &n), "add");
     }
 }

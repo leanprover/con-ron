@@ -93,7 +93,6 @@ use crate::kernel::name::Name;
 use crate::ron::nat;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
-use crate::ron::node;
 use crate::ron::ptr;
 use crate::ron::ptr::P;
 
@@ -108,8 +107,7 @@ use crate::ron::ptr::P;
 /// **The datum is inline again (task #90).**  Task #38 put the whole
 /// `PropWhen` behind its own `P` handle, because a `PropWhen` was 24 bytes by
 /// value at the time (`PropWhenRepr::Many(Vec<Name>)` set the width) and a
-/// binder datum sits *inside* `ExprKind::Lam`/`ForallE` (as it now does inside
-/// `ron::node::NodeLam`).  `PropWhen` is now
+/// binder datum sits *inside* `ExprKind::Lam`/`ForallE`.  `PropWhen` is now
 /// one word wider than its own tag — `Never`/`Always`/`One` cost no heap
 /// cell, and only the rare `Two`/`Many` box their payload (`prop_when.rs`'s
 /// module note) — so boxing `BinderMeta` on top of that bought nothing but
@@ -335,23 +333,20 @@ pub fn sat_pred(x: u64) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
-/// The ten constructors of `inductive Expr`, **as a declaration and not a
-/// representation** (task #94).
+/// The ten constructors of `inductive Expr`, as the node's payload.
 ///
-/// Nothing ever builds one of these: the run-time node is one of
-/// `ron::node`'s ten per-kind structs, reached through a tagged handle, and
-/// `ron::node` is opaque to Charon the way `ron::ptr` is.  What this type is
-/// for is the *model*.  DESIGN.md §3.2's rule for the pointer is "an `Arc<T>`
-/// is its contents", and `ron::node::TaggedNode<T>` is modeled by exactly the
-/// same line — `TaggedNode T := T` — so the shape the proof tier sees is this
-/// enum beside [`ExprNode`]'s `data` word, which is the shape it saw before
-/// task #94, unchanged down to the constructor names.  `view` is then `ok
-/// x.kind` and each `alloc_*` is `ok (ExprNode.mk d (ExprKind.App f a))`;
-/// `absExpr`/`absExprNode`/`absExprKind` do not move at all.
+/// **Task #97-SWAP-2 put this back in the node.**  Between tasks #94 and
+/// #97-SWAP-2 it was a declaration and not a representation: the run-time
+/// node was one of `ron::node`'s ten per-kind structs behind a tagged handle,
+/// and this enum existed only so that the model kept its shape.  The arena
+/// checker holds no `Expr` at all, so the compactness that bought (32 bytes
+/// for an `app` against 64) is worth nothing on the few thousand pinned nodes
+/// a run interns once at startup — and the `unsafe` it cost is worth
+/// retiring.  So the node is a `P<ExprNode>` again, this enum is its `kind`
+/// field, and the crate has no `unsafe` in it.
 ///
 /// Deviation from the citation: the `Nat` indices are `u64` (§3.3), and
 /// `const`'s `List Level` is a `Vec<Level>` behind a handle (task #38).
-#[allow(dead_code)]
 pub enum ExprKind {
     Bvar(u64),
     Fvar(u64, Expr),
@@ -366,62 +361,91 @@ pub enum ExprKind {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
-/// The modeled node: the cited `@[computed_field] data` beside the
-/// constructor data.  Never built — see [`ExprKind`] — and the type
-/// `ron::node::TaggedNode` is parameterised by, so that Charon's `Expr` is
-/// `mk : TaggedNode ExprNode` where it was `mk : Arc ExprNode`.
-#[allow(dead_code)]
+/// The node: the cited `@[computed_field] data` beside the constructor data.
+/// One heap cell behind the `P` of [`Expr`], as wide as the widest arm —
+/// which is what a startup-only representation may pay (see [`ExprKind`]).
 pub struct ExprNode {
     pub data: u64,
     pub kind: ExprKind,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
-/// A kernel expression: **one machine word**, a tagged handle to one of the
-/// ten per-kind nodes in `ron::node` (task #94) — Lean's value semantics
-/// made sharing (DESIGN.md §3.2).
+/// A kernel expression: a `P` handle to an immutable [`ExprNode`] — Lean's
+/// value semantics made sharing (DESIGN.md §3.2).
 ///
-/// **The kind is in the handle since task #94.**  Until then this was
-/// `P<ExprNode>` with `ExprNode { data, kind: ExprKind }`, so *every* node
-/// was as wide as the widest arm: 48 bytes of node, a 64-byte block, for an
-/// `app` that needs 32 and is 65 % of the live nodes of a real term
-/// (task #88's census).  A node allocated `align(16)` leaves four bits of
-/// its address free, ten kinds fit in four, and each kind then gets a node
-/// struct of its own size — `ron::node`'s module note has the table.  The
-/// ten `ExprKind` arms live on unchanged as `ron::node::ExprView`, the
-/// borrowed enum [`view`] hands a reader, so every `match` in the core keeps
-/// its arm structure; the ten smart constructors below are unchanged above
-/// the last line, which now names the arm's allocator instead of building an
-/// `ExprNode`.
+/// **The counted pointer is back (task #97-SWAP-2).**  Between tasks #94 and
+/// #97-SWAP-2 this was a one-word *tagged handle* into one of ten per-kind
+/// blocks, which bought 32 bytes for an `app` against 64 and cost the crate
+/// its only `unsafe`.  Task #97-SWAP's finding is that the checking path
+/// builds no `Expr` at all — the only `Expr` values a run makes are the
+/// pinned data (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,
+/// trust_pins,pins_decode}`), which `arena::intern` walks once at startup —
+/// so the compactness is worth nothing here and the `unsafe` is worth
+/// retiring.  `P<ExprNode>` is §3.2's rule for every other node type, and is
+/// this one's again: four `Arc` holes, no `unsafe`, no tag.
 ///
-/// Deviation from the citation, unchanged by task #94: the `Nat` indices are
-/// `u64` (§3.3), and `const`'s `List Level` is a `Vec<Level>` *behind a
-/// handle* (task #38), which `P<Vec<Level>>` models as `Vec Level`.
-pub struct Expr(pub(crate) node::ExprHandle);
+/// The field is `pub` because the two unverified crates key a table by a
+/// node's *address* (`con_ron::keys::ExprKey`, `con_ron_dump::dag`); nothing
+/// in the verified core reads it except through [`view`], [`data`] and the
+/// three `ron::ptr` operations.
+///
+/// Deviation from the citation: the `Nat` indices are `u64` (§3.3), and
+/// `const`'s `List Level` is a `Vec<Level>` *behind a handle* (task #38),
+/// which `P<Vec<Level>>` models as `Vec Level`.
+pub struct Expr(pub P<ExprNode>);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
-/// The ten constructors as a borrowed enum — `ron::node`'s `ExprView` under
-/// the name a reader of this module expects.  A `match view(e)` binds
-/// exactly what `match &e.0.kind` bound before task #94.
-pub use crate::ron::node::ExprView;
+/// The ten constructors as a **borrowed** enum: what a reader matches on.
+///
+/// Every arm holds references, including the scalar ones (`&u64`), so that a
+/// `match view(e)` binds exactly what `match &e.0.kind` binds.  It survives
+/// task #97-SWAP-2 because it is what 263 generated reader sites and the
+/// refinement tier's `expr_view_eq` speak; [`view`] is the ordinary `match`
+/// on the node behind the handle rather than a hole, so the model has one
+/// equation per constructor and no axiom.
+pub enum ExprView<'a> {
+    Bvar(&'a u64),
+    Fvar(&'a u64, &'a Expr),
+    Sort(&'a Level),
+    Const(&'a Name, &'a P<Vec<Level>>),
+    App(&'a Expr, &'a Expr),
+    Lam(&'a Expr, &'a Expr, &'a BinderMeta),
+    ForallE(&'a Expr, &'a Expr, &'a BinderMeta),
+    LetE(&'a Expr, &'a Expr, &'a Expr),
+    Lit(&'a Literal),
+    Proj(&'a Name, &'a u64, &'a Expr),
+}
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
-/// Look at a term's constructor.  The projection of DESIGN.md §3.2's model:
-/// `view (alloc_app d f a) = App f a`, ten equations, one per constructor.
+/// Look at a term's constructor: the `match` every reader of the core does,
+/// through the handle's `Deref`.  The projection of DESIGN.md §3.2's model —
+/// `view (app f a) = App f a`, ten equations, one per constructor — and since
+/// task #97-SWAP-2 a plain crate function Charon translates, not a hole.
 pub fn view<'a>(e: &'a Expr) -> ExprView<'a> {
-    node::view(e)
+    match &e.0.kind {
+        ExprKind::Bvar(i) => ExprView::Bvar(i),
+        ExprKind::Fvar(idx, ty) => ExprView::Fvar(idx, ty),
+        ExprKind::Sort(u) => ExprView::Sort(u),
+        ExprKind::Const(n, us) => ExprView::Const(n, us),
+        ExprKind::App(f, a) => ExprView::App(f, a),
+        ExprKind::Lam(ty, body, m) => ExprView::Lam(ty, body, m),
+        ExprKind::ForallE(ty, body, m) => ExprView::ForallE(ty, body, m),
+        ExprKind::LetE(ty, value, body) => ExprView::LetE(ty, value, body),
+        ExprKind::Lit(l) => ExprView::Lit(l),
+        ExprKind::Proj(n, idx, sub) => ExprView::Proj(n, idx, sub),
+    }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// The cached `@[computed_field] data`, an `O(1)` field read.
 pub fn data(e: &Expr) -> u64 {
-    node::data(e)
+    e.0.data
 }
 
 /// con-leche: none — the `P` bump that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a term.
 pub fn dup(e: &Expr) -> Expr {
-    node::dup(e)
+    Expr(ptr::clone(&e.0))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -430,7 +454,7 @@ pub fn dup(e: &Expr) -> Expr {
 pub fn bvar(i: u64) -> Expr {
     let h: u64 = hash32(name::mix_hash(3, name::nat_hash(i)));
     let d: u64 = pack_data(h, sat_succ(i), 0, false);
-    node::alloc_bvar(d, i)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Bvar(i) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -445,7 +469,7 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
         name::mix_hash(name::nat_hash(idx), hash_of_data(dt)),
     ));
     let d: u64 = pack_data(h, 0, sat_succ(idx), lp_of_data(dt));
-    node::alloc_fvar(d, idx, ty)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Fvar(idx, ty) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -455,7 +479,7 @@ pub fn fvar(idx: u64, ty: Expr) -> Expr {
 pub fn sort(u: Level) -> Expr {
     let h: u64 = hash32(name::mix_hash(7, level::level_hash(&u)));
     let d: u64 = pack_data(h, 0, 0, level::level_has_param(&u));
-    node::alloc_sort(d, u)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Sort(u) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -469,7 +493,7 @@ pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
         name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
     ));
     let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
-    node::alloc_const(d, n, ptr::new(us))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -489,7 +513,7 @@ pub fn app(f: Expr, a: Expr) -> Expr {
         max_u64(fvar_of_data(df), fvar_of_data(da)),
         lp_of_data(df) || lp_of_data(da),
     );
-    node::alloc_app(d, f, a)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::App(f, a) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -513,7 +537,7 @@ pub fn lam(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
     );
-    node::alloc_lam(d, ty, body, m)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lam(ty, body, m) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -535,7 +559,7 @@ pub fn forall_e(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
     );
-    node::alloc_forall_e(d, ty, body, m)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::ForallE(ty, body, m) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -562,7 +586,7 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
         max_u64(max_u64(fvar_of_data(dt), fvar_of_data(dv)), fvar_of_data(db)),
         lp_of_data(dt) || lp_of_data(dv) || lp_of_data(db),
     );
-    node::alloc_let_e(d, ty, value, body)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::LetE(ty, value, body) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -572,7 +596,7 @@ pub fn let_e(ty: Expr, value: Expr, body: Expr) -> Expr {
 pub fn lit(l: Literal) -> Expr {
     let h: u64 = hash32(name::mix_hash(31, literal_hash(&l)));
     let d: u64 = pack_data(h, 0, 0, false);
-    node::alloc_lit(d, l)
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lit(l) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
@@ -589,7 +613,10 @@ pub fn proj(struct_name: Name, idx: u64, e: Expr) -> Expr {
         ),
     ));
     let d: u64 = pack_data(h, bvar_of_data(de), fvar_of_data(de), lp_of_data(de));
-    node::alloc_proj(d, struct_name, idx, e)
+    Expr(ptr::new(ExprNode {
+        data: d,
+        kind: ExprKind::Proj(struct_name, idx, e),
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -647,44 +674,12 @@ pub fn beq_recursive(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:849-876 Expr.enterBeq
-/// **Memoise only what is shared** (con-leche's task #319): the pair memo is
-/// consulted and written only at a recursive node whose *two* sides are
-/// SHARED — reference count above one, so that some other reference to them
-/// exists.  A pair with an exclusive side cannot be asked again within this
-/// comparison (the walk that is inside a node's only reference meets it
-/// once), so an entry for it can never be read, and every one of them costs a
-/// probe, a bucket and the two stored `dup`s.  This is the official kernel's
-/// `expr_eq_fn::check_cache` guard, `if (is_shared(a) && is_shared(b))`
-/// (`src/kernel/expr_eq_fn.cpp`), which the cited `enterBeq` reads through
-/// `withExclusive`.
-///
-/// `a` and `b` are **borrowed**, which is what makes the counts the counts of
-/// the references inside the terms; `beq_key` is pure `u64` arithmetic over
-/// the two cached hash words and shares nothing, so it may stand where it
-/// does (`ron::node::is_exclusive`, and `kernel::expr_ops`'s note on the
-/// walks' probe/record helpers, say why that matters).
-///
-/// In the model `is_exclusive` is `false`, so this is `beq_recursive a` and
-/// `beq_go` is the descent `Refine/Expr.lean` proves exact, unchanged.
-pub fn beq_memoise(a: &Expr, b: &Expr) -> bool {
-    if !beq_recursive(a) {
-        false
-    } else if node::is_exclusive(a) {
-        false
-    } else if node::is_exclusive(b) {
-        false
-    } else {
-        true
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Expr.lean:984-989 Expr.beqMemo
 /// The pointer test behind the cited `withPtrEq`.  Deviation: modeled as
 /// `false` in the generated Lean (DESIGN.md §3.2), where the reflexivity of
 /// the walk is what discharges the fast path.
 pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
-    node::ptr_eq(a, b)
+    ptr::ptr_eq(&a.0, &b.0)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:740-750 EqPair
@@ -883,7 +878,7 @@ pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     } else if data(a) != data(b) {
         (false, m)
     } else {
-        let rec: bool = beq_memoise(a, b);
+        let rec: bool = beq_recursive(a);
         let key: u64 = beq_key(hash(a), hash(b));
         if rec && probe_hit(&m, key, a, b) {
             (true, m)
@@ -1719,9 +1714,10 @@ mod tests {
     }
 
     #[test]
-    fn beq_go_records_only_shared_recursive_nodes_and_only_true() {
-        // `beq_memoise` is the memo's gate: a leaf pair, a pair with an
-        // exclusive side, and a completed `false` are all never stored.
+    fn beq_go_records_only_recursive_nodes_and_only_true() {
+        // `beq_recursive` is the memo's gate and a `false` is never stored.
+        // (Task #97-SWAP-2 retired the exclusivity half of the gate with the
+        // handle that could read a count; the model always memoised anyway.)
         let m: expr::BeqMap = HashMap::new();
         let l1 = expr::bvar(7);
         let l2 = expr::bvar(7);
@@ -1730,47 +1726,21 @@ mod tests {
         assert_eq!(m.len(), 0, "a leaf pair is never recorded");
         let a = expr::app(expr::bvar(0), expr::bvar(1));
         let b = expr::app(expr::bvar(0), expr::bvar(1));
-        // `a` and `b` are held by these bindings alone: exclusive, so the
-        // comparison cannot meet them again and records nothing.
         let (r, m) = expr::beq_go(m, &a, &b);
-        assert!(r);
-        assert_eq!(m.len(), 0, "an exclusive pair is never recorded");
-        // The same pair, now SHARED (a second handle to each), is recorded —
-        // and only it, not its leaves.
-        let a2 = expr::dup(&a);
-        let b2 = expr::dup(&b);
-        let (r, m) = expr::beq_go(m, &a2, &b2);
         assert!(r);
         assert_eq!(m.len(), 1, "one entry: the `app` pair, not its leaves");
         assert!(expr::probe_hit(
             &m,
-            expr::beq_key(expr::hash(&a2), expr::hash(&b2)),
-            &a2,
-            &b2
+            expr::beq_key(expr::hash(&a), expr::hash(&b)),
+            &a,
+            &b
         ));
-        // A completed `false` stores nothing, shared or not.
+        // A completed `false` stores nothing.
         let m2: expr::BeqMap = HashMap::new();
         let c = expr::app(expr::bvar(0), expr::bvar(2));
-        let c2 = expr::dup(&c);
-        let (r2, m2) = expr::beq_go(m2, &a2, &c2);
+        let (r2, m2) = expr::beq_go(m2, &a, &c);
         assert!(!r2);
         assert_eq!(m2.len(), 0);
-    }
-
-    /// The gate itself: a leaf is out whatever its count, and a recursive
-    /// node is in only when BOTH sides are shared.
-    #[test]
-    fn beq_memoise_is_recursive_and_shared_on_both_sides() {
-        let leaf = expr::bvar(3);
-        let leaf2 = expr::dup(&leaf);
-        assert!(!expr::beq_memoise(&leaf, &leaf2), "a leaf is never memoised");
-        let a = expr::app(expr::bvar(0), expr::bvar(1));
-        let b = expr::app(expr::bvar(0), expr::bvar(1));
-        assert!(!expr::beq_memoise(&a, &b), "both sides exclusive");
-        let a2 = expr::dup(&a);
-        assert!(!expr::beq_memoise(&a2, &b), "the right side is exclusive");
-        let b2 = expr::dup(&b);
-        assert!(expr::beq_memoise(&a2, &b2), "both shared");
     }
 
     // -----------------------------------------------------------------------
@@ -1851,7 +1821,7 @@ mod tests {
         eprintln!("PropWhen        {}", std::mem::size_of::<crate::kernel::prop_when::PropWhen>());
         eprintln!("BinderMeta      {}", std::mem::size_of::<BinderMeta>());
         eprintln!("Expr (handle)   {}", std::mem::size_of::<Expr>());
-        eprintln!("app cell        {}", std::mem::size_of::<crate::ron::tagged::Block<crate::ron::node::NodeApp>>());
-        eprintln!("lam cell        {}", std::mem::size_of::<crate::ron::tagged::Block<crate::ron::node::NodeLam>>());
+        eprintln!("ExprKind        {}", std::mem::size_of::<super::ExprKind>());
+        eprintln!("ExprNode        {}", std::mem::size_of::<super::ExprNode>());
     }
 }

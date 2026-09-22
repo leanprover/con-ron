@@ -51,25 +51,22 @@ import subprocess
 import sys
 
 # The Rust trees that must be annotated, relative to the repository root.
-# `crates/arena-core/src` is the arena rewrite's verified crate (DESIGN.md
-# §8.6, task #97 P4a): a second *verified* tree beside `con-ron-core`, inside
-# this gate and inside `lint-rust-style.sh`, until §8.6's swap merges the two.
-# `crates/con-ron/src` is the UNVERIFIED crate: the in-process modeller, the
-# driver and the pool (the parser left it for the verified core at task #84).
-# It is inside this gate and outside `lint-rust-style.sh` and `extract.sh` on
-# purpose: DESIGN.md §3.7 — "for the unverified frontend it is the only sync
-# signal there is".  Its items are cited but not style-linted.
-# `crates/con-ron-arena/src` is the arena rewrite's own unverified crate (task
-# #97 P4f): the driver, the CLI and the modeller seam's instantiation, i.e.
-# `con-ron`'s three unverified pieces one representation down.  It is here for
-# `crates/con-ron`'s reason and nowhere else, and is outside
-# `lint-rust-style.sh` and `extract-arena.sh` for `crates/con-ron`'s reason
-# too.
+# TWO roots since task #97-SWAP (§8.6's swap), which is one per crate that
+# carries ported code:
+# `crates/con-ron-core/src` is THE verified crate — the arena checker, the
+# store-native parser and the pinned data — inside this gate and inside
+# `lint-rust-style.sh`.  (`crates/arena-core/src` was the rewrite's second
+# verified tree from task #97-P4a until the swap folded it in here.)
+# `crates/con-ron/src` is the UNVERIFIED crate: the driver, the CLI, the pool,
+# the in-process modeller and the `Expr`-value helpers it builds trees with
+# (`tree/`, task #97-SWAP).  It is inside this gate and outside
+# `lint-rust-style.sh` and `extract.sh` on purpose: DESIGN.md §3.7 — "for the
+# unverified frontend it is the only sync signal there is".  Its items are
+# cited but not style-linted.  (`crates/con-ron-arena/src` was its arena-side
+# twin from task #97-P4f until the swap put it here under this name.)
 RUST_ROOTS = [
     "crates/con-ron-core/src",
-    "crates/arena-core/src",
     "crates/con-ron/src",
-    "crates/con-ron-arena/src",
 ]
 
 # The Lean trees that must be annotated: the arena checker (B) of DESIGN.md
@@ -99,6 +96,9 @@ ARENA_ROOTS = [
 #
 # Everything else under `ARENA_ROOTS` is the port, and carries citations.
 # Prefix match on the repository-relative path, `/`-separated.
+# (`Arena/Spike/` was deleted at task #97-SWAP-2, the question it answered
+# being settled; the entry stays because `provenance-selftest.py` asserts the
+# exemption set, and because the next spike goes back under that path.)
 ARENA_EXEMPT = (
     "proof/ConRon/Arena/StoreTest.lean",
     "proof/ConRon/Arena/Spike/",

@@ -89,60 +89,17 @@ set_option backward.do.legacy true
 @[local step] theorem ptr_new_spec {T : Type} (x : T) :
     ron.ptr.new x ⦃ r => r = x ⦄ := by rw [ptr_new_eq]; exact .ret rfl
 
-/-! ### `ron::node`'s holes (task #94)
+/-! ### `Expr`'s two operations, and why they need no spec of their own
+(task #97-SWAP-2)
 
-`Expr`'s handle is `ron::tagged::Raw` since task #94, so the two operations a
-`step*` used to walk through for an `Expr` — `Arc::new` inside a smart
-constructor, `Arc::deref` inside a reader — are `ron.node.alloc_*` and
-`ron.node.data`.  Each is one of `Refine/Abs.lean`'s `rfl` hole lemmas, so each
-spec is the same one line `ptr_new_spec` is. -/
-
-@[local step] theorem node_data_spec (e : expr.Expr) :
-    ron.node.data e ⦃ r => r = e._0.data ⦄ := by rw [node_data_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_bvar_spec (d i : Std.U64) :
-    ron.node.alloc_bvar d i ⦃ e => e = .mk (.mk d (.Bvar i)) ⦄ := by
-  rw [node_alloc_bvar_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_fvar_spec (d idx : Std.U64) (ty : expr.Expr) :
-    ron.node.alloc_fvar d idx ty ⦃ e => e = .mk (.mk d (.Fvar idx ty)) ⦄ := by
-  rw [node_alloc_fvar_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_sort_spec (d : Std.U64) (u : level.Level) :
-    ron.node.alloc_sort d u ⦃ e => e = .mk (.mk d (.«Sort» u)) ⦄ := by
-  rw [node_alloc_sort_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_const_spec (d : Std.U64) (n : name.Name)
-    (us : alloc.sync.Arc (alloc.vec.Vec level.Level)) :
-    ron.node.alloc_const d n us ⦃ e => e = .mk (.mk d (.Const n us)) ⦄ := by
-  rw [node_alloc_const_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_app_spec (d : Std.U64) (f a : expr.Expr) :
-    ron.node.alloc_app d f a ⦃ e => e = .mk (.mk d (.App f a)) ⦄ := by
-  rw [node_alloc_app_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_lam_spec (d : Std.U64) (ty b : expr.Expr)
-    (m : expr.BinderMeta) :
-    ron.node.alloc_lam d ty b m ⦃ e => e = .mk (.mk d (.Lam ty b m)) ⦄ := by
-  rw [node_alloc_lam_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_forall_e_spec (d : Std.U64) (ty b : expr.Expr)
-    (m : expr.BinderMeta) :
-    ron.node.alloc_forall_e d ty b m ⦃ e => e = .mk (.mk d (.ForallE ty b m)) ⦄ := by
-  rw [node_alloc_forall_e_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_let_e_spec (d : Std.U64) (ty v b : expr.Expr) :
-    ron.node.alloc_let_e d ty v b ⦃ e => e = .mk (.mk d (.LetE ty v b)) ⦄ := by
-  rw [node_alloc_let_e_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_lit_spec (d : Std.U64) (l : expr.Literal) :
-    ron.node.alloc_lit d l ⦃ e => e = .mk (.mk d (.Lit l)) ⦄ := by
-  rw [node_alloc_lit_eq]; exact .ret rfl
-
-@[local step] theorem node_alloc_proj_spec (d : Std.U64) (n : name.Name)
-    (i : Std.U64) (e : expr.Expr) :
-    ron.node.alloc_proj d n i e ⦃ r => r = .mk (.mk d (.Proj n i e)) ⦄ := by
-  rw [node_alloc_proj_eq]; exact .ret rfl
+Tasks #94-#97-SWAP had a block of eleven `@[local step]` lemmas here: an
+`Expr`'s handle was `ron::tagged::Raw`, so the two operations a `step*` walks
+through for an `Expr` — `Arc::new` inside a smart constructor, `Arc::deref`
+inside a reader — were `ron.node.alloc_*` and `ron.node.data`, eleven holes
+with eleven `rfl` specs.  Task #97-SWAP-2 put `Expr` back on `ron::ptr::P`,
+so a smart constructor ends in `ron.ptr.new` and a reader begins with
+`Arc::deref` exactly as `Name`'s and `Level`'s do: `ptr_new_spec` and
+`arc_deref_spec` above are the whole of it, and the block is gone. -/
 
 @[local step] theorem ptr_clone_spec {T : Type} (x : T) :
     ron.ptr.clone x ⦃ r => r = x ⦄ := by rw [ptr_clone_eq]; exact .ret rfl

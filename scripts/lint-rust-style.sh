@@ -24,10 +24,10 @@ check "derive(Debug) (mixed recursion groups in Charon)" 'derive\([^)]*Debug'
 # keeps `a || b` and `x | y` out (`||` and `|_|`-less bars are not closures).
 check "closures" '\|\s*(_|mut |&|[a-z])[a-z_0-9,&: ]*\|\s*(\{|[a-z])'
 check "? operator" '\)\?[;.) ]|\)\?$'
-# Loops.  The rule is recursion (DESIGN.md §3.4); the exemption is the two
-# ported PARSER directories -- `crates/con-ron-core/src/frontend/` (task #84)
-# and `crates/arena-core/src/frontend/` (task #97 P4e, the same parser over
-# store handles): the Lean they cite is a per-byte tail recursion that *Lean*
+# Loops.  The rule is recursion (DESIGN.md §3.4); the exemption is the ported
+# PARSER directory, `crates/con-ron-core/src/frontend/` (task #84, and task
+# #97-P4e's rewrite of it over store handles, which task #97-SWAP moved back
+# under this path): the Lean it cites is a per-byte tail recursion that *Lean*
 # compiles to a loop, and a per-byte recursion in Rust overflows the stack on
 # a long export line.  `-loops-to-rec` gives each loop a `foo_loop` function
 # that mirrors the Lean recursion one for one.  (The `:[0-9]+:` is the
@@ -37,7 +37,7 @@ check_loops() {
   local hits
   hits=$(gather | grep -E ':[0-9]+:[[:space:]]*(while|for|loop)\b' \
     | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -vE '(con-ron-core|arena-core)/src/frontend/')   # unanchored: gates.sh passes an absolute dir
+    | grep -vE 'con-ron-core/src/frontend/')   # unanchored: gates.sh passes an absolute dir
   if [ -n "$hits" ]; then
     echo "== loops (use recursion; only the two frontend/ directories may loop, DESIGN.md §3.4)"
     echo "$hits"; fail=1
@@ -65,21 +65,26 @@ check_str_consts() {
   fi
 }
 check_str_consts
-# `unsafe`.  The rule is none at all (the 2026-09-12 ruling: `std` does it if
-# it can).  The ONE exemption is `crates/con-ron-core/src/ron/tagged.rs`, the
-# generic tagged counted handle (task #94): the kind lives in the handle's low
-# four bits, so the pointee type is chosen at run time and no `std` smart
-# pointer can express it.  That file names no term type; its instantiation for
-# `Expr` (`ron/node.rs`) is a ten-line table and passes this lint like every
-# other file.  The surface is `tagged.rs`'s own module note -- four expressions,
-# two impls and one macro -- and `scripts/diff-e2e.sh` is what stands behind it.
+# `unsafe`.  **The rule is none at all, and since task #97-SWAP-2 there is no
+# exemption** (the 2026-09-12 ruling: `std` does it if it can).
+#
+# Tasks #94-#97-SWAP had one: `crates/con-ron-core/src/ron/tagged.rs`, the
+# generic tagged counted handle, whose pointee type is chosen at run time from
+# four tag bits so that no `std` smart pointer can express it.  Task #97-SWAP
+# then measured what it was still FOR -- the arena checker holds no `Expr`, so
+# the only `Expr` values a run builds are the PINNED DATA
+# (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,trust_pins,
+# pins_decode}`), walked once at startup by `arena::intern` -- and task
+# #97-SWAP-2 put those few thousand nodes back on `ron::ptr::P` =
+# `std::sync::Arc` and deleted `ron/{tagged,node}.rs`.  So this check asserts
+# ZERO, and any `unsafe` in the verified crate is now a lint failure with no
+# path exemption to add.
 check_unsafe() {
   local hits
   hits=$(gather | grep -E '\bunsafe\b' \
-    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -v 'con-ron-core/src/ron/tagged.rs')   # unanchored: gates.sh passes an absolute dir
+    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow')
   if [ -n "$hits" ]; then
-    echo "== unsafe (only crates/con-ron-core/src/ron/tagged.rs may, task #94)"
+    echo "== unsafe (NONE is allowed in the verified crate, task #97-SWAP-2)"
     echo "$hits"; fail=1
   fi
 }
