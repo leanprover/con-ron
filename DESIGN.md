@@ -35304,23 +35304,55 @@ below `view` is `BindNode`, and that is where the proof cost landed (§3).
 `EStore.persFind?` / `scrFind?`, because the cons key now needs the datum's
 handle.  `ETables.Sized` gains the datum column.
 
-`Arena/WFProofs.lean` is the one place this task leaves debt: **34
-declarations carry a `sorry`**, all of them in the `ETables`/`EStore` tier
-whose ten-way `if` chain lost its two binder arms — `ETables.get_inv`,
-`get_push_inv`, `push_tag`, `push_idxNat`, `find?_push`, `sizeOf_push_cases`,
-`Sized_push`, `count_push`, `derAt_congr`, `derAt_push_of_get`,
-`derAt_push_new`, `find?_empty`, `Sized_empty`, `get_mono`, `get_push_mono`,
-`push_spec`, `EStore.derived_exact_at`, `view_intern_mono`, `lss_intern`,
-`nodeCount_intern_le`, `view_pers`, `view_scr`, `view_off`,
-`derOfView_congr`, `view_dropScratch_{pers,scr}`,
-`view_enableScratch_{pers,scr}`, `wf_of_scr_empty`, `intern_view_spec`,
-`wf_push_scr`, `wf_push_pers`, `intern_wf_of_sync`,
-`intern_isPersistent_of_off`.  Two statements were GUARDED rather than left
-false: `ETables.push_spec` and `ETables.find?_push` take a
-`ETag.isBind w.tagOf = false` hypothesis, because at a binder the tier's
-`get` answers `none` and its cons key is the datum handle rather than the
-view's own field.  Nothing else in the arena carries a `sorry`; the checker
-tier, the frontend tier and the twin itself are sorry-free.
+`Arena/WFProofs.lean` is the one place this task leaves debt.  Thirty-four
+declarations of the `ETables`/`EStore` tier — the tier whose ten-way `if`
+chain lost its two binder arms — had to be re-proved, and they were handed to
+a second agent while the twin itself was written.  **Thirty-one of the
+thirty-four are closed**; the three still open are the `intern` end of the
+file (`EStore.intern_view_spec`, `intern_wf_of_sync`,
+`intern_isPersistent_of_off`), and they are open for a reason worth recording
+rather than for want of effort — see the two findings below.  Nothing else in
+the arena carries a `sorry`: the checker tier, the frontend tier, the
+inductive tier and the twin itself are sorry-free.
+
+Two statements were GUARDED rather than left false: `ETables.push_spec` and
+`ETables.find?_push` take a `ETag.isBind w.tagOf = false` hypothesis, because
+at a binder the tier's `get` answers `none` and its cons key is the datum
+handle rather than the view's own field.  Three more were restated:
+`EStore.view_pers`/`view_scr` answer over an `ETables.getWith` that plugs
+`get`'s two binder arms with a datum reader, and
+`view_dropScratch_pers`/`view_enableScratch_pers` gained the hypothesis that a
+persistent binder names a persistent datum, discharged from `bmChildOK` at
+every call site.
+
+**Finding 1 — `capOK` did not cover the binder-datum array, and that was a
+real hole in the twin.**  `EStore.capOK` constrains only the ten node arrays,
+so `internE` of a `lam`/`forallE` view could push `bms` past `Idx.idxCap` and
+wrap the resulting `BMIdx` into the TIER BIT — a scratch handle that reads as
+persistent, which is the one thing §8.3's identity embedding may not allow.
+`eViewNeedsBM` now names the two arms that reach the datum store and
+`internE`/`internPersistentE` test `bmSize` exactly there, which is where the
+Rust's `EStore::intern_bm` makes the same test and raises the same `Native`.
+Found by the proof, not by a test; the condition is unreachable on any
+corpus, which is exactly why only a proof could find it.
+
+**Finding 2 — the datum store has one constructor, so its `get` gives the
+handle's tag back to nobody.**  `ETables.getBM` reads `i.idxNat` and
+`viewBM` adds only the tier bit, where the other three stores' `get`
+dispatches on `i.tag` FIRST — which is what makes *(tag, tier, index)*
+determine the handle for them and their cons `↔` satisfiable.  For `bms` it is
+not: with one record at persistent index 0 under `⟨word 0⟩`, the handle
+`⟨word 2^28⟩` (tag 1, tier 0, index 0) also reads as that record, so
+`bmConsP` as first written forced `st.pers.bms.size = 0`.  **The Rust's
+`ETables::get_bm` does not test the tag either** — the store has one
+constructor and `BMIdx::pack` passes tag `0` unconditionally — so adding the
+test to the twin would be a clause divergence, which is the thing this task
+exists to close.  The invariant says it instead: `bmConsP`/`bmConsS` carry
+`i.tag = 0` and `bmChildOK` carries `mi.tag = 0`, establishable by
+construction (`pushBM` builds `Idx.mk 0 tier _`, and `Handle.lean`'s
+`Idx.tag_mk` at `t = 0` gives it).  `StoreWF` is the arena's own verification
+(con-leche's lesson 27) and already holds clauses with no Rust counterpart —
+`rankP`/`rankS`, `fresh`, `scrOff`, `sync` — and this is one more.
 
 #### 4. Gates
 
@@ -35355,9 +35387,11 @@ a small, mechanical follow-up in `crates/`, which this task may not touch.
 
 #### 6. What the next round owes
 
-* `WFProofs.lean`'s 34 `sorry`s (§3): the `ETables` tier's `if` chain redrawn
-  for nine arms plus the binder dispatch, and the datum store's own `Tbl`
-  lemmas, which transfer unchanged because `Tbl` is generic.
+* `WFProofs.lean`'s three remaining `sorry`s (§3), the `intern` end of the
+  file: `EStore.intern_view_spec`, `intern_wf_of_sync` and
+  `intern_isPersistent_of_off`.  Thirty-one of the thirty-four are closed; the
+  three are what `internBM`'s push has to ESTABLISH rather than carry, and
+  finding 2's `tag = 0` clause is what they need.
 * Repointing the Rust's 156 `Lean twin: OWED` doc lines (above).
 * P3's own list is unchanged and is what the ledger's "the equation the bridge
   cites" column has been collecting since task #97-P6-9.
