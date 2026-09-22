@@ -2251,6 +2251,20 @@ no `ron::ptr`, no `unsafe`; the trust-surface table (OVERVIEW §8) loses its
 `unsafe` row and the sixteen tagged-handle holes.  The frontend parses into
 the persistent tier (the byte recogniser is unchanged).
 
+**AMENDED (task #97-SWAP, 2026-09-22): that sentence is true of the CHECKING
+PATH and not of the crate.**  It says what the swap delivered — no `Expr` is
+built while a declaration is checked, and the sixteen `ron.node.alloc_*`
+holes are unreachable from the fold — but `kernel::expr`, `ron::node` and
+`ron::tagged` are STILL IN THE CRATE and still holes, because the pinned data
+the checker compares against is con-leche's own constants as
+`Expr`/`ConstantInfo` VALUES (`kernel::{basis_raw,basis_tables,std_axioms,
+trust_axioms,trust_pins,pins_decode}`, §8.7's "the port imports the data, it
+does not copy it") and `arena::intern` walks them once at startup.  So the
+trust-surface table keeps its `unsafe` row and its twenty-one function holes
+until that data is re-expressed handle-natively, which is a task of its own
+and the one thing §8.5's paragraph promised that the swap did not do.  Task
+#97-SWAP §5 has the measurement of what it would cost and what it would buy.
+
 ### 8.6 Phases
 
     P0  research — DONE (the two reports).
@@ -2350,7 +2364,13 @@ the persistent tier (the byte recogniser is unchanged).
         `crates/arena-core` and a binary `con-ron-arena`, beside the old
         crates (master's gates stay green on the branch); the swap to
         `con-ron-core`/`con-ron` happens when the fixtures and the Mathlib
-        run pass.
+        run pass.  **THE SWAP IS DONE (task #97-SWAP, 2026-09-22).**
+        `crates/arena-core` and `crates/con-ron-arena` no longer exist:
+        `con-ron-core` is the arena checker in ONE crate (which retires
+        P4a's ~213-hole crate boundary) and `con-ron` is its driver, under
+        the names the shipping binaries always had.  The old checker and the
+        76 `Refine` modules that were its proof are deleted and retired
+        respectively; P3 and P5 are stated about what is there now.
     **P6 is RUST-FIRST (maintainer, 2026-09-21):** "As you are tuning
         performance, do the change on the rust side first and then measure
         and iterate.  No need to work on the lean twin at this stage (as long
@@ -35936,3 +35956,343 @@ therefore the **first** one the catch-up did not see, and it is one clause
 belongs to `con-ron-core`'s own proved tier.  What is still owed beyond it is
 the OVERVIEW numbers (§7.x, a post-merge task of their own — the Mathlib row
 this task measured, **3 904.41 G at 6.78 GB**, is the one it will quote).
+
+### Task #97-SWAP — the arena crates become the shipping crates (2026-09-22, Opus under Fable)
+
+§8.6's swap, the one the REORDERED ruling deferred until "the fixtures and the
+Mathlib run pass": they pass, so `crates/arena-core` and `crates/con-ron-arena`
+are gone and `crates/con-ron-core` / `crates/con-ron` are the arena.  Branch
+`swap` off `arena`'s tip `c7517ea1`, with `arena` merged again at `1891ffaf`
+(the store-layer proof repair and the `lake`/`ulimit` note) before the gates;
+scratch in `_tmp/t97-swap/`.  A concurrent agent owned
+`proof/ConRon/Arena/{WF,WFProofs}.lean` throughout and neither file is touched
+here.
+
+**What the swap is FOR.** Task #97-P4a measured the price of growing the
+rewrite in its own crate: **Charon does not descend into a path dependency**,
+so every `con_ron_core::…` item `arena-core` called came out of the extraction
+as an `@[rust_fun]`/`@[rust_type]` axiom — ~213 of them at the tip, the whole
+`ron::{nat,hashmap,hashmap2}` API, the `kernel::{name,level,expr,prop_when,…}`
+types and functions and the byte recogniser.  Asking Charon to translate them
+(`--include 'con_ron_core::_'`) works from the dependency's *optimized* MIR and
+Aeneas then fails on `HashMap::move_elements_from_list`.  One crate is the fix,
+and it is the whole of it: the boundary is not axiomatised any more, it does
+not exist.
+
+#### 1. The file map
+
+**Moved into `crates/con-ron-core/src/`** (44 files, 62 330 lines, from
+`crates/arena-core/src/`): all of `arena/**` — the stores, the monad, the
+`ExprOps` twins, the env/fenv layer, `core*`, the inductive installs, `canon`,
+`promote`, `pins`, `intern`, `checker*`, `decl_check` — and `frontend/{types,
+export_c,proj_rec,nat_op_ground,prepare,prelude}.rs`, which replace the
+`Expr`-tree parser of the same names.  The four `examples/` went with them.
+
+**Deleted from `crates/con-ron-core/src/`** (28 files, 30 499 lines — the
+`Expr`-tree checker):
+
+| what | files |
+|---|---|
+| the cached engine | `cached/{core_c,state_c,expr_ops_c,parsed_c,installed,checker_c}.rs` |
+| the checker | `kernel/{checker,checker_base,checker_split,decl_check,type_checker}.rs` |
+| the install routes | `kernel/inductives/**` (8 files) |
+| the tree parser | `frontend/{export,export_c,in_model_rec,nat_op_ground,prelude,prepare,proj_rec}.rs` |
+| its tests | `tests/{basis_install,div_mod_env_guard}.rs` |
+
+**Kept in `crates/con-ron-core/src/`** — exactly what the arena reads, which
+is the list its production `use con_ron_core::…` lines name (the analysis is
+per item, not per module: `Expr` itself appears in no arena signature, and
+`ron::ptr::P` and `cached::*` appeared only in test modules):
+
+| tier | modules |
+|---|---|
+| runtime primitives | `ron/{nat,hashmap,hashmap2}.rs` |
+| the counted `Expr` node | `ron/{ptr,node,tagged}.rs`, `kernel/expr.rs` — see §2 |
+| representation-free types | `kernel/{name,level,prop_when,prop_read,core_types,env,expr_ops,fenv,canon}.rs` |
+| the byte recogniser and the rendering | `frontend/{scan_types,scan_fast,text,nat_decimal,prelude_text}.rs` |
+| the PINNED DATA | `kernel/{core_k,basis_builder,basis_names,basis_raw,basis_tables,basis_pins,std_axioms,trust_axioms,trust_pins,nat_op_pins,pins_text,pins_decode}.rs` |
+
+**The driver crate.** `con-ron-arena`'s `driver.rs`, `pool.rs`, `in_model.rs`
+and `bin/` replaced `con-ron`'s; the binary is `con-ron`, same command line to
+the letter, same diagnostic prefix.  The eleven representation-free items the
+arena driver used to import across the crate line — the flag parsers and their
+caps, `exit_code`, `verdict_word`, `message`, `ms_secs`, `read_up_to`,
+`STACK_BYTES` — are folded back into it.
+
+**One group moved the other way.** The in-process modeller generates `_model`
+families as `Expr` TREES (`in_model::InProcess` reads a block back, calls
+`generate`, interns the result), and six modules it needs were shared with the
+deleted checker: `frontend/{export,in_model_rec,proj_rec}` and
+`kernel/inductives/{native,struct,sum}_parts`.  They are
+`crates/con-ron/src/tree/` now — 4 846 lines in the UNVERIFIED crate rather
+than in the verified one, where Charon would model a thousand lines nothing
+checks.  One call changed: `proj_rec`'s two `cached::expr_ops_c::
+instantiate1_lift` became `kernel::expr_ops::instantiate1_lift`, the same
+function without the per-call memo (con-leche's own specification of it), on a
+projection body of a single modelled block.
+
+Net: the **verified** crate is 150 152 → 115 928 lines and there is one of
+them; the unverified crate is 11 268 → 13 897.
+
+#### 2. THE FINDING: `Expr` does not go away, and neither does the `unsafe`
+
+The brief expected the hole list to lose its `Arc` rows and its sixteen
+tagged-handle rows, and §8.5 promises the same ("No `Arc`, no `ron::tagged`,
+no `ron::ptr`, no `unsafe`").  **It does not, and the reason is structural.**
+
+Three families of con-leche declaration are pure `Expr`/`ConstantInfo` VALUES
+written out by hand or spliced by an elaborator: the basis blocks
+(`BasisKind.decls` / `declsA`), the standard- and compiler-trust axiom pins,
+and the `Nat`-operation pin variants.  §8.7's ruling is that the port IMPORTS
+that data rather than copying it — which is what `kernel::{basis_raw,
+basis_tables,std_axioms,trust_axioms,trust_pins,pins_decode}` are — and
+`arena::intern`'s module note is the arena side of the same ruling: "con-ron-
+core already carries every one of those values… so the arena's pin modules are
+one line each here too: the con-ron-core constant, interned".  `arena::intern`
+takes `&Expr` and walks it.  So `kernel::expr` stays, and with it `ron::node`
+(the ten tagged cells) and `ron::tagged` (the crate's one `unsafe` file).
+
+**What DID change is their reach, and that is checkable rather than claimed.**
+No `Expr` is built or read while a declaration is checked, and the model says
+so: of the definitions in `proof/ConRon/Generated/Funs.lean` — 105 k lines,
+the arena's walks among them — **fifteen** mention a `ron.node.*` hole and all
+fifteen are `kernel.*`; **no `arena.*` or `frontend.*` definition mentions
+one.**  So the twenty-one holes are reachable only from the startup walk, which
+is one pass over a few thousand pinned nodes.  Before the swap they were on
+every node of every term.
+
+    `unsafe` in `crates/con-ron-core/src`:  1 file, 12 occurrences
+                                            (`ron/tagged.rs`, unchanged)
+
+`scripts/lint-rust-style.sh`'s exemption therefore stays, with its note
+rewritten to say what it is now for.  **Retiring it is a task of its own**: it
+means re-expressing five generated or hand-written data modules
+(`basis_tables.rs` is generated from con-leche's `declsA`, `pins_text.rs` is
+532 KB of embedded dump) over handles, or backing `Expr` with `P` = `Arc`
+again, which trades the `unsafe` row for four `Arc` holes and undoes task #94.
+Neither is a swap.  §8.5 carries the amendment.
+
+#### 3. The model, and the hole list before and after
+
+`scripts/extract.sh` already named `crates/con-ron-core`, so the swap moved the
+extraction's SUBJECT without touching the script — one `charon cargo` over one
+crate, 78 s, and Aeneas 80 s.  `proof/ConRon/Generated/` is the arena now:
+`Funs.lean` **105 158** lines (was 75 240 for the `Expr`-tree checker),
+`Types.lean` **1 851** (was 1 285).
+
+The hole list is **byte-identical** to the pre-swap one — 2 types, 21
+functions, and `scripts/holes.sh --check` green with no edit to OVERVIEW §8.1:
+
+| | before | after |
+|---|---|---|
+| types | `alloc.sync.Arc`, `ron.tagged.Raw` | the same two |
+| `Arc` | `new`, `clone`, `deref`, `ptr_eq` | the same four |
+| `str` | `core.str.Str.as_bytes` | the same one |
+| the tagged `Expr` node | `Expr::drop`, `ron.node.{view,data,dup,ptr_eq,is_exclusive}` and the ten `alloc_*` | the same sixteen |
+
+§2 is why.  What the swap retired is not in this table at all: it is
+`arena-core`'s own ~213 boundary axioms, which were never committed (task
+#97-P4a ran `extract-arena.sh --dry`), and `scripts/extract-arena.sh` is
+retired with them.
+
+#### 4. AENEAS_FINDINGS **F18**: the model had never been ELABORATED
+
+`charon cargo` and `aeneas` both reported success on the arena crate at P4a,
+and that is not the same test as `lake build ConRon.Generated`. The swap ran
+the second one for the first time and it failed:
+
+**F18. `!b` is emitted as Lean's `¬ b` — a `Prop` — and that only works where
+the expected type is known.** Aeneas prints a Rust `!b` whose `b` came out of
+a bind as `¬ b` and leans on the `Decidable` coercion; 36 of them in
+`Funs.lean` elaborate. It fails where the backend has joined two `if`s into
+one tuple-returning `if`, because the coercion does not reach inside the pair:
+Lean says *"the argument b3 has type Prop but is expected to have type Bool"*
+at the `let`'s binder, which points at the join and not at the `¬`. Three
+sites — `arena::store::EStore::{intern_fvar,intern_sort}`'s scratch-skip test
+and `sum_install::native_caps_at`'s `p.n_idx == 0 && !p.is_prop && !is_rec` —
+each now a branch nest (`if p { false } else { true }`), which is what §3.4
+would have asked for anyway. Same values, same verdicts. The ask is upstream:
+print `!b` for a `Bool` negation.
+
+With those three, `Funs.lean` elaborates in **229 s** at `LEAN_NUM_THREADS=1`.
+
+#### 5. The old proof tower: 76 modules out of the build, 47 still in it
+
+`ConRon.Refine` was 123 modules of refinement over the deleted checker.  The
+line between what stays and what goes is **computed, not guessed**: a module is
+dead if it names a declaration the new model does not have, or if it imports
+one that is.  That closure is 76 / 47, and the 47 build green — `lake build`
+completed successfully, all 2 208 jobs, **first try**, with only the
+pre-existing `unusedTactic` warnings in `PinsRecords.lean`.
+
+| | modules | lines | `_refines` |
+|---|---:|---:|---:|
+| `ConRon/Refine/` (in the build) | 47 | 54 932 | 726 |
+| `ConRon/RefineOld/` (out of it) | 76 | 138 612 | 1 168 |
+
+**Alive**: `SimpSets`, `Scalars`, `Abs`; `Nat`, `HashMap{,WF}`,
+`HashMap2{,WF}`; `Name`, `Level`, `PropWhen`, `Expr`,
+`ExprOps{,Fields,Subst,Spine,Meta}`, `Env`, `FEnv`, `Canon`, `PropRead`; the
+eleven `CoreK*`; `Basis{Tables,Names,Raw,Pins}`, `StdAxioms`, `TrustAxioms`;
+the nine `Pins*`.  Every one is about Rust the arena still calls — the types it
+reads directly, and the pinned data it interns.
+
+**Retired**: the knot's arms (`Core/**`), the declaration checker, the install
+routes (`Ind*`), the cached state (`StateC*`, `ExprOpsC*`, `Excl`,
+`CheckerC`), the `Expr`-tree parse refinement (`Frontend/**`), `Installed`,
+`Main` and its capstones, `Automation/Study`, with `CORE_PLAN.md` and
+`AUTOMATION.md`.  `ConRon/RefineOld/README.md` says they are not in the build,
+why they are kept — the Aeneas-facing idiom is nine months of technique that
+exists nowhere else, and a module whose subject survived can be moved back —
+and that §8.6's P3/P5 replace them.
+
+**One import edge was cut by hand and it is worth 35 modules.**
+`Refine/Expr.lean` imported `Refine/Excl.lean` (the exclusive-memo gate of
+`cached::expr_ops_c`) and used nothing from it.  That one line is what keeps
+the `Expr`/`ExprOps`/`Env`/`FEnv`/`Canon`/`CoreK*`/`Basis*`/`Pins*` tier in
+the build instead of following the cached tier out.
+
+**The `_refines` ledger restarts**, and that is the honest reading: it measures
+how much of THE SHIPPING CHECKER is proved, and the shipping checker changed.
+726 `*_refines` theorems survive of the 1 894 that were in `Refine/` before
+the swap, and `progress.py`'s own ledger — which counts a lemma only where its
+`Refine/<Module>.lean` file matches a Rust module by the naming convention —
+reads **700**, with the verified core at **5 541 / 14 136 con-leche lines
+(39 %)**.  That the percentage barely moved while 62 % of the modules left the
+build is not an accident: the surviving tier is the leaf and pinned-data
+tiers, and those are where the `_refines` lemmas always were.  The checker's
+own tier had the fewest per line of Lean cited.
+
+#### 6. The 164 `Lean twin: OWED` doc lines
+
+Task #97-LC made every twin the arena's Rust owed exist and left the Rust's
+doc lines saying `OWED`.  All of them now name the twin's actual
+`file:line declaration`, resolved against a fresh index of
+`proof/ConRon/Arena/**` (6 007 keys): `store.rs` 64 + 8, `monad.rs` 37,
+`core.rs` 29, `expr_ops.rs` 17, `handle.rs` 7, `pins.rs` 2, plus
+`arena/mod.rs`'s module table row for `pins`.  (The brief's count of 156 is a
+one-line grep's; eight more had their `Lean twin:` wrapped onto the next doc
+line.)
+
+Four are `Lean twin: none` with the reason, because there is no twin:
+`store::{pack2,fold3}` — the twin hashes a cons key with a `Lean.mixHash`
+chain per field and the packed word is the port's replacement (task #97-P6-13
+§4 measured it) — and `monad::level_list_dup{,_from}`, which Lean's value
+semantics need no copy for.  Six name a declaration an index cannot produce on
+its own (an anonymous `instance`, a constructor, a structure field) and are
+written out.
+
+The doc rewrite is why `Generated/` moved twice: a doc comment is not code,
+but Aeneas records `Source: 'file.rs', lines A:0-B:1` for every definition, so
+rewrapping a doc block moves 740 line numbers in the model.
+
+#### 7. The numbers
+
+**`scripts/diff-e2e.sh`, all four modes: 383/383 agree, 0 DIFFER, 0 timed
+out** — `--verified` and `--trusted`, each at `--jobs=1` and `--jobs=8`.
+
+`perf stat -e instructions:u,cycles:u` of `--verified --jobs=1
+--progress=1000000`, under `timeout` and `ulimit -v` (8 388 608 KB for `Init`,
+27 000 000 KB for Mathlib), one run each.  The `arena` tip column is task
+#97-P6-17's own table (its branch is the tip now), quoted.
+
+| export | | `arena` tip `1891ffaf` | **after the swap** | Δ |
+|---|---|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 212 349 229 991 / 212 349 271 593 | **211 795 787 839** | **−0.26 %** |
+| | cycles:u | 97.30 / 97.51 G | 104.11 G | *see the caveat* |
+| | wall | 22.20 / 22.27 s | 24.57 s | *see the caveat* |
+| | peak RSS | 641.8 / 574.2 MB | 640.9 MB | inside the tip's own spread |
+| **Mathlib, 691 128** | instructions:u | 3 904 413 412 802 | **3 877 084 725 985** | **−0.70 %** |
+| | cycles:u | 2 146.08 G | 2 099.79 G | *see the caveat* |
+| | wall | 511.32 s | 489.74 s | *see the caveat* |
+| | peak RSS | 6 775.7 MB | 6 756.5 MB | ±0 |
+
+Verdicts unchanged at both sizes: **`accepted 57977`** and **`accepted
+691128`**, the latter inside the 27 GB cap at 6.76 GB — CLAUDE.md's budget is
+3× con-leche's 8.75 GB, and this is 0.77× of it.
+
+**The caveat, and it is only about the cycle and wall columns.**  Both runs
+overlapped this branch's own `lake build` (541 s of it), so cycles and wall
+here are measured under load and are not comparable with the tip's idle
+figures in either direction.  `instructions:u` does not depend on what else
+the machine is doing, which is why CLAUDE.md makes it the measure of record;
+it is deterministic to nine digits on both sides, and it is the result.
+
+**The swap is very nearly the move it was supposed to be, and what it is not
+is in the good direction.**  −0.26 % on `Init` and −0.70 % on Mathlib: the
+same bodies, compiled once instead of across a crate line.  The arena's walks
+called `ron::hashmap2`, `kernel::name`, `kernel::expr`'s word arithmetic and
+`kernel::level` from another crate, where inlining is `lto = "fat"`'s to do
+and each generic is instantiated per crate; in one crate they are ordinary
+intra-crate calls.  Task #97-P6-8b measured the same effect from the other
+side — fat LTO was −11.6 % on `Init` precisely because "it removes the
+GOT-indirect calls between the arena's walks and the store" — so this is that
+lever's small remainder, collected by deleting the boundary instead of asking
+the linker to see through it.
+
+#### 8. The gates
+
+| gate | result |
+|---|---|
+| `cargo build` / `cargo test` (`-D warnings`) | green; **282 tests** pass |
+| `scripts/lint-rust-style.sh crates/con-ron-core/src` | clean (one dir, not two) |
+| `scripts/provenance.py check` | **0 findings** — `6354 item(s) (4172 Rust, 2182 arena Lean), 4128 citation(s), all current at pin 78ded4b6` |
+| `scripts/provenance-selftest.py` | green |
+| `scripts/overview-links.sh` | green — 67 links, 33 files, after the 18 the swap broke were repointed (§9) |
+| `scripts/holes.sh --check` | green, **2 type(s), 21 fn(s), all in OVERVIEW §8.1** — no table edit needed |
+| `scripts/gen-pins.sh --check`, `gen-prelude{,-lean}.sh --check` | green |
+| `scripts/extract.sh --check` | green (88 s) |
+| `cd proof && lake build` | green, **2 208 jobs** |
+| `scripts/diff-e2e.sh` | 383/383 × 4 modes |
+
+**The in-process differential tests are gone, because their other side is.**
+`arena/{core,inductives,checker}.rs` and `frontend/{proj_rec,export_c}.rs`
+carried harnesses that ran the arena and the `Expr`-tree twin on one fixture
+and compared the outcomes — that is how the arena was brought up beside the
+shipping checker, and there is nothing left to compare against in-process.
+`scripts/diff-e2e.sh` is the differential test from here: 383 fixtures through
+the whole binary against con-leche's own verdicts, and a gate rather than a
+unit test.  `arena/checker.rs` kept the eight tests whose other side survived
+(`std_axiom_ok`, `matches_pin`, `canon_eq_list`, `basis_pin_hit`, the two
+startup pin walks, `at_decl`), with `env_basis()` rebuilt from
+`basis_tables::basis_decls_a` instead of from a checker run.
+
+#### 9. What the gates forced in the documents, and what they did not
+
+`scripts/overview-links.sh` is built to notice exactly this kind of change and
+it did: 18 of its 67 citations named a file that had moved or gone.  Eleven
+into the old proof tower were repointed to `ConRon/RefineOld/` (same line
+numbers); the modeller seam is `frontend/types.rs` and the modeller
+`crates/con-ron/src/in_model.rs`; three links into the retired `cached/` tier
+became plain text naming what retired them, a link having nothing to point at;
+and six citations whose text MOVED were repointed and re-read
+(`Cargo.toml`'s release profile, `frontend/mod.rs`'s module map, the driver's
+exit-code table and phase note, the pool's header and its `--jobs` guarantee,
+`gates.sh`'s twelve steps).
+
+Two module headers were stale in a way a reader would trip on and are
+rewritten: `driver.rs` opened with "It is `crate::driver` with the handles in
+place of the trees" — describing itself — and `pool.rs` said threads never
+live in `arena-core`.  `scripts/bench-baselines.sh` drops its
+`con-ron-arena` binary.
+
+**OVERVIEW.md is otherwise untouched, on purpose.**  Its §4, §7, §8, §11 and
+§12 describe the `Expr`-tree crate, and rewriting them is a post-merge task of
+its own — as is the §7.x number refresh that task #97-P6-17 already owed.
+
+#### 10. What this leaves
+
+1. **`Expr` and the `unsafe`** (§2).  The one thing §8.5 promised that the
+   swap did not deliver, with a named reason and two candidate shapes.
+2. **OVERVIEW §4/§7/§8/§11/§12**, which still describe the old crate, and the
+   §7.x numbers.
+3. **P3 and P5.**  They are now stated about one crate with no boundary
+   axioms, and `ConRon/RefineOld/` is the idiom they are written in.  The 47
+   surviving `Refine` modules are the leaf tiers P3 would have had to
+   re-derive.
+4. `scripts/loc.py`'s `Refine/<Module>.lean` ↔ Rust-module map now needs
+   `Refine/Arena*.lean` files to attribute the arena's own proofs;
+   `progress.py`'s `rust_module_of` already gives `arena/` its own key prefix
+   so the two cannot be confused (nine module names are common to `arena/` and
+   `kernel/`, and without it `Refine/Canon`'s 793 proof lines were booked
+   against `arena::canon`).
