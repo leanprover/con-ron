@@ -39762,3 +39762,392 @@ it is free (if the twin's test fails then the port's `full` is true as well
 and the port raises `Native`, which claims nothing) — so those statements can
 drop it when task #97-P5-2 next touches them.  That is the one follow-up this
 round leaves in someone else's file.
+
+### Task #97-P3-Frontend — Theorem 1: the parser's exactness and the byte-level capstone (2026-09-22, Opus under Fable)
+
+Phase **P3** of §8.6, the tier that reaches the BYTES: DESIGN §8.2's parser
+statement
+
+    denoteDecls (Arena.parse chunks) = parseChunks chunks      (exactness)
+
+and the capstone it carries — *"the capstones are the same letters as today's
+`conron.no_False_declaration`, at (B)"*.  Branch `p3-frontend` off `arena`'s
+tip `dd369780`.  One new directory under the `ConRonBridge` library,
+`proof/ConRon/Bridge/Frontend/**`, plus its index module and the root's one
+import.  **No Rust file, no generated model, no `Arena/`, no `Refine/`, no
+`RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module.**
+
+#### 1. The layer, and its size
+
+| module | raw | non-blank | decls | open | elab |
+|---|---:|---:|---:|---:|---:|
+| `Bridge/Frontend/Rel.lean` — the parse-state relation and its four shapes | 683 | 607 | 48 | 0 | 1.2 s |
+| `Bridge/Frontend/ProjRec.lean` — the projection rewrite and the owner census | 234 | 203 | 10 | 10 | 0.9 s |
+| `Bridge/Frontend/Shared.lean` — `denoteEShared = denoteE`, and the intern | 237 | 192 | 16 | 10 | 0.8 s |
+| `Bridge/Frontend/Modeller.lean` — the seam's two promises | 147 | 122 | 5 | 2 | 0.8 s |
+| `Bridge/Frontend/Lines.lean` — one scanned line, applied | 406 | 357 | 23 | 13 | 0.9 s |
+| `Bridge/Frontend/Chunks.lean` — **the parser's exactness** | 289 | 249 | 12 | 8 | 0.9 s |
+| `Bridge/Frontend/Prepare.lean` — the two permuting passes, and the prelude | 247 | 209 | 11 | 8 | 0.8 s |
+| `Bridge/Frontend/Capstone.lean` — **`Arena.no_False_declaration`** | 279 | 233 | 7 | 5 | 0.8 s |
+| `Bridge/Frontend/Axioms.lean` — the trust census | 124 | 93 | — | 0 | 0.8 s |
+| the index module | 73 | 63 | — | 0 | 0.8 s |
+| **the tier** | **2 719** | **2 328** | **132** | **56** | **~9 s** |
+
+**No theorem is near the 20 s flag**, and no module is: the slowest is
+`Rel.lean` at 1.2 s against an import baseline of ~0.8 s, so the tier's own
+net elaboration is **about two seconds in total**.  The reason is
+P3-Checker's: **there is no `grind` here and no `mvcgen`.**  The frontend's
+bridge is composition, inversion and list induction — the same shape as the
+declaration checker's, and the same conclusion: *the cost of this campaign is
+in the `ExprOps` walks and the Core arms, not in the tiers above them.*
+
+#### 2. The two things this tier does NOT contain
+
+They are the arena rewrite's two largest proof savings, and they are worth
+their own section because neither is a choice this round made — both fall out
+of (B) being written in Lean.
+
+**No scanner tier.**  `Arena/Frontend/ExportC.lean` imports
+`ConLeche.Frontend.Scan.Fast` and calls `scanLineFwd`: con-leche's own
+function, on con-leche's own `ByteArray`, returning con-leche's own
+`LineRec`.  There is no twin, so there is nothing to prove.  The original
+campaign needed
+`RefineOld/Frontend/Scan{WF,Kit,Str,Obj,Expr,Ind,Line}.lean` — **seven files,
+17 479 lines**, with two standing obligations (`Utf8DecodeSpec`,
+`UnescapeSpec`, `ScanStr.lean:1371/1379`) discharged as theorems at
+`ScanStr.lean:2548/3084` — for exactly this.  A Lean twin may CALL con-leche
+where a Rust port must re-implement.
+
+**No abstraction functions.**  Chunks are `List ByteArray` on both sides, so
+there is no `absChunks` (`RefineOld/Frontend/Abs.lean:438`), no `absByte`, no
+`absPos`; `CheckError` is con-leche's own type in the twin, so there is no
+`absErrKind` and no `ParseErrSim`
+(`RefineOld/Frontend/ChunksR.lean:226`); and `LineRec`, `DeclRec`, `CVRec`
+and the nine other syntax records are con-leche's values, so the twelve
+`abs…Rec` functions of `RefineOld/Frontend/Abs.lean:253-421` have no
+counterpart either.  **The capstone's hypothesis is literally
+`ConLeche.jsonWithTheoremFalse chunks`** where the original had to write
+`ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks)`.
+
+What is left after those two is the semantic layer alone, which is what this
+tier is: **the parse state, the line, the chunk, the preparation, the
+prelude, the capstone.**
+
+#### 3. The parse-state relation
+
+`Arena/Frontend/ExportC.lean`'s `StateD` is a field-for-field mirror of
+`ConLeche/Frontend/ExportC.lean:82-134`'s — eighteen fields, in the same
+order, with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` —
+so `StateDRel st sd sc` is a field-for-field conjunction.  Four shapes carry
+it, and the first three are new vocabulary this tier owes the library:
+
+* **`OptRel R`** — a relation lifted to `Option`, `none` matching `none`.
+  The three stream-index tables are partial maps and this is what "the same
+  map, up to the denotation" means at one index;
+* **`ListRel R`** — Mathlib's `List.Forall₂` under another name.  The
+  `ConRonBridge` library imports no Mathlib (task #97-P3-0) and core has no
+  such relation, so the tier carries its own four-line inductive;
+* **`IdTableRel R t u`** — `OptRel` at every index.  con-leche's own note
+  (`Scan/Types.lean:374-381`: *"these are the only facts the semantic layer
+  uses about the table"*) is exactly right: its three `get?` laws plus
+  `bound_eq` are the only facts any proof here reads of a table, and
+  `IdTableRel.{bound,singleton,insert,mono}` are the four this tier needs;
+* **`MapRel st R m mc`** — a `Std.HashMap NIdx _` against a `Std.HashMap
+  Name _`, keyed through `denoteN`, in BOTH directions (`hit` and `cover`,
+  `Bridge/StateOK.lean`'s `IFEnvOK` shape).
+
+Against the original campaign's `StateDRel`
+(`RefineOld/Frontend/StateDR.lean:604`, **thirty clauses for seventeen
+fields**) the arena's is eighteen clauses for eighteen fields.  The
+difference is the whole of the port's hash-map bookkeeping: every
+`ron::HashMap` field there needed a TRIPLE (`HashMap.RelOn` + `HashMap.Inv` +
+`HashMap.KeysOk`) because a `ron::HashMap` has no functional abstraction,
+and here a `Std.HashMap` does.  The arena's relation also constrains
+`inModelGen`, which the port left unconstrained (it does not have the field),
+and `inModelDeclined` in full where the port could only compare the block
+NAMES (`StateDR.lean`'s own note: the decline's text is deliberately not
+compared) — the twin's reason strings are con-leche's own, because the
+modeller seam returns con-leche's own decline.
+
+**Finding 1 — `MapRel`'s `cover` clause transports across an append for
+free.**  `Bridge/StateOK.lean` chose `cover` over the naive "a miss is a
+miss" precisely because the naive form is NOT preserved by an arena
+extension, and derives the naive form back through `denoteN_inj`.  Here the
+injectivity is not needed at all: `cover` says *every entry of the value side
+is named by a handle the twin's side knows*, and an extension keeps that
+handle decoding, so `MapRel.mono` is `denoteN_ext` twice and nothing else.
+The one place this tier is cheaper than the invariant it is modelled on.
+
+**Finding 2 — the frame is six conjuncts and the parse breaks none of them.**
+`ParseStep s s'` bundles `StateOK s'`, `Ext s.store s'.store`, the scratch
+flag, `memos`, `caches` and `pins`.  **The parse interns and does nothing
+else**: it never opens the scratch tier (`Arena/Main.lean` runs
+`internReservedPins` first and the fold's bracket has not started), never
+writes a per-declaration cache and never touches the pin table.  That is what
+makes `PersStateD` free — `Bridge/Checker/Capstone.lean`'s second frontend
+obligation, `∀ x ∈ ds, PersDecl x` — and it is why this tier needs the `Ext`
+transport only and never `Bridge/Promote/Pers.lean`'s `PExt`.
+
+#### 4. What is closed
+
+**42 results**, printed in `Bridge/Frontend/Axioms.lean`, every one within
+`[propext, Classical.choice, Quot.sound]` and four of them (`OptRel`'s
+eliminators, `ListRel.length_eq`) at `[propext]` alone; `ListRel.mono`
+depends on no axiom at all.  No `sorryAx`, no `bv_decide` axiom.
+
+* **the four generic shapes** and their twelve lemmas — `OptRel`'s four
+  eliminators, `ListRel.{length_eq,mono}`, `IdTableRel.{bound,singleton,
+  insert,mono}`, `MapRel.{mono,empty}`;
+* **`denoteDecls_length`** and `denoteDeclArray_empty` — the stream's
+  denotation is record for record, so it has the record list's own length.  `Arena/Main.lean`'s verdict number is
+  a LENGTH (`r.decls.size - r.genRecords`), so the frontend owes this beside
+  the denotation itself;
+* **four `Bridge/Rel.lean` lemmas that had a `…_pext` twin and no `…_ext`
+  one** — `denoteCIList_ext`, `denoteDecl_ext`, `denoteDecls_ext`,
+  `denoteDeclArray_ext`.  The Checker tier only ever moves a block or a
+  record across a DROP; the frontend only ever moves one across an APPEND,
+  and the two directions needed different lemmas;
+* **`StateDRel.ext` and `ParseResultRel.ext`** — the eighteen-clause relation
+  and the seven-clause result relation both survive an `intern`.  This is the
+  fact the streaming fold's induction rests on, and with it the five record
+  transports it needs (`ProjRecOwnerRel.ext`, the three `MInd…RecRel.ext`s,
+  `BlockRecRel.ext`);
+* **`ParseStep.{refl,trans,of_eq}`** and `ParseResultRel.ofState` /
+  `PersParseResult.ofState` — the frame, and the one place the state record
+  and the result record meet (a projection);
+* **the three table reads** — `StateD_name_run`, `StateD_level_run`,
+  `StateD_expr_run` and `getDeclD_run`, which is `StateD_expr_run` by
+  definition on both sides.  `IdTableRel`'s eliminators plus the `AM`
+  unfolding, four lines each;
+* **`parseChunksC_eq` / `parseChunks_eq`** — §5's finding 3;
+* **`SumRel.{inl_left,inr_left,of_state}`** — the line's answer, eliminated.
+  The `.inl` direction is the only one the capstone consumes: *a line the twin
+  APPLIES is a line con-leche applies*;
+* **`declineModeller_wf`** — the seam's trivial instantiation keeps the first
+  promise vacuously.
+
+#### 5. Four findings
+
+**Finding 3 — con-leche's `where go` is nameable, so the escape hatch is a
+theorem and not an assumption.**  `parseChunks` writes its fold as a
+`where go`; the twin writes it as the top-level `parseChunksGo` because *"the
+arena's Rust twin is a loop of its own and a `where` clause has no name to
+cite"* (`Arena/Frontend/ExportC.lean`).  The original campaign's answer to
+that mismatch was an escape-hatch definition plus a `rfl` equation
+(`RefineOld/Frontend/ChunksR.lean:673`'s `parseBytesFinal`/`parseBytes_eq`).
+Here `ConLeche.Frontend.parseChunks.go` IS accessible across the package
+boundary — con-leche's `module`/`public section` does not hide it — so
+`parseChunksC` is stated against it and `parseChunksC_eq` is a six-line list
+induction whose step is `rfl` on both sides.  **Closed**, and the hatch is
+gone.
+
+**Finding 4 — the monad seam makes every theorem of this tier
+one-directional, and that is exactly what the capstone consumes.**
+con-leche's frontend runs in `abbrev M := Except String`
+(`Frontend/Export.lean:117`) and (B)'s runs in `AM`; `Arena/Frontend/
+Types.lean`'s module note already records this as the one place the
+transliteration is knowingly too crude.  So every statement here is *the twin
+accepting implies con-leche accepting*, with the denotation of the answer,
+and a twin `fail` claims nothing — the same discipline `Bridge/Checker`'s
+arms have about a `native` decline.  The original campaign needed both
+directions (`ChunksR.lean`'s seven `…_refines_err` theorems) because its
+statement was a SIMULATION over the whole outcome; the capstone needs only
+the accept direction, and `Arena.no_False_declaration`'s proof uses nothing
+else.
+
+**Finding 5 — `installIndD` is the only line function that takes the
+modeller's promises, and `projRecOwners` is the only one that needs a
+REORDERING argument.**  Everything else in `processLineCoreD`'s six arms is
+"resolve the indices, intern the node, push the record".  The reordering is
+`Arena/Frontend/ProjRec.lean`'s own deviation 3 — the twin computes the
+`filterMap` first and the two guards only when it is non-empty — and its
+argument needs nothing about the guards at all: when the candidate list is
+empty the whole function is `[]` whatever they say.  That is why task #97f's
+dedup (pointing the two guards at `Arena/Inductives/`'s twins) did not move
+this proof obligation, and why the two recognisers' exactness stays the
+Inductives tier's.
+
+**Finding 6 — the pure fold has no `thmDecl_const` lemma, and the capstone
+needs one.**  con-leche proves *"an accepted stream that declares a theorem
+of a bare constant type leaves a constant of that type in the environment"*
+at the **CACHED** fold (`Cached.checkDecls_thmDecl_const`,
+`Verify/Cached/StreamThm.lean:183`, through `installRun_thmDecl_const` and
+`annotStepC_thm_consts`), and `no_False_theorem_accepted` (`:207`) is stated
+at `Cached.checkDecls`.  The arena's bridge lands on `checkDeclsPure`
+(`Bridge/Checker/Fold.lean`, `Bridge/Checker/Split.lean`), so **the pure twin
+of that one lemma is the single ingredient on the capstone's path that
+con-leche does not already have**.  It is a con-leche-tier lemma, not an
+arena one — a `foldlM` induction over `checkDecl` whose `thmDecl` arm pushes
+`ConstantInfo.thmInfo ⟨cv.name, cv.levelParams, .const n ls⟩ value` (with
+`annotate_const_of_miss` for why the annotated type of a bare constant is
+itself) and whose tail only extends the constant list — and it belongs beside
+the original.  It is stated here as `checkDeclsPure_thmDecl_const` and
+`no_False_theorem_accepted_pure` (sorry list item 24) so the gap is a lemma
+rather than a hole in a proof.
+
+#### 6. The capstone, at its exact letter
+
+Three letters, and the third is one the original campaign could not state.
+
+```lean
+theorem Arena.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    {md : Modeller} (hmw : ModellerWF md) (hmr : ModellerRefines md)
+    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    {chunks : List ByteArray}
+    (hfalse : ConLeche.jsonWithTheoremFalse chunks)
+    {pins : List NatOpPinSet} {ipins : List INatOpPinSet}
+    {preBytes : ByteArray} {im ce : Bool}
+    {s0 s1 s2 s3 s4 : AState} {preR : ParseResultD} {r : ParseResultD}
+    {ds : Array IDeclaration} {fe' : IFEnv}
+    (hok0 : StateOK s0) (hoff0 : s0.store.scratchOn = false)
+    (hpins0 : PinsOK s0) (hpp0 : PersPins s0)
+    (hipins : PinsDenote s3.store ipins pins) (hpps : PersPinSets ipins)
+    (hpre : parseBytes md preBytes true false s0 = .ok (.ok preR, s1))
+    (hparse : parseChunks md chunks im ce s1 = .ok (.ok r, s2))
+    (hprep : preparePrelude ⟨preR.decls⟩ r.decls s2 = .ok (ds, s3))
+    (hrun : Arena.installThenCheck .verified ipins ds s3 = .ok (.ok fe', s4)) :
+    False
+```
+
+with `Arena.no_False_declaration_prelude` beside it — the same at
+`Arena/Frontend/Prelude.lean`'s `builtinPreludeE`, with the prelude GATE
+(`preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8`,
+`scripts/gen-prelude-lean.sh --check`, step 11 of `scripts/gates.sh`) as a
+named hypothesis — and, the headline:
+
+```lean
+theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
+    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
+    (pins : List NatOpPinSet) (chunks : List ByteArray)
+    (hfalse : ConLeche.jsonWithTheoremFalse chunks) :
+    ∃ e, Arena.runPipeline chunks .verified pins = .error e
+```
+
+**That third letter is what the arena rewrite buys and the original campaign
+could not have.**  `Arena/Main.lean`'s module note names `runPipeline` **THE
+ONE SEAM** — *"everything below the command line is `runPipeline`"* — so the
+statement is about the binary's accept path with nothing left between, which
+is the shape `ConLeche.no_False_declaration` (`ConLeche/MainTheorem.lean:110`)
+has.  `conron.no_False_declaration` could not: the port's driver is an
+unverified Rust crate, and its calling order stayed a trusted line
+(`RefineOld/Main.lean`'s "What remains trusted": *"the driver: that
+`con_ron::driver` calls `parse_chunks`, `prepare_prelude` and `check_decls` on
+the stream it was handed, in this order"*).  **Here that line is gone**:
+`runPipeline` is the composition, in Lean, and the theorem is about it.  The
+modeller's two promises are not hypotheses of it either, because
+`runPipeline` fixes `Frontend.inProcessModeller`, which delegates to
+con-leche's own generator.
+
+**The hypotheses, and who owns each.**
+
+| hypothesis | owner |
+|---|---|
+| `hfalse : ConLeche.jsonWithTheoremFalse chunks` | the theorem's premise — con-leche's own file-level shape, un-abstracted (§2) |
+| `hk : CoreSpec .verified Arena.checkFuel` | **the Core tier** (P3-Core) — named, not discharged |
+| `hind : IndSpec .verified` | **the Inductives tier** — named, not discharged |
+| `hmw : ModellerWF md`, `hmr : ModellerRefines md` | **the seam** — the twins of `conron.no_False_declaration`'s `hgen`/`hmr`; at `inProcessModeller` they are theorems (`_wf` / `_refines`, sorry list item 8) |
+| `hbytes` (the `_prelude` and `_pipeline` letters) | the GATE `scripts/gen-prelude-lean.sh --check`, not a proof obligation |
+| `hok0`, `hoff0`, `hpins0`, `hpp0`, `hipins`, `hpps` | the driver's startup: `internReservedPins` / `internAllPins` (`Bridge/Checker/Pins.lean`, the Checker tier's item 13) |
+| `hpre`, `hparse`, `hprep`, `hrun` | the four runs of the twin's own pipeline |
+
+`#print axioms` confirms the discipline: all five headlines report
+`[propext, sorryAx, Classical.choice, Quot.sound]` and **NONE of them names
+`CoreSpec`, `IndSpec`, `ModellerWF` or `ModellerRefines`** — the four are
+hypotheses of the statements, not axioms of the environment, which is what
+makes "four named hypotheses" a checkable claim rather than an editorial one.
+
+#### 7. The sorry list — twenty-four open items (of twenty-six), 56 declarations
+
+Each is `sorry` with its reason at the site.  Grouped by what discharges it.
+
+| # | declarations | what it needs |
+|---|---|---|
+| 1 | `denoteEGo_spec`, `denoteEShared_isSome`, `denoteCVGo_spec`, `denoteCIListGo_spec`, `readExpr_run`, `readCIList_run`, `denoteBlockRec_eq_of_rel` | the memoised readback's ten-arm fuel induction with `DMemoOK`, then the record layers over it.  The memo is WHITE (a node is inserted after its children are built), so unlike `Bridge/ExprOps/Leaves.lean`'s `fvarLeavesGo_spec` there is no gray phase and no second induction on `StoreWF`'s rank |
+| 2 | `internExpr_run`, `internDecls_run` | the intern direction: a structural recursion over `ConLeche.Expr`, each arm one `Bridge/Specs.lean` `internE` face, with `EMemoOK` carried |
+| 3 | `ctxOf_eq_of_rel` | `nameHandle?`'s exactness plus `denoteN_inj` — the one place the delegation's three closures meet the relation |
+| 4 | `StateDRel.ext`, `ParseResultRel.ext` | **closed during the round** (§4): eighteen clauses, one `Bridge/Rel.lean` `…_ext` lemma each, over four transports the library did not have (`denoteCIList_ext`, `denoteDecl_ext`, `denoteDecls_ext`, `denoteDeclArray_ext`) |
+| 5 | `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run`, `parsePwD_run`, `parseCVD_run` | the three entry parsers.  `parseExprEntryD_run` is the tier's real work: ten constructors over `Bridge/Specs.lean`'s ten `internE` faces, with `lam`/`forallE` through `Bridge/StoreBind.lean`'s `internBindIE_spec'`.  This is where DESIGN §8.3's "the export's sharing is preserved exactly (lesson 25)" becomes a theorem |
+| 6 | `noteDecl_run`, `pushDecl_run`, `parseRuleD_run`, `blockRecOf_run` | a `MapRel` INSERT lemma this tier does not yet have (it has `mono` and `empty`) at `constTypes`/`heights`, and the three `mapM`s |
+| 7 | `validateIndD_run`, `installIndD_run` | the inductive record's two halves; `installIndD_run` is the ONE consumer of the modeller's promises |
+| 8 | `inProcessModeller_wf`, `inProcessModeller_refines` | items 1-3: the delegating seam cannot disagree with con-leche, it CALLS con-leche |
+| 9 | `processLineCoreD_run`, `applyLine_run` | **the tier's critical path**: six arms over items 5-7 and 12.  `feedChunk` and everything above it wait on these two |
+| 10 | `projIotaName_run`, `isProjIotaName_run`, `projIotaLevel_run` | the name and level helpers; the level side is `readLevel`'s exactness and then con-leche's own function on the same tree (DESIGN §8.3 lesson 4, collected) |
+| 11 | `occursConstFast_run`, `stripPisAll_run`, `mkLams_run` | the three term walks; `occursConstFast_run` has the GRAY `seen`-set shape `fvarLeavesGo_spec` is open on |
+| 12 | `projRecValue_run`, `projRewriteD_run` | the rewrite, over items 10-11 and the `ProjBinderKind` dispatch |
+| 13 | `projRecOwners_run`, `registerProjOwners_run` | the owner census and §5's finding 5 (the reordering), plus the two recognisers' exactness, which is the Inductives tier's |
+| 14 | `parseChunksC_eq`, `parseChunks_eq` | **closed during the round** (§5's finding 3): con-leche's `where go` is nameable across the package boundary, so the escape hatch is a six-line list induction rather than an assumption |
+| 15 | `StateD_init_run` | two intern specs and `IdTableRel.singleton`; the base case of the whole induction, and the one place this tier would use `mvcgen` |
+| 16 | `applyFinalLine_run`, `feedChunk_run` | **the tier's second critical path**: `feedChunk`'s strong induction on `b.size - i.toNat` (the twin's own `termination_by`), with `applyLine_run` at the step.  The two guards are con-leche's own functions on the same bytes, evaluated once and shared |
+| 17 | `chunkStep_run`, `chunkFinish_run` | the size guard, the `carry ++ buf0` concatenation (the same `ByteArray` on both sides) and item 16 |
+| 18 | `parseBytes_run`, `parseChunksGo_run`, `parseChunks_run` | the two entry points; `parseChunksGo_run` is the list induction, with `ParseStep.trans` carrying the frame and `StateDRel.ext` the relation.  **`parseChunks_exact` is DESIGN §8.2's parser statement and it is derived from `parseChunks_run` in ten lines** — the equation, the record count and the persistence in one |
+| 19 | `builtinPreludeE_run` | item 18 under the prelude gate |
+| 20 | `preludeKey_run`, `pick_denote`, `frontOf_run` | the prelude's front; `pick_denote` is `denoteN_inj` at a `findIdx` predicate |
+| 21 | `usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run` | the ground hoist — **the one place in this module a handle comparison stands for a name comparison**, so the one place `denoteN_inj` is load-bearing |
+| 22 | `preparePrelude_run` | items 20-21 composed.  `mem_preparePrelude_denote` is **closed** on top of it: con-leche's own `mem_preparePrelude` through the denotation, so the permutation argument is never re-run on this side |
+| 23 | `FoldOK_post_parse` | `Bridge/Checker/Capstone.lean`'s third frontend obligation: `CheckOK` (whose `CacheOK` is vacuous at the tables the parse never writes), `EnvWF Env.empty`, `PersPins`, and the three `rfl`-level clauses at `mkIFEnv IEnv.empty` |
+| 24 | `checkDeclsPure_thmDecl_const` | §5's finding 6 — a con-leche-tier lemma. `no_False_theorem_accepted_pure` is **closed** on top of it |
+| 25 | `Arena.no_False_declaration`, `Arena.no_False_declaration_prelude` | the four steps of §6's table, composed |
+| 26 | `Arena.no_False_declaration_pipeline` | item 25 plus `runPipelineM` unfolded into its stages |
+
+**The critical path is items 5-7 → 9 → 16 → 18, and then the capstone
+closes.**  Items 1-3 gate item 8 and nothing else; items 10-13 gate one arm
+of item 9; items 19-22 are the preparation half and are independent of the
+parse half.
+
+#### 8. What the next tiers need
+
+* **The Core tier and the Inductives tier**: `CoreSpec .verified
+  Arena.checkFuel` and `IndSpec .verified`, unchanged — this tier names them
+  and changes nothing about their statements.
+* **The Checker tier**: its three asks of the frontend
+  (`Bridge/Checker/Capstone.lean`'s module note) are now *stated* — two of
+  them are `parseChunks_exact`'s own conjuncts (`denoteDecls` and
+  `∀ x ∈ ds, PersDecl x`; the record count travels with them, for
+  `Arena/Main.lean`'s verdict number) and `FoldOK_post_parse` is the third.  What it
+  still owes back is item 13 (`internReservedPins_run` / `internAllPins_run`),
+  which is the only reason `hpins0`/`hipins` are hypotheses of §6's letters
+  rather than derived.
+* **con-leche**: §5's finding 6.  `checkDeclsPure_thmDecl_const` belongs
+  beside `Cached.checkDecls_thmDecl_const` in
+  `ConLeche/Verify/Cached/StreamThm.lean`, not here; it is the one ingredient
+  of the byte-level capstone that con-leche states only at the Cached tier.
+* **`Arena/Frontend/Readback.lean`'s obligation is now a named theorem.**
+  `denoteEShared_eq_denoteE` is the module's own stated ask
+  (*"the exactness obligation this owes P3"*); its two halves are sorry list
+  item 1 and its statement will not move.
+* **The import rule widens by two.**  `Bridge/Frontend/Rel.lean` adds
+  `ConLeche.Frontend.ExportC`, `Bridge/Frontend/Prepare.lean` adds
+  `ConLeche.Frontend.{Prelude,NatOpGround}` and
+  `ConLeche.Verify.Frontend.Prepare` (for `mem_preparePrelude`), and
+  `Bridge/Frontend/Capstone.lean` adds `ConRon.Arena.Main` (the seam
+  `runPipeline` lives there) and **`ConLeche.MainTheorem`** — for
+  `jsonWithTheoremFalse` and `parseChunks_jsonWithTheoremFalse`, con-leche's
+  own file-level lemma, which this tier may not re-derive.  All are prebuilt
+  in con-leche's `.lake`, so none costs elaboration.
+* **`scripts/provenance.py`'s `ARENA_ROOTS` still does not include
+  `proof/ConRon/Bridge`** (task #97-P3-0 §7), so the `con-leche:` citations in
+  these nine modules are stylistic rather than gate-enforced.  Every
+  declaration carries one anyway.
+* **`ConRonBridge` stays out of `defaultTargets`** while the library carries
+  `sorry`s.  `lake build ConRonBridge` is the command.
+
+#### 9. Gates
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 138 `sorry` warnings, of which 56 are this tier's (§7) and 82 the `ExprOps`, Core, Promote and Checker tiers' |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 100 s, `lake-build` 405 s).  Every one is green on this branch after the two `arena` merges |
+| `cd proof && lake build` (the default targets) | **not reachable from this diff** — `defaultTargets = ["ConRon", "ConRonSpike", "ConRonArena"]`, `proof/ConRon.lean` does not import `ConRon.Bridge`, and `ConRonBridge` is not a default target, so no module the default build elaborates changed.  It was run anyway (gate 13 above) and is green at 2 208 jobs |
+| `#print axioms` | `Bridge/Frontend/Axioms.lean`: **42 closed results**, every one within `[propext, Classical.choice, Quot.sound]` (`OptRel`'s four eliminators and `ListRel.length_eq` at `[propext]`, `IdTableRel.mono` at `[propext, Quot.sound]`, `ListRel.mono` at none); the five headlines carry `sorryAx` and **neither `CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** |
+| the diff | `proof/ConRon/Bridge/Frontend{,/*}.lean`, `proof/ConRon/Bridge.lean` (the module list and one import) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`lint-rust-style`/`twin-lines`/`holes`/`gen-pins`/`gen-prelude`/`extract.sh --check` cannot be affected |
+
+`arena` moved twice under this branch while it ran — tasks **#97-P3-1**
+(the `ExprOps` arm split, `Bridge/StoreBM.lean`'s `BMExt`, the miss-path
+capacity test), **#97-P3-Core**/**#97-P5-Core**/**#97-P5-2** and
+**#97-TWIN** — and both merges were clean: nothing outside
+`proof/ConRon/Bridge/Frontend/**` is touched by this round, and the root's
+one import went in beside the Checker tier's.  The one adjustment the second
+merge forced was editorial: `scripts/gates.sh` grew two gates, so
+`gen-prelude-lean.sh --check` is step **11** and the two module notes that
+cite it were corrected.
