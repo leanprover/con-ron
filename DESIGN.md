@@ -37984,29 +37984,29 @@ module.**
 
 | module | raw | non-blank | decls | open | elab |
 |---|---:|---:|---:|---:|---:|
-| `Bridge/Promote/Pers.lean` — `PExt` and the `Pers…` vocabulary | 275 | 225 | 40 | 1 | 0.8 s |
+| `Bridge/Promote/Pers.lean` — `PExt` and the `Pers…` vocabulary | 275 | 224 | 40 | 1 | 0.8 s |
 | `Bridge/Promote/StoreP.lean` — `StoreWFP` and the `internPersistent` obligations | 247 | 214 | 12 | 5 | 0.8 s |
-| `Bridge/Promote/Exact.lean` — the promotion's exactness and `PMemoOK` | 333 | 278 | 26 | 9 | 0.8 s |
-| `Bridge/Checker/Inv.lean` — `FoldOK`, and the declaration layer across a drop | 519 | 477 | 25 | 1 | 1.1 s |
-| `Bridge/Checker/Hyp.lean` — `CoreSpec` (P3-Core's `KnotSpec`, imported) and `IndSpec` | 164 | 134 | 8 | 0 | 0.8 s |
+| `Bridge/Promote/Exact.lean` — the promotion's exactness and `PMemoOK` | 333 | 278 | 26 | 9 | 0.9 s |
+| `Bridge/Checker/Inv.lean` — `FoldOK`, and the declaration layer across a drop | 518 | 477 | 25 | 1 | 1.1 s |
+| `Bridge/Checker/Hyp.lean` — `CoreSpec` (P3-Core's `KnotSpec`, imported) and `IndSpec` | 164 | 135 | 9 | 0 | 0.8 s |
 | `Bridge/Checker/Decl.lean` — `checkDecl`'s seven arms, `PinsDenote` | 275 | 237 | 11 | 7 | 0.8 s |
-| `Bridge/Checker/Mono.lean` — one fuel for the whole fold | 53 | 41 | 1 | 0 | 0.7 s |
-| `Bridge/Checker/Fold.lean` — **THE PER-DECLARATION BRIDGE and its fold** | 350 | 313 | 10 | 1 | 0.9 s |
-| `Bridge/Checker/Capstone.lean` — **`Arena.model_exists`** and the two letters | 124 | 107 | 3 | 0 | 1.3 s |
+| `Bridge/Checker/Mono.lean` — one fuel for the whole fold | 53 | 41 | 1 | 0 | 0.8 s |
+| `Bridge/Checker/Fold.lean` — **THE PER-DECLARATION BRIDGE and its fold** | 356 | 319 | 10 | 1 | 1.0 s |
+| `Bridge/Checker/Capstone.lean` — **`Arena.model_exists`** and the two letters | 124 | 107 | 3 | 0 | 1.0 s |
 | `Bridge/Checker/Base.lean` — `CheckerBase`'s specs | 250 | 210 | 11 | 8 | 0.8 s |
 | `Bridge/Checker/Canon.lean` — the pinned-block comparison | 92 | 77 | 4 | 4 | 0.7 s |
-| `Bridge/Checker/Basis.lean` — the pinned blocks and the axiom installs | 151 | 124 | 7 | 7 | 0.7 s |
+| `Bridge/Checker/Basis.lean` — the pinned blocks and the axiom installs | 151 | 124 | 7 | 7 | 0.8 s |
 | `Bridge/Checker/Pins.lean` — the startup walk | 97 | 80 | 3 | 3 | 0.7 s |
-| `Bridge/Checker/DeclVal.lean` — the three value checks and the three pin gates | 180 | 148 | 6 | 6 | 0.8 s |
+| `Bridge/Checker/DeclVal.lean` — the three value checks and the three pin gates | 175 | 151 | 7 | 6 | 0.8 s |
 | `Bridge/Checker/Split.lean` — the install/check seam, `installThenCheck` | 233 | 197 | 8 | 7 | 0.9 s |
-| `Bridge/Checker/Axioms.lean` — the trust census | 108 | 91 | — | 0 | 0.7 s |
-| the two index modules | 59 | 54 | — | — | 1.3 s |
-| **the tier** | **3 517** | **3 022** | **175** | **59** | **~14 s** |
+| `Bridge/Checker/Axioms.lean` — the trust census | 114 | 96 | — | 0 | 0.8 s |
+| the two index modules | 60 | 55 | — | 0 | 1.4 s |
+| **the tier** | **3 517** | **3 022** | **177** | **59** | **~15 s** |
 
 **No theorem is near the 20 s flag** — the slowest module of the tier is
-`Bridge/Checker/Capstone.lean` at 1.3 s, and that is olean loading
-(`ConLeche.Model.Fold`'s closure is 480 build jobs, every one prebuilt) rather
-than elaboration.  The contrast with the `ExprOps` tier (72 s for
+`Bridge/Checker/Inv.lean` at 1.1 s, and `Bridge/Checker/Capstone.lean`'s 1.0 s
+is olean loading (`ConLeche.Model.Fold`'s closure is ~490 build jobs, every
+one prebuilt) rather than elaboration.  The contrast with the `ExprOps` tier (72 s for
 `ExprOps/Inst1.lean`, 338 s for `ExprOps/Subst.lean`) is the whole story of
 this tier's shape: **there is no `grind` here and no `mvcgen`.**  The
 declaration checker's bridge is composition, inversion and list induction, not
@@ -38323,6 +38323,15 @@ adopted: this tier does too (§8's last bullet).
 
 | gate | |
 |---|---|
-| `lake build ConRonBridge` | 0 errors; `ConRon/Bridge/**` only |
-| `#print axioms` | `Bridge/Checker/Axioms.lean`: **46 closed results**, every one `[propext, Classical.choice, Quot.sound]` (`orElseStepOf_ok_iff` at `[propext]` alone); the five headline theorems and `CoreSpec.of_knot` carry `sorryAx` and **neither `CoreSpec` nor `IndSpec`** — the two named hypotheses are hypotheses of the statements, not axioms of the environment |
-| the diff | `proof/ConRon/Bridge/Promote{,/*}.lean`, `proof/ConRon/Bridge/Checker{,/*}.lean`, `proof/ConRon/Bridge.lean` (three blocks, merged with P3-Core's) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh`/`provenance.py check`/`overview-links.sh` cannot be affected and are not re-run |
+| `cd proof && lake build ConRonBridge` | **0 errors, 521 jobs** (159 after P3-Core, 128 after P3-0); 84 `sorry` warnings, of which 59 are this tier's (§5) and 25 the `ExprOps` and Core tiers' |
+| `cd proof && lake build` (the default targets) | OK — `ConRonBridge` is not one of them, so nothing this round touched can reach them; run anyway after the `arena` merge |
+| `#print axioms` | `Bridge/Checker/Axioms.lean`: **46 closed results**, every one `[propext, Classical.choice, Quot.sound]` (`orElseStepOf_ok_iff` at `[propext]` alone); the five headline theorems and `CoreSpec.of_knot` carry `sorryAx` and **neither `CoreSpec` nor `IndSpec`** — the two named hypotheses are hypotheses of the statements, not axioms of the environment, which is what makes "two named hypotheses" checkable rather than editorial |
+| `scripts/provenance.py check` | 0 findings, 6 281 items at pin `78ded4b6`; the `con-leche:` citations in `Bridge/` are stylistic (task #97-P3-0's note: `ARENA_ROOTS` does not include `proof/ConRon/Bridge`) |
+| `scripts/overview-links.sh` | OK, 48 links / 31 files |
+| the diff | `proof/ConRon/Bridge/Promote{,/*}.lean`, `proof/ConRon/Bridge/Checker{,/*}.lean`, `proof/ConRon/Bridge.lean` (three blocks, merged with P3-Core's) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+`arena` moved under this branch while it ran — task **#97-P3-Core** — and was
+merged in.  The only two conflicts were textual: this section against theirs at
+the end of the task log, and `proof/ConRon/Bridge.lean`'s three blocks (the
+module list, the import-rule paragraph and the imports), where both rounds
+added a tier.
