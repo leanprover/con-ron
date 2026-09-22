@@ -3320,7 +3320,8 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         absEIdx hh = (ls.intern (.bvar (absU i))).2 ∧
         StoreRel pers rs' (ls.intern (.bvar (absU i))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.bvar (absU i))) ∧
-      (∀ e, r = .Err e → absAErrKind e = none) := by
+      (∀ e, r = .Err e → absAErrKind e = none) ∧
+      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.EStore.intern_bvar] at h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨e, bb, hit⟩ := q
@@ -3354,7 +3355,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, ?_, ?_⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -3364,6 +3365,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               = some (absEIdx hp) := by rw [hfind, hE3, hitc]; rfl
           rw [find?_eq_of_pers rfl hpp]; simp)⟩
     · intro ee hbad; simp at hbad
+    · exact ⟨rfl, rfl⟩
   | none =>
     rw [hitc] at h
     simp only [Option.map_none]
@@ -3387,7 +3389,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_⟩
+        refine ⟨?_, ?_, ?_⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -3400,6 +3402,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
                   = some (absEIdx hs) := by rw [hfind2, hfindT, hoc]; rfl
               rw [find?_eq_of_scr rfl hpn (hrel.scratchOn.trans hsc) hss]; simp)⟩
         · intro ee hbad; simp at hbad
+        · exact ⟨rfl, rfl⟩
       | none =>
         rw [hoc] at h
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -3409,9 +3412,9 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have he := Result.ok_injective h
           simp only [Prod.mk.injEq] at he
-          obtain ⟨hr, -⟩ := he
-          subst hr
-          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl⟩
+          obtain ⟨hr, hs2⟩ := he
+          subst hr; subst hs2
+          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
         · -- the append
           obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -3433,7 +3436,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               hnew t1 ht1
           simp only [absBVarNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -3455,9 +3458,9 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have he := Result.ok_injective h
         simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, -⟩ := he
-        subst hr
-        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl⟩
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨hsh.symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -3485,7 +3488,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
             (der_of_bvar_obs (ls := ls) hd) ht1
         simp only [absBVarNode] at hrel1
         rw [hhandle] at hrel1
-        refine ⟨?_, by intro ee hbad; simp at hbad⟩
+        refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsh.symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -3642,7 +3645,7 @@ theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
   have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
     Result.ok_injective hrun
   subst ho
-  obtain ⟨hok, herr⟩ :=
+  obtain ⟨hok, herr, -⟩ :=
     estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
@@ -3655,6 +3658,26 @@ theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
       (EStore.intern_ext _ _) trivial
     rw [Arena.internBVarE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
+
+/-- **The port's `intern_e_bvar` leaves the two tier flags alone.**  Finding 14
+takes `hcap` and `hchild` off an interning walk's hypothesis list; `hfrozen`
+(finding 8) is the third, and this is what carries it across a step —
+`estore_intern_bvar_abs`'s new third conjunct, lifted to the monad.  The other
+seven non-binder arrays want the same one-line addition; this round made it
+only here, at `bvar_range`'s leaf (task #97-P5-3 round 3 §4). -/
+theorem intern_e_bvar_flags {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    {i : Std.U64} {o} (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
+    o.2.store.shared_on = st.store.shared_on ∧
+      o.2.store.scratch_on = st.store.scratch_on := by
+  rw [arena.monad.intern_e_bvar] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  exact (estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hp).2.2
 
 
 /-! ## The level-list tier's derived column, and the three inner `der` readers
