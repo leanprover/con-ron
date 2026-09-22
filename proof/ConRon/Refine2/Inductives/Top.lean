@@ -45,7 +45,11 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-- **`check_ind_decl` ⊑ `Inductives.checkIndDecl`** — the `.indDecl` arm.
+/-- **`arena::inductives::check_ind_decl` ⊑ `Inductives.checkIndDecl`** — the
+`.indDecl` arm.  The name carries the module qualifier because
+`Refine2/Checker/Top.lean` already has a `check_ind_decl_refines`, about
+`arena::checker::check_ind_decl` — the basis-pin wrapper ONE level above this
+one, whose `hind : IndRel` this tier's `ind_rel` supplies.
 The declared parameter count is official's own check and one-sided, so a
 `false` is official's REJECT and both sides raise `.invalid`; past it the
 recogniser alone routes the block, and no model lookup is needed to decide
@@ -54,7 +58,7 @@ which way it goes (con-leche's task #219).
 What is NOT here is the pinned basis block: a stream's `Nat` block arrives as
 an ordinary `indDecl` and `basisPinHit` recognises it in
 `arena::checker::check_decl`, before this, exactly where con-leche places it. -/
-theorem check_ind_decl_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+theorem inductives_check_ind_decl_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
     {block : alloc.vec.Vec arena.env.IConstantInfo} {n_p : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
@@ -74,12 +78,19 @@ task #97-P5-Checker §9 asked for (*"land the proof, delete the hypothesis"*)
 is met at the calling convention rather than by editing that file. -/
 theorem ind_rel (hknot : KnotRel checkFuel) : IndRel where
   checkIndDecl := fun hrel hinv hfe hfinv hrun =>
-    check_ind_decl_refines hrel hinv hfe hfinv hknot hrun
+    inductives_check_ind_decl_refines hrel hinv hfe hfinv hknot hrun
 
-/-- The axiom census at the seam: `ind_rel` adds nothing of its own beyond
-`check_ind_decl_refines`, which is this tier's one open statement about the
-dispatch. -/
-#guard_msgs (drop info) in
-#print axioms ind_rel
+/-! ## The axiom census at the seam
+
+`ind_rel` adds nothing of its own: it is
+`inductives_check_ind_decl_refines` packaged as
+the structure `Refine2/Checker/Top.lean` declares, and the `sorryAx` below is
+that one open statement about the dispatch and the 305 under it.  The row is
+recorded rather than dropped because it is the honest reading of *"`IndRel` is
+discharged"*: the SEAM is closed — no hypothesis of the Checker tier is left
+unsupplied — and what remains open is the tier's own proof obligations. -/
+
+/-- info: 'ConRon.Refine2.ind_rel' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ind_rel
 
 end ConRon.Refine2
