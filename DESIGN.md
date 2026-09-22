@@ -38308,7 +38308,7 @@ adopted: this tier does too (§8's last bullet).
   move down with them.
 * **`scripts/provenance.py`'s `ARENA_ROOTS` still does not include
   `proof/ConRon/Bridge`** (task #97-P3-0 §7), so the `con-leche:` citations in
-  these seventeen modules are stylistic rather than gate-enforced.  Every
+  these eighteen modules are stylistic rather than gate-enforced.  Every
   declaration carries one anyway.
 * **The import rule widens, as the Core round's did.**  Task #97-P3-0's was
   con-leche's `Kernel/*` only; P3-Core added `Verify/*`.  This tier adds four
