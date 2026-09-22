@@ -322,6 +322,67 @@ theorem intern_decls_refines {pers st lst}
   sorry
 
 
+/-! ## The promote window's shape (task #97-P5-Fresh)
+
+`Refine2/Specs.lean`'s `AStateRelW` / `AOutW` / `SimW` one tier up: the
+promotion walk threads a memo beside the state, and `internPersistent` breaks
+`fresh` (`Arena/WF.lean`'s section note has the ruling), so every promote
+lemma relates the twin's post-state by `AStateRelW` and not `AStateRel`.
+`dropScratch` turns the weak invariant back into `StoreWF`
+(`StoreWF'.dropScratch_wf`), which is why nothing ABOVE the bracket weakens. -/
+
+/-- **The persistent tier is this state's own, not a shared frozen one.**
+Finding 17's first half as one hypothesis: at a frozen tier the port answers
+`Internal` where the twin appends, and `Internal` abstracts to
+`some .internal`, so every promote lemma needs it at all four stores.  The
+promotion phase holds its own persistent tier, which is what makes it true at
+the call sites. -/
+structure PersUnfrozen (rs : arena.store.EStore) : Prop where
+  e : rs.shared_on = false
+  lss : rs.lss.shared_on = false
+  ls : rs.lss.ls.shared_on = false
+  ns : rs.lss.ls.ns.shared_on = false
+
+/-- `POut` at the promote window's relation. -/
+def POutW {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
+    (lst : AState)
+    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError)
+    (st' : arena.monad.AState)
+    (x : Except Arena.CheckError ((PMemo × β) × AState)) : Prop :=
+  match o with
+  | .Ok r => ∃ m' v lst', x = .ok ((m', v), lst') ∧ R r.2 v ∧ PMemoRel r.1 m' ∧
+      AStateRelW pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
+  | .Err e => AErrSim e x
+
+/-- `POutW` at the Rust's outcome pair. -/
+def SimPMW {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
+    (lst : AState)
+    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
+      arena.monad.AState)
+    (x : AM (PMemo × β)) : Prop :=
+  POutW R pers lst o.1 o.2 (x.run lst)
+
+/-- The `SimPMW` of a promotion whose value abstracts by a FUNCTION. -/
+abbrev SimPMFW {α β : Type} (A : α → β) (pers : arena.store.PersTier)
+    (lst : AState)
+    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
+      arena.monad.AState)
+    (x : AM (PMemo × β)) : Prop :=
+  SimPMW (fun r v => v = A r) pers lst o x
+
+theorem POutW.ok {α β : Type} {R : α → β → Prop} {r : arena.promote.PMemo × α}
+    {v : β} {pers : arena.store.PersTier} {lst lst' : AState} {m' : PMemo}
+    {st' : arena.monad.AState} {x : Except Arena.CheckError ((PMemo × β) × AState)}
+    (hx : x = .ok ((m', v), lst')) (hv : R r.2 v) (hm : PMemoRel r.1 m')
+    (hrel : AStateRelW pers st' lst') (hinv : AStateInv pers st')
+    (hext : Ext lst.store lst'.store) : POutW R pers lst (.Ok r) st' x :=
+  ⟨m', v, lst', hx, hv, hm, hrel, hinv, hext⟩
+
+theorem POutW.err {α β : Type} {R : α → β → Prop} {e : kernel.core_types.CheckError}
+    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
+    {x : Except Arena.CheckError ((PMemo × β) × AState)} (h : AErrSim e x) :
+    POutW R pers lst (.Err e) st' x := h
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.memo_empty_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
