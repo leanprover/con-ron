@@ -40743,9 +40743,24 @@ the round made the distinction visible:
 
 | gate | |
 |---|---|
-| `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 121 `sorry` warnings, of which 39 are this tier's |
-| `scripts/gates.sh` | **all 13 OK** (`extract-check` 95 s, `lake-build` 361 s) |
+| `cd proof && lake build ConRonBridge` | **0 errors, 612 jobs**; 260 `sorry` warnings, of which **39 are this tier's** (the rest are the `ExprOps`, Core, Promote, Checker and — since the merge below — Inductives tiers') |
+| `scripts/gates.sh` | **all 13 OK**, three times: on the branch before the merge (`extract-check` 95 s, `lake-build` 361 s), after the record-header round, and after the merge (`extract-check` 92 s, `lake-build` 59 s incremental) |
 | the diff | `proof/ConRon/Bridge/Frontend/{Rel,Lines,Chunks,Prepare,Capstone,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
+
+**`arena` moved once under this branch** — tasks **#97-P3-Ind** (the
+inductive tier, `Bridge/Inductives/**`), **#97-P3-CoreWalks** and
+**#97-P5-Frontend** (`Refine2/Frontend/**`) — and the merge was clean
+everywhere but DESIGN.md's append point: **nothing under
+`proof/ConRon/Bridge/Frontend/**` is touched by any of them**, and the two
+files of the Bridge library they do move (`Bridge.lean`'s module list,
+`Bridge/Specs.lean`) merged without a conflict.  The gates were re-run after
+the merge and are green.
+
+**What the merge hands item 13.**  `Bridge/Inductives/{StructParts,NativeParts}.lean`
+now state the two recognisers as `@[spec]` triples — which is exactly the
+missing half `projRecOwners_run`'s note named as "the Inductives tier's", and
+which `AM.of_run` converts into this tier's shape in one line (see §1's note).
+The `filterMap` induction and the reordering argument are still this tier's.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
