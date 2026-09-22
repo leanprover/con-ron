@@ -46887,11 +46887,14 @@ every tier.
 |---|---|---|
 | `ConRonArena` (the twin, layer B) | **0** | **0** |
 | `ConRonBridge` (Theorem 1) | **214** | **214** |
-| `ConRonRefine2` (Theorem 2) | see the table below | unchanged by this task |
+| `ConRonRefine2` (Theorem 2) | **866** | **866** — no file of it is touched |
 
 "before" is the count at the branch point (`arena` `19aa6e2e`) and "after" at
 the tip; they are equal because the diff adds and removes exactly zero
-declaration-level `sorry`.  `Bridge/Core/Walks/Cached.lean` still has its
+declaration-level `sorry` (`git diff 19aa6e2e -- '*.lean' | grep -E
+'^[+-].*\bsorry\b'` matches three lines, all prose in a doc comment).  The
+`ConRonRefine2` number is the merged state's — task #97-P5-Specs landed on
+`arena` between the branch point and the merge and moved it from 875.  `Bridge/Core/Walks/Cached.lean` still has its
 three (`constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec`) and gained four
 CLOSED theorems beside them.
 
@@ -46903,3 +46906,15 @@ reads `PStep.of_caches …` / `ParseStep.of_caches …` where it read `⟨…, h
 …⟩`, which is the same proof with the cache equation handed to the
 constructor instead of to the field.  That is the whole cost of the widening
 inside the two tiers: **five call sites.**
+
+#### 7. The gates
+
+| gate | result |
+|---|---|
+| `LAKE_JOBS=4 scripts/gates.sh` | **all 13 OK** — `cargo-build` 3 s, `cargo-test` 7 s, `lint-rust` 2 s, `provenance`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 90 s**, **`lake-build` 362 s / 2 209 jobs** |
+| `cd proof && lake build ConRonBridge` | **green, 616 jobs, 214 `sorry`** |
+| `cd proof && lake build ConRonArena` | **green, 0 `sorry`** |
+| `cd proof && lake build ConRonRefine2` | **green, 866 `sorry`** |
+| `#print axioms` on the four new closed theorems | `readLevelM_frame`, `readLevelM_denote`, `CacheFrame.ofReadLevelM`, `lvlEq?_frame` — `[propext, Classical.choice, Quot.sound]`, **no `sorryAx`**; the two new constructors `PStep.of_caches` / `ParseStep.of_caches` likewise |
+| merged `arena` once — `48438ac0` (task #97-P5-Specs) into `10cfa700` | clean, and it touches `Refine2/{Specs,AbsState,Core/Bracket,ExprOps/Mut}.lean` and DESIGN.md only — no file this task edits, so the merge cannot interact with the edit.  The merge was taken BEFORE the DESIGN section was appended, which is why there was no DESIGN.md conflict |
+| the diff | `proof/ConRon/Bridge/{StateOK,Core/Walks/Cached}.lean`, `Bridge/Inductives/{Rel,SumParts,StructParts,NativeParts,Axioms}.lean`, `Bridge/Frontend/{Rel,Chunks,Capstone,ProjRec,Axioms}.lean`, and this section |
