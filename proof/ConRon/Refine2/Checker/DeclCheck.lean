@@ -296,7 +296,6 @@ theorem check_reduce_identity_refines {pers st lst} {vis : Std.U64} {rf lf}
     {val_a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_reduce_identity pers vis st mode rf c val_a
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -310,7 +309,6 @@ theorem check_reduce_pin_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_reduce_pin_value pers vis st mode rf c value
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -324,7 +322,6 @@ theorem check_reduce_pin_pre_refines {pers st lst} {vis : Std.U64} {rf lf}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_reduce_pin_pre pers vis st mode rf c value
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -342,7 +339,6 @@ theorem check_reduce_pin_refines {pers st lst} {rf2 lf2 lf}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hkpre : lf = lf2.restrictTo (absU k_pre))
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_reduce_pin pers st mode rf2 k_pre c value = ok o) :
     SimRel (fun r v => IFEnvRel r v) pers lst o
       (do checkReducePin (ConRon.Refine.absMode mode) lf lf2 (absNIdx c)
@@ -358,7 +354,6 @@ theorem check_defn_val_refines {pers st lst} {rf lf}
     {value : arena.handle.EIdx} {hint : kernel.env.ReducibilityHint} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_defn_val pers st mode rf cv value hint = ok o) :
     SimRel (fun r v => IFEnvRel r v) pers lst o
       (checkDefnVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
@@ -371,7 +366,6 @@ theorem check_thm_val_witness_refines {pers st lst} {rf lf}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_thm_val_witness pers st mode rf cv value = ok o) :
     SimRel (fun r v => IFEnvRel r v) pers lst o
       (checkThmValWitnessSpec (ConRon.Refine.absMode mode) lf
@@ -384,7 +378,6 @@ theorem check_thm_val_refines {pers st lst} {rf lf}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_thm_val pers st mode rf cv value = ok o) :
     SimRel (fun r v => IFEnvRel r v) pers lst o
       (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
@@ -397,7 +390,6 @@ theorem check_opaque_val_refines {pers st lst} {rf lf}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_opaque_val pers st mode rf cv value = ok o) :
     SimRel (fun r v => IFEnvRel r v) pers lst o
       (checkOpaqueVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
@@ -472,7 +464,6 @@ theorem certify_nat_eqs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.certify_nat_eqs pers vis st mode rf eqs i = ok o) :
     Sim id (fun _ => True) pers lst o
       (certifyNatEqs (ConRon.Refine.absMode mode) lf (absEqPairsFrom eqs i)) := by
@@ -912,7 +903,6 @@ theorem check_div_mod_cert_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {applied_a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_cert_tail pers vis st mode rf c ann_val
       stmts proofs i applied_a = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -929,7 +919,6 @@ theorem check_div_mod_cert_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     {proofs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_cert_at pers vis st mode rf c ann_val
       stmts proofs i = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -945,7 +934,6 @@ theorem check_div_mod_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {proofs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_certs pers vis st mode rf c ann_val stmts
       proofs i = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -959,7 +947,6 @@ theorem check_div_mod_pin_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {value2 : arena.handle.EIdx} {ps : arena.nat_op_pin_set.INatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_pin_certs pers vis st mode rf c value2 ps
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -973,7 +960,6 @@ theorem check_div_mod_pin_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     {value2 : arena.handle.EIdx} {ps : arena.nat_op_pin_set.INatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_pin_at pers vis st mode rf c value2 ps
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -995,7 +981,6 @@ theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
     {tried : alloc.vec.Vec Std.U32} {o} {ltried : List String}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_pin_try pers vis st mode rf c value2
       variants i tried = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -1011,7 +996,6 @@ theorem check_div_mod_pin_loop_refines {pers st lst} {vis : Std.U64} {rf lf}
     {tried : alloc.vec.Vec Std.U32} {o} {ltried : List String}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2
       variants i tried = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -1058,7 +1042,6 @@ theorem check_div_mod_pin_at_pre_refines {pers st lst} {rf2 lf2 lf}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hkpre : lf = lf2.restrictTo (absU k_pre))
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_pin_at_pre pers st mode pins rf2 k_pre c
       value2 = ok o) :
     SimRel (fun r v => IFEnvRel r v) pers lst o
@@ -1077,7 +1060,6 @@ theorem check_div_mod_pin_refines {pers st lst} {rf2 lf2 lf}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hkpre : lf = lf2.restrictTo (absU k_pre))
-    (hknot : KnotRel checkFuel)
     (hrun : arena.decl_check.check_div_mod_pin pers st mode pins rf2 k_pre c = ok o) :
     SimRel (fun r v => IFEnvRel r v) pers lst o
       (do checkDivModPin (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf lf2

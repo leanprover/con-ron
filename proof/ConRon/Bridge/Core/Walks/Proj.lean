@@ -36,16 +36,17 @@ denotation — `(default : EIdx)` need not denote `(default : Expr)` and
 `findProj?`'s own guard is `i < tbl.numFields`, which is in range only if the
 two columns have `numFields` entries.
 
-**con-leche records HALF of that and not the other half.**
-`Verify/EnvWF.lean:191`'s `ConstWF` clause for a stored `.projInfo tbl` says
-`tbl.bodies.size = tbl.numFields` — and says nothing about `tbl.guards`.
-(The install builds the two together, `structProjBodies` / `structProjGuards`,
-so the fact is true; it is simply not in the invariant.)  `ProjTablesShaped`
-below is that missing clause, carried as a hypothesis where it is needed and
-**named so that it can be discharged once, at the checker tier, when the
-install's own invariant reaches here** — it is not a gap in the argument, it
-is a clause nobody had written down.  DESIGN §8's task section records it as
-this round's second finding.
+**That clause is ours, not con-leche's** (task #97-P3-Checker-2, correcting
+this round's second finding).  It was booked here as a free hypothesis
+`ProjTablesShaped` with a note that `Verify/EnvWF.lean:191`'s `ConstWF`
+records the `bodies` half and not the `guards` half — but `ConstWF` is the
+wrong place to take it from: **a simulation B ⇒ A takes invariants on the
+REFINED side only**, `denoteProjTable` transports both columns pointwise and
+copies `numFields` verbatim, so the pure table's sizes ARE ours.  The clause
+is now `Bridge/StateOK.lean`'s `IProjTableOK`, a field of `IFEnvOK`, and
+`findProj?_spec` reads it off `hok.ienv.proj` with no hypothesis of its own.
+Its one debtor is the install (`Bridge/Checker/Inv.lean`'s
+`projTableOK_of_install`, owned by the Inductives tier).
 
 ## 2. The `readNamesM` detour, and why it is here rather than at the spec
 
@@ -104,19 +105,6 @@ theorem projTableName_spec (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
 
 /-! ## 2. The shape clause con-leche's `ConstWF` half-records -/
 
-/-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
-clause) — **the two indexed columns have `numFields` entries**.  con-leche's
-invariant carries the `bodies` half and not the `guards` half; this is both,
-stated over the arena's table so that `findProj?_spec` can name it.  See the
-module note. -/
-def IProjTableShaped (t : IProjTable) : Prop :=
-  t.bodies.size = t.numFields ∧ t.guards.length = t.numFields
-
-/-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF — the same at every
-table the index can answer with. -/
-def ProjTablesShaped (fe : IFEnv) : Prop :=
-  ∀ n t, fe.find? n = some (.projInfo t) → IProjTableShaped t
-
 /-! ## 3. The lookup -/
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — **THEOREM 1
@@ -129,7 +117,7 @@ half is `IFEnvOK.miss` (through `denoteN_inj`) and the fact that the two
 `numFields` are literally the same number. -/
 theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
     (Tn : ConLeche.Name) (hok : CheckOK mode env fe s₀)
-    (hsh : ProjTablesShaped fe) (hT : denoteN s₀.store.ns T = some Tn) :
+    (hT : denoteN s₀.store.ns T = some Tn) :
     ⦃fun s => ⌜s = s₀⌝⦄ fe.findProj? T i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
@@ -150,7 +138,7 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
     obtain ⟨pt, hpt, rfl⟩ := hci
     obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
-    obtain ⟨hbsz, hgsz⟩ := hsh rn tbl hfind
+    obtain ⟨hbsz, hgsz, -⟩ := hck.ienv.proj rn tbl hfind
     refine ⟨hck, hext, hm, hc, hp, ?_, ?_⟩
     · intro e he
       split at he

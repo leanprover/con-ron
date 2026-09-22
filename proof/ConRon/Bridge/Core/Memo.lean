@@ -389,9 +389,10 @@ theorem CheckOK.ofCache {mode : CheckMode} {env : Env} {fe : IFEnv}
         | exact h.pins.emptyLevels | exact h.pins.zeroLevel
         | exact h.pins.sortOne
   ienv := by
-    refine ⟨?_, ?_⟩ <;> simp only [hst]
+    refine ⟨?_, ?_, ?_⟩ <;> simp only [hst]
     · exact h.ienv.hit
     · exact h.ienv.cover
+    · exact h.ienv.proj
 
 
 /-! ## 4. The stuck-tag branch (task #97-P6-7's lever 2)

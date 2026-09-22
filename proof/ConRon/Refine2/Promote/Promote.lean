@@ -50,6 +50,34 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine.HashMap2 (Inv RelOn)
 
+/-! ## The memo itself -/
+
+/-- **`arena::promote::PMemo::empty` is the twin's `PMemo.empty`** — four
+fresh `HashMap2`s against four empty `Std.HashMap`s, `Refine2/Promote/Intern.lean`'s
+`memo_empty_refines` four times over.  The fold's bracket starts from it, so
+it is what `check_decl_step` and `annot_step` consume. -/
+theorem pmemo_empty_refines {o} (hrun : arena.promote.PMemo.empty = ok o) :
+    PMemoRel o PMemo.empty := by
+  rw [arena.promote.PMemo.empty] at hrun
+  obtain ⟨me, hme, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨mn, hmn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ml, hml, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨mls, hmls, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hie, -, hne⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) hme
+  obtain ⟨hin, -, hnn⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hmn
+  obtain ⟨hil, -, hnl⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.LIdx.Insts.Con_ron_coreRonHashmapHashable) hml
+  obtain ⟨hils, -, hnls⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable) hmls
+  have ho : o = { e_m := me, n_m := mn, l_m := ml, ls_m := mls } :=
+    (Result.ok_injective hrun).symm
+  subst ho
+  exact ⟨ConRon.Refine.HashMap2.RelOn_empty hne, ConRon.Refine.HashMap2.RelOn_empty hnn,
+    ConRon.Refine.HashMap2.RelOn_empty hnl, ConRon.Refine.HashMap2.RelOn_empty hnls,
+    hie, hin, hil, hils⟩
+
 /-! ## The memo's two primitives, per handle kind
 
 Eight one-line functions extraction rule 5 asked for; eight two-line lemmas. -/
@@ -198,6 +226,26 @@ theorem pmemo_set_e_refines {rm lm} {h r : arena.handle.EIdx} {o}
   obtain ⟨h1, h2⟩ := memo_insert_step eidx_eq2 absEIdx_inj hm.eInv hm.eM hp
   exact { hm with eM := h1, eInv := h2 }
 
+/-- `Refine2/Specs.lean`'s `view_run_state` at the NAME store: `viewN` is a
+READER, so the existential post-state of its `AOut` collapses.  It belongs
+beside its expression sibling and is here only because this tier may not edit
+that file. -/
+private theorem viewN_run_state {lst lst' : AState} {hh : NIdx} {v : NNodeView}
+    (h : (Arena.viewN hh).run lst = .ok (v, lst')) : lst' = lst := by
+  rw [show (Arena.viewN hh).run lst
+      = (match lst.store.ns.view hh with
+         | some w => Except.ok (w, lst)
+         | none => Except.error (Arena.CheckError.internal
+             "arena: dangling name handle")) by
+    show ((match lst.store.ns.view hh with
+            | some w => (pure w : AM NNodeView)
+            | none => Arena.fail
+                (.internal "arena: dangling name handle")).run lst) = _
+    cases lst.store.ns.view hh <;> rfl] at h
+  split at h
+  · exact (congrArg Prod.snd (Except.ok.inj h)).symm
+  · exact absurd h (by simp)
+
 /-! ## The three node transcriptions
 
 `promote_{n,l,e}_node` are the twin's own arms past the probe, split off so
@@ -279,7 +327,15 @@ theorem promoteN_unfold (m : PMemo) (fuel : Nat) (h : NIdx) :
         | none => do
           let (m, r) ← promoteNNodeSpec m fuel (← viewN h)
           pure ({ m with nM := m.nM.insert h r }, r)) := by
-  sorry
+  rw [promoteN]
+  split
+  · rfl
+  · cases hm : m.nM[h]? with
+    | some r => rfl
+    | none =>
+      refine am_bind_congr _ ?_
+      intro v
+      cases v <;> twin_reduce [promoteNNodeSpec]
 
 /-- `promoteL` in terms of its transcription. -/
 theorem promoteL_unfold (m : PMemo) (fuel : Nat) (h : LIdx) :
@@ -291,7 +347,15 @@ theorem promoteL_unfold (m : PMemo) (fuel : Nat) (h : LIdx) :
         | none => do
           let (m, r) ← promoteLNodeSpec m fuel (← viewL h)
           pure ({ m with lM := m.lM.insert h r }, r)) := by
-  sorry
+  rw [promoteL]
+  split
+  · rfl
+  · cases hm : m.lM[h]? with
+    | some r => rfl
+    | none =>
+      refine am_bind_congr _ ?_
+      intro v
+      cases v <;> twin_reduce [promoteLNodeSpec]
 
 /-- `promoteE` in terms of its transcription. -/
 theorem promoteE_unfold (m : PMemo) (fuel : Nat) (h : EIdx) :
@@ -303,18 +367,260 @@ theorem promoteE_unfold (m : PMemo) (fuel : Nat) (h : EIdx) :
         | none => do
           let (m, r) ← promoteENodeSpec m fuel (← view h)
           pure ({ m with eM := m.eM.insert h r }, r)) := by
-  sorry
+  rw [promoteE]
+  split
+  · rfl
+  · cases hm : m.eM[h]? with
+    | some r => rfl
+    | none =>
+      refine am_bind_congr _ ?_
+      intro v
+      cases v <;> twin_reduce [promoteENodeSpec]
 
-/-! ## The four handle kinds -/
+/-! ## The four handle kinds
 
-/-- `promote_n` ⊑ `promoteN`. -/
+**Task #97-P5-Checker-2 closes the NAME walk, and it is the template for the
+other three.**  `promote_n` and `promote_n_node` are ONE `partial_fixpoint`
+block and one induction: `promote_n` at `f + 1` calls `promote_n_node` at `f`,
+and `promote_n_node` at `f` calls `promote_n` at `f` — so the node lemma is
+derived INSIDE the successor step from that step's own induction hypothesis
+and needs no second induction.  Everything else is task #97-P5-2 §6's idiom
+with `absU fuel = n` generalised.
+
+What it rests on: `Refine2/Specs.lean`'s `intern_persistent_n_run` (still
+open, and named rather than re-proved), `view_n_run`, `nidx_is_persistent_abs`
+and this file's own `pmemo_{get,set}_n_refines`.  **`Ext` comes out of the
+composition** — every step's `AOut`/`POut` carries one and `Ext.trans` chains
+them — so `Arena/PromoteExt.lean`'s `promoteN_ext` is not needed here; it is
+needed where a walk's `Ext` has to be produced WITHOUT decomposing it, which
+is `Bridge/Promote/Exact.lean`'s business. -/
+
+/-- `promote_n_node` at the fuel `promote_n` calls it with, from that call's
+own induction hypothesis — the mutual block's second half, which needs no
+induction of its own. -/
+private theorem promote_n_node_aux (n : Nat)
+    (ih : ∀ {pers st lst rm lm} {fuel : Std.U64} {h : arena.handle.NIdx} {o},
+      absU fuel = n → AStateRel pers st lst → AStateInv pers st →
+      PMemoRel rm lm →
+      arena.promote.promote_n pers st rm fuel h = ok o →
+      SimPMF absNIdx pers lst o (promoteN lm n (absNIdx h))) :
+    ∀ {pers st lst rm lm} {fu : Std.U64} {v : arena.store.NNodeView} {o},
+      absU fu = n → AStateRel pers st lst → AStateInv pers st →
+      PMemoRel rm lm →
+      arena.promote.promote_n_node pers st rm fu v = ok o →
+      SimPMF absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) := by
+    intro pers st lst rm lm fu v o hk hrel hinv hm hrun
+    cases v with
+    | Anonymous =>
+      rw [arena.promote.promote_n_node] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨qr, qst⟩ := q
+      have hI := intern_persistent_n_run hrel hinv .Anonymous hq
+      simp only [Sim, AOut, absNNodeView] at hI
+      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
+        StateT.run_bind]
+      cases hqr : qr with
+      | Err e =>
+        rw [hqr] at hI hrun
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho]
+        exact AErrSim.bind hI _
+      | Ok r1 =>
+        rw [hqr] at hI hrun
+        obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := hI
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+        exact ⟨lm, absNIdx r1, lst1, by rw [hx]; rfl, rfl, hm, hrel1, hinv1,
+          hext1⟩
+    | Str p str =>
+      rw [arena.promote.promote_n_node] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hP := ih (h := p) hk hrel hinv hm hq
+      obtain ⟨qr, qst⟩ := q
+      simp only [SimPMF, SimPM, POut] at hP
+      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
+        StateT.run_bind]
+      cases hqr : qr with
+      | Err e =>
+        rw [hqr] at hP hrun
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho]
+        exact AErrSim.bind hP _
+      | Ok p1 =>
+        rw [hqr] at hP hrun
+        obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
+        subst hv
+        obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨q2r, q2st⟩ := q2
+        have hI := intern_persistent_n_run hrel1 hinv1 (.Str p1.2 str) hq2
+        simp only [Sim, AOut, absNNodeView] at hI
+        rw [hx]
+        cases hq2r : q2r with
+        | Err e =>
+          rw [hq2r] at hI hrun
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho]
+          exact AErrSim.bind hI _
+        | Ok r2 =>
+          rw [hq2r] at hI hrun
+          obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+          exact ⟨m', absNIdx r2, lst2,
+            by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
+            hinv2, Ext.trans hext1 hext2⟩
+    | Num p num =>
+      rw [arena.promote.promote_n_node] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hP := ih (h := p) hk hrel hinv hm hq
+      obtain ⟨qr, qst⟩ := q
+      simp only [SimPMF, SimPM, POut] at hP
+      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
+        StateT.run_bind]
+      cases hqr : qr with
+      | Err e =>
+        rw [hqr] at hP hrun
+        have ho := Result.ok_injective hrun
+        rw [← congrArg Prod.fst ho]
+        exact AErrSim.bind hP _
+      | Ok p1 =>
+        rw [hqr] at hP hrun
+        obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
+        subst hv
+        obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨q2r, q2st⟩ := q2
+        have hI := intern_persistent_n_run hrel1 hinv1 (.Num p1.2 num) hq2
+        simp only [Sim, AOut, absNNodeView] at hI
+        rw [hx]
+        cases hq2r : q2r with
+        | Err e =>
+          rw [hq2r] at hI hrun
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho]
+          exact AErrSim.bind hI _
+        | Ok r2 =>
+          rw [hq2r] at hI hrun
+          obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
+          have ho := Result.ok_injective hrun
+          rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
+          exact ⟨m', absNIdx r2, lst2,
+            by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
+            hinv2, Ext.trans hext1 hext2⟩
+
+/-- The name walk, by the fuel's measure; `promote_n_node_aux` is fed this
+step's own induction hypothesis. -/
+private theorem promote_n_aux (n : Nat) :
+    ∀ {pers st lst rm lm} {fuel : Std.U64} {h : arena.handle.NIdx} {o},
+      absU fuel = n → AStateRel pers st lst → AStateInv pers st →
+      PMemoRel rm lm →
+      arena.promote.promote_n pers st rm fuel h = ok o →
+      SimPMF absNIdx pers lst o (promoteN lm n (absNIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst rm lm fuel h o hn hrel hinv hm hrun
+    rw [arena.promote.promote_n] at hrun
+    have hz : fuel = 0#u64 := by
+      have h0 : fuel.val = 0 := hn
+      scalar_tac
+    rw [if_pos hz] at hrun
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hr] at hrun
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact POut.err (AErrSim.internal (by rw [promoteN]; rfl))
+  | succ n ih =>
+    have hnode : ∀ {pers st lst rm lm} {fu : Std.U64}
+        {v : arena.store.NNodeView} {o},
+        absU fu = n → AStateRel pers st lst → AStateInv pers st →
+        PMemoRel rm lm →
+        arena.promote.promote_n_node pers st rm fu v = ok o →
+        SimPMF absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) :=
+      fun hk hrel hinv hm hq => promote_n_node_aux n ih hk hrel hinv hm hq
+    intro pers st lst rm lm fuel h o hn hrel hinv hm hrun
+    rw [arena.promote.promote_n] at hrun
+    have hnz : ¬ (fuel = 0#u64) := by
+      intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hnz] at hrun
+    obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hb2 := nidx_is_persistent_abs hb
+    rw [promoteN_unfold, hb2]
+    by_cases hp : b = true
+    · rw [if_pos hp] at hrun ⊢
+      obtain ⟨d, hd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      exact ⟨lm, absNIdx h, lst, rfl, by rw [dupId_nidx _ _ hd], hm, hrel,
+        hinv, Ext.refl _⟩
+    · rw [if_neg hp] at hrun ⊢
+      obtain ⟨g, hg, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hgm := pmemo_get_n_refines hm hg
+      cases hgc : g with
+      | some r =>
+        rw [hgc] at hrun hgm
+        have ho := Result.ok_injective hrun
+        subst ho
+        rw [← hgm]
+        exact ⟨lm, absNIdx r, lst, rfl, rfl, hm, hrel, hinv, Ext.refl _⟩
+      | none =>
+        rw [hgc] at hrun hgm
+        rw [← hgm]
+        obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hV := view_n_run hrel hinv hw
+        simp only [AOut] at hV
+        simp only [SimPMF, SimPM, POut, Option.map, StateT.run_bind]
+        cases hwc : w with
+        | Err e =>
+          rw [hwc] at hrun hV
+          have ho := Result.ok_injective hrun
+          subst ho
+          exact AErrSim.bind hV _
+        | Ok vw =>
+          rw [hwc] at hrun hV
+          obtain ⟨lstv, hxv, hrelv, hinvv, -, -⟩ := hV
+          have hlv : lstv = lst := viewN_run_state hxv
+          rw [hlv] at hxv
+          rw [hxv, except_ok_bind]
+          obtain ⟨fu, hfu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hfuv : absU fu = n := by
+            have h1 : fu.val = fuel.val - (1#u64 : Std.U64).val :=
+              (ConRon.Refine.Nat.usub_val hfu).2
+            have h2 : fuel.val = n + 1 := hn
+            have h3 : (1#u64 : Std.U64).val = 1 := rfl
+            show fu.val = n
+            omega
+          obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hN := hnode (v := vw) hfuv hrel hinv hm hq
+          obtain ⟨qr, qst⟩ := q
+          simp only [SimPMF, SimPM, POut] at hN
+          cases hqr : qr with
+          | Err e =>
+            rw [hqr] at hN hrun
+            have ho := Result.ok_injective hrun
+            subst ho
+            exact AErrSim.bind hN _
+          | Ok p1 =>
+            rw [hqr] at hN hrun
+            obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hN
+            subst hv
+            obtain ⟨m3, hm3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            have hm3r := pmemo_set_n_refines hm' hm3
+            have ho := Result.ok_injective hrun
+            subst ho
+            exact ⟨{ m' with nM := m'.nM.insert (absNIdx h) (absNIdx p1.2) },
+              absNIdx p1.2, lst1, by rw [hx]; rfl, rfl, hm3r, hrel1, hinv1,
+              hext1⟩
+
+/-- **`promote_n` ⊑ `promoteN`** — the name walk, closed modulo
+`Refine2/Specs.lean`'s `intern_persistent_n_run`. -/
 theorem promote_n_refines {pers st lst rm lm} {fuel : Std.U64}
     {h : arena.handle.NIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n pers st rm fuel h = ok o) :
-    SimPMF absNIdx pers lst o (promoteN lm (absU fuel) (absNIdx h)) := by
-  sorry
+    SimPMF absNIdx pers lst o (promoteN lm (absU fuel) (absNIdx h)) :=
+  promote_n_aux _ rfl hrel hinv hm hrun
 
 /-- `promote_n_node` ⊑ `promoteNNodeSpec`. -/
 theorem promote_n_node_refines {pers st lst rm lm} {fuel : Std.U64}
@@ -323,8 +629,10 @@ theorem promote_n_node_refines {pers st lst rm lm} {fuel : Std.U64}
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n_node pers st rm fuel v = ok o) :
     SimPMF absNIdx pers lst o
-      (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) := by
-  sorry
+      (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) :=
+  promote_n_node_aux (absU fuel)
+    (fun hk hrel' hinv' hm' hq => hk ▸ promote_n_refines hrel' hinv' hm' hq)
+    rfl hrel hinv hm hrun
 
 /-- `promote_l` ⊑ `promoteL`. -/
 theorem promote_l_refines {pers st lst rm lm} {fuel : Std.U64}
@@ -725,5 +1033,17 @@ handle type. -/
 
 /-- info: 'ConRon.Refine2.pmemo_set_ls_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pmemo_set_ls_refines
+
+/-- info: 'ConRon.Refine2.pmemo_empty_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pmemo_empty_refines
+
+/-- info: 'ConRon.Refine2.promoteE_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteE_unfold
+
+/-- info: 'ConRon.Refine2.promoteN_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteN_unfold
+
+/-- info: 'ConRon.Refine2.promote_n_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_n_refines
 
 end ConRon.Refine2

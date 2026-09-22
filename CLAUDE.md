@@ -83,4 +83,13 @@ section for every task you land.
   worktrees automatically (an agent may be working in one).  Task scratch
   under `_tmp/` is deleted once its numbers are in DESIGN.md; the corpus and
   `_tmp/aeneas-lean` stay.
+
+  **A landing is three steps, not two: merge, drop the worktree, STOP THE
+  AGENT.**  A finished agent is still a live subagent holding its context;
+  nothing sweeps them, and in every view except an explicit listing a finished
+  agent looks exactly like a working one, so the step is invisible when it is
+  skipped and they pile up.  `scripts/drop-worktree.sh` prints the agent id to
+  stop as its last line — do it then, not in a later sweep.  The same goes for
+  the scratch: the script deletes `_tmp/{gates,extract,extract-check}-<key>`,
+  and skipping it once cost 13 GB of orphans on a shared machine.
 * Commit often; the maintainer pushes and opens PRs.

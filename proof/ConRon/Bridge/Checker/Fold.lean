@@ -49,6 +49,7 @@ So the shape of the whole tier is: one induction (here), one bracket (here),
 seven arms (`Decl.lean`), and two named hypotheses (`Hyp.lean`).
 -/
 import ConRon.Bridge.Checker.Mono
+import ConRon.Bridge.Checker.Arms
 
 open ConLeche ConRon.Arena
 
@@ -58,25 +59,10 @@ set_option autoImplicit false
 
 /-! ## Running an `AM` do-block
 
-Three `rfl` equations and one inversion lemma; after them no proof in this
-module mentions `StateT`. -/
-
-theorem AM.bind_apply {α β : Type} (x : AM α) (f : α → AM β) (s : AState) :
-    (x >>= f) s = (x s) >>= (fun p => f p.1 p.2) := rfl
-
-/-- con-leche: none — the `AM` bind's inversion: an accepting composite is two
-accepting halves. -/
-theorem AM.bind_ok {α β : Type} {x : AM α} {f : α → AM β} {s s' : AState}
-    {b : β} (h : (x >>= f) s = .ok (b, s')) :
-    ∃ a s₁, x s = .ok (a, s₁) ∧ f a s₁ = .ok (b, s') := by
-  rw [AM.bind_apply] at h
-  revert h
-  cases hx : x s with
-  | error e => intro h; exact nomatch h
-  | ok p =>
-    obtain ⟨a, s₁⟩ := p
-    intro h
-    exact ⟨a, s₁, rfl, h⟩
+Three `rfl` equations; the bind's inversion (`AM.bind_ok`) moved down to
+`Bridge/Promote/Pers.lean` in task #97-P3-Checker-2, because
+`Bridge/Checker/Base.lean` needs it too and sits below this module.  After
+them no proof in this module mentions `StateT`. -/
 
 /-- con-leche: none — `flushCaches` as an equation. -/
 theorem flushCaches_run (s : AState) :
@@ -221,23 +207,37 @@ earns its keep: after `promoteNew` the environment names persistent handles
 only, so `PExt.dropScratch` carries its denotation across the drop and the
 next step starts from a `FoldOK` again.
 
-`sorry`, and **the reason is a one-lemma gap in the store layer** (task
-#97-P3-Checker, finding 4): the five stages are each spec'd
-(`flushCaches_run`, `enterScratch_run`, `Arena.checkDecl_bridge`,
-`promoteNew_spec`, `dropScratch_run` / `PExt.dropScratch`) and `AM.bind_ok`
-inverts the binds, but re-establishing `FoldOK` *after the `enterScratch`* —
-which is where the composition starts — needs the persistent denotation to
-survive the flag flip, and `Arena/WFProofs.lean` states that for
-`dropScratch` and not for `enableScratch`.  `Bridge/Promote/Pers.lean`'s
-`PExt.enterScratch` is that gap, named as a lemma; with it this proof is the
-mechanical composition it looks like.  Task #97-P3-Checker's sorry list,
-item 8. -/
+`sorry`, and **the reason is no longer the one this statement was written
+with.**  Task #97-P3-Checker's finding 4 named `PExt.enterScratch` as the gap;
+task #97-P3-Checker-2 **closed it** (`Bridge/Promote/Pers.lean`: the two ends
+of the bracket have equal `view` at every handle, so the readbacks are equal
+functions).  Three things now stand between this statement and its proof, and
+all three are named:
+
+1. `promoteNew_spec` and `StoreWFP.dropScratch_wf` (`Bridge/Promote/**`, the
+   store layer's items 1 and 5) — stated, open;
+2. `PExt` across the closing `dropScratch` at a store that is only
+   `StoreWFP` (the promotion breaks `fresh` transiently), which is
+   `PExt.dropScratch`'s argument re-run from `EWFAtP` and belongs beside
+   item 1;
+3. **`IFEnvOK env' fe' s'` at the NEW environment**, which is
+   `IFEnvOK_of_denote` (`Bridge/Checker/Inv.lean`, item 6) — and that is not
+   provable until `Arena/Frontend/Readback.lean`'s `denoteProjTable` pins
+   `tableName`; see its own note.  The alternative is a clause on `DeclOut`
+   and therefore on `IndSpec`, which would undo task #97-P3-Ind's `IndOut`
+   match, so the `denoteCI` fix is the one to take.
+
+The statement also gains `PersDecl pd`: the stream's record must be
+persistent for its denotation to survive the `enterScratch`, and the fold
+already carries that hypothesis (`Arena.checkDeclsPureGo_bridge`'s `hpd`).
+Task #97-P3-Checker's sorry list, item 8. -/
 theorem Arena.checkDeclStep_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {pd : IDeclaration} {d : Declaration}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hpp : PersPinSets pins) (hd : Frontend.denoteDecl s.store pd = some d)
+    (hpp : PersPinSets pins) (hpd : PersDecl pd)
+    (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.checkDeclStep μ pins fe pd s = .ok (fe', s')) :
     ∃ env' F', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
       ConLeche.checkDecl μ (ConLeche.fueledOps μ F') pinsP env d = .ok env' := by
@@ -295,7 +295,8 @@ theorem Arena.checkDeclsPureGo_bridge {μ : CheckMode}
         simp only [Arena.checkDeclsPureGo] at hrun
         obtain ⟨fe₁, s₁, hstep, htail⟩ := AM.bind_ok hrun
         obtain ⟨env₁, F₁, hok₁, hx₁, hrun₁⟩ :=
-          Arena.checkDeclStep_bridge hμ hk hind hok hpins hpp ha hstep
+          Arena.checkDeclStep_bridge hμ hk hind hok hpins hpp
+            (hpd a (by simp)) ha hstep
         -- the tail, at the state the step left
         obtain ⟨env₂, F₂, hok₂, hx₂, hrun₂⟩ :=
           ih xs env₁ fe₁ fe' s₁ s' hok₁ (PinsDenote.pmono hx₁ _ _ hpp hpins)

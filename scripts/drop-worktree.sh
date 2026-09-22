@@ -45,3 +45,12 @@ git branch -d "$branch" >/dev/null
 key=$(printf '%s' "$path" | sha256sum | cut -c1-12)
 rm -rf "_tmp/gates-$key" "_tmp/extract-$key" "_tmp/extract-check-$key"
 echo "dropped $path ($branch, merged into $into), $(git worktree list | wc -l) worktree(s) remain"
+# The worktree is only half of a landing.  An agent that has reported is still
+# a live subagent holding its context until it is stopped explicitly, and
+# nothing sweeps them: they accumulate silently, because a finished agent looks
+# exactly like a working one in every view except an explicit listing.  The
+# directory is named after the agent, so say which one out loud here — this is
+# the moment the step is otherwise forgotten.
+case "$(basename "$path")" in
+  agent-*) echo "NEXT: stop the agent as well — ${path##*/agent-} (TaskStop, or your runner's equivalent); landing = merge + drop worktree + STOP AGENT" ;;
+esac

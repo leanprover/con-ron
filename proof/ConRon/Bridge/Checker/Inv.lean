@@ -483,6 +483,80 @@ theorem denoteDecls_pext {st st' : EStore} (hx : PExt st st') :
           ih ys (fun c hc => hp c (by simp [hc])) has]
         exact h
 
+/-! ## The declaration layer across an APPEND
+
+`Bridge/Rel.lean` stops at `denoteCI_ext`; the fold and the arms need the list
+and the environment too.  Named `…_mono` rather than `…_ext` because
+`Bridge/Inductives/Rel.lean` has its own `denoteCIList_ext` / `denoteFEnv_ext`
+in a namespace that opens this one, and two equally-reachable names of the
+same spelling are an ambiguity error rather than a shadowing. -/
+
+/-- con-leche: none — a block's denotation survives an append. -/
+theorem denoteCIList_mono {st st' : EStore} (hx : Ext st st') :
+    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo),
+      Frontend.denoteCIList st cs = some xs →
+        Frontend.denoteCIList st' cs = some xs := by
+  intro cs
+  induction cs with
+  | nil => intro xs h; exact h
+  | cons a as ih =>
+    intro xs h
+    simp only [Frontend.denoteCIList] at h ⊢
+    cases ha : Frontend.denoteCI st a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteCIList st as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        rw [denoteCI_ext ha hx, ih ys has]
+        exact h
+
+/-- con-leche: none — the environment's denotation survives an append. -/
+theorem denoteFEnv_mono {st st' : EStore} (hx : Ext st st') {fe : IFEnv}
+    {env : Env} (h : denoteFEnv st fe = some env) :
+    denoteFEnv st' fe = some env := by
+  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at h ⊢
+  obtain ⟨cs, hcs, he⟩ := h
+  exact ⟨cs, denoteCIList_mono hx _ _ hcs, he⟩
+
+/-! ## The index spec across a drop
+
+`IFEnvOK.mono` (`Bridge/StateOK.lean`) carries the index spec across an
+APPEND.  The fold needs it across a `dropScratch`, and `PersIFEnv` is exactly
+what makes that work: every handle the index mentions — the key and the
+constant — is persistent, so both halves of the spec transport by the `…_pext`
+lemmas above. -/
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec survives a
+drop.**  Both clauses are a transport, and the persistence they need is
+`PersIFEnv`'s row clause read through `PersIFEnv.find`
+(`Bridge/Promote/Pers.lean`).
+
+This is what `Bridge/Checker/Fold.lean`'s bracket uses to rebuild `CheckOK`
+after the drop, and it is why `IFEnvOK_of_denote` below is NOT on the critical
+path: `FoldOK.check.ienv` already carries the spec, so nothing has to
+reconstruct it from the denotation. -/
+theorem IFEnvOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : IFEnvOK env fe s) (hp : PersIFEnv fe) (hx : PExt s.store s'.store) :
+    IFEnvOK env fe s' where
+  hit := by
+    intro n ci hf
+    obtain ⟨hpn, hpci⟩ := hp.find hf
+    obtain ⟨nm, c, h1, h2, h3⟩ := h.hit n ci hf
+    exact ⟨nm, c, denoteN_pext hx hpn h1, denoteCI_pext hx hpci h2, h3⟩
+  cover := by
+    intro nm c hf
+    obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hf
+    obtain ⟨hpn, hpci⟩ := hp.find h2
+    exact ⟨n, ci, denoteN_pext hx hpn h1, h2, denoteCI_pext hx hpci h3⟩
+  proj := by
+    intro n t hf
+    obtain ⟨hpn, hpci⟩ := hp.find hf
+    obtain ⟨sn, h1, h2⟩ := (h.proj n t hf).named
+    exact ⟨(h.proj n t hf).bodies, (h.proj n t hf).guards, sn,
+      denoteN_pext hx hpci.structName h1, denoteN_pext hx hpci.tableName h2⟩
+
 /-! ## The fold-step invariant -/
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:262 CSOK
@@ -505,14 +579,71 @@ denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
 and "the index is its list's index", because `IEnv.find?` and `Env.find?` are
 the same linear search and `denoteN` is injective on a well-formed store.
 
+**It needs one thing the denotation does not carry** (task
+#97-P3-Checker-2's second statement defect, now fixed where it belongs).
+Both halves want "the index's key denotes the constant's own name", i.e.
+
+    denoteN st.ns ci.name = some (Frontend.denoteCI st ci).get.name
+
+and at `.projInfo` that is **false of `denoteCI`**: `IConstantInfo.name
+(.projInfo t)` is the STORED `t.tableName` (`Arena/Env.lean`'s "the one field
+con-leche's `ProjTable` does not have", kept so that the index's key is pure)
+while `ConstantInfo.name (.projInfo tbl)` is the RECOMPUTED
+`projTableName tbl.structName`, and `Frontend.denoteProjTable` **drops
+`tableName`** — so nothing in the denotation constrains it.  A store whose
+`t.tableName` denotes another name satisfies every other hypothesis and
+refutes the conclusion.
+
+**The fix is NOT in `Arena/Frontend/Readback.lean`.**  A simulation B ⇒ A
+takes invariants on the REFINED side only, and this is a fact about OUR
+stored table, so it is a clause of `IFEnvOK` — `Bridge/StateOK.lean`'s
+`IProjTableOK.named`, which is the hypothesis this theorem now takes and its
+conclusion re-delivers.  The same clause record carries task #97-P3-Core-2's
+`ProjTablesShaped`: they are one problem (the projection-table denotation does
+not carry what its consumers need) and one fix.
+
 `sorry`: the `hit`/`cover` pair is an induction on `fe.env.consts` through
-`mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality.  It is the
-one place `IFEnvCoh` is consumed rather than propagated, and the argument is
-con-leche's `mkFEnv_find?` at a denoted list.  Task #97-P3-Checker's sorry
-list, item 6. -/
+`mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality and
+`hproj` at the `.projInfo` arm.  It is the one place `IFEnvCoh` is consumed
+rather than propagated, and the argument is con-leche's `mkFEnv_find?` at a
+denoted list.  Task #97-P3-Checker's sorry list, item 6. -/
 theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
+    (hproj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t)
     (hd : denoteFEnv s.store fe = some env) : IFEnvOK env fe s := by
+  sorry
+
+/-! ## The one debtor of `IFEnvOK.proj`
+
+`IProjTableOK` is true of every table the checker stores, and the only place
+it can be discharged is the install that builds one.  Naming it here keeps
+`Bridge/Core/Walks/Proj.lean`'s `IFEnv.findProj?_spec` free of a hypothesis a
+walk cannot discharge (task #97-P3-Core-2's second finding, answered). -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86
+checkStructProjTable — **the install's obligation**: the table
+`checkStructProjTable` pushes satisfies `IProjTableOK`.
+
+All three clauses are true by construction, and the twin already tests two of
+them: `unless bodies.size = nF` is the `bodies` clause verbatim, and
+`let tn ← projTableName T` is the `named` clause's second half.  The `guards`
+clause is the ONE the install itself does not test — `guards` is an argument —
+so its discharge site is the CALLER, the structure route that builds
+`structProjGuards T nF` and passes it beside `nF`.
+
+**OWNER: the Inductives tier** — `Bridge/Inductives/StructInstall.lean`'s
+`checkStructProjTable_spec` (task #97-P3-Ind's sorry list, item 8), whose
+`InstRel` conclusion is where the clause belongs.  Stated here so that
+`IFEnvOK`'s new field has exactly one named debtor rather than a free
+hypothesis at every consumer. -/
+theorem projTableOK_of_install {T C : NIdx} {lps : List NIdx} {nP nF : Nat}
+    {resSort : LIdx} {guards : List LIdx} {off : Nat} {cvCa : IConstantVal}
+    {fe fe' : IFEnv} {s s' : AState} (hok : StateOK s)
+    (hg : guards.length = nF)
+    (hrun : Arena.checkStructProjTable T C lps nP nF resSort guards off cvCa fe s
+      = .ok (fe', s')) :
+    ∀ n t, fe'.find? n = some (.projInfo t) →
+      fe.find? n = some (.projInfo t) ∨ IProjTableOK s'.store t := by
   sorry
 
 end ConRon.Bridge

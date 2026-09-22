@@ -35,7 +35,13 @@ discharges it, and `CoreSpec.of_knot` below does that in one line.
 also needs `PersPins s'` (the pin handles are persistent), and that is
 transported by `s'.pins = s₀.pins` and nothing else.  No core entry writes
 `s.pins`, so the clause is free; `CoreStep` below carries it, and adding it to
-`KnotSpec`'s postcondition is the one thing this tier asks of the Core tier.
+`KnotSpec`'s postcondition was the one thing this tier asked of the Core tier.
+**It is there** (task #97-P3-CoreWalks): every slot of `KnotSpec` and
+`EnsureSortSpec` now ends `s'.pins = s₀.pins`, which is what lets the run-form
+proofs of `Bridge/Checker/Base.lean` and `Bridge/Checker/Arms.lean` conclude
+`CoreStep` at all.  Task #97-P3-Checker-2's stop-gap `CorePinFrame` — a
+third field of `CoreSpec` saying the same thing — is deleted with this
+merge.
 
 **`IndSpec μ` — the INDUCTIVES tier's**.  `Arena/Inductives.lean`'s
 `checkIndDecl` is 9 500 lines of arena twin under it, and `checkDecl`'s
@@ -168,6 +174,28 @@ covers the route `basisPinHit` did NOT recognise, which is the one
 
 The precedent is `RefineOld/Main.lean`'s `hind : IndRoutesSpec .Verified`:
 one named hypothesis for the whole inductive install, discharged by a tier of
+its own.
+
+**Two clauses corrected (task #97-P3-Ind's finding, made here in P3-Checker-2).**
+The round that wrote this statement asked for `PersIFEnv fe'` and did not ask
+for `Pushed fe fe'`, and the inductive tier found both wrong by trying to prove
+them:
+
+* `PersIFEnv fe'` is **false of this arm**.  `Arena/Checker.lean`'s bracket is
+  `flushCaches; enterScratch; <the step>; promoteNew; dropScratch`, so
+  `checkDecl` — and with it `Inductives.checkIndDecl` — runs with the scratch
+  tier OPEN and every constant the route installs carries a freshly interned,
+  hence scratch, type.  Persistence is `promoteNew`'s, one level up.
+  `Bridge/Checker/Decl.lean`'s `DeclOut` says exactly this in prose and omits
+  the clause; this statement contradicted it.
+* `Pushed fe fe'` was **missing**, and the consumer needs it:
+  `checkDecl_bridge_ind`'s conclusion is `DeclOut`, whose `pushed` clause is
+  what makes `checkDeclStep`'s promotion counter `k` mean "the constants this
+  step installed", and only the arm can supply it.
+
+The edit is consumer-compatible — `Bridge/Checker/Capstone.lean` never reads
+`IndSpec`, it passes it to `checkDecl_bridge_ind` — and with it
+`Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` closes with no `sorry` of
 its own. -/
 structure IndSpec (μ : CheckMode) : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
@@ -177,7 +205,7 @@ structure IndSpec (μ : CheckMode) : Prop where
     ConLeche.basisPinHit b = none →
     Inductives.checkIndDecl μ fe block nP s = .ok (fe', s') →
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-      PersIFEnv fe' ∧ IFEnvCoh fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
+      IFEnvCoh fe' ∧ Pushed fe fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
         ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
           = .ok env'
