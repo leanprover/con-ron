@@ -416,40 +416,47 @@ con-leche's `mkFEnv_find?_visibleBelow` at the arena's `IFEnv.restrictTo`.
 This is the one place the environment INDEX is consulted at something other
 than the environment it indexes, and it is why `FoldOK` carries `IFEnvCoh`. -/
 
-/-- con-leche: ConLeche/Verify/EnvBound.lean:141 mkFEnv_find?_visibleBelow —
-**the prefix view denotes the prefix environment**.  Phase B checks a pending
-record against `fe.restrictTo pc.vis`, and this says that view is the
-environment the record was installed at.
+/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find?_visibleBelow —
+**the prefix view IS the index of the prefix environment**.  Phase B checks a
+pending record against `fe.restrictTo pc.vis`, and this says that view indexes
+the environment the record was installed at.
 
 The `Nodup` side condition is con-leche's own and it is the accumulated
 duplicate test of `checkConstantVal`; the fold carries it.
 
-`sorry`, and **the statement is FALSE as written** (task #97-P3-Checker
-round 4 — the round's fourth statement defect, and the only one it found that
-is false rather than under-hypothesised).  `IFEnv.restrictTo k` is
-`{ fe with visibleBelow := k }`, a change to the INDEX's bound and to nothing
-else, while `denoteFEnv st fe` is `denoteIEnv st fe.env` — it reads
-`fe.env.consts` and ignores `idx` and `visibleBelow` entirely.  So
-`denoteFEnv s.store (fe.restrictTo k) = denoteFEnv s.store fe = some env`,
-`envK = env` is forced, and the second conjunct becomes
-`env.find? = (env.prefixTo k).find?`, which fails at `k = 0` and any non-empty
-`env` (`env.prefixTo 0 = ⟨[]⟩`).
+**RESTATED** (task #97-P3-Checker round 5, on round 4's finding).  Round 4's
+conclusion was
 
-**What it should say.**  con-leche's own `mkFEnv_find?_visibleBelow`
-(`Verify/EnvBound.lean:243`) is about `FEnv.find?`, not about a denotation:
-"looking a name up in the full index with the bound `k` is looking it up in
-the environment truncated to its first `k` installed constants".  The arena
-twin of that is a statement about the INDEX — `IFEnvOK (env.prefixTo k)
-(fe.restrictTo k) s`, "the restricted index is the index of the prefix
-environment" — which is also exactly what the one consumer
+    ∃ envK, denoteFEnv s.store (fe.restrictTo k) = some envK ∧
+      envK.find? = (env.prefixTo k).find?
+
+and it is FALSE.  `IFEnv.restrictTo k` is `{ fe with visibleBelow := k }` — a
+change to the INDEX's bound and to nothing else — while `denoteFEnv st fe` is
+`denoteIEnv st fe.env`, which reads `fe.env.consts` and ignores `idx` and
+`visibleBelow` entirely.  So `denoteFEnv s.store (fe.restrictTo k)
+= denoteFEnv s.store fe = some env`, `envK = env` is forced, and the second
+conjunct degenerates to `env.find? = (env.prefixTo k).find?`, which fails at
+`k = 0` and any non-empty `env` (`env.prefixTo 0 = ⟨[]⟩`).
+
+con-leche's own `mkFEnv_find?_visibleBelow` is a statement about `FEnv.find?`,
+not about a denotation — *"looking a name up in the full index with the bound
+`k` is looking it up in the environment truncated to its first `k` installed
+constants"* — and the arena twin of that is a statement about the INDEX.  That
+is what stands here now, and it is what the one consumer
 (`Arena.checkPending_bridge`, phase B, which calls the core at
-`fe.restrictTo pc.vis`) needs.  Reported rather than rewritten: replacing a
-conclusion is a statement decision. -/
-theorem denoteFEnv_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
+`fe.restrictTo pc.vis`) actually needs: the Core tier's hypotheses are
+`IFEnvOK`-shaped, not denotation-shaped.
+
+`sorry`: `proj` is immediate (`hk` makes every hit of the restricted view a
+hit of `fe`, so `FoldOK`'s own `IFEnvOK.proj` applies), and `hit`/`cover` are
+con-leche's `idxBelow_eq` at a DENOTED list — the same `mkIFEnvGo` induction
+`IFEnvOK_of_denote` needs, with `denoteN_inj` where con-leche uses name
+equality and `Env.prefixTo`'s `drop` where con-leche has `List.find?`.
+Task #97-P3-Checker's sorry list, item 20. -/
+theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
     {s : AState} {k : Nat} (hok : FoldOK μ env fe s)
     (hnd : (env.consts.map (·.name)).Nodup) (hk : k ≤ fe.visibleBelow) :
-    ∃ envK, denoteFEnv s.store (fe.restrictTo k) = some envK ∧
-      envK.find? = (env.prefixTo k).find? := by
+    IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
   sorry
 
 /-! ## Phase A and phase B -/
@@ -486,7 +493,7 @@ theorem Arena.annotStep_bridge {μ : CheckMode}
 /-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
 B's check of one record**, against the prefix view, inside its own bracket.
 
-`sorry`: `denoteFEnv_restrictTo` and `checkValueGroup_bridge`, then the
+`sorry`: `IFEnvOK_restrictTo` and `checkValueGroup_bridge`, then the
 bracket with nothing to promote (`Arena/Checker.lean`: "Nothing crosses back,
 so there is nothing to promote").  Task #97-P3-Checker's sorry list,
 item 19. -/
@@ -517,7 +524,7 @@ Theorem 1 — the half the history report's fine print 5 prices — and with
 `Verify/Cached/InstalledC.lean:456 installRun_model` is the same walk at the
 model instead of at `checkDeclsPure`): phase A's records give the install
 halves at each prefix environment, `Arena.checkPending_bridge` gives the check
-half at the SAME one through `denoteFEnv_restrictTo`, `checkDecl_of_split_*`
+half at the SAME one through `IFEnvOK_restrictTo`, `checkDecl_of_split_*`
 combines them into `ConLeche.checkDecl`, and `checkDecl_mono` raises the fuels
 to one.  Task #97-P3-Checker's sorry list, item 20 — the largest remaining
 item after the seven arms, and the only one that is a *fold* rather than a
