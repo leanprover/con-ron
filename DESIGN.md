@@ -37303,3 +37303,21 @@ change.**
 * **`ConRonBridge` is not in `defaultTargets`** while the tier carries
   `sorry`s — the precedent is `ConRonArenaSpike`.  `lake build ConRonBridge`
   is the command; promote it when the tier closes.
+
+#### 8. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 12 OK**, before the merge and again after it (`extract-check` 89 s, `lake-build` 348 s) |
+| `lake build ConRonBridge` | **0 errors**, 128 jobs; `ConRon/Bridge/**` only, and the library imports no Mathlib and no Aeneas |
+| `#print axioms` | `Bridge/Axioms.lean`, seventy results, every one `[propext, Classical.choice, Quot.sound]` |
+| the diff | `proof/ConRon/Bridge/**`, `proof/ConRon/Bridge.lean`, one `lean_lib` in `proof/lakefile.toml`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/` |
+
+`arena` moved 271 files under this branch while it ran — task **#97-SWAP**
+(the arena crates became the shipping crates, and `Arena/Spike/` went with
+`crates/arena-spike`) and task **#97-P5-0** (Theorem 2's foundation) — and was
+merged in.  The only two conflicts were textual: this section against theirs
+at the end of the task log, and the `lean_lib` block where SWAP-2 deleted
+`ConRonArenaSpike` and this task added `ConRonBridge` beside it.  Nothing
+either task changed is reachable from `ConRon.Bridge`, which imports
+`ConRon.Arena` and con-leche's `Kernel/*` and nothing else.
