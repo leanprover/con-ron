@@ -56,7 +56,7 @@
 //! the export also carries hands the export's parse the very same handle.
 //! What changes is only WHEN the intern happens, and how many times.
 //!
-//! Lean twin: `proof/ConRon/Arena/Monad.lean:123-142 AState` (DESIGN.md §8.6's
+//! Lean twin: `proof/ConRon/Arena/Monad.lean:119-136 AState` (DESIGN.md §8.6's
 //! twin ledger, task #97-P6-4a) — `AState` gains a `pins : Pins` field and
 //! `internAllPins` fills it, and the hundred-odd `pin` clauses become field
 //! reads. Nothing about the DENOTATION moves, and the one obligation is an
@@ -327,7 +327,7 @@ pub fn pin_names() -> Vec<Name> {
 /// the prelude, so the scratch tier is closed and every handle below is
 /// persistent (the module note says why that matters).
 ///
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:224-239 internReservedPins` —
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:220-234 internReservedPins` —
 /// `internAllPins : AM Unit`, the same sequence.
 pub fn intern_reserved_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match intern_name_list(pers, st, &pin_names()) {

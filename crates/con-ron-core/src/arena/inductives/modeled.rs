@@ -445,7 +445,7 @@ pub const M_ETA_RESID: [u32; 47] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:56-65 domsMatchRenamed`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:48-61 domsMatchRenamed`
 /// — `domsMatchAux` with the right side renamed (`g = fun _ e => e.renameConsts
 /// f`, `checkProjIota`'s instance of con-leche's higher-order argument).  `f`
 /// is the `NIdxToNIdx` dictionary `arena::expr_ops` already uses for
@@ -487,7 +487,7 @@ where
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:71-74 eqBasisStored`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:63-71 eqBasisStored`
 /// — `env.find? eqName = some eqA`, the "requires the pinned `Eq` basis"
 /// guard, factored out because three call sites make it.  `eq_basis_ci` is the
 /// comparand: the same `ConstantInfo` through the same store, hence the same
@@ -514,7 +514,7 @@ pub fn eq_basis_stored(
 }
 
 /// con-leche: none — `(n.str "_model")`, interned
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:89 blockRenameTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:82-90 blockRenameTable`
 /// — the one name suffix every modeled-route lookup builds.  Over handles
 /// building a name means INTERNING one, which is why the renaming maps are
 /// tables and not functions (the module note).
@@ -524,7 +524,7 @@ pub fn model_name(pers: &PersTier, st: &mut AState, n: &NIdx) -> Result<NIdx, Ch
 }
 
 /// con-leche: none — `internLsNode`, at a level list the install already holds
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:307 checkIotaThmN` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN` —
 /// the `LsIdx` a `const` node carries, from the `Vec<LIdx>` `nestedRuleShape`
 /// returned.
 pub fn intern_ls(pers: &PersTier, st: &mut AState, us: &Vec<LIdx>) -> Result<LsIdx, CheckError> {
@@ -536,14 +536,14 @@ pub fn intern_ls(pers: &PersTier, st: &mut AState, us: &Vec<LIdx>) -> Result<LsI
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — look a name up in a precomputed rename table
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:48-51 renameBy` — a
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:75-80 renameBy` — a
 /// name the table does not mention is its own image.
 pub fn rename_by(tbl: &Vec<(NIdx, NIdx)>, n: &NIdx) -> NIdx {
     rename_by_from(tbl, 0, n)
 }
 
 /// con-leche: none — look a name up in a precomputed rename table
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:49 renameBy` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:75-80 renameBy` — the
 /// cursor recursion behind `rename_by` (`tbl.find? (·.1 == n)`).
 pub fn rename_by_from(tbl: &Vec<(NIdx, NIdx)>, i: usize, n: &NIdx) -> NIdx {
     if i >= tbl.len() {
@@ -556,7 +556,7 @@ pub fn rename_by_from(tbl: &Vec<(NIdx, NIdx)>, i: usize, n: &NIdx) -> NIdx {
 }
 
 /// con-leche: none — replaces the `f : NIdx → NIdx` argument of `renameConsts`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:48-51 renameBy` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:75-80 renameBy` —
 /// the rename table packaged as the `NIdxToNIdx` dictionary
 /// `arena::expr_ops::rename_consts_fast` takes.  It IS the twin's partial
 /// application `renameBy tbl`, with the closure defunctionalised (§3.4).
@@ -565,7 +565,7 @@ pub struct RenameBy {
 }
 
 /// con-leche: none — replaces the `f : NIdx → NIdx` argument of `renameConsts`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:48-51 renameBy`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:75-80 renameBy`.
 impl NIdxToNIdx for RenameBy {
     /// con-leche: none — the `f` of `renameConsts f`
     fn rename(&self, n: &NIdx) -> NIdx {
@@ -574,7 +574,7 @@ impl NIdxToNIdx for RenameBy {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:56-61 blockRenameTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:82-90 blockRenameTable`
 /// — the block renaming as a table: every member name maps to its `_model`
 /// companion, every other name to itself.
 pub fn block_rename_table(
@@ -589,7 +589,7 @@ pub fn block_rename_table(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:56-61 blockRenameTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:82-90 blockRenameTable`
 /// — the cursor recursion behind `block_rename_table`.
 pub fn block_rename_table_from(
     pers: &PersTier,
@@ -614,7 +614,7 @@ pub fn block_rename_table_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:457-464 projBack
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:65-74 projBack` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:92-103 projBack` —
 /// rename a model-side projection type back to public names, as a table.
 pub fn proj_back(
     pers: &PersTier,
@@ -641,7 +641,7 @@ pub fn proj_back(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:466-473 projFwd
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:78-87 projFwd` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:105-116 projFwd` — the
 /// forward (public → model) map on the projection family, as a table.
 pub fn proj_fwd(
     pers: &PersTier,
@@ -669,8 +669,8 @@ pub fn proj_fwd(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:457-464 projBack
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:466-473 projFwd
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:68-73 projBack.go`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:81-86 projFwd.go` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:92-103 projBack.go`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:105-116 projFwd.go` —
 /// the projection family's `nF` pairs, in one cursor recursion for both
 /// directions (`back` swaps the two sides).  The twin writes the two `go`s
 /// out; they differ only in that swap, and both intern the same two names in
@@ -718,7 +718,7 @@ pub fn proj_pairs_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — con-leche's `.app (.app (.app (.const c [ℓ]) ty) l) r`, read once
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:94-109 eqApp3?` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:120-138 eqApp3?` —
 /// the shape of every pinned iota/eta/unit statement body: the head's name, its
 /// single level, the type slot and the two sides.
 pub fn eq_app3(
@@ -771,7 +771,7 @@ pub fn eq_app3(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:31-53 checkIotaSidesTy
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:117-134 checkIotaSidesTy`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:142-163 checkIotaSidesTy`
 /// — certify that both sides of a modeled iota equation inhabit the equation's
 /// type, and that the equation's type slot itself inhabits the sort the
 /// statement's own `Eq.{ℓA}` names.  The slot certification is the TT lane's
@@ -822,7 +822,7 @@ pub fn check_iota_sides_ty(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:31-53 checkIotaSidesTy
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:129-134 checkIotaSidesTy`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:142-163 checkIotaSidesTy`
 /// — the TT-lane slot-sort certification, split off so that the
 /// `if mode.ttChecks` branch is one call.
 pub fn check_iota_slot_ty(
@@ -856,7 +856,7 @@ pub fn check_iota_slot_ty(
 }
 
 /// con-leche: none — `(cvName.str "_model").str ("iota_" ++ toString j)`, interned
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:138-140 iotaThmName`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:165-169 iotaThmName`
 /// — the name of a recursor's `j`-th model iota theorem.  `toString j` is
 /// `con_ron_core::kernel::core_k::nat_to_dec`, the port's own decimal
 /// recursion.
@@ -878,7 +878,7 @@ pub fn iota_thm_name(
 }
 
 /// con-leche: none — `xs.getLastD b0` over a `Vec<EIdx>`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:182 checkIotaThm` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm` —
 /// the major premise is the argument spine's last entry.
 pub fn last_d_eidx(xs: &Vec<EIdx>, dflt: &EIdx) -> EIdx {
     if xs.len() == 0 {
@@ -890,7 +890,7 @@ pub fn last_d_eidx(xs: &Vec<EIdx>, dflt: &EIdx) -> EIdx {
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:148-166 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the prologue both statement checks share: the stored `iota_j` theorem,
 /// its level parameters, its telescope opened at free variables, and the
 /// equation the body must be.  Returns the opened variables, the equation's
@@ -929,7 +929,7 @@ pub fn iota_stmt_open(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:155-166 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the prologue's tail: the telescope, the equation head and its arity.
 pub fn iota_stmt_open_at(
     pers: &PersTier,
@@ -964,7 +964,7 @@ pub fn iota_stmt_open_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:172-181 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the left side's **head, arity and prefix** pins, shared by the plain and
 /// the nested statement checks: the renamed recursor applied to the opened
 /// prefix variables, `mI + 1` arguments in all.  The twin fails each of the
@@ -1004,7 +1004,7 @@ pub fn iota_lhs_prefix_ok(
     }
 }
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:144-225 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — check a *canonical* recursor rule's `iota_j` theorem, semantically: the
 /// stored theorem's telescope is opened at free variables, its body must be an
 /// `Eq`, the equation's left side is structurally the renamed recursor applied
@@ -1077,7 +1077,7 @@ pub fn check_iota_thm(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:182-187 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the major premise is the renamed constructor at its own level parameters,
 /// applied to the leading parameter variables and the field variables.
 pub fn check_iota_major(
@@ -1113,7 +1113,7 @@ pub fn check_iota_major(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:188-205 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the constructor-telescope half: the constructor's telescope (renamed),
 /// instantiated at the major's arguments, gives the field domains and the
 /// canonical index tuple, both compared definitionally; then the statement's
@@ -1165,7 +1165,7 @@ pub fn check_iota_thm_ctor(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:196-205 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the index tuple's arity, the two index/domain comparisons and the
 /// statement's prefix domains against the renamed recursor's.
 pub fn check_iota_thm_idx(
@@ -1230,7 +1230,7 @@ pub fn check_iota_thm_idx(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:201-205 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the statement's prefix domains are the recursor's (renamed).
 pub fn check_iota_thm_prefix(
     pers: &PersTier,
@@ -1282,7 +1282,7 @@ pub fn check_iota_thm_prefix(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:206-218 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the rule's λ-domains are the public recursor prefix and the constructor's
 /// field domains: the recursor's telescope is opened afresh at `rP` variables,
 /// the constructor's is instantiated at the first `cnP` of them and then opened
@@ -1351,7 +1351,7 @@ pub fn check_iota_thm_frames(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:216-218 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the rule's λ-domains against the opened frame.
 pub fn check_iota_thm_lams(
     pers: &PersTier,
@@ -1389,7 +1389,7 @@ pub fn check_iota_thm_lams(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:219-225 checkIotaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:171-254 checkIotaThm`
 /// — the right side is definitionally the rule's renamed right-hand side
 /// applied to the whole opened frame, and both sides inhabit the type slot.
 pub fn check_iota_thm_rhs(
@@ -1441,7 +1441,7 @@ pub fn check_iota_thm_rhs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:232-262 nestedRuleShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:256-291 nestedRuleShape`
 /// — the nested-shape data of a non-canonical rule: the constructor's level and
 /// parameter instantiations, read off the recursor type's major-premise domain.
 /// The level list is a `Vec<LIdx>`, the shape `IRecRuleFire::Nested` stores.
@@ -1474,7 +1474,7 @@ pub fn nested_rule_shape(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:236-262 nestedRuleShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:256-291 nestedRuleShape`
 /// — the major premise's domain, its head's level arguments, and the
 /// parameter pins lowered out of the index frame.
 pub fn nested_rule_shape_at(
@@ -1519,7 +1519,7 @@ pub fn nested_rule_shape_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:241-259 nestedRuleShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:256-291 nestedRuleShape`
 /// — the domain's argument spine: the leading `cnP` are the pins, lowered out
 /// of the `k` index binders and lifted back to compare, the trailing `k` are
 /// the index spine, and the pins are scoped, resolving and level-closed.
@@ -1586,7 +1586,7 @@ pub fn nested_rule_shape_args(
 }
 
 /// con-leche: none — `(args.take cnP).mapM (lowerBVarsFast coreWalkFuel k 0)`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:244 nestedRuleShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:256-291 nestedRuleShape`
 /// — the cursor recursion the `mapM` becomes (DESIGN.md §3.4).
 pub fn lower_bvars_list(
     pers: &PersTier,
@@ -1612,7 +1612,7 @@ pub fn lower_bvars_list(
 }
 
 /// con-leche: none — `pins.mapM (liftLooseBVarsFast coreWalkFuel k 0)`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:245 nestedRuleShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:256-291 nestedRuleShape`
 /// — the cursor recursion the `mapM` becomes.
 pub fn lift_bvars_list(
     pers: &PersTier,
@@ -1638,7 +1638,7 @@ pub fn lift_bvars_list(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:250-254 nestedRuleShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:256-291 nestedRuleShape`
 /// — each pin is fvar-free, scoped at the recursor prefix, resolving and
 /// level-closed.  **All four conjuncts run for every pin**, as the twin's `do`
 /// does (Lean lifts every `(← e)` out of the `&&`), and the walk stops at the
@@ -1679,7 +1679,7 @@ pub fn nested_pins_ok(
     }
 }
 /// con-leche: none — `pins.mapM fun p => instSpine … (← renameConsts f p)`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-295 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the cursor recursion the `mapM` becomes: each pin is renamed and then
 /// instantiated at the opened recursor prefix, in that order.
 pub fn inst_spine_list_renamed(
@@ -1711,7 +1711,7 @@ pub fn inst_spine_list_renamed(
 }
 
 /// con-leche: none — `pins.mapM fun p => instSpine …`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:337 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the same cursor recursion without the renaming (the public frame's).
 pub fn inst_spine_list(
     pers: &PersTier,
@@ -1738,7 +1738,7 @@ pub fn inst_spine_list(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:268-356 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — check a *nested-auxiliary* recursor rule's `iota_j` theorem: the
 /// generalization of `checkIotaThm` to rules whose constructor parameters and
 /// levels are fixed instantiations.  A rule the nested shape does not
@@ -1782,7 +1782,7 @@ pub fn check_iota_thm_n(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:275-311 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the statement's prologue at a nested rule: the opened theorem, the pins
 /// instantiated at the opened prefix, the left side's head/arity/prefix pins
 /// and the major at the stored level instantiations.
@@ -1852,7 +1852,7 @@ pub fn check_iota_thm_n_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:306-311 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the major premise at the STORED level instantiations, applied to the
 /// instantiated pins and the field variables.
 pub fn check_iota_thm_n_major(
@@ -1913,7 +1913,7 @@ pub fn check_iota_thm_n_major(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:312-322 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the constructor's telescope at the stored level instantiations (renamed),
 /// instantiated at the pins and the field variables.
 pub fn check_iota_thm_n_ctor(
@@ -1998,7 +1998,7 @@ pub fn check_iota_thm_n_ctor(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:323-332 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the index tuple's arity, the two index/domain comparisons and the
 /// statement's prefix domains against the renamed recursor's.
 pub fn check_iota_thm_n_idx(
@@ -2066,7 +2066,7 @@ pub fn check_iota_thm_n_idx(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:328-332 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the statement's prefix domains are the recursor's (renamed).
 pub fn check_iota_thm_n_prefix(
     pers: &PersTier,
@@ -2122,7 +2122,7 @@ pub fn check_iota_thm_n_prefix(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:333-349 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the PUBLIC frame: the recursor's telescope opened afresh, the pins
 /// instantiated there (annotated and typed against the constructor's domains
 /// at the stored level instantiations), the constructor's fields opened, the
@@ -2201,7 +2201,7 @@ pub fn check_iota_thm_n_frames(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:343-349 checkIotaThmN`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:293-385 checkIotaThmN`
 /// — the constructor's fields opened at the public frame, the residual's
 /// arity, and the rule's λ-domains against the whole frame.
 pub fn check_iota_thm_n_fields(
@@ -2250,7 +2250,7 @@ pub fn check_iota_thm_n_fields(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:361-392 checkIotaRule`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:387-421 checkIotaRule`
 /// — check one modeled recursor rule: generic well-formedness of the
 /// right-hand side, then the model's `iota_j` theorem.
 pub fn check_iota_rule(
@@ -2285,7 +2285,7 @@ pub fn check_iota_rule(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:371-384 checkIotaRule`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:387-421 checkIotaRule`
 /// — the right-hand side's generic well-formedness: scoped, annotated,
 /// level-closed, resolving, a λ-telescope over the recursor prefix and the
 /// constructor's fields, and typeable.
@@ -2328,7 +2328,7 @@ pub fn check_iota_rule_wf(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:376-392 checkIotaRule`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:387-421 checkIotaRule`
 /// — the annotated right-hand side's guards, and then **the firing mode,
 /// computed once and stored on the rule**: a canonical rule takes the plain
 /// statement check, a non-canonical one the nested check (which answers
@@ -2407,7 +2407,7 @@ pub fn check_iota_rule_fire(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:391-392 checkIotaRule`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:387-421 checkIotaRule`
 /// — the stored rule: `{ r with rhs := rhsA, ctorParams := cnP, fire,
 /// paramsBlind := false }`, with the two rescue bits stamped by `recRuleBits`.
 pub fn check_iota_rule_bits(
@@ -2435,7 +2435,7 @@ pub fn check_iota_rule_bits(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:362-371 checkIotaRules
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:396-403 checkIotaRules`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:423-432 checkIotaRules`
 /// — the per-rule check, folded over a modeled recursor's rules.  Lean conses
 /// on the way out; the port pushes on the way in, at the same order of
 /// effects.
@@ -2494,7 +2494,7 @@ pub fn check_iota_rules(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:409-430 checkMemberVal`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:436-459 checkMemberVal`
 /// — check a block member's constant against its `_model` counterpart.
 pub fn check_member_val(
     pers: &PersTier,
@@ -2524,7 +2524,7 @@ pub fn check_member_val(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:418-430 checkMemberVal`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:436-459 checkMemberVal`
 /// — the model counterpart: it exists, at the member's level parameters, and
 /// its type is the member's under the block renaming.
 pub fn check_member_model(
@@ -2564,7 +2564,7 @@ pub fn check_member_model(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
 /// con-leche: ConLeche/Cached/CheckerC.lean:106-112 checkIndMemberS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:464-476 checkIndMember`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:461-476 checkIndMember`
 /// — check and install one non-recursor member of a modeled inductive block
 /// against its `_model` counterpart.
 ///
@@ -2603,7 +2603,7 @@ pub fn check_ind_member(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:448-453 checkIndMembers`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:478-486 checkIndMembers`
 /// — the member fold, as an explicit recursion (DESIGN.md §3.4: a `foldlM`
 /// with a partially applied step is a helper of its own).
 pub fn check_ind_members(
@@ -2628,7 +2628,7 @@ pub fn check_ind_members(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
 /// con-leche: ConLeche/Cached/CheckerC.lean:116-131 provisionRecsS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:491-504 provisionRecs`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:488-504 provisionRecs`
 /// — phase 0 of the recursor group: check each recursor's constant and
 /// provision it *rule-less* on top of the previous ones.  Lean conses the
 /// checked record on the way out; the port pushes on the way in, at the same
@@ -2688,7 +2688,7 @@ pub fn provision_recs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:473-479 installIndRecs`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:506-514 installIndRecs`
 /// — the install fold, as an explicit recursion.
 pub fn install_ind_recs(
     pers: &PersTier,
@@ -2744,7 +2744,7 @@ pub fn install_ind_recs(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 /// con-leche: ConLeche/Cached/CheckerC.lean:136-146 checkIndRecsS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:520-533 checkIndRecs`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:516-533 checkIndRecs`
 /// — check and install a block's recursors *as a group*: every rule right-hand
 /// side may mention any of them, so all are provisioned rule-less together and
 /// installed together.  The twin uses `fe₂` four times; Lean's value semantics
@@ -2796,7 +2796,7 @@ pub fn check_ind_recs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:475-495 checkProjLookups
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:501-517 checkProjLookups`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:537-555 checkProjLookups`
 /// — stage 1 of `checkProjFn`: the stored constants the projection depends on.
 pub fn check_proj_lookups(
     pers: &PersTier,
@@ -2824,7 +2824,7 @@ pub fn check_proj_lookups(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:475-495 checkProjLookups
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:507-517 checkProjLookups`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:537-555 checkProjLookups`
 /// — the model artifact, the free public name, the stored parent and the
 /// pinned `Eq` basis.
 pub fn check_proj_lookups_model(
@@ -2873,7 +2873,7 @@ pub fn check_proj_lookups_model(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:497-511 checkProjTy
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:522-537 checkProjTy`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:557-575 checkProjTy`
 /// — stage 2: the public projection type — the model's, renamed back (pinned
 /// by the renaming roundtrip), well-formed and parameter-led.  **All three
 /// conjuncts of the well-formedness test run**, as the twin's `do` does.
@@ -2911,7 +2911,7 @@ pub fn check_proj_ty(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:497-511 checkProjTy
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:529-537 checkProjTy`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:557-575 checkProjTy`
 /// — the public type's resolution, well-formedness and parameter telescope.
 pub fn check_proj_ty_wf(
     pers: &PersTier,
@@ -2951,7 +2951,7 @@ pub fn check_proj_ty_wf(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:541-582 checkProjIota`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:577-620 checkProjIota`
 /// — stage 4: the model's `proj_i.iota` theorem pins the rule.
 pub fn check_proj_iota(
     pers: &PersTier,
@@ -2993,7 +2993,7 @@ pub fn check_proj_iota(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:549-555 checkProjIota`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:577-620 checkProjIota`
 /// — the statement's binder domains against the constructor's, under the
 /// forward renaming.
 pub fn check_proj_iota_doms(
@@ -3035,7 +3035,7 @@ pub fn check_proj_iota_doms(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:556-582 checkProjIota`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:577-620 checkProjIota`
 /// — the statement's body is `proj_i p⃗ (C._model p⃗ x⃗) = x_i`, and then both
 /// equation sides are certified against the statement's type slot.
 pub fn check_proj_iota_body(
@@ -3085,7 +3085,7 @@ pub fn check_proj_iota_body(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:563-575 checkProjIota`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:577-620 checkProjIota`
 /// — the expected redex, and the three pins the statement's body must meet.
 pub fn check_proj_iota_lhs(
     pers: &PersTier,
@@ -3138,7 +3138,7 @@ pub fn check_proj_iota_lhs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:572-582 checkProjIota`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:577-620 checkProjIota`
 /// — the right side is field `i`, and both equation sides inhabit the
 /// statement's type slot (the telescope opened at free variables).
 pub fn check_proj_iota_field(
@@ -3193,7 +3193,7 @@ pub fn check_proj_iota_field(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:588-599 checkProjFn`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:622-637 checkProjFn`
 /// — check and install the public projection function for field `i` of a
 /// modeled single-constructor structure.  The function is stored as a
 /// degenerate recursor (no motive, no minors) carrying one rule.
@@ -3235,7 +3235,7 @@ pub fn check_proj_fn(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:595-599 checkProjFn`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:622-637 checkProjFn`
 /// — the rule, the model's iota theorem, and the install.
 pub fn check_proj_fn_rule(
     pers: &PersTier,
@@ -3288,7 +3288,7 @@ pub fn check_proj_fn_rule(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:606-648 checkEtaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:641-686 checkEtaThm`
 /// — does the model document structural eta for this single-constructor block
 /// — a `T._model.eta` theorem with the pinned statement?
 pub fn check_eta_thm(
@@ -3333,7 +3333,7 @@ pub fn check_eta_thm(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:613-621 checkEtaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:641-686 checkEtaThm`
 /// — the pinned `Eq` basis, the three level-parameter pins and the projection
 /// models' own level parameters.
 pub fn check_eta_thm_at(
@@ -3375,7 +3375,7 @@ pub fn check_eta_thm_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:617-620 checkEtaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:641-686 checkEtaThm`
 /// — the projection models exist at the family's level parameters.
 pub fn proj_models_ok(
     pers: &PersTier,
@@ -3410,7 +3410,7 @@ pub fn proj_models_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:622-647 checkEtaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:641-686 checkEtaThm`
 /// — the statement's shape: the parameter domains are the model former's, the
 /// subject's domain is the model family, and the body is
 /// `x = C._model p⃗ (proj_0 p⃗ x) … (proj_{n-1} p⃗ x)` at the family's type.
@@ -3454,7 +3454,7 @@ pub fn check_eta_thm_shape(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:627-647 checkEtaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:641-686 checkEtaThm`
 /// — the subject binder's domain and the equation body.
 pub fn check_eta_thm_body(
     pers: &PersTier,
@@ -3500,7 +3500,7 @@ pub fn check_eta_thm_body(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:635-646 checkEtaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:641-686 checkEtaThm`
 /// — the equation itself: `x = C._model p⃗ (proj_j p⃗ x)…`, at the family's
 /// type, with the TT-lane check that the model former's residual is `Sort ℓA`.
 pub fn check_eta_thm_eq(
@@ -3554,7 +3554,7 @@ pub fn check_eta_thm_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:639-641 checkEtaThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:641-686 checkEtaThm`
 /// — the cursor recursion the `(List.range nF).mapM` becomes: `proj_j._model`
 /// at the parameter spine and the subject.
 pub fn eta_proj_args(
@@ -3595,7 +3595,7 @@ pub fn eta_proj_args(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:644-680 checkUnitThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:653-685 checkUnitThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:688-723 checkUnitThm`
 /// — does the model document unit-likeness for this block — a
 /// `T._model.unitlike` theorem with the pinned statement
 /// `∀ p⃗ (x y : T._model p⃗), x = y`?
@@ -3643,7 +3643,7 @@ pub fn check_unit_thm(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:644-680 checkUnitThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:659-685 checkUnitThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:688-723 checkUnitThm`
 /// — the pinned `Eq` basis, the level-parameter pins and the statement's
 /// shape.
 pub fn check_unit_thm_at(
@@ -3688,7 +3688,7 @@ pub fn check_unit_thm_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:644-680 checkUnitThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:664-685 checkUnitThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:688-723 checkUnitThm`
 /// — the two subject binders' domains and the equation `x = y` at the
 /// family's type.
 pub fn check_unit_thm_shape(
@@ -3737,7 +3737,7 @@ pub fn check_unit_thm_shape(
 }
 
 /// con-leche: none — `mkAppN tHd (← structPsAt o nP)`, the model family at an offset
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:666-668 checkUnitThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:688-723 checkUnitThm`
 /// — the twin writes the same expression at three offsets.
 pub fn fam_at(
     pers: &PersTier,
@@ -3753,7 +3753,7 @@ pub fn fam_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:644-680 checkUnitThm
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:676-683 checkUnitThm`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:688-723 checkUnitThm`
 /// — the equation `bvar 1 = bvar 0` at the family's type.
 pub fn check_unit_thm_eq(
     pers: &PersTier,
@@ -3788,7 +3788,7 @@ pub fn check_unit_thm_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:682-710 ctorTargetsFam
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:691-697 ctorTargetsFam`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:725-735 ctorTargetsFam`
 /// — **official's structure-likeness, read off the block's own constructor**:
 /// one constructor and no indices, i.e. the constructor targets the family at
 /// exactly its parameters.
@@ -3813,7 +3813,7 @@ pub fn ctor_targets_fam(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
 /// con-leche: ConLeche/Cached/CheckerC.lean:170-176 installProjFnStepS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:740-745 installProjFnStep`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:737-746 installProjFnStep`
 /// — one projection-function install step (skipped where the model's
 /// projection artifact is absent), with the executed tier's flush at the
 /// environment transition (task #97g item 4).
@@ -3843,7 +3843,7 @@ pub fn install_proj_fn_step(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:710-715 installProjFns`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:748-755 installProjFns`
 /// — the projection fold, as an explicit recursion.
 pub fn install_proj_fns(
     pers: &PersTier,
@@ -3869,7 +3869,7 @@ pub fn install_proj_fns(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:724-735 indBlockCaps
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:719-730 indBlockCaps`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:757-770 indBlockCaps`
 /// — the capabilities recorded for a single-constructor modeled block.
 /// **`checkEtaThm` runs whatever the level-parameter test says**: Lean lifts
 /// the `(← …)` out of the `&&`, so a short-circuiting Rust would leave the
@@ -3925,7 +3925,7 @@ pub fn ind_block_caps(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:744-779 ctorResidualOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:735-745 ctorResidualOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:772-785 ctorResidualOk`
 /// — **con-leche's task #136: an eta-capable family's constructor returns the
 /// family applied to its parameters.**  The subject is the STORED constant.
 pub fn ctor_residual_ok(
@@ -3966,7 +3966,7 @@ pub fn ctor_residual_ok(
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — `block.filter ConstantInfo.isRecInfo` (and its complement)
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:756-757 checkModeled`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled`
 /// — the two filters the install opens with, as one cursor recursion.
 pub fn filter_recs(
     block: &Vec<IConstantInfo>,
@@ -3986,7 +3986,7 @@ pub fn filter_recs(
 }
 
 /// con-leche: none — `block.map ConstantInfo.name`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:761 checkModeled` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled` —
 /// the block's names, as one cursor recursion.
 pub fn block_names_of(block: &Vec<IConstantInfo>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= block.len() {
@@ -3999,7 +3999,7 @@ pub fn block_names_of(block: &Vec<IConstantInfo>, i: usize, out: Vec<NIdx>) -> V
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:762-764 checkModeled`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled`
 /// — the twin matches the two filtered lists against `[.indInfo cvT _]` and
 /// `[.ctorInfo cvC nP nF]`; here that is one reader, so the arm's binder names
 /// come out as a record rather than as a nested pattern.
@@ -4024,7 +4024,7 @@ pub fn single_ind_ctor(
 }
 
 /// con-leche: none — `block.filter (fun ci => ci matches .indInfo …)`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:762-763 checkModeled`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled`
 /// — the two constructor filters, at a tag (`0` the type formers, `1` the
 /// constructors).
 pub fn filter_kind(
@@ -4052,7 +4052,7 @@ pub fn filter_kind(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:752-781 checkModeled`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled`
 /// — check and install a modeled inductive block: every member is checked
 /// against its `_model` counterpart, then stored as a real inductive-kind
 /// constant.
@@ -4095,7 +4095,7 @@ pub fn check_modeled(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:764-778 checkModeled`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled`
 /// — the single-type-former, single-constructor arm: the capability record,
 /// the members, the recursors, the eta constructor residual, the projection
 /// name family's freshness and — at a structure-like block — the projection
@@ -4129,7 +4129,7 @@ pub fn check_modeled_struct(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:768-778 checkModeled`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled`
 /// — the eta constructor residual, the projection name family's freshness and
 /// the projection installs.
 pub fn check_modeled_projs(
@@ -4183,7 +4183,7 @@ pub fn check_modeled_projs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:772-774 checkModeled`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:789-821 checkModeled`
 /// — is the whole projection-function name family free?  The same test the
 /// direct route's table install makes (`checkStructProjTable`), as one cursor
 /// recursion.

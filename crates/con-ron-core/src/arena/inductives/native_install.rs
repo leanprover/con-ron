@@ -207,7 +207,7 @@ pub const M_NAT_SETTLE: [u32; 57] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:100-103 nativeIsRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:42-43 nativeIsRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:38-42 nativeIsRec`
 /// — official's `is_rec` off the classified kinds: some field is recursive or
 /// reflexive.
 pub fn native_is_rec(kinds: &Vec<Vec<RecFieldKind>>) -> bool {
@@ -215,7 +215,7 @@ pub fn native_is_rec(kinds: &Vec<Vec<RecFieldKind>>) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:100-103 nativeIsRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:42-43 nativeIsRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:38-42 nativeIsRec`
 /// — the cursor recursion behind `native_is_rec`.
 pub fn native_is_rec_from(kinds: &Vec<Vec<RecFieldKind>>, i: usize) -> bool {
     if i >= kinds.len() {
@@ -228,7 +228,7 @@ pub fn native_is_rec_from(kinds: &Vec<Vec<RecFieldKind>>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:100-103 nativeIsRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:43 nativeIsRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:38-42 nativeIsRec`
 /// — the inner `ks.any` of the cited clause.
 pub fn kinds_any_rec(ks: &Vec<RecFieldKind>, i: usize) -> bool {
     if i >= ks.len() {
@@ -243,7 +243,7 @@ pub fn kinds_any_rec(ks: &Vec<RecFieldKind>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:105-108 nativeCaps
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:47-48 nativeCaps`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:44-47 nativeCaps`
 /// — the block's capability record at its classified kinds.
 pub fn native_caps(
     pers: &PersTier,
@@ -254,7 +254,7 @@ pub fn native_caps(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:110-128 nativeRawRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:53-60 nativeRawRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:49-59 nativeRawRec`
 /// — **the syntactic reading of `is_rec`** (con-leche's task #268): does the
 /// block occur in some declared field domain of some constructor?
 pub fn native_raw_rec(
@@ -277,7 +277,7 @@ pub fn native_raw_rec(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:110-128 nativeRawRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:58 nativeRawRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:49-59 nativeRawRec`
 /// — the `(cbs.drop p.nP).anyM` of the cited clause.
 pub fn any_dom_mentions(
     pers: &PersTier,
@@ -303,7 +303,7 @@ pub fn any_dom_mentions(
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — extraction rule 5 (DESIGN.md's task #97-P4c): a `HashMap::get` match is its own function
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:84 mentionsFvarGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:69-110 mentionsFvarGo`
 /// — the `memo[h]?` probe of the `mentionsFvar` walk.
 pub fn mf_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     match memo.get(k) {
@@ -313,7 +313,7 @@ pub fn mf_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:214-219 Expr.mentionsFvarIns
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:66-68 mentionsFvarIns`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:63-67 mentionsFvarIns`
 /// — record one answer for `e` in the memo the walk hands back.
 pub fn mentions_fvar_ins(e: &EIdx, r: (bool, HashMap<EIdx, bool>)) -> (bool, HashMap<EIdx, bool>) {
     let mut memo: HashMap<EIdx, bool> = r.1;
@@ -323,7 +323,7 @@ pub fn mentions_fvar_ins(e: &EIdx, r: (bool, HashMap<EIdx, bool>)) -> (bool, Has
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:139-141 Expr.mentionsFvar
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:221-257 Expr.mentionsFvarGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:74-111 mentionsFvarGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:69-110 mentionsFvarGo`
 /// — does the variable `q` occur as a leaf of `e` (annotations included, as
 /// `fvarLeaves` walks them)?  con-leche's per-call memo, keyed by the node.
 pub fn mentions_fvar_go(
@@ -355,7 +355,7 @@ pub fn mentions_fvar_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:221-257 Expr.mentionsFvarGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:87-110 mentionsFvarGo`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:69-110 mentionsFvarGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (task #97-P4c's extraction rule 5).
 pub fn mentions_fvar_node(
@@ -404,7 +404,7 @@ pub fn mentions_fvar_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:379-381 Expr.mentionsFvarFast
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:115-116 mentionsFvar`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:112-115 mentionsFvar`
 /// — the executed `mentionsFvar` (one memoized DAG walk).
 pub fn mentions_fvar(
     pers: &PersTier,
@@ -425,7 +425,7 @@ pub fn mentions_fvar(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:22-59 nativeOpenedOkF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:124-175 nativeOpenedOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — the kinds the recogniser computed, re-checked on the annotated
 /// constructor type OPENED at variables, in the form the model reads.
 #[allow(clippy::too_many_arguments)]
@@ -474,7 +474,7 @@ pub fn native_opened_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:137-175 nativeOpenedOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — the `(List.range nF).allM` of the cited clause, as a counted recursion:
 /// one field, at its recognised kind.
 #[allow(clippy::too_many_arguments)]
@@ -570,7 +570,7 @@ pub fn native_fields_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:140-152 nativeOpenedOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — a FINITARY recursive field: its annotation is the family at the opened
 /// parameters, its indices resolve before the block, and no later field or the
 /// residual mentions it.
@@ -600,7 +600,7 @@ pub fn native_field_recursive(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:153-174 nativeOpenedOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — a REFLEXIVE field: its own telescope is opened at the field's depth
 /// (con-leche's task #202), its domains resolve before the block, its residual
 /// is the family, and no later field or the residual mentions it.
@@ -654,7 +654,7 @@ pub fn native_field_reflexive(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:142-148 nativeOpenedOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — the shared residual test: the family at the opened parameter variables
 /// with `nIdx` index arguments, all of which resolve before the block.
 #[allow(clippy::too_many_arguments)]
@@ -690,7 +690,7 @@ pub fn native_fam_app_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:149-152 nativeOpenedOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — no LATER field's annotation and not the residual mentions this field's
 /// variable.
 pub fn native_field_unused_later(
@@ -712,7 +712,7 @@ pub fn native_field_unused_later(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:149-150 nativeOpenedOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — the `(xFvs.drop (i + 1)).anyM` of the cited clause.
 pub fn later_mentions(
     pers: &PersTier,
@@ -738,7 +738,7 @@ pub fn later_mentions(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:435-445 nativeFieldsOk
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69 nativeFieldsOkF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:181-190 nativeFieldsOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:176-189 nativeFieldsOk`
 /// — the kinds, re-checked on every annotated constructor, one kind list per
 /// constructor, one kind per field.
 #[allow(clippy::too_many_arguments)]
@@ -762,7 +762,7 @@ pub fn native_fields_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:435-445 nativeFieldsOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:185-190 nativeFieldsOk`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:176-189 nativeFieldsOk`
 /// — the cursor recursion behind `native_fields_ok`.
 #[allow(clippy::too_many_arguments)]
 pub fn native_fields_ok_from(
@@ -798,7 +798,7 @@ pub fn native_fields_ok_from(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:447-463 checkNativeRules
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:71-85 checkNativeRulesF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:198-212 checkNativeRules`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:193-211 checkNativeRules`
 /// — the generated rules for constructors `j, j+1, …` (`k` of them), each
 /// scoped at the environment holding the recursor's constant.  Lean conses on
 /// the way out; the port pushes on the way in.
@@ -869,7 +869,7 @@ pub fn check_native_rules(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:447-463 checkNativeRules
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:206-209 checkNativeRules`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:193-211 checkNativeRules`
 /// — one generated rule's scoping: level-closed, resolving, `bvar`-closed and
 /// fvar-free.  **All four conjuncts run**, as the twin's `unless` does.
 pub fn native_rule_scoped(
@@ -897,7 +897,7 @@ pub fn native_rule_scoped(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:465-502 checkNativeRec
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115 checkNativeRecF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:219-252 checkNativeRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:213-251 checkNativeRec`
 /// — stage 3: the recursor, generated and compared — the generated type has
 /// the inductive-hypothesis binders in each minor; the generated rules are
 /// scoped at the environment holding the recursor's constant.
@@ -932,7 +932,7 @@ pub fn check_native_rec(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:465-502 checkNativeRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:232-252 checkNativeRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:213-251 checkNativeRec`
 /// — the generated type, its scoping, its own sort, the definitional pin
 /// against the stream's, and the generated rules.
 #[allow(clippy::too_many_arguments)]
@@ -977,7 +977,7 @@ pub fn check_native_rec_ty(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:465-502 checkNativeRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:242-252 checkNativeRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:213-251 checkNativeRec`
 /// — the generated type's own sort, the definitional pin, and the rules at the
 /// environment holding the recursor's constant.
 #[allow(clippy::too_many_arguments)]
@@ -1008,7 +1008,7 @@ pub fn check_native_rec_defeq(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:465-502 checkNativeRec
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:247-252 checkNativeRec`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:213-251 checkNativeRec`
 /// — the recursor's constant, provisioned rule-less, and the generated rules
 /// at it.
 #[allow(clippy::too_many_arguments)]
@@ -1077,7 +1077,7 @@ pub fn check_native_rec_rules(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:504-519 checkNativeTable
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:117-126 checkNativeTableF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:259-268 checkNativeTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:253-267 checkNativeTable`
 /// — stage 4: **the projection table** at a STRUCTURE-LIKE block — one
 /// constructor, no index — at the tagged tower's projection offset `1`;
 /// nothing at any other block.
@@ -1119,7 +1119,7 @@ pub fn check_native_table(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:521-537 NativePass
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:275-285 NativePass`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:271-284 NativePass`
 /// — **what one pass over the former and the constructors yields**
 /// (con-leche's task #268).  Not generic in the environment: the arena has one.
 pub struct NativePass {
@@ -1136,7 +1136,7 @@ pub struct NativePass {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:291-300 recCtorKindsAll`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:286-299 recCtorKindsAll`
 /// — `ctorsA.mapM (recCtorKinds T lps nP nIdx)` at the `Option` monad, spelled
 /// as an explicit recursion because the twin of `recCtorKinds` is monadic in
 /// `AM` and optional in its result.
@@ -1168,7 +1168,7 @@ pub fn rec_ctor_kinds_all(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:306-314 classifyFixKinds`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:301-313 classifyFixKinds`
 /// — **the fields' kinds, classified at install** (con-leche's task #210 Part
 /// D) on the stored constructors: a non-positive or non-valid occurrence is
 /// INVALID, a nested occurrence a positive decline.
@@ -1202,7 +1202,7 @@ pub fn classify_fix_kinds(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:310-313 classifyFixKinds`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:301-313 classifyFixKinds`
 /// — `kinds.any (fun ks => ks.any (· == k))`, as a cursor recursion.
 pub fn kindss_any(kinds: &Vec<Vec<RecFieldKind>>, k: &RecFieldKind, i: usize) -> bool {
     if i >= kinds.len() {
@@ -1215,7 +1215,7 @@ pub fn kindss_any(kinds: &Vec<Vec<RecFieldKind>>, k: &RecFieldKind, i: usize) ->
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:310 classifyFixKinds`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:301-313 classifyFixKinds`
 /// — the inner `ks.any (· == k)`.
 pub fn kinds_any(ks: &Vec<RecFieldKind>, k: &RecFieldKind, i: usize) -> bool {
     if i >= ks.len() {
@@ -1229,7 +1229,7 @@ pub fn kinds_any(ks: &Vec<RecFieldKind>, k: &RecFieldKind, i: usize) -> bool {
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
 /// con-leche: ConLeche/Cached/CheckerC.lean:179-191 checkNativePassS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:319-330 checkNativePass`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:315-330 checkNativePass`
 /// — **one pass over the former and the constructors** (con-leche's task #268)
 /// at a given `is_rec` verdict.  The last component says whether the
 /// classification confirms the verdict the pass ran at.  The `flush_caches`
@@ -1285,7 +1285,7 @@ pub fn check_native_pass(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:326-329 checkNativePass`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:315-330 checkNativePass`
 /// — the classification, the completed record and the settled test.
 #[allow(clippy::too_many_arguments)]
 pub fn check_native_pass_kinds(
@@ -1328,7 +1328,7 @@ pub fn check_native_pass_kinds(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:336-361 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:332-364 checkNativeTail`
 /// — **the install after the pass** (con-leche's task #268): the elimination
 /// restriction, the index binders' sorts, the kinds re-checked, the stream's
 /// rules against the generated ones, the constructors consed, the recursor
@@ -1353,7 +1353,7 @@ pub fn check_native_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:344-351 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:332-364 checkNativeTail`
 /// — the index binders' universes, exposed for the model's index-tuple
 /// universe, and the kinds re-checked on the stored (normalised) constructors.
 pub fn check_native_tail_sorts(
@@ -1392,7 +1392,7 @@ pub fn check_native_tail_sorts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:349-361 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:332-364 checkNativeTail`
 /// — the kinds re-checked, the stream's rules against the generated ones, and
 /// the install.
 pub fn check_native_tail_kinds(
@@ -1459,7 +1459,7 @@ pub fn check_native_tail_kinds(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:194-217 checkNativeTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:337-367 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:332-364 checkNativeTail`
 /// — the constructors consed, the recursor with its rules, and the projection
 /// table, with the executed tier's flush before the recursor (task #97g
 /// item 4).
@@ -1510,7 +1510,7 @@ pub fn check_native_tail_install(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
 /// con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:370-383 checkNative`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:366-387 checkNative`
 /// — check and install a **direct recursive block**: the distinct names, the
 /// pass over the former and the constructors — again where the record's
 /// syntactic reading overshot — and the install after it.  The executed
@@ -1563,7 +1563,7 @@ pub fn check_native(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:368 checkNative`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:366-387 checkNative`
 /// — `(p₀.ctors.map (·.1.name)).Nodup`, as a cursor recursion over handles.
 pub fn ctor_names_nodup(ctors: &Vec<(IConstantVal, u64)>, i: usize) -> bool {
     if i >= ctors.len() {
@@ -1576,7 +1576,7 @@ pub fn ctor_names_nodup(ctors: &Vec<(IConstantVal, u64)>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:368 checkNative`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:366-387 checkNative`
 /// — the inner scan of `ctor_names_nodup`.
 pub fn ctor_name_seen(ctors: &Vec<(IConstantVal, u64)>, i: usize, n: &NIdx) -> bool {
     if i >= ctors.len() {
