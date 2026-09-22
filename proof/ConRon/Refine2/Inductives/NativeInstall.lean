@@ -58,7 +58,42 @@ theorem kinds_any_rec_refines
     {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} {i : Std.Usize}
     {o} (hrun : arena.inductives.native_install.kinds_any_rec ks i = ok o) :
     o = (absKindLFrom ks i).any fun k => k == .recursive || k == .reflexive := by
-  sorry
+  simp only [absKindLFrom, List.any_map, Function.comp_def]
+  refine vec_cursor_any ks _
+    (arena.inductives.native_install.kinds_any_rec ks) ?_ ?_ i o hrun
+  · intro i o hn h
+    rw [arena.inductives.native_install.kinds_any_rec.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+  · intro i x o hx h
+    have hlt : i.val < ks.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.native_install.kinds_any_rec.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by scalar_tac)] at h
+    obtain ⟨rfk, hrfk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hrx : rfk = x := by
+      have h1 := vec_index_some hrfk; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hrx
+    have hbv : b = (absRecFieldKind rfk == RecFieldKind.recursive) :=
+      rec_field_kind_beq_refines hb
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hb1v : b1 = (absRecFieldKind rfk == RecFieldKind.reflexive) :=
+        rec_field_kind_beq_refines hb1
+      cases hbb1 : b1
+      · rw [hbb1] at h hb1v
+        rw [if_neg (by simp)] at h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        exact Or.inr ⟨by simp only [← hbv, ← hb1v, Bool.or_self], i2,
+          absSz_add_one hi2, h⟩
+      · rw [hbb1] at h hb1v
+        rw [if_pos (by simp), Result.ok.injEq] at h
+        exact Or.inl ⟨by simp only [← hbv, ← hb1v, Bool.false_or], h.symm⟩
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      exact Or.inl ⟨by simp only [← hbv, Bool.true_or], h.symm⟩
 
 /-- `native_is_rec_from` ⊑ `nativeIsRec`'s outer `any` from the cursor on. -/
 theorem native_is_rec_from_refines
@@ -67,7 +102,34 @@ theorem native_is_rec_from_refines
     (hrun : arena.inductives.native_install.native_is_rec_from kinds i = ok o) :
     o = (absKindLLFrom kinds i).any fun ks =>
       ks.any fun k => k == .recursive || k == .reflexive := by
-  sorry
+  simp only [absKindLLFrom, List.any_map, Function.comp_def]
+  refine vec_cursor_any kinds _
+    (arena.inductives.native_install.native_is_rec_from kinds) ?_ ?_ i o hrun
+  · intro i o hn h
+    rw [arena.inductives.native_install.native_is_rec_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len kinds by scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+  · intro i x o hx h
+    have hlt : i.val < kinds.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.native_install.native_is_rec_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len kinds by scalar_tac)] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hvx : v = x := by
+      have h1 := vec_index_some hv; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hvx
+    have hbv : b = (absKindL v).any (fun k => k == .recursive || k == .reflexive) := by
+      have h2 := kinds_any_rec_refines hb
+      simpa [absKindLFrom, absKindL,
+        show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      exact Or.inl ⟨hbv.symm, h.symm⟩
 
 /-- `native_is_rec` ⊑ `nativeIsRec` — official's `is_rec` off the classified
 kinds. -/
@@ -75,7 +137,9 @@ theorem native_is_rec_refines
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
     {o} (hrun : arena.inductives.native_install.native_is_rec kinds = ok o) :
     o = nativeIsRec (absKindLL kinds) := by
-  sorry
+  rw [arena.inductives.native_install.native_is_rec] at hrun
+  rw [nativeIsRec, native_is_rec_from_refines hrun]
+  simp [absKindLLFrom, absKindLL, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
 
 /-- `native_caps` ⊑ `nativeCaps`. -/
 theorem native_caps_refines {pers st lst}
@@ -445,7 +509,32 @@ theorem kinds_any_refines
     {k : arena.inductives.native_parts.RecFieldKind} {i : Std.Usize} {o}
     (hrun : arena.inductives.native_install.kinds_any ks k i = ok o) :
     o = (absKindLFrom ks i).any (· == absRecFieldKind k) := by
-  sorry
+  simp only [absKindLFrom, List.any_map, Function.comp_def]
+  refine vec_cursor_any ks _
+    (arena.inductives.native_install.kinds_any ks k) ?_ ?_ i o hrun
+  · intro i o hn h
+    rw [arena.inductives.native_install.kinds_any.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+  · intro i x o hx h
+    have hlt : i.val < ks.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.native_install.kinds_any.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by scalar_tac)] at h
+    obtain ⟨rfk, hrfk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hrx : rfk = x := by
+      have h1 := vec_index_some hrfk; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hrx
+    have hbv : b = (absRecFieldKind rfk == absRecFieldKind k) :=
+      rec_field_kind_beq_refines hb
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      exact Or.inl ⟨hbv.symm, h.symm⟩
 
 /-- `kindss_any` ⊑ `kinds.any fun ks => ks.any (· == k)` from the cursor on. -/
 theorem kindss_any_refines
@@ -454,7 +543,34 @@ theorem kindss_any_refines
     (hrun : arena.inductives.native_install.kindss_any kinds k i = ok o) :
     o = (absKindLLFrom kinds i).any fun ks =>
       ks.any (· == absRecFieldKind k) := by
-  sorry
+  simp only [absKindLLFrom, List.any_map, Function.comp_def]
+  refine vec_cursor_any kinds _
+    (arena.inductives.native_install.kindss_any kinds k) ?_ ?_ i o hrun
+  · intro i o hn h
+    rw [arena.inductives.native_install.kindss_any.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len kinds by scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+  · intro i x o hx h
+    have hlt : i.val < kinds.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.native_install.kindss_any.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len kinds by scalar_tac)] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hvx : v = x := by
+      have h1 := vec_index_some hv; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hvx
+    have hbv : b = (absKindL v).any (· == absRecFieldKind k) := by
+      have h2 := kinds_any_refines hb
+      simpa [absKindLFrom, absKindL,
+        show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      exact Or.inl ⟨hbv.symm, h.symm⟩
 
 /-- `classify_fix_kinds` ⊑ `classifyFixKinds` — **the fields' kinds, classified
 at install** (con-leche's task #210 Part D). -/
@@ -559,7 +675,38 @@ theorem ctor_name_seen_refines
     {n : arena.handle.NIdx} {o}
     (hrun : arena.inductives.native_install.ctor_name_seen ctors i n = ok o) :
     o = ((absCtorsLFrom ctors i).map (·.1.name)).contains (absNIdx n) := by
-  sorry
+  simp only [absCtorsLFrom, List.map_map, List.contains_eq_any_beq, List.any_map,
+    Function.comp_def, absIConstantVal]
+  refine vec_cursor_any ctors _
+    (fun i => arena.inductives.native_install.ctor_name_seen ctors i n) ?_ ?_ i o hrun
+  · intro i o hn h
+    rw [arena.inductives.native_install.ctor_name_seen.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ctors by scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+  · intro i x o hx h
+    have hlt : i.val < ctors.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.native_install.ctor_name_seen.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨iv, nf⟩ := q
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv : b = (absNIdx n == absNIdx iv.name) := by
+      rw [nidx_eq2_abs hb]
+      by_cases hc : absNIdx iv.name = absNIdx n
+      · simp [hc]
+      · have hc' : ¬ absNIdx n = absNIdx iv.name := fun x => hc x.symm
+        simp [hc, hc']
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      exact Or.inl ⟨hbv.symm, h.symm⟩
 
 /-- `ctor_names_nodup` ⊑ `(p₀.ctors.map (·.1.name)).Nodup` from the cursor
 on. -/
@@ -567,7 +714,51 @@ theorem ctor_names_nodup_refines
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize} {o}
     (hrun : arena.inductives.native_install.ctor_names_nodup ctors i = ok o) :
     o = decide (((absCtorsLFrom ctors i).map (·.1.name)).Nodup) := by
-  sorry
+  simp only [absCtorsLFrom, List.map_map, Function.comp_def, absIConstantVal]
+  refine cursor_induction (fun i : Std.Usize => i.val) ctors.val.length
+    (fun i (_ : Unit) => ∀ o,
+      arena.inductives.native_install.ctor_names_nodup ctors i = ok o →
+      o = decide (((ctors.val.drop i.val).map fun x => absNIdx x.1.name).Nodup))
+    ?_ ?_ i () o hrun
+  · intro i _ hn o h
+    rw [arena.inductives.native_install.ctor_names_nodup.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ctors by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le hn]
+    simp
+  · intro i _ hi ih o h
+    rw [arena.inductives.native_install.ctor_names_nodup.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨iv, nf⟩ := q
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+    obtain ⟨hqb, hqv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hq)
+    have hbv : b = decide (absNIdx iv.name ∈
+        (ctors.val.drop (i.val + 1)).map fun x => absNIdx x.1.name) := by
+      have h2 := ctor_name_seen_refines hb
+      rw [h2]
+      simp [absCtorsLFrom, absIConstantVal, hi2v, Function.comp_def]
+    rw [List.drop_eq_getElem_cons hqb, hqv, List.map_cons]
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      rw [ih i2 () hi2v o h, hi2v]
+      have hmem : absNIdx iv.name ∉
+          List.drop (i.val + 1) (ctors.val.map fun x => absNIdx x.1.name) := by
+        have h3 := hbv.symm
+        simp only [List.map_drop] at h3 ⊢
+        simpa using h3
+      simp [List.nodup_cons, hmem, Function.comp_def]
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      have hmem : absNIdx iv.name ∈
+          List.drop (i.val + 1) (ctors.val.map fun x => absNIdx x.1.name) := by
+        have h3 := hbv.symm
+        simp only [List.map_drop] at h3 ⊢
+        simpa using h3
+      rw [← h]
+      simp [List.nodup_cons, hmem, Function.comp_def]
 
 /-- `check_native` ⊑ `checkNative` — check and install a **direct recursive
 block**: the distinct names, the pass over the former and the constructors —
