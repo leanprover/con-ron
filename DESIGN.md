@@ -22041,6 +22041,15 @@ so `theorem AExt.internPersistentN` made `internPersistentN` in the proof's
 did nothing.  That is why the workers are `internPersistentN_aext` and not
 `AExt.internPersistentN`.
 
+**How to reach them.**  `WFProofs.lean`'s block needs no import change:
+`Arena/Monad.lean` already imports it, so `Refine2` sees the twenty-seven
+`…_ext` through its existing `import ConRon.Arena.Monad`.  `PromoteExt.lean`
+is a LEAF (`Arena.lean` imports it; nothing else does), so a consumer —
+`Bridge/Promote/Exact.lean` is the one that wants it — must add
+`import ConRon.Arena.PromoteExt` of its own.  It is deliberately a leaf: it
+sits above `Arena/Promote.lean`, and putting it in anyone's transitive
+closure would pull the whole arena in.
+
 **What is still owed, and by whom.**  The exactness half —
 `denoteE st' (promote h) = denoteE st h` — is NOT here and cannot be: it
 needs `StoreWFP`, `PMemoOK` and the rank, which are `Bridge`'s vocabulary.
@@ -22068,7 +22077,8 @@ requires `st' = { st with lss := … }`).
 `LAKE_JOBS=4`).  `lake build ConRonBridge` and `lake build ConRonRefine2`
 green at their pre-existing `sorry` counts — the additions are purely
 additive.  `scripts/provenance.py check`: 0 findings, **2 494 arena Lean
-items** (was 2 401).  `#print axioms` — a section at the foot of
+items**, +155 on the branch tip's 2 339 (85 theorems in `WFProofs.lean`, 70
+declarations in `PromoteExt.lean`).  `#print axioms` — a section at the foot of
 `PromoteExt.lean` prints nineteen of them on every build, and the other
 fifty-one were checked in a scratch file — reports
 `[propext, Classical.choice, Quot.sound]` on every result, **except five**
