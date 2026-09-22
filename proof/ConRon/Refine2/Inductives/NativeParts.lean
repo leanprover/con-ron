@@ -1284,5 +1284,11 @@ equality table §3.4 forbids `#[derive]` for. -/
 
 /-- info: 'ConRon.Refine2.rec_field_kind_beq_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms rec_field_kind_beq_refines
+/-- info: 'ConRon.Refine2.rec_idx_of_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_idx_of_refines
+
+/-- info: 'ConRon.Refine2.ctors_pin_ok_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ctors_pin_ok_refines
+
 
 end ConRon.Refine2

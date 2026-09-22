@@ -1704,4 +1704,17 @@ theorem check_modeled_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkModeled (ConRon.Refine.absMode mode) lf (absICIL block)) := by
   sorry
 
+/-! ## The axiom census
+
+The eight closed readers of this module read `[propext, Classical.choice,
+Quot.sound]` and nothing else — `rename_by_rel` is finding 15's discharge and
+is the one every `rename_consts` call site of the tier will cite. -/
+
+/-- info: 'ConRon.Refine2.single_ind_ctor_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms single_ind_ctor_refines
+
+/-- info: 'ConRon.Refine2.rename_by_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rename_by_rel
+
+
 end ConRon.Refine2

@@ -807,4 +807,13 @@ theorem check_native_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
       (checkNative (ConRon.Refine.absMode mode) lf (absNativeParts p0)) := by
   sorry
 
+/-! ## The axiom census
+
+The nine closed `_refines` of this module read `[propext, Classical.choice,
+Quot.sound]` and nothing else; the dearest of the scans stands for them. -/
+
+/-- info: 'ConRon.Refine2.ctor_names_nodup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ctor_names_nodup_refines
+
+
 end ConRon.Refine2

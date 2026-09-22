@@ -46716,8 +46716,9 @@ worth the whole round: **thirty lines was the UN-FACTORED price.**  The
 measure induction inside it is the same in every one of them, and lifting it
 out once turns the block into four recipes and a wrapper.
 
-`Refine2/Inductives/Shape.lean` grew by 545 lines and thirteen declarations,
-and every one of them is used by more than one caller:
+`Refine2/Inductives/Shape.lean` grew by 545 lines and twenty-three
+declarations (two of them `private` cursor inductions behind a wrapper), and
+every one of them is used by more than one caller:
 
 * **`cursor_induction`** — *the* induction.  A property that holds past a
   bound and is preserved backwards by one step of a cursor holds everywhere.
@@ -46756,8 +46757,8 @@ mean 24.7, median 21.**  By family:
 
 | family | how many | lines each |
 |---|---:|---|
-| a `vec_cursor_copy` instance | 7 | **20–22** |
-| a `vec_cursor_any` instance | 7 | **26–36** |
+| a `vec_cursor_copy` instance | 6 (+3 in `Shape.lean`) | **20–22** |
+| a `vec_cursor_any` instance | 6 (+1 in `Shape.lean`) | **26–36** |
 | a `vec_cursor_all` instance | 1 | 66 (`ctors_pin_ok`, three nested tests) |
 | the wrapper at cursor 0 / 1 (`ctors_copy`, `sum_split`, `nidx_cons`, `nidx_vec_tail`, `rename_by`, `native_is_rec`) | 8 | **1–4** |
 | a record copy or completion (`inductive_shape_dup`, `native_parts_dup`, `complete`, `with_kinds`, `native_rec_lps_ok`) | 5 | 3–11 |
@@ -46917,11 +46918,24 @@ other structural lemmas live.  **It belongs to whoever owns `Checker/**` or
 * **A decision on §R3.5's four casts** — a hypothesis at the lemma, or a
   narrowing in the Rust.
 
-##### R3.7 The gates, at the tip
+##### R3.7 The axiom census
+
+Nine `#print axioms` rows were added under `#guard_msgs`: four in
+`Inductives/Shape.lean` (the two cursor shapes, `nidx_vec_beq_abs`,
+`i_constant_info_dup_abs`), one in each of `SumParts`, `NativeInstall` and
+`Spec`, two in `NativeParts` and two in `Modeled`.  Every one reads
+`[propext, Classical.choice, Quot.sound]` — **no `sorryAx` on anything this
+round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.  Two of
+them read less than that: **`vec_cursor_copy` and `vec_cursor_any` need only
+`[propext, Quot.sound]`** — the tier's whole state-free idiom is
+choice-free, which is worth knowing because it is the part every later round
+will build on.
+
+##### R3.8 The gates, at the tip
 
 | gate | result |
 |---|---|
-| `scripts/gates.sh` | **all 13 OK** |
+| `scripts/gates.sh` | **all 13 OK** (`cargo-build` 5 s / `cargo-test` 10 s / `lint-rust` 3 s / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` 117 s / `lake-build` 128 s) |
 | `cd proof && lake build ConRonRefine2` | green, **2 221 jobs**, 0 errors — run explicitly, it is not a default target |
 | `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 11** (was 2); the tier's `sorry` count 312 → **270** |
 | the merge | `arena` at `aa4c7a76` merged in cleanly (`Bridge/**` and `DESIGN.md` only, textual for this tier), so landing is a fast-forward |

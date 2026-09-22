@@ -1290,4 +1290,7 @@ dearest (a memoised walk under rule 11's peel). -/
 /-- info: 'ConRon.Refine2.hasLooseBVarBGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms hasLooseBVarBGo_unfold
 
+/-- info: 'ConRon.Refine2.nativeShape_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nativeShape_unfold
+
 end ConRon.Refine2

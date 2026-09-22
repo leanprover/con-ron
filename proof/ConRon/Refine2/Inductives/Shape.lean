@@ -882,4 +882,16 @@ attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFr
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms list_allM_counted
 
+/-- info: 'ConRon.Refine2.vec_cursor_copy' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms vec_cursor_copy
+
+/-- info: 'ConRon.Refine2.vec_cursor_any' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms vec_cursor_any
+
+/-- info: 'ConRon.Refine2.nidx_vec_beq_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nidx_vec_beq_abs
+
+/-- info: 'ConRon.Refine2.i_constant_info_dup_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms i_constant_info_dup_abs
+
 end ConRon.Refine2

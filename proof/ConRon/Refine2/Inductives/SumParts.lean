@@ -224,4 +224,13 @@ theorem major_idx_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
   simp only [InductiveShape.majorIdx, absInductiveShape, absU] at *
   omega
 
+/-! ## The axiom census
+
+The file's five closed `_refines` read `[propext, Classical.choice,
+Quot.sound]` and nothing else; the block's dearest stands for them. -/
+
+/-- info: 'ConRon.Refine2.sum_split_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sum_split_refines
+
+
 end ConRon.Refine2
