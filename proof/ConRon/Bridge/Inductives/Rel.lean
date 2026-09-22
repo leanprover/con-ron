@@ -787,6 +787,45 @@ theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
         obtain rfl := Option.some.inj h
         rfl
 
+/-- con-leche: none — a denoting `IConstantVal`'s NAME denotes. -/
+theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) :
+    denoteN st.ns cv.name = some c.name := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-- con-leche: none — a binder telescope's denotation keeps its length. -/
+theorem denoteBinders_length {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
+      denoteBinders st bs = some xs → bs.length = xs.length := by
+  intro bs
+  induction bs with
+  | nil => intro xs h; simp only [denoteBinders, Option.some.injEq] at h; simp [← h]
+  | cons a as ih =>
+    intro xs h
+    obtain ⟨t, m⟩ := a
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some y =>
+      cases has : denoteBinders st as with
+      | none => rw [ht, has] at h; simp at h
+      | some ys =>
+        rw [ht, has] at h
+        obtain rfl := Option.some.inj h
+        simp only [List.length_cons, ih has]
+
 /-! ## One reader on loan from the `ExprOps` tier
 
 `Arena/Env.lean`'s `piSortTeleLen?` is the syntactic Π-telescope's length, and
