@@ -1,5 +1,5 @@
 /-
-# `ConRon.Bridge.Core.Walks.Owed` — the sixteen non-slot walks: SIX CLOSED, ten open
+# `ConRon.Bridge.Core.Walks.Owed` — the sixteen non-slot walks: six CLOSED, TEN open
 
 Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 ends with the
 round's own estimate of where the next tier's work is:
@@ -24,12 +24,19 @@ This is `Bridge/ExprOps/Owed.lean`'s role one tier up: a statement is not a
 proof, but it is the interface, and the six body walks cannot be written
 against a walk that has no statement.
 
-## 0a. Round 3: six of the sixteen are CLOSED
+## 0a. Round 3: six of the sixteen are CLOSED, and five of them moved out
 
 Task #97-P3-Core round 3 closed `unfoldableHead`, `headHint`,
-`sameConstHeads` (§1), `isPropType` (§5), `defEqList` and `defeqSpine` (§4),
-and the module is no longer only statements.  Three things made it possible,
-and none of them is about any one walk:
+`sameConstHeads`, `defeqSpine`, `isPropType` and `defEqList`.  **`defEqList`
+is the only one still here** (§4): the other five live in
+`Bridge/Core/Walks/Spine.lean`, a sibling module off the knot-facing import
+chain, because a module that imports the `ExprOps` tier or `mvcgen`s over
+`ensureSort` cannot sit in one closure with `Core/EnsureSort.lean` — that
+module's own header has the error message and the reason.  The statements
+below are therefore the TEN that are open, plus `defEqList`'s proof and the
+pure side of two walks whose arena side is not written.
+
+Three things made the six possible, and none of them is about any one walk:
 
 1. **`Bridge/Core/**` imports the `ExprOps` tier.**  Its thirteen modules
    reached zero `sorry` while round 2 ran, and task #97-P3-CoreWalks left
@@ -89,14 +96,29 @@ function that is not in `CheckM` at all
 `∃ F` and no fuel bookkeeping: the conclusion is an equation between the
 arena's answer and con-leche's.  They are the first four of these to write.
 
-## 2. What they are all waiting on, in one sentence each
+## 2. What the TEN that are left are waiting on (round 3's reading)
 
-Ten of the sixteen wait on an `ExprOps`-tier callee rule that this tier
-does not import (`getAppFn`, `getAppArgs`, `mkAppN`, `instLPFast`,
-`liftLooseBVars`, `typeSortPW`), one waits on §3's missing denotation, one on
-`Bridge/Core/Walks/Cached.lean`'s `constValAt_spec` (itself waiting on
-`instLPFast_spec`), one on the fuel merge (`defEqList_spec`'s note), and the
-rest on nothing but the work.  The per-site notes say which.
+* **three on a module that does not exist** — `propIrrel`, `annotPwPi` and
+  `annotPwLam` read `Arena/PropRead.lean`'s `notProofFast`, `isProofFast`,
+  `typeSortPW` and `proofPW`, and that file has no bridge spec anywhere.  It
+  is a tier, not a callee rule, and nobody had costed it;
+* **three on `instLPFast_spec`'s missing cache frame** — `unfoldDefinition`
+  through `Walks/Cached.lean`'s `constValAt_spec`, and `projCertAt` through
+  `Walks/Proj.lean`'s `projCert_spec` / `constTyAt_spec`.  DESIGN §8's
+  `### Task #97-P3-Core-2` round 3 finding 19 has the two conjuncts the
+  `ExprOps` tier owes;
+* **`etaCert`** — nothing outside this tier: its pure side is proved below
+  and so is the callee rule's answer shape;
+* **`reduceNat`** — five state-only walks of `Arena/Core.lean` and nothing
+  else, which is why round 2's §9 named it first;
+* **`projLitToCtor`** — `strLitSupported`, `strLitToConstructor` and
+  `litMajorToCtor`;
+* **`stuckIrrel`** and **`iotaRec`**, the two towers.
+
+(Round 2's reading of this list said *"ten of the sixteen wait on an
+`ExprOps`-tier callee rule that this tier does not import"*.  That was true
+of the import and wrong about the count: the `ExprOps` import closed three
+walks outright and is not what any of the remaining ten is blocked on.)
 
 ## 3. `IProjEntry.typeAt`, and the one thing the tier is missing that is not
 a proof
@@ -142,12 +164,23 @@ walks — is still open. -/
 definition at the head, one step.  The pure side takes no fuel, so the
 conclusion is an equation through `denoteEO` (`Bridge/Rel.lean`).
 
-**OPEN**: three callee rules — `getAppFn_spec`, `getAppArgs_spec` and
-`mkAppN_spec` (all closed in `Bridge/ExprOps/Spine.lean`) — plus
-`Bridge/Core/Walks/Cached.lean`'s `constValAt_spec`, which is itself waiting
-on `ExprOps.instLPFast_spec`.  **This is the deepest chain on the list**, and
-it is the reason `whnfBody_spec` cannot close before the `ExprOps` tier
-does. -/
+**OPEN, and on ONE thing** (round 3): the three spine rules are in hand
+(`getAppFn_spec`, `getAppArgs_spec`, `mkAppN_spec`, all closed in
+`Bridge/ExprOps/Spine.lean`, and `Walks/Spine.lean` shows how to reach them
+from here), and what is left is `Bridge/Core/Walks/Cached.lean`'s
+`constValAt_spec` — which is NOT waiting on `instLPFast_spec` any more
+(that is closed) but on **the two conjuncts `instLPFast_spec` does not carry**:
+the cache-record frame and `ReadNCacheOK`.  Without them no caller graded
+`CheckOK` can rebuild `CacheOK` past the call.  DESIGN §8's
+`### Task #97-P3-Core-2` round 3 finding 19 states them; the owner is the
+`ExprOps` tier.
+
+Round 3 also found that the statement `constValAt_spec` is published with
+cannot be applied by this walk even once it is proved: it takes `nm`, `ls`,
+`cv`, `val` and `hint` as explicit arguments, and `mvcgen` mis-instantiates
+all five (measured: `val := x`, the whole subject).  It needs §0's ∃/∀
+re-shape first, which is four lines and which this round did not make because
+the theorem is `sorry` and the re-shape would have been unverifiable. -/
 theorem unfoldDefinition_spec (s₀ : AState) (d : Nat) (e : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
@@ -264,9 +297,11 @@ the callee rules it is missing. -/
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — **THEOREM 1 for
 `propIrrel`**, the hoisted proof-irrelevance test.
 
-**OPEN**: `notProofFast` as a callee rule (an `IFEnvOK` consequence over the
-derived word), then `KnotSpec.inferIO` at both subjects and `KnotSpec.defeq`
-at their types. -/
+**OPEN, on a MODULE that does not exist** (round 3's reading): `notProofFast`
+and `isProofFast` are `Arena/PropRead.lean` walks and that file has no bridge
+spec anywhere — not one.  After them it is `KnotSpec.inferIO'` at both
+subjects and `KnotSpec.defeq'` at their types, both in hand.  It shares its
+blocker with `annotPwPi` and `annotPwLam` below. -/
 theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
@@ -392,9 +427,14 @@ theorem etaCertFueled_yes {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
 `etaCert`**: η at a λ against a non-λ.
 
-**OPEN**: the rebuild is `internE (.app (lift b) (.bvar 0))` under a binder,
-so it needs `ExprOps.liftLooseBVars`'s spec (closed in
-`Bridge/ExprOps/Subst.lean`) and `KnotSpec.defeq` one depth down.  The
+**OPEN, and the cheapest of the ten** (round 3): its whole PURE side is
+proved above (`etaCertFueled_nf`, `_dom`, `_body`, `_yes`) and so is the one
+callee rule whose published shape it cannot use
+(`instantiate1Fast_specE`, `Bridge/Core/Walks/Spine.lean`).  What is left is
+twenty-three verification conditions on the arena side — the three knot calls
+in their primed shape, two `internE`s with their `ViewOK` obligations, one
+`instantiate1Fast`, and the well-scopedness of the opened body at `d + 1`
+(con-leche's `WScoped.instantiate1` and `WScoped.mono` are exactly it).  The
 statement's FOUR subjects are the λ's two children, its binder datum and the
 comparand — `Bridge/Rel.lean`'s `RelE.lam` shape, at the level of a whole
 walk. -/
@@ -625,9 +665,12 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — **THEOREM 1
 for `annotPwPi`**: the `PropWhen` datum a ∀ binder is stamped with.
 
-**OPEN**: `isPropType_spec` above, plus the head-symbol reader `forallPw`
-(`ExprOps` tier).  `PropWhen` is a type both tiers share, so the answer
-relation is `SimVOp` and nothing has to be denoted. -/
+**OPEN**: `isPropType_spec` (CLOSED, `Bridge/Core/Walks/Spine.lean`) and the
+head-symbol reader — which is **`Arena/PropRead.lean`'s `typeSortPW`, not an
+`ExprOps` walk**, and that file has no bridge spec anywhere (round 3's
+correction; `ExprOps/Walks.lean`'s `forallPw_spec` is a different reader and
+is not what this clause calls).  `PropWhen` is a type both tiers share, so
+the answer relation is `SimVOp` and nothing has to be denoted. -/
 theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
@@ -644,7 +687,8 @@ theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — **THEOREM 1
 for `annotPwLam`**: the same at a λ binder.
 
-**OPEN**: `isPropType_spec` and the `lamPw` reader. -/
+**OPEN**: `isPropType_spec` (CLOSED) and `Arena/PropRead.lean`'s `proofPW`
+— the same missing module as `annotPwPi` and `propIrrel` (round 3). -/
 theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
