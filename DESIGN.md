@@ -39081,8 +39081,9 @@ Task #97-P3-Ind found one; trying to prove the arms found four more.
    invariant the field exists to make cheap and which
    `checkStructProjTable` establishes when it builds the table.
    **It is not on the seven arms' critical path** — they take `IFEnvOK` from
-   `FoldOK.check.ienv` — which is why six of them are proved without it; its
-   one consumer is `checkDeclStep_bridge`'s `ienv` clause.  The alternative,
+   `FoldOK.check.ienv` and, in the `defn` arm, from `checkDefnVal_bridge`'s
+   own `IFEnvOK env2 fe2 s'` — which is why all seven are proved without it;
+   its one consumer is `checkDeclStep_bridge`'s `ienv` clause.  The alternative,
    a clause on `DeclOut` and therefore on `IndSpec`, would undo §1, so the
    `denoteCI` fix is the one to take.
 
@@ -39129,8 +39130,8 @@ need at the next declaration) and **`IFEnvOK env' fe' s'`** (§8's item 2).
 | `Bridge/Checker/Pins.lean` | 106 | 88 | 3 | 3 | 0.74 s |
 | `Bridge/Checker/Split.lean` | 233 | 197 | 8 | 7 | 0.85 s |
 | `Bridge/Checker/Capstone.lean` | 124 | 107 | 3 | **0** | 0.83 s |
-| `Bridge/Checker/Axioms.lean` | 212 | 183 | — | — | 0.79 s |
-| **the tier** | **6 049** | **5 393** | **271** | **55** | **~82 s**, of which §6 is 63 |
+| `Bridge/Checker/Axioms.lean` | 218 | 188 | — | — | 0.79 s |
+| **the tier** | **6 055** | **5 398** | **271** | **55** | **~82 s**, of which §6 is 63 |
 
 ##### 11. The sorry list as this round leaves it — 55 declarations
 
@@ -39160,10 +39161,11 @@ pin sets) and the promotion tier.
 
 | gate | |
 |---|---|
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 103 s, `lake-build` 147 s) |
 | `cd proof && lake build ConRonBridge` | **0 errors, 614 jobs**; 255 `sorry` warnings, of which **55** are this tier's (§11) |
 | `#print axioms` | `Bridge/Checker/Axioms.lean` lists **128 results: 115 closed** (111 at `[propext, Classical.choice, Quot.sound]`, three at `[propext, Quot.sound]`, one at `[propext]` alone) **and 13 with `sorryAx`** — the seven proved arms, `Arena.checkDecl_bridge`, `checkDeclsPure_bridge`, `model_exists`, `no_proof_of_False`, `installThenCheck_bridge` and `CoreSpec.of_knot`.  **None of them carries `CoreSpec` or `IndSpec`**, which are hypotheses of the statements; no `bv_decide` axiom anywhere |
 | per-theorem elaboration | one theorem above the 20 s flag, `reservedBasisNames_run` at ~63 s (§6); the next is 2.8 s for a whole module |
-| `scripts/arena-census.py --summary` | runs; `Arena/Checker` T1 stated 50/292, closed 15 |
+| `scripts/arena-census.py --summary` | runs; `Arena/Checker` is 294 twins, T1 stated 50/292, closed 16 |
 | the diff | `proof/ConRon/Bridge/Promote/**`, `proof/ConRon/Bridge/Checker/**`, `proof/ConRon/Bridge/Checker.lean`, `proof/ConRon/Bridge/Inductives/Decl.lean` (two blocks) and this text.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
 
 **Is `Arena.checkDecl_bridge` sorry-free?**  **No**, and §11 says exactly what
