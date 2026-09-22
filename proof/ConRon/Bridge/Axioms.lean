@@ -16,6 +16,7 @@ not asserts: the gate is reading the output, and a `sorryAx` in any line is a
 failure of the task rather than of the build.
 -/
 import ConRon.Bridge.Specs
+import ConRon.Bridge.SpecsL
 import ConRon.Bridge.StoreBM
 import ConRon.Bridge.ExprOps
 
@@ -102,6 +103,10 @@ namespace ConRon.Bridge
 #print axioms bvarBSet_spec
 #print axioms fvarBSet_spec
 #print axioms instListCutoff_spec
+#print axioms internLevel_spec
+#print axioms internLevelList_spec
+#print axioms internLevels_spec
+#print axioms readNamesM_spec
 #print axioms flushCaches_spec
 #print axioms dropScratch_spec
 #print axioms enterScratch_spec

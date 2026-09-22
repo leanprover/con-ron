@@ -14,6 +14,8 @@ order.
   the binder-datum store's monotonicity);
 * `Bridge/Specs.lean` — the `@[spec]` theorem of every `Monad.lean`
   primitive, and the `bridge_vcs` closer;
+* `Bridge/SpecsL.lean` — the four `@[spec]` theorems written after the tier
+  had started (they belong in `Specs.lean`);
 * `Bridge/Axioms.lean` — the trust census (`#print axioms` on every closed
   result);
 * `Bridge/ExprOps.lean` — the `ExprOps` tier (Theorem 1, function by
@@ -35,5 +37,6 @@ import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
 import ConRon.Bridge.StoreBM
 import ConRon.Bridge.Specs
+import ConRon.Bridge.SpecsL
 import ConRon.Bridge.ExprOps
 import ConRon.Bridge.Axioms
