@@ -41874,7 +41874,10 @@ unwritten:**
   the node interns under them.
 
 **`ExprOps/Mut.lean`, 65 — and the "52 non-blocked" count in this task's brief
-is wrong, which is the last finding.**  Of the 65, **57 intern**: every
+is wrong, which is the last finding.**  *(**SUPERSEDED by round 2's
+correction below**: the paragraph that follows over-states the block by 43.
+Only fourteen of the sixty-five reach a blocked wrapper; round 2 counted
+them.)*  Of the 65, **57 intern**: every
 substituting walk (`instantiate1_go`, `instantiate_list*`, `abstract*`,
 `lift_loose_bvars*`, `lower_bvars*`, `reset_meta*`, `rename_consts*`,
 `mk_app_n*`, `bvar_range`, the eleven telescope instantiations, the recursor
@@ -41957,3 +41960,138 @@ tier compiles, including all three of `ExprOps/{Pure,Read,Mut}.lean` and
 `Specs.lean` (**82 `sorry`** between the three, no errors).  **This is task #97-P5-Core's to fix and
 it blocks every P5 branch's gate run**, which is why this section reports the
 pre-merge number as the branch's own.
+
+#### Round 2 — what the `wf-ext` merge unblocked, and what it did not (same day, same branch)
+
+`arena` moved to `ee337c53` with both of round 1's named blockers landed:
+**`wf-ext`** (task #97a follow-up 4 — `EStore.internBindI_ext`, `internBM_ext`,
+`internLamI_ext`, `internForallEI_ext` and 23 more unconditional `…_ext` at
+every appending primitive, plus `Arena/PromoteExt.lean`) and **`p5-arms`**
+(the two `KnotRel`s reconciled and `Core/Induction.lean` adapted to the
+stuck-tag twin fix, so §11's red is gone).  Merged; the only hand work was
+DESIGN.md (append both) and the **dedupe**: `Refine2/Core/Arms/Sort.lean`
+drops its `ETables_get_tagOf` / `EStore_view_tagOf`, which are
+`Refine2/Specs.lean`'s now at that file's own names and text — the migration
+its own note anticipated.
+
+**`lake build ConRonRefine2` is green at the merged tip**, 2 206 jobs.
+
+##### Correction — round 1 §8's "57 of `Mut.lean`'s 65 are blocked" is wrong, by 43
+
+Round 1 reasoned from "every substituting walk interns" to "every substituting
+walk is blocked".  The second half does not follow, and **counting it in the
+generated model settles it**: of `ExprOps/Mut.lean`'s 65 subjects, only
+**fourteen** reach one of the five binder/dispatch wrappers at all —
+
+| blocked on | count | which |
+|---|---:|---|
+| `arena::monad::intern_e_bind_i` | 4 | `instantiate1_go`, `instantiate_list`, `instantiate_list_go`, `intern_rebuilt_bind_i` |
+| `intern_e_lam` / `intern_e_forall_e` | 9 | `abstract_range`, `instantiate1_lift_go`, `lift_loose_bvars_go`, `lower_bvars_go`, `pis_to_lams`, `replace_pi_body`, `rename_consts_go`, `intern_rebuilt_lam`, `intern_rebuilt_forall_e`, `intern_rebuilt_bind` |
+| `intern_e` (the dispatcher) | 1 | `intern_rebuilt` |
+
+— and the other **fifty-one** reach only the eight per-constructor wrappers,
+which task #97-P5-2 closed.  So `internBindI_ext` was never gating 62 lemmas;
+it was gating **fourteen**.  The claim is struck and this table replaces it.
+
+##### What round 2 closed
+
+| group | lemmas | closed | file |
+|---|---:|---:|---|
+| `internLamIE_run_of_cap`, `internForallEIE_run_of_cap` | 2 | **2** | `Specs.lean` |
+| `intern_e_{lam_i,forall_e_i,bind_i}_run` | 3 | **3** | `Specs.lean` |
+| `ETag_isBind_eq`, the two `ETables_*` identifications, `EStore_derOfBindAtI_eq_derOfView`, `EStore_internBindI_eq_internAt`, `bmDer_internBM`, `intern_lam_eq`, `intern_forall_e_eq` | 8 | **8** | `Specs.lean` |
+| the nine unblocked `intern_rebuilt_*` (the eight non-binder plus `_bind_i`) | 9 | **9** | `ExprOps/Mut.lean` |
+| **total** | **22** | **22** | (12 of them `sorry`s) |
+
+The three binder interns are `intern_e_lit_run`'s proof at the binder array —
+finding 7's `hchild`, finding 8's `hfrozen`, and the twin's own capacity test,
+which **at a binder is `bindSizeOf` on BOTH tiers** rather than `sizeOf` on the
+one the store is in (`internLamIE`'s `if` tests `scr` and `pers` together;
+that is the twin's shape, not the port's, and it is why the two `_run_of_cap`
+lemmas are separate from `internE_run_of_cap`).  The nine `intern_rebuilt_*`
+are three lines each over them and over the closed per-constructor wrappers:
+`if same then pure h else …`, and the `same` branch is `dupId_eidx`.
+
+`Specs.lean` 25 → **22**, `ExprOps/Mut.lean` 57 → **48**; the three files of
+this task 82 → **70**.
+
+##### Finding 14 — what actually gates the interning walks is not an `Arena/` lemma, it is the SIDE CONDITIONS' quantifier
+
+With `intern_e_bind_i_run` in hand, `instantiate1_go` is still not stateable,
+and the reason is not a missing primitive.  Every `intern_e_*_run` carries
+
+* `hchild` — finding 7's *"a node with a scratch child is not in the persistent
+  cons table"*, and
+* `hcap` — *"the array this view lands in is below `Idx.idxCap`"*
+
+**as hypotheses about the state the call is made at**.  A one-node wrapper's
+caller can discharge them.  **A walk cannot**: it interns at states it created
+two recursive calls ago, and there is no way to name them in the statement
+short of quantifying over everything `Ext`-reachable, which is not a
+hypothesis any caller could meet either.
+
+The fix is a `StoreWF` corollary of each intern lemma, and the two halves
+have very different prices:
+
+* **`hchild` is free at a well-formed store.**  `EWFAt.consP` says
+  `persFind? v = some i ↔ (view i = some v ∧ i.isPersistent)`, and `childOK`
+  says a persistent node's children are persistent; so a scratch child forces
+  `persFind? v = none`, which for a non-binder view **is** the per-table
+  `pers.<ctor>.find? … = none` the hypothesis asks for (`findBMOfView` answers
+  `some 0` off a binder and `ETables.find?` is the per-constructor table at
+  that handle).  One generic lemma over `persFind?` and ten `rfl`s.
+* **`hcap` should not be a hypothesis at all.**  The port tests the same bound
+  (`Tbl::full`), and `TblRel` makes the two array lengths equal, so *the
+  port's own success proves it*.  Assuming it is P5-1 finding 9's habit
+  outliving its reason.  Removing it means strengthening the eighteen closed
+  `estore_intern_*_abs` proofs — deriving `< Idx.idxCap` inside the miss arm,
+  where `full = false` is in hand — rather than adding a lemma beside them.
+
+**That is the next round's first piece**, and it is worth naming as sharply as
+this section can: after it, `hrel`/`hinv`/`StoreWF` is the whole hypothesis
+list of an interning walk, and `ExprOps/Mut.lean`'s forty-eight are fuel
+inductions in §3's and §4's idiom with nothing new in them.  Before it, none
+of them can be stated.
+
+##### The one named unfinished piece
+
+`intern_e_lam_run` / `intern_e_forall_e_run` (and `intern_e_run` over them)
+are **half done**: the `Arena/`-side identification is proved here
+(`intern_lam_eq`, `intern_forall_e_eq`: the twin's `internLamE ty b m` and the
+port's `EStore::intern_lam` do the same two steps in the same order, at a
+well-formed store whose datum array is below cap), and what is missing is
+`estore_intern_lam_abs` — `estore_intern_bm_abs` composed with
+`estore_intern_lam_i_abs` — plus the one fact that composition needs and no
+lemma states: **the port's `intern_bm` leaves `shared_on` and `scratch_on`
+alone**, so that finding 8's `hfrozen` survives into the second step.  ~30
+lines in `Specs.lean`, and it closes 3 `Specs.lean` and 4 `Mut.lean` lemmas
+(`intern_rebuilt_{lam,forall_e,bind}` and `intern_rebuilt`).
+
+##### Numbers
+
+| file | lines | theorems | `sorry` | raw (2 runs) |
+|---|---:|---:|---:|---|
+| `Refine2/Specs.lean` | **7 880** | **260** | **22** | 8.58 / 8.63 s |
+| `Refine2/ExprOps/Pure.lean` | 931 | 34 | 0 | 2.91 / 2.64 s |
+| `Refine2/ExprOps/Read.lean` | 4 880 | 90 | **0** | 6.80 / 7.33 s |
+| `Refine2/ExprOps/Mut.lean` | **2 199** | **72** | **48** | 3.26 / 3.24 s |
+
+(The machine is shared and two other agents were building; round 1's
+`Mut.lean` figure of 4.46 / 4.07 s and this one's 3.26 / 3.24 s are the same
+file plus nine lemmas — the spread is the load, which is why the elaboration
+claim of this task is the **profiler's**, not the wall clock's: no declaration
+over 300 ms, in any file of the tier.)
+
+**Fourteen more `#print axioms` rows** (5 in `Specs.lean`, 9 in
+`ExprOps/Mut.lean`), every one `[propext, Classical.choice, Quot.sound]`.
+
+##### The gates, round 2
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green**, 2 206 jobs, no errors — `Specs.lean` 22, `ExprOps/Mut.lean` 48, `ExprOps/Read.lean` 0 |
+| `cd proof && lake build` | green, 2 208 jobs |
+| `scripts/provenance.py check` | 0 findings |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Read,ExprOps/Mut}.lean`, `proof/ConRon/Refine2/Core/Arms/Sort.lean` (the dedupe, two deletions) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` |
