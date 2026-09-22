@@ -770,9 +770,8 @@ def print_checkline(census):
         names = sorted({r.t2_other[0] for r in t2_odd})
         print("  T2 other shape: " + ", ".join(names[:12])
               + (" …" if len(names) > 12 else ""))
-    for n, xs in (("MALFORMED", census.skip_bad),):
-        for ln, text in xs:
-            print("  %s %s:%d  %s" % (n, SKIP_FILE, ln, text))
+    for ln, text in census.skip_bad:
+        print("  MALFORMED %s:%d  %s" % (SKIP_FILE, ln, text))
     for path, decl, why in census.skip_stale:
         print("  STALE %s %s — %s" % (path, decl, why))
     for path, decl, which in census.skip_redundant:
