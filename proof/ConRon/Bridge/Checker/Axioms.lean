@@ -135,6 +135,14 @@ namespace ConRon.Bridge
 #print axioms denoteCIList_mono
 #print axioms denoteFEnv_mono
 
+-- `StepOK` (task #97-P3-Checker-3): the invariant at an index a step has just
+-- extended, and the three ways it moves.  `FoldOK` is `StepOK` plus the two
+-- persistence clauses, and the rule is that only a fold-step BOUNDARY may
+-- conclude the latter.
+#print axioms StepOK.mono
+#print axioms StepOK.pmono
+#print axioms FoldOK.toStepOK
+
 -- the name-shape guards (item 10) and the handle/name comparison they cash
 #print axioms denoteNList_contains
 #print axioms beq_handle_iff
@@ -147,6 +155,19 @@ namespace ConRon.Bridge
 #print axioms internName_run
 #print axioms denoteNL_snoc
 #print axioms reservedBasisNames_run
+
+-- the sibling pin-table walks (task #97-P3-Checker-3), in
+-- `reservedBasisNames_run`'s no-accumulator shape
+#print axioms natOpNames_run
+#print axioms natDivModNames_run
+#print axioms natOpDeps_run
+
+-- the pinned-block comparison's two closed entry points (task
+-- #97-P3-Checker-3)
+#print axioms internNNode_run
+#print axioms canonNamesGo_run
+#print axioms canonNames_run
+#print axioms denoteCIList_cons
 #print axioms reservedBasisNameValues_eq
 #print axioms reduceOpNames_run
 
@@ -196,6 +217,11 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` (which carries
 -- `sorryAx` through its six `…Body_spec` walks)
 #print axioms CoreSpec.of_knot
+
+-- `canonEqList_run` (task #97-P3-Checker-3) is an ASSEMBLY, not a leaf: the
+-- list induction is closed and its `sorryAx` is `IConstantInfo.canonEq_run`'s,
+-- which is `canonExprEq`'s fuel induction and nothing else.
+#print axioms canonEqList_run
 
 #print axioms checkDecl_defn_pure_nn
 #print axioms checkDecl_defn_pure_nd
