@@ -90,3 +90,252 @@ proof/ConRon/Arena/Core.lean whnfLoopFuel BOTH (P) As `coreWalkFuel`.
 proof/ConRon/Arena/Core.lean peelFuel BOTH (P) As `coreWalkFuel`.
 proof/ConRon/Arena/Core.lean defeqLoopFuel BOTH (P) As `coreWalkFuel`.
 proof/ConRon/Arena/Core.lean checkFuel BOTH (P) As `coreWalkFuel`.
+
+# -------------------------------------------------------------------------
+# Class (P) round 2: the tag, tier and slot CONSTANTS
+# -------------------------------------------------------------------------
+# Task #97-CENSUS round 2's triage of the `T2 UNCITED` group.  Each of these
+# is a `Nat`/`UInt32` literal whose Rust counterpart is a `const`, not a
+# `fn` — `ETAG_BVAR`, `PIN_EQ`, `CACHE_CAP` — so there is no function to
+# refine and (as with the fuel constants above) no theorem mentions the
+# value: the bridge obligation would be `rfl`.
+
+proof/ConRon/Arena/Handle.lean Idx.tierP BOTH (P) A handle-word literal (tag, tier or the index cap).  The Rust side is a `const`, not a function to refine; the bridge obligation would be `rfl`.
+proof/ConRon/Arena/Handle.lean Idx.tierS BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean Idx.idxCap BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.bvar BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.fvar BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.sort BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.const BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.app BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.lam BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.forallE BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.letE BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.lit BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean ETag.proj BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean NTag.anonymous BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean NTag.str BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean NTag.num BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean LTag.zero BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean LTag.succ BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean LTag.max BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean LTag.imax BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean LTag.param BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Handle.lean LsTag.list BOTH (P) As `Idx.tierP`.
+proof/ConRon/Arena/Pins.lean pinCount BOTH (P) A pin-table slot literal.  The Rust side is a `const` (`pins.rs`'s `PIN_*`/`PIN_COUNT`); the READER `pinEq` and its forty-eight siblings are twins with rows of their own.
+proof/ConRon/Arena/Pins.lean PIN_EQ BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_PUNIT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_PUNIT_REC BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_ZERO BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_SUCC BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_QUOT_SOUND BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_STRING BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_STRING_OF_LIST BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_LIST BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_LIST_NIL BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_LIST_CONS BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_CHAR BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_AND BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_CHAR_OF_NAT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_SORRY_AX BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_PRED BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_ADD BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_SUB BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_MUL BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_POW BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_BEQ BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_BLE BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_DIV BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_MOD BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_GCD BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_LAND BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_LOR BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_XOR BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_SHIFT_LEFT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NAT_SHIFT_RIGHT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_BOOL BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_BOOL_TRUE BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_BOOL_FALSE BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_PROPEXT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_CHOICE BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_IFF BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_IFF_INTRO BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_IFF_REC BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NONEMPTY BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NONEMPTY_INTRO BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_NONEMPTY_REC BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_TRUE BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_TRUE_INTRO BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_TRUST_COMPILER BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_REDUCE_NAT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_REDUCE_BOOL BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_OF_REDUCE_NAT BOTH (P) As `pinCount`.
+proof/ConRon/Arena/Pins.lean PIN_OF_REDUCE_BOOL BOTH (P) As `pinCount`.
+proof/ConRon/Arena/CoreState.lean cacheCap BOTH (P) A `Nat` literal (the per-cache entry cap).  The Rust side is a `const`.
+
+# -------------------------------------------------------------------------
+# Generated source, round 2: the prelude's CHUNKS
+# -------------------------------------------------------------------------
+# `Frontend/PreludeText.lean` is skipped for T1 above.  Its sixty-seven
+# `P##` byte literals and the `pushChunk` that concatenates them are owed no
+# T2 either: `crates/con-ron-core/src/frontend/prelude_text.rs` is generated
+# by `scripts/gen-prelude.sh` from the same bytes and carries ONE
+# module-level citation for the whole file, so no `fn` of it cites a chunk.
+# `preludeText` is NOT skipped — `prelude.rs` cites it and owes
+# `builtin_prelude_text_refines`, which is where the two spellings meet.
+
+proof/ConRon/Arena/Frontend/PreludeText.lean P00 BOTH Generated bytes: one chunk of the committed prelude, written by `scripts/gen-prelude-lean.sh` and held byte-identical by its `--check` gate.  The Rust's own copy is generated too, and cites the whole module at once.
+proof/ConRon/Arena/Frontend/PreludeText.lean P01 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P02 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P03 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P04 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P05 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P06 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P07 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P08 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P09 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P10 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P11 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P12 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P13 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P14 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P15 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P16 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P17 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P18 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P19 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P20 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P21 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P22 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P23 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P24 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P25 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P26 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P27 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P28 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P29 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P30 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P31 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P32 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P33 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P34 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P35 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P36 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P37 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P38 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P39 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P40 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P41 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P42 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P43 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P44 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P45 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P46 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P47 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P48 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P49 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P50 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P51 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P52 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P53 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P54 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P55 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P56 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P57 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P58 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P59 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P60 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P61 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P62 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P63 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P64 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P65 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean P66 BOTH Generated bytes: as `P00`.
+proof/ConRon/Arena/Frontend/PreludeText.lean pushChunk BOTH Generated bytes: as `P00`.
+
+# -------------------------------------------------------------------------
+# The BRIDGE's own vocabulary: no Rust counterpart exists, by construction
+# -------------------------------------------------------------------------
+# Theorem 1's subject matter — the store invariants (`Prop`s), the node-view
+# child lists they quantify over, and the DENOTATION that carries a handle
+# back to a con-leche value.  The Rust arena has none of it: it stores words
+# and never denotes.  T1 is still owed (these are what the bridge is ABOUT);
+# only T2 is not.
+
+proof/ConRon/Arena/WF.lean * T2 The store's well-formedness invariants (`StoreWF`, `Tbl.Sized`, `ViewOK`), the node views' child lists and the view denotations: `Prop`s and bridge vocabulary, with no Rust counterpart to refine.  Every definition of this file still owes T1.
+proof/ConRon/Arena/WFProofs.lean * T2 As `WF.lean`: `ETables.Decodes`, `ENodeView.BMOK`, `ScratchSync` and the `tagOf` projections are the invariant tower's own vocabulary, not ported code.
+proof/ConRon/Arena/Denote.lean opt2 T2 The denotation itself (and the `Option` lifts and extension relation it is written with): the bridge's side of the ledger, with no Rust counterpart.
+proof/ConRon/Arena/Denote.lean opt3 T2 As `opt2`: the denotation's own vocabulary.
+proof/ConRon/Arena/Denote.lean denoteEAux T2 As `opt2`: the denotation's own vocabulary.
+proof/ConRon/Arena/Denote.lean denoteE T2 As `opt2`: the denotation's own vocabulary.
+proof/ConRon/Arena/Denote.lean NExt T2 As `opt2`: the denotation's own vocabulary.
+proof/ConRon/Arena/Store.lean EStore.capOKBM T2 A `Prop` (the binder-datum tier's capacity precondition): bridge vocabulary, nothing the Rust computes.
+proof/ConRon/Arena/Store.lean EStore.capOKBMPersistent T2 As `EStore.capOKBM`.
+
+# -------------------------------------------------------------------------
+# A BRANCH of a twin: the Rust cites the dispatcher, per `twin-lines.py`
+# -------------------------------------------------------------------------
+# `scripts/twin-lines.py`'s rule — one Rust function cites ONE twin, and for
+# a split walk that twin is the DISPATCHER — reaches past the `Arm[A-Z]`
+# defs the census folds in automatically.  `store.rs`'s `pers_get_app` cites
+# `EStore.viewApp` ("the persistent arm of `EStore.viewApp`") and its
+# `der_of_sort` cites `EStore.derOfView` ("the `sort` arm"), so the twin's
+# own T2 is the dispatcher's row and these carry none.
+
+proof/ConRon/Arena/Store.lean EStore.persGetApp T2 The persistent (or scratch) arm of the projection above it; `store.rs`'s reader cites the DISPATCHER, which has the row.
+proof/ConRon/Arena/Store.lean EStore.persGetSort T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persGetConst T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persGetConstName T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persGetFVarTy T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persGetLit T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persGetBM T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persGetBMDer T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persFindBM T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.persFind? T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean EStore.scrFind? T2 As `EStore.persGetApp`: a tier arm of the projection above it.
+proof/ConRon/Arena/Store.lean derOfBind T2 One constructor arm of `EStore.derOfView`; `store.rs`'s `der_of_*` cites `EStore.derOfView`, which has the row.
+proof/ConRon/Arena/Store.lean derOfLet T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfBVar T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfFVar T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfSort T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfConst T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfApp T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfBindAt T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfLetAt T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfLit T2 As `derOfBind`: an arm of `EStore.derOfView`.
+proof/ConRon/Arena/Store.lean EStore.derOfProj T2 As `derOfBind`: an arm of `EStore.derOfView`.
+
+# -------------------------------------------------------------------------
+# The DECLARATION layer's denotation (round 2)
+# -------------------------------------------------------------------------
+# `Arena/Frontend/Readback.lean`'s own module note: the denotation is "the
+# SPECIFICATION side of the frontend", the left-hand side of DESIGN §8.2's
+# exactness statement `denoteDecls (Arena.parse chunks) = parseChunks chunks`.
+# Like `Denote.lean`'s term-level `denoteE`, it exists for Theorem 1 and the
+# Rust never denotes: only T2 is skipped, T1 is owed.  The module's OTHER
+# direction — `internExpr`, `readExpr`, `nameHandle?` — is ported code and
+# keeps its rows.
+
+proof/ConRon/Arena/Frontend/Readback.lean denoteEList T2 The declaration layer's denotation: Theorem 1's specification side, with no Rust counterpart to refine (`Arena/Frontend/Readback.lean`'s module note).
+proof/ConRon/Arena/Frontend/Readback.lean denoteEArray T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteFire T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteRules T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteCaps T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteProjTable T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteCI T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteCIList T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteDecl T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteEGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteEListGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteCVGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteFireGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteRuleGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteRulesGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteProjTableGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteCIGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/Readback.lean denoteCIListGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/InModel.lean denoteMTypesGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/InModel.lean denoteMCtorsGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/InModel.lean denoteMRecsGo T2 As `denoteEList`: the denotation's own tower.
+proof/ConRon/Arena/Frontend/InModel.lean denoteBlockRecGo T2 As `denoteEList`: the denotation's own tower.
