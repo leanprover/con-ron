@@ -7770,4 +7770,111 @@ theorem EStore_view_tagOf {st : EStore} {i : EIdx} {v : ENodeView}
 /-- info: 'ConRon.Refine2.intern_e_bind_i_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_e_bind_i_run
 
+
+/-! ## `intern` at a binder view IS the datum intern then `internBindI`
+
+**The other half of what `intern_e_lam_run` / `intern_e_forall_e_run` need**,
+and the half that is about `Arena/` alone.  Task #97-P5-2 §10 named the route
+— `Bridge/StoreBind.lean`'s `EStore.internBindI_eq_internAt` — and `Refine2`
+does not import `Bridge`, so the four lemmas are restated here at underscore
+names (nothing clashes if the two tiers ever meet).  `intern_lam_eq` /
+`intern_forall_e_eq` are the conclusion: the twin's `internLamE ty b m` and
+the port's `EStore::intern_lam` do the same two steps in the same order, at a
+well-formed store whose datum array is below cap.
+
+**What is still missing for the two `_run` lemmas** is `estore_intern_lam_abs`
+— `estore_intern_bm_abs` composed with `estore_intern_lam_i_abs` — and the
+one fact that composition needs and no lemma states: the port's `intern_bm`
+leaves `shared_on` and `scratch_on` alone, so that finding 8's `hfrozen`
+survives into the second step.  That is ~30 lines in the same file and is
+this round's one named unfinished piece. -/
+
+/-- `ETag.isBind` is the disjunction it is defined as. -/
+theorem ETag_isBind_eq {tag : UInt32} (h : ETag.isBind tag = true) :
+    tag = ETag.lam ∨ tag = ETag.forallE := by
+  simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at h
+  exact h
+
+/-! ## `internBindI` IS `internAt`, once more
+
+The three components are `Bridge/StoreBind.lean`'s and are facts about
+`Arena/` alone; they are restated here because `Refine2` does not import
+`Bridge` and this tier may not edit `Arena/`.  Underscore names, so that
+nothing clashes if the two tiers ever meet. -/
+
+theorem ETables_findBind_eq_find? (t : ETables) {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true) :
+    t.findBind tag ⟨ty, b, mi⟩ = t.find? (eBindView tag ty b m) mi := by
+  rcases ETag_isBind_eq htag with rfl | rfl
+  · rfl
+  · rfl
+
+theorem ETables_pushBind_eq_push (t : ETables) {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (d : UInt64) (tier : UInt32)
+    (htag : ETag.isBind tag = true) :
+    t.pushBind tag ⟨ty, b, mi⟩ d tier = t.push (eBindView tag ty b m) d mi tier := by
+  rcases ETag_isBind_eq htag with rfl | rfl
+  · rfl
+  · rfl
+
+theorem EStore_derOfBindAtI_eq_derOfView {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true)
+    (hder : st.bmDer mi = (hash m.pw, m.pw.hasParams)) :
+    st.derOfBindAtI (if tag == ETag.lam then 19 else 23) ty b mi
+      = st.derOfView (eBindView tag ty b m) := by
+  rcases ETag_isBind_eq htag with rfl | rfl
+  · show st.derOfBindAtI 19 ty b mi = st.derOfBindAt 19 ty b m
+    simp only [EStore.derOfBindAtI, EStore.derOfBindAt, hder]
+  · show st.derOfBindAtI 23 ty b mi = st.derOfBindAt 23 ty b m
+    simp only [EStore.derOfBindAtI, EStore.derOfBindAt, hder]
+
+theorem EStore_internBindI_eq_internAt {st : EStore} {tag : UInt32} {ty b : EIdx}
+    {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true)
+    (hder : st.bmDer mi = (hash m.pw, m.pw.hasParams)) :
+    st.internBindI tag ty b mi = st.internAt (eBindView tag ty b m) mi := by
+  simp only [EStore.internBindI, EStore.internAt,
+    EStore_derOfBindAtI_eq_derOfView htag hder,
+    ETables_findBind_eq_find? (m := m) _ htag,
+    ETables_pushBind_eq_push (m := m) _ _ _ htag]
+
+/-- The datum just interned decodes to the datum it was asked for, so its
+derived pair is the one `derOfBindAtI` reads. -/
+theorem bmDer_internBM {st : EStore} (hwf : StoreWF st) (hcap : st.capOKBM)
+    (m : ConLeche.BinderMeta) :
+    (st.internBM m).1.bmDer (st.internBM m).2 = (hash m.pw, m.pw.hasParams) := by
+  obtain ⟨rk, hw⟩ := hwf
+  obtain ⟨hwf', -, -, -, -, -, hview, -⟩ := EStore.internBM_spec hw hcap
+  obtain ⟨rk', hw'⟩ := hwf'
+  exact hw'.bmDerExact _ _ hview
+
+/-- **`intern` at a binder view IS the datum intern followed by
+`internBindI`** — the twin's `internLamE` against the port's
+`EStore::intern_lam`. -/
+theorem intern_lam_eq {st : EStore} (hwf : StoreWF st) (hcap : st.capOKBM)
+    (ty b : EIdx) (m : ConLeche.BinderMeta) :
+    st.intern (.lam ty b m) = st.internLam ty b m := by
+  show (st.internBM m).1.internAt (.lam ty b m) (st.internBM m).2
+    = (st.internBM m).1.internLamI ty b (st.internBM m).2
+  rw [EStore.internLamI,
+    EStore_internBindI_eq_internAt (m := m) (by simp [ETag.isBind])
+      (bmDer_internBM hwf hcap m)]
+  rfl
+
+theorem intern_forall_e_eq {st : EStore} (hwf : StoreWF st) (hcap : st.capOKBM)
+    (ty b : EIdx) (m : ConLeche.BinderMeta) :
+    st.intern (.forallE ty b m) = st.internForallE ty b m := by
+  show (st.internBM m).1.internAt (.forallE ty b m) (st.internBM m).2
+    = (st.internBM m).1.internForallEI ty b (st.internBM m).2
+  rw [EStore.internForallEI,
+    EStore_internBindI_eq_internAt (m := m)
+      (by simp [ETag.isBind, ETag.lam, ETag.forallE])
+      (bmDer_internBM hwf hcap m)]
+  rfl
+
+/-- info: 'ConRon.Refine2.intern_lam_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_lam_eq
+
+/-- info: 'ConRon.Refine2.intern_forall_e_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_forall_e_eq
+
 end ConRon.Refine2
