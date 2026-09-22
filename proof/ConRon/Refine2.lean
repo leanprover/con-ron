@@ -36,3 +36,6 @@ import ConRon.Refine2.Specs
 import ConRon.Refine2.ExprOps.Pure
 import ConRon.Refine2.ExprOps.Read
 import ConRon.Refine2.ExprOps.Mut
+import ConRon.Refine2.Checker.Shape
+import ConRon.Refine2.Promote.Intern
+import ConRon.Refine2.Promote.Promote
