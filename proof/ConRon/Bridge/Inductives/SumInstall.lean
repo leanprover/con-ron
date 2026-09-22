@@ -32,33 +32,14 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Bridge
 
-/-! ## Two list-length lemmas, and the two arithmetic readers
+/-! ## The two arithmetic readers
 
 `InductiveShape.rulePrefix` and `.majorIdx` read only `Nat` fields and the
 constructor list's LENGTH, so they are equal on the nose once the shape
-relation holds — the tier's second pair of closed results. -/
-
-/-- con-leche: none — a denoting constructor list has con-leche's length. -/
-theorem denoteCtors_length {st : EStore} :
-    ∀ (cs : List (IConstantVal × Nat)) (xs : List (ConstantVal × Nat)),
-      denoteCtors st cs = some xs → cs.length = xs.length := by
-  intro cs
-  induction cs with
-  | nil => intro xs h; simp only [denoteCtors] at h; cases h; rfl
-  | cons a as ih =>
-    intro xs h
-    obtain ⟨cv, n⟩ := a
-    simp only [denoteCtors] at h
-    cases hc : Frontend.denoteCV st cv with
-    | none => rw [hc] at h; simp at h
-    | some c =>
-      cases has : denoteCtors st as with
-      | none => rw [hc, has] at h; simp at h
-      | some ys =>
-        rw [hc, has] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        simp [ih ys has]
+relation holds — the tier's second pair of closed results.
+`denoteCtors_length` itself MOVED to `Bridge/Inductives/Rel.lean` in round 5:
+`NativeParts.lean`'s `nativeRecPinOk_spec` is below this file in the import
+chain and needs it. -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:292-294 InductiveShape.rulePrefix
 The recursor's rule prefix `nP + 1 + n`. -/

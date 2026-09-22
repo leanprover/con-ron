@@ -764,23 +764,89 @@ theorem nativeCounts?_spec (nPd : Nat) (cvT : IConstantVal)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
 The stream's recursor record passed the structural pin.  Pure on both sides.
 
-**MISSING HYPOTHESIS, round 4** (with `nativeRecLpsOk_spec` below, the same
-one).  Both statements compare HANDLES on the left and NAMES on the right, so
-the `false` direction is `denoteN_inj` — and injectivity is a fact about a
-WELL-FORMED store, which neither statement asked for.  As written they are not
-provable and not true: in a store with two name handles decoding to the same
-name, the twin's `==` is `false` where con-leche's is `true`.  `StoreWF st` is
-the hypothesis, and every caller has it (`StateOK.wf`).
-
-`sorry`: the block's `denoteCIList` inverted at each member, `sumSplit_spec`,
-and `beq_handle_eq` at the rule/constructor names. -/
+**CLOSED** (task #97-P3-Ind round 5), at round 4's corrected statement — see
+`nativeRecLpsOk_spec` below for the `StoreWF` hypothesis both gained and why.
+The block's `denoteCIList` inverted at the head (`denoteCI_not_ind` closes the
+six kinds that are not the type former), `sumSplit_spec` for the members after
+it, `denoteCtors_length`/`denoteRules_length` for the two counts, and — at
+each position of the rule/constructor zip — `denoteRules_getElem?` and
+`denoteCtors3_getElem?` with `beq_handle_eq` at the constructor name. -/
 theorem nativeRecPinOk_spec (st : EStore) (hwf : StoreWF st)
-    (p : Arena.InductiveShape)
-    (q : ConLeche.InductiveShape) (block : List IConstantInfo)
-    (blockP : List ConstantInfo) (hp : ShapeRel st p q)
+    (p : Arena.InductiveShape) (q : ConLeche.InductiveShape)
+    (block : List IConstantInfo) (blockP : List ConstantInfo)
+    (hp : ShapeRel st p q)
     (hb : Frontend.denoteCIList st block = some blockP) :
     Arena.nativeRecPinOk p block = ConLeche.nativeRecPinOk q blockP := by
-  sorry
+  have hctl : p.ctors.length = q.ctors.length := denoteCtors_length _ _ hp.ctors
+  cases block with
+  | nil =>
+    simp only [Frontend.denoteCIList, Option.some.injEq] at hb
+    subst hb; rfl
+  | cons c rest =>
+    simp only [Frontend.denoteCIList] at hb
+    cases hc : Frontend.denoteCI st c with
+    | none => rw [hc] at hb; simp at hb
+    | some cP =>
+      cases hr : Frontend.denoteCIList st rest with
+      | none => rw [hc, hr] at hb; simp at hb
+      | some restP =>
+        rw [hc, hr] at hb
+        obtain rfl := Option.some.inj hb
+        cases c
+        case indInfo v caps =>
+          simp only [Frontend.denoteCI] at hc
+          cases hcv : Frontend.denoteCV st v with
+          | none => rw [hcv] at hc; simp at hc
+          | some vP =>
+            cases hcp : Frontend.denoteCaps st caps with
+            | none => rw [hcv, hcp] at hc; simp at hc
+            | some capsP =>
+              rw [hcv, hcp] at hc
+              obtain rfl := Option.some.inj hc
+              have hsp := sumSplit_spec st rest restP hr
+              simp only [Arena.nativeRecPinOk, ConLeche.nativeRecPinOk]
+              cases hA : Arena.sumSplit rest with
+              | none =>
+                rw [hA] at hsp
+                simp only [ROp] at hsp
+                rw [hsp]
+              | some a =>
+                rw [hA] at hsp
+                simp only [ROp] at hsp
+                obtain ⟨b, hbq, hrel⟩ := hsp
+                rw [hbq]
+                obtain ⟨cs, cvR, mI, rP, rules⟩ := a
+                obtain ⟨csP, cvRP, mIP, rPP, rulesP⟩ := b
+                have hcts : denoteCtors3 st cs = some csP := hrel.ctors
+                have hrls : Frontend.denoteRules st rules = some rulesP :=
+                  hrel.rules
+                have hmI : mI = mIP := hrel.mI
+                have hrP : rP = rPP := hrel.rP
+                simp only [hmI, hrP, hp.nP, hp.nIdx, hctl,
+                  denoteRules_length hrls]
+                congr 1
+                congr 1
+                funext j
+                obtain ⟨hrA, hrB⟩ := denoteRules_getElem? hrls j
+                obtain ⟨hcA, hcB⟩ := denoteCtors3_getElem? hcts j
+                cases hj : rules[j]? with
+                | none => rw [hrB hj]
+                | some rule =>
+                  obtain ⟨x, hx, hd⟩ := hrA rule hj
+                  rw [hx]
+                  cases hk : cs[j]? with
+                  | none => rw [hcB hk]
+                  | some e =>
+                    obtain ⟨cvC, aa, bb⟩ := e
+                    obtain ⟨c', hc', hdcv⟩ := hcA cvC aa bb hk
+                    rw [hc']
+                    obtain ⟨hct, hnf⟩ := denoteRule_ctor hd
+                    simp only [beq_handle_eq hwf hct (denoteCV_name hdcv), hnf]
+        all_goals
+          (have hne := denoteCI_not_ind hc (by simp)
+           cases cP
+           case indInfo aa bb => exact absurd rfl (hne aa bb)
+           all_goals rfl)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:551-560 nativeRecLpsOk
 The recursor's level parameters are the block's (with the elimination

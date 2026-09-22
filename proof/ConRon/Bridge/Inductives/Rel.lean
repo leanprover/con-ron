@@ -409,6 +409,28 @@ def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
 abbrev RLLL (us : List (List Level)) : EStore → List (List LIdx) → Prop :=
   fun st r => denoteLLists st r = some us
 
+/-- con-leche: none — a denoting constructor list has con-leche's length. -/
+theorem denoteCtors_length {st : EStore} :
+    ∀ (cs : List (IConstantVal × Nat)) (xs : List (ConstantVal × Nat)),
+      denoteCtors st cs = some xs → cs.length = xs.length := by
+  intro cs
+  induction cs with
+  | nil => intro xs h; simp only [denoteCtors] at h; cases h; rfl
+  | cons a as ih =>
+    intro xs h
+    obtain ⟨cv, n⟩ := a
+    simp only [denoteCtors] at h
+    cases hc : Frontend.denoteCV st cv with
+    | none => rw [hc] at h; simp at h
+    | some c =>
+      cases has : denoteCtors st as with
+      | none => rw [hc, has] at h; simp at h
+      | some ys =>
+        rw [hc, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        simp [ih ys has]
+
 /-- con-leche: none — a three-tuple constructor list's denotation keeps its
 length; `nativeCounts?` compares `cs.length` against the recursor's claimed
 prefix. -/
@@ -432,6 +454,151 @@ theorem denoteCtors3_length {st : EStore} :
         rw [hcv, has] at h
         obtain rfl := Option.some.inj h
         simp only [List.length_cons, ih has]
+
+/-- con-leche: none — a denoting rule list has con-leche's length. -/
+theorem denoteRules_length {st : EStore} :
+    ∀ {rs : List IRecRule} {rsP : List RecRule},
+      Frontend.denoteRules st rs = some rsP → rs.length = rsP.length := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP h
+    simp only [Frontend.denoteRules, Option.some.injEq] at h; simp [← h]
+  | cons a as ih =>
+    intro rsP h
+    simp only [Frontend.denoteRules] at h
+    cases hr : Frontend.denoteRule st a with
+    | none => rw [hr] at h; simp at h
+    | some x =>
+      cases has : Frontend.denoteRules st as with
+      | none => rw [hr, has] at h; simp at h
+      | some xs =>
+        rw [hr, has] at h
+        obtain rfl := Option.some.inj h
+        simp only [List.length_cons, ih has]
+
+/-- con-leche: none — a denoting rule list reads AT AN INDEX with the
+`Option` carried, both ways: `nativeRecPinOk` pairs the recursor's rules with
+the block's constructors position by position and answers `false` as soon as
+either runs out. -/
+theorem denoteRules_getElem? {st : EStore} :
+    ∀ {rs : List IRecRule} {rsP : List RecRule},
+      Frontend.denoteRules st rs = some rsP → ∀ (j : Nat),
+        (∀ rl, rs[j]? = some rl →
+          ∃ x, rsP[j]? = some x ∧ Frontend.denoteRule st rl = some x) ∧
+        (rs[j]? = none → rsP[j]? = none) := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP h j
+    simp only [Frontend.denoteRules, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro rl hrl; simp at hrl, by intro _; simp⟩
+  | cons a as ih =>
+    intro rsP h j
+    simp only [Frontend.denoteRules] at h
+    cases hr : Frontend.denoteRule st a with
+    | none => rw [hr] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteRules st as with
+      | none => rw [hr, has] at h; simp at h
+      | some ys =>
+        rw [hr, has] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro rl hrl
+            simp only [List.getElem?_cons_zero, Option.some.injEq] at hrl
+            subst hrl
+            exact ⟨y, by simp, hr⟩
+          · intro hb; simp at hb
+        | succ j =>
+          obtain ⟨hA, hB⟩ := ih has j
+          refine ⟨?_, ?_⟩
+          · intro rl hrl
+            simp only [List.getElem?_cons_succ] at hrl
+            obtain ⟨x, hx, hd⟩ := hA rl hrl
+            exact ⟨x, by simpa using hx, hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
+
+/-- con-leche: none — the same for a three-tuple constructor list. -/
+theorem denoteCtors3_getElem? {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat × Nat)}
+      {csP : List (ConstantVal × Nat × Nat)},
+      denoteCtors3 st cs = some csP → ∀ (j : Nat),
+        (∀ cv a b, cs[j]? = some (cv, a, b) →
+          ∃ c, csP[j]? = some (c, a, b) ∧ Frontend.denoteCV st cv = some c) ∧
+        (cs[j]? = none → csP[j]? = none) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP h j
+    simp only [denoteCtors3, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro cv a b hb; simp at hb, by intro _; simp⟩
+  | cons e es ih =>
+    intro csP h j
+    obtain ⟨cv, x, y⟩ := e
+    simp only [denoteCtors3] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some c =>
+      cases has : denoteCtors3 st es with
+      | none => rw [hcv, has] at h; simp at h
+      | some rest =>
+        rw [hcv, has] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro cv' a b hb
+            simp only [List.getElem?_cons_zero, Option.some.injEq,
+              Prod.mk.injEq] at hb
+            obtain ⟨rfl, rfl, rfl⟩ := hb
+            exact ⟨c, by simp, hcv⟩
+          · intro hb; simp at hb
+        | succ j =>
+          obtain ⟨hA, hB⟩ := ih has j
+          refine ⟨?_, ?_⟩
+          · intro cv' a b hb
+            simp only [List.getElem?_cons_succ] at hb
+            obtain ⟨c', hc', hd⟩ := hA cv' a b hb
+            exact ⟨c', by simpa using hc', hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
+
+/-- con-leche: none — a denoting rule's CONSTRUCTOR handle denotes the pure
+rule's constructor name, and its field count travels verbatim. -/
+theorem denoteRule_ctor {st : EStore} {rl : IRecRule} {x : RecRule}
+    (h : Frontend.denoteRule st rl = some x) :
+    denoteN st.ns rl.ctor = some x.ctor ∧ rl.nfields = x.nfields := by
+  simp only [Frontend.denoteRule] at h
+  cases hc : denoteN st.ns rl.ctor with
+  | none => rw [hc] at h; simp at h
+  | some c =>
+    cases hf : Frontend.denoteFire st rl.fire with
+    | none => rw [hc, hf] at h; simp at h
+    | some f =>
+      cases he : denoteE st rl.rhs with
+      | none => rw [hc, hf, he] at h; simp at h
+      | some e =>
+        rw [hc, hf, he] at h
+        obtain rfl := Option.some.inj h
+        exact ⟨rfl, rfl⟩
+
+/-- con-leche: none — `denoteCI` preserves the constant's KIND at the
+inductive tag too, for the recogniser's `| _ => false` arm (see
+`denoteCI_not_ctor`). -/
+theorem denoteCI_not_ind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some c)
+    (hne : ∀ v caps, ci ≠ .indInfo v caps) :
+    ∀ v caps, c ≠ .indInfo v caps := by
+  cases ci <;>
+    simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
 
 /-! ## The field kinds
 
