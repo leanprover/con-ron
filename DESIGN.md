@@ -38974,8 +38974,10 @@ for sixty theorems, **4.7 ms a theorem**.
 **#97-P3-Core** and **#97-P3-Checker**, merged as `be5aab5d` — and was merged
 in.  The only textual conflict was this section against theirs at the end of
 the task log.  Every gate above was re-run after the merge and is the number
-reported there (`ConRonBridge` too, which this branch does not touch but the
-merge brings in).
+reported there.  `ConRonBridge` is NOT among them and does not need to be:
+`ConRon.Bridge` imports `ConRon.Arena` and con-leche and nothing else, so no
+change of this branch — all of which is under `ConRon/Refine2/` — can reach
+it.
 
 **One semantic repair was needed, and it is task #97-P5-1's finding 9 coming
 true.**  That finding said *"the capacity test is on the wrong side of the
