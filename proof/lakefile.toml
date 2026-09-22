@@ -92,3 +92,13 @@ root = "ConRon.Arena.Main"
 [[lean_exe]]
 name = "con-ron-arena-bench"
 root = "ConRon.Arena.Bench"
+
+# **THEOREM 2, the Aeneas refinement of the arena checker** (DESIGN.md §8.2,
+# task #97 P5).  A library root of its own rather than a subdirectory of
+# `ConRon`, for the reason `ConRonArena` is one: it is a *new* tower over
+# `ConRon.Generated` + `ConRon.Arena` + the surviving leaf tiers of
+# `ConRon.Refine`, and keeping it out of the `ConRon` root means a P5 agent's
+# half-built tier never blocks `lake build`'s default targets.  Task #97-P5-0.
+[[lean_lib]]
+name = "ConRonRefine2"
+roots = ["ConRon.Refine2"]
