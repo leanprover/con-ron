@@ -108,7 +108,7 @@ use con_ron_core::kernel::{expr, level, name};
 use crate::in_model::mutual::{BlockRec, Ctx, IndCtorRec, IndRecRec, IndTypeRec};
 use con_ron_core::arena::store::PersTier;
 
-/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:196-206 inProcessModeller
+/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
 /// **The modeller the binary passes**: `crate::in_model`'s generator behind
 /// the arena's handle seam.  The two caches are the module note's — the
 /// readback memo, and the leaked tree blocks `Ctx::blocks` must return a
@@ -123,7 +123,7 @@ pub struct InProcess {
     blocks: RefCell<HashMap<u32, &'static BlockRec>>,
 }
 
-/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:196-206 inProcessModeller
+/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
 impl InProcess {
     /// con-leche: none — the seam's instantiation (task #97 P4f)
     /// A modeller with empty caches.
@@ -148,7 +148,7 @@ impl Default for InProcess {
 // families with a memo)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — the readback of a name handle; Lean twin: proof/ConRon/Arena/Denote.lean:87-88 denoteN
+/// con-leche: none — the readback of a name handle; Lean twin: proof/ConRon/Arena/Denote.lean:85-88 denoteN
 /// A name, read back.  Names are short and the store is shallow, so this one
 /// is unmemoised, as the twin's `denoteN` is.
 fn read_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Option<Name> {
@@ -160,7 +160,7 @@ fn read_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Option<Name> {
     }
 }
 
-/// con-leche: none — the readback of a name-handle list; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteNList
+/// con-leche: none — the readback of a name-handle list; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:92-98 denoteNList
 /// A list of names, read back.
 fn read_names(pers: &PersTier, ar: &EStore, hs: &[NIdx]) -> Option<Vec<Name>> {
     let mut out: Vec<Name> = Vec::with_capacity(hs.len());
@@ -170,7 +170,7 @@ fn read_names(pers: &PersTier, ar: &EStore, hs: &[NIdx]) -> Option<Vec<Name>> {
     Some(out)
 }
 
-/// con-leche: none — the readback of a level handle; Lean twin: proof/ConRon/Arena/Denote.lean:99-107 denoteL
+/// con-leche: none — the readback of a level handle; Lean twin: proof/ConRon/Arena/Denote.lean:129-132 denoteL
 /// A level, read back.
 fn read_level(pers: &PersTier, ar: &EStore, h: &LIdx) -> Option<Level> {
     match ar.ls().view(pers, h) {
@@ -191,7 +191,7 @@ fn read_level(pers: &PersTier, ar: &EStore, h: &LIdx) -> Option<Level> {
     }
 }
 
-/// con-leche: none — the readback of a level-list handle; Lean twin: proof/ConRon/Arena/Denote.lean denoteLs
+/// con-leche: none — the readback of a level-list handle; Lean twin: proof/ConRon/Arena/Denote.lean:173-177 denoteLs
 /// An interned level list, read back.
 fn read_levels(pers: &PersTier, ar: &EStore, h: &LsIdx) -> Option<Vec<Level>> {
     let us = ar.ls_s().view(pers, h)?;
@@ -202,7 +202,7 @@ fn read_levels(pers: &PersTier, ar: &EStore, h: &LsIdx) -> Option<Vec<Level>> {
     Some(out)
 }
 
-/// con-leche: none — the readback of a level-handle list; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteLList
+/// con-leche: none — the readback of a level-handle list; Lean twin: proof/ConRon/Arena/Denote.lean:168-171 denoteLList
 /// A `Vec<LIdx>` (a recursor rule's nested levels), read back.
 fn read_level_list(pers: &PersTier, ar: &EStore, hs: &[LIdx]) -> Option<Vec<Level>> {
     let mut out: Vec<Level> = Vec::with_capacity(hs.len());
@@ -212,7 +212,7 @@ fn read_level_list(pers: &PersTier, ar: &EStore, hs: &[LIdx]) -> Option<Vec<Leve
     Some(out)
 }
 
-/// con-leche: none — the MEMOISED readback of an expression handle; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:denoteEShared
+/// con-leche: none — the MEMOISED readback of an expression handle; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:297-302 denoteEShared
 /// **The readback that matters**: one `Expr` per handle, whatever the number
 /// of parents.  The recursion is on the store's own rank (a child is interned
 /// before its parent), so the depth is the term's and the 1 GB stack the
@@ -259,7 +259,7 @@ fn read_expr(pers: &PersTier, m: &mut HashMap<u32, Expr>, ar: &EStore, h: &EIdx)
     Some(e)
 }
 
-/// con-leche: none — the readback of a constant value; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteCV
+/// con-leche: none — the readback of a constant value; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:114-120 denoteCV
 /// A `ConstantVal`, read back.
 fn read_cv(
     pers: &PersTier,
@@ -274,7 +274,7 @@ fn read_cv(
     })
 }
 
-/// con-leche: none — the readback of a recursor rule; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteRule
+/// con-leche: none — the readback of a recursor rule; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:131-136 denoteRule
 /// A `RecRule`, read back, its firing datum included.
 fn read_rule(
     pers: &PersTier,
@@ -306,7 +306,7 @@ fn read_rule(
     })
 }
 
-/// con-leche: none — the readback of one type former of a parsed block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:66-73 denoteMTypeGo
+/// con-leche: none — the readback of one type former of a parsed block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:66-74 denoteMTypeGo
 fn read_type(
     pers: &PersTier,
     m: &mut HashMap<u32, Expr>,
@@ -359,7 +359,7 @@ fn read_rec(
     })
 }
 
-/// con-leche: none — the readback of a parsed inductive block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:143-148 denoteBlockRec
+/// con-leche: none — the readback of a parsed inductive block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:144-149 denoteBlockRec
 /// The block the generator takes.  One memo for the whole block *and* for the
 /// whole run, so the sharing between its types, constructors and recursors —
 /// and between one block and the next — survives the readback.
@@ -392,7 +392,7 @@ fn read_block(
 // The context: a name, back to its handle
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — the store probe behind the context's three closures; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:161-186 ctxOf
+/// con-leche: none — the store probe behind the context's three closures; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:159-183 ctxOf
 /// The cited `nameHandle?`: the handle of a name the store has already
 /// interned, **without interning it**.  A name the store has never seen is a
 /// name no declaration carries, so `None` here is the right answer and not a

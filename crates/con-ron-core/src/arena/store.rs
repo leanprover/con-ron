@@ -166,28 +166,28 @@ const M_E_CAP: [u32; 36] = [
 // The generic interned table (`Store.lean:53-105`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:87-88 Tbl.derAt
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 Tbl.derAt
 /// The `[Inhabited δ]` of the Lean's `Tbl.derAt`: the derived word a read
 /// past the end of the column answers with.  The range is a `StoreWF` clause,
 /// so the fallback is never taken on a well-formed store; it exists because
 /// `derAt` is total.  Spelled as the crate's own one-method trait rather than
 /// `core::default::Default`, for the reason `ron::hashmap::Eq2` gives.
 pub trait DerDefault {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:87-88 Tbl.derAt
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 Tbl.derAt
     /// The value `derAt` answers with out of range.
     fn der_default() -> Self;
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:87-88 Tbl.derAt
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 Tbl.derAt
 /// The name and expression columns are a bare `u64`, whose `Inhabited` is `0`.
 impl DerDefault for u64 {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:87-88 Tbl.derAt
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 Tbl.derAt
     fn der_default() -> u64 {
         0
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:64-71 Tbl
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:61-67 Tbl
 /// nanoda's `UniqueIndexSet<A>` (`util.rs:28-33`) with con-leche's parallel
 /// derived array beside it (lesson 1: derived data never lives inside the
 /// cons key).  One constructor's array of one tier: the node records, the
@@ -210,7 +210,7 @@ pub struct Tbl<A, I, D> {
     pub cons: HashMap<A, I>,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:69-100 Tbl
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:61-67 Tbl
 /// The six operations of the Lean's `Tbl` namespace.  One `impl` with every
 /// bound, rather than the Lean's `variable` block plus per-`def` instance
 /// arguments: all seventeen instantiations satisfy all three bounds.
@@ -220,18 +220,18 @@ where
     I: Dup,
     D: Dup + DerDefault,
 {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:74 Tbl.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 Tbl.empty
     pub fn empty() -> Tbl<A, I, D> {
         Tbl { rows: Vec::new(), cons: HashMap::new() }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:79 Tbl.size
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:78-79 Tbl.size
     /// How many nodes this constructor has in this tier.
     pub fn size(&self) -> usize {
         self.rows.len()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:82 Tbl.node?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:81-82 Tbl.node?
     /// Read one node record.  The Lean writes `t.nodes[n]?`; the bound test is
     /// explicit here because Aeneas models indexing and `len`, not `Vec::get`.
     #[inline(always)]
@@ -243,7 +243,7 @@ where
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:87-88 Tbl.derAt
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 Tbl.derAt
     /// Read one derived word (`der_default` out of range).
     #[inline(always)]
     pub fn der_at(&self, n: usize) -> D {
@@ -268,7 +268,7 @@ where
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:91 Tbl.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 Tbl.find?
     /// The cons-table probe.
     pub fn find(&self, a: &A) -> Option<I> {
         match self.cons.get(a) {
@@ -301,7 +301,7 @@ where
         self.rows.push((a, d));
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:96-100 Tbl.push
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:93-98 Tbl.push
     /// Append a node with its derived word and register it in the cons table.
     /// The record is stored twice, as the Lean stores it twice — once as the
     /// array element and once as the cons key — so the caller hands over one
@@ -312,7 +312,7 @@ where
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:74 Tbl.empty` — the same VALUE as
+    /// `proof/ConRon/Arena/Store.lean:73-74 Tbl.empty` — the same VALUE as
     /// `empty`, with the cons table's bucket array kept
     /// (`arena::core_state::reset_map`).  The scratch tier is emptied twice
     /// per declaration (`enable_scratch` and `drop_scratch`), 57 362 times on
@@ -412,12 +412,12 @@ pub fn lidx_vec_dup_from(us: &Vec<LIdx>, i: usize, out: Vec<LIdx>) -> Vec<LIdx> 
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Store.lean:106-108 AnonNode` — the
+/// Lean twin: `proof/ConRon/Arena/Store.lean:104-108 AnonNode` — the
 /// `anonymous` constructor, line 35.
 pub struct AnonNode {}
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Store.lean:112-115 StrNode` — the `str`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:110-115 StrNode` — the `str`
 /// constructor, line 36.  Deviation (DESIGN.md §3.3): the component is a
 /// `Vec<u32>` of code points, as every string in the verified core is.
 pub struct StrNode {
@@ -426,7 +426,7 @@ pub struct StrNode {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Store.lean:119-122 NumNode` — the `num`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:117-122 NumNode` — the `num`
 /// constructor, line 37.  Deviation (DESIGN.md §3.3): the Lean's `Nat` is a
 /// `u64`, as every de Bruijn index and name component in the core is.
 pub struct NumNode {
@@ -434,29 +434,29 @@ pub struct NumNode {
     pub n: u64,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:106-108 AnonNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:104-108 AnonNode
 /// The cited structure's `deriving Hashable`: the constructor index (a
 /// structure has one, `0`) and no fields to fold in.
 impl Hashable for AnonNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:106-108 AnonNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:104-108 AnonNode
     fn hash64(&self) -> u64 {
         0
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:112-115 StrNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:110-115 StrNode
 /// `deriving Hashable`: `mixHash` folded over the fields from the
 /// constructor index.
 impl Hashable for StrNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:112-115 StrNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:110-115 StrNode
     fn hash64(&self) -> u64 {
         name::mix_hash(name::mix_hash(0, self.pre.hash64()), name::str_hash(&self.s))
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:119-122 NumNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:117-122 NumNode
 impl Hashable for NumNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:119-122 NumNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:117-122 NumNode
     fn hash64(&self) -> u64 {
         name::mix_hash(name::mix_hash(0, self.pre.hash64()), name::nat_hash(self.n))
     }
@@ -519,7 +519,7 @@ impl Dup for NumNode {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Store.lean:130-134 NNodeView` — the
+/// Lean twin: `proof/ConRon/Arena/Store.lean:128-134 NNodeView` — the
 /// store-side view of a name node: con-leche's three constructors with the
 /// prefix as a handle.
 pub enum NNodeView {
@@ -528,7 +528,7 @@ pub enum NNodeView {
     Num(NIdx, u64),
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:137-143 NTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:136-140 NTables
 /// One tier of the name store.
 pub struct NTables {
     pub anons: Tbl<AnonNode, NIdx, u64>,
@@ -536,7 +536,7 @@ pub struct NTables {
     pub nums: Tbl<NumNode, NIdx, u64>,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:144-147 NStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:142-147 NStore
 /// The name store: two tiers and the scratch flag (DESIGN.md §8.3).
 pub struct NStore {
     pub pers: NTables,
@@ -553,19 +553,19 @@ pub struct NStore {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
-/// Lean twin: `proof/ConRon/Arena/Store.lean:153-155 ZeroNode` — the `zero`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:151-155 ZeroNode` — the `zero`
 /// constructor, line 41.
 pub struct ZeroNode {}
 
 /// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
-/// Lean twin: `proof/ConRon/Arena/Store.lean:159-161 SuccNode` — the `succ`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:157-161 SuccNode` — the `succ`
 /// constructor, line 42.
 pub struct SuccNode {
     pub u: LIdx,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
-/// Lean twin: `proof/ConRon/Arena/Store.lean:166-169 BinLNode` — the `max`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:163-169 BinLNode` — the `max`
 /// constructor, line 43, and `imax`, line 44, which has the same two fields
 /// and therefore the same record in its own array.
 pub struct BinLNode {
@@ -574,39 +574,39 @@ pub struct BinLNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
-/// Lean twin: `proof/ConRon/Arena/Store.lean:173-175 ParamNode` — the `param`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:171-175 ParamNode` — the `param`
 /// constructor, line 45.
 pub struct ParamNode {
     pub n: NIdx,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:153-155 ZeroNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:151-155 ZeroNode
 impl Hashable for ZeroNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:153-155 ZeroNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:151-155 ZeroNode
     fn hash64(&self) -> u64 {
         0
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:159-161 SuccNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:157-161 SuccNode
 impl Hashable for SuccNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:159-161 SuccNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:157-161 SuccNode
     fn hash64(&self) -> u64 {
         name::mix_hash(0, self.u.hash64())
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:166-169 BinLNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:163-169 BinLNode
 impl Hashable for BinLNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:166-169 BinLNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:163-169 BinLNode
     fn hash64(&self) -> u64 {
         name::mix_hash(name::mix_hash(0, self.u.hash64()), self.v.hash64())
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:173-175 ParamNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:171-175 ParamNode
 impl Hashable for ParamNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:173-175 ParamNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:171-175 ParamNode
     fn hash64(&self) -> u64 {
         name::mix_hash(0, self.n.hash64())
     }
@@ -681,7 +681,7 @@ impl Dup for ParamNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
-/// Lean twin: `proof/ConRon/Arena/Store.lean:184-190 LNodeView` — the
+/// Lean twin: `proof/ConRon/Arena/Store.lean:182-190 LNodeView` — the
 /// store-side view of a level node.
 pub enum LNodeView {
     Zero,
@@ -692,7 +692,7 @@ pub enum LNodeView {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
-/// Lean twin: `proof/ConRon/Arena/Store.lean:196-199 LDer` — the `hashData`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:192-199 LDer` — the `hashData`
 /// computed field, lines 47-53, plus the has-a-parameter flag, which
 /// con-leche recomputes by a walk (`Kernel/Expr.lean:114-122 levelHasParam`)
 /// because a `Level` tree has nowhere to cache it.
@@ -709,16 +709,16 @@ impl Dup for LDer {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:196-199 LDer
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:192-199 LDer
 /// The Lean's `deriving Inhabited` on the pair, i.e. `⟨0, false⟩`.
 impl DerDefault for LDer {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:196-199 LDer
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:192-199 LDer
     fn der_default() -> LDer {
         LDer { hash: 0, has_param: false }
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:202-207 LTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:201-207 LTables
 /// One tier of the level store.
 pub struct LTables {
     pub zeros: Tbl<ZeroNode, LIdx, LDer>,
@@ -728,7 +728,7 @@ pub struct LTables {
     pub params: Tbl<ParamNode, LIdx, LDer>,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:210-214 LStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:209-214 LStore
 /// The level store, over the name store.
 pub struct LStore {
     pub ns: NStore,
@@ -745,7 +745,7 @@ pub struct LStore {
 // Level lists (`Store.lean:216-246`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:227-229 ListNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:225-229 ListNode
 /// The interned universe-argument list (nanoda's `LevelsPtr`, `util.rs:84`),
 /// so that comparing two `const` nodes' level arguments is one word
 /// comparison.  Deviation from the Lean's `List LIdx`: a `Vec<LIdx>`, which
@@ -754,9 +754,9 @@ pub struct ListNode {
     pub us: Vec<LIdx>,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:227-229 ListNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:225-229 ListNode
 impl Hashable for ListNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:227-229 ListNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:225-229 ListNode
     fn hash64(&self) -> u64 {
         name::mix_hash(0, lidx_vec_hash(&self.us))
     }
@@ -778,17 +778,17 @@ impl Dup for ListNode {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:234 LsNodeView
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:233-234 LsNodeView
 /// The store-side view of a level-list node.
 pub type LsNodeView = Vec<LIdx>;
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:238-239 LsTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:236-239 LsTables
 /// One tier of the level-list store (a single constructor).
 pub struct LsTables {
     pub lists: Tbl<ListNode, LsIdx, LDer>,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:242-246 LsStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:241-246 LsStore
 /// The level-list store, over the level store.
 pub struct LsStore {
     pub ls: LStore,
@@ -806,7 +806,7 @@ pub struct LsStore {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:252-254 BVarNode` — the `bvar`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:250-254 BVarNode` — the `bvar`
 /// constructor, line 344.  Deviation (DESIGN.md §3.3): the Lean's `Nat` is a
 /// `u64`, as `expr::bvar`'s index already is.
 pub struct BVarNode {
@@ -814,7 +814,7 @@ pub struct BVarNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:258-261 FVarNode` — the `fvar`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:256-261 FVarNode` — the `fvar`
 /// constructor, line 345.
 pub struct FVarNode {
     pub idx: u64,
@@ -822,14 +822,14 @@ pub struct FVarNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:265-267 SortNode` — the `sort`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:263-267 SortNode` — the `sort`
 /// constructor, line 346.
 pub struct SortNode {
     pub u: LIdx,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:271-274 ConstNode` — the `const`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:269-274 ConstNode` — the `const`
 /// constructor, line 347.  Two words: the level arguments are one interned
 /// handle, not a list.
 pub struct ConstNode {
@@ -838,7 +838,7 @@ pub struct ConstNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:278-281 AppNode` — the `app`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:276-281 AppNode` — the `app`
 /// constructor, line 348.  Eight bytes of node and eight of derived word,
 /// which is what DESIGN.md §8.5 prices the representation at.
 pub struct AppNode {
@@ -847,7 +847,7 @@ pub struct AppNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:286-290 BindNode` — the `lam`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:283-291 BindNode` — the `lam`
 /// constructor, line 349, and `forallE`, line 350: same three fields, its own
 /// array.
 pub struct BindNode {
@@ -857,7 +857,7 @@ pub struct BindNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-/// Lean twin: `proof/ConRon/Arena/Store.lean:309-314 BMNode` — `BMNode`, the
+/// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` — `BMNode`, the
 /// binder-datum store's one record: a `BinderMeta`'s `PropWhen`, hash-consed
 /// exactly as every other node of the arena is, so that a `BindNode` names it
 /// by a `u32`.
@@ -881,7 +881,7 @@ pub struct BMNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:294-298 LetNode` — the `letE`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:313-319 LetNode` — the `letE`
 /// constructor, line 351.
 pub struct LetNode {
     pub ty: EIdx,
@@ -890,14 +890,14 @@ pub struct LetNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:302-304 LitNode` — the `lit`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:321-325 LitNode` — the `lit`
 /// constructor, line 352.
 pub struct LitNode {
     pub l: Literal,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:308-312 ProjNode` — the `proj`
+/// Lean twin: `proof/ConRon/Arena/Store.lean:327-333 ProjNode` — the `proj`
 /// constructor, line 353.
 pub struct ProjNode {
     pub n: NIdx,
@@ -905,17 +905,17 @@ pub struct ProjNode {
     pub e: EIdx,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:252-254 BVarNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:250-254 BVarNode
 impl Hashable for BVarNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:252-254 BVarNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:250-254 BVarNode
     fn hash64(&self) -> u64 {
         name::nat_hash(self.i)
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:258-261 FVarNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:256-261 FVarNode
 impl Hashable for FVarNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:258-261 FVarNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:256-261 FVarNode
     fn hash64(&self) -> u64 {
         fold3(self.ty.hash64(), name::nat_hash(self.idx))
     }
@@ -955,33 +955,33 @@ fn fold3(ab: u64, c: u64) -> u64 {
     ab ^ c.wrapping_mul(0x9e3779b97f4a7c15)
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:265-267 SortNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:263-267 SortNode
 impl Hashable for SortNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:265-267 SortNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:263-267 SortNode
     fn hash64(&self) -> u64 {
         self.u.hash64()
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:271-274 ConstNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:269-274 ConstNode
 impl Hashable for ConstNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:271-274 ConstNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:269-274 ConstNode
     fn hash64(&self) -> u64 {
         pack2(self.n.word, self.us.word)
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:278-281 AppNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:276-281 AppNode
 impl Hashable for AppNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:278-281 AppNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:276-281 AppNode
     fn hash64(&self) -> u64 {
         pack2(self.f.word, self.a.word)
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:286-290 BindNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:283-291 BindNode
 impl Hashable for BindNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:286-290 BindNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:283-291 BindNode
     ///
     /// **Three words, packed** (task #97-P6-16): the datum is a `BMIdx` now,
     /// so the record hashes the way `ProjNode` and `LetNode` do — the two
@@ -993,11 +993,11 @@ impl Hashable for BindNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-/// Lean twin: `proof/ConRon/Arena/Store.lean:309-314 BMNode` — the binder-datum
+/// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` — the binder-datum
 /// store's cons key.
 impl Hashable for BMNode {
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:309-314 BMNode` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` —
     /// `PropWhen.hash`, which is what the binder record used to fold in at
     /// every probe.
     fn hash64(&self) -> u64 {
@@ -1005,41 +1005,41 @@ impl Hashable for BMNode {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:294-298 LetNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:313-319 LetNode
 impl Hashable for LetNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:294-298 LetNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:313-319 LetNode
     fn hash64(&self) -> u64 {
         fold3(pack2(self.ty.word, self.val.word), self.body.hash64())
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:302-304 LitNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:321-325 LitNode
 impl Hashable for LitNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:302-304 LitNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:321-325 LitNode
     fn hash64(&self) -> u64 {
         expr::literal_hash(&self.l)
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:308-312 ProjNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:327-333 ProjNode
 impl Hashable for ProjNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:308-312 ProjNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:327-333 ProjNode
     fn hash64(&self) -> u64 {
         fold3(pack2(self.n.word, self.e.word), name::nat_hash(self.i))
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:314 instBEqBVarNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:335 instBEqBVarNode
 impl Eq2 for BVarNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:314 instBEqBVarNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:335 instBEqBVarNode
     fn eq2(&self, other: &BVarNode) -> bool {
         self.i == other.i
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:315 instBEqFVarNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:336 instBEqFVarNode
 impl Eq2 for FVarNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:315 instBEqFVarNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:336 instBEqFVarNode
     fn eq2(&self, other: &FVarNode) -> bool {
         if self.idx == other.idx {
             self.ty.word == other.ty.word
@@ -1049,17 +1049,17 @@ impl Eq2 for FVarNode {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:316 instBEqSortNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:337 instBEqSortNode
 impl Eq2 for SortNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:316 instBEqSortNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:337 instBEqSortNode
     fn eq2(&self, other: &SortNode) -> bool {
         self.u.word == other.u.word
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:317 instBEqConstNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:338 instBEqConstNode
 impl Eq2 for ConstNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:317 instBEqConstNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:338 instBEqConstNode
     fn eq2(&self, other: &ConstNode) -> bool {
         if self.n.word == other.n.word {
             self.us.word == other.us.word
@@ -1069,9 +1069,9 @@ impl Eq2 for ConstNode {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:318 instBEqAppNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:339 instBEqAppNode
 impl Eq2 for AppNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:318 instBEqAppNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:339 instBEqAppNode
     fn eq2(&self, other: &AppNode) -> bool {
         if self.f.word == other.f.word {
             self.a.word == other.a.word
@@ -1081,9 +1081,9 @@ impl Eq2 for AppNode {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:319 instBEqBindNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:340 instBEqBindNode
 impl Eq2 for BindNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:319 instBEqBindNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:340 instBEqBindNode
     fn eq2(&self, other: &BindNode) -> bool {
         if self.ty.word == other.ty.word {
             if self.body.word == other.body.word {
@@ -1109,9 +1109,9 @@ impl Eq2 for BMNode {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:320 instBEqLetNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:342 instBEqLetNode
 impl Eq2 for LetNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:320 instBEqLetNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:342 instBEqLetNode
     fn eq2(&self, other: &LetNode) -> bool {
         if self.ty.word == other.ty.word {
             if self.val.word == other.val.word {
@@ -1125,17 +1125,17 @@ impl Eq2 for LetNode {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:321 instBEqLitNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:343 instBEqLitNode
 impl Eq2 for LitNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:321 instBEqLitNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:343 instBEqLitNode
     fn eq2(&self, other: &LitNode) -> bool {
         expr::literal_beq(&self.l, &other.l)
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:322 instBEqProjNode
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:344 instBEqProjNode
 impl Eq2 for ProjNode {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:322 instBEqProjNode
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:344 instBEqProjNode
     fn eq2(&self, other: &ProjNode) -> bool {
         if self.n.word == other.n.word {
             if self.i == other.i {
@@ -1234,7 +1234,7 @@ impl Dup for ProjNode {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:328-338 ENodeView` — the
+/// Lean twin: `proof/ConRon/Arena/Store.lean:346-361 ENodeView` — the
 /// store-side view of an expression node: con-leche's ten constructors with
 /// every subterm replaced by a handle.  `BinderMeta` and `Literal` stay
 /// *values* (they are not expressions), exactly as DESIGN.md §8.3 specifies,
@@ -1252,7 +1252,7 @@ pub enum ENodeView {
     Proj(NIdx, u64, EIdx),
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:343-358 ETables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:363-382 ETables
 /// One tier of the expression store: ten arrays, ten derived columns, ten
 /// cons tables.
 pub struct ETables {
@@ -1267,7 +1267,7 @@ pub struct ETables {
     pub lits: Tbl<LitNode, EIdx, u64>,
     pub projs: Tbl<ProjNode, EIdx, u64>,
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:382 ETables.bms` — the tier's
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:376-382 ETables.bms` — the tier's
     /// **binder-datum store**: the hash-consed `PropWhen`s the `lam` and
     /// `forallE` records name by a `BMIdx`, with the derived column holding
     /// `PropWhen.hash` so that `derOfBind`'s two scalars are one indexed load.
@@ -1276,7 +1276,7 @@ pub struct ETables {
     pub bms: Tbl<BMNode, BMIdx, u64>,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:359-363 EStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
 /// The expression store, over the level-list store.  Two tiers: persistent
 /// (parse + installed environment) and scratch (one declaration's check), the
 /// tier bit of a handle selecting between them (DESIGN.md §8.3).
@@ -1295,7 +1295,7 @@ pub struct EStore {
 // The persistent tier as ONE value (DESIGN.md §8.3, task #97-P6-6b)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:359-363 EStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
 /// **The persistent tier of all four stores, as one value `n` phase-B workers
 /// read by reference** — DESIGN.md §8.3's "the persistent tier is immutable in
 /// phase B, each worker owns a scratch tier — no atomics anywhere", made
@@ -1325,9 +1325,9 @@ pub struct PersTier {
     pub e: ETables,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:359-363 EStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
 impl PersTier {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:359-363 EStore
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
     /// The empty tier: what the parse and phase A are handed, since they read
     /// their own (`shared_on` false) and never this one.
     pub fn empty() -> PersTier {
@@ -1339,7 +1339,7 @@ impl PersTier {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:934 EStore.nodeCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-471 EStore.nodeCount
     /// Expression nodes in the tier — the boundary figure `--progress` prints.
     pub fn e_count(&self) -> usize {
         self.e.count()
@@ -1350,16 +1350,16 @@ impl PersTier {
 // The name store's operations (`Store.lean:365-510`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:367-428 NTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:136-140 NTables
 /// One tier's seven operations.
 impl NTables {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:370 NTables.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 NTables.empty
     pub fn empty() -> NTables {
         NTables { anons: Tbl::empty(), strs: Tbl::empty(), nums: Tbl::empty() }
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean NTables.empty` — the same value as `empty`,
+    /// `proof/ConRon/Arena/Store.lean:73-74 NTables.empty` — the same value as `empty`,
     /// with the cons tables' bucket arrays kept (`Tbl::reset`).
     pub fn reset(&mut self) {
         self.anons.reset();
@@ -1367,13 +1367,13 @@ impl NTables {
         self.nums.reset()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:375 NTables.count
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 NTables.count
     /// Nodes in this tier, over all constructors.
     pub fn count(&self) -> usize {
         self.anons.size() + self.strs.size() + self.nums.size()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:379-383 NTables.get
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:406-412 NTables.get
     /// Decode one handle against this tier's arrays.  The tier bit is *not*
     /// consulted: `NStore::view` selects the tier first.
     pub fn get(&self, i: &NIdx) -> Option<NNodeView> {
@@ -1397,7 +1397,7 @@ impl NTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:386-390 NTables.derAt
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 NTables.derAt
     pub fn der_at(&self, i: &NIdx) -> u64 {
         if i.tag() == NTAG_ANONYMOUS {
             self.anons.der_at(i.idx_nat())
@@ -1410,7 +1410,7 @@ impl NTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:393-397 NTables.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 NTables.find?
     /// The cons-table probe for a whole node view.
     pub fn find(&self, v: &NNodeView) -> Option<NIdx> {
         match v {
@@ -1422,7 +1422,7 @@ impl NTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:401-405 NTables.sizeOf
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 NTables.sizeOf
     /// The size of the constructor array `v` would land in; the capacity test
     /// is stated on it.
     pub fn size_of(&self, v: &NNodeView) -> usize {
@@ -1444,7 +1444,7 @@ impl NTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:409-426 NTables.push
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:93-98 NTables.push
     /// Append a node to this tier, returning its handle.
     pub fn push(&mut self, v: NNodeView, d: u64, tier: u32) -> NIdx {
         match v {
@@ -1467,10 +1467,10 @@ impl NTables {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:430-510 NStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:142-147 NStore
 /// The name store's twelve operations.
 impl NStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:433 NStore.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 NStore.empty
     pub fn empty() -> NStore {
         NStore {
             pers: NTables::empty(),
@@ -1556,7 +1556,7 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:438 NStore.persCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 NStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
         if self.shared_on {
             pers.n.count()
@@ -1565,18 +1565,18 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:440 NStore.scrCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-469 NStore.scrCount
     pub fn scr_count(&self) -> usize {
         self.scr.count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:442 NStore.nodeCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-471 NStore.nodeCount
     /// Nodes in both tiers; the fuel bound `denoteN` uses on the Lean side.
     pub fn node_count(&self, pers: &PersTier) -> usize {
         self.pers_count(pers) + self.scr_count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:446-448 NStore.view
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:473-477 NStore.view
     /// Decode a handle: the tier bit selects the array set, and a scratch
     /// handle reads as absent while the scratch tier is off.
     pub fn view(&self, pers: &PersTier, i: &NIdx) -> Option<NNodeView> {
@@ -1590,7 +1590,7 @@ impl NStore {
     }
 
     /// con-leche: ConLeche/Kernel/Name.lean:34-44 Name
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:452-454 NStore.derived` — the
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:479-483 NStore.derived` — the
     /// `hashData` computed field, lines 41-44: the derived word of a handle.
     pub fn derived(&self, pers: &PersTier, i: &NIdx) -> u64 {
         if i.is_persistent() {
@@ -1603,7 +1603,7 @@ impl NStore {
     }
 
     /// con-leche: ConLeche/Kernel/Name.lean:34-44 Name
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:459-463 NStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 NStore.derOfView` —
     /// the `hashData` computed field, lines 41-44: the derived word a node
     /// view *would* get, in `O(1)` from the children's.  The three formulas
     /// are `name::anonymous`/`mk_str`/`mk_num`'s, with `hash_data(&pre)`
@@ -1620,7 +1620,7 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:467-470 NStore.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 NStore.find?
     /// Probe both tiers, persistent first (nanoda's `alloc_name`: "checks the
     /// longer-lived storage first").
     pub fn find(&self, pers: &PersTier, v: &NNodeView) -> Option<NIdx> {
@@ -1636,7 +1636,7 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:474-492 NStore.intern
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:501-521 NStore.intern
     /// Hash-cons a name node: probe persistent, then scratch, then append to
     /// the tier the store is in.  Deviation from the Lean, which is total: the
     /// `2^27`-per-constructor-per-tier limit is `capOK`, a *hypothesis* of the
@@ -1657,7 +1657,7 @@ impl NStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:474-490 NStore.intern`, the `str` arm —
+    /// `proof/ConRon/Arena/Store.lean:501-521 NStore.intern`, the `str` arm —
     /// **the probe key built once, by MOVE.**
     ///
     /// The twin's `t.strs.find? ⟨p, s⟩` copies nothing: a Lean `String` is a
@@ -1713,7 +1713,7 @@ impl NStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:474-490 NStore.intern` — the two arms
+    /// `proof/ConRon/Arena/Store.lean:501-521 NStore.intern` — the two arms
     /// whose record is all scalars, so that building it twice costs nothing
     /// and the twin's spelling is kept verbatim.
     pub fn intern_other(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
@@ -1744,14 +1744,14 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:496-497 NStore.enableScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:523-526 NStore.enableScratch
     /// Open the scratch tier (DESIGN.md §8.3's per-declaration bracket).
     pub fn enable_scratch(&mut self) {
         self.scr.reset();
         self.scratch_on = true;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:501-502 NStore.dropScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:528-531 NStore.dropScratch
     /// Drop the scratch tier.  Persistent handles keep their bits (DESIGN.md
     /// §8.3, con-leche's lesson 6).
     pub fn drop_scratch(&mut self) {
@@ -1759,7 +1759,7 @@ impl NStore {
         self.scratch_on = false;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:507-508 NStore.capOK
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 NStore.capOK
     /// `intern`'s capacity precondition, as a test rather than a `Prop`: the
     /// constructor's array in the tier being appended to has room for one more
     /// node.
@@ -1776,9 +1776,9 @@ impl NStore {
 // The level store's operations (`Store.lean:512-672`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:514-591 LTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:201-207 LTables
 impl LTables {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:517 LTables.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 LTables.empty
     pub fn empty() -> LTables {
         LTables {
             zeros: Tbl::empty(),
@@ -1790,7 +1790,7 @@ impl LTables {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean LTables.empty` — the same value as `empty`,
+    /// `proof/ConRon/Arena/Store.lean:73-74 LTables.empty` — the same value as `empty`,
     /// with the cons tables' bucket arrays kept (`Tbl::reset`).
     pub fn reset(&mut self) {
         self.zeros.reset();
@@ -1800,7 +1800,7 @@ impl LTables {
         self.params.reset()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:522-523 LTables.count
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 LTables.count
     pub fn count(&self) -> usize {
         self.zeros.size()
             + self.succs.size()
@@ -1809,7 +1809,7 @@ impl LTables {
             + self.params.size()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:526-532 LTables.get
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:406-412 LTables.get
     pub fn get(&self, i: &LIdx) -> Option<LNodeView> {
         if i.tag() == LTAG_ZERO {
             match self.zeros.node(i.idx_nat()) {
@@ -1841,7 +1841,7 @@ impl LTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:535-541 LTables.derAt
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 LTables.derAt
     pub fn der_at(&self, i: &LIdx) -> LDer {
         if i.tag() == LTAG_ZERO {
             self.zeros.der_at(i.idx_nat())
@@ -1858,7 +1858,7 @@ impl LTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:544-550 LTables.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 LTables.find?
     pub fn find(&self, v: &LNodeView) -> Option<LIdx> {
         match v {
             LNodeView::Zero => self.zeros.find(&ZeroNode {}),
@@ -1869,7 +1869,7 @@ impl LTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:553-559 LTables.sizeOf
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 LTables.sizeOf
     pub fn size_of(&self, v: &LNodeView) -> usize {
         match v {
             LNodeView::Zero => self.zeros.size(),
@@ -1893,7 +1893,7 @@ impl LTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:562-589 LTables.push
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:93-98 LTables.push
     pub fn push(&mut self, v: LNodeView, d: LDer, tier: u32) -> LIdx {
         match v {
             LNodeView::Zero => {
@@ -1925,9 +1925,9 @@ impl LTables {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:593-672 LStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:209-214 LStore
 impl LStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:596 LStore.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 LStore.empty
     pub fn empty() -> LStore {
         LStore {
             ns: NStore::empty(),
@@ -1999,7 +1999,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:601 LStore.persCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 LStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
         if self.shared_on {
             pers.l.count()
@@ -2008,17 +2008,17 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:603 LStore.scrCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-469 LStore.scrCount
     pub fn scr_count(&self) -> usize {
         self.scr.count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:605 LStore.nodeCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-471 LStore.nodeCount
     pub fn node_count(&self, pers: &PersTier) -> usize {
         self.pers_count(pers) + self.scr_count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:608-610 LStore.view
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:473-477 LStore.view
     pub fn view(&self, pers: &PersTier, i: &LIdx) -> Option<LNodeView> {
         if i.is_persistent() {
             self.pers_get(pers, i)
@@ -2030,7 +2030,7 @@ impl LStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:614-616 LStore.derived` — the
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:479-483 LStore.derived` — the
     /// `hashData` computed field, lines 47-53, and `Kernel/Expr.lean:114-122
     /// levelHasParam`.
     pub fn derived(&self, pers: &PersTier, i: &LIdx) -> LDer {
@@ -2044,7 +2044,7 @@ impl LStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:621-631 LStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 LStore.derOfView` —
     /// the derived record a node view would get, in `O(1)` from the
     /// children's.  con-leche recomputes the parameter flag by an `O(|u|)`
     /// walk at every construction (`Kernel/Expr.lean:114-127`); the interned
@@ -2078,7 +2078,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:634-637 LStore.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 LStore.find?
     pub fn find(&self, pers: &PersTier, v: &LNodeView) -> Option<LIdx> {
         match self.pers_find(pers, v) {
             Some(i) => Some(i),
@@ -2092,7 +2092,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:640-658 LStore.intern
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:501-521 LStore.intern
     pub fn intern(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
@@ -2121,7 +2121,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:661-662 LStore.enableScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:523-526 LStore.enableScratch
     /// Open the scratch tier, here and in the name store.
     pub fn enable_scratch(&mut self) {
         self.ns.enable_scratch();
@@ -2129,7 +2129,7 @@ impl LStore {
         self.scratch_on = true;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:665-666 LStore.dropScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:528-531 LStore.dropScratch
     /// Drop the scratch tier, here and in the name store.
     pub fn drop_scratch(&mut self) {
         self.ns.drop_scratch();
@@ -2137,7 +2137,7 @@ impl LStore {
         self.scratch_on = false;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:669-670 LStore.capOK
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 LStore.capOK
     pub fn cap_ok(&self, pers: &PersTier, v: &LNodeView) -> bool {
         if self.scratch_on {
             !self.scr.full_of(v)
@@ -2146,7 +2146,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1080-1084 LStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1708-1713 LStore.internName
     /// Intern a name from the level store.  The Lean detaches the nested store
     /// before handing it down (lesson 14); `&mut` is that, so the Rust is the
     /// delegation the detaching exists to make safe.
@@ -2159,27 +2159,27 @@ impl LStore {
 // The level-list store's operations (`Store.lean:674-788`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:676-709 LsTables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:236-239 LsTables
 impl LsTables {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:679 LsTables.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 LsTables.empty
     pub fn empty() -> LsTables {
         LsTables { lists: Tbl::empty() }
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean LsTables.empty` — the same value as `empty`,
+    /// `proof/ConRon/Arena/Store.lean:73-74 LsTables.empty` — the same value as `empty`,
     /// with the cons tables' bucket arrays kept (`Tbl::reset`).
     pub fn reset(&mut self) {
 
         self.lists.reset()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:684 LsTables.count
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 LsTables.count
     pub fn count(&self) -> usize {
         self.lists.size()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:687-689 LsTables.get
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:406-412 LsTables.get
     pub fn get(&self, i: &LsIdx) -> Option<LsNodeView> {
         if i.tag() == LSTAG_LIST {
             match self.lists.node(i.idx_nat()) {
@@ -2192,7 +2192,7 @@ impl LsTables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:727-729 LsTables.getLen` —
+    /// `proof/ConRon/Arena/Store.lean:724-729 LsTables.getLen` —
     /// `LsTables.getLen`, the LENGTH projection of `LsTables.get`. `get` copies
     /// the whole `Vec<LIdx>` out of the node (Lean shares the list where the
     /// Rust must copy it, DESIGN.md §3.2); most callers only compare the length
@@ -2210,7 +2210,7 @@ impl LsTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:692-693 LsTables.derAt
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 LsTables.derAt
     pub fn der_at(&self, i: &LsIdx) -> LDer {
         if i.tag() == LSTAG_LIST {
             self.lists.der_at(i.idx_nat())
@@ -2219,12 +2219,12 @@ impl LsTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:696 LsTables.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 LsTables.find?
     pub fn find(&self, v: &LsNodeView) -> Option<LsIdx> {
         self.lists.find(&ListNode { us: lidx_vec_dup(v) })
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:699 LsTables.sizeOf
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 LsTables.sizeOf
     pub fn size_of(&self, _v: &LsNodeView) -> usize {
         self.lists.size()
     }
@@ -2236,7 +2236,7 @@ impl LsTables {
         self.lists.full()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:702-707 LsTables.push
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:93-98 LsTables.push
     pub fn push(&mut self, v: LsNodeView, d: LDer, tier: u32) -> LsIdx {
         let i: LsIdx = LsIdx::pack(LSTAG_LIST, tier, self.lists.size() as u32);
         self.lists.push(ListNode { us: v }, d, i.dup2());
@@ -2244,9 +2244,9 @@ impl LsTables {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:711-788 LsStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:241-246 LsStore
 impl LsStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:714 LsStore.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 LsStore.empty
     pub fn empty() -> LsStore {
         LsStore {
             ls: LStore::empty(),
@@ -2318,7 +2318,7 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:719 LsStore.persCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 LsStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
         if self.shared_on {
             pers.ls.count()
@@ -2327,23 +2327,23 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:721 LsStore.scrCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-469 LsStore.scrCount
     pub fn scr_count(&self) -> usize {
         self.scr.count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:723 LsStore.nodeCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-471 LsStore.nodeCount
     pub fn node_count(&self, pers: &PersTier) -> usize {
         self.pers_count(pers) + self.scr_count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:726 LsStore.ns
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:761-762 LsStore.ns
     /// The name store underneath.
     pub fn ns(&self) -> &NStore {
         &self.ls.ns
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:729-731 LsStore.view
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:473-477 LsStore.view
     pub fn view(&self, pers: &PersTier, i: &LsIdx) -> Option<LsNodeView> {
         if i.is_persistent() {
             self.pers_get(pers, i)
@@ -2355,7 +2355,7 @@ impl LsStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:786-790 LsStore.persGetLen`
+    /// `proof/ConRon/Arena/Store.lean:785-786 LsStore.persGetLen`
     fn pers_get_len(&self, pers: &PersTier, i: &LsIdx) -> Option<usize> {
         if self.shared_on {
             pers.ls.get_len(i)
@@ -2365,7 +2365,7 @@ impl LsStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:791-793 LsStore.viewLen` —
+    /// `proof/ConRon/Arena/Store.lean:788-793 LsStore.viewLen` —
     /// `LsStore.viewLen`, the length projection of `LsStore.view`: `viewLen h =
     /// (view h).map List.length`, which is the exactness lemma the bridge owes.
     #[inline(always)]
@@ -2380,7 +2380,7 @@ impl LsStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:137-140 levelsHash
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:735-737 LsStore.derived` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:479-483 LsStore.derived` —
     /// the derived record of a level-list handle.
     pub fn derived(&self, pers: &PersTier, i: &LsIdx) -> LDer {
         if i.is_persistent() {
@@ -2393,7 +2393,7 @@ impl LsStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:137-140 levelsHash
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:742-747 LsStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 LsStore.derOfView` —
     /// and `Kernel/Expr.lean:125-127 levelsHaveParam`: the derived record a
     /// level list would get.  `O(n)` in the list, as con-leche's own fold is.
     pub fn der_of_view(&self, pers: &PersTier, v: &LsNodeView) -> LDer {
@@ -2416,7 +2416,7 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:750-753 LsStore.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 LsStore.find?
     pub fn find(&self, pers: &PersTier, v: &LsNodeView) -> Option<LsIdx> {
         match self.pers_find(pers, v) {
             Some(i) => Some(i),
@@ -2430,7 +2430,7 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:756-774 LsStore.intern
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:501-521 LsStore.intern
     pub fn intern(&mut self, pers: &PersTier, v: LsNodeView) -> Result<LsIdx, CheckError> {
         match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
@@ -2459,21 +2459,21 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:777-778 LsStore.enableScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:523-526 LsStore.enableScratch
     pub fn enable_scratch(&mut self) {
         self.ls.enable_scratch();
         self.scr.reset();
         self.scratch_on = true;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:781-782 LsStore.dropScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:528-531 LsStore.dropScratch
     pub fn drop_scratch(&mut self) {
         self.ls.drop_scratch();
         self.scr.reset();
         self.scratch_on = false;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:785-786 LsStore.capOK
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 LsStore.capOK
     pub fn cap_ok(&self, pers: &PersTier, v: &LsNodeView) -> bool {
         if self.scratch_on {
             !self.scr.full_of(v)
@@ -2482,12 +2482,12 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1087-1092 LsStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1715-1721 LsStore.internName
     pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
         self.ls.intern_name(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1095-1100 LsStore.internLevel
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1723-1729 LsStore.internLevel
     pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         self.ls.intern(pers, v)
     }
@@ -2497,9 +2497,9 @@ impl LsStore {
 // The expression store's operations (`Store.lean:790-1070`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:792-920 ETables
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:363-382 ETables
 impl ETables {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:795-796 ETables.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 ETables.empty
     pub fn empty() -> ETables {
         ETables {
             bvars: Tbl::empty(),
@@ -2517,7 +2517,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean ETables.empty` — the same value as `empty`,
+    /// `proof/ConRon/Arena/Store.lean:73-74 ETables.empty` — the same value as `empty`,
     /// with the cons tables' bucket arrays kept (`Tbl::reset`).
     pub fn reset(&mut self) {
         self.bvars.reset();
@@ -2533,7 +2533,7 @@ impl ETables {
         self.bms.reset()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:801-803 ETables.count
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 ETables.count
     /// Nodes in this tier, over all ten constructors.
     pub fn count(&self) -> usize {
         self.bvars.size()
@@ -2548,7 +2548,7 @@ impl ETables {
             + self.projs.size()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:808-821 ETables.get
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:406-412 ETables.get
     /// Decode one handle against this tier's arrays: read the tag, index one
     /// array, build the view.  There is no node enum in the store (DESIGN.md
     /// §8.3).
@@ -2602,7 +2602,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:887-888 ETables.getApp` —
+    /// `proof/ConRon/Arena/Store.lean:886-888 ETables.getApp` —
     /// `ETables.getApp`, the `app` PROJECTION of `ETables.get`.
     ///
     /// `get` decodes a handle of any tag into a 32-byte `ENodeView`; this
@@ -2621,7 +2621,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:891-892 ETables.getSort` —
+    /// `proof/ConRon/Arena/Store.lean:890-892 ETables.getSort` —
     /// `ETables.getSort`, the `sort` projection of `ETables.get`. The sibling
     /// of `getApp` at the one-field constructor: a caller that has read
     /// `ETag.sort` off the handle word wants the level handle and nothing else.
@@ -2634,7 +2634,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:895-899 ETables.getConst` —
+    /// `proof/ConRon/Arena/Store.lean:894-896 ETables.getConst` —
     /// `ETables.getConst`, the `const` projection of `ETables.get`.
     #[inline(always)]
     pub fn get_const(&self, i: &EIdx) -> Option<(NIdx, LsIdx)> {
@@ -2645,7 +2645,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:900-901 ETables.getConstName` —
+    /// `proof/ConRon/Arena/Store.lean:898-901 ETables.getConstName` —
     /// `ETables.getConstName`, the NAME of a `const` node. The level arguments
     /// beside it are not read: most of the crate's `const` tests compare the
     /// head name alone, and the `LsIdx` copy is work for nothing there. The
@@ -2659,7 +2659,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:904-905 ETables.getBVar` —
+    /// `proof/ConRon/Arena/Store.lean:903-905 ETables.getBVar` —
     /// `ETables.getBVar`, the `bvar` projection of `ETables.get`.
     #[inline(always)]
     pub fn get_bvar(&self, i: &EIdx) -> Option<u64> {
@@ -2670,7 +2670,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:908-909 ETables.getFVarIdx` —
+    /// `proof/ConRon/Arena/Store.lean:907-909 ETables.getFVarIdx` —
     /// `ETables.getFVarIdx`, the de Bruijn LEVEL of an `fvar` node. The binder
     /// type beside it is not read: `abstract1Go`'s `fvar` arm does not descend
     /// into the annotation, so it wants the index alone and copying the type
@@ -2684,7 +2684,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:912-913 ETables.getFVarTy` —
+    /// `proof/ConRon/Arena/Store.lean:911-913 ETables.getFVarTy` —
     /// `ETables.getFVarTy`, the binder TYPE of an `fvar` node, the other half
     /// of `getFVarIdx`. `fvarTypeD` wants the annotation and not the de Bruijn
     /// level.
@@ -2697,7 +2697,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:916-921 ETables.getLit` —
+    /// `proof/ConRon/Arena/Store.lean:915-917 ETables.getLit` —
     /// `ETables.getLit`, the `lit` projection of `ETables.get`. The one
     /// projection whose payload is not a handle: `Literal` is the datum
     /// `ENodeView::Lit` carries, and `literal_dup` is the copy the view makes
@@ -2711,7 +2711,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:922-926 ETables.getBind` —
+    /// `proof/ConRon/Arena/Store.lean:919-926 ETables.getBind` —
     /// `ETables.getBind`, the `lam`/`forallE` projection of `ETables.get`. The
     /// tag picks the array, as it does in `get`; the two binder constructors
     /// have the same record shape.
@@ -2731,7 +2731,7 @@ impl ETables {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:938-943 ETables.getBM` — read
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:936-939 ETables.getBM` — read
     /// one binder datum out of this tier's store.
     #[inline(always)]
     pub fn get_bm(&self, i: &BMIdx) -> Option<BinderMeta> {
@@ -2742,7 +2742,7 @@ impl ETables {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:951-956 ETables.findBM` — the
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 ETables.findBM` — the
     /// binder datum's cons probe in THIS tier. The record is built here, inside
     /// a leaf with no branch, as `ETables::find` builds its own.
     pub fn find_bm(&self, m: &BinderMeta) -> Option<BMIdx> {
@@ -2750,7 +2750,7 @@ impl ETables {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:944-950 ETables.getBMDer` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:941-947 ETables.getBMDer` —
     /// the binder datum's two DERIVED scalars, `PropWhen.hash` (the column) and
     /// `PropWhen.hasParams` (a tag test on the record), which is all
     /// `derOfBind` wants of it.
@@ -2763,7 +2763,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:929-930 ETables.getLet` —
+    /// `proof/ConRon/Arena/Store.lean:928-930 ETables.getLet` —
     /// `ETables.getLet`, the `letE` projection of `ETables.get`.
     #[inline(always)]
     pub fn get_let(&self, i: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
@@ -2774,7 +2774,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:933-937 ETables.getProj` —
+    /// `proof/ConRon/Arena/Store.lean:932-934 ETables.getProj` —
     /// `ETables.getProj`, the `proj` projection of `ETables.get`.
     #[inline(always)]
     pub fn get_proj(&self, i: &EIdx) -> Option<(NIdx, u64, EIdx)> {
@@ -2784,7 +2784,7 @@ impl ETables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:824-835 ETables.derAt
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:84-88 ETables.derAt
     #[inline(always)]
     pub fn der_at(&self, i: &EIdx) -> u64 {
         if i.tag() == ETAG_BVAR {
@@ -2812,7 +2812,7 @@ impl ETables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:838-849 ETables.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 ETables.find?
     ///
     /// **`#[inline(always)]`** (task #97-P6-13): `EStore::intern` calls this
     /// twice with the SAME view, once per tier, and out of line each call
@@ -2855,7 +2855,7 @@ impl ETables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:852-863 ETables.sizeOf
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 ETables.sizeOf
     pub fn size_of(&self, v: &ENodeView) -> usize {
         match v {
             ENodeView::BVar(_) => self.bvars.size(),
@@ -2889,7 +2889,7 @@ impl ETables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:866-918 ETables.push
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:93-98 ETables.push
     pub fn push(&mut self, v: ENodeView, d: u64, mi: BMIdx, tier: u32) -> EIdx {
         match v {
             ENodeView::BVar(i) => {
@@ -2947,7 +2947,7 @@ impl ETables {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:992-1005 EStore.derOfView` — the
+/// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` — the
 /// `lam` (hash tag 19) and `forallE` (23) arms, which differ in nothing but
 /// the tag.  It is `con_ron_core::kernel::expr::lam`'s body with `data(&ty)`
 /// and `data(&body)` replaced by the derived column, and `m`'s two reads
@@ -2983,7 +2983,7 @@ pub fn der_of_bind(tag: u64, dt: u64, db: u64, hm: u64, pm: bool) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:1006-1014 EStore.derOfView` — the
+/// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` — the
 /// `letE` arm, `con_ron_core::kernel::expr::let_e`'s body over the derived
 /// column.  A function for the reason `der_of_bind` is one: its
 /// level-parameter bit is a three-way disjunction too.
@@ -3010,7 +3010,7 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: `proof/ConRon/Arena/Store.lean:1126-1128 eBindView` —
+/// Lean twin: `proof/ConRon/Arena/Store.lean:1120-1128 eBindView` —
 /// `eBindView`, the inverse of `EStore.viewBind`: rebuild the binder view a
 /// walk decoded with `viewBind`, at the tag it decoded it at. `lam` and
 /// `forallE` have one record shape and the projection reads either; this is the
@@ -3099,9 +3099,9 @@ pub fn e_view_has_scratch_child(v: &ENodeView) -> bool {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:922-1070 EStore
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
 impl EStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:925 EStore.empty
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:73-74 EStore.empty
     pub fn empty() -> EStore {
         EStore {
             lss: LsStore::empty(),
@@ -3175,7 +3175,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:930 EStore.persCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 EStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
         if self.shared_on {
             pers.e.count()
@@ -3184,53 +3184,53 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:932 EStore.scrCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-469 EStore.scrCount
     pub fn scr_count(&self) -> usize {
         self.scr.count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:934 EStore.nodeCount
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-471 EStore.nodeCount
     pub fn node_count(&self, pers: &PersTier) -> usize {
         self.pers_count(pers) + self.scr_count()
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:937 EStore.lsS
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1144-1145 EStore.lsS
     /// The level-list store underneath.
     pub fn ls_s(&self) -> &LsStore {
         &self.lss
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:939 EStore.ls
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1144-1147 EStore.ls
     /// The level store underneath.
     pub fn ls(&self) -> &LStore {
         &self.lss.ls
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:941 EStore.ns
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:761-762 EStore.ns
     /// The name store underneath.
     pub fn ns(&self) -> &NStore {
         &self.lss.ls.ns
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:944 EStore.nder
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1151-1152 EStore.nder
     /// A name's derived word, read through the nesting.
     pub fn nder(&self, pers: &PersTier, i: &NIdx) -> u64 {
         self.ns().derived(pers, i)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:946 EStore.lder
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1151-1154 EStore.lder
     /// A level's derived record.
     pub fn lder(&self, pers: &PersTier, i: &LIdx) -> LDer {
         self.ls().derived(pers, i)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:948 EStore.lsder
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1151-1156 EStore.lsder
     /// A level list's derived record.
     pub fn lsder(&self, pers: &PersTier, i: &LsIdx) -> LDer {
         self.lss.derived(pers, i)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:952-954 EStore.view
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:473-477 EStore.view
     /// Decode an expression handle: the tier bit selects the array set, the
     /// tag selects the array, the index reads it.
     #[inline(always)]
@@ -3250,7 +3250,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1175-1177 EStore.viewApp` — the
+    /// `proof/ConRon/Arena/Store.lean:1174-1177 EStore.viewApp` — the
     /// persistent arm of `EStore.viewApp`.
     #[inline(always)]
     fn pers_get_app(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx)> {
@@ -3262,7 +3262,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1175-1177 EStore.viewApp` —
+    /// `proof/ConRon/Arena/Store.lean:1174-1177 EStore.viewApp` —
     /// `EStore.viewApp`, the `app` projection of `EStore.view`: the tier bit
     /// selects the array set, the `app` array is read, the two children come
     /// back. `view h = some (.app f a) ↔ viewApp h = some (f, a)` whenever
@@ -3279,7 +3279,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1183-1185 EStore.viewSort` — the
+    /// `proof/ConRon/Arena/Store.lean:1182-1185 EStore.viewSort` — the
     /// persistent arm of `EStore.viewSort`.
     #[inline(always)]
     fn pers_get_sort(&self, pers: &PersTier, i: &EIdx) -> Option<LIdx> {
@@ -3291,7 +3291,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1183-1185 EStore.viewSort` —
+    /// `proof/ConRon/Arena/Store.lean:1182-1185 EStore.viewSort` —
     /// `EStore.viewSort`, the `sort` projection of `EStore.view`.
     #[inline(always)]
     pub fn view_sort(&self, pers: &PersTier, i: &EIdx) -> Option<LIdx> {
@@ -3305,7 +3305,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1192-1194 EStore.viewConst` — the
+    /// `proof/ConRon/Arena/Store.lean:1191-1194 EStore.viewConst` — the
     /// persistent arm of `EStore.viewConst`.
     #[inline(always)]
     fn pers_get_const(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, LsIdx)> {
@@ -3317,7 +3317,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1192-1194 EStore.viewConst` —
+    /// `proof/ConRon/Arena/Store.lean:1191-1194 EStore.viewConst` —
     /// `EStore.viewConst`, the `const` projection of `EStore.view`.
     #[inline(always)]
     pub fn view_const(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, LsIdx)> {
@@ -3331,7 +3331,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1201-1203 EStore.viewConstName` — the
+    /// `proof/ConRon/Arena/Store.lean:1200-1203 EStore.viewConstName` — the
     /// persistent arm of `EStore.viewConstName`.
     #[inline(always)]
     fn pers_get_const_name(&self, pers: &PersTier, i: &EIdx) -> Option<NIdx> {
@@ -3343,7 +3343,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1201-1203 EStore.viewConstName` —
+    /// `proof/ConRon/Arena/Store.lean:1200-1203 EStore.viewConstName` —
     /// `EStore.viewConstName`, the head NAME of a `const` node.
     #[inline(always)]
     pub fn view_const_name(&self, pers: &PersTier, i: &EIdx) -> Option<NIdx> {
@@ -3357,7 +3357,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1206 EStore.persGetBVar` — the persistent
+    /// `proof/ConRon/Arena/Store.lean:1205-1206 EStore.persGetBVar` — the persistent
     /// arms of the four projections below.
     #[inline(always)]
     fn pers_get_bvar(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
@@ -3369,7 +3369,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1259-1265 EStore.persGetBind`
+    /// `proof/ConRon/Arena/Store.lean:1258-1260 EStore.persGetBind`
     #[inline(always)]
     fn pers_get_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
         if self.shared_on {
@@ -3380,7 +3380,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1278-1283 EStore.viewBM` — the
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1275-1280 EStore.viewBM` — the
     /// persistent arm of `EStore.viewBM`.
     #[inline(always)]
     fn pers_get_bm(&self, pers: &PersTier, i: &BMIdx) -> Option<BinderMeta> {
@@ -3392,7 +3392,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1289-1294 EStore.bmDer` — the
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1287-1291 EStore.bmDer` — the
     /// persistent arm of `EStore.bmDer`.
     #[inline(always)]
     fn pers_get_bm_der(&self, pers: &PersTier, i: &BMIdx) -> (u64, bool) {
@@ -3404,7 +3404,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1241-1242 EStore.persGetLet`
+    /// `proof/ConRon/Arena/Store.lean:1240-1242 EStore.persGetLet`
     #[inline(always)]
     fn pers_get_let(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
         if self.shared_on {
@@ -3415,7 +3415,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1250-1251 EStore.persGetProj`
+    /// `proof/ConRon/Arena/Store.lean:1249-1251 EStore.persGetProj`
     #[inline(always)]
     fn pers_get_proj(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, u64, EIdx)> {
         if self.shared_on {
@@ -3426,7 +3426,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1214-1215 EStore.persGetFVarIdx`
+    /// `proof/ConRon/Arena/Store.lean:1213-1215 EStore.persGetFVarIdx`
     #[inline(always)]
     fn pers_get_fvar_idx(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
         if self.shared_on {
@@ -3437,7 +3437,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1218-1220 EStore.viewFVarIdx` —
+    /// `proof/ConRon/Arena/Store.lean:1217-1220 EStore.viewFVarIdx` —
     /// `EStore.viewFVarIdx`, the `fvar` index projection.
     #[inline(always)]
     pub fn view_fvar_idx(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
@@ -3451,7 +3451,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1227-1229 EStore.viewFVarTy` — the
+    /// `proof/ConRon/Arena/Store.lean:1226-1229 EStore.viewFVarTy` — the
     /// persistent arm of `EStore.viewFVarTy`.
     #[inline(always)]
     fn pers_get_fvar_ty(&self, pers: &PersTier, i: &EIdx) -> Option<EIdx> {
@@ -3463,7 +3463,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1227-1229 EStore.viewFVarTy` —
+    /// `proof/ConRon/Arena/Store.lean:1226-1229 EStore.viewFVarTy` —
     /// `EStore.viewFVarTy`, the `fvar` binder-type projection.
     #[inline(always)]
     pub fn view_fvar_ty(&self, pers: &PersTier, i: &EIdx) -> Option<EIdx> {
@@ -3477,7 +3477,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1236-1238 EStore.viewLit` — the
+    /// `proof/ConRon/Arena/Store.lean:1235-1238 EStore.viewLit` — the
     /// persistent arm of `EStore.viewLit`.
     #[inline(always)]
     fn pers_get_lit(&self, pers: &PersTier, i: &EIdx) -> Option<Literal> {
@@ -3489,7 +3489,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1236-1238 EStore.viewLit` —
+    /// `proof/ConRon/Arena/Store.lean:1235-1238 EStore.viewLit` —
     /// `EStore.viewLit`, the `lit` projection of `EStore.view`.
     #[inline(always)]
     pub fn view_lit(&self, pers: &PersTier, i: &EIdx) -> Option<Literal> {
@@ -3503,7 +3503,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1209-1211 EStore.viewBVar` —
+    /// `proof/ConRon/Arena/Store.lean:1208-1211 EStore.viewBVar` —
     /// `EStore.viewBVar`, the `bvar` projection of `EStore.view`.
     #[inline(always)]
     pub fn view_bvar(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
@@ -3517,7 +3517,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1295-1307 EStore.viewBind` —
+    /// `proof/ConRon/Arena/Store.lean:1293-1302 EStore.viewBind` —
     /// `EStore.viewBind`, the binder projection of `EStore.view`.
     #[inline(always)]
     pub fn view_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
@@ -3531,7 +3531,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-16); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1266-1271 EStore.viewBindI` —
+    /// `proof/ConRon/Arena/Store.lean:1262-1268 EStore.viewBindI` —
     /// `EStore.viewBindI`, the binder projection that stops at the datum's
     /// HANDLE. This is what the rebuilding walks want: a walk that takes a
     /// binder apart and puts it back together never looks inside the datum, it
@@ -3550,7 +3550,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1278-1283 EStore.viewBM` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1275-1280 EStore.viewBM` —
     /// `EStore.viewBM`: decode a binder datum handle, the tier bit selecting
     /// the array set as it does for every other handle kind.
     #[inline(always)]
@@ -3565,7 +3565,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1289-1294 EStore.bmDer` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1287-1291 EStore.bmDer` —
     /// `EStore.bmDer`, the binder datum's two derived scalars (`PropWhen.hash`,
     /// `PropWhen.hasParams`), which is everything `derOfBind` asks of it.
     #[inline(always)]
@@ -3580,7 +3580,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1436-1442 EStore.findBM` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 EStore.findBM` —
     /// `EStore.findBM`, the datum's cons probe over both tiers, persistent
     /// first (the store's own order). A datum that is not interned names no
     /// binder node, so `find` answers `none` for the whole binder view.
@@ -3598,7 +3598,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1436-1442 EStore.findBM` — the
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 EStore.findBM` — the
     /// persistent arm of `EStore.findBM`.
     fn pers_find_bm(&self, pers: &PersTier, m: &BinderMeta) -> Option<BMIdx> {
         if self.shared_on {
@@ -3609,7 +3609,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1443-1465 EStore.internBM` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1441-1461 EStore.internBM` —
     /// `EStore.internBM`: hash-cons a binder datum, `intern`'s own clauses at a
     /// store with one constructor — the persistent probe, the scratch probe,
     /// the capacity test, the append to the tier the store is in. The datum has
@@ -3656,7 +3656,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1466-1477
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1463-1474
     /// EStore.internBMPersistent` — `EStore.internBMPersistent`, the binder
     /// datum's promote-intern: `internPersistent`'s clauses at the datum store,
     /// so that a promoted binder names a PERSISTENT datum.
@@ -3689,7 +3689,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1516-1523
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1513-1520
     /// EStore.internBMOfViewPersistent` — the binder datum a view names, made
     /// persistent, so that `internPersistent` can go on working over the view
     /// while the record names the datum by a handle. A non-binder view names no
@@ -3711,7 +3711,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1245-1247 EStore.viewLet` —
+    /// `proof/ConRon/Arena/Store.lean:1244-1247 EStore.viewLet` —
     /// `EStore.viewLet`, the `letE` projection of `EStore.view`.
     #[inline(always)]
     pub fn view_let(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
@@ -3725,7 +3725,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1254-1256 EStore.viewProj` —
+    /// `proof/ConRon/Arena/Store.lean:1253-1256 EStore.viewProj` —
     /// `EStore.viewProj`, the `proj` projection of `EStore.view`.
     #[inline(always)]
     pub fn view_proj(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, u64, EIdx)> {
@@ -3739,7 +3739,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:958-960 EStore.derived` — the
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:479-483 EStore.derived` — the
     /// `data` computed field, lines 357-402: the packed derived word of an
     /// expression handle, an `O(1)` column read.
     #[inline(always)]
@@ -3754,7 +3754,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `bvar` arm, which is `con_ron_core::kernel::expr::bvar`'s own body.
     ///
     /// **One function per arm** (task #97-P6-15).  `der_of_view` used to be
@@ -3780,7 +3780,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `fvar` arm (`con_ron_core::kernel::expr::fvar`'s body).  See
     /// `der_of_bvar`'s note.
     #[inline(always)]
@@ -3794,7 +3794,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `sort` arm (`con_ron_core::kernel::expr::sort`'s body).  See
     /// `der_of_bvar`'s note.
     #[inline(always)]
@@ -3805,7 +3805,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `const` arm (`con_ron_core::kernel::expr::mk_const`'s body).  See
     /// `der_of_bvar`'s note.
     #[inline(always)]
@@ -3817,7 +3817,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `app` arm (`con_ron_core::kernel::expr::app`'s body).  See
     /// `der_of_bvar`'s note.
     #[inline(always)]
@@ -3837,7 +3837,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:992-1005 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `lam` (hash tag 19) and `forallE` (23) arms, whose arithmetic is
     /// `der_of_bind`'s (see that function's note for why it is a function of
     /// five scalars and not the arm itself).  See `der_of_bvar`'s note.
@@ -3860,7 +3860,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1381-1384 EStore.derOfBindAtI`
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1375-1384 EStore.derOfBindAtI`
     /// — `derOfBindAtI`, the `lam`/`forallE` arm over the datum's HANDLE: the
     /// two scalars `derOfBind` wants of the datum are the binder-datum store's
     /// own derived column and a tag test on its record, so the arithmetic is
@@ -3879,7 +3879,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `letE` arm, whose arithmetic is `der_of_let`'s.  See
     /// `der_of_bvar`'s note.
     #[inline(always)]
@@ -3888,7 +3888,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `lit` arm (`con_ron_core::kernel::expr::lit`'s body).  See
     /// `der_of_bvar`'s note.
     #[inline(always)]
@@ -3898,7 +3898,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `proj` arm (`con_ron_core::kernel::expr::proj`'s body).  See
     /// `der_of_bvar`'s note.
     #[inline(always)]
@@ -3920,7 +3920,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `data` computed field, lines 357-402.
     ///
     /// **Not re-derived.**  Each arm is the body of the corresponding smart
@@ -3958,7 +3958,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1024-1027 EStore.find?` — **the
+    /// `proof/ConRon/Arena/Store.lean:90-91 EStore.find?` — **the
     /// persistent half of the twin's probe**, skipped when the view has a
     /// scratch child, which `e_view_has_scratch_child`'s note argues it may
     /// be.  The twin probes unconditionally and is not changed by this; what
@@ -3976,7 +3976,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1024-1027 EStore.find?
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 EStore.find?
     /// Probe both tiers, persistent first (nanoda's `alloc_expr`).
     pub fn find(&self, pers: &PersTier, v: &ENodeView) -> Option<EIdx> {
         match self.find_bm_of_view(pers, v) {
@@ -3995,7 +3995,7 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1499-1506 EStore.findBMOfView`
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:1495-1503 EStore.findBMOfView`
     /// — the datum handle a view's cons key needs, PROBED and not interned: a
     /// binder whose datum has never been interned is not in either table, so
     /// `none` here is `none` for the whole `find`.
@@ -4007,7 +4007,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1032-1050 EStore.intern
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:501-521 EStore.intern
     /// Hash-cons an expression node: probe the persistent cons table, then the
     /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
     /// The cap test is the Lean's `capOK` turned into the `Native` decline
@@ -4044,7 +4044,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1594 EStore.internBVar` —
+    /// `proof/ConRon/Arena/Store.lean:1593-1594 EStore.internBVar` —
     /// `EStore.internBVar`, the `bvar` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4096,7 +4096,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1596-1597 EStore.internFVar` —
+    /// `proof/ConRon/Arena/Store.lean:1593-1597 EStore.internFVar` —
     /// `EStore.internFVar`, the `fvar` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4164,7 +4164,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1599 EStore.internSort` —
+    /// `proof/ConRon/Arena/Store.lean:1598-1599 EStore.internSort` —
     /// `EStore.internSort`, the `sort` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4232,7 +4232,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1601-1602 EStore.internConst` —
+    /// `proof/ConRon/Arena/Store.lean:1598-1602 EStore.internConst` —
     /// `EStore.internConst`, the `const` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4292,7 +4292,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1604 EStore.internApp` —
+    /// `proof/ConRon/Arena/Store.lean:1603-1604 EStore.internApp` —
     /// `EStore.internApp`, the `app` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4352,7 +4352,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1654-1657 EStore.internLam` —
+    /// `proof/ConRon/Arena/Store.lean:1653-1657 EStore.internLam` —
     /// `EStore.internLam`, the `lam` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4368,7 +4368,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1647-1650 EStore.internLamI` —
+    /// `proof/ConRon/Arena/Store.lean:1645-1648 EStore.internLamI` —
     /// `EStore.internLamI`, the `lam` arm over a node record whose binder datum
     /// is already a HANDLE.
     ///
@@ -4434,7 +4434,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1659-1666 EStore.internForallE` —
+    /// `proof/ConRon/Arena/Store.lean:1658-1662 EStore.internForallE` —
     /// `EStore.internForallE`, the `forall_e` arm of `EStore.intern`, over the
     /// node RECORD rather than over the view.
     ///
@@ -4450,7 +4450,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1651-1652 EStore.internForallEI` —
+    /// `proof/ConRon/Arena/Store.lean:1649-1652 EStore.internForallEI` —
     /// `EStore.internForallEI`, the `forall_e` arm over a node record whose
     /// binder datum is already a HANDLE.
     ///
@@ -4516,7 +4516,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1606-1607 EStore.internLetE` —
+    /// `proof/ConRon/Arena/Store.lean:1603-1607 EStore.internLetE` —
     /// `EStore.internLetE`, the `let_e` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4580,7 +4580,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1609-1610 EStore.internLit` —
+    /// `proof/ConRon/Arena/Store.lean:1608-1610 EStore.internLit` —
     /// `EStore.internLit`, the `lit` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4632,7 +4632,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1612-1622 EStore.internProj` —
+    /// `proof/ConRon/Arena/Store.lean:1611-1613 EStore.internProj` —
     /// `EStore.internProj`, the `proj` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4691,7 +4691,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1054-1055 EStore.enableScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:523-526 EStore.enableScratch
     /// Open the scratch tier, in all four stores.  DESIGN.md §8.3: "each tier
     /// has its own array set and cons tables, both indexed from 0".
     pub fn enable_scratch(&mut self) {
@@ -4700,7 +4700,7 @@ impl EStore {
         self.scratch_on = true;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1060-1061 EStore.dropScratch
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:528-531 EStore.dropScratch
     /// Drop the scratch tier, in all four stores.  Persistent handles keep
     /// their bits, so everything that denoted before still denotes (DESIGN.md
     /// §8.3, con-leche's lesson 6).
@@ -4710,7 +4710,7 @@ impl EStore {
         self.scratch_on = false;
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1067-1068 EStore.capOK
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 EStore.capOK
     pub fn cap_ok(&self, pers: &PersTier, v: &ENodeView) -> bool {
         if self.scratch_on {
             !self.scr.full_of(v)
@@ -4719,19 +4719,19 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1103-1107 EStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1731-1736 EStore.internName
     /// Intern a name from the expression store.
     pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
         self.lss.intern_name(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1110-1114 EStore.internLevel
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1738-1743 EStore.internLevel
     /// Intern a level from the expression store.
     pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         self.lss.intern_level(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1118-1123 EStore.internLevels
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1745-1752 EStore.internLevels
     /// Intern a universe-argument list from the expression store.
     pub fn intern_levels(&mut self, pers: &PersTier, v: LsNodeView) -> Result<LsIdx, CheckError> {
         self.lss.intern(pers, v)
@@ -4766,10 +4766,10 @@ impl EStore {
 // persistent") and the transient `fresh` exception the bracket repairs — are
 // the twin's section note, and P3's.
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1172-1185 NStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1798-1809 NStore.internPersistent
 /// The name store's promote-intern.
 impl NStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1172-1180 NStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1798-1809 NStore.internPersistent
     /// Hash-cons a name node into the PERSISTENT tier whatever tier the store
     /// is in: `intern`'s `else` branch, verbatim, with no scratch probe.
     pub fn intern_persistent(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
@@ -4788,7 +4788,7 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1184-1185 NStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1811-1814 NStore.capOKPersistent
     /// `intern_persistent`'s capacity precondition, as a test rather than a
     /// `Prop`: the constructor's PERSISTENT array has room for one more node.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &NNodeView) -> bool {
@@ -4796,10 +4796,10 @@ impl NStore {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1189-1202 LStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1816-1826 LStore.internPersistent
 /// The level store's promote-intern, and the name lift through it.
 impl LStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1189-1197 LStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1816-1826 LStore.internPersistent
     /// Hash-cons a level node into the persistent tier.
     pub fn intern_persistent(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         match self.pers_find(pers, &v) {
@@ -4817,13 +4817,13 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1201-1202 LStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1828-1831 LStore.capOKPersistent
     /// The level store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LNodeView) -> bool {
         !self.pers_full_of(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1245-1251 LStore.internNamePersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1876-1883 LStore.internNamePersistent
     /// Promote-intern a name from the level store.
     pub fn intern_name_persistent(
         &mut self,
@@ -4834,10 +4834,10 @@ impl LStore {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1206-1219 LsStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1833-1843 LsStore.internPersistent
 /// The level-list store's promote-intern, and the two lifts through it.
 impl LsStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1206-1214 LsStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1833-1843 LsStore.internPersistent
     /// Hash-cons a level list into the persistent tier.
     pub fn intern_persistent(
         &mut self,
@@ -4859,13 +4859,13 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1218-1219 LsStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1845-1848 LsStore.capOKPersistent
     /// The level-list store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LsNodeView) -> bool {
         !self.pers_full_of(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1255-1261 LsStore.internNamePersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1885-1892 LsStore.internNamePersistent
     /// Promote-intern a name from the level-list store.
     pub fn intern_name_persistent(
         &mut self,
@@ -4875,7 +4875,7 @@ impl LsStore {
         self.ls.intern_name_persistent(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1265-1271 LsStore.internLevelPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1894-1901 LsStore.internLevelPersistent
     /// Promote-intern a level from the level-list store.
     pub fn intern_level_persistent(
         &mut self,
@@ -4886,10 +4886,10 @@ impl LsStore {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1223-1236 EStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1850-1861 EStore.internPersistent
 /// The expression store's promote-intern, and the three lifts through it.
 impl EStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1223-1231 EStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1850-1861 EStore.internPersistent
     /// Hash-cons an expression node into the persistent tier whatever tier the
     /// store is in.
     pub fn intern_persistent(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
@@ -4911,13 +4911,13 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1235-1236 EStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1863-1868 EStore.capOKPersistent
     /// The expression store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &ENodeView) -> bool {
         !self.pers_full_of(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1275-1281 EStore.internNamePersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1903-1910 EStore.internNamePersistent
     /// Promote-intern a name from the expression store.
     pub fn intern_name_persistent(
         &mut self,
@@ -4927,7 +4927,7 @@ impl EStore {
         self.lss.intern_name_persistent(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1285-1291 EStore.internLevelPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1912-1919 EStore.internLevelPersistent
     /// Promote-intern a level from the expression store.
     pub fn intern_level_persistent(
         &mut self,
@@ -4937,7 +4937,7 @@ impl EStore {
         self.lss.intern_level_persistent(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1295-1298 EStore.internLevelsPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1921-1928 EStore.internLevelsPersistent
     /// Promote-intern a universe-argument list from the expression store.
     pub fn intern_levels_persistent(
         &mut self,

@@ -594,20 +594,21 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 ## 12. Gates
 
 `scripts/gates.sh` runs, in order, and stops at the first failure
-([the twelve steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L57-L67)):
+([the thirteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L59-L75)):
 
 1. `cargo build` with warnings denied;
 2. `cargo test`;
 3. `scripts/lint-rust-style.sh`: the Aeneas subset (§4.1);
 4. `scripts/provenance.py check`: every item cites, every citation resolves, no `CHANGED` marker left — in the Rust and, since task #97, in the arena checker's Lean (`proof/ConRon/Arena/**`);
 5. `scripts/provenance-selftest.py`: that gate's Lean parser against its own fixture (`scripts/testdata/provenance/`), one declaration per accepted shape and one per finding;
-6. `scripts/overview-links.sh`: every line-anchored link in this document and in `DESIGN.md` still points at the text it cited (the cited lines are a committed artefact, `scripts/overview-links-expected.txt`, in con-leche's idiom);
-7. `scripts/holes.sh --check`: §8.1's table is exactly the set of holes the Aeneas templates declare;
-8. `scripts/gen-pins.sh --check`: the embedded pin text is what con-leche's list generates;
-9. `scripts/gen-prelude.sh --check`: the embedded prelude text is con-leche's own;
-10. `scripts/gen-prelude-lean.sh --check`: so are the arena checker's own committed prelude bytes (`proof/ConRon/Arena/Frontend/PreludeText.lean`, task #97e);
-11. `scripts/extract.sh --check`: the committed model is what Charon and Aeneas produce, and every hole it declares is modelled by hand;
-12. `lake build` of the model and the proofs.
+6. `scripts/twin-lines.py check`: the other half of the same ledger — every `Lean twin:` doc line of the Rust names a declaration of `proof/ConRon/**` that exists, and gives its CURRENT lines (task #97-TWIN; `update` relocates by name, a name that is gone is re-pointed by hand);
+7. `scripts/overview-links.sh`: every line-anchored link in this document and in `DESIGN.md` still points at the text it cited (the cited lines are a committed artefact, `scripts/overview-links-expected.txt`, in con-leche's idiom);
+8. `scripts/holes.sh --check`: §8.1's table is exactly the set of holes the Aeneas templates declare;
+9. `scripts/gen-pins.sh --check`: the embedded pin text is what con-leche's list generates;
+10. `scripts/gen-prelude.sh --check`: the embedded prelude text is con-leche's own;
+11. `scripts/gen-prelude-lean.sh --check`: so are the arena checker's own committed prelude bytes (`proof/ConRon/Arena/Frontend/PreludeText.lean`, task #97e);
+12. `scripts/extract.sh --check`: the committed model is what Charon and Aeneas produce, and every hole it declares is modelled by hand;
+13. `lake build` of the model and the proofs.
 
 It ends with the summary lines of `progress.py` and `loc.py`.  The
 differential tests of §6.4 are not in the gates, since they need the

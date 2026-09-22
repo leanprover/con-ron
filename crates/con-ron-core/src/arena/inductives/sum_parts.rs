@@ -25,7 +25,7 @@ use crate::ron::hashmap::Dup;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:24-45 InductiveShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:22-45 InductiveShape`
 /// — the pieces of a recognised direct sum block, over handles.
 pub struct InductiveShape {
     /// the type former
@@ -51,7 +51,7 @@ pub struct InductiveShape {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:24-45 InductiveShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:22-45 InductiveShape`
 /// — the record copy, which Lean's value semantics gives for free.
 pub fn inductive_shape_dup(p: &InductiveShape) -> InductiveShape {
     InductiveShape {
@@ -69,14 +69,14 @@ pub fn inductive_shape_dup(p: &InductiveShape) -> InductiveShape {
 }
 
 /// con-leche: none — a `Vec<(IConstantVal, u64)>` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:29 InductiveShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:22-45 InductiveShape`
 /// — the constructors' spine, copied.
 pub fn ctors_copy(cs: &Vec<(IConstantVal, u64)>) -> Vec<(IConstantVal, u64)> {
     ctors_copy_from(cs, 0, Vec::new())
 }
 
 /// con-leche: none — a `Vec<(IConstantVal, u64)>` copy
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:29 InductiveShape`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:22-45 InductiveShape`
 /// — the cursor recursion behind `ctors_copy`.
 pub fn ctors_copy_from(
     cs: &Vec<(IConstantVal, u64)>,
@@ -93,7 +93,7 @@ pub fn ctors_copy_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:103-110 sumSplit
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:50-55 sumSplit` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:47-55 sumSplit` —
 /// the block's members after the type former: the constructors, then the
 /// closing recursor.  Pure; see the module note.
 pub fn sum_split(
@@ -109,7 +109,7 @@ pub fn sum_split(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:103-110 sumSplit
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:50-55 sumSplit` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:47-55 sumSplit` —
 /// the cursor recursion behind `sum_split`.  Lean conses the constructor on
 /// the way *out*; the port accumulates on the way *in*, which is the same
 /// declaration-order list.  The one-element `[.recInfo …]` arm is "the cursor
@@ -154,7 +154,7 @@ pub fn sum_split_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:112-119 InductiveShape.withSort
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:60-62 InductiveShape.withSort`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:57-62 InductiveShape.withSort`
 /// — the record completed with the former's result sort (con-leche's task
 /// #195); `isProp` is recomputed so that the recogniser's invariant holds by
 /// definition.  The record is taken by value and returned, which is the cited
@@ -185,7 +185,7 @@ pub fn with_sort(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:292-294 InductiveShape.rulePrefix
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:322 InductiveShape.rulePrefix`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:319-321 InductiveShape.rulePrefix`
 /// — the recursor's rule prefix (parameters, motive, minors).  Ported with its
 /// record rather than with `SumInstall.lean`'s install stages: it is a reader
 /// of this record and nothing else.
@@ -194,7 +194,7 @@ pub fn rule_prefix(p: &InductiveShape) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:295 InductiveShape.majorIdx
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:326 InductiveShape.majorIdx`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:323-325 InductiveShape.majorIdx`
 /// — the recursor's major index (the rule prefix, then the indices).
 pub fn major_idx(p: &InductiveShape) -> u64 {
     rule_prefix(p) + p.n_idx
