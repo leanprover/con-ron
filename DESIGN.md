@@ -39425,3 +39425,284 @@ UNCONDITIONALLY, no `StoreWF`"*.  If that holds, the `StoreWF lst.store`
 half of §3's pair can come OUT of `KnotRel` and `BodyRel`'s thirteen fields
 and only `EResolves` stays; the Core tier's statements should be re-cut
 against it rather than keep a hypothesis that turns out to be free.
+
+### Task #97-P5-Arms — Theorem 2: the Core tier's equation floor, and the first bodies (2026-09-22, Opus under Fable)
+
+DESIGN §8.6's **P5**, the `arena::core` tier's second round.  Task #97-P5-Core
+closed the KNOT — `knotRel_zero`, `knotRel_succ : BodyRel f → KnotRel (f + 1)`,
+the fuel induction `knot_rel` and the six fueled entry points — and left the
+other half open: `bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f`, the six bodies
+and the ≈ 95 helpers under them.  Branch `p5-arms` off `arena`'s tip
+`827c4be8`.  **Nothing outside `proof/ConRon/Refine2/Core/**` is written**
+except one import line in `proof/ConRon/Refine2/Core.lean`.
+
+**The round's deliverable is the COST FLOOR, and it is the number that decides
+how the rest of the tier gets written.**  Task #97-P5-Core §5's bisection said
+a `partial_fixpoint` unfolding equation costs ≈ 9 s to derive and caches into
+the deriving module's `.olean`, and asked for *"one module that forces every
+equation … which every arm file then imports for nothing"*.  That module is
+`Refine2/Core/Eqns.lean`; §1 has the measurement, and the two ways of writing
+it that do **not** work.
+
+Beside it, three things are closed end to end: `ensure_sort` (task #97-P5-Core
+§7's *"the smallest of the ten, and the natural first"*), the whole `whnf`
+LOOP — the shape that section named as not being the `ExprOps` tier's — and
+**`BodyRel`'s first field**, `stuckGatedCore`, which needed the ten-way
+tag/view agreement task #97-P5-2 §10 owed and which is now written (§5).
+
+#### 1. `Core/Eqns.lean`, and the way it had to be written
+
+`arena::core` is **109 functions in two mutual `partial_fixpoint` blocks**
+(`ConRon/Generated/Funs.lean:28309-34436`, 100 functions including
+`arena::core_gated`'s two, and `:40250-40798`, 9).  Measured on this machine,
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, against an
+`import ConRon.Generated.Funs` baseline of **2.05 s**:
+
+| file | what it does | raw | net | per equation |
+|---|---|---:|---:|---:|
+| `#check @arena.core.knot_whnf_core.eq_def` | realizes `eq_def` | 11.50 s | **9.45 s** | 9.45 s |
+| one `getEqnsFor?` in a `run_cmd` | realizes what `rw [f]` uses | 12.80 s | **10.75 s** | 10.75 s |
+| three names through `force_eqns` | `getEqnsFor?` **and** `getUnfoldEqnFor?` | 30.19 s | **28.14 s** | **9.38 s** |
+
+and then, for each of those as an IMPORTED module, a file whose whole content
+is `rw [arena.core.knot_whnf_core] at h` (net of its own import baseline):
+
+| the deriving module | the `rw` file costs |
+|---|---:|
+| `#check @…​.eq_def` | **9.45 s** — the realization did NOT survive the `.olean` |
+| `getEqnsFor?` in a `run_cmd` | **0.0 s** — it did |
+| `Core/Induction.lean` (which `rw`s it in a proof) | **0.0 s** |
+
+**Finding 12 — `#check @f.eq_def` is not a way to force an equation.**  It
+realizes a *different* constant, it costs the full 9.45 s, and a module
+importing it pays the 9.45 s again at its first `rw`.
+`Lean.Meta.getEqnsFor?` — which is what `rw [f]` itself calls — does survive,
+and so does `getUnfoldEqnFor?` (what `unfold f` and `simp only [f]` call) at
+no measurable extra cost.  So `Core/Eqns.lean` is a five-line command
+elaborator over a list of 109 names rather than a list of 109 `example`s, and
+the reason is written into the file so that nobody re-derives it.
+
+**The whole file**: 109 names, one `lake build`, `LEAN_NUM_THREADS=1` —
+**1 020 s wall (17.0 min), 5.9 GB peak RSS, 25.3 MB of `.olean`**, i.e.
+**9.36 s a name** against the three-name measurement's 9.38 s — the derivation
+is linear in the count and nothing about the block is shared.
+
+**What it buys.**  Without it each arm file re-derives the subset it touches:
+`Core/Arms/Sort.lean` alone touches `ensure_sort` and `knot_whnf` (≈ 19 s) and
+a file that unfolds one `defeq` arm touches a dozen (≈ 110 s).  At the dozen
+arm files the tier will have, the equations would cost **hours per build**;
+with `Eqns.lean` they cost 1 020 s once and nothing afterwards.  This is the
+one item of the round that changes what the remaining work costs rather than
+what it says.
+
+#### 2. Finding 13 — task #97-P5-Core's two loop statements are off by one
+
+That round stated `whnf_step_refines` against
+`whnfStep … (whnfLoop … (absU n - 1))` with a side condition `1 ≤ absU n`, and
+`defeq_step_refines` likewise.  The port passes its own `n` on **unchanged**:
+
+    whnf_loop(…, n, e) = if n = 0 then Internal else whnf_step(…, n - 1, e)
+    whnf_step(…, n, e) = … whnf_loop(…, n, e₂) …
+
+so `whnf_step(…, n, …)` is `whnfStep … (whnfLoop … (absU n))`: the decrement is
+the LOOP's and it is exactly the twin's own
+`whnfLoop (m + 1) = whnfStep … (whnfLoop m)`.  With the `- 1` the lemma claims
+the twin runs one iteration fewer than the port, which is false the moment a
+literal or a delta step fires.  Both statements are re-cut and the side
+condition is gone from both — which also removes the only place in the tier
+where a *loop* carried a fuel side condition.
+
+#### 3. What closed
+
+| file | lines | theorems | `sorry` | what |
+|---|---:|---:|---:|---|
+| `Refine2/Core/Eqns.lean` | 174 | — | 0 | the 109 unfolding equations, derived once |
+| `Refine2/Core/Arms/Sort.lean` | 367 | 6 | **0** | **`EStore_view_tagOf`** (the ten-way agreement), the `sort` projection, `ensureSort_run`, **`ensure_sort_refines`** |
+| `Refine2/Core/Arms/Gated.lean` | 124 | 2 | **0** | **`bodyRel_stuckGatedCore`** — `BodyRel`'s first field, and the only one that mentions no Rust |
+| `Refine2/Core/Arms/Loops.lean` | 546 | 15 | 4 | `AOut.widen`/`of_eq'`; `CoreAmbient`; `whnfStep_run`; **`whnf_step_refines` / `whnf_loop_refines` / `whnf_body_refines`**; `defeq_body_refines` modulo its loop |
+| `Refine2/Core/Arms/Batched.lean` | 112 | 5 | 5 | the five batched clauses, stated |
+| `Refine2/Core/Arms.lean` | 96 | 3 | 1 | the tier index, the census, `bodyRel_of_knot` |
+| **the round** | **1 419** | **31** | **10** | (was 11) |
+
+`Core/Arms.lean` was task #97-P5-Core's single file and is now the tier's index:
+the arms live in `Core/Arms/`, every one of them importing `Core/Eqns.lean`.
+
+#### 4. Finding 14 — finding 3 at a CALLEE's ANSWER is a different hypothesis
+
+Task #97-P5-0's finding 3 says the tag-first / view-first split needs `StoreWF`
+plus "this handle resolves" at ≈ 60 sites, and every statement of the tiers so
+far carries it about the caller's ARGUMENT.  `ensure_sort` dispatches on the
+tag of **`knot_whnf`'s own answer**, and there the pair cannot have that shape:
+`AOut`'s `WF` slot is a predicate on the VALUE, and `EResolves` names the twin
+STATE, so no `Sim` conclusion can carry it.
+
+The divergence it excludes is real and is in the direction §8.2 claims: on a
+handle whose tag is not `sort` and which does **not** resolve, the port answers
+`Invalid` and the twin answers `internal` — two different MIRRORED kinds, so
+`AErrSim` fails.  `Core/Arms/Sort.lean`'s `AnswerResolves` is the hypothesis,
+and it is P3's to discharge from `StateOK`.
+
+The port's own dangling decline needs nothing, and that is the positive half
+worth recording: `EStore_view_of_tag_sort` says the twin's `view` answers
+`none` exactly where the port's `view_sort` does, and both spell `internal`
+there.
+
+Two more of the same kind are what the loops carry, bundled as `CoreAmbient`
+so that P3 deletes them in one edit:
+
+* **`wf`** — *"every twin state related to a port state this run reaches is
+  well formed"*.  `AOut` carries `Ext`, and **`Ext` does not carry `StoreWF`**
+  — `Arena/WF.lean`'s rank witness is re-established by the intern lemmas, not
+  by `Ext` — so a loop that re-enters its own body at its callees' state has no
+  way to keep the hypothesis it was given.  This is the first place in P5 where
+  that bites and it will bite at every recursion of the tier.
+* **`resExt`** — `EResolves` travels along `Ext` on a well-formed store.  `Ext`
+  is a DENOTATION-preservation statement and says nothing about `view` on its
+  own; it carries `EResolves` only because `Arena/WF.lean`'s denotation is
+  total on a well-formed store.  `whnf_step` needs it because
+  `unfold_definition` reads the `whnfCore` reduct at the state `reduce_nat`
+  left.
+* **`resWhnfCore`** — `AnswerResolves` at `knot_whnf_core`, because
+  `whnf_step` hands that reduct straight to `reduce_nat` and to
+  `unfold_definition`.
+
+**They are stated state-polymorphically and P3 should not take them that way.**
+`CoreAmbient.wf` quantifies over every `(st', lst')` pair satisfying
+`AStateRel`/`AStateInv`, which is what a LOOP needs (its own recursion visits
+states nothing in the statement names) and which no caller can discharge from
+`AStateInv` alone — `Refine2/AbsState.lean`'s `AStateInv` is three Rust-side
+clauses and mentions no `StoreWF`.  The right form is a reachability-relative
+one, and it is P3's `StateOK` clause; `CoreAmbient` is written as one structure
+precisely so that substituting it is one edit.
+
+#### 5. Finding 15 — the tag/view agreement, written, and it is UNCONDITIONAL
+
+Task #97-P5-2 §10 owed *"`view h = some (.C ..) ↔ h.tag = ETag.C` on a
+resolving handle"*, argued it is free of `StoreWF`, priced it at *"~60 lines
+against `ETables.get`'s ten-way `if` chain"* and left it unmechanised.  It is
+mechanised here, in two lemmas, and the argument holds:
+
+* **`EStore_view_tagOf : st.view i = some v → i.tag = v.tagOf`**, **77 lines**
+  against that estimate of sixty, of which sixty are `ETables_get_tagOf`'s ten
+  arms.  What makes it cheap is that `Arena/WFProofs.lean` already has both
+  halves of the vocabulary — `ENodeView.tagOf` and the `tag_cases` macro, the
+  "ten-way tag dispatch without Mathlib" that file's own note describes — so
+  each arm is six lines and the same six lines eight times.  The binder arm is
+  the only one that is not `ETables.get`: `view` builds `eBindView i.tag …`,
+  whose `tagOf` is `i.tag` exactly under `ETag.isBind`.
+* **`EStore_view_of_tag_sort : i.tag = ETag.sort → st.view i =
+  (st.viewSort i).map .sort`** — the other direction, at ONE constructor,
+  **19 lines**: three tag `if`s, a `cases` on the array read, and the same tier
+  select `EStore.viewSort` itself makes.
+
+**Neither uses `StoreWF`**, which settles task #97-P5-2 §10: P5-0's finding 3
+weakens to `EResolves` alone, `StoreWF` comes out of `ExprOps/Read.lean`'s nine
+tag-first readers and — by the same argument — out of `KnotRel` and `BodyRel`'s
+thirteen fields.  **Both belong in `Refine2/Specs.lean`** beside `view_run` and
+are in this tier only because it may not edit that file; the migration is the
+two lines that name them.
+
+What it bought immediately is **`BodyRel.stuckGatedCore`**, the first field of
+either relation to close: the four tags `whnfCoreStuckTag` excludes (`app`,
+`proj`, `letE`, `bvar`) are exactly the four views `whnfCoreBodyGated` does not
+answer with `pure e`, so with the agreement the proof is a six-way `rfl` and
+four `absurd`s.  That is the first half of task #97-P5-Core's finding 12; the
+second half (`stuckGatedWhnf`, the one that is FALSE at `f = 0`) waits on
+`reduce_nat` and `unfold_definition`, i.e. on §8's first two `sorry`s.
+
+#### 6. Elaboration, per file
+
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, two runs; "net" subtracts
+that file's own import baseline measured the same way.
+
+| file | lines | theorems | raw (2 runs) | its import baseline | net |
+|---|---:|---:|---|---:|---:|
+| `Core/Eqns.lean` | 174 | — | **1 020 s** (`lake build`, §1) | `ConRon.Generated.Funs` 2.05 s | **1 018 s, once** |
+| `Core/Arms/Sort.lean` | 367 | 6 | 3.75 / 3.78 s | `import …Core.Eqns` **1.92 / 1.87 s** | **1.87 s** |
+| `Core/Arms/Gated.lean` | 124 | 2 | 2.33 / 2.24 s | `import …Arms.Sort` 1.95 / 2.04 s | **0.29 s** |
+| `Core/Arms/Loops.lean` | 546 | 15 | 2.20 / 2.67 s | `import …Arms.Gated` 1.99 / 2.20 s | **0.34 s** |
+| `Core/Arms/Batched.lean` | 112 | 5 | 1.96 / 1.96 s | `import …Arms.Loops` 2.22 / 2.25 s | **0.00 s** |
+| `Core/Arms.lean` | 96 | 3 | 1.90 / 1.89 s | (the three above) | **0.00 s** |
+
+**The second row of the second column is the point of the whole round**:
+`import ConRon.Refine2.Core.Eqns` costs **1.90 s against `import
+ConRon.Refine2.Core.Entries`'s 1.92 s** — that is, a 25.3 MB `.olean` holding
+109 unfolding equations of a 6 128-line mutual block **costs an importing file
+nothing at all**.  The 1 020 s is paid once, by `lake`, and never again until
+`extract.sh` regenerates the model.
+
+**No LEMMA is anywhere near the 20-second flag.**  The one large number is
+`Core/Eqns.lean`, and it is not a lemma cost at all: it is the tier's one-off
+equation derivation, measured in §1, and it is a *build* cost paid once rather
+than a proof cost paid per lemma.  That is the whole point of the file.
+
+#### 7. The axiom census
+
+**Seven `#print axioms` rows under `#guard_msgs`** this round — four in
+`Core/Arms/Sort.lean` (both directions of the tag agreement, `ensureSort_run`,
+`ensure_sort_refines`), one in `Core/Arms/Gated.lean` and two in
+`Core/Arms/Loops.lean` (`AOut.widen`, `whnfStep_run`).  Every one reads **`[propext, Classical.choice, Quot.sound]`**
+and nothing else: no `sorryAx` on a closed lemma, and still no `bv_decide`
+axiom anywhere in the tier.
+
+**`knot_rel` applied to `bodyRel_of_knot` is NOT sorry-free**, and will not be
+until the six bodies close: `Core/Arms.lean`'s `knotRel : ∀ f, KnotRel f` is
+`knot_rel bodyRel_of_knot`, and `#print axioms` on it reports `sorryAx` through
+that one hypothesis.  The knot's own half — `knotRel_zero`, `knotRel_succ`,
+`knot_rel`, `knotRel_checkFuel` and the six entries — is sorry-free and was so
+at task #97-P5-Core.
+
+#### 8. The `sorry` list, exactly
+
+**Ten, in three files:**
+
+| `sorry` | what is missing |
+|---|---|
+| `bodyRel_of_knot` (`Core/Arms.lean`) | the six bodies' ten-way dispatches and the ≈ 95 helpers under them; the census is that file's module note |
+| `reduce_nat_refines`, `unfold_definition_refines` (`Loops.lean`) | the `whnf` loop's two LEAVES — the fifteen `natOp*` guards and `natOpResult`'s dispatch; `getAppFn` + the environment probe + `constValAt` + `mkAppN`.  With them as hypotheses the loop closes, which is what this round proved |
+| `defeq_loop_refines`, `defeq_step_refines` (`Loops.lean`) | `arena::core::defeq_after_whnf`, which has **no named twin**: it is the tail of `Arena.defeqStep`, one of task #97-P5-0's finding-6 splits, so it wants a local transcription plus an `_unfold` equation back to `defeqStep` in the shape `ExprOps/Read.lean` has for `wscopedBGo`.  With that, the two are `whnf_step_of_cont` and `whnf_loop_aux` verbatim |
+| `whnf_app_refines`, `beta_peel_refines`, `iota_rec_at_refines`, `defeq_peel_leaf_refines`, `whnf_core_stuck_app_refines` (`Batched.lean`) | the five batched clauses.  Each walks its own second fuel dimension (the spine's remaining length, `args.size - i`), so the shape step is `Refine2/Inv.lean`'s `lidx_vec_eq_from_iff` MEASURE induction and not `Loops.lean`'s `Nat` induction — task #97-P5-0's finding 7 names those as the tier's two shape steps |
+
+`ConRonRefine2` as a whole is **125 `sorry`** (was 126): `Specs.lean`'s 25,
+`ExprOps/Read.lean`'s 25, `ExprOps/Mut.lean`'s 65 and this tier's ten.
+
+#### 9. What the next round needs
+
+* **A twin `defeqAfterWhnf`.**  Two of the ten `sorry`s above are one missing
+  definition, and the cheapest fix is a TWIN change: split `Arena.defeqStep`'s
+  tail exactly as the port splits it, which is §8.4's "one `def` per intended
+  Rust function" and which `arena::core::defeq_after_whnf`'s own doc comment
+  already claims it is.  It belongs in the next twin catch-up beside task
+  #97-P5-1's finding 9 and task #97-P5-Core's finding 12.
+* **`StateOK` has to carry `StoreWF` along the run.**  `CoreAmbient.wf` is
+  carried at two sites today and will be carried at every recursion of the
+  tier.  `Ext` cannot supply it (it is a denotation statement), so it is a
+  clause of the state invariant and P3 owes it — **this is the single
+  hypothesis the rest of P5's Core tier will want most**, and §4 says why the
+  state-polymorphic form this round uses is not the one to keep.
+* **Move §5's two lemmas into `Specs.lean`.**  They are written and closed and
+  they are this tier's, which is the wrong place: every tier above wants them,
+  and `ExprOps/Read.lean`'s eight open tag-first readers are waiting on exactly
+  `EStore_view_tagOf` (task #97-P5-2 §10 says so in as many words).  The
+  migration is two lines.
+* **The six bodies, in the order the census gives them.**  `whnf_core_body`
+  and `annotate_body` have the smallest helper sets (11 and 9); `defeq_body`'s
+  ≈ 40 is the largest and should come last.  Each body is a ten-arm `view`
+  dispatch, and task #97-P5-2 §6's third row is the budget: **a ten-arm `view`
+  walk costs one `cases`**, because `Specs.lean`'s `view_run` has already done
+  the ten-way work.
+* **`Core/Eqns.lean` is a dependency of every arm file and must stay one.**  A
+  new `Core/Arms/*.lean` that imports `Core/Entries.lean` directly rather than
+  through an arm file pays §1's 9.4 s per equation it touches.
+
+#### 10. The gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green, 2 116 jobs**, **125 `sorry`** (was 126) and no errors |
+| `scripts/gates.sh` | **all 13 OK** — `cargo-build` 3 s, `cargo-test` 7 s, `lint-rust` 2 s, `provenance` 1 s, `provenance-self` 0 s, `twin-lines` 0 s, `overview-links` 0 s, `holes` 0 s, `gen-pins` 6 s, `gen-prelude` 0 s, `gen-prelude-lean` 0 s, `extract-check` 98 s, `lake-build` 113 s |
+| `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/twin-lines.py check` | 1 924 `Lean twin:` citations in 42 files, every one at its twin's current lines |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| the diff | `proof/ConRon/Refine2/Core/Eqns.lean`, `proof/ConRon/Refine2/Core/Arms.lean`, `proof/ConRon/Refine2/Core/Arms/{Sort,Gated,Loops,Batched}.lean`, two lines of `proof/ConRon/Refine2/Core.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Specs.lean`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check` cannot be affected, and were run anyway |
