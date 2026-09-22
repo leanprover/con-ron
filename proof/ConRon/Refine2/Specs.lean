@@ -116,15 +116,15 @@ reads its two `Array`s.  `Tbl.find` is the cons probe, which is
 
 section Tbl
 
-variable {A I D α ι δ : Type} [DecidableEq A] [BEq α] [Hashable α]
-  {P : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ}
+variable {A I D α ι δ ω : Type} [DecidableEq A] [BEq α] [Hashable α]
+  {P : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ} {obsD : δ → ω}
   {rt : arena.store.Tbl A I D} {lt : Tbl α ι δ}
   {hH : ron.hashmap.Hashable A} {hE : ron.hashmap.Eq2 A}
   {hDA : ron.hashmap.Dup A} {hDI : ron.hashmap.Dup I} {hDD : ron.hashmap.Dup D}
   {hDf : arena.store.DerDefault D}
 
 /-- The node column, one element. -/
-theorem tbl_node_abs (hrel : TblRel P absA absI absD rt lt) {n : Std.Usize}
+theorem tbl_node_abs (hrel : TblRel P absA absI absD obsD rt lt) {n : Std.Usize}
     {o : Option A}
     (h : arena.store.Tbl.node hH hE hDA hDI hDD hDf rt n = ok o) :
     lt.node? n.val = o.map absA := by
@@ -149,29 +149,41 @@ theorem tbl_node_abs (hrel : TblRel P absA absI absD rt lt) {n : Std.Usize}
 `D::der_default()` and the twin `default`, which is the hypothesis `hdf`:
 `u64`'s is `0` and `LDer`'s is `⟨0, false⟩`, and `deriving Inhabited` gives
 the twin the same two. -/
-theorem tbl_der_at_abs [Inhabited δ] (hrel : TblRel P absA absI absD rt lt)
+theorem tbl_der_at_abs [Inhabited δ] (hrel : TblRel P absA absI absD obsD rt lt)
     (hdup : DupId hDD)
     (hdf : ∀ d, hDf.der_default = ok d → absD d = default)
     {n : Std.Usize} {d : D}
     (h : arena.store.Tbl.der_at hH hE hDA hDI hDD hDf rt n = ok d) :
-    lt.derAt n.val = absD d := by
+    obsD (lt.derAt n.val) = obsD (absD d) := by
   rw [arena.store.Tbl.der_at] at h
-  have hder : lt.der[n.val]? = (rt.rows.val[n.val]?).map (fun p => absD p.2) := by
-    rw [← Array.getElem?_toList, hrel.der, List.getElem?_map]
-  show lt.der.getD n.val default = absD d
-  rw [Array.getD_eq_getD_getElem?, hder]
+  have hder : (lt.der[n.val]?).map obsD
+      = (rt.rows.val[n.val]?).map (fun p => obsD (absD p.2)) := by
+    rw [← Array.getElem?_toList, ← List.getElem?_map, hrel.der, List.getElem?_map]
+  show obsD (lt.der.getD n.val default) = obsD (absD d)
+  rw [Array.getD_eq_getD_getElem?]
   split at h
   · rename_i hge
-    rw [hdf d h, List.getElem?_eq_none (by scalar_tac)]
+    rw [List.getElem?_eq_none (by scalar_tac)] at hder
+    have hl : lt.der[n.val]? = none := by
+      cases hc : lt.der[n.val]? with
+      | none => rfl
+      | some x => rw [hc] at hder; simp at hder
+    rw [hl, hdf d h]
     rfl
   · rename_i hlt
     obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨a, d0⟩ := p
-    rw [vec_index_some hp, ← hdup d0 d h]
-    rfl
+    rw [vec_index_some hp] at hder
+    rw [hdup d0 d h]
+    cases hc : lt.der[n.val]? with
+    | none => rw [hc] at hder; simp at hder
+    | some x =>
+      rw [hc] at hder
+      simp only [Option.map_some, Option.some.injEq] at hder
+      simpa using hder
 
 /-- The cons probe. -/
-theorem tbl_find_abs (hrel : TblRel P absA absI absD rt lt)
+theorem tbl_find_abs (hrel : TblRel P absA absI absD obsD rt lt)
     (hinv : TblInv hH P rt) (heq : Eq2Fwd hE P) (hdup : DupId hDI)
     {a : A} (hk : P a) {o : Option I}
     (h : arena.store.Tbl.find hH hE hDA hDI hDD hDf rt a = ok o) :
@@ -1257,7 +1269,7 @@ theorem etag_proj_abs : absU32 arena.handle.ETAG_PROJ = ETag.proj := by
 theorem etables_der_at_abs {rt lt} (hrel : ETablesRel rt lt)
     {i : arena.handle.EIdx} {d : Std.U64}
     (h : arena.store.ETables.der_at rt i = ok d) :
-    lt.derAt (absEIdx i) = absU64 d := by
+    derObsE (lt.derAt (absEIdx i)) = derObsE (absU64 d) := by
   rw [arena.store.ETables.der_at] at h
   obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [ETables.derAt, eidx_tag_abs ht]
@@ -1351,7 +1363,7 @@ over the ten-way dispatch, and `pers_der_at`'s `shared_on` is `rPersE` again
 theorem estore_derived_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     {i : arena.handle.EIdx} {d : Std.U64}
     (h : arena.store.EStore.derived rs pers i = ok d) :
-    ls.derived (absEIdx i) = absU64 d := by
+    derObsE (ls.derived (absEIdx i)) = derObsE (absU64 d) := by
   rw [arena.store.EStore.derived] at h
   obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hb2 := eidx_is_persistent_abs hb
@@ -1380,12 +1392,9 @@ word, in `O(1)` off the derived column. -/
 @[grind →] theorem derived_e_run {pers st lst} (hrel : AStateRel pers st lst)
     {h : arena.handle.EIdx} {d : Std.U64}
     (hrun : arena.monad.derived_e pers st h = ok d) :
-    SimR absU64 lst d (Arena.derivedE (absEIdx h)) := by
+    SimRO absU64 derObsE lst d (Arena.derivedE (absEIdx h)) := by
   rw [arena.monad.derived_e] at hrun
-  show (Arena.derivedE (absEIdx h)).run lst = _
-  rw [show (Arena.derivedE (absEIdx h)).run lst
-        = .ok (lst.store.derived (absEIdx h), lst) from rfl,
-    estore_derived_abs hrel.store hrun]
+  exact SimRO.mk rfl (estore_derived_abs hrel.store hrun)
 
 /-! ## `view`: the ten-way decode
 
@@ -2321,7 +2330,7 @@ theorem lstables_get_len_abs {rt lt} (hrel : LsTablesRel rt lt)
 theorem ltables_der_at_abs {rt lt} (hrel : LTablesRel rt lt)
     {i : arena.handle.LIdx} {d : arena.store.LDer}
     (h : arena.store.LTables.der_at rt i = ok d) :
-    lt.derAt (absLIdx i) = absLDer d := by
+    derObsL (lt.derAt (absLIdx i)) = derObsL (absLDer d) := by
   rw [arena.store.LTables.der_at] at h
   obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [LTables.derAt, lidx_tag_abs ht]
@@ -2477,7 +2486,7 @@ theorem lsstore_view_len_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
 theorem lstore_derived_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
     {i : arena.handle.LIdx} {d}
     (h : arena.store.LStore.derived rs pers i = ok d) :
-    ls.derived (absLIdx i) = absLDer d := by
+    derObsL (ls.derived (absLIdx i)) = derObsL (absLDer d) := by
   rw [arena.store.LStore.derived] at h
   obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hb2 := lidx_is_persistent_abs hb
@@ -2503,16 +2512,15 @@ theorem lstore_derived_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
 theorem derived_l_run {pers st lst} (hrel : AStateRel pers st lst)
     {h : arena.handle.LIdx} {d : arena.store.LDer}
     (hrun : arena.monad.derived_l pers st h = ok d) :
-    SimR absLDer lst d (Arena.derivedL (absLIdx h)) := by
+    SimRO absLDer derObsL lst d (Arena.derivedL (absLIdx h)) := by
   rw [arena.monad.derived_l, arena.store.EStore.lder] at hrun
   obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   rw [arena.store.EStore.ls] at hl
   have hl2 : l = st.store.lss.ls := (Result.ok_injective hl).symm
   subst hl2
-  show (Arena.derivedL (absLIdx h)).run lst = _
-  rw [show (Arena.derivedL (absLIdx h)).run lst
-        = .ok (lst.store.lder (absLIdx h), lst) from rfl,
-    EStore.lder, EStore.ls, lstore_derived_abs hrel.store.lss.lvl hrun]
+  exact SimRO.mk rfl (by
+    rw [EStore.lder, EStore.ls]
+    exact lstore_derived_abs hrel.store.lss.lvl hrun)
 
 theorem view_ls_len_run {pers st lst} (hrel : AStateRel pers st lst)
     {h : arena.handle.LsIdx} {o}

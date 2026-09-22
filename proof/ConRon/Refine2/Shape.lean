@@ -285,6 +285,31 @@ def SimR {α β : Type} (A : α → β) (lst : AState) (r : α) (x : AM β) : Pr
 theorem SimR.apply {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
     (h : SimR A lst r x) : x.run lst = .ok (A r, lst) := h
 
+/-- **The read-only simulation, up to an OBSERVATION of the answer.**  The
+derived column is the one place where the two halves cannot be related as
+VALUES — `Refine2/AbsStore.lean`'s note on `derObsE` says why: con-leche's
+`mixHash` is `opaque`, the port's `mix_hash` is concrete, and no proof relates
+the two — so `derived_e`/`derived_l` answer "the same word up to its hash",
+which is what every reader of the word actually uses. -/
+def SimRO {α β γ : Type} (A : α → β) (obs : β → γ) (lst : AState) (r : α)
+    (x : AM β) : Prop :=
+  ∃ v, x.run lst = .ok (v, lst) ∧ obs v = obs (A r)
+
+theorem SimRO.mk {α β γ : Type} {A : α → β} {obs : β → γ} {lst : AState} {r : α}
+    {v : β} {x : AM β} (hx : x.run lst = .ok (v, lst)) (ho : obs v = obs (A r)) :
+    SimRO A obs lst r x := ⟨v, hx, ho⟩
+
+theorem SimRO.apply {α β γ : Type} {A : α → β} {obs : β → γ} {lst : AState}
+    {r : α} {x : AM β} (h : SimRO A obs lst r x) :
+    ∃ v, x.run lst = .ok (v, lst) ∧ obs v = obs (A r) := h
+
+/-- A `SimR` is a `SimRO` at any observation: the value equation is the
+stronger claim, and this is how a reader that HAS one feeds a consumer that
+only wants the observation. -/
+theorem SimR.toSimRO {α β γ : Type} {A : α → β} {obs : β → γ} {lst : AState}
+    {r : α} {x : AM β} (h : SimR A lst r x) : SimRO A obs lst r x :=
+  ⟨A r, h, rfl⟩
+
 /-- **The total state-threading simulation**, for the Rust functions whose
 signature is `Result AState` with no inner `Result` at all — the thirteen memo
 inserts, the thirteen memo clears, `enter_scratch`/`drop_scratch`/

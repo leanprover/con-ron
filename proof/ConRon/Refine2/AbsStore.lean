@@ -288,11 +288,54 @@ pairs (task #97-P6-10's change, whose ledger row says exactly this: "the
 refinement reads `rows.map (·.1)` for `nodes` and `rows.map (·.2)` for
 `der`"); the third is `Refine/HashMap2.lean`'s `Rel`. -/
 
-structure TblRel {A I D α ι δ : Type} [DecidableEq A] [BEq α] [Hashable α]
-    (P : A → Prop) (absA : A → α) (absI : I → ι) (absD : D → δ)
+/-! ### The derived word's HASH field is OUTSIDE the relation, and has to be
+
+**The one place Theorem 1 and Theorem 2 want incompatible things of the same
+field.**  DESIGN §8.3 asks the derived column to hold *"con-leche's own packed
+word — `Expr.data`'s formula verbatim"*, so that `derived st i = (denote st
+i).data` is Theorem 1's exactness lemma; con-leche computes that word with
+Lean core's `mixHash`, which is
+
+    @[extern "lean_uint64_mix_hash"] opaque mixHash : UInt64 → UInt64 → UInt64
+
+— **`opaque`**.  The port implements the same algorithm concretely
+(`kernel::name::mix_hash`, a `wrapping_mul`/`>>>`/`^^^` chain), and *no proof
+can relate a concrete function to an opaque constant*.  So a `TblRel` whose
+`der` clause is a VALUE equation is unprovable the moment anything is
+interned, and the whole tower above it would be vacuous.
+
+The resolution is that the hash field is **not observable**, and that is a
+fact about the port checked in the port: `expr::hash_of_data` and every read
+of `LDer.hash` occur in `arena/store.rs` and nowhere else in `arena/`, all of
+them inside the `der_of_*` family — the hash of a node is computed only to be
+mixed into the hash of its parent.  The cons tables key on the node RECORD and
+not on the derived word, and `Refine/HashMap2.lean`'s specification of a table
+(`Inv`, `toFun`, `get`, `insert`) never mentions a hash value.  What the
+checker's control flow *does* read is `bvarOfData`, `fvarOfData`, `lpOfData`
+(the three cutoffs of DESIGN §8.3's lesson 20) and `LDer.hasParam`.
+
+`TblRel` therefore carries an OBSERVATION `obsD` and relates the two columns
+up to it.  The three instances below are the whole of the design decision. -/
+
+/-- The expression tier's derived word, as what the checker can see of it:
+`Expr.data`'s three non-hash fields.  The hash (bits 63…32) is dropped. -/
+def derObsE (w : UInt64) : UInt64 × UInt64 × Bool :=
+  (ConLeche.bvarOfData w, ConLeche.fvarOfData w, ConLeche.lpOfData w)
+
+/-- The NAME tier's derived word is `Name.hashData` and nothing else, so
+nothing of it is observable. -/
+def derObsN (_ : UInt64) : Unit := ()
+
+/-- A level's (and a level list's) derived record: the has-a-parameter bit is
+observable — `instantiateLevelParams`' cutoff reads it — and the hash is
+not. -/
+def derObsL (d : LDer) : Bool := d.hasParam
+
+structure TblRel {A I D α ι δ ω : Type} [DecidableEq A] [BEq α] [Hashable α]
+    (P : A → Prop) (absA : A → α) (absI : I → ι) (absD : D → δ) (obsD : δ → ω)
     (rt : arena.store.Tbl A I D) (lt : Tbl α ι δ) : Prop where
   nodes : lt.nodes.toList = rt.rows.val.map (fun p => absA p.1)
-  der : lt.der.toList = rt.rows.val.map (fun p => absD p.2)
+  der : lt.der.toList.map obsD = rt.rows.val.map (fun p => obsD (absD p.2))
   cons : ConRon.Refine.HashMap2.RelOn P rt.cons lt.cons absA absI
 
 /-! ### The key predicates
@@ -326,32 +369,32 @@ def BMNodeWF (r : arena.store.BMNode) : Prop := ConRon.Refine.PropWhenWF r.pw
 /-! ## The four tiers -/
 
 structure NTablesRel (rt : arena.store.NTables) (lt : NTables) : Prop where
-  anons : TblRel AnonNodeWF absAnonNode absNIdx absU64 rt.anons lt.anons
-  strs : TblRel StrNodeWF absStrNode absNIdx absU64 rt.strs lt.strs
-  nums : TblRel NumNodeWF absNumNode absNIdx absU64 rt.nums lt.nums
+  anons : TblRel AnonNodeWF absAnonNode absNIdx absU64 derObsN rt.anons lt.anons
+  strs : TblRel StrNodeWF absStrNode absNIdx absU64 derObsN rt.strs lt.strs
+  nums : TblRel NumNodeWF absNumNode absNIdx absU64 derObsN rt.nums lt.nums
 
 structure LTablesRel (rt : arena.store.LTables) (lt : LTables) : Prop where
-  zeros : TblRel ZeroNodeWF absZeroNode absLIdx absLDer rt.zeros lt.zeros
-  succs : TblRel SuccNodeWF absSuccNode absLIdx absLDer rt.succs lt.succs
-  maxs : TblRel BinLNodeWF absBinLNode absLIdx absLDer rt.maxs lt.maxs
-  imaxs : TblRel BinLNodeWF absBinLNode absLIdx absLDer rt.imaxs lt.imaxs
-  params : TblRel ParamNodeWF absParamNode absLIdx absLDer rt.params lt.params
+  zeros : TblRel ZeroNodeWF absZeroNode absLIdx absLDer derObsL rt.zeros lt.zeros
+  succs : TblRel SuccNodeWF absSuccNode absLIdx absLDer derObsL rt.succs lt.succs
+  maxs : TblRel BinLNodeWF absBinLNode absLIdx absLDer derObsL rt.maxs lt.maxs
+  imaxs : TblRel BinLNodeWF absBinLNode absLIdx absLDer derObsL rt.imaxs lt.imaxs
+  params : TblRel ParamNodeWF absParamNode absLIdx absLDer derObsL rt.params lt.params
 
 structure LsTablesRel (rt : arena.store.LsTables) (lt : LsTables) : Prop where
-  lists : TblRel ListNodeWF absListNode absLsIdx absLDer rt.lists lt.lists
+  lists : TblRel ListNodeWF absListNode absLsIdx absLDer derObsL rt.lists lt.lists
 
 structure ETablesRel (rt : arena.store.ETables) (lt : ETables) : Prop where
-  bvars : TblRel BVarNodeWF absBVarNode absEIdx absU64 rt.bvars lt.bvars
-  fvars : TblRel FVarNodeWF absFVarNode absEIdx absU64 rt.fvars lt.fvars
-  sorts : TblRel SortNodeWF absSortNode absEIdx absU64 rt.sorts lt.sorts
-  consts : TblRel ConstNodeWF absConstNode absEIdx absU64 rt.consts lt.consts
-  apps : TblRel AppNodeWF absAppNode absEIdx absU64 rt.apps lt.apps
-  lams : TblRel BindNodeWF absBindNode absEIdx absU64 rt.lams lt.lams
-  foralls : TblRel BindNodeWF absBindNode absEIdx absU64 rt.foralls lt.foralls
-  lets : TblRel LetNodeWF absLetNode absEIdx absU64 rt.lets lt.lets
-  lits : TblRel LitNodeWF absLitNode absEIdx absU64 rt.lits lt.lits
-  projs : TblRel ProjNodeWF absProjNode absEIdx absU64 rt.projs lt.projs
-  bms : TblRel BMNodeWF absBMNode absBMIdx absU64 rt.bms lt.bms
+  bvars : TblRel BVarNodeWF absBVarNode absEIdx absU64 derObsE rt.bvars lt.bvars
+  fvars : TblRel FVarNodeWF absFVarNode absEIdx absU64 derObsE rt.fvars lt.fvars
+  sorts : TblRel SortNodeWF absSortNode absEIdx absU64 derObsE rt.sorts lt.sorts
+  consts : TblRel ConstNodeWF absConstNode absEIdx absU64 derObsE rt.consts lt.consts
+  apps : TblRel AppNodeWF absAppNode absEIdx absU64 derObsE rt.apps lt.apps
+  lams : TblRel BindNodeWF absBindNode absEIdx absU64 derObsE rt.lams lt.lams
+  foralls : TblRel BindNodeWF absBindNode absEIdx absU64 derObsE rt.foralls lt.foralls
+  lets : TblRel LetNodeWF absLetNode absEIdx absU64 derObsE rt.lets lt.lets
+  lits : TblRel LitNodeWF absLitNode absEIdx absU64 derObsE rt.lits lt.lits
+  projs : TblRel ProjNodeWF absProjNode absEIdx absU64 derObsE rt.projs lt.projs
+  bms : TblRel BMNodeWF absBMNode absBMIdx absU64 derObsE rt.bms lt.bms
 
 /-! ## The persistent arm: which of the two tiers holds it
 
