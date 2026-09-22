@@ -45927,3 +45927,113 @@ large block with no external blocker, and it is what stands between
 | `#print axioms` | `Bridge/Inductives/Axioms.lean`: **72 closed results** (22 after round 1), every one `[propext, Classical.choice, Quot.sound]`; only `checkIndDecl_bridge` and `indSpec_of_bridge` carry `sorryAx`.  No `bv_decide` axiom |
 | per-theorem elaboration | nothing above **2.2 s** in the whole tier (`Rel.lean`, which is now 1 156 lines); the 20 s flag is not approached |
 | the diff | `proof/ConRon/Bridge/Inductives/{Rel,StructParts,SumParts,NativeParts,StructInstall,NativeInstall,Decl,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no other `Bridge/` module — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
+### Task #97-CACHE — `lake cache` as the shared worktree build cache (2026-09-22, Opus under Fable)
+
+The question: can Lake 5's own cache replace `cp -a --reflink=auto
+proof/.lake/build`, which needs a *source tree that still has the build*?
+**Yes** — with one sandbox-specific condition on where the cache lives.  All
+of what follows was measured in throwaway worktrees under
+`_tmp/t97cache/` (removed), with three other agents building concurrently, so
+the seconds below are indicative and the *job counts* are the evidence.
+
+#### C.1 Where the cache is, and who fills it
+
+`Lake/Config/Env.lean`'s `addCacheDirs`: `LAKE_CACHE_DIR` if set, else
+`$ELAN_HOME/toolchains/<toolchain>/lake/cache`, else `$XDG_CACHE_HOME/lake`.
+Here that default is
+`~/.elan/toolchains/leanprover--lean4---v4.33.0/lake/cache` (confirmed with
+`lake env printenv LAKE_CACHE_DIR`).  Layout:
+`outputs/<package>/<inputHash>.json` (the input-to-outputs mapping) and
+`artifacts/<contentHash>.<ext>` (olean, olean.server, olean.private, ilean,
+ir, ir.sig, c), **hard-linked** from the build directory (`Cache.saveArtifact`
+in `Lake/Build/Common.lean`, `IO.FS.hardLink` with a copy as fallback).
+
+An ordinary `lake build` **reads** it automatically:
+`Package.isArtifactCacheReadable` defaults to `true`
+(`Lake/Config/Monad.lean`), and `Module.recBuildLean`'s out-of-date branch
+consults `fetchFromCache?` with `restoreAll := true` before elaborating.  It
+**writes** only when `Package.isArtifactCacheWritable` is on, which defaults
+to `false` and is turned on by `LAKE_ARTIFACT_CACHE=true` or
+`enableArtifactCache := true` in the lakefile.  `lake cache get`/`put`/`add`/
+`stage`/`unstage`/`put-staged` are all about *remote* services (`lake cache
+services` prints only `reservoir`) and play no part in this.
+
+#### C.2 The key is path-independent — three independent witnesses
+
+`Module.recFetchPreSetup` mixes into the input hash: the dep trace, the
+import artifacts' *content* hashes, the Lean toolchain trace, the source
+file's content hash, the options, `isModule`, `Module.name`, `Package.id?`
+and `Module.leanArgs`.  No absolute path.  Measured:
+
+| witness | evidence |
+|---|---|
+| a different **worktree** path | `proof/.lake/build` reflink-copied from the main tree into `_tmp/t97cache/probeA`; `lake build --no-build` there is up to date for 2 036 of 2 095 jobs — every Mathlib, Aeneas and con-leche module — and reports exactly the one module (`ConRon.Generated.Types`) that the main tree also reports |
+| a different **package** path | pointing that worktree's `proof/.lake/packages` at a private reflink copy of con-leche changed nothing: still up to date |
+| a **renamed** dependency tree | `_tmp/aeneas-lean`'s artifacts were built when the directory was called `_tmp/aeneas-lean-433` (the recorded commands in its trace files still say so; that directory no longer exists) and are still accepted at the new path |
+
+`Package.cacheScope` is the package's base name, not a path, so the mapping
+directory is shared too.
+
+#### C.3 The round trip, from a fresh worktree
+
+Target `ConRonArena` (106 jobs, 55 oleans, the largest thing in the tree that
+is currently up to date end to end — `ConRon.Generated.Types` is stale in
+every tree, so no `Refine2` target could be used).
+
+| step | result |
+|---|---|
+| seed, from the warm copy: `LAKE_ARTIFACT_CACHE=true lake build ConRonArena` | **1.2 s, 0 modules re-elaborated** — an up-to-date tree just hard-links what it has into the cache (`OutputStatus.isCacheable` is "not mtime-only"); cache: 103 oleans + 48 con-leche mappings, `du` 307 MB, **`df` delta 0** |
+| restore, in a **brand-new worktree** with no `proof/.lake/build`, no env beyond `LAKE_CACHE_DIR`: `lake build ConRonArena` | **1.9 s, 106/106 jobs, 55 oleans restored, 0 elaborated**; build dir `du` 136 MB for **7.7 MB of real disk** (link count 3: seed tree, cache, new tree) |
+| edit a restored module and rebuild it | clean: the `r--r--r--` hard link is unlinked and replaced by a fresh writable olean.  Cache not corrupted |
+| the old workaround, for comparison | `cp -a --reflink=auto` of the 1.8 GB / 2 542-file build dir: **0.058 s**, `df` delta 0 |
+
+#### C.4 The one condition: the cache must be on the project's mount
+
+The bubblewrap sandbox bind-mounts `/home/joachim/con-ron` and
+`/home/joachim/.elan` **separately** off the same XFS volume
+(`/proc/self/mountinfo`), and a hard link across two bind mounts fails with
+`EXDEV` even though `stat -c %d` reports one device.  So with Lake's *default*
+cache location `restoreArtifact`'s `hardLink` fails and it silently falls back
+to `copyFile` — measured: an olean restored from the `~/.elan` cache had link
+count **1**, from the `_tmp` cache link count **3**.  That doubles the disk
+for every cached artifact and copies on every restore.  Hence
+`flake.nix` now exports `LAKE_CACHE_DIR="$PWD/_tmp/lake-cache"`: `_tmp/` is
+the directory every worktree already shares, and it is on the project mount.
+(Outside the sandbox the default would hard-link fine; setting it explicitly
+is correct in both.)
+
+#### C.5 What this does *not* show, and the cost to watch
+
+* **`Refine2/Core/Eqns.lean` itself was not demonstrated end to end**: no
+  `Eqns.olean` exists anywhere on the machine right now, and re-deriving it to
+  make one costs the documented ~17–25 min and 6 GB on a machine with three
+  other agents building.  Nothing about the mechanism is module-specific — the
+  cost of `Eqns.lean` is elaboration, which is exactly what the olean records
+  — but the first tree to build it must run with `LAKE_ARTIFACT_CACHE=true`
+  for any other tree to get it, and that is the step that will be forgotten.
+  `CLAUDE.md` says so.
+* **A writable-cache build also caches the dependency packages** in the
+  target's import closure: `enableArtifactCache` cannot be scoped to the root
+  package (`Workspace.enableArtifactCache?` is what a dependency falls back
+  to, and of our deps only Mathlib sets anything, `restoreAllArtifacts :=
+  true`).  Measured on a private con-leche copy: its build files were chmodded
+  to `r--r--r--` and their `.hash` files rewritten.  Harmless, but a write to
+  `_tmp/aeneas-lean` if seeded from a normal worktree.
+* **On a cache *hit* with the cache writable, only the ilean is put back in
+  the build directory** (`Package.restoreAllArtifacts` defaults to `false`),
+  so a seeding run should pass `LAKE_RESTORE_ARTIFACTS=true` to keep
+  `proof/.lake/build` looking normal.  Nothing in `scripts/` reads oleans
+  directly, so this is cosmetic today.
+* **There is no eviction.**  The cache hard-links, so it costs nothing while
+  the build directories live, but it *pins* every artifact after they are
+  deleted.  `rm -rf _tmp/lake-cache` (or `lake cache clean`) is the whole GC.
+  A Lean toolchain bump does not invalidate it — the toolchain is in the key,
+  so old entries simply stop matching and keep taking space.
+
+#### C.6 The diff
+
+`flake.nix` (one `export`), `CLAUDE.md` (the worktree-build bullet, now two
+bullets) and this section.  No Lean file, no Rust file, no script, no
+generated model — the gates cannot be affected by it, and the new environment
+variable is inert until something seeds the cache.
