@@ -79,12 +79,32 @@ s'` is simply false: at a `Modeller` that returns `[]` the run leaves the state
 alone, so the promise would say `StateOK s` of every state.  Both hypotheses
 hold at every call site (`installIndD_run` is the only consumer and it takes
 them), and a promise about an UNVERIFIED modeller is a promise about what it
-does to a well-formed store — not a promise that it repairs a broken one. -/
+does to a well-formed store — not a promise that it repairs a broken one.
+
+**The `DeclProjNamed` clause is round 5's repair of round 4's finding 16**
+(`Bridge/Frontend/Rel.lean`'s module note for the vocabulary).  A record that
+merely DENOTES does not have `IDeclaration.names`'s exactness, because
+`denoteProjTable` drops the stored `tableName`; the parse's own records get
+the clause for free (a parsed `.indDecl` block is built out of `.indInfo`,
+`.ctorInfo` and `.recInfo`) and `StateDRel.projNamed` carries it through the
+fold, but a record the MODELLER generated enters the stream through
+`pushGenList` and nothing upstream constrained it.  So the promise says it, at
+one place, instead of eight consumers taking it as a side condition.
+
+**What is asked is the `named` half of `IProjTableOK` and not the whole of
+it.**  That is what the name equation needs, and it is what the one concrete
+modeller can give: `inProcessModeller` interns the table
+(`internProjTable`, `Arena/Frontend/Readback.lean:583-590`), and interning it
+interns the reserved name `projTableName sn` itself, so the clause is true of
+its answer by construction.  `IProjTableOK`'s two SIZE clauses would not be —
+they would have to be imported from con-leche's own `ProjTable`, which nothing
+states — and they are not what any consumer here reads. -/
 def ModellerWF (md : Modeller) : Prop :=
   ∀ ctx b s hs s', StateOK s → s.store.scratchOn = false →
     md.generate ctx b s = .ok (.ok hs, s') →
     StateOK s' ∧ Ext s.store s'.store ∧
-      (∀ d ∈ hs, PersDecl d) ∧ (denoteDecls s'.store hs).isSome = true ∧
+      (∀ d ∈ hs, PersDecl d) ∧ (∀ d ∈ hs, DeclProjNamed s'.store d) ∧
+      (denoteDecls s'.store hs).isSome = true ∧
       s'.memos = s.memos ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
       s'.store.scratchOn = s.store.scratchOn
 
@@ -125,9 +145,16 @@ assumptions about a foreign program.  They are stated here and proved where
 modeller keeps the first promise.**
 
 `Arena/Frontend/Readback.lean`'s intern exactness (`internDecls_istep`,
-`Bridge/Frontend/Shared.lean`) gives the denotation and the persistence of the
-generated records in one; the frame conjuncts are `internE`'s, which never
-writes `caches`, `pins` or the scratch flag. -/
+`Bridge/Frontend/Shared.lean`) gives the denotation, the persistence AND — since
+round 5 — the projection-table naming of the generated records in one; the
+frame conjuncts are `internE`'s, which never writes `caches`, `pins` or the
+scratch flag.
+
+The naming clause is `internProjTable_istep`'s own new conjunct, carried up
+through `internCI_istep`, `internCIList_istep` and `internDecl_istep`: the
+twin BUILDS the reserved name (`projTableName sn`) where con-leche recomputes
+it, so the two agree by construction and the seam's promise costs this
+instantiation nothing. -/
 theorem inProcessModeller_wf : ModellerWF inProcessModeller := by
   intro ctx b s hs s' hok hoff hrun
   simp only [inProcessModeller] at hrun
@@ -149,13 +176,13 @@ theorem inProcessModeller_wf : ModellerWF inProcessModeller := by
   obtain ⟨p, s₂, hint, hrest2⟩ := AM.bind_ok hrest
   obtain ⟨m2, hsx⟩ := p
   simp only [] at hrest2
-  obtain ⟨hstep, hpers, hden, -⟩ :=
+  obtain ⟨hstep, hpers, hden, -, hnamed⟩ :=
     internDecls_istep ds hok hoff (EMemoOK.empty s.store) hint
   obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
   subst hst
   simp only [Except.ok.injEq] at hv
   subst hv
-  exact ⟨hstep.ok, hstep.ext, hpers, by rw [hden]; rfl, hstep.memos,
+  exact ⟨hstep.ok, hstep.ext, hpers, hnamed, by rw [hden]; rfl, hstep.memos,
     hstep.caches, hstep.pins, by rw [hstep.off, hoff]⟩
 
 /-- con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — **the delegating

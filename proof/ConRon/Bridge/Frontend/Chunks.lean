@@ -187,6 +187,7 @@ theorem StateD_init_run {s s' : AState} (hok : StateOK s)
         levels := IdTableRel.singleton hdl
         exprs := IdTableRel.empty _
         decls := denoteDeclArray_empty _
+        projNamed := DeclsProjNamed.empty _
         projOwners := MapRel.empty _ _
         projLevels := MapRel.empty _ _
         projRewrites := rfl
