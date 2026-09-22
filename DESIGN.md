@@ -42978,6 +42978,209 @@ missing half `projRecOwners_run`'s note named as "the Inductives tier's", and
 which `AM.of_run` converts into this tier's shape in one line (see §1's note).
 The `filterMap` induction and the reordering argument are still this tier's.
 
+#### Round 3 — the intern direction, the seam, and a promise that was too strong
+
+Off `arena`'s tip `57129e8d`, on the same nine modules.  Brief: delete the
+parked `InternAllPinsFrame` now that the Checker tier's strengthening has
+landed; write the two missing level specs round 2's finding 13 named and close
+item 2 (and item 8 with it); take `projRecOwners_run` if the Inductives tier's
+`isSome`-only lemma arrives.
+
+**Five of the twenty-nine closed, and five of the nine modules are now
+sorry-free**: `Rel`, `Chunks`, `Capstone` (already), plus **`Shared`** and
+**`Modeller`**.
+
+| item | declarations | |
+|---|---|---|
+| 1 | — | `InternAllPinsFrame` **deleted**: `Arena.no_False_declaration_pipeline` takes `CoreSpec`, `IndSpec` and the prelude gate, and nothing else |
+| 2 | `internExpr_run`, `internDecls_run` | **the whole intern direction**, on thirty new closed results |
+| 8 | `inProcessModeller_wf`, `inProcessModeller_refines` | the seam, over finding 14 |
+| 10 (part) | `projIotaName_run` | three `internNNode`s in the new frame |
+
+##### Finding 13 is WITHDRAWN — the two specs were never missing
+
+Round 2 recorded that `internExprGo`'s `.sort` and `.const` arms call
+`internLevel` / `internLevels` and that `Bridge/Specs.lean` had no spec for a
+whole `Level` tree or a `List Level`.  The first half is right and the second
+is wrong: **`internLevel_spec`, `internLevelList_spec` and `internLevels_spec`
+have existed since task #97-P3-0**, in `Bridge/SpecsL.lean` — a module whose
+own note says it holds "the four `@[spec]` theorems of `Monad.lean` that
+`Bridge/Specs.lean` does not carry […] in a module of their own only because
+they were written after the four `ExprOps` groups had started against
+`Specs.lean`'s interface".  Nothing was missing; `SpecsL` was simply not on
+this tier's import path (`Bridge/Frontend/Rel.lean` reaches `Bridge/Specs.lean`
+through `Bridge/Checker`, and nothing in that cone imports `SpecsL`).  **One
+import line was the whole of it.**
+
+The lesson is the round-2 report's own shape turned on itself: *"a spec this
+tier needs and cannot find"* was checked against one file rather than against
+the environment.  The cheap guard is `#check` before `sorry`.
+
+##### Finding 14 — the seam's two promises were too strong to be TRUE
+
+`ModellerWF` and `ModellerRefines` (round 1, `Bridge/Frontend/Modeller.lean`)
+quantified over an **arbitrary** start state:
+
+    ∀ ctx b s hs s', md.generate ctx b s = .ok (.ok hs, s') →
+      StateOK s' ∧ Ext s.store s'.store ∧ … ∧ (denoteDecls s'.store hs).isSome
+
+and that is false.  `inProcessModeller` runs `internDecls ∅ ds`; at a `ds` that
+is `[]` — con-leche's generator returning no records — the run leaves the state
+exactly as it found it, so the promise asserts `StateOK s` **of every state**.
+The denotation clause fails the same way: `denoteDecls` at a store that is not
+well formed relates nothing to anything.
+
+The original campaign did not meet this because its seam is PURE
+(`RefineOld/Frontend/Base.lean:154`: `∀ ctx b ds, inst.generate g ctx b = ok
+(.Ok ds) → ∀ d ∈ ds.val, DeclarationWF d`) — no state, no conclusion about a
+store.  Round 1's module note names the difference explicitly (*"one thing is
+ADDED that the original did not need: the seam runs in `AM`, so it moves the
+store, and the promise has to say what it does to it"*) and then did not carry
+the hypothesis that makes saying so possible.
+
+Both definitions now take `StateOK s` and `s.store.scratchOn = false`.  That is
+consumer-compatible: `installIndD_run` is the only consumer and it has both,
+and every theorem of this tier is stated at a well-formed state with the
+scratch tier closed.  **It is a weakening of the promise and it is the honest
+one**: a promise about an unverified modeller is a promise about what it does
+to a well-formed store, not a promise that it repairs a broken one.  Nothing
+broke — `hmw`/`hmr` are only passed through in `Lines`, `Chunks` and
+`Capstone`, never applied, because their one applier is still open.
+
+This is the tier's third defect found by trying to prove something (after
+round 2's finding 12, `CtxRel` too weak, and task #97-P3-Frame's false
+`ParseStep` cache clause), and it is finding 12's mirror image: that relation
+said too little to be true of the absent case, this one said too much to be
+true of the broken case.
+
+##### The intern direction, and the frame it answers in
+
+Item 2 is `internExprGo`'s ten-arm structural recursion over `ConLeche.Expr`
+plus twelve record layers.  The shape that makes it readable is a frame
+record, `IStep`:
+
+```lean
+structure IStep (s s' : AState) : Prop where
+  ok : StateOK s'          ; ext : Ext s.store s'.store
+  off : s'.store.scratchOn = false
+  memos : s'.memos = s.memos ; caches : s'.caches = s.caches
+  pins : s'.pins = s.pins
+```
+
+with `refl`, `trans` and **`IStep.toParse`** — one line to this tier's
+`ParseStep` (the intern writes no per-declaration cache, so the honest
+`CacheFrame` is the plain equation).  Every leaf spec of `Bridge/Specs.lean`
+and `Bridge/SpecsL.lean` is wrapped once, through `AM.of_run`, into an
+`IStep`-shaped `…_istep` lemma (`internE_istep`, `internName_istep`,
+`internLevel_istep`, `internLevels_istep`, `internNNode_istep`,
+`internNameList_istep`, `internLevelList_istep`), and after that the ten arms
+and the twelve layers are all the same four moves: invert the binds, apply the
+sub-lemmas, transport the earlier children forward with `Bridge/Rel.lean`'s
+`…_ext`, rebuild the view's denotation.
+
+**One arena-level lemma was missing and is added here**: `internE_spec` is the
+only intern spec of `Bridge/Specs.lean` that does **not** carry
+`s'.store.scratchOn = s₀.store.scratchOn` (the three nested stores' specs all
+do).  Without it `PersE_of_view` cannot be applied at the state the call
+leaves, so the whole persistence half of the intern direction is unreachable.
+Rather than widen a registered `@[spec]` (the campaign's rule: a registered
+spec is a commitment), the tier proves it separately —
+`EStore.scratchOn_intern` off `Arena/WFProofs.lean`'s `internAt_cases` /
+`internBMOfView_cases`, then `internE_scratchOn` under the monadic wrapper's
+own capacity branch.  **If `internE_spec` is ever re-stated, the conjunct
+belongs in it.**
+
+The memo is WHITE on this side too — `internExprGo` inserts a node AFTER its
+children are interned — so `EMemoOK` needs only `mono` (across an extension)
+and `insert`, exactly as `DMemoOK` does on the readback side, and there is no
+gray phase.
+
+##### The import rule widens by two, both inside `Bridge/`
+
+* `Bridge/Frontend/Shared.lean` adds **`ConRon.Bridge.SpecsL`** (finding 13);
+* `Bridge/Frontend/ProjRec.lean` adds **`ConRon.Bridge.Frontend.Shared`**, for
+  `IStep` and the `…_istep` wrappers.  The alternative was to move the frame
+  and the seven leaf wrappers down into `Bridge/Frontend/Rel.lean`, which is
+  where vocabulary belongs and where a later round should put them if `Lines`
+  wants them too.
+
+##### What is left of item 3 (`projRecOwners_run`), and why it did not land
+
+The route the brief describes is right and the reordering argument is three
+lines, but the walk is not the blocker — **`projRecCandidates` is**.  It is a
+list recursion whose step calls `stripPis` (`Bridge/ExprOps/TelescopeF.lean`),
+`view`, `readLevel`, `internNNode`, `findCtorRec`/`findRecRec`, and
+`projRecOwners` then calls `ctorsMentionBlock` (a memoised `mentionsConst`
+walk) beside the two recognisers.  So item 13 needs, in order:
+`projRecCandidates_run` (the list induction, over `stripPis`'s spec and two
+`find?` unfoldings), `ctorsMentionBlock_run`, and only then the `isSome`-only
+lemma at `StateOK`.  The `isSome` lemma is the *last* ingredient, not the
+first, and it did not arrive during the round.  **Nothing about the analysis in
+round 2's note changed**: the walk's answer never reads the `isProp` verdict,
+so `StateOK` is the right grade and `CSpec` is not needed.
+
+##### The sorry list after round 3 — twenty-four declarations, seven items
+
+| module | open | |
+|---|---:|---|
+| `ProjRec.lean` | 9 | items 10-13, less `projIotaName_run`: `isProjIotaName_run`, `projIotaLevel_run`, `occursConstFast_run`, `stripPisAll_run`, `mkLams_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run` |
+| `Lines.lean` | 9 | items 5-7, 9, unchanged |
+| `Prepare.lean` | 6 | items 20-21, unchanged |
+| `Rel`, `Shared`, `Modeller`, `Chunks`, `Capstone` | **0** | |
+
+**The critical path is unchanged and one node shorter at the top**: the
+streaming fold and all three capstone letters wait on `processLineCoreD_run`
+(item 9), which waits on items 5-7 and 12, which wait on items 10-11 and 13.
+What round 3 removed from it is item 8 — `installIndD_run` no longer waits on
+a promise nobody had proved — and item 2, which `parseExprEntryD_run` (item 5)
+and `installIndD_run` (item 7) both read.
+
+##### The axiom census after round 3
+
+`Bridge/Frontend/Axioms.lean`: **121 closed results** (was 87), every one
+within `[propext, Classical.choice, Quot.sound]`; 14 proved-but-resting-on-a-leaf,
+unchanged; and the four headlines, still `sorryAx` and still naming **neither
+`CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** — nor, since
+item 1, any `InternAllPinsFrame`.  Two of those four named hypotheses are now
+*also* theorems, at the modeller the driver actually runs.
+
+##### Elaboration, after round 3
+
+Same protocol (`LEAN_NUM_THREADS=1 LAKE_JOBS=1`, the tier's `.olean`s deleted,
+the index module as baseline), on a machine with four other agents building,
+so the **baseline is 1.6 s where round 2 measured 0.8 s** and the gross
+numbers are not comparable with round 2's; the net ones are.
+
+| module | wall | net | raw | open |
+|---|---:|---:|---:|---:|
+| `Rel.lean` | 2.4 s | 0.8 s | 927 | 0 |
+| `Shared.lean` | 3.9 s | 2.3 s | 2 402 | 0 |
+| `ProjRec.lean` | 1.9 s | 0.3 s | 296 | 9 |
+| `Modeller.lean` | 1.7 s | 0.1 s | 225 | 0 |
+| `Lines.lean` | 2.0 s | 0.4 s | 578 | 9 |
+| `Chunks.lean` | 2.1 s | 0.5 s | 650 | 0 |
+| `Prepare.lean` | 1.8 s | 0.2 s | 299 | 6 |
+| `Capstone.lean` | 2.0 s | 0.4 s | 554 | 0 |
+| `Axioms.lean` | 1.8 s | 0.2 s | 320 | — |
+| the index module (baseline) | 1.6 s | — | 75 | — |
+| **the tier** | **~21 s** | **~5.2 s** | **6 326** | **24** |
+
+The tier grew by 1 343 lines, all but 70 of them in `Shared.lean`, and its net
+elaboration is unchanged at about five seconds.  **Still nothing within an
+order of magnitude of the 20 s flag**: `-Dprofiler.threshold=200` over
+`Shared.lean` reports five entries, the slowest a **409 ms** `rewriteSeq`.  The
+reason is §6's and round 2's, once more: no `grind`, no `mvcgen`, and the
+intern's arms are `rw` and `simp only` at a named branch fact, ten times, never
+a search.
+
+##### Gates, round 3
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 616 jobs**; 24 of this tier's declarations open |
+| `scripts/gates.sh` | all 13 OK |
+| the diff | `proof/ConRon/Bridge/Frontend/{Capstone,Shared,Modeller,ProjRec,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module — `Bridge/Specs.lean` was not touched after all (finding 13) |
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at
