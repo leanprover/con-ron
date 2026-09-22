@@ -39764,9 +39764,10 @@ parse half.
   Arena.checkFuel` and `IndSpec .verified`, unchanged — this tier names them
   and changes nothing about their statements.
 * **The Checker tier**: its three asks of the frontend
-  (`Bridge/Checker/Capstone.lean` §8) are now *stated* —
-  `parseChunks_exact`'s three conjuncts are `denoteDecls`, the record count
-  and `∀ x ∈ ds, PersDecl x`, and `FoldOK_post_parse` is the third.  What it
+  (`Bridge/Checker/Capstone.lean`'s module note) are now *stated* — two of
+  them are `parseChunks_exact`'s own conjuncts (`denoteDecls` and
+  `∀ x ∈ ds, PersDecl x`; the record count travels with them, for
+  `Arena/Main.lean`'s verdict number) and `FoldOK_post_parse` is the third.  What it
   still owes back is item 13 (`internReservedPins_run` / `internAllPins_run`),
   which is the only reason `hpins0`/`hipins` are hypotheses of §6's letters
   rather than derived.
