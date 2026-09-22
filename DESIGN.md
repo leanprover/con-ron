@@ -40411,3 +40411,292 @@ remaining work is 120 leaf walks and the items of §8.  What stands between
 that and `IndSpec` itself is one conjunct of `Hyp.lean`'s statement that is
 **false of this arm**, and correcting it is a two-line edit to a file this
 task does not own.
+
+### Task #97-P5-Frontend — Theorem 2: the parser tier (2026-09-22, Opus under Fable)
+
+Phase **P5** of DESIGN §8.6: DESIGN §8.2's **Theorem 2** at the tier that
+turns bytes into declarations — *the Aeneas model of the Rust parse accepting
+implies (B)'s parse accepts with the abstracted state and declarations; the
+port's `Native` error claims nothing.*  Branch `p5-frontend` off `arena`'s tip
+`6ed09d15`, merged forward once (`cb75e1a8`).  **Nothing outside
+`proof/ConRon/Refine2/Frontend/**` and `proof/ConRon/Refine2.lean` is
+touched.**
+
+Six Rust modules — `frontend/{types,export_c,prepare,prelude,proj_rec,
+nat_op_ground}.rs` — **221 `pub fn`s**, and the tier's two top statements.
+Every one of the 221 has a statement and every statement elaborates; **68 of
+the tier's 272 theorems are closed**, and §6 says what each of the other 204
+waits on.
+
+#### 1. The scanner did not change, and that is the round's largest finding
+
+`crates/con-ron-core/src/frontend/{scan_fast,scan_types,text,nat_decimal}.rs`
+is the byte recogniser tasks #85–#87 proved equal to con-leche's, and **task
+#97-SWAP did not touch it**: task #97e part 1 checked con-leche's
+`Scan/{Types,Fast}.lean` is term-free, so the arena twin *imports* it
+(`Arena/Frontend/ExportC.lean` calls `ConLeche.Frontend.scanLineFwd` by name)
+rather than twinning it, and the Rust side was left alone for the same reason.
+So the two sides of that seam are the same two sides `RefineOld/Frontend/
+Scan{Kit,Str,Obj,Expr,Ind,Line}.lean` — **12 000 lines, `sorry`-free** —
+already related.
+
+Two consequences, and the second is the one to act on.
+
+* **`Refine2/Frontend/Abs.lean` is a SALVAGE**, not a rewrite:
+  `RefineOld/Frontend/Abs.lean` moved into this tier with its namespace
+  changed and `absString` qualified, and nothing else — `absByte`,
+  `absBytes`, `absPos` and `absPos_add_one`, `absErrTag` with
+  `IndexOverflow ↦ none`, `ScanSim`/`ScanErrSim`, `absKey`'s 67 arms, the
+  twelve syntax-record abstractions and `absChunks`.  429 lines, **0 `sorry`,
+  elaborates unchanged**.  That it elaborates at all is the check: every
+  declaration it names still exists in the swapped model.
+* **The scanner's REFINEMENT is carried as a three-clause hypothesis
+  (`ScanSpec`) and should not be.**  `RefineOld` is out of the build
+  (`RefineOld/README.md`: *"nothing below should be trusted to still
+  elaborate"*), so this tier cannot cite `scan_line_fwd_refines` as a theorem;
+  it states it as `ScanSpec.scanLineFwd`, beside `scanLineStr` (task #87 §8's
+  `LineRecStrWF` + `LineNatValSpec`) and `newlineFrom`.  **Moving the six
+  `Scan*.lean` files back to `ConRon/Refine/` is the single largest piece of
+  salvage the arena campaign has left**, it is what `RefineOld/README.md`'s
+  reason 2 exists for, and it would discharge this tier's `ScanSpec` outright.
+  That is a task of its own and this one did not take it; what it did do is
+  check that the vocabulary those files are stated in still elaborates against
+  the swapped model, which is the cheap half of the evidence.
+
+#### 2. The arena's dividend: this tier needs NO well-formedness hypothesis
+
+`RefineOld/Frontend/Base.lean`'s `StateDWF` had six clauses — `IdTableWF
+NameWF` / `LevelWF` / `ExprWF` on the three index tables, `DeclarationWF` on
+the parsed declarations, `MapValsWF` on the two projection tables — because
+the `Expr`-tree port's `absExpr`/`absName` are exact on well-formed values
+only.  **Over handles `absIDeclaration` is total**, every table of `StateD` is
+keyed and valued by handles, and `RelOn P` takes `P := True` at every one of
+them.  `StateDRel` therefore has no WF companion beyond `StateDInv` (the five
+`HashMap2.Inv`s the port's own probes need), and the capstones lose task #85's
+`hgen : ModellerWF` — *"every declaration `Modeller::generate` returns is well
+formed"* — outright.
+
+What survives is exactly the two places a `Vec<u32>` is compared against a
+con-leche `String` LITERAL: a definition's `safety` and a quotient record's
+`kind`.  That is task #87 §8's `DeclRecStrWF`, and it lives inside
+`ScanSpec.scanLineStr`, which is where the scanner owes it.
+
+#### 3. The tier's two top statements, and their exact hypotheses
+
+`Refine2/Frontend/Top.lean`:
+
+    theorem parse_chunks_refines
+        (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+        (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+        (h : frontend.export_c.parse_chunks inst pers m rst chunks in_model census
+          = ok o) :
+        SimStreamRel ParseResultDRel pers lst o
+          (parseChunks lmd (absChunks chunks) in_model census)
+
+    theorem builtin_prelude_e_refines
+        (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+        (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+        (h : frontend.prelude.builtin_prelude_e inst pers m rst = ok o) :
+        SimStream absPreludeIx pers lst o (builtinPreludeE lmd)
+
+**Four hypotheses and no more**, and two of them are the tier's own state
+relation.  `ScanSpec` is §1's; `ModellerRefines` is the seam's, which DESIGN
+§8.2 puts outside the verified surface *by design* (a wrong generated record
+is rejected or declined by the fold, never accepted; its correctness decides
+coverage only) — and `Refine2/Frontend/Types.lean`'s
+**`decline_modeller_refines` DISCHARGES it** at `DeclineModeller`, which is
+what makes the hypothesis honest rather than a hole: it is satisfiable, and by
+the port's own instance.
+
+**Where this puts the pipeline.**  With `Refine2/Checker/Top.lean`'s
+`install_then_check_refines` — what `crates/con-ron/src/driver.rs` calls per
+record — and `prepare_prelude_refines` between them, con-ron's pipeline has a
+statement **at the bytes**: chunks in, the fold's verdict out, every step a
+named lemma about a named port function.  The driver's read loop stays
+unverified (`scripts/holes.sh` records that boundary); what it does is fold
+`chunk_step` over the buffers its handle hands out and close with
+`chunk_finish`, and `parse_chunks` is that fold's pure specification — the
+same relationship the twin's `runPipeline` keeps to its own `readFold` (task
+#97e part 2 §5).
+
+#### 4. Five findings
+
+**Finding 15 — the parse has TWO error channels and the checker tier has
+neither.**  `export_c::LineErr` (deviation 1) merges the twin's `throw` with
+the RIGHT SUMMAND of `AM (StateD ⊕ RecordVerdict)`: a `LineErr::Err e` is the
+twin's `fail` at `e`'s kind, a `LineErr::Verdict v` is the twin's *success*
+returning `.inr v` at the same verdict kind.  At a function whose twin is a
+plain `AM β` there is nowhere for the right summand to go, so `ALineErrSim`'s
+`Verdict` arm is **`False`** — a strengthening the proofs discharge, and what
+lets a reader's failure be carried into a verdict-valued caller with no side
+lemma (`SimDV.of_bind`).  Six shapes, in `Refine2/Frontend/Shape.lean`:
+`SimL` / `SimLR` (a `LineErr` channel, with and without a post-state), `SimD`
+/ `SimDV` (the same threading `StateD` too), and `SimStreamRel` / `SimStreamD`
+for the chunk drivers' error PAIR.
+
+**`SimStreamRel` is `Refine2/Checker/Top.lean`'s `SimFold` at another error
+pair** — the kind mirrored, the position equal, the state not compared on the
+error arm — and the two belong together in `Refine2/Shape.lean`.  Keeping them
+apart is what stops this tier importing the whole declaration checker; the
+merge is listed in §8.
+
+**Finding 16 — half of `arena::frontend` threads a bare `&mut EStore`.**  The
+parse touches no memo (task #97-P4e part 1), so `state_d_init`, `prelude_key`,
+`front_of`, `note_decl`, `parse_expr_rec_d` and eighty more take the store
+alone, where `proj_rewrite_d` and everything above it takes the whole state
+(part 2's narrowing).  Rather than a second family of shapes, `withStore` lifts
+the port's post-store into the ambient `AState` and one family covers both —
+and the claim `AStateRel pers (withStore rst e) lst'` is then *itself* the
+statement that the twin's corresponding action left every memo alone, which is
+better than assuming it.
+
+**Finding 17 — fifteen `pub fn`s carry NO refinement claim, and both candidate
+statements are wrong.**  Every Rust error sentence is a `Vec<u32>` built from a
+function-local `const M: [u32; N]`, where the twin writes `s!"…"`.  *"The
+message is the twin's"* is false and is the ruling's whole point (DESIGN §3.1;
+task #87 §13, where weakening a relation rather than strengthening a
+hypothesis was the fix).  *"The builder succeeds"* — which this round wrote
+first — **is not provable and not needed**: `text::cat` is a
+`Vec::extend_from_slice` loop, which Aeneas models as failing at `Usize.max`,
+and a failure inside one makes the CALLER's own `… = ok o` hypothesis
+unsatisfiable, so every caller is vacuously fine there.  They are recorded as
+explicit `*_no_claim` statements, named so that a reader looking for
+`safety_error` finds the reason rather than a gap.
+
+**Finding 18 — the twin's fuel retires task #87's hardest lemma.**  Task #87
+§5 stopped at `hoist_targets` for the `Expr`-tree port — *"the port's loop has
+no decreasing measure in the Aeneas model: `sp` goes up as well as down"* — and
+§18 is where it finally fell, as a well-founded argument over "subterms not yet
+seen".  The arena twin makes `hoistClosure` a **fuelled** recursion
+(`ds.size * ds.size + 1`, `Arena/Frontend/NatOpGround.lean:156-166`), so the
+port and the twin agree on the measure and the lemma is task #97-P5-2 §6's
+fuel induction rather than a well-founded one.  That is a strict improvement
+on the original campaign and it is the twin's doing, not the port's.
+
+**Finding 19 — `buildBinders`'s defunctionalisation means finding 6 does NOT
+recur.**  Task #97-P5-0's finding 6 — *"`rename_consts` takes a dictionary, not
+a function"*, the `RenameRel` shape for a higher-order seam — was expected at
+`projRecValue`, whose con-leche original passes `mk : Expr → Option Expr`.  It
+does not: the TWIN already passes a `ProjBinderKind` tag and a `ProjBuild`
+record (`Arena/Frontend/ProjRec.lean`'s deviation 1), and the port takes the
+twin's.  So there is no higher-order seam in this tier at all, and the one
+place the campaign expected one is the place the twin had already removed it.
+
+#### 5. The tier's size
+
+| file | lines | theorems | closed | raw elab |
+|---|---:|---:|---:|---:|
+| `Refine2/Frontend/Abs.lean` (salvage, §1) | 429 | 14 | **14** | 2.11 s |
+| `Refine2/Frontend/Shape.lean` | 698 | 22 | **22** | 2.40 s |
+| `Refine2/Frontend/Types.lean` | 253 | 9 | **9** | 2.44 s |
+| `Refine2/Frontend/Prepare.lean` | 187 | 12 | 0 | 2.05 s |
+| `Refine2/Frontend/NatOpGround.lean` | 340 | 27 | 0 | 2.16 s |
+| `Refine2/Frontend/Spec.lean` | 396 | 10 | 0 | 2.55 s |
+| `Refine2/Frontend/ProjRec.lean` | 532 | 56 | 0 | 2.65 s |
+| `Refine2/Frontend/ExportC.lean` | 676 | 79 | **21** | 2.46 s |
+| `Refine2/Frontend/ExportCInd.lean` | 369 | 27 | 0 | 2.35 s |
+| `Refine2/Frontend/Top.lean` | 285 | 16 | **1** | 1.97 s |
+| **the tier** | **4 156** | **272** | **68** | |
+
+**Every one of `arena::frontend`'s 221 `pub fn`s has a statement**: 206 name
+the generated function in a `_refines`-shaped claim, and 15 are finding 17's
+explicit no-claims.  Beside them the tier carries 14 `_unfold` /
+transcription obligations (`Spec.lean`'s 10 and `Prepare.lean`'s
+`preparedStream_eq_frontOf`, plus three in `Spec.lean`'s `proj_rec` family),
+which are the twin-side half and the only obligations of this round that are
+about `Arena/` rather than about the port.
+
+**Elaboration.** `LEAN_NUM_THREADS=1`, `lake env lean` on one file; the import
+baselines measured the same way come out 2.0-2.7 s, i.e. **within the
+machine's own noise of the file times** (other agents were building), so the
+net cost of every file of this tier is at most a few tenths of a second.  The
+sharp statement is the profiler's: at `profiler.threshold=300` on
+`ExportC.lean`, `ProjRec.lean` and `Types.lean`, **nothing but the import is
+reported in any of the three** — no declaration in this tier is above 300 ms,
+against the brief's 20-second flag.  The reason is task #97-P5-Checker §8's:
+a `sorry`ed statement costs its own elaboration and nothing else, and the
+closed ones are `rw` chains and `split`s with `grind` nowhere in them.
+
+#### 6. The sorry list, by what it waits on
+
+**204 open statements**, and not one waits on an idea.
+
+| file | open | what is under it |
+|---|---:|---|
+| `Prepare.lean` | 12 | `preparedStream_eq_frontOf` — the port's plan-and-mask IS the twin's erase-and-recurse.  `RefineOld/Frontend/PrepareR.lean` is that argument for the `Expr`-tree port (1 904 lines); it is the one obligation of this tier that is about the PORT'S OWN correctness rather than about a representation |
+| `NatOpGround.lean` | 27 | `Specs.lean`'s `view`/`intern` (closed) and finding 18's fuel induction; `hoist_targets` and `hoist_close` are the two that carry real work |
+| `Spec.lean` | 10 | nothing — these are the `_unfold`s, and they need task #97-P5-Checker §6's rule-10 `do`-block reduction discipline in `StateT σ (Except ε)` |
+| `ProjRec.lean` | 56 | `Refine2/ExprOps/**` (statements only so far: `stripLams`, `stripPis`, `mkAppN`, `instantiate1LiftFast`, `instLPFast`, `bvarRange`, `getAppArgs`) and `Spec.lean`'s seven transcriptions |
+| `ExportC.lean` | 57 | `Specs.lean`'s `intern_e_*` family, `IdTableRel`'s five reader lemmas (which are `RefineOld/Frontend/StateDR.lean`'s, at handles), and `Spec.lean`'s `noteDecl`/`parseExprEntryD`/`parseLevelEntryD` `_unfold`s |
+| `ExportCInd.lean` | 27 | the same, plus the two `for`-loop bodies whose transcriptions `Spec.lean` still owes (§7) |
+| `Top.lean` | 15 | everything below, plus `ScanSpec` at 9 of the 15 |
+
+Across the tier: **9 statements carry `ScanSpec`**, **11 carry
+`ModellerRefines`**, and **none carries a well-formedness clause on a term**
+(§2).
+
+#### 7. What this round leaves owed, exactly
+
+1. **`Spec.lean` owes six transcriptions.**  `validate_ind_d`'s two `for`
+   loops (`check_one_ctor`, `order_type_ctors`, `order_block_ctors`,
+   `check_rec_indices`, `check_one_rec`, `check_rec_records`) are the one
+   group of this tier whose statements are about the port's own arm rather
+   than about a twin clause; four of them are stated as the twin expression
+   inline in the doc comment and two (`check_one_rec`, `check_rec_records`)
+   are stated at `True` on the success arm, which is a placeholder and is
+   marked as one.  They want the `Checker/Spec.lean` treatment.
+2. **`chunk_size_refines` is the one lemma this round could not close for a
+   silly reason**: `4 * 1024 * 1024` on both sides, but the twin's is a
+   `USize` numeral and the port's a `Std.Usize` product, and neither `decide`
+   nor `simp [USize.toNat]` takes the round trip.  It wants a
+   `USize.toNat_ofNat`-shaped lemma in the shared layer, which a later tier
+   will want too.
+3. **The `ScanSpec` salvage** (§1), which is the largest single piece.
+4. **Three merges into `Refine2/Shape.lean`**: `SimStreamRel` and
+   `Checker/Top.lean`'s `SimFold` are the same definition at two error pairs;
+   `HSetRel` (this tier's) and `ExprOps/Read.lean`'s `SeenRel` are the same
+   relation at a `Std.HashSet` and a `Std.HashMap _ Unit`; and `anyN` /
+   `nidx_get` belong beside `Refine2/AbsState.lean`'s four `Eq2Fwd`s.
+
+#### 8. **`lake build ConRonRefine2` is RED at `arena`'s tip, and it is not this branch**
+
+    error: ConRon/Refine2.lean:32:0: import ConRon.Refine2.Checker.KnotHyp failed,
+    environment already contains 'ConRon.Refine2.KnotRel.whnfCore'
+    from ConRon.Refine2.Core.KnotRel
+
+Task #97-P5-Core's `Refine2/Core/KnotRel.lean` and task #97-P5-Checker's
+`Refine2/Checker/KnotHyp.lean` **both declare `ConRon.Refine2.KnotRel`**, and
+`Refine2.lean` imports both closures, so the library root has not built since
+those two branches were merged.  Reproduced on `6ed09d15` **before any file of
+this branch existed** and again on `cb75e1a8` after merging forward; this
+branch's own modules are unaffected (they import neither).
+
+This is the reconciliation task #97-P5-Checker §3 predicted — *"P5-Core proves
+`∀ F, KnotRel F` by induction on `F`; the hypothesis then disappears from
+every statement of this tier at once"* — and the fix is to delete
+`Checker/KnotHyp.lean`'s structure and import `Core/KnotRel.lean`'s.  **It was
+NOT taken here**, because `Refine2/Checker/**` and `Refine2/Core/**` are two
+other agents' files and a concurrent branch may already be fixing it.
+
+#### 9. The axiom census
+
+**Fifteen `#print axioms` rows under `#guard_msgs`** — eight in
+`Refine2/Frontend/Types.lean` (the whole file), six in `ExportC.lean` and one
+in `Top.lean`.  Every one reads **`[propext, Classical.choice, Quot.sound]`
+and nothing else**: no `sorryAx` on a closed lemma, and still no `bv_decide`
+axiom anywhere in `Refine2/`.  `Classical.choice` enters only through the
+`DecidableEq` instances `HashMap2.toFun` needs, as `Refine2/AbsState.lean`'s
+note says.  (The fifteen `*_no_claim` statements are `trivial` and carry no
+axiom at all; they are not censused.)
+
+#### 10. The gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRon.Refine2.Frontend.Top` | **green, 2 173 jobs** — the whole of this tier, 204 `sorry` and no errors |
+| `cd proof && lake build ConRonRefine2` | **RED, and not this branch's** — §8 |
+| `cd proof && lake build` | green — the default targets are untouched (`ConRonRefine2` is deliberately not one) |
+| `scripts/provenance.py check` | 0 findings (no `Arena/` or Rust file changed) |
+| `scripts/overview-links.sh` | OK |
+| `scripts/holes.sh --check` | OK |
+| the diff | `proof/ConRon/Refine2/Frontend/**`, `proof/ConRon/Refine2.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, nothing under `Refine2/` but the new directory and the root index — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
