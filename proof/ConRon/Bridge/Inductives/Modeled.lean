@@ -54,14 +54,90 @@ theorem RenameRel.ext {st st' : EStore} {tbl : List (NIdx × NIdx)}
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
 The block's own rename table: each member name `N` to `N._model`.
 
-`sorry`: `internNNode_spec` at `.str n "_model"` for each member, a list
-induction; the `RenameRel` clause is `denoteN_inj` at the lookup. -/
+**STATEMENT DEFECT, round 4** (the campaign's tenth, this tier's fifth).
+Round 1 quantified the rename FUNCTION — `(f : ConLeche.Name → ConLeche.Name)`
+as a free parameter — and claimed the table denotes it.  That is false at
+every `f` but one: a name the table does not mention is its own image, so
+`RenameRel st r f` at a fresh name says `nm = f nm`.  The instantiation is
+`checkMemberVal`'s own (`Modeled.lean:382`),
+`fun n => if blockNames.contains n then n.str "_model" else n`, and naming it
+is what makes the statement say something.  Nothing cited the old form.
+
+**PROVED** (round 4): the list induction, with `internNNode_run` at each
+member and `beq_handle_eq` at `renameBy`'s lookup — the `false` branch is
+`denoteN_inj`, which is what turns "these are different handles" into "these
+are different names" and lets `List.contains` step. -/
 theorem blockRenameTable_spec (blockNames : List NIdx)
-    (blockNamesP : List ConLeche.Name) (f : ConLeche.Name → ConLeche.Name) :
+    (blockNamesP : List ConLeche.Name) :
     PSpec (fun st => Frontend.denoteNList st.ns blockNames = some blockNamesP)
       (Arena.blockRenameTable blockNames)
-      (fun st r => RenameRel st r f) := by
-  sorry
+      (fun st r => RenameRel st r
+        (fun n => if blockNamesP.contains n then n.str "_model" else n)) := by
+  induction blockNames generalizing blockNamesP with
+  | nil =>
+    intro s₀ s' r hok hd hrun
+    simp only [Frontend.denoteNList, Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.blockRenameTable] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    intro q qm hq
+    simpa [Arena.renameBy] using hq
+  | cons n ns ih =>
+    intro s₀ s' r hok hd hrun
+    simp only [Frontend.denoteNList] at hd
+    cases hn : denoteN s₀.store.ns n with
+    | none => rw [hn] at hd; simp at hd
+    | some nm =>
+      cases hns : Frontend.denoteNList s₀.store.ns ns with
+      | none => rw [hn, hns] at hd; simp at hd
+      | some nms =>
+        rw [hn, hns] at hd
+        obtain rfl := Option.some.inj hd
+        simp only [Arena.blockRenameTable] at hrun
+        obtain ⟨m, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨hstep1, hm⟩ := internNNode_run hok
+          (by intro c hc
+              simp only [NNodeView.children, List.mem_singleton] at hc
+              subst hc
+              exact nview_isSome_of_denote hn) h1
+        simp only [denoteNView, denoteN_ext hn hstep1.ext,
+          Option.map_some] at hm
+        obtain ⟨t, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨hstep2, hrel⟩ :=
+          ih nms s₁ s₂ t hstep1.ok
+            (denoteNListE_ext hstep1.ext _ _ hns) h3
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        refine ⟨hstep1.trans hstep2, ?_⟩
+        intro q qm hq
+        have hn' : denoteN s'.store.ns n = some nm :=
+          denoteN_ext (denoteN_ext hn hstep1.ext) hstep2.ext
+        have hm' : denoteN s'.store.ns m = some (nm.str "_model") :=
+          denoteN_ext hm hstep2.ext
+        have hbq := beq_handle_eq hstep2.ok.wf hn' hq
+        cases hb : (n == q) with
+        | true =>
+          have hnm : (nm == qm) = true := by rw [← hbq]; exact hb
+          obtain rfl := eq_of_beq hnm
+          have hfind : ((n, m) :: t).find? (fun p => p.1 == q) = some (n, m) := by
+            simp [hb]
+          simp only [Arena.renameBy, hfind]
+          have hct : (nm :: nms).contains nm = true := by simp
+          simp only [hct, if_true]
+          exact hm'
+        | false =>
+          have hne : (nm == qm) = false := by rw [← hbq]; exact hb
+          have hrec := hrel q qm hq
+          simp only [Arena.renameBy] at hrec ⊢
+          have hfind : ((n, m) :: t).find? (fun p => p.1 == q)
+              = t.find? (fun p => p.1 == q) := by simp [hb]
+          rw [hfind]
+          have hne' : ¬ (qm = nm) := by
+            intro hc; rw [hc] at hne; simp at hne
+          have hct : (nm :: nms).contains qm = nms.contains qm := by
+            simp [hne']
+          rw [hct]
+          exact hrec
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:457-464 projBack
 The projection-function names mapped BACK to the model's field projections.
@@ -119,8 +195,11 @@ theorem eqBasisStored_spec {μ : CheckMode} {env : Env} (fe : IFEnv) :
 /-- con-leche: none — `.app (.app (.app (.const c [ℓ]) ty) l) r` spelled once
 over handles; three checks of this module match it.
 
-`sorry`: four `view` dispatches through `Bridge/Rel.lean`'s
-`EStore.tagOf_of_view` and the four projections' exactness. -/
+**PROVED** (round 4): four `view_run` dispatches and a `viewLs_run`, with
+`Bridge/Rel.lean`'s `denote_app_inv` / `denote_const_inv` at each step.  The
+twin is read-only, so every arm's frame is `PStep.refl`; the nine non-matching
+arms of each dispatch answer `none` and the statement is an implication out of
+`some`, so they close on the `Option` constructor alone. -/
 theorem eqApp3?_spec (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteE st h = some hP)
       (Arena.eqApp3? h)
@@ -129,7 +208,70 @@ theorem eqApp3?_spec (h : EIdx) (hP : Expr) :
           denoteL st.ls u = some uP ∧ denoteE st ty = some tyP ∧
           denoteE st l = some lP ∧ denoteE st rr = some rrP ∧
           hP = .app (.app (.app (.const cP [uP]) tyP) lP) rrP) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.eqApp3?] at hrun
+  obtain ⟨v1, s1, g1, k1⟩ := bindOk hrun
+  obtain ⟨rfl, hw1⟩ := view_run g1
+  cases v1
+  case app f1 rr =>
+    obtain ⟨efP, errP, rfl, hf1, hrr⟩ := denote_app_inv hok.wf hw1 hd
+    obtain ⟨v2, s2, g2, k2⟩ := bindOk k1
+    obtain ⟨rfl, hw2⟩ := view_run g2
+    cases v2
+    case app f2 l =>
+      obtain ⟨ef2P, elP, hfe, hf2, hl⟩ := denote_app_inv hok.wf hw2 hf1
+      obtain ⟨v3, s3, g3, k3⟩ := bindOk k2
+      obtain ⟨rfl, hw3⟩ := view_run g3
+      cases v3
+      case app f3 ty =>
+        obtain ⟨ef3P, etyP, hfe2, hf3, hty⟩ := denote_app_inv hok.wf hw3 hf2
+        obtain ⟨v4, s4, g4, k4⟩ := bindOk k3
+        obtain ⟨rfl, hw4⟩ := view_run g4
+        cases v4
+        case const c us =>
+          obtain ⟨cP, lsP, hfe3, hc, hus⟩ := denote_const_inv hok.wf hw4 hf3
+          obtain ⟨vs, s5, g5, k5⟩ := bindOk k4
+          obtain ⟨rfl, hw5⟩ := viewLs_run g5
+          have hvs := denoteLs_of_view hw5 hus
+          cases vs with
+          | nil =>
+            obtain ⟨rfl, rfl⟩ := pureOk k5
+            exact ⟨PStep.refl hok, by intro a b cc d e hh; simp at hh⟩
+          | cons lv tl =>
+            cases tl with
+            | nil =>
+              obtain ⟨rfl, rfl⟩ := pureOk k5
+              refine ⟨PStep.refl hok, ?_⟩
+              intro a b cc d e hh
+              simp only [Option.some.injEq, Prod.mk.injEq] at hh
+              obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := hh
+              simp only [denoteLList, opt2] at hvs
+              cases hlv : denoteL s'.store.ls lv with
+              | none => rw [hlv] at hvs; simp at hvs
+              | some uP =>
+                rw [hlv] at hvs
+                simp only [Option.some.injEq] at hvs
+                subst hvs
+                subst hfe3
+                subst hfe2
+                subst hfe
+                refine ⟨cP, uP, etyP, elP, errP, hc, ?_, hty, hl, hrr, rfl⟩
+                first | exact hlv | rfl
+            | cons _ _ =>
+              obtain ⟨rfl, rfl⟩ := pureOk k5
+              exact ⟨PStep.refl hok, by intro a b cc d e hh; simp at hh⟩
+        all_goals
+          (obtain ⟨rfl, rfl⟩ := pureOk k4
+           exact ⟨PStep.refl hok, by intro a b cc d e hh; simp at hh⟩)
+      all_goals
+        (obtain ⟨rfl, rfl⟩ := pureOk k3
+         exact ⟨PStep.refl hok, by intro a b cc d e hh; simp at hh⟩)
+    all_goals
+      (obtain ⟨rfl, rfl⟩ := pureOk k2
+       exact ⟨PStep.refl hok, by intro a b cc d e hh; simp at hh⟩)
+  all_goals
+    (obtain ⟨rfl, rfl⟩ := pureOk k1
+     exact ⟨PStep.refl hok, by intro a b cc d e hh; simp at hh⟩)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:31-53 checkIotaSidesTy
 The two sides of a model iota theorem have the certified type.
@@ -151,12 +293,37 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
 
 /-- con-leche: none — the name of a recursor's `j`-th model iota theorem.
 
-`sorry`: `internNNode_spec` at `.num (.str cvName "iota") j`. -/
+**STATEMENT DEFECT, round 4** (the campaign's ninth, this tier's fourth).
+Round 1 stated the answer as `(cvNameP.str "iota").num j`, which is not the
+name either side builds: con-leche's three call sites
+(`ConLeche/Kernel/Inductives/Modeled.lean:73`, `:170`, `:216`) all spell
+`(cvName.str "_model").str s!"iota_{j}"` and the twin interns exactly that.
+The old statement was therefore FALSE — a transcription slip, not a gap — and
+nothing had cited it yet, so the correction costs its three consumers nothing.
+
+**PROVED** (round 4): `internNNode_run` twice, with `denoteN_ext` carrying the
+first handle's denotation across the second intern. -/
 theorem iotaThmName_spec (cvName : NIdx) (cvNameP : ConLeche.Name) (j : Nat) :
     PSpec (fun st => denoteN st.ns cvName = some cvNameP)
       (Arena.iotaThmName cvName j)
-      (RN ((cvNameP.str "iota").num j)) := by
-  sorry
+      (RN ((cvNameP.str "_model").str ("iota_" ++ toString j))) := by
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.iotaThmName] at hrun
+  obtain ⟨m, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hm⟩ := internNNode_run hok
+    (by intro c hc
+        simp only [NNodeView.children, List.mem_singleton] at hc
+        subst hc
+        exact nview_isSome_of_denote hd) h1
+  simp only [denoteNView, denoteN_ext hd hstep1.ext, Option.map_some] at hm
+  obtain ⟨hstep2, hr⟩ := internNNode_run hstep1.ok
+    (by intro c hc
+        simp only [NNodeView.children, List.mem_singleton] at hc
+        subst hc
+        exact nview_isSome_of_denote hm) h2
+  refine ⟨hstep1.trans hstep2, ?_⟩
+  simp only [denoteNView, denoteN_ext hm hstep2.ext, Option.map_some] at hr
+  exact hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
 **The plain iota certificate**: the `j`-th rule's model theorem is the stated
@@ -517,7 +684,9 @@ theorem checkUnitThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 Does the constructor return the family?  The structure-like test the
 projection install is gated on.
 
-`sorry`: `stripPis`' spec, `structFam_spec` and `denoteE_inj`. -/
+**PROVED** (round 4): `stripPis_pstep` with its two-sided inversion,
+`structFam_spec` (closed) and `beq_ehandle_eq` — this tier's second cash of
+`denoteE_inj`, at the one comparison the gate makes. -/
 theorem ctorTargetsFam_spec (ctorTy : EIdx) (ctorTyP : Expr) (T : NIdx)
     (TP : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name)
     (nP nF : Nat) :
@@ -526,7 +695,26 @@ theorem ctorTargetsFam_spec (ctorTy : EIdx) (ctorTyP : Expr) (T : NIdx)
         Frontend.denoteNList st.ns lps = some lpsP)
       (Arena.ctorTargetsFam ctorTy T lps nP nF)
       (RV (ConLeche.ctorTargetsFam ctorTyP TP lpsP nP nF)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcty, hT, hlps⟩ := hpre
+  simp only [Arena.ctorTargetsFam] at hrun
+  obtain ⟨sp, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hcty h1
+  cases sp with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨PStep.refl hok, ?_⟩
+    simp only [RV, ConLeche.ctorTargetsFam, stripPis_none hbp]
+  | some p =>
+    obtain ⟨cbs, cbody⟩ := p
+    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    obtain ⟨fam, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨hstep, hfam⟩ :=
+      structFam_spec T TP lps lpsP nP nF _ s₂ fam hok ⟨hT, hlps⟩ h3
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨hstep, ?_⟩
+    simp only [RV, ConLeche.ctorTargetsFam, hsp]
+    exact beq_ehandle_eq hstep.ok.wf (denote_ext hx hstep.ext) hfam
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
 One projection install, with its duplicate guard.
