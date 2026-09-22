@@ -38393,10 +38393,14 @@ Three things a later round should take, none of them a gap:
 | `#print axioms` | every result under `Bridge/ExprOps/**` is `[propext, Classical.choice, Quot.sound]`; the library's remaining `sorryAx` are `Bridge/{Core,Checker,Frontend,Inductives}`'s |
 | the diff | `proof/ConRon/Bridge/ExprOps/**`, `proof/ConRon/Bridge/{Axioms,SpecsL}.lean`, this sub-section |
 
-`arena` moved once under this branch and was merged in: **#97-P3-Core-2**
-(`cbc4cef3` — `Bridge/Core/**`, `scripts/twin-lines.py` and the census
-fixtures).  No conflict.  The gates were re-run on the merged state, and the
-thirteenth gate (`twin-lines`) is that merge's.
+`arena` moved twice under this branch and both were merged in:
+**#97-P3-Core-2** (`cbc4cef3` — `Bridge/Core/**`, `scripts/twin-lines.py`
+and the census fixtures, whose `readNamesM_spec` ask §"the coordinator's ask"
+above answers) and **#97-P3-Frontend-2 round 2** (`0e13370e` —
+`Bridge/Frontend/**` plus 182 lines of `Arena/WFProofs.lean`).  Neither
+conflicted, and neither touches a statement this tier makes.  The gates and
+`lake build ConRonBridge` were re-run on the second merged state; the
+thirteenth gate (`twin-lines`) is #97-P3-Core-2's.
 
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
