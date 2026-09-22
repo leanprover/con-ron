@@ -1,0 +1,92 @@
+# scripts/arena-census-skip.txt — THE ARENA CENSUS'S DELIBERATE SKIPS
+# (task #97-CENSUS; `scripts/arena-census.py`, DESIGN.md §8)
+#
+# `scripts/arena-census.py` counts every top-level `def` of
+# `proof/ConRon/Arena/**` as a twin that OWES a bridge theorem (T1) and a
+# refinement theorem (T2) — unless it is listed here, with a reason.  One
+# line per definition:
+#
+#     <repo-relative Lean path> <definition|*> <T1|T2|BOTH> <reason>
+#
+# `<definition>` may be `*`, which covers every definition of that file.
+# The scope says WHICH of the two theorems is not owed; the reason is the
+# rest of the line and is MANDATORY.  A line with no reason, or with a scope
+# that is not one of the three words, is reported as MALFORMED; a line that
+# names no definition of its file as STALE; a line whose twin turns out to be
+# stated after all as REDUNDANT.  So the list cannot rot quietly, and "not
+# stated" is never silent — which is the whole point of having it.
+#
+# The classes are `proof/ConRon/Arena/CENSUS.md`'s: **(P)** is pure data with
+# no term inside, copied verbatim, whose bridge obligation would be `rfl`;
+# **(S)** is skipped in the Rust port with the reason
+# `scripts/provenance-skip.txt` gives.  A (P) or (S) twin still needs a line
+# HERE, because this census's subject is the arena's own Lean and not
+# con-leche's.
+#
+# Everything NOT listed here and not stated is genuine open work, and
+# `scripts/arena-census.py --open` is the list of it.
+
+# ---------------------------------------------------------------------------
+# Executable fixtures: not the checker, not extracted, not refined
+# ---------------------------------------------------------------------------
+# Each of these is a `#guard`-style module that runs the twin on a handful of
+# hand-built terms and prints or asserts the answer.  Nothing under
+# `crates/con-ron-core` is a port of them (they carry no `Lean twin:` line in
+# either direction) and no theorem is owed about a test vector.
+
+proof/ConRon/Arena/StoreTest.lean * BOTH The store's executable fixtures (task #97a): hand-built handles and the expected `view`/`intern` answers, run by `con-ron-lean --selftest`, not code the Rust ports.
+proof/ConRon/Arena/ExprOpsTest.lean * BOTH The `ExprOps` fixtures (task #97b), as `StoreTest.lean`.
+proof/ConRon/Arena/CoreTest.lean * BOTH The `Core` fixtures (task #97c), as `StoreTest.lean`.
+proof/ConRon/Arena/CheckerTest.lean * BOTH The declaration checker's fixtures (task #97d), as `StoreTest.lean`.
+proof/ConRon/Arena/InductivesTest.lean * BOTH The inductive installs' fixtures (task #97d-2), as `StoreTest.lean`.
+proof/ConRon/Arena/Frontend/ProjRecTest.lean * BOTH The `ProjRec` fixtures (task #97e part 2), as `StoreTest.lean`.
+proof/ConRon/Arena/Bench.lean * BOTH The `ExprOps` micro-benchmark (task #97b): three synthetic terms and a timing loop, built as `con-ron-arena-bench` and measured, never checked.
+
+# ---------------------------------------------------------------------------
+# The driver: unverified by construction (DESIGN.md §8.2)
+# ---------------------------------------------------------------------------
+# The capstones of both theorems sit at `Arena.checkDecls` / the pipeline, and
+# everything above it — argument parsing, the usage text, the exit codes, the
+# NDJSON read loop's `IO` — is the driver, which `crates/con-ron` mirrors and
+# which neither crate verifies.  `Main.lean`'s ONE seam is `runPipeline`, and
+# that is a `Checker.lean` definition with a row of its own.
+
+proof/ConRon/Arena/Main.lean * BOTH `con-ron-lean`'s command line, usage text, exit codes and `IO` read loop — the unverified driver, mirroring `crates/con-ron` (itself outside the verified crate).  Its one seam, `runPipeline`, is a `Checker.lean` twin and is counted there.
+
+# ---------------------------------------------------------------------------
+# Generated source: a gate of its own already holds it to the byte
+# ---------------------------------------------------------------------------
+
+proof/ConRon/Arena/Frontend/PreludeText.lean * T1 The prelude's bytes as a committed constant, generated from con-leche's own by `scripts/gen-prelude-lean.sh` and held byte-identical by its `--check` gate (step 11 of `scripts/gates.sh`).  A bridge theorem about a literal byte array is the gate restated in Lean.  T2 is NOT skipped: `crates/con-ron-core/src/frontend/prelude.rs` cites `preludeText` and owes `builtin_prelude_text_refines`, which is where the two spellings of the bytes are reconciled.
+
+# ---------------------------------------------------------------------------
+# Class (S): the gated and io-grade knot variants (DESIGN.md §3.1)
+# ---------------------------------------------------------------------------
+# `scripts/provenance-skip.txt` skips con-leche's `CoreGated`, `CheckerGated`
+# and `CoreIO` for the Rust port, because the port has ONE knot — the one it
+# executes.  The arena twinned them anyway (`CoreGated.lean`'s own module
+# note: "class (S) in the census, twinned anyway"), so that a later gated
+# claims tower has a subject in the arena's spelling rather than having to
+# invent one.  Neither theorem is owed until that tower exists: the executed
+# path is `Core.lean`'s `coreKnot` and `Checker.lean`'s `fueledOps`, both of
+# which have rows.
+
+proof/ConRon/Arena/CoreGated.lean * BOTH The gated (proof-tier) knot: not on the executed path, and not ported to Rust (`scripts/provenance-skip.txt` skips con-leche's `Kernel/CoreGated.lean` for the same reason).  The subject of a later gated claims tower, nothing the shipped capstone goes through.
+proof/ConRon/Arena/CoreIO.lean * BOTH The io-grade knot variant: the Rust carries the io grade as a runtime flag (task #18's deviation 4), so there is one knot on the Rust side and nothing to refine against this one.
+proof/ConRon/Arena/CheckerGated.lean * BOTH The gated `CheckerOps` instantiation, as `CoreGated.lean`: the executed instantiation is `Checker.lean`'s, which has its own row.
+
+# ---------------------------------------------------------------------------
+# Class (P): the fuel constants
+# ---------------------------------------------------------------------------
+# DESIGN.md §8.2 states Theorem 1 as `∃ F, ConLeche.checkDecl μ (fueledOps μ F)
+# … = …`: the fuel is EXISTENTIALLY quantified, so what the twin's constant
+# happens to be is not a fact any bridge theorem mentions.  On the Rust side
+# they are `const`s, not `fn`s, and carry no `_refines` for the same reason
+# (`scripts/twin-lines.py` cites them, `provenance.py` covers them).
+
+proof/ConRon/Arena/Core.lean coreWalkFuel BOTH (P) A `Nat` literal.  Theorem 1 quantifies the fuel existentially (DESIGN §8.2), so no theorem mentions its value; the Rust side is a `const`, not a function to refine.
+proof/ConRon/Arena/Core.lean whnfCoreLoopFuel BOTH (P) As `coreWalkFuel`.
+proof/ConRon/Arena/Core.lean whnfLoopFuel BOTH (P) As `coreWalkFuel`.
+proof/ConRon/Arena/Core.lean peelFuel BOTH (P) As `coreWalkFuel`.
+proof/ConRon/Arena/Core.lean defeqLoopFuel BOTH (P) As `coreWalkFuel`.
+proof/ConRon/Arena/Core.lean checkFuel BOTH (P) As `coreWalkFuel`.
