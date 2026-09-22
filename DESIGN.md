@@ -45905,8 +45905,8 @@ four first: it took the one thing round 2's §6 table said was blocking three
 walks at once — *"no import of the `ExprOps` tier is made by
 `Bridge/Core/Walks/**` this round, which is the only reason this is not
 proved here"* — and found that the import is both free and impossible,
-depending on WHICH module makes it.  That is finding 17 below and it is the
-round's most useful result for scheduling.
+depending on WHICH module makes it.  That is **finding 18** below and it is
+the round's most useful result for scheduling.
 
 **Six of `Walks/Owed.lean`'s sixteen are closed** (`unfoldableHead`,
 `headHint`, `sameConstHeads`, `defeqSpine`, `isPropType`, `defEqList`), the
@@ -46201,6 +46201,50 @@ no `bv_decide` axiom, as everywhere in this library.
    need `ensureSort`.  All three are on the knot-facing chain, so the sibling
    module this round wrote cannot help them, and the experiment is a few
    lines.
+
+##### 12. The pin-read audit (the Inductives round's `PSpecP` defect class), and two process notes
+
+The coordinator's warning — *"grep your twins for `zeroLevel`, `sortOne`,
+`emptyLevels` and `reservedBasisNames` under any `StateOK`-only statement"*,
+after `structProjGuards_spec` came out FALSE at `PSpec` because the twin
+opens `let z ← zeroLevel` and `PSpec`'s precondition is a predicate on the
+store — **does not bite in `Bridge/Core/**`, and the audit is exact rather
+than a reading.**
+
+Every triple in the tier was enumerated and graded mechanically; exactly
+three are not `CheckOK`-graded, and none of the three can read a pin:
+
+| statement | grade | its program |
+|---|---|---|
+| `Walks/Proj.lean`'s `projTableName_spec` | `StoreWF` | `Arena/Env.lean`'s `projTableName` — two `internNNode`s |
+| `Walks/Proj.lean`'s `readNamesMB_frame` | `ReadNCacheOK` | the name-list readback |
+| `Walks/Spine.lean`'s `instantiate1Fast_specE` | `StateOK` | `Arena/ExprOps.lean`'s `instantiate1Fast` |
+
+and `Arena/ExprOps.lean` contains **no pin read at all** (`grep -n "pin"`
+answers only `spine`), while `lvlEq?` — the tier's other `StateOK`-graded
+subject, through `Walks/Cached.lean`'s `lvlEq?_frame` — reads `readLevelM`
+and the verdict cache and nothing else.  **Everything else in the tier is
+`CheckOK`-graded, and `CheckOK` has `PinsOK` as a field**, which is why
+`isBoolTrue_spec` (round 2), `IProjEntry.fireOk_spec` (round 2) and this
+round's `isPropType_spec` all read `zeroLevel`/`boolTrueName`/`emptyLevels`
+and all discharge the obligation with `hok.pins` at the site.
+
+**Two process notes from this round, recorded because they cost real time.**
+
+1. **A worktree agent's `cd` does not persist between tool calls**, so
+   `cd <main tree> && python3 …` edited the MAIN tree's `DESIGN.md` while the
+   next call's `git commit` ran in the worktree.  The result was a
+   documentation commit (`a0a0c6a9`) landing directly on `arena` and a commit
+   on the branch (`de8890b7`) whose message says "the section" and whose
+   content is a module header.  Nothing was lost — the section is on `arena`
+   and merged back cleanly — but the rule is worth writing down: **an agent
+   edits files by worktree-absolute path and never `cd`s to the main tree.**
+2. **`scripts/gates.sh` from a fresh worktree pays for the whole `ConRon`
+   root**: the `.lake/build` copied from the main tree is not accepted as
+   current for `ConRon.Refine.**`, and `lake-build` took **356 s** rebuilding
+   2 209 jobs where a warm tree pays 1 s.  Worth knowing when budgeting a
+   round's landing.
+
 
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, round 2 (2026-09-22, Opus under Fable)
 
