@@ -61,7 +61,7 @@ gets a local `*NodeSpec` transcription of the twin's `match` plus the
 `*_unfold` equation tying it back to the twin — which is the one genuinely
 owed lemma of this file that is not a `Specs.lean` primitive.
 -/
-import ConRon.Refine2.Shape
+import ConRon.Refine2.Specs
 import ConRon.Arena.ExprOps
 
 open Aeneas Aeneas.Std Result
@@ -196,26 +196,75 @@ theorem inst_list_cutoff_refines {pers : arena.store.PersTier}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.inst_list_cutoff pers st h k = ok o) :
     SimR id lst o (instListCutoff (absEIdx h) (absU k)) := by
-  sorry
+  rw [arena.expr_ops.inst_list_cutoff] at hrun
+  obtain ⟨der, hder, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨sr, hsr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.monad.derived_e] at hder
+  obtain ⟨hbv, -, -⟩ := derObsE_fields (estore_derived_abs hrel.store hder)
+  have hbb := ConRon.Refine.Expr.bvar_of_data_val hb
+  have hsrv := ConRon.Refine.Expr.sat_range_val hsr
+  have hbn : (ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat = b.val := by
+    rw [hbv, hbb]
+  show (instListCutoff (absEIdx h) (absU k)).run lst = .ok (o, lst)
+  rw [show (instListCutoff (absEIdx h) (absU k)).run lst
+      = .ok (decide ((ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat
+                < ConLeche.satRange) &&
+          decide ((ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat ≤ absU k),
+        lst) from rfl]
+  split at hrun <;> rename_i hlt <;> simp only [Result.ok.injEq] at hrun <;> rw [← hrun]
+  · have h1 : (ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat
+        < ConLeche.satRange := by rw [hbn, ← hsrv]; exact hlt
+    simp only [h1, decide_true, Bool.true_and]
+    have h2 : ((ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat ≤ absU k)
+        = (b ≤ k) := by
+      rw [hbn]
+      exact propext ⟨fun x => by scalar_tac, fun x => by scalar_tac⟩
+    simp only [h2]
+  · have h1 : ¬ ((ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat
+        < ConLeche.satRange) := by rw [hbn, ← hsrv]; simpa using hlt
+    simp [h1]
 
 /-- `lidx_has_param` is the twin's `LIdx.hasParam`: the level store's own
-`hasParam` bit.  **Waits on `Specs.lean`'s `derivedL`.** -/
+`hasParam` bit, off `derivedL` — the one field of a level's derived record
+that `derObsL` keeps. -/
 theorem lidx_has_param_refines {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {h : arena.handle.LIdx} {o : Bool}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.lidx_has_param pers st h = ok o) :
     SimR id lst o (LIdx.hasParam (absLIdx h)) := by
-  sorry
+  rw [arena.expr_ops.lidx_has_param] at hrun
+  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨v, hv, hobs⟩ := derived_l_run hrel hl
+  have hveq : v = lst.store.lder (absLIdx h) := by
+    have : (Arena.derivedL (absLIdx h)).run lst
+        = .ok (lst.store.lder (absLIdx h), lst) := rfl
+    rw [this] at hv
+    exact ((Prod.mk.injEq _ _ _ _ ▸ (Except.ok.injEq _ _ ▸ hv)).1).symm
+  simp only [Result.ok.injEq] at hrun
+  show (LIdx.hasParam (absLIdx h)).run lst = .ok (o, lst)
+  rw [show (LIdx.hasParam (absLIdx h)).run lst
+      = .ok ((lst.store.lder (absLIdx h)).hasParam, lst) from rfl, ← hrun,
+    ← hveq]
+  exact congrArg (fun x => Except.ok (x, lst)) hobs
 
 /-- `eidx_has_level_param` is the twin's `EIdx.hasLevelParam`: the `hasLP` bit
-of the packed derived word.  **Waits on `Specs.lean`'s `derivedE`** and on
-`Refine/Expr.lean`'s `lp_of_data_val`. -/
+of the packed derived word, which is `derObsE`'s third component. -/
 theorem eidx_has_level_param_refines {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {h : arena.handle.EIdx} {o : Bool}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.eidx_has_level_param pers st h = ok o) :
     SimR id lst o (EIdx.hasLevelParam (absEIdx h)) := by
-  sorry
+  rw [arena.expr_ops.eidx_has_level_param] at hrun
+  obtain ⟨d, hd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.monad.derived_e] at hd
+  obtain ⟨-, -, hlp⟩ := derObsE_fields (estore_derived_abs hrel.store hd)
+  have hbb := ConRon.Refine.Expr.lp_of_data_val hrun
+  show (EIdx.hasLevelParam (absEIdx h)).run lst = .ok (o, lst)
+  rw [show (EIdx.hasLevelParam (absEIdx h)).run lst
+      = .ok (ConLeche.lpOfData (lst.store.derived (absEIdx h)), lst) from rfl,
+    hlp, hbb]
+  by_cases hc : d.val % 2 = 1 <;> simp [hc]
 
 /-! ## The unmemoized `view` walks
 
