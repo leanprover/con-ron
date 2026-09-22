@@ -44,6 +44,56 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
+/-! ## Two denotation facts the whole tier uses
+
+Both were written in `Bridge/Checker/Base.lean` (task #97-P3-Checker-2) and
+both are facts about the READBACK rather than about `CheckerBase`, so round 4
+moved them down here, where `Bridge/Checker/Canon.lean` — a sibling of
+`Base.lean`, not a consumer of it — can see them too.  Nothing about either
+statement changed. -/
+
+/-- con-leche: none — **a handle comparison is a name comparison**, at two
+handles that denote.  The `→` half is `denoteN`'s functionality and the `←`
+half is its injectivity (DESIGN §8.3's soundness obligation); every pinned-name
+test of the declaration checker cashes this. -/
+theorem beq_handle_iff {st : EStore} (hwf : StoreWF st) {n p : NIdx}
+    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
+    (hp : denoteN st.ns p = some x) : (n == p) = true ↔ nm = x := by
+  obtain ⟨rk, hrk⟩ := hwf
+  constructor
+  · intro h
+    obtain rfl := eq_of_beq h
+    rw [hn] at hp
+    exact Option.some.inj hp
+  · intro h
+    subst h
+    exact beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hp)
+
+/-! ## The constant header's denotation, inverted -/
+
+/-- con-leche: none — `Frontend.denoteCV`'s inversion: the three fields denote
+the three fields. -/
+theorem denoteCV_inv {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) :
+    denoteN st.ns cv.name = some c.name ∧
+      Frontend.denoteNList st.ns cv.levelParams = some c.levelParams ∧
+      denoteE st cv.type = some c.type := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; exact absurd h (by simp)
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; exact absurd h (by simp)
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; exact absurd h (by simp)
+      | some ty =>
+        rw [hn, hl, ht] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        exact ⟨rfl, rfl, rfl⟩
+
+
 /-! ## The four handle kinds across a `PExt` -/
 
 theorem denoteN_pext {st st' : EStore} (hx : PExt st st') {n : NIdx}

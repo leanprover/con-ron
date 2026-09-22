@@ -195,23 +195,6 @@ theorem denoteNList_contains {st : EStore} (hwf : StoreWF st) :
             rw [beq_eq_false_iff_ne.mpr hae', beq_eq_false_iff_ne.mpr hne']
         simp only [List.contains_cons, hhead, ih ys has n x hx]
 
-/-- con-leche: none — **a handle comparison is a name comparison**, at two
-handles that denote.  The `→` half is `denoteN`'s functionality and the `←`
-half is its injectivity (DESIGN §8.3's soundness obligation); every pinned-name
-test of the declaration checker cashes this. -/
-theorem beq_handle_iff {st : EStore} (hwf : StoreWF st) {n p : NIdx}
-    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
-    (hp : denoteN st.ns p = some x) : (n == p) = true ↔ nm = x := by
-  obtain ⟨rk, hrk⟩ := hwf
-  constructor
-  · intro h
-    obtain rfl := eq_of_beq h
-    rw [hn] at hp
-    exact Option.some.inj hp
-  · intro h
-    subst h
-    exact beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hp)
-
 /-- con-leche: none — `Frontend.denoteCIList`'s indexed inversion. -/
 theorem denoteCIList_get {st : EStore} :
     ∀ (cs : List IConstantInfo) (xs : List ConstantInfo) (i : Nat)
@@ -564,30 +547,6 @@ theorem denoteNL_toList {st : EStore} :
 the arena's copy of the reserved list IS con-leche's, on the nose. -/
 theorem reservedBasisNameValues_eq :
     reservedBasisNameValues = ConLeche.reservedBasisNames := rfl
-
-/-! ## The constant header's denotation, inverted -/
-
-/-- con-leche: none — `Frontend.denoteCV`'s inversion: the three fields denote
-the three fields. -/
-theorem denoteCV_inv {st : EStore} {cv : IConstantVal} {c : ConstantVal}
-    (h : Frontend.denoteCV st cv = some c) :
-    denoteN st.ns cv.name = some c.name ∧
-      Frontend.denoteNList st.ns cv.levelParams = some c.levelParams ∧
-      denoteE st cv.type = some c.type := by
-  simp only [Frontend.denoteCV] at h
-  cases hn : denoteN st.ns cv.name with
-  | none => rw [hn] at h; exact absurd h (by simp)
-  | some n =>
-    cases hl : Frontend.denoteNList st.ns cv.levelParams with
-    | none => rw [hn, hl] at h; exact absurd h (by simp)
-    | some lps =>
-      cases ht : denoteE st cv.type with
-      | none => rw [hn, hl, ht] at h; exact absurd h (by simp)
-      | some ty =>
-        rw [hn, hl, ht] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        exact ⟨rfl, rfl, rfl⟩
 
 /-! ## The per-declaration constant check -/
 

@@ -1228,6 +1228,274 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
                 exact hc (by simp [denoteN_inj hns hxN hyN', hb2])
           simp only [ConLeche.canonExprEqFast, hbad, Bool.false_and]
 
+/-! ## The recursor rules
+
+`canonRulesEq` compares each rule's OTHER fields by record equality at a
+common `rhs` and its right-hand side by the term walk.  Over handles the
+record equality is a HANDLE record equality, so the bridge needs the readback
+to be injective at each field a rule carries — `denoteN_inj` at `ctor`,
+`denoteLList_inj`/`denoteEList_inj` inside a `.nested` firing mode. -/
+
+/-- con-leche: none — `Frontend.denoteEList` is injective; the list twin of
+`Arena/WFProofs.lean`'s `denoteE_inj` (the level tier's `denoteLList_inj` is
+already there). -/
+theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ (is js : List EIdx) (xs : List Expr),
+      Frontend.denoteEList st is = some xs →
+      Frontend.denoteEList st js = some xs → is = js := by
+  intro is
+  induction is with
+  | nil =>
+    intro js xs hi hj
+    simp only [Frontend.denoteEList, Option.some.injEq] at hi
+    subst hi
+    cases js with
+    | nil => rfl
+    | cons b bs =>
+      simp only [Frontend.denoteEList] at hj
+      cases hb : denoteE st b with
+      | none => rw [hb] at hj; simp at hj
+      | some y =>
+        cases hbs : Frontend.denoteEList st bs with
+        | none => rw [hb, hbs] at hj; simp at hj
+        | some ys => rw [hb, hbs] at hj; simp at hj
+  | cons a as ih =>
+    intro js xs hi hj
+    simp only [Frontend.denoteEList] at hi
+    cases ha : denoteE st a with
+    | none => rw [ha] at hi; simp at hi
+    | some x =>
+      cases has : Frontend.denoteEList st as with
+      | none => rw [ha, has] at hi; simp at hi
+      | some xt =>
+        rw [ha, has] at hi
+        simp only [Option.some.injEq] at hi
+        subst hi
+        cases js with
+        | nil => simp only [Frontend.denoteEList] at hj; simp at hj
+        | cons b bs =>
+          simp only [Frontend.denoteEList] at hj
+          cases hb : denoteE st b with
+          | none => rw [hb] at hj; simp at hj
+          | some y =>
+            cases hbs : Frontend.denoteEList st bs with
+            | none => rw [hb, hbs] at hj; simp at hj
+            | some yt =>
+              rw [hb, hbs] at hj
+              simp only [Option.some.injEq, List.cons.injEq] at hj
+              obtain ⟨rfl, rfl⟩ := hj
+              rw [denoteE_inj hwf ha hb, ih bs _ has hbs]
+
+/-- con-leche: none — a rule's firing mode is determined by its denotation:
+the two leaves carry nothing, and `.nested`'s two handle lists are injective
+(`denoteLList_inj`, `denoteEList_inj`). -/
+theorem denoteFire_inj {st : EStore} (hwf : StoreWF st) {f g : IRecRuleFire}
+    {F : RecRuleFire} (hf : Frontend.denoteFire st f = some F)
+    (hg : Frontend.denoteFire st g = some F) : f = g := by
+  obtain ⟨rk, hrk⟩ := hwf
+  have hnest : ∀ (lvls : List LIdx) (pins : List EIdx) (G : RecRuleFire),
+      Frontend.denoteFire st (.nested lvls pins) = some G →
+      ∃ ls es, denoteLList st.ls lvls = some ls ∧
+        Frontend.denoteEList st pins = some es ∧ G = .nested ls es := by
+    intro lvls pins G h
+    simp only [Frontend.denoteFire] at h
+    cases hl : denoteLList st.ls lvls with
+    | none => rw [hl] at h; simp at h
+    | some ls =>
+      cases he : Frontend.denoteEList st pins with
+      | none => rw [hl, he] at h; simp at h
+      | some es =>
+        rw [hl, he] at h
+        exact ⟨ls, es, rfl, rfl, (Option.some.inj h).symm⟩
+  cases f with
+  | inert =>
+    simp only [Frontend.denoteFire, Option.some.injEq] at hf
+    subst hf
+    cases g with
+    | inert => rfl
+    | plain => simp only [Frontend.denoteFire] at hg; simp at hg
+    | nested l2 p2 =>
+      obtain ⟨u1, u2, u3, u4, hG⟩ := hnest l2 p2 _ hg; simp at hG
+  | plain =>
+    simp only [Frontend.denoteFire, Option.some.injEq] at hf
+    subst hf
+    cases g with
+    | inert => simp only [Frontend.denoteFire] at hg; simp at hg
+    | plain => rfl
+    | nested l2 p2 =>
+      obtain ⟨u1, u2, u3, u4, hG⟩ := hnest l2 p2 _ hg; simp at hG
+  | nested l1 p1 =>
+    obtain ⟨ls1, es1, hl1, he1, rfl⟩ := hnest l1 p1 _ hf
+    cases g with
+    | inert => simp only [Frontend.denoteFire, Option.some.injEq] at hg; simp at hg
+    | plain => simp only [Frontend.denoteFire, Option.some.injEq] at hg; simp at hg
+    | nested l2 p2 =>
+      obtain ⟨ls2, es2, hl2, he2, hG⟩ := hnest l2 p2 _ hg
+      simp only [RecRuleFire.nested.injEq] at hG
+      obtain ⟨rfl, rfl⟩ := hG
+      rw [denoteLList_inj hrk.lsWF l1 l2 ls1 hl1 hl2,
+        denoteEList_inj ⟨rk, hrk⟩ p1 p2 es1 he1 he2]
+
+/-- con-leche: none — `Frontend.denoteRule`'s inversion, field by field. -/
+theorem denoteRule_inv {st : EStore} {rl : IRecRule} {R : RecRule}
+    (h : Frontend.denoteRule st rl = some R) :
+    denoteN st.ns rl.ctor = some R.ctor ∧
+      Frontend.denoteFire st rl.fire = some R.fire ∧
+      denoteE st rl.rhs = some R.rhs ∧ rl.nfields = R.nfields ∧
+      rl.ctorParams = R.ctorParams ∧ rl.k = R.k ∧ rl.eta = R.eta ∧
+      rl.paramsBlind = R.paramsBlind := by
+  simp only [Frontend.denoteRule] at h
+  cases hc : denoteN st.ns rl.ctor with
+  | none => rw [hc] at h; simp at h
+  | some c =>
+    cases hf : Frontend.denoteFire st rl.fire with
+    | none => rw [hc, hf] at h; simp at h
+    | some f =>
+      cases hr : denoteE st rl.rhs with
+      | none => rw [hc, hf, hr] at h; simp at h
+      | some x =>
+        rw [hc, hf, hr] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — `Frontend.denoteRules`'s cons inversion. -/
+theorem denoteRules_cons {st : EStore} {a : IRecRule} {as : List IRecRule}
+    {zs : List RecRule} (h : Frontend.denoteRules st (a :: as) = some zs) :
+    ∃ x xs, Frontend.denoteRule st a = some x ∧
+      Frontend.denoteRules st as = some xs ∧ zs = x :: xs := by
+  simp only [Frontend.denoteRules] at h
+  cases hx : Frontend.denoteRule st a with
+  | none => rw [hx] at h; simp at h
+  | some x =>
+    cases hxs : Frontend.denoteRules st as with
+    | none => rw [hx, hxs] at h; simp at h
+    | some xs =>
+      rw [hx, hxs] at h
+      simp only [Option.some.injEq] at h
+      exact ⟨x, xs, rfl, rfl, h.symm⟩
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast — **the
+record comparison at a common `rhs` is the same test on both sides**: the `→`
+half is `denoteRule`'s functionality and the `←` half is the readback's
+injectivity at `ctor` and `fire`, the rule's only two handle fields. -/
+theorem canonRuleHead_eq {st : EStore} (hwf : StoreWF st) {r r' : IRecRule}
+    {R R' : RecRule} (hr : Frontend.denoteRule st r = some R)
+    (hr' : Frontend.denoteRule st r' = some R') :
+    (({ r with rhs := default } : IRecRule) == { r' with rhs := default })
+      = ((({ R with rhs := .bvar 0 } : RecRule)) == { R' with rhs := .bvar 0 }) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  obtain ⟨hc, hf, -, hn, hp, hk, he, hb⟩ := denoteRule_inv hr
+  obtain ⟨hc', hf', -, hn', hp', hk', he', hb'⟩ := denoteRule_inv hr'
+  rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+  obtain ⟨c1, n1, p1, f1, x1, k1, e1, b1⟩ := r
+  obtain ⟨c2, n2, p2, f2, x2, k2, e2, b2⟩ := r'
+  obtain ⟨C1, N1, P1, F1, X1, K1, E1, B1⟩ := R
+  obtain ⟨C2, N2, P2, F2, X2, K2, E2, B2⟩ := R'
+  simp only at hc hf hn hp hk he hb hc' hf' hn' hp' hk' he' hb'
+  subst hn; subst hp; subst hk; subst he; subst hb
+  subst hn'; subst hp'; subst hk'; subst he'; subst hb'
+  constructor
+  · intro h
+    have q1 : c1 = c2 := congrArg IRecRule.ctor h
+    have q2 : n1 = n2 := congrArg IRecRule.nfields h
+    have q3 : p1 = p2 := congrArg IRecRule.ctorParams h
+    have q4 : f1 = f2 := congrArg IRecRule.fire h
+    have q5 : k1 = k2 := congrArg IRecRule.k h
+    have q6 : e1 = e2 := congrArg IRecRule.eta h
+    have q7 : b1 = b2 := congrArg IRecRule.paramsBlind h
+    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6; subst q7
+    rw [hc] at hc'
+    rw [hf] at hf'
+    obtain rfl := Option.some.inj hc'
+    obtain rfl := Option.some.inj hf'
+    rfl
+  · intro h
+    have q1 : C1 = C2 := congrArg RecRule.ctor h
+    have q2 : n1 = n2 := congrArg RecRule.nfields h
+    have q3 : p1 = p2 := congrArg RecRule.ctorParams h
+    have q4 : F1 = F2 := congrArg RecRule.fire h
+    have q5 : k1 = k2 := congrArg RecRule.k h
+    have q6 : e1 = e2 := congrArg RecRule.eta h
+    have q7 : b1 = b2 := congrArg RecRule.paramsBlind h
+    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6; subst q7
+    obtain rfl := denoteN_inj hrk.nsWF hc hc'
+    obtain rfl := denoteFire_inj ⟨rk, hrk⟩ hf hf'
+    rfl
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast — the rule
+list, in lockstep. -/
+theorem canonRulesEq_run {ps ps' cs : List NIdx}
+    {psN ps'N : List ConLeche.Name} (fuel : Nat) :
+    ∀ (rs rs' : List IRecRule) {Rs Rs' : List RecRule} {r : Bool}
+      {s s' : AState}, StateOK s → CanonMapD s.store.ns ps cs psN →
+      CanonMapD s.store.ns ps' cs ps'N →
+      Frontend.denoteRules s.store rs = some Rs →
+      Frontend.denoteRules s.store rs' = some Rs' →
+      canonRulesEq ps ps' cs fuel rs rs' s = .ok (r, s') →
+      s' = s ∧ r = ConLeche.canonRulesEqFast (ConLeche.canonNameMap psN)
+        (ConLeche.canonNameMap ps'N) Rs Rs' := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rs' Rs Rs' r s s' hok hm hm' hrs hrs' hrun
+    simp only [Frontend.denoteRules, Option.some.injEq] at hrs
+    subst hrs
+    cases rs' with
+    | nil =>
+      simp only [Frontend.denoteRules, Option.some.injEq] at hrs'
+      subst hrs'
+      simp only [Arena.canonRulesEq] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, by simp [ConLeche.canonRulesEqFast]⟩
+    | cons b bs =>
+      obtain ⟨y, ys, -, -, rfl⟩ := denoteRules_cons hrs'
+      simp only [Arena.canonRulesEq] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, by simp [ConLeche.canonRulesEqFast]⟩
+  | cons a as ih =>
+    intro rs' Rs Rs' r s s' hok hm hm' hrs hrs' hrun
+    obtain ⟨X, Xs, hX, hXs, rfl⟩ := denoteRules_cons hrs
+    cases rs' with
+    | nil =>
+      simp only [Frontend.denoteRules, Option.some.injEq] at hrs'
+      subst hrs'
+      simp only [Arena.canonRulesEq] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, by simp [ConLeche.canonRulesEqFast]⟩
+    | cons b bs =>
+      obtain ⟨Y, Ys, hY, hYs, rfl⟩ := denoteRules_cons hrs'
+      have hhead := canonRuleHead_eq hok.wf hX hY
+      obtain ⟨-, -, hXr, -⟩ := denoteRule_inv hX
+      obtain ⟨-, -, hYr, -⟩ := denoteRule_inv hY
+      simp only [Arena.canonRulesEq] at hrun
+      rcases AM.ite_ok hrun with ⟨hc0, k1⟩ | ⟨hc0, k1⟩
+      · obtain ⟨c1, s1, g1, k2⟩ := AM.bind_ok k1
+        obtain ⟨rfl, he1⟩ := canonExprEq_run fuel hok hm hm' hXr hYr g1
+        rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+        · obtain ⟨rfl, he2⟩ := ih bs hok hm hm' hXs hYs k3
+          refine ⟨rfl, ?_⟩
+          have h1 := he1 ▸ hc
+          simp only [ConLeche.canonRulesEqFast, ← hhead, hc0, h1, Bool.and_self,
+            Bool.true_and, he2]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+          refine ⟨rfl, ?_⟩
+          have h1 : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+              (ConLeche.canonNameMap ps'N) X.rhs Y.rhs = false := by
+            cases hb : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+                (ConLeche.canonNameMap ps'N) X.rhs Y.rhs
+            · rfl
+            · exact absurd (he1.trans hb) hc
+          simp only [ConLeche.canonRulesEqFast, ← hhead, hc0, h1, Bool.and_false,
+            Bool.false_and]
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+        refine ⟨rfl, ?_⟩
+        have h0 : (({ X with rhs := .bvar 0 } : RecRule)
+            == { Y with rhs := .bvar 0 }) = false := by
+          rw [← hhead]
+          simpa using hc0
+        simp only [ConLeche.canonRulesEqFast, h0, Bool.false_and]
+
 /-- con-leche: ConLeche/Kernel/Canon.lean:198-201 ConstantVal.canonEq — the
 handle comparison is the term comparison.
 
