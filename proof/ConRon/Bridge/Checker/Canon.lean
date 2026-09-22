@@ -110,6 +110,426 @@ theorem canonNames_run {n : Nat} {r : List NIdx} {s s' : AState}
   obtain ⟨h1, h2, h3, h4, h5⟩ := canonNamesGo_run n 0 r s s' hok hrun
   exact ⟨h1, h2, h3, h4, by simpa using h5⟩
 
+/-! ## The level store's readers and its inversions
+
+`Bridge/Rel.lean` has the expression tier's ten `denote_*_inv` lemmas; the
+LEVEL tier's five are wanted only by the lockstep comparison, so they are
+here.  Each is three lines off `Arena/WFProofs.lean`'s `denoteL_unfold`,
+exactly as the expression ones are off `denoteE_unfold`. -/
+
+/-- con-leche: none — `viewL`'s inversion, off `Bridge/Specs.lean`'s triple
+(`Bridge/Checker/Base.lean`'s `viewN_run` is the name tier's twin). -/
+theorem viewL_run {h : LIdx} {s s' : AState} {v : LNodeView}
+    (hr : viewL h s = .ok (v, s')) : s' = s ∧ s.store.ls.view h = some v :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ s.store.ls.view h = some r) rfl hr (viewL_spec s h)
+
+/-- con-leche: none — trade the fuel for the rank once, at the top of each
+level inversion. -/
+theorem denoteL_view_eq {st : LStore} (hwf : LStoreWF st) {i : LIdx}
+    {v : LNodeView} (hv : st.view i = some v) :
+    denoteL st i = denoteLView st v := by
+  obtain ⟨rk, hr⟩ := hwf; exact denoteL_unfold hr hv
+
+theorem denoteL_zero_inv {st : LStore} (hwf : LStoreWF st) {i : LIdx}
+    {x : Level} (hv : st.view i = some .zero) (hd : denoteL st i = some x) :
+    x = .zero := by
+  rw [denoteL_view_eq hwf hv, denoteLView] at hd; exact (Option.some.inj hd).symm
+
+theorem denoteL_succ_inv {st : LStore} (hwf : LStoreWF st) {i a : LIdx}
+    {x : Level} (hv : st.view i = some (.succ a)) (hd : denoteL st i = some x) :
+    ∃ p, x = .succ p ∧ denoteL st a = some p := by
+  rw [denoteL_view_eq hwf hv, denoteLView, Option.map_eq_some_iff] at hd
+  obtain ⟨p, hp, rfl⟩ := hd; exact ⟨p, rfl, hp⟩
+
+theorem denoteL_max_inv {st : LStore} (hwf : LStoreWF st) {i a b : LIdx}
+    {x : Level} (hv : st.view i = some (.max a b))
+    (hd : denoteL st i = some x) :
+    ∃ p q, x = .max p q ∧ denoteL st a = some p ∧ denoteL st b = some q := by
+  rw [denoteL_view_eq hwf hv, denoteLView, opt2_eq_some_iff] at hd
+  obtain ⟨p, q, hp, hq, rfl⟩ := hd; exact ⟨p, q, rfl, hp, hq⟩
+
+theorem denoteL_imax_inv {st : LStore} (hwf : LStoreWF st) {i a b : LIdx}
+    {x : Level} (hv : st.view i = some (.imax a b))
+    (hd : denoteL st i = some x) :
+    ∃ p q, x = .imax p q ∧ denoteL st a = some p ∧ denoteL st b = some q := by
+  rw [denoteL_view_eq hwf hv, denoteLView, opt2_eq_some_iff] at hd
+  obtain ⟨p, q, hp, hq, rfl⟩ := hd; exact ⟨p, q, rfl, hp, hq⟩
+
+theorem denoteL_param_inv {st : LStore} (hwf : LStoreWF st) {i : LIdx}
+    {n : NIdx} {x : Level} (hv : st.view i = some (.param n))
+    (hd : denoteL st i = some x) :
+    ∃ nm, x = .param nm ∧ denoteN st.ns n = some nm := by
+  rw [denoteL_view_eq hwf hv, denoteLView, Option.map_eq_some_iff] at hd
+  obtain ⟨nm, hn, rfl⟩ := hd; exact ⟨nm, rfl, hn⟩
+
+/-! ## The renaming, denoted
+
+`canonNameMap ps cs n` is the arena's two-list lookup and
+`ConLeche.canonNameMap psN nm` is con-leche's function value; the bridge
+between them is one `findIdx?` agreement, and THAT is `denoteN`'s injectivity
+at each element (DESIGN §8.3 lesson 13 again: a handle comparison is a name
+comparison only because the readback is injective).
+
+The interned numerals enter as a hypothesis rather than as
+`canonNames_run`'s conclusion, because ONE `cs` serves BOTH sides of every
+comparison (`Arena/Canon.lean`'s module note) and the two sides have different
+parameter lists.  `CanonMapD` is that hypothesis, bundled. -/
+
+/-- con-leche: none — **the renaming's data**: the parameter handles denote,
+the numeral handles denote the numerals, and the two lists are equally long
+(which is what `IConstantVal.canonEq`'s length test buys). -/
+structure CanonMapD (ns : NStore) (ps cs : List NIdx)
+    (psN : List ConLeche.Name) : Prop where
+  params : Frontend.denoteNList ns ps = some psN
+  nums : Frontend.denoteNList ns cs
+    = some ((List.range cs.length).map (fun i => ConLeche.Name.num .anonymous i))
+  len : ps.length = cs.length
+
+/-- con-leche: none — `Frontend.denoteNList` transports across an `NExt`,
+which is `Bridge/Rel.lean`'s `denoteNList_ext` at this spelling. -/
+theorem CanonMapD.mono {st st' : EStore} (hx : Ext st st') {ps cs : List NIdx}
+    {psN : List ConLeche.Name} (h : CanonMapD st.ns ps cs psN) :
+    CanonMapD st'.ns ps cs psN where
+  params := denoteNListE_ext hx _ _ h.params
+  nums := denoteNListE_ext hx _ _ h.nums
+  len := h.len
+
+/-- con-leche: none — a name-handle list and its denotation are equally
+long. -/
+theorem denoteNList_length {ns : NStore} :
+    ∀ (hs : List NIdx) (xs : List ConLeche.Name),
+      Frontend.denoteNList ns hs = some xs → hs.length = xs.length := by
+  intro hs
+  induction hs with
+  | nil => intro xs h; simp only [Frontend.denoteNList, Option.some.injEq] at h
+           subst h; rfl
+  | cons a as ih =>
+    intro xs h
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN ns a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteNList ns as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        simp [ih ys has]
+
+/-- con-leche: none — a name-handle list's `i`-th handle denotes the denoted
+list's `i`-th name.  (`Bridge/Rel.lean` has the same three lines for `denoteE`
+and `denoteL`; the name tier's copy is wanted only here.) -/
+theorem denoteNList_get {ns : NStore} :
+    ∀ (hs : List NIdx) (xs : List ConLeche.Name),
+      Frontend.denoteNList ns hs = some xs → ∀ (i : Nat) (hi : i < hs.length),
+        ∃ (hx : i < xs.length), denoteN ns hs[i] = some xs[i] := by
+  intro hs
+  induction hs with
+  | nil => intro xs _ i hi; simp at hi
+  | cons a as ih =>
+    intro xs h i hi
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN ns a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteNList ns as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        cases i with
+        | zero => exact ⟨by simp, by simpa using ha⟩
+        | succ k =>
+          simp only [List.length_cons, Nat.add_lt_add_iff_right] at hi
+          obtain ⟨hk, hd⟩ := ih ys has k hi
+          exact ⟨by simpa using hk, by simpa using hd⟩
+
+/-- con-leche: none — **the two `findIdx?`s are one**: the parameter handle
+list finds `n` exactly where the denoted list finds `n`'s name.  The `→` half
+is `denoteN`'s functionality and the `←` half its injectivity. -/
+theorem canonFindIdx_denote {ns : NStore} (hns : NStoreWF ns) :
+    ∀ (ps : List NIdx) (psN : List ConLeche.Name),
+      Frontend.denoteNList ns ps = some psN →
+      ∀ (n : NIdx) (nm : ConLeche.Name), denoteN ns n = some nm →
+        ps.findIdx? (fun p => p == n) = psN.findIdx? (fun p => p == nm) := by
+  intro ps
+  induction ps with
+  | nil =>
+    intro psN h n nm _
+    simp only [Frontend.denoteNList, Option.some.injEq] at h
+    subst h; rfl
+  | cons a as ih =>
+    intro psN h n nm hn
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN ns a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteNList ns as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        have hhead : (a == n) = (y == nm) := by
+          by_cases hae : a = n
+          · subst hae
+            rw [hn] at ha
+            obtain rfl := Option.some.inj ha
+            simp
+          · have hne' : ¬ y = nm := by
+              intro hxy; subst hxy
+              exact hae (denoteN_inj hns ha hn)
+            rw [beq_eq_false_iff_ne.mpr hae, beq_eq_false_iff_ne.mpr hne']
+        simp only [List.findIdx?_cons, hhead, ih ys has n nm hn]
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:67-73 canonNameMap — **the renaming
+commutes with the readback**: the handle the two-list lookup returns denotes
+the name con-leche's function value returns. -/
+theorem canonNameMap_denote {ns : NStore} (hns : NStoreWF ns)
+    {ps cs : List NIdx} {psN : List ConLeche.Name} (hm : CanonMapD ns ps cs psN)
+    {n : NIdx} {nm : ConLeche.Name} (hn : denoteN ns n = some nm) :
+    denoteN ns (canonNameMap ps cs n) = some (ConLeche.canonNameMap psN nm) := by
+  have hfi := canonFindIdx_denote hns ps psN hm.params n nm hn
+  simp only [Arena.canonNameMap, ConLeche.canonNameMap, hfi]
+  cases hidx : psN.findIdx? (fun p => p == nm) with
+  | none => exact hn
+  | some i =>
+    have hlt : i < psN.length := (List.findIdx?_eq_some_iff_findIdx_eq.mp hidx).1
+    have hps : ps.length = psN.length := denoteNList_length ps psN hm.params
+    have hlen := hm.len
+    have hcs : i < cs.length := by omega
+    obtain ⟨hxi, hd⟩ := denoteNList_get cs _ hm.nums i hcs
+    show denoteN ns (cs.getD i n) = some (ConLeche.Name.num .anonymous i)
+    rw [← List.getElem_eq_getD (l := cs) (i := i) (h := hcs) n]
+    simpa using hd
+
+/-! ## `Level`'s `==`, as congruences
+
+`ConLeche.Level`'s `BEq` is its own (`instBEqLevel`, not the `DecidableEq`
+default), and `simp` does not take it apart, so the four shapes the lockstep
+comparison needs are spelled out once.  `LawfulBEq Level` is what makes each
+one two lines. -/
+
+private theorem level_beq_false {a b : Level} (h : a ≠ b) : (a == b) = false :=
+  beq_eq_false_iff_ne.mpr h
+
+private theorem level_beq_succ {a b : Level} :
+    (Level.succ a == Level.succ b) = (a == b) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+  constructor
+  · intro h; injection h
+  · intro h; rw [h]
+
+private theorem level_beq_max {a b c d : Level} :
+    (Level.max a b == Level.max c d) = (a == c && b == d) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, Bool.and_eq_true, beq_iff_eq, beq_iff_eq]
+  constructor
+  · intro h; injection h with h1 h2; exact ⟨h1, h2⟩
+  · intro h; rw [h.1, h.2]
+
+private theorem level_beq_imax {a b c d : Level} :
+    (Level.imax a b == Level.imax c d) = (a == c && b == d) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, Bool.and_eq_true, beq_iff_eq, beq_iff_eq]
+  constructor
+  · intro h; injection h with h1 h2; exact ⟨h1, h2⟩
+  · intro h; rw [h.1, h.2]
+
+/-! ## The level comparison -/
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:27-34 canonLevel — **the lockstep
+level comparison is the canonical-form comparison**: the twin descends the two
+handles together and answers `canonLevel m u == canonLevel m' v` at the
+denoted levels.
+
+Twenty-five arms, of which twenty are the mismatch (`canonLevel` rewrites only
+the `.param` leaf, so it preserves every node's constructor and two different
+constructors can never become equal), four are the structural recursions and
+the twenty-fifth is the renaming — which is `canonNameMap_denote` above and
+`denoteN`'s injectivity, once each. -/
+theorem canonLevelEq_run {ps ps' cs : List NIdx}
+    {psN ps'N : List ConLeche.Name} :
+    ∀ (fuel : Nat) {u v : LIdx} {x y : Level} {r : Bool} {s s' : AState},
+      StateOK s → CanonMapD s.store.ns ps cs psN →
+      CanonMapD s.store.ns ps' cs ps'N →
+      denoteL s.store.ls u = some x → denoteL s.store.ls v = some y →
+      canonLevelEq ps ps' cs fuel u v s = .ok (r, s') →
+      s' = s ∧ r = (ConLeche.canonLevel (ConLeche.canonNameMap psN) x ==
+        ConLeche.canonLevel (ConLeche.canonNameMap ps'N) y) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro u v x y r s s' _ _ _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro u v x y r s s' hok hm hm' hx hy hrun
+    obtain ⟨rk, hrk⟩ := hok.wf
+    have hlw : LStoreWF s.store.ls := hrk.lsWF
+    have hns : NStoreWF s.store.ns := hrk.nsWF
+    simp only [Arena.canonLevelEq] at hrun
+    obtain ⟨va, s1, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hva⟩ := viewL_run g1
+    obtain ⟨vb, s2, g2, k2⟩ := AM.bind_ok k1
+    obtain ⟨rfl, hvb⟩ := viewL_run g2
+    cases va with
+    | zero =>
+      obtain rfl := denoteL_zero_inv hlw hva hx
+      cases vb with
+      | zero =>
+        obtain rfl := denoteL_zero_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonLevel]⟩
+      | succ a2 =>
+        obtain ⟨ya, rfl, hya⟩ := denoteL_succ_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | max a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_max_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | imax a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_imax_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | param n2 =>
+        obtain ⟨yn, rfl, hyn⟩ := denoteL_param_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+    | succ a =>
+      obtain ⟨xa, rfl, hxa⟩ := denoteL_succ_inv hlw hva hx
+      cases vb with
+      | zero =>
+        obtain rfl := denoteL_zero_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | succ a2 =>
+        obtain ⟨ya, rfl, hya⟩ := denoteL_succ_inv hlw hvb hy
+        obtain ⟨rfl, he⟩ := ih hok hm hm' hxa hya k2
+        exact ⟨rfl, by simp only [ConLeche.canonLevel, level_beq_succ, he]⟩
+      | max a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_max_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | imax a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_imax_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | param n2 =>
+        obtain ⟨yn, rfl, hyn⟩ := denoteL_param_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+    | max a b =>
+      obtain ⟨xa, xb, rfl, hxa, hxb⟩ := denoteL_max_inv hlw hva hx
+      cases vb with
+      | zero =>
+        obtain rfl := denoteL_zero_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | succ a2 =>
+        obtain ⟨ya, rfl, hya⟩ := denoteL_succ_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | max a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_max_inv hlw hvb hy
+        obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+        obtain ⟨rfl, he1⟩ := ih hok hm hm' hxa hya g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨rfl, he2⟩ := ih hok hm hm' hxb hyb k4
+          refine ⟨rfl, ?_⟩
+          have h1 := eq_of_beq (he1 ▸ hc)
+          simp only [ConLeche.canonLevel, level_beq_max, h1, beq_self_eq_true,
+            Bool.true_and, he2]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+          refine ⟨rfl, ?_⟩
+          have h1 : (ConLeche.canonLevel (ConLeche.canonNameMap psN) xa ==
+              ConLeche.canonLevel (ConLeche.canonNameMap ps'N) ya) = false := by
+            cases hb : (ConLeche.canonLevel (ConLeche.canonNameMap psN) xa ==
+                ConLeche.canonLevel (ConLeche.canonNameMap ps'N) ya)
+            · rfl
+            · exact absurd (he1.trans hb) hc
+          simp only [ConLeche.canonLevel, level_beq_max, h1, Bool.false_and]
+      | imax a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_imax_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | param n2 =>
+        obtain ⟨yn, rfl, hyn⟩ := denoteL_param_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+    | imax a b =>
+      obtain ⟨xa, xb, rfl, hxa, hxb⟩ := denoteL_imax_inv hlw hva hx
+      cases vb with
+      | zero =>
+        obtain rfl := denoteL_zero_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | succ a2 =>
+        obtain ⟨ya, rfl, hya⟩ := denoteL_succ_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | max a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_max_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | imax a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_imax_inv hlw hvb hy
+        obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+        obtain ⟨rfl, he1⟩ := ih hok hm hm' hxa hya g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨rfl, he2⟩ := ih hok hm hm' hxb hyb k4
+          refine ⟨rfl, ?_⟩
+          have h1 := eq_of_beq (he1 ▸ hc)
+          simp only [ConLeche.canonLevel, level_beq_imax, h1, beq_self_eq_true,
+            Bool.true_and, he2]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+          refine ⟨rfl, ?_⟩
+          have h1 : (ConLeche.canonLevel (ConLeche.canonNameMap psN) xa ==
+              ConLeche.canonLevel (ConLeche.canonNameMap ps'N) ya) = false := by
+            cases hb : (ConLeche.canonLevel (ConLeche.canonNameMap psN) xa ==
+                ConLeche.canonLevel (ConLeche.canonNameMap ps'N) ya)
+            · rfl
+            · exact absurd (he1.trans hb) hc
+          simp only [ConLeche.canonLevel, level_beq_imax, h1, Bool.false_and]
+      | param n2 =>
+        obtain ⟨yn, rfl, hyn⟩ := denoteL_param_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+    | param n =>
+      obtain ⟨xn, rfl, hxn⟩ := denoteL_param_inv hlw hva hx
+      cases vb with
+      | zero =>
+        obtain rfl := denoteL_zero_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | succ a2 =>
+        obtain ⟨ya, rfl, hya⟩ := denoteL_succ_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | max a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_max_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | imax a2 b2 =>
+        obtain ⟨ya, yb, rfl, hya, hyb⟩ := denoteL_imax_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, (level_beq_false (by simp [ConLeche.canonLevel])).symm⟩
+      | param n2 =>
+        obtain ⟨yn, rfl, hyn⟩ := denoteL_param_inv hlw hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        refine ⟨rfl, ?_⟩
+        have hA := canonNameMap_denote hns hm hxn
+        have hB := canonNameMap_denote hns hm' hyn
+        simp only [ConLeche.canonLevel]
+        rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq, Level.param.injEq]
+        constructor
+        · intro h
+          rw [h, hB] at hA
+          exact (Option.some.inj hA).symm
+        · intro h
+          exact denoteN_inj hns hA (h ▸ hB)
+
 /-- con-leche: ConLeche/Kernel/Canon.lean:198-201 ConstantVal.canonEq — the
 handle comparison is the term comparison.
 
