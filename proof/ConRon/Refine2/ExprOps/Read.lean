@@ -13,7 +13,7 @@ store-reader inversion layer they waited on landed at tasks #97-P5-1 and
 #97-P5-2, and this file is now sorry-free.  Two of P5-0's statements had to
 be CORRECTED on the way — finding 1's `StoreWF` is `EResolves` alone at the
 four one-node readers (P5-2 §10's argument, mechanised below as
-`estore_view_tagOf`), and `FOut`'s accumulator is the twin's list REVERSED
+`EStore_view_tagOf`), and `FOut`'s accumulator is the twin's list REVERSED
 (finding 12, below).
 
 ## Three findings this file had to absorb, and they are DESIGN.md's business
@@ -2485,7 +2485,8 @@ theorem get_app_args_refines {pers : arena.store.PersTier}
 Task #97-P5-2 §10 argued that P5-0's finding 3 can be **weakened**: what these
 eight need is `EResolves` — "this handle decodes" — and the tag/view agreement
 lemma `st.view h = some v → h.tag = v.tagOf`, which is UNCONDITIONAL.  That
-argument is mechanised here (`etables_get_tagOf`, `estore_view_tagOf`), and it
+argument is mechanised in `Refine2/Specs.lean`
+(`ETables_get_tagOf`, `EStore_view_tagOf`), and it
 holds for the four ONE-NODE readers exactly as argued: `is_lam`, `lam_pw`,
 `forall_pw` and `fvar_type_d` carry `EResolves` alone and no `StoreWF`.
 
@@ -2496,24 +2497,11 @@ to decode too.  "The children of a decoding node decode" is `EWFAt`'s
 `childOK` clause and nothing weaker — `EResolves.child` below is that clause,
 and it is the one place `StoreWF` is really used in this file.
 
-These lemmas are `Arena/WFProofs.lean`'s business by rights (it owns
-`ENodeView.tagOf` and the `ETables.get_inv` machinery); they live here because
-this round does not touch `Arena/`. -/
-
-/-! ## The tag/view agreement, mechanised -/
-
-/-- The tag a decoded node lands under is the handle's own tag.  Unconditional
-at one tier. -/
-theorem etables_get_tagOf {t : ETables} {i : EIdx} {v : ENodeView}
-    (h : t.get i = some v) : i.tag = v.tagOf := by
-  simp only [ETables.get] at h
-  tag_cases h <;>
-    first
-      | (simp only [Option.map_eq_some_iff] at h
-         obtain ⟨r, -, rfl⟩ := h
-         simp only [ENodeView.tagOf]
-         exact eq_of_beq hc)
-      | simp at h
+The tag/view agreement itself is `Arena/WFProofs.lean`'s business by rights
+(it owns `ENodeView.tagOf` and the `ETables.get_inv` machinery); it lives in
+`Specs.lean` because this round does not touch `Arena/`, and it is stated
+there at task #97-P5-Arms's own names and text so that the two tiers' copies
+dedupe to one deletion. -/
 
 /-- The bind arm of `EStore.view`, taken apart. -/
 theorem estore_view_bind_parts {st : EStore} {i : EIdx} {v : ENodeView}
@@ -2538,27 +2526,6 @@ theorem estore_view_none_of_viewBind {st : EStore} {i : EIdx}
     (hb : ETag.isBind i.tag = true) (h : st.viewBind i = none) :
     st.view i = none := by
   rw [EStore.view, if_pos hb, h]
-
-/-- **The tag/view agreement**: `view` answers the view whose constructor is
-the handle's own tag.  UNCONDITIONAL — no `StoreWF`. -/
-theorem estore_view_tagOf {st : EStore} {i : EIdx} {v : ENodeView}
-    (h : st.view i = some v) : i.tag = v.tagOf := by
-  by_cases hb : ETag.isBind i.tag = true
-  · obtain ⟨ty, b, m, -, rfl⟩ := estore_view_bind_parts hb h
-    simp only [eBindView]
-    split <;> rename_i hl
-    · simp only [ENodeView.tagOf]; exact eq_of_beq hl
-    · simp only [ENodeView.tagOf]
-      simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at hb
-      rcases hb with hb | hb
-      · exact absurd (by simp [hb] : (i.tag == ETag.lam) = true) hl
-      · exact hb
-  · rw [EStore.view, if_neg hb] at h
-    split at h
-    · exact etables_get_tagOf h
-    · split at h
-      · exact etables_get_tagOf h
-      · simp at h
 
 /-- A view whose tag is `lam` IS a `lam`. -/
 theorem eview_lam_of_tag {v : ENodeView} (h : v.tagOf = ETag.lam) :
@@ -2631,7 +2598,7 @@ theorem is_lam_refines {pers : arena.store.PersTier} {st : arena.monad.AState}
   obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have htag := eidx_tag_abs ht
   obtain ⟨v, hv⟩ := EResolves.dest hres
-  have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+  have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
   rw [isLam_run hv]
   by_cases hc : t = arena.handle.ETAG_LAM
   · subst hc
@@ -2699,7 +2666,7 @@ theorem lam_pw_refines {pers : arena.store.PersTier} {st : arena.monad.AState}
   obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have htag := eidx_tag_abs ht
   obtain ⟨v, hv⟩ := EResolves.dest hres
-  have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+  have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
   rw [show lamPw (absEIdx h) = (do
         let w ← Arena.view (absEIdx h)
         match w with
@@ -2758,7 +2725,7 @@ theorem forall_pw_refines {pers : arena.store.PersTier} {st : arena.monad.AState
   obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have htag := eidx_tag_abs ht
   obtain ⟨v, hv⟩ := EResolves.dest hres
-  have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+  have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
   rw [show forallPw (absEIdx h) = (do
         let w ← Arena.view (absEIdx h)
         match w with
@@ -2831,7 +2798,7 @@ theorem etables_getFVarTy_of_get {t : ETables} {i : EIdx} {k : Nat} {ty : EIdx}
 
 theorem estore_viewFVarTy_of_view {st : EStore} {i : EIdx} {k : Nat} {ty : EIdx}
     (hv : st.view i = some (.fvar k ty)) : st.viewFVarTy i = some ty := by
-  have htg : i.tag = ETag.fvar := estore_view_tagOf hv
+  have htg : i.tag = ETag.fvar := EStore_view_tagOf hv
   rw [estore_view_nonbind (by rw [htg]; decide)] at hv
   simp only [EStore.viewFVarTy, EStore.persGetFVarTy]
   by_cases hp : i.isPersistent = true
@@ -2855,7 +2822,7 @@ theorem fvar_type_d_refines {pers : arena.store.PersTier}
   obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have htag := eidx_tag_abs ht
   obtain ⟨v, hv⟩ := EResolves.dest hres
-  have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+  have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
   rw [show fvarTypeD (absEIdx h) = (do
         let w ← Arena.view (absEIdx h)
         match w with
@@ -2942,7 +2909,7 @@ private theorem pi_result_aux (n : Nat) :
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have htag := eidx_tag_abs ht
     obtain ⟨v, hv⟩ := EResolves.dest hres
-    have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+    have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
     rw [show absU fuel = m + 1 from hn, piResult, StateT.run_bind,
       arena_view_run_some hv]
     by_cases hc : t = arena.handle.ETAG_FORALL_E
@@ -3029,7 +2996,7 @@ private theorem pi_arity_aux (n : Nat) :
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have htag := eidx_tag_abs ht
     obtain ⟨v, hv⟩ := EResolves.dest hres
-    have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+    have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
     rw [show absU fuel = m + 1 from hn, piArity, StateT.run_bind,
       arena_view_run_some hv]
     by_cases hc : t = arena.handle.ETAG_FORALL_E
@@ -3136,7 +3103,7 @@ private theorem strip_lams_aux (n : Nat) :
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have htag := eidx_tag_abs ht
     obtain ⟨v, hv⟩ := EResolves.dest hres
-    have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+    have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
     rw [show absU k = m + 1 from hn, stripLams, StateT.run_bind,
       arena_view_run_some hv]
     by_cases hc : t = arena.handle.ETAG_LAM
@@ -3262,7 +3229,7 @@ private theorem strip_pis_aux (n : Nat) :
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have htag := eidx_tag_abs ht
     obtain ⟨v, hv⟩ := EResolves.dest hres
-    have htv : (absEIdx h).tag = v.tagOf := estore_view_tagOf hv
+    have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
     rw [show absU k = m + 1 from hn, stripPis, StateT.run_bind,
       arena_view_run_some hv]
     by_cases hc : t = arena.handle.ETAG_FORALL_E
@@ -4819,9 +4786,6 @@ standard axioms and nothing else. -/
 #guard_msgs in #print axioms result_sort_refines
 
 
-
-/-- info: 'ConRon.Refine2.ExprOps.estore_view_tagOf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_view_tagOf
 
 /-- info: 'ConRon.Refine2.ExprOps.is_lam_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_lam_refines

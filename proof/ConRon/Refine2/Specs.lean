@@ -7510,4 +7510,114 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 /-- info: 'ConRon.Refine2.intern_e_proj_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_e_proj_run
 
+/-! ## The tag/view agreement (task #97-P5-3, task #97-P5-Arms)
+
+`EStore_view_tagOf` is the lemma task #97-P5-2 §10 argued for and did not
+mechanise: **`view` answers the view whose constructor is the handle's own
+tag, UNCONDITIONALLY** — no `StoreWF`.  It is what makes the eight tag-first
+readers of `ExprOps/Read.lean` provable at `EResolves` alone rather than at
+`StoreWF`, and the Core tier's gated arms want the same.
+
+Two tiers found it independently (this one and `Refine2/Core/Arms/Sort.lean`,
+whose own note says "this belongs in `Refine2/Specs.lean` beside `view_run`;
+it is here because this tier may not edit that file").  The text below is that
+tier's, verbatim, at its own names — **so the migration is a deletion there
+and nothing here**. -/
+
+/-- **`ETables.get` answers the view whose constructor is the tag it tested** —
+the ten-way half of the agreement, once.  `ENodeView.tagOf` is
+`Arena/WFProofs.lean`'s and `tag_cases` is its ten-way `if` splitter, so the
+proof is the same six lines eight times. -/
+theorem ETables_get_tagOf {t : ETables} {i : EIdx} {v : ENodeView}
+    (h : t.get i = some v) : i.tag = v.tagOf := by
+  simp only [ETables.get] at h
+  tag_cases h
+  · revert h
+    cases t.bvars.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · revert h
+    cases t.fvars.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · revert h
+    cases t.sorts.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · revert h
+    cases t.consts.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · revert h
+    cases t.apps.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · simp at h
+  · revert h
+    cases t.lets.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · revert h
+    cases t.lits.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · revert h
+    cases t.projs.node? i.idxNat with
+    | none => simp
+    | some r =>
+      intro h; simp only [Option.map_some, Option.some.injEq] at h
+      rw [← h]; exact eq_of_beq hc
+  · simp at h
+
+/-- **`view` answers the view whose constructor is the handle's own tag,
+UNCONDITIONALLY** — task #97-P5-2 §10's `estore_view_tagOf`, which that section
+predicted is free of `StoreWF` and which this tier needs in both its halves.
+The binder arm is the one that is not `ETables_get_tagOf`: `view` builds
+`eBindView i.tag …`, whose `tagOf` is `i.tag` exactly under `ETag.isBind`.
+
+**This belongs in `Refine2/Specs.lean`** beside `view_run`; it is here because
+this tier may not edit that file, and the migration is the two lines that
+name it. -/
+theorem EStore_view_tagOf {st : EStore} {i : EIdx} {v : ENodeView}
+    (h : st.view i = some v) : i.tag = v.tagOf := by
+  rw [EStore.view] at h
+  by_cases hb : ETag.isBind i.tag = true
+  · rw [if_pos hb] at h
+    split at h
+    · exact absurd h (by simp)
+    · rename_i ty b m _
+      simp only [Option.some.injEq] at h
+      rw [← h, eBindView]
+      by_cases hl : i.tag == ETag.lam
+      · rw [if_pos hl]; exact eq_of_beq hl
+      · rw [if_neg hl]
+        simp only [ETag.isBind, Bool.or_eq_true] at hb
+        rcases hb with hx | hx
+        · exact absurd hx hl
+        · exact eq_of_beq hx
+  · rw [if_neg hb] at h
+    by_cases hp : i.isPersistent
+    · rw [if_pos hp] at h; exact ETables_get_tagOf h
+    · rw [if_neg hp] at h
+      by_cases hs : st.scratchOn
+      · rw [if_pos hs] at h; exact ETables_get_tagOf h
+      · rw [if_neg hs] at h; exact absurd h (by simp)
+
+/-- info: 'ConRon.Refine2.EStore_view_tagOf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms EStore_view_tagOf
+
 end ConRon.Refine2
