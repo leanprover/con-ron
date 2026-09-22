@@ -124,6 +124,14 @@ theorem viewL_run {h : LIdx} {s s' : AState} {v : LNodeView}
   AM.of_run (P := fun t => t = s)
     (Q := fun r t => t = s ∧ s.store.ls.view h = some r) rfl hr (viewL_spec s h)
 
+/-- con-leche: none — `view`'s inversion, off `Bridge/Specs.lean`'s triple.
+(`Bridge/Inductives/Rel.lean` has the same three lines under the name
+`view_run`, one tier ABOVE this one, so this tier carries its own.) -/
+theorem viewE_run {h : EIdx} {s s' : AState} {v : ENodeView}
+    (hr : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ s.store.view h = some r) rfl hr (view_spec s h)
+
 /-- con-leche: none — trade the fuel for the rank once, at the top of each
 level inversion. -/
 theorem denoteL_view_eq {st : LStore} (hwf : LStoreWF st) {i : LIdx}
@@ -529,6 +537,696 @@ theorem canonLevelEq_run {ps ps' cs : List NIdx}
           exact (Option.some.inj hA).symm
         · intro h
           exact denoteN_inj hns hA (h ▸ hB)
+
+/-! ## The universe-argument lists -/
+
+/-- con-leche: none — `List`'s `==`, as a congruence.  (The same three lines
+as `level_beq_max`, at the list constructor; `simp` does not take a derived
+`BEq` apart either.) -/
+private theorem list_beq_cons {α : Type} [BEq α] [LawfulBEq α] {a b : α}
+    {as bs : List α} : (a :: as == b :: bs) = ((a == b) && (as == bs)) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, Bool.and_eq_true, beq_iff_eq, beq_iff_eq]
+  constructor
+  · intro h; injection h with h1 h2; exact ⟨h1, h2⟩
+  · intro h; rw [h.1, h.2]
+
+/-- con-leche: none — `denoteLList`'s cons inversion (`Bridge/Checker/Canon.lean`'s
+`denoteCIList_cons` at the level tier). -/
+theorem denoteLList_cons {st : LStore} {a : LIdx} {as : List LIdx}
+    {zs : List Level} (h : denoteLList st (a :: as) = some zs) :
+    ∃ x xs, denoteL st a = some x ∧ denoteLList st as = some xs ∧ zs = x :: xs := by
+  simp only [denoteLList, opt2_eq_some_iff] at h
+  obtain ⟨x, xs, hx, hxs, rfl⟩ := h
+  exact ⟨x, xs, hx, hxs, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:126-146 canonExprEqFast — the
+`.const` clause's universe-argument comparison, at two level-handle LISTS. -/
+theorem canonLevelListEq_run {ps ps' cs : List NIdx}
+    {psN ps'N : List ConLeche.Name} (fuel : Nat) :
+    ∀ (us vs : List LIdx) {xs ys : List Level} {r : Bool} {s s' : AState},
+      StateOK s → CanonMapD s.store.ns ps cs psN →
+      CanonMapD s.store.ns ps' cs ps'N →
+      denoteLList s.store.ls us = some xs →
+      denoteLList s.store.ls vs = some ys →
+      canonLevelListEq ps ps' cs fuel us vs s = .ok (r, s') →
+      s' = s ∧ r = (xs.map (ConLeche.canonLevel (ConLeche.canonNameMap psN)) ==
+        ys.map (ConLeche.canonLevel (ConLeche.canonNameMap ps'N))) := by
+  intro us
+  induction us with
+  | nil =>
+    intro vs xs ys r s s' hok hm hm' hxs hys hrun
+    simp only [denoteLList, Option.some.injEq] at hxs
+    subst hxs
+    cases vs with
+    | nil =>
+      simp only [denoteLList, Option.some.injEq] at hys
+      subst hys
+      simp only [Arena.canonLevelListEq] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, by simp⟩
+    | cons b bs =>
+      obtain ⟨q, qs, -, -, rfl⟩ := denoteLList_cons hys
+      simp only [Arena.canonLevelListEq] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, by simp⟩
+  | cons a as ih =>
+    intro vs xs ys r s s' hok hm hm' hxs hys hrun
+    obtain ⟨x, xt, hx, hxt, rfl⟩ := denoteLList_cons hxs
+    cases vs with
+    | nil =>
+      simp only [denoteLList, Option.some.injEq] at hys
+      subst hys
+      simp only [Arena.canonLevelListEq] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, by simp⟩
+    | cons b bs =>
+      obtain ⟨y, yt, hy, hyt, rfl⟩ := denoteLList_cons hys
+      simp only [Arena.canonLevelListEq] at hrun
+      obtain ⟨c1, s1, g1, k1⟩ := AM.bind_ok hrun
+      obtain ⟨rfl, he1⟩ := canonLevelEq_run fuel hok hm hm' hx hy g1
+      rcases AM.ite_ok k1 with ⟨hc, k2⟩ | ⟨hc, k2⟩
+      · obtain ⟨rfl, he2⟩ := ih bs hok hm hm' hxt hyt k2
+        refine ⟨rfl, ?_⟩
+        have h1 := eq_of_beq (he1 ▸ hc)
+        simp only [List.map_cons, list_beq_cons, h1, beq_self_eq_true,
+          Bool.true_and, he2]
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        refine ⟨rfl, ?_⟩
+        have h1 : (ConLeche.canonLevel (ConLeche.canonNameMap psN) x ==
+            ConLeche.canonLevel (ConLeche.canonNameMap ps'N) y) = false := by
+          cases hb : (ConLeche.canonLevel (ConLeche.canonNameMap psN) x ==
+              ConLeche.canonLevel (ConLeche.canonNameMap ps'N) y)
+          · rfl
+          · exact absurd (he1.trans hb) hc
+        simp only [List.map_cons, list_beq_cons, h1, Bool.false_and]
+
+/-- con-leche: none — `denoteLs`'s view inversion. -/
+theorem denoteLs_view_inv {st : LsStore} {i : LsIdx} {hs : LsNodeView}
+    {xs : List Level} (hv : st.view i = some hs) (hd : denoteLs st i = some xs) :
+    denoteLList st.ls hs = some xs := by
+  simp only [denoteLs, hv] at hd; exact hd
+
+/-- con-leche: none — `viewLs`'s inversion, off `Bridge/Specs.lean`'s
+triple. -/
+theorem viewLs_run {h : LsIdx} {s s' : AState} {v : LsNodeView}
+    (hr : viewLs h s = .ok (v, s')) : s' = s ∧ s.store.lss.view h = some v :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ s.store.lss.view h = some r) rfl hr (viewLs_spec s h)
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:126-146 canonExprEqFast — the same
+at two interned universe-argument list HANDLES. -/
+theorem canonLevelsEq_run {ps ps' cs : List NIdx}
+    {psN ps'N : List ConLeche.Name} {fuel : Nat} {us vs : LsIdx}
+    {xs ys : List Level} {r : Bool} {s s' : AState}
+    (hok : StateOK s) (hm : CanonMapD s.store.ns ps cs psN)
+    (hm' : CanonMapD s.store.ns ps' cs ps'N)
+    (hx : denoteLs s.store.lss us = some xs)
+    (hy : denoteLs s.store.lss vs = some ys)
+    (hrun : canonLevelsEq ps ps' cs fuel us vs s = .ok (r, s')) :
+    s' = s ∧ r = (xs.map (ConLeche.canonLevel (ConLeche.canonNameMap psN)) ==
+      ys.map (ConLeche.canonLevel (ConLeche.canonNameMap ps'N))) := by
+  simp only [Arena.canonLevelsEq] at hrun
+  obtain ⟨va, s1, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, hva⟩ := viewLs_run g1
+  obtain ⟨vb, s2, g2, k2⟩ := AM.bind_ok k1
+  obtain ⟨rfl, hvb⟩ := viewLs_run g2
+  exact canonLevelListEq_run fuel va vb hok hm hm'
+    (denoteLs_view_inv hva hx) (denoteLs_view_inv hvb hy) k2
+
+/-! ## The term comparison -/
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:126-146 canonExprEqFast — **the
+lockstep term comparison is con-leche's**, arm for arm.
+
+The bridge is to `canonExprEqFast` and NOT to `canonExpr … = canonExpr …`:
+con-leche proves the two equivalent itself (`canonExprEqFast_iff`, a pure
+`Expr` induction), and taking its word for that is what keeps this theorem a
+transliteration instead of a second proof of the same fact.  A hundred arms,
+of which ninety are the constructor mismatch and ten are con-leche's own
+clauses. -/
+theorem canonExprEq_run {ps ps' cs : List NIdx}
+    {psN ps'N : List ConLeche.Name} :
+    ∀ (fuel : Nat) {a b : EIdx} {x y : Expr} {r : Bool} {s s' : AState},
+      StateOK s → CanonMapD s.store.ns ps cs psN →
+      CanonMapD s.store.ns ps' cs ps'N →
+      denoteE s.store a = some x → denoteE s.store b = some y →
+      canonExprEq ps ps' cs fuel a b s = .ok (r, s') →
+      s' = s ∧ r = ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+        (ConLeche.canonNameMap ps'N) x y := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro a b x y r s s' _ _ _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro a b x y r s s' hok hm hm' hx hy hrun
+    have hwf : StoreWF s.store := hok.wf
+    obtain ⟨rk, hrk⟩ := hok.wf
+    have hns : NStoreWF s.store.ns := hrk.nsWF
+    simp only [Arena.canonExprEq] at hrun
+    obtain ⟨va, s1, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hva⟩ := viewE_run g1
+    obtain ⟨vb, s2, g2, k2⟩ := AM.bind_ok k1
+    obtain ⟨rfl, hvb⟩ := viewE_run g2
+    cases va with
+    | bvar iA =>
+      obtain rfl := denote_bvar_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | fvar kA tA =>
+      obtain ⟨xT, rfl, hxT⟩ := denote_fvar_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+        · obtain ⟨rfl, he⟩ := ih hok hm hm' hxT hyT k3
+          exact ⟨rfl, by simp only [ConLeche.canonExprEqFast, hc, Bool.true_and, he]⟩
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+          have hcf : (kA == kB) = false := by simpa using hc
+          exact ⟨rfl, by simp only [ConLeche.canonExprEqFast, hcf, Bool.false_and]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | sort uA =>
+      obtain ⟨xU, rfl, hxU⟩ := denote_sort_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, he⟩ := canonLevelEq_run fuel hok hm hm' hxU hyU k2
+        exact ⟨rfl, by simp only [ConLeche.canonExprEqFast, he]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | const nA lA =>
+      obtain ⟨xN, xL, rfl, hxN, hxL⟩ := denote_const_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+        · obtain ⟨rfl, he⟩ := canonLevelsEq_run hok hm hm' hxL hyL k3
+          refine ⟨rfl, ?_⟩
+          obtain rfl := eq_of_beq hc
+          rw [hxN] at hyN
+          obtain rfl := Option.some.inj hyN
+          simp only [ConLeche.canonExprEqFast, beq_self_eq_true, Bool.true_and, he]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+          refine ⟨rfl, ?_⟩
+          have hnm : (xN == yN) = false := by
+            cases hb : (xN == yN)
+            · rfl
+            · exfalso
+              have hyN' := hyN
+              rw [← eq_of_beq hb] at hyN'
+              exact hc (beq_iff_eq.mpr (denoteN_inj hns hxN hyN'))
+          simp only [ConLeche.canonExprEqFast, hnm, Bool.false_and]
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | app fA aA =>
+      obtain ⟨xF, xA, rfl, hxF, hxA⟩ := denote_app_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+        obtain ⟨rfl, he1⟩ := ih hok hm hm' hxF hyF g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨rfl, he2⟩ := ih hok hm hm' hxA hyA k4
+          refine ⟨rfl, ?_⟩
+          have h1 := he1 ▸ hc
+          simp only [ConLeche.canonExprEqFast, h1, Bool.true_and, he2]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+          refine ⟨rfl, ?_⟩
+          have h1 : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+              (ConLeche.canonNameMap ps'N) xF yF = false := by
+            cases hb : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+                (ConLeche.canonNameMap ps'N) xF yF
+            · rfl
+            · exact absurd (he1.trans hb) hc
+          simp only [ConLeche.canonExprEqFast, h1, Bool.false_and]
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | lam tA bA mA =>
+      obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_lam_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+        obtain ⟨rfl, he1⟩ := ih hok hm hm' hxT hyT g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨rfl, he2⟩ := ih hok hm hm' hxB hyB k4
+          refine ⟨rfl, ?_⟩
+          have h1 := he1 ▸ hc
+          simp only [ConLeche.canonExprEqFast, h1, Bool.true_and, he2]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+          refine ⟨rfl, ?_⟩
+          have h1 : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+              (ConLeche.canonNameMap ps'N) xT yT = false := by
+            cases hb : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+                (ConLeche.canonNameMap ps'N) xT yT
+            · rfl
+            · exact absurd (he1.trans hb) hc
+          simp only [ConLeche.canonExprEqFast, h1, Bool.false_and]
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | forallE tA bA mA =>
+      obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_forallE_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+        obtain ⟨rfl, he1⟩ := ih hok hm hm' hxT hyT g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨rfl, he2⟩ := ih hok hm hm' hxB hyB k4
+          refine ⟨rfl, ?_⟩
+          have h1 := he1 ▸ hc
+          simp only [ConLeche.canonExprEqFast, h1, Bool.true_and, he2]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+          refine ⟨rfl, ?_⟩
+          have h1 : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+              (ConLeche.canonNameMap ps'N) xT yT = false := by
+            cases hb : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+                (ConLeche.canonNameMap ps'N) xT yT
+            · rfl
+            · exact absurd (he1.trans hb) hc
+          simp only [ConLeche.canonExprEqFast, h1, Bool.false_and]
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | letE tA wA bA =>
+      obtain ⟨xT, xW, xB, rfl, hxT, hxW, hxB⟩ := denote_letE_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+        obtain ⟨rfl, he1⟩ := ih hok hm hm' hxT hyT g3
+        rcases AM.ite_ok k3 with ⟨hc1, k4⟩ | ⟨hc1, k4⟩
+        · obtain ⟨c2, s4, g4, k5⟩ := AM.bind_ok k4
+          obtain ⟨rfl, he2⟩ := ih hok hm hm' hxW hyW g4
+          rcases AM.ite_ok k5 with ⟨hc2, k6⟩ | ⟨hc2, k6⟩
+          · obtain ⟨rfl, he3⟩ := ih hok hm hm' hxB hyB k6
+            refine ⟨rfl, ?_⟩
+            have h1 := he1 ▸ hc1
+            have h2 := he2 ▸ hc2
+            simp only [ConLeche.canonExprEqFast, h1, h2, Bool.and_self, Bool.true_and, he3]
+          · obtain ⟨rfl, rfl⟩ := AM.pure_ok k6
+            refine ⟨rfl, ?_⟩
+            have h1 := he1 ▸ hc1
+            have h2 : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+                (ConLeche.canonNameMap ps'N) xW yW = false := by
+              cases hb : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+                  (ConLeche.canonNameMap ps'N) xW yW
+              · rfl
+              · exact absurd (he2.trans hb) hc2
+            simp only [ConLeche.canonExprEqFast, h1, h2, Bool.true_and, Bool.false_and]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+          refine ⟨rfl, ?_⟩
+          have h1 : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+              (ConLeche.canonNameMap ps'N) xT yT = false := by
+            cases hb : ConLeche.canonExprEqFast (ConLeche.canonNameMap psN)
+                (ConLeche.canonNameMap ps'N) xT yT
+            · rfl
+            · exact absurd (he1.trans hb) hc1
+          simp only [ConLeche.canonExprEqFast, h1, Bool.false_and]
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | lit qA =>
+      obtain rfl := denote_lit_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+    | proj pA jA eA =>
+      obtain ⟨xN, xE, rfl, hxN, hxE⟩ := denote_proj_inv hwf hva hx
+      cases vb with
+      | bvar iB =>
+        obtain rfl := denote_bvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | fvar kB tB =>
+        obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | sort uB =>
+        obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | const nB lB =>
+        obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | app fB aB =>
+        obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lam tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | forallE tB bB mB =>
+        obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | letE tB wB bB =>
+        obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | lit qB =>
+        obtain rfl := denote_lit_inv hwf hvb hy
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
+      | proj pB jB eB =>
+        obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+        rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+        · obtain ⟨rfl, he⟩ := ih hok hm hm' hxE hyE k3
+          refine ⟨rfl, ?_⟩
+          simp only [Bool.and_eq_true] at hc
+          obtain rfl := eq_of_beq hc.1
+          rw [hxN] at hyN
+          obtain rfl := Option.some.inj hyN
+          simp only [ConLeche.canonExprEqFast, beq_self_eq_true, hc.2, Bool.and_self,
+            Bool.true_and, he]
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+          refine ⟨rfl, ?_⟩
+          have hbad : ((xN == yN) && (jA == jB)) = false := by
+            cases hb : (xN == yN)
+            · simp
+            · cases hb2 : (jA == jB)
+              · simp
+              · exfalso
+                have hyN' := hyN
+                rw [← eq_of_beq hb] at hyN'
+                exact hc (by simp [denoteN_inj hns hxN hyN', hb2])
+          simp only [ConLeche.canonExprEqFast, hbad, Bool.false_and]
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:198-201 ConstantVal.canonEq — the
 handle comparison is the term comparison.
