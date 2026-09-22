@@ -318,6 +318,28 @@ theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
   show fe.push ci = mkIFEnv (fe.push ci).env
   simp only [IFEnv.push, mkIFEnv, mkIFEnvGo, hidx, hvb]
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — **every counter the
+index build hands out is BELOW the counter it stops at**, which is what makes
+`IFEnv.push`'s raised `visibleBelow` safe: a push cannot REVEAL an entry the
+old index was hiding.  `Bridge/Inductives/Rel.lean`'s `ProjOut.push` is the
+consumer (task #97-P3-Ind round 2 proved it there and said it belonged here;
+round 3 moved it). -/
+theorem mkIFEnvGo_counter_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
+    (c : Nat) (ci : IConstantInfo),
+    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < (mkIFEnvGo cs).1 := by
+  intro cs
+  induction cs with
+  | nil => intro n c ci h; simp [mkIFEnvGo] at h
+  | cons a as ih =>
+    intro n c ci h
+    simp only [mkIFEnvGo] at h ⊢
+    rw [Std.HashMap.getElem?_insert] at h
+    split at h
+    · rename_i hEq
+      obtain rfl := Prod.mk.inj (Option.some.inj h) |>.1
+      omega
+    · exact Nat.lt_succ_of_lt (ih n c ci h)
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **the step only
 PUSHED**: everything the fold's step did to the environment was `IFEnv.push`,
 so the old list is a suffix of the new one.  `Arena/Promote.lean`'s

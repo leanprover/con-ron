@@ -27,8 +27,6 @@ con-leche's own are `LooseBVarMemoInv` (`StructParts.lean:428-433`) and
 predicate at handle keys, through `denoteE`.
 -/
 import ConRon.Bridge.Inductives.Rel
-import ConRon.Bridge.ExprOps.Ranges
-import ConRon.Bridge.ExprOps.Spine
 
 namespace ConRon.Bridge.Inductives
 
@@ -542,7 +540,13 @@ theorem structFamI_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
 Does the constructor's residual target the family?  A `Bool` answer, so `RV`
 and no target store — task #97-P3-0 §5's finding 1.
 
-`sorry`: `structFamI_spec` and one handle equality, which is `denoteE_inj`. -/
+**CLOSED** (task #97-P3-Ind round 3): `paramLevels_spec` and
+`structPsAt_spec` (both closed in round 2), `Bridge/ExprOps/Spine.lean`'s
+closed `getAppFn_spec`/`getAppArgs_spec` in run form, and the THREE handle
+comparisons — one at a handle (`beq_ehandle_eq`), one at a length
+(`denoteEList_len`) and one at a handle LIST (`beq_ehandleList_eq` after
+`denoteEList_take`).  Two of the three are `denoteE_inj`, DESIGN §8.3's
+soundness obligation: this is the tier's first cash of it. -/
 theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP o nIdx : Nat)
     (cbody : EIdx) (cbodyP : Expr) :
@@ -551,7 +555,31 @@ theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
         denoteE st cbody = some cbodyP)
       (Arena.structCtorResidOk T lps nP o nIdx cbody)
       (RV (ConLeche.structCtorResidOk TP lpsP nP o nIdx cbodyP)) := by
-  sorry
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hT, hlps, hcb⟩ := hp
+  simp only [Arena.structCtorResidOk] at hrun
+  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hs1, hus⟩ := paramLevels_spec lps lpsP _ _ us hok hlps h1
+  obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hs2, hhd⟩ := internConstE_run hs1.ok (denoteN_ext hT hs1.ext) hus h3
+  have hcb2 : denoteE s₂.store cbody = some cbodyP :=
+    denote_ext hcb (hs1.ext.trans hs2.ext)
+  obtain ⟨fn, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨he3, hfn⟩ := getAppFn_run hs2.ok hcb2 h5
+  rw [he3] at h6
+  obtain ⟨args, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨he4, hargs⟩ := getAppArgs_run hs2.ok hcb2 h7
+  rw [he4] at h8
+  obtain ⟨ps, s₅, h9, h10⟩ := bindOk h8
+  obtain ⟨hs5, hps⟩ := structPsAt_spec o nP _ _ ps hs2.ok trivial h9
+  obtain ⟨rfl, rfl⟩ := pureOk h10
+  refine ⟨hs1.trans (hs2.trans hs5), ?_⟩
+  show _ = ConLeche.structCtorResidOk TP lpsP nP o nIdx cbodyP
+  rw [ConLeche.structCtorResidOk,
+    beq_ehandle_eq hs5.ok.wf (denote_ext hfn hs5.ext) (denote_ext hhd hs5.ext),
+    beq_ehandleList_eq hs5.ok.wf
+      (denoteEList_take (denoteEList_ext hs5.ext _ _ hargs) nP) hps,
+    denoteEList_len (denoteEList_ext hs5.ext _ _ hargs)]
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:204-211 structMotiveTyI
 The motive's type at the parameters' frame.

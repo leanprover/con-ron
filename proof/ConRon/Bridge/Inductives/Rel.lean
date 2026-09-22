@@ -109,6 +109,8 @@ name.
 -/
 import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.ExprOps.Spine
+import ConRon.Bridge.ExprOps.Ranges
 
 namespace ConRon.Bridge.Inductives
 
@@ -780,6 +782,141 @@ theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {n p : NIdx}
     rw [hb] at hne
     exact absurd hne (by simp)
 
+/-- con-leche: none — **an EXPRESSION-handle comparison is a structural
+comparison**, at both signs.  The `false` half is `denoteE_inj`
+(`Arena/WFProofs.lean`) — DESIGN §8.3's soundness obligation, which the two
+recognisers cash at every `==`. -/
+theorem beq_ehandle_eq {st : EStore} (hwf : StoreWF st) {a b : EIdx}
+    {x y : Expr} (ha : denoteE st a = some x) (hb : denoteE st b = some y) :
+    (a == b) = (x == y) := by
+  cases h1 : a == b with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (a == b) = true := beq_iff_eq.mpr (denoteE_inj hwf ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — `denoteE_inj` at a LIST: two handle lists that denote
+the same terms ARE the same list. -/
+theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ {as bs : List EIdx} {xs : List Expr},
+      Frontend.denoteEList st as = some xs →
+      Frontend.denoteEList st bs = some xs → as = bs := by
+  intro as
+  induction as with
+  | nil =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteEList] at ha
+    obtain rfl := Option.some.inj ha
+    cases bs with
+    | nil => rfl
+    | cons b bs =>
+      simp only [Frontend.denoteEList] at hb
+      split at hb
+      · exact absurd hb (by simp)
+      · exact absurd hb (by simp)
+  | cons a as ih =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteEList] at ha
+    cases hx : denoteE st a with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : Frontend.denoteEList st as with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        obtain rfl := Option.some.inj ha
+        cases bs with
+        | nil => simp only [Frontend.denoteEList] at hb; exact absurd hb (by simp)
+        | cons b bs =>
+          simp only [Frontend.denoteEList] at hb
+          cases hy : denoteE st b with
+          | none => rw [hy] at hb; simp at hb
+          | some z =>
+            cases hys : Frontend.denoteEList st bs with
+            | none => rw [hy, hys] at hb; simp at hb
+            | some zs =>
+              rw [hy, hys] at hb
+              obtain ⟨rfl, rfl⟩ := List.cons.inj (Option.some.inj hb)
+              rw [denoteE_inj hwf hx hy, ih hxs hys]
+
+/-- con-leche: none — and so a handle-LIST comparison is a structural one. -/
+theorem beq_ehandleList_eq {st : EStore} (hwf : StoreWF st)
+    {as bs : List EIdx} {xs ys : List Expr}
+    (ha : Frontend.denoteEList st as = some xs)
+    (hb : Frontend.denoteEList st bs = some ys) : (as == bs) = (xs == ys) := by
+  cases h1 : as == bs with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteEList_inj hwf ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — a denoting handle list denotes at a PREFIX. -/
+theorem denoteEList_take {st : EStore} :
+    ∀ {hs : List EIdx} {xs : List Expr},
+      Frontend.denoteEList st hs = some xs → ∀ (n : Nat),
+        Frontend.denoteEList st (hs.take n) = some (xs.take n) := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs h n
+    simp only [Frontend.denoteEList] at h
+    obtain rfl := Option.some.inj h
+    simp [Frontend.denoteEList]
+  | cons a as ih =>
+    intro xs h n
+    simp only [Frontend.denoteEList] at h
+    cases hx : denoteE st a with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      cases hxs : Frontend.denoteEList st as with
+      | none => rw [hx, hxs] at h; simp at h
+      | some ys =>
+        rw [hx, hxs] at h
+        obtain rfl := Option.some.inj h
+        cases n with
+        | zero => simp [Frontend.denoteEList]
+        | succ n =>
+          simp only [List.take_succ_cons, Frontend.denoteEList, hx, ih hxs n]
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean getAppFn — the run form of
+`Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
+theorem getAppFn_run {fuel : Nat} {s₀ s' : AState} {h r : EIdx} {hP : Expr}
+    (hok : StateOK s₀) (hd : denoteE s₀.store h = some hP)
+    (hrun : Arena.getAppFn fuel h s₀ = .ok (r, s')) :
+    s' = s₀ ∧ denoteE s₀.store r = some hP.getAppFn := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.getAppFn_spec fuel s₀ h hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 hP hd⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean getAppArgs — the same for the
+argument list. -/
+theorem getAppArgs_run {fuel : Nat} {s₀ s' : AState} {h : EIdx}
+    {rs : List EIdx} {hP : Expr} (hok : StateOK s₀)
+    (hd : denoteE s₀.store h = some hP)
+    (hrun : Arena.getAppArgs fuel h s₀ = .ok (rs, s')) :
+    s' = s₀ ∧ Frontend.denoteEList s₀.store rs = some hP.getAppArgs := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.getAppArgs_spec fuel s₀ h hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 hP hd⟩
+
 /-- con-leche: none — **the level list reads at an INDEX**, with the fallback
 carried through: `structProjGuards`' `sorts.getD j z` against con-leche's
 `sorts.getD j .zero`. -/
@@ -1153,27 +1290,6 @@ theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv} {st₁ st₂ : EStore}
     · exact Or.inl h''
     · exact Or.inr (h''.mono hx)
   · exact Or.inr h'
-
-/-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — every counter the
-index build hands out is BELOW the counter it stops at.  What `ProjOut.push`
-needs and the only `mkIFEnvGo` fact outside `Bridge/Promote/Exact.lean`;
-**it belongs there**, beside `IFEnvCoh.push`, and is proved here because this
-round's `ProjOut` is the first consumer. -/
-theorem mkIFEnvGo_counter_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
-    (c : Nat) (ci : IConstantInfo),
-    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < (mkIFEnvGo cs).1 := by
-  intro cs
-  induction cs with
-  | nil => intro n c ci h; simp [mkIFEnvGo] at h
-  | cons a as ih =>
-    intro n c ci h
-    simp only [mkIFEnvGo] at h ⊢
-    rw [Std.HashMap.getElem?_insert] at h
-    split at h
-    · rename_i hEq
-      obtain rfl := Prod.mk.inj (Option.some.inj h) |>.1
-      omega
-    · exact Nat.lt_succ_of_lt (ih n c ci h)
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push that is
 not a projection table owes nothing**.  Thirteen of this tier's fourteen
