@@ -36,7 +36,7 @@ out.
 `pins/leanprover-lean4-v4.33.0.prelude.ndjson`.  The two are the same bytes,
 and **that is a gate, not a theorem**: `scripts/gen-prelude-lean.sh` generates
 `PreludeText.lean` from con-leche's own committed file and
-`scripts/gen-prelude-lean.sh --check` is step 10 of `scripts/gates.sh`.
+`scripts/gen-prelude-lean.sh --check` is step 11 of `scripts/gates.sh`.
 `PreludeText.lean`'s own module note states the wrapping is byte-exact
 ("the concatenation of the chunks is the ndjson file, byte for byte,
 including its final newline").
@@ -75,7 +75,7 @@ def PersPreludeIx (pre : PreludeIx) : Prop := PersDecls pre.decls
 /-- con-leche: ConLeche/Frontend/Prelude.lean:67 builtinPreludeE — **the
 built-in prelude parses to con-leche's**, parametrically in the bytes: the
 hypothesis is that the committed constant IS con-leche's committed file, which
-`scripts/gen-prelude-lean.sh --check` (step 10 of `scripts/gates.sh`) is the
+`scripts/gen-prelude-lean.sh --check` (step 11 of `scripts/gates.sh`) is the
 proof of, and which `Arena/Frontend/PreludeText.lean`'s module note states as
 its own contract.
 

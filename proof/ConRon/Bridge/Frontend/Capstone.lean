@@ -205,7 +205,7 @@ The extra hypothesis `hbytes` is the PRELUDE GATE, not a proof obligation:
 `Arena/Frontend/PreludeText.lean`'s committed constant is generated from
 con-leche's own `pins/leanprover-lean4-v4.33.0.prelude.ndjson` by
 `scripts/gen-prelude-lean.sh`, and `scripts/gen-prelude-lean.sh --check` is
-step 10 of `scripts/gates.sh`.  Naming it as a hypothesis is what keeps the
+step 11 of `scripts/gates.sh`.  Naming it as a hypothesis is what keeps the
 axiom census at Lean's own three — the same move the original made for
 `PINS_TEXT`, and the reason its `_prelude` pair cost nothing.
 
