@@ -135,6 +135,14 @@ namespace ConRon.Bridge
 #print axioms denoteCIList_mono
 #print axioms denoteFEnv_mono
 
+-- `StepOK` (task #97-P3-Checker-3): the invariant at an index a step has just
+-- extended, and the three ways it moves.  `FoldOK` is `StepOK` plus the two
+-- persistence clauses, and the rule is that only a fold-step BOUNDARY may
+-- conclude the latter.
+#print axioms StepOK.mono
+#print axioms StepOK.pmono
+#print axioms FoldOK.toStepOK
+
 -- the name-shape guards (item 10) and the handle/name comparison they cash
 #print axioms denoteNList_contains
 #print axioms beq_handle_iff

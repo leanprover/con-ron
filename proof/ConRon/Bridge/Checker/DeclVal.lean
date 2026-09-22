@@ -10,13 +10,13 @@ module is its bridge tier.  Four groups, and they are exactly the four things
 1. **the three value checks** — `checkDefnVal`, `checkThmVal`,
    `checkOpaqueVal`.  Each is `installValue` plus one inference and one
    conversion, and each ends in an `IFEnv.push`, so each concludes `Pushed`
-   and a `denoteFEnv` for the extended environment.  Their state frame is
-   `CoreStep` and not `StateOK` (task #97-P3-Checker-2): each CALLS the core,
-   so the caches move, and what survives is the invariant at the environment
-   the core ran at — which is the pre-insertion one, exactly as
-   `checkConstantVal_bridge` concludes.  They also hand back
-   `IFEnvOK env' fe' s'`, which is what the two pin gates below read `fe2`
-   for;
+   and `Bridge/Checker/Inv.lean`'s **`StepOK env' fe' s'`** for the extended
+   environment — the index answers, the environment is well formed, the index
+   is its list's index, and it denotes.  Their state frame is `CoreStep` and
+   not `StateOK` (task #97-P3-Checker-2): each CALLS the core, so the caches
+   move, and what survives is the invariant at the environment the core ran at
+   — which is the pre-insertion one, exactly as `checkConstantVal_bridge`
+   concludes.  `StepOK` is what the two pin gates below read `fe2` for;
 2. **the structural-`Nat` gate** — `natOpGuard` / `natOpStoredOkAll` /
    `certifyNatEqs`, run in the PRE-insertion environment with the operation's
    self-references replaced by its stored value;
@@ -32,15 +32,16 @@ take both for the same reason.  So each needs two invariants at once, which is
 a shape nothing else in the tier has, and stating them here keeps the arms
 uniform.
 
-**What the second one is, corrected** (task #97-P3-Checker-2).  The round that
-stated these asked for `FoldOK μ env2 fe2 s` — and `FoldOK` carries
-`PersIFEnv fe2`, which is **false**: `fe2` is the environment the value check
-has just extended INSIDE the per-declaration bracket, so the constant it holds
-carries a freshly interned, hence scratch, type.  It is task #97-P3-Ind's
-finding at a second site.  What the gates actually read `fe2` for is
-`reduceStoredOk fe2 c` / `divModEnvGuard fe2 c`, two index lookups and no core
-call, so the clause they need is `IFEnvOK env2 fe2 s` and nothing more — and
-that is what the three value checks above now hand back.
+**What the second one is, corrected** (task #97-P3-Checker-2, named in task
+#97-P3-Checker-3).  The round that stated these asked for
+`FoldOK μ env2 fe2 s` — and `FoldOK` carries `PersIFEnv fe2`, which is
+**false**: `fe2` is the environment the value check has just extended INSIDE
+the per-declaration bracket, so the constant it holds carries a freshly
+interned, hence scratch, type.  It is task #97-P3-Ind's finding at a second
+site.  What the gates actually read `fe2` for is `reduceStoredOk fe2 c` /
+`divModEnvGuard fe2 c`, two index lookups and no core call, so the clause they
+need is **`StepOK env2 fe2 s`** — `Bridge/Checker/Inv.lean`'s name for exactly
+that, and what the three value checks above now hand back.
 
 **Both gates only ever DECLINE or pass.**  Neither installs anything: their
 result is `Unit` on both sides, and the environment the arm returns is the one
@@ -133,10 +134,8 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : checkDefnVal μ fe cv value hint s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧
-      IFEnvCoh fe' ∧ Pushed fe fe' ∧
-      ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-        IFEnvOK env' fe' s' ∧ EnvWF env' ∧
+    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧
+      ∃ env' F, StepOK env' fe' s' ∧
         ConLeche.checkDefnVal (ConLeche.fueledOps μ F) env c x hint = .ok env' := by
   sorry
 
@@ -155,10 +154,8 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : checkThmVal μ fe cv value s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧
-      IFEnvCoh fe' ∧ Pushed fe fe' ∧
-      ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-        IFEnvOK env' fe' s' ∧ EnvWF env' ∧
+    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧
+      ∃ env' F, StepOK env' fe' s' ∧
         ConLeche.checkThmVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
   sorry
 
@@ -175,10 +172,8 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : checkOpaqueVal μ fe cv value s = .ok (fe', s')) :
-    CoreStep μ env fe s s' ∧
-      IFEnvCoh fe' ∧ Pushed fe fe' ∧
-      ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-        IFEnvOK env' fe' s' ∧ EnvWF env' ∧
+    CoreStep μ env fe s s' ∧ Pushed fe fe' ∧
+      ∃ env' F, StepOK env' fe' s' ∧
         ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
   sorry
 
@@ -355,7 +350,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hok2 : IFEnvOK env2 fe2 s)
+    (hok : FoldOK μ env fe s) (hok2 : StepOK env2 fe2 s)
     (hpins : PinsDenote s.store pins pinsP)
     (hn : denoteN s.store.ns cn = some nm)
     (hrun : checkDivModPin μ pins fe fe2 cn s = .ok ((), s')) :
@@ -375,7 +370,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
     {x : Expr} {s s' : AState} (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) (hok : FoldOK μ env fe s)
-    (hok2 : IFEnvOK env2 fe2 s)
+    (hok2 : StepOK env2 fe2 s)
     (hn : denoteN s.store.ns cn = some nm)
     (hv : denoteE s.store value = some x)
     (hrun : checkReducePin μ fe fe2 cn value s = .ok ((), s')) :
