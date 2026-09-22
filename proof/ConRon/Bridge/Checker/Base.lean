@@ -42,6 +42,7 @@ That is a tier of its own and this round states it.
 -/
 import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.ExprOps.Ranges
+import ConLeche.Verify.BridgeDecl
 
 open ConLeche ConRon.Arena
 
@@ -289,6 +290,26 @@ re-establishes `PinsOK` after every append.
 `PinStep` is the frame all nineteen steps share, so the chain is nineteen
 lines of the same shape. -/
 
+/-- con-leche: none — one more denoting handle at the end of a denoting list;
+the chain of nineteen pin reads and interns below builds its answer with
+it. -/
+theorem denoteNL_snoc {st : EStore} :
+    ∀ (hs : List NIdx) (xs : List ConLeche.Name) (h : NIdx) (x : ConLeche.Name),
+      denoteNL st hs xs → denoteN st.ns h = some x →
+        denoteNL st (hs ++ [h]) (xs ++ [x]) := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs h x hd hn
+    cases xs with
+    | nil => exact ⟨hn, trivial⟩
+    | cons _ _ => exact hd.elim
+  | cons a as ih =>
+    intro xs h x hd hn
+    cases xs with
+    | nil => exact hd.elim
+    | cons y ys => exact ⟨hd.1, ih ys h x hd.2 hn⟩
+
 /-- con-leche: none — the frame a pin read or a name intern leaves: the store
 only grew, and nothing else moved. -/
 structure PinStep (s s' : AState) : Prop where
@@ -333,20 +354,146 @@ theorem internName_run {nm : ConLeche.Name} {s s' : AState} {n : NIdx}
   obtain ⟨h1, h2, _, _, _, h6, h7, h8, h9⟩ := h
   exact ⟨⟨h1, h2, h6, h7, h8⟩, h9⟩
 
+set_option maxHeartbeats 2000000 in
+set_option linter.constructorNameAsVariable false in
+set_option linter.unusedVariables false in
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the nineteen reserved names, as handles that denote them.**  Six are pin
 slots and thirteen are fresh interns, so the run appends; the frame is
 `PinStep` and the answer is `denoteNL` at con-leche's own list.
 
-`sorry`: the nineteen-step chain over `pinAt_run` and `internName_run`, each
-step transporting the earlier denotations across its `Ext` and `PinsOK` across
-its append.  It is the pinned-literal exactness of task #97-P3-Checker's items
-13/15 at the one caller that the declaration front door has. -/
+Nineteen steps of one shape: `pinAt_run` reads the table and leaves the state
+alone, `internName_run` appends, and the accumulated denotations are carried
+across each append by `Bridge/StateOK.lean`'s `denoteNL_ext`. -/
 theorem reservedBasisNames_run {s s' : AState} {hs : List NIdx}
     (hwf : StoreWF s.store) (hp : PinsOK s)
     (hr : reservedBasisNames s = .ok (hs, s')) :
     PinStep s s' ∧ denoteNL s'.store hs reservedBasisNameValues := by
-  sorry
+  simp only [Arena.reservedBasisNames] at hr
+  have r0 := hr
+  -- step 1
+  obtain ⟨h1, t1, g1, r1⟩ := AM.bind_ok r0
+  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.eqName) hp rfl g1
+  rw [e1] at r1
+  have acc1 : denoteNL s.store [h1] [ConLeche.eqName] := ⟨d1, trivial⟩
+  -- step 2
+  obtain ⟨h2, t2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨p2, d2⟩ := internName_run hwf g2
+  have acc2 := denoteNL_snoc _ _ h2 ConLeche.eqReflName
+    (denoteNL_ext p2.ext _ _ acc1) d2
+  have k2 : PinStep s t2 := p2
+  have q2 : PinsOK t2 := p2.pinsOK hp
+  -- step 3
+  obtain ⟨h3, t3, g3, r3⟩ := AM.bind_ok r2
+  obtain ⟨p3, d3⟩ := internName_run p2.wf g3
+  have acc3 := denoteNL_snoc _ _ h3 (ConLeche.eqName.str "rec")
+    (denoteNL_ext p3.ext _ _ acc2) d3
+  have k3 : PinStep s t3 := k2.trans p3
+  have q3 : PinsOK t3 := p3.pinsOK q2
+  -- step 4
+  obtain ⟨h4, t4, g4, r4⟩ := AM.bind_ok r3
+  obtain ⟨e4, d4⟩ := pinAt_run (x := ConLeche.natName) q3 rfl g4
+  rw [e4] at r4
+  have acc4 := denoteNL_snoc _ _ h4 ConLeche.natName acc3 d4
+  -- step 5
+  obtain ⟨h5, t5, g5, r5⟩ := AM.bind_ok r4
+  obtain ⟨e5, d5⟩ := pinAt_run (x := ConLeche.natZeroName) q3 rfl g5
+  rw [e5] at r5
+  have acc5 := denoteNL_snoc _ _ h5 ConLeche.natZeroName acc4 d5
+  -- step 6
+  obtain ⟨h6, t6, g6, r6⟩ := AM.bind_ok r5
+  obtain ⟨e6, d6⟩ := pinAt_run (x := ConLeche.natSuccName) q3 rfl g6
+  rw [e6] at r6
+  have acc6 := denoteNL_snoc _ _ h6 ConLeche.natSuccName acc5 d6
+  -- step 7
+  obtain ⟨h7, t7, g7, r7⟩ := AM.bind_ok r6
+  obtain ⟨p7, d7⟩ := internName_run p3.wf g7
+  have acc7 := denoteNL_snoc _ _ h7 (ConLeche.natName.str "rec")
+    (denoteNL_ext p7.ext _ _ acc6) d7
+  have k7 : PinStep s t7 := k3.trans p7
+  have q7 : PinsOK t7 := p7.pinsOK q3
+  -- step 8
+  obtain ⟨h8, t8, g8, r8⟩ := AM.bind_ok r7
+  obtain ⟨e8, d8⟩ := pinAt_run (x := ConLeche.punitName) q7 rfl g8
+  rw [e8] at r8
+  have acc8 := denoteNL_snoc _ _ h8 ConLeche.punitName acc7 d8
+  -- step 9
+  obtain ⟨h9, t9, g9, r9⟩ := AM.bind_ok r8
+  obtain ⟨p9, d9⟩ := internName_run p7.wf g9
+  have acc9 := denoteNL_snoc _ _ h9 ConLeche.punitUnitName
+    (denoteNL_ext p9.ext _ _ acc8) d9
+  have k9 : PinStep s t9 := k7.trans p9
+  have q9 : PinsOK t9 := p9.pinsOK q7
+  -- step 10
+  obtain ⟨h10, t10, g10, r10⟩ := AM.bind_ok r9
+  obtain ⟨p10, d10⟩ := internName_run p9.wf g10
+  have acc10 := denoteNL_snoc _ _ h10 (ConLeche.punitName.str "rec")
+    (denoteNL_ext p10.ext _ _ acc9) d10
+  have k10 : PinStep s t10 := k9.trans p10
+  have q10 : PinsOK t10 := p10.pinsOK q9
+  -- step 11
+  obtain ⟨h11, t11, g11, r11⟩ := AM.bind_ok r10
+  obtain ⟨p11, d11⟩ := internName_run p10.wf g11
+  have acc11 := denoteNL_snoc _ _ h11 ConLeche.emptyName
+    (denoteNL_ext p11.ext _ _ acc10) d11
+  have k11 : PinStep s t11 := k10.trans p11
+  have q11 : PinsOK t11 := p11.pinsOK q10
+  -- step 12
+  obtain ⟨h12, t12, g12, r12⟩ := AM.bind_ok r11
+  obtain ⟨p12, d12⟩ := internName_run p11.wf g12
+  have acc12 := denoteNL_snoc _ _ h12 (ConLeche.emptyName.str "rec")
+    (denoteNL_ext p12.ext _ _ acc11) d12
+  have k12 : PinStep s t12 := k11.trans p12
+  have q12 : PinsOK t12 := p12.pinsOK q11
+  -- step 13
+  obtain ⟨h13, t13, g13, r13⟩ := AM.bind_ok r12
+  obtain ⟨p13, d13⟩ := internName_run p12.wf g13
+  have acc13 := denoteNL_snoc _ _ h13 ConLeche.falseName
+    (denoteNL_ext p13.ext _ _ acc12) d13
+  have k13 : PinStep s t13 := k12.trans p13
+  have q13 : PinsOK t13 := p13.pinsOK q12
+  -- step 14
+  obtain ⟨h14, t14, g14, r14⟩ := AM.bind_ok r13
+  obtain ⟨p14, d14⟩ := internName_run p13.wf g14
+  have acc14 := denoteNL_snoc _ _ h14 (ConLeche.falseName.str "rec")
+    (denoteNL_ext p14.ext _ _ acc13) d14
+  have k14 : PinStep s t14 := k13.trans p14
+  have q14 : PinsOK t14 := p14.pinsOK q13
+  -- step 15
+  obtain ⟨h15, t15, g15, r15⟩ := AM.bind_ok r14
+  obtain ⟨p15, d15⟩ := internName_run p14.wf g15
+  have acc15 := denoteNL_snoc _ _ h15 ConLeche.quotName
+    (denoteNL_ext p15.ext _ _ acc14) d15
+  have k15 : PinStep s t15 := k14.trans p15
+  have q15 : PinsOK t15 := p15.pinsOK q14
+  -- step 16
+  obtain ⟨h16, t16, g16, r16⟩ := AM.bind_ok r15
+  obtain ⟨p16, d16⟩ := internName_run p15.wf g16
+  have acc16 := denoteNL_snoc _ _ h16 ConLeche.quotMkName
+    (denoteNL_ext p16.ext _ _ acc15) d16
+  have k16 : PinStep s t16 := k15.trans p16
+  have q16 : PinsOK t16 := p16.pinsOK q15
+  -- step 17
+  obtain ⟨h17, t17, g17, r17⟩ := AM.bind_ok r16
+  obtain ⟨p17, d17⟩ := internName_run p16.wf g17
+  have acc17 := denoteNL_snoc _ _ h17 ConLeche.quotLiftName
+    (denoteNL_ext p17.ext _ _ acc16) d17
+  have k17 : PinStep s t17 := k16.trans p17
+  have q17 : PinsOK t17 := p17.pinsOK q16
+  -- step 18
+  obtain ⟨h18, t18, g18, r18⟩ := AM.bind_ok r17
+  obtain ⟨p18, d18⟩ := internName_run p17.wf g18
+  have acc18 := denoteNL_snoc _ _ h18 ConLeche.quotIndName
+    (denoteNL_ext p18.ext _ _ acc17) d18
+  have k18 : PinStep s t18 := k17.trans p18
+  have q18 : PinsOK t18 := p18.pinsOK q17
+  -- step 19
+  obtain ⟨h19, t19, g19, r19⟩ := AM.bind_ok r18
+  obtain ⟨e19, d19⟩ := pinAt_run (x := (ConLeche.quotName.str "sound")) q18 rfl g19
+  rw [e19] at r19
+  have acc19 := denoteNL_snoc _ _ h19 (ConLeche.quotName.str "sound") acc18 d19
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok r19
+  exact ⟨k18, acc19⟩
 
 /-! ## The name-list denotation, as a function -/
 
@@ -438,7 +585,7 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
 
 theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : checkConstantVal μ fe cv s = .ok (cvA, s')) :
     CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
@@ -638,55 +785,286 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
 /-! ## The three list checks
 
 `checkTypedList`, `checkAnnotList` and `checkDefEqList` are the nested-pin and
-iota-statement guards: list recursions over one `KnotSpec` clause each, with
-nothing of their own.  Each is stated at the denoted lists, so the recursion
-is `Frontend.denoteEList`'s. -/
+iota-statement guards: list recursions over one or two `KnotSpec` clauses each,
+with nothing of their own.  Each is stated at the denoted lists, so the
+recursion is `Frontend.denoteEList`'s.
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList.
+**Two hypotheses the round that stated them did not have** (task
+#97-P3-Checker-2): `EnvWF env`, because `CoreSpec.knot` is stated at a
+well-formed environment, and the elements' `Expr.WScoped depth`, because every
+`KnotSpec` slot takes it as a precondition.  Both are free at every call site —
+the inductive tier reaches these through `CSpec`, which carries `CheckOK` at an
+environment `FoldOK` already knows is well formed — but neither can be
+conjured inside the proof. -/
 
-`sorry`: a list induction over `KnotSpec.infer` and
-`KnotSpec.defeq`.  Task #97-P3-Checker's sorry list, item 12. -/
-theorem checkTypedList_bridge {μ : CheckMode} {env : Env}
-    {fe : IFEnv} {depth : Nat} {as ts : List EIdx} {xs ys : List Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : CheckOK μ env fe s)
-    (ha : Frontend.denoteEList s.store as = some xs)
-    (ht : Frontend.denoteEList s.store ts = some ys)
-    (hrun : checkTypedList μ fe depth as ts s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧ ∃ F,
-      ConLeche.checkTypedList (ConLeche.fueledOps μ F) env depth xs ys
-        = .ok () := by
-  sorry
+/-- con-leche: none — `Frontend.denoteEList`'s `cons` inversion. -/
+theorem denoteEList_cons {st : EStore} {a : EIdx} {as : List EIdx}
+    {zs : List Expr} (h : Frontend.denoteEList st (a :: as) = some zs) :
+    ∃ x xs, denoteE st a = some x ∧ Frontend.denoteEList st as = some xs ∧
+      zs = x :: xs := by
+  simp only [Frontend.denoteEList] at h
+  cases hx : denoteE st a with
+  | none => rw [hx] at h; exact absurd h (by simp)
+  | some x =>
+    cases hxs : Frontend.denoteEList st as with
+    | none => rw [hx, hxs] at h; exact absurd h (by simp)
+    | some xs =>
+      rw [hx, hxs] at h
+      simp only [Option.some.injEq] at h
+      exact ⟨x, xs, rfl, rfl, h.symm⟩
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList.
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean:330 checkTypedList_datF — one
+fuel for a whole list check, through con-leche's own monotone family. -/
+theorem checkTypedList_mono {μ : CheckMode} {env : Env} {depth F F' : Nat}
+    {xs ys : List Expr} (hle : F ≤ F')
+    (h : ConLeche.checkTypedList (ConLeche.fueledOps μ F) env depth xs ys
+      = .ok ()) :
+    ConLeche.checkTypedList (ConLeche.fueledOps μ F') env depth xs ys
+      = .ok () := by
+  rw [← ConLeche.checkTypedList_datF (mode := μ)] at h ⊢
+  exact (ConLeche.checkTypedList (ConLeche.fueledOpsM μ) env depth xs ys).property
+    hle h
 
-`sorry`: a list induction over `KnotSpec.annotate` and `denoteE`'s
-injectivity (the twin compares HANDLES where con-leche compares terms).  Task
-#97-P3-Checker's sorry list, item 12. -/
-theorem checkAnnotList_bridge {μ : CheckMode} {env : Env}
-    {fe : IFEnv} {depth : Nat} {as : List EIdx} {xs : List Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : CheckOK μ env fe s)
-    (ha : Frontend.denoteEList s.store as = some xs)
-    (hrun : checkAnnotList μ fe depth as s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧ ∃ F,
-      ConLeche.checkAnnotList (ConLeche.fueledOps μ F) env depth xs = .ok () := by
-  sorry
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean:348 checkAnnotList_datF — the
+same for the annotation list. -/
+theorem checkAnnotList_mono {μ : CheckMode} {env : Env} {depth F F' : Nat}
+    {xs : List Expr} (hle : F ≤ F')
+    (h : ConLeche.checkAnnotList (ConLeche.fueledOps μ F) env depth xs
+      = .ok ()) :
+    ConLeche.checkAnnotList (ConLeche.fueledOps μ F') env depth xs = .ok () := by
+  rw [← ConLeche.checkAnnotList_datF (mode := μ)] at h ⊢
+  exact (ConLeche.checkAnnotList (ConLeche.fueledOpsM μ) env depth xs).property
+    hle h
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList.
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean:313 checkDefEqList_datF — the
+same for the pairwise conversion list. -/
+theorem checkDefEqList_mono {μ : CheckMode} {env : Env} {depth F F' : Nat}
+    {xs ys : List Expr} (hle : F ≤ F')
+    (h : ConLeche.checkDefEqList (ConLeche.fueledOps μ F) env depth xs ys
+      = .ok ()) :
+    ConLeche.checkDefEqList (ConLeche.fueledOps μ F') env depth xs ys
+      = .ok () := by
+  rw [← ConLeche.checkDefEqList_datF (mode := μ)] at h ⊢
+  exact (ConLeche.checkDefEqList (ConLeche.fueledOpsM μ) env depth xs ys).property
+    hle h
 
-`sorry`: a list induction over `KnotSpec.defeq`.  Task
-#97-P3-Checker's sorry list, item 12. -/
-theorem checkDefEqList_bridge {μ : CheckMode} {env : Env}
-    {fe : IFEnv} {depth : Nat} {as bs : List EIdx} {xs ys : List Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : CheckOK μ env fe s)
-    (ha : Frontend.denoteEList s.store as = some xs)
-    (hb : Frontend.denoteEList s.store bs = some ys)
-    (hrun : checkDefEqList μ fe depth as bs s = .ok ((), s')) :
-    CoreStep μ env fe s s' ∧ ∃ F,
-      ConLeche.checkDefEqList (ConLeche.fueledOps μ F) env depth xs ys
-        = .ok () := by
-  sorry
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList — the
+pure side's step lemma at the `cons` clause. -/
+theorem checkTypedList_cons_pure {μ : CheckMode} {env : Env} {depth F : Nat}
+    {a t ty : Expr} {as ts : List Expr}
+    (h1 : (ConLeche.fueledOps μ F).inferType env depth a = .ok ty)
+    (h2 : (ConLeche.fueledOps μ F).isDefEq env depth ty t = .ok true)
+    (h3 : ConLeche.checkTypedList (ConLeche.fueledOps μ F) env depth as ts
+      = .ok ()) :
+    ConLeche.checkTypedList (ConLeche.fueledOps μ F) env depth (a :: as)
+      (t :: ts) = .ok () := by
+  simp only [ConLeche.checkTypedList, h1, h2, h3, if_true, bind, Except.bind]
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList — the
+pure side's step lemma at the `cons` clause. -/
+theorem checkAnnotList_cons_pure {μ : CheckMode} {env : Env} {depth F : Nat}
+    {a : Expr} {as : List Expr}
+    (h1 : (ConLeche.fueledOps μ F).annotate env depth a = .ok a)
+    (h3 : ConLeche.checkAnnotList (ConLeche.fueledOps μ F) env depth as
+      = .ok ()) :
+    ConLeche.checkAnnotList (ConLeche.fueledOps μ F) env depth (a :: as)
+      = .ok () := by
+  simp only [ConLeche.checkAnnotList, h1, h3, beq_self_eq_true, if_true, bind,
+    Except.bind]
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList — the
+pure side's step lemma at the `cons` clause. -/
+theorem checkDefEqList_cons_pure {μ : CheckMode} {env : Env} {depth F : Nat}
+    {a b : Expr} {as bs : List Expr}
+    (h1 : (ConLeche.fueledOps μ F).isDefEq env depth a b = .ok true)
+    (h3 : ConLeche.checkDefEqList (ConLeche.fueledOps μ F) env depth as bs
+      = .ok ()) :
+    ConLeche.checkDefEqList (ConLeche.fueledOps μ F) env depth (a :: as)
+      (b :: bs) = .ok () := by
+  simp only [ConLeche.checkDefEqList, h1, h3, if_true, bind, Except.bind]
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList —
+**Theorem 1 for the nested-pin type check**: a list induction over
+`KnotSpec.infer` and `KnotSpec.defeq`, one fuel for the whole list. -/
+theorem checkTypedList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+    ∀ (depth : Nat) (as ts : List EIdx) (xs ys : List Expr) (s s' : AState),
+      CheckOK μ env fe s →
+      Frontend.denoteEList s.store as = some xs →
+      Frontend.denoteEList s.store ts = some ys →
+      (∀ x ∈ xs, Expr.WScoped depth x) → (∀ y ∈ ys, Expr.WScoped depth y) →
+      checkTypedList μ fe depth as ts s = .ok ((), s') →
+      CoreStep μ env fe s s' ∧ ∃ F,
+        ConLeche.checkTypedList (ConLeche.fueledOps μ F) env depth xs ys
+          = .ok () := by
+  have hknot := hk.knot env fe henv
+  have hframe := hk.frame fe
+  intro depth as
+  induction as with
+  | nil =>
+    intro ts xs ys s s' hok ha ht _ _ hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at ha
+    subst ha
+    cases ts with
+    | nil =>
+      simp only [Frontend.denoteEList, Option.some.injEq] at ht
+      subst ht
+      obtain ⟨-, rfl⟩ := AM.pure_ok hrun
+      exact ⟨CoreStep.refl hok, 0, rfl⟩
+    | cons b bs => exact nomatch hrun
+  | cons a as ih =>
+    intro ts xs ys s s' hok ha ht hwx hwy hrun
+    cases ts with
+    | nil => exact nomatch hrun
+    | cons t ts =>
+      obtain ⟨x, xs', hx, hxs, rfl⟩ := denoteEList_cons ha
+      obtain ⟨y, ys', hy, hys, rfl⟩ := denoteEList_cons ht
+      simp only [Arena.checkTypedList] at hrun
+      -- the inference
+      obtain ⟨ty, s1, g1, r1⟩ := AM.bind_ok hrun
+      obtain ⟨hok1, hx1, hsim1⟩ := AM.of_run (P := fun u => u = s)
+        (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧
+          Core.SimE (ConLeche.inferTypeCore μ env) depth x u.store r)
+        rfl g1 (hknot.infer s depth a x hok hx (hwx x (by simp)))
+      obtain ⟨w, hw1, hwsw, F1, hF1⟩ := hsim1
+      have hp1 : s1.pins = s.pins := hframe.infer depth a s s1 ty g1
+      have hy1 : denoteE s1.store t = some y := denote_ext hy hx1
+      -- the conversion
+      obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1
+      obtain ⟨hok2, hx2, hsim2⟩ := AM.of_run (P := fun u => u = s1)
+        (Q := fun r u => CheckOK μ env fe u ∧ Ext s1.store u.store ∧
+          Core.SimV (ConLeche.isDefEqCore μ env) depth w y r)
+        rfl g2 (hknot.defeq s1 depth ty t w y hok1 hw1 hy1 hwsw
+          (hwy y (by simp)))
+      obtain ⟨F2, hF2⟩ := hsim2
+      have hp2 : s2.pins = s1.pins := hframe.defeq depth ty t s1 s2 b2 g2
+      obtain ⟨hb2, r3⟩ := AM.dunless_ok AM.Never.fail_any r2
+      replace r3 := AM.pure_bind_ok r3
+      subst hb2
+      -- the tail
+      have hxE : Ext s.store s2.store := hx1.trans hx2
+      obtain ⟨hstep3, F3, hF3⟩ := ih ts xs' ys' s2 s' hok2
+        (denoteEList_ext hxE _ _ hxs) (denoteEList_ext hxE _ _ hys)
+        (fun z hz => hwx z (by simp [hz])) (fun z hz => hwy z (by simp [hz])) r3
+      have hle1 : F1 ≤ max (max F1 F2) F3 :=
+        Nat.le_trans (Nat.le_max_left F1 F2) (Nat.le_max_left _ F3)
+      have hle2 : F2 ≤ max (max F1 F2) F3 :=
+        Nat.le_trans (Nat.le_max_right F1 F2) (Nat.le_max_left _ F3)
+      have hle3 : F3 ≤ max (max F1 F2) F3 := Nat.le_max_right _ F3
+      refine ⟨⟨hstep3.ok, hxE.trans hstep3.ext, by rw [hstep3.pins, hp2, hp1]⟩,
+        max (max F1 F2) F3, ?_⟩
+      exact checkTypedList_cons_pure
+        (ConLeche.inferTypeCore_mono hle1 hF1)
+        (ConLeche.isDefEqCore_mono hle2 hF2)
+        (checkTypedList_mono hle3 hF3)
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList —
+**Theorem 1 for the nested-pin annotation check**.  The twin compares HANDLES
+where con-leche compares terms, and the two agree because `denoteE` is a
+function: an accepted `aA == a` makes the annotation's denotation the
+subject's own. -/
+theorem checkAnnotList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+    ∀ (depth : Nat) (as : List EIdx) (xs : List Expr) (s s' : AState),
+      CheckOK μ env fe s →
+      Frontend.denoteEList s.store as = some xs →
+      (∀ x ∈ xs, Expr.WScoped depth x) →
+      checkAnnotList μ fe depth as s = .ok ((), s') →
+      CoreStep μ env fe s s' ∧ ∃ F,
+        ConLeche.checkAnnotList (ConLeche.fueledOps μ F) env depth xs
+          = .ok () := by
+  have hknot := hk.knot env fe henv
+  have hframe := hk.frame fe
+  intro depth as
+  induction as with
+  | nil =>
+    intro xs s s' hok ha _ hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at ha
+    subst ha
+    obtain ⟨-, rfl⟩ := AM.pure_ok hrun
+    exact ⟨CoreStep.refl hok, 0, rfl⟩
+  | cons a as ih =>
+    intro xs s s' hok ha hwx hrun
+    obtain ⟨x, xs', hx, hxs, rfl⟩ := denoteEList_cons ha
+    simp only [Arena.checkAnnotList] at hrun
+    obtain ⟨aA, s1, g1, r1⟩ := AM.bind_ok hrun
+    obtain ⟨hok1, hx1, hsim1⟩ := AM.of_run (P := fun u => u = s)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧
+        Core.SimE (ConLeche.annotateCore μ env) depth x u.store r)
+      rfl g1 (hknot.annotate s depth a x hok hx (hwx x (by simp)))
+    obtain ⟨v, hv1, hwsv, F1, hF1⟩ := hsim1
+    have hp1 : s1.pins = s.pins := hframe.annotate depth a s s1 aA g1
+    obtain ⟨heq, r2⟩ := AM.dunless_ok AM.Never.fail_any r1
+    replace r2 := AM.pure_bind_ok r2
+    have haA : aA = a := eq_of_beq heq
+    subst haA
+    have hvx : v = x := Option.some.inj (hv1.symm.trans (denote_ext hx hx1))
+    subst hvx
+    obtain ⟨hstep2, F2, hF2⟩ := ih xs' s1 s' hok1 (denoteEList_ext hx1 _ _ hxs)
+      (fun z hz => hwx z (by simp [hz])) r2
+    have hle1 : F1 ≤ max F1 F2 := Nat.le_max_left _ _
+    have hle2 : F2 ≤ max F1 F2 := Nat.le_max_right _ _
+    refine ⟨⟨hstep2.ok, hx1.trans hstep2.ext, by rw [hstep2.pins, hp1]⟩,
+      max F1 F2, ?_⟩
+    exact checkAnnotList_cons_pure (ConLeche.annotateCore_mono hle1 hF1)
+      (checkAnnotList_mono hle2 hF2)
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList —
+**Theorem 1 for the iota-statement component check**: a list induction over
+`KnotSpec.defeq`. -/
+theorem checkDefEqList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+    ∀ (depth : Nat) (as bs : List EIdx) (xs ys : List Expr) (s s' : AState),
+      CheckOK μ env fe s →
+      Frontend.denoteEList s.store as = some xs →
+      Frontend.denoteEList s.store bs = some ys →
+      (∀ x ∈ xs, Expr.WScoped depth x) → (∀ y ∈ ys, Expr.WScoped depth y) →
+      checkDefEqList μ fe depth as bs s = .ok ((), s') →
+      CoreStep μ env fe s s' ∧ ∃ F,
+        ConLeche.checkDefEqList (ConLeche.fueledOps μ F) env depth xs ys
+          = .ok () := by
+  have hknot := hk.knot env fe henv
+  have hframe := hk.frame fe
+  intro depth as
+  induction as with
+  | nil =>
+    intro bs xs ys s s' hok ha hb _ _ hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at ha
+    subst ha
+    cases bs with
+    | nil =>
+      simp only [Frontend.denoteEList, Option.some.injEq] at hb
+      subst hb
+      obtain ⟨-, rfl⟩ := AM.pure_ok hrun
+      exact ⟨CoreStep.refl hok, 0, rfl⟩
+    | cons b bs => exact nomatch hrun
+  | cons a as ih =>
+    intro bs xs ys s s' hok ha hb hwx hwy hrun
+    cases bs with
+    | nil => exact nomatch hrun
+    | cons b bs =>
+      obtain ⟨x, xs', hx, hxs, rfl⟩ := denoteEList_cons ha
+      obtain ⟨y, ys', hy, hys, rfl⟩ := denoteEList_cons hb
+      simp only [Arena.checkDefEqList] at hrun
+      obtain ⟨c1, s1, g1, r1⟩ := AM.bind_ok hrun
+      obtain ⟨hok1, hx1, hsim1⟩ := AM.of_run (P := fun u => u = s)
+        (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧
+          Core.SimV (ConLeche.isDefEqCore μ env) depth x y r)
+        rfl g1 (hknot.defeq s depth a b x y hok hx hy (hwx x (by simp))
+          (hwy y (by simp)))
+      obtain ⟨F1, hF1⟩ := hsim1
+      have hp1 : s1.pins = s.pins := hframe.defeq depth a b s s1 c1 g1
+      obtain ⟨hc1, r2⟩ := AM.dunless_ok AM.Never.fail_any r1
+      replace r2 := AM.pure_bind_ok r2
+      subst hc1
+      obtain ⟨hstep2, F2, hF2⟩ := ih bs xs' ys' s1 s' hok1
+        (denoteEList_ext hx1 _ _ hxs) (denoteEList_ext hx1 _ _ hys)
+        (fun z hz => hwx z (by simp [hz])) (fun z hz => hwy z (by simp [hz])) r2
+      have hle1 : F1 ≤ max F1 F2 := Nat.le_max_left _ _
+      have hle2 : F2 ≤ max F1 F2 := Nat.le_max_right _ _
+      refine ⟨⟨hstep2.ok, hx1.trans hstep2.ext, by rw [hstep2.pins, hp1]⟩,
+        max F1 F2, ?_⟩
+      exact checkDefEqList_cons_pure (ConLeche.isDefEqCore_mono hle1 hF1)
+        (checkDefEqList_mono hle2 hF2)
 
 end ConRon.Bridge
