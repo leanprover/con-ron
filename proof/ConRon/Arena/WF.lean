@@ -491,7 +491,16 @@ structure EWFAt' (st : EStore) (rk : EIdx → Nat) : Prop where
       ∧ mi.tag = 0
   consP : ∀ v i, st.persFind? v = some i ↔
     (st.view i = some v ∧ i.isPersistent = true)
-  consS : ∀ v i, st.scrFind? v = some i ↔
+  /-- **Only the forward half of `consS` survives a promotion** (task
+  #97-P5-Fresh's second finding): `EStore.internBMPersistent` moves a binder
+  view's CONS KEY, because the key holds the datum HANDLE and `findBM` probes
+  the persistent datum table first.  Promote a datum that only the scratch
+  tier held and every scratch binder node interned under the old (scratch)
+  handle becomes unreachable through `scrFind?` — `consS`'s `←` direction
+  fails at it, while the node itself still decodes.  What is still true, and
+  what canonicity actually rests on, is that the scratch cons table never
+  LIES: a handle it does answer decodes to the view it was asked about. -/
+  consSof : ∀ v i, st.scrFind? v = some i →
     (st.view i = some v ∧ i.isPersistent = false)
   bmConsP : ∀ m i, st.pers.findBM m = some i ↔
     (st.viewBM i = some m ∧ i.isPersistent = true ∧ i.tag = 0)
@@ -499,8 +508,11 @@ structure EWFAt' (st : EStore) (rk : EIdx → Nat) : Prop where
     (st.viewBM i = some m ∧ i.isPersistent = false ∧ i.tag = 0)
   bmKeyP : ∀ v mj i, st.pers.find? v mj = some i →
     v.bmOf = none ∨ ∃ m, st.pers.findBM m = some mj
+  /-- `bmKeyS` weakened for the same reason: *"the scratch cons table's datum
+  keys DECODE"* rather than *"`findBM` answers them"*, because promoting a
+  datum is exactly what stops `findBM` answering the scratch handle. -/
   bmKeyS : ∀ v mj i, st.scr.find? v mj = some i →
-    v.bmOf = none ∨ ∃ m, st.findBM m = some mj
+    v.bmOf = none ∨ (st.viewBM mj).isSome = true
   derExact : ∀ i v, st.view i = some v → st.derived i = st.derOfView v
   bmDerExact : ∀ i m, st.viewBM i = some m → st.bmDer i = (hash m.pw, m.pw.hasParams)
   sizedP : st.pers.Sized
@@ -550,19 +562,10 @@ theorem LsWF'.of_wf {st : LsStore} (h : LsWF st) : LsWF' st :=
 theorem LsStoreWF'.of_wf {st : LsStore} (h : LsStoreWF st) : LsStoreWF' st :=
   LsWF'.of_wf h
 
-theorem EWFAt'.of_wf {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
-    EWFAt' st rk :=
-  { lss := LsStoreWF'.of_wf h.lss, childOK := h.childOK, nchildOK := h.nchildOK,
-    lchildOK := h.lchildOK, lschildOK := h.lschildOK, rankP := h.rankP,
-    rankS := h.rankS, bmChildOK := h.bmChildOK, consP := h.consP,
-    consS := h.consS, bmConsP := h.bmConsP, bmConsS := h.bmConsS,
-    bmKeyP := h.bmKeyP, bmKeyS := h.bmKeyS, derExact := h.derExact,
-    bmDerExact := h.bmDerExact, sizedP := h.sizedP, sizedS := h.sizedS,
-    capP := h.capP, capS := h.capS, bmCapP := h.bmCapP, bmCapS := h.bmCapS,
-    scrOff := h.scrOff, sync := h.sync }
-
-theorem StoreWF'.of_wf {st : EStore} (h : StoreWF st) : StoreWF' st :=
-  let ⟨rk, h⟩ := h; ⟨rk, EWFAt'.of_wf h⟩
+/-! The expression store's own `of_wf` is in `Arena/WFProofs.lean`'s
+append-only section, not here: the weakened `bmKeyS` needs
+`EWFAt.viewBM_of_findBM` to turn *"`findBM` answers this handle"* into
+*"this handle decodes"*, and that lemma lives one file up. -/
 
 /-! ### A promotion's added precondition: the view's children are persistent
 
