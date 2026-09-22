@@ -978,6 +978,13 @@ step for the `StateT` plumbing.  `SimR` (`Refine2/Shape.lean`) is the shape:
 theorem run_get_pure {β : Type} (f : AState → β) (lst : AState) :
     ((do let s ← get; pure (f s) : AM β)).run lst = .ok (f lst, lst) := rfl
 
+/-- The same at a twin action that READS the state and then continues: the
+`get` is the identity on the run.  Every `do let s ← get; …` of the twin goes
+through it, and it is what lets a `rfl`-level unfolding of a monadic body be
+stated without spelling the body twice. -/
+theorem run_get_bind {β : Type} (f : AState → AM β) (lst : AState) :
+    ((do let s ← get; f s : AM β)).run lst = (f lst).run lst := rfl
+
 /-- `arena::monad::view_app` against `Arena.viewApp`. -/
 @[grind →] theorem view_app_run {pers st lst} (hrel : AStateRel pers st lst)
     {h : arena.handle.EIdx} {o}
@@ -2231,6 +2238,27 @@ The three binder readers carry finding 3's guard, for the reason
     rw [hrunL, hqa, hqc]
     rfl
 
+/-- **`Arena.view` is a READER**: its run leaves the state alone.  `view_run`
+concludes `AOut`, whose post-state is existentially quantified, so every
+caller that binds a view and then continues at the SAME state needs this to
+collapse the existential.  The `ExprOps` and Core tiers want it at every
+`match ← view h` — which is most of the crate. -/
+theorem view_run_state {lst lst' : AState} {hh : EIdx} {v : ENodeView}
+    (h : (Arena.view hh).run lst = .ok (v, lst')) : lst' = lst := by
+  rw [show (Arena.view hh).run lst
+      = (match lst.store.view hh with
+         | some w => Except.ok (w, lst)
+         | none => Except.error (Arena.CheckError.internal
+             "arena: dangling expression handle")) by
+    show ((match lst.store.view hh with
+            | some w => (pure w : AM ENodeView)
+            | none => Arena.fail
+                (.internal "arena: dangling expression handle")).run lst) = _
+    cases lst.store.view hh <;> rfl] at h
+  split at h
+  · simp only [Except.ok.injEq, Prod.mk.injEq] at h; exact h.2.symm
+  · simp at h
+
 /-- `arena::monad::view_bind_i` against `Arena.viewBindI` (task #97-P6-16: the
 binder projection that stops at the datum's HANDLE). -/
 @[grind →] theorem view_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
@@ -3266,33 +3294,113 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
 
 /-! ## `arena::monad::intern_e_bvar` -/
 
-/-- `Arena.internE`'s run at a view whose array is below the cap and which
-needs no binder datum. -/
+/-! ## `Arena.internE` after task #97-P3-1's probe-first fix
+
+Task #97-P5-1's **finding 9** — "the capacity test is on the wrong side of the
+probe in the twin", which made "Rust `Ok` ⇒ twin `ok`" false on a cons hit at a
+full array — was fixed in the twin at task #97-P3-1: `internE` probes with
+`EStore.find?` first and tests `Idx.idxCap` only on the miss.  So `hcap` is no
+longer a hypothesis of the twenty-five `intern_*` statements; it is the MISS
+PATH's own side condition, and on the miss path the port's `Tbl::full` is
+`true` exactly when the twin's test fails — and answers `Native`, which claims
+nothing.  What the wrapper needs instead is that a cons HIT moves nothing,
+which is `intern_of_find` below. -/
+
+/-- A cons hit interns nothing: the datum is already interned (it is part of
+the key the probe matched) and `internAt` returns at the first `match`. -/
+theorem internBM_of_findBM {st : EStore} {m : ConLeche.BinderMeta} {i : BMIdx}
+    (hf : st.findBM m = some i) : st.internBM m = (st, i) := by
+  rw [EStore.findBM] at hf
+  cases hp : st.persFindBM m with
+  | some j =>
+    rw [hp] at hf
+    simp only [Option.some.injEq] at hf
+    subst hf
+    exact EStore.internBM_hit_pers hp
+  | none =>
+    rw [hp] at hf
+    by_cases hon : st.scratchOn = true
+    · rw [if_pos hon] at hf
+      exact EStore.internBM_hit_scr hp hon hf
+    · rw [if_neg hon] at hf; simp at hf
+
+theorem internBMOfView_of_findBMOfView {st : EStore} {v : ENodeView} {mi : BMIdx}
+    (hf : st.findBMOfView v = some mi) : st.internBMOfView v = (st, mi) := by
+  cases v
+  case lam ty b m => exact internBM_of_findBM hf
+  case forallE ty b m => exact internBM_of_findBM hf
+  all_goals
+    (have h0 : (Idx.ofWord 0 : BMIdx) = mi := by
+       have : some (Idx.ofWord 0 : BMIdx) = some mi := hf
+       simpa using this
+     exact congrArg (Prod.mk st) h0)
+
+/-- **A cons hit moves nothing** — the twin's `intern` at a handle its own
+`find?` already answers is the identity on the store.  This is what
+`internE`'s probe-first shape (task #97-P3-1) needs of the store tier. -/
+theorem internAt_of_findAt {st : EStore} {v : ENodeView} {mi : BMIdx} {h : EIdx}
+    (hfa : st.findAt v mi = some h) : st.internAt v mi = (st, h) := by
+  unfold EStore.findAt at hfa
+  unfold EStore.internAt
+  cases hp : st.pers.find? v mi with
+  | some j =>
+    simp only [hp, Option.some.injEq] at hfa
+    simp only [hp, hfa]
+  | none =>
+    simp only [hp] at hfa ⊢
+    by_cases hon : st.scratchOn = true
+    · simp only [hon, if_true] at hfa ⊢
+      cases hs : st.scr.find? v mi with
+      | some j =>
+        simp only [hs, Option.some.injEq] at hfa
+        simp only [hs, hfa]
+      | none => simp only [hs] at hfa; simp at hfa
+    · simp only [hon, if_false] at hfa; simp at hfa
+
+theorem intern_of_find {st : EStore} {v : ENodeView} {h : EIdx}
+    (hf : st.find? v = some h) : st.intern v = (st, h) := by
+  rw [EStore.find?] at hf
+  cases hm : st.findBMOfView v with
+  | none => rw [hm] at hf; simp at hf
+  | some mi =>
+    rw [hm] at hf
+    have hfa : st.findAt v mi = some h := hf
+    rw [EStore.intern, internBMOfView_of_findBMOfView hm]
+    show st.internAt v mi = (st, h)
+    exact internAt_of_findAt hfa
+
+/-- `Arena.internE`'s run.  Two arms, and only the second has a side
+condition: on a cons HIT the store does not move (`intern_of_find`), and on a
+MISS the capacity test is the twin's own — where the port's `Tbl::full` reads
+`true` on exactly the same input and answers `Native`, which claims nothing. -/
 theorem internE_run_of_cap {lst : AState} {v : ENodeView}
     (hbm : EStore.eViewNeedsBM v = false)
-    (hcap : (if lst.store.scratchOn then lst.store.scr.sizeOf v
-              else lst.store.pers.sizeOf v) < Idx.idxCap) :
+    (hcap : lst.store.find? v = none →
+      (if lst.store.scratchOn then lst.store.scr.sizeOf v
+        else lst.store.pers.sizeOf v) < Idx.idxCap) :
     (Arena.internE v).run lst
       = .ok ((lst.store.intern v).2,
              { lst with store := (lst.store.intern v).1 }) := by
-  rw [Arena.internE]
-  simp only [hbm, Bool.not_false, Bool.true_or, Bool.and_true, decide_eq_true_eq]
-  show StateT.run
-      (if (if lst.store.scratchOn then lst.store.scr.sizeOf v
-            else lst.store.pers.sizeOf v) < Idx.idxCap then
-         ((do set ({ lst with store := (lst.store.intern v).1 } : AState)
-              pure (lst.store.intern v).2) : AM EIdx)
-       else Arena.fail (.native "arena: expression constructor array full")) lst = _
-  rw [if_pos hcap]
-  rfl
+  rw [Arena.internE, run_get_bind]
+  cases hf : lst.store.find? v with
+  | some h =>
+    rw [intern_of_find hf]
+    rfl
+  | none =>
+    simp only [hbm, Bool.not_false, Bool.true_or, Bool.and_true,
+      decide_eq_true_eq]
+    rw [if_pos (hcap hf)]
+    cases hi : lst.store.intern v with
+    | mk st1 h1 => rfl
 
 theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (i : Std.U64)
-    (hcap : (if lst.store.scratchOn
-              then lst.store.scr.sizeOf (.bvar (absU i))
-              else lst.store.pers.sizeOf (.bvar (absU i))) < Idx.idxCap)
+    (hcap : lst.store.find? (.bvar (absU i)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.bvar (absU i))
+        else lst.store.pers.sizeOf (.bvar (absU i))) < Idx.idxCap)
     {o}
     (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internBVarE (absU i)) := by

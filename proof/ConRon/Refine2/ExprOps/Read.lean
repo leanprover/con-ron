@@ -332,6 +332,103 @@ theorem loose_bvars_bounded_refines {pers : arena.store.PersTier}
       ((looseBVarsBounded (absU fuel) (absU k) (absEIdx h)).run lst) := by
   sorry
 
+/-- The fuel induction at a TEN-ARM view walk.  `view_run` answers the whole
+view, so the ten arms of the port's `match` and the three of the twin's line
+up by `cases` on the abstracted view — which is why the arm count costs
+nothing beyond the `cases`. -/
+private theorem result_sort_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {h : arena.handle.EIdx} {o},
+      fuel.val = n → AStateRel pers st lst → AStateInv pers st →
+      arena.expr_ops.result_sort pers st fuel h = ok o →
+      AOut absLIdxOpt (fun _ => True) pers lst o st
+        ((resultSort (absU fuel) (absEIdx h)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.result_sort] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    refine AOut.err ?_
+    show AErrSim _ ((resultSort (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, resultSort, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.result_sort] at hrun
+    have hne : ¬ (fuel = 0#u64) := by
+      intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hv := view_run hrel hinv hr
+    rw [show absU fuel = m + 1 from hn, resultSort]
+    cases hrc : r with
+    | Err e =>
+      rw [hrc] at hrun hv
+      have ho : (core.result.Result.Err e :
+          core.result.Result (Option arena.handle.LIdx) _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      refine AOut.err ?_
+      rw [StateT.run_bind]
+      intro kk hk
+      obtain ⟨le, hle, hlk⟩ := hv kk hk
+      exact ⟨le, by rw [hle]; rfl, hlk⟩
+    | Ok ev =>
+      rw [hrc] at hrun hv
+      obtain ⟨lst', hx, hrel', hinv', hext', -⟩ := hv
+      have hlst : lst' = lst := view_run_state hx
+      subst hlst
+      rw [StateT.run_bind, hx]
+      cases ev with
+      | BVar _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | FVar _ _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | «Sort» u =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | Const _ _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | App _ _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | Lam _ _ _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | LetE _ _ _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | Lit _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | Proj _ _ _ =>
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      | ForallE ty b mm =>
+        obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi1v : i1.val = m := by
+          have h1 : i1.val = fuel.val - (1#u64 : Std.U64).val :=
+            (ConRon.Refine.Nat.usub_val hi1).2
+          rw [h1, hn]; rfl
+        have hrec := ih (fuel := i1) (h := b) hi1v hrel hinv hrun
+        rw [show absU i1 = m from hi1v] at hrec
+        exact hrec
+
 /-- `result_sort` ⊑ `resultSort` — view-first on BOTH sides (the `∀` arm and
 the `sort` arm are two of the ten), so no resolution hypothesis. -/
 theorem result_sort_refines {pers : arena.store.PersTier}
@@ -340,8 +437,8 @@ theorem result_sort_refines {pers : arena.store.PersTier}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.result_sort pers st fuel h = ok o) :
     AOut absLIdxOpt (fun _ => True) pers lst o st
-      ((resultSort (absU fuel) (absEIdx h)).run lst) := by
-  sorry
+      ((resultSort (absU fuel) (absEIdx h)).run lst) :=
+  result_sort_aux fuel.val rfl hrel hinv hrun
 
 /-! ## The application spine: tag-first on both sides
 
@@ -351,14 +448,203 @@ neither needs finding 1's hypothesis.  **They wait on `Specs.lean`'s
 `viewApp` and on `EIdx.tag`'s abstraction (`eidx_tag_abs`, landed in
 `Refine2/AbsStore.lean`).** -/
 
+/-! ### The fuel induction, written out once
+
+The shape step round 3 says does not automate, at the tier's simplest walk.
+The Rust recurses on `fuel - 1#u64` and the twin on `Nat`, so the induction is
+on `fuel.val` with everything else generalised; the `succ` case peels
+`getAppFn (m+1)` and the `zero` case is the port's own `Internal`, which the
+twin mirrors.  Every other fuelled walk of this tier is this proof with more
+arms. -/
+
+private theorem get_app_fn_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {h : arena.handle.EIdx} {o},
+      fuel.val = n → AStateRel pers st lst → AStateInv pers st →
+      arena.expr_ops.get_app_fn pers st fuel h = ok o →
+      AOut absEIdx (fun _ => True) pers lst o st
+        ((getAppFn (absU fuel) (absEIdx h)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_fn] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    refine AOut.err ?_
+    show AErrSim _ ((getAppFn (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, getAppFn, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_fn] at hrun
+    have hne : ¬ (fuel = 0#u64) := by
+      intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htag := eidx_tag_abs ht
+    rw [show absU fuel = m + 1 from hn, getAppFn]
+    by_cases hc : t = arena.handle.ETAG_APP
+    · rw [if_pos hc] at hrun
+      subst hc
+      rw [show ((absEIdx h).tag == ETag.app) = true by
+        rw [htag, etag_app_abs]; simp]
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hva := view_app_run hrel hp
+      simp only [if_true]
+      rw [StateT.run_bind, hva]
+      cases hpc : p with
+      | none =>
+        rw [hpc] at hrun
+        rw [arena.monad.fail_dangling_e] at hrun
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [fail_run hrun]
+        refine AOut.err ?_
+        show AErrSim _ ((Arena.failDanglingE : AM EIdx).run lst)
+        exact failDanglingE_errSim lst
+      | some q =>
+        rw [hpc] at hrun
+        obtain ⟨f1, a1⟩ := q
+        obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi1v : i1.val = m := by
+          have h1 : i1.val = fuel.val - (1#u64 : Std.U64).val :=
+            (ConRon.Refine.Nat.usub_val hi1).2
+          rw [h1, hn]; rfl
+        show AOut absEIdx (fun _ => True) pers lst o st
+          ((getAppFn m (absEIdx f1)).run lst)
+        have := ih (fuel := i1) (h := f1) hi1v hrel hinv hrun
+        rw [show absU i1 = m from hi1v] at this
+        exact this
+    · rw [if_neg hc] at hrun
+      obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      rw [dupId_eidx _ _ he1] at hrun
+      have ho : (core.result.Result.Ok h : core.result.Result _ _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      rw [show ((absEIdx h).tag == ETag.app) = false by
+        rw [htag]
+        have : absU32 t ≠ ETag.app := by
+          rw [← etag_app_abs]
+          intro hcc; exact hc (absU32_inj hcc)
+        simp [this]]
+      simp only [Bool.false_eq_true, if_false]
+      exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+
 /-- `get_app_fn` ⊑ `getAppFn`. -/
 theorem get_app_fn_refines {pers : arena.store.PersTier} {st : arena.monad.AState}
     {lst : AState} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.get_app_fn pers st fuel h = ok o) :
     AOut absEIdx (fun _ => True) pers lst o st
-      ((getAppFn (absU fuel) (absEIdx h)).run lst) := by
-  sorry
+      ((getAppFn (absU fuel) (absEIdx h)).run lst) :=
+  get_app_fn_aux fuel.val rfl hrel hinv hrun
+
+private theorem get_app_args_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {h : arena.handle.EIdx} {k : Std.Usize} {o},
+      fuel.val = n → AStateRel pers st lst → AStateInv pers st →
+      arena.expr_ops.get_app_args_go pers st fuel h k = ok o →
+      AOut absEIdxList (fun _ => True) pers lst o st
+        ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h k o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_args_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    refine AOut.err ?_
+    show AErrSim _ ((getAppArgs (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, getAppArgs, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst fuel h k o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_args_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by
+      intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htag := eidx_tag_abs ht
+    rw [show absU fuel = m + 1 from hn, getAppArgs]
+    by_cases hc : t = arena.handle.ETAG_APP
+    · rw [if_pos hc] at hrun
+      subst hc
+      rw [show ((absEIdx h).tag == ETag.app) = true by
+        rw [htag, etag_app_abs]; simp]
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hva := view_app_run hrel hp
+      simp only [if_true]
+      rw [StateT.run_bind, hva]
+      cases hpc : p with
+      | none =>
+        rw [hpc] at hrun
+        rw [arena.monad.fail_dangling_e] at hrun
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [fail_run hrun]
+        refine AOut.err ?_
+        show AErrSim _ ((Arena.failDanglingE : AM (List EIdx)).run lst)
+        exact failDanglingE_errSim lst
+      | some q =>
+        rw [hpc] at hrun
+        obtain ⟨f1, a1⟩ := q
+        obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨i2, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi1v : i1.val = m := by
+          have h1 : i1.val = fuel.val - (1#u64 : Std.U64).val :=
+            (ConRon.Refine.Nat.usub_val hi1).2
+          rw [h1, hn]; rfl
+        have hrec := ih (fuel := i1) (h := f1) (k := i2) hi1v hrel hinv hr
+        rw [show absU i1 = m from hi1v] at hrec
+        show AOut absEIdxList (fun _ => True) pers lst o st
+          ((do let qs ← getAppArgs m (absEIdx f1); pure (qs ++ [absEIdx a1])).run lst)
+        cases hrc : r with
+        | Err e =>
+          rw [hrc] at hrun hrec
+          have ho : (core.result.Result.Err e :
+              core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
+            Result.ok_injective hrun
+          rw [← ho]
+          refine AOut.err ?_
+          rw [StateT.run_bind]
+          intro kk hk
+          obtain ⟨le, hle, hlk⟩ := hrec kk hk
+          exact ⟨le, by rw [hle]; rfl, hlk⟩
+        | Ok args =>
+          rw [hrc] at hrun hrec
+          obtain ⟨lst', hx, hrel', hinv', hext', -⟩ := hrec
+          obtain ⟨args1, ha1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have ho : (core.result.Result.Ok args1 :
+              core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
+            Result.ok_injective hrun
+          rw [← ho]
+          refine AOut.ok ?_ hrel' hinv' hext' trivial
+          rw [StateT.run_bind, hx]
+          show Except.ok _ = _
+          rw [show absEIdxList args1 = absEIdxList args ++ [absEIdx a1] by
+            unfold absEIdxList
+            rw [ConRon.Refine.vec_push_val ha1, List.map_append]
+            rfl]
+    · rw [if_neg hc] at hrun
+      have ho : (core.result.Result.Ok
+          (alloc.vec.Vec.with_capacity arena.handle.EIdx k) :
+          core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      rw [show ((absEIdx h).tag == ETag.app) = false by
+        rw [htag]
+        have : absU32 t ≠ ETag.app := by
+          rw [← etag_app_abs]
+          intro hcc; exact hc (absU32_inj hcc)
+        simp [this]]
+      simp only [Bool.false_eq_true, if_false]
+      refine AOut.ok ?_ hrel hinv (Ext.refl _) trivial
+      show Except.ok ([], lst) = _
+      rfl
 
 /-- `get_app_args_go` ⊑ `getAppArgs` — the cursor recursion.  **`k` does not
 appear on the twin's side at all**: it is the capacity hint, so the statement
@@ -369,8 +655,8 @@ theorem get_app_args_go_refines {pers : arena.store.PersTier}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.get_app_args_go pers st fuel h k = ok o) :
     AOut absEIdxList (fun _ => True) pers lst o st
-      ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
-  sorry
+      ((getAppArgs (absU fuel) (absEIdx h)).run lst) :=
+  get_app_args_go_aux fuel.val rfl hrel hinv hrun
 
 /-- `get_app_args` ⊑ `getAppArgs` — the `k = 0` wrapper, and it is the whole
 proof: the Rust's `k` is spent as the `Vec`'s capacity and nothing else (task
