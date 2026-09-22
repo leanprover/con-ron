@@ -1461,7 +1461,7 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     next =>
       bridge_peel
       subst_vars
-      refine fun hwf2 hx _hbm _hlss hmem hcc hpp _hvw hrr => ?_
+      refine fun hwf2 hx _hbm _hlss _hscr hmem hcc hpp _hvw hrr => ?_
       exact ⟨⟨hwf2⟩, MemoOK.mono hm hx (by rw [hmem]), hx, _hbm, hcc, hpp,
         by rw [hmem], LiftAt.bvar_up hok.wf (by subst_hyp) (by subst_hyp) hrr⟩
     -- `bvar`, the branch below the cutoff
@@ -1690,7 +1690,7 @@ theorem lowerBVarsGo_spec (amount : Nat) :
     next =>
       bridge_peel
       subst_vars
-      refine fun hwf2 hx _hbm _hlss _hmem _hcc _hpp _hvw hrr => ?_
+      refine fun hwf2 hx _hbm _hlss _hscr _hmem _hcc _hpp _hvw hrr => ?_
       refine ⟨⟨hwf2⟩, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl],
         by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
@@ -1881,7 +1881,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     next =>
       bridge_peel
       subst_vars
-      refine fun hwf2 hx _hbm _hlss _hmem _hcc _hpp _hvw hrr => ?_
+      refine fun hwf2 hx _hbm _hlss _hscr _hmem _hcc _hpp _hvw hrr => ?_
       refine ⟨⟨hwf2⟩, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl],
         by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
@@ -2254,7 +2254,7 @@ theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   -- arrives as an implication chain because the intern is the arm's ANSWER
   -- (there is no memo insert behind it — this is the unmemoized walk).
   next =>
-    refine fun hwf2 hx _hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    refine fun hwf2 hx _hbx _hlss _hscr2 _hmm _hcc _hpp _hvw hrr => ?_
     bridge_peel
     subst_vars
     refine ⟨⟨hwf2⟩, by grind only [Ext.trans],
@@ -2347,7 +2347,7 @@ theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   mvcgen [instListArmLet, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   next =>
-    refine fun hwf2 hx _hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    refine fun hwf2 hx _hbx _hlss _hscr2 _hmm _hcc _hpp _hvw hrr => ?_
     bridge_peel
     subst_vars
     refine ⟨⟨hwf2⟩, by grind only [Ext.trans],
@@ -2373,7 +2373,7 @@ theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   mvcgen [instListArmProj, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   next =>
-    refine fun hwf2 hx _hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    refine fun hwf2 hx _hbx _hlss _hscr2 _hmm _hcc _hpp _hvw hrr => ?_
     bridge_peel
     subst_vars
     obtain ⟨nm, es, _, hn0, _⟩ :=
@@ -2438,7 +2438,7 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     exact InstLVec.isSome_get hvec (by subst_hyp)
   -- out of range: the index drops by the vector's length.
   next =>
-    refine fun hwf2 hx hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    refine fun hwf2 hx hbx _hlss _hscr2 _hmm _hcc _hpp _hvw hrr => ?_
     bridge_peel
     subst_vars
     refine ⟨⟨hwf2⟩, by grind only [Ext.trans],

@@ -620,7 +620,7 @@ theorem internE_run {s s' : AState} {w : ENodeView} {h : EIdx}
     (hok : StateOK s) (hv : s.store.ViewOK w)
     (hrun : internE w s = .ok (h, s')) :
     PStep s s' ∧ denoteE s'.store h = denoteEView s'.store w := by
-  obtain ⟨h1, h2, h3, _h4, _h5, h6, h7, _h8, h9⟩ :=
+  obtain ⟨h1, h2, h3, _h4, _h4b, _h5, h6, h7, _h8, h9⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s w hok.wf hv)
   exact ⟨PStep.of_caches ⟨h1⟩ h2 h3 h6 h7, h9⟩
 

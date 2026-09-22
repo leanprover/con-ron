@@ -874,11 +874,6 @@ theorem IStep.toParse {s s' : AState} (h : IStep s s')
 
 /-! ## `internE`'s scratch flag -/
 
-theorem EStore.scratchOn_intern (st : EStore) (w : ENodeView) :
-    (st.intern w).1.scratchOn = st.scratchOn := by
-  rw [EStore.intern, EStore.scratchOn_internAt]
-  rcases EStore.internBMOfView_cases st w with he | ⟨m, he⟩ | ⟨m, he⟩ <;> rw [he]
-
 theorem AM.set_state_ok {s s' t : AState} {u : PUnit}
     (h : (set t : AM PUnit) s = .ok (u, s')) : s' = t := by
   have he : ((PUnit.unit, t) : PUnit × AState) = (u, s') := Except.ok.inj h
@@ -910,7 +905,7 @@ theorem internE_istep {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {v : ENodeView} (hv : s.store.ViewOK v)
     {h : EIdx} (hrun : internE v s = .ok (h, s')) :
     IStep s s' ∧ PersE h ∧ denoteE s'.store h = denoteEView s'.store v := by
-  obtain ⟨hwf, hx, -, -, hm, hc, hp, hview, hden⟩ :=
+  obtain ⟨hwf, hx, -, -, -, hm, hc, hp, hview, hden⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s v hok.wf hv)
   have hon : s'.store.scratchOn = false := by
     rw [internE_scratchOn hrun]; exact hoff
