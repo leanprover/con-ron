@@ -2865,6 +2865,14 @@ the reversed list — and reads the accumulator from the end where the
 algorithm consumed the list's head.  A twin clause change (owed to the Lean
 catch-up), not a representation absorbed by the refinement.
 
+**Ruling revised (coordinator, 2026-09-22, after task #97-LC):** the Lean
+twin does NOT take a `ReaderT PersTier` layer.  The Rust's `pers :
+&PersTier` parameter exists only because Rust cannot express phase B's
+sharing inside the state; the single-threaded twin keeps one `EStore` with
+both tiers, and the refinement relates the pair `(pers, st)` to it by
+`absStore` (`shared_on → self.pers = ∅`, task #97-P6-6b's own ledger
+clause).  Cheaper and faithful; the earlier "ReaderT" line is withdrawn.
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
