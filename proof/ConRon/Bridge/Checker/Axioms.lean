@@ -21,9 +21,9 @@ is exactly the discipline `proof/ConRon/RefineOld/Main.lean`'s
 `conron.model_exists` kept with `hk` and `hind`, and it is what makes "two
 named hypotheses" a checkable claim rather than a prose one.
 
-**Six of the seven arms are in group 1 in every sense but one**: they are
-proved, and what they still reach is the leaves below them.  The census prints
-them in group 2 for that reason.
+**All seven arms are in group 1 in every sense but one**: they are proved, and
+what they still reach is the leaves below them.  The census prints them in
+group 2 for that reason.
 -/
 import ConRon.Bridge.Checker.Capstone
 import ConRon.Bridge.Checker.Base
@@ -197,6 +197,12 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- `sorryAx` through its six `…Body_spec` walks)
 #print axioms CoreSpec.of_knot
 
+#print axioms checkDecl_defn_pure_nn
+#print axioms checkDecl_defn_pure_nd
+#print axioms checkDecl_defn_pure_yn
+#print axioms checkDecl_defn_pure_yy
+
+#print axioms checkDecl_bridge_defn
 #print axioms checkDecl_bridge_thm
 #print axioms checkDecl_bridge_opaque
 #print axioms checkDecl_bridge_axiom

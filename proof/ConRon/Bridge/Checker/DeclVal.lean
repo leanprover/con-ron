@@ -136,7 +136,7 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
     CoreStep μ env fe s s' ∧
       IFEnvCoh fe' ∧ Pushed fe fe' ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-        IFEnvOK env' fe' s' ∧
+        IFEnvOK env' fe' s' ∧ EnvWF env' ∧
         ConLeche.checkDefnVal (ConLeche.fueledOps μ F) env c x hint = .ok env' := by
   sorry
 
@@ -158,7 +158,7 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
     CoreStep μ env fe s s' ∧
       IFEnvCoh fe' ∧ Pushed fe fe' ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-        IFEnvOK env' fe' s' ∧
+        IFEnvOK env' fe' s' ∧ EnvWF env' ∧
         ConLeche.checkThmVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
   sorry
 
@@ -178,7 +178,7 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
     CoreStep μ env fe s s' ∧
       IFEnvCoh fe' ∧ Pushed fe fe' ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
-        IFEnvOK env' fe' s' ∧
+        IFEnvOK env' fe' s' ∧ EnvWF env' ∧
         ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
   sorry
 
@@ -315,6 +315,25 @@ theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
     CoreStep μ env fe s s' ∧
       (r = true → ∃ F, ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env xs
         = .ok true) := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the
+substituted recurrence equations are well scoped at the depth the certifier
+runs them at (`isDefEq … 2`: the equations' variables are `fvar 0` and
+`fvar 1`).  A pure fact about con-leche's own pinned construction, which
+`certifyNatEqs_bridge`'s `KnotSpec.defeq` calls need as their precondition.
+
+`sorry`: `natOpEquations`' twelve literal shapes, and `Expr.substConst0`
+preserving `WScoped` at a well-scoped replacement — which the stored value is,
+by `EnvWF env2`'s own clause about a `defnInfo`'s value.  Task
+#97-P3-Checker's sorry list, item 23. -/
+theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
+    {cv' : ConstantVal} {v' : Expr} {hint' : ReducibilityHint}
+    (henv : EnvWF env2)
+    (hf : env2.find? nm = some (.defnInfo cv' v' hint')) :
+    ∀ q ∈ (ConLeche.natOpEquations 0 nm).map
+      (fun eq => (Expr.substConst0 nm v' eq.1, Expr.substConst0 nm v' eq.2)),
+      Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2 := by
   sorry
 
 /-! ## The two pinned-variant gates -/

@@ -39012,7 +39012,7 @@ shape to avoid next time is the `hs ++ [h]` accumulator: an explicit literal
 list per step, or a reversed accumulation, would keep the final unification
 from being one 19-deep `List.append` normalisation.
 
-##### 7. Six of `checkDecl`'s seven arms — PROVED, in a new module
+##### 7. **All seven of `checkDecl`'s arms — PROVED**, in a new module
 
 The arm theorems moved out of `Bridge/Checker/Decl.lean` into
 **`Bridge/Checker/Arms.lean`**: an arm's content is `Base.lean`'s
@@ -39030,12 +39030,17 @@ would close a cycle.  `Decl.lean` keeps `DeclOut`, `PinSetDenote`,
 | `basis` | **proved** | `checkBasisDecl_bridge` — the arm IS `checkBasisDecl` on both sides |
 | `ind` | **proved** | `basisPinHit_run`, then `checkBasisDecl_bridge` on the pinned route and **`IndSpec.run` verbatim** on the other |
 | `quot` | **proved** | `quotPinHit_run`, then `checkBasisDecl_bridge` at `.type` and `Pushed.refl` at the other four kinds |
-| `defn` | **asserted** | §9 |
+| `defn` | **proved** | the widest to assemble: `checkDefnVal_bridge`, then the structural-`Nat` gate (`natOpNames_run`, `natOpGuard_run`, `natOpStoredOkAll_run`, `IFEnvOK.hit` at `fe2.find?` — the one place an arm reads the POST-insertion index — `natOpEquations_run`, `substConst0Pairs_run`, `certifyNatEqs_bridge`) and the `Nat.div`/`Nat.mod` gate (`natDivModNames_run`, `checkDivModPin_bridge`) |
 
-Eleven pure step lemmas about con-leche's own `checkDecl` clauses carry the
-other side (`checkDecl_thm_pure`, `…_basis_pure`, `…_quot_type_pure`,
+**Lean's `do` elaborator copies the tail into both arms of a guard that does
+not return**, so an arm with `k` such guards has `2^k` leaves and each needs
+its own pure step lemma about con-leche's clause: the `axiom` arm has six, the
+`defn` arm four (structural-`Nat` taken or not × `Nat.div`/`Nat.mod` taken or
+not), the `opaque` arm two.  Fifteen pure step lemmas in all
+(`checkDecl_thm_pure`, `…_basis_pure`, `…_quot_type_pure`,
 `…_quot_other_pure`, `…_ind_basis_pure`, `…_opaque_pure`,
-`…_opaque_pin_pure`, and the axiom arm's five), and six `*_mono` lemmas —
+`…_opaque_pin_pure`, the axiom arm's five and the `defn` arm's four), and
+seven `*_mono` lemmas —
 `checkConstantVal_mono`, `checkDefnVal_mono`, `checkThmVal_mono`,
 `checkOpaqueVal_mono`, `certifyNatEqs_mono`, `checkDivModPin_mono`,
 `checkReducePin_mono` — give each arm one fuel, all of them con-leche's own
@@ -39094,14 +39099,15 @@ items 5 and 1), a `PExt` across the closing `dropScratch` at a store that is
 only `StoreWFP` (the promotion breaks `fresh` transiently), and §8's item 5.
 The statement also gains `PersDecl pd`, which the fold already carries.
 
-**The `defn` arm** is the one of the seven still asserted, and it is the only
-one whose sub-statements were not all there.  This round wrote the seven that
-were missing — `natOpNames_run`, `natDivModNames_run`, `natOpDeps_run`,
-`natOpGuard_run`, `natOpStoredOkAll_run`, `natOpEquations_run`,
-`substConst0Pairs_run` — so what is left is the assembly.  It is the widest to
-assemble because §3's continuation-copying applies to BOTH gates, so the four
-combinations (structural-`Nat` taken or not × `Nat.div`/`Nat.mod` taken or
-not) are four leaves, each with its own pure step lemma.
+**The `defn` arm** was the only one whose sub-statements were not all there.
+This round wrote the eight that were missing — `natOpNames_run`,
+`natDivModNames_run`, `natOpDeps_run`, `natOpGuard_run`,
+`natOpStoredOkAll_run`, `natOpEquations_run`, `substConst0Pairs_run` and
+`natOpEqs_wscoped` — and then assembled it.  Two clauses had to be added
+above it for the assembly to close: the three value checks now also conclude
+**`EnvWF env'`** (con-leche's environment well-formedness at the environment
+the install produced — what `natOpEqs_wscoped` needs, and what the FOLD will
+need at the next declaration) and **`IFEnvOK env' fe' s'`** (§8's item 2).
 
 ##### 10. The layer, and its size
 
@@ -39116,15 +39122,15 @@ not) are four leaves, each with its own pure step lemma.
 | `Bridge/Checker/Base.lean` | 1 122 | 1 054 | 35 | 2 | **65 s** (§6) |
 | `Bridge/Checker/Canon.lean` | 92 | 77 | 5 | 4 | 0.85 s |
 | `Bridge/Checker/Basis.lean` | 184 | 153 | 9 | 9 | 0.73 s |
-| `Bridge/Checker/DeclVal.lean` | 368 | 317 | 21 | 13 | 0.81 s |
-| `Bridge/Checker/Arms.lean` — **the seven arms** | 741 | 694 | 22 | 1 | 2.8 s |
+| `Bridge/Checker/DeclVal.lean` | 387 | 334 | 22 | 14 | 1.2 s |
+| `Bridge/Checker/Arms.lean` — **the seven arms, all proved** | 1 031 | 978 | 26 | **0** | 3.6 s |
 | `Bridge/Checker/Mono.lean` | 53 | 41 | 1 | **0** | 0.72 s |
 | `Bridge/Checker/Fold.lean` | 357 | 320 | 8 | 1 | 0.89 s |
 | `Bridge/Checker/Pins.lean` | 106 | 88 | 3 | 3 | 0.74 s |
 | `Bridge/Checker/Split.lean` | 233 | 197 | 8 | 7 | 0.85 s |
 | `Bridge/Checker/Capstone.lean` | 124 | 107 | 3 | **0** | 0.83 s |
 | `Bridge/Checker/Axioms.lean` | 212 | 183 | — | — | 0.79 s |
-| **the tier** | **5 740** | **5 092** | **266** | **55** | **~81 s**, of which §6 is 63 |
+| **the tier** | **6 049** | **5 393** | **271** | **55** | **~82 s**, of which §6 is 63 |
 
 ##### 11. The sorry list as this round leaves it — 55 declarations
 
@@ -39136,32 +39142,39 @@ not) are four leaves, each with its own pure step lemma.
 | `Checker/Base.lean` | 2 | item 9: `allLevelParamsDefined_run`, `constsResolveFFast_run`, the two memoised DAG walks of the front door |
 | `Checker/Canon.lean` | 4 | item 14: `canonExprEq`'s fuel induction at four entry points |
 | `Checker/Basis.lean` | 9 | items 15-16: the interned literals, the two recognisers, the two installs, the three axiom shapes |
-| `Checker/DeclVal.lean` | 13 | items 22-24 plus §9's seven new structural-`Nat` readers |
-| `Checker/Arms.lean` | 1 | item 7's last arm — §9 |
+| `Checker/DeclVal.lean` | 14 | items 22-24 plus §9's eight new structural-`Nat` readers |
 | `Checker/Fold.lean` | 1 | item 8 — §9 |
 | `Checker/Pins.lean` | 3 | item 13: the startup walk |
 | `Checker/Split.lean` | 7 | items 17-20: the install/check seam and the second fold |
 
-Every one of the 55 is a LEAF or a store-layer obligation: nothing between
-`checkConstantVal_bridge` and `Arena.model_exists` is asserted any more except
-the `defn` arm's assembly and item 8's bracket.
+**Every one of the 55 is a LEAF or a store-layer obligation.**  Nothing
+between `checkConstantVal_bridge` and `Arena.model_exists` is asserted any
+more except item 8's bracket: the seven arms, the per-declaration theorem, the
+fold and the capstone are all proved, and what they reach is walks
+(`allLevelParamsDefined`, `constsResolveFFast`, `canonExprEq`), environment
+reads (`stdAxiomOk`, `trustCompilerOk`, `ofReduceAxOk`, `natOpGuard`,
+`natOpStoredOk`), interned literals (`BasisKind.decls`, `natOpEquations`, the
+pin sets) and the promotion tier.
 
 ##### 12. Gates
 
 | gate | |
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 614 jobs**; 255 `sorry` warnings, of which **55** are this tier's (§11) |
-| `#print axioms` | `Bridge/Checker/Axioms.lean` lists **123 results: 111 closed** (107 at `[propext, Classical.choice, Quot.sound]`, three at `[propext, Quot.sound]`, one at `[propext]` alone) **and 12 with `sorryAx`** — the six proved arms, `Arena.checkDecl_bridge`, `checkDeclsPure_bridge`, `model_exists`, `no_proof_of_False`, `installThenCheck_bridge` and `CoreSpec.of_knot`.  **None of them carries `CoreSpec` or `IndSpec`**, which are hypotheses of the statements; no `bv_decide` axiom anywhere |
+| `#print axioms` | `Bridge/Checker/Axioms.lean` lists **128 results: 115 closed** (111 at `[propext, Classical.choice, Quot.sound]`, three at `[propext, Quot.sound]`, one at `[propext]` alone) **and 13 with `sorryAx`** — the seven proved arms, `Arena.checkDecl_bridge`, `checkDeclsPure_bridge`, `model_exists`, `no_proof_of_False`, `installThenCheck_bridge` and `CoreSpec.of_knot`.  **None of them carries `CoreSpec` or `IndSpec`**, which are hypotheses of the statements; no `bv_decide` axiom anywhere |
 | per-theorem elaboration | one theorem above the 20 s flag, `reservedBasisNames_run` at ~63 s (§6); the next is 2.8 s for a whole module |
 | `scripts/arena-census.py --summary` | runs; `Arena/Checker` T1 stated 50/292, closed 15 |
 | the diff | `proof/ConRon/Bridge/Promote/**`, `proof/ConRon/Bridge/Checker/**`, `proof/ConRon/Bridge/Checker.lean`, `proof/ConRon/Bridge/Inductives/Decl.lean` (two blocks) and this text.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
 
 **Is `Arena.checkDecl_bridge` sorry-free?**  **No**, and §11 says exactly what
-stands between it and that: the `defn` arm's assembly, and 33 leaves under the
-other six (items 9, 14, 15, 16, 22, 23, 24 and the seven new structural-`Nat`
-readers).  What changed is the SHAPE of the claim — the theorem and six of its
-seven arms are now *assembled*, so every remaining `sorry` under it is a leaf
-walk or an environment read, and none of them is a composition.
+stands between it and that: **34 leaves** under the seven arms (items 9, 14,
+15, 16, 22, 23, 24 and §9's eight new structural-`Nat` readers).  What changed
+is the SHAPE of the claim — the theorem and **all seven** of its arms are now
+*assembled*, so every remaining `sorry` under it is a leaf walk, an
+environment read or an interned literal, and **not one of them is a
+composition**.  The round began with "one induction, one bracket, seven arms
+and two named hypotheses, of which the arms are asserted"; it ends with the
+arms proved and the bracket the only composition left.
 
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
