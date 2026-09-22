@@ -212,7 +212,7 @@ structure NativePassRel (r : arena.inductives.native_install.NativePass)
   ctorsA : l.ctorsA = absCtorsL r.ctors_a
   sortss : l.sortss = absLIdxLL r.sortss
 
-/-! ## Rule 11 at a COUNTED recursion — the tier's three list closers
+/-! ## Rule 11 at a COUNTED recursion — the tier's four list closers
 
 DESIGN §3.4 turns every `List` operation of a twin into a named cursor
 recursion in the port, and `Refine2/Inductives/Spec.lean` transcribes the twin
@@ -223,7 +223,7 @@ one per call site.  Task #97-P5-Checker's **rule 11** (`am_bind_congr` and
 `twin_reduce`, `Refine2/Checker/Shape.lean`) is what the step of each needs:
 `congr 1` eta-expands the state function instead of peeling the bind.
 
-The three are stated against an ARBITRARY `G` with its two clauses as
+The four are stated against an ARBITRARY `G` with its two clauses as
 hypotheses, so a caller supplies `G := <its transcription>` and discharges
 both by `rfl` — which is what makes them one lemma for the whole tier rather
 than one per unfold. -/

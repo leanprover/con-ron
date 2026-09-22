@@ -45222,9 +45222,9 @@ the tier.
 | family | how many | what one costs | what it waits on |
 |---|---:|---|---|
 | **`_unfold`, plain `rfl`** | **11 of 32** | **1 line**, ~0.2 s | nothing |
-| **`_unfold`, a `let rec go`** | 4 | **5–6 lines** — one induction, `simp only [<twin>.go, <spec>, ih]` | nothing |
+| **`_unfold`, a `let rec go`** | 5 | **5–6 lines** — one induction, `simp only [<twin>.go, <spec>, ih]` | nothing |
 | **`_unfold`, a memoised walk** | 3 | **9–13 lines** — rule 11 plus `pair_peel` (new, §R2.4) | nothing |
-| **`_unfold`, a list fold** | 3 | **6–18 lines** — one of the four `*_counted` lemmas (new) plus `twin_reduce` | nothing |
+| **`_unfold`, a list fold** | 2 | **6–18 lines** — one of the four `*_counted` lemmas (new) plus `twin_reduce` | nothing |
 | **`_unfold`, a deep `let x ← match`** | **11** | **NOT CLOSED** — see §R2.5 | nothing, but see §R2.5 |
 | `_refines`, state-free (`Vec` cursor, record copy, arithmetic) | 52 | **30 lines, MEASURED** — see §R2.3b; the second one was a verbatim copy of the first and worked first try | 20 wait on nothing, 15 on tier-mates, 18 across tiers |
 | `_refines`, stateful (`Sim`/`SimRel`) | 253 | not priced — 248 are blocked | `Specs.lean`'s intern family |
@@ -45255,15 +45255,16 @@ thirty-two are literally `by rfl`.**
   they are *not*.  **Both are right, and the split is a third each way**: a
   transcription cut at a `let` boundary IS `rfl`; one cut where the `do`
   elaborator made a join point is not.
-* **4 by a `let rec` induction** — `paramLevels`, `structPsAt`,
+* **5 by a `let rec` induction** — `paramLevels`, `structPsAt`,
   `structProjGuards` (`Spec.lean`), `projBack`, `projFwd`
   (`SpecModeled.lean`), 5–6 lines each.  `Spec.lean`'s module note warns that
   a STATEMENT keyed on the lifted `f.go` is unstable; a PROOF may name it, and
   `#check @paramLevels.go` is how the captured-argument order is read off.
 * **3 memoised walks** — `hasLooseBVarBGo`, `mentionsConstGo`,
   `mentionsFvarGo`, 9–13 lines each, and the recipe is §R2.4's.
-* **3 list folds** — `checkStructProjTable`, `checkSumCtor` (both
-  `List.allM`), `recCtorKinds`'s sibling clauses, via §R2.4's `*_counted`.
+* **2 list folds** — `checkStructProjTable` and `checkSumCtor`, both
+  `List.allM`, via §R2.4's `list_allM_counted` and `range_allM_counted`.
+  (11 + 5 + 3 + 2 = 21.)
 
 ##### R2.3b And four `_refines`, so the tier's closed count is no longer zero
 
@@ -45384,3 +45385,32 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
   theorem is near the 20 s flag and there is still no `grind` anywhere in the
   tier, so neither file needs the `attribute [-grind]` line (the tier's other
   eleven files carry it and still do).
+
+##### R2.7 What the next round needs, and from whom
+
+* **`Refine2/Specs.lean`'s twenty-two open `intern_*` / `read_*` `_run`
+  lemmas** — the owner of the `ExprOps`/`Specs` lane.  **248 statements of
+  this tier are behind them** and nothing else this tier can do shortens that
+  list.  Until they land, a round here is worth the 85 in §R2.1's first three
+  columns and no more.
+* **`ExprOps/Mut.lean`'s walkers** (48 statements behind them) and
+  **`Checker/Base.lean`'s four list checks plus `check_constant_val`** (43) —
+  the same two lanes, second in line.
+* **`openPisAtFvarsF_length`** — *`openPisAtFvarsF n e i = some (fvs, _)`
+  implies `fvs.length = n`*, an induction over `openPisAtFvarsFGo` plus the
+  `openPisAtFvars` fallback.  It is a fact about `Arena/CheckerBase.lean`'s
+  twin, so it belongs to whoever owns `Refine2/Checker/**`; §R2.5 says why
+  `nativeOpenedOk_unfold` cannot be closed without it.  **This tier states it
+  as an obligation and does not state a weaker equation to avoid it.**
+* **Nothing is needed from `Core/**`.**  `KnotRel checkFuel` is a theorem, the
+  six entries are closed, and the tier's 74 `hknot` binders are free.
+
+##### R2.8 The gates, at the tip
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** (`cargo build` / `cargo test` / `lint-rust-style.sh` / `provenance.py check` + selftest / `twin-lines.py check` / `overview-links.sh` / `holes.sh --check` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract.sh --check` 105 s / `lake build`) |
+| `cd proof && lake build ConRonRefine2` | green, **2 219 jobs**, 0 errors — run explicitly, it is not a default target |
+| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 2** (was 0); the tier's `sorry` count 337 → **312** |
+| the merge | `arena` at `0b79feae` merged in as a fast-forward (this branch had no commit at the time), so landing is a fast-forward of `arena` onto this tip |
+| the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,SumParts,NativeParts}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, no other `Refine2/` file — in particular **not** `Specs.lean`, `ExprOps/**`, `Checker/**` or `Promote/**`, which are other agents' lanes this round |
