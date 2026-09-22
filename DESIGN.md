@@ -21765,6 +21765,139 @@ still at the default `maxHeartbeats`, and a clean `lake build ConRonArena`
 11–12 s over three runs, unchanged from the same file before the clause, so
 the extra field costs nothing measurable.
 
+#### Follow-up 3 (2026-09-22, Opus under Fable): the `bmKey` clauses, the datum's own append, and a `capOK` that was too weak
+
+Task #97-LC (§3, §6) left the `intern` end of `WFProofs.lean` with three
+`sorry`s — `EStore.intern_view_spec`, `intern_wf_of_sync` and
+`intern_isPersistent_of_off` — and named the missing invariant.  This
+follow-up lands it and closes them; `grep -c sorry proof/ConRon/Arena/*.lean`
+is 0 again.
+
+**The clauses.**  `WF.lean`'s `EWFAt` gained the pair #97-LC's finding 3 asked
+for — *every binder key a cons table holds names a datum the store can
+decode*:
+
+```lean
+bmKeyP : ∀ v mj i, st.pers.find? v mj = some i →
+  v.bmOf = none ∨ ∃ m, st.pers.findBM m = some mj
+bmKeyS : ∀ v mj i, st.scr.find? v mj = some i →
+  v.bmOf = none ∨ ∃ m, st.findBM m = some mj
+```
+
+One deviation from §6's sketch, and it is forced: **`bmKeyP` is stated at the
+persistent tier's own `findBM`, not at the whole store's.**  `dropScratch`
+keeps `pers` and empties `scr`, so a persistent key whose datum lived only in
+the scratch tier's range would lose its witness and `wf_of_scr_empty` could
+not re-establish the clause; at the persistent tier the witness survives by
+construction.  The scratch half needs no such care and keeps §6's form.
+`ENodeView.bmOf` moved from `WFProofs.lean` to `WF.lean` (a plain `def`, no
+other change) so the clauses can be stated.
+
+**Preservation, five sites, all cheap.**  `wf_of_scr_empty` (the
+`enableScratch`/`dropScratch` bracket): `bmKeyP` is the old clause under
+`st'.pers = st.pers`, `bmKeyS` is vacuous on the empty tier.
+`wf_push_scr`/`wf_push_pers` (the node appends): the one key the append adds
+is the caller's own `mi`, which `ENodeView.BMOK` + `EWFAt.findBM_of_viewBM`
+put in `findBM`'s range — `ETables.consKeyEq_bmOf` is the eleven-line lemma
+that says a key matching a binder view's key matches it at the datum HANDLE
+too, and it is the whole content of the new cases.  The datum append
+(`wf_pushBM_*`, below) adds no node key at all and only GROWS `findBM`'s
+range.
+
+**The datum's own append.**  `EStore.wf_pushBM_scr` and `wf_pushBM_pers` are
+`internBM`'s `wf_push_scr` / `wf_push_pers`, at a store with one constructor
+and no children.  The shape #97-LC predicted holds: the datum push leaves
+every node read, `find?`, `derAt` and `count` of the tier untouched, so
+**`view` does not move at all** — `bmChildOK` says the data a node names
+already decode and `getBM` only grows — and the work is the seven `bm*`
+clauses plus the cons probes of the ONE view whose datum has just become
+findable.  That last part is where `bmKeyP`/`bmKeyS` are actually spent:
+before the push `findBMOfView` answered `none` for that view, so `consP` and
+`consS` said nothing about it; after it they must say the fresh handle finds
+nothing, and the argument is exactly §6's — `bmKeyP` puts any answering key's
+datum in `findBM`'s range, `bmConsP` makes that datum decodable, and the
+fresh handle's index IS `bms.size`, so it decodes to nothing.  The converse
+direction is the new `EWFAt.findBM_of_view` (`persFindBM_of_view_pers` with
+the persistence dropped): a decoded view carrying a datum puts that datum in
+`findBM`'s range, so no existing node can denote the view whose datum was
+absent.
+
+`internBM`'s three outcomes are named once (`internBM_hit_pers`,
+`internBM_hit_scr`, `internBM_push_scr`, `internBM_push_pers`) and
+`internBM_spec` / `internBMOfView_spec` package what the node half needs:
+`StoreWF`, `lss`/`scratchOn`/`view`/`sizeOf` unchanged, the datum handle
+decoding to the datum, its `tag = 0`, and — the conjunct that makes `consP`
+apply at all — `findBMOfView w = some mi` on the extended store.
+`intern` is then `internAt` on that store, and `internAt_wf_view` is the
+three-branch split the two `wf_push_*` already close.
+
+**The statement that was wrong — `EStore.capOK`.**  #97-LC's finding 1 says
+"`eViewNeedsBM` now names the two arms that reach the datum store and
+`internE`/`internPersistentE` test `bmSize` exactly there".  That is true of
+`Monad.lean`, and **only** of `Monad.lean`: `EStore.capOK`, the PROP the pure
+`intern_spec` family assumes, still constrained the ten node arrays alone.
+With it, all three of `intern_view_spec`, `intern_wf` and `intern_spec` are
+**false**: a store whose `pers.bms` holds exactly `Idx.idxCap` data satisfies
+`StoreWF`, `ViewOK (.lam ty b m)` and the old `capOK`, and interning that
+binder with a fresh `m` pushes a datum whose `UInt32.ofNat 2^27` index wraps
+into the TIER bit — a persistent handle that reads as scratch, so `bmConsP`
+fails and (with `scratchOn = false`) `view` of the node just interned is
+`none`.  Rather than add a hypothesis to four public theorems, the
+**precondition was fixed where it was wrong**:
+
+```lean
+def capOK (st : EStore) (v : ENodeView) : Prop :=
+  (if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap
+    ∧ (eViewNeedsBM v = true → st.capOKBM)
+```
+
+and `capOKPersistent` the same way against `capOKBMPersistent`.  Both are now
+**literally the branch condition** `Monad.lean`'s `internE` (`:186`) and
+`internPersistentE` (`:603`) already test, which is what the finding said the
+discharge would be; every theorem statement in `WF.lean` and `WFProofs.lean`
+is unchanged, `capOK` is a `Prop` with no runtime role, and no executable
+definition moved.  **This is the one place the round had to touch
+`Store.lean`, and it is flagged for the coordinator**: the finding was
+recorded as landed and only half of it was.
+
+**Two conclusions widened.**  `wf_push_scr` and `wf_push_pers` now answer
+`StoreWF st' ∧ st'.view inew = some w ∧ inew.isPersistent = <false/true>`
+instead of `StoreWF st'` alone.  Both extras were already proved inside them
+(`hgetnew` through `hviewS`/`hviewP`, and `hnp`), and returning them is what
+makes `intern_view_spec` and `intern_isPersistent_of_off` two lines each
+rather than a second pass over the append.  `wf_pushBM_*` answer the same
+shape at the datum store.
+
+**Numbers.**  `WF.lean` 333 → 346 lines; `WFProofs.lean` 6 615 → 7 658 raw
+(7 181 non-blank, 388 theorems), i.e. **+1 043 lines** for the two clauses,
+their preservation, the datum's two append lemmas and `intern`'s
+recomposition.  23 new Lean declarations (`provenance.py check`: 2 159 →
+2 182 arena Lean items, 0 findings).  `scripts/provenance.py check` and the
+full `cd proof && lake build` are green.
+
+`lake build ConRonArena` after touching only `WFProofs.lean`
+(`LEAN_NUM_THREADS=1`, `ulimit -v 60000000`, three runs): **10 / 10 / 10 s** for `WFProofs.lean` alone (its `.olean` removed,
+deps warm) against **14 / 10 / 9 s** for the same file at `arena`'s tip — the
++1 043 lines cost nothing measurable, because they are `rw`/`exact` chains
+rather than new `simp` work — and **81 / 79 / 82 s** for the whole library
+from a clean `.lake/build/…/Arena` (`LAKE_JOBS=4`).  The
+module is still at the default `maxHeartbeats` and pulls in no Mathlib.
+
+`#print axioms` on `EStore.{intern_spec, intern_view_spec, intern_wf,
+intern_wf_of_sync, intern_spec_of_sync, intern_isPersistent_of_off,
+intern_ext, enableScratch_spec, dropScratch_spec, dropScratch_denote_pers,
+derived_exact, wf_pushBM_scr, wf_pushBM_pers, internBM_spec,
+internBMOfView_spec, internAt_wf_view, internAt_isPersistent_of_off}`,
+`denote{N,L,Ls,E}_inj` and `{N,L,Ls}Store.{intern_spec, dropScratch_spec}`:
+`[propext, Classical.choice, Quot.sound]`.  `{N,L,Ls}Store.enableScratch_spec`
+need only `[propext, Quot.sound]`.  No `sorryAx`, no `bv_decide` axiom.
+
+**A note on the build.**  `lake build` under `ulimit -v 60000000` aborts
+intermittently with `failed to create thread` even at `LEAN_NUM_THREADS=1`
+(the same symptom #97-LC reports at 4); a re-run succeeds.  It is the address
+-space cap meeting Lean's per-thread reservation, not the proof — worth a
+line in the iteration protocol rather than a raised limit.
+
 #### For P2b
 
 * `tag_cases` is written (see the follow-ups above); read that subsection's
@@ -35428,7 +35561,13 @@ a small, mechanical follow-up in `crates/`, which this task may not touch.
 
 #### 6. What the next round owes
 
-* `WFProofs.lean`'s three remaining `sorry`s (§3), the `intern` end of the
+* ~~`WFProofs.lean`'s three remaining `sorry`s~~ — **landed**, task #97a
+  follow-up 3: the `bmKeyP`/`bmKeyS` clauses, `wf_pushBM_scr`/`wf_pushBM_pers`
+  and `internBM_spec`/`internBMOfView_spec` close all three, and finding 1 had
+  to be completed in `EStore.capOK` (it had only been landed in `Monad.lean`,
+  which left `intern_spec` false at `bms.size = Idx.idxCap`).  The paragraph
+  below is kept as the record of what was owed:
+  `WFProofs.lean`'s three remaining `sorry`s (§3), the `intern` end of the
   file: `EStore.intern_view_spec`, `intern_wf_of_sync` and
   `intern_isPersistent_of_off`.  Thirty-one of the thirty-four are closed; the
   three are what `internBM`'s push has to ESTABLISH rather than carry.
