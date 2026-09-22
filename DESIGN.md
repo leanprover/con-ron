@@ -22118,20 +22118,44 @@ internLevels,internBindI}_spec` still print
 the one line `import ConRon.Arena.PromoteExt`, and nothing else under
 `Bridge/Promote/**` (whose owner is the P3-Checker-2 agent) was touched.
 
-**The merge.**  `arena` `cb75e1a8` (task #97-P3-Ind, with two arena merges
-under it) merges into this branch with **no conflict in any `.lean` file** —
-the round's whole store-layer diff is one block at the END of
-`WFProofs.lean` and one new module, which is why — and `DESIGN.md`
+**The merge.**  `arena` merged twice while this round landed — `cb75e1a8`
+(task #97-P3-Ind) and then `e0616fdf` (tasks #97-P5-Frontend and
+#97-P3-CoreWalks) — and **neither merge conflicts in any `.lean` file**.
+That is the dividend of the shape: the round's whole store-layer diff is one
+block at the END of `WFProofs.lean` plus one new module, so #97-P3-CoreWalks'
+own 187-line `enableScratch` block, which git placed at line 7 578, lands
+*above* it untouched and both sections survive verbatim.  `DESIGN.md` is
 append-both.  `scripts/twin-lines.py check` (new on `arena`, task #97-TWIN)
-is green at 1 924 citations: appending rather than inserting is what keeps
-every Rust `Lean twin:` line number valid.
+is green at 1 924 citations for the same reason: appending rather than
+inserting is what keeps every Rust `Lean twin:` line number valid.
 
-**Gates** (all after the merge and the dedupe).
-`lake build ConRonArena ConRonBridge ConRonRefine2` green, **zero warnings**
-outside the pre-existing `sorry` notices (`LEAN_NUM_THREADS=1`,
-`LAKE_JOBS=4`, no `ulimit -v`); `PromoteExt.lean` 1.6-3.9 s.
-`scripts/provenance.py check`: 0 findings, **2 494 arena Lean items**, +155
-on the branch tip's 2 339 (85 theorems in `WFProofs.lean`, 70 declarations
+**One red target on the merged tree, and it is NOT this round's.**
+`lake build ConRonRefine2` fails at `Refine2/Core/Induction.lean` — three
+`rfl`s and five `#guard_msgs` axiom rows about `coreKnotGated`'s two
+reduction slots.  #97-P3-CoreWalks hoisted the stuck-tag test over the fuel
+dispatch in exactly those slots (`Arena/CoreGated.lean`, +27/−5 between the
+two `arena` tips) and `Refine2/Core/Induction.lean` — the P5-Core agent's —
+did not move with it.  The evidence that it is arena's and not this branch's
+is in this round's own two builds: at `arena` `cb75e1a8` **with every change
+of this section already applied**, `ConRon.Refine2.Core.Induction` built
+green in 72 s; after the `e0616fdf` merge, which touches no file of this
+round, it fails.  The branch differs from `arena` `e0616fdf` in seven files,
+none of them under `Refine2/`.  (A second, older red on the same tier: the
+`ConRon.Refine2` ROOT cannot be elaborated at all, because
+`Refine2/Core/KnotRel.lean` and `Refine2/Checker/KnotHyp.lean` both declare
+`ConRon.Refine2.KnotRel.whnfCore` and the root imports both — the hazard
+`proof/lakefile.toml` already records for the `Bridge` tier, which is why
+`ConRonBridge` carries `globs` and `ConRonRefine2` does not.)
+
+**Gates** (all on the merged tree, after the dedupe).
+`lake build ConRonArena ConRonBridge` green — **all 50 arena modules and all
+79 bridge modules**, zero warnings outside the pre-existing `sorry` notices
+(`LEAN_NUM_THREADS=1`, `LAKE_JOBS=4`, no `ulimit -v`); `PromoteExt.lean`
+1.6-3.9 s.  `lake build ConRonRefine2` fails at `Refine2/Core/Induction.lean`
+for the reason the paragraph above gives, which is `arena`'s and not this
+branch's.
+`scripts/provenance.py check`: 0 findings, **2 521 arena Lean items**, of
+which +155 are this round's (85 theorems in `WFProofs.lean`, 70 declarations
 in `PromoteExt.lean`).  `scripts/twin-lines.py check` (1 924 citations),
 `scripts/provenance-selftest.py` and `scripts/overview-links.sh`: green.
 The cargo gates, the style lint, `holes.sh`, the three `gen-*.sh` and
