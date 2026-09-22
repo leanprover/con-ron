@@ -39800,7 +39800,8 @@ parse half.
 | gate | |
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 138 `sorry` warnings, of which 56 are this tier's (§7) and 82 the `ExprOps`, Core, Promote and Checker tiers' |
-| `cd proof && lake build` (the default targets) | **not reachable from this diff** — `proof/ConRon.lean` does not import `ConRon.Bridge` and `ConRonBridge` is not a default target, so no module the default build elaborates changed |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 100 s, `lake-build` 405 s).  Every one is green on this branch after the two `arena` merges |
+| `cd proof && lake build` (the default targets) | **not reachable from this diff** — `defaultTargets = ["ConRon", "ConRonSpike", "ConRonArena"]`, `proof/ConRon.lean` does not import `ConRon.Bridge`, and `ConRonBridge` is not a default target, so no module the default build elaborates changed.  It was run anyway (gate 13 above) and is green at 2 208 jobs |
 | `#print axioms` | `Bridge/Frontend/Axioms.lean`: **42 closed results**, every one within `[propext, Classical.choice, Quot.sound]` (`OptRel`'s four eliminators and `ListRel.length_eq` at `[propext]`, `IdTableRel.mono` at `[propext, Quot.sound]`, `ListRel.mono` at none); the five headlines carry `sorryAx` and **neither `CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** |
 | the diff | `proof/ConRon/Bridge/Frontend{,/*}.lean`, `proof/ConRon/Bridge.lean` (the module list and one import) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`lint-rust-style`/`twin-lines`/`holes`/`gen-pins`/`gen-prelude`/`extract.sh --check` cannot be affected |
 
