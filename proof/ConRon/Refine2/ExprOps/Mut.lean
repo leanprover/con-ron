@@ -158,9 +158,6 @@ theorem intern_rebuilt_bvar_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {i : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hcap : same = false → lst.store.find? (.bvar (absU i)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.bvar (absU i))
-        else lst.store.pers.sizeOf (.bvar (absU i))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_bvar pers st h same i = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltBVar (absEIdx h) same (absU i)) := by
@@ -180,7 +177,7 @@ theorem intern_rebuilt_bvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_bvar_run hrel hinv hfrozen i (hcap rfl) hrun
+    exact intern_e_bvar_run hrel hinv hfrozen i hrun
 
 /-- `arena::expr_ops::intern_rebuilt_fvar` against `Arena.internRebuiltFVar`. -/
 theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
@@ -190,9 +187,6 @@ theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       (absEIdx ty).isPersistent = false →
       lst.store.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
-    (hcap : same = false → lst.store.find? (.fvar (absU idx) (absEIdx ty)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.fvar (absU idx) (absEIdx ty))
-        else lst.store.pers.sizeOf (.fvar (absU idx) (absEIdx ty))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_fvar pers st h same idx ty = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltFVar (absEIdx h) same (absU idx) (absEIdx ty)) := by
@@ -212,7 +206,7 @@ theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_fvar_run hrel hinv hfrozen idx ty (hchild rfl) (hcap rfl) hrun
+    exact intern_e_fvar_run hrel hinv hfrozen idx ty (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_sort` against `Arena.internRebuiltSort`. -/
 theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
@@ -222,9 +216,6 @@ theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       (absLIdx u).isPersistent = false →
       lst.store.pers.sorts.find? ⟨absLIdx u⟩ = none)
-    (hcap : same = false → lst.store.find? (.sort (absLIdx u)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.sort (absLIdx u))
-        else lst.store.pers.sizeOf (.sort (absLIdx u))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_sort pers st h same u = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltSort (absEIdx h) same (absLIdx u)) := by
@@ -244,7 +235,7 @@ theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_sort_run hrel hinv hfrozen u (hchild rfl) (hcap rfl) hrun
+    exact intern_e_sort_run hrel hinv hfrozen u (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_const` against `Arena.internRebuiltConst`. -/
 theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
@@ -254,9 +245,6 @@ theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
       lst.store.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
-    (hcap : same = false → lst.store.find? (.const (absNIdx n) (absLsIdx us)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.const (absNIdx n) (absLsIdx us))
-        else lst.store.pers.sizeOf (.const (absNIdx n) (absLsIdx us))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_const pers st h same n us = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltConst (absEIdx h) same (absNIdx n) (absLsIdx us)) := by
@@ -276,7 +264,7 @@ theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_const_run hrel hinv hfrozen n us (hchild rfl) (hcap rfl) hrun
+    exact intern_e_const_run hrel hinv hfrozen n us (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_app` against `Arena.internRebuiltApp`. -/
 theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
@@ -286,9 +274,6 @@ theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
       lst.store.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
-    (hcap : same = false → lst.store.find? (.app (absEIdx f) (absEIdx a)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.app (absEIdx f) (absEIdx a))
-        else lst.store.pers.sizeOf (.app (absEIdx f) (absEIdx a))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_app pers st h same f a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltApp (absEIdx h) same (absEIdx f) (absEIdx a)) := by
@@ -308,7 +293,7 @@ theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_app_run hrel hinv hfrozen f a (hchild rfl) (hcap rfl) hrun
+    exact intern_e_app_run hrel hinv hfrozen f a (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_let_e` against `Arena.internRebuiltLetE`. -/
 theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
@@ -319,9 +304,6 @@ theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
       ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨
         (absEIdx body).isPersistent = false) →
       lst.store.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx body⟩ = none)
-    (hcap : same = false → lst.store.find? (.letE (absEIdx ty) (absEIdx val) (absEIdx body)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.letE (absEIdx ty) (absEIdx val) (absEIdx body))
-        else lst.store.pers.sizeOf (.letE (absEIdx ty) (absEIdx val) (absEIdx body))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_let_e pers st h same ty val body = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltLetE (absEIdx h) same (absEIdx ty) (absEIdx val) (absEIdx body)) := by
@@ -341,7 +323,7 @@ theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_let_e_run hrel hinv hfrozen ty val body (hchild rfl) (hcap rfl) hrun
+    exact intern_e_let_e_run hrel hinv hfrozen ty val body (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_lit` against `Arena.internRebuiltLit`. -/
 theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
@@ -349,9 +331,6 @@ theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hwf : ConRon.Refine.LiteralWF l)
-    (hcap : same = false → lst.store.find? (.lit (ConRon.Refine.absLiteral l)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.lit (ConRon.Refine.absLiteral l))
-        else lst.store.pers.sizeOf (.lit (ConRon.Refine.absLiteral l))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_lit pers st h same l = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltLit (absEIdx h) same (ConRon.Refine.absLiteral l)) := by
@@ -371,7 +350,7 @@ theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_lit_run hrel hinv hfrozen l hwf (hcap rfl) hrun
+    exact intern_e_lit_run hrel hinv hfrozen l hwf hrun
 
 /-- `arena::expr_ops::intern_rebuilt_proj` against `Arena.internRebuiltProj`. -/
 theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
@@ -381,9 +360,6 @@ theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
     (hchild : same = false →
       ((absNIdx n).isPersistent = false ∨ (absEIdx e).isPersistent = false) →
       lst.store.pers.projs.find? ⟨absNIdx n, absU i, absEIdx e⟩ = none)
-    (hcap : same = false → lst.store.find? (.proj (absNIdx n) (absU i) (absEIdx e)) = none →
-      (if lst.store.scratchOn then lst.store.scr.sizeOf (.proj (absNIdx n) (absU i) (absEIdx e))
-        else lst.store.pers.sizeOf (.proj (absNIdx n) (absU i) (absEIdx e))) < Idx.idxCap)
     (hrun : arena.expr_ops.intern_rebuilt_proj pers st h same n i e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltProj (absEIdx h) same (absNIdx n) (absU i) (absEIdx e)) := by
@@ -403,7 +379,7 @@ theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_proj_run hrel hinv hfrozen n i e (hchild rfl) (hcap rfl) hrun
+    exact intern_e_proj_run hrel hinv hfrozen n i e (hchild rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_bind_i` against `Arena.internRebuiltBindI`. -/
 theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
