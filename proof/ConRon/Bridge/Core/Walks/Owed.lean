@@ -95,6 +95,7 @@ walks tier needs, and it belongs beside the other ten transports in
 structural gap; everything else on this list is labour.**
 -/
 import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.ExprOps.Spine
 
 namespace ConRon.Bridge.Core
 
@@ -106,56 +107,439 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
+/-! ## 0c. What the spine group needs and no tier had
+
+The three walks of §1 read the head of an application, so each one is
+`ExprOps/Spine.lean`'s `getAppFn_spec` over a `view`, and then the
+ENVIRONMENT INDEX at the head's name.  **This is the first module of
+`Bridge/Core/**` that imports the `ExprOps` tier** — task
+#97-P3-CoreWalks left the three here for exactly that reason, and
+`Bridge/ExprOps/**` reached zero `sorry` while the previous round ran, so
+the import costs nothing and unblocks the cheap row whole.
+
+Four facts were missing, in three groups.
+
+1. **`viewLsLen` had no bridge to the denotation.**  Task #97-P6-10's length
+   projection reads the stored record's own length and never rebuilds the
+   list; nothing said that the number it answers IS the length of what the
+   handle denotes.  `viewLen_of_denoteLs` is that, over two one-line
+   projection equations.
+2. **`denoteCI` does not change a constant's CONSTRUCTOR** — the fact task
+   #97-P3-Core-2 proved at `projInfo` (`denoteCI_projInfo`), here at
+   `defnInfo` and in both directions, because a walk that asks "is the head a
+   DEFINITION?" needs the negative half as much as the positive one (the
+   round's own rule, one rung down: *a walk that decides a guard needs the
+   negative half*).
+3. **The index's two halves, packaged.**  `env_defn_of_index` and
+   `env_not_defn_of_index` are `IFEnvOK.hit` / `IFEnvOK.miss` plus
+   `denoteN`'s functionality at one handle; every walk that reads
+   `fe.find?` under a denoted name wants one of the two and neither is a
+   one-liner at the site.
+
+**And one measured finding about `simp`** that pays for itself three times
+below: the match-equation lemmas of a con-leche `def` carry their negative
+side conditions as hypotheses, and `simp only [ConLeche.unfoldableHead, hgf]`
+DISCHARGES them from the local context.  So the "the head is not a stored
+definition" arm of each of these walks is one `simp only` and no case bash —
+`unfoldableHead_of_not_defn` and `headHint_of_not_defn` below are one line
+each.  Where the match is on a PAIR (`sameConstHeads`) the discharger does
+not fire and the arm needs `cases … <;> cases … <;> first | rfl | …`, which
+is the whole difference between the two shapes. -/
+
+theorem lsTables_getLen_eq (t : LsTables) (i : LsIdx) :
+    t.getLen i = (t.get i).map List.length := by
+  simp only [LsTables.getLen, LsTables.get]
+  by_cases h : (i.tag == LsTag.list) = true
+  · simp only [h, if_true]
+    cases t.lists.node? i.idxNat <;> simp
+  · simp only [Bool.not_eq_true] at h
+    simp [h]
+
+theorem lsStore_viewLen_eq (st : LsStore) (i : LsIdx) :
+    st.viewLen i = (st.view i).map List.length := by
+  simp only [LsStore.viewLen, LsStore.view, LsStore.persGetLen,
+    lsTables_getLen_eq]
+  by_cases hp : i.isPersistent = true
+  · simp [hp]
+  · simp only [Bool.not_eq_true] at hp
+    by_cases hs : st.scratchOn = true
+    · simp [hp, hs]
+    · simp only [Bool.not_eq_true] at hs
+      simp [hp, hs]
+
+theorem viewLen_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
+    (h : denoteLs st i = some us) : st.viewLen i = some us.length := by
+  simp only [denoteLs] at h
+  cases hv : st.view i with
+  | none => rw [hv] at h; simp at h
+  | some hs =>
+    rw [hv] at h
+    rw [lsStore_viewLen_eq, hv, Option.map_some, denoteLList_len h]
+
+theorem denoteNList_len {st : NStore} :
+    ∀ {hs : List NIdx} {xs : List ConLeche.Name},
+      Frontend.denoteNList st hs = some xs → xs.length = hs.length
+  | [], xs, h => by
+    simp only [Frontend.denoteNList] at h
+    obtain rfl := Option.some.inj h; rfl
+  | a :: as, xs, h => by
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN st a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteNList st as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        obtain rfl := Option.some.inj h
+        simp [denoteNList_len has]
+
+theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
+    {hint : ReducibilityHint} {c : ConstantInfo}
+    (h : Frontend.denoteCI st (.defnInfo v e hint) = some c) :
+    ∃ cv x, Frontend.denoteCV st v = some cv ∧ denoteE st e = some x ∧
+      c = .defnInfo cv x hint := by
+  simp only [Frontend.denoteCI] at h
+  cases hv : Frontend.denoteCV st v with
+  | none => rw [hv] at h; simp at h
+  | some cv =>
+    cases he : denoteE st e with
+    | none => rw [hv, he] at h; simp at h
+    | some x =>
+      rw [hv, he] at h
+      exact ⟨cv, x, rfl, rfl, (Option.some.inj h).symm⟩
+
+
+theorem denoteCV_inv {st : EStore} {v : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st v = some c) :
+    denoteN st.ns v.name = some c.name ∧
+      Frontend.denoteNList st.ns v.levelParams = some c.levelParams ∧
+      denoteE st v.type = some c.type := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns v.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns v.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st v.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := (Option.some.inj h).symm
+        exact ⟨rfl, rfl, rfl⟩
+
+theorem denoteCI_defn_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
+    {x : Expr} {hint : ReducibilityHint}
+    (h : Frontend.denoteCI st ci = some (.defnInfo cv x hint)) :
+    ∃ v e, ci = .defnInfo v e hint ∧ Frontend.denoteCV st v = some cv ∧
+      denoteE st e = some x := by
+  cases ci with
+  | defnInfo v e hi =>
+    obtain ⟨cv', x', hv, he, hc⟩ := denoteCI_defnInfo_inv h
+    simp only [ConstantInfo.defnInfo.injEq] at hc
+    obtain ⟨rfl, rfl, rfl⟩ := hc
+    exact ⟨v, e, rfl, hv, he⟩
+  | axiomInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨_, _, hc⟩ := h; simp at hc
+  | ctorInfo v nP nF =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨_, _, hc⟩ := h; simp at hc
+  | projInfo t =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨_, _, hc⟩ := h; simp at hc
+  | thmInfo v e =>
+    simp only [Frontend.denoteCI] at h
+    cases hv : Frontend.denoteCV st v with
+    | none => rw [hv] at h; simp at h
+    | some cvv =>
+      cases he : denoteE st e with
+      | none => rw [hv, he] at h; simp at h
+      | some xx => rw [hv, he] at h; simp at h
+  | indInfo v c =>
+    simp only [Frontend.denoteCI] at h
+    cases hv : Frontend.denoteCV st v with
+    | none => rw [hv] at h; simp at h
+    | some cvv =>
+      cases hc : Frontend.denoteCaps st c with
+      | none => rw [hv, hc] at h; simp at h
+      | some cc => rw [hv, hc] at h; simp at h
+  | recInfo v mI rP rs =>
+    simp only [Frontend.denoteCI] at h
+    cases hv : Frontend.denoteCV st v with
+    | none => rw [hv] at h; simp at h
+    | some cvv =>
+      cases hr : Frontend.denoteRules st rs with
+      | none => rw [hv, hr] at h; simp at h
+      | some rr => rw [hv, hr] at h; simp at h
+
+theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
+    (he : denoteE st h = some e)
+    (hne : ∀ c us, v ≠ .const c us) : ∀ n us, e ≠ .const n us := by
+  cases v with
+  | bvar i => rw [denote_bvar_inv hwf hv he]; simp
+  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; simp
+  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
+  | const n us => exact absurd rfl (hne n us)
+  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
+  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b m =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
+  | letE ty w b =>
+    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
+  | lit l => rw [denote_lit_inv hwf hv he]; simp
+  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
+
+theorem env_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
+    {c : NIdx} {nm : ConLeche.Name} {icv : IConstantVal} {value : EIdx}
+    {hint : ReducibilityHint} (hn : denoteN s.store.ns c = some nm)
+    (hfd : fe.find? c = some (.defnInfo icv value hint)) :
+    ∃ dcv dval, Frontend.denoteCV s.store icv = some dcv ∧
+      denoteE s.store value = some dval ∧
+      env.find? nm = some (.defnInfo dcv dval hint) := by
+  obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c _ hfd
+  obtain rfl := Option.some.inj (hn'.symm.trans hn)
+  obtain ⟨dcv, dval, hdcv, hdval, rfl⟩ := denoteCI_defnInfo_inv hci
+  exact ⟨dcv, dval, hdcv, hdval, hfind⟩
+
+theorem env_not_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
+    {c : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns c = some nm)
+    (hnd : ∀ cv value hint, fe.find? c ≠ some (.defnInfo cv value hint)) :
+    ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint) := by
+  intro dcv dval dh hcon
+  cases hf : fe.find? c with
+  | none => rw [IFEnvOK.miss hok.state hok.ienv hn hf] at hcon; simp at hcon
+  | some ci =>
+    obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
+    obtain rfl := Option.some.inj (hn'.symm.trans hn)
+    rw [hfind] at hcon
+    obtain rfl := Option.some.inj hcon
+    obtain ⟨v', e', rfl, _, _⟩ := denoteCI_defn_inv hci
+    exact hnd v' e' dh hf
+
+
+theorem unfoldableHead_of_not_defn {env : Env} {nm : ConLeche.Name} {x : Expr}
+    {ls : List Level} (hgf : x.getAppFn = .const nm ls)
+    (h : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) :
+    ConLeche.unfoldableHead env x = false := by
+  simp only [ConLeche.unfoldableHead, hgf]
+
+theorem unfoldableHead_of_not_const {env : Env} {x : Expr}
+    (h : ∀ n us, x.getAppFn ≠ .const n us) :
+    ConLeche.unfoldableHead env x = false := by
+  simp only [ConLeche.unfoldableHead]
+
 /-! ## 1. The three with an unfueled pure side
 
 con-leche's comparand is a plain function of the environment, so the
 conclusion is an equation and there is no fuel existential anywhere in the
 statement.  These are the cheapest walks of the tier — their fourth,
 `isBoolTrue`, is CLOSED in `Bridge/Core/Walks/Guards.lean`, and the three
-here differ from it only by needing `getAppFn`. -/
+here differ from it only by needing `getAppFn`.  **All three are CLOSED**
+(task #97-P3-Core round 3), which is what the `ExprOps` import buys. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead —
 **THEOREM 1 for `unfoldableHead`**: the delta step's DECISION, taken before
-the unfolding is materialized.
-
-**OPEN**: needs `Bridge/ExprOps/Spine.lean`'s `getAppFn_spec` (which is
-closed) and `Bridge/StateOK.lean`'s `IFEnvOK.hit`/`.miss` at the head's name
-— no import of the `ExprOps` tier is made by `Bridge/Core/Walks/**` this
-round, which is the only reason this is not proved here. -/
+the unfolding is materialized.  **CLOSED** (round 3): six verification
+conditions — `getAppFn_spec`'s two preconditions, the dangling-level-list
+failure arm (free), the definition arm, the not-a-definition arm and the
+not-a-constant arm. -/
 theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.unfoldableHead fe e
     ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.unfoldableHead env x⌝⦄ := by
-  sorry
+  have hfn := ExprOps.getAppFn_spec coreWalkFuel
+  obtain ⟨rk, hrk⟩ := hok.state.wf
+  mvcgen [ConRon.Arena.unfoldableHead, hfn]
+  case vc1 => bridge_peel; subst_vars; exact hok.state
+  case vc2 => bridge_peel; subst_vars; rw [hden]; rfl
+  case vc3 => intro hf; exact False.elim hf
+  case vc4 =>
+    bridge_peel; subst_vars
+    rename_i r c us icv value hint hfd usl s hlen hview hrel
+    refine ⟨hok, rfl, rfl, ?_⟩
+    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
+    have hul : usl = ls.length := by
+      rw [viewLen_of_denoteLs hus] at hlen; exact Option.some.inj hlen
+    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
+    simp only [ConLeche.unfoldableHead, hgf, hfind, hul,
+      denoteNList_len hlps]
+  case vc5 =>
+    bridge_peel; subst_vars
+    rename_i r c us s hview hrel hnd
+    refine ⟨hok, rfl, rfl, ?_⟩
+    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    exact (unfoldableHead_of_not_defn hgf (env_not_defn_of_index hok hn hnd)).symm
+  case vc6 =>
+    bridge_peel; subst_vars
+    rename_i r v hnc s hview hrel
+    refine ⟨hok, rfl, rfl, ?_⟩
+    exact (unfoldableHead_of_not_const
+      (denote_not_const hok.state.wf hview (hrel x hden) hnc)).symm
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM 1
 for `headHint`**: the reducibility hint of the constant at the head.
+**CLOSED** (round 3).  The answer type is one both tiers share, so the
+relation is `SimVOp`'s — here spelled as the equation it is, because
+con-leche's `headHint` takes no fuel.  It is `unfoldableHead` minus the
+level-list read: five verification conditions and the same three arms. -/
+theorem headHint_of_not_defn {env : Env} {nm : ConLeche.Name} {x : Expr}
+    {ls : List Level} (hgf : x.getAppFn = .const nm ls)
+    (h : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) :
+    ConLeche.headHint env x = .opaque := by
+  simp only [ConLeche.headHint, hgf]
 
-**OPEN**: `getAppFn_spec` and `IFEnvOK`, as above.  The answer type is one
-both tiers share, so the relation is `SimVOp`'s — here spelled as the
-equation it is, because con-leche's `headHint` takes no fuel. -/
+theorem headHint_of_not_const {env : Env} {x : Expr}
+    (h : ∀ n us, x.getAppFn ≠ .const n us) :
+    ConLeche.headHint env x = .opaque := by
+  simp only [ConLeche.headHint]
+
 theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headHint fe e
     ⦃⇓? h s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ h = ConLeche.headHint env x⌝⦄ := by
-  sorry
+  have hfn := ExprOps.getAppFn_spec coreWalkFuel
+  obtain ⟨rk, hrk⟩ := hok.state.wf
+  mvcgen [ConRon.Arena.headHint, hfn]
+  case vc1 => bridge_peel; subst_vars; exact hok.state
+  case vc2 => bridge_peel; subst_vars; rw [hden]; rfl
+  case vc3 =>
+    bridge_peel; subst_vars
+    rename_i r c us icv value hint hfd s hview hrel
+    refine ⟨hok, rfl, rfl, ?_⟩
+    obtain ⟨nm, ls, hgf, hn, _⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    obtain ⟨dcv, dval, _, _, hfind⟩ := env_defn_of_index hok hn hfd
+    simp only [ConLeche.headHint, hgf, hfind]
+  case vc4 =>
+    bridge_peel; subst_vars
+    rename_i r c us s hview hrel hnd
+    refine ⟨hok, rfl, rfl, ?_⟩
+    obtain ⟨nm, ls, hgf, hn, _⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    exact (headHint_of_not_defn hgf (env_not_defn_of_index hok hn hnd)).symm
+  case vc5 =>
+    bridge_peel; subst_vars
+    rename_i r v hnc s hview hrel
+    refine ⟨hok, rfl, rfl, ?_⟩
+    exact (headHint_of_not_const
+      (denote_not_const hok.state.wf hview (hrel x hden) hnc)).symm
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
 **THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
+**CLOSED** (round 3), and it is DESIGN §8.3's *"index inequality IS
+structural inequality"* at the NAME store: `beq_of_denoteN` turns the
+arena's `==` on `NIdx` into con-leche's `==` on `Name`, in both directions
+(`denoteN`'s functionality one way, `denoteN_inj` the other).  Nine
+verification conditions, the most of the three, because the walk peels two
+subjects. -/
+theorem denote_not_app {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
+    (he : denoteE st h = some e)
+    (hne : ∀ f a, v ≠ .app f a) : ∀ f a, e ≠ .app f a := by
+  cases v with
+  | bvar i => rw [denote_bvar_inv hwf hv he]; simp
+  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; simp
+  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
+  | const n us => obtain ⟨p, q, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
+  | app f a => exact absurd rfl (hne f a)
+  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b m =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
+  | letE ty w b =>
+    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
+  | lit l => rw [denote_lit_inv hwf hv he]; simp
+  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
-**OPEN**: `getAppFn_spec`, and `denoteN_inj` for the name comparison —
-DESIGN §8.3's "index inequality IS structural inequality" at the name store,
-which is where the arena's `==` on `NIdx` becomes con-leche's `==` on
-`Name`. -/
+theorem beq_of_denoteN {st : NStore} (hwf : NStoreWF st) {n₁ n₂ : NIdx}
+    {nm₁ nm₂ : ConLeche.Name} (h1 : denoteN st n₁ = some nm₁)
+    (h2 : denoteN st n₂ = some nm₂) : (n₁ == n₂) = (nm₁ == nm₂) := by
+  by_cases h : n₁ = n₂
+  · subst h
+    rw [h1] at h2
+    obtain rfl := Option.some.inj h2
+    simp
+  · have hne : nm₁ ≠ nm₂ := fun hc => h (denoteN_inj hwf h1 (hc ▸ h2))
+    have e1 : (n₁ == n₂) = false := by simp only [beq_eq_false_iff_ne]; exact h
+    have e2 : (nm₁ == nm₂) = false := by
+      simp only [beq_eq_false_iff_ne]; exact hne
+    rw [e1, e2]
+
 theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.sameConstHeads a b
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y⌝⦄ := by
-  sorry
+  have hfn := ExprOps.getAppFn_spec coreWalkFuel
+  obtain ⟨rk, hrk⟩ := hok.state.wf
+  mvcgen [ConRon.Arena.sameConstHeads, hfn]
+  case vc1 => bridge_peel; subst_vars; exact hok.state
+  case vc2 =>
+    bridge_peel; subst_vars
+    rename_i fa aa fb ab s hvb hva
+    obtain ⟨ex, ea, hx, hdf, _⟩ := denote_app_inv hok.state.wf hva hda
+    rw [hdf]; rfl
+  case vc3 => bridge_peel; subst_vars; exact hok.state
+  case vc4 =>
+    bridge_peel; subst_vars
+    rename_i fa aa fb ab ra ca usa s hvra hrela hvb hva
+    obtain ⟨ey, eb, hy, hdf, _⟩ := denote_app_inv hok.state.wf hvb hdb
+    rw [hdf]; rfl
+  case vc5 =>
+    bridge_peel; subst_vars
+    rename_i fa aa fb ab ra ca usa rb cb usb s hvrb hrelb hvra hrela hvb hva
+    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
+    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
+    obtain ⟨nma, lsa, hgfa, hna, _⟩ :=
+      denote_const_inv hok.state.wf hvra (hrela ex hdfa)
+    obtain ⟨nmb, lsb, hgfb, hnb, _⟩ :=
+      denote_const_inv hok.state.wf hvrb (hrelb ey hdfb)
+    refine ⟨hok, rfl, rfl, ?_⟩
+    rw [beq_of_denoteN hrk.nsWF hna hnb]
+    simp only [ConLeche.sameConstHeads, hgfa, hgfb]
+  case vc6 =>
+    bridge_peel; subst_vars
+    rename_i fa aa fb ab ra ca usa rb vb hncb s hvrb hrelb hvra hrela hvb hva
+    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
+    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
+    have hnc := denote_not_const hok.state.wf hvrb (hrelb ey hdfb) hncb
+    refine ⟨hok, rfl, rfl, ?_⟩
+    simp only [ConLeche.sameConstHeads]
+    cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
+      first | rfl | exact absurd hgy (hnc _ _)
+  case vc7 =>
+    bridge_peel; subst_vars
+    rename_i fa aa fb ab ra va hnca s hvra hrela hvb hva
+    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
+    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
+    have hnc := denote_not_const hok.state.wf hvra (hrela ex hdfa) hnca
+    refine ⟨hok, rfl, rfl, ?_⟩
+    simp only [ConLeche.sameConstHeads]
+    cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
+      first | rfl | exact absurd hgx (hnc _ _)
+  case vc8 =>
+    bridge_peel; subst_vars
+    rename_i fa aa vb hnab s hvb hva
+    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
+    have hna := denote_not_app hok.state.wf hvb hdb hnab
+    refine ⟨hok, rfl, rfl, ?_⟩
+    simp only [ConLeche.sameConstHeads]
+    cases hy : y <;> first | rfl | exact absurd hy (hna _ _)
+  case vc9 =>
+    bridge_peel; subst_vars
+    rename_i va hnaa s hva
+    have hna := denote_not_app hok.state.wf hva hda hnaa
+    refine ⟨hok, rfl, rfl, ?_⟩
+    simp only [ConLeche.sameConstHeads]
+    cases hx : x <;> cases hy : y <;> first | rfl | exact absurd hx (hna _ _)
 
 /-! `isBoolTrue` was the fourth of this group and is **CLOSED** —
 `Bridge/Core/Walks/Guards.lean`.  It was the cheapest of the seventeen (five
