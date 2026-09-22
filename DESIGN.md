@@ -43367,8 +43367,8 @@ headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
 
 | gate | |
 |---|---|
-| `cd proof && lake build ConRonBridge` | **0 errors**; 16 of this tier's declarations open |
-| `scripts/gates.sh` | all 13 OK |
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 16 of this tier's declarations open |
+| `scripts/gates.sh` | all 13 OK, on the merge of `arena`'s `65a2aa9e` |
 | the diff | `proof/ConRon/Bridge/Frontend/{ProjRec,Lines,Shared,Prepare,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
