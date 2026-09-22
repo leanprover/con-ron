@@ -116,6 +116,15 @@ section for every task you land.
   supports a private destination) rather than sharing it for the campaign's
   duration, and only merge the result back through the normal commit, not
   by touching the shared directory.
+* **An agent's `cd` does not persist between tool calls.**  `cd <main tree>
+  && python3 …` in one call edits the MAIN TREE, and the next call's
+  `git commit` then runs back in the worktree — so the edit lands on the
+  integration branch and the commit message ends up on something else.
+  That is how `a0a0c6a9` arrived on `arena` from a running agent (task
+  #97-P3-Core round 3, diagnosed by the agent itself).  Never reach out of
+  the worktree: do every edit with a path relative to the worktree, and if
+  a file genuinely belongs to another checkout, say so in the report
+  instead of editing it.
 * **Landing a branch (merge discipline).**  The *agent* merges master into
   its branch and runs the gates there; the landing is then a fast-forward
   merge of that branch into master.  If master moved in between so the

@@ -1,5 +1,5 @@
 /-
-# `ConRon.Bridge.Core.Walks.Owed` — the sixteen statements the round did not reach
+# `ConRon.Bridge.Core.Walks.Owed` — the sixteen non-slot walks: six CLOSED, TEN open
 
 Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 ends with the
 round's own estimate of where the next tier's work is:
@@ -23,6 +23,31 @@ it is waiting on written at the site.
 This is `Bridge/ExprOps/Owed.lean`'s role one tier up: a statement is not a
 proof, but it is the interface, and the six body walks cannot be written
 against a walk that has no statement.
+
+## 0a. Round 3: six of the sixteen are CLOSED, and five of them moved out
+
+Task #97-P3-Core round 3 closed `unfoldableHead`, `headHint`,
+`sameConstHeads`, `defeqSpine`, `isPropType` and `defEqList`.  **`defEqList`
+is the only one still here** (§4): the other five live in
+`Bridge/Core/Walks/Spine.lean`, a sibling module off the knot-facing import
+chain, because a module that imports the `ExprOps` tier or `mvcgen`s over
+`ensureSort` cannot sit in one closure with `Core/EnsureSort.lean` — that
+module's own header has the error message and the reason.  The statements
+below are therefore the TEN that are open, plus `defEqList`'s proof and the
+pure side of two walks whose arena side is not written.
+
+Three things made the six possible, and none of them is about any one walk:
+
+1. **`Bridge/Core/**` imports the `ExprOps` tier.**  Its thirteen modules
+   reached zero `sorry` while round 2 ran, and task #97-P3-CoreWalks left
+   three walks here with the note *"until this tier imports the `ExprOps`
+   tier"*.  The import is `ConRon.Bridge.ExprOps.Spine` and it costs nothing:
+   no theorem of that tier is registered `@[spec]`, so `mvcgen` sees them
+   only where they are passed.
+2. **The knot's six slots in ANSWER shape** (`Bridge/Core/Knot.lean`, round
+   3): §0's rule, paid once at the knot instead of per site.
+3. **The fuel merge** (`Bridge/Core/Walks/Mono.lean`, round 2), which
+   `defEqList`'s cons arm and `isPropType`'s conclusion both spend.
 
 ## 0. The shape correction of task #97-P3-Core-2, and why it was forced
 
@@ -71,14 +96,29 @@ function that is not in `CheckM` at all
 `∃ F` and no fuel bookkeeping: the conclusion is an equation between the
 arena's answer and con-leche's.  They are the first four of these to write.
 
-## 2. What they are all waiting on, in one sentence each
+## 2. What the TEN that are left are waiting on (round 3's reading)
 
-Ten of the sixteen wait on an `ExprOps`-tier callee rule that this tier
-does not import (`getAppFn`, `getAppArgs`, `mkAppN`, `instLPFast`,
-`liftLooseBVars`, `typeSortPW`), one waits on §3's missing denotation, one on
-`Bridge/Core/Walks/Cached.lean`'s `constValAt_spec` (itself waiting on
-`instLPFast_spec`), one on the fuel merge (`defEqList_spec`'s note), and the
-rest on nothing but the work.  The per-site notes say which.
+* **three on a module that does not exist** — `propIrrel`, `annotPwPi` and
+  `annotPwLam` read `Arena/PropRead.lean`'s `notProofFast`, `isProofFast`,
+  `typeSortPW` and `proofPW`, and that file has no bridge spec anywhere.  It
+  is a tier, not a callee rule, and nobody had costed it;
+* **three on `instLPFast_spec`'s missing cache frame** — `unfoldDefinition`
+  through `Walks/Cached.lean`'s `constValAt_spec`, and `projCertAt` through
+  `Walks/Proj.lean`'s `projCert_spec` / `constTyAt_spec`.  DESIGN §8's
+  `### Task #97-P3-Core-2` round 3 finding 19 has the two conjuncts the
+  `ExprOps` tier owes;
+* **`etaCert`** — nothing outside this tier: its pure side is proved below
+  and so is the callee rule's answer shape;
+* **`reduceNat`** — five state-only walks of `Arena/Core.lean` and nothing
+  else, which is why round 2's §9 named it first;
+* **`projLitToCtor`** — `strLitSupported`, `strLitToConstructor` and
+  `litMajorToCtor`;
+* **`stuckIrrel`** and **`iotaRec`**, the two towers.
+
+(Round 2's reading of this list said *"ten of the sixteen wait on an
+`ExprOps`-tier callee rule that this tier does not import"*.  That was true
+of the import and wrong about the count: the `ExprOps` import closed three
+walks outright and is not what any of the remaining ten is blocked on.)
 
 ## 3. `IProjEntry.typeAt`, and the one thing the tier is missing that is not
 a proof
@@ -95,6 +135,7 @@ walks tier needs, and it belongs beside the other ten transports in
 structural gap; everything else on this list is labour.**
 -/
 import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.Core.Walks.Mono
 
 namespace ConRon.Bridge.Core
 
@@ -105,57 +146,6 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
-
-/-! ## 1. The three with an unfueled pure side
-
-con-leche's comparand is a plain function of the environment, so the
-conclusion is an equation and there is no fuel existential anywhere in the
-statement.  These are the cheapest walks of the tier — their fourth,
-`isBoolTrue`, is CLOSED in `Bridge/Core/Walks/Guards.lean`, and the three
-here differ from it only by needing `getAppFn`. -/
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead —
-**THEOREM 1 for `unfoldableHead`**: the delta step's DECISION, taken before
-the unfolding is materialized.
-
-**OPEN**: needs `Bridge/ExprOps/Spine.lean`'s `getAppFn_spec` (which is
-closed) and `Bridge/StateOK.lean`'s `IFEnvOK.hit`/`.miss` at the head's name
-— no import of the `ExprOps` tier is made by `Bridge/Core/Walks/**` this
-round, which is the only reason this is not proved here. -/
-theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.unfoldableHead fe e
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.unfoldableHead env x⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM 1
-for `headHint`**: the reducibility hint of the constant at the head.
-
-**OPEN**: `getAppFn_spec` and `IFEnvOK`, as above.  The answer type is one
-both tiers share, so the relation is `SimVOp`'s — here spelled as the
-equation it is, because con-leche's `headHint` takes no fuel. -/
-theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headHint fe e
-    ⦃⇓? h s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ h = ConLeche.headHint env x⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
-**THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
-
-**OPEN**: `getAppFn_spec`, and `denoteN_inj` for the name comparison —
-DESIGN §8.3's "index inequality IS structural inequality" at the name store,
-which is where the arena's `==` on `NIdx` becomes con-leche's `==` on
-`Name`. -/
-theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.sameConstHeads a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y⌝⦄ := by
-  sorry
 
 /-! `isBoolTrue` was the fourth of this group and is **CLOSED** —
 `Bridge/Core/Walks/Guards.lean`.  It was the cheapest of the seventeen (five
@@ -174,12 +164,23 @@ walks — is still open. -/
 definition at the head, one step.  The pure side takes no fuel, so the
 conclusion is an equation through `denoteEO` (`Bridge/Rel.lean`).
 
-**OPEN**: three callee rules — `getAppFn_spec`, `getAppArgs_spec` and
-`mkAppN_spec` (all closed in `Bridge/ExprOps/Spine.lean`) — plus
-`Bridge/Core/Walks/Cached.lean`'s `constValAt_spec`, which is itself waiting
-on `ExprOps.instLPFast_spec`.  **This is the deepest chain on the list**, and
-it is the reason `whnfBody_spec` cannot close before the `ExprOps` tier
-does. -/
+**OPEN, and on ONE thing** (round 3): the three spine rules are in hand
+(`getAppFn_spec`, `getAppArgs_spec`, `mkAppN_spec`, all closed in
+`Bridge/ExprOps/Spine.lean`, and `Walks/Spine.lean` shows how to reach them
+from here), and what is left is `Bridge/Core/Walks/Cached.lean`'s
+`constValAt_spec` — which is NOT waiting on `instLPFast_spec` any more
+(that is closed) but on **the two conjuncts `instLPFast_spec` does not carry**:
+the cache-record frame and `ReadNCacheOK`.  Without them no caller graded
+`CheckOK` can rebuild `CacheOK` past the call.  DESIGN §8's
+`### Task #97-P3-Core-2` round 3 finding 19 states them; the owner is the
+`ExprOps` tier.
+
+Round 3 also found that the statement `constValAt_spec` is published with
+cannot be applied by this walk even once it is proved: it takes `nm`, `ls`,
+`cv`, `val` and `hint` as explicit arguments, and `mvcgen` mis-instantiates
+all five (measured: `val := x`, the whole subject).  It needs §0's ∃/∀
+re-shape first, which is four lines and which this round did not make because
+the theorem is `sorry` and the re-shape would have been unverifiable. -/
 theorem unfoldDefinition_spec (s₀ : AState) (d : Nat) (e : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
@@ -296,9 +297,11 @@ the callee rules it is missing. -/
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — **THEOREM 1 for
 `propIrrel`**, the hoisted proof-irrelevance test.
 
-**OPEN**: `notProofFast` as a callee rule (an `IFEnvOK` consequence over the
-derived word), then `KnotSpec.inferIO` at both subjects and `KnotSpec.defeq`
-at their types. -/
+**OPEN, on a MODULE that does not exist** (round 3's reading): `notProofFast`
+and `isProofFast` are `Arena/PropRead.lean` walks and that file has no bridge
+spec anywhere — not one.  After them it is `KnotSpec.inferIO'` at both
+subjects and `KnotSpec.defeq'` at their types, both in hand.  It shares its
+blocker with `annotPwPi` and `annotPwLam` below. -/
 theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
@@ -330,12 +333,108 @@ theorem stuckIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r⌝⦄ := by
   sorry
 
+/-! ### `etaCert`'s pure side, and the ExprOps slot in ANSWER shape
+
+The walk itself is not closed (its arm list is in the statement's note), but
+**its whole pure side is**, and so is the one callee rule whose published
+shape it cannot use.  Both are here because they are what the next round
+starts from and neither is about `etaCert` alone:
+
+* the four step equations below are con-leche's `etaCert` at its four exits,
+  each one `simp only` over the knot record's five slot equations;
+* `instantiate1Fast_specE` is **finding 5.2 at the `ExprOps` tier**.
+  `Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_spec` takes the
+  SUBSTITUTED VALUE's denotation as an explicit `(ve : Expr)` argument, and
+  `etaCert` substitutes a free variable it has just INTERNED — so `mvcgen`
+  guesses `ve` from the `Expr`s in scope (measured: it guesses the
+  comparand `y`) and leaves a false side goal.  The primed form is the same
+  four lines as `Bridge/Core/Knot.lean`'s six slots, and it is the shape
+  every interning caller of the substitution walks will want. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the comparand's
+type does not reduce to a ∀, so there is nothing to η-expand against. -/
+theorem etaCertFueled_nf {F d : Nat} {t x : Expr} {m₁ : BinderMeta} {y : Expr}
+    {tb w : Expr}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok w)
+    (hw : ∀ p q m, w ≠ .forallE p q m) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok w := h2
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, bind,
+    Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the ∀'s domain
+is not the λ's. -/
+theorem etaCertFueled_dom {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
+    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok false) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb
+      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok false := h3
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, bind,
+    Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the domains
+agree and the bodies do not. -/
+theorem etaCertFueled_body {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
+    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok true)
+    (h4 : ConLeche.isDefEqCore mode env F (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok false) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb
+      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok true := h3
+  have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok false := h4
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, bind,
+    Except.bind, if_true]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **the
+certificate**: the domains agree, the opened bodies agree, and (at a verified
+mode) the two `PropWhen` data agree.  Task #161's regime agreement is checked
+LAST on both sides, which is what makes the two call sequences the same. -/
+theorem etaCertFueled_yes {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
+    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok true)
+    (h4 : ConLeche.isDefEqCore mode env F (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true)
+    (h5 : (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok true := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb
+      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok true := h3
+  have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true := h4
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, h5,
+    bind, Except.bind, if_true]
+  rfl
+
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
 `etaCert`**: η at a λ against a non-λ.
 
-**OPEN**: the rebuild is `internE (.app (lift b) (.bvar 0))` under a binder,
-so it needs `ExprOps.liftLooseBVars`'s spec (closed in
-`Bridge/ExprOps/Subst.lean`) and `KnotSpec.defeq` one depth down.  The
+**OPEN, and the cheapest of the ten** (round 3): its whole PURE side is
+proved above (`etaCertFueled_nf`, `_dom`, `_body`, `_yes`) and so is the one
+callee rule whose published shape it cannot use
+(`instantiate1Fast_specE`, `Bridge/Core/Walks/Spine.lean`).  What is left is
+twenty-three verification conditions on the arena side — the three knot calls
+in their primed shape, two `internE`s with their `ViewOK` obligations, one
+`instantiate1Fast`, and the well-scopedness of the opened body at `d + 1`
+(con-leche's `WScoped.instantiate1` and `WScoped.mono` are exactly it).  The
 statement's FOUR subjects are the λ's two children, its binder datum and the
 comparand — `Bridge/Rel.lean`'s `RelE.lam` shape, at the level of a whole
 walk. -/
@@ -354,44 +453,193 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           r⌝⦄ := by
   sorry
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — **THEOREM 1
-for `defeqSpine`**: two applications of the same constant are defeq if their
-universe arguments and their argument vectors are.
+/-! ### `defEqList`, the tier's first `List` recursion
 
-**OPEN**: `getAppFn_spec`/`getAppArgs_spec` (`ExprOps` tier), `lvlsEq?_spec`
-(CLOSED, `Bridge/Core/Walks/Cached.lean`) and `defEqList_spec` below.  Three
-of the four are in hand, which makes this the most nearly reachable of the
-five. -/
-theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.defeqSpine (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r⌝⦄ := by
-  sorry
+The two list inversions, the four pure-side step equations, the induction
+itself, and the caller-facing statement derived from it.
+
+**The statement the induction runs on is not the one `Owed.lean` published**,
+and for finding 5.2's reason one step further out: at the recursive call the
+subjects `as'` and `bs'` are known but their DENOTATIONS are not — the state
+has moved, so `denoteEList s'.store as' = some ?xs` arrives with a
+metavariable and `mvcgen` guesses `?xs := xs`, the whole list.  So
+`defEqList_go` takes the two denotations as existentials and hands them back
+as universals — the primed shape of `Bridge/Core/Knot.lean`'s six slots, at a
+walk rather than a slot — and `defEqList_spec` below is four lines over it.
+The rule generalises: *the ∃/∀ shape is not about knot slots, it is about
+every recursive call whose state has moved.* -/
+
+/-- con-leche: none — the empty handle list denotes the empty list. -/
+theorem denoteEList_nil_inv {st : EStore} {xs : List Expr}
+    (h : Frontend.denoteEList st [] = some xs) : xs = [] := by
+  simp only [Frontend.denoteEList] at h; exact (Option.some.inj h).symm
+
+/-- con-leche: none — a denoting cons is a cons of denotations. -/
+theorem denoteEList_cons_inv {st : EStore} {a : EIdx} {as : List EIdx}
+    {xs : List Expr} (h : Frontend.denoteEList st (a :: as) = some xs) :
+    ∃ x xs', denoteE st a = some x ∧ Frontend.denoteEList st as = some xs' ∧
+      xs = x :: xs' := by
+  simp only [Frontend.denoteEList] at h
+  cases ha : denoteE st a with
+  | none => rw [ha] at h; simp at h
+  | some x =>
+    cases has : Frontend.denoteEList st as with
+    | none => rw [ha, has] at h; simp at h
+    | some xs' => rw [ha, has] at h; exact ⟨x, xs', rfl, rfl, (Option.some.inj h).symm⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — two empty
+spines agree. -/
+theorem defEqListFueled_nil {F d : Nat} :
+    ConLeche.defEqListFueled mode env F d [] [] = .ok true := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — a length
+mismatch declines (empty against a cons). -/
+theorem defEqListFueled_ln {F d : Nat} {y : Expr} {ys : List Expr} :
+    ConLeche.defEqListFueled mode env F d [] (y :: ys) = .ok false := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — and the
+other way round. -/
+theorem defEqListFueled_rn {F d : Nat} {x : Expr} {xs : List Expr} :
+    ConLeche.defEqListFueled mode env F d (x :: xs) [] = .ok false := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
+agree, so the verdict is the tails'.  **At ONE fuel**: the caller merges the
+head's and the tail's with `isDefEqCore_mono` and `defEqListFueled_mono`. -/
+theorem defEqListFueled_cons_true {F d : Nat} {x y : Expr}
+    {xs ys : List Expr} {r : Bool}
+    (h : ConLeche.isDefEqCore mode env F d x y = .ok true)
+    (ht : ConLeche.defEqListFueled mode env F d xs ys = .ok r) :
+    ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys) = .ok r := by
+  have hd : (ConLeche.pureFns mode env F).defeq d x y = .ok true := h
+  simp only [ConLeche.defEqListFueled, ConLeche.defEqList, hd, bind,
+    Except.bind, if_true]
+  exact ht
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
+disagree, so the spines do. -/
+theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
+    {xs ys : List Expr}
+    (h : ConLeche.isDefEqCore mode env F d x y = .ok false) :
+    ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys) = .ok false := by
+  have hd : (ConLeche.pureFns mode env F).defeq d x y = .ok false := h
+  simp only [ConLeche.defEqListFueled, ConLeche.defEqList, hd, bind,
+    Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **the
+induction**, in the ∃/∀ shape the recursive call forces (see the section
+note).  Four arms; the cons/cons arm has eight verification conditions and the
+fuel merge. -/
+theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
+    ∀ (as bs : List EIdx) (s₀ : AState),
+      CheckOK mode env fe s₀ →
+      (∃ xs, Frontend.denoteEList s₀.store as = some xs ∧
+        ∀ x ∈ xs, Expr.WScoped d x) →
+      (∃ ys, Frontend.denoteEList s₀.store bs = some ys ∧
+        ∀ y ∈ ys, Expr.WScoped d y) →
+      ⦃fun s => ⌜s = s₀⌝⦄
+        ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d as bs
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          ∀ xs ys, Frontend.denoteEList s₀.store as = some xs →
+            Frontend.denoteEList s₀.store bs = some ys →
+            SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys) r⌝⦄ := by
+  intro as
+  induction as with
+  | nil =>
+    intro bs s₀ hok hda hdb
+    cases bs with
+    | nil =>
+      mvcgen [ConRon.Arena.defEqList]
+      bridge_peel; subst_vars
+      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
+      obtain rfl := denoteEList_nil_inv hx
+      obtain rfl := denoteEList_nil_inv hy
+      exact ⟨0, defEqListFueled_nil⟩
+    | cons b bs' =>
+      mvcgen [ConRon.Arena.defEqList]
+      bridge_peel; subst_vars
+      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
+      obtain rfl := denoteEList_nil_inv hx
+      obtain ⟨y, ys', _, _, rfl⟩ := denoteEList_cons_inv hy
+      exact ⟨0, defEqListFueled_ln⟩
+  | cons a as' ih =>
+    intro bs s₀ hok hda hdb
+    cases bs with
+    | nil =>
+      mvcgen [ConRon.Arena.defEqList]
+      bridge_peel; subst_vars
+      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
+      obtain ⟨x, xs', _, _, rfl⟩ := denoteEList_cons_inv hx
+      obtain rfl := denoteEList_nil_inv hy
+      exact ⟨0, defEqListFueled_rn⟩
+    | cons b bs' =>
+      have hdq := hsim.defeq'
+      mvcgen [ConRon.Arena.defEqList, hdq, ih]
+      case vc1 => bridge_peel; subst_vars; exact hok
+      case vc2 =>
+        bridge_peel; subst_vars
+        obtain ⟨xs, hxs, hw⟩ := hda
+        obtain ⟨x, xs', hx, _, rfl⟩ := denoteEList_cons_inv hxs
+        exact ⟨x, hx, hw x (by simp)⟩
+      case vc3 =>
+        bridge_peel; subst_vars
+        obtain ⟨ys, hys, hw⟩ := hdb
+        obtain ⟨y, ys', hy, _, rfl⟩ := denoteEList_cons_inv hys
+        exact ⟨y, hy, hw y (by simp)⟩
+      case vc4 =>
+        bridge_peel; subst_vars
+        rename_i s2 s1 rb s0 hck1 hxt21 hpn12 hdefeq
+        intro hck hxt hpn hrec
+        refine ⟨hck, hxt21.trans hxt, by rw [hpn, hpn12],
+          fun xs ys hx hy => ?_⟩
+        obtain ⟨x, xs', hdx, hdxs, rfl⟩ := denoteEList_cons_inv hx
+        obtain ⟨y, ys', hdy, hdys, rfl⟩ := denoteEList_cons_inv hy
+        obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
+        obtain ⟨F2, hF2⟩ :=
+          hrec xs' ys' (denoteEList_ext hxt21 as' xs' hdxs)
+            (denoteEList_ext hxt21 bs' ys' hdys)
+        exact ⟨max F1 F2,
+          defEqListFueled_cons_true
+            (ConLeche.isDefEqCore_mono (Nat.le_max_left _ _) hF1)
+            (defEqListFueled_mono (Nat.le_max_right _ _) hF2)⟩
+      case vc5 => bridge_peel; subst_vars; intro s hck _ _ _; exact hck
+      case vc6 =>
+        bridge_peel; subst_vars
+        intro s _ hxt _ _
+        obtain ⟨xs, hxs, hw⟩ := hda
+        obtain ⟨x, xs', _, hdxs, rfl⟩ := denoteEList_cons_inv hxs
+        exact ⟨xs', denoteEList_ext hxt as' xs' hdxs,
+          fun z hz => hw z (by simp [hz])⟩
+      case vc7 =>
+        bridge_peel; subst_vars
+        intro s _ hxt _ _
+        obtain ⟨ys, hys, hw⟩ := hdb
+        obtain ⟨y, ys', _, hdys, rfl⟩ := denoteEList_cons_inv hys
+        exact ⟨ys', denoteEList_ext hxt bs' ys' hdys,
+          fun z hz => hw z (by simp [hz])⟩
+      case vc8 =>
+        bridge_peel; subst_vars
+        rename_i s1 rb hnb s0 hck0 hxt10 hpn01 hdefeq
+        obtain rfl : rb = false := by
+          cases rb with
+          | false => rfl
+          | true => exact absurd rfl hnb
+        refine ⟨hck0, hxt10, hpn01, fun xs ys hx hy => ?_⟩
+        obtain ⟨x, xs', hdx, _, rfl⟩ := denoteEList_cons_inv hx
+        obtain ⟨y, ys', hdy, _, rfl⟩ := denoteEList_cons_inv hy
+        obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
+        exact ⟨F1, defEqListFueled_cons_false hF1⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **THEOREM 1 for
 `defEqList`**: pairwise definitional equality of two argument vectors.
+**CLOSED** (round 3), at the published statement, over `defEqList_go`'s
+induction.
 
-**OPEN**: a `List` induction over `KnotSpec.defeq` — no `ExprOps` rule and no
-new denotation — **plus the fuel merge**.  The two subjects are LISTS, so
-task #97-P3-0's finding 3 applies: they are quantified inside the relation
-(here, by `Frontend.denoteEList` hypotheses at the entry) rather than taken
-as `∀`s a recursive call would leave as metavariables.
-
-**The fuel merge is the tier's one unpriced line item** (DESIGN §8's
-`### Task #97-P3-CoreWalks` §6.1).  Task #97-P3-Core said con-leche's
-`FueledM` wrapper is not needed here because the arena's side is a triple;
-that is true of a BODY and false of a LOOP.  Each iteration of this
-recursion hands out its own `∃ F` and they have to become one, which is
-`Verify/Mono.lean`'s job — and con-leche has `isDefEqCore_mono` and
-`pureFns_mono` but no `defEqList_mono`, because `FueledM` did its merging
-for it.  Ten lines in `Verify/Mono.lean`'s own shape, owed by the bridge,
-and the same debt sits unpaid under `whnfBody_spec`'s loop. -/
+DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 named the fuel merge as the one
+thing this walk was missing beyond the induction; `Walks/Mono.lean`'s
+`defEqListFueled_mono` is it, and the cons arm's `max F₁ F₂` over it and
+con-leche's own `isDefEqCore_mono` is two lines. -/
 theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (as bs : List EIdx) (xs ys : List Expr)
     (hok : CheckOK mode env fe s₀)
@@ -404,38 +652,25 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys)
           r⌝⦄ := by
-  sorry
+  have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  exact ⟨h1, h2, h3, h4 xs ys hda hdb⟩
 
 /-! ## 5. The annotation pass's three
 
 `Bridge/Core/Arms/Annotate.lean`'s `annotateBody_spec` names `annotPwPi` and
 `annotPwLam`; `isPropType` is under both. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1721-1730 isPropType — **THEOREM 1
-for `isPropType`**: is the annotated type a proposition?
-
-**OPEN**: `KnotSpec.annotate` (available) then the head-symbol reader
-`typeSortPW`, which is an `ExprOps` walk (`Bridge/ExprOps/Walks.lean`'s
-group, closed) this tier does not import. -/
-theorem isPropType_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (ty : EIdx) (t : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store ty = some t)
-    (hw : Expr.WScoped d t) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.isPropType (coreKnot mode fe id fuel) fe d ty
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp
-          (fun F => ConLeche.isPropType (ConLeche.pureFns mode env F) env d t)
-          r⌝⦄ := by
-  sorry
-
 /-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — **THEOREM 1
 for `annotPwPi`**: the `PropWhen` datum a ∀ binder is stamped with.
 
-**OPEN**: `isPropType_spec` above, plus the head-symbol reader `forallPw`
-(`ExprOps` tier).  `PropWhen` is a type both tiers share, so the answer
-relation is `SimVOp` and nothing has to be denoted. -/
+**OPEN**: `isPropType_spec` (CLOSED, `Bridge/Core/Walks/Spine.lean`) and the
+head-symbol reader — which is **`Arena/PropRead.lean`'s `typeSortPW`, not an
+`ExprOps` walk**, and that file has no bridge spec anywhere (round 3's
+correction; `ExprOps/Walks.lean`'s `forallPw_spec` is a different reader and
+is not what this clause calls).  `PropWhen` is a type both tiers share, so
+the answer relation is `SimVOp` and nothing has to be denoted. -/
 theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
@@ -452,7 +687,8 @@ theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — **THEOREM 1
 for `annotPwLam`**: the same at a λ binder.
 
-**OPEN**: `isPropType_spec` and the `lamPw` reader. -/
+**OPEN**: `isPropType_spec` (CLOSED) and `Arena/PropRead.lean`'s `proofPW`
+— the same missing module as `annotPwPi` and `propIrrel` (round 3). -/
 theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
@@ -465,5 +701,20 @@ theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           (fun F => ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x)
           pw⌝⦄ := by
   sorry
+
+/-! ## 6. The axiom census
+
+The round's one CLOSED walk in this module, its induction, and the pure-side
+step equations of the two walks whose arena side is still open. -/
+
+section Census
+
+#print axioms denoteEList_cons_inv
+#print axioms defEqListFueled_cons_true
+#print axioms defEqList_go
+#print axioms defEqList_spec
+#print axioms etaCertFueled_yes
+
+end Census
 
 end ConRon.Bridge.Core
