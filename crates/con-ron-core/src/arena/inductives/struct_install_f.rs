@@ -33,7 +33,7 @@ use crate::kernel::env::CheckMode;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstallF.lean:34 checkStructDomsAtF`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstallF.lean:31-34 checkStructDomsAtF`
 /// — `checkStructDomsAt` through the index; the same function (module note).
 pub fn check_struct_doms_at_f(
     pers: &PersTier,
@@ -50,7 +50,7 @@ pub fn check_struct_doms_at_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstallF.lean:39 checkStructDomsAtFA`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstallF.lean:36-39 checkStructDomsAtFA`
 /// — `checkStructDomsAtF` over arrays; the same function at `List.toArray`,
 /// and over a `Vec` there is nothing left to distinguish.
 pub fn check_struct_doms_at_fa(
@@ -68,7 +68,7 @@ pub fn check_struct_doms_at_fa(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjTableF
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstallF.lean:44 checkStructProjTableF`
+/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstallF.lean:41-44 checkStructProjTableF`
 /// — `checkStructProjTable` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_proj_table_f(

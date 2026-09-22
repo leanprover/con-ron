@@ -378,6 +378,15 @@ structure TblInv {A I D : Type} [DecidableEq A] (hA : ron.hashmap.Hashable A)
     (P : A → Prop) (rt : arena.store.Tbl A I D) : Prop where
   inv : Inv hA rt.cons
   keys : KeysOk P rt.cons
+  /-- **Every record in the NODE column is well formed too** (task #97-P5-2).
+  `keys` says it of the cons table; this says it of the array, and the two
+  are separate because `Tbl.node` reads the array and not the table.  It is
+  what the binder datum's `hasParams` needs: `prop_when::has_params` refines
+  `PropWhen.hasParams` only on a `WFShape` value (`Refine/PropWhen.lean`'s
+  `has_params_shape`), and that bit is OBSERVED — it is `derOfBind`'s `pm`,
+  hence the parent word's `lpOfData`.  `push` re-establishes it from the
+  caller's own `P a`, so it costs one line per writing lemma. -/
+  nodesP : ∀ p ∈ rt.rows.val, P p.1
 
 structure NTablesInv (rt : arena.store.NTables) : Prop where
   anons : TblInv arena.store.AnonNode.Insts.Con_ron_coreRonHashmapHashable
