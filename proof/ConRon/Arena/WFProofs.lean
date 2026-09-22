@@ -7575,6 +7575,193 @@ theorem EStore.dropScratch_spec {st : EStore} (h : StoreWF st) :
    fun _ _ hp hd => EStore.dropScratch_denote_pers h hp hd,
    fun _ hp => denoteE_dropScratch_scr st hp⟩
 
+/-! ### `enableScratch`'s DENOTE half (task #97-P3-CoreWalks, the Checker
+tier's ask 3)
+
+`EStore.dropScratch_spec` carries three conjuncts — the invariant, the view
+and **the denotation** — and `EStore.enableScratch_spec` carried only two.
+The declaration bracket needs the third (`Bridge/Checker/**`'s
+`PExt.enterScratch`: a pin handle interned before the prelude must still
+denote after the scratch tier is opened), so here it is.
+
+**The proof is one observation and no induction of its own.**
+`enableScratch` and `dropScratch` differ in exactly one field, `scratchOn`,
+and both set the scratch tier to `empty`.  A handle's `view` therefore does
+not tell them apart: a persistent handle reads the same `pers` array in both,
+and a scratch handle reads `none` in both — in `dropScratch` because the flag
+is off, in `enableScratch` because the table it reads is empty.  So
+`denote… st.enableScratch = denote… st.dropScratch` **as functions**, at all
+four stores, and every `enableScratch` fact is the corresponding
+`dropScratch` fact rewritten.  That is also why this is the honest way to
+state it: the two operations really do have the same denotation, and the
+`scratchOn` flag is about what `intern` will do NEXT, not about what the
+store means. -/
+
+theorem NStore.view_enableScratch_eq_dropScratch (st : NStore) (i : NIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [NStore.view, NStore.enableScratch, NStore.dropScratch]
+  split
+  · rfl
+  · simp [NTables.get_empty]
+
+theorem LStore.view_enableScratch_eq_dropScratch (st : LStore) (i : LIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [LStore.view, LStore.enableScratch, LStore.dropScratch]
+  split
+  · rfl
+  · simp [LTables.get_empty]
+
+theorem LsStore.view_enableScratch_eq_dropScratch (st : LsStore) (i : LsIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [LsStore.view, LsStore.enableScratch, LsStore.dropScratch]
+  split
+  · rfl
+  · simp [LsTables.get_empty]
+
+theorem EStore.viewBM_enableScratch_eq_dropScratch (st : EStore) (i : BMIdx) :
+    st.enableScratch.viewBM i = st.dropScratch.viewBM i := by
+  simp only [EStore.viewBM, EStore.enableScratch, EStore.dropScratch,
+    EStore.persGetBM]
+  split
+  · rfl
+  · simp [ETables.getBM_empty]
+
+theorem EStore.viewBindI_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
+    st.enableScratch.viewBindI i = st.dropScratch.viewBindI i := by
+  simp only [EStore.viewBindI, EStore.enableScratch, EStore.dropScratch,
+    EStore.persGetBind]
+  split
+  · rfl
+  · simp [ETables.getBind_empty]
+
+theorem EStore.viewBind_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
+    st.enableScratch.viewBind i = st.dropScratch.viewBind i := by
+  simp only [EStore.viewBind, EStore.viewBindI_enableScratch_eq_dropScratch,
+    EStore.viewBM_enableScratch_eq_dropScratch]
+
+theorem EStore.view_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
+    st.enableScratch.view i = st.dropScratch.view i := by
+  simp only [EStore.view, EStore.viewBind_enableScratch_eq_dropScratch]
+  split
+  · rfl
+  · simp only [EStore.enableScratch, EStore.dropScratch]
+    split
+    · rfl
+    · simp [ETables.get_empty]
+
+/-! The projections through the nesting, so that the congruences below can
+rewrite with the store-level lemmas instead of unfolding the record. -/
+
+theorem LStore.ns_enableScratch (st : LStore) :
+    st.enableScratch.ns = st.ns.enableScratch := rfl
+theorem LStore.ns_dropScratch (st : LStore) :
+    st.dropScratch.ns = st.ns.dropScratch := rfl
+theorem LsStore.ls_enableScratch (st : LsStore) :
+    st.enableScratch.ls = st.ls.enableScratch := rfl
+theorem LsStore.ls_dropScratch (st : LsStore) :
+    st.dropScratch.ls = st.ls.dropScratch := rfl
+theorem EStore.lss_enableScratch (st : EStore) :
+    st.enableScratch.lss = st.lss.enableScratch := rfl
+theorem EStore.lss_dropScratch (st : EStore) :
+    st.dropScratch.lss = st.lss.dropScratch := rfl
+theorem EStore.ls_enableScratch (st : EStore) :
+    st.enableScratch.ls = st.ls.enableScratch := rfl
+theorem EStore.ls_dropScratch (st : EStore) :
+    st.dropScratch.ls = st.ls.dropScratch := rfl
+theorem EStore.ns_enableScratch (st : EStore) :
+    st.enableScratch.ns = st.ns.enableScratch := rfl
+theorem EStore.ns_dropScratch (st : EStore) :
+    st.dropScratch.ns = st.ns.dropScratch := rfl
+
+theorem denoteNAux_enableScratch_eq (st : NStore) :
+    ∀ (f : Nat) (i : NIdx),
+      denoteNAux st.enableScratch f i = denoteNAux st.dropScratch f i := by
+  intro f
+  induction f with
+  | zero => intro _; rfl
+  | succ k ih =>
+    intro i
+    simp only [denoteNAux, NStore.view_enableScratch_eq_dropScratch, ih]
+
+theorem denoteN_enableScratch_eq (st : NStore) (i : NIdx) :
+    denoteN st.enableScratch i = denoteN st.dropScratch i := by
+  show denoteNAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
+  rw [denoteNAux_enableScratch_eq]
+  rfl
+
+theorem denoteLAux_enableScratch_eq (st : LStore) :
+    ∀ (f : Nat) (i : LIdx),
+      denoteLAux st.enableScratch f i = denoteLAux st.dropScratch f i := by
+  intro f
+  induction f with
+  | zero => intro _; rfl
+  | succ k ih =>
+    intro i
+    simp only [denoteLAux, LStore.view_enableScratch_eq_dropScratch, ih,
+      LStore.ns_enableScratch, LStore.ns_dropScratch, denoteN_enableScratch_eq]
+
+theorem denoteL_enableScratch_eq (st : LStore) (i : LIdx) :
+    denoteL st.enableScratch i = denoteL st.dropScratch i := by
+  show denoteLAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
+  rw [denoteLAux_enableScratch_eq]
+  rfl
+
+theorem denoteLList_enableScratch_eq (st : LStore) :
+    ∀ (us : List LIdx),
+      denoteLList st.enableScratch us = denoteLList st.dropScratch us
+  | [] => rfl
+  | u :: us => by
+    simp only [denoteLList, denoteL_enableScratch_eq,
+      denoteLList_enableScratch_eq st us]
+
+theorem denoteLs_enableScratch_eq (st : LsStore) (i : LsIdx) :
+    denoteLs st.enableScratch i = denoteLs st.dropScratch i := by
+  simp only [denoteLs, LsStore.view_enableScratch_eq_dropScratch,
+    LsStore.ls_enableScratch, LsStore.ls_dropScratch,
+    denoteLList_enableScratch_eq]
+
+theorem denoteEAux_enableScratch_eq (st : EStore) :
+    ∀ (f : Nat) (i : EIdx),
+      denoteEAux st.enableScratch f i = denoteEAux st.dropScratch f i := by
+  intro f
+  induction f with
+  | zero => intro _; rfl
+  | succ k ih =>
+    intro i
+    simp only [denoteEAux, EStore.view_enableScratch_eq_dropScratch, ih,
+      EStore.ls_enableScratch, EStore.ls_dropScratch, EStore.ns_enableScratch,
+      EStore.ns_dropScratch, EStore.lss_enableScratch, EStore.lss_dropScratch,
+      denoteL_enableScratch_eq, denoteN_enableScratch_eq,
+      denoteLs_enableScratch_eq]
+
+theorem denoteE_enableScratch_eq (st : EStore) (i : EIdx) :
+    denoteE st.enableScratch i = denoteE st.dropScratch i := by
+  show denoteEAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
+  rw [denoteEAux_enableScratch_eq]
+  rfl
+
+/-- con-leche: none — arena infrastructure; **opening the scratch tier keeps
+every persistent denotation**.  The `dropScratch` half has been there since
+task #97a; this is its twin, and `Bridge/Checker/**`'s `PExt.enterScratch`
+is what wanted it (task #97-P3-CoreWalks). -/
+theorem EStore.enableScratch_denote_pers {st : EStore} (h : StoreWF st)
+    {i : EIdx} {e : Expr} (hp : i.isPersistent = true)
+    (hd : denoteE st i = some e) : denoteE st.enableScratch i = some e := by
+  rw [denoteE_enableScratch_eq]
+  exact EStore.dropScratch_denote_pers h hp hd
+
+/-- con-leche: none — arena infrastructure; `EStore.enableScratch_spec` with
+the denote conjunct `EStore.dropScratch_spec` has had all along. -/
+theorem EStore.enableScratch_spec' {st : EStore} (h : StoreWF st) :
+    StoreWF st.enableScratch ∧
+      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) ∧
+      (∀ i e, i.isPersistent = true → denoteE st i = some e →
+        denoteE st.enableScratch i = some e) ∧
+      (∀ i, i.isPersistent = false → denoteE st.enableScratch i = none) :=
+  ⟨EStore.enableScratch_wf h, fun _ hp => EStore.view_enableScratch_pers_wf h hp,
+   fun _ _ hp hd => EStore.enableScratch_denote_pers h hp hd,
+   fun _ hp => denoteE_enableScratch_scr st hp⟩
+
 /-! ### The same, for the three stores underneath
 
 Names, levels and level lists have the identical shape; their `Ext`,
@@ -7789,5 +7976,725 @@ probe. -/
 theorem LsStore.view_of_persFind {st : LsStore} {v : LsNodeView} {i : LsIdx}
     (h : LsStoreWF st) (hf : st.pers.find? v = some i) : st.view i = some v :=
   ((h.consP v i).mp hf).1
+
+
+/-! ## ============================================================
+    `Ext` at EVERY appending primitive — task #97a, follow-up 4
+
+**This section is additive and self-contained, and it is the last thing in
+the file.**  Task #97-P5-2 §10 and §11 item 4: `EStore.intern_ext` exists,
+and `internBindI`, `internBM`, `internNNode`/`internLNode`/`internLsNode`,
+the four `internPersistent`s and `promote` have no sibling — while
+`Refine2`'s `AOut` demands `Ext lst.store lst'.store` at every one of them.
+Five of Theorem 2's `intern_e_*_run` statements are blocked on the first of
+those alone.
+
+What was missing is not an argument — `EStore.intern_ext` is fifteen lines —
+but the fact that the argument was written at ONE entry point and the store
+has a dozen.  So it is factored here into four combinators
+(`{N,L,Ls,}Ext.of_view_mono`) and then applied.  Every statement below is
+**unconditional**: no `StoreWF`, no `ViewOK`, no `capOK`.  An append moves no
+handle that decoded before it whatever the invariant says, and that is
+precisely why the refinement can use these where it cannot use
+`Bridge/StoreBind.lean`'s `internBindI_spec` or `Bridge/StoreNested.lean`'s
+`internName_spec` — both of which assume the invariant, because they conclude
+something about `view` as well, which `Ext` does not need.
+
+The `promote` family's `Ext` is `Arena/PromoteExt.lean`: it is monadic, so it
+needs `AState` and cannot be stated here. -/
+
+/-! ### The extension combinators
+
+`intern_ext` above proves `Ext st (st.intern w).1` by hand — `view`
+monotonicity, then the fuel traded up through `denoteEAux_mono`, then
+`denoteEAux_store_mono`.  Every other appending primitive owes the same three
+steps, so they are taken ONCE here, as `{N,L,Ls,}Ext.of_view_mono`: give the
+combinator the tier's own `view` monotonicity, the nested store's extension
+and the node count's monotonicity, and it hands back the extension.  With them
+each of the `…_ext` theorems below is three lines and no induction.
+
+Two of the four need a generalisation of the `denote…Aux_store_mono` above
+them: those are stated with the nested store held FIXED (`st'.ns = st.ns`,
+`st'.lss = st.lss`), which is true of `intern` at the expression tier and
+false of `internName`/`internLevel`/`internLevels`, whose whole business is to
+move it.  `denoteLAux_store_mono_ns` and `denoteEAux_store_mono_lss` take the
+nested EXTENSION instead, which is the weakest hypothesis the `param` /
+`sort` / `const` / `proj` arms actually use. -/
+
+/-- con-leche: none — arena infrastructure; a name store that decodes every
+handle the old one decoded, and holds at least as many nodes, extends it. -/
+theorem NExt.of_view_mono {st st' : NStore}
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v)
+    (hc : st.nodeCount ≤ st'.nodeCount) : NExt st st' := by
+  intro i x hd
+  simp only [denoteN] at hd ⊢
+  have h1 : denoteNAux st (st'.nodeCount + 1) i = some x :=
+    denoteNAux_mono st (st.nodeCount + 1) (st'.nodeCount + 1) i x (by omega) hd
+  exact denoteNAux_store_mono hv _ i x h1
+
+theorem denoteLAux_store_mono_ns {st st' : LStore}
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v)
+    (hns : NExt st.ns st'.ns) :
+    ∀ (f : Nat) (i : LIdx) (x : Level),
+      denoteLAux st f i = some x → denoteLAux st' f i = some x := by
+  intro f
+  induction f with
+  | zero => intro i x hd; simp [denoteLAux] at hd
+  | succ k ih =>
+    intro i x hd
+    simp only [denoteLAux, Option.bind_eq_some_iff] at hd ⊢
+    obtain ⟨v, hvv, hd⟩ := hd
+    refine ⟨v, hv i v hvv, ?_⟩
+    cases v with
+    | zero => exact hd
+    | param n =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      exact ⟨q, hns n q hq, he⟩
+    | succ u =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      exact ⟨q, ih u q hq, he⟩
+    | max u w =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨a, b, ha, hb, he⟩ := hd
+      exact ⟨a, b, ih u a ha, ih w b hb, he⟩
+    | imax u w =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨a, b, ha, hb, he⟩ := hd
+      exact ⟨a, b, ih u a ha, ih w b hb, he⟩
+
+/-- con-leche: none — arena infrastructure; the same at the level tier, with
+the name store's own extension carried in. -/
+theorem LExt.of_view_mono {st st' : LStore} (hns : NExt st.ns st'.ns)
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v)
+    (hc : st.nodeCount ≤ st'.nodeCount) : LExt st st' := by
+  refine ⟨hns, ?_⟩
+  intro i x hd
+  simp only [denoteL] at hd ⊢
+  have h1 : denoteLAux st (st'.nodeCount + 1) i = some x :=
+    denoteLAux_mono st (st.nodeCount + 1) (st'.nodeCount + 1) i x (by omega) hd
+  exact denoteLAux_store_mono_ns hv hns _ i x h1
+
+theorem denoteLList_mono_of_lext {st st' : LStore} (hls : LExt st st') :
+    ∀ (vs : List LIdx) (us : List Level),
+      denoteLList st vs = some us → denoteLList st' vs = some us := by
+  intro vs
+  induction vs with
+  | nil => intro us hd; exact hd
+  | cons a as ih =>
+    intro us hd
+    simp only [denoteLList, opt2_eq_some_iff] at hd ⊢
+    obtain ⟨x, y, hx, hy, he⟩ := hd
+    exact ⟨x, y, hls.lvl a x hx, ih y hy, he⟩
+
+/-- con-leche: none — arena infrastructure; the same at the level-list tier.
+There is no fuel here, so there is no count hypothesis. -/
+theorem LsExt.of_view_mono {st st' : LsStore} (hls : LExt st.ls st'.ls)
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v) : LsExt st st' := by
+  refine ⟨hls, ?_⟩
+  intro i us hd
+  obtain ⟨vs, hvs, hlist⟩ := denoteLs_view hd
+  rw [denoteLs, hv i vs hvs]
+  exact denoteLList_mono_of_lext hls vs us hlist
+
+theorem denoteEAux_store_mono_lss {st st' : EStore}
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v)
+    (hlss : LsExt st.lss st'.lss) :
+    ∀ (f : Nat) (i : EIdx) (e : Expr),
+      denoteEAux st f i = some e → denoteEAux st' f i = some e := by
+  intro f
+  induction f with
+  | zero => intro i e h; simp [denoteEAux] at h
+  | succ k ih =>
+    intro i e h
+    simp only [denoteEAux, Option.bind_eq_some_iff] at h ⊢
+    obtain ⟨v, hvv, h⟩ := h
+    refine ⟨v, hv i v hvv, ?_⟩
+    cases v with
+    | bvar _ => exact h
+    | lit _ => exact h
+    | sort u =>
+      simp only [Option.map_eq_some_iff] at h ⊢
+      obtain ⟨q, hq, he⟩ := h
+      exact ⟨q, hlss.ls.lvl u q hq, he⟩
+    | const n l =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, hlss.ls.ns n x hx, hlss.lst l y hy, he⟩
+    | fvar j ty =>
+      simp only [Option.map_eq_some_iff] at h ⊢
+      obtain ⟨q, hq, he⟩ := h
+      exact ⟨q, ih ty q hq, he⟩
+    | proj n j e' =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, hlss.ls.ns n x hx, ih e' y hy, he⟩
+    | app a b =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, ih a x hx, ih b y hy, he⟩
+    | lam ty b m =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, ih ty x hx, ih b y hy, he⟩
+    | forallE ty b m =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, ih ty x hx, ih b y hy, he⟩
+    | letE ty w b =>
+      simp only [opt3_eq_some_iff] at h ⊢
+      obtain ⟨x, y, z, hx, hy, hz, he⟩ := h
+      exact ⟨x, y, z, ih ty x hx, ih w y hy, ih b z hz, he⟩
+
+/-- con-leche: none — arena infrastructure; **the combinator every `…_ext`
+below is an instance of**: `view` monotonicity, plus the nested store's
+extension, plus a node count that did not shrink, IS `Ext`. -/
+theorem Ext.of_view_mono {st st' : EStore} (hlss : LsExt st.lss st'.lss)
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v)
+    (hc : st.nodeCount ≤ st'.nodeCount) : Ext st st' := by
+  refine ⟨hlss, ?_⟩
+  intro i e hd
+  simp only [denoteE] at hd ⊢
+  have h1 : denoteEAux st (st'.nodeCount + 1) i = some e :=
+    denoteEAux_mono st (st.nodeCount + 1) (st'.nodeCount + 1) i e (by omega) hd
+  exact denoteEAux_store_mono_lss hv hlss _ i e h1
+
+/-! ### `pushBind`, the binder append's own plumbing
+
+`ETables.pushBind` (task #97-P6-16) appends a binder RECORD to the array its
+tag names.  It touches `lams` or `foralls` and nothing else, so `get` — whose
+two binder arms answer `none` — and `getBM` are literally unchanged, and only
+`getBind` moves, exactly as under `push`.  These four are `push`'s lemmas at
+that entry point. -/
+
+theorem ETables.get_pushBind (t : ETables) (tag : UInt32) (r : BindNode) (d : UInt64)
+    (tier : UInt32) (i : EIdx) : (t.pushBind tag r d tier).1.get i = t.get i := by
+  unfold ETables.pushBind; split <;> rfl
+
+theorem ETables.getBM_pushBind (t : ETables) (tag : UInt32) (r : BindNode) (d : UInt64)
+    (tier : UInt32) (i : BMIdx) : (t.pushBind tag r d tier).1.getBM i = t.getBM i := by
+  unfold ETables.pushBind; split <;> rfl
+
+theorem ETables.getBind_pushBind_mono (t : ETables) (tag : UInt32) (r : BindNode)
+    (d : UInt64) (tier : UInt32) {i : EIdx} {p : EIdx × EIdx × BMIdx}
+    (h : t.getBind i = some p) : (t.pushBind tag r d tier).1.getBind i = some p := by
+  refine ETables.getBind_mono ?_ ?_ h <;> intro n a ha <;>
+    (simp only [ETables.pushBind]; split) <;>
+    first | exact ha | exact Tbl.node?_push ha
+
+theorem ETables.count_pushBind (t : ETables) (tag : UInt32) (r : BindNode) (d : UInt64)
+    (tier : UInt32) : (t.pushBind tag r d tier).1.count = t.count + 1 := by
+  unfold ETables.pushBind
+  split <;> simp [ETables.count, Tbl.size_push] <;> omega
+
+/-! ### `internBindI` — the binder append at a datum HANDLE
+
+The lemma task #97-P5-2 §10 names as the ONE thing five of Theorem 2's
+`intern_e_*_run` statements wait on: `Ext st (st.internBindI tag ty b mi).1`.
+`Bridge/StoreBind.lean` gets it through `internBindI_eq_internAt`, which
+needs a `BinderMeta` the datum handle decodes to and `StoreWF`'s
+`bmDerExact`; `AOut`'s success arm has neither.  Taken directly on
+`pushBind`, the fact is unconditional — an append moves no handle that
+decoded before it, whatever the store's invariant says — which is the form
+the refinement consumes. -/
+
+/-- `internBindI`'s three outcomes: a cons hit moves nothing, a miss appends
+the binder record to the tier the store is in. -/
+theorem EStore.internBindI_cases (st : EStore) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) :
+    (st.internBindI tag ty b mi).1 = st ∨
+      (st.internBindI tag ty b mi).1 =
+        { st with scr := (st.scr.pushBind tag ⟨ty, b, mi⟩
+            (st.derOfBindAtI (if tag == ETag.lam then 19 else 23) ty b mi)
+            Idx.tierS).1 } ∨
+      (st.internBindI tag ty b mi).1 =
+        { st with pers := (st.pers.pushBind tag ⟨ty, b, mi⟩
+            (st.derOfBindAtI (if tag == ETag.lam then 19 else 23) ty b mi)
+            Idx.tierP).1 } := by
+  simp only [EStore.internBindI]
+  split
+  · exact Or.inl rfl
+  · split
+    · split
+      · exact Or.inl rfl
+      · exact Or.inr (Or.inl rfl)
+    · exact Or.inr (Or.inr rfl)
+
+theorem EStore.view_internBindI_mono (st : EStore) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) {i : EIdx} {v : ENodeView} (h : st.view i = some v) :
+    (st.internBindI tag ty b mi).1.view i = some v := by
+  rcases EStore.internBindI_cases st tag ty b mi with he | he | he <;> rw [he]
+  · exact h
+  · refine EStore.view_mono_of_tiers st _ ?_ ?_ ?_ ?_ ?_ ?_ h
+    · rfl
+    · exact fun _ _ hh => hh
+    · exact fun _ _ hh => hh
+    · exact fun _ _ hh => by rw [ETables.get_pushBind]; exact hh
+    · exact fun _ _ hh => ETables.getBind_pushBind_mono _ _ _ _ _ hh
+    · intro j mm hh
+      refine EStore.viewBM_mono_of_tiers st _ ?_ ?_ ?_ hh
+      · rfl
+      · exact fun _ _ hk => hk
+      · exact fun _ _ hk => by rw [ETables.getBM_pushBind]; exact hk
+  · refine EStore.view_mono_of_tiers st _ ?_ ?_ ?_ ?_ ?_ ?_ h
+    · rfl
+    · exact fun _ _ hh => by rw [ETables.get_pushBind]; exact hh
+    · exact fun _ _ hh => ETables.getBind_pushBind_mono _ _ _ _ _ hh
+    · exact fun _ _ hh => hh
+    · exact fun _ _ hh => hh
+    · intro j mm hh
+      refine EStore.viewBM_mono_of_tiers st _ ?_ ?_ ?_ hh
+      · rfl
+      · exact fun _ _ hk => by rw [ETables.getBM_pushBind]; exact hk
+      · exact fun _ _ hk => hk
+
+theorem EStore.lss_internBindI (st : EStore) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) : (st.internBindI tag ty b mi).1.lss = st.lss := by
+  rcases EStore.internBindI_cases st tag ty b mi with he | he | he <;> rw [he]
+
+theorem EStore.scratchOn_internBindI (st : EStore) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) : (st.internBindI tag ty b mi).1.scratchOn = st.scratchOn := by
+  rcases EStore.internBindI_cases st tag ty b mi with he | he | he <;> rw [he]
+
+theorem EStore.nodeCount_internBindI_le (st : EStore) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) : st.nodeCount ≤ (st.internBindI tag ty b mi).1.nodeCount := by
+  rcases EStore.internBindI_cases st tag ty b mi with he | he | he <;> rw [he]
+  · exact Nat.le_refl _
+  · simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount,
+      ETables.count_pushBind]
+    omega
+  · simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount,
+      ETables.count_pushBind]
+    omega
+
+/-! ### The persistent-tier appends
+
+`internBMPersistent`, `internBMOfViewPersistent` and `EStore.internPersistent`
+(task #97-P6-2): `intern`'s `else` branch with the scratch probe left out, so
+the append lands in `pers` whatever tier the store is in.  `Ext` does not care
+which tier grew — it is `view` monotonicity and a node count — so these are
+the same three lines as their `intern` siblings.  (The INVARIANT does care:
+`fresh` is transiently broken by a promotion, which is why `Bridge`'s
+`StoreWFP` exists.  Nothing here touches that; `Ext` is the conjunct the
+promotion keeps outright.) -/
+
+theorem EStore.internBMPersistent_cases (st : EStore) (m : ConLeche.BinderMeta) :
+    (st.internBMPersistent m).1 = st ∨
+      (st.internBMPersistent m).1 =
+        { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 } := by
+  simp only [EStore.internBMPersistent]
+  split
+  · exact Or.inl rfl
+  · exact Or.inr rfl
+
+theorem EStore.view_internBMPersistent_mono (st : EStore) (m : ConLeche.BinderMeta)
+    {i : EIdx} {v : ENodeView} (h : st.view i = some v) :
+    (st.internBMPersistent m).1.view i = some v := by
+  rcases EStore.internBMPersistent_cases st m with he | he <;> rw [he]
+  · exact h
+  · refine EStore.view_mono_of_tiers st _ ?_ ?_ ?_ ?_ ?_ ?_ h
+    · rfl
+    · exact fun _ _ hh => hh
+    · exact fun _ _ hh => hh
+    · exact fun _ _ hh => hh
+    · exact fun _ _ hh => hh
+    · intro j mm hh
+      refine EStore.viewBM_mono_of_tiers st _ ?_ ?_ ?_ hh
+      · rfl
+      · exact fun _ _ hk => ETables.getBM_pushBM_mono hk
+      · exact fun _ _ hk => hk
+
+theorem EStore.lss_internBMPersistent (st : EStore) (m : ConLeche.BinderMeta) :
+    (st.internBMPersistent m).1.lss = st.lss := by
+  rcases EStore.internBMPersistent_cases st m with he | he <;> rw [he]
+
+theorem EStore.scratchOn_internBMPersistent (st : EStore) (m : ConLeche.BinderMeta) :
+    (st.internBMPersistent m).1.scratchOn = st.scratchOn := by
+  rcases EStore.internBMPersistent_cases st m with he | he <;> rw [he]
+
+theorem EStore.nodeCount_internBMPersistent (st : EStore) (m : ConLeche.BinderMeta) :
+    (st.internBMPersistent m).1.nodeCount = st.nodeCount := by
+  rcases EStore.internBMPersistent_cases st m with he | he <;> rw [he] <;>
+    simp [EStore.nodeCount, EStore.persCount, EStore.scrCount, ETables.count_pushBM]
+
+theorem EStore.view_internBMOfViewPersistent_mono (st : EStore) (w : ENodeView)
+    {i : EIdx} {v : ENodeView} (h : st.view i = some v) :
+    (st.internBMOfViewPersistent w).1.view i = some v := by
+  cases w
+  case lam _ _ m => exact EStore.view_internBMPersistent_mono st m h
+  case forallE _ _ m => exact EStore.view_internBMPersistent_mono st m h
+  all_goals exact h
+
+theorem EStore.lss_internBMOfViewPersistent (st : EStore) (w : ENodeView) :
+    (st.internBMOfViewPersistent w).1.lss = st.lss := by
+  cases w
+  case lam _ _ m => exact EStore.lss_internBMPersistent st m
+  case forallE _ _ m => exact EStore.lss_internBMPersistent st m
+  all_goals rfl
+
+theorem EStore.scratchOn_internBMOfViewPersistent (st : EStore) (w : ENodeView) :
+    (st.internBMOfViewPersistent w).1.scratchOn = st.scratchOn := by
+  cases w
+  case lam _ _ m => exact EStore.scratchOn_internBMPersistent st m
+  case forallE _ _ m => exact EStore.scratchOn_internBMPersistent st m
+  all_goals rfl
+
+theorem EStore.nodeCount_internBMOfViewPersistent (st : EStore) (w : ENodeView) :
+    (st.internBMOfViewPersistent w).1.nodeCount = st.nodeCount := by
+  cases w
+  case lam _ _ m => exact EStore.nodeCount_internBMPersistent st m
+  case forallE _ _ m => exact EStore.nodeCount_internBMPersistent st m
+  all_goals rfl
+
+theorem EStore.internPersistent_cases (st : EStore) (v : ENodeView) :
+    (st.internPersistent v).1 = (st.internBMOfViewPersistent v).1 ∨
+      (st.internPersistent v).1 =
+        { (st.internBMOfViewPersistent v).1 with
+            pers := ((st.internBMOfViewPersistent v).1.pers.push v
+              ((st.internBMOfViewPersistent v).1.derOfView v)
+              (st.internBMOfViewPersistent v).2 Idx.tierP).1 } := by
+  simp only [EStore.internPersistent]
+  split
+  · exact Or.inl rfl
+  · exact Or.inr rfl
+
+theorem EStore.view_internPersistent_mono (st : EStore) (w : ENodeView)
+    {i : EIdx} {v : ENodeView} (h : st.view i = some v) :
+    (st.internPersistent w).1.view i = some v := by
+  have h0 := EStore.view_internBMOfViewPersistent_mono st w h
+  rcases EStore.internPersistent_cases st w with he | he <;> rw [he]
+  · exact h0
+  · refine EStore.view_mono_of_tiers _ _ ?_ ?_ ?_ ?_ ?_ ?_ h0
+    · rfl
+    · exact fun _ _ hh => ETables.get_push_mono _ _ _ _ _ hh
+    · exact fun _ _ hh => ETables.getBind_push_mono _ _ _ _ _ hh
+    · exact fun _ _ hh => hh
+    · exact fun _ _ hh => hh
+    · intro j mm hh
+      refine EStore.viewBM_mono_of_tiers _ _ ?_ ?_ ?_ hh
+      · rfl
+      · exact fun _ _ hk => by rw [ETables.getBM_push]; exact hk
+      · exact fun _ _ hk => hk
+
+theorem EStore.lss_internPersistent (st : EStore) (w : ENodeView) :
+    (st.internPersistent w).1.lss = st.lss := by
+  rcases EStore.internPersistent_cases st w with he | he <;> rw [he] <;>
+    exact EStore.lss_internBMOfViewPersistent st w
+
+theorem EStore.scratchOn_internPersistent (st : EStore) (w : ENodeView) :
+    (st.internPersistent w).1.scratchOn = st.scratchOn := by
+  rcases EStore.internPersistent_cases st w with he | he <;> rw [he] <;>
+    exact EStore.scratchOn_internBMOfViewPersistent st w
+
+theorem EStore.nodeCount_internPersistent_le (st : EStore) (w : ENodeView) :
+    st.nodeCount ≤ (st.internPersistent w).1.nodeCount := by
+  have h0 := EStore.nodeCount_internBMOfViewPersistent st w
+  rcases EStore.internPersistent_cases st w with he | he <;> rw [he]
+  · omega
+  · simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount,
+      ETables.count_push]
+    simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount] at h0
+    omega
+
+/-! ### The three nested stores' persistent append -/
+
+theorem NStore.internPersistent_cases (st : NStore) (w : NNodeView) :
+    (st.internPersistent w).1 = st ∨
+      (st.internPersistent w).1 =
+        { st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 } := by
+  simp only [NStore.internPersistent]
+  split
+  · exact Or.inl rfl
+  · exact Or.inr rfl
+
+theorem NStore.view_internPersistent_mono (st : NStore) (w : NNodeView) {i : NIdx}
+    {v : NNodeView} (h : st.view i = some v) :
+    (st.internPersistent w).1.view i = some v := by
+  rcases NStore.internPersistent_cases st w with he | he <;> rw [he]
+  · exact h
+  · simp only [NStore.view] at h ⊢
+    by_cases hp : i.isPersistent = true
+    · rw [if_pos hp] at h ⊢; exact NTables.get_push_mono _ _ _ _ h
+    · rw [if_neg hp] at h ⊢; exact h
+
+theorem NStore.scratchOn_internPersistent (st : NStore) (w : NNodeView) :
+    (st.internPersistent w).1.scratchOn = st.scratchOn := by
+  rcases NStore.internPersistent_cases st w with he | he <;> rw [he]
+
+theorem NStore.nodeCount_internPersistent_le (st : NStore) (w : NNodeView) :
+    st.nodeCount ≤ (st.internPersistent w).1.nodeCount := by
+  rcases NStore.internPersistent_cases st w with he | he <;> rw [he]
+  · exact Nat.le_refl _
+  · simp only [NStore.nodeCount, NStore.persCount, NStore.scrCount,
+      NTables.count_push]
+    omega
+
+theorem LStore.internPersistent_cases (st : LStore) (w : LNodeView) :
+    (st.internPersistent w).1 = st ∨
+      (st.internPersistent w).1 =
+        { st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 } := by
+  simp only [LStore.internPersistent]
+  split
+  · exact Or.inl rfl
+  · exact Or.inr rfl
+
+theorem LStore.ns_internPersistent (st : LStore) (w : LNodeView) :
+    (st.internPersistent w).1.ns = st.ns := by
+  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
+
+theorem LStore.view_internPersistent_mono (st : LStore) (w : LNodeView) {i : LIdx}
+    {v : LNodeView} (h : st.view i = some v) :
+    (st.internPersistent w).1.view i = some v := by
+  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
+  · exact h
+  · simp only [LStore.view] at h ⊢
+    by_cases hp : i.isPersistent = true
+    · rw [if_pos hp] at h ⊢; exact LTables.get_push_mono _ _ _ _ h
+    · rw [if_neg hp] at h ⊢; exact h
+
+theorem LStore.scratchOn_internPersistent (st : LStore) (w : LNodeView) :
+    (st.internPersistent w).1.scratchOn = st.scratchOn := by
+  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
+
+theorem LStore.nodeCount_internPersistent_le (st : LStore) (w : LNodeView) :
+    st.nodeCount ≤ (st.internPersistent w).1.nodeCount := by
+  rcases LStore.internPersistent_cases st w with he | he <;> rw [he]
+  · exact Nat.le_refl _
+  · simp only [LStore.nodeCount, LStore.persCount, LStore.scrCount,
+      LTables.count_push]
+    omega
+
+theorem LsStore.internPersistent_cases (st : LsStore) (w : LsNodeView) :
+    (st.internPersistent w).1 = st ∨
+      (st.internPersistent w).1 =
+        { st with pers := (st.pers.push w (st.derOfView w) Idx.tierP).1 } := by
+  simp only [LsStore.internPersistent]
+  split
+  · exact Or.inl rfl
+  · exact Or.inr rfl
+
+theorem LsStore.ls_internPersistent (st : LsStore) (w : LsNodeView) :
+    (st.internPersistent w).1.ls = st.ls := by
+  rcases LsStore.internPersistent_cases st w with he | he <;> rw [he]
+
+theorem LsStore.view_internPersistent_mono (st : LsStore) (w : LsNodeView)
+    {i : LsIdx} {v : LsNodeView} (h : st.view i = some v) :
+    (st.internPersistent w).1.view i = some v := by
+  rcases LsStore.internPersistent_cases st w with he | he <;> rw [he]
+  · exact h
+  · simp only [LsStore.view] at h ⊢
+    by_cases hp : i.isPersistent = true
+    · rw [if_pos hp] at h ⊢; exact LsTables.get_push_mono _ _ _ _ h
+    · rw [if_neg hp] at h ⊢; exact h
+
+theorem LsStore.scratchOn_internPersistent (st : LsStore) (w : LsNodeView) :
+    (st.internPersistent w).1.scratchOn = st.scratchOn := by
+  rcases LsStore.internPersistent_cases st w with he | he <;> rw [he]
+
+/-! ### The `Ext` theorems, one per appending entry point
+
+Each is `…Ext.of_view_mono` at the three plumbing lemmas above it.  Together
+with `EStore.intern_ext` they cover every primitive of `Store.lean` that
+appends: the four node stores' `intern` and `internPersistent`, the datum
+store's `internBM` and `internBMPersistent`, the binder entry `internBindI`
+and its four faces, and the six lifts through the nesting. -/
+
+theorem NStore.internPersistent_ext (st : NStore) (w : NNodeView) :
+    NExt st (st.internPersistent w).1 :=
+  NExt.of_view_mono (fun _ _ h => NStore.view_internPersistent_mono st w h)
+    (NStore.nodeCount_internPersistent_le st w)
+
+theorem LStore.internPersistent_ext (st : LStore) (w : LNodeView) :
+    LExt st (st.internPersistent w).1 :=
+  LExt.of_view_mono (by rw [LStore.ns_internPersistent]; exact NExt.refl _)
+    (fun _ _ h => LStore.view_internPersistent_mono st w h)
+    (LStore.nodeCount_internPersistent_le st w)
+
+theorem LsStore.internPersistent_ext (st : LsStore) (w : LsNodeView) :
+    LsExt st (st.internPersistent w).1 :=
+  LsExt.of_view_mono (by rw [LsStore.ls_internPersistent]; exact LExt.refl _)
+    (fun _ _ h => LsStore.view_internPersistent_mono st w h)
+
+/-- con-leche: none — arena infrastructure; `intern`'s node half on its own —
+`intern_ext`'s argument with `internBMOfView` removed. -/
+theorem EStore.internAt_ext (st : EStore) (w : ENodeView) (mi : BMIdx) :
+    Ext st (st.internAt w mi).1 :=
+  Ext.of_view_mono (by rw [EStore.lss_internAt]; exact LsExt.refl _)
+    (fun _ _ h => EStore.view_internAt_mono st w mi h)
+    (EStore.nodeCount_internAt_le st w mi)
+
+theorem EStore.lss_internBM (st : EStore) (m : ConLeche.BinderMeta) :
+    (st.internBM m).1.lss = st.lss := by
+  rcases EStore.internBM_cases st m with he | he | he <;> rw [he]
+
+theorem EStore.scratchOn_internBM (st : EStore) (m : ConLeche.BinderMeta) :
+    (st.internBM m).1.scratchOn = st.scratchOn := by
+  rcases EStore.internBM_cases st m with he | he | he <;> rw [he]
+
+theorem EStore.nodeCount_internBM (st : EStore) (m : ConLeche.BinderMeta) :
+    (st.internBM m).1.nodeCount = st.nodeCount := by
+  rcases EStore.internBM_cases st m with he | he | he <;> rw [he] <;>
+    simp [EStore.nodeCount, EStore.persCount, EStore.scrCount, ETables.count_pushBM]
+
+/-- con-leche: none — arena infrastructure; the binder DATUM's append extends
+the arena.  It moves no node read at all, so the node count stands still. -/
+theorem EStore.internBM_ext (st : EStore) (m : ConLeche.BinderMeta) :
+    Ext st (st.internBM m).1 :=
+  Ext.of_view_mono (by rw [EStore.lss_internBM]; exact LsExt.refl _)
+    (fun _ _ h => EStore.view_internBM_mono st m h)
+    (by rw [EStore.nodeCount_internBM]; exact Nat.le_refl _)
+
+theorem EStore.internBMOfView_ext (st : EStore) (w : ENodeView) :
+    Ext st (st.internBMOfView w).1 :=
+  Ext.of_view_mono (by rw [EStore.lss_internBMOfView]; exact LsExt.refl _)
+    (fun _ _ h => EStore.view_internBMOfView_mono st w h)
+    (by rw [EStore.nodeCount_internBMOfView]; exact Nat.le_refl _)
+
+theorem EStore.internBMPersistent_ext (st : EStore) (m : ConLeche.BinderMeta) :
+    Ext st (st.internBMPersistent m).1 :=
+  Ext.of_view_mono (by rw [EStore.lss_internBMPersistent]; exact LsExt.refl _)
+    (fun _ _ h => EStore.view_internBMPersistent_mono st m h)
+    (by rw [EStore.nodeCount_internBMPersistent]; exact Nat.le_refl _)
+
+theorem EStore.internBMOfViewPersistent_ext (st : EStore) (w : ENodeView) :
+    Ext st (st.internBMOfViewPersistent w).1 :=
+  Ext.of_view_mono (by rw [EStore.lss_internBMOfViewPersistent]; exact LsExt.refl _)
+    (fun _ _ h => EStore.view_internBMOfViewPersistent_mono st w h)
+    (by rw [EStore.nodeCount_internBMOfViewPersistent]; exact Nat.le_refl _)
+
+/-- con-leche: none — arena infrastructure; **the binder append extends the
+arena** (task #97-P5-2 §10, §11 item 4).  Unconditional: no `StoreWF`, no
+`BinderMeta`, no capacity — which is what `Refine2`'s `AOut` needs of it. -/
+theorem EStore.internBindI_ext (st : EStore) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) : Ext st (st.internBindI tag ty b mi).1 :=
+  Ext.of_view_mono (by rw [EStore.lss_internBindI]; exact LsExt.refl _)
+    (fun _ _ h => EStore.view_internBindI_mono st tag ty b mi h)
+    (EStore.nodeCount_internBindI_le st tag ty b mi)
+
+theorem EStore.internLamI_ext (st : EStore) (ty b : EIdx) (mi : BMIdx) :
+    Ext st (st.internLamI ty b mi).1 := EStore.internBindI_ext st _ ty b mi
+
+theorem EStore.internForallEI_ext (st : EStore) (ty b : EIdx) (mi : BMIdx) :
+    Ext st (st.internForallEI ty b mi).1 := EStore.internBindI_ext st _ ty b mi
+
+theorem EStore.internEBindI_ext (st : EStore) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) : Ext st (st.internEBindI tag ty b mi).1 :=
+  EStore.internBindI_ext st tag ty b mi
+
+theorem EStore.internLam_ext (st : EStore) (ty b : EIdx) (m : ConLeche.BinderMeta) :
+    Ext st (st.internLam ty b m).1 :=
+  (EStore.internBM_ext st m).trans
+    (EStore.internLamI_ext (st.internBM m).1 ty b (st.internBM m).2)
+
+theorem EStore.internForallE_ext (st : EStore) (ty b : EIdx)
+    (m : ConLeche.BinderMeta) : Ext st (st.internForallE ty b m).1 :=
+  (EStore.internBM_ext st m).trans
+    (EStore.internForallEI_ext (st.internBM m).1 ty b (st.internBM m).2)
+
+/-- con-leche: none — arena infrastructure; **the promotion's append extends
+the arena** (task #97-P6-2).  This is the conjunct the promotion keeps
+outright, where `StoreWF`'s `fresh` is transiently broken. -/
+theorem EStore.internPersistent_ext (st : EStore) (w : ENodeView) :
+    Ext st (st.internPersistent w).1 :=
+  Ext.of_view_mono (by rw [EStore.lss_internPersistent]; exact LsExt.refl _)
+    (fun _ _ h => EStore.view_internPersistent_mono st w h)
+    (EStore.nodeCount_internPersistent_le st w)
+
+/-! ### The nested interns, lifted
+
+`Monad.lean`'s `internNNode` / `internLNode` / `internLsNode` — task #97-P5-2
+§11 item 4's `internNNode`, `internLNode`, `internLsNode` — run through
+`EStore.internName` / `internLevel` / `internLevels`, which move the nested
+store and leave every expression-level read alone.  The `view` and `scratchOn`
+equations below are `rfl`, and are what a caller relating the whole state
+wants beside the `Ext`. -/
+
+theorem LStore.internName_ext (st : LStore) (w : NNodeView) :
+    LExt st (st.internName w).1 :=
+  LExt.of_view_mono (NStore.intern_ext st.ns w) (fun _ _ h => h) (Nat.le_refl _)
+
+theorem LStore.internNamePersistent_ext (st : LStore) (w : NNodeView) :
+    LExt st (st.internNamePersistent w).1 :=
+  LExt.of_view_mono (NStore.internPersistent_ext st.ns w) (fun _ _ h => h)
+    (Nat.le_refl _)
+
+theorem LsStore.internName_ext (st : LsStore) (w : NNodeView) :
+    LsExt st (st.internName w).1 :=
+  LsExt.of_view_mono (LStore.internName_ext st.ls w) (fun _ _ h => h)
+
+theorem LsStore.internNamePersistent_ext (st : LsStore) (w : NNodeView) :
+    LsExt st (st.internNamePersistent w).1 :=
+  LsExt.of_view_mono (LStore.internNamePersistent_ext st.ls w) (fun _ _ h => h)
+
+theorem LsStore.internLevel_ext (st : LsStore) (w : LNodeView) :
+    LsExt st (st.internLevel w).1 :=
+  LsExt.of_view_mono (LStore.intern_ext st.ls w) (fun _ _ h => h)
+
+theorem LsStore.internLevelPersistent_ext (st : LsStore) (w : LNodeView) :
+    LsExt st (st.internLevelPersistent w).1 :=
+  LsExt.of_view_mono (LStore.internPersistent_ext st.ls w) (fun _ _ h => h)
+
+/-- con-leche: none — arena infrastructure; `Monad.lean`'s `internNNode`
+extends the arena. -/
+theorem EStore.internName_ext (st : EStore) (w : NNodeView) :
+    Ext st (st.internName w).1 :=
+  Ext.of_view_mono (LsStore.internName_ext st.lss w) (fun _ _ h => h)
+    (Nat.le_refl _)
+
+theorem EStore.internNamePersistent_ext (st : EStore) (w : NNodeView) :
+    Ext st (st.internNamePersistent w).1 :=
+  Ext.of_view_mono (LsStore.internNamePersistent_ext st.lss w) (fun _ _ h => h)
+    (Nat.le_refl _)
+
+/-- con-leche: none — arena infrastructure; `Monad.lean`'s `internLNode`
+extends the arena. -/
+theorem EStore.internLevel_ext (st : EStore) (w : LNodeView) :
+    Ext st (st.internLevel w).1 :=
+  Ext.of_view_mono (LsStore.internLevel_ext st.lss w) (fun _ _ h => h)
+    (Nat.le_refl _)
+
+theorem EStore.internLevelPersistent_ext (st : EStore) (w : LNodeView) :
+    Ext st (st.internLevelPersistent w).1 :=
+  Ext.of_view_mono (LsStore.internLevelPersistent_ext st.lss w) (fun _ _ h => h)
+    (Nat.le_refl _)
+
+/-- con-leche: none — arena infrastructure; `Monad.lean`'s `internLsNode`
+extends the arena. -/
+theorem EStore.internLevels_ext (st : EStore) (w : LsNodeView) :
+    Ext st (st.internLevels w).1 :=
+  Ext.of_view_mono (LsStore.intern_ext st.lss w) (fun _ _ h => h) (Nat.le_refl _)
+
+theorem EStore.internLevelsPersistent_ext (st : EStore) (w : LsNodeView) :
+    Ext st (st.internLevelsPersistent w).1 :=
+  Ext.of_view_mono (LsStore.internPersistent_ext st.lss w) (fun _ _ h => h)
+    (Nat.le_refl _)
+
+theorem EStore.view_internName (st : EStore) (w : NNodeView) (i : EIdx) :
+    (st.internName w).1.view i = st.view i := rfl
+theorem EStore.view_internLevel (st : EStore) (w : LNodeView) (i : EIdx) :
+    (st.internLevel w).1.view i = st.view i := rfl
+theorem EStore.view_internLevels (st : EStore) (w : LsNodeView) (i : EIdx) :
+    (st.internLevels w).1.view i = st.view i := rfl
+theorem EStore.view_internNamePersistent (st : EStore) (w : NNodeView) (i : EIdx) :
+    (st.internNamePersistent w).1.view i = st.view i := rfl
+theorem EStore.view_internLevelPersistent (st : EStore) (w : LNodeView) (i : EIdx) :
+    (st.internLevelPersistent w).1.view i = st.view i := rfl
+theorem EStore.view_internLevelsPersistent (st : EStore) (w : LsNodeView) (i : EIdx) :
+    (st.internLevelsPersistent w).1.view i = st.view i := rfl
+
+theorem EStore.scratchOn_internName (st : EStore) (w : NNodeView) :
+    (st.internName w).1.scratchOn = st.scratchOn := rfl
+theorem EStore.scratchOn_internLevel (st : EStore) (w : LNodeView) :
+    (st.internLevel w).1.scratchOn = st.scratchOn := rfl
+theorem EStore.scratchOn_internLevels (st : EStore) (w : LsNodeView) :
+    (st.internLevels w).1.scratchOn = st.scratchOn := rfl
+theorem EStore.scratchOn_internNamePersistent (st : EStore) (w : NNodeView) :
+    (st.internNamePersistent w).1.scratchOn = st.scratchOn := rfl
+theorem EStore.scratchOn_internLevelPersistent (st : EStore) (w : LNodeView) :
+    (st.internLevelPersistent w).1.scratchOn = st.scratchOn := rfl
+theorem EStore.scratchOn_internLevelsPersistent (st : EStore) (w : LsNodeView) :
+    (st.internLevelsPersistent w).1.scratchOn = st.scratchOn := rfl
+
 
 end ConRon.Arena

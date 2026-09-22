@@ -170,33 +170,17 @@ theorem EStore.internBindI_eq_internAt {st : EStore} {tag : UInt32} {ty b : EIdx
     ETables.findBind_eq_find? (m := m) _ htag,
     ETables.pushBind_eq_push (m := m) _ _ _ htag]
 
-/-! ## `internAt`'s two plumbing conjuncts
+/-! ## `internAt`'s scratch flag
 
-`Ext` and the scratch flag standing still, which `EStore.intern_ext` proves
-for the composite and nothing proves for the node half on its own. -/
+`Ext` for the node half is `Arena/WFProofs.lean`'s own
+`EStore.internAt_ext` (task #97a follow-up 4); the flag is still this
+file's. -/
 
 /-- con-leche: none — arena infrastructure; the node half of `intern` leaves
 the scratch flag alone, in all three of its branches. -/
 theorem EStore.scratchOn_internAt (st : EStore) (w : ENodeView) (mi : BMIdx) :
     (st.internAt w mi).1.scratchOn = st.scratchOn := by
   rcases EStore.internAt_cases st w mi with he | he | he <;> rw [he]
-
-/-- con-leche: none — arena infrastructure; the node half of `intern` extends
-the arena: every handle that denoted before denotes the same after.  This is
-`EStore.intern_ext`'s argument with `internBMOfView` removed. -/
-theorem EStore.internAt_ext (st : EStore) (w : ENodeView) (mi : BMIdx) :
-    Ext st (st.internAt w mi).1 := by
-  refine ⟨?_, ?_⟩
-  · rw [EStore.lss_internAt]; exact LsExt.refl _
-  · intro i e hh
-    simp only [denoteE] at hh ⊢
-    have hmono := denoteEAux_store_mono (st := st) (st' := (st.internAt w mi).1)
-      (fun _ _ hk => EStore.view_internAt_mono st w mi hk)
-      (EStore.lss_internAt st w mi)
-    have h1 : denoteEAux st ((st.internAt w mi).1.nodeCount + 1) i = some e :=
-      denoteEAux_mono st (st.nodeCount + 1) ((st.internAt w mi).1.nodeCount + 1) i e
-        (by have := EStore.nodeCount_internAt_le st w mi; omega) hh
-    exact hmono _ i e h1
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the binder
 `intern` over a datum HANDLE preserves the store, extends it, and its handle
