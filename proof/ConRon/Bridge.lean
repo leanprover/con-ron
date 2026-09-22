@@ -19,11 +19,26 @@ order.
 * `Bridge/Axioms.lean` — the trust census (`#print axioms` on every closed
   result);
 * `Bridge/ExprOps.lean` — the `ExprOps` tier (Theorem 1, function by
-  function).
+  function);
+* `Bridge/Promote.lean` — the promotion tier (task #97-P3-Checker): the
+  PERSISTENT extension, the `internPersistent` obligations and the
+  promotion's exactness;
+* `Bridge/Checker.lean` — **the declaration-checker tier and THEOREM 1**:
+  `Arena.checkDecl_bridge`, `Arena.checkDeclsPure_bridge` and the capstone
+  `Arena.model_exists`.
 
-It imports `ConRon.Arena` and con-leche's pure tier and **nothing else**: no
+It imports `ConRon.Arena` and con-leche and **nothing else**: no
 `ConRon.Refine`, no `ConRon.Generated`, no Aeneas, no Mathlib.  `mvcgen`
 comes from `Std.Tactic.Do`, which is in core.
+
+Task #97-P3-0's rule was con-leche's `Kernel/*` only; task #97-P3-Checker
+widens it by three modules, each in ONE file and each for one declaration:
+`ConLeche.Verify.BridgeDecl` (`checkDecl_datF`, in `Bridge/Checker/Mono.lean`),
+`ConLeche.Verify.EnvBound` (`mkFEnv_find?_visibleBelow`, in
+`Bridge/Checker/Split.lean`) and `ConLeche.Model.Fold`
+(`checkDeclsPure_sound_of`, in `Bridge/Checker/Capstone.lean` — the capstone
+cannot be stated without it).  All three are prebuilt in con-leche's `.lake`,
+so none of them costs elaboration here.
 
 `ConRonBridge` is deliberately **not** in `lakefile.toml`'s `defaultTargets`
 while the tier still carries `sorry`s — the precedent is `ConRonArenaSpike`
@@ -39,4 +54,6 @@ import ConRon.Bridge.StoreBM
 import ConRon.Bridge.Specs
 import ConRon.Bridge.SpecsL
 import ConRon.Bridge.ExprOps
+import ConRon.Bridge.Promote
+import ConRon.Bridge.Checker
 import ConRon.Bridge.Axioms
