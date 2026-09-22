@@ -83,6 +83,12 @@ an `intern`, which is what the streaming fold's induction rests on. -/
 #print axioms DMemoOK.empty
 #print axioms EMemoOK.empty
 
+/-! ## The line's sum -/
+
+#print axioms SumRel.inl_left
+#print axioms SumRel.inr_left
+#print axioms SumRel.of_state
+
 /-! ## The streaming fold's escape hatch -/
 
 #print axioms parseChunksC_eq

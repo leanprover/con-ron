@@ -39553,7 +39553,7 @@ transport only and never `Bridge/Promote/Pers.lean`'s `PExt`.
 
 #### 4. What is closed
 
-**37 results**, printed in `Bridge/Frontend/Axioms.lean`, every one within
+**40 results**, printed in `Bridge/Frontend/Axioms.lean`, every one within
 `[propext, Classical.choice, Quot.sound]` and four of them (`OptRel`'s
 eliminators, `ListRel.length_eq`) at `[propext]` alone; `ListRel.mono`
 depends on no axiom at all.  No `sorryAx`, no `bv_decide` axiom.
@@ -39583,6 +39583,9 @@ depends on no axiom at all.  No `sorryAx`, no `bv_decide` axiom.
   definition on both sides.  `IdTableRel`'s eliminators plus the `AM`
   unfolding, four lines each;
 * **`parseChunksC_eq` / `parseChunks_eq`** — §5's finding 3;
+* **`SumRel.{inl_left,inr_left,of_state}`** — the line's answer, eliminated.
+  The `.inl` direction is the only one the capstone consumes: *a line the twin
+  APPLIES is a line con-leche applies*;
 * **`declineModeller_wf`** — the seam's trivial instantiation keeps the first
   promise vacuously.
 
@@ -39740,7 +39743,7 @@ Each is `sorry` with its reason at the site.  Grouped by what discharges it.
 | 15 | `StateD_init_run` | two intern specs and `IdTableRel.singleton`; the base case of the whole induction, and the one place this tier would use `mvcgen` |
 | 16 | `applyFinalLine_run`, `feedChunk_run` | **the tier's second critical path**: `feedChunk`'s strong induction on `b.size - i.toNat` (the twin's own `termination_by`), with `applyLine_run` at the step.  The two guards are con-leche's own functions on the same bytes, evaluated once and shared |
 | 17 | `chunkStep_run`, `chunkFinish_run` | the size guard, the `carry ++ buf0` concatenation (the same `ByteArray` on both sides) and item 16 |
-| 18 | `parseBytes_run`, `parseChunksGo_run`, `parseChunks_run` | the two entry points; `parseChunksGo_run` is the list induction, with `ParseStep.trans` carrying the frame and `StateDRel.ext` the relation.  **`parseChunks_exact` is DESIGN §8.2's parser statement and it is derived from `parseChunks_run` in eight lines** — the equation, the record count and the persistence in one |
+| 18 | `parseBytes_run`, `parseChunksGo_run`, `parseChunks_run` | the two entry points; `parseChunksGo_run` is the list induction, with `ParseStep.trans` carrying the frame and `StateDRel.ext` the relation.  **`parseChunks_exact` is DESIGN §8.2's parser statement and it is derived from `parseChunks_run` in ten lines** — the equation, the record count and the persistence in one |
 | 19 | `builtinPreludeE_run` | item 18 under the prelude gate |
 | 20 | `preludeKey_run`, `pick_denote`, `frontOf_run` | the prelude's front; `pick_denote` is `denoteN_inj` at a `findIdx` predicate |
 | 21 | `usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run` | the ground hoist — **the one place in this module a handle comparison stands for a name comparison**, so the one place `denoteN_inj` is load-bearing |
@@ -39797,7 +39800,7 @@ parse half.
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 138 `sorry` warnings, of which 56 are this tier's (§7) and 82 the `ExprOps`, Core, Promote and Checker tiers' |
 | `cd proof && lake build` (the default targets) | **not reachable from this diff** — `proof/ConRon.lean` does not import `ConRon.Bridge` and `ConRonBridge` is not a default target, so no module the default build elaborates changed |
-| `#print axioms` | `Bridge/Frontend/Axioms.lean`: **37 closed results**, every one within `[propext, Classical.choice, Quot.sound]` (`OptRel`'s four eliminators and `ListRel.length_eq` at `[propext]`, `IdTableRel.mono` at `[propext, Quot.sound]`, `ListRel.mono` at none); the five headlines carry `sorryAx` and **neither `CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** |
+| `#print axioms` | `Bridge/Frontend/Axioms.lean`: **40 closed results**, every one within `[propext, Classical.choice, Quot.sound]` (`OptRel`'s four eliminators and `ListRel.length_eq` at `[propext]`, `IdTableRel.mono` at `[propext, Quot.sound]`, `ListRel.mono` at none); the five headlines carry `sorryAx` and **neither `CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** |
 | the diff | `proof/ConRon/Bridge/Frontend{,/*}.lean`, `proof/ConRon/Bridge.lean` (the module list and one import) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`lint-rust-style`/`twin-lines`/`holes`/`gen-pins`/`gen-prelude`/`extract.sh --check` cannot be affected |
 
 `arena` moved twice under this branch while it ran — tasks **#97-P3-1**

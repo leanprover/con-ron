@@ -58,6 +58,34 @@ def SumRel (st : EStore) : StateD ⊕ RecordVerdict →
   | .inr v, .inr w => VerdictRel v w
   | _, _ => False
 
+/-- con-leche: none — **the one direction the capstone consumes**: a line the
+twin APPLIES is a line con-leche applies, with the two states related.  A
+verdict on the twin's side is a verdict on con-leche's and the chunk driver
+errors on both, which is why the chunk theorems need nothing else about the
+`.inr` arm. -/
+theorem SumRel.inl_left {st : EStore} {x : StateD ⊕ RecordVerdict}
+    {y : ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict}
+    (h : SumRel st x y) {sd : StateD} (hx : x = .inl sd) :
+    ∃ sc, y = .inl sc ∧ StateDRel st sd sc := by
+  cases y with
+  | inl sc => subst hx; exact ⟨sc, rfl, h⟩
+  | inr w => subst hx; exact absurd h (by simp [SumRel])
+
+/-- con-leche: none — the mirror at the verdict arm. -/
+theorem SumRel.inr_left {st : EStore} {x : StateD ⊕ RecordVerdict}
+    {y : ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict}
+    (h : SumRel st x y) {v : RecordVerdict} (hx : x = .inr v) :
+    ∃ w, y = .inr w ∧ VerdictRel v w := by
+  cases y with
+  | inl sc => subst hx; exact absurd h (by simp [SumRel])
+  | inr w => subst hx; exact ⟨w, rfl, h⟩
+
+/-- con-leche: none — the `SumRel` of two related states, which is what every
+`.inl` arm of `processLineCoreD` produces. -/
+theorem SumRel.of_state {st : EStore} {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
+    SumRel st (.inl sd) (.inl sc) := h
+
 /-! ## The three table reads
 
 `StateD.name` / `.level` / `.expr` are `IdTableRel` read off, and they are the
