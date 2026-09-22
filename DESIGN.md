@@ -37661,3 +37661,310 @@ waits on a primitive** and the tier is fuel inductions and nothing else.
 | `scripts/provenance.py check` | 0 findings (no `Arena/` or Rust file changed) |
 | `scripts/overview-links.sh` | OK |
 | the diff | `proof/ConRon/Refine2/{AbsStore,Shape,Specs}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
+
+Phase **P3** of §8.6, the Core round: DESIGN §8.2's **Theorem 1** at
+`Arena/Core.lean`'s knot — the six slots of the arena twin's `coreKnot`
+against con-leche's six fueled entry points of
+`ConLeche/Kernel/TypeChecker.lean`.  Branch `p3-core` off `arena`'s tip
+`7a92f794`.  The diff is `proof/ConRon/Bridge/Core/**`,
+`proof/ConRon/Bridge/Core.lean`, two lines of `proof/ConRon/Bridge.lean` and
+this section: **no Rust file, no generated model, no `Arena/`, no `Refine/`,
+no `Refine2/`, no other `Bridge/` module.**
+
+#### 1. The architecture, which is con-leche's
+
+`_tmp/t97/conleche-arena-history.md` §2.3 describes the tower con-leche built
+twice — once over its own arena (`Verify/SimIKnot.lean`, `Verify/BridgeI.lean`)
+and once over its cached tier (`Verify/Cached/KnotC.lean`) — and both times it
+is the same three pieces: **one walk per twin body, five memo wrapper steps,
+one knot induction**.  This round builds the same three, with the memo layer
+and the induction CLOSED and the six walks open:
+
+| module | raw | non-blank | theorems | elaboration |
+|---|---:|---:|---:|---:|
+| `Bridge/Core/Knot.lean` — `KnotSpec`, `SimE`/`SimV`, `BodySpec`, the base case | 259 | 222 | 6 | 0.80 s |
+| `Bridge/Core/Memo.lean` — the slots unfolded, the cache setters, the inserts, the stuck tag, **the six wrappers** | 795 | 730 | 35 | 2.2 s |
+| `Bridge/Core/Arms/WhnfCore.lean` | 296 | 263 | 11 | 0.90 s |
+| `Bridge/Core/Arms/Whnf.lean` | 114 | 97 | 5 | 0.72 s |
+| `Bridge/Core/Arms/Infer.lean` | 296 | 265 | 15 | 0.86 s |
+| `Bridge/Core/Arms/InferIO.lean` | 159 | 137 | 6 | 0.80 s |
+| `Bridge/Core/Arms/Defeq.lean` | 376 | 339 | 11 | 1.7 s |
+| `Bridge/Core/Arms/Annotate.lean` | 265 | 232 | 15 | 0.83 s |
+| `Bridge/Core/Induction.lean` — `knot_spec`, `knot_spec_checkFuel`, the census | 257 | 217 | 4 | 0.96 s |
+| `Bridge/Core.lean` — the index | 39 | 32 | — | — |
+| **total** | **2 856** | **2 534** | **108** | **9.8 s gross** |
+
+The import baseline of this tier is **0.72 s** (`Arms/Whnf.lean` is 114 lines
+and takes it), so the net elaboration of the whole tier is **about 3.3 s** —
+and **the slowest module in it is 2.2 s**, against task #97-P3-0's 72 s for
+`ExprOps/Inst1.lean` and 338 s for `ExprOps/Subst.lean`.  That is the first
+measurement of this round and §4 says why it is not a fluke.
+
+`lake build ConRonBridge`: **159 jobs, 0 errors** (128 before this round).
+
+#### 2. The statement
+
+`KnotSpec mode env fe f` is con-leche's `SSimC` (`Verify/Cached/DiscC1.lean:34`)
+with four substitutions:
+
+| con-leche | here |
+|---|---|
+| `CSOK mode env s` | `CheckOK mode env fe s` (task #97-P3-0's `Bridge/StateOK.lean`) |
+| `RelC i e` (the cached tier's erasure) | `denoteE s₀.store i = some e` |
+| `SimC mode env s₀ (RelEC d) c p` | the `Std.Do` triple `⦃s = s₀⦄ c ⦃⇓? r s' => …⦄` |
+| `(fueledFns mode env).whnfCore d e` | `∃ F, ConLeche.whnfCore mode env F d e = .ok v` |
+
+so one slot reads
+
+```lean
+whnfCore : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+  CheckOK mode env fe s₀ → denoteE s₀.store i = some e → Expr.WScoped d e →
+  ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore d i
+  ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄
+```
+
+with `SimE op d e st' r := ∃ v, denoteE st' r = some v ∧ Expr.WScoped d v ∧
+∃ F, op F d e = .ok v` and `SimV op d a b x := ∃ F, op F d a b = .ok x` for the
+`defeq` slot.  **con-leche's `FueledM` wrapper is not needed**: it exists to
+carry fuel monotonicity through a `bind`, and the arena's side of every
+statement is a triple rather than a monadic value that has to be composed, so
+the fuel existential sits inside the answer relation and `mvcgen` never
+touches it.  That is one layer of con-leche's tower this port does not pay
+for.
+
+The body theorems share one shape, `BodySpec mode env fe body op` (and
+`BodySpecV` for `defeq`), so `Induction.lean` never mentions a body and
+`Memo.lean` never mentions a knot.
+
+#### 3. What is CLOSED, and it is the whole memo layer
+
+**The six memo-wrapper steps are sorry-free** — `memoWhnfCore_step`,
+`memoWhnf_step`, `memoInfer_step`, `memoInferIO_step`, `memoAnnotate_step`,
+`memoDefeq_step` — and so is everything they stand on:
+
+* **the six slots unfolded once** (`coreKnot_whnfCore_succ` …
+  `coreKnot_inferIO_succ`), all `rfl`.  Task #97-P3-0's rule 9 at `coreKnot`,
+  and — because the arena's knot carries its memo probes INLINE (task #97c's
+  deviation 6) — the only place in the bridge where the probe's shape is
+  written down;
+* **the six cache setters' `@[spec]` theorems**.  Each is ONE `AState`
+  equation, cap included: `s' = { s₀ with caches := { s₀.caches with
+  whnfCoreC := (if s₀.caches.whnfCoreC.size < cacheCap then
+  s₀.caches.whnfCoreC else ∅).insert e r } }`.  Stating the whole state rather
+  than a table equation plus thirteen frames is what makes the wrapper's
+  frame conditions fall out by `simp`;
+* **the `CacheOK` inserts**, con-leche's `CSOK.insert*`
+  (`Verify/Cached/KnotC.lean:51-174`), with the cap taken by one generic
+  lemma: `EntryCacheOK.insert_capped` splits on the `if` and closes the
+  dropped-table branch with `EntryCacheOK.empty`.  **The cap costs the proof
+  nothing**, and that is the formal content of task #97f's "a dropped row is a
+  cache miss and nothing else";
+* **the stuck-tag branch** (§4).
+
+The wrapper's three branches are the hit (which consumes `CacheOK`'s
+depth-universal row at the query's own depth — the history report's lesson 8,
+and the reason the depth is not in the key), the miss (which re-inserts
+through con-leche's own six depth-invariance theorems,
+`Verify/Deep.lean:3066-3120`) and the arena's own third branch, §4's.
+
+**`knot_spec` is closed too**, modulo the six walks: it is con-leche's `ssimC`
+term for term —
+
+```lean
+theorem knot_spec (henv : EnvWF env) (hμ : mode.verifiedChecks = true) :
+    ∀ f, KnotSpec mode env fe f
+  | 0     => knotSpec_zero mode env fe
+  | f + 1 => { whnfCore := fun … => memoWhnfCore_step henv
+                 (whnfCoreBody_spec henv hμ (knot_spec henv hμ f)) …
+               … }
+```
+
+— and `knot_spec_checkFuel` is the instance **the Checker tier takes as its
+hypothesis** (§7).
+
+#### 4. The arena's own third branch, and the cheapest finding of the round
+
+con-leche's `memoEI` has two branches; the arena's slot has three, because
+task #97-P6-7's lever 2 answers six head kinds off the handle word without
+touching the store or the memo at all:
+
+```lean
+if whnfCoreStuckTag e then pure e else match (← get).caches.whnfCoreC[e]? with …
+```
+
+Its obligation is that con-leche's body returns those six unchanged, and it is
+**four lemmas and no `grind`**: `whnfCoreStuckTag_ne` (what the tag test
+says), `denote_stuck_of_whnfCoreStuckTag` (what the DENOTATION is, through
+`Bridge/Rel.lean`'s `EStore.tagOf_of_view` — DESIGN §8.3's "index inequality
+IS structural inequality", cashed for the first time in the Core tier), and
+`whnfCore_of_stuck` / `whnf_of_stuck` (one `rcases` and one `simp` on
+con-leche's own clause).  `whnf_of_stuck` needs **two** fuel levels, not one,
+because `whnfStep`'s own `whnfCore` call consumes one; the rest of its
+obligation is that `reduceNat`'s match needs an `.app` and
+`unfoldDefinition`'s needs a `.const` head, which the same `simp` discharges.
+
+#### 5. Rule 8's inventory: fifty-two step lemmas, and why they are cheap
+
+Task #97s's **rule 8** is *one step lemma per clause of the PURE function, not
+per constructor of the subject*.  This round wrote that inventory for all six
+bodies and closed it:
+
+| body | con-leche | exits stated | closed | what is left |
+|---|---|---:|---:|---|
+| `whnfCoreBody` | `Core.lean:968-1052` | 12 | **10** | the batched `.app` carry |
+| `whnfBody` | `Core.lean:1073-1099` | 5 | **5** | — |
+| `inferBody` | `Core.lean:1112-1274` | 12 | **12** | — |
+| `inferBodyIO` | `Core.lean:1276-1404` | 5 (io-specific) | **5** | the seven shared clauses' io copies |
+| `defeqBody` | `Core.lean:1461-1719` | 9 of 25 | **9** | the lazy-delta group's 4 and the congruence group's 11 |
+| `annotateBody` | `Core.lean:1805-1915` | 13 | **13** | — |
+| **total** | | | **54** (52 in `Arms/`, 2 in `Memo.lean`) | |
+
+Every one of the fifty-four is `rw [<op>_succ]` followed by ONE `simp only`
+with the arm's own hypotheses, and **forty-nine of them were right on the
+first elaboration**.  Three findings:
+
+1. **A pure step lemma does not wait on the arm split.**  The coordinator's
+   ruling after task #97-P3-0 splits the TWIN's arms; a step lemma is about
+   con-leche's body, which is not split, and the twin enters only at the
+   `BodySpec` theorem.  So this half of the tier was writable before P3-1
+   landed and is unaffected when it does — which is why it is the half this
+   round did.
+2. **`simp only` order decides whether a guard hypothesis matches.**  Four
+   `defeqStep` lemmas failed because an earlier `simp only [pure,
+   Except.pure]` normalised a LATER guard's `else pure false` to
+   `Except.ok false`, after which `rw [hpi]` could not find its pattern.  The
+   fix is to keep `pure`/`Except.pure` out of every intermediate `simp only`
+   and spend them once at the end.  This is task #97-P3-0's rule 1 ("a step
+   lemma must be stated in the shape the tactic actually produces") one level
+   down: here it is the TACTIC's own earlier step that changes the shape.
+3. **A `match` with a wildcard arm needs `cases` on the scrutinee, and the
+   excluded constructor needs `absurd`.**  `whnfCoreBody`'s ι arm is
+   `match ← r.whnfCore depth f with | .lam … => … | f' => …`, so its two
+   lemmas take `∀ ty body mb, f' ≠ .lam ty body mb` and close nine of the ten
+   cases with one `all_goals`.
+
+#### 6. The open list — eleven declarations, and every one is a CARRY
+
+| theorem | what is missing |
+|---|---|
+| `whnfCoreBody_app_batched` | the batched β spine's denotation carry (task #97-P6-9).  The `Expr`-level identification is con-leche's own — `Verify/BetaSpine.lean`'s `whnfApp_sound` (:900), `whnfApp_ksound` (:927), `betaPeel_ksound` (:1017), `whnfCoreStepM_sound` (:1095) over `Expr.instantiateList_cons` — so what is owed is `getAppSpine`/`headAndArgs`/`whnfApp`/`betaPeel` denoting them, which waits on `Bridge/ExprOps/Inst1.lean`'s `instantiateList_spec` (task #97-P3-0's own open list) |
+| `inferBody_app_batched` | the same for `inferSpine`/`inferApp`, against `Verify/BetaSpine.lean:1288-1373` |
+| `inferBody_binders_batched` | `inferLams`/`inferPis` (task #97-P6-12) against `Verify/Cached/BinderLoopC.lean`, including `inferPisOut`'s THREADED zero-ness datum (con-leche's task #272) |
+| `annotateBody_binders_batched` | `annotatePis`/`annotateLams` (task #97-P6-11) against `Verify/BinderLoop.lean`, **plus `Bridge/ExprOps/Owed.lean`'s `abstractRangeFast_spec`** — the rebuild is the EXECUTED `abstractRange`, not the spec descent, and that spec is still `sorry` |
+| `defeqPeel_chain` | §6.1 — the campaign's ONE port-side identification |
+| `whnfCoreBody_spec` | the `.app` carry above, and callee rules for `projLitToCtor`, `projCertAt`, `iotaRec` |
+| `whnfBody_spec` | one `Nat` induction on the loop's budget over the three closed step lemmas, plus callee rules for `reduceNat` and `unfoldDefinition` |
+| `inferBody_spec` | the two carries above, and the `.proj` arm's callee rules (`IProjEntry.typeAt`, `lvlEq?`, the three memoised readbacks) |
+| `inferBodyIO_spec` | the io `.app` carry and the same `.proj` rules.  **The io lane keeps CHAINED binder clauses** (con-leche's `inferBodyIOI` does — task #97-P6-12's own note), so the telescope debt of `inferBody_spec` does not apply here |
+| `defeqBody_spec` | `defeqPeel_chain`, the fifteen unstated exits, and callee rules for `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList` |
+| `annotateBody_spec` | the binder carry, the `.proj` rules and `annotPwPi`/`annotPwLam` |
+
+`knot_spec` and `knot_spec_checkFuel` inherit `sorryAx` from the six
+`…Body_spec` and nothing else.
+
+**What the list is NOT.**  There is no mathematical gap in it.  Ten of the
+eleven are *carries* — a denotation transported across an identification
+con-leche has already proved — and the eleventh is §6.1.  What the tier is
+waiting on, concretely, is (a) `ExprOps.instantiateList_spec` and
+`abstractRangeFast_spec` from task #97-P3-0's open list, and (b) a
+`BodySpec`-shaped theorem for the ~15 `Arena/Core.lean` walks that are not
+knot slots (`iotaRec`, `projCertAt`, `projLitToCtor`, `propIrrel`,
+`stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList`, `reduceNat`,
+`unfoldDefinition`, `annotPwPi`, `annotPwLam`, `IProjEntry.typeAt`,
+`lvlEq?`, the readbacks).  That second item is the round's own estimate of
+where the next tier's work is: **it is bigger than the six bodies**.
+
+##### 6.1 `defeqPeel_chain` — the campaign's one port-side debt, written out
+
+Task #97-P6-14's batched defeq binder descent is the only lever of the whole
+P6 campaign with no cached-tier clause to copy; the maintainer's ruling before
+§8.7 licensed it "with its own identification lemma against the pure tier's
+chained arms **owed by the bridge (P3)**".  This is that lemma, and this
+round pays its ARGUMENT in full and leaves its Lean proof open.  Four parts,
+all of them now statements in `Bridge/Core/Arms/Defeq.lean`:
+
+1. **The opens agree.**  `instantiateList` of the accumulated `k` free
+   variables versus `k` chained `instantiate1`s, by
+   `Expr.instantiateList_cons` (`ConLeche/Verify/InstList.lean`) — the same
+   equation the `instantiate1` ruling already made the bridge owe once.
+2. **The chain REACHES this arm at every peeled level**, by five one-clause
+   facts about `defeqStep`'s earlier arms, and this round proved the two arms
+   it reaches: `defeqLoop_forallE` and `defeqLoop_lam` are closed, and their
+   proofs ARE the five facts — `whnfCore` is the identity on a binder,
+   `isBoolTrue` is `false`, `quickPair` is `true` (so proof irrelevance is
+   skipped, con-leche's audit D4), `reduceNat` answers `none`,
+   `unfoldableHead` answers `false`.  So the chain's run between two peeled
+   levels is exactly one `defeqStep`, which is what makes part 4 finite.
+3. **A failure lands at the same binder**: the annotation test is
+   innermost-first in the chain, and the peel carries the mismatch outward in
+   `mism`/`mismLam` so `defeqPeelDone` raises it where the chain would.  The
+   two equality short-circuits are verdict-neutral — `a.eq2 b` is the chain's
+   own syntactic fast path (`defeqLoop_syntactic`, closed), and skipping the
+   domain's knot call at two identical raw handles is that path one level
+   down, because `denoteE` is injective (DESIGN §8.3).
+4. **The caches see less and the fuel is existential**: the peel enters the
+   `defeq` memo once per telescope where the chain enters it once per binder,
+   so every row the peel writes the chain would also have written; and
+   Theorem 1's pure side is `∃ F`.
+
+What is left to CLOSE it is part 1's callee rule and a `Nat` induction on the
+peel's `k`.  **Nothing in the argument is open**, which is the answer the
+ruling asked for.
+
+#### 7. What the Checker tier needs
+
+* **`knot_spec_checkFuel henv hμ : KnotSpec mode env fe ConRon.Arena.checkFuel`**
+  is its hypothesis, and it is available NOW: `Bridge/Checker/**` can be
+  written against a `KnotSpec` hypothesis without waiting for a single arm.
+  `checkFuel` is con-leche's own number, twinned verbatim by task #97c, but
+  nothing depends on that — `KnotSpec` is stated at an arbitrary `f`.
+* The seven entry points at the bottom of `Arena/Core.lean` (`whnfCore`,
+  `whnf`, `inferTypeCore`, `inferTypeIO`, `isDefEqCore`, `annotateCore`,
+  `ensureSortCore`) are `(pureFnsA mode fe fuel).<slot>`, i.e. the knot's own
+  slots, so each entry's theorem is one projection of `KnotSpec` and not a
+  new induction.  `ensureSortCore` is the one exception: it is `ensureSort`
+  over the knot, so it needs one lemma of its own (`whnf` then a `.sort`
+  view), which this round did not write because no consumer exists yet.
+* **`PinsOK` must survive `dropScratch`** — task #97-P3-0's own note, still
+  owed: one clause saying the pin handles are persistent.
+* The per-declaration bracket's soundness is `Bridge/Specs.lean`'s
+  `flushCaches_spec` + `CacheOK.of_empty` (both closed at #97-P3-0), and
+  `Caches.dropScratchEntries` stays the SPECIFICATION of a surviving row
+  (DESIGN §8.3's amended "Drop"); the executed `Caches.flushed` drops the
+  tables whole, which `CacheOK.of_empty` makes free.
+
+#### 8. Two notes for the coordinator
+
+1. **The Core tier imports con-leche's `Verify/*`, and the `ExprOps` tier
+   does not.**  Task #97-P3-0's rule was "`ConRon.Arena` and con-leche's
+   `Kernel/*` and nothing else"; the memo wrappers cannot be written without
+   `Verify/Deep.lean`'s six depth-invariance theorems and `Verify/Shift.lean`'s
+   `WScoped`, and the batched clauses are identified by `Verify/BetaSpine.lean`
+   and `Verify/BinderLoop.lean`.  The no-Mathlib and no-Aeneas rules are
+   untouched, and the modules are prebuilt in the shared package, so the cost
+   is `olean` loading: **the tier's import baseline is 0.72 s**, against
+   `Bridge/Peel.lean`'s 1.49 s at task #97-P3-0.  `proof/ConRon/Bridge.lean`'s
+   docstring is amended to say so.
+2. **The arm split's 72-second number does not reproduce here, and the reason
+   is instructive.**  Task #97-P3-0 measured `ExprOps/Inst1.lean` at 72.3 s on
+   an INLINE-armed twin and concluded the twins must be split; this tier's
+   slowest module is 2.2 s on the same inline twins.  The difference is that
+   this round's closed half is the PURE half — step lemmas about con-leche's
+   bodies and wrappers about the memo, neither of which runs `grind` over a
+   twin's arm.  The 72-second cost is the `grind` closer on a twin walk's
+   verification conditions, exactly as task #97-P3-0 said, so **the split
+   ruling stands unchanged**; what this round adds is that the pure half of
+   each tier can be written and landed *before* the split, at ~1 s per module.
+
+#### 9. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 12 OK** (`extract-check` 164 s, `lake-build` 369 s) |
+| `cd proof && lake build ConRonBridge` | **0 errors, 159 jobs** (128 before); 11 `sorry`, all listed in §6 |
+| `#print axioms` | `Bridge/Core/Induction.lean`, **106 results: 93 without `sorryAx`** (92 at `[propext, Classical.choice, Quot.sound]`, and `ioGate_true` at none at all) **and 13 with it** — the eleven of §6 plus `knot_spec` and `knot_spec_checkFuel`, which inherit.  No `bv_decide` axiom, as everywhere in this library |
+| `scripts/provenance.py check` | 0 findings; every declaration carries a `con-leche:` citation, which in `Bridge/` is stylistic rather than gate-enforced (task #97-P3-0's own note: `ARENA_ROOTS` does not include `proof/ConRon/Bridge`) |
+| the diff | `proof/ConRon/Bridge/Core/**`, `proof/ConRon/Bridge/Core.lean`, `proof/ConRon/Bridge.lean` (two lines) and this section.  No Rust file, no generated model, no `Arena/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
