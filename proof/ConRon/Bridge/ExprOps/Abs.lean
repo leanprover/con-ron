@@ -366,7 +366,8 @@ structure AbsRangeSpec (d k : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (h : EIdx) (c : Nat), StateOK s₁ →
     (denoteE s₁.store h).isSome = true →
     ⦃fun s => ⌜s = s₁⌝⦄ rec h c
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧ s'.memos = s₁.memos ∧
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧ BMExt s₁.store s'.store ∧
+        s'.memos = s₁.memos ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         AbsRangeAt d k c s₁.store h s'.store r⌝⦄
 
@@ -398,7 +399,7 @@ theorem abstractRange_spec (d k : Nat) :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
     -- `fvar`, in the range: the fresh `bvar` node
     next =>
@@ -406,6 +407,7 @@ theorem abstractRange_spec (d k : Nat) :
       subst_vars
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
+        by grind only [BMExt, BMExt.trans, BMExt.refl],
         by grind, by grind, by grind, ?_⟩
       exact AbsRangeAt.fvar_hit hok.wf (by abs_hyp) (by abs_hyp)
         (by rw [hr, denoteEView])
@@ -413,23 +415,23 @@ theorem abstractRange_spec (d k : Nat) :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         AbsRangeAt.fvar_miss hok.wf (by abs_hyp) (by abs_hyp)⟩
     -- `sort`, `const`, `lit`
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
     -- `app`
     next =>
@@ -437,6 +439,7 @@ theorem abstractRange_spec (d k : Nat) :
       subst_vars
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
+        by grind only [BMExt, BMExt.trans, BMExt.refl],
         by grind, by grind, by grind, ?_⟩
       exact AbsRangeAt.app_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by abs_hyp) hx hr
@@ -446,6 +449,7 @@ theorem abstractRange_spec (d k : Nat) :
       subst_vars
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
+        by grind only [BMExt, BMExt.trans, BMExt.refl],
         by grind, by grind, by grind, ?_⟩
       exact AbsRangeAt.lam_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by abs_hyp) hx hr
@@ -455,6 +459,7 @@ theorem abstractRange_spec (d k : Nat) :
       subst_vars
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
+        by grind only [BMExt, BMExt.trans, BMExt.refl],
         by grind, by grind, by grind, ?_⟩
       exact AbsRangeAt.forallE_step hok.wf (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by abs_hyp) (by abs_hyp) hx hr
@@ -464,6 +469,7 @@ theorem abstractRange_spec (d k : Nat) :
       subst_vars
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
+        by grind only [BMExt, BMExt.trans, BMExt.refl],
         by grind, by grind, by grind, ?_⟩
       exact AbsRangeAt.letE_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) hx hr
@@ -475,6 +481,7 @@ theorem abstractRange_spec (d k : Nat) :
         denote_eq_proj hok.wf (by abs_hyp) hden
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
+        by grind only [BMExt, BMExt.trans, BMExt.refl],
         by grind, by grind, by grind, ?_⟩
       exact AbsRangeAt.proj_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
         hx hr hn0
