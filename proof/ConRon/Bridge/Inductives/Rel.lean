@@ -496,6 +496,20 @@ callers read.  A proof downstream is then `bindOk` plus one of these plus the
 answer's own algebra, which is what task #97-P3-0 §4's rule 3 asks of a
 statement layer. -/
 
+/-- con-leche: none — a FAILING primitive cannot have accepted.  The other
+half of `pureOk`, for the fuel-exhaustion clause every walk of the tier
+opens with. -/
+theorem failOk {α : Type} {e : Arena.CheckError} {r : α} {s s' : AState}
+    (h : (fail e : AM α) s = .ok (r, s')) : False := by
+  simp only [Arena.fail, throwThe, throw, MonadExceptOf.throw] at h
+  exact nomatch h
+
+/-- con-leche: none — **`view`, as a run**: it moves nothing and answers the
+store's own decoding.  The first line of every walk of this tier. -/
+theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
+    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
+
 /-- con-leche: none — a level-handle list that denotes denotes at each
 element. -/
 theorem denoteLList_mem {st : LStore} :
@@ -754,6 +768,78 @@ theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
         obtain ⟨hstep2, hr⟩ :=
           ih xs hstep1.ok hg' (denoteEList_ext hstep1.ext _ _ has) h2
         exact ⟨hstep1.trans hstep2, hr⟩
+
+/-- con-leche: none — a denoting `IConstantVal`'s TYPE denotes: the one
+projection of `Frontend.denoteCV` this tier reads directly. -/
+theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) : denoteE st cv.type = some c.type := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-! ## One reader on loan from the `ExprOps` tier
+
+`Arena/Env.lean`'s `piSortTeleLen?` is the syntactic Π-telescope's length, and
+its Theorem 1 **belongs in `Bridge/ExprOps/TelescopeF.lean`** beside
+`stripPis`' — but that tier has not stated it and two statements here need it
+(`Bridge/Inductives/Decl.lean`'s `indParamsOk_spec`, which is the arm's own
+gate, and `Bridge/Inductives/NativeParts.lean`'s `nativeCounts?_spec`).  It is
+proved here, at this tier's frame, with the citation that says where it should
+move. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:583-586 Expr.piSortTeleLen? —
+**THEOREM 1 for `piSortTeleLen?`**: the number of `∀`-binders before a `Sort`
+residual, or `none`.  A fuel induction whose ten-way arm is the `view`
+dispatch; the eight arms that are neither a binder nor a sort answer `none` on
+both sides, which is the dispatch's own soundness (a handle's view and its
+denotation have the same constructor). -/
+theorem piSortTeleLen?_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
+    PSpec (fun st => denoteE st h = some hP) (Arena.piSortTeleLen? fuel h)
+      (RV hP.piSortTeleLen?) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h hP s₀ s' r hok hd hrun
+    simp only [Arena.piSortTeleLen?] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro h hP s₀ s' r hok hd hrun
+    simp only [Arena.piSortTeleLen?] at hrun
+    obtain ⟨v, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨hs1, hw⟩ := view_run h1
+    rw [hs1] at h2
+    have hde : denoteEView s₀.store v = some hP := by
+      rw [denoteE_view_eq hok.wf hw] at hd; exact hd
+    cases v
+    case forallE ty body m =>
+      obtain ⟨et, eb, rfl, hty, hb⟩ := denote_forallE_inv hok.wf hw hd
+      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨hstep, ho⟩ := ih body eb s₀ s₂ o hok hb h3
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      exact ⟨hstep, by rw [ho]; rfl⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨uP, _, rfl⟩ := Option.map_eq_some_iff.mp hde
+      exact ⟨PStep.refl hok, rfl⟩
+    all_goals
+      (obtain ⟨rfl, rfl⟩ := pureOk h2
+       refine ⟨PStep.refl hok, ?_⟩
+       simp only [denoteEView] at hde
+       first
+       | (obtain ⟨x, y, z, _, _, _, rfl⟩ := opt3_eq_some_iff.mp hde; rfl)
+       | (obtain ⟨x, y, _, _, rfl⟩ := opt2_eq_some_iff.mp hde; rfl)
+       | (obtain ⟨x, _, rfl⟩ := Option.map_eq_some_iff.mp hde; rfl)
+       | (obtain rfl := Option.some.inj hde; rfl))
 
 /-! ## Two transports the spec layer does not have
 
