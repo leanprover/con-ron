@@ -116,27 +116,91 @@ tables start related**: index 0 of the name table is the handle
 `Level.zero` interns at, which is `IdTableRel.singleton` at
 `Bridge/Specs.lean`'s `internNNode_spec` / `internLNode_spec`.
 
-`sorry`: two intern specs and `IdTableRel.singleton`; every other field is
-the structure's default on both sides, so `MapRel` of two empty maps,
+Two intern specs and `IdTableRel.singleton`; every other field is the
+structure's default on both sides, so `MapRel` of two empty maps,
 `IdTableRel` of two empty tables (`IdTableRel.empty`) and `denoteDeclArray` of
 the empty array are `rfl`-level.
 
-**The one part that is not in this tier's hands** (task #97-P3-Frontend-2's
-finding 8): the `PersStateD` half needs *the handle a name/level intern
-returns on a closed scratch tier is persistent*, and the arena has that fact
-for the EXPRESSION store only —
-`Arena/WFProofs.lean`'s `EStore.intern_isPersistent_of_off` /
-`internAt_isPersistent_of_off`, which `Bridge/StoreBind.lean` already cites.
-There is no `NStore`/`LStore`/`LsStore` twin, so the `names` and `levels`
-clauses of `PersStateD` cannot be discharged from here.  The ask is three more
-lines beside the one that exists.  Task #97-P3-Frontend's sorry list,
-item 15. -/
+**The `PersStateD` half costs one observation**, not an intern lemma
+(task #97-P3-Frontend-2 round 2, revising round one's finding 9.1): a scratch
+handle reads as ABSENT while the scratch tier is off, so a handle the intern
+spec hands back WITH A VIEW is persistent — `Bridge/Frontend/Rel.lean`'s
+`PersN_of_view` / `PersL_of_view`, over the `sync` chain that carries
+`scratchOn = false` down the nesting. -/
 theorem StateD_init_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {im ce : Bool} {sd : StateD}
     (hrun : StateD.init im ce s = .ok (sd, s')) :
     ParseStep s s' ∧ PersStateD sd ∧
       StateDRel s'.store sd (ConLeche.Frontend.StateD.init im ce) := by
-  sorry
+  rw [StateD.init] at hrun
+  -- the anonymous name
+  obtain ⟨n0, s₁, hn, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hwf1, hx1, -, -, hon1, hm1, hc1, hp1, hview1, hden1⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hn
+      (internNNode_spec s .anonymous hok.wf (by intro c hc; simp [NNodeView.children] at hc))
+  -- the zero level
+  obtain ⟨l0, s₂, hl, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨hwf2, hx2, -, -, hon2, hm2, hc2, hp2, hview2, hden2⟩ :=
+    AM.of_run (P := fun t => t = s₁) rfl hl
+      (internLNode_spec s₁ .zero hwf1
+        ⟨by intro c hc; simp [LNodeView.lchildren] at hc,
+         by intro c hc; simp [LNodeView.nchildren] at hc⟩)
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+  subst hv; subst hst
+  -- the frame
+  have hstep : ParseStep s s' :=
+    ⟨⟨hwf2⟩, hx1.trans hx2, by rw [hon2, hon1], by rw [hm2, hm1],
+      by rw [hc2, hc1], by rw [hp2, hp1]⟩
+  have hoff2 : s'.store.scratchOn = false := by rw [hon2, hon1]; exact hoff
+  -- the two handles denote, in the FINAL store
+  have hdn1 : denoteN s₁.store.ns n0 = some .anonymous := hden1
+  have hdn : denoteN s'.store.ns n0 = some .anonymous := denoteN_ext hdn1 hx2
+  have hdl : denoteL s'.store.ls l0 = some .zero := hden2
+  -- and they are persistent: a handle with a VIEW on a closed store is
+  have hpn : PersN n0 := by
+    obtain ⟨v, hv'⟩ := Arena.denoteN_view hdn
+    exact PersN_of_view hwf2 hoff2 hv'
+  have hpl : PersL l0 := by
+    obtain ⟨v, hv'⟩ := Arena.denoteL_view hdl
+    exact PersL_of_view hwf2 hoff2 hv'
+  refine ⟨hstep, ?_, ?_⟩
+  · exact
+      { names := by
+          intro i h hg
+          rw [ConLeche.Frontend.IdTable.get?_singleton] at hg
+          split at hg
+          · simp only [Option.some.injEq] at hg; exact hg ▸ hpn
+          · exact absurd hg (by simp)
+        levels := by
+          intro i h hg
+          rw [ConLeche.Frontend.IdTable.get?_singleton] at hg
+          split at hg
+          · simp only [Option.some.injEq] at hg; exact hg ▸ hpl
+          · exact absurd hg (by simp)
+        exprs := by
+          intro i h hg
+          rw [ConLeche.Frontend.IdTable.get?_empty] at hg
+          exact absurd hg (by simp)
+        decls := by intro d hd; simp at hd }
+  · exact
+      { names := IdTableRel.singleton hdn
+        levels := IdTableRel.singleton hdl
+        exprs := IdTableRel.empty _
+        decls := denoteDeclArray_empty _
+        projOwners := MapRel.empty _ _
+        projLevels := MapRel.empty _ _
+        projRewrites := rfl
+        constTypes := MapRel.empty _ _
+        heights := MapRel.empty _ _
+        inModel := rfl
+        inModelled := rfl
+        genRecords := rfl
+        genOwner := MapRel.empty _ _
+        inModelGen := .nil
+        indCount := rfl
+        indBlocks := MapRel.empty _ _
+        inModelCensus := rfl
+        inModelDeclined := .nil }
 
 /-! ## The line feed -/
 
