@@ -284,6 +284,27 @@ preserves it; `IFEnv.restrictTo` does not, which is why phase B's prefix view
 is handled by a congruence (`mkFEnv_find?_visibleBelow`) and not by this. -/
 def IFEnvCoh (fe : IFEnv) : Prop := fe = mkIFEnv fe.env
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **`IFEnv.push`
+preserves the coherence clause**: the index of the cons-extended environment
+is the index `mkIFEnv` would build for it.
+
+con-leche's `mkFEnvGo` inserts from the back, so `mkIFEnvGo (ci :: cs)` is
+`mkIFEnvGo cs` with `ci` inserted at the counter `mkIFEnvGo cs` stopped at —
+which is precisely what `IFEnv.push` does to `fe.idx` at `fe.visibleBelow`,
+once `IFEnvCoh fe` says those two are `mkIFEnvGo fe.env.consts`'s two
+components.
+
+One of the two `IFEnv.push` lemmas task #97-P3-Ind §8 asks for (the other is
+`Pushed.push` just below); fourteen install statements of
+`Bridge/Inductives/**` want the pair. -/
+theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
+    IFEnvCoh (fe.push ci) := by
+  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx h
+  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 :=
+    congrArg IFEnv.visibleBelow h
+  show fe.push ci = mkIFEnv (fe.push ci).env
+  simp only [IFEnv.push, mkIFEnv, mkIFEnvGo, hidx, hvb]
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **the step only
 PUSHED**: everything the fold's step did to the environment was `IFEnv.push`,
 so the old list is a suffix of the new one.  `Arena/Promote.lean`'s

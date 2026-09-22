@@ -36,6 +36,10 @@ also needs `PersPins s'` (the pin handles are persistent), and that is
 transported by `s'.pins = s₀.pins` and nothing else.  No core entry writes
 `s.pins`, so the clause is free; `CoreStep` below carries it, and adding it to
 `KnotSpec`'s postcondition is the one thing this tier asks of the Core tier.
+Until it does, `CorePinFrame` below SAYS it, as the third field of `CoreSpec`
+— which is what lets the run-form proofs of `Bridge/Checker/Base.lean` and
+`Bridge/Checker/DeclVal.lean` conclude `CoreStep` at all (task
+#97-P3-Checker-2).
 
 **`IndSpec μ` — the INDUCTIVES tier's**.  `Arena/Inductives.lean`'s
 `checkIndDecl` is 9 500 lines of arena twin under it, and `checkDecl`'s
@@ -109,6 +113,44 @@ def EnsureSortSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         SimL (ConLeche.ensureSortCore mode env) d e s'.store r⌝⦄
 
+/-! ## The pin-table frame
+
+Task #97-P3-Checker §7's "the one thing this tier asks of the Core tier", as
+a statement rather than as a request.  `KnotSpec`'s postcondition is
+`CheckOK ∧ Ext`, and `CheckOK` carries `PinsOK s'` — so the pin table still
+DENOTES across a core call.  What the fold needs on top is `PersPins s'`, the
+fact that the pin HANDLES are persistent, and that is transported by the pin
+table's EQUATION and by nothing else.
+
+No core entry writes `s.pins` (the table is filled once, by
+`internReservedPins`, before the parse), so every clause below is free — but
+it has to be *said*, and a caller that consumes `Core.KnotSpec` directly
+cannot say it.  `CoreStep` above carries it, this record supplies it, and
+`CoreSpec` bundles it with the other two. -/
+
+/-- con-leche: none — **no core entry point writes the pin table**.  Seven
+clauses, one per entry of `Arena/Core.lean`'s bottom section (the six slots of
+`coreKnot` and `ensureSortCore`, which is not a slot).
+
+When the Core tier adds `s'.pins = s₀.pins` to `KnotSpec`'s postcondition —
+which is what task #97-P3-Checker §7 asks it for — this record is discharged
+by seven projections and disappears from `CoreSpec`. -/
+structure CorePinFrame (mode : CheckMode) (fe : IFEnv) (f : Nat) : Prop where
+  whnfCore : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
+    (Arena.coreKnot mode fe id f).whnfCore d i s = .ok (r, s') → s'.pins = s.pins
+  whnf : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
+    (Arena.coreKnot mode fe id f).whnf d i s = .ok (r, s') → s'.pins = s.pins
+  infer : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
+    (Arena.coreKnot mode fe id f).infer d i s = .ok (r, s') → s'.pins = s.pins
+  inferIO : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
+    (Arena.coreKnot mode fe id f).inferIO d i s = .ok (r, s') → s'.pins = s.pins
+  defeq : ∀ (d : Nat) (i j : EIdx) (s s' : AState) (r : Bool),
+    (Arena.coreKnot mode fe id f).defeq d i j s = .ok (r, s') → s'.pins = s.pins
+  annotate : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
+    (Arena.coreKnot mode fe id f).annotate d i s = .ok (r, s') → s'.pins = s.pins
+  sort : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : LIdx),
+    Arena.ensureSortCore mode fe f d i s = .ok (r, s') → s'.pins = s.pins
+
 /-! ## The Core tier's theorem, as this tier uses it -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **THE CORE
@@ -121,6 +163,7 @@ declaration while `Bridge/Core/Induction.lean`'s `knot_spec` fixes one. -/
 structure CoreSpec (mode : CheckMode) (f : Nat) : Prop where
   knot : ∀ (env : Env) (fe : IFEnv), EnvWF env → Core.KnotSpec mode env fe f
   sort : ∀ (env : Env) (fe : IFEnv), EnvWF env → EnsureSortSpec mode env fe f
+  frame : ∀ (fe : IFEnv), CorePinFrame mode fe f
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **the Core
 tier's half, discharged**: `Bridge/Core/Induction.lean`'s
@@ -131,9 +174,10 @@ This is the whole adapter the merge needed: the Core round's statement and
 this round's hypothesis are the same statement, and one line joins them. -/
 theorem CoreSpec.of_knot {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hs : ∀ (env : Env) (fe : IFEnv), EnvWF env →
-      EnsureSortSpec μ env fe Arena.checkFuel) :
+      EnsureSortSpec μ env fe Arena.checkFuel)
+    (hf : ∀ (fe : IFEnv), CorePinFrame μ fe Arena.checkFuel) :
     CoreSpec μ Arena.checkFuel :=
-  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv hμ, hs⟩
+  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv hμ, hs, hf⟩
 
 /-! ## The inductive install -/
 
@@ -147,6 +191,28 @@ covers the route `basisPinHit` did NOT recognise, which is the one
 
 The precedent is `RefineOld/Main.lean`'s `hind : IndRoutesSpec .Verified`:
 one named hypothesis for the whole inductive install, discharged by a tier of
+its own.
+
+**Two clauses corrected (task #97-P3-Ind's finding, made here in P3-Checker-2).**
+The round that wrote this statement asked for `PersIFEnv fe'` and did not ask
+for `Pushed fe fe'`, and the inductive tier found both wrong by trying to prove
+them:
+
+* `PersIFEnv fe'` is **false of this arm**.  `Arena/Checker.lean`'s bracket is
+  `flushCaches; enterScratch; <the step>; promoteNew; dropScratch`, so
+  `checkDecl` — and with it `Inductives.checkIndDecl` — runs with the scratch
+  tier OPEN and every constant the route installs carries a freshly interned,
+  hence scratch, type.  Persistence is `promoteNew`'s, one level up.
+  `Bridge/Checker/Decl.lean`'s `DeclOut` says exactly this in prose and omits
+  the clause; this statement contradicted it.
+* `Pushed fe fe'` was **missing**, and the consumer needs it:
+  `checkDecl_bridge_ind`'s conclusion is `DeclOut`, whose `pushed` clause is
+  what makes `checkDeclStep`'s promotion counter `k` mean "the constants this
+  step installed", and only the arm can supply it.
+
+The edit is consumer-compatible — `Bridge/Checker/Capstone.lean` never reads
+`IndSpec`, it passes it to `checkDecl_bridge_ind` — and with it
+`Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` closes with no `sorry` of
 its own. -/
 structure IndSpec (μ : CheckMode) : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
@@ -156,7 +222,7 @@ structure IndSpec (μ : CheckMode) : Prop where
     ConLeche.basisPinHit b = none →
     Inductives.checkIndDecl μ fe block nP s = .ok (fe', s') →
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-      PersIFEnv fe' ∧ IFEnvCoh fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
+      IFEnvCoh fe' ∧ Pushed fe fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
         ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
           = .ok env'

@@ -58,25 +58,10 @@ set_option autoImplicit false
 
 /-! ## Running an `AM` do-block
 
-Three `rfl` equations and one inversion lemma; after them no proof in this
-module mentions `StateT`. -/
-
-theorem AM.bind_apply {α β : Type} (x : AM α) (f : α → AM β) (s : AState) :
-    (x >>= f) s = (x s) >>= (fun p => f p.1 p.2) := rfl
-
-/-- con-leche: none — the `AM` bind's inversion: an accepting composite is two
-accepting halves. -/
-theorem AM.bind_ok {α β : Type} {x : AM α} {f : α → AM β} {s s' : AState}
-    {b : β} (h : (x >>= f) s = .ok (b, s')) :
-    ∃ a s₁, x s = .ok (a, s₁) ∧ f a s₁ = .ok (b, s') := by
-  rw [AM.bind_apply] at h
-  revert h
-  cases hx : x s with
-  | error e => intro h; exact nomatch h
-  | ok p =>
-    obtain ⟨a, s₁⟩ := p
-    intro h
-    exact ⟨a, s₁, rfl, h⟩
+Three `rfl` equations; the bind's inversion (`AM.bind_ok`) moved down to
+`Bridge/Promote/Pers.lean` in task #97-P3-Checker-2, because
+`Bridge/Checker/Base.lean` needs it too and sits below this module.  After
+them no proof in this module mentions `StateT`. -/
 
 /-- con-leche: none — `flushCaches` as an equation. -/
 theorem flushCaches_run (s : AState) :

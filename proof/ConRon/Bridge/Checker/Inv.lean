@@ -483,6 +483,37 @@ theorem denoteDecls_pext {st st' : EStore} (hx : PExt st st') :
           ih ys (fun c hc => hp c (by simp [hc])) has]
         exact h
 
+/-! ## The index spec across a drop
+
+`IFEnvOK.mono` (`Bridge/StateOK.lean`) carries the index spec across an
+APPEND.  The fold needs it across a `dropScratch`, and `PersIFEnv` is exactly
+what makes that work: every handle the index mentions — the key and the
+constant — is persistent, so both halves of the spec transport by the `…_pext`
+lemmas above. -/
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec survives a
+drop.**  Both clauses are a transport, and the persistence they need is
+`PersIFEnv`'s row clause read through `PersIFEnv.find`
+(`Bridge/Promote/Pers.lean`).
+
+This is what `Bridge/Checker/Fold.lean`'s bracket uses to rebuild `CheckOK`
+after the drop, and it is why `IFEnvOK_of_denote` below is NOT on the critical
+path: `FoldOK.check.ienv` already carries the spec, so nothing has to
+reconstruct it from the denotation. -/
+theorem IFEnvOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : IFEnvOK env fe s) (hp : PersIFEnv fe) (hx : PExt s.store s'.store) :
+    IFEnvOK env fe s' where
+  hit := by
+    intro n ci hf
+    obtain ⟨hpn, hpci⟩ := hp.find hf
+    obtain ⟨nm, c, h1, h2, h3⟩ := h.hit n ci hf
+    exact ⟨nm, c, denoteN_pext hx hpn h1, denoteCI_pext hx hpci h2, h3⟩
+  cover := by
+    intro nm c hf
+    obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hf
+    obtain ⟨hpn, hpci⟩ := hp.find h2
+    exact ⟨n, ci, denoteN_pext hx hpn h1, h2, denoteCI_pext hx hpci h3⟩
+
 /-! ## The fold-step invariant -/
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:262 CSOK
