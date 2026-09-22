@@ -411,11 +411,20 @@ theorem natOpDeps_run {cn : NIdx} {nm : ConLeche.Name} {ds : List NIdx}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpGuard) — the
 structural-`Nat` environment guard is con-leche's at the denoted environment.
 
+**The statement gained `PinsOK s`** (task #97-P3-Checker round 4 — the same
+defect as `natOpDeps_run`'s above, found by the grep that round asks for):
+`natOpGuard` reads eight pins (`natLitSupported`'s three, `natBeqName`,
+`natBleName`, `natDivModNames`, `boolTrueName`, `boolFalseName`) and asked
+only for `StateOK`, so nothing made the handles `pinAt` hands back denote
+anything and the conclusion was not provable.  Free at the one call site
+(`Bridge/Checker/Arms.lean`'s `defn` arm, `hok4.check.pins`).
+
 `sorry`: `natLitSupported` / `natOpDepsStored` / the `Bool`-family lookups
 through `IFEnvOK`, then `natOpDeps_run`.  Task #97-P3-Checker's sorry list,
 item 23. -/
 theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
+    (hp : PinsOK s)
     (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns cn = some nm)
     (hr : natOpGuard fe2 cn s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
@@ -425,10 +434,16 @@ theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpStoredOk) — the twin's list
 recursion answers con-leche's `List.all` (DESIGN §3.4 forbids the closure).
 
+**The statement gained `PinsOK s`** (task #97-P3-Checker round 4): each step
+is `natOpStoredOk`, which is `natOpTyPinned` on a hit, which reads the pin
+table — so this walk is a pin reader too and `StateOK` alone was not enough.
+Free at the one call site (`hok5.check.pins`).
+
 `sorry`: a list induction over `natOpStoredOk`'s own `IFEnvOK` reads.  Task
 #97-P3-Checker's sorry list, item 23. -/
 theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
     {xs : List ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
+    (hp : PinsOK s)
     (hie : IFEnvOK env2 fe2 s) (hd : denoteNL s.store ds xs)
     (hr : natOpStoredOkAll fe2 ds s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
@@ -453,11 +468,18 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
 /-- con-leche: ConLeche/Kernel/ExprOps.lean (Expr.substConst0) — the
 self-reference substitution, pair by pair.
 
+**The statement gained `PinsOK s`** (task #97-P3-Checker round 4):
+`substConst0`'s `.const` arm reads `emptyLevels` and compares the stored
+universe-argument handle against it, so without the pin invariant nothing
+ties that comparison to con-leche's `us = []`.  Free at the one call site
+(`hok7.check.pins`).
+
 `sorry`: a list recursion over `Bridge/ExprOps/**`'s `substConst0` spec.  Task
 #97-P3-Checker's sorry list, item 23. -/
 theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
     {x : Expr} {eqs r : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
-    {s s' : AState} (hok : StateOK s) (hn : denoteN s.store.ns cn = some nm)
+    {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
+    (hn : denoteN s.store.ns cn = some nm)
     (hv : denoteE s.store rh = some x) (hd : EqPairsDenote s.store eqs xs)
     (hr : substConst0Pairs cn rh eqs s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
