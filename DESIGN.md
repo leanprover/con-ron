@@ -39397,7 +39397,7 @@ whose proof is the next round's**:
 |---|---|
 | `cd proof && lake build ConRonRefine2` | **green**, 2 111 jobs, **126 `sorry`** (115 of them tasks #97-P5-1/-2's, eleven this tier's) and no errors |
 | `cd proof && lake build` | green, 2 208 jobs — the default targets are untouched |
-| `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/provenance.py check` | 0 findings — `6 465 item(s) (4 099 Rust, 2 366 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` (at the tip) |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
 | `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
 | `scripts/lint-rust-style.sh` | OK (no Rust file changed) |
@@ -41334,50 +41334,114 @@ at task #97-P5-Core.
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` (before the `arena` merge) | **green, 2 116 jobs**, **125 `sorry`** (was 126) and no errors |
-| `cd proof && lake build ConRonRefine2` (after it) | **RED, and not this branch's doing** — see §11 |
-| `scripts/gates.sh` | **all 13 OK, run twice** — before the `arena` merge (`extract-check` 98 s, `lake-build` 113 s, everything else ≤ 7 s) and after it (`extract-check` 150 s, `lake-build` 1 s, everything else ≤ 4 s) |
+| `cd proof && lake build ConRonRefine2` | **green, 2 205 jobs**, **689 `sorry`** and no errors — at the tip, after both `arena` merges and §11's reconciliation.  Ten of the 689 are this tier's (§8); before the merges the library stood at 125, of which ten were this tier's |
+| `cd proof && lake build` | **green, 2 208 jobs** — the default targets, re-run because `Arena/CoreGated.lean` moved |
+| `scripts/gates.sh` | **all 13 OK, run twice** — before the first `arena` merge (`extract-check` 98 s, `lake-build` 113 s, everything else ≤ 7 s) and after it (`extract-check` 150 s, `lake-build` 1 s, everything else ≤ 4 s).  Not re-run after the `e0616fdf` merge: `git diff cb75e1a8..e0616fdf` moves `crates/con-ron-core/src/arena/{core,core_gated}.rs` by **doc comments only** (`Lean twin:` line numbers) and no generated file at all, so `cargo`/`lint-rust`/`extract-check` cannot be affected; `provenance`, `twin-lines` and `overview-links` WERE re-run |
 | `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
 | `scripts/twin-lines.py check` | 1 924 `Lean twin:` citations in 42 files, every one at its twin's current lines |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
 | `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
-| the diff | `proof/ConRon/Refine2/Core/Eqns.lean`, `proof/ConRon/Refine2/Core/Arms.lean`, `proof/ConRon/Refine2/Core/Arms/{Sort,Gated,Loops,Batched}.lean`, two lines of `proof/ConRon/Refine2/Core.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Specs.lean`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check` cannot be affected, and were run anyway |
+| the diff | `proof/ConRon/Refine2/Core/{Eqns,Arms}.lean`, `proof/ConRon/Refine2/Core/Arms/{Sort,Gated,Loops,Batched}.lean`, two lines of `proof/ConRon/Refine2/Core.lean`, §11's `proof/ConRon/Refine2/Core/{KnotRel,Induction,Entries}.lean` and `proof/ConRon/Refine2/Checker/KnotHyp.lean`, and this section.  **No Rust file, no generated model, nothing under `Arena/`, `Refine/`, `Bridge/`, `Specs.lean` or `ExprOps/`** |
 
-#### 11. `arena`'s tip does not build `ConRonRefine2`, and it is a name collision
+#### 11. The two `KnotRel`s, reconciled — and the gated lane's side condition, moved
 
-The merge of `arena` at `cb75e1a8` was clean in every file and leaves
-`lake build ConRonRefine2` **failing**, at a declaration neither this round
-nor task #97-P5-Core wrote:
+`arena` moved twice under this branch (`f4b83b30`, task #97-P5-Frontend's
+`Refine2/Frontend/**`; `e0616fdf`, task #97-P3-CoreWalks) and both are merged.
+The first was disjoint.  The second carries a change this tier asked for and a
+repair this tier owed.
 
-    ConRon/Refine2.lean:31:0: import ConRon.Refine2.Checker.KnotHyp failed,
-      environment already contains 'ConRon.Refine2.KnotRel.whnfCore'
-      from ConRon.Refine2.Core.KnotRel
-
-`Refine2/Checker/KnotHyp.lean` (task #97-P5-Checker) declares a
-**`structure KnotRel (F : Nat)` in `namespace ConRon.Refine2`**, and
+**(a) The collision, taken.**  `Refine2/Checker/KnotHyp.lean` (task
+#97-P5-Checker) declared a `structure KnotRel (F : Nat)` in `namespace
+ConRon.Refine2` — six clauses about the checker's own front doors — while
 `Refine2/Core/KnotRel.lean` (task #97-P5-Core) declares a
-`structure KnotRel (f : Nat)` in the same namespace; `proof/ConRon/Refine2.lean`
-imports both.  The two rounds ran concurrently, each was green on its own
-branch, and the merge that put them together did not rebuild the library.
+`structure KnotRel (f : Nat)` in the same namespace about the six `knot_*`
+dispatchers at a lane.  `proof/ConRon/Refine2.lean` imports both, so
+`lake build ConRonRefine2` stopped importing at all:
 
-**It is pre-existing**: this branch touches `Core/Arms*`, `Core/Eqns.lean` and
-two lines of `Core.lean`, none of which is `Core/KnotRel.lean` or anything
-under `Checker/`, and the same import pair is in `arena`'s own
-`proof/ConRon/Refine2.lean`.  `scripts/gates.sh` does not catch it because
-`ConRonRefine2` is deliberately NOT a default target (task #97-P5-0 §10), so
-all 13 gates are green on `arena` and on this branch with the library red.
+    import ConRon.Refine2.Checker.KnotHyp failed, environment already contains
+      'ConRon.Refine2.KnotRel.whnfCore' from ConRon.Refine2.Core.KnotRel
 
-**The fix is one rename and it belongs to the Checker tier**, whose `KnotRel`
-is *"the knot hypotheses the checker tier assumes"* and not the knot:
-`Refine2/Checker/KnotHyp.lean`'s structure and its four readers
-(`Checker/{KnotHyp,DeclCheck,Base,Top}.lean`) want a name of their own —
-`CheckerKnotHyp`, say — leaving `KnotRel` to `Core/KnotRel.lean`, which is
-what `Core/Induction.lean`'s `knot_rel` and `Core/Entries.lean`'s six entries
-are stated about.  Not done here: it is four files this round does not own.
+Both rounds were green on their own branches and neither merge that put them
+together rebuilt the library — **`scripts/gates.sh` does not catch it**,
+because `ConRonRefine2` is deliberately not a default target (task #97-P5-0
+§10), so all thirteen gates were green on `arena` with the library red.
 
-**What it means for the numbers above**: the `125 sorry` row is measured on
-this branch BEFORE the merge, which is the last state in which the library
-builds at all; after the merge the count cannot be taken until the rename
-lands.  Everything else in §10 — the thirteen gates, including
-`extract-check` and the default-target `lake build` — is measured after it.
+The reconciliation is the one `KnotHyp.lean`'s own module note predicted
+(*"when `Refine2/Core/**` lands its `knot_rel : ∀ f, KnotRel f`, the
+hypothesis is discharged at the tier's top"*): **the structure goes and the
+Core tier's is used.**  It cost exactly one file, because **nothing in
+`Refine2/Checker/**` or `Refine2/Promote/**` ever projected a field** — the
+sixty-two statements only CARRY `KnotRel checkFuel`, and their proofs are
+`sorry` — so `Checker/{DeclCheck,Base,Top}.lean` needed no edit at all.
+`KnotHyp.lean` is now the mapping from the old fields to what replaces them,
+plus `knotRel_checkFuel' : KnotRel Arena.checkFuel`, the discharge itself.
 
+Three differences a checker-tier PROOF will meet at the call site, named in
+that file:
+
+* the Core entries carry task #97-P5-0's finding 3 (`StoreWF lst.store` and
+  `EResolves lst h`) where the old clauses carried neither;
+* `CoreCtx vis fe lfe` replaces `IFEnvRel rf lf` plus
+  `absU vis = lf.visibleBelow`, and `IFEnvInv rf` is not needed at all;
+* `ensure_sort_core` additionally needs §4's `AnswerResolves`.
+
+The old structure's `ensureSort` clause had no counterpart in
+`Core/Entries.lean` — task #97-P5-Core §8 put `ensure_sort` among the bodies —
+so **`ensure_sort_core_refines` is added to `Core/Arms/Sort.lean`**, four lines
+over `ensure_sort_refines` at `LANE_FULL`, and it is the Checker tier's
+seventh front door.  Nothing was added to `KnotRel` itself.
+
+**(b) The gated lane's side condition moved from `2 ≤ f` to the fuel-0
+exclusion, and it did not disappear.**  Task #97-P3-CoreWalks hoisted the
+stuck-tag test above the fuel dispatch in `coreKnotGated`'s two reduction
+slots, which is what task #97-P5-Core's finding 12 asked for, and it does
+remove that finding's `f = 1` divergence: at `f + 1` the twin's slot now tests
+the tag exactly where the port's `knot_*` do, so `knotRel_succ_whnfCore` and
+`knotRel_succ_whnf` line up with **no** fuel condition and **without**
+`BodyRel`'s two `stuckGated*` fields, which neither proof uses any more.
+
+But the port tests `fuel = 0` **first** and raises `Internal` there whatever
+the tag is, while the twin's `coreKnotGated 0` now answers `pure e` at a stuck
+tag.  So `KnotRel 0` became false in the gated lane — in the *other*
+direction, the twin succeeding where the port declines — and the honest
+statement is
+
+    whnfCore, whnf : … → (lane = LANE_GATED → 1 ≤ f) → …
+
+on **both** reduction fields: `whnf` improves from `2 ≤ f` to `1 ≤ f`, and
+`whnfCore`, which carried nothing, now carries it too.  Vacuous at `checkFuel`
+either way, and `Core/Entries.lean`'s six entries discharge it by
+`laneFull_ne_gated` as they always did.
+
+**A second one-line twin change removes it entirely**, and it is worth making:
+hoist the test in `coreKnotGated`'s `| fuel + 1 =>` branch ONLY, leaving the
+`| 0 =>` slots the unconditional `fail` that the port's `fuel = 0` arm is.
+Then `KnotRel` has no side condition anywhere and `coreKnotGated_zero_run`
+goes back to six conjuncts.  Not done here: `Arena/CoreGated.lean` is the
+twin, and task #97-P3-CoreWalks changed it for Theorem 1's reasons.
+
+What this cost inside the tier: `Core/KnotRel.lean`'s two field statements,
+`Core/Induction.lean`'s `coreKnotGated_zero_run` (four conjuncts now, with the
+two reduction slots excluded), `laneKnot_zero_whnfCore` / `_whnf` (which take
+`¬ lane = LANE_GATED`), six new `coreKnotGated_succ_*` equations, and the gate
+threaded through `Core/Arms/Loops.lean`'s `whnf`/`defeq` statements — every
+one of which calls `knot_whnf_core` at the caller's own lane.
+
+#### 12. What invalidates `Core/Eqns.lean`
+
+The 1 020 s is a `lake` cost, paid once and cached in
+`.lake/build/lib/lean/ConRon/Refine2/Core/Eqns.olean` (25.3 MB).  **`Eqns.lean`
+imports `ConRon.Generated.Funs` and nothing else**, so the only edits that
+rebuild it are a change to `proof/ConRon/Generated/Funs.lean` — i.e. a run of
+`scripts/extract.sh`, i.e. a change to `crates/con-ron-core` that moves a
+function body — or to `Eqns.lean` itself.  Nothing in `Arena/**`,
+`Refine2/**`, `Bridge/**` or `Refine/**` touches it, and neither does a
+doc-comment-only Rust change: task #97-P3-CoreWalks moved `arena/core.rs` and
+`arena/core_gated.rs` by fourteen and sixteen lines of `Lean twin:` comments
+and `Generated/Funs.lean` did not move, so the merge of `e0616fdf` rebuilt
+`Arena/CoreGated.lean` and everything above it **without** re-deriving a single
+equation.
+
+On a shared machine that is the number to watch: the module peaks at **5.9 GB**
+while it runs, so a fresh worktree should build it once, serially, and never in
+parallel with another `Eqns` build.

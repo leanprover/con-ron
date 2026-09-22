@@ -261,7 +261,8 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
     (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
+    (hres : EResolves lst (absEIdx e))
+    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
     (hcont : ∀ {st' : arena.monad.AState} {lst' : AState} {e' o'},
       AStateRel pers st' lst' → AStateInv pers st' → StoreWF lst'.store →
       EResolves lst' (absEIdx e') →
@@ -278,7 +279,7 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
   rw [arena.core.whnf_step] at hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r, st1⟩ := p
-  have hwc := hk.whnfCore hrel hinv hctx hwf hres hf hp
+  have hwc := hk.whnfCore hrel hinv hctx hwf hres hgate hf hp
   have t0 := whnfStep_run (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
     (absU depth)
     (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
@@ -386,7 +387,8 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
     ∀ {pers vis st mode lane fu fe lfe depth n e lst o},
       CoreAmbient pers vis mode lane fu fe →
       AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-      StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+      StoreWF lst.store → EResolves lst (absEIdx e) →
+      (lane = arena.core.LANE_GATED → 1 ≤ f) → absU fu = f →
       absU n = m →
       arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o →
       Sim absEIdx (fun _ => True) pers lst o
@@ -395,7 +397,7 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
   induction m with
   | zero =>
     intro pers vis st mode lane fu fe lfe depth n e lst o _ha _hrel _hinv _hctx
-      _hwf _hres _hf hn hrun
+      _hwf _hres _hgate _hf hn hrun
     rw [arena.core.whnf_loop, if_pos (absU_eq_zero hn)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -406,15 +408,15 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
       (whnfLoop_zero_run _ _ _ _ _))
   | succ m ih =>
     intro pers vis st mode lane fu fe lfe depth n e lst o ha hrel hinv hctx hwf
-      hres hf hn hrun
+      hres hgate hf hn hrun
     rw [arena.core.whnf_loop, if_neg (absU_ne_zero hn)] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hiv : absU i = m := absU_pred hn hi
     rw [whnfLoop_succ, ← hiv]
-    refine whnf_step_of_cont hk ha hrel hinv hctx hwf hres hf ?_ hrun
+    refine whnf_step_of_cont hk ha hrel hinv hctx hwf hres hgate hf ?_ hrun
     intro st' lst' e' o' hrel' hinv' hwf' hres' hrun'
     rw [hiv]
-    exact ih ha hrel' hinv' hctx hwf' hres' hf hiv hrun'
+    exact ih ha hrel' hinv' hctx hwf' hres' hgate hf hiv hrun'
 
 /-- `arena::core::whnf_loop` against `Arena.whnfLoop` — the second fuel
 dimension, closed. -/
@@ -423,12 +425,13 @@ theorem whnf_loop_refines {f : Nat} (hk : KnotRel f)
     (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
+    (hres : EResolves lst (absEIdx e))
+    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
     (hrun : arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absU n) (absEIdx e)) :=
-  whnf_loop_aux hk (absU n) ha hrel hinv hctx hwf hres hf rfl hrun
+  whnf_loop_aux hk (absU n) ha hrel hinv hctx hwf hres hgate hf rfl hrun
 
 /-- `arena::core::whnf_step` against `Arena.whnfStep` with the rest of the loop
 named: **the port's `n` IS the twin's continuation `whnfLoop … (absU n)`** — no
@@ -438,15 +441,17 @@ theorem whnf_step_refines {f : Nat} (hk : KnotRel f)
     (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
+    (hres : EResolves lst (absEIdx e))
+    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
     (hrun : arena.core.whnf_step pers vis st mode lane fu fe depth n e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth)
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
           (absU depth) (absU n)) (absEIdx e)) :=
-  whnf_step_of_cont hk ha hrel hinv hctx hwf hres hf
-    (fun h1 h2 h3 h4 h5 => whnf_loop_refines hk ha h1 h2 hctx h3 h4 hf h5) hrun
+  whnf_step_of_cont hk ha hrel hinv hctx hwf hres hgate hf
+    (fun h1 h2 h3 h4 h5 => whnf_loop_refines hk ha h1 h2 hctx h3 h4 hgate hf h5)
+    hrun
 
 /-- `arena::core::whnf_body` against `Arena.whnfBody`: the loop at its own step
 budget, `WHNF_LOOP_FUEL = whnfLoopFuel = 100000` on both sides. -/
@@ -455,13 +460,14 @@ theorem whnf_body_refines {f : Nat} (hk : KnotRel f)
     (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
+    (hres : EResolves lst (absEIdx e))
+    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
     (hrun : arena.core.whnf_body pers vis st mode lane fu fe depth e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (whnfBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   rw [arena.core.whnf_body] at hrun
-  have h := whnf_loop_refines hk ha hrel hinv hctx hwf hres hf hrun
+  have h := whnf_loop_refines hk ha hrel hinv hctx hwf hres hgate hf hrun
   rw [show absU arena.core.WHNF_LOOP_FUEL = Arena.whnfLoopFuel from by
     rw [arena.core.WHNF_LOOP_FUEL, Arena.whnfLoopFuel]; rfl] at h
   exact h
@@ -483,7 +489,7 @@ theorem defeq_loop_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hra : EResolves lst (absEIdx a)) (hrb : EResolves lst (absEIdx b))
-    (hf : absU fu = f)
+    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
     (hrun : arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -500,7 +506,7 @@ theorem defeq_step_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hra : EResolves lst (absEIdx a)) (hrb : EResolves lst (absEIdx b))
-    (hf : absU fu = f)
+    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
     (hrun : arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -520,7 +526,7 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hra : EResolves lst (absEIdx a)) (hrb : EResolves lst (absEIdx b))
-    (hf : absU fu = f)
+    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
     (hrun : arena.core.defeq_body pers vis st mode lane fu fe depth a b
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -528,7 +534,7 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_body] at hrun
-  have h := defeq_loop_refines hk ha hrel hinv hctx hwf hra hrb hf hrun
+  have h := defeq_loop_refines hk ha hrel hinv hctx hwf hra hrb hgate hf hrun
   rw [show absU arena.core.DEFEQ_LOOP_FUEL = Arena.defeqLoopFuel from by
     rw [arena.core.DEFEQ_LOOP_FUEL, Arena.defeqLoopFuel]; rfl] at h
   exact h

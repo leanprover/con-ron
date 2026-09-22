@@ -134,23 +134,31 @@ knot_infer` and `Core/Induction.lean`'s `KnotRel.inferAt` derives it. -/
 structure KnotRel (f : Nat) : Prop where
   whnfCore : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) →
+    (lane = arena.core.LANE_GATED → 1 ≤ f) → absU fu = f →
     arena.core.knot_whnf_core pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnfCore
         (absU depth) (absEIdx e))
-  /-- **The one field with a fuel side condition, and it is a real
-  divergence.**  At `LANE_GATED` the port answers `Ok e` off the stuck tag
-  where the twin runs `whnfBody (coreKnotGated … (f - 1))`, whose first move is
-  `r.whnfCore` — so at `f = 1` the twin throws `internal` and the port
-  succeeds.  Above that the chain is `whnfCore`'s identity plus
-  `reduceNat = none` and `unfoldDefinition = none`.  One fuel level, named in
-  the task's report; the fix is a one-line TWIN change (hoist the tag test
-  into `coreKnotGated`'s two reduction slots, which is what the port does). -/
+  /-- **The gated lane's fuel-0 arm, and nothing above it** (task
+  #97-P5-Arms, after task #97-P3-CoreWalks' twin fix).  The port tests
+  `fuel = 0` FIRST and raises `Internal` there whatever the tag is; the twin's
+  `coreKnotGated 0` now answers `pure e` at a stuck tag, so the two agree at
+  every fuel EXCEPT zero, and the side condition is exactly that exclusion.
+
+  Before the twin fix this field carried `2 ≤ f` — the twin ran
+  `whnfBody (coreKnotGated … (f - 1))` whose first move is `r.whnfCore`, so at
+  `f = 1` it threw where the port answered `Ok e`.  Hoisting the tag test into
+  `coreKnotGated`'s two reduction slots removed that level and moved the
+  disagreement down to `f = 0`, where BOTH reduction fields now need it —
+  `whnfCore` did not before.  **A second one-line twin change removes it
+  entirely**: hoist the test in the `| fuel + 1 =>` branch ONLY, leaving
+  `coreKnotGated 0`'s slots the unconditional `fail` the port's `fuel = 0` arm
+  is.  Vacuous at `checkFuel` either way. -/
   whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     StoreWF lst.store → EResolves lst (absEIdx e) →
-    (lane = arena.core.LANE_GATED → 2 ≤ f) → absU fu = f →
+    (lane = arena.core.LANE_GATED → 1 ≤ f) → absU fu = f →
     arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnf

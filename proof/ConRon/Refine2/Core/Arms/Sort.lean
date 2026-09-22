@@ -256,7 +256,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
-    (hg : lane = arena.core.LANE_GATED → 2 ≤ f)
+    (hg : lane = arena.core.LANE_GATED → 1 ≤ f)
     (hout : ∀ p, arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok p →
       AnswerResolves pers p)
     (hrun : arena.core.ensure_sort pers vis st mode lane fu fe depth e = ok o) :
@@ -348,6 +348,29 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
               exact hts (absU32_inj (by rw [hx, etag_sort_abs])))
       | _ => rfl
 
+/-- **`arena::core::ensure_sort_core`, the Checker tier's seventh front door.**
+Task #97-P5-Core §8: *"`ensure_sort_core` is the seventh (T) declaration and is
+NOT an entry of `Core/Entries.lean`'s kind: `ensure_sort` is a body"*.  It is
+`ensure_sort` at `LANE_FULL`, so the gated side condition is vacuous here
+exactly as it is in `Core/Entries.lean`'s six, and `Refine2/Checker/**` takes
+this beside them. -/
+theorem ensure_sort_core_refines {f : Nat} (hk : KnotRel f)
+    {pers vis st mode fe lfe fu depth e lst o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
+    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
+    (hout : ∀ p, arena.core.knot_whnf pers vis st mode arena.core.LANE_FULL fu fe
+      depth e = ok p → AnswerResolves pers p)
+    (hrun : arena.core.ensure_sort_core pers vis st mode fe fu depth e = ok o) :
+    Sim absLIdx (fun _ => True) pers lst o
+      (ensureSortCore (ConRon.Refine.absMode mode) lfe f (absU depth)
+        (absEIdx e)) := by
+  rw [arena.core.ensure_sort_core] at hrun
+  have h := ensure_sort_refines hk hrel hinv hctx hwf hres hf
+    (fun hx => absurd hx laneFull_ne_gated) hout hrun
+  rw [laneKnot_full] at h
+  exact h
+
 section Axioms
 
 /-- info: 'ConRon.Refine2.EStore_view_of_tag_sort' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -361,6 +384,9 @@ section Axioms
 
 /-- info: 'ConRon.Refine2.ensure_sort_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ensure_sort_refines
+
+/-- info: 'ConRon.Refine2.ensure_sort_core_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ensure_sort_core_refines
 
 end Axioms
 
