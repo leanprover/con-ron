@@ -31,12 +31,20 @@ route around; this one only ever reports, and `scripts/gates.sh` prints its
 --------------------------------------------------------------- the unit
 
 A twin is a top-level `def` (`partial def` included) of
-`proof/ConRon/Arena/**`, mutual-block members included (they sit at column 0
-and `provenance.top_level_decls` already sees them).  NOT `theorem`s (the
-arena's own verification is not a thing the bridge restates), NOT
-`structure` / `inductive` / `class` / `instance` (a type is mirrored by the
-denotation, not by a theorem about a function), and NOT `abbrev` — the
-arena's 33 are type synonyms (`abbrev EIdx := Idx .expr`, `abbrev AM :=
+`proof/ConRon/Arena/**` **under its enclosing `namespace`s**, mutual-block
+members included (they sit at column 0 and `provenance.top_level_decls`
+already sees them).  The namespace is not decoration: `Arena/Store.lean`
+declares `dropScratch` FOUR times, once inside each of `NStore`, `LStore`,
+`LsStore` and `EStore`, and nine `empty`s and nine `find?`s the same way.
+Round 1 keyed a row by `(file, declared name)` and silently collapsed 88
+definitions into 21 rows; round 2 tracks `namespace`/`section`/`mutual`/`end`
+and keys by the qualified name, so the census gained the 67 twins that were
+being hidden (1 565 → 1 632).
+
+NOT `theorem`s (the arena's own verification is not a thing the bridge
+restates), NOT `structure` / `inductive` / `class` / `instance` (a type is
+mirrored by the denotation, not by a theorem about a function), and NOT
+`abbrev` — the arena's 33 are type synonyms (`abbrev EIdx := Idx .expr`, `abbrev AM :=
 StateT AState (Except CheckError)`) and `@f` aliases of a `def` that is
 already a row (`abbrev checkSumTeleF := @checkSumTele`), neither of which is
 a second obligation.
@@ -79,11 +87,38 @@ that occur.  A theorem is ABOUT twin `X` when its name is `X` plus one of:
 `provenance.names_compatible` allows: `EStore.viewApp` answers to
 `viewApp_spec` and to `EStore.viewApp_spec` alike.
 
+**One theorem credits ONE twin** (round 2).  Round 1 matched on the LEAF
+name alone, so `Bridge/Specs.lean`'s `viewApp_spec` was credited to both
+`Monad.lean`'s `viewApp` and `Store.lean`'s `EStore.viewApp`, and
+`Promote/StoreP.lean`'s `EStore.internPersistent_spec` to all four
+`*Store.internPersistent` — 31 theorems double-counted.  `t1_candidates`
+ranks the candidates and takes the best: the LONGEST twin leaf first
+(`EIdx_hasLevelParam_spec` is `hasLevelParam`'s, not `EIdx`'s), then the
+namespace (`ns_rank` — same namespace beats one that drops the other's, and
+an INCOMPATIBLE namespace is not a candidate at all, which is how
+`Inst1LAt.bvar_down` stops being read as a lemma about `ETag.bvar`), then
+the Bridge module's own tier as the tiebreak
+(`Bridge/Frontend/Shared.lean`'s `internExpr_run` is
+`Frontend/Readback.lean`'s `internExpr`, not `Intern.lean`'s).  A theorem
+whose two best candidates still tie is reported as AMBIGUOUS.
+
 Every OTHER `X…` theorem name — `_ext`, `_pext`, `_step`, `_of_not_lam`,
 `_leaf`, … — is a side lemma, not the statement, and does NOT count as
 "stated".  But it is not thrown away either: a twin whose only match is an
 unrecognised suffix is counted and listed in the self-check line, so a
 convention this script does not know cannot pass silently as "unstated".
+
+**The escape hatch is the doc comment.**  A statement whose NAME is none of
+the above can say so in its own `/-- … -/` block: ``Theorem 1 for `X` ``
+(any case — `ExprOps/InstLP.lean`'s `substLevelList_eq` shouts it) names the
+twin outright, and the theorem is credited to it.  Eight theorems over six
+twins use it at the tip, and it is consulted only where the name gives no
+recognised suffix — so `instantiateListFast_spec`, whose doc says "THEOREM 1
+for `instantiateList`, at the entry point", keeps crediting the twin it is
+literally about.  Round 2's hand triage of the remaining 52 rows put 25 of
+them in the "IS the statement, under another name" class and 27 in the "side
+lemma that merely mentions the twin" class; the 25 are a doc line their
+tier's owner can add, not a script change.
 
 --------------------------------------------------- the T2 conventions
 
@@ -93,15 +128,43 @@ rules — the same argument that file makes about `provenance.py`).  A
 citation sits in the doc block of the Rust item just below it; the item's
 `fn` name is the T2 subject.  `proof/ConRon/Refine2/**` then states
 
-    <rust_fn>_refines     the refinement lemma (761 of them at the tip), or
-    <rust_fn>_no_claim    the "this arm claims nothing" lemma (15), which
-                          counts as stated AND closed, flagged `N` in the
-                          table — a `Native` decline or an error constructor
-                          the port deliberately does not model.
+    <rust_fn>_refines     the refinement lemma (938 credits at the tip), or
+    <rust_fn>_no_claim    the "this arm claims nothing" lemma, which counts
+                          as stated AND closed, flagged `N` in the table — a
+                          `Native` decline or an error constructor the port
+                          deliberately does not model;
+    <rust_fn>_abs         the ABSTRACTION shape, `Refine2/AbsStore.lean` and
+    <rust_fn>_run         `Refine2/Specs.lean`'s "inversion layer keyed on
+    <rust_fn>_obs         the Rust equation" (task #97-P5-2): `arena.monad
+                          .view_app pers st h = ok o → …` with the twin's
+                          answer on the right.  That IS the store and core
+                          tiers' Theorem 2 statement — `derived_e_run`,
+                          `word_index_abs`, `der_of_bvar_obs` — and round 1
+                          did not know it, which is why the `Store` row's T2
+                          column read `6/315`.  `_abs` is the pure
+                          abstraction equation, `_run` the monadic run form,
+                          `_obs` the up-to-`derObsE` form the derived-word
+                          arms need.
+
+**The receiver qualifies the name.**  `provenance.RustItem.name()` is the
+BARE `fn` name, so `Tbl::find`, `ETables::find` and `EStore::find` are all
+`find`, while `Refine2/**` writes `tbl_find_abs`, `etables_find_abs`,
+`estore_find_abs`.  `with_impl` reads each `fn`'s enclosing `impl` block and
+offers `<receiver>_<fn>` as a FALLBACK key, in both spellings the tier uses
+(`etables_…` and `e_tables_…`).  That is finding (4) on the refinement side,
+and it moved 42 rows out of "named by a theorem under another shape".
 
 A twin cited by several Rust functions (a store projection is cited from
 four call sites) needs one `_refines` EACH: the row is `T2 stated` only when
 every citing function has one, and `--open` names the ones that do not.
+
+**The citation is resolved by NAME, then by range.**  `twin-lines.py update`
+relocates a citation by name and rewrites only its digits, so the name is the
+authority: `store.rs`'s `EStore.find?` is `EStore`'s `find?` even where the
+citation's range has rotted onto `Tbl.find?` (which `twin-lines.py check`
+accepts, because `provenance.locate_decl` is namespace-blind).  The cited
+RANGE is the tiebreak, and it is what settles an UNQUALIFIED citation of one
+of `Arena/Store.lean`'s four `dropScratch`.
 
 ------------------------------------------------------------- the skips
 
@@ -123,8 +186,9 @@ anyway as REDUNDANT — the list cannot rot quietly either.
     --open      only the rows with something missing, GROUPED BY what is
                 missing — the work list the coordinator hands out
     --selftest  run the whole census over `scripts/testdata/arena-census/`,
-                a twenty-row miniature of the real tree, and compare with
-                the committed verdicts
+                a twenty-six-row miniature of the real tree, and compare
+                both the per-row verdicts and the self-check COUNTS with
+                the committed `expected.txt`
 
 Exit code 0 always, except `--selftest` (1 on a mismatch) and 2 for a usage
 or IO error.  `--open` and the rest never fail: this is a REPORT.
@@ -157,8 +221,52 @@ T1_SUFFIXES = ("_spec", "_spec'", "_specV", "_specI", "_specG", "_specF",
                "_run", "_exact")
 T1_PREFIX_SUFFIXES = ("_bridge",)
 
+# The Refine2 shapes that ARE a Rust function's Theorem 2 statement, keyed by
+# the tier that writes them — see the docstring's "the T2 conventions".
+T2_SUFFIXES = (("_refines", False), ("_no_claim", True),
+               ("_abs", False), ("_run", False), ("_obs", False))
+
+# `Theorem 1 for `X`` in a Bridge theorem's OWN doc comment: the escape hatch
+# for a statement whose name is not one of the T1 suffixes.  Six theorems use
+# it at the tip, over four twins (`eidxCopyUpto`, `takeEidx`, `lastEidx`,
+# `substLevelList`) — case-insensitive, because `substLevelList_eq` shouts it
+# ("**THEOREM 1 for `substLevelList`**").
+T1_DOC_RE = re.compile(r"theorem 1 for\s+\*{0,2}`([A-Za-z0-9_.']+)`", re.I)
+
 ARM_RE = re.compile(r"Arm[A-Z]")
 SORRY_RE = re.compile(r"(?<![A-Za-z0-9_'])sorry(?![A-Za-z0-9_'])")
+
+# Namespace tracking, so that `Store.lean`'s four `dropScratch` are four twins
+# and `EStore.viewApp` is not `Monad.lean`'s `viewApp`.
+NS_RE = re.compile(r"^namespace\s+([A-Za-z_][A-Za-z0-9_.'!?₀-₉]*)")
+SECTION_RE = re.compile(r"^(section|mutual)\b")
+END_RE = re.compile(r"^end\b\s*([A-Za-z_][A-Za-z0-9_.'!?₀-₉]*)?")
+
+# The namespace components that are the TREE and not the twin.  A module's
+# own path is the first cut — `Bridge/Inductives/SumInstall.lean` opens
+# `namespace ConRon.Bridge.Inductives`, and `majorIdx_spec` there must compare
+# against `Arena/SumInstall.lean`'s `InductiveShape.majorIdx` as
+# `majorIdx_spec`, not as `Inductives.majorIdx_spec` — and `ROOT_NS` is the
+# second, because a Bridge file may open `namespace ConRon.Arena` and spell a
+# theorem `Arena.checkDeclsPure_bridge`.
+ROOT_NS = ("ConRon", "Arena", "Bridge", "Refine2")
+
+
+def strip_root(name, path=None):
+    """The census name: `ConRon.Arena.EStore.viewApp` → `EStore.viewApp`.
+
+    `path` is the declaring module, repo-relative; the components its own
+    dotted path contributes are dropped first, then any leading `ROOT_NS`."""
+    parts = name.split(".")
+    i = 0
+    if path:
+        mod = path[len("proof/"):-len(".lean")].split("/") \
+            if path.startswith("proof/") else path[:-len(".lean")].split("/")
+        while i < len(parts) - 1 and i < len(mod) and parts[i] == mod[i]:
+            i += 1
+    while i < len(parts) - 1 and parts[i] in ROOT_NS:
+        i += 1
+    return ".".join(parts[i:])
 
 
 def _load(name, path):
@@ -207,6 +315,24 @@ def tier_of(path):
     return "?" + stem
 
 
+def tier_of_bridge(path):
+    """The tier a `Bridge/**` (or `Refine2/**`) module belongs to, read off
+    its own subdirectory: `Bridge/Frontend/Shared.lean` is `Frontend`.
+
+    Only a TIEBREAK — when two twins are equally good candidates for one
+    theorem, the one in the theorem's own tier wins."""
+    stem = path.split("/")
+    for i, part in enumerate(stem):
+        if part in ("Bridge", "Refine2") and i + 1 < len(stem):
+            head = stem[i + 1][:-len(".lean")] \
+                if stem[i + 1].endswith(".lean") else stem[i + 1]
+            for name, members in TIERS:
+                if head in members:
+                    return name
+            return None
+    return None
+
+
 # ------------------------------------------------------------------- input
 
 def lean_files(root, sub):
@@ -240,9 +366,15 @@ def file_lines(root, path):
 
 
 class Decl:
-    """One top-level declaration, with its block and whether it is proved."""
+    """One top-level declaration, with its block and whether it is proved.
 
-    def __init__(self, path, lineno, kw, name, a, b, has_sorry):
+    `name` is the name as WRITTEN (`dropScratch`); `full` is that name under
+    the enclosing `namespace`s with the tree's own root stripped
+    (`EStore.dropScratch`).  Every comparison this script makes is on `full`:
+    `Arena/Store.lean` declares `dropScratch` four times, once in each of
+    `NStore`/`LStore`/`LsStore`/`EStore`, and they are four twins."""
+
+    def __init__(self, path, lineno, kw, name, a, b, has_sorry, ns=()):
         self.path = path
         self.lineno = lineno
         self.kw = kw
@@ -250,6 +382,10 @@ class Decl:
         self.a = a
         self.b = b
         self.has_sorry = has_sorry
+        self.full = strip_root(".".join(list(ns) + [name]), path)
+        parts = self.full.split(".")
+        self.ns = tuple(parts[:-1])
+        self.leaf = parts[-1]
 
 
 def block_has_sorry(lines, skip, a, b):
@@ -270,6 +406,39 @@ def block_has_sorry(lines, skip, a, b):
     return False
 
 
+def namespace_at(lines, skip):
+    """{0-based line -> the enclosing namespace, as a tuple of components}.
+
+    A `section` — and a `mutual`, of which `Arena/ExprOps.lean` has 23 —
+    contributes nothing to the NAME but has to be tracked, because its bare
+    `end` would otherwise close the enclosing namespace; `end X` closes the
+    entry it names.  Only column-0 lines count, and comment lines are cut,
+    exactly as `top_level_decls` reads its declarations."""
+    out = {}
+    stack = []            # [(name-or-None, parts)]
+    for i, line in enumerate(lines):
+        if i in skip or not line or line[:1].isspace():
+            out[i] = tuple(p for _, ps in stack for p in ps)
+            continue
+        m = NS_RE.match(line)
+        if m:
+            stack.append((m.group(1), tuple(m.group(1).split("."))))
+        elif SECTION_RE.match(line):
+            stack.append((None, ()))
+        else:
+            m = END_RE.match(line)
+            if m and stack:
+                want = m.group(1)
+                for j in range(len(stack) - 1, -1, -1):
+                    if stack[j][0] == want:
+                        del stack[j:]
+                        break
+                else:
+                    stack.pop()
+        out[i] = tuple(p for _, ps in stack for p in ps)
+    return out
+
+
 def scan_decls(root, sub, kws):
     """Every top-level declaration of `<root>/<sub>/**` whose keyword is in
     `kws`, as `Decl`s, in file then line order."""
@@ -277,12 +446,14 @@ def scan_decls(root, sub, kws):
     for path in lean_files(root, sub):
         lines = file_lines(root, path)
         skip = P.comment_lines(lines)
+        ns = namespace_at(lines, skip)
         for lineno, kw, name in P.top_level_decls(lines):
             if kw not in kws:
                 continue
             a, b = P.extend_block(lines, lineno - 1)
             out.append(Decl(path, lineno, kw, name, a, b,
-                            block_has_sorry(lines, skip, a, b)))
+                            block_has_sorry(lines, skip, a, b),
+                            ns.get(lineno - 1, ())))
     return out
 
 
@@ -321,49 +492,128 @@ def skip_for(skips, path, name):
 
 # ------------------------------------------------------------------ the T1
 
-def t1_match(thm_name, twin_name):
-    """Does Bridge theorem `thm_name` state something about twin `twin_name`?
+def ns_rank(thm_ns, twin_ns):
+    """How well the theorem's namespace matches the twin's: 0 the SAME, 1 one
+    of them drops the other's (a `Bridge` file that does not reopen `EStore`,
+    or one that writes `Arena.checkDeclsPure_bridge`), None incompatible.
 
-    Returns the recognised suffix, or None — which is not the same as "about
-    nothing": the caller has already attributed the theorem to this twin by
-    longest-prefix, so a None here means an UNRECOGNISED suffix and the row
-    goes to `t1_other`, which the self-check line reports."""
-    for suf in T1_SUFFIXES:
-        if thm_name.endswith(suf) and names_eq(thm_name[:-len(suf)], twin_name):
-            return suf
-    for suf in T1_PREFIX_SUFFIXES:
-        i = thm_name.rfind(suf)
-        while i > 0:
-            if names_eq(thm_name[:i], twin_name):
-                return thm_name[i:]
-            i = thm_name.rfind(suf, 0, i)
+    `Inst1LAt.bvar_down` is `ExprOps/Subst.lean`'s lemma about the `bvar` case
+    of the `Inst1L` relation, NOT a side lemma of `Handle.lean`'s `ETag.bvar`:
+    two different namespaces, neither a suffix of the other, so it is not
+    attributed to that twin at all."""
+    if thm_ns == twin_ns:
+        return 0
+    n = min(len(thm_ns), len(twin_ns))
+    if thm_ns[len(thm_ns) - n:] == twin_ns[len(twin_ns) - n:]:
+        return 1
     return None
 
 
-def names_eq(stem, twin):
-    """`provenance.names_compatible`, narrowed: a citation may drop or add a
-    NAMESPACE, but never name a namespace and match inside it."""
-    if not stem:
-        return False
-    return (stem == twin or twin.endswith("." + stem)
-            or stem.endswith("." + twin))
+def t1_tag(thm_leaf, twin_leaf):
+    """The tag `thm_leaf` appends to `twin_leaf`, or None if it does not.
+
+    `''` for an exact match, `_spec` for `viewApp_spec`, `'` for a primed
+    second spelling."""
+    if thm_leaf == twin_leaf:
+        return ""
+    for sep in ("_", "'"):
+        if thm_leaf.startswith(twin_leaf + sep):
+            return thm_leaf[len(twin_leaf):]
+    return None
 
 
-def longest_leaf(thm_leaf, leaves):
-    """The LONGEST twin leaf `thm_leaf` starts with, or None.
+def t1_recognised(tag):
+    """Is `tag` one of the T1 conventions — i.e. IS this theorem the twin's
+    Theorem 1 statement, rather than a side lemma about it?"""
+    if tag in T1_SUFFIXES:
+        return True
+    for suf in T1_PREFIX_SUFFIXES:
+        if tag.startswith(suf):
+            return True
+    return False
 
-    Longest wins because the short names are prefixes of the long ones:
-    `EIdx_hasLevelParam_spec` is `hasLevelParam`'s statement, not a side
-    lemma of the twin `EIdx`, and attributing it by the first match found
-    would put it in the wrong row (and inflate the self-check's
-    "unrecognised suffix" count with it)."""
-    best = None
-    for leaf in leaves:
-        if thm_leaf == leaf or thm_leaf.startswith(leaf + "_") \
-                or thm_leaf.startswith(leaf + "'"):
-            if best is None or len(leaf) > len(best):
-                best = leaf
-    return best
+
+def t1_candidates(thm, twins):
+    """[(rank, twin)] for every twin Bridge theorem `thm` could be about.
+
+    `rank` orders the candidates so that exactly ONE wins (the caller takes
+    the best and reports the rest): the LONGEST twin leaf first — the short
+    names are prefixes of the long ones and `EIdx_hasLevelParam_spec` is
+    `hasLevelParam`'s statement, not `EIdx`'s — then the namespace match, so
+    `viewApp_spec` is `Monad.lean`'s `viewApp` (same namespace) and not
+    `Store.lean`'s `EStore.viewApp` (the theorem would have to drop a
+    namespace), and `EStore.internPersistent_spec` is `EStore`'s of the four
+    `*Store.internPersistent`."""
+    out = []
+    for twin in twins:
+        tag = t1_tag(thm.leaf, twin.leaf)
+        if tag is None:
+            continue
+        r = ns_rank(thm.ns, twin.ns)
+        if r is None:
+            continue
+        out.append(((-len(twin.leaf), r), twin, tag))
+    return out
+
+
+IMPL_RE = re.compile(r"^impl\b(?:\s*<[^>]*>)?\s+(?:.+\s+for\s+)?"
+                     r"([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def receiver_spellings(name):
+    """How `Refine2/**` writes the receiver type in a qualified lemma name.
+
+    TWO spellings are in use and both are tried: the flat lowercase
+    (`ETables` → `etables_get_abs`, `EStore` → `estore_view_abs`, the tier's
+    own habit) and the snake case Charon gives an item (`ETables` →
+    `e_tables`).  A qualified name is only ever a FALLBACK key, so offering
+    both costs a dict lookup."""
+    s = re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", name)
+    s = re.sub(r"([A-Z]+)(?=[A-Z][a-z])", r"\1_", s)
+    out = [name.lower()]
+    if s.lower() != out[0]:
+        out.append(s.lower())
+    return out
+
+
+def with_impl(path, items):
+    """[(item, `<impl type>_<fn>` or None)] over one file's Rust items.
+
+    `provenance.RustItem.name()` is the BARE name, so `Tbl::find`,
+    `ETables::find` and `EStore::find` are all `find` — and the Refine2 tier
+    qualifies by receiver (`tbl_find_abs`, `etables_find_abs`,
+    `estore_find_abs`).  Without the qualification `Tbl.find?` and
+    `ETables.find?` would share one T2 verdict, which is task #97-CENSUS
+    round 2's finding (4) on the refinement side.
+
+    An `impl` block runs from its own column-0 `impl` line to the next
+    column-0 `}`, which is what `rustfmt` guarantees and what keeps a free
+    function after the block from inheriting the receiver.  The qualified name
+    is only ever a FALLBACK key, so a mis-read would cost a lookup, not a
+    verdict."""
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().split("\n")
+    spans = []
+    for n, line in enumerate(lines, 1):
+        m = IMPL_RE.match(line)
+        if not m:
+            continue
+        end = len(lines)
+        for k in range(n, len(lines)):
+            if lines[k].startswith("}"):
+                end = k + 1
+                break
+        spans.append((n, end, receiver_spellings(m.group(1))))
+    out = []
+    for i in sorted(items, key=lambda i: i.lineno):
+        q = ()
+        if i.kind == "fn":
+            for a, b, tys in spans:
+                if a < i.lineno <= b:
+                    q = tuple(ty + "_" + i.name() for ty in tys)
+                    break
+        out.append((i, q))
+    return out
 
 
 def mentions_fn(thm, fn):
@@ -388,6 +638,7 @@ class Row:
         self.t1 = []              # [(Decl, suffix)]
         self.t1_other = []        # [Decl] — an unrecognised suffix
         self.rust = []            # [(fn name, rust file, twin citation line)]
+        self.qual = {}            # fn name -> the `<impl type>_<fn>` spellings
         self.t2 = {}              # fn name -> (Decl, is_no_claim) or None
         self.t2_other = []        # Refine2 theorem names under another shape
         self.skip = None          # (scope, reason)
@@ -483,29 +734,35 @@ class Census:
 
         owner = {}
         for path, ds in by_file.items():
-            arms = [d for d in ds if ARM_RE.search(d.name)]
+            arms = [d for d in ds if ARM_RE.search(d.leaf)]
             if not arms:
                 continue
             lines = file_lines(root, path)
-            others = [d for d in ds if not ARM_RE.search(d.name)]
+            others = [d for d in ds if not ARM_RE.search(d.leaf)]
             bodies = [(o, "\n".join(lines[o.a - 1:o.b])) for o in others]
             for arm in arms:
                 pat = re.compile(r"(?<![A-Za-z0-9_'.])"
-                                 + re.escape(arm.name.split(".")[-1])
+                                 + re.escape(arm.leaf)
                                  + r"(?![A-Za-z0-9_'])")
                 hits = [o for o, body in bodies if pat.search(body)]
                 if len(hits) == 1:
-                    owner[(path, arm.name)] = hits[0].name
+                    owner[(path, arm.full)] = hits[0].full
                 else:
                     self.orphan_arms.append(arm)
 
         rows = {}
         for d in defs:
-            if (d.path, d.name) in owner:
+            if (d.path, d.full) in owner:
                 continue
-            rows[(d.path, d.name)] = Row(d, tier_of(d.path))
+            key = (d.path, d.full)
+            # `Main.lean` declares `main` twice, once inside `namespace
+            # ConRon.Arena` and once at the root as its `@[main]` entry point:
+            # two definitions, two rows, and the line settles the key.
+            if key in rows:
+                key = (d.path, "%s#%d" % (d.full, d.lineno))
+            rows[key] = Row(d, tier_of(d.path))
         for d in defs:
-            key = owner.get((d.path, d.name))
+            key = owner.get((d.path, d.full))
             if key is not None and (d.path, key) in rows:
                 rows[(d.path, key)].arms.append(d)
         self.rows = list(rows.values())
@@ -516,65 +773,116 @@ class Census:
         names = collections.defaultdict(set)
         for d in defs:
             names[d.path].add(d.name)
+            names[d.path].add(d.full)
         for (path, decl), (scope, reason) in sorted(skips.items()):
             if path not in names:
                 self.skip_stale.append((path, decl, "no such arena module"))
             elif decl != "*" and decl not in names[path]:
                 self.skip_stale.append((path, decl, "no such definition"))
         for r in self.rows:
-            s = skip_for(skips, r.d.path, r.d.name)
+            s = skip_for(skips, r.d.path, r.d.full) \
+                or skip_for(skips, r.d.path, r.d.name)
             if s:
                 r.skip = s
 
         # -- T1: the Bridge theorems
+        #
+        # ONE THEOREM CREDITS ONE TWIN.  A theorem is attributed to the best
+        # candidate of `t1_candidates` — longest twin leaf, then the closest
+        # namespace — with the Bridge module's own tier as the tiebreak, so
+        # `Bridge/Frontend/Shared.lean`'s `internExpr_run` is
+        # `Frontend/Readback.lean`'s `internExpr` and not `Intern.lean`'s.
+        # Before task #97-CENSUS round 2 a theorem could be credited to
+        # several twins at once (31 were), which inflated both `T1 stated`
+        # and the unrecognised-suffix list.
         thms = scan_decls(root, BRIDGE_DIR, ("theorem",))
-        # Every twin leaf (arms included), longest first: a theorem is
-        # attributed to the LONGEST twin name it starts with, so
-        # `EIdx_hasLevelParam_spec` is `hasLevelParam`'s and not `EIdx`'s.
-        leaves = set()
+        twins = []
         for r in self.rows:
             for twin in [r.d] + r.arms:
-                leaves.add(twin.name.split(".")[-1])
-        cand = collections.defaultdict(list)
+                twins.append((twin, r))
+        by_leaf = collections.defaultdict(list)
+        for twin, r in twins:
+            by_leaf[twin.leaf].append((twin, r))
+        pool = collections.defaultdict(list)
+        for twin, r in twins:
+            pool[twin.leaf[:1]].append((twin, r))
+        self.t1_ambiguous = []
+        self.t1_doc = []
         for t in thms:
-            leaf = longest_leaf(t.name.split(".")[-1], leaves)
-            if leaf is not None:
-                cand[leaf].append(t)
-        for r in self.rows:
-            for twin in [r.d] + r.arms:
-                leaf = twin.name.split(".")[-1]
-                for t in cand.get(leaf, ()):
-                    suf = t1_match(t.name, twin.name) \
-                        or t1_match(t.name.split(".")[-1], twin.name)
-                    if suf:
-                        r.t1.append((t, suf))
-                    else:
-                        r.t1_other.append(t)
+            cands = []
+            for twin, r in pool.get(t.leaf[:1], ()):
+                tag = t1_tag(t.leaf, twin.leaf)
+                if tag is None:
+                    continue
+                rank = ns_rank(t.ns, twin.ns)
+                if rank is None:
+                    continue
+                cands.append(((-len(twin.leaf), rank,
+                               0 if tier_of_bridge(t.path) == r.tier else 1,
+                               twin.path, twin.lineno), twin, r, tag))
+            cands.sort(key=lambda c: c[0])
+            if cands and t1_recognised(cands[0][3]):
+                if len(cands) > 1 and cands[0][0][:2] == cands[1][0][:2] \
+                        and cands[0][2] is not cands[1][2]:
+                    self.t1_ambiguous.append(
+                        (t, sorted({"%s@%s"
+                                    % (c[2].d.full,
+                                       c[2].d.path[len(ARENA_DIR) + 1:])
+                                    for c in cands})))
+                cands[0][2].t1.append((t, cands[0][3]))
+                continue
+            # The name says nothing this script recognises.  The ESCAPE HATCH:
+            # `Theorem 1 for `X`` in the theorem's OWN doc block names its
+            # subject outright, whatever the theorem is called.  It is only
+            # consulted here, so a doc comment that names the twin a `_spec`
+            # is the entry point OF (`instantiateListFast_spec`, "THEOREM 1
+            # for `instantiateList`, at the entry point") does not move the
+            # credit off the twin the theorem is literally about.
+            doc = self.t1_doc_claim(t, by_leaf)
+            if doc is not None:
+                self.t1_doc.append((t, doc[0].full))
+                doc[1].t1.append((t, "(doc)"))
+            elif cands:
+                cands[0][2].t1_other.append(t)
 
         # -- T2: the `Lean twin:` citations and the Refine2 lemmas
         self.wire_rust(root)
         refs = scan_decls(root, REFINE2_DIR, ("theorem",))
+        # `<fn>_refines` first, then the store/spec tier's own shapes — the
+        # ORDER matters, because a function may have both and `_refines` is
+        # the one to name in the table.
         by_stem = {}
-        for t in refs:
-            for suf, nc in (("_refines", False), ("_no_claim", True)):
-                if t.name.endswith(suf):
-                    by_stem.setdefault(t.name[:-len(suf)], (t, nc))
+        for suf, nc in T2_SUFFIXES:
+            for t in refs:
+                if t.leaf.endswith(suf) and len(t.leaf) > len(suf):
+                    by_stem.setdefault(t.leaf[:-len(suf)], (t, nc, suf))
+        self.t2_shapes = collections.Counter()
         # The self-check's candidates are the Refine2 theorems that are NOT
-        # already some OTHER Rust function's `_refines`: without that cut,
+        # already some OTHER Rust function's statement: without that cut,
         # `basis_pin_hit_go_refines` would be reported as "a theorem naming
         # `basis_pin_hit` under another shape", which it is not.
         def claimed(name):
-            for suf in ("_refines", "_no_claim"):
+            for suf, _ in T2_SUFFIXES:
                 if name.endswith(suf) and name[:-len(suf)] in self.all_rust_fns:
                     return True
             return False
 
-        ref_names = [t.name for t in refs if not claimed(t.name)]
+        ref_names = [t.leaf for t in refs if not claimed(t.leaf)]
         other = collections.defaultdict(list)
         for r in self.rows:
             for fn, _, _ in r.rust:
-                r.t2[fn] = by_stem.get(fn)
-                if r.t2[fn] is None:
+                # the bare `fn` name first, then the receiver-qualified one:
+                # `Tbl.find?`'s Rust is `Tbl::find` and its lemma is
+                # `tbl_find_abs`, not `find_abs`
+                hit = by_stem.get(fn)
+                for alias in (r.qual.get(fn) or ()):
+                    if hit:
+                        break
+                    hit = by_stem.get(alias)
+                r.t2[fn] = None if hit is None else (hit[0], hit[1])
+                if hit is not None:
+                    self.t2_shapes[hit[2]] += 1
+                else:
                     if fn not in other:
                         other[fn] = [n for n in ref_names if mentions_fn(n, fn)]
                     r.t2_other += other[fn]
@@ -582,13 +890,43 @@ class Census:
         for (path, decl), (scope, reason) in sorted(skips.items()):
             if decl == "*":
                 continue
-            r = self.by_key.get((path, decl))
+            r = self.by_key.get((path, decl)) \
+                or next((x for x in self.rows
+                         if x.d.path == path and x.d.name == decl), None)
             if r is None:
                 continue
             if scope in ("T1", "BOTH") and r.t1_stated:
                 self.skip_redundant.append((path, decl, "T1"))
             if scope in ("T2", "BOTH") and r.t2_stated:
                 self.skip_redundant.append((path, decl, "T2"))
+
+    def t1_doc_claim(self, t, by_leaf):
+        """(twin, row) if Bridge theorem `t`'s OWN doc comment says
+        "Theorem 1 for `X`" and `X` is a twin, else None.
+
+        The convention's escape hatch, and the reason the self-check's
+        "unrecognised suffix" list is a finding rather than a backlog: a
+        statement whose name does not end in `_spec`/`_run`/… can still SAY
+        that it is the statement, and `Bridge/ExprOps/Subst.lean`'s
+        `eidxCopyUpto_toList` does exactly that.  A module or section header
+        does not count — only the `/-- … -/` block attached to the theorem,
+        which is what `Decl.a` starts at."""
+        lines = file_lines(self.root, t.path)
+        head = "\n".join(lines[t.a - 1:t.lineno])
+        for m in T1_DOC_RE.finditer(head):
+            named = strip_root(m.group(1))
+            leaf = named.split(".")[-1]
+            best = None
+            for twin, r in by_leaf.get(leaf, ()):
+                if ns_rank(tuple(named.split(".")[:-1]), twin.ns) is None:
+                    continue
+                key = (0 if tier_of_bridge(t.path) == r.tier else 1,
+                       twin.path, twin.lineno)
+                if best is None or key < best[0]:
+                    best = (key, twin, r)
+            if best is not None:
+                return best[1], best[2]
+        return None
 
     def wire_rust(self, root):
         """Every `Lean twin:` citation, attributed to the Rust item below it
@@ -601,26 +939,30 @@ class Census:
         by_file = collections.defaultdict(list)
         for t in twins:
             by_file[t.file].append(t)
-        # the twin's dispatcher, for an arm the Rust cites after all
-        disp = {}
+        # every twin of a file, arms included (an arm points at its
+        # dispatcher's row), indexed by the module the citation names
+        disp = collections.defaultdict(list)
         for r in self.rows:
+            disp[r.d.path].append((r.d, r))
             for a in r.arms:
-                disp[(a.path, a.name)] = r
+                disp[a.path].append((a, r))
         save, P.REPO = P.REPO, root
         try:
             for f in P.rust_files(list(T.ROOTS)):
-                for i in P.scan_rust_file(f)[0]:
+                for i, q in with_impl(f, P.scan_rust_file(f)[0]):
                     if i.kind == "fn":
                         self.all_rust_fns.add(i.name())
+                        self.all_rust_fns.update(q)
         finally:
             P.REPO = save
         for f, ts in sorted(by_file.items()):
             items, _, _ = P.scan_rust_file(f)
             items = sorted(items, key=lambda i: i.lineno)
+            quals = dict((i.lineno, q) for i, q in with_impl(f, items))
             for t in sorted(ts, key=lambda t: t.lineno):
                 if t.name is None:
                     continue
-                row = self.row_for(t.path, t.name, disp)
+                row = self.row_for(t.path, t.name, disp, t.a)
                 if row is None:
                     continue
                 item = next((i for i in items if i.lineno >= t.lineno), None)
@@ -630,23 +972,30 @@ class Census:
                 ent = (item.name(), os.path.relpath(f, root), t.lineno)
                 if ent[0] not in [e[0] for e in row.rust]:
                     row.rust.append(ent)
+                    row.qual[ent[0]] = quals.get(item.lineno)
 
-    def row_for(self, path, name, disp):
-        r = self.by_key.get((path, name))
-        if r is not None:
-            return r
-        r = disp.get((path, name))
-        if r is not None:
-            return r
-        # the citation may drop or add a namespace
-        leaf = name.split(".")[-1]
-        for (p, n), row in self.by_key.items():
-            if p == path and (n == name or n.split(".")[-1] == leaf):
-                return row
-        for (p, n), row in disp.items():
-            if p == path and (n == name or n.split(".")[-1] == leaf):
-                return row
-        return None
+    def row_for(self, path, name, disp, cited_line=None):
+        """The row a `Lean twin:` citation names.
+
+        The NAME is the authority — `scripts/twin-lines.py update` relocates a
+        citation by name and rewrites only the digits — so the qualified name
+        decides first: `EStore.find?` is `EStore`'s, never `Tbl`'s, even when
+        the citation's range has rotted onto `Tbl.find?`.  The cited RANGE is
+        the tiebreak, and it is the one that settles the four `dropScratch` of
+        `Arena/Store.lean`, which the unqualified citation cannot."""
+        cands = []
+        for d, row in disp.get(path, ()):
+            full = P.names_compatible(d.full, name)
+            if not (full or P.names_compatible(d.name, name)):
+                continue
+            inside = 0 if (cited_line is not None
+                           and d.a <= cited_line <= d.b) else 1
+            cands.append(((0 if full else 1, 0 if d.full == name else 1,
+                           inside, d.lineno), row))
+        if not cands:
+            return None
+        cands.sort(key=lambda c: c[0])
+        return cands[0][1]
 
 
 # ------------------------------------------------------------------ output
@@ -699,9 +1048,8 @@ def self_check(census):
                 and not r.t2_other and not r.t2_skipped]
     t2_odd = [r for r in census.rows
               if r.t2_cited and not r.t2_stated and r.t2_other]
-    # One unqualified theorem, two twins with the same leaf in two modules
-    # (`viewApp` is `Monad.lean`'s wrapper AND `Store.lean`'s projection):
-    # the theorem is credited to both, and the row says "stated" for both.
+    # Round 2 made one theorem credit one twin (`t1_candidates`), so this is
+    # 0 by construction and the line stays as the assertion that it is.
     seen = collections.Counter()
     for r in census.rows:
         for t, _ in r.t1:
@@ -754,6 +1102,10 @@ def print_checkline(census):
         extra.append("%d STALE skip(s)" % len(census.skip_stale))
     if census.skip_redundant:
         extra.append("%d REDUNDANT skip(s)" % len(census.skip_redundant))
+    if census.t1_ambiguous:
+        extra.append("%d Bridge theorem(s) whose twin is AMBIGUOUS (credited "
+                     "to the first, by module then line)"
+                     % len(census.t1_ambiguous))
     print("self-check: %d twin(s) with NO Bridge theorem naming them at all; "
           "%d matched ONLY by an unrecognised suffix (a convention this "
           "script does not know)%s"
@@ -762,10 +1114,28 @@ def print_checkline(census):
         names = sorted({r.t1_other[0].name for r in odd})
         print("  T1 unrecognised: " + ", ".join(names[:12])
               + (" …" if len(names) > 12 else ""))
+    if census.t1_doc:
+        print("  T1 by doc comment: %d theorem(s) over %d twin(s) say "
+              "\"Theorem 1 for `X`\" — %s"
+              % (len(census.t1_doc), len({n for _, n in census.t1_doc}),
+                 ", ".join(sorted({"%s → %s" % (t.name, n)
+                                   for t, n in census.t1_doc}))))
+    for t, names in census.t1_ambiguous:
+        print("  AMBIGUOUS %s:%d %s — %s"
+              % (t.path[len(BRIDGE_DIR) + 1:], t.lineno, t.name,
+                 " / ".join(names)))
+    for a in census.orphan_arms:
+        print("  ORPHAN ARM %s:%d %s"
+              % (a.path[len(ARENA_DIR) + 1:], a.lineno, a.full))
     print("self-check (T2): %d cited twin(s) with NO Refine2 theorem naming "
           "their Rust function at all; %d named by a theorem under another "
-          "shape (the store tier's `_abs`/`_run` specs, not `_refines`)"
-          % (len(t2_blind), len(t2_odd)))
+          "shape (not one of %s)"
+          % (len(t2_blind), len(t2_odd),
+             "/".join(s for s, _ in T2_SUFFIXES)))
+    if census.t2_shapes:
+        print("  T2 shapes used: "
+              + ", ".join("%s %d" % (s, census.t2_shapes[s])
+                          for s, _ in T2_SUFFIXES if census.t2_shapes[s]))
     if t2_odd:
         names = sorted({r.t2_other[0] for r in t2_odd})
         print("  T2 other shape: " + ", ".join(names[:12])
@@ -822,7 +1192,7 @@ OPEN_GROUPS = (
      lambda r: not r.t1_skipped and r.t1 and not r.t1_closed),
     ("T2 UNCITED — no Rust function names this twin",
      lambda r: not r.t2_skipped and not r.t2_cited),
-    ("T2 UNSTATED — cited, but no `<fn>_refines`",
+    ("T2 UNSTATED — cited, but no `<fn>_refines`/`_abs`/`_run`/`_obs`",
      lambda r: not r.t2_skipped and r.t2_cited and not r.t2_stated),
     ("T2 SORRY — stated, not closed",
      lambda r: not r.t2_skipped and r.t2_stated and not r.t2_closed),
@@ -854,9 +1224,35 @@ def print_open(census):
 
 # --------------------------------------------------------------- self-test
 
+def self_check_counts(census):
+    """The self-check line as a dict, so `--selftest` can pin it too.
+
+    A verdict table alone would not catch a regression in the parts of the
+    census that are ABOUT the conventions rather than about one row — the
+    doc-comment rule, the ambiguity report, which T2 shape was used.  These
+    are the `@` lines of `expected.txt`."""
+    blind, odd, t2_blind, t2_odd, shared = self_check(census)
+    out = {
+        "t1_blind": len(blind),
+        "t1_other": len(odd),
+        "t1_doc": len(census.t1_doc),
+        "t1_ambiguous": len(census.t1_ambiguous),
+        "t1_shared": shared,
+        "t2_blind": len(t2_blind),
+        "t2_other": len(t2_odd),
+        "orphan_arms": len(census.orphan_arms),
+        "skip_bad": len(census.skip_bad),
+        "skip_stale": len(census.skip_stale),
+        "skip_redundant": len(census.skip_redundant),
+    }
+    for suf, _ in T2_SUFFIXES:
+        out["t2_shape" + suf] = census.t2_shapes[suf]
+    return out
+
+
 def cmd_selftest(verbose):
-    """The census over `scripts/testdata/arena-census/`, a twenty-row
-    miniature of the real tree, against its committed verdicts."""
+    """The census over `scripts/testdata/arena-census/`, a miniature of the
+    real tree, against its committed verdicts."""
     if not os.path.isdir(FIXTURE):
         print("selftest: no fixture at %s" % FIXTURE)
         return 2
@@ -865,12 +1261,17 @@ def cmd_selftest(verbose):
     for r in census.rows:
         s1, _ = r.t1_cell()
         s2, _ = r.t2_cell()
-        got[r.d.name] = "%s %s" % (s1, s2)
-    expected = {}
+        got[r.d.full] = "%s %s" % (s1, s2)
+    counts_got = self_check_counts(census)
+    expected, counts_want = {}, {}
     with open(os.path.join(FIXTURE, "expected.txt"), encoding="utf-8") as f:
         for raw in f:
             line = raw.strip()
             if not line or line.startswith("#"):
+                continue
+            if line.startswith("@"):
+                _, key, val = line.split(None, 2)
+                counts_want[key] = int(val.split()[0])
                 continue
             name, t1, t2, _rest = (line.split(None, 3) + [""])[:4]
             expected[name] = "%s %s" % (t1, t2)
@@ -882,10 +1283,22 @@ def cmd_selftest(verbose):
             bad += 1
         elif verbose:
             print("ok       %-30s %s" % (name, g))
+    for key in sorted(set(counts_want) | set(counts_got)):
+        e = counts_want.get(key)
+        g = counts_got.get(key)
+        if e is None or e != g:
+            print("MISMATCH @%-29s expected %-16s got %s"
+                  % (key, "<absent>" if e is None else e,
+                     "<absent>" if g is None else g))
+            bad += 1
+        elif verbose:
+            print("ok       @%-29s %s" % (key, g))
     if bad:
-        print("selftest: %d mismatch(es) of %d row(s)." % (bad, len(expected)))
+        print("selftest: %d mismatch(es) of %d row(s) and %d self-check "
+              "count(s)." % (bad, len(expected), len(counts_got)))
         return 1
-    print("selftest: %d fixture row(s), every verdict as recorded." % len(got))
+    print("selftest: %d fixture row(s) and %d self-check count(s), every "
+          "verdict as recorded." % (len(got), len(counts_got)))
     return 0
 
 
