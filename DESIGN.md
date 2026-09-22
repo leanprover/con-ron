@@ -37978,7 +37978,17 @@ it with numbers.
 | `scripts/diff-e2e.sh --bin=…/con-ron-lean` | **383/383 agree**, 0 differ, 0 errors — twice: after the eleven rebuilding walks were split, and again after the remaining twelve |
 | `scripts/provenance.py check` | **0 findings**, 6 439 items (4 099 Rust, 2 340 arena Lean), 4 200 citations, all current at pin `78ded4b6` |
 | `#print axioms` | `Bridge/Axioms.lean`, **104 results**, every one inside `[propext, Classical.choice, Quot.sound]`; no `sorryAx`, no `bv_decide` axiom.  `Bridge/ExprOps/**`'s own `#print axioms` lines report `sorryAx` on exactly the twelve open declarations plus `fvarLeavesFast_spec` and `leafGuard_spec` |
-| the diff | `proof/ConRon/Arena/{ExprOps,Monad,WFProofs}.lean`, `proof/ConRon/Bridge/**` and this section.  No Rust file, no generated model, no `Refine/`, no `Refine2/` (P5-1's `7a92f794` was merged in, not edited) |
+| the diff | `proof/ConRon/Arena/{ExprOps,Monad,WFProofs}.lean`, `proof/ConRon/Bridge/{Specs,StoreBM,StoreBind,Axioms}.lean`, `proof/ConRon/Bridge/ExprOps/**` and this section.  No Rust file, no generated model, no `Refine/`, no `Refine2/` |
+
+`arena` moved twice under this branch and both were merged in: task
+**#97-P5-1** (Theorem 2's intern plumbing, `7a92f794` — `Refine2/` only, whose
+finding 9 is §5 above) and task **#97-P3-Core** (`50a80f5b` — Theorem 1's Core
+tier, `Bridge/Core/**` only, 2 857 new lines).  The only conflict was textual,
+this section against theirs at the end of the task log.  **The Core tier was
+written against the PRE-split twins and the PRE-`BMExt` intern specs and needed
+no change**: it imports `Bridge/Specs.lean` and consumes its postconditions
+through `grind`, which is what makes an extra conjunct free.  All twelve gates
+and the 383-fixture sweep were re-run on the merged state.
 
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
