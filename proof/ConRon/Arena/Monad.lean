@@ -173,24 +173,38 @@ off the derived column. -/
 /-- con-leche: none — hash-cons an expression node.  DESIGN §8.3: "the Rust
 raises `Native` at the limit, the Lean `throw`s the same kind" — the capacity
 test lives HERE, at the monadic wrapper, so that `EStore.intern` stays total
-and `EStore.intern_spec`'s `capOK` hypothesis is discharged by this branch. -/
+and `EStore.intern_spec`'s `capOK` hypothesis is discharged by this branch.
+
+**PROBE FIRST** (task #97-P5-1's finding 9, fixed in the twin at #97-P3-1):
+the Rust tests `Tbl::full` only where it is about to APPEND — inside the
+cons-table miss path — so on a cons HIT at a full constructor array it answers
+`Ok`.  Testing the capacity before probing made the twin throw `native` on an
+input the Rust accepts, which is a divergence the refinement cannot absorb.
+The probe is `EStore.find?`, the same one `intern` makes; on a hit the store
+does not move and the handle is the one the cons table already holds
+(`EStore.view_of_find`). -/
 def internE (v : ENodeView) : AM EIdx := do
   let s ← get
-  let n := if s.store.scratchOn then s.store.scr.sizeOf v else s.store.pers.sizeOf v
-  -- **The binder datum's own array is part of the test** (task #97-P6-16): a
-  -- `lam`/`forallE` view interns a `BMNode` too, and a `BMIdx` past `idxCap`
-  -- would wrap into the tier bit.  Only the two binder arms reach the datum
-  -- store, so only they are tested — which is where the Rust's `intern_bm`
-  -- makes the same test, and raises the same `Native`.
-  let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
-  if n < Idx.idxCap && (!EStore.eViewNeedsBM v || nbm < Idx.idxCap) then
-    let st := s.store
-    let s := { s with store := EStore.empty }
-    let (st, h) := st.intern v
-    set { s with store := st }
-    pure h
-  else
-    fail (.native "arena: expression constructor array full")
+  match s.store.find? v with
+  | some h => pure h
+  | none =>
+    let n := if s.store.scratchOn then s.store.scr.sizeOf v else s.store.pers.sizeOf v
+    -- **The binder datum's own array is part of the test** (task #97-P6-16):
+    -- a `lam`/`forallE` view interns a `BMNode` too, and a `BMIdx` past
+    -- `idxCap` would wrap into the tier bit.  Only the two binder arms reach
+    -- the datum store, so only they are tested — which is where the Rust's
+    -- `intern_bm` makes the same test, and raises the same `Native`.  And it
+    -- is tested only when the DATUM itself is a cons miss, for the same
+    -- reason the node's array is: `intern_bm` tests `full` where it appends.
+    let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
+    if n < Idx.idxCap && ((s.store.findBMOfView v).isSome || nbm < Idx.idxCap) then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.intern v
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: expression constructor array full")
 
 /-! ### The dangling-handle declines, named once
 
@@ -358,15 +372,19 @@ the rebuilding walks want, where `eBindView` + `internE` stood. -/
 def internNNode (v : NNodeView) : AM NIdx := do
   let s ← get
   let ns := s.store.ns
-  let n := if ns.scratchOn then ns.scr.sizeOf v else ns.pers.sizeOf v
-  if n < Idx.idxCap then
-    let st := s.store
-    let s := { s with store := EStore.empty }
-    let (st, h) := st.internName v
-    set { s with store := st }
-    pure h
-  else
-    fail (.native "arena: name constructor array full")
+  -- **Probe first** (task #97-P5-1's finding 9), as `internE` does.
+  match ns.find? v with
+  | some h => pure h
+  | none =>
+    let n := if ns.scratchOn then ns.scr.sizeOf v else ns.pers.sizeOf v
+    if n < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internName v
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: name constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — read a name back out of
 the store as a transient `ConLeche.Name`.  Names are compared by handle
@@ -421,15 +439,19 @@ pair (its 32-bit hash and its `hasParam` bit, the computed field at lines
 def internLNode (v : LNodeView) : AM LIdx := do
   let s ← get
   let ls := s.store.ls
-  let n := if ls.scratchOn then ls.scr.sizeOf v else ls.pers.sizeOf v
-  if n < Idx.idxCap then
-    let st := s.store
-    let s := { s with store := EStore.empty }
-    let (st, h) := st.internLevel v
-    set { s with store := st }
-    pure h
-  else
-    fail (.native "arena: level constructor array full")
+  -- **Probe first** (task #97-P5-1's finding 9), as `internE` does.
+  match ls.find? v with
+  | some h => pure h
+  | none =>
+    let n := if ls.scratchOn then ls.scr.sizeOf v else ls.pers.sizeOf v
+    if n < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internLevel v
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: level constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — **the readback**
 (DESIGN §8.3 lesson 4, "intern the representation, not the algorithm"): a
@@ -475,15 +497,19 @@ universe-argument list handle (the `const` node's second field, line 347). -/
 def internLsNode (v : LsNodeView) : AM LsIdx := do
   let s ← get
   let lss := s.store.lss
-  let n := if lss.scratchOn then lss.scr.sizeOf v else lss.pers.sizeOf v
-  if n < Idx.idxCap then
-    let st := s.store
-    let s := { s with store := EStore.empty }
-    let (st, h) := st.internLevels v
-    set { s with store := st }
-    pure h
-  else
-    fail (.native "arena: level-list array full")
+  -- **Probe first** (task #97-P5-1's finding 9), as `internE` does.
+  match lss.find? v with
+  | some h => pure h
+  | none =>
+    let n := if lss.scratchOn then lss.scr.sizeOf v else lss.pers.sizeOf v
+    if n < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internLevels v
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: level-list array full")
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — read a universe
 argument list back as transient `Level` trees. -/
@@ -595,24 +621,44 @@ one at the same place, against the persistent array; the error is the same
 `Native` kind.  `Arena/Promote.lean` is the only caller.
 -/
 
+/-- con-leche: none — arena infrastructure; the PERSISTENT tier's datum probe
+for a whole node view, which is what `internBMOfViewPersistent` would hit.  It
+is `EStore.findBMOfView` with the scratch tier left out, and it is what makes
+`internPersistentE`'s capacity test fire only where an APPEND happens (task
+#97-P5-1's finding 9). -/
+def persFindBMOfView (st : EStore) (v : ENodeView) : Option BMIdx :=
+  match v with
+  | .lam _ _ m => st.persFindBM m
+  | .forallE _ _ m => st.persFindBM m
+  | _ => some (Idx.ofWord 0)
+
 /-- con-leche: none — arena infrastructure; hash-cons an expression node into
 the persistent tier. -/
 def internPersistentE (v : ENodeView) : AM EIdx := do
   let s ← get
-  if s.store.pers.sizeOf v < Idx.idxCap &&
-      (!EStore.eViewNeedsBM v || s.store.pers.bmSize < Idx.idxCap) then
-    let st := s.store
-    let s := { s with store := EStore.empty }
-    let (st, h) := st.internPersistent v
-    set { s with store := st }
-    pure h
-  else
-    fail (.native "arena: expression constructor array full")
+  -- **Probe first** (task #97-P5-1's finding 9), at the PERSISTENT tier,
+  -- which is the only one `internPersistent` probes.
+  match s.store.persFind? v with
+  | some h => pure h
+  | none =>
+    if s.store.pers.sizeOf v < Idx.idxCap &&
+        ((persFindBMOfView s.store v).isSome ||
+          s.store.pers.bmSize < Idx.idxCap) then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internPersistent v
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: expression constructor array full")
 
 /-- con-leche: none — arena infrastructure; hash-cons a name node into the
 persistent tier, through the nesting. -/
 def internPersistentN (v : NNodeView) : AM NIdx := do
   let s ← get
+  match s.store.ns.pers.find? v with
+  | some h => pure h
+  | none =>
   if s.store.ns.pers.sizeOf v < Idx.idxCap then
     let st := s.store
     let s := { s with store := EStore.empty }
@@ -626,6 +672,9 @@ def internPersistentN (v : NNodeView) : AM NIdx := do
 persistent tier, through the nesting. -/
 def internPersistentL (v : LNodeView) : AM LIdx := do
   let s ← get
+  match s.store.ls.pers.find? v with
+  | some h => pure h
+  | none =>
   if s.store.ls.pers.sizeOf v < Idx.idxCap then
     let st := s.store
     let s := { s with store := EStore.empty }
@@ -639,6 +688,9 @@ def internPersistentL (v : LNodeView) : AM LIdx := do
 into the persistent tier, through the nesting. -/
 def internPersistentLs (v : LsNodeView) : AM LsIdx := do
   let s ← get
+  match s.store.lss.pers.find? v with
+  | some h => pure h
+  | none =>
   if s.store.lss.pers.sizeOf v < Idx.idxCap then
     let st := s.store
     let s := { s with store := EStore.empty }

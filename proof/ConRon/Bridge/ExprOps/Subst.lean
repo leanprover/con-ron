@@ -1331,7 +1331,7 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     next =>
       bridge_peel
       subst_vars
-      refine fun hwf2 hx _hlss hmem hcc hpp _hvw hrr => ?_
+      refine fun hwf2 hx _hbm _hlss hmem hcc hpp _hvw hrr => ?_
       exact ⟨⟨hwf2⟩, MemoOK.mono hm hx (by rw [hmem]), hx, hcc, hpp,
         by rw [hmem], LiftAt.bvar_up hok.wf (by subst_hyp) (by subst_hyp) hrr⟩
     -- `bvar`, the branch below the cutoff
@@ -1551,7 +1551,7 @@ theorem lowerBVarsGo_spec (amount : Nat) (hbb : ∀ f, BvarBSpec (bvarB f)) :
     next =>
       bridge_peel
       subst_vars
-      refine fun hwf2 hx _hlss _hmem _hcc _hpp _hvw hrr => ?_
+      refine fun hwf2 hx _hbm _hlss _hmem _hcc _hpp _hvw hrr => ?_
       refine ⟨⟨hwf2⟩, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
@@ -1729,7 +1729,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr)
     next =>
       bridge_peel
       subst_vars
-      refine fun hwf2 hx _hlss _hmem _hcc _hpp _hvw hrr => ?_
+      refine fun hwf2 hx _hbm _hlss _hmem _hcc _hpp _hvw hrr => ?_
       refine ⟨⟨hwf2⟩, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
