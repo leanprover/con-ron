@@ -12630,4 +12630,31 @@ Finding 14's two halves and the binder composition of §2. -/
 /-- info: 'ConRon.Refine2.intern_e_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_e_run
 
+/-! ### Task #97-P5-Fresh: the promote window -/
+
+/-- info: 'ConRon.Refine2.lstore_intern_persistent_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lstore_intern_persistent_abs
+
+/-- info: 'ConRon.Refine2.lsstore_intern_persistent_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lsstore_intern_persistent_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_name_persistent_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_name_persistent_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_level_persistent_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_level_persistent_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_levels_persistent_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_levels_persistent_abs
+
+/-- info: 'ConRon.Refine2.intern_persistent_n_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_persistent_n_run
+
+/-- info: 'ConRon.Refine2.intern_persistent_l_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_persistent_l_run
+
+/-- info: 'ConRon.Refine2.intern_persistent_ls_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_persistent_ls_run
+
+
 end ConRon.Refine2

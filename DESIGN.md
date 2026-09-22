@@ -47585,8 +47585,13 @@ tier down where it belongs (its `sorry` there is now a one-line delegation).
 / `LsStoreWF'` / `StoreWF'`, the `of_wf` arrows, the four `…ViewPers`
 preconditions, and the section note with §1's argument.
 
-**`Arena/WFProofs.lean`** (9 236 → 10 763, **+1 563**, all but one word per store
-in the append-only section — §4 is the exception):
+**`Arena/WFProofs.lean`** (9 236 → 10 763, **+1 563**).  All of it is the
+append-only section except two edits in place, both §4's: the four
+`wf_of_scr_empty` hypotheses (one word each, `XWFAt` → `XWFAt'`, and not a line
+of their proofs moved), and `EWFAt'.of_wf` together with
+`EWFAt.persFindBM_of_view_pers` — renamed `EWFAt'.` and weakened the same way,
+its one caller being `wf_of_scr_empty` itself — placed just before them,
+because that is where they are first needed:
 
 | group | lines | note |
 |---|---:|---|
