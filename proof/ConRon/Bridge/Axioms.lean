@@ -114,15 +114,38 @@ namespace ConRon.Bridge
 #print axioms pinReserved_spec
 #print axioms pinSortOne_spec
 
-/-! ## The `ExprOps` tier's exemplar
+/-! ## The `ExprOps` tier's exemplar — **closed** (task #97-P3-1)
 
-`instantiate1Go_spec` carries `sorryAx` while its five open goals stand (two
-in the binder arm, waiting for `Bridge/StoreBM.lean`'s conjunct to be threaded
-into the `intern` specs; three in the `bvar` arm, waiting for the decision
-between a monomorphic answer relation and an `unfold RelE` in the closer).
-`instantiate1Fast_spec` and `instantiate1Fast_run` are stated over it, so they
-carry it too; everything the file proves ON ITS OWN is closed and is printed
-here. -/
+Task #97-P3-0 left `instantiate1Go_spec` with five open goals and printed only
+what the file proved on its own.  All five are closed: the binder arm's two by
+`Bridge/StoreBM.lean`'s `BMExt` threaded through the intern specs, the `bvar`
+arm's three by the arm-split ruling, which makes the `bvar` arm a theorem of
+its own where unfolding the answer relation cannot reach any other arm.  So
+the whole chain is printed here — the five arm theorems, the dispatcher, the
+entry bracket and the run form — and every one of them must report the three.
+
+The binder-datum store's extension relation is printed with them: it is the
+one piece of new store reasoning the round added, and the two `intern` facts
+under it are what every rebuilding walk's binder arm now leans on. -/
+
+#print axioms BMExt.intern
+#print axioms BMExt.internAt
+#print axioms BMExt.get
+#print axioms BMExt.isSome
+#print axioms ConRon.Arena.EStore.view_of_find
+#print axioms ConRon.Arena.EStore.view_of_persFind
+#print axioms ConRon.Arena.NStore.view_of_find
+#print axioms ConRon.Arena.LStore.view_of_find
+#print axioms ConRon.Arena.LsStore.view_of_find
+
+#print axioms ExprOps.instantiate1ArmBVar_spec
+#print axioms ExprOps.instantiate1ArmApp_spec
+#print axioms ExprOps.instantiate1ArmBind_spec
+#print axioms ExprOps.instantiate1ArmLet_spec
+#print axioms ExprOps.instantiate1ArmProj_spec
+#print axioms ExprOps.instantiate1Go_spec
+#print axioms ExprOps.instantiate1Fast_spec
+#print axioms ExprOps.instantiate1Fast_run
 
 #print axioms ExprOps.instantiate1_of_bvarBound_le
 #print axioms ExprOps.instantiate1_of_raw_le

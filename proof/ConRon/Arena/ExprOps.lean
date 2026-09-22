@@ -242,81 +242,163 @@ state the checker never builds and `StoreWF` excludes.
 
 **The memo probe before the node read**: two reads of the state commute. -/
 
+/-! ### The arms, split (DESIGN §8.6's ruling of 2026-09-22)
+
+The coordinator's ruling after task #97-P3-0: the Lean twin splits every
+multi-arm body into one `def` per constructor arm inside a `mutual` block,
+the dispatcher calling the arms by name (no closures — DESIGN §3.4).  The
+Rust keeps its inline arms; the refinement maps one Rust function onto the
+twin's dispatcher-plus-arms, the same denotation, a twin-ledger row of the
+"shape" kind.  The measured reason is Theorem 1's elaboration: 72 s on this
+one inline body (task #97-P3-0's §4) against a few seconds per arm.
+
+**Where the cut goes**: at the memo probe (task #97b).  Each arm owns its
+probe, its projection, its recursion, its rebuild and its insert; the
+dispatcher is the cutoff, the tag chain and nothing else.  The measure is the
+lexicographic `(fuel, tag)` task #97b predicted — the dispatcher at tag `0`
+calls an arm at `fuel - 1`, and an arm at tag `1` calls the dispatcher at its
+own fuel.  A leaf arm whose whole body is `pure h` has nothing to split and
+stays in the dispatcher. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+`bvar` arm.  It does not recurse, so it sits outside the `mutual` block:
+`i = d` answers the substituted handle, `i > d` interns the lowered index,
+`i < d` answers the handle itself. -/
+def instantiate1ArmBVar (v : EIdx) (h : EIdx) (d : Nat) : AM EIdx := do
+  match ← viewBVar h with
+  | none => failDanglingE
+  | some i =>
+    if i = d then pure v
+    else if i > d then internBVarE (i - 1)
+    else pure h
+
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:29-45 instantiate1
 con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go
 Replace `bvar d` by `v`, lowering loose `bvar`s above `d` by one.  The
 derived-word cutoff comes first (`bvarB ≤ d`, read off the packed word in
 `O(1)`); the five leaf kinds answer without touching the memo; everything
-else probes the memo, runs the body one level down and inserts.
+else hands off to its arm, which probes the memo, runs the body one level
+down and inserts.
 
 `else .bvar i` is `pure h`: the node is already interned and `denoteE` is
 injective, so rebuilding it yields the same handle. -/
-def instantiate1Go (v : EIdx) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: instantiate1")
-  | fuel + 1, h, d => do
+def instantiate1Go (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: instantiate1")
+  | fuel + 1 => do
     let der ← derivedE h
     let b := (bvarOfData der).toNat
     if b < satRange && b ≤ d then
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewApp h with
-          | none => failDanglingE
-          | some (f, a) => do
-            let f' ← instantiate1Go v fuel f d
-            let a' ← instantiate1Go v fuel a d
-            let r ← internAppE f' a'
-            inst1Set (h, d) r
-            pure r
-      else if ETag.isBind tg then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewBindI h with
-          | none => failDanglingE
-          | some (ty, body, m) => do
-            let t ← instantiate1Go v fuel ty d
-            let b' ← instantiate1Go v fuel body (d + 1)
-            let r ← internBindIE tg t b' m
-            inst1Set (h, d) r
-            pure r
-      else if tg == ETag.bvar then
-        match ← viewBVar h with
-        | none => failDanglingE
-        | some i =>
-          if i = d then pure v
-          else if i > d then internBVarE (i - 1)
-          else pure h
-      else if tg == ETag.letE then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewLet h with
-          | none => failDanglingE
-          | some (ty, val, body) => do
-            let t ← instantiate1Go v fuel ty d
-            let w ← instantiate1Go v fuel val d
-            let b' ← instantiate1Go v fuel body (d + 1)
-            let r ← internLetEE t w b'
-            inst1Set (h, d) r
-            pure r
-      else if tg == ETag.proj then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewProj h with
-          | none => failDanglingE
-          | some (n, i, sub) => do
-            let u ← instantiate1Go v fuel sub d
-            let r ← internProjE n i u
-            inst1Set (h, d) r
-            pure r
-      else
+      if tg == ETag.app then instantiate1ArmApp v fuel h d
+      else if ETag.isBind tg then instantiate1ArmBind v fuel h d
+      else if tg == ETag.bvar then instantiate1ArmBVar v h d
+      else if tg == ETag.letE then instantiate1ArmLet v fuel h d
+      else if tg == ETag.proj then instantiate1ArmProj v fuel h d
+      else pure h
+termination_by (fuel, 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `app`
+arm: probe, project, recurse into both children, rebuild, insert. -/
+def instantiate1ArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewApp h with
+    | none => failDanglingE
+    | some (f, a) => do
+      let f' ← instantiate1Go v fuel f d
+      let a' ← instantiate1Go v fuel a d
+      let r ← internAppE f' a'
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+binder arm, `lam` and `forallE` in one exactly as the tag dispatch tests them
+(`ETag.isBind`); the datum travels as a HANDLE (task #97-P6-16). -/
+def instantiate1ArmBind (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewBindI h with
+    | none => failDanglingE
+    | some (ty, body, m) => do
+      let t ← instantiate1Go v fuel ty d
+      let b' ← instantiate1Go v fuel body (d + 1)
+      let r ← internBindIE h.tag t b' m
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+`letE` arm; the body descends at `d + 1`. -/
+def instantiate1ArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewLet h with
+    | none => failDanglingE
+    | some (ty, val, body) => do
+      let t ← instantiate1Go v fuel ty d
+      let w ← instantiate1Go v fuel val d
+      let b' ← instantiate1Go v fuel body (d + 1)
+      let r ← internLetEE t w b'
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+`proj` arm. -/
+def instantiate1ArmProj (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewProj h with
+    | none => failDanglingE
+    | some (n, i, sub) => do
+      let u ← instantiate1Go v fuel sub d
+      let r ← internProjE n i u
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `instantiate1Go`'s clause at fuel `0`, as an equation
+lemma.  Template rule 9 (DESIGN, task #97-P3-0 §4): a walk whose measure is
+`termination_by` rather than a constructor pattern needs its clauses as
+lemmas, or `mvcgen [f]` rewrites the recursive call forever. -/
+theorem instantiate1Go_zero (v h : EIdx) (d : Nat) :
+    instantiate1Go v 0 h d =
+      fail (.internal "fuel exhausted: instantiate1") := by
+  rw [instantiate1Go]
+
+/-- con-leche: none — `instantiate1Go`'s clause at `fuel + 1` (template rule
+9): the cutoff, then the tag chain, then the arms by name. -/
+theorem instantiate1Go_succ (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    instantiate1Go v (fuel + 1) h d = (do
+      let der ← derivedE h
+      let b := (bvarOfData der).toNat
+      if b < satRange && b ≤ d then
         pure h
+      else
+        let tg := h.tag
+        if tg == ETag.app then instantiate1ArmApp v fuel h d
+        else if ETag.isBind tg then instantiate1ArmBind v fuel h d
+        else if tg == ETag.bvar then instantiate1ArmBVar v h d
+        else if tg == ETag.letE then instantiate1ArmLet v fuel h d
+        else if tg == ETag.proj then instantiate1ArmProj v fuel h d
+        else pure h) := by
+  rw [instantiate1Go]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast — the
 top-level entry: `(instantiate1Go v {} e d).1`, i.e. the memo is fresh before
@@ -333,142 +415,256 @@ def instantiate1Fast (fuel : Nat) (e v : EIdx) (d : Nat := 0) : AM EIdx := do
 `instantiateList` (`ExprOps.lean:288`), because that arm recurses into the
 replacement with a *shorter* list and the memo is keyed for the outer one. -/
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 unmemoized bulk instantiation.  con-leche's termination measure is
 `(vs.length, sizeOf e)`; the arena's single fuel counter decreases on both
-kinds of recursive call, which is the same order flattened.
+kinds of recursive call, which is the same order flattened.  This is the
+DISPATCHER; the arms are split per DESIGN §8.6's ruling of 2026-09-22.
 
 DEVIATION (task #97f): the derived-word cutoff `bvarBRaw < satRange &&
 bvarBRaw ≤ d`, which con-leche does not have.  Denotation-preserving by
 `looseBVarsBounded d e → instantiateList e vs d = e` (the module note above
 states the induction; P3 discharges it).  It is what makes the `.bvar` arm's
 recursion into a `bvar`-closed replacement `O(1)` instead of a traversal. -/
-def instantiateList : Array EIdx → Nat → EIdx → Nat → AM EIdx
-  | _, 0, _, _ => fail (.internal "fuel exhausted: instantiateList")
-  | vs, fuel + 1, h, d => do
+def instantiateList (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: instantiateList")
+  | fuel + 1 => do
     if ← instListCutoff h d then
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then
-        match ← viewApp h with
-        | none => failDanglingE
-        | some (f, a) => do
-          let f' ← instantiateList vs fuel f d
-          let a' ← instantiateList vs fuel a d
-          internAppE f' a'
-      else if ETag.isBind tg then
-        match ← viewBindI h with
-        | none => failDanglingE
-        | some (ty, body, m) => do
-          let t ← instantiateList vs fuel ty d
-          let b ← instantiateList vs fuel body (d + 1)
-          internBindIE tg t b m
-      else if tg == ETag.letE then
-        match ← viewLet h with
-        | none => failDanglingE
-        | some (ty, val, body) => do
-          let t ← instantiateList vs fuel ty d
-          let w ← instantiateList vs fuel val d
-          let b ← instantiateList vs fuel body (d + 1)
-          internLetEE t w b
-      else if tg == ETag.proj then
-        match ← viewProj h with
-        | none => failDanglingE
-        | some (n, i, sub) => do
-          let u ← instantiateList vs fuel sub d
-          internProjE n i u
-      else if tg == ETag.bvar then
-        match ← viewBVar h with
-        | none => failDanglingE
-        | some j =>
-          if j < d then pure h
-          else if hlt : j - d < vs.size then
-            -- **`vs` is in PUSH order** (task #97-P6-15): con-leche's
-            -- `vs[j - d]`, the innermost binder's argument first, is this
-            -- array's entry `j - d` FROM THE END.  The two are the same list;
-            -- only the direction the accumulator grows changed.
-            let vi := vs[vs.size - 1 - (j - d)]'(by omega)
-            -- **The cutoff hoisted over the prefix copy** (task #97-P6-9).
-            -- The recursion into the replacement is con-leche's own
-            -- `instantiateList vs[j-d] (vs.take (j-d)) d`, and its own note
-            -- says it is the identity on `bvar`-closed replacements (every
-            -- checker call site) — which is exactly what `instListCutoff`
-            -- decides, in `O(1)`, off the handle's derived word.  Testing it
-            -- BEFORE the prefix copy is the same value, by the cutoff's own
-            -- equation `looseBVarsBounded d e → instantiateList e vs d = e`.
-            if ← instListCutoff vi d then pure vi
-            else instantiateList (lastEidx vs (j - d)) fuel vi d
-          else internBVarE (j - vs.size)
-      else
+      if tg == ETag.app then instListArmApp vs fuel h d
+      else if ETag.isBind tg then instListArmBind vs fuel h d
+      else if tg == ETag.letE then instListArmLet vs fuel h d
+      else if tg == ETag.proj then instListArmProj vs fuel h d
+      else if tg == ETag.bvar then instListArmBVar vs fuel h d
+      else pure h
+termination_by (fuel, 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+`app` arm. -/
+def instListArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← viewApp h with
+  | none => failDanglingE
+  | some (f, a) => do
+    let f' ← instantiateList vs fuel f d
+    let a' ← instantiateList vs fuel a d
+    internAppE f' a'
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+binder arm. -/
+def instListArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← viewBindI h with
+  | none => failDanglingE
+  | some (ty, body, m) => do
+    let t ← instantiateList vs fuel ty d
+    let b ← instantiateList vs fuel body (d + 1)
+    internBindIE h.tag t b m
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+`letE` arm. -/
+def instListArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← viewLet h with
+  | none => failDanglingE
+  | some (ty, val, body) => do
+    let t ← instantiateList vs fuel ty d
+    let w ← instantiateList vs fuel val d
+    let b ← instantiateList vs fuel body (d + 1)
+    internLetEE t w b
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+`proj` arm. -/
+def instListArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← viewProj h with
+  | none => failDanglingE
+  | some (n, i, sub) => do
+    let u ← instantiateList vs fuel sub d
+    internProjE n i u
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+`bvar` arm, which is the one that recurses with a SHORTER argument vector. -/
+def instListArmBVar (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← viewBVar h with
+  | none => failDanglingE
+  | some j =>
+    if j < d then pure h
+    else if hlt : j - d < vs.size then
+      -- **`vs` is in PUSH order** (task #97-P6-15): con-leche's `vs[j - d]`,
+      -- the innermost binder's argument first, is this array's entry `j - d`
+      -- FROM THE END.  The two are the same list; only the direction the
+      -- accumulator grows changed.
+      let vi := vs[vs.size - 1 - (j - d)]'(by omega)
+      -- **The cutoff hoisted over the prefix copy** (task #97-P6-9).  The
+      -- recursion into the replacement is con-leche's own
+      -- `instantiateList vs[j-d] (vs.take (j-d)) d`, and its own note says it
+      -- is the identity on `bvar`-closed replacements (every checker call
+      -- site) — which is exactly what `instListCutoff` decides, in `O(1)` off
+      -- the handle's derived word.  Testing it BEFORE the prefix copy is the
+      -- same value, by the cutoff's own equation
+      -- `looseBVarsBounded d e → instantiateList e vs d = e`.
+      if ← instListCutoff vi d then pure vi
+      else instantiateList (lastEidx vs (j - d)) fuel vi d
+    else internBVarE (j - vs.size)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `instantiateList`'s clause at fuel `0` (template rule
+9, DESIGN task #97-P3-0 §4). -/
+theorem instantiateList_zero (vs : Array EIdx) (h : EIdx) (d : Nat) :
+    instantiateList vs 0 h d =
+      fail (.internal "fuel exhausted: instantiateList") := by
+  rw [instantiateList]
+
+/-- con-leche: none — `instantiateList`'s clause at `fuel + 1` (template rule
+9). -/
+theorem instantiateList_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
+    (d : Nat) :
+    instantiateList vs (fuel + 1) h d = (do
+      if ← instListCutoff h d then
         pure h
+      else
+        let tg := h.tag
+        if tg == ETag.app then instListArmApp vs fuel h d
+        else if ETag.isBind tg then instListArmBind vs fuel h d
+        else if tg == ETag.letE then instListArmLet vs fuel h d
+        else if tg == ETag.proj then instListArmProj vs fuel h d
+        else if tg == ETag.bvar then instListArmBVar vs fuel h d
+        else pure h) := by
+  rw [instantiateList]
+mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
-above, exactly as con-leche's does.
+above, exactly as con-leche's does — so it is called by name and is not one
+of this block's arms.  This is the DISPATCHER; the arms are split per DESIGN
+§8.6's ruling of 2026-09-22.
 
 DEVIATION (task #97f): the same derived-word cutoff as the pure walk, with
 the same licence. -/
-def instantiateListGo (vs : Array EIdx) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: instantiateList")
-  | fuel + 1, h, d => do
+def instantiateListGo (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: instantiateList")
+  | fuel + 1 => do
     if ← instListCutoff h d then
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then
-        match ← instLGet (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewApp h with
-          | none => failDanglingE
-          | some (f, a) => do
-            let f' ← instantiateListGo vs fuel f d
-            let a' ← instantiateListGo vs fuel a d
-            let r ← internAppE f' a'
-            instLSet (h, d) r
-            pure r
-      else if ETag.isBind tg then
-        match ← instLGet (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewBindI h with
-          | none => failDanglingE
-          | some (ty, body, m) => do
-            let t ← instantiateListGo vs fuel ty d
-            let b ← instantiateListGo vs fuel body (d + 1)
-            let r ← internBindIE tg t b m
-            instLSet (h, d) r
-            pure r
-      else if tg == ETag.letE then
-        match ← instLGet (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewLet h with
-          | none => failDanglingE
-          | some (ty, val, body) => do
-            let t ← instantiateListGo vs fuel ty d
-            let w ← instantiateListGo vs fuel val d
-            let b ← instantiateListGo vs fuel body (d + 1)
-            let r ← internLetEE t w b
-            instLSet (h, d) r
-            pure r
-      else if tg == ETag.proj then
-        match ← instLGet (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewProj h with
-          | none => failDanglingE
-          | some (n, i, sub) => do
-            let u ← instantiateListGo vs fuel sub d
-            let r ← internProjE n i u
-            instLSet (h, d) r
-            pure r
-      else if tg == ETag.bvar then
-        instantiateList vs fuel h d
-      else
-        pure h
+      if tg == ETag.app then instListGoArmApp vs fuel h d
+      else if ETag.isBind tg then instListGoArmBind vs fuel h d
+      else if tg == ETag.letE then instListGoArmLet vs fuel h d
+      else if tg == ETag.proj then instListGoArmProj vs fuel h d
+      else if tg == ETag.bvar then instantiateList vs fuel h d
+      else pure h
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+`app` arm. -/
+def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← instLGet (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewApp h with
+    | none => failDanglingE
+    | some (f, a) => do
+      let f' ← instantiateListGo vs fuel f d
+      let a' ← instantiateListGo vs fuel a d
+      let r ← internAppE f' a'
+      instLSet (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+binder arm. -/
+def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← instLGet (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewBindI h with
+    | none => failDanglingE
+    | some (ty, body, m) => do
+      let t ← instantiateListGo vs fuel ty d
+      let b ← instantiateListGo vs fuel body (d + 1)
+      let r ← internBindIE h.tag t b m
+      instLSet (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+`letE` arm. -/
+def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← instLGet (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewLet h with
+    | none => failDanglingE
+    | some (ty, val, body) => do
+      let t ← instantiateListGo vs fuel ty d
+      let w ← instantiateListGo vs fuel val d
+      let b ← instantiateListGo vs fuel body (d + 1)
+      let r ← internLetEE t w b
+      instLSet (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+`proj` arm. -/
+def instListGoArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← instLGet (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewProj h with
+    | none => failDanglingE
+    | some (n, i, sub) => do
+      let u ← instantiateListGo vs fuel sub d
+      let r ← internProjE n i u
+      instLSet (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `instantiateListGo`'s clause at fuel `0` (template rule
+9). -/
+theorem instantiateListGo_zero (vs : Array EIdx) (h : EIdx) (d : Nat) :
+    instantiateListGo vs 0 h d =
+      fail (.internal "fuel exhausted: instantiateList") := by
+  rw [instantiateListGo]
+
+/-- con-leche: none — `instantiateListGo`'s clause at `fuel + 1` (template
+rule 9). -/
+theorem instantiateListGo_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
+    (d : Nat) :
+    instantiateListGo vs (fuel + 1) h d = (do
+      if ← instListCutoff h d then
+        pure h
+      else
+        let tg := h.tag
+        if tg == ETag.app then instListGoArmApp vs fuel h d
+        else if ETag.isBind tg then instListGoArmBind vs fuel h d
+        else if tg == ETag.letE then instListGoArmLet vs fuel h d
+        else if tg == ETag.proj then instListGoArmProj vs fuel h d
+        else if tg == ETag.bvar then instantiateList vs fuel h d
+        else pure h) := by
+  rw [instantiateListGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:371-373 instantiateListFast — the
 top-level entry. -/
 def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0) :
@@ -480,17 +676,26 @@ def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0)
 
 /-! ## `liftLooseBVars` — `ExprOps.lean:380-400`, `:430-466`, `:532-534` -/
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:380-400 liftLooseBVars
 con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo
-Bump every loose bound variable `≥ cutoff` by `amount`.
+Bump every loose bound variable `≥ cutoff` by `amount`.  This is the
+DISPATCHER (arms split per DESIGN §8.6's ruling of 2026-09-22).  A leaf arm
+whose whole body is `pure h` has nothing to split and stays here; every arm
+with a memo probe is a `def` of its own, and takes the children the
+dispatcher's `view` already projected — a second store read per node is what
+the split must NOT cost.
 
 DEVIATION (task #97f): the derived-word cutoff `bvarBRaw < satRange &&
 bvarBRaw ≤ c`, which con-leche does not have.  Denotation-preserving by
 `looseBVarsBounded c e → liftLooseBVars e c amount = e` (the module note
 above states the induction; P3 discharges it). -/
-def liftLooseBVarsGo (amount : Nat) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: liftLooseBVars")
-  | fuel + 1, h, c => do
+def liftLooseBVarsGo (amount : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
+    AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: liftLooseBVars")
+  | fuel + 1 => do
     let bRaw := (bvarOfData (← derivedE h)).toNat
     if bRaw < satRange && bRaw ≤ c then
       pure h
@@ -501,52 +706,112 @@ def liftLooseBVarsGo (amount : Nat) : Nat → EIdx → Nat → AM EIdx
     | .sort _ => pure h
     | .const _ _ => pure h
     | .lit _ => pure h
-    | .app a b => do
-      match ← liftGet (h, c) with
-      | some r => pure r
-      | none => do
-        let a' ← liftLooseBVarsGo amount fuel a c
-        let b' ← liftLooseBVarsGo amount fuel b c
-        let r ← internE (.app a' b')
-        liftSet (h, c) r
-        pure r
-    | .lam ty body m => do
-      match ← liftGet (h, c) with
-      | some r => pure r
-      | none => do
-        let t ← liftLooseBVarsGo amount fuel ty c
-        let b ← liftLooseBVarsGo amount fuel body (c + 1)
-        let r ← internE (.lam t b m)
-        liftSet (h, c) r
-        pure r
-    | .forallE ty body m => do
-      match ← liftGet (h, c) with
-      | some r => pure r
-      | none => do
-        let t ← liftLooseBVarsGo amount fuel ty c
-        let b ← liftLooseBVarsGo amount fuel body (c + 1)
-        let r ← internE (.forallE t b m)
-        liftSet (h, c) r
-        pure r
-    | .letE ty val body => do
-      match ← liftGet (h, c) with
-      | some r => pure r
-      | none => do
-        let t ← liftLooseBVarsGo amount fuel ty c
-        let w ← liftLooseBVarsGo amount fuel val c
-        let b ← liftLooseBVarsGo amount fuel body (c + 1)
-        let r ← internE (.letE t w b)
-        liftSet (h, c) r
-        pure r
-    | .proj n i sub => do
-      match ← liftGet (h, c) with
-      | some r => pure r
-      | none => do
-        let u ← liftLooseBVarsGo amount fuel sub c
-        let r ← internE (.proj n i u)
-        liftSet (h, c) r
-        pure r
+    | .app a b => liftArmApp amount fuel h c a b
+    | .lam ty body m => liftArmLam amount fuel h c ty body m
+    | .forallE ty body m => liftArmForallE amount fuel h c ty body m
+    | .letE ty val body => liftArmLet amount fuel h c ty val body
+    | .proj n i sub => liftArmProj amount fuel h c n i sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo — the
+`app` arm. -/
+def liftArmApp (amount fuel : Nat) (h : EIdx) (c : Nat) (a b : EIdx) :
+    AM EIdx := do
+  match ← liftGet (h, c) with
+  | some r => pure r
+  | none => do
+    let a' ← liftLooseBVarsGo amount fuel a c
+    let b' ← liftLooseBVarsGo amount fuel b c
+    let r ← internE (.app a' b')
+    liftSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo — the
+`lam` arm; the body descends at `c + 1`. -/
+def liftArmLam (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
+    (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← liftGet (h, c) with
+  | some r => pure r
+  | none => do
+    let t ← liftLooseBVarsGo amount fuel ty c
+    let b ← liftLooseBVarsGo amount fuel body (c + 1)
+    let r ← internE (.lam t b m)
+    liftSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo — the
+`forallE` arm. -/
+def liftArmForallE (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
+    (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← liftGet (h, c) with
+  | some r => pure r
+  | none => do
+    let t ← liftLooseBVarsGo amount fuel ty c
+    let b ← liftLooseBVarsGo amount fuel body (c + 1)
+    let r ← internE (.forallE t b m)
+    liftSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo — the
+`letE` arm. -/
+def liftArmLet (amount fuel : Nat) (h : EIdx) (c : Nat) (ty val body : EIdx) :
+    AM EIdx := do
+  match ← liftGet (h, c) with
+  | some r => pure r
+  | none => do
+    let t ← liftLooseBVarsGo amount fuel ty c
+    let w ← liftLooseBVarsGo amount fuel val c
+    let b ← liftLooseBVarsGo amount fuel body (c + 1)
+    let r ← internE (.letE t w b)
+    liftSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo — the
+`proj` arm. -/
+def liftArmProj (amount fuel : Nat) (h : EIdx) (c : Nat) (n : NIdx) (i : Nat)
+    (sub : EIdx) : AM EIdx := do
+  match ← liftGet (h, c) with
+  | some r => pure r
+  | none => do
+    let u ← liftLooseBVarsGo amount fuel sub c
+    let r ← internE (.proj n i u)
+    liftSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `liftLooseBVarsGo`'s clause at fuel `0` (template rule
+9). -/
+theorem liftLooseBVarsGo_zero (amount : Nat) (h : EIdx) (c : Nat) :
+    liftLooseBVarsGo amount 0 h c =
+      fail (.internal "fuel exhausted: liftLooseBVars") := by
+  rw [liftLooseBVarsGo]
+
+/-- con-leche: none — `liftLooseBVarsGo`'s clause at `fuel + 1` (template
+rule 9). -/
+theorem liftLooseBVarsGo_succ (amount fuel : Nat) (h : EIdx) (c : Nat) :
+    liftLooseBVarsGo amount (fuel + 1) h c = (do
+      let bRaw := (bvarOfData (← derivedE h)).toNat
+      if bRaw < satRange && bRaw ≤ c then
+        pure h
+      else
+      match ← view h with
+      | .bvar i => if i ≥ c then internE (.bvar (i + amount)) else pure h
+      | .fvar _ _ => pure h
+      | .sort _ => pure h
+      | .const _ _ => pure h
+      | .lit _ => pure h
+      | .app a b => liftArmApp amount fuel h c a b
+      | .lam ty body m => liftArmLam amount fuel h c ty body m
+      | .forallE ty body m => liftArmForallE amount fuel h c ty body m
+      | .letE ty val body => liftArmLet amount fuel h c ty val body
+      | .proj n i sub => liftArmProj amount fuel h c n i sub) := by
+  rw [liftLooseBVarsGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:532-534 liftLooseBVarsFast — the
 top-level entry. -/
 def liftLooseBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
@@ -560,74 +825,135 @@ def liftLooseBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
 The memo has no cursor in con-leche; the arena keys it at `0` so that every
 handle-valued memo has one shape (see `Memos`). -/
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:552-559 resetMeta
 con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo
 Reset every binder's prop-ness datum to the parse placeholder; the `fvar`
-annotation is descended into. -/
-def resetMetaGo : Nat → EIdx → AM EIdx
-  | 0, _ => fail (.internal "fuel exhausted: resetMeta")
-  | fuel + 1, h => do
+annotation is descended into.  The dispatcher (arms split per DESIGN §8.6's
+ruling of 2026-09-22); the four leaf arms are `pure h` and stay here. -/
+def resetMetaGo (fuel : Nat) (h : EIdx) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: resetMeta")
+  | fuel + 1 => do
     match ← view h with
     | .bvar _ => pure h
     | .sort _ => pure h
     | .const _ _ => pure h
     | .lit _ => pure h
-    | .fvar i ty => do
-      match ← resetGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← resetMetaGo fuel ty
-        let r ← internRebuiltFVar h (t == ty) i t
-        resetSet (h, 0) r
-        pure r
-    | .app f a => do
-      match ← resetGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let f' ← resetMetaGo fuel f
-        let a' ← resetMetaGo fuel a
-        let r ← internRebuiltApp h (f' == f && a' == a) f' a'
-        resetSet (h, 0) r
-        pure r
-    | .lam ty body m0 => do
-      match ← resetGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← resetMetaGo fuel ty
-        let b ← resetMetaGo fuel body
-        let m2 : ConLeche.BinderMeta := ⟨.never⟩
-        let r ← internRebuiltLam h (t == ty && b == body && m2 == m0) t b m2
-        resetSet (h, 0) r
-        pure r
-    | .forallE ty body m0 => do
-      match ← resetGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← resetMetaGo fuel ty
-        let b ← resetMetaGo fuel body
-        let m2 : ConLeche.BinderMeta := ⟨.never⟩
-        let r ← internRebuiltForallE h (t == ty && b == body && m2 == m0) t b m2
-        resetSet (h, 0) r
-        pure r
-    | .letE ty val body => do
-      match ← resetGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← resetMetaGo fuel ty
-        let w ← resetMetaGo fuel val
-        let b ← resetMetaGo fuel body
-        let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
-        resetSet (h, 0) r
-        pure r
-    | .proj n i sub => do
-      match ← resetGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let u ← resetMetaGo fuel sub
-        let r ← internRebuiltProj h (u == sub) n i u
-        resetSet (h, 0) r
-        pure r
+    | .fvar i ty => resetArmFVar fuel h i ty
+    | .app f a => resetArmApp fuel h f a
+    | .lam ty body m0 => resetArmLam fuel h ty body m0
+    | .forallE ty body m0 => resetArmForallE fuel h ty body m0
+    | .letE ty val body => resetArmLet fuel h ty val body
+    | .proj n i sub => resetArmProj fuel h n i sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — the `fvar`
+arm: the annotation is descended into. -/
+def resetArmFVar (fuel : Nat) (h : EIdx) (i : Nat) (ty : EIdx) : AM EIdx := do
+  match ← resetGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← resetMetaGo fuel ty
+    let r ← internRebuiltFVar h (t == ty) i t
+    resetSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — the `app`
+arm. -/
+def resetArmApp (fuel : Nat) (h : EIdx) (f a : EIdx) : AM EIdx := do
+  match ← resetGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let f' ← resetMetaGo fuel f
+    let a' ← resetMetaGo fuel a
+    let r ← internRebuiltApp h (f' == f && a' == a) f' a'
+    resetSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — the `lam`
+arm: this is where the datum is reset to the parse placeholder. -/
+def resetArmLam (fuel : Nat) (h : EIdx) (ty body : EIdx)
+    (m0 : ConLeche.BinderMeta) : AM EIdx := do
+  match ← resetGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← resetMetaGo fuel ty
+    let b ← resetMetaGo fuel body
+    let m2 : ConLeche.BinderMeta := ⟨.never⟩
+    let r ← internRebuiltLam h (t == ty && b == body && m2 == m0) t b m2
+    resetSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — the
+`forallE` arm. -/
+def resetArmForallE (fuel : Nat) (h : EIdx) (ty body : EIdx)
+    (m0 : ConLeche.BinderMeta) : AM EIdx := do
+  match ← resetGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← resetMetaGo fuel ty
+    let b ← resetMetaGo fuel body
+    let m2 : ConLeche.BinderMeta := ⟨.never⟩
+    let r ← internRebuiltForallE h (t == ty && b == body && m2 == m0) t b m2
+    resetSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — the `letE`
+arm. -/
+def resetArmLet (fuel : Nat) (h : EIdx) (ty val body : EIdx) : AM EIdx := do
+  match ← resetGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← resetMetaGo fuel ty
+    let w ← resetMetaGo fuel val
+    let b ← resetMetaGo fuel body
+    let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
+    resetSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — the `proj`
+arm. -/
+def resetArmProj (fuel : Nat) (h : EIdx) (n : NIdx) (i : Nat) (sub : EIdx) :
+    AM EIdx := do
+  match ← resetGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let u ← resetMetaGo fuel sub
+    let r ← internRebuiltProj h (u == sub) n i u
+    resetSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `resetMetaGo`'s clause at fuel `0` (template rule 9). -/
+theorem resetMetaGo_zero (h : EIdx) :
+    resetMetaGo 0 h = fail (.internal "fuel exhausted: resetMeta") := by
+  rw [resetMetaGo]
+
+/-- con-leche: none — `resetMetaGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem resetMetaGo_succ (fuel : Nat) (h : EIdx) :
+    resetMetaGo (fuel + 1) h = (do
+      match ← view h with
+      | .bvar _ => pure h
+      | .sort _ => pure h
+      | .const _ _ => pure h
+      | .lit _ => pure h
+      | .fvar i ty => resetArmFVar fuel h i ty
+      | .app f a => resetArmApp fuel h f a
+      | .lam ty body m0 => resetArmLam fuel h ty body m0
+      | .forallE ty body m0 => resetArmForallE fuel h ty body m0
+      | .letE ty val body => resetArmLet fuel h ty val body
+      | .proj n i sub => resetArmProj fuel h n i sub) := by
+  rw [resetMetaGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:687-688 resetMetaFast — the
 top-level entry. -/
 def resetMetaFast (fuel : Nat) (e : EIdx) : AM EIdx := do
@@ -638,37 +964,84 @@ def resetMetaFast (fuel : Nat) (e : EIdx) : AM EIdx := do
 
 /-! ## The measures and the scope predicates -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:741-748 sizeB — node count with
-`fvar` a leaf (its annotated type ignored): the termination measure for
-recursion into instantiated binder bodies. -/
-def sizeB : Nat → EIdx → AM Nat
-  | 0, _ => fail (.internal "fuel exhausted: sizeB")
-  | fuel + 1, h => do
+mutual
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:741-748 sizeB — the binder
+node count, `fvar` annotations NOT descended into.  The dispatcher (arms
+split per DESIGN §8.6's ruling of 2026-09-22); the five leaf kinds are one
+expression and stay here. -/
+def sizeB (fuel : Nat) (h : EIdx) : AM Nat :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: sizeB")
+  | fuel + 1 => do
     match ← view h with
     | .bvar _ | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 1
-    | .app f a => do
-      let x ← sizeB fuel f
-      let y ← sizeB fuel a
-      pure (x + y + 1)
-    | .lam ty body _ | .forallE ty body _ => do
-      let x ← sizeB fuel ty
-      let y ← sizeB fuel body
-      pure (x + y + 1)
-    | .letE ty val body => do
-      let x ← sizeB fuel ty
-      let y ← sizeB fuel val
-      let z ← sizeB fuel body
-      pure (x + y + z + 1)
-    | .proj _ _ sub => do
-      let x ← sizeB fuel sub
-      pure (x + 1)
+    | .app f a => sizeBArmApp fuel f a
+    | .lam ty body _ | .forallE ty body _ => sizeBArmBind fuel ty body
+    | .letE ty val body => sizeBArmLet fuel ty val body
+    | .proj _ _ sub => sizeBArmProj fuel sub
+termination_by (fuel, 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:741-748 sizeB — the `app`
+arm. -/
+def sizeBArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
+  let x ← sizeB fuel f
+  let y ← sizeB fuel a
+  pure (x + y + 1)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:741-748 sizeB — the binder
+arm (`lam` and `forallE` share it, as they do in con-leche). -/
+def sizeBArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
+  let x ← sizeB fuel ty
+  let y ← sizeB fuel body
+  pure (x + y + 1)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:741-748 sizeB — the `letE`
+arm. -/
+def sizeBArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
+  let x ← sizeB fuel ty
+  let y ← sizeB fuel val
+  let z ← sizeB fuel body
+  pure (x + y + z + 1)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:741-748 sizeB — the `proj`
+arm. -/
+def sizeBArmProj (fuel : Nat) (sub : EIdx) : AM Nat := do
+  let x ← sizeB fuel sub
+  pure (x + 1)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `sizeB`'s clause at fuel `0` (template rule 9). -/
+theorem sizeB_zero (h : EIdx) :
+    sizeB 0 h = fail (.internal "fuel exhausted: sizeB") := by
+  rw [sizeB]
+
+/-- con-leche: none — `sizeB`'s clause at `fuel + 1` (template rule 9). -/
+theorem sizeB_succ (fuel : Nat) (h : EIdx) :
+    sizeB (fuel + 1) h = (do
+      match ← view h with
+      | .bvar _ | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 1
+      | .app f a => sizeBArmApp fuel f a
+      | .lam ty body _ | .forallE ty body _ => sizeBArmBind fuel ty body
+      | .letE ty val body => sizeBArmLet fuel ty val body
+      | .proj _ _ sub => sizeBArmProj fuel sub) := by
+  rw [sizeB]
+mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:778-808 abstractRange — bulk
 abstraction: close `k` binders in one traversal.  Unmemoized in con-leche and
-unmemoized here. -/
-def abstractRange : Nat → EIdx → Nat → Nat → Nat → AM EIdx
-  | 0, _, _, _, _ => fail (.internal "fuel exhausted: abstractRange")
-  | fuel + 1, h, d, k, c => do
+unmemoized here.  The dispatcher (arms split per DESIGN §8.6's ruling of
+2026-09-22); the four leaf arms and the `fvar` arm are single expressions and
+stay here. -/
+def abstractRange (fuel : Nat) (h : EIdx) (d k c : Nat) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: abstractRange")
+  | fuel + 1 => do
     match ← view h with
     | .bvar _ => pure h
     | .fvar idx _ =>
@@ -677,107 +1050,290 @@ def abstractRange : Nat → EIdx → Nat → Nat → Nat → AM EIdx
     | .sort _ => pure h
     | .const _ _ => pure h
     | .lit _ => pure h
-    | .app f a => do
-      let f' ← abstractRange fuel f d k c
-      let a' ← abstractRange fuel a d k c
-      internE (.app f' a')
-    | .lam ty body m => do
-      let t ← abstractRange fuel ty d k c
-      let b ← abstractRange fuel body d k (c + 1)
-      internE (.lam t b m)
-    | .forallE ty body m => do
-      let t ← abstractRange fuel ty d k c
-      let b ← abstractRange fuel body d k (c + 1)
-      internE (.forallE t b m)
-    | .letE ty val body => do
-      let t ← abstractRange fuel ty d k c
-      let w ← abstractRange fuel val d k c
-      let b ← abstractRange fuel body d k (c + 1)
-      internE (.letE t w b)
-    | .proj n i sub => do
-      let u ← abstractRange fuel sub d k c
-      internE (.proj n i u)
+    | .app f a => absRangeArmApp fuel f a d k c
+    | .lam ty body m => absRangeArmLam fuel ty body m d k c
+    | .forallE ty body m => absRangeArmForallE fuel ty body m d k c
+    | .letE ty val body => absRangeArmLet fuel ty val body d k c
+    | .proj n i sub => absRangeArmProj fuel n i sub d k c
+termination_by (fuel, 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:778-808 abstractRange — the `app`
+arm. -/
+def absRangeArmApp (fuel : Nat) (f a : EIdx) (d k c : Nat) : AM EIdx := do
+  let f' ← abstractRange fuel f d k c
+  let a' ← abstractRange fuel a d k c
+  internE (.app f' a')
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:778-808 abstractRange — the `lam`
+arm. -/
+def absRangeArmLam (fuel : Nat) (ty body : EIdx) (m : ConLeche.BinderMeta)
+    (d k c : Nat) : AM EIdx := do
+  let t ← abstractRange fuel ty d k c
+  let b ← abstractRange fuel body d k (c + 1)
+  internE (.lam t b m)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:778-808 abstractRange — the
+`forallE` arm. -/
+def absRangeArmForallE (fuel : Nat) (ty body : EIdx) (m : ConLeche.BinderMeta)
+    (d k c : Nat) : AM EIdx := do
+  let t ← abstractRange fuel ty d k c
+  let b ← abstractRange fuel body d k (c + 1)
+  internE (.forallE t b m)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:778-808 abstractRange — the
+`letE` arm. -/
+def absRangeArmLet (fuel : Nat) (ty val body : EIdx) (d k c : Nat) :
+    AM EIdx := do
+  let t ← abstractRange fuel ty d k c
+  let w ← abstractRange fuel val d k c
+  let b ← abstractRange fuel body d k (c + 1)
+  internE (.letE t w b)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:778-808 abstractRange — the
+`proj` arm. -/
+def absRangeArmProj (fuel : Nat) (n : NIdx) (i : Nat) (sub : EIdx)
+    (d k c : Nat) : AM EIdx := do
+  let u ← abstractRange fuel sub d k c
+  internE (.proj n i u)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `abstractRange`'s clause at fuel `0` (template rule
+9). -/
+theorem abstractRange_zero (h : EIdx) (d k c : Nat) :
+    abstractRange 0 h d k c =
+      fail (.internal "fuel exhausted: abstractRange") := by
+  rw [abstractRange]
+
+/-- con-leche: none — `abstractRange`'s clause at `fuel + 1` (template rule
+9). -/
+theorem abstractRange_succ (fuel : Nat) (h : EIdx) (d k c : Nat) :
+    abstractRange (fuel + 1) h d k c = (do
+      match ← view h with
+      | .bvar _ => pure h
+      | .fvar idx _ =>
+        if d ≤ idx ∧ idx < d + k then internE (.bvar (c + (d + k - 1 - idx)))
+        else pure h
+      | .sort _ => pure h
+      | .const _ _ => pure h
+      | .lit _ => pure h
+      | .app f a => absRangeArmApp fuel f a d k c
+      | .lam ty body m => absRangeArmLam fuel ty body m d k c
+      | .forallE ty body m => absRangeArmForallE fuel ty body m d k c
+      | .letE ty val body => absRangeArmLet fuel ty val body d k c
+      | .proj n i sub => absRangeArmProj fuel n i sub d k c) := by
+  rw [abstractRange]
+mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF — full node count,
-`fvar` annotations included. -/
-def sizeF : Nat → EIdx → AM Nat
-  | 0, _ => fail (.internal "fuel exhausted: sizeF")
-  | fuel + 1, h => do
+`fvar` annotations included.  The dispatcher (arms split per DESIGN §8.6's
+ruling of 2026-09-22). -/
+def sizeF (fuel : Nat) (h : EIdx) : AM Nat :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: sizeF")
+  | fuel + 1 => do
     match ← view h with
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure 1
-    | .fvar _ ty => do
-      let x ← sizeF fuel ty
-      pure (x + 1)
-    | .app f a => do
-      let x ← sizeF fuel f
-      let y ← sizeF fuel a
-      pure (x + y + 1)
-    | .lam ty body _ | .forallE ty body _ => do
-      let x ← sizeF fuel ty
-      let y ← sizeF fuel body
-      pure (x + y + 1)
-    | .letE ty val body => do
-      let x ← sizeF fuel ty
-      let y ← sizeF fuel val
-      let z ← sizeF fuel body
-      pure (x + y + z + 1)
-    | .proj _ _ sub => do
-      let x ← sizeF fuel sub
-      pure (x + 1)
+    | .fvar _ ty => sizeFArmFVar fuel ty
+    | .app f a => sizeFArmApp fuel f a
+    | .lam ty body _ | .forallE ty body _ => sizeFArmBind fuel ty body
+    | .letE ty val body => sizeFArmLet fuel ty val body
+    | .proj _ _ sub => sizeFArmProj fuel sub
+termination_by (fuel, 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF — the `fvar` arm,
+which descends into the annotation. -/
+def sizeFArmFVar (fuel : Nat) (ty : EIdx) : AM Nat := do
+  let x ← sizeF fuel ty
+  pure (x + 1)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF — the `app` arm. -/
+def sizeFArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
+  let x ← sizeF fuel f
+  let y ← sizeF fuel a
+  pure (x + y + 1)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF — the binder arm. -/
+def sizeFArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
+  let x ← sizeF fuel ty
+  let y ← sizeF fuel body
+  pure (x + y + 1)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF — the `letE` arm. -/
+def sizeFArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
+  let x ← sizeF fuel ty
+  let y ← sizeF fuel val
+  let z ← sizeF fuel body
+  pure (x + y + z + 1)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF — the `proj` arm. -/
+def sizeFArmProj (fuel : Nat) (sub : EIdx) : AM Nat := do
+  let x ← sizeF fuel sub
+  pure (x + 1)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `sizeF`'s clause at fuel `0` (template rule 9). -/
+theorem sizeF_zero (h : EIdx) :
+    sizeF 0 h = fail (.internal "fuel exhausted: sizeF") := by
+  rw [sizeF]
+
+/-- con-leche: none — `sizeF`'s clause at `fuel + 1` (template rule 9). -/
+theorem sizeF_succ (fuel : Nat) (h : EIdx) :
+    sizeF (fuel + 1) h = (do
+      match ← view h with
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure 1
+      | .fvar _ ty => sizeFArmFVar fuel ty
+      | .app f a => sizeFArmApp fuel f a
+      | .lam ty body _ | .forallE ty body _ => sizeFArmBind fuel ty body
+      | .letE ty val body => sizeFArmLet fuel ty val body
+      | .proj _ _ sub => sizeFArmProj fuel sub) := by
+  rw [sizeF]
+mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — all reachable
-`fvar` leaves, hereditarily through their annotations. -/
-def fvarLeaves : Nat → EIdx → AM (List (Nat × EIdx))
-  | 0, _ => fail (.internal "fuel exhausted: fvarLeaves")
-  | fuel + 1, h => do
+`fvar` leaves, hereditarily through their annotations.  The dispatcher (arms
+split per DESIGN §8.6's ruling of 2026-09-22). -/
+def fvarLeaves (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: fvarLeaves")
+  | fuel + 1 => do
     match ← view h with
-    | .fvar idx ty => do
-      let rest ← fvarLeaves fuel ty
-      pure ((idx, ty) :: rest)
-    | .app f a => do
-      let x ← fvarLeaves fuel f
-      let y ← fvarLeaves fuel a
-      pure (x ++ y)
-    | .lam ty b _ | .forallE ty b _ => do
-      let x ← fvarLeaves fuel ty
-      let y ← fvarLeaves fuel b
-      pure (x ++ y)
-    | .letE t v b => do
-      let x ← fvarLeaves fuel t
-      let y ← fvarLeaves fuel v
-      let z ← fvarLeaves fuel b
-      pure (x ++ y ++ z)
+    | .fvar idx ty => fvarLeavesArmFVar fuel idx ty
+    | .app f a => fvarLeavesArmApp fuel f a
+    | .lam ty b _ | .forallE ty b _ => fvarLeavesArmBind fuel ty b
+    | .letE t v b => fvarLeavesArmLet fuel t v b
     | .proj _ _ sub => fvarLeaves fuel sub
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure []
+termination_by (fuel, 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the `fvar`
+arm: the leaf itself, then its annotation. -/
+def fvarLeavesArmFVar (fuel : Nat) (idx : Nat) (ty : EIdx) :
+    AM (List (Nat × EIdx)) := do
+  let rest ← fvarLeaves fuel ty
+  pure ((idx, ty) :: rest)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the `app`
+arm. -/
+def fvarLeavesArmApp (fuel : Nat) (f a : EIdx) : AM (List (Nat × EIdx)) := do
+  let x ← fvarLeaves fuel f
+  let y ← fvarLeaves fuel a
+  pure (x ++ y)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the binder
+arm. -/
+def fvarLeavesArmBind (fuel : Nat) (ty b : EIdx) : AM (List (Nat × EIdx)) := do
+  let x ← fvarLeaves fuel ty
+  let y ← fvarLeaves fuel b
+  pure (x ++ y)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the `letE`
+arm. -/
+def fvarLeavesArmLet (fuel : Nat) (t v b : EIdx) : AM (List (Nat × EIdx)) := do
+  let x ← fvarLeaves fuel t
+  let y ← fvarLeaves fuel v
+  let z ← fvarLeaves fuel b
+  pure (x ++ y ++ z)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `fvarLeaves`'s clause at fuel `0` (template rule 9). -/
+theorem fvarLeaves_zero (h : EIdx) :
+    fvarLeaves 0 h = fail (.internal "fuel exhausted: fvarLeaves") := by
+  rw [fvarLeaves]
+
+/-- con-leche: none — `fvarLeaves`'s clause at `fuel + 1` (template rule 9). -/
+theorem fvarLeaves_succ (fuel : Nat) (h : EIdx) :
+    fvarLeaves (fuel + 1) h = (do
+      match ← view h with
+      | .fvar idx ty => fvarLeavesArmFVar fuel idx ty
+      | .app f a => fvarLeavesArmApp fuel f a
+      | .lam ty b _ | .forallE ty b _ => fvarLeavesArmBind fuel ty b
+      | .letE t v b => fvarLeavesArmLet fuel t v b
+      | .proj _ _ sub => fvarLeaves fuel sub
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure []) := by
+  rw [fvarLeaves]
+mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:835-861 wscopedB — the scope
 check: every reachable `fvar` index is below `d`, hereditarily through
 annotations.  con-leche's `&&` is short-circuiting, and so is the explicit
-`if` chain here. -/
-def wscopedB : Nat → Nat → EIdx → AM Bool
-  | 0, _, _ => fail (.internal "fuel exhausted: wscopedB")
-  | fuel + 1, d, h => do
+`if` chain here.  The dispatcher (arms split per DESIGN §8.6's ruling of
+2026-09-22). -/
+def wscopedB (fuel : Nat) (d : Nat) (h : EIdx) : AM Bool :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: wscopedB")
+  | fuel + 1 => do
     match ← view h with
     | .fvar idx ty =>
       if idx < d then wscopedB fuel idx ty else pure false
-    | .app f a => do
-      let x ← wscopedB fuel d f
-      if x then wscopedB fuel d a else pure false
-    | .lam ty body _ => do
-      let x ← wscopedB fuel d ty
-      if x then wscopedB fuel d body else pure false
-    | .forallE ty body _ => do
-      let x ← wscopedB fuel d ty
-      if x then wscopedB fuel d body else pure false
-    | .letE ty val body => do
-      let x ← wscopedB fuel d ty
-      if x then
-        let y ← wscopedB fuel d val
-        if y then wscopedB fuel d body else pure false
-      else pure false
+    | .app f a => wscopedBArmApp fuel d f a
+    | .lam ty body _ => wscopedBArmBind fuel d ty body
+    | .forallE ty body _ => wscopedBArmBind fuel d ty body
+    | .letE ty val body => wscopedBArmLet fuel d ty val body
     | .proj _ _ sub => wscopedB fuel d sub
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure true
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:835-861 wscopedB — the `app`
+arm. -/
+def wscopedBArmApp (fuel : Nat) (d : Nat) (f a : EIdx) : AM Bool := do
+  let x ← wscopedB fuel d f
+  if x then wscopedB fuel d a else pure false
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:835-861 wscopedB — the binder arm
+(`lam` and `forallE` have the same clause, so they share it). -/
+def wscopedBArmBind (fuel : Nat) (d : Nat) (ty body : EIdx) : AM Bool := do
+  let x ← wscopedB fuel d ty
+  if x then wscopedB fuel d body else pure false
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:835-861 wscopedB — the `letE`
+arm. -/
+def wscopedBArmLet (fuel : Nat) (d : Nat) (ty val body : EIdx) : AM Bool := do
+  let x ← wscopedB fuel d ty
+  if x then
+    let y ← wscopedB fuel d val
+    if y then wscopedB fuel d body else pure false
+  else pure false
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `wscopedB`'s clause at fuel `0` (template rule 9). -/
+theorem wscopedB_zero (d : Nat) (h : EIdx) :
+    wscopedB 0 d h = fail (.internal "fuel exhausted: wscopedB") := by
+  rw [wscopedB]
+
+/-- con-leche: none — `wscopedB`'s clause at `fuel + 1` (template rule 9). -/
+theorem wscopedB_succ (fuel : Nat) (d : Nat) (h : EIdx) :
+    wscopedB (fuel + 1) d h = (do
+      match ← view h with
+      | .fvar idx ty =>
+        if idx < d then wscopedB fuel idx ty else pure false
+      | .app f a => wscopedBArmApp fuel d f a
+      | .lam ty body _ => wscopedBArmBind fuel d ty body
+      | .forallE ty body _ => wscopedBArmBind fuel d ty body
+      | .letE ty val body => wscopedBArmLet fuel d ty val body
+      | .proj _ _ sub => wscopedB fuel d sub
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure true) := by
+  rw [wscopedB]
 /-! ## The scope queries, MEMOIZED — `Cached/ExprOpsC.lean:997-1268`
 
 The three walks above (`fvarLeaves`, `wscopedB`, and `Core.lean`'s leaf-subset
@@ -826,14 +1382,19 @@ handle keys, a cutoff off the derived word) is the arena's own and unchanged.
 `Expr`-tier port's answer to the same upstream change; the arena tier has and
 needs none. -/
 
+mutual
+
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP — the
 memoized scope walk.  `fvar` annotations are descended (at the annotation's
 own index, not `d`), so the cached fvar range does not decide it and the memo
-key carries `d`. -/
-def wscopedBGo : Std.HashMap (EIdx × Nat) Bool → Nat → Nat → EIdx →
-    AM (Bool × Std.HashMap (EIdx × Nat) Bool)
-  | _, 0, _, _ => fail (.internal "fuel exhausted: wscopedBGo")
-  | memo, fuel + 1, d, h => do
+key carries `d`.  The dispatcher (arms split per DESIGN §8.6's ruling of
+2026-09-22); the memo travels as an argument-and-result pair, so each arm
+takes it and returns it. -/
+def wscopedBGo (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat) (d : Nat)
+    (h : EIdx) : AM (Bool × Std.HashMap (EIdx × Nat) Bool) :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: wscopedBGo")
+  | fuel + 1 => do
     if (fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
     else
       match memo[(h, d)]? with
@@ -845,38 +1406,95 @@ def wscopedBGo : Std.HashMap (EIdx × Nat) Bool → Nat → Nat → EIdx →
           | .fvar idx ty =>
             if idx < d then wscopedBGo memo fuel idx ty
             else pure (false, memo)
-          | .app f a => do
-            let (rf, memo) ← wscopedBGo memo fuel d f
-            if rf then wscopedBGo memo fuel d a else pure (false, memo)
-          | .lam ty body _ => do
-            let (rt, memo) ← wscopedBGo memo fuel d ty
-            if rt then wscopedBGo memo fuel d body else pure (false, memo)
-          | .forallE ty body _ => do
-            let (rt, memo) ← wscopedBGo memo fuel d ty
-            if rt then wscopedBGo memo fuel d body else pure (false, memo)
-          | .letE ty val body => do
-            let (rt, memo) ← wscopedBGo memo fuel d ty
-            if rt then do
-              let (rv, memo) ← wscopedBGo memo fuel d val
-              if rv then wscopedBGo memo fuel d body else pure (false, memo)
-            else pure (false, memo)
+          | .app f a => wscopedBGoArmApp memo fuel d f a
+          | .lam ty body _ => wscopedBGoArmBind memo fuel d ty body
+          | .forallE ty body _ => wscopedBGoArmBind memo fuel d ty body
+          | .letE ty val body => wscopedBGoArmLet memo fuel d ty val body
           | .proj _ _ sub => wscopedBGo memo fuel d sub
         pure (r, memo'.insert (h, d) r)
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP — the `app`
+arm. -/
+def wscopedBGoArmApp (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
+    (d : Nat) (f a : EIdx) : AM (Bool × Std.HashMap (EIdx × Nat) Bool) := do
+  let (rf, memo) ← wscopedBGo memo fuel d f
+  if rf then wscopedBGo memo fuel d a else pure (false, memo)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP — the
+binder arm (`lam` and `forallE` have the same clause, so they share it). -/
+def wscopedBGoArmBind (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
+    (d : Nat) (ty body : EIdx) :
+    AM (Bool × Std.HashMap (EIdx × Nat) Bool) := do
+  let (rt, memo) ← wscopedBGo memo fuel d ty
+  if rt then wscopedBGo memo fuel d body else pure (false, memo)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP — the
+`letE` arm. -/
+def wscopedBGoArmLet (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
+    (d : Nat) (ty val body : EIdx) :
+    AM (Bool × Std.HashMap (EIdx × Nat) Bool) := do
+  let (rt, memo) ← wscopedBGo memo fuel d ty
+  if rt then do
+    let (rv, memo) ← wscopedBGo memo fuel d val
+    if rv then wscopedBGo memo fuel d body else pure (false, memo)
+  else pure (false, memo)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `wscopedBGo`'s clause at fuel `0` (template rule 9). -/
+theorem wscopedBGo_zero (memo : Std.HashMap (EIdx × Nat) Bool) (d : Nat)
+    (h : EIdx) :
+    wscopedBGo memo 0 d h = fail (.internal "fuel exhausted: wscopedBGo") := by
+  rw [wscopedBGo]
+
+/-- con-leche: none — `wscopedBGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem wscopedBGo_succ (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
+    (d : Nat) (h : EIdx) :
+    wscopedBGo memo (fuel + 1) d h = (do
+      if (fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
+      else
+        match memo[(h, d)]? with
+        | some r => pure (r, memo)
+        | none => do
+          let (r, memo') ←
+            match ← view h with
+            | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
+            | .fvar idx ty =>
+              if idx < d then wscopedBGo memo fuel idx ty
+              else pure (false, memo)
+            | .app f a => wscopedBGoArmApp memo fuel d f a
+            | .lam ty body _ => wscopedBGoArmBind memo fuel d ty body
+            | .forallE ty body _ => wscopedBGoArmBind memo fuel d ty body
+            | .letE ty val body => wscopedBGoArmLet memo fuel d ty val body
+            | .proj _ _ sub => wscopedBGo memo fuel d sub
+          pure (r, memo'.insert (h, d) r)) := by
+  rw [wscopedBGo]
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1090-1095 wscopedBC — the executed
 `wscopedB`: one memoized DAG walk from the empty memo. -/
 def wscopedBFast (fuel d : Nat) (h : EIdx) : AM Bool := do
   let p ← wscopedBGo ∅ fuel d h
   pure p.1
 
+mutual
+
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
 reachable `fvar` leaves, accumulated with a `seen` set so a shared subterm is
 walked once.  The accumulation order is con-leche's (its `acc` is consed on
-the way in), and the result is used only as a membership base. -/
-def fvarLeavesGo : List (Nat × EIdx) → Std.HashMap EIdx Unit → Nat → EIdx →
-    AM (List (Nat × EIdx) × Std.HashMap EIdx Unit)
-  | _, _, 0, _ => fail (.internal "fuel exhausted: fvarLeavesGo")
-  | acc, seen, fuel + 1, h => do
+the way in), and the result is used only as a membership base.  The
+dispatcher (arms split per DESIGN §8.6's ruling of 2026-09-22); the `seen`
+insert happens BEFORE the arm call, which is the gray step `Bridge/ExprOps/
+Leaves.lean`'s `SeenInv` is about. -/
+def fvarLeavesGo (acc : List (Nat × EIdx)) (seen : Std.HashMap EIdx Unit)
+    (fuel : Nat) (h : EIdx) :
+    AM (List (Nat × EIdx) × Std.HashMap EIdx Unit) :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: fvarLeavesGo")
+  | fuel + 1 => do
     if (fvarOfData (← derivedE h)).toNat == 0 then pure (acc, seen)
     else
       match seen[h]? with
@@ -886,21 +1504,71 @@ def fvarLeavesGo : List (Nat × EIdx) → Std.HashMap EIdx Unit → Nat → EIdx
         match ← view h with
         | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
         | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
-        | .app f a => do
-          let (acc, seen) ← fvarLeavesGo acc seen fuel f
-          fvarLeavesGo acc seen fuel a
-        | .lam ty body _ => do
-          let (acc, seen) ← fvarLeavesGo acc seen fuel ty
-          fvarLeavesGo acc seen fuel body
-        | .forallE ty body _ => do
-          let (acc, seen) ← fvarLeavesGo acc seen fuel ty
-          fvarLeavesGo acc seen fuel body
-        | .letE ty val body => do
-          let (acc, seen) ← fvarLeavesGo acc seen fuel ty
-          let (acc, seen) ← fvarLeavesGo acc seen fuel val
-          fvarLeavesGo acc seen fuel body
+        | .app f a => fvarLeavesGoArmApp acc seen fuel f a
+        | .lam ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+        | .forallE ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+        | .letE ty val body => fvarLeavesGoArmLet acc seen fuel ty val body
         | .proj _ _ sub => fvarLeavesGo acc seen fuel sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
+`app` arm. -/
+def fvarLeavesGoArmApp (acc : List (Nat × EIdx))
+    (seen : Std.HashMap EIdx Unit) (fuel : Nat) (f a : EIdx) :
+    AM (List (Nat × EIdx) × Std.HashMap EIdx Unit) := do
+  let (acc, seen) ← fvarLeavesGo acc seen fuel f
+  fvarLeavesGo acc seen fuel a
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
+binder arm. -/
+def fvarLeavesGoArmBind (acc : List (Nat × EIdx))
+    (seen : Std.HashMap EIdx Unit) (fuel : Nat) (ty body : EIdx) :
+    AM (List (Nat × EIdx) × Std.HashMap EIdx Unit) := do
+  let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+  fvarLeavesGo acc seen fuel body
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
+`letE` arm. -/
+def fvarLeavesGoArmLet (acc : List (Nat × EIdx))
+    (seen : Std.HashMap EIdx Unit) (fuel : Nat) (ty val body : EIdx) :
+    AM (List (Nat × EIdx) × Std.HashMap EIdx Unit) := do
+  let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+  let (acc, seen) ← fvarLeavesGo acc seen fuel val
+  fvarLeavesGo acc seen fuel body
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `fvarLeavesGo`'s clause at fuel `0` (template rule
+9). -/
+theorem fvarLeavesGo_zero (acc : List (Nat × EIdx))
+    (seen : Std.HashMap EIdx Unit) (h : EIdx) :
+    fvarLeavesGo acc seen 0 h =
+      fail (.internal "fuel exhausted: fvarLeavesGo") := by
+  rw [fvarLeavesGo]
+
+/-- con-leche: none — `fvarLeavesGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem fvarLeavesGo_succ (acc : List (Nat × EIdx))
+    (seen : Std.HashMap EIdx Unit) (fuel : Nat) (h : EIdx) :
+    fvarLeavesGo acc seen (fuel + 1) h = (do
+      if (fvarOfData (← derivedE h)).toNat == 0 then pure (acc, seen)
+      else
+        match seen[h]? with
+        | some _ => pure (acc, seen)
+        | none => do
+          let seen := seen.insert h ()
+          match ← view h with
+          | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
+          | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
+          | .app f a => fvarLeavesGoArmApp acc seen fuel f a
+          | .lam ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+          | .forallE ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+          | .letE ty val body => fvarLeavesGoArmLet acc seen fuel ty val body
+          | .proj _ _ sub => fvarLeavesGo acc seen fuel sub) := by
+  rw [fvarLeavesGo]
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1154-1155 fvarLeavesC — the
 executed `fvarLeaves`. -/
 def fvarLeavesFast (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) := do
@@ -916,14 +1584,19 @@ def leafMem : List (Nat × EIdx) → Nat → EIdx → Bool
   | (i, t) :: rest, idx, ty =>
     (i == idx && t == ty) || leafMem rest idx ty
 
+mutual
+
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
 fabrication-side leaf-subset test: every reachable `fvar` leaf of the walked
 term is one of `bl`.  Memoized on the node, because `bl` is fixed for the
-call. -/
-def leavesSubGo : List (Nat × EIdx) → Std.HashMap EIdx Bool → Nat → EIdx →
-    AM (Bool × Std.HashMap EIdx Bool)
-  | _, _, 0, _ => fail (.internal "fuel exhausted: leavesSubGo")
-  | bl, memo, fuel + 1, h => do
+call.  The dispatcher (arms split per DESIGN §8.6's ruling of 2026-09-22);
+the memo travels as an argument-and-result pair, so each arm takes it and
+returns it. -/
+def leavesSubGo (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
+    (fuel : Nat) (h : EIdx) : AM (Bool × Std.HashMap EIdx Bool) :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: leavesSubGo")
+  | fuel + 1 => do
     if (fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
     else
       match memo[h]? with
@@ -935,24 +1608,74 @@ def leavesSubGo : List (Nat × EIdx) → Std.HashMap EIdx Bool → Nat → EIdx 
           | .fvar idx ty =>
             if leafMem bl idx ty then leavesSubGo bl memo fuel ty
             else pure (false, memo)
-          | .app f a => do
-            let (rf, memo) ← leavesSubGo bl memo fuel f
-            if rf then leavesSubGo bl memo fuel a else pure (false, memo)
-          | .lam ty body _ => do
-            let (rt, memo) ← leavesSubGo bl memo fuel ty
-            if rt then leavesSubGo bl memo fuel body else pure (false, memo)
-          | .forallE ty body _ => do
-            let (rt, memo) ← leavesSubGo bl memo fuel ty
-            if rt then leavesSubGo bl memo fuel body else pure (false, memo)
-          | .letE ty val body => do
-            let (rt, memo) ← leavesSubGo bl memo fuel ty
-            if rt then do
-              let (rv, memo) ← leavesSubGo bl memo fuel val
-              if rv then leavesSubGo bl memo fuel body else pure (false, memo)
-            else pure (false, memo)
+          | .app f a => leavesSubArmApp bl memo fuel f a
+          | .lam ty body _ => leavesSubArmBind bl memo fuel ty body
+          | .forallE ty body _ => leavesSubArmBind bl memo fuel ty body
+          | .letE ty val body => leavesSubArmLet bl memo fuel ty val body
           | .proj _ _ sub => leavesSubGo bl memo fuel sub
         pure (r, memo'.insert h r)
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
+`app` arm. -/
+def leavesSubArmApp (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
+    (fuel : Nat) (f a : EIdx) : AM (Bool × Std.HashMap EIdx Bool) := do
+  let (rf, memo) ← leavesSubGo bl memo fuel f
+  if rf then leavesSubGo bl memo fuel a else pure (false, memo)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
+binder arm (`lam` and `forallE` have the same clause, so they share it). -/
+def leavesSubArmBind (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
+    (fuel : Nat) (ty body : EIdx) : AM (Bool × Std.HashMap EIdx Bool) := do
+  let (rt, memo) ← leavesSubGo bl memo fuel ty
+  if rt then leavesSubGo bl memo fuel body else pure (false, memo)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
+`letE` arm. -/
+def leavesSubArmLet (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
+    (fuel : Nat) (ty val body : EIdx) :
+    AM (Bool × Std.HashMap EIdx Bool) := do
+  let (rt, memo) ← leavesSubGo bl memo fuel ty
+  if rt then do
+    let (rv, memo) ← leavesSubGo bl memo fuel val
+    if rv then leavesSubGo bl memo fuel body else pure (false, memo)
+  else pure (false, memo)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `leavesSubGo`'s clause at fuel `0` (template rule 9). -/
+theorem leavesSubGo_zero (bl : List (Nat × EIdx))
+    (memo : Std.HashMap EIdx Bool) (h : EIdx) :
+    leavesSubGo bl memo 0 h =
+      fail (.internal "fuel exhausted: leavesSubGo") := by
+  rw [leavesSubGo]
+
+/-- con-leche: none — `leavesSubGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem leavesSubGo_succ (bl : List (Nat × EIdx))
+    (memo : Std.HashMap EIdx Bool) (fuel : Nat) (h : EIdx) :
+    leavesSubGo bl memo (fuel + 1) h = (do
+      if (fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
+      else
+        match memo[h]? with
+        | some r => pure (r, memo)
+        | none => do
+          let (r, memo') ←
+            match ← view h with
+            | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
+            | .fvar idx ty =>
+              if leafMem bl idx ty then leavesSubGo bl memo fuel ty
+              else pure (false, memo)
+            | .app f a => leavesSubArmApp bl memo fuel f a
+            | .lam ty body _ => leavesSubArmBind bl memo fuel ty body
+            | .forallE ty body _ => leavesSubArmBind bl memo fuel ty body
+            | .letE ty val body => leavesSubArmLet bl memo fuel ty val body
+            | .proj _ _ sub => leavesSubGo bl memo fuel sub
+          pure (r, memo'.insert h r)) := by
+  rw [leavesSubGo]
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard — **the
 fabrication leaf guard**: every `fvar` leaf of `fab` is a leaf of `base`.
 Short-circuits on an `fvar`-free fabrication off the packed range, and
@@ -966,31 +1689,75 @@ def leafGuard (fuel : Nat) (fab base : EIdx) : AM Bool := do
     let p ← leavesSubGo bl ∅ fuel fab
     pure p.1
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded — the
 pure walk.  It is the SPECIFICATION; what executes is the `O(1)` field read
 `looseBVarsBoundedFast` below, exactly as in con-leche (the `@[csimp]`
-pair). -/
-def looseBVarsBounded : Nat → Nat → EIdx → AM Bool
-  | 0, _, _ => fail (.internal "fuel exhausted: looseBVarsBounded")
-  | fuel + 1, k, h => do
+pair).  The dispatcher (arms split per DESIGN §8.6's ruling of
+2026-09-22). -/
+def looseBVarsBounded (fuel : Nat) (k : Nat) (h : EIdx) : AM Bool :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: looseBVarsBounded")
+  | fuel + 1 => do
     match ← view h with
     | .bvar i => pure (i < k)
     | .fvar _ _ => pure true
     | .sort _ | .const _ _ | .lit _ => pure true
-    | .app f a => do
-      let x ← looseBVarsBounded fuel k f
-      if x then looseBVarsBounded fuel k a else pure false
-    | .lam ty body _ | .forallE ty body _ => do
-      let x ← looseBVarsBounded fuel k ty
-      if x then looseBVarsBounded fuel (k + 1) body else pure false
-    | .letE ty val body => do
-      let x ← looseBVarsBounded fuel k ty
-      if x then
-        let y ← looseBVarsBounded fuel k val
-        if y then looseBVarsBounded fuel (k + 1) body else pure false
-      else pure false
+    | .app f a => looseBArmApp fuel k f a
+    | .lam ty body _ => looseBArmBind fuel k ty body
+    | .forallE ty body _ => looseBArmBind fuel k ty body
+    | .letE ty val body => looseBArmLet fuel k ty val body
     | .proj _ _ sub => looseBVarsBounded fuel k sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded — the
+`app` arm. -/
+def looseBArmApp (fuel : Nat) (k : Nat) (f a : EIdx) : AM Bool := do
+  let x ← looseBVarsBounded fuel k f
+  if x then looseBVarsBounded fuel k a else pure false
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded — the
+binder arm; the body is tested at `k + 1`. -/
+def looseBArmBind (fuel : Nat) (k : Nat) (ty body : EIdx) : AM Bool := do
+  let x ← looseBVarsBounded fuel k ty
+  if x then looseBVarsBounded fuel (k + 1) body else pure false
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded — the
+`letE` arm. -/
+def looseBArmLet (fuel : Nat) (k : Nat) (ty val body : EIdx) : AM Bool := do
+  let x ← looseBVarsBounded fuel k ty
+  if x then
+    let y ← looseBVarsBounded fuel k val
+    if y then looseBVarsBounded fuel (k + 1) body else pure false
+  else pure false
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `looseBVarsBounded`'s clause at fuel `0` (template rule
+9). -/
+theorem looseBVarsBounded_zero (k : Nat) (h : EIdx) :
+    looseBVarsBounded 0 k h =
+      fail (.internal "fuel exhausted: looseBVarsBounded") := by
+  rw [looseBVarsBounded]
+
+/-- con-leche: none — `looseBVarsBounded`'s clause at `fuel + 1` (template
+rule 9). -/
+theorem looseBVarsBounded_succ (fuel : Nat) (k : Nat) (h : EIdx) :
+    looseBVarsBounded (fuel + 1) k h = (do
+      match ← view h with
+      | .bvar i => pure (i < k)
+      | .fvar _ _ => pure true
+      | .sort _ | .const _ _ | .lit _ => pure true
+      | .app f a => looseBArmApp fuel k f a
+      | .lam ty body _ => looseBArmBind fuel k ty body
+      | .forallE ty body _ => looseBArmBind fuel k ty body
+      | .letE ty val body => looseBArmLet fuel k ty val body
+      | .proj _ _ sub => looseBVarsBounded fuel k sub) := by
+  rw [looseBVarsBounded]
 /-! ## The one-node readers
 
 Each is a single `view` and a test: no recursion, no fuel. -/
@@ -1017,27 +1784,65 @@ def forallPw (h : EIdx) : AM (Option PropWhen) := do
   | .forallE _ _ m => pure (some m.pw)
   | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar — the pure walk;
-what executes is `hasFvarFast` below (the fvar-range field read). -/
-def hasFvar : Nat → EIdx → AM Bool
-  | 0, _ => fail (.internal "fuel exhausted: hasFvar")
-  | fuel + 1, h => do
+mutual
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar — does the term
+mention an `fvar` at all?  The dispatcher (arms split per DESIGN §8.6's
+ruling of 2026-09-22); the leaf arms are single expressions and stay here. -/
+def hasFvar (fuel : Nat) (h : EIdx) : AM Bool :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: hasFvar")
+  | fuel + 1 => do
     match ← view h with
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure false
     | .fvar _ _ => pure true
-    | .app f a => do
-      let x ← hasFvar fuel f
-      if x then pure true else hasFvar fuel a
-    | .lam ty body _ | .forallE ty body _ => do
-      let x ← hasFvar fuel ty
-      if x then pure true else hasFvar fuel body
-    | .letE ty val body => do
-      let x ← hasFvar fuel ty
-      if x then pure true else do
-        let y ← hasFvar fuel val
-        if y then pure true else hasFvar fuel body
+    | .app f a => hasFvarArmApp fuel f a
+    | .lam ty body _ | .forallE ty body _ => hasFvarArmBind fuel ty body
+    | .letE ty val body => hasFvarArmLet fuel ty val body
     | .proj _ _ sub => hasFvar fuel sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar — the `app` arm;
+the `&&` is short-circuiting, and so is the explicit `if`. -/
+def hasFvarArmApp (fuel : Nat) (f a : EIdx) : AM Bool := do
+  let x ← hasFvar fuel f
+  if x then pure true else hasFvar fuel a
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar — the binder
+arm. -/
+def hasFvarArmBind (fuel : Nat) (ty body : EIdx) : AM Bool := do
+  let x ← hasFvar fuel ty
+  if x then pure true else hasFvar fuel body
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar — the `letE`
+arm. -/
+def hasFvarArmLet (fuel : Nat) (ty val body : EIdx) : AM Bool := do
+  let x ← hasFvar fuel ty
+  if x then pure true else do
+    let y ← hasFvar fuel val
+    if y then pure true else hasFvar fuel body
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `hasFvar`'s clause at fuel `0` (template rule 9). -/
+theorem hasFvar_zero (h : EIdx) :
+    hasFvar 0 h = fail (.internal "fuel exhausted: hasFvar") := by
+  rw [hasFvar]
+
+/-- con-leche: none — `hasFvar`'s clause at `fuel + 1` (template rule 9). -/
+theorem hasFvar_succ (fuel : Nat) (h : EIdx) :
+    hasFvar (fuel + 1) h = (do
+      match ← view h with
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure false
+      | .fvar _ _ => pure true
+      | .app f a => hasFvarArmApp fuel f a
+      | .lam ty body _ | .forallE ty body _ => hasFvarArmBind fuel ty body
+      | .letE ty val body => hasFvarArmLet fuel ty val body
+      | .proj _ _ sub => hasFvar fuel sub) := by
+  rw [hasFvar]
 /-! ## Application spines -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:915-918 getAppFn — the head of an
@@ -1093,15 +1898,19 @@ can supply.  It is the module's one higher-order argument, and it is
 con-leche's own (`renameConsts (f : Name → Name)`); what the Rust passes
 there is P2d's to decide. -/
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:930-956 renameConsts
 con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo
 Rename constants throughout; levels, binders and `proj` struct names
 untouched (task #175 wiring W5).  The `const` arm is a leaf here as it is in
 con-leche — it rebuilds one node and does not recurse — so it is not
-memoized. -/
-def renameConstsGo (f : NIdx → NIdx) : Nat → EIdx → AM EIdx
-  | 0, _ => fail (.internal "fuel exhausted: renameConsts")
-  | fuel + 1, h => do
+memoized, and it stays in the dispatcher with the three other leaves.  The
+memoized arms are split per DESIGN §8.6's ruling of 2026-09-22. -/
+def renameConstsGo (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: renameConsts")
+  | fuel + 1 => do
     match ← view h with
     | .bvar _ => pure h
     | .sort _ => pure h
@@ -1109,60 +1918,123 @@ def renameConstsGo (f : NIdx → NIdx) : Nat → EIdx → AM EIdx
     | .const n us => do
       let n' := f n
       internRebuiltConst h (n' == n) n' us
-    | .fvar i ty => do
-      match ← renameGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← renameConstsGo f fuel ty
-        let r ← internRebuiltFVar h (t == ty) i t
-        renameSet (h, 0) r
-        pure r
-    | .app a b => do
-      match ← renameGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let a' ← renameConstsGo f fuel a
-        let b' ← renameConstsGo f fuel b
-        let r ← internRebuiltApp h (a' == a && b' == b) a' b'
-        renameSet (h, 0) r
-        pure r
-    | .lam ty body m => do
-      match ← renameGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← renameConstsGo f fuel ty
-        let b ← renameConstsGo f fuel body
-        let r ← internRebuiltLam h (t == ty && b == body) t b m
-        renameSet (h, 0) r
-        pure r
-    | .forallE ty body m => do
-      match ← renameGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← renameConstsGo f fuel ty
-        let b ← renameConstsGo f fuel body
-        let r ← internRebuiltForallE h (t == ty && b == body) t b m
-        renameSet (h, 0) r
-        pure r
-    | .letE ty val body => do
-      match ← renameGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let t ← renameConstsGo f fuel ty
-        let w ← renameConstsGo f fuel val
-        let b ← renameConstsGo f fuel body
-        let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
-        renameSet (h, 0) r
-        pure r
-    | .proj n i sub => do
-      match ← renameGet (h, 0) with
-      | some r => pure r
-      | none => do
-        let u ← renameConstsGo f fuel sub
-        let r ← internRebuiltProj h (u == sub) n i u
-        renameSet (h, 0) r
-        pure r
+    | .fvar i ty => renameArmFVar f fuel h i ty
+    | .app a b => renameArmApp f fuel h a b
+    | .lam ty body m => renameArmLam f fuel h ty body m
+    | .forallE ty body m => renameArmForallE f fuel h ty body m
+    | .letE ty val body => renameArmLet f fuel h ty val body
+    | .proj n i sub => renameArmProj f fuel h n i sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — the
+`fvar` arm. -/
+def renameArmFVar (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (i : Nat)
+    (ty : EIdx) : AM EIdx := do
+  match ← renameGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← renameConstsGo f fuel ty
+    let r ← internRebuiltFVar h (t == ty) i t
+    renameSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — the
+`app` arm. -/
+def renameArmApp (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (a b : EIdx) :
+    AM EIdx := do
+  match ← renameGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let a' ← renameConstsGo f fuel a
+    let b' ← renameConstsGo f fuel b
+    let r ← internRebuiltApp h (a' == a && b' == b) a' b'
+    renameSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — the
+`lam` arm. -/
+def renameArmLam (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (ty body : EIdx)
+    (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← renameGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← renameConstsGo f fuel ty
+    let b ← renameConstsGo f fuel body
+    let r ← internRebuiltLam h (t == ty && b == body) t b m
+    renameSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — the
+`forallE` arm. -/
+def renameArmForallE (f : NIdx → NIdx) (fuel : Nat) (h : EIdx)
+    (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← renameGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← renameConstsGo f fuel ty
+    let b ← renameConstsGo f fuel body
+    let r ← internRebuiltForallE h (t == ty && b == body) t b m
+    renameSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — the
+`letE` arm. -/
+def renameArmLet (f : NIdx → NIdx) (fuel : Nat) (h : EIdx)
+    (ty val body : EIdx) : AM EIdx := do
+  match ← renameGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← renameConstsGo f fuel ty
+    let w ← renameConstsGo f fuel val
+    let b ← renameConstsGo f fuel body
+    let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
+    renameSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — the
+`proj` arm. -/
+def renameArmProj (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (n : NIdx)
+    (i : Nat) (sub : EIdx) : AM EIdx := do
+  match ← renameGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let u ← renameConstsGo f fuel sub
+    let r ← internRebuiltProj h (u == sub) n i u
+    renameSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `renameConstsGo`'s clause at fuel `0` (template rule
+9). -/
+theorem renameConstsGo_zero (f : NIdx → NIdx) (h : EIdx) :
+    renameConstsGo f 0 h = fail (.internal "fuel exhausted: renameConsts") := by
+  rw [renameConstsGo]
+
+/-- con-leche: none — `renameConstsGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem renameConstsGo_succ (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) :
+    renameConstsGo f (fuel + 1) h = (do
+      match ← view h with
+      | .bvar _ => pure h
+      | .sort _ => pure h
+      | .lit _ => pure h
+      | .const n us => do
+        let n' := f n
+        internRebuiltConst h (n' == n) n' us
+      | .fvar i ty => renameArmFVar f fuel h i ty
+      | .app a b => renameArmApp f fuel h a b
+      | .lam ty body m => renameArmLam f fuel h ty body m
+      | .forallE ty body m => renameArmForallE f fuel h ty body m
+      | .letE ty val body => renameArmLet f fuel h ty val body
+      | .proj n i sub => renameArmProj f fuel h n i sub) := by
+  rw [renameConstsGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1111-1113 renameConstsFast — the
 top-level entry. -/
 def renameConstsFast (fuel : Nat) (f : NIdx → NIdx) (e : EIdx) : AM EIdx := do
@@ -1399,15 +2271,20 @@ arena reads both ranges in `O(1)` off the derived column; only on the
 saturated branch (a bound at or above `satRange = 32767`) does it walk, and
 that walk is memoized exactly as con-leche's is. -/
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1295-1305 Expr.bvarBound
 con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo
 The memoized exact loose-bvar bound.  con-leche's `bvarBound` is the pure
 specification and `bvarBoundGo` the memoized walk; the arena has one
 function.  The memo is probed for every node, leaves included, as con-leche
-probes it. -/
-def bvarBoundGo : Nat → EIdx → AM Nat
-  | 0, _ => fail (.internal "fuel exhausted: bvarBound")
-  | fuel + 1, h => do
+probes it.  The dispatcher (arms split per DESIGN §8.6's ruling of
+2026-09-22); the probe and the insert bracket the arm call, so the arms are
+the inner `match` alone. -/
+def bvarBoundGo (fuel : Nat) (h : EIdx) : AM Nat :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: bvarBound")
+  | fuel + 1 => do
     match ← bvarBGet h with
     | some r => pure r
     | none => do
@@ -1415,23 +2292,64 @@ def bvarBoundGo : Nat → EIdx → AM Nat
         match ← view h with
         | .bvar i => pure (i + 1)
         | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 0
-        | .app f a => do
-          let x ← bvarBoundGo fuel f
-          let y ← bvarBoundGo fuel a
-          pure (max x y)
-        | .lam ty body _ | .forallE ty body _ => do
-          let x ← bvarBoundGo fuel ty
-          let y ← bvarBoundGo fuel body
-          pure (max x (y - 1))
-        | .letE ty val body => do
-          let x ← bvarBoundGo fuel ty
-          let y ← bvarBoundGo fuel val
-          let z ← bvarBoundGo fuel body
-          pure (max (max x y) (z - 1))
+        | .app f a => bvarBoundArmApp fuel f a
+        | .lam ty body _ | .forallE ty body _ => bvarBoundArmBind fuel ty body
+        | .letE ty val body => bvarBoundArmLet fuel ty val body
         | .proj _ _ sub => bvarBoundGo fuel sub)
       bvarBSet h r
       pure r
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo — the `app`
+arm. -/
+def bvarBoundArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
+  let x ← bvarBoundGo fuel f
+  let y ← bvarBoundGo fuel a
+  pure (max x y)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo — the
+binder arm: the body's bound loses the binder it crossed. -/
+def bvarBoundArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
+  let x ← bvarBoundGo fuel ty
+  let y ← bvarBoundGo fuel body
+  pure (max x (y - 1))
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo — the
+`letE` arm. -/
+def bvarBoundArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
+  let x ← bvarBoundGo fuel ty
+  let y ← bvarBoundGo fuel val
+  let z ← bvarBoundGo fuel body
+  pure (max (max x y) (z - 1))
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `bvarBoundGo`'s clause at fuel `0` (template rule 9). -/
+theorem bvarBoundGo_zero (h : EIdx) :
+    bvarBoundGo 0 h = fail (.internal "fuel exhausted: bvarBound") := by
+  rw [bvarBoundGo]
+
+/-- con-leche: none — `bvarBoundGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem bvarBoundGo_succ (fuel : Nat) (h : EIdx) :
+    bvarBoundGo (fuel + 1) h = (do
+      match ← bvarBGet h with
+      | some r => pure r
+      | none => do
+        let r ← (do
+          match ← view h with
+          | .bvar i => pure (i + 1)
+          | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 0
+          | .app f a => bvarBoundArmApp fuel f a
+          | .lam ty body _ | .forallE ty body _ => bvarBoundArmBind fuel ty body
+          | .letE ty val body => bvarBoundArmLet fuel ty val body
+          | .proj _ _ sub => bvarBoundGo fuel sub)
+        bvarBSet h r
+        pure r) := by
+  rw [bvarBoundGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1396-1397 bvarBoundMemo — the
 top-level entry of the memoized walk. -/
 def bvarBoundMemo (fuel : Nat) (e : EIdx) : AM Nat := do
@@ -1440,13 +2358,17 @@ def bvarBoundMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   bvarBClear
   pure r
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1314-1325 Expr.fvarRange
 con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo
 The memoized exact fvar range (`fvar` annotations are not descended into,
-matching the abstraction traversals). -/
-def fvarRangeGo : Nat → EIdx → AM Nat
-  | 0, _ => fail (.internal "fuel exhausted: fvarRange")
-  | fuel + 1, h => do
+matching the abstraction traversals).  The dispatcher (arms split per DESIGN
+§8.6's ruling of 2026-09-22). -/
+def fvarRangeGo (fuel : Nat) (h : EIdx) : AM Nat :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: fvarRange")
+  | fuel + 1 => do
     match ← fvarBGet h with
     | some r => pure r
     | none => do
@@ -1454,23 +2376,64 @@ def fvarRangeGo : Nat → EIdx → AM Nat
         match ← view h with
         | .fvar idx _ => pure (idx + 1)
         | .bvar _ | .sort _ | .const _ _ | .lit _ => pure 0
-        | .app f a => do
-          let x ← fvarRangeGo fuel f
-          let y ← fvarRangeGo fuel a
-          pure (max x y)
-        | .lam ty body _ | .forallE ty body _ => do
-          let x ← fvarRangeGo fuel ty
-          let y ← fvarRangeGo fuel body
-          pure (max x y)
-        | .letE ty val body => do
-          let x ← fvarRangeGo fuel ty
-          let y ← fvarRangeGo fuel val
-          let z ← fvarRangeGo fuel body
-          pure (max (max x y) z)
+        | .app f a => fvarRangeArmApp fuel f a
+        | .lam ty body _ | .forallE ty body _ => fvarRangeArmBind fuel ty body
+        | .letE ty val body => fvarRangeArmLet fuel ty val body
         | .proj _ _ sub => fvarRangeGo fuel sub)
       fvarBSet h r
       pure r
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo — the `app`
+arm. -/
+def fvarRangeArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
+  let x ← fvarRangeGo fuel f
+  let y ← fvarRangeGo fuel a
+  pure (max x y)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo — the
+binder arm; unlike `bvarBound` the cursor does not move. -/
+def fvarRangeArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
+  let x ← fvarRangeGo fuel ty
+  let y ← fvarRangeGo fuel body
+  pure (max x y)
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo — the
+`letE` arm. -/
+def fvarRangeArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
+  let x ← fvarRangeGo fuel ty
+  let y ← fvarRangeGo fuel val
+  let z ← fvarRangeGo fuel body
+  pure (max (max x y) z)
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `fvarRangeGo`'s clause at fuel `0` (template rule 9). -/
+theorem fvarRangeGo_zero (h : EIdx) :
+    fvarRangeGo 0 h = fail (.internal "fuel exhausted: fvarRange") := by
+  rw [fvarRangeGo]
+
+/-- con-leche: none — `fvarRangeGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem fvarRangeGo_succ (fuel : Nat) (h : EIdx) :
+    fvarRangeGo (fuel + 1) h = (do
+      match ← fvarBGet h with
+      | some r => pure r
+      | none => do
+        let r ← (do
+          match ← view h with
+          | .fvar idx _ => pure (idx + 1)
+          | .bvar _ | .sort _ | .const _ _ | .lit _ => pure 0
+          | .app f a => fvarRangeArmApp fuel f a
+          | .lam ty body _ | .forallE ty body _ => fvarRangeArmBind fuel ty body
+          | .letE ty val body => fvarRangeArmLet fuel ty val body
+          | .proj _ _ sub => fvarRangeGo fuel sub)
+        fvarBSet h r
+        pure r) := by
+  rw [fvarRangeGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo — the
 top-level entry of the memoized walk. -/
 def fvarRangeMemo (fuel : Nat) (e : EIdx) : AM Nat := do
@@ -1513,73 +2476,126 @@ def looseBVarsBoundedFast (fuel k : Nat) (e : EIdx) : AM Bool := do
 The fvar-range cutoff comes first: a node whose whole subtree mentions no
 `fvar` at or above `d` is its own abstraction. -/
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the
+`fvar` arm.  It does not recurse, so it sits outside the `mutual` block. -/
+def abstract1ArmFVar (d : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
+  match ← viewFVarIdx h with
+  | none => failDanglingE
+  | some idx => if idx = d then internBVarE k else pure h
+
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:760-776 abstract1
 con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go
 Close a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
-binders.  `fvar` annotations are not descended into. -/
-def abstract1Go (d : Nat) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: abstract1")
-  | fuel + 1, h, k => do
+binders.  `fvar` annotations are not descended into.  The dispatcher (arms
+split per DESIGN §8.6's ruling of 2026-09-22). -/
+def abstract1Go (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: abstract1")
+  | fuel + 1 => do
     let fb ← fvarB fuel h
     if fb ≤ d then
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then
-        match ← abs1Get (h, k) with
-        | some r => pure r
-        | none =>
-          match ← viewApp h with
-          | none => failDanglingE
-          | some (f, a) => do
-            let f' ← abstract1Go d fuel f k
-            let a' ← abstract1Go d fuel a k
-            let r ← internRebuiltApp h (f' == f && a' == a) f' a'
-            abs1Set (h, k) r
-            pure r
-      else if ETag.isBind tg then
-        match ← abs1Get (h, k) with
-        | some r => pure r
-        | none =>
-          match ← viewBindI h with
-          | none => failDanglingE
-          | some (ty, body, m) => do
-            let t ← abstract1Go d fuel ty k
-            let b ← abstract1Go d fuel body (k + 1)
-            let r ← internRebuiltBindI h (t == ty && b == body) tg t b m
-            abs1Set (h, k) r
-            pure r
-      else if tg == ETag.fvar then
-        match ← viewFVarIdx h with
-        | none => failDanglingE
-        | some idx => if idx = d then internBVarE k else pure h
-      else if tg == ETag.letE then
-        match ← abs1Get (h, k) with
-        | some r => pure r
-        | none =>
-          match ← viewLet h with
-          | none => failDanglingE
-          | some (ty, val, body) => do
-            let t ← abstract1Go d fuel ty k
-            let w ← abstract1Go d fuel val k
-            let b ← abstract1Go d fuel body (k + 1)
-            let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
-            abs1Set (h, k) r
-            pure r
-      else if tg == ETag.proj then
-        match ← abs1Get (h, k) with
-        | some r => pure r
-        | none =>
-          match ← viewProj h with
-          | none => failDanglingE
-          | some (n, i, sub) => do
-            let u ← abstract1Go d fuel sub k
-            let r ← internRebuiltProj h (u == sub) n i u
-            abs1Set (h, k) r
-            pure r
-      else
-        pure h
+      if tg == ETag.app then abstract1ArmApp d fuel h k
+      else if ETag.isBind tg then abstract1ArmBind d fuel h k
+      else if tg == ETag.fvar then abstract1ArmFVar d h k
+      else if tg == ETag.letE then abstract1ArmLet d fuel h k
+      else if tg == ETag.proj then abstract1ArmProj d fuel h k
+      else pure h
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the `app`
+arm. -/
+def abstract1ArmApp (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
+  match ← abs1Get (h, k) with
+  | some r => pure r
+  | none =>
+    match ← viewApp h with
+    | none => failDanglingE
+    | some (f, a) => do
+      let f' ← abstract1Go d fuel f k
+      let a' ← abstract1Go d fuel a k
+      let r ← internRebuiltApp h (f' == f && a' == a) f' a'
+      abs1Set (h, k) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the
+binder arm; the body descends at `k + 1`. -/
+def abstract1ArmBind (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
+    AM EIdx := do
+  match ← abs1Get (h, k) with
+  | some r => pure r
+  | none =>
+    match ← viewBindI h with
+    | none => failDanglingE
+    | some (ty, body, m) => do
+      let t ← abstract1Go d fuel ty k
+      let b ← abstract1Go d fuel body (k + 1)
+      let r ← internRebuiltBindI h (t == ty && b == body) h.tag t b m
+      abs1Set (h, k) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the
+`letE` arm. -/
+def abstract1ArmLet (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
+  match ← abs1Get (h, k) with
+  | some r => pure r
+  | none =>
+    match ← viewLet h with
+    | none => failDanglingE
+    | some (ty, val, body) => do
+      let t ← abstract1Go d fuel ty k
+      let w ← abstract1Go d fuel val k
+      let b ← abstract1Go d fuel body (k + 1)
+      let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
+      abs1Set (h, k) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the
+`proj` arm. -/
+def abstract1ArmProj (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
+    AM EIdx := do
+  match ← abs1Get (h, k) with
+  | some r => pure r
+  | none =>
+    match ← viewProj h with
+    | none => failDanglingE
+    | some (n, i, sub) => do
+      let u ← abstract1Go d fuel sub k
+      let r ← internRebuiltProj h (u == sub) n i u
+      abs1Set (h, k) r
+      pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `abstract1Go`'s clause at fuel `0` (template rule 9). -/
+theorem abstract1Go_zero (d : Nat) (h : EIdx) (k : Nat) :
+    abstract1Go d 0 h k = fail (.internal "fuel exhausted: abstract1") := by
+  rw [abstract1Go]
+
+/-- con-leche: none — `abstract1Go`'s clause at `fuel + 1` (template rule
+9). -/
+theorem abstract1Go_succ (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
+    abstract1Go d (fuel + 1) h k = (do
+      let fb ← fvarB fuel h
+      if fb ≤ d then
+        pure h
+      else
+        let tg := h.tag
+        if tg == ETag.app then abstract1ArmApp d fuel h k
+        else if ETag.isBind tg then abstract1ArmBind d fuel h k
+        else if tg == ETag.fvar then abstract1ArmFVar d h k
+        else if tg == ETag.letE then abstract1ArmLet d fuel h k
+        else if tg == ETag.proj then abstract1ArmProj d fuel h k
+        else pure h) := by
+  rw [abstract1Go]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1929-1931 abstract1Fast — the
 top-level entry. -/
 def abstract1Fast (fuel : Nat) (e : EIdx) (d : Nat) (k : Nat := 0) : AM EIdx := do
@@ -1608,76 +2624,133 @@ and each entry point clears the table before and after itself, so within one
 call the key `(h, c)` determines the result at the call's own fixed `d` and
 `k`.  That is a table IDENTITY, not a clause. -/
 
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP — the
+`fvar` arm, which does not recurse and so sits outside the `mutual` block. -/
+def absRangeArmFVar (d k : Nat) (h : EIdx) (c : Nat) : AM EIdx := do
+  match ← viewFVarIdx h with
+  | none => failDanglingE
+  | some idx =>
+    if d ≤ idx && idx < d + k then internBVarE (c + (d + k - 1 - idx))
+    else pure h
+
+mutual
+
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:684-700 abstractRangeP
 con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP
 The memoized `abstractRange` walk: close the `k` free variables
 `d … d + k - 1` into `bvar`s at cursor `c`, innermost binder to the lowest
-index. -/
-def abstractRangeGo (d k : Nat) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: abstractRange")
-  | fuel + 1, h, c => do
+index.  The dispatcher (arms split per DESIGN §8.6's ruling of
+2026-09-22). -/
+def abstractRangeGo (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: abstractRange")
+  | fuel + 1 => do
     let fb ← fvarB fuel h
     if fb ≤ d then
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then
-        match ← abs1Get (h, c) with
-        | some r => pure r
-        | none =>
-          match ← viewApp h with
-          | none => failDanglingE
-          | some (f, a) => do
-            let f' ← abstractRangeGo d k fuel f c
-            let a' ← abstractRangeGo d k fuel a c
-            let r ← internRebuiltApp h (f' == f && a' == a) f' a'
-            abs1Set (h, c) r
-            pure r
-      else if ETag.isBind tg then
-        match ← abs1Get (h, c) with
-        | some r => pure r
-        | none =>
-          match ← viewBindI h with
-          | none => failDanglingE
-          | some (ty, body, m) => do
-            let t ← abstractRangeGo d k fuel ty c
-            let b ← abstractRangeGo d k fuel body (c + 1)
-            let r ← internRebuiltBindI h (t == ty && b == body) tg t b m
-            abs1Set (h, c) r
-            pure r
-      else if tg == ETag.fvar then
-        match ← viewFVarIdx h with
-        | none => failDanglingE
-        | some idx =>
-          if d ≤ idx && idx < d + k then internBVarE (c + (d + k - 1 - idx))
-          else pure h
-      else if tg == ETag.letE then
-        match ← abs1Get (h, c) with
-        | some r => pure r
-        | none =>
-          match ← viewLet h with
-          | none => failDanglingE
-          | some (ty, val, body) => do
-            let t ← abstractRangeGo d k fuel ty c
-            let w ← abstractRangeGo d k fuel val c
-            let b ← abstractRangeGo d k fuel body (c + 1)
-            let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
-            abs1Set (h, c) r
-            pure r
-      else if tg == ETag.proj then
-        match ← abs1Get (h, c) with
-        | some r => pure r
-        | none =>
-          match ← viewProj h with
-          | none => failDanglingE
-          | some (n, i, sub) => do
-            let u ← abstractRangeGo d k fuel sub c
-            let r ← internRebuiltProj h (u == sub) n i u
-            abs1Set (h, c) r
-            pure r
-      else
-        pure h
+      if tg == ETag.app then absRangeGoArmApp d k fuel h c
+      else if ETag.isBind tg then absRangeGoArmBind d k fuel h c
+      else if tg == ETag.fvar then absRangeArmFVar d k h c
+      else if tg == ETag.letE then absRangeGoArmLet d k fuel h c
+      else if tg == ETag.proj then absRangeGoArmProj d k fuel h c
+      else pure h
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP — the
+`app` arm. -/
+def absRangeGoArmApp (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
+    AM EIdx := do
+  match ← abs1Get (h, c) with
+  | some r => pure r
+  | none =>
+    match ← viewApp h with
+    | none => failDanglingE
+    | some (f, a) => do
+      let f' ← abstractRangeGo d k fuel f c
+      let a' ← abstractRangeGo d k fuel a c
+      let r ← internRebuiltApp h (f' == f && a' == a) f' a'
+      abs1Set (h, c) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP — the
+binder arm; the body descends at `c + 1`. -/
+def absRangeGoArmBind (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
+    AM EIdx := do
+  match ← abs1Get (h, c) with
+  | some r => pure r
+  | none =>
+    match ← viewBindI h with
+    | none => failDanglingE
+    | some (ty, body, m) => do
+      let t ← abstractRangeGo d k fuel ty c
+      let b ← abstractRangeGo d k fuel body (c + 1)
+      let r ← internRebuiltBindI h (t == ty && b == body) h.tag t b m
+      abs1Set (h, c) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP — the
+`letE` arm. -/
+def absRangeGoArmLet (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
+    AM EIdx := do
+  match ← abs1Get (h, c) with
+  | some r => pure r
+  | none =>
+    match ← viewLet h with
+    | none => failDanglingE
+    | some (ty, val, body) => do
+      let t ← abstractRangeGo d k fuel ty c
+      let w ← abstractRangeGo d k fuel val c
+      let b ← abstractRangeGo d k fuel body (c + 1)
+      let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
+      abs1Set (h, c) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP — the
+`proj` arm. -/
+def absRangeGoArmProj (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
+    AM EIdx := do
+  match ← abs1Get (h, c) with
+  | some r => pure r
+  | none =>
+    match ← viewProj h with
+    | none => failDanglingE
+    | some (n, i, sub) => do
+      let u ← abstractRangeGo d k fuel sub c
+      let r ← internRebuiltProj h (u == sub) n i u
+      abs1Set (h, c) r
+      pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `abstractRangeGo`'s clause at fuel `0` (template rule
+9). -/
+theorem abstractRangeGo_zero (d k : Nat) (h : EIdx) (c : Nat) :
+    abstractRangeGo d k 0 h c =
+      fail (.internal "fuel exhausted: abstractRange") := by
+  rw [abstractRangeGo]
+
+/-- con-leche: none — `abstractRangeGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem abstractRangeGo_succ (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
+    abstractRangeGo d k (fuel + 1) h c = (do
+      let fb ← fvarB fuel h
+      if fb ≤ d then
+        pure h
+      else
+        let tg := h.tag
+        if tg == ETag.app then absRangeGoArmApp d k fuel h c
+        else if ETag.isBind tg then absRangeGoArmBind d k fuel h c
+        else if tg == ETag.fvar then absRangeArmFVar d k h c
+        else if tg == ETag.letE then absRangeGoArmLet d k fuel h c
+        else if tg == ETag.proj then absRangeGoArmProj d k fuel h c
+        else pure h) := by
+  rw [abstractRangeGo]
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC — the
 top-level entry of the executed `abstractRange`: `k = 0` is the identity and
 skips the traversal (con-leche's own clause, and what makes the annotation
@@ -1693,13 +2766,18 @@ def abstractRangeFast (fuel : Nat) (e : EIdx) (d k c : Nat) : AM EIdx := do
 
 /-! ## `lowerBVars` — `ExprOps.lean:694-716`, `:2012-2049`, `:2144-2146` -/
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:694-716 lowerBVars
 con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo
 Lower every loose bound variable `≥ cutoff + amount` by `amount`, with
-con-leche's own `bvarB ≤ c + amount` cutoff. -/
-def lowerBVarsGo (amount : Nat) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: lowerBVars")
-  | fuel + 1, h, c => do
+con-leche's own `bvarB ≤ c + amount` cutoff.  The dispatcher (arms split per
+DESIGN §8.6's ruling of 2026-09-22); the four leaf arms are `pure h` and stay
+here, and so does the `bvar` arm, which is one `if` and no memo. -/
+def lowerBVarsGo (amount : Nat) (fuel : Nat) (h : EIdx) (c : Nat) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: lowerBVars")
+  | fuel + 1 => do
     let bb ← bvarB fuel h
     if bb ≤ c + amount then
       pure h
@@ -1710,52 +2788,111 @@ def lowerBVarsGo (amount : Nat) : Nat → EIdx → Nat → AM EIdx
       | .sort _ => pure h
       | .const _ _ => pure h
       | .lit _ => pure h
-      | .app f a => do
-        match ← lowerGet (h, c) with
-        | some r => pure r
-        | none => do
-          let f' ← lowerBVarsGo amount fuel f c
-          let a' ← lowerBVarsGo amount fuel a c
-          let r ← internE (.app f' a')
-          lowerSet (h, c) r
-          pure r
-      | .lam ty body m => do
-        match ← lowerGet (h, c) with
-        | some r => pure r
-        | none => do
-          let t ← lowerBVarsGo amount fuel ty c
-          let b ← lowerBVarsGo amount fuel body (c + 1)
-          let r ← internE (.lam t b m)
-          lowerSet (h, c) r
-          pure r
-      | .forallE ty body m => do
-        match ← lowerGet (h, c) with
-        | some r => pure r
-        | none => do
-          let t ← lowerBVarsGo amount fuel ty c
-          let b ← lowerBVarsGo amount fuel body (c + 1)
-          let r ← internE (.forallE t b m)
-          lowerSet (h, c) r
-          pure r
-      | .letE ty val body => do
-        match ← lowerGet (h, c) with
-        | some r => pure r
-        | none => do
-          let t ← lowerBVarsGo amount fuel ty c
-          let w ← lowerBVarsGo amount fuel val c
-          let b ← lowerBVarsGo amount fuel body (c + 1)
-          let r ← internE (.letE t w b)
-          lowerSet (h, c) r
-          pure r
-      | .proj n i sub => do
-        match ← lowerGet (h, c) with
-        | some r => pure r
-        | none => do
-          let u ← lowerBVarsGo amount fuel sub c
-          let r ← internE (.proj n i u)
-          lowerSet (h, c) r
-          pure r
+      | .app f a => lowerArmApp amount fuel h c f a
+      | .lam ty body m => lowerArmLam amount fuel h c ty body m
+      | .forallE ty body m => lowerArmForallE amount fuel h c ty body m
+      | .letE ty val body => lowerArmLet amount fuel h c ty val body
+      | .proj n i sub => lowerArmProj amount fuel h c n i sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo — the
+`app` arm. -/
+def lowerArmApp (amount fuel : Nat) (h : EIdx) (c : Nat) (f a : EIdx) :
+    AM EIdx := do
+  match ← lowerGet (h, c) with
+  | some r => pure r
+  | none => do
+    let f' ← lowerBVarsGo amount fuel f c
+    let a' ← lowerBVarsGo amount fuel a c
+    let r ← internE (.app f' a')
+    lowerSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo — the
+`lam` arm. -/
+def lowerArmLam (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
+    (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← lowerGet (h, c) with
+  | some r => pure r
+  | none => do
+    let t ← lowerBVarsGo amount fuel ty c
+    let b ← lowerBVarsGo amount fuel body (c + 1)
+    let r ← internE (.lam t b m)
+    lowerSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo — the
+`forallE` arm. -/
+def lowerArmForallE (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
+    (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← lowerGet (h, c) with
+  | some r => pure r
+  | none => do
+    let t ← lowerBVarsGo amount fuel ty c
+    let b ← lowerBVarsGo amount fuel body (c + 1)
+    let r ← internE (.forallE t b m)
+    lowerSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo — the
+`letE` arm. -/
+def lowerArmLet (amount fuel : Nat) (h : EIdx) (c : Nat) (ty val body : EIdx) :
+    AM EIdx := do
+  match ← lowerGet (h, c) with
+  | some r => pure r
+  | none => do
+    let t ← lowerBVarsGo amount fuel ty c
+    let w ← lowerBVarsGo amount fuel val c
+    let b ← lowerBVarsGo amount fuel body (c + 1)
+    let r ← internE (.letE t w b)
+    lowerSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo — the
+`proj` arm. -/
+def lowerArmProj (amount fuel : Nat) (h : EIdx) (c : Nat) (n : NIdx) (i : Nat)
+    (sub : EIdx) : AM EIdx := do
+  match ← lowerGet (h, c) with
+  | some r => pure r
+  | none => do
+    let u ← lowerBVarsGo amount fuel sub c
+    let r ← internE (.proj n i u)
+    lowerSet (h, c) r
+    pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `lowerBVarsGo`'s clause at fuel `0` (template rule 9). -/
+theorem lowerBVarsGo_zero (amount : Nat) (h : EIdx) (c : Nat) :
+    lowerBVarsGo amount 0 h c =
+      fail (.internal "fuel exhausted: lowerBVars") := by
+  rw [lowerBVarsGo]
+
+/-- con-leche: none — `lowerBVarsGo`'s clause at `fuel + 1` (template rule
+9). -/
+theorem lowerBVarsGo_succ (amount fuel : Nat) (h : EIdx) (c : Nat) :
+    lowerBVarsGo amount (fuel + 1) h c = (do
+      let bb ← bvarB fuel h
+      if bb ≤ c + amount then
+        pure h
+      else
+        match ← view h with
+        | .bvar i => if i ≥ c + amount then internE (.bvar (i - amount)) else pure h
+        | .fvar _ _ => pure h
+        | .sort _ => pure h
+        | .const _ _ => pure h
+        | .lit _ => pure h
+        | .app f a => lowerArmApp amount fuel h c f a
+        | .lam ty body m => lowerArmLam amount fuel h c ty body m
+        | .forallE ty body m => lowerArmForallE amount fuel h c ty body m
+        | .letE ty val body => lowerArmLet amount fuel h c ty val body
+        | .proj n i sub => lowerArmProj amount fuel h c n i sub) := by
+  rw [lowerBVarsGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast — the
 top-level entry. -/
 def lowerBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
@@ -1772,13 +2909,19 @@ way, which is what makes it usable on let-values.  It is the module's one
 NESTED walk — its `bvar` arm runs `liftLooseBVars`, which is why the two have
 separate memo tables. -/
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:718-739 instantiate1Lift
 con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo
 Replace `bvar d` by `v`, lifting `v`'s loose `bvar`s past the binders crossed
-on the way, with con-leche's own `bvarB ≤ d` cutoff. -/
-def instantiate1LiftGo (v : EIdx) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: instantiate1Lift")
-  | fuel + 1, h, d => do
+on the way, with con-leche's own `bvarB ≤ d` cutoff.  The dispatcher (arms
+split per DESIGN §8.6's ruling of 2026-09-22); the `bvar` arm — the NESTED
+one, which runs `liftLooseBVars` — has no memo probe and stays here. -/
+def instantiate1LiftGo (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: instantiate1Lift")
+  | fuel + 1 => do
     let bb ← bvarB fuel h
     if bb ≤ d then
       pure h
@@ -1792,52 +2935,115 @@ def instantiate1LiftGo (v : EIdx) : Nat → EIdx → Nat → AM EIdx
       | .sort _ => pure h
       | .const _ _ => pure h
       | .lit _ => pure h
-      | .app f a => do
-        match ← inst1LGet (h, d) with
-        | some r => pure r
-        | none => do
-          let f' ← instantiate1LiftGo v fuel f d
-          let a' ← instantiate1LiftGo v fuel a d
-          let r ← internE (.app f' a')
-          inst1LSet (h, d) r
-          pure r
-      | .lam ty body m => do
-        match ← inst1LGet (h, d) with
-        | some r => pure r
-        | none => do
-          let t ← instantiate1LiftGo v fuel ty d
-          let b ← instantiate1LiftGo v fuel body (d + 1)
-          let r ← internE (.lam t b m)
-          inst1LSet (h, d) r
-          pure r
-      | .forallE ty body m => do
-        match ← inst1LGet (h, d) with
-        | some r => pure r
-        | none => do
-          let t ← instantiate1LiftGo v fuel ty d
-          let b ← instantiate1LiftGo v fuel body (d + 1)
-          let r ← internE (.forallE t b m)
-          inst1LSet (h, d) r
-          pure r
-      | .letE ty val body => do
-        match ← inst1LGet (h, d) with
-        | some r => pure r
-        | none => do
-          let t ← instantiate1LiftGo v fuel ty d
-          let w ← instantiate1LiftGo v fuel val d
-          let b ← instantiate1LiftGo v fuel body (d + 1)
-          let r ← internE (.letE t w b)
-          inst1LSet (h, d) r
-          pure r
-      | .proj n i sub => do
-        match ← inst1LGet (h, d) with
-        | some r => pure r
-        | none => do
-          let u ← instantiate1LiftGo v fuel sub d
-          let r ← internE (.proj n i u)
-          inst1LSet (h, d) r
-          pure r
+      | .app f a => inst1LiftArmApp v fuel h d f a
+      | .lam ty body m => inst1LiftArmLam v fuel h d ty body m
+      | .forallE ty body m => inst1LiftArmForallE v fuel h d ty body m
+      | .letE ty val body => inst1LiftArmLet v fuel h d ty val body
+      | .proj n i sub => inst1LiftArmProj v fuel h d n i sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo —
+the `app` arm. -/
+def inst1LiftArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (f a : EIdx) :
+    AM EIdx := do
+  match ← inst1LGet (h, d) with
+  | some r => pure r
+  | none => do
+    let f' ← instantiate1LiftGo v fuel f d
+    let a' ← instantiate1LiftGo v fuel a d
+    let r ← internE (.app f' a')
+    inst1LSet (h, d) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo —
+the `lam` arm. -/
+def inst1LiftArmLam (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
+    (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← inst1LGet (h, d) with
+  | some r => pure r
+  | none => do
+    let t ← instantiate1LiftGo v fuel ty d
+    let b ← instantiate1LiftGo v fuel body (d + 1)
+    let r ← internE (.lam t b m)
+    inst1LSet (h, d) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo —
+the `forallE` arm. -/
+def inst1LiftArmForallE (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
+    (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← inst1LGet (h, d) with
+  | some r => pure r
+  | none => do
+    let t ← instantiate1LiftGo v fuel ty d
+    let b ← instantiate1LiftGo v fuel body (d + 1)
+    let r ← internE (.forallE t b m)
+    inst1LSet (h, d) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo —
+the `letE` arm. -/
+def inst1LiftArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
+    (ty val body : EIdx) : AM EIdx := do
+  match ← inst1LGet (h, d) with
+  | some r => pure r
+  | none => do
+    let t ← instantiate1LiftGo v fuel ty d
+    let w ← instantiate1LiftGo v fuel val d
+    let b ← instantiate1LiftGo v fuel body (d + 1)
+    let r ← internE (.letE t w b)
+    inst1LSet (h, d) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo —
+the `proj` arm. -/
+def inst1LiftArmProj (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (n : NIdx)
+    (i : Nat) (sub : EIdx) : AM EIdx := do
+  match ← inst1LGet (h, d) with
+  | some r => pure r
+  | none => do
+    let u ← instantiate1LiftGo v fuel sub d
+    let r ← internE (.proj n i u)
+    inst1LSet (h, d) r
+    pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `instantiate1LiftGo`'s clause at fuel `0` (template
+rule 9). -/
+theorem instantiate1LiftGo_zero (v h : EIdx) (d : Nat) :
+    instantiate1LiftGo v 0 h d =
+      fail (.internal "fuel exhausted: instantiate1Lift") := by
+  rw [instantiate1LiftGo]
+
+/-- con-leche: none — `instantiate1LiftGo`'s clause at `fuel + 1` (template
+rule 9). -/
+theorem instantiate1LiftGo_succ (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    instantiate1LiftGo v (fuel + 1) h d = (do
+      let bb ← bvarB fuel h
+      if bb ≤ d then
+        pure h
+      else
+        match ← view h with
+        | .bvar i =>
+          if i = d then liftLooseBVarsFast fuel d 0 v
+          else if i > d then internE (.bvar (i - 1))
+          else pure h
+        | .fvar _ _ => pure h
+        | .sort _ => pure h
+        | .const _ _ => pure h
+        | .lit _ => pure h
+        | .app f a => inst1LiftArmApp v fuel h d f a
+        | .lam ty body m => inst1LiftArmLam v fuel h d ty body m
+        | .forallE ty body m => inst1LiftArmForallE v fuel h d ty body m
+        | .letE ty val body => inst1LiftArmLet v fuel h d ty val body
+        | .proj n i sub => inst1LiftArmProj v fuel h d n i sub) := by
+  rw [instantiate1LiftGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast —
 the top-level entry. -/
 def instantiate1LiftFast (fuel : Nat) (e v : EIdx) (d : Nat := 0) : AM EIdx := do
@@ -1932,15 +3138,21 @@ def substLsMemoAt (ks : List ConLeche.Name) (us : List Level) (vs : LsIdx) :
     instLPLsSet vs vs'
     pure vs'
 
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 substitute level parameters throughout an expression, with con-leche's own
 `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
 substitution is the identity on it).  `.sort` and `.const` read their levels
 back, run `Level.subst` on the transient trees and re-intern; nothing else in
-this module touches a level. -/
-def instLPGo (ks : List ConLeche.Name) (us : List Level) : Nat → EIdx → AM EIdx
-  | 0, _ => fail (.internal "fuel exhausted: instantiateLevelParams")
-  | fuel + 1, h => do
+this module touches a level.  The dispatcher (arms split per DESIGN §8.6's
+ruling of 2026-09-22); the two LEVEL arms have no memo probe of their own and
+stay here, beside the two leaves. -/
+def instLPGo (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: instantiateLevelParams")
+  | fuel + 1 => do
     let der ← derivedE h
     if !(lpOfData der) then
       pure h
@@ -1954,62 +3166,131 @@ def instLPGo (ks : List ConLeche.Name) (us : List Level) : Nat → EIdx → AM E
       | .const n vs => do
         let vs' ← substLsMemoAt ks us vs
         internRebuiltConst h (vs' == vs) n vs'
-      | .fvar i ty => do
-        match ← instLPGet (h, 0) with
-        | some r => pure r
-        | none => do
-          let t ← instLPGo ks us fuel ty
-          let r ← internRebuiltFVar h (t == ty) i t
-          instLPSet (h, 0) r
-          pure r
-      | .app f a => do
-        match ← instLPGet (h, 0) with
-        | some r => pure r
-        | none => do
-          let f' ← instLPGo ks us fuel f
-          let a' ← instLPGo ks us fuel a
-          let r ← internRebuiltApp h (f' == f && a' == a) f' a'
-          instLPSet (h, 0) r
-          pure r
-      | .lam ty body m => do
-        match ← instLPGet (h, 0) with
-        | some r => pure r
-        | none => do
-          let t ← instLPGo ks us fuel ty
-          let b ← instLPGo ks us fuel body
-          let m2 : ConLeche.BinderMeta := ⟨Level.substPW ks us m.pw⟩
-          let r ← internRebuiltLam h (t == ty && b == body && m2 == m) t b m2
-          instLPSet (h, 0) r
-          pure r
-      | .forallE ty body m => do
-        match ← instLPGet (h, 0) with
-        | some r => pure r
-        | none => do
-          let t ← instLPGo ks us fuel ty
-          let b ← instLPGo ks us fuel body
-          let m2 : ConLeche.BinderMeta := ⟨Level.substPW ks us m.pw⟩
-          let r ← internRebuiltForallE h (t == ty && b == body && m2 == m) t b m2
-          instLPSet (h, 0) r
-          pure r
-      | .letE ty val body => do
-        match ← instLPGet (h, 0) with
-        | some r => pure r
-        | none => do
-          let t ← instLPGo ks us fuel ty
-          let w ← instLPGo ks us fuel val
-          let b ← instLPGo ks us fuel body
-          let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
-          instLPSet (h, 0) r
-          pure r
-      | .proj n i sub => do
-        match ← instLPGet (h, 0) with
-        | some r => pure r
-        | none => do
-          let u' ← instLPGo ks us fuel sub
-          let r ← internRebuiltProj h (u' == sub) n i u'
-          instLPSet (h, 0) r
-          pure r
+      | .fvar i ty => instLPArmFVar ks us fuel h i ty
+      | .app f a => instLPArmApp ks us fuel h f a
+      | .lam ty body m => instLPArmLam ks us fuel h ty body m
+      | .forallE ty body m => instLPArmForallE ks us fuel h ty body m
+      | .letE ty val body => instLPArmLet ks us fuel h ty val body
+      | .proj n i sub => instLPArmProj ks us fuel h n i sub
+termination_by (fuel, 0)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the
+`fvar` arm. -/
+def instLPArmFVar (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) (i : Nat) (ty : EIdx) : AM EIdx := do
+  match ← instLPGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← instLPGo ks us fuel ty
+    let r ← internRebuiltFVar h (t == ty) i t
+    instLPSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the
+`app` arm. -/
+def instLPArmApp (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) (f a : EIdx) : AM EIdx := do
+  match ← instLPGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let f' ← instLPGo ks us fuel f
+    let a' ← instLPGo ks us fuel a
+    let r ← internRebuiltApp h (f' == f && a' == a) f' a'
+    instLPSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the
+`lam` arm; the binder's prop-ness datum is substituted too. -/
+def instLPArmLam (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← instLPGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← instLPGo ks us fuel ty
+    let b ← instLPGo ks us fuel body
+    let m2 : ConLeche.BinderMeta := ⟨Level.substPW ks us m.pw⟩
+    let r ← internRebuiltLam h (t == ty && b == body && m2 == m) t b m2
+    instLPSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the
+`forallE` arm. -/
+def instLPArmForallE (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+  match ← instLPGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← instLPGo ks us fuel ty
+    let b ← instLPGo ks us fuel body
+    let m2 : ConLeche.BinderMeta := ⟨Level.substPW ks us m.pw⟩
+    let r ← internRebuiltForallE h (t == ty && b == body && m2 == m) t b m2
+    instLPSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the
+`letE` arm. -/
+def instLPArmLet (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) (ty val body : EIdx) : AM EIdx := do
+  match ← instLPGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let t ← instLPGo ks us fuel ty
+    let w ← instLPGo ks us fuel val
+    let b ← instLPGo ks us fuel body
+    let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
+    instLPSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the
+`proj` arm. -/
+def instLPArmProj (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) (n : NIdx) (i : Nat) (sub : EIdx) : AM EIdx := do
+  match ← instLPGet (h, 0) with
+  | some r => pure r
+  | none => do
+    let u' ← instLPGo ks us fuel sub
+    let r ← internRebuiltProj h (u' == sub) n i u'
+    instLPSet (h, 0) r
+    pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `instLPGo`'s clause at fuel `0` (template rule 9). -/
+theorem instLPGo_zero (ks : List ConLeche.Name) (us : List Level) (h : EIdx) :
+    instLPGo ks us 0 h =
+      fail (.internal "fuel exhausted: instantiateLevelParams") := by
+  rw [instLPGo]
+
+/-- con-leche: none — `instLPGo`'s clause at `fuel + 1` (template rule 9). -/
+theorem instLPGo_succ (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
+    (h : EIdx) :
+    instLPGo ks us (fuel + 1) h = (do
+      let der ← derivedE h
+      if !(lpOfData der) then
+        pure h
+      else
+        match ← view h with
+        | .bvar _ => pure h
+        | .lit _ => pure h
+        | .sort u => do
+          let hl ← substLMemoAt ks us u
+          internRebuiltSort h (hl == u) hl
+        | .const n vs => do
+          let vs' ← substLsMemoAt ks us vs
+          internRebuiltConst h (vs' == vs) n vs'
+        | .fvar i ty => instLPArmFVar ks us fuel h i ty
+        | .app f a => instLPArmApp ks us fuel h f a
+        | .lam ty body m => instLPArmLam ks us fuel h ty body m
+        | .forallE ty body m => instLPArmForallE ks us fuel h ty body m
+        | .letE ty val body => instLPArmLet ks us fuel h ty val body
+        | .proj n i sub => instLPArmProj ks us fuel h n i sub) := by
+  rw [instLPGo]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast — the
 top-level entry: read the substitution back out of the store once, walk, drop
 the memo. -/

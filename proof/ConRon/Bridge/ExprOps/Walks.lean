@@ -237,13 +237,13 @@ theorem sizeB_spec : ∀ fuel, SizeBSpec (sizeB fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _
-    mvcgen [sizeB]
+    mvcgen [sizeB_zero]
     all_goals bridge_vcs [Expr.sizeB, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hden
     have hrec := ih.run
-    mvcgen [sizeB, hrec]
+    mvcgen [sizeB_succ, sizeBArmApp, sizeBArmBind, sizeBArmLet, sizeBArmProj, hrec]
     all_goals bridge_vcs [Expr.sizeB, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:741-748 sizeB — the same statement
@@ -276,13 +276,13 @@ theorem sizeF_spec : ∀ fuel, SizeFSpec (sizeF fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _
-    mvcgen [sizeF]
+    mvcgen [sizeF_zero]
     all_goals bridge_vcs [Expr.sizeF, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hden
     have hrec := ih.run
-    mvcgen [sizeF, hrec]
+    mvcgen [sizeF_succ, sizeFArmFVar, sizeFArmApp, sizeFArmBind, sizeFArmLet, sizeFArmProj, hrec]
     all_goals bridge_vcs [Expr.sizeF, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF — the run form. -/
@@ -319,13 +319,13 @@ theorem wscopedB_spec : ∀ fuel, WScopedBSpec (wscopedB fuel) := by
   | zero =>
     constructor
     intro s₀ d h _ _
-    mvcgen [wscopedB]
+    mvcgen [wscopedB_zero]
     all_goals bridge_vcs [Expr.wscopedB, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ d h hok hden
     have hrec := ih.run
-    mvcgen [wscopedB, hrec]
+    mvcgen [wscopedB_succ, wscopedBArmApp, wscopedBArmBind, wscopedBArmLet, hrec]
     all_goals bridge_vcs [Expr.wscopedB, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:835-861 wscopedB — the run form. -/
@@ -360,13 +360,13 @@ theorem looseBVarsBounded_spec :
   | zero =>
     constructor
     intro s₀ k h _ _
-    mvcgen [looseBVarsBounded]
+    mvcgen [looseBVarsBounded_zero]
     all_goals bridge_vcs [Expr.looseBVarsBounded, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ k h hok hden
     have hrec := ih.run
-    mvcgen [looseBVarsBounded, hrec]
+    mvcgen [looseBVarsBounded_succ, looseBArmApp, looseBArmBind, looseBArmLet, hrec]
     all_goals bridge_vcs [Expr.looseBVarsBounded, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded — the
@@ -402,13 +402,13 @@ theorem hasFvar_spec : ∀ fuel, HasFvarSpec (hasFvar fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _
-    mvcgen [hasFvar]
+    mvcgen [hasFvar_zero]
     all_goals bridge_vcs [Expr.hasFvar, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hden
     have hrec := ih.run
-    mvcgen [hasFvar, hrec]
+    mvcgen [hasFvar_succ, hasFvarArmApp, hasFvarArmBind, hasFvarArmLet, hrec]
     all_goals bridge_vcs [Expr.hasFvar, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar — the run

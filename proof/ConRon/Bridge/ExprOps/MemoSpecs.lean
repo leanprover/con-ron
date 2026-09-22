@@ -266,7 +266,17 @@ two new conjuncts are `EStore.view_intern_mono` and
   unfold internE
   mvcgen
   spec_fails
-  rename_i s hs _n _nbm hcap _s1
+  -- **The cons HIT** (task #97-P5-1's finding 9): `internE` probes before it
+  -- tests the capacity, so this branch moves nothing and both monotonicity
+  -- conjuncts are reflexive.
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview := EStore.view_of_find hwf hfind
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, fun _ _ hi => hi,
+      fun _ _ hmi => hmi, hview, denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n _nbm hcap _s1
   subst hs
   simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq,
     Bool.not_eq_true'] at hcap

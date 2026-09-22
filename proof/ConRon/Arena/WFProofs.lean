@@ -7655,4 +7655,139 @@ theorem LsStore.enableScratch_spec {st : LsStore} (h : LsStoreWF st) :
   exact ⟨LsStore.enableScratch_wf h,
     fun _ hp => LsStore.view_enableScratch_pers st hp⟩
 
+/-! ## The cons HIT answers a handle whose view is the view (task #97-P5-1's
+finding 9)
+
+**The twin/Rust divergence this closes.**  The Rust tests `Tbl::full` only
+where it is about to APPEND — inside the cons-table miss path — so on a cons
+HIT at a full constructor array it answers `Ok`, while a twin that tested the
+capacity BEFORE probing threw `native`.  `Arena/Monad.lean`'s `internE`,
+`internPersistentE` and the three nested wrappers now probe first and test the
+capacity on the miss path only, which is the Rust's own order.
+
+What the hit path owes the bridge is one fact per store, and it is `StoreWF`'s
+own `consP` / `consS` clause read left to right: a handle the cons table
+answers for a view is a handle whose view is that view.  No capacity anywhere
+in it — which is the point. -/
+
+/-- con-leche: none — arena infrastructure; the two-tier probe answers only
+what one of the two tiers answered. -/
+theorem NStore.find?_cases {st : NStore} {v : NNodeView} {i : NIdx}
+    (hf : st.find? v = some i) :
+    st.pers.find? v = some i ∨ st.scr.find? v = some i := by
+  simp only [NStore.find?] at hf
+  split at hf
+  · rename_i j hp
+    obtain rfl := Option.some.inj hf
+    exact Or.inl hp
+  · split at hf
+    · exact Or.inr hf
+    · exact absurd hf (by simp)
+
+/-- con-leche: none — arena infrastructure; a name-store cons hit names a node
+with that view. -/
+theorem NStore.view_of_find {st : NStore} {v : NNodeView} {i : NIdx}
+    (h : NStoreWF st) (hf : st.find? v = some i) : st.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h
+  rcases NStore.find?_cases hf with hh | hh
+  · exact ((hwf.consP v i).mp hh).1
+  · exact ((hwf.consS v i).mp hh).1
+
+/-- con-leche: none — arena infrastructure; the same at the level store. -/
+theorem LStore.find?_cases {st : LStore} {v : LNodeView} {i : LIdx}
+    (hf : st.find? v = some i) :
+    st.pers.find? v = some i ∨ st.scr.find? v = some i := by
+  simp only [LStore.find?] at hf
+  split at hf
+  · rename_i j hp
+    obtain rfl := Option.some.inj hf
+    exact Or.inl hp
+  · split at hf
+    · exact Or.inr hf
+    · exact absurd hf (by simp)
+
+/-- con-leche: none — arena infrastructure; a level-store cons hit. -/
+theorem LStore.view_of_find {st : LStore} {v : LNodeView} {i : LIdx}
+    (h : LStoreWF st) (hf : st.find? v = some i) : st.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h
+  rcases LStore.find?_cases hf with hh | hh
+  · exact ((hwf.consP v i).mp hh).1
+  · exact ((hwf.consS v i).mp hh).1
+
+/-- con-leche: none — arena infrastructure; the same at the level-list
+store. -/
+theorem LsStore.find?_cases {st : LsStore} {v : LsNodeView} {i : LsIdx}
+    (hf : st.find? v = some i) :
+    st.pers.find? v = some i ∨ st.scr.find? v = some i := by
+  simp only [LsStore.find?] at hf
+  split at hf
+  · rename_i j hp
+    obtain rfl := Option.some.inj hf
+    exact Or.inl hp
+  · split at hf
+    · exact Or.inr hf
+    · exact absurd hf (by simp)
+
+/-- con-leche: none — arena infrastructure; a level-list cons hit. -/
+theorem LsStore.view_of_find {st : LsStore} {v : LsNodeView} {i : LsIdx}
+    (h : LsStoreWF st) (hf : st.find? v = some i) : st.view i = some v := by
+  rcases LsStore.find?_cases hf with hh | hh
+  · exact ((h.consP v i).mp hh).1
+  · exact ((h.consS v i).mp hh).1
+
+/-- con-leche: none — arena infrastructure; the expression store's two-tier
+probe, whose cons key carries the binder datum's handle. -/
+theorem EStore.find?_cases {st : EStore} {v : ENodeView} {i : EIdx}
+    (hf : st.find? v = some i) :
+    st.persFind? v = some i ∨ st.scrFind? v = some i := by
+  simp only [EStore.find?] at hf
+  split at hf
+  · exact absurd hf (by simp)
+  · rename_i mi hb
+    simp only [EStore.findAt] at hf
+    simp only [EStore.persFind?, EStore.scrFind?, hb]
+    split at hf
+    · rename_i j hp
+      obtain rfl := Option.some.inj hf
+      exact Or.inl hp
+    · split at hf
+      · exact Or.inr hf
+      · exact absurd hf (by simp)
+
+/-- con-leche: none — arena infrastructure; an expression-store cons hit names
+a node with that view. -/
+theorem EStore.view_of_find {st : EStore} {v : ENodeView} {i : EIdx}
+    (h : StoreWF st) (hf : st.find? v = some i) : st.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h
+  rcases EStore.find?_cases hf with hh | hh
+  · exact ((hwf.consP v i).mp hh).1
+  · exact ((hwf.consS v i).mp hh).1
+
+/-- con-leche: none — arena infrastructure; the PERSISTENT-tier probe, which
+is what `internPersistentE` hits. -/
+theorem EStore.view_of_persFind {st : EStore} {v : ENodeView} {i : EIdx}
+    (h : StoreWF st) (hf : st.persFind? v = some i) : st.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h
+  exact ((hwf.consP v i).mp hf).1
+
+/-- con-leche: none — arena infrastructure; the name store's persistent
+probe. -/
+theorem NStore.view_of_persFind {st : NStore} {v : NNodeView} {i : NIdx}
+    (h : NStoreWF st) (hf : st.pers.find? v = some i) : st.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h
+  exact ((hwf.consP v i).mp hf).1
+
+/-- con-leche: none — arena infrastructure; the level store's persistent
+probe. -/
+theorem LStore.view_of_persFind {st : LStore} {v : LNodeView} {i : LIdx}
+    (h : LStoreWF st) (hf : st.pers.find? v = some i) : st.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h
+  exact ((hwf.consP v i).mp hf).1
+
+/-- con-leche: none — arena infrastructure; the level-list store's persistent
+probe. -/
+theorem LsStore.view_of_persFind {st : LsStore} {v : LsNodeView} {i : LsIdx}
+    (h : LsStoreWF st) (hf : st.pers.find? v = some i) : st.view i = some v :=
+  ((h.consP v i).mp hf).1
+
 end ConRon.Arena

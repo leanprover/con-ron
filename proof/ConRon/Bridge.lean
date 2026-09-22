@@ -21,21 +21,32 @@ order.
 * `Bridge/ExprOps.lean` — the `ExprOps` tier (Theorem 1, function by
   function);
 * `Bridge/Core.lean` — the Core tier: the knot statement, the memo wrappers,
-  the per-arm step lemmas and the fuel induction (task #97-P3-Core).
-
+  the per-arm step lemmas and the fuel induction (task #97-P3-Core);
+* `Bridge/Promote.lean` — the promotion tier (task #97-P3-Checker): the
+  PERSISTENT extension, the `internPersistent` obligations and the
+  promotion's exactness;
+* `Bridge/Checker.lean` — **the declaration-checker tier and THEOREM 1**:
+  `Arena.checkDecl_bridge`, `Arena.checkDeclsPure_bridge` and the capstone
+  `Arena.model_exists`.
 It imports `ConRon.Arena` and con-leche and **nothing else**: no
 `ConRon.Refine`, no `ConRon.Generated`, no Aeneas, no Mathlib.  `mvcgen`
 comes from `Std.Tactic.Do`, which is in core.
 
 Up to and including the `ExprOps` tier the con-leche half is `Kernel/*`
-alone.  **The Core tier also imports con-leche's `Verify/*`** (task
-#97-P3-Core): the memo wrappers need its six depth-invariance theorems
-(`Verify/Deep.lean:3066-3120`) and its six well-scopedness preservations, and
-the batched clauses of DESIGN §8.6's items 9/11/12 are identified against the
-chain by con-leche's own lemmas (`Verify/BetaSpine.lean`,
-`Verify/BinderLoop.lean`, `Verify/InstList.lean`).  Those modules are already
-built in the shared package, so the cost is loading `olean`s, not
-elaborating.
+alone.  **The Core and Checker tiers also import con-leche's `Verify/*`**
+(tasks #97-P3-Core and #97-P3-Checker): the memo wrappers need its six
+depth-invariance theorems (`Verify/Deep.lean:3066-3120`) and its six
+well-scopedness preservations, the batched clauses of DESIGN §8.6's items
+9/11/12 are identified against the chain by con-leche's own lemmas
+(`Verify/BetaSpine.lean`, `Verify/BinderLoop.lean`, `Verify/InstList.lean`),
+and the Checker tier takes four declarations in four files —
+`Verify/BridgeDecl.lean`'s `checkDecl_datF` (`Bridge/Checker/Mono.lean`),
+`Verify/EnvBound.lean`'s `mkFEnv_find?_visibleBelow`
+(`Bridge/Checker/Split.lean`), `Verify/EnvWF.lean`'s `EnvWF`
+(`Bridge/Checker/Inv.lean`) and **`Model/Fold.lean`'s
+`checkDeclsPure_sound_of`** (`Bridge/Checker/Capstone.lean` — the capstone
+cannot be stated without it).  Those modules are already built in the shared
+package, so the cost is loading `olean`s, not elaborating.
 
 `ConRonBridge` is deliberately **not** in `lakefile.toml`'s `defaultTargets`
 while the tier still carries `sorry`s — the precedent is `ConRonArenaSpike`
@@ -52,4 +63,6 @@ import ConRon.Bridge.Specs
 import ConRon.Bridge.SpecsL
 import ConRon.Bridge.ExprOps
 import ConRon.Bridge.Core
+import ConRon.Bridge.Promote
+import ConRon.Bridge.Checker
 import ConRon.Bridge.Axioms
