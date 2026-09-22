@@ -332,32 +332,54 @@ owes is `internCE (fields) = internE (.C fields)`, `rfl`. -/
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
 `lam` constructor with the binder datum already a HANDLE (task #97-P6-16).
-The capacity test is `internE`'s own, at the binder array. -/
+The capacity test is `internE`'s own, at the binder array.
+
+**PROBE FIRST**, as `internE` does (task #97-P5-1's finding 9; at this family
+task #97-P5-3 round 3's **finding 15**, fixed at task #97-P5-Twin): the Rust's
+`intern_lam_i` probes `pers.lams` and then `scr.lams` and tests `Tbl::full`
+only where it is about to APPEND, so on a cons HIT at a full `lams` array it
+answers `Ok`.  A datum handle needs no room of its own on either path — it is
+already interned, it is the cons key — so the only test left is the node
+array's, on the miss, **at the tier the append goes to**, which is the
+`if scratchOn` the Rust's own `if self.scratch_on` branch makes.  (The test
+used to be a conjunction over both tiers, which declined on the strength of a
+tier the append never touches.)  The probe is `EStore.findBindI`, the same one
+`internBindI` makes; on a hit the store does not move and the handle is the
+one the cons table already holds. -/
 def internLamIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
   let s ← get
-  if s.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
-      s.store.pers.bindSizeOf ETag.lam < Idx.idxCap then
-    let st := s.store
-    let s := { s with store := EStore.empty }
-    let (st, h) := st.internLamI ty b mi
-    set { s with store := st }
-    pure h
-  else
-    fail (.native "arena: expression constructor array full")
+  match s.store.findBindI ETag.lam ty b mi with
+  | some h => pure h
+  | none =>
+    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.lam
+             else s.store.pers.bindSizeOf ETag.lam
+    if n < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internLamI ty b mi
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: expression constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
-`forallE` constructor with the binder datum already a HANDLE. -/
+`forallE` constructor with the binder datum already a HANDLE.  Probe first,
+for `internLamIE`'s reason and at the other array. -/
 def internForallEIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
   let s ← get
-  if s.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
-      s.store.pers.bindSizeOf ETag.forallE < Idx.idxCap then
-    let st := s.store
-    let s := { s with store := EStore.empty }
-    let (st, h) := st.internForallEI ty b mi
-    set { s with store := st }
-    pure h
-  else
-    fail (.native "arena: expression constructor array full")
+  match s.store.findBindI ETag.forallE ty b mi with
+  | some h => pure h
+  | none =>
+    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.forallE
+             else s.store.pers.bindSizeOf ETag.forallE
+    if n < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internForallEI ty b mi
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: expression constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two binder
 arms at a tag the caller carries and a datum it holds as a handle: the shape
