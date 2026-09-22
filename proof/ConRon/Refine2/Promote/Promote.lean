@@ -10,7 +10,7 @@ promotes a step's newly installed constants in place.
 
 ## The statement shape
 
-`Refine2/Checker/Shape.lean`'s `SimPM` / `SimPMF`: task #97-P5-0's finding 4
+`Refine2/Checker/Shape.lean`'s `SimPMW` / `SimPMFW`: task #97-P5-0's finding 4
 one tier down.  The memo is an argument-and-result pair on both sides and a
 `ron::HashMap2` abstracts only relationally, so the twin's post-memo is
 existentially quantified beside its post-state and `PMemoRel` relates it.
@@ -390,266 +390,117 @@ with `absU fuel = n` generalised.
 What it rests on: `Refine2/Specs.lean`'s `intern_persistent_n_run` (still
 open, and named rather than re-proved), `view_n_run`, `nidx_is_persistent_abs`
 and this file's own `pmemo_{get,set}_n_refines`.  **`Ext` comes out of the
-composition** — every step's `AOut`/`POut` carries one and `Ext.trans` chains
+composition** — every step's `AOut`/`POutW` carries one and `Ext.trans` chains
 them — so `Arena/PromoteExt.lean`'s `promoteN_ext` is not needed here; it is
 needed where a walk's `Ext` has to be produced WITHOUT decomposing it, which
 is `Bridge/Promote/Exact.lean`'s business. -/
 
+/-! ### TASK #97-P5-Fresh: what the name walk now waits on
+
+`promote_n_node_aux` and `promote_n_aux` were closed at `arena` `710f3778`,
+modulo the then-`sorry` `intern_persistent_n_run`.  They are re-opened here,
+and the reason is a FINDING rather than an omission.
+
+`intern_persistent_n_run`, stated truly, takes two twin-side hypotheses about
+the view it interns — `lst.store.ns.ViewOK w` (the children decode) and
+`NViewPers w` (the children are already persistent); the second is
+`Arena/Store.lean`'s *"added precondition"*, which a promotion has only
+because it promotes the children first.  At the `.Anonymous` arm both are
+vacuous.  At `.Str p` / `.Num p` they are facts about the handle the
+RECURSIVE `promote_n` returned, and `SimPMW`'s `R` cannot deliver them:
+
+* *"the result is persistent"* is a value-only property and could be added to
+  `R`, but then `promote_n_aux` has to PROVE it, and on the memo-hit path it
+  is a property of the memo, not of this call;
+* *"the result decodes in the post-state"* cannot even be STATED through
+  `POutW`, whose `R : α → β → Prop` does not see `lst'`.
+
+So closing the name walk needs, threaded through the induction: `R` widened to
+`α → β → AState → Prop`; an input clause *"the handle decodes"*; a memo clause
+*"every memo value is persistent and decodes"* (`Bridge/Promote/Pers.lean`'s
+`PMemoOK`, one tier down); and a *"views only grow"* conjunct to carry the
+memo clause across each step.  That is `Bridge/Promote/Exact.lean`'s
+`promoteN_spec` — the TWIN-side exactness theorem, itself `sorry` — re-derived
+inside the refinement tier.  The right move is to compose with it rather than
+to duplicate it, and that is a Bridge-lane decision.
+
+The four `_run` lemmas underneath are closed; nothing else about this file's
+shape changed except `AStateRel` → `AStateRelW` and the `PersUnfrozen`
+hypothesis. -/
+
 /-- `promote_n_node` at the fuel `promote_n` calls it with, from that call's
 own induction hypothesis — the mutual block's second half, which needs no
-induction of its own. -/
+induction of its own.
+
+`sorry`: see the section note — the two twin-side hypotheses of
+`intern_persistent_n_run` are not statable through `POutW`. -/
 private theorem promote_n_node_aux (n : Nat)
     (ih : ∀ {pers st lst rm lm} {fuel : Std.U64} {h : arena.handle.NIdx} {o},
-      absU fuel = n → AStateRel pers st lst → AStateInv pers st →
-      PMemoRel rm lm →
+      absU fuel = n → AStateRelW pers st lst → AStateInv pers st →
+      PersUnfrozen st.store → PMemoRel rm lm →
       arena.promote.promote_n pers st rm fuel h = ok o →
-      SimPMF absNIdx pers lst o (promoteN lm n (absNIdx h))) :
+      SimPMFW absNIdx pers lst o (promoteN lm n (absNIdx h))) :
     ∀ {pers st lst rm lm} {fu : Std.U64} {v : arena.store.NNodeView} {o},
-      absU fu = n → AStateRel pers st lst → AStateInv pers st →
-      PMemoRel rm lm →
+      absU fu = n → AStateRelW pers st lst → AStateInv pers st →
+      PersUnfrozen st.store → PMemoRel rm lm →
       arena.promote.promote_n_node pers st rm fu v = ok o →
-      SimPMF absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) := by
-    intro pers st lst rm lm fu v o hk hrel hinv hm hrun
-    cases v with
-    | Anonymous =>
-      rw [arena.promote.promote_n_node] at hrun
-      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      obtain ⟨qr, qst⟩ := q
-      have hI := intern_persistent_n_run hrel hinv .Anonymous hq
-      simp only [Sim, AOut, absNNodeView] at hI
-      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
-        StateT.run_bind]
-      cases hqr : qr with
-      | Err e =>
-        rw [hqr] at hI hrun
-        have ho := Result.ok_injective hrun
-        rw [← congrArg Prod.fst ho]
-        exact AErrSim.bind hI _
-      | Ok r1 =>
-        rw [hqr] at hI hrun
-        obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := hI
-        have ho := Result.ok_injective hrun
-        rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
-        exact ⟨lm, absNIdx r1, lst1, by rw [hx]; rfl, rfl, hm, hrel1, hinv1,
-          hext1⟩
-    | Str p str =>
-      rw [arena.promote.promote_n_node] at hrun
-      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hP := ih (h := p) hk hrel hinv hm hq
-      obtain ⟨qr, qst⟩ := q
-      simp only [SimPMF, SimPM, POut] at hP
-      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
-        StateT.run_bind]
-      cases hqr : qr with
-      | Err e =>
-        rw [hqr] at hP hrun
-        have ho := Result.ok_injective hrun
-        rw [← congrArg Prod.fst ho]
-        exact AErrSim.bind hP _
-      | Ok p1 =>
-        rw [hqr] at hP hrun
-        obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
-        subst hv
-        obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨q2r, q2st⟩ := q2
-        have hI := intern_persistent_n_run hrel1 hinv1 (.Str p1.2 str) hq2
-        simp only [Sim, AOut, absNNodeView] at hI
-        rw [hx]
-        cases hq2r : q2r with
-        | Err e =>
-          rw [hq2r] at hI hrun
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho]
-          exact AErrSim.bind hI _
-        | Ok r2 =>
-          rw [hq2r] at hI hrun
-          obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
-          exact ⟨m', absNIdx r2, lst2,
-            by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
-            hinv2, Ext.trans hext1 hext2⟩
-    | Num p num =>
-      rw [arena.promote.promote_n_node] at hrun
-      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hP := ih (h := p) hk hrel hinv hm hq
-      obtain ⟨qr, qst⟩ := q
-      simp only [SimPMF, SimPM, POut] at hP
-      simp only [SimPMF, SimPM, POut, promoteNNodeSpec, absNNodeView,
-        StateT.run_bind]
-      cases hqr : qr with
-      | Err e =>
-        rw [hqr] at hP hrun
-        have ho := Result.ok_injective hrun
-        rw [← congrArg Prod.fst ho]
-        exact AErrSim.bind hP _
-      | Ok p1 =>
-        rw [hqr] at hP hrun
-        obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hP
-        subst hv
-        obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨q2r, q2st⟩ := q2
-        have hI := intern_persistent_n_run hrel1 hinv1 (.Num p1.2 num) hq2
-        simp only [Sim, AOut, absNNodeView] at hI
-        rw [hx]
-        cases hq2r : q2r with
-        | Err e =>
-          rw [hq2r] at hI hrun
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho]
-          exact AErrSim.bind hI _
-        | Ok r2 =>
-          rw [hq2r] at hI hrun
-          obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := hI
-          have ho := Result.ok_injective hrun
-          rw [← congrArg Prod.fst ho, ← congrArg Prod.snd ho]
-          exact ⟨m', absNIdx r2, lst2,
-            by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
-            hinv2, Ext.trans hext1 hext2⟩
+      SimPMFW absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) := by
+  sorry
 
 /-- The name walk, by the fuel's measure; `promote_n_node_aux` is fed this
-step's own induction hypothesis. -/
+step's own induction hypothesis.
+
+`sorry`: as `promote_n_node_aux`. -/
 private theorem promote_n_aux (n : Nat) :
     ∀ {pers st lst rm lm} {fuel : Std.U64} {h : arena.handle.NIdx} {o},
-      absU fuel = n → AStateRel pers st lst → AStateInv pers st →
-      PMemoRel rm lm →
+      absU fuel = n → AStateRelW pers st lst → AStateInv pers st →
+      PersUnfrozen st.store → PMemoRel rm lm →
       arena.promote.promote_n pers st rm fuel h = ok o →
-      SimPMF absNIdx pers lst o (promoteN lm n (absNIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst rm lm fuel h o hn hrel hinv hm hrun
-    rw [arena.promote.promote_n] at hrun
-    have hz : fuel = 0#u64 := by
-      have h0 : fuel.val = 0 := hn
-      scalar_tac
-    rw [if_pos hz] at hrun
-    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [fail_run hr] at hrun
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact POut.err (AErrSim.internal (by rw [promoteN]; rfl))
-  | succ n ih =>
-    have hnode : ∀ {pers st lst rm lm} {fu : Std.U64}
-        {v : arena.store.NNodeView} {o},
-        absU fu = n → AStateRel pers st lst → AStateInv pers st →
-        PMemoRel rm lm →
-        arena.promote.promote_n_node pers st rm fu v = ok o →
-        SimPMF absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) :=
-      fun hk hrel hinv hm hq => promote_n_node_aux n ih hk hrel hinv hm hq
-    intro pers st lst rm lm fuel h o hn hrel hinv hm hrun
-    rw [arena.promote.promote_n] at hrun
-    have hnz : ¬ (fuel = 0#u64) := by
-      intro hc; rw [hc] at hn; simp at hn
-    rw [if_neg hnz] at hrun
-    obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hb2 := nidx_is_persistent_abs hb
-    rw [promoteN_unfold, hb2]
-    by_cases hp : b = true
-    · rw [if_pos hp] at hrun ⊢
-      obtain ⟨d, hd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have ho := Result.ok_injective hrun
-      subst ho
-      exact ⟨lm, absNIdx h, lst, rfl, by rw [dupId_nidx _ _ hd], hm, hrel,
-        hinv, Ext.refl _⟩
-    · rw [if_neg hp] at hrun ⊢
-      obtain ⟨g, hg, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hgm := pmemo_get_n_refines hm hg
-      cases hgc : g with
-      | some r =>
-        rw [hgc] at hrun hgm
-        have ho := Result.ok_injective hrun
-        subst ho
-        rw [← hgm]
-        exact ⟨lm, absNIdx r, lst, rfl, rfl, hm, hrel, hinv, Ext.refl _⟩
-      | none =>
-        rw [hgc] at hrun hgm
-        rw [← hgm]
-        obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hV := view_n_run hrel hinv hw
-        simp only [AOut] at hV
-        simp only [SimPMF, SimPM, POut, Option.map, StateT.run_bind]
-        cases hwc : w with
-        | Err e =>
-          rw [hwc] at hrun hV
-          have ho := Result.ok_injective hrun
-          subst ho
-          exact AErrSim.bind hV _
-        | Ok vw =>
-          rw [hwc] at hrun hV
-          obtain ⟨lstv, hxv, hrelv, hinvv, -, -⟩ := hV
-          have hlv : lstv = lst := viewN_run_state hxv
-          rw [hlv] at hxv
-          rw [hxv, except_ok_bind]
-          obtain ⟨fu, hfu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          have hfuv : absU fu = n := by
-            have h1 : fu.val = fuel.val - (1#u64 : Std.U64).val :=
-              (ConRon.Refine.Nat.usub_val hfu).2
-            have h2 : fuel.val = n + 1 := hn
-            have h3 : (1#u64 : Std.U64).val = 1 := rfl
-            show fu.val = n
-            omega
-          obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          have hN := hnode (v := vw) hfuv hrel hinv hm hq
-          obtain ⟨qr, qst⟩ := q
-          simp only [SimPMF, SimPM, POut] at hN
-          cases hqr : qr with
-          | Err e =>
-            rw [hqr] at hN hrun
-            have ho := Result.ok_injective hrun
-            subst ho
-            exact AErrSim.bind hN _
-          | Ok p1 =>
-            rw [hqr] at hN hrun
-            obtain ⟨m', v', lst1, hx, hv, hm', hrel1, hinv1, hext1⟩ := hN
-            subst hv
-            obtain ⟨m3, hm3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-            have hm3r := pmemo_set_n_refines hm' hm3
-            have ho := Result.ok_injective hrun
-            subst ho
-            exact ⟨{ m' with nM := m'.nM.insert (absNIdx h) (absNIdx p1.2) },
-              absNIdx p1.2, lst1, by rw [hx]; rfl, rfl, hm3r, hrel1, hinv1,
-              hext1⟩
+      SimPMFW absNIdx pers lst o (promoteN lm n (absNIdx h)) := by
+  sorry
 
 /-- **`promote_n` ⊑ `promoteN`** — the name walk, closed modulo
 `Refine2/Specs.lean`'s `intern_persistent_n_run`. -/
 theorem promote_n_refines {pers st lst rm lm} {fuel : Std.U64}
     {h : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n pers st rm fuel h = ok o) :
-    SimPMF absNIdx pers lst o (promoteN lm (absU fuel) (absNIdx h)) :=
-  promote_n_aux _ rfl hrel hinv hm hrun
+    SimPMFW absNIdx pers lst o (promoteN lm (absU fuel) (absNIdx h)) :=
+  promote_n_aux _ rfl hrel hinv hfr hm hrun
 
 /-- `promote_n_node` ⊑ `promoteNNodeSpec`. -/
 theorem promote_n_node_refines {pers st lst rm lm} {fuel : Std.U64}
     {v : arena.store.NNodeView} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n_node pers st rm fuel v = ok o) :
-    SimPMF absNIdx pers lst o
+    SimPMFW absNIdx pers lst o
       (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) :=
   promote_n_node_aux (absU fuel)
-    (fun hk hrel' hinv' hm' hq => hk ▸ promote_n_refines hrel' hinv' hm' hq)
-    rfl hrel hinv hm hrun
+    (fun hk hrel' hinv' hfr' hm' hq => hk ▸ promote_n_refines hrel' hinv' hfr' hm' hq)
+    rfl hrel hinv hfr hm hrun
 
 /-- `promote_l` ⊑ `promoteL`. -/
 theorem promote_l_refines {pers st lst rm lm} {fuel : Std.U64}
     {h : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_l pers st rm fuel h = ok o) :
-    SimPMF absLIdx pers lst o (promoteL lm (absU fuel) (absLIdx h)) := by
+    SimPMFW absLIdx pers lst o (promoteL lm (absU fuel) (absLIdx h)) := by
   sorry
 
 /-- `promote_l_node` ⊑ `promoteLNodeSpec`. -/
 theorem promote_l_node_refines {pers st lst rm lm} {fuel : Std.U64}
     {v : arena.store.LNodeView} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_l_node pers st rm fuel v = ok o) :
-    SimPMF absLIdx pers lst o
+    SimPMFW absLIdx pers lst o
       (promoteLNodeSpec lm (absU fuel) (absLNodeView v)) := by
   sorry
 
@@ -657,10 +508,11 @@ theorem promote_l_node_refines {pers st lst rm lm} {fuel : Std.U64}
 twin's order; it has no twin of its own and is stated against the arm. -/
 theorem promote_l_two_refines {pers st lst rm lm} {fuel : Std.U64}
     {u v : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_l_two pers st rm fuel u v = ok o) :
-    SimPM (fun r p => p = (absLIdx r.1, absLIdx r.2)) pers lst o
+    SimPMW (fun r p => p = (absLIdx r.1, absLIdx r.2)) pers lst o
       (do
         let (m, a) ← promoteL lm (absU fuel) (absLIdx u)
         let (m, b) ← promoteL m (absU fuel) (absLIdx v)
@@ -671,10 +523,11 @@ theorem promote_l_two_refines {pers st lst rm lm} {fuel : Std.U64}
 theorem promote_l_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     {us : alloc.vec.Vec arena.handle.LIdx} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_l_list_from pers st rm fuel us i out = ok o) :
-    SimPMF (fun v => absLIdxL out ++ absLIdxL v) pers lst o
+    SimPMFW (fun v => absLIdxL out ++ absLIdxL v) pers lst o
       (do
         let (m, vs) ← promoteLList lm (absU fuel) (absLIdxLFrom us i)
         pure (m, absLIdxL out ++ vs)) := by
@@ -683,37 +536,41 @@ theorem promote_l_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
 /-- `promote_l_list` ⊑ `promoteLList`. -/
 theorem promote_l_list_refines {pers st lst rm lm} {fuel : Std.U64}
     {us : alloc.vec.Vec arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_l_list pers st rm fuel us = ok o) :
-    SimPMF absLIdxL pers lst o (promoteLList lm (absU fuel) (absLIdxL us)) := by
+    SimPMFW absLIdxL pers lst o (promoteLList lm (absU fuel) (absLIdxL us)) := by
   sorry
 
 /-- `promote_ls` ⊑ `promoteLs`. -/
 theorem promote_ls_refines {pers st lst rm lm} {fuel : Std.U64}
     {h : arena.handle.LsIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_ls pers st rm fuel h = ok o) :
-    SimPMF absLsIdx pers lst o (promoteLs lm (absU fuel) (absLsIdx h)) := by
+    SimPMFW absLsIdx pers lst o (promoteLs lm (absU fuel) (absLsIdx h)) := by
   sorry
 
 /-- `promote_e` ⊑ `promoteE`. -/
 theorem promote_e_refines {pers st lst rm lm} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_e pers st rm fuel h = ok o) :
-    SimPMF absEIdx pers lst o (promoteE lm (absU fuel) (absEIdx h)) := by
+    SimPMFW absEIdx pers lst o (promoteE lm (absU fuel) (absEIdx h)) := by
   sorry
 
 /-- `promote_e_node` ⊑ `promoteENodeSpec`. -/
 theorem promote_e_node_refines {pers st lst rm lm} {fuel : Std.U64}
     {v : arena.store.ENodeView} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_e_node pers st rm fuel v = ok o) :
-    SimPMF absEIdx pers lst o
+    SimPMFW absEIdx pers lst o
       (promoteENodeSpec lm (absU fuel) (absENodeView v)) := by
   sorry
 
@@ -721,10 +578,11 @@ theorem promote_e_node_refines {pers st lst rm lm} {fuel : Std.U64}
 order. -/
 theorem promote_e_two_refines {pers st lst rm lm} {fuel : Std.U64}
     {x y : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_e_two pers st rm fuel x y = ok o) :
-    SimPM (fun r p => p = (absEIdx r.1, absEIdx r.2)) pers lst o
+    SimPMW (fun r p => p = (absEIdx r.1, absEIdx r.2)) pers lst o
       (do
         let (m, a) ← promoteE lm (absU fuel) (absEIdx x)
         let (m, b) ← promoteE m (absU fuel) (absEIdx y)
@@ -737,10 +595,11 @@ theorem promote_e_two_refines {pers st lst rm lm} {fuel : Std.U64}
 theorem promote_n_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n_list_from pers st rm fuel ns i out = ok o) :
-    SimPMF (fun v => absNIdxL out ++ absNIdxL v) pers lst o
+    SimPMFW (fun v => absNIdxL out ++ absNIdxL v) pers lst o
       (do
         let (m, vs) ← promoteNList lm (absU fuel) (absNIdxLFrom ns i)
         pure (m, absNIdxL out ++ vs)) := by
@@ -749,20 +608,22 @@ theorem promote_n_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
 /-- `promote_n_list` ⊑ `promoteNList`. -/
 theorem promote_n_list_refines {pers st lst rm lm} {fuel : Std.U64}
     {ns : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n_list pers st rm fuel ns = ok o) :
-    SimPMF absNIdxL pers lst o (promoteNList lm (absU fuel) (absNIdxL ns)) := by
+    SimPMFW absNIdxL pers lst o (promoteNList lm (absU fuel) (absNIdxL ns)) := by
   sorry
 
 /-- `promote_e_list_from` ⊑ `promoteEList` at the cursor. -/
 theorem promote_e_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     {es : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_e_list_from pers st rm fuel es i out = ok o) :
-    SimPMF (fun v => absEIdxL out ++ absEIdxL v) pers lst o
+    SimPMFW (fun v => absEIdxL out ++ absEIdxL v) pers lst o
       (do
         let (m, vs) ← promoteEList lm (absU fuel) (absEIdxLFrom es i)
         pure (m, absEIdxL out ++ vs)) := by
@@ -772,10 +633,11 @@ theorem promote_e_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
 survives the copy. -/
 theorem promote_e_list_refines {pers st lst rm lm} {fuel : Std.U64}
     {es : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_e_list pers st rm fuel es = ok o) :
-    SimPMF absEIdxL pers lst o (promoteEList lm (absU fuel) (absEIdxL es)) := by
+    SimPMFW absEIdxL pers lst o (promoteEList lm (absU fuel) (absEIdxL es)) := by
   sorry
 
 /-! ## The declaration layer
@@ -788,40 +650,44 @@ representation-free types). -/
 /-- `promote_cv` ⊑ `promoteCV`. -/
 theorem promote_cv_refines {pers st lst rm lm} {fuel : Std.U64}
     {cv : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_cv pers st rm fuel cv = ok o) :
-    SimPMF absIConstantVal pers lst o
+    SimPMFW absIConstantVal pers lst o
       (promoteCV lm (absU fuel) (absIConstantVal cv)) := by
   sorry
 
 /-- `promote_fire` ⊑ `promoteFire`. -/
 theorem promote_fire_refines {pers st lst rm lm} {fuel : Std.U64}
     {f : arena.env.IRecRuleFire} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_fire pers st rm fuel f = ok o) :
-    SimPMF absIRecRuleFire pers lst o
+    SimPMFW absIRecRuleFire pers lst o
       (promoteFire lm (absU fuel) (absIRecRuleFire f)) := by
   sorry
 
 /-- `promote_rule` ⊑ `promoteRule`. -/
 theorem promote_rule_refines {pers st lst rm lm} {fuel : Std.U64}
     {rl : arena.env.IRecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_rule pers st rm fuel rl = ok o) :
-    SimPMF absIRecRule pers lst o (promoteRule lm (absU fuel) (absIRecRule rl)) := by
+    SimPMFW absIRecRule pers lst o (promoteRule lm (absU fuel) (absIRecRule rl)) := by
   sorry
 
 /-- `promote_rules_from` ⊑ `promoteRules` at the cursor. -/
 theorem promote_rules_from_refines {pers st lst rm lm} {fuel : Std.U64}
     {rs : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_rules_from pers st rm fuel rs i out = ok o) :
-    SimPMF (fun v => absIRecRuleL out ++ absIRecRuleL v) pers lst o
+    SimPMFW (fun v => absIRecRuleL out ++ absIRecRuleL v) pers lst o
       (do
         let (m, vs) ← promoteRules lm (absU fuel) (absIRecRuleLFrom rs i)
         pure (m, absIRecRuleL out ++ vs)) := by
@@ -830,30 +696,33 @@ theorem promote_rules_from_refines {pers st lst rm lm} {fuel : Std.U64}
 /-- `promote_rules` ⊑ `promoteRules`. -/
 theorem promote_rules_refines {pers st lst rm lm} {fuel : Std.U64}
     {rs : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_rules pers st rm fuel rs = ok o) :
-    SimPMF absIRecRuleL pers lst o (promoteRules lm (absU fuel) (absIRecRuleL rs)) := by
+    SimPMFW absIRecRuleL pers lst o (promoteRules lm (absU fuel) (absIRecRuleL rs)) := by
   sorry
 
 /-- `promote_caps` ⊑ `promoteCaps` — one name; `sortZ` is a `PropWhen` over
 con-leche `Name`s and carries no handle. -/
 theorem promote_caps_refines {pers st lst rm lm} {fuel : Std.U64}
     {c : arena.env.IIndCaps} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_caps pers st rm fuel c = ok o) :
-    SimPMF absIIndCaps pers lst o (promoteCaps lm (absU fuel) (absIIndCaps c)) := by
+    SimPMFW absIIndCaps pers lst o (promoteCaps lm (absU fuel) (absIIndCaps c)) := by
   sorry
 
 /-- `promote_proj_table` ⊑ `promoteProjTable`, `tableName` included (it is a
 stored handle, not a recomputed name — `Arena/Env.lean`'s one added field). -/
 theorem promote_proj_table_refines {pers st lst rm lm} {fuel : Std.U64}
     {t : arena.env.IProjTable} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_proj_table pers st rm fuel t = ok o) :
-    SimPMF absIProjTable pers lst o
+    SimPMFW absIProjTable pers lst o
       (promoteProjTable lm (absU fuel) (absIProjTable t)) := by
   sorry
 
@@ -863,10 +732,11 @@ twin with those handles in hand. -/
 theorem promote_proj_table_rest_refines {pers st lst rm lm} {fuel : Std.U64}
     {t : arena.env.IProjTable} {sn tn : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_proj_table_rest pers st rm fuel t sn tn lps = ok o) :
-    SimPMF absIProjTable pers lst o
+    SimPMFW absIProjTable pers lst o
       (do
         let (m, c) ← promoteN lm (absU fuel) (absNIdx t.ctor)
         let (m, ss) ← promoteL m (absU fuel) (absLIdx t.struct_sort)
@@ -880,10 +750,11 @@ theorem promote_proj_table_rest_refines {pers st lst rm lm} {fuel : Std.U64}
 is what "the handles the environment keeps" means. -/
 theorem promote_ci_refines {pers st lst rm lm} {fuel : Std.U64}
     {ci : arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_ci pers st rm fuel ci = ok o) :
-    SimPMF absIConstantInfo pers lst o
+    SimPMFW absIConstantInfo pers lst o
       (promoteCI lm (absU fuel) (absIConstantInfo ci)) := by
   sorry
 
@@ -891,10 +762,11 @@ theorem promote_ci_refines {pers st lst rm lm} {fuel : Std.U64}
 theorem promote_ci_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     {cs : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_ci_list_from pers st rm fuel cs i out = ok o) :
-    SimPMF (fun v => absICIL out ++ absICIL v) pers lst o
+    SimPMFW (fun v => absICIL out ++ absICIL v) pers lst o
       (do
         let (m, vs) ← promoteCIList lm (absU fuel) (absICILFrom cs i)
         pure (m, absICIL out ++ vs)) := by
@@ -903,10 +775,11 @@ theorem promote_ci_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
 /-- `promote_ci_list` ⊑ `promoteCIList` — a block at ONE memo. -/
 theorem promote_ci_list_refines {pers st lst rm lm} {fuel : Std.U64}
     {cs : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_ci_list pers st rm fuel cs = ok o) :
-    SimPMF absICIL pers lst o (promoteCIList lm (absU fuel) (absICIL cs)) := by
+    SimPMFW absICIL pers lst o (promoteCIList lm (absU fuel) (absICIL cs)) := by
   sorry
 
 /-- `promote_decl` ⊑ `promoteDecl` — not on the fold's path (the records
@@ -914,10 +787,11 @@ arrive from the parse and are persistent) and twinned because the layer is
 twinned whole. -/
 theorem promote_decl_refines {pers st lst rm lm} {fuel : Std.U64}
     {d : arena.env.IDeclaration} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_decl pers st rm fuel d = ok o) :
-    SimPMF absIDeclaration pers lst o
+    SimPMFW absIDeclaration pers lst o
       (promoteDecl lm (absU fuel) (absIDeclaration d)) := by
   sorry
 
@@ -926,10 +800,11 @@ seam, promoted beside the environment and at the SAME memo (an `opaque`'s
 value is not in the environment; only the pending record holds it). -/
 theorem promote_vg_refines {pers st lst rm lm} {fuel : Std.U64}
     {g : arena.checker_split.ValueGroup} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_vg pers st rm fuel g = ok o) :
-    SimPMF absValueGroup pers lst o
+    SimPMFW absValueGroup pers lst o
       (promoteVG lm (absU fuel) (absValueGroup g)) := by
   sorry
 
@@ -989,11 +864,12 @@ their own slots, so the environment's shape is unchanged and only the middle
 segment moves. -/
 theorem index_promoted_refines {pers st lst rm lm rf lf} {fuel : Std.U64}
     {start j : Std.Usize} {c : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hle : start.val ≤ j.val) (hj : j.val ≤ rf.env.consts.val.length)
     (hrun : arena.promote.index_promoted pers st rm fuel rf start j c = ok o) :
-    SimPM (fun r v => IFEnvRel r v) pers lst o
+    SimPMW (fun r v => IFEnvRel r v) pers lst o
       (do
         let n := rf.env.consts.val.length
         let cs := (absIEnv rf.env).consts
@@ -1007,11 +883,12 @@ theorem index_promoted_refines {pers st lst rm lm rf lf} {fuel : Std.U64}
 the `k` constants the step just installed, copied into the persistent tier and
 re-indexed, everything below them untouched.  `hk` is finding C. -/
 theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hk : absU k ≤ rf.env.consts.val.length)
     (hrun : arena.promote.promote_new pers st rm fuel k rf = ok o) :
-    SimPM (fun r v => IFEnvRel r v) pers lst o
+    SimPMW (fun r v => IFEnvRel r v) pers lst o
       (promoteNew lm (absU fuel) (absU k) lf) := by
   sorry
 

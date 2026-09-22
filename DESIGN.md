@@ -48251,3 +48251,273 @@ is why the "287 theorems" headline overstates the cost by a wide margin.  The
 180 statements that thread the clause without using it are the real residue,
 and a cheaper answer to them, if one is ever wanted, is a frame *record* for the
 `ExprOps` tier's remaining loose `StoreWF` binders — not a change of type.
+
+### Task #97-P5-Fresh — `fresh` holds only locally (2026-09-22, Opus under Fable)
+
+Task #97-P5-Specs round 2's **finding 17** proved `NWFAt.fresh` incompatible
+with promotion.  The coordinator ruled: **`fresh` is a LOCAL invariant.**  This
+round lands the ruling — the weak sibling at all four stores, the bracket that
+opens and closes it, three of the four `intern_persistent_*_run` stated truly
+and closed — and it found **a second clause that promotion breaks**, proved.
+
+Branch `p5-fresh` off `arena` `710f3778`.
+
+#### 1. Why the invariant is local: parallel checking, not just the promote window
+
+`Arena/Store.lean`'s `internPersistent` note already called `fresh`'s failure a
+**transient exception**, observable only between a promotion and the
+`dropScratch` that follows it.  That reading is true and it is not the whole
+reason, and the next person to read `fresh` needs the whole reason, so it is
+now in `Arena/WF.lean`'s section note:
+
+> **DESIGN §8.3's arena gives each worker of a PARALLEL check its own scratch
+> tier over one shared, immutable persistent tier.**  The persistent tier does
+> not move during phase B and each worker appends to a scratch tier of its own.
+> With several scratch tiers live at once, each may hold its own handle for the
+> same view — two workers that both build `app f a` out of the same persistent
+> children get two scratch handles for one view, and neither is in the
+> persistent table.  A GLOBALLY quantified `fresh` was therefore never coherent
+> with the design the arena is built for; the promote collision is only where
+> it surfaced first.
+
+`fresh` is what the checker's phase B reads, and it keeps holding there.  What
+moves is the promote window.
+
+#### 2. The shape: an additive weak sibling, and the cone that chose it
+
+The brief named the shape to try first — leave `NStoreWF` / `LStoreWF` /
+`LsStoreWF` / `StoreWF` exactly as they are and add a weaker sibling — and the
+cone confirms it:
+
+| | measured |
+|---|---:|
+| files that mention `StoreWF` | **56** |
+| files that consume `denoteN_inj` / `denoteE_inj` / `denoteL_inj` | **27** |
+| sites that project `.fresh` off an invariant | 21, in **2** files (`Arena/WFProofs.lean`, `Bridge/StoreNested.lean`) |
+| consumers an ADDITIVE sibling touches | **0** |
+
+The alternative shapes both fail on that first row.  Splitting `fresh` out of
+`StoreWF` as a predicate carried alongside makes `denoteN_inj`'s
+`consP + consS + fresh` argument grow a hypothesis, and those three lemmas are
+consumed in 27 files, 18 of them in `Bridge/**` — another agent's lane and a
+blast radius an order of magnitude larger than the change.  A flag parameter on
+`EWFAt` reaches the same 56 files through every `⟨rk, {…}⟩` construction.  So:
+**`XWFAt'` beside `XWFAt`, `XStoreWF'` beside `XStoreWF`, four `of_wf` arrows,
+and not one existing lemma restated.**
+
+The sibling **nests the weak invariant of the store below it** — `LWFAt'.ns :
+NStoreWF'`, `LsWF'.ls : LStoreWF'`, `EWFAt'.lss : LsStoreWF'` — because the
+name, level and level-list promotions append to those nested tiers and break
+their `fresh` too.  `Bridge/Promote/StoreP.lean`'s `EWFAtP` is the same idea
+one tier up and nests the STRONG `LsStoreWF`; §6 says why that is a defect.
+
+#### 3. THE SECOND FINDING: promoting a DATUM re-keys the scratch cons table
+
+Finding 17 named `fresh` and, in passing, `EWFAt.childOK`.  Writing the weak
+invariant turned up a third clause, and it is the one that makes the scratch
+cons table an inverse of `get`: **`EWFAt.consS`, in its `←` direction.**
+
+The mechanism is `EStore.internBMPersistent`, the DATUM half of
+`EStore.internPersistent` (`crates/con-ron-core/src/arena/store.rs`).  A binder
+node's cons key holds the datum HANDLE, not the datum; `EStore::find_bm` probes
+the **persistent** datum table first; and `intern_bm_persistent` appends to the
+persistent table whatever tier the store is in.  So promoting a datum that only
+the scratch tier held moves the key under which `findBMOfView` looks up every
+binder view carrying that datum — from the scratch handle to the new persistent
+one — while the scratch binder nodes interned under the old key stay where they
+are, still decoding, and now unreachable through `scrFind?`:
+
+    theorem EStore.internBMPersistent_breaks_consS {st : EStore} {rk}
+        (h : EWFAt st rk) {m : BinderMeta} {i ty b : EIdx}
+        (hpf : st.persFindBM m = none) (hcap : st.pers.bms.size < Idx.idxCap)
+        (hv : st.view i = some (.lam ty b m)) (hip : i.isPersistent = false) :
+        (st.internBMPersistent m).1.view i = some (.lam ty b m) ∧
+          i.isPersistent = false ∧
+          (st.internBMPersistent m).1.scrFind? (.lam ty b m) = none
+
+It is reachable by the promotion walk itself, for the same reason finding 17's
+is: `promoteE` at a `lam` built in scratch interns `.lam ty' b' bm` with `bm`
+the decoded datum, and `internBMOfViewPersistent` pushes it.
+
+**What survives, and what `EWFAt'` therefore keeps**, is the `→` direction —
+*"the scratch cons table never LIES: a handle it answers decodes to the view it
+was asked about"*, the clause `consSof` — plus `bmKeyS` weakened from *"`findBM`
+answers this datum key"* to *"this datum key DECODES"*, which is exactly the
+part the probe order cannot invalidate.  The consequence in the running code is
+the one `fresh` has: a duplicate scratch node next time that view is interned,
+never a wrong denotation and never a wrong verdict.
+
+So the promote window's invariant is `StoreWF` minus **four** things, not one:
+`fresh`, `bmFresh`, `consS`'s `←` half, and `bmKeyS`'s strength.
+
+#### 4. The bracket closes in four lines, because `wf_of_scr_empty` never read `fresh`
+
+`Arena/Store.lean` states the obligation *for the bracket*: *"`StoreWF` minus
+`fresh` is preserved by each `internPersistent`, and `promote … dropScratch` as
+a whole takes `StoreWF` to `StoreWF`"*.  The second half turned out to be free.
+
+`wf_of_scr_empty` — the one lemma both `dropScratch` and `enableScratch` go
+through at each store — **establishes the output's `fresh`/`bmFresh`/`consS`
+from `scr = empty` and never reads the input's**.  So its hypothesis weakens
+from `XWFAt` to `XWFAt'` by changing one word per store, *not a line of the four
+proofs moved*, and the bracket's closing step is their instance at
+`dropScratch`:
+
+    theorem StoreWF'.dropScratch_wf {st : EStore} (h : StoreWF' st) :
+        StoreWF st.dropScratch
+
+That is `Bridge/Promote/StoreP.lean`'s `StoreWFP.dropScratch_wf`, discharged one
+tier down where it belongs (its `sorry` there is now a one-line delegation).
+
+#### 5. What landed, lemma by lemma
+
+**`Arena/WF.lean`** (346 → 600, +254): the four weak structures, `NStoreWF'` / `LStoreWF'`
+/ `LsStoreWF'` / `StoreWF'`, the `of_wf` arrows, the four `…ViewPers`
+preconditions, and the section note with §1's argument.
+
+**`Arena/WFProofs.lean`** (9 236 → 10 763, **+1 563**).  All of it is the
+append-only section except two edits in place, both §4's: the four
+`wf_of_scr_empty` hypotheses (one word each, `XWFAt` → `XWFAt'`, and not a line
+of their proofs moved), and `EWFAt'.of_wf` together with
+`EWFAt.persFindBM_of_view_pers` — renamed `EWFAt'.` and weakened the same way,
+its one caller being `wf_of_scr_empty` itself — placed just before them,
+because that is where they are first needed:
+
+| group | lines | note |
+|---|---:|---|
+| `{N,L,Ls,E}Store.wf_push_pers'` | 186 + 173 + 108 + 302 | `wf_push_pers` with `scrOff` replaced by *"the scratch tier does not move"*, `childOK`'s persistence conjunct taken from `…ViewPers` instead of read off `scrOff`, and the freshness clauses gone.  **The rank function is unchanged**: the new node takes `st.persCount`, above every persistent rank and below the new `persCount`, and a scratch node's rank is left alone because `rankS` only wants `< nodeCount` and `nodeCount` grew. |
+| `{N,L,Ls}Store.internPersistent_wf'` | 3 × 11 | the hit/miss split |
+| the three nested lifts (`EStore.intern{Name,Level,Levels}Persistent_wf'` and their `LStore`/`LsStore` steps, plus `derived_internPersistent_eq'`) | 232 | `EStore.internName_wf`'s family with `intern` → `internPersistent` |
+| `{N,L,Ls}Store.internPersistent_{pers,view}` | 90 | what a promote-intern ANSWERS: a persistent handle that decodes to the view |
+| `EWFAt'.{of_wf,viewBM_of_findBM,findBM_of_viewBM_pers,consKeyEq_iff}` + the substore projections | 130 | `findBM_of_viewBM` needs `bmFresh` at a SCRATCH datum handle, so the weak invariant has it only at a persistent one — which is all `internPersistent` asks for, because `internBMOfViewPersistent` probes `persFindBM` and answers a persistent handle |
+| the bracket (`…dropScratch_wf'`, §4) | 61 | |
+| `internBMPersistent_breaks_consS` (§3) | 108, doc included | |
+
+**`Refine2/Specs.lean`** (12 056 → 12 633, `sorry` **8 → 5**):
+
+| group | lines | |
+|---|---:|---|
+| `AStateRelW` / `AOutW` / `SimW`, and `L{,s}CapPAt` | 100 | the promote window's shape.  They belong in `Refine2/Shape.lean`; they are in `Specs.lean` because `Shape.lean` was not this task's lane and the definitions are purely additive.  Moving them up is a two-line follow-up. |
+| `l{,s}store_intern_persistent_abs` | 75 + 72 | `nstore_intern_persistent_abs`'s control flow at the other two tiers; the one thing the name tier did not need is the derived record, which is OBSERVED below the name store (`derObsL`), so `l{,s}store_der_of_view_abs` carry the `push` obligation here where `derObsN = Unit` made it `rfl` |
+| `estore_intern_{name,level,levels}_persistent_abs` | 110 | the nesting |
+| the twin's hit lemmas, the `storeWF'` wrappers and the three `internPersistent*_run_of_cap` | 90 | |
+| **`intern_persistent_{n,l,ls}_run`** | **3 × 30** | closed |
+| `intern_persistent_e_run` | — | restated truly, still `sorry`; §7 |
+
+#### 6. Three statements in `Bridge/Promote/**` that are false as written
+
+Reported, not fixed: `Bridge/**` is another agent's lane this round.  All three
+are `sorry` today, so nothing unsound rests on them — but they are false
+statements sitting in the tree, and a future agent who tries to discharge them
+will spend the round the way round 2 spent its last hours.
+
+1. **`NStore.internPersistent_spec` / `LStore.` / `LsStore.`**
+   (`Bridge/Promote/StoreP.lean`) conclude the **full** `NStoreWF` /
+   `LStoreWF` / `LsStoreWF`.  Finding 17's `internPersistent_breaks_fresh` is
+   a direct refutation of the first, at hypotheses all four of theirs allow.
+   They want `…StoreWF'`.
+2. **`EWFAtP.lss : LsStoreWF st.lss`** — the strong nested invariant.  Right
+   for `EStore.internPersistent` alone, which never appends below itself;
+   wrong for the walk, because `promoteN` / `promoteL` / `promoteLs` DO append
+   to those tiers and break their `fresh`.  `EWFAt'.lss : LsStoreWF'` is the
+   fix, and it is what makes `Bridge/Promote/Exact.lean`'s `promoteN_spec` …
+   `promoteE_spec` (which take and conclude `StoreWFP s.store` across exactly
+   those walks) statable at all.
+3. **`EWFAtP.consS`** as an `↔`, refuted by §3.
+
+The clean resolution is for `Bridge/Promote/StoreP.lean` to **delete** `EWFAtP`
+/ `StoreWFP` and use `Arena/WF.lean`'s `StoreWF'`, whose `dropScratch_wf` is
+already proved (§4); the two names are then one notion in one place.  That is a
+Bridge-lane edit of about forty lines.
+
+#### 7. What is left, and why `Refine2/Promote/Promote.lean` did NOT fall out
+
+**`intern_persistent_e_run`** is the fourth `_run` and is restated truly and
+left `sorry`.  It wants two things neither of which is an idea: the E tier's own
+`intern_persistent` is view-GENERIC where the non-persistent E tier has ten
+entry points, so it needs generic `etables_{find,full,push}_abs` (ten arms each)
+plus a persistent `estore_intern_bm_abs`; and on the twin side it needs
+`EStore.internBMPersistent_wf'` and `EStore.internPersistent_wf'`, of which
+**the node half is done** (`EStore.wf_push_pers'`, 297 lines — the datum tables
+do not move at the node push, which is why `consSof` and `findBMOfView` survive
+there) and the **datum half is the work §3 uncovered**: `internBMPersistent`
+moves `findBM`'s answer, so its `consSof` case needs the *"the fresh persistent
+datum handle is a key the scratch table cannot already hold"* argument that
+§3's refutation runs in the other direction.  Priced at ≈ 150 lines.
+
+**`Refine2/Promote/Promote.lean` did not fall out cheaply, and that is a
+finding.**  Its thirty statements are restated to the weak shape
+(`AStateRelW`, `POutW`/`SimPMW`/`SimPMFW`, and a `PersUnfrozen st.store`
+hypothesis bundling finding 17's first half at all four stores) — mechanical,
+and they were false without it.  But `promote_n_node_aux` and `promote_n_aux`,
+closed at `710f3778`, are **re-opened**, because:
+
+* `intern_persistent_n_run` stated truly takes `lst.store.ns.ViewOK w` and
+  `NViewPers w`.  At the `.Anonymous` arm both are vacuous.  At `.Str p` /
+  `.Num p` they are facts about the handle the RECURSIVE `promote_n` returned.
+* *"the result is persistent"* is value-only and could go into `SimPMW`'s `R`
+  — but then the walk must PROVE it, and on the memo-hit path it is a property
+  of the MEMO, not of the call.
+* *"the result decodes in the post-state"* cannot even be STATED through
+  `POutW`, whose `R : α → β → Prop` does not see `lst'`.
+
+Closing the name walk therefore needs, threaded through the induction: `R`
+widened to `α → β → AState → Prop`; an input clause *"the handle decodes"*; a
+memo clause *"every memo value is persistent and decodes"*; and a *"views only
+grow"* conjunct to carry the memo clause across each step.  **That is
+`Bridge/Promote/Exact.lean`'s `promoteN_spec`** — the twin-side exactness
+theorem, itself `sorry` — re-derived inside the refinement tier.  The right
+move is to compose with it, not to duplicate it, and which tier owns it is a
+coordinator's call rather than this round's.
+
+#### 8. Rules confirmed
+
+* **`set` is Mathlib's and `Arena/**` does not import Mathlib.**
+  `obtain ⟨x, hx⟩ : ∃ x, x = e := ⟨_, rfl⟩` is the portable spelling.
+* **Structure-instance continuation lines align with the FIRST field, not with
+  the tactic.**  `refine { h with f := …,` followed by a field at a smaller
+  column is a parse error ("unexpected identifier; expected `}`"); putting the
+  first field on its own line fixes it.  Cost: one build.
+* **`rw [f _ rfl rfl]` resolves the underscore from the `rfl`s.**  A helper
+  `∀ s, s.scr = st.scr → … → s.viewBM mj = st.viewBM mj` instantiated that way
+  gives `s := st` and then does not match the goal; `simp only` at the two
+  definitions is the move.
+* **Four of the five proofs in this round went through on the first build.**
+  The pattern that made that possible is the one round 2 named: copy the
+  existing lemma verbatim, then change only the clauses the weakening touches,
+  and let the build tell you which those were.
+
+#### 9. Elaboration and the gates
+
+| file | lines | `sorry` | note |
+|---|---:|---:|---|
+| `Arena/WF.lean` | 346 → **600** | 0 | the four weak structures, the `of_wf` arrows, the four `…ViewPers`, and §1's note |
+| `Arena/WFProofs.lean` | 9 236 → **10 763** | 0 | one append-only section, plus §4's one word per store in the four `wf_of_scr_empty` |
+| `Refine2/Specs.lean` | 12 056 → **12 660** | **5** (from 8) | `intern_persistent_{n,l,ls}_run` closed |
+| `Refine2/Promote/Intern.lean` | 330 → **391** | 24 | `PersUnfrozen`, `POutW`, `SimPMW`, `SimPMFW` |
+| `Refine2/Promote/Promote.lean` | 1 049 → **926** | **31** (from 29) | thirty statements restated; §7's two re-opened |
+
+**Net across the Refine2 tier: 739 → 738, −1 `sorry`** (three closed in `Specs.lean`, two
+re-opened in `Promote.lean`), and the two re-opened ones were already
+`sorryAx`-dependent through `intern_persistent_n_run`, so **no `#print axioms`
+row changed**.
+
+**Eight more `#print axioms` rows under `#guard_msgs`** in `Specs.lean`
+(`l{,s}store_intern_persistent_abs`, the three
+`estore_intern_*_persistent_abs`, and the three closed `_run`), every one
+`[propext, Classical.choice, Quot.sound]`.
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **green** — the whole point of the additive shape: `denoteN_inj` / `denoteE_inj` / `denoteL_inj` and their 27 consumer files are untouched, and not one `Bridge/**` file was edited; 616 jobs |
+| `cd proof && lake build ConRonRefine2` | **green** — 2 220 jobs |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 87 s, `lake-build` 112 s; no Rust file and no generated file moved, so the first eleven are formalities) |
+| merged `arena` three times (`95acf308`, `a063de72`, `72f5994d`) | three other rounds' landings; `DESIGN.md` and `Bridge/**` only, no overlap with this round's five files.  Both builds and the gates were re-run after each of the last two.  Nothing outside `Arena/WFProofs.lean` names either of this round's two in-place edits (`wf_of_scr_empty`'s hypothesis and `EWFAt.persFindBM_of_view_pers`'s rename), so a later `arena` cannot collide with them |
+| the diff | `proof/ConRon/Arena/{WF,WFProofs}.lean`, `proof/ConRon/Refine2/Specs.lean`, `proof/ConRon/Refine2/Promote/{Intern,Promote}.lean` and this section.  No Rust file, no generated model, no `Refine/`, no `RefineOld/`, **no `Bridge/`**, no `Refine2/Core/**` |
+
+**Lanes entered outside this task's own**: none.  `Refine2/Shape.lean` would
+have been the right home for `AStateRelW`/`AOutW`/`SimW` and
+`Refine2/Checker/Shape.lean` for `POutW`/`SimPMW`; both were another round's
+lane, so the definitions sit in `Refine2/Specs.lean` and
+`Refine2/Promote/Intern.lean` instead, additively, with a note at each saying
+where they belong.
