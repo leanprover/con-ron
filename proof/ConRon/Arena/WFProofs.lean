@@ -10649,4 +10649,115 @@ theorem StoreWF'.dropScratch_wf {st : EStore} (h : StoreWF' st) :
     StoreWF st.dropScratch := by
   obtain ⟨rk, h⟩ := h; exact ⟨rk, EStore.dropScratch_wfAt' h⟩
 
+
+/-! ### THE SECOND FINDING: promoting a DATUM re-keys the scratch cons table
+    (task #97-P5-Fresh)
+
+Finding 17 named `fresh` and, in passing, `EWFAt.childOK`.  There is a third
+clause that promotion breaks, and it is the one that makes the scratch cons
+table an inverse of `get`: **`EWFAt.consS`, in its `←` direction**.
+
+The mechanism is `EStore.internBMPersistent`, the DATUM half of
+`EStore.internPersistent`.  A binder node's cons key holds the datum HANDLE,
+not the datum; `EStore.findBM` probes the persistent datum table FIRST; and
+`internBMPersistent` appends to the persistent table whatever tier the store
+is in.  So promoting a datum that only the SCRATCH tier held moves the key
+under which `findBMOfView` looks up every binder view carrying that datum,
+from the scratch handle to the new persistent one — while the scratch binder
+nodes interned under the old key stay exactly where they were, still
+decoding, and now unreachable through `scrFind?`.
+
+`internBMPersistent_breaks_consS` is that, proved: a scratch `lam` node that
+`view` still answers, whose view `scrFind?` now answers `none` for.
+
+**What survives**, and what `EWFAt'` therefore keeps, is the `→` direction —
+*"the scratch cons table never lies"* (`consSof`) — plus `bmKeyS` weakened
+from *"`findBM` answers this key"* to *"this key decodes"*, which is exactly
+the part `findBM`'s probe order cannot invalidate.  The consequence in the
+running code is the same one `fresh` has: a duplicate scratch node next time
+that view is interned, never a wrong denotation and never a wrong verdict.
+
+`Bridge/Promote/StoreP.lean`'s `EWFAtP` keeps `consS` as an `↔`, so
+`EStore.internPersistent_spec` there is false as stated at a binder view whose
+datum is not yet persistent; see this task's DESIGN section. -/
+
+theorem ETables.getBM_eq_none_of_size {t : ETables} {i : BMIdx}
+    (hix : i.idxNat = t.bms.size) : t.getBM i = none := by
+  simp [ETables.getBM, hix, Tbl.node?_size]
+
+theorem EStore.internBMPersistent_breaks_consS {st : EStore} {rk : EIdx → Nat}
+    (h : EWFAt st rk) {m : ConLeche.BinderMeta} {i ty b : EIdx}
+    (hpf : st.persFindBM m = none) (hcap : st.pers.bms.size < Idx.idxCap)
+    (hv : st.view i = some (.lam ty b m)) (hip : i.isPersistent = false) :
+    (st.internBMPersistent m).1.view i = some (.lam ty b m) ∧
+      i.isPersistent = false ∧
+      (st.internBMPersistent m).1.scrFind? (.lam ty b m) = none := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  obtain ⟨mp, hmpdef⟩ : ∃ x, x = (st.pers.pushBM m (hash m.pw) Idx.tierP).2 :=
+    ⟨_, rfl⟩
+  have hst : (st.internBMPersistent m).1
+      = { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 } := by
+    simp only [EStore.internBMPersistent, hpf]
+  -- the scratch tier is live, or the node would not decode
+  have hon : st.scratchOn = true := by
+    cases hc : st.scratchOn with
+    | false => rw [EStore.view_off hip hc] at hv; exact absurd hv (by simp)
+    | true => rfl
+  -- the new datum handle is persistent and did not decode before
+  have hmpP : mp.isPersistent = true := by
+    show (mp.tier == 0) = true
+    rw [hmpdef, ETables.pushBM_tier htr hcap]; decide
+  have hmpIx : mp.idxNat = st.pers.bms.size := by
+    rw [hmpdef]; exact ETables.pushBM_idxNat htr hcap
+  have hmpOld : st.viewBM mp = none := by
+    rw [EStore.viewBM_pers hmpP]
+    exact ETables.getBM_eq_none_of_size hmpIx
+  -- the node still decodes: the datum table only grew, at a handle no node names
+  have hviewBM : ∀ (t b' : EIdx) (mj : BMIdx), st.scr.getBind i = some (t, b', mj) →
+      (st.internBMPersistent m).1.viewBM mj = st.viewBM mj := by
+    intro t b' mj hg
+    have hsome : (st.viewBM mj).isSome = true := by
+      refine (h.bmChildOK i t b' mj ?_).1
+      rw [EStore.viewBindI_scr hip hon]; exact hg
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsome
+    rw [hx]
+    by_cases hjp : mj.isPersistent = true
+    · rw [hst, EStore.viewBM_pers hjp]
+      show (st.pers.pushBM m (hash m.pw) Idx.tierP).1.getBM mj = some x
+      rw [EStore.viewBM_pers hjp] at hx
+      exact ETables.getBM_pushBM_mono hx
+    · have hjp' : mj.isPersistent = false := by simpa using hjp
+      rw [hst]
+      simp only [EStore.viewBM, hjp', Bool.false_eq_true, if_false] at hx ⊢
+      exact hx
+  refine ⟨?_, hip, ?_⟩
+  · rw [EStore.view_scr hip (by rw [hst]; exact hon), hst]
+    show st.scr.getWith (EStore.viewBM
+      { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 }) i = _
+    rw [ETables.getWith_congr (t := st.scr) (bm := st.viewBM)
+      (fun t b' mj hg => by rw [← hst]; exact hviewBM t b' mj hg)]
+    rw [← EStore.view_scr hip hon]
+    exact hv
+  · -- `findBMOfView` now answers the PERSISTENT handle, and the scratch table
+    -- holds nothing under it
+    have hfbm : (st.internBMPersistent m).1.findBM m = some mp := by
+      have hp' : (st.internBMPersistent m).1.pers.findBM m = some mp := by
+        rw [hst]
+        show (st.pers.pushBM m (hash m.pw) Idx.tierP).1.findBM m = some mp
+        rw [ETables.findBM_pushBM, if_pos rfl, hmpdef]
+      simp only [EStore.findBM, EStore.persFindBM, hp']
+    have hfov : (st.internBMPersistent m).1.findBMOfView (.lam ty b m) = some mp := by
+      rw [EStore.findBMOfView_eq_findBM _ (rfl : (ENodeView.lam ty b m).bmOf = some m)]
+      exact hfbm
+    simp only [EStore.scrFind?, hfov]
+    have hscr : (st.internBMPersistent m).1.scr = st.scr := by rw [hst]
+    rw [hscr]
+    cases hq : st.scr.find? (ENodeView.lam ty b m) mp with
+    | none => rfl
+    | some j =>
+      exfalso
+      rcases h.bmKeyS _ mp j hq with hb | ⟨m', hm'⟩
+      · simp [ENodeView.bmOf] at hb
+      · rw [h.viewBM_of_findBM hm'] at hmpOld; exact absurd hmpOld (by simp)
+
 end ConRon.Arena
