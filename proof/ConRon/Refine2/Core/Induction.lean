@@ -101,35 +101,108 @@ All three knots agree at `0`: six slots, each `fail (.internal …)`.  The
 reading the base case needs is therefore one lemma per slot, and each is
 `rfl` after `laneKnot` picks its branch. -/
 
+/-- Each knot's own fuel-exhausted slot, through its equation lemma: `rfl`
+alone would make the kernel whnf the WHOLE definition (all six bodies in the
+successor branch), which is 45 s of kernel time on this file; rewriting with
+the equation lemma first leaves a six-`fail` record. -/
+theorem coreKnot_zero_run (mode fe d a b lst) :
+    (((coreKnot mode fe id 0).whnfCore d a).run lst
+        = .error (.internal "fuel exhausted: whnfCore")) ∧
+      (((coreKnot mode fe id 0).whnf d a).run lst
+        = .error (.internal "fuel exhausted: whnf")) ∧
+      (((coreKnot mode fe id 0).infer d a).run lst
+        = .error (.internal "fuel exhausted: infer")) ∧
+      (((coreKnot mode fe id 0).inferIO d a).run lst
+        = .error (.internal "fuel exhausted: infer")) ∧
+      (((coreKnot mode fe id 0).defeq d a b).run lst
+        = .error (.internal "fuel exhausted: defeq")) ∧
+      (((coreKnot mode fe id 0).annotate d a).run lst
+        = .error (.internal "fuel exhausted: annotate")) := by
+  rw [coreKnot]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+theorem coreKnotGated_zero_run (mode fe d a b lst) :
+    (((coreKnotGated mode fe 0).whnfCore d a).run lst
+        = .error (.internal "fuel exhausted: whnfCore")) ∧
+      (((coreKnotGated mode fe 0).whnf d a).run lst
+        = .error (.internal "fuel exhausted: whnf")) ∧
+      (((coreKnotGated mode fe 0).infer d a).run lst
+        = .error (.internal "fuel exhausted: infer")) ∧
+      (((coreKnotGated mode fe 0).inferIO d a).run lst
+        = .error (.internal "fuel exhausted: infer")) ∧
+      (((coreKnotGated mode fe 0).defeq d a b).run lst
+        = .error (.internal "fuel exhausted: defeq")) ∧
+      (((coreKnotGated mode fe 0).annotate d a).run lst
+        = .error (.internal "fuel exhausted: annotate")) := by
+  rw [coreKnotGated]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+theorem coreKnotIO_zero_run (mode fe d a b lst) :
+    (((coreKnotIO mode fe 0).whnfCore d a).run lst
+        = .error (.internal "fuel exhausted: whnfCore")) ∧
+      (((coreKnotIO mode fe 0).whnf d a).run lst
+        = .error (.internal "fuel exhausted: whnf")) ∧
+      (((coreKnotIO mode fe 0).infer d a).run lst
+        = .error (.internal "fuel exhausted: infer")) ∧
+      (((coreKnotIO mode fe 0).inferIO d a).run lst
+        = .error (.internal "fuel exhausted: infer")) ∧
+      (((coreKnotIO mode fe 0).defeq d a b).run lst
+        = .error (.internal "fuel exhausted: defeq")) ∧
+      (((coreKnotIO mode fe 0).annotate d a).run lst
+        = .error (.internal "fuel exhausted: annotate")) := by
+  rw [coreKnotIO]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+
 theorem laneKnot_zero_whnfCore (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).whnfCore d e).run lst
       = .error (.internal "fuel exhausted: whnfCore") := by
-  rw [laneKnot]; split <;> [skip; split] <;> rfl
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d e e lst).1
+  · split
+    · exact (coreKnotIO_zero_run mode fe d e e lst).1
+    · exact (coreKnot_zero_run mode fe d e e lst).1
 
 theorem laneKnot_zero_whnf (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).whnf d e).run lst
       = .error (.internal "fuel exhausted: whnf") := by
-  rw [laneKnot]; split <;> [skip; split] <;> rfl
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.1
+  · split
+    · exact (coreKnotIO_zero_run mode fe d e e lst).2.1
+    · exact (coreKnot_zero_run mode fe d e e lst).2.1
 
 theorem laneKnot_zero_infer (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).infer d e).run lst
       = .error (.internal "fuel exhausted: infer") := by
-  rw [laneKnot]; split <;> [skip; split] <;> rfl
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.2.1
+  · split
+    · exact (coreKnotIO_zero_run mode fe d e e lst).2.2.1
+    · exact (coreKnot_zero_run mode fe d e e lst).2.2.1
 
 theorem laneKnot_zero_inferIO (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).inferIO d e).run lst
       = .error (.internal "fuel exhausted: infer") := by
-  rw [laneKnot]; split <;> [skip; split] <;> rfl
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.2.2.1
+  · split
+    · exact (coreKnotIO_zero_run mode fe d e e lst).2.2.2.1
+    · exact (coreKnot_zero_run mode fe d e e lst).2.2.2.1
 
 theorem laneKnot_zero_defeq (mode fe lane d a b lst) :
     ((laneKnot mode fe lane 0).defeq d a b).run lst
       = .error (.internal "fuel exhausted: defeq") := by
-  rw [laneKnot]; split <;> [skip; split] <;> rfl
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d a b lst).2.2.2.2.1
+  · split
+    · exact (coreKnotIO_zero_run mode fe d a b lst).2.2.2.2.1
+    · exact (coreKnot_zero_run mode fe d a b lst).2.2.2.2.1
 
 theorem laneKnot_zero_annotate (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).annotate d e).run lst
       = .error (.internal "fuel exhausted: annotate") := by
-  rw [laneKnot]; split <;> [skip; split] <;> rfl
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.2.2.2.2
+  · split
+    · exact (coreKnotIO_zero_run mode fe d e e lst).2.2.2.2.2
+    · exact (coreKnot_zero_run mode fe d e e lst).2.2.2.2.2
 
 /-! ## The base case
 
