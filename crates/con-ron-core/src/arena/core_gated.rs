@@ -47,7 +47,7 @@ use crate::ron::hashmap::{Dup, Eq2};
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:50-66 whnfCoreBodyGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:64-106 whnfCoreBodyGated` —
 /// **THE β SITE** of the gated body: the gate wraps the *test* only, and both
 /// arms are `whnfCoreBody`'s verbatim.  The gate is `mode.verifiedChecks &&
 /// mb.pw.isNever`, con-leche's own spelling, which differs from the plain
@@ -98,7 +98,7 @@ pub fn whnf_core_app_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:41-92 whnfCoreBodyGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:64-106 whnfCoreBodyGated` —
 /// **the gated head-normalization body**: `whnfCoreBody` with the `.app`
 /// clause's β certificate skipped at a `.never` binder under
 /// `mode.verifiedChecks`.  The projection certificate is NOT gated — the
@@ -147,8 +147,8 @@ pub fn whnf_core_body_gated(
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// con-leche: ConLeche/Kernel/CoreGated.lean:152-155 pureFnsGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:98-118 coreKnotGated`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:122-123 pureFnsGated` — **the
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:151-154 pureFnsGated` — **the
 /// P knot**, tied at `AM`: `coreKnot`'s tie with `whnfCoreBodyGated` in the
 /// `whnfCore` slot; `whnf`, `infer`, `defeq` and `annotate` are the *same
 /// bodies*, tied to this knot one fuel level down, and no slot carries a memo.
@@ -158,7 +158,7 @@ pub fn whnf_core_body_gated(
 pub const CORE_KNOT_GATED: u32 = LANE_GATED;
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:157-159 whnfCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:127-129 whnfCoreGated` — head
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:156-160 whnfCoreGated` — head
 /// normalization with the β-cert gate (fueled).
 pub fn whnf_core_gated(
     pers: &PersTier,
@@ -174,7 +174,7 @@ pub fn whnf_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:161-163 whnfGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:133-135 whnfGated` — the full
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:162-166 whnfGated` — the full
 /// reduction loop over the gated knot (fueled).
 pub fn whnf_gated(
     pers: &PersTier,
@@ -190,7 +190,7 @@ pub fn whnf_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:165-168 inferTypeCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:139-141 inferTypeCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:168-172 inferTypeCoreGated` —
 /// type inference over the gated knot (fueled).
 pub fn infer_type_core_gated(
     pers: &PersTier,
@@ -206,7 +206,7 @@ pub fn infer_type_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:170-173 isDefEqCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:145-147 isDefEqCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:174-178 isDefEqCoreGated` —
 /// definitional equality over the gated knot (fueled).
 pub fn is_def_eq_core_gated(
     pers: &PersTier,
@@ -223,7 +223,7 @@ pub fn is_def_eq_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:175-178 annotateCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:151-153 annotateCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:180-184 annotateCoreGated` —
 /// the annotation pass over the gated knot (fueled).
 pub fn annotate_core_gated(
     pers: &PersTier,
@@ -239,7 +239,7 @@ pub fn annotate_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:180-183 ensureSortCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:157-159 ensureSortCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:186-190 ensureSortCoreGated` —
 /// `ensureSort` over the gated knot (fueled).
 pub fn ensure_sort_core_gated(
     pers: &PersTier,

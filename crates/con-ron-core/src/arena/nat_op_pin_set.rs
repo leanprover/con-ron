@@ -25,7 +25,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
-/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:29-48 INatOpPinSet` — the
+/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:24-48 INatOpPinSet` — the
 /// pins of one toolchain: eight pinned defining expressions and eight
 /// certificate-proof lists, in the order of `natDivModNames`' family (`div`,
 /// `mod`, `gcd`, `land`, `lor`, `xor`, `shiftLeft`, `shiftRight`), plus the
@@ -55,7 +55,7 @@ pub struct INatOpPinSet {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:52-70 internPinSet` —
+/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:50-70 internPinSet` —
 /// intern one pin variant: the one-time tree walk of DESIGN.md §8.6 P2d,
 /// sixteen terms deep.  The twin's sixteen `let`s are sixteen nested matches
 /// (§3.4 forbids `?`), split in two so that each half is one expression.
@@ -95,7 +95,7 @@ pub fn intern_pin_set(
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:52-70 internPinSet` — the
+/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:50-70 internPinSet` — the
 /// eight certificate-proof lists, and the record.  Split at the twin's own
 /// `let dc ←` boundary (task #97-P4c's rule for a long `do` block).
 pub fn intern_pin_set_proofs(
@@ -159,7 +159,7 @@ pub fn intern_pin_set_proofs(
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:74-79 internPinSets` —
+/// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:72-79 internPinSets` —
 /// intern the variant LIST, in the order the install gate tries them.
 pub fn intern_pin_sets(
     pers: &PersTier,

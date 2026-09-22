@@ -42,8 +42,8 @@ use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO
 /// con-leche: ConLeche/Kernel/CoreIO.lean:121-124 pureFnsIO
-/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:33-47 coreKnotIO`
-/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:51-52 pureFnsIO` — **the io
+/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO`
+/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:49-52 pureFnsIO` — **the io
 /// knot** (the leaf lane), tied at `AM`: the specification the `InferClaimIO`
 /// family is stated at.  Its own `inferIO` slot is the io body again — the io
 /// grade is idempotent, there being nothing below io to select — which is why
@@ -53,7 +53,7 @@ use crate::arena::store::PersTier;
 pub const CORE_KNOT_IO: u32 = LANE_IO;
 
 /// con-leche: ConLeche/Kernel/CoreIO.lean:126-130 inferTypeCoreIO
-/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:57-59 inferTypeCoreIO` —
+/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:54-59 inferTypeCoreIO` —
 /// infer-only (io-grade) type inference, fueled: the io lane's single entry
 /// point.
 pub fn infer_type_core_io(

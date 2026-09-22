@@ -19,7 +19,7 @@ use crate::kernel::env::CheckMode;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:22-59 nativeOpenedOkF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:18 nativeOpenedOkF`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:16-18 nativeOpenedOkF`
 /// — `nativeOpenedOk` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn native_opened_ok_f(
@@ -39,7 +39,7 @@ pub fn native_opened_ok_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69 nativeFieldsOkF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:22 nativeFieldsOkF`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:20-22 nativeFieldsOkF`
 /// — `nativeFieldsOk` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn native_fields_ok_f(
@@ -58,7 +58,7 @@ pub fn native_fields_ok_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:71-85 checkNativeRulesF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:26 checkNativeRulesF`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:24-26 checkNativeRulesF`
 /// — `checkNativeRules` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn check_native_rules_f(
@@ -89,7 +89,7 @@ pub fn check_native_rules_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115 checkNativeRecF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:30 checkNativeRecF`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:28-30 checkNativeRecF`
 /// — `checkNativeRec` through the index; the same function.
 pub fn check_native_rec_f(
     pers: &PersTier,
@@ -104,7 +104,7 @@ pub fn check_native_rec_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:117-126 checkNativeTableF
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:34 checkNativeTableF`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:32-34 checkNativeTableF`
 /// — `checkNativeTable` through the index; the same function.
 pub fn check_native_table_f(
     pers: &PersTier,
