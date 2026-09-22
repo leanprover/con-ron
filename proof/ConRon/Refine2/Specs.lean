@@ -6410,33 +6410,242 @@ CACHED VALUE (`StrNode`'s code points, `ListNode`'s handle vector, `LitNode`'s
 `Literal`, `BMNode`'s `PropWhen`) are the reason `TblRel` is `RelOn P`. -/
 
 
-/-- `arena::monad::intern_e_fvar` against `Arena.internFVarE`. -/
+/-- `arena::monad::intern_e_fvar` against `internFVarE`. -/
 theorem intern_e_fvar_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (idx : Std.U64) (ty : arena.handle.EIdx) {o}
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (idx : Std.U64) (ty : arena.handle.EIdx)
+    (hchild : (absEIdx ty).isPersistent = false →
+      lst.store.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
+    (hcap : lst.store.find? (.fvar (absU idx) (absEIdx ty)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.fvar (absU idx) (absEIdx ty))
+        else lst.store.pers.sizeOf (.fvar (absU idx) (absEIdx ty))) < Idx.idxCap)
+    {o}
     (hrun : arena.monad.intern_e_fvar pers st idx ty = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internFVarE (absU idx) (absEIdx ty)) := by
-  sorry
+  rw [arena.monad.intern_e_fvar] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store := (lst.store.intern (.fvar (absU idx) (absEIdx ty))).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.intern_ext _ _) trivial
+    rw [Arena.internFVarE, internE_run_of_cap rfl hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
 
-/-- `arena::monad::intern_e_sort` against `Arena.internSortE`. -/
+/-- `arena::monad::intern_e_sort` against `internSortE`. -/
 theorem intern_e_sort_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (u : arena.handle.LIdx) {o}
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (u : arena.handle.LIdx)
+    (hchild : (absLIdx u).isPersistent = false →
+      lst.store.pers.sorts.find? ⟨absLIdx u⟩ = none)
+    (hcap : lst.store.find? (.sort (absLIdx u)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.sort (absLIdx u))
+        else lst.store.pers.sizeOf (.sort (absLIdx u))) < Idx.idxCap)
+    {o}
     (hrun : arena.monad.intern_e_sort pers st u = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internSortE (absLIdx u)) := by
-  sorry
+  rw [arena.monad.intern_e_sort] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store := (lst.store.intern (.sort (absLIdx u))).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.intern_ext _ _) trivial
+    rw [Arena.internSortE, internE_run_of_cap rfl hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
 
-/-- `arena::monad::intern_e_const` against `Arena.internConstE`. -/
+/-- `arena::monad::intern_e_const` against `internConstE`. -/
 theorem intern_e_const_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) {o}
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (n : arena.handle.NIdx) (us : arena.handle.LsIdx)
+    (hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
+      lst.store.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
+    (hcap : lst.store.find? (.const (absNIdx n) (absLsIdx us)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.const (absNIdx n) (absLsIdx us))
+        else lst.store.pers.sizeOf (.const (absNIdx n) (absLsIdx us))) < Idx.idxCap)
+    {o}
     (hrun : arena.monad.intern_e_const pers st n us = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internConstE (absNIdx n) (absLsIdx us)) := by
-  sorry
+  rw [arena.monad.intern_e_const] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_const_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store := (lst.store.intern (.const (absNIdx n) (absLsIdx us))).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.intern_ext _ _) trivial
+    rw [Arena.internConstE, internE_run_of_cap rfl hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
 
-/-- `arena::monad::intern_e_app` against `Arena.internAppE`. -/
+/-- `arena::monad::intern_e_app` against `internAppE`. -/
 theorem intern_e_app_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (f : arena.handle.EIdx) (a : arena.handle.EIdx) {o}
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (f a : arena.handle.EIdx)
+    (hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
+      lst.store.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
+    (hcap : lst.store.find? (.app (absEIdx f) (absEIdx a)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.app (absEIdx f) (absEIdx a))
+        else lst.store.pers.sizeOf (.app (absEIdx f) (absEIdx a))) < Idx.idxCap)
+    {o}
     (hrun : arena.monad.intern_e_app pers st f a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internAppE (absEIdx f) (absEIdx a)) := by
-  sorry
+  rw [arena.monad.intern_e_app] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store := (lst.store.intern (.app (absEIdx f) (absEIdx a))).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.intern_ext _ _) trivial
+    rw [Arena.internAppE, internE_run_of_cap rfl hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
+
+/-- `arena::monad::intern_e_let_e` against `internLetEE`. -/
+theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (ty val bo : arena.handle.EIdx)
+    (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
+      lst.store.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx bo⟩ = none)
+    (hcap : lst.store.find? (.letE (absEIdx ty) (absEIdx val) (absEIdx bo)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))
+        else lst.store.pers.sizeOf (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))) < Idx.idxCap)
+    {o}
+    (hrun : arena.monad.intern_e_let_e pers st ty val bo = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o (Arena.internLetEE (absEIdx ty) (absEIdx val) (absEIdx bo)) := by
+  rw [arena.monad.intern_e_let_e] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store := (lst.store.intern (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.intern_ext _ _) trivial
+    rw [Arena.internLetEE, internE_run_of_cap rfl hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
+
+/-- `arena::monad::intern_e_proj` against `internProjE`. -/
+theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (n : arena.handle.NIdx) (i : Std.U64) (ep : arena.handle.EIdx)
+    (hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
+      lst.store.pers.projs.find? ⟨absNIdx n, absU i, absEIdx ep⟩ = none)
+    (hcap : lst.store.find? (.proj (absNIdx n) (absU i) (absEIdx ep)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.proj (absNIdx n) (absU i) (absEIdx ep))
+        else lst.store.pers.sizeOf (.proj (absNIdx n) (absU i) (absEIdx ep))) < Idx.idxCap)
+    {o}
+    (hrun : arena.monad.intern_e_proj pers st n i ep = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o (Arena.internProjE (absNIdx n) (absU i) (absEIdx ep)) := by
+  rw [arena.monad.intern_e_proj] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store := (lst.store.intern (.proj (absNIdx n) (absU i) (absEIdx ep))).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.intern_ext _ _) trivial
+    rw [Arena.internProjE, internE_run_of_cap rfl hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
+
+/-- `arena::monad::intern_e_lit` against `internLitE`. -/
+theorem intern_e_lit_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (l : kernel.expr.Literal)
+    (hwf : ConRon.Refine.LiteralWF l)
+    (hcap : lst.store.find? (.lit (ConRon.Refine.absLiteral l)) = none →
+      (if lst.store.scratchOn
+        then lst.store.scr.sizeOf (.lit (ConRon.Refine.absLiteral l))
+        else lst.store.pers.sizeOf (.lit (ConRon.Refine.absLiteral l))) < Idx.idxCap)
+    {o}
+    (hrun : arena.monad.intern_e_lit pers st l = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o (Arena.internLitE (ConRon.Refine.absLiteral l)) := by
+  rw [arena.monad.intern_e_lit] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_lit_abs (ls := lst.store) hrel.store hinv.store hfrozen hwf hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store := (lst.store.intern (.lit (ConRon.Refine.absLiteral l))).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.intern_ext _ _) trivial
+    rw [Arena.internLitE, internE_run_of_cap rfl hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
 
 /-- `arena::monad::intern_e_lam` against `Arena.internLamE`. -/
 theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
@@ -6471,27 +6680,6 @@ theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st) (tag : Std.U32) (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx) {o}
     (hrun : arena.monad.intern_e_bind_i pers st tag ty b mi = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internBindIE (absU32 tag) (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
-  sorry
-
-/-- `arena::monad::intern_e_let_e` against `Arena.internLetEE`. -/
-theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (ty : arena.handle.EIdx) (val : arena.handle.EIdx) (b : arena.handle.EIdx) {o}
-    (hrun : arena.monad.intern_e_let_e pers st ty val b = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internLetEE (absEIdx ty) (absEIdx val) (absEIdx b)) := by
-  sorry
-
-/-- `arena::monad::intern_e_lit` against `Arena.internLitE`. -/
-theorem intern_e_lit_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (l : kernel.expr.Literal) {o}
-    (hrun : arena.monad.intern_e_lit pers st l = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internLitE (ConRon.Refine.absLiteral l)) := by
-  sorry
-
-/-- `arena::monad::intern_e_proj` against `Arena.internProjE`. -/
-theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (i : Std.U64) (e : arena.handle.EIdx) {o}
-    (hrun : arena.monad.intern_e_proj pers st n i e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internProjE (absNIdx n) (absU i) (absEIdx e)) := by
   sorry
 
 /-- `arena::monad::intern_n_node` against `Arena.internNNode`. -/
@@ -7167,5 +7355,159 @@ the census that would have caught it. -/
 /-- info: 'ConRon.Refine2.intern_e_bvar_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_e_bvar_run
 
+
+
+/-! ## The axiom census, task #97-P5-2
+
+Forty-one more rows, over the ten expression arrays `intern` gained this
+round, the `der_of_*` family that feeds them and the probe-first `internE`
+that finding 9's twin fix (task #97-P3-1) made statable.  Every one reads
+`[propext, Classical.choice, Quot.sound]` and nothing else — no `sorryAx` on
+a closed lemma, and still no `bv_decide` axiom anywhere, which the handle
+packing's `*`/`/`/`%` spelling is what buys. -/
+
+/-- info: 'ConRon.Refine2.lstables_der_at_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lstables_der_at_abs
+
+/-- info: 'ConRon.Refine2.lsstore_derived_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lsstore_derived_abs
+
+/-- info: 'ConRon.Refine2.estore_lder_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_lder_obs
+
+/-- info: 'ConRon.Refine2.estore_lsder_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_lsder_obs
+
+/-- info: 'ConRon.Refine2.derObsE_pack' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms derObsE_pack
+
+/-- info: 'ConRon.Refine2.derObsE_fields' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms derObsE_fields
+
+/-- info: 'ConRon.Refine2.satPred_toNat' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms satPred_toNat
+
+/-- info: 'ConRon.Refine2.der_of_fvar_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_fvar_obs
+
+/-- info: 'ConRon.Refine2.der_of_sort_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_sort_obs
+
+/-- info: 'ConRon.Refine2.der_of_const_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_const_obs
+
+/-- info: 'ConRon.Refine2.der_of_lit_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_lit_obs
+
+/-- info: 'ConRon.Refine2.der_of_proj_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_proj_obs
+
+/-- info: 'ConRon.Refine2.der_of_app_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_app_obs
+
+/-- info: 'ConRon.Refine2.der_of_let_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_let_obs
+
+/-- info: 'ConRon.Refine2.etables_get_bm_der_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms etables_get_bm_der_abs
+
+/-- info: 'ConRon.Refine2.estore_bm_der_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_bm_der_abs
+
+/-- info: 'ConRon.Refine2.der_of_bind_i_obs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms der_of_bind_i_obs
+
+/-- info: 'ConRon.Refine2.tbl_node_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms tbl_node_wf
+
+/-- info: 'ConRon.Refine2.dupId_fvarnode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms dupId_fvarnode
+
+/-- info: 'ConRon.Refine2.absFVarNode_inj' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms absFVarNode_inj
+
+/-- info: 'ConRon.Refine2.dupId_litnode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms dupId_litnode
+
+/-- info: 'ConRon.Refine2.absLitNode_inj' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms absLitNode_inj
+
+/-- info: 'ConRon.Refine2.dupId_bmnode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms dupId_bmnode
+
+/-- info: 'ConRon.Refine2.absBMNode_inj' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms absBMNode_inj
+
+/-- info: 'ConRon.Refine2.estore_intern_fvar_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_fvar_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_sort_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_sort_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_const_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_const_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_app_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_app_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_proj_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_proj_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_let_e_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_let_e_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_lit_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_lit_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_lam_i_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_lam_i_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_forall_e_i_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_forall_e_i_abs
+
+/-- info: 'ConRon.Refine2.estore_intern_bm_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_intern_bm_abs
+
+/-- info: 'ConRon.Refine2.run_get_bind' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms run_get_bind
+
+/-- info: 'ConRon.Refine2.view_run_state' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms view_run_state
+
+/-- info: 'ConRon.Refine2.internBM_of_findBM' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms internBM_of_findBM
+
+/-- info: 'ConRon.Refine2.internBMOfView_of_findBMOfView' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms internBMOfView_of_findBMOfView
+
+/-- info: 'ConRon.Refine2.internAt_of_findAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms internAt_of_findAt
+
+/-- info: 'ConRon.Refine2.intern_of_find' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_of_find
+
+/-- info: 'ConRon.Refine2.internE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms internE_run_of_cap
+
+/-- info: 'ConRon.Refine2.intern_e_fvar_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_fvar_run
+
+/-- info: 'ConRon.Refine2.intern_e_sort_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_sort_run
+
+/-- info: 'ConRon.Refine2.intern_e_const_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_const_run
+
+/-- info: 'ConRon.Refine2.intern_e_app_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_app_run
+
+/-- info: 'ConRon.Refine2.intern_e_let_e_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_let_e_run
+
+/-- info: 'ConRon.Refine2.intern_e_lit_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_lit_run
+
+/-- info: 'ConRon.Refine2.intern_e_proj_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_proj_run
 
 end ConRon.Refine2

@@ -1087,4 +1087,58 @@ theorem leaf_guard_refines {pers : arena.store.PersTier}
       ((leafGuard (absU fuel) (absEIdx fab) (absEIdx base)).run lst) := by
   sorry
 
+
+/-! ## The axiom census
+
+The three `O(1)` derived reads and the three fuel inductions this round
+closed, at the three standard axioms and nothing else. -/
+
+/-- info: 'ConRon.Refine2.ExprOps.inst_list_cutoff_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_list_cutoff_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.lidx_has_param_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lidx_has_param_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.eidx_has_level_param_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms eidx_has_level_param_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.get_app_fn_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms get_app_fn_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.get_app_args_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms get_app_args_go_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.get_app_args_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms get_app_args_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.result_sort_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms result_sort_refines
+
+
+/-! ## The axiom census
+
+The three `O(1)` derived reads and the three fuel inductions this round
+closed, at the three standard axioms and nothing else. -/
+
+/-- info: 'ConRon.Refine2.ExprOps.inst_list_cutoff_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_list_cutoff_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.lidx_has_param_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lidx_has_param_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.eidx_has_level_param_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms eidx_has_level_param_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.get_app_fn_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms get_app_fn_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.get_app_args_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms get_app_args_go_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.get_app_args_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms get_app_args_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.result_sort_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms result_sort_refines
+
 end ConRon.Refine2.ExprOps
