@@ -72,7 +72,6 @@ namespace ConRon.Bridge.Frontend
 #print axioms IdTableRel.singleton
 #print axioms IdTableRel.insert
 
-#print axioms ciName_denote
 #print axioms ciName_denote_proj
 #print axioms ciName_denote_of
 #print axioms ciNames_denote

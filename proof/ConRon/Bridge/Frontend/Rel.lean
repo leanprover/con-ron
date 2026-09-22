@@ -627,73 +627,11 @@ theorem DeclsProjNamed.push {st : EStore} {ds : Array IDeclaration}
 
 /-! ### The name equations the clause buys -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:644 ConstantInfo.name — a stored
-constant that is NOT a projection table is named by its own handle.  Six of the
-seven constructors carry an `IConstantVal`, and its `name` field is the first
-thing `denoteCV` reads. -/
-theorem ciName_denote {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (hnp : ∀ t, ci ≠ .projInfo t)
-    (h : ConRon.Arena.Frontend.denoteCI st ci = some c) :
-    denoteN st.ns ci.name = some c.name := by
-  have hcv : ∀ (v : IConstantVal) (cv : ConstantVal),
-      ConRon.Arena.Frontend.denoteCV st v = some cv →
-      denoteN st.ns v.name = some cv.name := by
-    intro v cv hv
-    simp only [ConRon.Arena.Frontend.denoteCV] at hv
-    cases hn : denoteN st.ns v.name with
-    | none => rw [hn] at hv; simp at hv
-    | some n =>
-      cases hl : ConRon.Arena.Frontend.denoteNList st.ns v.levelParams with
-      | none => rw [hn, hl] at hv; simp at hv
-      | some lps =>
-        cases ht : denoteE st v.type with
-        | none => rw [hn, hl, ht] at hv; simp at hv
-        | some ty =>
-          rw [hn, hl, ht] at hv
-          obtain rfl := Option.some.inj hv
-          rfl
-  cases ci with
-  | axiomInfo v =>
-    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hv, rfl⟩ := h
-    exact hcv v cv hv
-  | ctorInfo v nP nF =>
-    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hv, rfl⟩ := h
-    exact hcv v cv hv
-  | defnInfo v e hh =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at h
-    cases hv : ConRon.Arena.Frontend.denoteCV st v with
-    | none => rw [hv] at h; simp at h
-    | some cv =>
-      cases he : denoteE st e with
-      | none => rw [hv, he] at h; simp at h
-      | some x => rw [hv, he] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
-  | thmInfo v e =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at h
-    cases hv : ConRon.Arena.Frontend.denoteCV st v with
-    | none => rw [hv] at h; simp at h
-    | some cv =>
-      cases he : denoteE st e with
-      | none => rw [hv, he] at h; simp at h
-      | some x => rw [hv, he] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
-  | indInfo v caps =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at h
-    cases hv : ConRon.Arena.Frontend.denoteCV st v with
-    | none => rw [hv] at h; simp at h
-    | some cv =>
-      cases hc : ConRon.Arena.Frontend.denoteCaps st caps with
-      | none => rw [hv, hc] at h; simp at h
-      | some x => rw [hv, hc] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
-  | recInfo v mI rP rs =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at h
-    cases hv : ConRon.Arena.Frontend.denoteCV st v with
-    | none => rw [hv] at h; simp at h
-    | some cv =>
-      cases hr : ConRon.Arena.Frontend.denoteRules st rs with
-      | none => rw [hv, hr] at h; simp at h
-      | some x => rw [hv, hr] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
-  | projInfo t => exact absurd rfl (hnp t)
+/-! The non-projection half is `Bridge/StateOK.lean`'s own `denoteCI_name`,
+which landed there while this round ran; only the `.projInfo` half is restated
+here, because that one asks `IProjTableOK` where this tier has only its `named`
+clause.  When `denoteCI_name_proj`'s hypothesis is weakened to `IProjNamed` —
+its proof uses `hok.named` and nothing else — the two below go away. -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:642 ConstantInfo.toConstantVal (the
 `.projInfo` arm) — and a projection table is named by its stored handle exactly
@@ -733,12 +671,12 @@ theorem ciName_denote_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     denoteN st.ns ci.name = some c.name := by
   cases ci with
   | projInfo t => exact ciName_denote_proj (hproj t rfl) h
-  | axiomInfo v => exact ciName_denote (by simp) h
-  | defnInfo v e hh => exact ciName_denote (by simp) h
-  | thmInfo v e => exact ciName_denote (by simp) h
-  | indInfo v caps => exact ciName_denote (by simp) h
-  | ctorInfo v nP nF => exact ciName_denote (by simp) h
-  | recInfo v mI rP rs => exact ciName_denote (by simp) h
+  | axiomInfo v => exact denoteCI_name (by simp) h
+  | defnInfo v e hh => exact denoteCI_name (by simp) h
+  | thmInfo v e => exact denoteCI_name (by simp) h
+  | indInfo v caps => exact denoteCI_name (by simp) h
+  | ctorInfo v nP nF => exact denoteCI_name (by simp) h
+  | recInfo v mI rP rs => exact denoteCI_name (by simp) h
 
 /-- con-leche: none — a block's names, at the list. -/
 theorem ciNames_denote {st : EStore} :

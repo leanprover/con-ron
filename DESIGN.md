@@ -43472,6 +43472,9 @@ hypotheses they took in round 4.
   `declNames_denote`** — the name equations the clause buys.  `declNames_denote`
   is the one round 4's finding named: *a record that denotes has
   `IDeclaration.names`' exactness, given `DeclProjNamed` and nothing more*.
+  The NON-projection half is not restated here: it is
+  `Bridge/StateOK.lean`'s own `denoteCI_name`, which the second `arena` merge
+  brought onto this tier's cone (see §6).
 
 `Bridge/Frontend/Shared.lean`: `projTableName_istep` gains the denotation
 conjunct, and `internProjTable_istep`/`internCI_istep`/`internCIList_istep`/
@@ -43524,15 +43527,22 @@ pure `occursConst` over the denoted tree — and the con-leche side is a named
 ask rather than a hole in a proof.  `ProjRec.lean` is therefore at **seven**
 where round 4 left it at five: five proofs and two asks of con-leche.
 
-##### 6. A dedup the next round should take (not this lane)
+##### 6. Half a dedup taken, and half left for the next round
 
-`Bridge/StateOK.lean`'s `denoteCI_name_proj` takes `IProjTableOK st t` and its
-proof opens with `obtain ⟨sn, hsn, htn⟩ := hok.named` — **it uses the `named`
-clause and nothing else.**  Weakening its hypothesis to `IProjNamed` (and
-`denoteCI_name_of`'s with it) would let `Bridge/Frontend/Rel.lean` drop its own
-`ciName_denote_proj`/`ciName_denote_of` and call the shared ones.  That file is
-the Inductives tier's and landed on `arena` while this round ran, so round 5
-left it alone and states the debt here.
+The Inductives tier's `denoteCI_name`/`denoteCI_name_proj`/`denoteCI_name_of`
+landed in `Bridge/StateOK.lean` — that is, on this tier's cone — in the merge
+this round took halfway through, so `Bridge/Frontend/Rel.lean` keeps only what
+they cannot give: the round's own `ciName_denote` was **deleted** and its uses
+point at the shared `denoteCI_name`.
+
+The other half is a debt, and it is one line of somebody else's file.
+`denoteCI_name_proj` takes `IProjTableOK st t` and its proof opens with
+`obtain ⟨sn, hsn, htn⟩ := hok.named` — **it uses the `named` clause and
+nothing else.**  Weakening its hypothesis to `IProjNamed` (and
+`denoteCI_name_of`'s with it) would let `Bridge/Frontend/Rel.lean` drop
+`ciName_denote_proj`/`ciName_denote_of` too.  That file is the Inductives
+tier's and moved on `arena` while this round ran, so round 5 left it alone and
+states the debt here.
 
 ##### 7. Two tactic notes, both about `match`
 
@@ -43564,7 +43574,7 @@ are off it.
 
 ##### 9. The axiom census after round 5
 
-`Bridge/Frontend/Axioms.lean`: **182 closed results** (was 153), every one
+`Bridge/Frontend/Axioms.lean`: **181 closed results** (was 153), every one
 within `[propext, Classical.choice, Quot.sound]`; the eighteen `sorryAx`
 entries are unchanged in kind (fourteen proved-but-resting-on-a-leaf and the
 four headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
