@@ -115,8 +115,19 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
 prelude record is looked up by.  The twin is monadic only for the
 `.anonymous` fall-through.
 
-`sorry`: `IDeclaration.names`'s exactness at the head, then
-`internNNode_spec`.  Task #97-P3-Frontend's sorry list, item 20. -/
+**Round 4's finding 16 bites here**: `IDeclaration.names`
+(`Arena/Env.lean:262-266`) reads `IConstantInfo.name`, which at a `.projInfo`
+is the STORED handle `tbl.tableName` — and `denoteProjTable` does not mention
+`tableName`, so `denoteDecl st d = some dP` does NOT give
+`denoteNList st.ns d.names = some dP.names`.  Only
+`Bridge/StateOK.lean:507-511`'s `IProjTableOK.named` ties the two.  The frame
+is already the honest one here (`preludeKey` interns `.anonymous` on the
+fall-through), but the ANSWER clause needs that side condition or a
+strengthened seam promise; see `Bridge/Frontend/Lines.lean`'s `noteDecl_run`
+for the finding in full.
+
+`sorry`: finding 16 first, then `IDeclaration.names`'s exactness at the head
+and `internNNode_istep`.  Task #97-P3-Frontend's sorry list, item 20. -/
 theorem preludeKey_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {d : IDeclaration} {dP : Declaration}
     (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP) {n : NIdx}
@@ -132,7 +143,12 @@ stream's own copy of a prelude record, pulled out.  PURE on both sides
 `d.names.contains n` is a handle test where con-leche's is a name test, and
 `denoteN_inj` makes the two the same test on a well-formed store.
 
-`sorry`: `denoteN_inj` at the `findIdx` predicate, then
+**Round 4's finding 16 bites here too**: `declares n d` is
+`d.names.contains n`, so this statement reads `IDeclaration.names` at every
+record of the stream and needs its exactness — which a `.projInfo` does not
+give without `IProjTableOK` (see `preludeKey_run` above).
+
+`sorry`: finding 16, then `denoteN_inj` at the `findIdx` predicate and
 `Array.eraseIdxIfInBounds`'s own law.  Task #97-P3-Frontend's sorry list,
 item 20. -/
 theorem pick_denote {st : EStore} (hwf : StoreWF st) {n : NIdx}
@@ -154,8 +170,9 @@ of the preparation are PERMUTATIONS: no record is built, so every record out
 is a record in, and `Bridge/Checker/Capstone.lean`'s `hpd` at the fold's
 argument is the parse's and the prelude's, carried.
 
-`sorry`: a list induction over `preludeKey_run` and `pick_denote`.  Task
-#97-P3-Frontend's sorry list, item 20. -/
+`sorry`: a list induction over `preludeKey_run` and `pick_denote`, both of
+which wait on round 4's finding 16.  Task #97-P3-Frontend's sorry list,
+item 20. -/
 theorem frontOf_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {acc : Array IDeclaration}
     {accP : Array Declaration} (hacc : denoteDeclArray s.store acc = some accP)
@@ -179,8 +196,15 @@ theorem frontOf_run {s s' : AState} (hok : StateOK s)
 the constants a record mentions.  A walk over the record's terms with a `seen`
 set, so the GRAY-invariant shape again.
 
-`sorry`: the fuel induction with the `seen` set, `Bridge/ExprOps/Leaves.lean`'s
-open shape.  Task #97-P3-Frontend's sorry list, item 21. -/
+**Round 4's finding 16 bites the FRAME here**: `usedConstsBlock`
+(`Arena/Frontend/NatOpGround.lean:85-95`) calls `ci.toConstantVal`, whose
+`.projInfo` arm interns `Sort 1`, so `s' = s` is false at a block that holds a
+projection table.  `ParseStep s s'` is the honest frame, with the answer read
+at `s'.store`; see `Bridge/Frontend/Lines.lean`'s `noteDecl_run`.
+
+`sorry`: finding 16, then the fuel induction with the `seen` set —
+`Bridge/ExprOps/Leaves.lean`'s open shape.  Task #97-P3-Frontend's sorry list,
+item 21. -/
 theorem usedConsts_run {s s' : AState} (hok : StateOK s) {d : IDeclaration}
     {dP : Declaration} (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     {ns : Array NIdx} (hrun : IDeclaration.usedConsts d s = .ok (ns, s')) :
@@ -193,11 +217,17 @@ hoist's index, and where `denoteN_inj` is load-bearing**: the stream is
 indexed by declared name, and two handles denoting one name would make the
 twin move a record con-leche does not move.
 
-`sorry`: `usedConsts_run` and `isNatOpRecord_run` at the fold, with
-`denoteN_inj` for the `Std.HashMap NIdx Nat` keyed by handle against
-con-leche's `Std.HashMap Nat Nat` keyed by stream position — the two maps are
-equal as functions of the position, which is what `applyHoist` reads.  Task
-#97-P3-Frontend's sorry list, item 21. -/
+**Round 4's finding 16 bites both halves**: `nameIndex`
+(`Arena/Frontend/NatOpGround.lean:133-138`) indexes by `ds[k].names`, and
+`usedConsts` moves the store at a projection table.  The frame is `ParseStep`,
+and the name exactness wants `IProjTableOK`; see
+`Bridge/Frontend/Lines.lean`'s `noteDecl_run`.
+
+`sorry`: finding 16, then `usedConsts_run` and `isNatOpRecord_run` at the
+fold, with `denoteN_inj` for the `Std.HashMap NIdx Nat` keyed by handle
+against con-leche's `Std.HashMap Nat Nat` keyed by stream position — the two
+maps are equal as functions of the position, which is what `applyHoist`
+reads.  Task #97-P3-Frontend's sorry list, item 21. -/
 theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     {ds : Array IDeclaration} {dsP : Array Declaration}
     (hwf : StoreWF s.store) (hds : denoteDeclArray s.store ds = some dsP)
@@ -209,9 +239,10 @@ theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
 hoist.  Its answer is a PERMUTATION of its argument, so the denotation of the
 result is the permutation of the denotation, and the moved-name list denotes.
 
-`sorry`: `hoistTargets_run`, then `applyHoist`'s `reorder` as a `List.map`
-over a permutation of indices — the same list of indices on both sides.  Task
-#97-P3-Frontend's sorry list, item 21. -/
+`sorry`: `hoistTargets_run` (which waits on round 4's finding 16), then
+`applyHoist`'s `reorder` as a `List.map` over a permutation of indices — the
+same list of indices on both sides.  Task #97-P3-Frontend's sorry list,
+item 21. -/
 theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}
     (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)

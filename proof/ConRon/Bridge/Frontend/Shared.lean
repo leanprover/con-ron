@@ -1388,6 +1388,31 @@ theorem internNNode_istep {s s' : AState} (hok : StateOK s)
   have hon' : s'.store.scratchOn = false := by rw [hon]; exact hoff
   exact ⟨⟨⟨hwf⟩, hx, hon', hm, hc, hp⟩, PersN_of_view hwf hon' hview, hden⟩
 
+/-- con-leche: ConLeche/Kernel/Expr.lean Level — a LEVEL node, in the `IStep`
+frame: `parseLevelEntryD`'s four arms intern one apiece. -/
+theorem internLNode_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {v : LNodeView}
+    (hv : s.store.ls.ViewOK v) {h : LIdx}
+    (hrun : ConRon.Arena.internLNode v s = .ok (h, s')) :
+    IStep s s' ∧ PersL h ∧
+      denoteL s'.store.ls h = denoteLView s'.store.ls v := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, hview, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLNode_spec s v hok.wf hv)
+  have hon' : s'.store.scratchOn = false := by rw [hon]; exact hoff
+  exact ⟨⟨⟨hwf⟩, hx, hon', hm, hc, hp⟩, PersL_of_view hwf hon' hview, hden⟩
+
+/-- con-leche: none — a LEVEL-LIST node, in the `IStep` frame: the one
+`const` arm of `parseExprEntryD` interns it (DESIGN §8.3's `LsIdx`). -/
+theorem internLsNode_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {v : LsNodeView}
+    (hv : s.store.lss.ViewOK v) {h : LsIdx}
+    (hrun : ConRon.Arena.internLsNode v s = .ok (h, s')) :
+    IStep s s' ∧ denoteLs s'.store.lss h = denoteLsView s'.store.lss v := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, -, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLsNode_spec s v hok.wf hv)
+  have hon' : s'.store.scratchOn = false := by rw [hon]; exact hoff
+  exact ⟨⟨⟨hwf⟩, hx, hon', hm, hc, hp⟩, hden⟩
+
 theorem projTableName_istep {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {T : NIdx} {Tn : ConLeche.Name}
     (hT : denoteN s.store.ns T = some Tn) {h : NIdx}
