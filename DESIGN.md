@@ -35936,3 +35936,376 @@ therefore the **first** one the catch-up did not see, and it is one clause
 belongs to `con-ron-core`'s own proved tier.  What is still owed beyond it is
 the OVERVIEW numbers (§7.x, a post-merge task of their own — the Mathlib row
 this task measured, **3 904.41 G at 6.78 GB**, is the one it will quote).
+
+### Task #97-P3-0 — Theorem 1: the spec layer and the `ExprOps` tier (2026-09-22, Opus under Fable)
+
+Phase **P3** of §8.6, first round: DESIGN §8.2's **Theorem 1** — the bridge
+from the Lean arena twin (B) to con-leche's PURE checker (A) — its foundation
+and its first tier.  A new library `ConRonBridge`, root `ConRon.Bridge`, under
+`proof/ConRon/Bridge/**`, importing `ConRon.Arena` and con-leche's
+`Kernel/*` and **nothing else**: no `ConRon.Refine`, no `ConRon.Generated`,
+no Aeneas, no Mathlib.  `mvcgen` and `@[spec]` come from `Std.Tactic.Do`,
+which is in core, so the "no Mathlib" rule of task #97a holds here too and
+this library elaborates in seconds rather than minutes.
+
+#### 1. The layer, and its size
+
+| module | raw | non-blank | theorems | elaboration |
+|---|---:|---:|---:|---:|
+| `Bridge/Peel.lean` — the `bridge_peel` meta tactic | 58 | 49 | — | 1.5 s |
+| `Bridge/Rel.lean` — the denotation calculus and the answer relations | 1 531 | 1 343 | 135 | 3.5 s |
+| `Bridge/StateOK.lean` — the state invariant and the memo invariants | 683 | 592 | 34 | 1.6 s |
+| `Bridge/StoreNested.lean` — the three nested `intern`s' store specs | 587 | 545 | 20 | 1.6 s |
+| `Bridge/StoreBind.lean` — `internBindI`'s store spec | 260 | 230 | 13 | 1.4 s |
+| `Bridge/StoreBM.lean` — the binder-datum store's monotonicity | 95 | 79 | 4 | 1.4 s |
+| `Bridge/Specs.lean` — the `@[spec]` theorem of every primitive | 1 549 | 1 385 | 114 | 9.6 s |
+| `Bridge/SpecsL.lean` — the four that were written after the tier started | 206 | 185 | 11 | 3.4 s |
+| `Bridge/Axioms.lean` — the trust census | 141 | 123 | — | 1.4 s |
+| **the spec layer** | **5 110** | **4 531** | **331** | **~12 s net** |
+| `Bridge/ExprOps/Inst1.lean` — Theorem 1 for `instantiate1` | 544 | 496 | 16 | 72.3 s |
+
+The **import baseline is 1.35–1.5 s** (`Peel.lean` is 58 lines and takes
+1.49 s), so the net elaboration of the whole spec layer — everything above the
+line except `ExprOps/` — is **about 12 s**, of which 9.4 s is `Specs.lean`.
+Task #97s's "budget 2–3 k lines for the full store and treat it as P2a's
+deliverable" was right about the size: the spec layer is **4 337 non-blank
+lines**, 316 theorems, **108 of them `@[spec]`** and **55 of them
+`@[grind →]`**.
+
+#### 2. What is in it
+
+**`Bridge/Rel.lean`** is task #97s's eight lemma groups grown for the real
+`EStore`, with one change of shape that task #97b measured and asked for:
+
+* the answer relation is **GENERIC**.  `RelE f st c st' r` — "`r` in `st'`
+  denotes `f` of what `c` denotes in `st`" — with `RelV` (a
+  representation-free answer, and therefore NO target store), `RelEO` (an
+  `Option` handle, through a `denoteEO`), `RelEL` (a list of handles),
+  `RelL`/`RelLs` (a level, a universe-argument list).  Five shapes for the
+  whole tier where the spike's monomorphic `Inst1At` would need one copy of
+  its 822-line layer per walk.  Each carries `.apply`, `.isSome`, `.ext`,
+  `.of_ext`, `.retarget`, plus `.congr` (which is what lets a twin whose
+  clause is not con-leche's clause be stated against con-leche's function
+  anyway) and `.self` (the cutoff shape);
+* the five **generic step lemmas** `RelE.app`/`.lam`/`.forallE`/`.letE`/
+  `.proj`, each taking the pure function's own clause as a decomposition
+  hypothesis, over the universal `RelE.of_view`.  `.lam`/`.forallE` take a
+  CHANGED binder datum and `.proj` a CHANGED name, which is what `resetMeta`
+  and `renameConsts` need;
+* the ten denote **inversions** and their `isSome`-flavoured twins, and the
+  `isSome` calculus — template rule 4, so that a recursive call's side goal
+  carries no metavariable;
+* the **thirteen projections' exactness** against `view`, which
+  `Arena/Store.lean` states as an obligation ("the exactness lemma the bridge
+  owes for each is `getApp t i = (t.get i).bind appParts` and its siblings").
+  Both spellings: the plain one, and the one the twins' tag dispatch actually
+  produces (`view_of_viewApp_tag` takes `(i.tag == ETag.app) = true`), and the
+  latter is `@[grind →]` so the closer derives the `view` fact itself;
+* `EStore.tagOf_of_view` — task #97-P6-13's licence for the tag dispatch, as a
+  lemma, and it needs no `StoreWF` at all: `ETables.get` dispatches on `i.tag`
+  FIRST, so a handle that decodes decodes to that tag's constructor.  With
+  `denote_leaf_of_tag` it is what lets a walk's catch-all `else` arm know it is
+  looking at one of the four leaves;
+* the declaration layer's ten **denotation transports** (`denoteCV_ext`,
+  `denoteRule_ext`, `denoteCI_ext`, …), which `IFEnvOK` needs and which the
+  `DeclCheck` and frontend tiers will need.
+
+**`Bridge/StateOK.lean`** splits the invariant the way con-leche splits `ISOK`
+from `ISOKF`, and for the same reason:
+
+* `StateOK s` is `StoreWF s.store` and nothing else — **the only clause the
+  `ExprOps` tier mentions.**  An `ExprOps` theorem that carried the cache
+  clauses would carry con-leche's pure knot into a module about
+  `instantiate1`;
+* `CacheOK mode env s` is the fourteen per-declaration tables in con-leche's
+  `CacheOK` shape and **depth-universal** (the history report's lesson 8:
+  `∃ F, ∀ d, a.wscopedB d → op env F d a = .ok b`), at `pureFns mode env F`;
+* `PinsOK s` is the pin record denoting `pinNames` and
+  `reservedBasisNameValues` and the three nullary values;
+* `IFEnvOK env fe s` is lesson 13's index spec — and **its second clause is
+  `cover`, not `miss`**.  The naive spelling of the second direction ("a
+  `find?` miss at a handle that denotes `nm` means `env.find? nm = none`") is
+  NOT preserved by an arena extension, because a handle that decoded to
+  nothing before the extension may decode to `nm` after it; `cover` ("every
+  entry of the environment is named by a handle the index knows") IS, and
+  `IFEnvOK.miss` derives the naive form from it through `denoteN_inj` — which
+  is exactly the role DESIGN §8.3 gives injectivity;
+* `CheckOK` bundles the four and `CheckOK.mono` carries it past any call that
+  only grows the arena: `Ext` plus `s'.caches = s.caches` plus
+  `s'.pins = s.pins`.  **Two equations for fourteen tables** is what task
+  #97b's "one record" bought;
+* the thirteen per-call memo invariants are `abbrev`s over four generic ones
+  (`MemoOK`, `MemoVOK`, `MemoLOK`, `MemoLsOK`), each with `.mono`,
+  `.of_empty`, `.get` (delivered as the answer relation, so a caller never
+  unfolds the invariant) and `.insert` (the invariant-carrying shape of
+  template rule 6).  `abbrev` and not `def` is task #97b's finding 2: a
+  generic memo invariant leaves `f` a higher-order metavariable and `mspec`
+  cannot close the arm.
+
+**`Bridge/Specs.lean`** is one `@[spec]` theorem per primitive of
+`Monad.lean`, in the seven-rule template, for: `fail` and the two named
+dangling declines; `view`, `derivedE`, `internE` and its ten per-constructor
+faces; the two binder interns over a datum handle; the thirteen projections;
+the name, level and level-list stores (`viewN`/`viewL`/`viewLs`/`viewLsLen`,
+`internNNode`/`internLNode`/`internLsNode`, `internName`, the readbacks
+`readName`/`readNames`/`readLevel`/`readLevels`, and the three memoised
+readbacks); the thirteen memo tables' probe/record/drop triples; the eleven
+`internRebuilt*` faces and `instListCutoff`; the per-declaration bracket
+(`flushCaches`, `dropScratch`, `enterScratch`); and the five pin readers.
+**108 `@[spec]` theorems, all closed.**
+
+#### 3. The three store obligations task #97a's frozen API does not cover
+
+All three are closed, and all three were found by writing the specs rather
+than by reading the code.
+
+1. **`EStore.internName` / `internLevel` / `internLevels`** (`StoreNested.lean`,
+   587 lines), which task #97b's "For P2c" already named: "P2a froze them
+   without one; every `Core` body that interns a name or a level will need
+   `Ext` and `StoreWF` for them".  The key simplification is that each is ONE
+   field update as a value (`EStore.internName_eq` is `rfl`), so every
+   expression-level read is `rfl` and the fuel of `denoteE` never changes;
+   what has content is `{L,Ls,E}Store.wf_of_*` (the `wf_of_scr_empty` shape
+   with the NESTED store as the thing that moved) and two generalisations of
+   `denote*Aux_store_mono` whose extra hypotheses are the `LsExt` conjuncts.
+2. **`EStore.internBindI`** (`StoreBind.lean`, 260 lines), the `intern` every
+   REBUILDING WALK calls since task #97-P6-16 and the one `Arena/WFProofs.lean`
+   proves nothing about.  It is `internAt` at the view the datum spells out —
+   the probe is the same `Tbl.find?` at the same key, the append pushes the
+   same record into the same array, and the derived words agree by
+   `Store.lean:1381`'s own stated obligation — so the proof is
+   `internBindI_eq_internAt` and then `internAt_wf_view`.
+   **And its statement needs `mi.tag = 0` as a HYPOTHESIS.**  `EStore.viewBM`
+   reads the datum array at the handle's INDEX under its TIER bit and never
+   looks at the tag (the datum store has one constructor — task #97-LC's
+   finding 2), so `viewBM mi = some m` holds of every handle differing from
+   the real one only in bits 31…28, and pushing such a handle produces a store
+   for which no rank satisfies `EWFAt`: the spec is **false** without it, and
+   neither `bmConsP` nor `findBM_of_viewBM` can supply it (the latter *assumes*
+   it).  Every producer establishes it instead — `pushBM` builds
+   `Idx.mk 0 tier _`, `bmChildOK` carries it for whatever `viewBindI` answered
+   — so a rebuilding walk has it in hand.
+3. **The binder-datum store's monotonicity** (`StoreBM.lean`, 93 lines):
+   interning a node leaves every datum that already decoded decoding the same.
+   **`Ext` cannot say it** — `Ext` is about `denoteE`/`denoteL`/`denoteN`/
+   `denoteLs`, and a `BMIdx` denotes nothing — so it has to be said
+   separately, and it is the one fact `ExprOps/Inst1.lean`'s binder arm is
+   still waiting for (§6).
+
+#### 4. `instantiate1` as the tier's exemplar, and what it measured
+
+`ExprOps/Inst1.lean` is Theorem 1 for `instantiate1Go` / `instantiate1Fast`,
+written to fix the shape the rest of the tier copies: the `…Spec` record for
+one level of the recursion (task #97s's rule 8), the fuel induction, the
+per-arm step lemmas, and the `arm_hyp` tactic.
+
+The measurement, and it is the reason this section exists:
+
+| | |
+|---|---|
+| verification conditions `mvcgen` leaves on the inline body | **79** |
+| closed by the uniform closer `bridge_vcs` | **61 / 79** |
+| closed by hand (13 `next` blocks, ~90 proof lines) | **13** |
+| open | **5** (§6) |
+| `mvcgen`'s OWN cost (every VC `sorry`ed) | **5.5 s of 72.3 s**, i.e. 5.8 % net |
+| the file's elaboration | **72.3 s** |
+
+**The cost is `grind`, not `mvcgen`** — task #97s round 2's finding,
+reproduced at the real store on an inline body: 66 of the 71 net seconds are
+the closer.  And that settles the question task #97b left open.
+
+> **The arms MUST be re-split, and here is the number.**  Task #97b wrote the
+> twins with their arms INLINE (a deliberate reversal of task #97s round 2's
+> style rule, because the spike achieved the split by passing the dispatcher
+> as a function ARGUMENT and a closure is what DESIGN §3.4 forbids), and said
+> "when P3 splits the arms again the split must be a `mutual` block whose arms
+> call the dispatcher by name".  At **72 s per function** and ~700 functions
+> that is **14 hours per build**; the spike's split-arm recipe was 10.6 s per
+> function, i.e. **2 h**.  The split is not a nicety, it is the difference
+> between a buildable tier and an unbuildable one, and it is a TWIN change
+> (the Rust must follow) — so it is a ruling for the coordinator, with this
+> number attached.
+
+**Ten rules beyond the eight** — rules 9 to 18 of the template, numbered 1 to
+10 below.  The first four are the exemplar's, the rest are the four
+concurrent tier rounds' (§5).  (An eleventh is a one-character bug rather
+than a rule: `bridge_vcs` with an EMPTY parameter list expanded to a leading
+comma and `grind` refused it; fixed by making the no-argument spelling pass
+`Ext.refl`.)
+
+1. **A step lemma must be stated in the shape `mvcgen` actually produces.**
+   The twins dispatch on the TAG and then project, so what an arm has is
+   `(h.tag == ETag.app) = true` and `some (f, a) = st.viewApp h` — REVERSED,
+   because `mvcgen` orients a spec's postcondition equation that way.  With
+   the view derived INSIDE the step lemma (`Inst1At.app_step'`) the children's
+   handles are determined by the hypothesis `assumption` finds; with a `have`
+   in front of the `exact` they are metavariables when `assumption` runs and
+   it fails.  Measured, repeatedly.
+2. **`arm_hyp` is three alternatives, not one.**  `assumption`, then
+   `symm; assumption` (the orientation above), then
+   `grind only [Ext.trans, Ext.refl]` — the last because a step lemma's
+   `Ext s₂ s₃` is present only up to the store equality a memo insert
+   contributes (`s'.store = s₁.store`), and `assumption` does not rewrite.
+3. **A generic answer relation cannot carry `@[grind →]` step lemmas.**  The
+   spike could tag its monomorphic `Inst1At.app_step` because its `Inst1At`
+   was a `def` with a head symbol; behind this tier's `abbrev` over `RelE`,
+   `grind` reports *failed to find patterns in the antecedents of the
+   theorem*.  Round 2's item 3 asks for the hand application anyway, so the
+   generic relation costs nothing — except at the `bvar` arm (§6).
+4. **Template rule 4 applies to the binder DATUM too.**  `internBindIE`'s
+   postcondition mentions the datum's VALUE `m`, which does not appear in the
+   program, so `mvcgen` has nothing to pin it against and leaves the arm a
+   goal `⊢ BinderMeta` (verification condition `vc30.m`, measured).  The fix
+   is the rule already in the template: the precondition is
+   `(viewBM mi).isSome` and the value is recovered inside the postcondition
+   (`internBindIE_spec'`).  The same bites at every COMPUTED argument: a spec
+   naming a denotation as a parameter hands `mvcgen` a side goal with a
+   metavariable in it.
+5. **The answer relation goes into the closer's list for a SCALAR answer and
+   must NOT for a list answer.**  §5's findings 1 and 2, with their numbers.
+6. **A second subject is quantified INSIDE the relation**, never taken as a
+   `∀` in the precondition — §5's finding 3.
+7. **The closer must `intro` first.**  `mvcgen` hands many verification
+   conditions as `h₁ → h₂ → post`; `bridge_peel` then sees an implication and
+   `grind` fails on goals that are otherwise trivial.  Roughly half of one
+   group's residual verification conditions were this alone, and an
+   `intro`-loop in front of `bridge_peel` inside `bridge_vcs` is the single
+   highest-value change left to the closer.
+8. **Argument ORDER in a step lemma decides whether `assumption` works.**  A
+   decomposition hypothesis elaborated while the function it decomposes is
+   still a metavariable cannot be supplied; move it after the hypothesis that
+   fixes the metavariable, or pass that argument by name.
+9. **A walk whose measure is `termination_by` rather than a constructor
+   pattern needs its clauses as lemmas.**  `mvcgen [f]` rewrites the recursive
+   call forever and dies at `maxRecDepth`; two `f_lt` / `f_ge` equations
+   unfold it exactly once.  This will hit every `mutual` twin of the tier.
+10. **A `first`-chain whose later alternative runs `grind` on a false goal is
+    a time bomb** — one such ordering cost 57 s on a single verification
+    condition.  A "negative view" obligation is closed by `assumption` (the
+    arm's own `∀ …, v = .forallE … → False` IS the `Ne`), never by `grind`.
+
+#### 5. The `ExprOps` tier
+
+The tier is **thirteen modules, 11 000 raw / 10 000 non-blank lines**, written
+in five concurrent rounds against `ExprOps/Inst1.lean`'s shape.  **All 92
+declarations of `Arena/ExprOps.lean` have a statement**; fourteen carry a
+`sorry` and eight more inherit one, and every other theorem is closed.
+
+| module | raw | twins | closed | elaboration |
+|---|---:|---:|---:|---:|
+| `ExprOps/Inst1.lean` — `instantiate1` (the exemplar) | 544 | 2 | 1 + 5 open goals | **72.3 s** |
+| `ExprOps/Subst.lean` — the bulk substitution, lift, lower, `instantiate1Lift` | 2 265 | 13 | 10 | **338 s** |
+| `ExprOps/MemoSpecs.lean` — the memo-set specs with the pure function INSIDE | 598 | — | — | 8 s |
+| `ExprOps/Abs.lean` — `abstract1`, `abstractRange` | 898 | 2 | 1 | **113 s** |
+| `ExprOps/Reset.lean` — `resetMeta`, `renameConsts` | 404 | 1 | 1 | **98 s** |
+| `ExprOps/InstLP.lean` — the level side and the two `O(1)` bit readers | 384 | 6 | 6 | 8.7 s |
+| `ExprOps/Walks.lean` — `sizeB`, `wscopedB`, `hasFvar`, the readers | 496 | 8 | 8 | 37.5 s |
+| `ExprOps/Ranges.lean` — `bvarBound`, `fvarRange`, `bvarB`, `fvarB` | 307 | 8 | 8 | 35.3 s |
+| `ExprOps/Leaves.lean` — `fvarLeaves`, `leafMem` | 598 | 4 | 3 | 10.0 s |
+| `ExprOps/Guards.lean` — `wscopedBGo`, `leavesSubGo`, `leafGuard` | 363 | 4 | 4 | 31.4 s |
+| `ExprOps/Spine.lean` — the spine and telescope operations | 1 975 | 17 | 17 | 30.0 s |
+| `ExprOps/TelescopeF.lean` — the batched peels and `recRulePlain` | 864 | 5 | 5 | 3.5 s |
+| `ExprOps/Owed.lean` — the eight statements the round did not reach | 174 | 8 | 0 | 1.5 s |
+| **total** | **10 909** | **92** (with the 14 whose spec is in `Specs.lean`) | | |
+
+Three things the tier measured that the exemplar could not.
+
+1. **The cheapest group is the one with no target store.**  A `Bool` or `Nat`
+   answer names no handle, so its relation is `RelV f st c x` with no `st'`
+   at all — and `bridge_vcs [f, RelV]` then closes **every arm of every one of
+   the sixteen `Walks`/`Ranges` twins**: no `next =>` block, no `arm_hyp`, no
+   per-arm step lemma anywhere.  `ExprOps/Inst1.lean`'s finding that unfolding
+   the answer relation "breaks the `proj` arm" does not apply when there is
+   nothing to retarget.  **Put the answer relation in the closer's own list
+   for the scalar shape**, and the whole group is free.
+2. **A LIST-valued answer is the opposite.**  `denoteLeaves_append` as a
+   `@[grind →]` rule does not terminate — killed at fifteen minutes on one
+   file, because its three list variables let every pair of known facts breed
+   another.  Ten monomorphic `RelFL.*_step` rules in `Inst1.lean`'s group-7
+   shape take the same file to **10.0 s**.  So: *scalar answer — unfold the
+   relation; list answer — per-arm step lemmas.*
+3. **Multi-subject relations, and why.**  A walk with a second subject (an
+   argument list, a base leaf list, a pending accumulator) cannot take it as a
+   `∀` in the PRECONDITION: template rule 4 again — every recursive call's
+   side goal then carries a metavariable.  `Spine.lean` needed five relations
+   (`RelEA`, `RelEOA`, `RelEPA`, `RelEPAA`, `RelEOB`) that quantify the extra
+   subject INSIDE; `Guards.lean` needed three more (`LSubAt`, `LSubMemoA`,
+   `LeafGuardAt`) with `to_`/`of_` bridges back to plain `RelV`.  This is the
+   structural finding of the tier and it belongs in `Bridge/Rel.lean`.
+
+#### 6. The axiom census, and the open list
+
+**`Bridge/Axioms.lean`** prints `#print axioms` for seventy closed results —
+the three store obligations, the denotation calculus, the answer relations,
+the state invariant, and thirty-six of the `@[spec]` theorems.  **Every one is
+`[propext, Classical.choice, Quot.sound]`**: no `sorryAx`, and — the point of
+task #97a's arithmetic packing — **no `bv_decide` axiom**.  The three standard
+axioms come in through `Std.HashMap`, `Classical` in `Option`'s lemmas and
+`Quot` in `String`, which is the same three every tier of this repository
+already carries.
+
+**The open list**, fourteen declarations, each with its reason at the site:
+
+| theorem | what it needs |
+|---|---|
+| `ExprOps.instantiate1Go_spec` (5 goals) | 2 in the binder arm — `Bridge/StoreBM.lean`'s conjunct threaded into the `intern` specs; 3 in the `bvar` arm — the answer relation's `RelE` is a `def` and `grind` will not unfold one (`unfold RelE` in the closer takes them and breaks the `proj` arm) |
+| `ExprOps.abstract1Go_spec` (4 arms) | the binder arm, as above; the two `fvar` arms and the catch-all, where group B's round ran out |
+| `ExprOps.fvarLeavesGo_spec` | the `seen` set's GRAY invariant: the twin inserts `h` before walking its children, so the plain invariant is false for the descent path and restoring it needs `StoreWF`'s rank as a second induction beside the fuel.  con-leche pays the same bill (`Verify/Cached/GuardsC.lean`'s `SeenInv`) |
+| `ExprOps.instantiateList_spec`, `instantiateListGo_spec`, `instPisAtLift_spec` | group A's round ran out; the step-lemma layer is in the same file |
+| the eight of `ExprOps/Owed.lean` | five `…Fast` entry brackets whose `…Go` is proved (three lines each, `instantiate1Fast_spec`'s shape) and the three walks — `abstractRangeGo`, `renameConstsGo`, `instLPGo` — whose step lemmas `Abs.lean` / `Reset.lean` / `InstLP.lean` already carry |
+
+Eight more theorems inherit a `sorryAx` and nothing else: `instPis_spec`,
+`instPisAt_spec`, `instLamsAt_spec`, `instSpine_spec`, `instPisAtF_spec`,
+`instLamsAtF_spec` (all through `instantiate1Fast_spec`), `leafGuard_spec` and
+`fvarLeavesFast_spec` (through `fvarLeavesGo_spec`).  **Closing the five goals
+of `instantiate1Go_spec` closes six of those eight with no statement
+change.**
+
+#### 7. What the next tiers need
+
+* **Thread `Bridge/StoreBM.lean`'s conjunct.**  Add
+  `∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m` to
+  `internE_spec`'s postcondition, to the ten faces that derive from it, to
+  `internBindIE_spec'`, and to each walk's `…Spec` record.  Mechanical across
+  twelve specs; it closes the binder arm of every rebuilding walk.
+* **The per-call memo FRAME.**  A walk's spec says its own table's invariant
+  is preserved and frames `caches` and `pins`; it does not yet say the other
+  twelve tables stood still.  The shape that does it in one equation is
+  `{ s'.memos with xC := s₀.memos.xC } = s₀.memos`, with a `refl`/`trans`
+  pair.  It matters only where one walk calls another
+  (`instantiate1Lift` → `liftLooseBVars`, `instantiateListGo` → the pure
+  `instantiateList`), which is why this round did without it.
+* **Decide the arm split** (§4's ruling), and with it whether the answer
+  relation stays a generic `abbrev` or becomes one monomorphic `def` per walk
+  with its own five eliminators.  The generic form saved ~10 × 800 lines of
+  layer; the monomorphic form buys `@[grind →]` step lemmas and the `bvar`
+  arm.  A `def` with `@[grind]`-visible unfolding, or a `grind_pattern`
+  command on the generic lemmas, may buy both.
+* **The Core arms** need the per-declaration cache clauses this round states
+  (`CacheOK`) and the knot record as a hypothesis — task #97s round 2's
+  subject 2 says the record costs nothing (`hsim.whnfCore` goes into
+  `mvcgen`'s list like any other spec) and that the three verification
+  conditions that do not fall are the three EXITS of the pure function, one
+  step lemma each.  `Arena/Core.lean` is 3 757 lines and its bodies are
+  inline; §4's ruling decides its cost.
+* **`DeclCheck` / `Checker`** need `PinsOK` to survive `dropScratch`, which
+  needs one more clause: *the pin handles are persistent*.  They are (the
+  driver runs `internReservedPins` before the prelude, with the scratch tier
+  closed), and the clause is free; this round did not add it because no
+  consumer exists yet.
+* **`Inductives`** needs `IFEnvOK`'s `cover` clause at a GROWING environment
+  (`IFEnv.push`), which is the one direction this round's transport does not
+  give: `IFEnvOK.mono` carries the index past a store extension, not past an
+  environment extension.
+* **The frontend** needs `denoteDecl` (already in `Arena/Frontend/Readback.lean`)
+  and this round's `denoteCI_ext` family, and its statement is §8.2's
+  `denoteDecls (Arena.parse chunks) = parseChunks chunks`.
+* **`scripts/provenance.py`'s `ARENA_ROOTS` does not include
+  `proof/ConRon/Bridge`**, so the citations in this library are stylistic
+  rather than gate-enforced.  Every declaration carries one anyway; whether to
+  add the root is the coordinator's call (the bridge is not a *port* of
+  con-leche, it is a proof about one, so the ledger arithmetic would need a
+  second column).
+* **`ConRonBridge` is not in `defaultTargets`** while the tier carries
+  `sorry`s — the precedent is `ConRonArenaSpike`.  `lake build ConRonBridge`
+  is the command; promote it when the tier closes.

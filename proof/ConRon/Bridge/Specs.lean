@@ -1522,7 +1522,9 @@ have to move an answer along the extension chain. -/
 syntax "bridge_vcs" (" [" (Lean.Parser.Tactic.grindParam),* "]")? : tactic
 
 macro_rules
-  | `(tactic| bridge_vcs) => `(tactic| bridge_vcs [])
+  -- NOT `bridge_vcs []`: an empty splice expands to a leading comma and
+  -- `grind` reports "unexpected grind parameter" (group C's finding).
+  | `(tactic| bridge_vcs) => `(tactic| bridge_vcs [Ext.refl])
   | `(tactic| bridge_vcs [$ts,*]) => `(tactic| first
       | (intro hf; exact False.elim hf)
       | (bridge_peel
