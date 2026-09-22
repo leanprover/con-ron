@@ -424,10 +424,27 @@ environment the record was installed at.
 The `Nodup` side condition is con-leche's own and it is the accumulated
 duplicate test of `checkConstantVal`; the fold carries it.
 
-`sorry`: `IFEnvCoh` reduces the left side to `((mkIFEnv fe.env).restrictTo
-k).find?`, which `mkFEnv_find?_visibleBelow` computes, and the denotation of
-`fe.env.consts.drop (len - k)` is `env.prefixTo k`.  Task #97-P3-Checker's
-sorry list, item 18. -/
+`sorry`, and **the statement is FALSE as written** (task #97-P3-Checker
+round 4 — the round's fourth statement defect, and the only one it found that
+is false rather than under-hypothesised).  `IFEnv.restrictTo k` is
+`{ fe with visibleBelow := k }`, a change to the INDEX's bound and to nothing
+else, while `denoteFEnv st fe` is `denoteIEnv st fe.env` — it reads
+`fe.env.consts` and ignores `idx` and `visibleBelow` entirely.  So
+`denoteFEnv s.store (fe.restrictTo k) = denoteFEnv s.store fe = some env`,
+`envK = env` is forced, and the second conjunct becomes
+`env.find? = (env.prefixTo k).find?`, which fails at `k = 0` and any non-empty
+`env` (`env.prefixTo 0 = ⟨[]⟩`).
+
+**What it should say.**  con-leche's own `mkFEnv_find?_visibleBelow`
+(`Verify/EnvBound.lean:243`) is about `FEnv.find?`, not about a denotation:
+"looking a name up in the full index with the bound `k` is looking it up in
+the environment truncated to its first `k` installed constants".  The arena
+twin of that is a statement about the INDEX — `IFEnvOK (env.prefixTo k)
+(fe.restrictTo k) s`, "the restricted index is the index of the prefix
+environment" — which is also exactly what the one consumer
+(`Arena.checkPending_bridge`, phase B, which calls the core at
+`fe.restrictTo pc.vis`) needs.  Reported rather than rewritten: replacing a
+conclusion is a statement decision. -/
 theorem denoteFEnv_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
     {s : AState} {k : Nat} (hok : FoldOK μ env fe s)
     (hnd : (env.consts.map (·.name)).Nodup) (hk : k ≤ fe.visibleBelow) :

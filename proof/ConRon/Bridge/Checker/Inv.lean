@@ -739,7 +739,30 @@ not carry what its consumers need) and one fix.
 `mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality and
 `hproj` at the `.projInfo` arm.  It is the one place `IFEnvCoh` is consumed
 rather than propagated, and the argument is con-leche's `mkFEnv_find?` at a
-denoted list.  Task #97-P3-Checker's sorry list, item 6. -/
+denoted list.  Task #97-P3-Checker's sorry list, item 6.
+
+**`hproj` IS TOO WEAK FOR `cover`** (task #97-P3-Checker round 4, found while
+taking this on).  As written it quantifies over what `fe.find?` ANSWERS, and
+`fe.find?` is `List.find?`: an entry shadowed by an EARLIER entry with the
+same name handle is not covered by it.  `hit` is fine — the entry `find?`
+returns is the entry `hproj` speaks about — but `cover` starts from
+`env.find? nm = some c`, picks the corresponding `ci` out of `fe.env.consts`
+at the same position, and must show that `ci` is the FIRST entry with its
+handle; that argument needs `denoteN ci.name = some c.name`, i.e.
+`denoteCI_name_of` AT `ci`, and `ci` is exactly the entry `fe.find?` might not
+return.  Concretely: two entries whose name handles are equal, the later one a
+`.projInfo` whose `tableName` is that handle and whose `IProjTableOK` is
+false, satisfy every hypothesis and refute `cover`.
+
+The fix is one word in the quantifier —
+
+    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t)
+
+— and it is still discharged by the same debtor (`projTableOK_of_install`: the
+install is the only place a `.projInfo` row is created, so every row of the
+list satisfies it).  NOT changed here: `Bridge/Frontend/Axioms.lean` and
+`Bridge/Frontend/Capstone.lean` consume this theorem, so the reshape is the
+coordinator's. -/
 theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
     (hproj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t)
