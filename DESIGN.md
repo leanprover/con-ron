@@ -39223,9 +39223,33 @@ whose proof is the next round's**:
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green**, 2 111 jobs, **139 `sorry`** and no errors |
+| `cd proof && lake build ConRonRefine2` | **green**, 2 111 jobs, **126 `sorry`** (115 of them tasks #97-P5-1/-2's, eleven this tier's) and no errors |
 | `cd proof && lake build` | green, 2 208 jobs — the default targets are untouched |
-| `scripts/provenance.py check` | 0 findings — `6 281 item(s) (4 099 Rust, 2 182 arena Lean), 4 101 citation(s), all current at pin 78ded4b6` |
+| `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
 | `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| `scripts/lint-rust-style.sh` | OK (no Rust file changed) |
 | the diff | `proof/ConRon/Refine2/Core/**`, `proof/ConRon/Refine2/Core.lean`, one import line in `proof/ConRon/Refine2.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Specs.lean`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+#### 10. `arena` moved twice under this branch
+
+Tasks **#97-P3-1** and **#97-P5-2** landed while this ran, and both were
+merged in.  The conflicts were textual (this section against theirs at the end
+of the task log) with one exception worth naming: **#97-P3-1's twin fix landed
+task #97-P5-1's finding 9** — `Arena.internE` now probes `EStore.find?`
+BEFORE it tests `Idx.idxCap`, as the port does — and
+`Refine2/Specs.lean`'s `internE_run_of_cap` stopped elaborating against it.
+This branch repaired it once (statement unchanged, the proof split on the
+probe); the second merge brought task #97-P5-2's own fix, which is better —
+`hcap` is now the MISS path's side condition rather than a hypothesis of all
+twenty-five `intern_*` statements — and **theirs was taken**.  Nothing in
+`Refine2/Core/**` was affected by either merge: the Core tier's subject is
+`arena::core`, which neither round touched.
+
+**One incoming simplification to take when it lands.**  Task #97-P5-2 is
+mechanising the tag/view agreement as `estore_view_tagOf` —
+*"`view` answers the view whose constructor is the handle's own tag,
+UNCONDITIONALLY, no `StoreWF`"*.  If that holds, the `StoreWF lst.store`
+half of §3's pair can come OUT of `KnotRel` and `BodyRel`'s thirteen fields
+and only `EResolves` stays; the Core tier's statements should be re-cut
+against it rather than keep a hypothesis that turns out to be free.
