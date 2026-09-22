@@ -2911,6 +2911,16 @@ both tiers, and the refinement relates the pair `(pers, st)` to it by
 `absStore` (`shared_on → self.pers = ∅`, task #97-P6-6b's own ledger
 clause).  Cheaper and faithful; the earlier "ReaderT" line is withdrawn.
 
+**Ruling (coordinator, 2026-09-22, after task #97-P3-0):** the Lean twin
+splits every multi-arm body into one `def` per constructor arm inside a
+`mutual` block, the dispatcher calling the arms by name (no closures) —
+task #97b's deferred split.  Measured reason: `instantiate1Go` with inline
+arms costs 72 s of elaboration in Theorem 1 (79 verification conditions in
+one `grind` context) against ~10 s split; at ~700 functions that is 14 h
+per build against 2 h.  The Rust keeps its inline arms — the refinement
+maps one Rust function to the twin's dispatcher-plus-arms, the same
+denotation; a twin-ledger row of the "shape" kind.
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
