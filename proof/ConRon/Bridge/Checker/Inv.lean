@@ -557,6 +557,75 @@ theorem IFEnvOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
     exact ⟨(h.proj n t hf).bodies, (h.proj n t hf).guards, sn,
       denoteN_pext hx hpci.structName h1, denoteN_pext hx hpci.tableName h2⟩
 
+/-! ## The two invariants, and the rule that separates them
+
+**`StepOK` is the invariant at an index a step has just EXTENDED; `FoldOK` is
+the invariant at a fold-step BOUNDARY.**  Task #97-P3-Checker-2 found the same
+statement defect three times over (`IndSpec.run`, `checkDivModPin_bridge`,
+`checkReducePin_bridge`): each said `FoldOK` where it meant "the invariant at
+an index this step produced", and `FoldOK` carries `PersIFEnv`, which is
+FALSE of an index extended inside the scratch bracket — the constant it holds
+carries a freshly interned, hence scratch, type.  Persistence is
+`promoteNew`'s, one level up.
+
+Splitting the record makes the rule greppable rather than remembered:
+
+> **`FoldOK` may appear in a CONCLUSION only at a fold-step boundary.**
+> Anything a `checkDecl`-level theorem says about an index it has just
+> produced is `StepOK`.
+
+`FoldOK` as a *hypothesis* is correct and ubiquitous — every theorem of this
+tier runs from a boundary — so the rule is about the right-hand side of a `:`
+and about `DeclOut`-shaped records, and nothing else.
+
+**Why `StepOK` carries `IFEnvOK` and not `CheckOK`** (a deliberate departure
+from the sketch task #97-P3-Checker-2 §8 wrote).  `CheckOK` carries
+`CacheOK mode env s`, the fourteen caches read AT an environment, and an
+install grows the environment: the entries a `whnf`/`infer`/`defeq` cache
+holds were computed at `env` and say nothing at `env.push c`.  That is
+precisely why `checkDeclStep`'s bracket OPENS with `flushCaches`.  So a value
+check that has just installed a constant cannot hand back `CheckOK` at the
+extended environment and must not claim to; what it does know is the four
+clauses below, and the invariant at the pre-insertion environment — which it
+hands back separately, as `CoreStep μ env fe s s'`.  Putting `CheckOK` in
+`StepOK` would have been the `PersIFEnv` defect again, one field over. -/
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK
+con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
+**what a step knows about an index it has just extended**: the index answers
+its environment's `find?`, the environment is well formed, the index is its
+list's index, and it denotes as a function.
+
+Nothing here is about the STATE's own invariant (that is `CheckOK`, at the
+environment the core ran at) and nothing here is about persistence (that is
+`promoteNew`'s, and it is `FoldOK`'s two remaining clauses). -/
+structure StepOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
+  ienv : IFEnvOK env fe s
+  envWF : EnvWF env
+  coh : IFEnvCoh fe
+  denote : denoteFEnv s.store fe = some env
+
+/-- con-leche: none — `StepOK` transports across an append: `IFEnvOK.mono`
+and `denoteFEnv_mono` carry the two store clauses, the other two mention no
+store. -/
+theorem StepOK.mono {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : StepOK env fe s) (hx : Ext s.store s'.store) : StepOK env fe s' where
+  ienv := h.ienv.mono hx
+  envWF := h.envWF
+  coh := h.coh
+  denote := denoteFEnv_mono hx h.denote
+
+/-- con-leche: none — `StepOK` transports across a DROP too, at a persistent
+index: `IFEnvOK.pmono` and `denoteFEnv_pext`.  This is the form the promotion
+hands the next step. -/
+theorem StepOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : StepOK env fe s) (hp : PersIFEnv fe) (hx : PExt s.store s'.store) :
+    StepOK env fe s' where
+  ienv := h.ienv.pmono hp hx
+  envWF := h.envWF
+  coh := h.coh
+  denote := denoteFEnv_pext hx hp h.denote
+
 /-! ## The fold-step invariant -/
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:262 CSOK
@@ -573,6 +642,20 @@ structure FoldOK (μ : CheckMode) (env : Env) (fe : IFEnv) (s : AState) :
   persEnv : PersIFEnv fe
   coh : IFEnvCoh fe
   denote : denoteFEnv s.store fe = some env
+
+/-- con-leche: none — a boundary is a step: the four `StepOK` clauses are
+`FoldOK`'s own, `IFEnvOK` read off `CheckOK`.  This is what a theorem whose
+hypothesis is `FoldOK` passes to one whose hypothesis is `StepOK`.
+
+(`FoldOK.step` is taken — `Bridge/Checker/Arms.lean` uses it for "carry
+`FoldOK` across a step that only appends" — so this one is spelled the way
+Lean spells a parent projection.) -/
+theorem FoldOK.toStepOK {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (h : FoldOK μ env fe s) : StepOK env fe s where
+  ienv := h.check.ienv
+  envWF := h.envWF
+  coh := h.coh
+  denote := h.denote
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec from the
 denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
