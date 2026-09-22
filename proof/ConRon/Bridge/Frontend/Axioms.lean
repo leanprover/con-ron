@@ -23,6 +23,13 @@ it closes, its census belongs here.
 **Round two (task #97-P3-Frontend-2)** added the chunk tier, the preparation's
 composition, the pure fold's stream ingredient and two of the three capstone
 letters to the closed list; they are in their own sections below.
+
+**Round three** adds the INTERN direction (item 2) and the seam (item 8).  Two
+of the four named hypotheses are therefore no longer only hypotheses:
+`ModellerWF` and `ModellerRefines` hold of the modeller the driver actually
+runs, as theorems — `inProcessModeller_wf` and `inProcessModeller_refines`
+below — and they still do not appear in any capstone's axiom list, because the
+capstones are stated at an arbitrary `Modeller`.
 -/
 import ConRon.Bridge.Frontend.Capstone
 
@@ -139,6 +146,74 @@ Item 1 in full: the ten-arm fuel induction both ways (`denoteEGo_spec_le` and
 #print axioms nameHandle?_isSome
 #print axioms ctxOf_eq_of_rel
 
+/-! ## The intern direction (round 3) — CLOSED
+
+Item 2 in full: the ten-arm structural recursion over `ConLeche.Expr` with the
+intern memo carried (`internExprGo_istep`) and the twelve record layers over
+it.  `IStep` is the frame every one of them answers in — `StateOK`, `Ext`, the
+closed scratch tier and the three untouched state fields — and
+`IStep.toParse` is the one line that turns it into the tier's `ParseStep`.
+
+**Round 2's finding 13 was wrong** and this round withdraws it:
+`internLevel_spec`, `internLevelList_spec` and `internLevels_spec` were not
+missing at all — they have been in `Bridge/SpecsL.lean` since task #97-P3-0
+(that module's own note says it holds "the four `@[spec]` theorems of
+`Monad.lean` that `Bridge/Specs.lean` does not carry"), and the only thing
+between this tier and them was an import line. -/
+
+#print axioms EMemoOK.mono
+#print axioms EMemoOK.insert
+#print axioms IStep.refl
+#print axioms IStep.trans
+#print axioms IStep.toParse
+#print axioms EStore.scratchOn_intern
+#print axioms AM.set_state_ok
+#print axioms internE_scratchOn
+#print axioms internE_istep
+#print axioms internName_istep
+#print axioms internLevel_istep
+#print axioms internLevels_istep
+#print axioms internNameList_istep
+#print axioms internLevelList_istep
+#print axioms internExprGo_istep
+#print axioms internExprList_istep
+#print axioms internExpr_run
+#print axioms internNNode_istep
+#print axioms projTableName_istep
+#print axioms internCV_istep
+#print axioms internFire_istep
+#print axioms internRule_istep
+#print axioms internRules_istep
+#print axioms internCaps_istep
+#print axioms internProjTable_istep
+#print axioms internCI_istep
+#print axioms internCIList_istep
+#print axioms internDecl_istep
+#print axioms internDecls_istep
+#print axioms internDecls_run
+
+/-! ## The seam (round 3) — CLOSED
+
+Item 8.  `inProcessModeller` delegates to con-leche's own generator, so both
+promises are theorems about the readback and the intern rather than
+assumptions about a foreign program: `ctxOf_eq_of_rel` and
+`denoteBlockRec_eq_of_rel` on the way in, `internDecls_istep` on the way out.
+
+Round 3's finding 14 is what made them provable: both promises were stated at
+an ARBITRARY start state and concluded `StateOK s'`, which is false of a
+modeller that returns `[]` at a state whose store is not well formed.  They
+now take `StateOK s` and the closed scratch tier, which every call site
+has. -/
+
+#print axioms inProcessModeller_wf
+#print axioms inProcessModeller_refines
+
+/-! ## The projection artifact's name (round 3) -/
+
+#print axioms viewN_run
+#print axioms nsWF_of_StateOK
+#print axioms projIotaName_run
+
 /-! ## The parse's initial state (round 2) — CLOSED
 
 `StateD_init_run` is the base case of the streaming fold's induction, and
@@ -231,5 +306,15 @@ the original campaign's for `conron.no_False_declaration`
 #print axioms Arena.no_False_declaration
 #print axioms Arena.no_False_declaration_prelude
 #print axioms Arena.no_False_declaration_pipeline
+
+/-! ## What the third letter no longer carries
+
+Round 2 assembled `Arena.no_False_declaration_pipeline` on a named hypothesis
+`InternAllPinsFrame`, standing in for the one conjunct
+`Bridge/Checker/Pins.lean`'s `internAllPins_run` did not state.  Task
+#97-P3-Checker-2 landed the strengthening (`s'.caches = s.caches ∧ s'.memos =
+s.memos`), so round 3 deleted the definition and the hypothesis: the letter's
+hypotheses are again `CoreSpec`, `IndSpec` and the prelude gate, and nothing
+else. -/
 
 end ConRon.Bridge.Frontend
