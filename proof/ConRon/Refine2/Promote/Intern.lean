@@ -60,7 +60,9 @@ open ConRon.Refine.HashMap2 (Inv RelOn)
 theorem memo_empty_refines {o}
     (hrun : arena.intern.memo_empty = ok o) :
     EMemoRel o (∅ : Frontend.EMemo) := by
-  sorry
+  obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable) hrun
+  exact ⟨ConRon.Refine.HashMap2.RelOn_empty hnone, hinv⟩
 
 /-- `arena::intern::memo_get` is the twin's `m[e]?` — the probe extraction
 rule 5 gave its own function. -/
@@ -318,5 +320,11 @@ theorem intern_decls_refines {pers st lst}
     Sim absIDeclL (fun _ => True) pers lst o
       (do pure (← Frontend.internDecls ∅ (ds.val.map ConRon.Refine.absDeclaration)).2) := by
   sorry
+
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.memo_empty_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms memo_empty_refines
 
 end ConRon.Refine2

@@ -530,13 +530,21 @@ theorem eq_at1_refines {pers st lst} {ty a b : arena.handle.EIdx} {o}
 theorem cert_hyp1_refines {h : arena.handle.EIdx} {o}
     (hrun : arena.decl_check.cert_hyp1 h = ok o) :
     absEIdxL o = [absEIdx h] := by
-  sorry
+  rw [arena.decl_check.cert_hyp1] at hrun
+  simp only [absEIdxL, ConRon.Refine.vec_push_val hrun,
+    ConRon.Refine.ExprOps.with_capacity_val, List.nil_append, List.map_cons,
+    List.map_nil]
 
 /-- `cert_hyp2` is the twin's `[h₁, h₂]`. -/
 theorem cert_hyp2_refines {h1 h2 : arena.handle.EIdx} {o}
     (hrun : arena.decl_check.cert_hyp2 h1 h2 = ok o) :
     absEIdxL o = [absEIdx h1, absEIdx h2] := by
-  sorry
+  rw [arena.decl_check.cert_hyp2] at hrun
+  obtain ⟨hs1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  simp only [absEIdxL, ConRon.Refine.vec_push_val hrun,
+    ConRon.Refine.vec_push_val h1, ConRon.Refine.ExprOps.with_capacity_val,
+    List.nil_append, List.map_append, List.map_cons, List.map_nil,
+    List.singleton_append]
 
 /-- `cert_push` is one cons onto the statement list (§3.4 has no `vec!`), and
 the port PUSHES where the twin conses — so the abstraction appends. -/
@@ -545,7 +553,9 @@ theorem cert_push_refines {out : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx 
     {hyps : alloc.vec.Vec arena.handle.EIdx} {eq : arena.handle.EIdx} {o}
     (hrun : arena.decl_check.cert_push out hyps eq = ok o) :
     absStmts o = absStmts out ++ [(absEIdxL hyps, absEIdx eq)] := by
-  sorry
+  rw [arena.decl_check.cert_push] at hrun
+  simp only [absStmts, ConRon.Refine.vec_push_val hrun, List.map_append,
+    List.map_cons, List.map_nil, absEIdxL]
 
 /-- `cert_guard` is the twin's `eqAt1 boolTy (← natAp2 bleN a b) r`, the guard
 shape all seven branches are written with. -/
@@ -1095,5 +1105,17 @@ theorem install_basis_decls_refines {lst} {rf lf}
     SimRelR (fun r v => IFEnvRel r v) lst o
       (installBasisDecls lf (absICILFrom decls i)) := by
   sorry
+
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.cert_hyp1_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cert_hyp1_refines
+
+/-- info: 'ConRon.Refine2.cert_hyp2_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cert_hyp2_refines
+
+/-- info: 'ConRon.Refine2.cert_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cert_push_refines
 
 end ConRon.Refine2

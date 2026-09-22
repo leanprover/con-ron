@@ -676,7 +676,15 @@ theorem at_decl_refines {e : kernel.core_types.CheckError} {n : Std.U64} {o}
     (hrun : arena.checker.at_decl e n = ok o) :
     ∀ le, absAErrKind e = lAErrKind le →
       absAErrKind o = lAErrKind (atDecl le (absU n)) := by
-  sorry
+  intro le hle
+  rw [arena.checker.at_decl.eq_def] at hrun
+  cases e <;> cases le <;> simp only [absAErrKind, lAErrKind] at hle ⊢ <;>
+    first
+      | (obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+         have h2 := Result.ok_injective hrun
+         subst h2
+         rfl)
+      | simp at hle
 
 /-- `intern_all_names` — the reserved names the guards compare by handle. -/
 theorem intern_all_names_refines {pers st lst} {o}
@@ -723,7 +731,17 @@ theorem all_basis_kinds_refines {o}
     (hrun : arena.checker.all_basis_kinds = ok o) :
     o.val.map ConRon.Refine.absBasisKind =
       [.eqK, .natK, .punitK, .emptyK, .falseK, .quotK] := by
-  sorry
+  rw [arena.checker.all_basis_kinds] at hrun
+  obtain ⟨k1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨k2, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨k3, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨k4, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨k5, h5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [ConRon.Refine.vec_push_val hrun, ConRon.Refine.vec_push_val h5,
+    ConRon.Refine.vec_push_val h4, ConRon.Refine.vec_push_val h3,
+    ConRon.Refine.vec_push_val h2, ConRon.Refine.vec_push_val h1,
+    ConRon.Refine.ExprOps.with_capacity_val]
+  rfl
 
 /-- `intern_all_basis` — the six basis blocks in BOTH forms, at the cursor. -/
 theorem intern_all_basis_refines {pers st lst} {i : Std.Usize} {o}
@@ -748,5 +766,14 @@ theorem intern_all_pins_refines {pers st lst}
     Sim absINatOpPinSetL (fun _ => True) pers lst o
       (internAllPins (ConRon.Refine.absPins pins)) := by
   sorry
+
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.at_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms at_decl_refines
+
+/-- info: 'ConRon.Refine2.all_basis_kinds_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms all_basis_kinds_refines
 
 end ConRon.Refine2

@@ -37676,7 +37676,7 @@ Thirteen Rust modules, **424 `pub fn`s** — `checker_base`, `checker_split`,
 `decl_check`, `checker`, `checker_gated`, `canon`, `std_axioms`,
 `trust_axioms`, `basis`, `nat_op_pin_set`, `intern`, `pins`, `promote` — and
 the two capstones §8.2 asks for.  **Every one of the 424 statements exists and
-elaborates**; seventy-five are closed; the rest are `sorry`, and §6 says exactly
+elaborates**; eighty-two are closed; the rest are `sorry`, and §6 says exactly
 what each is waiting on.
 
 #### 1. Five statement shapes the earlier rounds did not need
@@ -37832,15 +37832,15 @@ clause to carry**, not this tier's to re-derive.
 | `Refine2/Checker/Shape.lean` | 442 | 10 | **10** | 0.24 s |
 | `Refine2/Checker/KnotHyp.lean` | 102 | — (`KnotRel`) | — | 0.02 s |
 | `Refine2/Checker/Spec.lean` | 1 005 | 8 `_unfold` | 0 | 1.07 s |
-| `Refine2/Promote/Intern.lean` | 322 | 25 | 0 | 0.12 s |
+| `Refine2/Promote/Intern.lean` | 322 | 25 | **1** | 0.12 s |
 | `Refine2/Promote/Promote.lean` | 729 | 42 | **8** | 0.30 s |
 | `Refine2/Checker/Pins.lean` | 1 091 | 60 | **54** | 0.28 s |
 | `Refine2/Checker/Canon.lean` | 409 | 30 | 0 | 0.17 s |
 | `Refine2/Checker/Axioms.lean` | 556 | 59 | 0 | 0.15 s |
-| `Refine2/Checker/Base.lean` | 897 | 65 | **3** | 0.19 s |
-| `Refine2/Checker/DeclCheck.lean` | 1 099 | 95 | 0 | 0.31 s |
-| `Refine2/Checker/Top.lean` | 752 | 48 | 0 | 0.27 s |
-| **the tier** | **7 404** | **442** | **75** | **3.12 s** |
+| `Refine2/Checker/Base.lean` | 897 | 65 | **4** | 0.19 s |
+| `Refine2/Checker/DeclCheck.lean` | 1 099 | 95 | **3** | 0.31 s |
+| `Refine2/Checker/Top.lean` | 752 | 48 | **2** | 0.27 s |
+| **the tier** | **7 404** | **442** | **82** | **3.12 s** |
 
 (442 = the 424 `pub fn`s + 8 `_unfold`s in `Checker/Spec.lean` + 10 shape
 lemmas in `Checker/Shape.lean`.  The `_from`/`_go` cursor companions are
@@ -37865,13 +37865,18 @@ counted as the Rust functions they are; `Checker/Spec.lean`'s ~60 twin-side
 * **`arena::promote`'s eight memo primitives** — `pmemo_{get,set}_{e,n,l,ls}`,
   which are `Refine2/Specs.lean`'s `memo_insert_step` and its `get` sibling at
   another table, nine lines each.
-* **three of `checker_base`'s** — `or_else_attempt` (the four-way step is a
-  pure function of the attempt's outcome on both sides), `is_rec_info` and
-  `memo_b_get`.
+* **four of `checker_base`/`checker_split`'s** — `or_else_attempt` (the
+  four-way step is a pure function of the attempt's outcome on both sides),
+  `is_rec_info`, `is_thm` and `memo_b_get`.
+* **six more one-liners** — `cert_hyp1`, `cert_hyp2` and `cert_push` (the
+  statement list's three constructors, `Refine/Abs.lean`'s `vec_push_val`
+  each), `all_basis_kinds`, `at_decl` (the fold's failure with its position in
+  the text: the KIND is what the refinement claims, and the sixteen-way
+  `cases e <;> cases le` is what proves it) and `memo_empty`.
 
 #### 6. The sorry list, by what it waits on
 
-**367 open statements**, and not one of them waits on an idea.
+**360 open statements**, and not one of them waits on an idea.
 
 Counted by FILE, which is the honest axis (a statement usually waits on more
 than one thing, and every one of them waits on `Refine2/Specs.lean`'s
@@ -37879,15 +37884,15 @@ twenty-four open `intern_*` somewhere below it):
 
 | file | open | what is under it |
 |---|---:|---|
-| `Promote/Intern.lean` | 25 | `Specs.lean`'s four transient walks and the `intern_e` family; nothing else |
+| `Promote/Intern.lean` | 24 | `Specs.lean`'s four transient walks and the `intern_e` family; nothing else |
 | `Promote/Promote.lean` | 34 | `Specs.lean`'s four `intern_persistent_*`; `view`/`view_n`/`view_l`/`view_ls` are closed |
 | `Checker/Axioms.lean` | 59 | `Promote/Intern.lean`'s four entries, and through them the same `intern_e` family |
 | `Checker/Canon.lean` | 30 | `Specs.lean`'s `intern_n_node`; its `view`s are closed |
 | `Checker/Pins.lean` | 6 | `Specs.lean`'s `intern_name`/`intern_ls_node`/`intern_l_node`/`intern_e_sort` (`intern_reserved_pins` and the three `intern_pin_set*`), plus `pin_names` |
 | `Checker/Spec.lean` | 8 | nothing — these are the `_unfold`s, and they are the only obligations of this round about the TWIN rather than the port |
-| `Checker/Base.lean` | 62 | `Refine2/ExprOps/**` (statements only so far) and `KnotRel` at 16 |
-| `Checker/DeclCheck.lean` | 95 | the same, and `KnotRel` at 18 |
-| `Checker/Top.lean` | 48 | the same, `KnotRel` at 28 and `IndRel` at 13 |
+| `Checker/Base.lean` | 61 | `Refine2/ExprOps/**` (statements only so far) and `KnotRel` at 16 |
+| `Checker/DeclCheck.lean` | 92 | the same, and `KnotRel` at 18 |
+| `Checker/Top.lean` | 46 | the same, `KnotRel` at 28 and `IndRel` at 13 |
 
 Across the tier: **62 statements carry `KnotRel checkFuel`**, **13 carry
 `IndRel`**, **71 carry finding 10's `hvis`**.
@@ -37899,10 +37904,11 @@ the pin readers were the better place to establish it.
 
 #### 7. The axiom census
 
-**Fifteen `#print axioms` rows under `#guard_msgs`** across the tier — eight
-in `Checker/Pins.lean` (`pin_at` and the four wrappers/readers that stand for
-the fifty-four), four in `Promote/Promote.lean` (the memo primitives) and
-three in `Checker/Base.lean`.  Every one reads **`[propext, Classical.choice,
+**Twenty-two `#print axioms` rows under `#guard_msgs`** across the tier —
+eight in `Checker/Pins.lean` (`pin_at` and the four wrappers/readers that
+stand for the fifty-four), four in `Promote/Promote.lean` (the memo
+primitives), four in `Checker/Base.lean`, three in `Checker/DeclCheck.lean`,
+two in `Checker/Top.lean` and one in `Promote/Intern.lean`.  Every one reads **`[propext, Classical.choice,
 Quot.sound]` and nothing else**: no `sorryAx` on a closed lemma, and still no
 `bv_decide` axiom anywhere in `Refine2/`.
 
@@ -37949,7 +37955,7 @@ for sixty theorems, **4.7 ms a theorem**.
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green, 2 184 jobs**, 495 `sorry` (was 128; +367 new statements, −0 regressions) and no errors |
+| `cd proof && lake build ConRonRefine2` | **green, 2 184 jobs**, 488 `sorry` (was 128; +360 new open statements, −0 regressions) and no errors |
 | `cd proof && lake build` | **green, 2 208 jobs** — the default targets are untouched (`ConRonRefine2` is deliberately not one) |
 | `scripts/provenance.py check` | 0 findings — `6 281 item(s) (4 099 Rust, 2 182 arena Lean), 4 101 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |

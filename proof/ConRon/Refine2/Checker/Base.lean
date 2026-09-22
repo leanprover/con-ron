@@ -802,7 +802,12 @@ theorem value_kind_word_refines {k : arena.checker_split.ValueKind} {o}
 theorem is_thm_refines {k : arena.checker_split.ValueKind} {o : Bool}
     (hrun : arena.checker_split.is_thm k = ok o) :
     o = (absValueKind k == .thm) := by
-  sorry
+  rw [arena.checker_split.is_thm.eq_def] at hrun
+  cases k <;> (
+    simp only [] at hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    rfl)
 
 /-- **`install_constant_val` ⊑ `installConstantVal`** — `checkConstantVal`
 minus its inference: the syntactic guards and the annotation of the type. -/
@@ -893,5 +898,8 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
 
 /-- info: 'ConRon.Refine2.memo_b_get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms memo_b_get_refines
+
+/-- info: 'ConRon.Refine2.is_thm_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms is_thm_refines
 
 end ConRon.Refine2
