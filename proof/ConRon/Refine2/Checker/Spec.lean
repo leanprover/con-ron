@@ -302,4 +302,704 @@ theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
       checkProjRuleScopedSpec mode fe pty cvj lps nP nF bv rhs) := by
   sorry
 
+
+/-! ## `arena::decl_check`'s splits (finding 11)
+
+`decl_check.rs` is ninety-five `pub fn`s against thirty-three twin `def`s, and
+`CertCtx` is the reason: `divModCertStmts` is a hundred-line `do` block over
+twenty-one pinned handles, which DESIGN §3.4's rules split into twenty-three
+Rust functions plus a record to carry the handles between them.  What follows
+is the twin side of each split. -/
+
+/-! ### The two axiom gates, in their arms -/
+
+/-- `stdAxiomOk`'s pinned-`Eq`-basis test. -/
+def eqBasisPinnedSpec (fe : IFEnv) : AM Bool := do
+  let en ← pinEq
+  let ea ← eqA
+  pure (fe.find? en == some ea)
+
+/-- `stdAxiomOk`'s `Iff` clause. -/
+def iffPinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← iffName) with
+  | some (.indInfo cvI _) => cvI.matchesPin (← (← iffA).toConstantVal)
+  | _ => pure false
+
+/-- `stdAxiomOk`'s `Iff.intro` clause. -/
+def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← iffIntroName) with
+  | some (.ctorInfo cvIi 2 2) => cvIi.matchesPin (← (← iffIntroA).toConstantVal)
+  | _ => pure false
+
+/-- `stdAxiomOk`'s `Iff.rec` clause. -/
+def iffRecPinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← iffRecName) with
+  | some (.recInfo cvIr 4 4 _) => cvIr.matchesPin (← (← iffRecA).toConstantVal)
+  | _ => pure false
+
+/-- `stdAxiomOk`'s `Nonempty` clause. -/
+def nonemptyPinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← nonemptyName) with
+  | some (.indInfo cvN _) => cvN.matchesPin (← (← nonemptyA).toConstantVal)
+  | _ => pure false
+
+/-- `stdAxiomOk`'s `Nonempty.intro` clause. -/
+def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← nonemptyIntroName) with
+  | some (.ctorInfo cvNi 1 1) =>
+    cvNi.matchesPin (← (← nonemptyIntroA).toConstantVal)
+  | _ => pure false
+
+/-- `stdAxiomOk`'s `Nonempty.rec` clause. -/
+def nonemptyRecPinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← nonemptyRecName) with
+  | some (.recInfo cvNr 3 3 _) => cvNr.matchesPin (← (← nonemptyRecA).toConstantVal)
+  | _ => pure false
+
+/-- `trustCompilerOk`'s `True` clause. -/
+def truePinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← trueName) with
+  | some (.indInfo cvT _) => cvT.matchesPin (← trueCvA)
+  | _ => pure false
+
+/-- `trustCompilerOk`'s `True.intro` clause. -/
+def trueIntroPinnedSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← trueIntroName) with
+  | some (.ctorInfo cvTi 0 0) => cvTi.matchesPin (← trueIntroCvA)
+  | _ => pure false
+
+/-- `stdAxiomOk`'s `propext` arm past the `Eq` basis test. -/
+def stdAxiomOkPropextRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+  if !(← iffPinnedSpec fe) then pure false
+  else if !(← iffIntroPinnedSpec fe) then pure false
+  else if !(← iffRecPinnedSpec fe) then pure false
+  else cvA.matchesPin (← propextA)
+
+/-- `stdAxiomOk`'s `propext` arm. -/
+def stdAxiomOkPropextSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+  if !(← eqBasisPinnedSpec fe) then pure false
+  else stdAxiomOkPropextRestSpec fe cvA
+
+/-- `stdAxiomOk`'s `Classical.choice` arm past the `Nonempty` clause. -/
+def stdAxiomOkChoiceRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+  if !(← nonemptyIntroPinnedSpec fe) then pure false
+  else if !(← nonemptyRecPinnedSpec fe) then pure false
+  else cvA.matchesPin (← choiceA)
+
+/-- `stdAxiomOk`'s `Classical.choice` arm. -/
+def stdAxiomOkChoiceSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+  if !(← nonemptyPinnedSpec fe) then pure false
+  else stdAxiomOkChoiceRestSpec fe cvA
+
+/-- `reduceElemOk`'s `Bool` arm. -/
+def reduceElemOkBoolSpec (fe : IFEnv) : AM Bool := do
+  match fe.find? (← boolName) with
+  | some (.indInfo cvB _) => cvB.matchesPin (← boolCvA)
+  | _ => pure false
+
+/-- `ofReduceAxOk`'s tail past the operation it names. -/
+def ofReduceAxOkRestSpec (fe : IFEnv) (cvA : IConstantVal) (c : NIdx) :
+    AM Bool := do
+  if !(← eqBasisPinnedSpec fe) then pure false
+  else if !(← reduceElemOk fe c) then pure false
+  else if !(← reduceStoredOk fe c) then pure false
+  else cvA.matchesPin (← ofReducePinA cvA.name)
+
+/-! ### The ground-term guards
+
+`reducePinGuard` and `divModPinGuard` are the same four tests at two different
+pins, and the Rust factors them. -/
+
+/-- The three tests past the loose-bound-variable one. -/
+def groundGuardsRestSpec (fe : IFEnv) (p : EIdx) : AM Bool := do
+  if ← hasFvarFast coreWalkFuel p then pure false
+  else if !(← allLevelParamsDefined [] p) then pure false
+  else constsResolveFFast fe p
+
+/-- The four tests: closed, free-variable-free, no undeclared universe
+parameter, and every constant resolves. -/
+def groundGuardsSpec (fe : IFEnv) (p : EIdx) : AM Bool := do
+  if !(← looseBVarsBoundedFast coreWalkFuel 0 p) then pure false
+  else groundGuardsRestSpec fe p
+
+/-! ### The reduce-operation install pin, in three -/
+
+/-- `checkReducePin`'s identity certificate `value x ≡ x`. -/
+def checkReduceIdentitySpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+    (valA : EIdx) : AM Unit := do
+  let x ← reduceCertVar c
+  let ax ← internE (.app valA x)
+  let ok ← isDefEqCore mode fe checkFuel 1 ax x
+  if ok then pure ()
+  else fail (.internal
+    s!"pinned compiler-trust opaque is not the identity ({← readName c})")
+
+/-- `checkReducePin`'s value half: the witness against the build-time pin, and
+then the identity certificate. -/
+def checkReducePinValueSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+    (value : EIdx) : AM Unit := do
+  let valA ← annotateCore mode fe checkFuel 0 value
+  let pinA ← annotateCore mode fe checkFuel 0 (← reduceDeclPin c)
+  let okPin ← isDefEqCore mode fe checkFuel 0 valA pinA
+  if okPin then checkReduceIdentitySpec mode fe c valA
+  else fail (.notImplemented
+    s!"unsupported compiler-trust opaque spelling ({← readName c})")
+
+/-- `checkReducePin`'s guard prefix. -/
+def checkReducePinPreSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+    (value : EIdx) : AM Unit := do
+  if ← reducePinGuard fe c then checkReducePinValueSpec mode fe c value
+  else fail (.notImplemented
+    s!"unsupported compiler-trust opaque spelling ({← readName c}: pin ground constants absent)")
+
+/-! ### The three value kinds' tails -/
+
+/-- `checkThmVal`'s tail past the is-a-proposition test. -/
+def checkThmValWitnessSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (value : EIdx) : AM IFEnv := do
+  let jv ← installValue mode fe cv value
+  let vtype ← inferTypeCore mode fe checkFuel 0 jv
+  unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
+    fail (.invalid s!"type mismatch in theorem {← readName cv.name}")
+  pure (fe.push (.thmInfo cv value))
+
+/-! ### The `Nat`-operation pin gate's splits -/
+
+/-- `divModCertGuard`'s tail past the substituted proof's own ground guards. -/
+def divModCertGuardRestSpec (fe : IFEnv) (c : NIdx) (annVal : EIdx)
+    (hyps : List EIdx) (eqE : EIdx) : AM Bool := do
+  if !(← constsResolveAll fe (← substConst0List c annVal hyps)) then pure false
+  else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
+
+/-- One `Bool` constructor stored at the type `Bool` itself. -/
+def boolCtorTypedSpec (fe2 : IFEnv) (n : NIdx) : AM Bool := do
+  let bn ← boolName
+  let boolTy ← constE bn
+  match fe2.find? n with
+  | some ci => pure ((← ci.toConstantVal).type == boolTy)
+  | none => pure false
+
+/-- `divModEnvGuard`'s tail past the operation's own dependencies: the pinned
+`Eq` basis and the two `Bool` constructors stored at the type `Bool`. -/
+def divModEnvGuardRestSpec (fe2 : IFEnv) : AM Bool := do
+  let en ← pinEq
+  if fe2.find? en != some (← eqA) then pure false
+  else if !(← boolCtorTypedSpec fe2 (← boolTrueName)) then pure false
+  else boolCtorTypedSpec fe2 (← boolFalseName)
+
+/-- `checkDivModCerts`' tail at one certificate, past the applied proof. -/
+def checkDivModCertTailSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+    (annVal : EIdx) (stmts : List (List EIdx × EIdx)) (proofs : List EIdx)
+    (appliedA : EIdx) : AM Bool := do
+  match stmts, proofs with
+  | (_, eqE) :: srest, _ :: prest => do
+    let tp ← inferTypeCore mode fe checkFuel 4 appliedA
+    let rhs ← substConst0 c annVal coreWalkFuel eqE
+    if ← isDefEqCore mode fe checkFuel 4 tp rhs then
+      checkDivModCerts mode fe c annVal srest prest
+    else pure false
+  | _, _ => pure false
+
+/-- `checkDivModPinAt`'s certificate half, past the pin comparison. -/
+def checkDivModPinCertsSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+    (value' : EIdx) (ps : INatOpPinSet) : AM Bool := do
+  checkDivModCerts mode fe c value' (← divModCertStmts c)
+    (← divModCertProofs ps c)
+
+/-- `divModCertApplied`'s hypothesis application, at a base already built. -/
+def divModCertAppliedHypsSpec (base : EIdx) : List EIdx → AM EIdx
+  | [h1] => do
+    let f2 ← internE (.fvar 2 h1)
+    internE (.app base f2)
+  | [h1, h2] => do
+    let f2 ← internE (.fvar 2 h1)
+    let a1 ← internE (.app base f2)
+    let f3 ← internE (.fvar 3 h2)
+    internE (.app a1 f3)
+  | _ => pure base
+
+/-- The operation's slot in the pin record's eight-slot family.  The twin
+spells the dispatch as a chain of handle comparisons inside `divModDeclPin`
+and `divModCertProofs`; the port computes the index once. -/
+def divModSlot2Spec (c : NIdx) : AM Nat := do
+  if c == (← natXorName) then pure 4
+  else if c == (← natShiftLeftName) then pure 5
+  else if c == (← natShiftRightName) then pure 6
+  else pure 7
+
+/-- … past the two bitwise conjunctions. -/
+def divModSlot1Spec (c : NIdx) : AM Nat := do
+  if c == (← natLandName) then pure 2
+  else if c == (← natLorName) then pure 3
+  else divModSlot2Spec c
+
+/-- … from the top. -/
+def divModSlotSpec (c : NIdx) : AM Nat := do
+  if c == (← natDivName) then pure 0
+  else if c == (← natGcdName) then pure 1
+  else divModSlot1Spec c
+
+/-! ### `divModCertStmts`' context and its seven arms
+
+`CertCtxA` is the twin-side reading of `arena::decl_check::CertCtx` — the
+twenty-one handles the twin holds in `let`s and the port bundles in a record,
+because a `let`-bound handle that outlives a `match` arm is a loan the Aeneas
+subset will not take. -/
+
+/-- The twenty-one pinned handles `divModCertStmts` opens with. -/
+structure CertCtxA where
+  natTy : EIdx
+  x : EIdx
+  y : EIdx
+  one : EIdx
+  bleN : NIdx
+  boolTy : EIdx
+  bT : EIdx
+  bF : EIdx
+  z : EIdx
+  two : EIdx
+  modN : NIdx
+  divN : NIdx
+  addN : NIdx
+  mulN : NIdx
+  subN : NIdx
+  gcdN : NIdx
+  slN : NIdx
+  srN : NIdx
+  landN : NIdx
+  lorN : NIdx
+  xorN : NIdx
+
+/-- `divModCertStmts`' opening `let`s, through the `Bool` type and its two
+constructors. -/
+def certCtxBoolSpec : AM (EIdx × EIdx × EIdx) := do
+  let bn ← boolName
+  let boolTy ← constE bn
+  let bT ← constE (← boolTrueName)
+  let bF ← constE (← boolFalseName)
+  pure (boolTy, bT, bF)
+
+/-- … through the numerals `0` and `2`. -/
+def certCtxNumsSpec (one : EIdx) : AM (EIdx × EIdx) := do
+  let z ← constE (← pinNatZero)
+  let two ← natAp1 (← pinNatSucc) one
+  pure (z, two)
+
+/-- … and the eleven arithmetic and bitwise names. -/
+def certCtxNamesSpec : AM (NIdx × NIdx × NIdx × NIdx × NIdx × NIdx × NIdx ×
+    NIdx × NIdx × NIdx × NIdx) := do
+  pure (← natModName, ← natDivName, ← natAddName, ← natMulName, ← natSubName,
+    ← natGcdName, ← natShiftLeftName, ← natShiftRightName, ← natLandName,
+    ← natLorName, ← natXorName)
+
+/-- **The whole context.** -/
+def certCtxSpec : AM CertCtxA := do
+  let nt ← pinNat
+  let natTy ← constE nt
+  let x ← natVar 0
+  let y ← natVar 1
+  let one ← natOne
+  let bleN ← natBleName
+  let (boolTy, bT, bF) ← certCtxBoolSpec
+  let (z, two) ← certCtxNumsSpec one
+  let (modN, divN, addN, mulN, subN, gcdN, slN, srN, landN, lorN, xorN) ←
+    certCtxNamesSpec
+  pure ⟨natTy, x, y, one, bleN, boolTy, bT, bF, z, two, modN, divN, addN, mulN,
+    subN, gcdN, slN, srN, landN, lorN, xorN⟩
+
+/-- The guard shape all seven branches are written with. -/
+def certGuardSpec (cx : CertCtxA) (a b r : EIdx) : AM EIdx := do
+  eqAt1 cx.boolTy (← natAp2 cx.bleN a b) r
+
+/-- The characteristic equation all seven branches are written with. -/
+def certEqSpec (cx : CertCtxA) (c : NIdx) (rhs : EIdx) : AM EIdx := do
+  eqAt1 cx.natTy (← natAp2 c cx.x cx.y) rhs
+
+/-- The bitwise branches' `op2 (x/2) (y/2)`. -/
+def certHalvesSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let hx ← natAp2 cx.divN cx.x cx.two
+  let hy ← natAp2 cx.divN cx.y cx.two
+  natAp2 c hx hy
+
+/-- The six one-hypothesis branches' shared shape. -/
+def certTwoEqsSpec (cx : CertCtxA) (c : NIdx) (h1 h2 r1 r2 : EIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  let e1 ← certEqSpec cx c r1
+  let e2 ← certEqSpec cx c r2
+  pure [([h1], e1), ([h2], e2)]
+
+/-- `gcd`: `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`. -/
+def certGcdSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
+  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
+  let r1 ← natAp2 c (← natAp2 cx.modN cx.y cx.x) cx.x
+  certTwoEqsSpec cx c h1 h2 r1 cx.y
+
+/-- `<<<`: `1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`. -/
+def certShiftLeftSpec (cx : CertCtxA) (c : NIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuardSpec cx cx.one cx.y cx.bT
+  let h2 ← certGuardSpec cx cx.one cx.y cx.bF
+  let r1 ← natAp2 c (← natAp2 cx.mulN cx.two cx.x)
+    (← natAp2 cx.subN cx.y cx.one)
+  certTwoEqsSpec cx c h1 h2 r1 cx.x
+
+/-- `>>>`: `1 ≤ y → x >>> y = (x >>> (y-1)) / 2`, `y = 0 → x >>> y = x`. -/
+def certShiftRightSpec (cx : CertCtxA) (c : NIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuardSpec cx cx.one cx.y cx.bT
+  let h2 ← certGuardSpec cx cx.one cx.y cx.bF
+  let r1 ← natAp2 cx.divN (← natAp2 c cx.x (← natAp2 cx.subN cx.y cx.one)) cx.two
+  certTwoEqsSpec cx c h1 h2 r1 cx.x
+
+/-- `&&&`: `1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`. -/
+def certLandSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
+  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
+  let rec1 ← certHalvesSpec cx c
+  let r1 ← natAp2 cx.addN (← natAp2 cx.mulN cx.two rec1)
+    (← natAp2 cx.mulN (← natAp2 cx.modN cx.x cx.two)
+      (← natAp2 cx.modN cx.y cx.two))
+  certTwoEqsSpec cx c h1 h2 r1 cx.z
+
+/-- `|||`'s right-hand side. -/
+def certLorRhsSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let rec1 ← certHalvesSpec cx c
+  let t2 ← natAp2 cx.mulN cx.two rec1
+  let mx ← natAp2 cx.modN cx.x cx.two
+  let my ← natAp2 cx.modN cx.y cx.two
+  natAp2 cx.addN t2 (← natAp2 cx.subN (← natAp2 cx.addN mx my)
+    (← natAp2 cx.mulN mx my))
+
+/-- `|||`: `1 ≤ x → x ||| y = 2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`. -/
+def certLorSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
+  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
+  let r1 ← certLorRhsSpec cx c
+  certTwoEqsSpec cx c h1 h2 r1 cx.y
+
+/-- `^^^`'s right-hand side. -/
+def certXorRhsSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let rec1 ← certHalvesSpec cx c
+  let t2 ← natAp2 cx.mulN cx.two rec1
+  let mx ← natAp2 cx.modN cx.x cx.two
+  let my ← natAp2 cx.modN cx.y cx.two
+  natAp2 cx.addN t2 (← natAp2 cx.modN (← natAp2 cx.addN mx my) cx.two)
+
+/-- `^^^`: `1 ≤ x → x ^^^ y = 2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`. -/
+def certXorSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
+  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
+  let r1 ← certXorRhsSpec cx c
+  certTwoEqsSpec cx c h1 h2 r1 cx.y
+
+/-- The `div`/`mod` branch's `c (x - y) y`. -/
+def certRecRhsSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let d ← natAp2 cx.subN cx.x cx.y
+  natAp2 c d cx.y
+
+/-- The `div`/`mod` branch's three certificates, at the four guards. -/
+def certDivModEqsSpec (cx : CertCtxA) (c : NIdx)
+    (h1 h2 h3 h4 recRhs baseRhs : EIdx) : AM (List (List EIdx × EIdx)) := do
+  let e1 ← certEqSpec cx c recRhs
+  let e2 ← certEqSpec cx c baseRhs
+  pure [([h1, h2], e1), ([h3], e2), ([h4], e2)]
+
+/-- The `div`/`mod` branch's four guards. -/
+def certDivModGuardsSpec (cx : CertCtxA) (c : NIdx) (recRhs baseRhs : EIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuardSpec cx cx.y cx.x cx.bT
+  let h2 ← certGuardSpec cx cx.one cx.y cx.bT
+  let h3 ← certGuardSpec cx cx.y cx.x cx.bF
+  let h4 ← certGuardSpec cx cx.one cx.y cx.bF
+  certDivModEqsSpec cx c h1 h2 h3 h4 recRhs baseRhs
+
+/-- The `div`/`mod` branch, whole. -/
+def certDivModSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let recRhs ←
+    if c == cx.divN then natAp1 (← pinNatSucc) (← certRecRhsSpec cx c)
+    else certRecRhsSpec cx c
+  let baseRhs := if c == cx.divN then cx.z else cx.x
+  certDivModGuardsSpec cx c recRhs baseRhs
+
+/-- The seven-way dispatch over the operation name. -/
+def divModCertStmtsAtSpec (cx : CertCtxA) (c : NIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  if c == cx.gcdN then certGcdSpec cx c
+  else if c == cx.slN then certShiftLeftSpec cx c
+  else if c == cx.srN then certShiftRightSpec cx c
+  else if c == cx.landN then certLandSpec cx c
+  else if c == cx.lorN then certLorSpec cx c
+  else if c == cx.xorN then certXorSpec cx c
+  else certDivModSpec cx c
+
+/-- `divModCertStmts` is its context and its dispatch. -/
+theorem divModCertStmts_unfold (c : NIdx) :
+    divModCertStmts c = (do divModCertStmtsAtSpec (← certCtxSpec) c) := by
+  sorry
+
+
+/-! ### The context's four partial builders
+
+Each Rust split returns the WHOLE record, so each twin subject is
+`certCtxSpec`'s tail with the fields already computed supplied. -/
+
+/-- `cert_ctx_names_rest`'s subject. -/
+def certCtxNamesRestFullSpec (natTy x y one : EIdx) (bleN : NIdx)
+    (boolTy bT bF z two : EIdx) (modN divN addN mulN subN gcdN : NIdx) :
+    AM CertCtxA := do
+  let slN ← natShiftLeftName
+  let srN ← natShiftRightName
+  let landN ← natLandName
+  let lorN ← natLorName
+  let xorN ← natXorName
+  pure ⟨natTy, x, y, one, bleN, boolTy, bT, bF, z, two, modN, divN, addN, mulN,
+    subN, gcdN, slN, srN, landN, lorN, xorN⟩
+
+/-- `cert_ctx_names`' subject. -/
+def certCtxNamesFullSpec (natTy x y one : EIdx) (bleN : NIdx)
+    (boolTy bT bF z two : EIdx) : AM CertCtxA := do
+  let modN ← natModName
+  let divN ← natDivName
+  let addN ← natAddName
+  let mulN ← natMulName
+  let subN ← natSubName
+  let gcdN ← natGcdName
+  certCtxNamesRestFullSpec natTy x y one bleN boolTy bT bF z two modN divN addN
+    mulN subN gcdN
+
+/-- `cert_ctx_nums`' subject. -/
+def certCtxNumsFullSpec (natTy x y one : EIdx) (bleN : NIdx)
+    (boolTy bT bF : EIdx) : AM CertCtxA := do
+  let (z, two) ← certCtxNumsSpec one
+  certCtxNamesFullSpec natTy x y one bleN boolTy bT bF z two
+
+/-- `cert_ctx_bool`'s subject. -/
+def certCtxBoolFullSpec (natTy x y one : EIdx) : AM CertCtxA := do
+  let bleN ← natBleName
+  let (boolTy, bT, bF) ← certCtxBoolSpec
+  certCtxNumsFullSpec natTy x y one bleN boolTy bT bF
+
+/-- `cert_ctx`'s subject, and `certCtxSpec` spelled through the four. -/
+def certCtxFullSpec : AM CertCtxA := do
+  let nt ← pinNat
+  let natTy ← constE nt
+  let x ← natVar 0
+  let y ← natVar 1
+  let one ← natOne
+  certCtxBoolFullSpec natTy x y one
+
+
+/-! ## `arena::checker`'s splits
+
+`checkDecl`'s seven arms are twenty Rust functions, for extraction rule 5's
+reason at every one: an arm that computes `fe2` and then runs a pin gate holds
+two environments and a handle across a `match`. -/
+
+/-- `checkDecl`'s `.quotDecl` arm. -/
+def checkQuotDeclSpec (fe : IFEnv) (k : QuotKind) (cv : IConstantVal) :
+    AM IFEnv := do
+  if ← quotPinHit k cv then
+    match k with
+    | .type => checkBasisDecl fe .quotK
+    | _ => pure fe
+  else fail (.notImplemented (match k with
+    | .sound => "quotient soundness axiom mismatch"
+    | _ => "quotient declaration mismatch"))
+
+/-- `checkDecl`'s `.indDecl` arm: **the pinned basis blocks** recognised
+first — a stream's `Nat` block arrives as an ordinary `indDecl` — then the
+inductive routes. -/
+def checkIndDeclArmSpec (mode : CheckMode) (fe : IFEnv)
+    (block : List IConstantInfo) (nP : Nat) : AM IFEnv := do
+  match ← basisPinHit block with
+  | some kind => checkBasisDecl fe kind
+  | none => Inductives.checkIndDecl mode fe block nP
+
+/-- `checkDecl`'s axiom arm past the `ofReduce*` test: the two standard
+axioms' shape mismatch, `sorryAx` tolerated as a DECLARATION, everything else
+declined. -/
+def checkAxiomDeclRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
+  if cvA.name == (← propextName) || cvA.name == (← choiceName) then
+    fail (.notImplemented
+      s!"standard axiom shape mismatch ({← readName cvA.name})")
+  else if cvA.name == (← pinSorryAx) then pure fe
+  else fail (.notImplemented s!"non-standard axiom ({← readName cvA.name})")
+
+/-- `checkDecl`'s axiom arm at the `ofReduce*` names. -/
+def checkAxiomDeclOfReduceSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
+  if cvA.name == (← ofReduceNatName) || cvA.name == (← ofReduceBoolName) then
+    if ← ofReduceAxOk fe cvA then pure (fe.push (.axiomInfo cvA))
+    else fail (.notImplemented
+      s!"unsupported compiler-trust axiom environment ({← readName cvA.name})")
+  else checkAxiomDeclRestSpec fe cvA
+
+/-- `checkDecl`'s axiom arm at `Lean.trustCompiler`. -/
+def checkAxiomDeclTrustSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
+  if cvA.name == (← trustCompilerName) then
+    if ← trustCompilerOk fe cvA then pure (fe.push (.axiomInfo cvA))
+    else fail (.notImplemented
+      s!"unsupported Lean.trustCompiler shape ({← readName cvA.name})")
+  else checkAxiomDeclOfReduceSpec fe cvA
+
+/-- `checkDecl`'s axiom arm past `Quot.sound`: the common constant check, then
+the standard-axiom gate. -/
+def checkAxiomDeclStdSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
+    AM IFEnv := do
+  let cvA ← checkConstantVal mode fe cv
+  if ← stdAxiomOk fe cvA then pure (fe.push (.axiomInfo cvA))
+  else checkAxiomDeclTrustSpec fe cvA
+
+/-- `checkDecl`'s `Quot.sound` record: compared with the pin, installing
+NOTHING of its own. -/
+def checkQuotSoundRecordSpec (fe : IFEnv) (cv : IConstantVal) : AM IFEnv := do
+  let blk ← BasisKind.decls .quotK
+  match blk[4]? with
+  | some pinned =>
+    if ← IConstantInfo.canonEq (.axiomInfo cv) pinned then pure fe
+    else fail (.notImplemented "quotient soundness axiom mismatch")
+  | none => fail (.notImplemented "quotient soundness axiom mismatch")
+
+/-- `checkDecl`'s `.axiomDecl` arm, whole. -/
+def checkAxiomDeclSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
+    AM IFEnv := do
+  if cv.name == (← pinQuotSound) then checkQuotSoundRecordSpec fe cv
+  else checkAxiomDeclStdSpec mode fe cv
+
+/-- `checkDecl`'s `.opaqueDecl` arm. -/
+def checkOpaqueDeclSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (value : EIdx) : AM IFEnv := do
+  let cv ← checkConstantVal mode fe cv
+  let fe2 ← checkOpaqueVal mode fe cv value
+  if (← reduceOpNames).contains cv.name then
+    checkReducePin mode fe fe2 cv.name value
+  pure fe2
+
+/-- The structural-`Nat` pins' certification, at the equations already built. -/
+def checkStructuralNatPinCertifySpec (mode : CheckMode) (fe fe2 : IFEnv)
+    (seqs : List (EIdx × EIdx)) : AM IFEnv := do
+  let ok ← certifyNatEqs mode fe seqs
+  unless ok do
+    fail (.notImplemented "nonstandard structural Nat operation")
+  pure fe2
+
+/-- … with the equations built from the stored value. -/
+def checkStructuralNatPinEqsSpec (mode : CheckMode) (fe fe2 : IFEnv) (n : NIdx) :
+    AM IFEnv := do
+  match fe2.find? n with
+  | some (.defnInfo _ value' _) => do
+    let eqs ← natOpEquations 0 n
+    checkStructuralNatPinCertifySpec mode fe fe2 (← substConst0Pairs n value' eqs)
+  | _ => fail (.internal s!"structural Nat operation not stored ({← readName n})")
+
+/-- … behind the environment guard: the fast-path ops must be the standard
+structural recursions. -/
+def checkStructuralNatPinSpec (mode : CheckMode) (fe fe2 : IFEnv) (n : NIdx) :
+    AM IFEnv := do
+  let deps ← natOpDeps n
+  unless (← natOpGuard fe2 n) && (← natOpStoredOkAll fe2 deps) do
+    fail (.notImplemented
+      s!"nonstandard structural Nat operation environment ({← readName n})")
+  checkStructuralNatPinEqsSpec mode fe fe2 n
+
+/-- The `Nat.div`/`Nat.mod` gate at a definition. -/
+def checkDefnDivModPinSpec (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe fe2 : IFEnv) (n : NIdx) : AM IFEnv := do
+  if (← natDivModNames).contains n then
+    checkDivModPin mode pins fe fe2 n
+  pure fe2
+
+/-- Both pin gates, in the twin's order. -/
+def checkDefnPinsSpec (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe fe2 : IFEnv) (n : NIdx) : AM IFEnv := do
+  if (← natOpNames).contains n then
+    let _ ← checkStructuralNatPinSpec mode fe fe2 n
+    pure ()
+  checkDefnDivModPinSpec mode pins fe fe2 n
+
+/-- `checkDecl`'s `.defnDecl` arm, whole. -/
+def checkDefnDeclSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+    (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) : AM IFEnv := do
+  let cv ← checkConstantVal mode fe cv
+  let fe2 ← checkDefnVal mode fe cv value hint
+  checkDefnPinsSpec mode pins fe fe2 cv.name
+
+/-! ### Phase A's step body, in six -/
+
+/-- `annotStepGo`'s `.opaqueDecl` install half. -/
+def annotStepOpaqueInstallSpec (mode : CheckMode) (fe : IFEnv)
+    (cv : IConstantVal) (value : EIdx) : AM (IFEnv × Option ValueGroup) := do
+  let cvA ← installConstantVal mode fe cv
+  let jv ← installValue mode fe cvA value
+  pure (fe.push (.axiomInfo cvA), some ⟨.opaque, cvA, jv⟩)
+
+/-- `annotStepGo`'s `.opaqueDecl` arm. -/
+def annotStepOpaqueSpec (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (pd : IDeclaration) (cv : IConstantVal) (value : EIdx) :
+    AM (IFEnv × Option ValueGroup) := do
+  if (← reduceOpNames).contains cv.name then
+    pure (← checkDecl mode pins fe pd, none)
+  else annotStepOpaqueInstallSpec mode fe cv value
+
+/-- `annotStepGo`'s `.thmDecl` arm: a theorem installs BY STATEMENT. -/
+def annotStepThmSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (value : EIdx) : AM (IFEnv × Option ValueGroup) := do
+  let cvA ← installConstantVal mode fe cv
+  pure (fe.push (.thmInfo cvA value), some ⟨.thm, cvA, value⟩)
+
+/-- `annotStepGo`'s `.defnDecl` install half. -/
+def annotStepDefnInstallSpec (mode : CheckMode) (fe : IFEnv)
+    (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
+    AM (IFEnv × Option ValueGroup) := do
+  let cvA ← installConstantVal mode fe cv
+  let jv ← installValue mode fe cvA value
+  pure (fe.push (.defnInfo cvA jv hint), some ⟨.defn, cvA, jv⟩)
+
+/-- `annotStepGo`'s `.defnDecl` arm. -/
+def annotStepDefnSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+    (pd : IDeclaration) (cv : IConstantVal) (value : EIdx)
+    (hint : ReducibilityHint) : AM (IFEnv × Option ValueGroup) := do
+  if (← natOpNames).contains cv.name || (← natDivModNames).contains cv.name then
+    pure (← checkDecl mode pins fe pd, none)
+  else annotStepDefnInstallSpec mode fe cv value hint
+
+/-! ### The startup walk, in six -/
+
+/-- `internAllPins`' reserved-name half. -/
+def internAllNamesSpec : AM Unit := do
+  let _ ← reservedBasisNames
+  let _ ← natOpNames; let _ ← natDivModNames; let _ ← reduceOpNames
+  let _ ← pinSorryAx; let _ ← pinQuotSound
+
+/-- `internAllPins`' two reduce pins. -/
+def internAllReducePinsSpec : AM Unit := do
+  let _ ← reduceNatDeclPin; let _ ← reduceBoolDeclPin
+  internAllNamesSpec
+
+/-- `internAllPins`' compiler-trust axiom pins. -/
+def internAllTrustPinsSpec : AM Unit := do
+  let _ ← trueCvA; let _ ← trueIntroCvA; let _ ← trustCompilerA; let _ ← boolCvA
+  let _ ← reduceNatCvA; let _ ← reduceBoolCvA
+  let _ ← ofReduceNatA; let _ ← ofReduceBoolA
+  internAllReducePinsSpec
+
+/-- `internAllPins`' standard axiom pins past the `Iff` family. -/
+def internAllAxiomPinsRestSpec : AM Unit := do
+  let _ ← nonemptyA; let _ ← nonemptyIntroA; let _ ← nonemptyRecA
+  let _ ← propextA; let _ ← choiceA
+  internAllTrustPinsSpec
+
+/-- `internAllPins`' standard axiom pins. -/
+def internAllAxiomPinsSpec : AM Unit := do
+  let _ ← iffA; let _ ← iffIntroA; let _ ← iffRecA
+  internAllAxiomPinsRestSpec
+
+/-- `internAllPins`' six basis blocks, in BOTH forms. -/
+def internAllBasisSpec : List BasisKind → AM Unit
+  | [] => internAllAxiomPinsSpec
+  | k :: ks => do
+    let _ ← BasisKind.decls k
+    let _ ← BasisKind.declsA k
+    internAllBasisSpec ks
+
 end ConRon.Arena

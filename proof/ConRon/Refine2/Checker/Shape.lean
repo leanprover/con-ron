@@ -130,6 +130,17 @@ theorem SimRE.err {α β : Type} {A : α → β} {lst : AState}
 theorem SimRE.apply {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
     (h : SimRE A lst (.Ok r) x) : x.run lst = .ok (A r, lst) := h
 
+/-- `SimRE` with the result RELATED rather than abstracted: a reader that can
+fail and whose answer is an `IFEnv`.  `arena::decl_check::install_basis_decl`
+is the one, and it is a reader because a basis install is `fe.push` and
+nothing else — only its DECLINE reads the store (for the name in the
+message). -/
+def SimRelR {α β : Type} (R : α → β → Prop) (lst : AState)
+    (o : core.result.Result α kernel.core_types.CheckError) (x : AM β) : Prop :=
+  match o with
+  | .Ok r => ∃ v, x.run lst = .ok (v, lst) ∧ R r v
+  | .Err e => AErrSim e (x.run lst)
+
 /-! ## The promotion memo (`arena::promote::PMemo`)
 
 Four `RelOn` clauses at `P := True` and four `Inv`s: every key is a bare
@@ -298,6 +309,28 @@ def absIDeclL (v : alloc.vec.Vec arena.env.IDeclaration) : List IDeclaration :=
 def absIDeclLFrom (v : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize) :
     List IDeclaration := (v.val.drop i.val).map absIDeclaration
 
+/-- `Vec<(Vec<EIdx>, EIdx)>` as the twin's `List (List EIdx × EIdx)` —
+`divModCertStmts`' open characterization statements: per certificate, the list
+of hypothesis types and the characteristic equation. -/
+def absStmts (v : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)) :
+    List (List EIdx × EIdx) :=
+  v.val.map fun p => (p.1.val.map absEIdx, absEIdx p.2)
+
+/-- The same from a cursor on. -/
+def absStmtsFrom
+    (v : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx))
+    (i : Std.Usize) : List (List EIdx × EIdx) :=
+  (v.val.drop i.val).map fun p => (p.1.val.map absEIdx, absEIdx p.2)
+
+/-- `Vec<(EIdx, EIdx)>` as the twin's `List (EIdx × EIdx)` — `certifyNatEqs`'
+equation list. -/
+def absEqPairs (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) :
+    List (EIdx × EIdx) := v.val.map fun p => (absEIdx p.1, absEIdx p.2)
+
+def absEqPairsFrom (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
+    (i : Std.Usize) : List (EIdx × EIdx) :=
+  (v.val.drop i.val).map fun p => (absEIdx p.1, absEIdx p.2)
+
 /-- `Vec<(EIdx, BinderMeta)>` as the twin's `Array (EIdx × BinderMeta)` —
 `domsMatchAux`'s subject.  con-leche's `List` version is quadratic on a wide
 telescope and its `Array` twin is what the checker runs, so the twin is the
@@ -323,7 +356,7 @@ def absBasisKindLFrom (v : alloc.vec.Vec kernel.env.BasisKind) (i : Std.Usize) :
 
 attribute [simp] absNIdxL absEIdxL absLIdxL absNIdxLFrom absEIdxLFrom absLIdxLFrom
   absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absIDeclLFrom
-  absBinderArr absExprLFrom absCIListFrom absRecRuleLFrom absDeclLFrom absLevelLFrom
+  absStmts absStmtsFrom absEqPairs absEqPairsFrom absBinderArr absExprLFrom absCIListFrom absRecRuleLFrom absDeclLFrom absLevelLFrom
   absNameLFrom absBasisKindLFrom
 
 /-! ## The environment index's own invariant

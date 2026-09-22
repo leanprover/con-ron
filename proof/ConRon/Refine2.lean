@@ -45,3 +45,5 @@ import ConRon.Refine2.Checker.Canon
 import ConRon.Refine2.Checker.Axioms
 import ConRon.Refine2.Checker.Spec
 import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.Checker.DeclCheck
+import ConRon.Refine2.Checker.Top
