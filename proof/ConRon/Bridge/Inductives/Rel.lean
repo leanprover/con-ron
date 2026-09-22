@@ -586,7 +586,7 @@ theorem internE_run {s s' : AState} {w : ENodeView} {h : EIdx}
     PStep s s' ∧ denoteE s'.store h = denoteEView s'.store w := by
   obtain ⟨h1, h2, h3, _h4, _h5, h6, h7, _h8, h9⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s w hok.wf hv)
-  exact ⟨⟨⟨h1⟩, h2, h3, h6, h7⟩, h9⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 h3 h6 h7, h9⟩
 
 /-- con-leche: none — `internE` at a `.bvar`: no precondition at all. -/
 theorem internBVarE_run {s s' : AState} {i : Nat} {h : EIdx} (hok : StateOK s)
@@ -671,7 +671,7 @@ theorem internLNode_run {s s' : AState} {v : LNodeView} {h : LIdx}
     PStep s s' ∧ denoteL s'.store.ls h = denoteLView s'.store.ls v := by
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internLNode_spec s v hok.wf hv)
-  exact ⟨⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩, h10⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8, h10⟩
 
 /-- con-leche: none — `internLNode` at `.zero`: `structElimLevel`'s small
 arm. -/
@@ -712,7 +712,8 @@ theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
     exact lview_isSome_of_denote hu
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internLsNode_spec s v hok.wf hvok)
-  have hstep : PStep s s' := ⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩
+  have hstep : PStep s s' :=
+    PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8
   refine ⟨hstep, ?_⟩
   rw [h10]
   exact denoteLList_ext hstep.ext.lss.ls _ _ hv
@@ -724,7 +725,7 @@ theorem internNNode_run {s s' : AState} {v : NNodeView} {h : NIdx}
     PStep s s' ∧ denoteN s'.store.ns h = denoteNView s'.store.ns v := by
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
-  exact ⟨⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩, h10⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8, h10⟩
 
 /-- con-leche: none — a handle list's denotation splits over an append, which
 is what the two-spine generators (`structCtorSpine`, `structFamI`) need before

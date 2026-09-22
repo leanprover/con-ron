@@ -46725,3 +46725,181 @@ was written.
 
 `DESIGN.md`'s conflict was two sections appended at the same place; both kept,
 theirs first.
+
+### Task #97-P3-Frame — the two frames named a table that moves; the statement was wrong, not the code (2026-09-22, Opus under Fable)
+
+**One defect, stated in one line.**  `Bridge/Inductives/Rel.lean`'s `PStep`
+and `Bridge/Frontend/Rel.lean`'s `ParseStep` both carried
+`caches : s'.caches = s.caches`, and that equation is FALSE of every run that
+compares two level HANDLES.  `Arena/Core.lean:140 lvlEq?` probes
+`caches.lvlEqC`, and on a miss it reads both handles back through
+`readLevelM` — which writes `caches.readLC` — and records the verdict in
+`caches.lvlEqC`.  Two of the fourteen per-declaration tables move.  Four
+statements of the inductive tier had already been weakened from `PSpec` to
+`CSpec` because of it (task #97-P3-Ind round 2); the one that could NOT be
+worked around that way is `Bridge/Frontend/ProjRec.lean`'s
+`projRecOwners_run`, whose hypothesis is `StateOK` and which therefore cannot
+reach `CheckOK` at all.
+
+#### 1. The ruling: fix the statement, not the code
+
+The tempting repair — make the twin compute `isProp` the way con-leche writes
+it, `Level.isEquiv (← readLevel s) .zero`, with no cache — was rejected, and
+the reason is layer C.  `crates/con-ron-core/src/arena/core.rs:544 lvl_eq`
+probes `lvl_eq_probe`, then on a miss calls `read_level_m` twice (which
+inserts into `st.caches.read_l_c`, `arena/monad.rs:1141`) and `lvl_eq_set`;
+and all three call sites in the inductive tier —
+`arena/inductives/sum_parts.rs:170`, `struct_parts.rs:832`,
+`native_parts.rs:2129` — are `zero_level` then `core::lvl_eq`.  A Lean-only
+change would therefore CREATE a layer-B/layer-C divergence where none exists,
+and `Refine2/AbsState.lean`'s `CachesRel` relates the two `lvlEqC`/`readLC`
+tables pointwise, so it would break Theorem 2 at `with_sort_refines` while
+making Theorem 1 prettier.  The port's caching is a deliberate optimisation
+and it is faithfully mirrored on both sides; what was wrong was the sentence
+about it.
+
+#### 2. `CacheFrame` — the frame that is true, in the readback specs' shape
+
+The precedent is in the tier already.  `Bridge/Specs.lean`'s three readback
+specs say
+
+```
+s'.caches = { s₀.caches with readLC := s'.caches.readLC }
+```
+
+— the record equation that names exactly the table allowed to move — and
+`Bridge/Core/Walks/Frame.lean`'s `ReadbackFrame` carries the moved tables'
+invariants as IMPLICATIONS rather than facts, so that `.refl` is `id`.
+`Bridge/StateOK.lean` now has the same thing one table wider:
+
+```
+structure CacheFrame (s s' : AState) : Prop where
+  caches : s'.caches = { s.caches with
+    readLC := s'.caches.readLC, lvlEqC := s'.caches.lvlEqC }
+  readL : ReadLCacheOK s.caches.readLC s.store →
+    ReadLCacheOK s'.caches.readLC s'.store
+  lvlEq : ReadLCacheOK s.caches.readLC s.store →
+    LvlEqCacheOK s.caches.lvlEqC s.store →
+    LvlEqCacheOK s'.caches.lvlEqC s'.store
+```
+
+Three things about it are not free choices.
+
+* **The implications, and not facts.**  A `StateOK`-graded statement says
+  nothing whatever about cache CONTENTS, so a frame asserting `ReadLCacheOK`
+  outright could not be proved at `PStep`/`ParseStep`'s own hypothesis.  As
+  implications the frame is provable there, `.refl` is `id`, `.trans`
+  composes, and a caller that HOLDS `CheckOK` — which is where the two
+  invariants live — gets them back.
+* **`lvlEq` takes BOTH invariants.**  On a miss the row written to `lvlEqC` is
+  `Level.isEquiv` of whatever `readLevelM` answered, so a poisoned `readLC`
+  poisons `lvlEqC`: `LvlEqCacheOK` alone does not survive the call, the pair
+  does.  The shape is forced by the program.
+* **One record equation and not twelve.**  `rw [hf.caches]` recovers each of
+  the twelve clauses that did not move, which is exactly how
+  `CacheOK.ofReadbackFrame` works; `CacheOK.monoF` and `CheckOK.monoF` (beside
+  the old `mono`, which is `CacheFrame.of_eq`'s special case and is kept
+  because most callers still have the plain equation) are the transport.
+
+#### 3. `lvlEq?_frame` — the verification, CLOSED
+
+The task's own exit condition was *"if the frame genuinely cannot be carried
+at `StateOK`, stop and say so"*.  It can, and the proof is in the tree:
+`Bridge/Core/Walks/Cached.lean` §4b now closes
+
+```
+theorem lvlEq?_frame (hrun : lvlEq? u v s = .ok (r, s')) :
+    s'.store = s.store ∧ s'.memos = s.memos ∧ s'.pins = s.pins ∧
+      CacheFrame s s'
+```
+
+with **no cache-content hypothesis at all**, on top of `readLevelM_frame`
+(the same at the readback) and `readLevelM_denote`.  `#print axioms` on all
+four: the standard three, no `sorryAx`.
+
+Two things it is worth recording about that proof.
+
+* **It is run form, and the reason is the `[spec]` commitment.**
+  `readLevelM_spec` is registered `@[spec]`, so `mvcgen` applies it rather
+  than unfolding `readLevelM`, and its `ReadLCacheOK` hypothesis then arrives
+  as a verification condition a `StateOK`-graded proof cannot discharge.  A
+  registered `[spec]` cannot be erased and `mvcgen` cannot be made to prefer a
+  locally supplied theorem — `Frame.lean`'s note measured both, and this is
+  the second place in the library where that costs a hand-written unfolding.
+  It is twenty lines of `AM.bind_ok` / `get_ok` / `set_ok` / `pure_ok`.
+* **The miss branch is ONE `CacheFrame` and not a `.trans` of three.**  The
+  insert's own `lvlEq` obligation needs the two handles' DENOTATIONS, and
+  those come from `readLevelM_spec` at the INITIAL state; the intermediate
+  state's `ReadLCacheOK` does not re-deliver them.  So the readbacks compose
+  (`CacheFrame.ofReadLevelM` twice, `.trans`) and the insert does not — its
+  implications quantify over `s`.
+
+#### 4. The four Inductives specs stay at `CSpec`, and the reason changed
+
+`withSort_spec`, `structPartsCore?_spec`, `nativeShape?_spec` and
+`nativeParts?_spec` were weakened to `CSpec` by task #97-P3-Ind round 2, whose
+note said the FRAME was what forced them up.  After this task that reason is
+gone — `lvlEq?_frame` is closed at `StateOK` — and they stay at `CSpec`
+anyway, because the real reason is the ANSWER:
+
+`ShapeRel.isProp` and `SPartsRel.isProp` are conjuncts of those statements,
+and `isProp` IS `lvlEq?`'s verdict.  The verdict a cache HIT answers is
+`Level.isEquiv`'s only because `LvlEqCacheOK` says so, and `StateOK` does not
+carry it.  At `PSpec` those four theorems would be false of a poisoned cache.
+**`CSpec` is the grade the answer lives at, not a weakening for convenience**
+— and `withSort_spec` is closed at it, which is the other half of the rule:
+do not break a closed proof to make a statement prettier.  The four notes now
+say this instead of the frame story.
+
+The same reading is what saves `projRecOwners_run` at `StateOK`, and it is
+worth spelling out because it is the whole reason the task existed:
+
+* its FRAME is `lvlEq?_frame`, which needs no invariant;
+* its ANSWER does not depend on the verdict.  `isProp` fills a FIELD of a
+  record the recogniser has already decided to return, and `projRecOwners`
+  reads the two recognisers through `.isSome` alone
+  (`Arena/Frontend/ProjRec.lean:510-515`), so a wrong `isProp` could not
+  change the owner list.  What it still owes the Inductives tier is an
+  `isSome`-only lemma at `StateOK`, and its `sorry` note now names that
+  rather than the `CSpec` statements it cannot use.
+
+#### 5. What moved
+
+| file | edit |
+|---|---|
+| `Bridge/StateOK.lean` | +94: `CacheFrame` with `.refl` / `.trans` / `.of_eq`, `CacheOK.monoF`, `CheckOK.monoF`.  `CheckOK.mono` is untouched and still used by everything that has the plain equation |
+| `Bridge/Core/Walks/Cached.lean` | +203: §4b, the four closed frame lemmas and the two `AM` inversions this tier lacked (they live in `ConRon.Bridge.Core`, so they do not collide with `ConRon.Bridge.Frontend`'s copies) |
+| `Bridge/Inductives/Rel.lean` | `PStep.caches` → `PStep.cframe : CacheFrame s s'`; `refl`/`trans`/`toCore` follow; **`PStep.of_caches`** is the constructor the ~107 twins that write no table use; the module's FINDING section rewritten to the ruling |
+| `Bridge/Frontend/Rel.lean` | the same at `ParseStep`, plus `ParseStep.of_caches`; the frame note now says *"the parse interns, and the ONE other thing it does is compare two levels"* and names `registerProjOwners` as the place |
+| `Bridge/Frontend/Capstone.lean` | `FoldOK_of_start`'s fourth hypothesis becomes `CacheOK μ Env.empty s` instead of `s.caches = Caches.empty`: "the tables are empty" does not survive a `ParseStep` any more, `CacheOK` does.  `FoldOK_post_parse` and `no_False_declaration_pipeline` reach it with `CacheOK.of_empty … |>.monoF`, one line each |
+| `Bridge/Frontend/ProjRec.lean` | `projRecOwners_run`'s note: why `StateOK` is enough, and what it really owes |
+| `Bridge/Inductives/{SumParts,StructParts,NativeParts}.lean` | the four notes, per §4 |
+| `Bridge/{Inductives,Frontend}/Axioms.lean` | the two new constructors in the census |
+
+**No `Arena/` file, no `crates/` file, no `Generated/` file.**  `git diff`
+over `*.lean` matches three lines containing the token `sorry` and all three
+are prose inside a doc comment: the declaration-level count is unchanged in
+every tier.
+
+#### 6. The `sorry` count, and the gates
+
+| tier | before | after |
+|---|---|---|
+| `ConRonArena` (the twin, layer B) | **0** | **0** |
+| `ConRonBridge` (Theorem 1) | **214** | **214** |
+| `ConRonRefine2` (Theorem 2) | see the table below | unchanged by this task |
+
+"before" is the count at the branch point (`arena` `19aa6e2e`) and "after" at
+the tip; they are equal because the diff adds and removes exactly zero
+declaration-level `sorry`.  `Bridge/Core/Walks/Cached.lean` still has its
+three (`constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec`) and gained four
+CLOSED theorems beside them.
+
+**Two files had to be repaired rather than merely restated**, and both were
+anonymous constructions of the record the task widened: `Inductives/Rel.lean`'s
+four intern runs (`internE_run`, `internLNode_run`, `internLsNode_run`,
+`internNNode_run`) and `Frontend/Chunks.lean`'s `StateD_init_run`.  Each now
+reads `PStep.of_caches …` / `ParseStep.of_caches …` where it read `⟨…, hc,
+…⟩`, which is the same proof with the cache equation handed to the
+constructor instead of to the field.  That is the whole cost of the widening
+inside the two tiers: **five call sites.**
