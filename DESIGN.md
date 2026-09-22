@@ -37340,9 +37340,11 @@ waiting on — `EStore.intern`'s probe-then-push — and then the `ExprOps` tier
 Branch `p5-1` off `arena`'s tip `953a419b`.  **Nothing outside
 `proof/ConRon/Refine2/**` is touched.**
 
-Twenty-nine of the sixty-two are closed, the intern plumbing below them is
-built and building, and **the round's real result is a finding that had to be
-settled before `intern` could be *stated*, let alone proved**: §1.
+Thirty of the sixty-two are closed — the twenty-four memo lemmas, the five
+name/level readers, and **`intern` at the `bvar` constructor, end to end**,
+which is the pattern the other twenty-four follow — the plumbing below them
+is built, and **the round's real result is a finding that had to be settled
+before `intern` could be *stated*, let alone proved**: §1.
 
 #### 1. `mixHash` is `opaque`, so the derived word's HASH cannot be in the relation
 
@@ -37417,10 +37419,10 @@ maintainer's sentence to write.
 | the thirteen memo writes | 13 | **13** | `memo_insert_step` (one lemma: `HashMap2.Rel_insert_wf` + `insert_refines_wf` at `P := True`) and `absEIdxNat_inj` |
 | the eleven per-call clears | 11 | **11** | `memo_clear_step` (`clear_fit_refines` then `RelOn_empty`) |
 | the name / level / level-list readers | 13 | **5** | `NTables.get`, `LTables.get`, `LsTables.get`, `LsTables.get_len`, `LTables.der_at`; the three remaining tier bits and tag constants; `lidx_vec_dup` shown to be the identity; the tier select at `NStore`/`LStore`/`LsStore`; then `view_n`, `view_l`, `view_ls`, `view_ls_len`, `derived_l` |
-| `intern` | 25 | 0 | the plumbing is built (§3); the instantiation is the next round's |
+| `intern` | 25 | **1** | `bvar`, whole (§3b); the plumbing is built (§3) and the other twenty-four are that proof at another array |
 | the memoised readbacks | 4 | 0 | wait on `denoteN`/`denoteL` (§5) |
 | the readbacks | 4 | 0 | the same |
-| **`Specs.lean`** | **149** | **116** | (87 at P5-0) |
+| **`Specs.lean`** | **149** | **117** | (87 at P5-0) |
 
 **The twenty-six untouched clauses of `AStateRel` / `AStateInv` cost nothing
 to carry**, and that is the one idiom rule this round added.
@@ -37450,10 +37452,47 @@ instantiate it.
 §8.2 rules that a port `Native` claims nothing.  That is the first place in
 the tier where that clause earns its keep.
 
-#### 4. Two more hypotheses the intern statements will need
+#### 3b. `intern` at the `bvar` constructor, whole
 
-Both are Theorem 1's business, like P5-0's finding 3, and neither is in the
-statements as P5-0 left them.
+Written out end to end so that the remaining twenty-four are the same proof
+at another array, and so that findings 7–9 are demonstrated rather than
+predicted.  Its six arms:
+
+1. the persistent cons probe under the `shared_on` select — `rPersE` again,
+   and `tbl_find_abs` at that tier's table;
+2. the twin's `intern` at a non-binder view is `internAt` at the datum handle
+   `0`, so the two `match`es on the probe line up clause for clause;
+3. a persistent HIT returns the handle and leaves both stores alone: the
+   port's `{ self with pers := e, shared_on := b }` is `self` by structure
+   eta, and `exact hrel` takes it;
+4. a MISS in the scratch tier is `tbl_find_slot_abs`, whose first component
+   re-establishes the relation for the table `find_slot` handed back;
+5. a miss in both is `Tbl::full` — whose `true` arm is `Native`, which claims
+   nothing, and is therefore three lines — then `der_of_bvar`, `Tbl::size`,
+   the `u32` cast, `EIdx::pack` and `push_at`, which is `tbl_find_slot_abs`'s
+   last component;
+6. the persistent-append arm, which is where **finding 8** makes the port's
+   `Internal (M_FROZEN)` unreachable.
+
+`der_of_bvar_obs` is the first of the eleven `der_of_*` arms and the template
+for the rest: `pack_bits` on the port's side, `bvarOfData_pack` and its two
+siblings on the twin's, `derObsE_absU64` as the bridge, and `satSucc` for the
+one range field — **eighteen lines, and the hash never appears**.
+
+`internE_run_of_cap` is `Arena.internE`'s run at a view below the cap that
+needs no binder datum; all fourteen per-constructor wrappers share it, and
+`intern_e_bvar_run` is it composed with the store lemma.  The whole group —
+`tier_s_abs`, `tier_p_abs`, `dupId_bvarnode`, `absBVarNode_inj`,
+`der_of_bvar_obs`, `estore_intern_bvar_abs`, `internE_run_of_cap`,
+`intern_e_bvar_run` — is **190 lines**, of which the store lemma is 120.  At
+that rate the twenty-four remaining constructors are ~2 900 lines, most of it
+the six-arm peel repeated; the ten remaining `der_of_*` arms are the only
+part that is not a copy.
+
+#### 4. Three more hypotheses the intern statements need
+
+The first two are Theorem 1's business, like P5-0's finding 3; the third is a
+TWIN bug.  None of the three is in the statements as P5-0 left them.
 
 **Finding 7 — the skipped persistent probe is sound only under `StoreWF`.**
 `EStore::intern_<ctor>` opens with
@@ -37476,6 +37515,19 @@ so the claim "the twin throws too" is false there.  The statements need
 #97-P6-6b's phase-B discipline ("the persistent tier is immutable in phase B,
 each worker owns a scratch tier"), and which belongs in `AStateInv` rather
 than in each of the twenty-five statements.
+
+**Finding 9 — the capacity test is on the wrong side of the probe in the
+twin.**  `Tbl::full` is tested by the port only when it is about to APPEND;
+`Arena/Monad.lean`'s `internE` tests `sizeOf` BEFORE it probes.  On a cons
+HIT at a full array the port answers `Ok h` and the twin throws `native`, so
+"Rust `Ok` implies twin `ok`" — the whole of §8.2's success arm — is false
+there.  The statements carry it as `hcap`; **the proper fix is a one-line
+TWIN change** (move the test into `internAt`'s miss arm, which is what the
+port does, and which makes the twin a transliteration again where today it is
+not), and it belongs in the next twin catch-up rather than in this tier.
+Note that the miss path needs nothing: if the twin's pre-test fails then the
+port's `full` is true as well and the port raises `Native`, which claims
+nothing.
 
 **And one that the closed work already needed**: `view_n_run`, `view_l_run`
 and `view_ls_run` conclude `AOut`, whose success arm demands `AStateInv pers
@@ -37506,13 +37558,13 @@ they should be scheduled with the `StoreWF` hypothesis, not before it.
 | `Refine2/Inv.lean` | 487 | 25 | 0 | — | 1.7 s (module) |
 | `Refine2/AbsState.lean` | 382 | 10 | 0 | — | 1.6 s (module) |
 | `Refine2/Shape.lean` | 342 | 26 | 0 | — | 1.4 s (module) |
-| `Refine2/Specs.lean` | **3 744** | **189** | **33** | 3.72 s | **1.83 s** |
+| `Refine2/Specs.lean` | **4 049** | **197** | **32** | 3.83 s | **1.94 s** |
 | `Refine2/ExprOps/Pure.lean` | 931 | 34 | 0 | 2.82 s | 0.93 s |
 | `Refine2/ExprOps/Read.lean` | 755 | 34 | 31 | 2.29 s | 0.40 s |
 | `Refine2/ExprOps/Mut.lean` | 839 | 65 | 65 | 2.12 s | 0.23 s |
 
-**No lemma is anywhere near the 20-second flag.**  `Specs.lean`'s 189
-theorems cost 1.83 s net between them — **≈ 10 ms a lemma** — and the
+**No lemma is anywhere near the 20-second flag.**  `Specs.lean`'s 197
+theorems cost 1.94 s net between them — **≈ 10 ms a lemma** — and the
 profiler at a 60 ms threshold reports no declaration at all, only nine `simp`
 calls between 74 ms and 119 ms (the `Eq2Fwd` and tier-select `simp only`s).
 The reason is that this tier is an *inversion layer*: it is `rw` chains and
@@ -37539,8 +37591,10 @@ over `UInt64.toNat`, which is why it alone costs a tenth of a second.
 
 #### 7. The axiom census
 
-**Forty-three `#print axioms` rows under `#guard_msgs`** across the tier —
-P5-0's twenty-seven plus sixteen this round (`inst1_set_run`,
+**Forty-seven `#print axioms` rows under `#guard_msgs`** across the tier —
+P5-0's twenty-seven plus twenty this round (`der_of_bvar_obs`,
+`estore_intern_bvar_abs`, `internE_run_of_cap`, `intern_e_bvar_run`,
+`inst1_set_run`,
 `inst_lp_clear_run`, `ntables_get_abs`, `ltables_get_abs`, `lstables_get_abs`,
 `lidx_vec_dup_eq`, `view_n_run`, `view_l_run`, `view_ls_run`, `derived_l_run`,
 `tbl_push_abs`, `tbl_find_slot_abs`, `tbl_size_abs`, `eidx_pack_abs`,
@@ -37551,13 +37605,13 @@ packing's `*`/`/`/`%` spelling is what buys.
 
 #### 8. What is left, and what the Core tier needs
 
-**The thirty-three open `Specs.lean` lemmas**, exactly:
+**The thirty-two open `Specs.lean` lemmas**, exactly:
 
-* **25 `intern_*`** — `intern_e` and its thirteen per-constructor entries, the
-  three node interns, the four persistent ones, and the four transient walks
-  (`intern_name`, `intern_level`, `intern_level_list`, `intern_levels`).  Each
-  is the §3 plumbing at one array plus that constructor's `der_of_*`, with
-  findings 7 and 8's hypotheses added.  The remaining genuinely new work is
+* **24 `intern_*`** — `intern_e` and its twelve remaining per-constructor
+  entries, the three node interns, the four persistent ones, and the four
+  transient walks (`intern_name`, `intern_level`, `intern_level_list`,
+  `intern_levels`).  Each is §3b's proof at one array plus that
+  constructor's `der_of_*`, with findings 7, 8 and 9's hypotheses added.  The remaining genuinely new work is
   the eleven `der_of_*` arms, and `derObsE_absU64` is what makes each of them
   ten lines.  **The cons key's own WF is a hypothesis the caller owes**:
   `TblRel` is `RelOn P`, so `intern_e_lit_run` needs `LiteralWF l`,
@@ -37602,7 +37656,7 @@ waits on a primitive** and the tier is fuel inductions and nothing else.
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green**, 2 093 jobs, **129 `sorry`** (was 158) and no errors |
+| `cd proof && lake build ConRonRefine2` | **green**, 2 093 jobs, **128 `sorry`** (was 158) and no errors |
 | `cd proof && lake build` | green — the default targets are untouched |
 | `scripts/provenance.py check` | 0 findings (no `Arena/` or Rust file changed) |
 | `scripts/overview-links.sh` | OK |
