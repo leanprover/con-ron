@@ -38328,7 +38328,7 @@ adopted: this tier does too (§8's last bullet).
 | gate | |
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 521 jobs** (159 after P3-Core, 128 after P3-0); 84 `sorry` warnings, of which 59 are this tier's (§5) and 25 the `ExprOps` and Core tiers' |
-| `cd proof && lake build` (the default targets) | OK — `ConRonBridge` is not one of them, so nothing this round touched can reach them; run anyway after the `arena` merge |
+| `cd proof && lake build` (the default targets) | **not reachable from this diff** — `proof/ConRon.lean` does not import `ConRon.Bridge`, and `ConRonBridge` is not a default target, so no module the default build elaborates changed.  (A cold full build was started in this worktree anyway; it is a from-scratch build of `ConRon.Generated`/`RefineOld` and measures the worktree, not the change.) |
 | `#print axioms` | `Bridge/Checker/Axioms.lean`: **46 closed results**, every one `[propext, Classical.choice, Quot.sound]` (`orElseStepOf_ok_iff` at `[propext]` alone); the five headline theorems and `CoreSpec.of_knot` carry `sorryAx` and **neither `CoreSpec` nor `IndSpec`** — the two named hypotheses are hypotheses of the statements, not axioms of the environment, which is what makes "two named hypotheses" checkable rather than editorial |
 | `scripts/provenance.py check` | 0 findings, 6 281 items at pin `78ded4b6`; the `con-leche:` citations in `Bridge/` are stylistic (task #97-P3-0's note: `ARENA_ROOTS` does not include `proof/ConRon/Bridge`) |
 | `scripts/overview-links.sh` | OK, 48 links / 31 files |
