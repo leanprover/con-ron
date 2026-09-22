@@ -38,10 +38,14 @@ written at its `sorry`.
 
 Read off `lvlEq?_spec` below; every cached walk follows it.
 
-1. **Open with `simp only [<the walk>, readLevelM_eq, …]`**, not with
-   `mvcgen [<the walk>]`: `Bridge/Core/Walks/Frame.lean`'s module note says
-   why (a registered `@[spec]` beats unfolding, and the frame is exactly what
-   the registered one omits).
+1. **`mvcgen [<the walk>]` and nothing else.**  `Bridge/Specs.lean`'s three
+   readback specs are `@[spec]`, so `mvcgen` applies them by itself and each
+   readback contributes its five conjuncts to the verification condition;
+   `ReadbackFrame.ofReadL` (and its two siblings) folds them into one frame,
+   and `.trans` composes the two.  *`mvcgen` cannot be made to prefer a
+   theorem passed in its list over a registered `@[spec]` for the same
+   function — measured — so the frame is assembled in the walk rather than
+   delivered by a spec of its own.*
 2. **The postcondition does not take the subjects' denotations as
    hypotheses.**  It says "*if* the walk answered `some b`, then the subjects
    denote and `Level.isEquiv` answers `b`" — task #97-P3-0's rule 4 at two
@@ -245,8 +249,7 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
         ∀ b, r = some b → ∃ lu lv, denoteL s₀.store.ls u = some lu ∧
           denoteL s₀.store.ls v = some lv ∧
           Level.isEquiv lu lv = some b⌝⦄ := by
-  simp only [lvlEq?, readLevelM_eq]
-  mvcgen [readLevelMB_frame]
+  mvcgen [lvlEq?]
   case vc1 =>
     bridge_peel; subst_vars
     rename_i hhit
@@ -255,13 +258,13 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
     obtain rfl := Option.some.inj hb
     exact hok.caches.lvlEq (u, v) _ hhit
   case vc2 => bridge_peel; subst_vars; exact hok.caches.readL
-  case vc3 =>
-    bridge_peel; subst_vars
-    rename_i _ _ hf1
-    exact (CheckOK.ofReadbackFrame hok hf1).caches.readL
+  case vc3 => bridge_peel; subst_vars; assumption
   case vc4 =>
     bridge_peel; subst_vars
-    rename_i heq _sf hdu hf1 hdv hf2
+    rename_i heq _s1 _mp1 _mp _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1
+      hdv hL2
+    have hf1 := ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1
+    have hf2 := ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
     have hck := CheckOK.ofReadbackFrame hok hf
     refine ⟨CheckOK.ofCache hck
@@ -274,7 +277,9 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
       exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq⟩
   case vc5 =>
     bridge_peel; subst_vars
-    rename_i _heq _sf _hdu hf1 _hdv hf2
+    rename_i _heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 _hdu hL1 _hdv hL2
+    have hf1 := ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1
+    have hf2 := ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
     exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
       fun b hb => absurd hb (by simp)⟩
@@ -283,7 +288,7 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
 
 /-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
 **THEOREM 1 for `lvlsEq?`**.  Five verification conditions, the same five,
-with `readLevelsMB_frame` in place of `readLevelMB_frame`. -/
+with `ReadbackFrame.ofReadLs` in place of `.ofReadL`. -/
 theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
     (hok : CheckOK mode env fe s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ lvlsEq? us vs
@@ -292,8 +297,7 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
         ∀ b, r = some b → ∃ lus lvs, denoteLs s₀.store.lss us = some lus ∧
           denoteLs s₀.store.lss vs = some lvs ∧
           Level.isEquivList lus lvs = some b⌝⦄ := by
-  simp only [lvlsEq?, readLevelsM_eq]
-  mvcgen [readLevelsMB_frame]
+  mvcgen [lvlsEq?]
   case vc1 =>
     bridge_peel; subst_vars
     rename_i hhit
@@ -302,13 +306,13 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
     obtain rfl := Option.some.inj hb
     exact hok.caches.lvlsEq (us, vs) _ hhit
   case vc2 => bridge_peel; subst_vars; exact hok.caches.readLs
-  case vc3 =>
-    bridge_peel; subst_vars
-    rename_i _ _ hf1
-    exact (CheckOK.ofReadbackFrame hok hf1).caches.readLs
+  case vc3 => bridge_peel; subst_vars; assumption
   case vc4 =>
     bridge_peel; subst_vars
-    rename_i heq _sf hdu hf1 hdv hf2
+    rename_i heq _s1 _mp1 _mp _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1
+      hdv hL2
+    have hf1 := ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1
+    have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
     have hck := CheckOK.ofReadbackFrame hok hf
     refine ⟨CheckOK.ofCache hck
@@ -321,7 +325,9 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
       exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq⟩
   case vc5 =>
     bridge_peel; subst_vars
-    rename_i _heq _sf _hdu hf1 _hdv hf2
+    rename_i _heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 _hdu hL1 _hdv hL2
+    have hf1 := ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1
+    have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
     exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
       fun b hb => absurd hb (by simp)⟩
@@ -409,12 +415,9 @@ section Census
 #print axioms ReadbackFrame.ext
 #print axioms CacheOK.ofReadbackFrame
 #print axioms CheckOK.ofReadbackFrame
-#print axioms readLevelM_eq
-#print axioms readNameM_eq
-#print axioms readLevelsM_eq
-#print axioms readLevelMB_frame
-#print axioms readNameMB_frame
-#print axioms readLevelsMB_frame
+#print axioms ReadbackFrame.ofReadL
+#print axioms ReadbackFrame.ofReadN
+#print axioms ReadbackFrame.ofReadLs
 
 #print axioms LvlEqCacheOK.insert_capped
 #print axioms LvlsEqCacheOK.insert_capped

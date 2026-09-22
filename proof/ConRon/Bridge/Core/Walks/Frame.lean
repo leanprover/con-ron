@@ -9,47 +9,38 @@ tier's foundation — the one fact all of them share, and the item task
 
 ## The problem, concretely
 
-`Bridge/Specs.lean`'s three readback specs (`readLevelM_spec`,
-`readNameM_spec`, `readLevelsM_spec`) conclude `s'.store = s₀.store ∧
-s'.memos = s₀.memos ∧ s'.pins = s₀.pins` and give back the readback table's
-own invariant — but they say **nothing about the other thirteen cache
-tables**, and `CheckOK` needs all fourteen.  So no walk that reads a name, a
-level or a universe-argument list back can rebuild `CheckOK` from the spec
-layer as it stands, and *most* of the non-slot walks of `Arena/Core.lean`
-read one of the three.
+`CheckOK` (`Bridge/StateOK.lean`) carries the invariant of **all fourteen**
+per-declaration cache tables, and *most* of the non-slot walks of
+`Arena/Core.lean` read a name, a level or a universe-argument list back.
+`Bridge/Specs.lean`'s three readback specs used to conclude
+`s'.store = s₀.store ∧ s'.memos = s₀.memos ∧ s'.pins = s₀.pins` plus their
+own table's invariant and **nothing about the other thirteen tables**, so no
+such walk could rebuild `CheckOK` at all.
 
-`ReadbackFrame` below is the missing fact, and it is ONE equation rather
-than fourteen: *the cache record after the call is the cache record before
+`ReadbackFrame` below is the fact that was missing, and it is ONE equation
+rather than fourteen: *the cache record after the call is the cache record before
 it with the three readback tables replaced*.  From that, `rw` recovers each
 of the eleven clauses that did not move; the three that did are carried as
 implications in the same structure, which is what makes `.trans` compose.
 
-## The `@[spec]` obstacle, and the shape that gets round it
+## Where the equation lives, and the detour that is no longer needed
 
-`mvcgen` prefers a registered `@[spec]` theorem to unfolding the definition,
-so with `Bridge/Specs.lean`'s three specs in scope a frame theorem about
-`readLevelM` would have to be proved from their own (weaker) conclusion —
-which cannot be done, since the frame's `caches` equation is exactly what
-they omit.  **`attribute [-spec]` is not available** (`[spec]` cannot be
-erased), and this round does not edit `Bridge/Specs.lean` (task #97-P3-0's
-rule, and task #97-P3-1 was editing it concurrently).
+The equation is a conjunct of `Bridge/Specs.lean`'s three readback specs.
+It was NOT there when this module was first written, and the round's first
+shape worked round the gap with a body copy per readback
+(`readLevelMB`, `readNameMB`, `readLevelsMB`, each `= rfl` to the real
+function and each with no spec of its own) plus a
+`simp only [<the walk>, readLevelM_eq, …]` line in front of every walk's
+`mvcgen` — because `mvcgen` prefers a registered `@[spec]` theorem to
+unfolding the definition, and **`attribute [-spec]` is not available**
+(`[spec]` cannot be erased), so the frame could be proved neither *from* the
+weaker spec nor by unfolding past it.
 
-So the tier takes the other road: **a body copy per readback**
-(`readLevelMB`, `readNameMB`, `readLevelsMB`), each equal to the real
-function by `rfl`, each with no spec of its own, and each with the frame
-proved over its own branches.  A walk's proof then opens with
-
-```lean
-simp only [<the walk>, readLevelM_eq, readNameM_eq, readLevelsM_eq]
-mvcgen [readLevelMB_frame, …]
-```
-
-— the `simp only` unfolds the walk and rewrites its readbacks to the copies
-in one step, after which `mvcgen` has no registered spec to prefer.  It costs
-one line per walk and scales to all of them, which a body copy per WALK would
-not.  If `Bridge/Specs.lean`'s three specs are ever strengthened with the
-`caches` equation, the three copies and this note go away and nothing else
-in the tier changes.
+Strengthening the three specs is a ONE-CONJUNCT edit that costs their proofs
+one `rfl` each, and it deletes the three copies, the three `= rfl` bridges,
+the three body-level frame theorems and the `simp only` line from every walk
+of the tier.  `ReadbackFrame.ofReadL` / `.ofReadN` / `.ofReadLs` below are
+what is left: one constructor per readback, taking the spec's own conjuncts.
 -/
 import ConRon.Bridge.Core.Memo
 
@@ -137,118 +128,74 @@ theorem CheckOK.ofReadbackFrame {mode : CheckMode} {env : Env} {fe : IFEnv}
     CheckOK mode env fe s' :=
   CheckOK.ofCache h (CacheOK.ofReadbackFrame h.caches hf) hf.store hf.pins
 
-/-! ## 3. The three readback bodies, copied
+/-! ## 3. The frame from `Bridge/Specs.lean`'s three readback specs
 
-Each is `Arena/Monad.lean`'s definition verbatim, and each `…_eq` lemma is
-`rfl`.  The module note says why the copies exist. -/
+One constructor per readback.  Each takes the spec's four frame conjuncts and
+its table's invariant and builds the `ReadbackFrame`; the two tables the call
+did not touch come out of the `caches` equation by projection. -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:41-46 Level — `readLevelM`'s body
-(`Arena/Monad.lean:535-546`), copied so that `mvcgen` sees the branches
-rather than `Bridge/Specs.lean`'s spec. -/
-def readLevelMB (h : LIdx) : AM Level := do
-  let s ← get
-  match s.caches.readLC[h]? with
-  | some l => pure l
-  | none =>
-    match denoteL s.store.ls h with
-    | none => fail (.internal "arena: dangling level handle")
-    | some l =>
-      let mp := s.caches.readLC
-      let s := { s with caches := { s.caches with readLC := ∅ } }
-      set { s with caches := { s.caches with readLC := mp.insert h l } }
-      pure l
+/-- con-leche: none — the frame of a `readLevelM` call. -/
+theorem ReadbackFrame.ofReadL {s0 s1 : AState}
+    (hst : s1.store = s0.store) (hm : s1.memos = s0.memos)
+    (hp : s1.pins = s0.pins)
+    (hc : s1.caches = { s0.caches with readLC := s1.caches.readLC })
+    (hL : ReadLCacheOK s1.caches.readLC s1.store) : ReadbackFrame s0 s1 where
+  store := hst
+  memos := hm
+  pins := hp
+  caches := by
+    have hN : s1.caches.readNC = s0.caches.readNC := by rw [hc]
+    have hLs : s1.caches.readLsC = s0.caches.readLsC := by rw [hc]
+    rw [hN, hLs]; exact hc
+  readL := fun _ => hL
+  readN := fun hn => by
+    have hN : s1.caches.readNC = s0.caches.readNC := by rw [hc]
+    rw [hN, hst]; exact hn
+  readLs := fun hn => by
+    have hLs : s1.caches.readLsC = s0.caches.readLsC := by rw [hc]
+    rw [hLs, hst]; exact hn
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `readNameM`'s body
-(`Arena/Monad.lean:550-561`). -/
-def readNameMB (h : NIdx) : AM ConLeche.Name := do
-  let s ← get
-  match s.caches.readNC[h]? with
-  | some x => pure x
-  | none =>
-    match denoteN s.store.ns h with
-    | none => fail (.internal "arena: dangling name handle")
-    | some x =>
-      let mp := s.caches.readNC
-      let s := { s with caches := { s.caches with readNC := ∅ } }
-      set { s with caches := { s.caches with readNC := mp.insert h x } }
-      pure x
+/-- con-leche: none — the frame of a `readNameM` call. -/
+theorem ReadbackFrame.ofReadN {s0 s1 : AState}
+    (hst : s1.store = s0.store) (hm : s1.memos = s0.memos)
+    (hp : s1.pins = s0.pins)
+    (hc : s1.caches = { s0.caches with readNC := s1.caches.readNC })
+    (hN : ReadNCacheOK s1.caches.readNC s1.store) : ReadbackFrame s0 s1 where
+  store := hst
+  memos := hm
+  pins := hp
+  caches := by
+    have hL : s1.caches.readLC = s0.caches.readLC := by rw [hc]
+    have hLs : s1.caches.readLsC = s0.caches.readLsC := by rw [hc]
+    rw [hL, hLs]; exact hc
+  readL := fun hl => by
+    have hL : s1.caches.readLC = s0.caches.readLC := by rw [hc]
+    rw [hL, hst]; exact hl
+  readN := fun _ => hN
+  readLs := fun hn => by
+    have hLs : s1.caches.readLsC = s0.caches.readLsC := by rw [hc]
+    rw [hLs, hst]; exact hn
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — `readLevelsM`'s body
-(`Arena/Monad.lean:575-586`). -/
-def readLevelsMB (h : LsIdx) : AM (List Level) := do
-  let s ← get
-  match s.caches.readLsC[h]? with
-  | some us => pure us
-  | none =>
-    match denoteLs s.store.lss h with
-    | none => failDanglingLs
-    | some us =>
-      let mp := s.caches.readLsC
-      let s := { s with caches := { s.caches with readLsC := ∅ } }
-      set { s with caches := { s.caches with readLsC := mp.insert h us } }
-      pure us
-
-/-- con-leche: none — the copy IS the function. -/
-theorem readLevelM_eq (h : LIdx) : readLevelM h = readLevelMB h := rfl
-/-- con-leche: none — the copy IS the function. -/
-theorem readNameM_eq (h : NIdx) : readNameM h = readNameMB h := rfl
-/-- con-leche: none — the copy IS the function. -/
-theorem readLevelsM_eq (h : LsIdx) : readLevelsM h = readLevelsMB h := rfl
-
-/-! ## 4. The three readback specs, with the frame
-
-Same conclusions as `Bridge/Specs.lean`'s, plus the frame.  The answer's
-VALUE is recovered inside the postcondition rather than taken as a parameter
-— task #97-P3-0's rule 4, without which every caller's side goal carries a
-metavariable. -/
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:41-46 Level — `readLevelM` with the
-frame. -/
-theorem readLevelMB_frame (s₀ : AState) (h : LIdx)
-    (hc : ReadLCacheOK s₀.caches.readLC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ readLevelMB h
-    ⦃⇓? x s' => ⌜denoteL s₀.store.ls h = some x ∧ ReadbackFrame s₀ s'⌝⦄ := by
-  mvcgen [readLevelMB]
-  all_goals (bridge_peel; subst_vars)
-  all_goals
-    first
-      | (intro hf; exact False.elim hf)
-      | (refine ⟨by grind [ReadLCacheOK],
-            ⟨rfl, rfl, rfl, rfl, ?_, id, id⟩⟩
-         intro _
-         grind [ReadLCacheOK])
-
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `readNameM` with the
-frame. -/
-theorem readNameMB_frame (s₀ : AState) (h : NIdx)
-    (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ readNameMB h
-    ⦃⇓? x s' => ⌜denoteN s₀.store.ns h = some x ∧ ReadbackFrame s₀ s'⌝⦄ := by
-  mvcgen [readNameMB]
-  all_goals (bridge_peel; subst_vars)
-  all_goals
-    first
-      | (intro hf; exact False.elim hf)
-      | (refine ⟨by grind [ReadNCacheOK],
-            ⟨rfl, rfl, rfl, rfl, id, ?_, id⟩⟩
-         intro _
-         grind [ReadNCacheOK])
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — `readLevelsM` with the
-frame. -/
-theorem readLevelsMB_frame (s₀ : AState) (h : LsIdx)
-    (hc : ReadLsCacheOK s₀.caches.readLsC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ readLevelsMB h
-    ⦃⇓? us s' => ⌜denoteLs s₀.store.lss h = some us ∧
-        ReadbackFrame s₀ s'⌝⦄ := by
-  mvcgen [readLevelsMB]
-  all_goals (bridge_peel; subst_vars)
-  all_goals
-    first
-      | (intro hf; exact False.elim hf)
-      | (refine ⟨by grind [ReadLsCacheOK],
-            ⟨rfl, rfl, rfl, rfl, id, id, ?_⟩⟩
-         intro _
-         grind [ReadLsCacheOK])
+/-- con-leche: none — the frame of a `readLevelsM` call. -/
+theorem ReadbackFrame.ofReadLs {s0 s1 : AState}
+    (hst : s1.store = s0.store) (hm : s1.memos = s0.memos)
+    (hp : s1.pins = s0.pins)
+    (hc : s1.caches = { s0.caches with readLsC := s1.caches.readLsC })
+    (hLs : ReadLsCacheOK s1.caches.readLsC s1.store) : ReadbackFrame s0 s1
+    where
+  store := hst
+  memos := hm
+  pins := hp
+  caches := by
+    have hL : s1.caches.readLC = s0.caches.readLC := by rw [hc]
+    have hN : s1.caches.readNC = s0.caches.readNC := by rw [hc]
+    rw [hL, hN]; exact hc
+  readL := fun hl => by
+    have hL : s1.caches.readLC = s0.caches.readLC := by rw [hc]
+    rw [hL, hst]; exact hl
+  readN := fun hn => by
+    have hN : s1.caches.readNC = s0.caches.readNC := by rw [hc]
+    rw [hN, hst]; exact hn
+  readLs := fun _ => hLs
 
 end ConRon.Bridge.Core
