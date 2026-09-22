@@ -102,11 +102,30 @@ here because the Core tier may not edit that file"*.  They are in `IFEnvInv`
 now (`Refine2/Checker/Shape.lean`), and `idxPos` is an INVARIANT rather than a
 platform assumption — that file's note walks the four write sites. -/
 
+/-- **The Core tier's ambient argument at a SPLIT visibility scalar** — the
+form `arena::checker::check_pending` needs, and the one task #97-P5-Bracket's
+finding 3 said did not exist.
+
+`rf` is the whole environment phase A ended with and `vis` is the counter the
+pending declaration was installed at; the twin sees `lf.restrictTo (absU vis)`
+and nothing else.  There is no hypothesis tying the two counters together,
+because at this call site they genuinely differ. -/
+theorem IFEnvInv.coreCtxAt (vis : Std.U64) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
+    CoreCtx vis rf (lf.restrictTo (absU vis)) := by
+  refine ⟨?_, rfl, hfinv.idxInv, hfinv.idxPos⟩
+  have : (lf.restrictTo (absU vis)).restrictTo (absU rf.visible_below) = lf := by
+    rw [IFEnv.restrictTo, IFEnv.restrictTo, ← hfe.visibleBelow]
+  rw [this]
+  exact hfe
+
 /-- The Core tier's ambient argument, built from the checker tier's own. -/
 theorem IFEnvInv.coreCtx {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hvis : absU vis = lf.visibleBelow) : CoreCtx vis rf lf :=
-  ⟨hfe, hvis, hfinv.idxInv, hfinv.idxPos⟩
+    (hvis : absU vis = lf.visibleBelow) : CoreCtx vis rf lf := by
+  have hr : lf.restrictTo (absU vis) = lf := by
+    rw [IFEnv.restrictTo, hvis]
+  exact hr ▸ IFEnvInv.coreCtxAt vis hfe hfinv
 
 /-- The same where the counter is the record's own field, which is every site
 that does not thread finding 10's scalar: `IFEnvRel.visibleBelow` IS the
@@ -124,5 +143,8 @@ nothing. -/
 
 /-- info: 'ConRon.Refine2.IFEnvInv.coreCtx' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IFEnvInv.coreCtx
+
+/-- info: 'ConRon.Refine2.IFEnvInv.coreCtxAt' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms IFEnvInv.coreCtxAt
 
 end ConRon.Refine2
