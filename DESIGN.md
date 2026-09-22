@@ -36535,3 +36535,378 @@ lifetimes erased).
 
 Task #97-SWAP §10's item 1 is closed.  Items 2-4 stand, less what §5 above
 did: OVERVIEW §4 and §8 are current, §7/§11/§12 and the §7.x numbers are not.
+
+### Task #97-P5-0 — Theorem 2: the foundation and the ExprOps tier (2026-09-22, Opus under Fable)
+
+DESIGN §8.6's **P5**, first phase: Theorem 2 of §8.2 — *the Aeneas model of
+the Rust `check_decls` accepting implies (B) accepting with the abstracted
+state and result, over the whole outcome; the port's `Native` claims nothing*
+— its foundation, its inversion layer and the `arena::expr_ops` tier.  A new
+library root `ConRonRefine2` over `proof/ConRon/Refine2/**`; branch `p5-0` off
+`arena`'s tip `b7c1d7f2`.
+
+**Nothing under `Refine/`, `RefineOld/`, `Arena/` or `crates/` is touched.**
+The 47 surviving `Refine` modules (task #97-SWAP §5) are imported and reused,
+which is the whole point of their having survived: `Refine/Abs.lean`'s idiom
+and its `ErrSim`/`RunOk` vocabulary, `Refine/HashMap2{,WF}.lean`'s
+`Inv`/`RelOn`/`Eq2Fwd`/`DupId`/`KeysOk` kit, `Refine/{Name,Level,PropWhen,
+Expr}.lean`'s value abstractions with their WF predicates and injectivity
+lemmas, and `Refine/Nat.lean`'s forward readings of the machine-word
+operations.
+
+#### 1. The abstraction design
+
+| Rust | twin | abstraction |
+|---|---|---|
+| `EIdx`/`NIdx`/`LIdx`/`LsIdx`/`BMIdx` = `{word : u32}` | `Idx k` = `{word : UInt32}` | a FUNCTION, `absU32` on the word |
+| a node record (`AppNode` = two handles) | the same record over `Idx` | a FUNCTION, nineteen of them |
+| `Tbl.rows : Vec (A × D)` | `Tbl.nodes : Array α` **and** `Tbl.der : Array δ` | two FUNCTIONS — task #97-P6-10 interleaved the columns and its ledger row asks for exactly this: "`rows.map (·.1)` for `nodes` and `rows.map (·.2)` for `der`" |
+| `Tbl.cons : ron::HashMap2<A, I>` | `Tbl.cons : Std.HashMap α ι` | a **RELATION**, `Refine/HashMap2WF.lean`'s `RelOn P` |
+| `PersTier`, the reader parameter | *nothing* | the persistent ARM of the abstract store |
+| `Memos`/`Caches`, 27 `HashMap2`s | 27 `Std.HashMap`s | a RELATION, `RelOn` per table |
+| `IEnv.consts : Vec` (oldest first) | `List` (newest first) | `map` then `reverse`, as `RefineOld/Abs.lean`'s `absEnv` did |
+| `IFEnv.idx : HashMap<NIdx, (u64, u64)>` | `HashMap NIdx (Nat × IConstantInfo)` | the probe COMPOSED with the array read (task #97-P6-5's lever 1) |
+
+**`absStore (pers, st)` is task #97-LC §1's own equation**, one tier deep in
+each of the four nested stores:
+
+    absStore (pers, st) = { st.store with
+      pers := if st.store.shared_on then pers.e else st.store.pers }
+
+and that settles §8.4's amended monad question from the refinement's side.
+The twin kept `AM := StateT AState (Except CheckError)` rather than taking the
+`ReaderT` layer, and Theorem 2 pays for that with **four `rPers*` functions of
+one line each** (`Refine2/AbsStore.lean`) and nothing else:
+`EStore::pers_get_app` is `ETables.get_app (rPersE pers self) i` after one
+`if`-split, which is literally the one `simp only [rPersE, hs]` each of the
+nine closed tier-select proofs performs.  The `shared_on → self.pers = ∅`
+conjunct task #97-P6-6b's ledger names turns out **not to be needed at all**:
+the refinement reads whichever tier `pers_get_*` reads and relates the twin's
+single persistent field to that one, so the flag is a selector and never a
+side condition.
+
+Because the cons and memo tables are related by a probe agreement, the
+abstraction of the STATE is a relation and the twin's post-state has to be
+existentially quantified — `RefineOld/State.lean`'s `Out` shape, kept.
+`Refine2/Shape.lean`'s `AOut` is that `Out` with `Ext lst.store lst'.store`
+added, for task #97-LC's `orElseAttempt` row (*"what the refinement owes at
+this seam is `Ext` rather than store equality"*); carrying it everywhere is
+free (`Ext.refl` for a reader, `Ext.trans` through a bind) and is what makes
+that seam statable when the checker tier reaches it.  `AOut.ofRun` is the
+witness-free introduction form `AUTOMATION.md` asks for.
+
+**Four statement shapes, not one, because the arena's Rust has four.**
+`Sim` for `pers, &mut AState → Result<R, CheckError>` (the state as a return
+value — §8.2's subject, and what task #97s round 2 measured as the shape
+`mvcgen` has nothing to say about); `SimR` for `pers, &AState → Option R` (a
+reader: *the twin answers the abstraction and leaves the state alone*); `SimP`
+for the state-free helpers; `SimS` for `Result AState` with no inner `Result`
+(the memo writes and the per-call clears, which cannot fail).
+
+#### 2. Two findings about the invariant, both of them subtractions
+
+**Finding 1 — the capacity invariant round 2 predicted is NOT needed, and the
+reason is the two-layer route's own dividend.**  Task #97s round 2's second
+unpredicted finding was *"both halves need a capacity invariant: Rust's `n as
+u32` truncates rather than failing, so the cons tables' index cast is faithful
+only below `IDX_CAP`"*.  On the real store it is not.  `Tbl::push`'s handle is
+`Idx::pack(tag, tier, self.rows.len() as u32)`, whose `as u32` Aeneas models
+as `UScalar.cast .U32` at value `len % 2 ^ 32`; the twin writes `Idx.mk tag
+tier (UInt32.ofNat tb.size)` and `UInt32.ofNat` truncates by the SAME modulus,
+so the two agree unconditionally — and `arena::handle::word_mk`'s `+`/`*` on
+`u32` make the hypothesis `= ok` vacuous wherever the arithmetic would wrap
+out of the word.  A handle past `IDX_CAP` is wrong, but it is *equally* wrong
+on both sides, which is all Theorem 2 claims; excluding it is `StoreWF`'s
+`capOK` clause and therefore **Theorem 1's** business (and `Arena/Monad.lean`'s
+`internE` tests it, which is how the twin discharges it).  `Refine2/Inv.lean`
+is therefore the `HashMap2` invariant and the key restriction, and nothing
+else.
+
+**Finding 2 — the `u32 → usize` cast needs no side condition, where the
+`Expr`-tree tier's `u64 → usize` did.**  `Refine/Scalars.lean` exists because
+`v[i as usize]` on a `u64` counter agrees with `v[i]?` only below `Usize.max`,
+and that bound had to be discharged at every call site.  The arena's handle
+index is a `u32`, so `arena::handle::word_idx_nat` is Aeneas's own
+`U32.cast_Usize_val_eq` — unconditional on a 32- and a 64-bit target alike —
+and `eidx_idxNat` and its four siblings carry no hypothesis.  One fewer
+obligation at every store read in the crate.
+
+#### 3. The layer's size
+
+| file | lines | what |
+|---|---:|---|
+| `Refine2/Idiom.lean` | 183 | round 3's three asks; the `u32`/`u64`/`usize` conversions and their four operation lemmas |
+| `Refine2/AbsStore.lean` | 410 | the handles, nineteen node records, four node views, `TblRel`, the four stores, `rPers*` |
+| `Refine2/Inv.lean` | 487 | `TblInv` and the tier/store invariants; **eighteen `Eq2Fwd` and five `DupId` obligations, all closed** |
+| `Refine2/AbsState.lean` | 382 | `MemosRel`/`MemosInv` (13 tables), `CachesRel`/`CachesInv` (14), `PinsRel`, `AStateRel`/`AStateInv`; the `arena::env` declaration layer and `IFEnvRel` |
+| `Refine2/Shape.lean` | 317 | `AErrKind`/`AErrSim`, `AOut`, `Sim`/`SimR`/`SimP`/`SimS` and their eliminators |
+| `Refine2/Specs.lean` | 1 769 | the inversion layer: **122 `_run` lemmas, 55 closed** |
+| **the foundation** (with the 35-line root) | **3 583** | |
+| `Refine2/ExprOps/Pure.lean` | 931 | the 22 state-free helpers |
+| `Refine2/ExprOps/Read.lean` | 755 | the 33 read-only walks |
+| `Refine2/ExprOps/Mut.lean` | 839 | the 65 state-threading twins |
+| **the ExprOps tier** | **2 525** | **120 `_refines`, 25 closed** |
+
+#### 4. The inversion layer, floor by floor
+
+    arena::store::Tbl.{node, der_at, find}            ← TblRel / TblInv
+    arena::store::ETables.get_*                       ← the tier relations
+    arena::store::EStore.view_* / pers_get_*          ← StoreRel, the tier select
+    arena::monad::*                                   ← SimR / Sim / SimS in AM
+
+The bottom floor is where the representation lives (a `Vec` of pairs against
+two `Array`s, a `ron::HashMap2` against a `Std.HashMap`); the two above it are
+`if` chains that match the twin's clause for clause, which is what §8.4's
+"Rust-shaped Lean" bought and it shows — each tier-select proof is eleven
+lines and the same eleven lines nine times.
+
+| floor | primitives | closed |
+|---|---:|---:|
+| 0 the `Vec` read and the handle's index | 7 | **7** |
+| 1 one table (`node`, `der_at`, `find`) | 3 | **3** |
+| 2 `ETables` projections | 9 | **9** |
+| 3 `EStore` tier selects | 9 | **9** |
+| 4 `arena::monad` readers (+ `run_get_pure`) | 10 | **10** |
+| 4 the named failure primitive | 4 | **4** |
+| 4 the thirteen memo probes | 13 | **13** |
+| 4 `view`/`derived`/the binder and name/level readers | 14 | 0 |
+| 4 the memoised readbacks (task #97-P6-13) | 4 | 0 |
+| 4 `intern` (14 `intern_e_*`, 3 node, 4 persistent, 4 transient) | 25 | 0 |
+| 4 the thirteen memo writes and eleven clears | 24 | 0 |
+| **total** | **122** | **55** |
+
+**What the 67 open ones wait on is three pieces of plumbing, not
+sixty-seven proofs.**  `view` needs `ETables.get`'s ten-way dispatch — nine of
+the ten arms ARE the `etables_get_*_abs` already closed, and the two binder
+arms are where `getBind`'s tag dispatch meets `viewBM`'s own tier select.
+`derived_e` needs `ETables.der_at`'s ten-way dispatch over `tbl_der_at_abs`,
+which is closed.  `intern` needs `HashMap2.Rel_insert_wf` on the cons table,
+`Array.push` on the two columns against the Rust's one `Vec::push` of a pair,
+and `Idx.mk` against `Idx::pack` — the last of which finding 1 says is free.
+Three pieces, eighteen instantiations, and the layer closes.
+
+#### 5. The `ExprOps` tier
+
+`crates/con-ron-core/src/arena/expr_ops.rs` has **120** `pub fn`s, and the
+split that matters for the statement's shape is the state parameter:
+
+| slice | functions | file | shape | closed |
+|---|---:|---|---|---:|
+| no `pers`/`st` at all | 22 | `ExprOps/Pure.lean` | the exact-result equation of §3.5 | **22** |
+| `pers, &AState` (reads, never appends) | 33 | `ExprOps/Read.lean` | `AOut` at the same state, or `SimR` | 3 |
+| `pers, &mut AState` | 65 | `ExprOps/Mut.lean` | `Sim` | 0 |
+
+**Every one of the 120 statements exists and elaborates**, and the 22
+state-free ones are **all closed**: 122 statement lines, 206 lines of proof
+and 316 lines of shape step (the six `Vec`-cursor recursions' measure
+inductions), at **0.95 s net elaboration for the whole file** — 43 ms a
+lemma, two orders under round 3's 5-7 s per function, which is what one
+expects of a copier that walks no store and splits no ten-way body.  The
+other 98 are statements; the proofs are where the `sorry`s are, and every one
+of them is waiting on a named `Specs.lean` primitive rather than on an idea.  Demand, counted over the
+twin's own `ExprOps.lean`: `view` 47 calls, `internE` 30, `fail` 30,
+`failDanglingE` 26, `derivedE` 12 — those five are a third of all demand — then
+the eleven memo triples at 127 calls between them, then the projections at 26
+and the per-constructor interns at 32.  So the order for the next round is
+`view`, `intern`, the memo writes, and then the tier falls out.
+
+#### 6. Four findings from the ExprOps tier
+
+**Finding 3 — the tag-first / view-first split makes nine statements FALSE
+without an explicit hypothesis, and task #97-LC's ledger row does not name
+it.**  That ledger (row #97-P6-13) absorbs the tag test with *"on a
+well-formed store `h.tag == ETag.C` and `match ← view h with | .C .. | _` are
+the same clause … the two differ only on a DANGLING handle, which `StoreWF`
+excludes"*.  True — but the divergence is **asymmetric in the direction
+Theorem 2 claims**: on a dangling handle whose tag is not the one tested, the
+Rust answers `Ok` and the twin *throws*, so "Rust `Ok` ⇒ twin `ok`" fails.
+`is_lam`, `lam_pw`, `forall_pw`, `fvar_type_d`, `strip_lams`, `strip_pis`,
+`pi_result` and `pi_arity` therefore carry `StoreWF lst.store` plus a
+"this handle resolves" hypothesis (task #97s template rule 4's `isSome`, not a
+named view).  `get_app_fn` and `get_app_args_go` are NOT affected — they are
+two of the seven walks where the twin does spell the tag — which is why the
+count is nine and not eleven.  **This is a hypothesis Theorem 1 owes at
+roughly sixty sites across the crate, not just here**, and §8.3's amendment
+should say so.
+
+**Finding 4 — `AOut` cannot state a walk that threads its memo as an
+argument-and-result pair.**  `AOut`'s abstraction of the result is a
+*function*, and a `ron::HashMap2` abstracts only relationally, so the eight
+walks whose twin takes its memo as an explicit argument and returns it
+(`wscopedBGo`, `fvarLeavesGo`, `leavesSubGo` and their `_node`/`_two`
+companions) needed `AOut` with the twin's post-MEMO existentially quantified
+beside its post-state.  Three definitions once; the Core tier's `defeq`/`whnf`
+walks will want the same, so they belong in `Refine2/Shape.lean` when P5's
+next round moves them there.
+
+**Finding 5 — one Rust type, two twin containers, and the elaboration is a
+real check on which.**  `Vec<EIdx>` is the twin's `Array EIdx` where it is a
+substitution accumulator (`instantiate_list*`, `inst_*_at_f_go`'s `acc`,
+`mk_app_n_from` — task #97-P6-15's push-order change) and its `List EIdx`
+where it is an argument spine (`inst_pis*`, `inst_lams_at*`, `inst_spine*`,
+`mk_app_n`, `inst_pis_at_lift*`, `bvar_range`'s result).  Getting the two the
+wrong way round does not typecheck.  Eleven `_from` cursor companions have no
+twin of their own (§3.4's standing `List`-as-cursor deviation) and are stated
+against the twin they implement, at the argument list *from the cursor on*;
+`mk_app_n_from` is the exception and does have its own twin, because
+#97-P6-15 gave it the cursor form.
+
+**Finding 6 — `rename_consts` takes a dictionary, not a function.**  §3.4
+forbids closures, so the Rust's `f : NIdx → NIdx` is a one-method trait, which
+Aeneas renders `Result`-valued (`inst.rename f n : Result NIdx`) against the
+twin's total `NIdx → NIdx`.  One definition — `RenameRel inst f g := ∀ n r,
+inst.rename f n = ok r → g (absNIdx n) = absNIdx r` — is the whole of the
+difference, and it is the shape every later higher-order seam of the crate
+will take.
+
+Two smaller ones: `fvar_leaves_go`'s `seen` is `HashMap<EIdx, bool>` in the
+Rust and `Std.HashMap EIdx Unit` in the twin, so the relation is about
+MEMBERSHIP and not values (no reader looks at either value — `fvl_seen` is an
+`is_some` test); and the six `*_node`/`*_two` functions are task #97-P6-2's
+Rust-only splits with no named twin, so `_two` is stated against the twin's
+arm inline and `_node` needs a local transcription plus an `_unfold` equation
+back to the twin (written for `wscopedBGo`; `fvarLeavesGo` and `leavesSubGo`
+are owed in the same shape).
+
+#### 7. The idiom as finally used
+
+Round 3's three asks are all three real, and one of them is a soundness
+matter rather than a performance one.
+
+1. **`attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp`, at the top of
+   every file of the tier.**  It does not travel through an import; this tier
+   repeats the line nine times and `Refine2/Idiom.lean`'s module note says
+   why it is not optional.
+2. **`rust_grind2` = `rust_grind` + `(splits := 40)`**, landed as a macro of
+   this tier rather than as a change to `Refine/Abs.lean`'s `rust_grind`, so
+   that the 726 surviving `_refines` lemmas of `Refine/` keep the budget they
+   were tuned at.  (Round 3 asked for the default to move; doing it in the new
+   tier gets the same effect without re-elaborating the old one.)
+3. **The shape step is per function and does not automate**, exactly as round
+   3 says.  On this tier it took two forms: a `Nat` induction on a `Vec`'s
+   remaining length for an index recursion — the model is
+   `Refine2/Inv.lean`'s `lidx_vec_eq_from_iff`, twenty-eight lines, and every
+   `_from` companion of `expr_ops` is that shape — and the `fuel = m + 1` peel
+   for a fuelled walk.
+
+**Round 3's recommendation to split `Refine/Abs.lean` into `Refine/Idiom.lean`
+and the rest is declined for P5, and the reason is that it was P3's saving.**
+The split exists so that (B)'s own proofs get `rust_norm`/`rust_grind` without
+`ConRon.Generated`'s 105 k lines.  **Theorem 2 is a statement ABOUT the
+generated model**, so every file of this tier imports it anyway and the split
+would buy P5 nothing.  `ConRon.Refine.Abs` is imported whole, which also
+brings the `expr.*`/`name.*`/`level.*` inversion lemmas the pinned-data tier
+proved and which this tier reuses at `absBinderMeta`, `absLiteral`,
+`literal_beq_refines` and `absPropWhen_injective`.
+
+**Seven rules this tier needed BEYOND round 3's three.**
+
+4. **`Eq2Fwd` from a decision equivalence, once.**  `Refine/HashMap2.lean`'s
+   operations are stated against `Eq2Fwd Eq2Inst P` — "`eq2` never lies about
+   `P`-keys" — whose conclusion is `c = decide (a = b)` on the RUST value.
+   `eq2Fwd_of_iff` (12 lines) turns the natural `c = true ↔ a = b` into it,
+   and then fourteen of the eighteen node records are `simp only [<the
+   generated eq2>] at h; grind` — two lines each.  The other four carry a
+   CACHED WORD (`StrNode`'s code points, `ListNode`'s handle vector,
+   `LitNode`'s `Literal`, `BMNode`'s `PropWhen`) and go through
+   `kernel::name::str_eq`, `arena::store::lidx_vec_eq`,
+   `kernel::expr::literal_beq` and `kernel::prop_when::beq`; their exactness
+   is `Refine/{Name,Expr,PropWhen}.lean`'s and holds on well-formed values
+   only, **which is the reason `TblRel` is `RelOn P` and not `Rel`**.
+5. **`grind` needs the `Result` bind gone before it sees the hypothesis.**
+   Six of the key types' `eq2` call a handle's `eq2` through a `do` bind, and
+   `grind` does not reduce it — it reports a failure whose diagnostic is a
+   page of equivalence classes over the un-reduced bind.  `bind_tc_ok` in the
+   `simp only` list is the whole fix, and it is the one place where a
+   generated body's monad plumbing defeated the closer.
+6. **`subst`, not `rw [← h]`, to consume an `ok`-injectivity.**  Every
+   inversion in this tier ends `have h2 : some x = o := Result.ok_injective h;
+   subst h2`.  `rw [← h2]` closes the goal by `rfl` about half the time and
+   leaves it the other half, so a trailing `rfl` is an error in one branch and
+   required in the other; `subst` is deterministic and the branch then always
+   ends in exactly one `rfl`.  Eleven "no goals to be solved" errors in one
+   generated batch is what taught it.
+7. **A state-free copier needs no normaliser at all, and round 3's "2 lines
+   of idiom" does not apply to it.**  Not one of the 22 `Pure.lean` lemmas
+   uses `rust_norm` or `rust_grind2`: a `Vec`-cursor recursion is a MEASURE
+   INDUCTION, and there is nothing to normalise until the induction is set
+   up, so **the shape step *is* the proof** — 316 of the file's 522 proof
+   lines are the six `_aux` inductions.  Round 3's budget (20 lines of shape
+   step, 2 lines of idiom, 0.26 s of `grind` a branch) is a budget for a
+   store WALK; the state-free slice is a different animal and cheaper.
+8. **`Refine/HashMap2.lean`'s `ite_eq_ok`, not `simp only []`, opens a
+   pattern-`let`.**  `leaf_mem_from`'s generated body is `let (i2, e) := p; if
+   i2 = idx then …`, and after `obtain ⟨i2, e⟩ := p` neither `simp only []`
+   nor `split` opens the residual one-alternative match, so a following
+   `rw [if_pos hc]` fails.  `ite_eq_ok` applied to the hypothesis unifies
+   through it by `whnf`, which is exactly what that lemma's own doc comment
+   says, and it belongs in the P5 recipe.
+9. **A `Vec::len` size lemma must be stated at `Vec.len`, not after
+   normalisation.**  `simp only [alloc.vec.Vec.len_val]` rewrites
+   `↑(Vec.len xs)` to `xs.length`, which is not the `(↑xs).length` a
+   container-abstraction size lemma is stated about, so the follow-up `rw`
+   fails.  Stating it as `(Vec.len v).val = (absEIdxArr v).size` avoids the
+   round trip; every `Vec`-container abstraction of the later tiers will want
+   its own, and `(0#usize).val = 0` wants to be a `@[simp]` lemma in the
+   shared layer (`omega` cannot see through the literal, and
+   `Refine/CoreK{Base,Guards}.lean` each inline the same
+   `show … by scalar_tac` — this was the third re-derivation).
+
+#### 8. The axiom census
+
+`#print axioms` under `#guard_msgs` in `Refine2/Inv.lean` (six rows: the two
+value-carrying `Eq2Fwd`s, the `lidx_vec_eq` induction, and three of the
+handle-only ones) and in `Refine2/Specs.lean` (ten rows across all five
+floors): **`[propext, Classical.choice, Quot.sound]` and nothing else** on
+every closed lemma named.  No `sorryAx` on a closed lemma, and — the one worth
+naming — **no `bv_decide` axiom anywhere**, which is what `Arena/Handle.lean`'s
+own note predicted when it wrote the handle packing with `*`, `/` and `%`
+instead of `>>>`/`&&&`: every roundtrip is `omega` after `UInt32.toNat`.
+`Classical.choice` enters only through the twenty-eight `DecidableEq`
+instances the key types need for `HashMap2.toFun` (`Refine/Abs.lean`'s note
+says why nothing is lost by them: every occurrence is inside a `Prop`, and the
+port's own decision procedure is `Eq2::eq2`, which is what the refinement
+lemmas are about).
+
+#### 9. What the next tiers need
+
+* **Close `Specs.lean`'s three pieces of plumbing** (§4), in this order:
+  `ETables.get`'s ten-way dispatch (`view`), `ETables.der_at`'s (`derived`),
+  and `EStore.intern`'s probe-then-push at the eighteen arrays.  That is what
+  the great majority of this branch's 163 open lemmas are waiting on, and it
+  is the only part of the tower whose cost is not already measured.
+* **Move findings 4's three outcome shapes into `Refine2/Shape.lean`**: the
+  Core tier's `whnf`/`infer`/`defeq` walks thread their memos the same way.
+* **Finding 3's hypothesis is Theorem 1's.**  The nine tag-first readers need
+  `StoreWF` plus "this handle resolves", and the same pair recurs at ~60
+  sites; P3 should carry it as a clause rather than let each tier re-state it.
+* **Core / Checker / DeclCheck / Inductives / Frontend**, in `arena`'s own
+  dependency order, each a `Refine2/<Tier>/` directory over the same
+  `Specs.lean`: `arena::core` is 11 719 lines of Rust and the largest by far,
+  `checker_base` + `checker` + `decl_check` 6 705, the inductive installs and
+  `canon`/`promote`/`pins`/`intern` the rest.  Nothing in them needs a new
+  abstraction: `AStateRel` already covers the per-declaration caches and the
+  pin table, and `IFEnvRel` the environment index.
+* **The driver's fold** is `Refine2`'s capstone and is where §8.2's
+  `check_decls` sentence is finally stated; it needs `arena::checker`'s
+  `orElseAttempt` seam, which is the one place `Ext` rather than store
+  equality is the conclusion — and `AOut` already carries it.
+* **Three small merges.**  `Pure.lean`'s `vecIndexSome` is a deliberate
+  duplicate of `Specs.lean`'s `vec_index_some` (the two files were written
+  concurrently and kept independent); `Read.lean` owes
+  `fvarLeavesGo_unfold` and `leavesSubGo_unfold` in the shape
+  `wscopedBGo_unfold` already has; and `Pure.lean`'s four container
+  abstractions (`absEIdxL`, `absEIdxArr`, `absBinderL`, `absFvlL`) are the
+  same four `Read.lean` and `Mut.lean` re-declare locally, so they belong in
+  `Refine2/AbsStore.lean` beside the node records.
+
+#### 10. The gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build` | **green, 2 208 jobs** — the default targets are untouched (`ConRonRefine2` is a fourth library root and deliberately NOT a default target, so a half-built P5 tier never blocks them) |
+| `cd proof && lake build ConRonRefine2` | **green, 2 093 jobs**, 163 `declaration uses 'sorry'` warnings (67 in `Specs.lean`, 31 in `Read.lean`, 65 in `Mut.lean`, **none in `Pure.lean`**) and no errors |
+| `scripts/provenance.py check` | 0 findings — `6 281 item(s) (4 099 Rust, 2 182 arena Lean), 4 101 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| the diff | `proof/ConRon/Refine2/**`, `proof/ConRon/Refine2.lean`, one `lean_lib` in `proof/lakefile.toml`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |

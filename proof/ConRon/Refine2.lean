@@ -33,3 +33,6 @@ import ConRon.Refine2.Inv
 import ConRon.Refine2.AbsState
 import ConRon.Refine2.Shape
 import ConRon.Refine2.Specs
+import ConRon.Refine2.ExprOps.Pure
+import ConRon.Refine2.ExprOps.Read
+import ConRon.Refine2.ExprOps.Mut
