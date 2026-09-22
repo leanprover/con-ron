@@ -42259,9 +42259,12 @@ longer exists: it credits a con-leche declaration when some Rust item cites
 it and when `proof/ConRon/Refine/<M>.lean` states that item's `f_refines`,
 and `Refine/` was deleted.  It still describes master, so it stays; the
 arena branch needed a second report, about the two theorems it is actually
-building.  Branch `census` off `arena`'s tip `e0616fdf`, with `arena`'s `ee337c53`
-merged in before landing (#97-P5-Arms and #97a follow-up 4, both under
-`proof/`); nothing under `proof/` or `crates/` is written by this branch.
+building.  Branch `census` off `arena`'s tip `e0616fdf`, with `arena`'s `ee337c53` and
+then `a27f72cf` merged in before landing (#97-P5-Arms, #97-P5-Ind, wf-ext and
+the Frontend checkpoint, all under `proof/`); nothing under `proof/` or
+`crates/` is written by this branch.  The numbers below are the last of
+those tips and they moved under this task twice while it ran — which is the
+argument for the script rather than against it.
 
 #### 1. What the census counts, and why the unit is the twin
 
@@ -42348,24 +42351,24 @@ stated only when every citing function has one, and a row where some do is
 convention the script does not know would otherwise pass silently as
 "unstated".  It reports four populations, and the second one is a finding:
 
-* **661 twins with NO Bridge theorem naming them at all** — genuinely
+* **660 twins with NO Bridge theorem naming them at all** — genuinely
   unstated;
-* **77 matched ONLY by an unrecognised suffix** (Store 39, Frontend 19, Core
-  10, Checker 4, ExprOps 4, Promote 1).  At least one of those IS the
+* **78 matched ONLY by an unrecognised suffix** (Store 39, Frontend 19, Core
+  11, Checker 4, ExprOps 4, Promote 1).  At least one of those IS the
   statement: `Bridge/ExprOps/Subst.lean`'s `eidxCopyUpto_toList` says
   "**Theorem 1 for `eidxCopyUpto`**" in its own doc comment.  So the 738
-  "T1 unstated" rows are an upper bound, over by up to 77, and closing that
+  "T1 unstated" rows are an upper bound, over by up to 78, and closing that
   gap is a naming decision for the coordinator rather than a script change;
 * **31 Bridge theorems credited to more than one twin** — one unqualified
   `viewApp_spec` and two twins with the leaf `viewApp` (`Monad.lean`'s
   wrapper and `Store.lean`'s projection).  Both rows read "stated";
-* on the T2 side, **376 cited twins with no Refine2 theorem naming their
-  Rust function at all**, against **176 named by a theorem under another
+* on the T2 side, **248 cited twins with no Refine2 theorem naming their
+  Rust function at all**, against **175 named by a theorem under another
   shape** (Store 163) — the store tier's specs are `estore_view_app_abs` and
   `derived_e_run`, not `view_app_refines`, so its `6/315` T2 column is a
   statement about the NAMING and not about the work.
 
-#### 3. The numbers at `58e2479e`
+#### 3. The numbers at `c4ffc048`
 
 | tier | twins | T1 owed | T1 stated | T1 closed | T2 owed | T2 cited | T2 stated | T2 closed |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -42373,19 +42376,19 @@ convention the script does not know would otherwise pass silently as
 | `Arena/ExprOps` | 92 | 92 | 86 (93%) | 74 (80%) | 92 | 86 (93%) | 86 (93%) | 10 (10%) |
 | `Arena/Core` | 232 | 213 | 38 (17%) | 13 (6%) | 213 | 197 (92%) | 16 (7%) | 11 (5%) |
 | `Arena/Checker` | 294 | 292 | 45 (15%) | 8 (2%) | 292 | 170 (58%) | 150 (51%) | 1 (0%) |
-| `Arena/Inductives` | 130 | 130 | 127 (97%) | 9 (6%) | 130 | 130 (100%) | 1 (0%) | 0 (0%) |
-| `Arena/Frontend` | 257 | 141 | 46 (32%) | 2 (1%) | 210 | 110 (52%) | 101 (48%) | 5 (2%) |
+| `Arena/Inductives` | 130 | 130 | 127 (97%) | 9 (6%) | 130 | 130 (100%) | 130 (100%) | 0 (0%) |
+| `Arena/Frontend` | 257 | 141 | 46 (32%) | 15 (10%) | 210 | 110 (52%) | 101 (48%) | 5 (2%) |
 | `Arena/Promote` | 22 | 22 | 9 (40%) | 0 (0%) | 22 | 21 (95%) | 20 (90%) | 0 (0%) |
 | `Arena/Driver` | 25 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
 | `Arena/Tests` | 198 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
-| **total** | **1565** | **1205** | **467 (38%)** | **217 (18%)** | **1274** | **932 (73%)** | **380 (29%)** | **28 (2%)** |
+| **total** | **1565** | **1205** | **467 (38%)** | **230 (19%)** | **1274** | **932 (73%)** | **509 (39%)** | **28 (2%)** |
 
 `T1 owed` / `T2 owed` are the twins less that tier's skips; every percentage
 is against those.  The `--summary` line `scripts/gates.sh` now prints is the
 same table plus:
 
     arena census: 1565 twins (+99 arms folded in, 360 skipped for T1, 291 for T2)
-      | T1 stated 38% closed 18% | T2 stated 29% closed 2%
+      | T1 stated 38% closed 19% | T2 stated 39% closed 2%
 
 Read across the two halves, the shape of the campaign is legible in one
 glance:
@@ -42394,13 +42397,15 @@ glance:
   86 of 92 stated, 74 closed — and it is the tier that went through
   P3-0/P3-1's exemplar and arm split.  Its T2 column is stated 93 % and
   closed 10 %: the statements are all there, the proofs are not;
-* **`Inductives` is stated 97 % and closed 6 %**, which is P3-Ind's own
-  report ("the statements first, the arms after") turned into a number;
+* **`Inductives` is stated 97 % and closed 6 %** on the bridge and **100 %
+  stated, 0 % closed** on the refinement — P3-Ind's and P5-Ind's own reports
+  ("the statements first, the arms after") turned into a number;
 * **`Core` and `Checker` are where the bridge work is**: 38 of 213 and 45 of
   292 stated.  Those two tiers hold 422 of the 738 unstated rows;
-* **T2 closed is 28 of 1 274**, i.e. the refinement tier is a statement
-  layer at this point and almost nothing in it is discharged.  `Core` (11,
-  #97-P5-Arms's first bodies) and `ExprOps` (10) hold most of what is;
+* **T2 closed is 28 of 1 274** against 509 stated, i.e. the refinement tier
+  is a STATEMENT layer at this point and almost nothing in it is discharged.
+  `Core` (11, #97-P5-Arms's first bodies) and `ExprOps` (10) hold most of
+  what is;
 * the **`Store` T2 column (6 stated of 315)** is the naming artefact of §2,
   not a hole: 163 of its rows have a Refine2 theorem naming their Rust
   function under the `_abs`/`_run` shape.
@@ -42413,10 +42418,10 @@ missing, which is what a coordinator hands out.  Per tier at this tip:
 | what is missing | total | Store | ExprOps | Core | Checker | Inductives | Frontend | Promote |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | T1 UNSTATED — no Bridge theorem | 738 | 199 | 6 | 175 | 247 | 3 | 95 | 13 |
-| T1 SORRY — stated, not closed | 250 | 5 | 12 | 25 | 37 | 118 | 44 | 9 |
+| T1 SORRY — stated, not closed | 237 | 5 | 12 | 25 | 37 | 118 | 31 | 9 |
 | T2 UNCITED — no Rust function names it | 342 | 97 | 6 | 16 | 122 | 0 | 100 | 1 |
-| T2 UNSTATED — cited, no `<fn>_refines` | 552 | 212 | 0 | 181 | 20 | 129 | 9 | 1 |
-| T2 SORRY — stated, not closed | 352 | 5 | 76 | 5 | 149 | 1 | 96 | 20 |
+| T2 UNSTATED — cited, no `<fn>_refines` | 423 | 212 | 0 | 181 | 20 | 0 | 9 | 1 |
+| T2 SORRY — stated, not closed | 481 | 5 | 76 | 5 | 149 | 130 | 96 | 20 |
 
 The **342 T2-UNCITED** rows are the one group that is not proof work: a twin
 no Rust function cites is either a definition the Rust inlined, one that
@@ -42467,7 +42472,7 @@ swap places rather than one being edited into the other.
 
 | gate | |
 |---|---|
-| `LAKE_JOBS=4 scripts/gates.sh` | **all 13 OK** — `cargo-build` 3 s, `cargo-test` 8 s, `twin-lines` 1 s, `extract-check` 100 s, `lake-build` 357 s, everything else 0–5 s — and the census line prints between `progress.py`'s block and `loc.py`'s, as intended |
+| `LAKE_JOBS=4 scripts/gates.sh` | **all 13 OK** at `ee337c53` merged — `cargo-build` 3 s, `cargo-test` 8 s, `twin-lines` 1 s, `extract-check` 100 s, `lake-build` 357 s, everything else 0–5 s — and the census line prints between `progress.py`'s block and `loc.py`'s, as intended.  The later merge of `a27f72cf` is `proof/` only and touches no gate this branch's diff can reach (the merged branches gated it themselves), so it is not re-run — CLAUDE.md's merge rule |
 | `scripts/arena-census.py --selftest` | 20 fixture rows, every verdict as recorded (0.07 s) |
 | `scripts/arena-census.py --summary` | 1.7 s, no STALE / REDUNDANT / MALFORMED skip, no orphan arm |
 | the diff | `scripts/arena-census.py` (new), `scripts/arena-census-skip.txt` (new), `scripts/testdata/arena-census/**` (new), `scripts/gates.sh` (one hook line and its comment), this section.  **No file under `proof/` or `crates/`**, no generated model |
