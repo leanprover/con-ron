@@ -41060,3 +41060,302 @@ axiom at all; they are not censused.)
 | `scripts/overview-links.sh` | OK |
 | `scripts/holes.sh --check` | OK |
 | the diff | `proof/ConRon/Refine2/Frontend/**`, `proof/ConRon/Refine2.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, nothing under `Refine2/` but the new directory and the root index — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+### Task #97-P5-3 — Theorem 2: the `ExprOps` read tier closed, and two statements that were wrong (2026-09-22, Opus under Fable)
+
+The fourth phase of DESIGN §8.6's **P5**: task #97-P5-2 left `ExprOps/Read.lean`
+at 25 `sorry` — the six arm-split walks, the eight memo-threading companions,
+`leaf_guard`, and the eight tag-first readers whose hypothesis §10 of that
+section argued could be weakened but did not mechanise.  Branch `p5-3` off
+`arena`'s tip `bed357d2`, merged forward once (`e0616fdf`).
+
+**`ExprOps/Read.lean` is CLOSED, 25 → 0 `sorry`, and two of its statements had
+to be corrected on the way.**  The file is 1 118 → 4 880 lines, 90 theorems,
+**37 `#print axioms` rows, every one of them the three standard axioms except
+`leafMem_reverse`, which is `[propext]` alone**.  `ConRonRefine2` is 115 → 90
+(`ExprOps/Mut.lean` 65, `Specs.lean` 25, both untouched).
+
+#### 1. Finding 13 — P5-2 §10's weakening is HALF right, and the half it misses is the recursion
+
+Task #97-P5-2 §10 argued that P5-0's finding 3 (the nine tag-first readers need
+`StoreWF lst.store` plus "this handle resolves") can be weakened: what they
+need is the UNCONDITIONAL tag/view agreement
+
+    EStore_view_tagOf : st.view i = some v → i.tag = v.tagOf
+
+plus `EResolves` — "this handle decodes" — and nothing else.  Mechanised, that
+argument holds **for the four ONE-NODE readers and not for the four recursive
+ones**:
+
+| reader | hypotheses, mechanised | why |
+|---|---|---|
+| `is_lam`, `lam_pw`, `forall_pw`, `fvar_type_d` | `EResolves lst h` **only** | §10's argument, exactly: the tag decides the view, the view decides the twin's arm |
+| `strip_lams`, `strip_pis`, `pi_result`, `pi_arity` | `EResolves lst h` **and `StoreWF lst.store`** | they descend into the binder BODY, and the port's `Ok(None)` / `Ok(h)` at the CHILD needs the child to decode too |
+
+"The children of a decoding node decode" is `EWFAt`'s `childOK` clause and
+nothing weaker (`EResolves.child`, four lines).  So `StoreWF` does not leave
+the file, it leaves four of its eight statements — and §8's amendment for
+finding 3 should say *"`EResolves` at a one-node reader, `EResolves` +
+`StoreWF` at a walk"*, not "`EResolves` everywhere".
+
+`EStore_view_tagOf` itself was proved twice, independently, in the same day:
+here and in task #97-P5-Arms's `Refine2/Core/Arms/Sort.lean`, whose own note
+says *"this belongs in `Refine2/Specs.lean` beside `view_run`; it is here
+because this tier may not edit that file"*.  **It is now in `Specs.lean`, at
+that tier's names and verbatim at its text** (`ETables_get_tagOf` and
+`EStore_view_tagOf`, namespace `ConRon.Refine2`), so the dedupe when `p5-arms`
+lands is a deletion in `Core/Arms/Sort.lean` and nothing anywhere else.
+
+#### 2. Finding 12 — `fvar_leaves_go`'s accumulator is the twin's list REVERSED, and P5-0's statement of it is false
+
+`crates/con-ron-core/src/arena/expr_ops.rs:2177` says it in as many words:
+
+> Deviation: the twin conses `(idx, ty)` onto its accumulator and this pushes
+> onto the `Vec`, so the two lists are each other's reverse.  The result is
+> used only as a membership base (`leaf_mem` below is its only reader), and a
+> `Vec` has no cons — the copying combinators `fvl_append`/`cons_eidx` would
+> make the accumulation quadratic for nothing.
+
+P5-0 stated `FOut`'s success arm as `x = .ok ((absLeaves r.1, s'), lst')`,
+which is therefore **false**, and so was `fvar_leaves_fast_refines` — which
+P5-0 lists as CLOSED.  It was closed *vacuously*, off the `sorry` in
+`fvar_leaves_go_refines` directly under it: a false statement proved from an
+unproved one.  Both now read `(absLeaves r.1).reverse`, and
+`fvar_leaves_fast_refines` is `AOut (fun v => (absLeaves v).reverse) …`.
+
+**The unmemoized `fvar_leaves` is NOT affected** and was closed at `absLeaves`
+unchanged: it builds its list with `fvl_copy_from`/`fvl_append`, which are
+order preserving (`Pure.lean`'s note item 3 says exactly this, and is right).
+The deviation is the memoized walk's alone.
+
+What makes it sound is that `leafMem` is order blind, and that is now a lemma
+rather than a comment: `leafMem_reverse` (8 lines, `[propext]` and nothing
+else) off `leafMem_app`.  `leaf_guard` — the one consumer, which feeds
+`fvar_leaves_fast`'s answer to `leavesSubGo` — consumes exactly that: the
+`leaves_sub` induction is **generalised over the twin's `bl`** under the
+side condition `∀ i t, leafMem lbl i t = leafMem (absFvlL bl) i t`, the public
+`leaves_sub_*_refines` instantiate it at `lbl := absLeaves bl` with
+`fun _ _ => rfl`, and `leaf_guard_refines` instantiates it at the reversal.
+One extra hypothesis on three `def`s and one `rw` in one arm.
+
+**The lesson generalises and is worth a ledger line**: a Rust-side container
+deviation that is *documented in the port* is still a REFINEMENT obligation,
+and the place it has to be paid is the statement, not the proof.  The other
+`Vec`-vs-`List` pairs of this tier (`get_app_args`, `strip_lams`/`strip_pis`,
+`bvar_range`, `inst_pis_at`) are order preserving and were checked.
+
+#### 3. The arm-split walks: what the split costs, measured
+
+Task #97-P3-1 split six of the twin's walks into `mutual` arm `def`s for
+Theorem 1's benefit; the Rust keeps its arms inline.  The refinement therefore
+pays one `rw` at the arm `def` per constructor and nothing else — the peel is
+P5-2 §6's fuel induction unchanged.
+
+| walk | arms | what varies | `_aux` lines |
+|---|---:|---|---:|
+| `size_b` | 10 | the model; `max`-free `Nat` arithmetic on three `u64` adds | **308** |
+| `size_f` | 10 | `size_b` + the `fvar` arm descending into the annotation | **338** |
+| `has_fvar` | 10 | short-circuiting: the `Ok` arm splits on the child's `Bool` | **246** |
+| `wscoped_b` | 10 | the `fvar` arm recurses at a NEW depth under an `idx < d` test | **269** |
+| `loose_bvars_bounded` | 10 | the binder arms recurse at `k + 1`; the `bvar` arm is a comparison | **259** |
+| `fvar_leaves` | 10 | three `Vec` appends against `++`, through `Pure.lean`'s `fvl_append_refines` | **335** |
+
+and the three fuelled tag-first walks beside them, for scale: `pi_result` 77,
+`pi_arity` 96, `strip_lams` / `strip_pis` 116 each, `is_lam` 48, `lam_pw` 58.
+
+Two combinators carry the whole cost of the chain and are the reusable part:
+**`aout_err_bind`** (the callee threw, so the bind throws — *whatever the base
+states are*, which is what lets it be applied at a state the enclosing `AOut`
+was not measured from) and **`aout_rebase`** (`Ext` composed across a
+two-child arm).  Without them each two-child arm is fifteen lines instead of
+six.
+
+`loose_bvars_bounded` was produced from `wscoped_b` by textual substitution
+and **compiled on the first attempt**; `size_f` from `size_b` likewise.  The
+generation ratio is the same one task #97-P5-2 §1 measured at `intern`.
+
+#### 4. The memo-threading idiom, written out three times
+
+`{wscoped_b,fvar_leaves,leaves_sub}_{go,node,two}` is one `mutual` block in
+the Rust and one in the twin.  The three bodies call each other at the **same**
+fuel except `go → node`, which decrements.  So:
+
+The three inductions are **131 / 133 / 106 lines** (`wscoped`, `leaves_sub`,
+`fvar_leaves`), plus 31 for `two` and 80 for `node` at each — so the whole
+memo-threading group is ~730 lines for nine lemmas and three twin equations.
+
+* **the induction is on `go` alone**, and `two`/`node` are *derived at the same
+  fuel* from it (`wscoped_two_of_go`, `wscoped_node_of_go` and their two
+  siblings).  `go(n)` uses `node(n-1)` from the induction hypothesis; `two(n)`
+  and `node(n)` use `go(n)`, which is already in hand.  This is the shape the
+  Core tier's knot wants one rung up;
+* **the statement has to be a `def`, not an inline `∀`.**  `have htwo :=
+  wscoped_two_of_go hgo` on an inline `∀`-statement instantiates its implicit
+  binders eagerly and then has nothing left to apply ("don't know how to
+  synthesize implicit argument `o`").  `WGoAt`/`WTwoAt`/`WNodeAt` as `def`s,
+  and `have htwo : WTwoAt n := …`, is the whole fix.  **This is the fourth
+  idiom rule of the tier and it belongs in the recipe.**
+
+**The owed twin equations** — `wscopedBGo_unfold`, `leavesSubGo_unfold`,
+`fvarLeavesGo_unfold`, which P5-0 owed and P5-2 restated — are each three
+lines, and the ORDER of the three matters:
+
+    rw [<f>_succ]
+    simp only [<the node spec>, <the three arm defs>]   -- identify the arms FIRST
+    congr 1                                            -- or `rw [bind_assoc]`
+
+`simp` pushes the continuation INTO the `match` arms if `bind_assoc` is in the
+same call, and then the node spec no longer matches anything.  `<f>_succ`'s
+`(view h >>= arms) >>= k` against the spec's `view h >>= fun v => spec v >>= k`
+is bind-associativity and nothing else, so the last step is `congr 1` where
+the twin has a post-memo-insert continuation and nothing at all where it does
+not (`fvarLeavesGo`).
+
+`<f>NodeSpec_eq` — *the twin's own `match` IS the node spec* — is **one line**,
+`cases w <;> simp only [<spec>, <the three arm defs>]`, and it is what makes
+the ten-way dispatch cost a `cases` here as P5-2 §6 found it does at `view`.
+
+**`SeenRel` was restated** from an `isSome` agreement to
+`RelOn (fun _ => True) rm lm absEIdx (fun _ => ())`.  They are the same
+proposition — `Option Unit` is its own `isSome` — but only the second one is
+in the shape `Refine/HashMap2WF.lean`'s kit and `ExprOps/Pure.lean`'s
+`fvl_seen_refines`/`fvl_record_refines` speak, so the first cost a conversion
+at every use and the second costs nothing.  Rule: **a relational abstraction
+of a `HashMap2` is written with `RelOn`, at whatever value abstraction makes it
+true, and never spelled out by hand.**
+
+#### 5. What closed, by group
+
+| group | lemmas | closed | file |
+|---|---:|---:|---|
+| the tag/view agreement (`ETables_get_tagOf`, `EStore_view_tagOf`) | 2 | **2** | `Specs.lean` |
+| the four one-node tag-first readers (`is_lam`, `lam_pw`, `forall_pw`, `fvar_type_d`) | 4 | **4** | `ExprOps/Read.lean` |
+| the four recursive tag-first readers (`strip_lams`, `strip_pis`, `pi_result`, `pi_arity`) | 4 | **4** | `ExprOps/Read.lean` |
+| the six arm-split walks | 6 | **6** | `ExprOps/Read.lean` |
+| `wscoped_b_{go,node,two}` + `wscopedBGo_unfold` | 4 | **4** | `ExprOps/Read.lean` |
+| `leaves_sub_{go,node,two}` + `leavesSubGo_unfold` | 4 | **4** | `ExprOps/Read.lean` |
+| `fvar_leaves_{go,node,two}` + `fvarLeavesGo_unfold` (**restated**, §2) | 4 | **4** | `ExprOps/Read.lean` |
+| `leaf_guard`, `leafMem_app`, `leafMem_reverse` | 3 | **3** | `ExprOps/Read.lean` |
+| **total** | **31** | **31** | (25 of them `sorry`s; 6 are new machinery) |
+
+`fvar_leaves_fast_refines` is not in the table: it was already "closed" and is
+**re-closed at a corrected statement** (§2).
+
+#### 6. Elaboration
+
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, two runs.  The import
+baseline for `ExprOps/Read.lean` (`Specs` + `ExprOps/Pure` + `Arena/ExprOps`)
+measured the same way is **1.92 / 1.97 s**.
+
+| file | lines | theorems | `sorry` | raw (2 runs) |
+|---|---:|---:|---:|---|
+| `Refine2/Idiom.lean` | 183 | 12 | 0 | 2.42 / 2.23 s |
+| `Refine2/AbsStore.lean` | 459 | 13 | 0 | 2.67 / 2.49 s |
+| `Refine2/Inv.lean` | 496 | 25 | 0 | 2.70 / 2.44 s |
+| `Refine2/AbsState.lean` | 382 | 10 | 0 | 2.19 / 2.20 s |
+| `Refine2/Shape.lean` | 342 | 26 | 0 | 1.90 / 1.93 s |
+| `Refine2/Specs.lean` | 7 623 | 250 | 25 | 8.45 / 8.50 s |
+| `Refine2/ExprOps/Pure.lean` | 931 | 34 | 0 | 2.83 / 2.90 s |
+| `Refine2/ExprOps/Read.lean` | **4 880** | **90** | **0** | **6.69 / 6.71 s** |
+| `Refine2/ExprOps/Mut.lean` | 839 | 65 | 65 | 2.06 / 2.08 s |
+
+`Read.lean` is **≈ 4.8 s net for 90 theorems — 53 ms a lemma**, against
+`Specs.lean`'s 23 ms: the walks are longer than the inversion layer's `rw`
+chains but they are the same kind of thing, and **`grind` is still nowhere in
+this tier**.  **No declaration is anywhere near the 20-second flag; none is
+over 300 ms.**  At `set_option profiler` with a 300 ms threshold the whole
+file reports **two `simp` calls and no declaration at all**: 1.28 s and 310 ms,
+which are `wscopedBGo_unfold`'s and `leavesSubGo_unfold`'s arm identifications
+(§4) — the one place in the tier where `simp` walks a ten-arm `match` under a
+binder.  Nothing else is worth naming.
+
+#### 7. The axiom census
+
+**Thirty-seven `#print axioms` rows in `ExprOps/Read.lean`** (7 from task
+#97-P5-2 and 30 added here) and one more in `Specs.lean` (`EStore_view_tagOf`), over every group of
+§5.  Every one reads **`[propext, Classical.choice, Quot.sound]`** — **except
+`leafMem_reverse`, which reads `[propext]` and nothing else**, joining
+`satPred_toNat` and `absFVarNode_inj` as the tier's three choice-free lemmas.
+No `sorryAx` on a closed lemma, and still **no `bv_decide` axiom anywhere**.
+
+#### 8. What is left, exactly
+
+**`ExprOps/Read.lean`: nothing.**
+
+**`Specs.lean`, 25 — unchanged from task #97-P5-2 §10 and blocked, not
+unwritten:**
+
+* **8 readbacks** (`read_{name,level,levels,names}_run` and the four memoised
+  siblings) — an induction on `StoreWF`'s rank against `Arena/Denote.lean`'s
+  rank-recursive `denoteN`/`denoteL`/`denoteLs`, not a `view` peel.  Nothing
+  in this round makes them cheaper.
+* **5 binder/dispatch interns** (`intern_e_{lam,forall_e,lam_i,forall_e_i,
+  bind_i}_run` and `intern_e_run`) — **still blocked on `Arena/WFProofs.lean`'s
+  `EStore.internBindI_ext`**, which exists on branch `wf-ext`
+  (`proof/ConRon/Arena/WFProofs.lean:8382`, with `internBM_ext`, `internLamI_ext`
+  and `internForallEI_ext` beside it) and **has not landed on `arena`**.  When
+  it does, these five are the P5-2 §3b peel at one more array.
+* **3 node interns + 4 persistent interns** — the name/level/level-list stores'
+  `intern` is written over named helpers, so they want a ~6-lemma helper layer
+  of their own first (P5-2 §10).
+* **4 transient walks** (`intern_{name,level,level_list,levels}_run`) — want
+  the node interns under them.
+
+**`ExprOps/Mut.lean`, 65 — and the "52 non-blocked" count in this task's brief
+is wrong, which is the last finding.**  Of the 65, **57 intern**: every
+substituting walk (`instantiate1_go`, `instantiate_list*`, `abstract*`,
+`lift_loose_bvars*`, `lower_bvars*`, `reset_meta*`, `rename_consts*`,
+`mk_app_n*`, `bvar_range`, the eleven telescope instantiations, the recursor
+helpers and the level substitution) builds nodes, and every intern wrapper
+they reach is one of `Specs.lean`'s remaining twelve — `intern_e_run` above
+all, which is one of the five blocked on `internBindI_ext`.  So the thirteen
+`intern_rebuilt_*` the brief singles out are only the most visible of 57 that
+are blocked by the same merge.
+
+The **eight that are genuinely unblocked** are the packed-range family —
+`bvar_bound_go`, `bvar_bound_memo`, `fvar_range_go`, `fvar_range_memo`,
+`bvar_b`, `fvar_b`, `has_fvar_fast`, `loose_bvars_bounded_fast` — which read
+the derived column and the per-declaration memo and intern nothing.  They are
+§4's idiom at a walk whose memo lives in the STATE (`bvarBGet`/`bvarBSet`)
+rather than being threaded, so they are `Sim` and not `WOut`, and
+`Specs.lean` already has every primitive they need (`bvar_b_get_run`,
+`bvar_b_set_run`, `bvar_b_clear_run` and their `fvar_b` siblings).  **They are
+this round's unfinished business** and are ~800 lines at the measured rate.
+
+#### 9. What the next round needs
+
+1. **`Arena/WFProofs.lean`'s `Ext` family has to land on `arena`.**  It is
+   written (`wf-ext`) and it unblocks 5 `Specs.lean` lemmas and 57 of
+   `ExprOps/Mut.lean`'s 65 — i.e. **62 of `ConRonRefine2`'s 90 remaining
+   `sorry`s stand behind one merge**.  Nothing else in P5 is close to that
+   leverage.
+2. **`p5-arms`'s `Core/Arms/Sort.lean` drops its two tag/view lemmas** when it
+   lands; they are in `Specs.lean` now at its own names and text (§1).
+3. **The eight packed-range lemmas of `Mut.lean`** (§8), which need no merge.
+4. **The readbacks want the rank induction**, and that is the one group of P5
+   whose cost is still unmeasured.
+
+#### 10. The gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2`, at `p5-3` **before** the `arena` merge | **green**, 2 093 jobs, **90 `sorry`** (was 115) and no errors |
+| `cd proof && lake build` | **green**, 2 208 jobs — the default targets are untouched |
+| `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| `cd proof && lake build ConRonRefine2`, **after** merging `arena` `e0616fdf` | **RED, and not by this branch** — see below |
+| the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Read}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+**`arena` at `e0616fdf` does not build `ConRonRefine2`, and the failure is
+`Refine2/Core/Induction.lean`'s, not this branch's.**  Eight errors, all in
+that one file, all of the same kind: `coreKnot`'s fuel-`0` record now carries
+`whnfCoreStuckTag`/`whnfStuckTag` guards (the twin change `Arena/CoreGated.lean`
+that reached `arena` with task #97-P3-CoreWalks), and that tier's `rfl`-level
+unfoldings of the zero clause are stale against it —
+`Induction.lean:136` `Application type mismatch: rfl`, `:810` and `:970`
+`unsolved goals`, `:1155` a `#guard_msgs` mismatch.  Every other module of the
+tier compiles, including all three of `ExprOps/{Pure,Read,Mut}.lean` and
+`Specs.lean` (90 `sorry`, no errors).  **This is task #97-P5-Core's to fix and
+it blocks every P5 branch's gate run**, which is why this section reports the
+pre-merge number as the branch's own.
