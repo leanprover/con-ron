@@ -26,6 +26,9 @@ readings of the machine-word operations are all imported rather than rebuilt.
 | `Refine2/Shape.lean` | `AErrSim`/`AOut`/`Sim`/`SimR`/`SimS` — the shape of a Theorem-2 lemma |
 | `Refine2/Specs.lean` | the inversion layer, one `_run` lemma per primitive, keyed on the Rust equation |
 | `Refine2/ExprOps/*.lean` | the `arena::expr_ops` tier: 120 functions, one `_refines` each |
+| `Refine2/Core/*.lean` | the `arena::core` tier: `KnotRel`, the knot's memo floor, the fuel induction and the six entry points |
+| `Refine2/Inductives/*.lean` | the `arena::inductives` tier: 306 functions, one `_refines` each, and `IndRel` |
+| `Refine2/Frontend/*.lean` | the `arena::frontend` tier: the syntax vocabulary, `StateDRel`, the six Rust modules, and `parse_chunks_refines` / `builtin_prelude_e_refines` |
 -/
 import ConRon.Refine2.Idiom
 import ConRon.Refine2.AbsStore
@@ -36,3 +39,26 @@ import ConRon.Refine2.Specs
 import ConRon.Refine2.ExprOps.Pure
 import ConRon.Refine2.ExprOps.Read
 import ConRon.Refine2.ExprOps.Mut
+import ConRon.Refine2.Core
+import ConRon.Refine2.Checker.Shape
+import ConRon.Refine2.Promote.Intern
+import ConRon.Refine2.Promote.Promote
+import ConRon.Refine2.Checker.KnotHyp
+import ConRon.Refine2.Checker.Pins
+import ConRon.Refine2.Checker.Canon
+import ConRon.Refine2.Checker.Axioms
+import ConRon.Refine2.Checker.Spec
+import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.Checker.DeclCheck
+import ConRon.Refine2.Checker.Top
+import ConRon.Refine2.Inductives.Top
+import ConRon.Refine2.Frontend.Abs
+import ConRon.Refine2.Frontend.Shape
+import ConRon.Refine2.Frontend.Types
+import ConRon.Refine2.Frontend.Prepare
+import ConRon.Refine2.Frontend.NatOpGround
+import ConRon.Refine2.Frontend.Spec
+import ConRon.Refine2.Frontend.ProjRec
+import ConRon.Refine2.Frontend.ExportC
+import ConRon.Refine2.Frontend.ExportCInd
+import ConRon.Refine2.Frontend.Top

@@ -46,13 +46,15 @@ Each of the three interns is ONE field update as a value
    `rfl` and the only clauses with content are the ones that read the store
    below (`nchildOK`/`lchildOK`/`lschildOK`), `derExact` (through
    `derOfView`, which reads the nested derived columns) and `sync`;
-3. `denoteLAux_store_mono_nested` / `denoteEAux_store_mono_nested` and the
-   `LExt.of_ns` / `LsExt.of_ls` / `Ext.of_lss` lifts — the nested store's
-   `Ext` conjuncts replace the `st'.ns = st.ns` / `st'.lss = st.lss`
-   hypotheses the existing monotonicity lemmas carry, and the fuel is
-   literally the same because the tier that denotes did not move;
+3. the `Ext` conjunct, which is `Arena/WFProofs.lean`'s own
+   `EStore.internName_ext` / `internLevel_ext` / `internLevels_ext` (task
+   #97a follow-up 4).  This file used to carry its own
+   `denoteLAux_store_mono_nested` / `denoteEAux_store_mono_nested` and
+   `LExt.of_ns` / `LsExt.of_ls` / `Ext.of_lss` lifts; the store layer now
+   states the same fact UNCONDITIONALLY and over an arbitrary result store
+   (`{N,L,Ls,}Ext.of_view_mono`), so the copies here were deleted;
 4. the three statements themselves: each is `{N,L,Ls}Store.intern_spec` plus
-   those lifts plus `denote*_unfold` for the new handle's denotation.
+   that conjunct plus `denote*_unfold` for the new handle's denotation.
 -/
 import ConRon.Bridge.Rel
 
@@ -354,135 +356,6 @@ theorem EStore.wf_of_lss {st : EStore} {lss' : LsStore} {rk : EIdx → Nat}
         exact hlsd c u hu)]
     exact h.derExact i v hi'
 
-/-! ## The denotation, lifted through one level of the nesting
-
-`denoteLAux_store_mono` and `denoteEAux_store_mono` ask the nested store to
-stand STILL (`st'.ns = st.ns`, `st'.lss = st.lss`).  Here it grew, so each
-gets one generalisation whose extra hypotheses are exactly the nested store's
-`Ext` conjuncts. -/
-
-/-- con-leche: none — `denoteLAux_store_mono` with the name store's `NExt` in
-place of `st'.ns = st.ns`. -/
-theorem denoteLAux_store_mono_nested {st st' : LStore}
-    (hv : ∀ (i : LIdx) (v : LNodeView), st.view i = some v → st'.view i = some v)
-    (hns : NExt st.ns st'.ns) :
-    ∀ (f : Nat) (i : LIdx) (x : Level),
-      denoteLAux st f i = some x → denoteLAux st' f i = some x := by
-  intro f
-  induction f with
-  | zero => intro i x hd; simp [denoteLAux] at hd
-  | succ k ih =>
-    intro i x hd
-    simp only [denoteLAux, Option.bind_eq_some_iff] at hd ⊢
-    obtain ⟨v, hvv, hd⟩ := hd
-    refine ⟨v, hv i v hvv, ?_⟩
-    cases v with
-    | zero => exact hd
-    | param n =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      exact ⟨q, hns n q hq, he⟩
-    | succ u =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      exact ⟨q, ih u q hq, he⟩
-    | max u w =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨a, b, ha, hb, he⟩ := hd
-      exact ⟨a, b, ih u a ha, ih w b hb, he⟩
-    | imax u w =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨a, b, ha, hb, he⟩ := hd
-      exact ⟨a, b, ih u a ha, ih w b hb, he⟩
-
-/-- con-leche: none — `denoteEAux_store_mono` with the three `LsExt`
-conjuncts in place of `st'.lss = st.lss`. -/
-theorem denoteEAux_store_mono_nested {st st' : EStore}
-    (hv : ∀ (i : EIdx) (v : ENodeView), st.view i = some v → st'.view i = some v)
-    (hn : NExt st.ns st'.ns)
-    (hl : ∀ (i : LIdx) (u : Level), denoteL st.ls i = some u →
-      denoteL st'.ls i = some u)
-    (hls : ∀ (i : LsIdx) (us : List Level), denoteLs st.lss i = some us →
-      denoteLs st'.lss i = some us) :
-    ∀ (f : Nat) (i : EIdx) (e : Expr),
-      denoteEAux st f i = some e → denoteEAux st' f i = some e := by
-  intro f
-  induction f with
-  | zero => intro i e h; simp [denoteEAux] at h
-  | succ k ih =>
-    intro i e h
-    simp only [denoteEAux, Option.bind_eq_some_iff] at h ⊢
-    obtain ⟨v, hvv, h⟩ := h
-    refine ⟨v, hv i v hvv, ?_⟩
-    cases v with
-    | bvar _ => exact h
-    | lit _ => exact h
-    | sort u =>
-      simp only [Option.map_eq_some_iff] at h ⊢
-      obtain ⟨q, hq, he⟩ := h
-      exact ⟨q, hl u q hq, he⟩
-    | const n l =>
-      simp only [opt2_eq_some_iff] at h ⊢
-      obtain ⟨x, y, hx, hy, he⟩ := h
-      exact ⟨x, y, hn n x hx, hls l y hy, he⟩
-    | fvar j ty =>
-      simp only [Option.map_eq_some_iff] at h ⊢
-      obtain ⟨q, hq, he⟩ := h
-      exact ⟨q, ih ty q hq, he⟩
-    | proj n j e' =>
-      simp only [opt2_eq_some_iff] at h ⊢
-      obtain ⟨x, y, hx, hy, he⟩ := h
-      exact ⟨x, y, hn n x hx, ih e' y hy, he⟩
-    | app a b =>
-      simp only [opt2_eq_some_iff] at h ⊢
-      obtain ⟨x, y, hx, hy, he⟩ := h
-      exact ⟨x, y, ih a x hx, ih b y hy, he⟩
-    | lam ty b m =>
-      simp only [opt2_eq_some_iff] at h ⊢
-      obtain ⟨x, y, hx, hy, he⟩ := h
-      exact ⟨x, y, ih ty x hx, ih b y hy, he⟩
-    | forallE ty b m =>
-      simp only [opt2_eq_some_iff] at h ⊢
-      obtain ⟨x, y, hx, hy, he⟩ := h
-      exact ⟨x, y, ih ty x hx, ih b y hy, he⟩
-    | letE ty w b =>
-      simp only [opt3_eq_some_iff] at h ⊢
-      obtain ⟨x, y, z, hx, hy, hz, he⟩ := h
-      exact ⟨x, y, z, ih ty x hx, ih w y hy, ih b z hz, he⟩
-
-/-- con-leche: none — a level store whose name store extends, extends.  The
-level tier did not move, so the fuel is literally the same. -/
-theorem LExt.of_ns {st : LStore} {ns' : NStore} (hns : NExt st.ns ns') :
-    LExt st { st with ns := ns' } := by
-  refine ⟨hns, ?_⟩
-  intro i u hd
-  have h1 : denoteLAux { st with ns := ns' } (st.nodeCount + 1) i = some u :=
-    denoteLAux_store_mono_nested (st := st) (st' := { st with ns := ns' })
-      (fun _ _ hh => hh) hns (st.nodeCount + 1) i u hd
-  exact h1
-
-/-- con-leche: none — a level-list store whose level store extends,
-extends. -/
-theorem LsExt.of_ls {st : LsStore} {ls' : LStore} (hls : LExt st.ls ls') :
-    LsExt st { st with ls := ls' } := by
-  refine ⟨hls, ?_⟩
-  intro i us hd
-  obtain ⟨vs, hvs, hlist⟩ := denoteLs_view hd
-  have hvs' : ({ st with ls := ls' } : LsStore).view i = some vs := hvs
-  rw [denoteLs, hvs']
-  exact denoteLList_ext hls vs us hlist
-
-/-- con-leche: none — an expression store whose level-list store extends,
-extends.  The expression tier did not move, so the fuel is the same. -/
-theorem Ext.of_lss {st : EStore} {lss' : LsStore} (hlss : LsExt st.lss lss') :
-    Ext st { st with lss := lss' } := by
-  refine ⟨hlss, ?_⟩
-  intro i e hd
-  have h1 : denoteEAux { st with lss := lss' } (st.nodeCount + 1) i = some e :=
-    denoteEAux_store_mono_nested (st := st) (st' := { st with lss := lss' })
-      (fun _ _ hh => hh) hlss.ls.ns hlss.ls.lvl hlss.lst (st.nodeCount + 1) i e hd
-  exact h1
-
 /-! ## The three specs -/
 
 /-- con-leche: none — interning a NAME through the nesting keeps the whole
@@ -500,7 +373,7 @@ theorem EStore.internName_spec {st : EStore} {w : NNodeView} (h : StoreWF st)
   have hlsw : LsWF st.lss := h.lss
   obtain ⟨rkl, hlw⟩ : ∃ r, LWFAt st.lss.ls r := hlsw.ls
   obtain ⟨rkn, hnw⟩ : ∃ r, NWFAt st.lss.ls.ns r := hlw.ns
-  obtain ⟨hnwf', hnext, hnview⟩ := NStore.intern_spec ⟨rkn, hnw⟩ hv hcap
+  obtain ⟨hnwf', -, hnview⟩ := NStore.intern_spec ⟨rkn, hnw⟩ hv hcap
   obtain ⟨rkn', hnw'⟩ := hnwf'
   have hlw' : LWFAt { st.ls with ns := (st.ns.intern w).1 } rkl :=
     LStore.wf_of_ns hlw ⟨rkn', hnw'⟩ (NStore.scratchOn_intern st.ns w)
@@ -517,7 +390,7 @@ theorem EStore.internName_spec {st : EStore} {w : NNodeView} (h : StoreWF st)
       (fun _ _ hu => NStore.derived_intern hnw w hu)
       (fun _ _ _ => rfl) (fun _ _ _ => rfl)
   rw [EStore.internName_eq]
-  exact ⟨⟨rk, hewf⟩, Ext.of_lss (LsExt.of_ls (LExt.of_ns hnext)), rfl, rfl, rfl,
+  exact ⟨⟨rk, hewf⟩, EStore.internName_ext st w, rfl, rfl, rfl,
     hnview, denoteN_unfold hnw' hnview⟩
 
 /-- con-leche: none — the same for a LEVEL node. -/
@@ -533,7 +406,7 @@ theorem EStore.internLevel_spec {st : EStore} {w : LNodeView} (h : StoreWF st)
   obtain ⟨rk, h⟩ := h
   have hlsw : LsWF st.lss := h.lss
   obtain ⟨rkl, hlw⟩ : ∃ r, LWFAt st.lss.ls r := hlsw.ls
-  obtain ⟨hlwf', hlext, hlview⟩ := LStore.intern_spec ⟨rkl, hlw⟩ hv hcap
+  obtain ⟨hlwf', -, hlview⟩ := LStore.intern_spec ⟨rkl, hlw⟩ hv hcap
   obtain ⟨rkl', hlw'⟩ := hlwf'
   have hns : (st.ls.intern w).1.ns = st.ns := LStore.ns_intern st.ls w
   have hlsw' : LsWF { st.lss with ls := (st.ls.intern w).1 } :=
@@ -550,7 +423,7 @@ theorem EStore.internLevel_spec {st : EStore} {w : LNodeView} (h : StoreWF st)
       (fun _ _ hu => LStore.derived_intern hlw w hu)
       (fun _ _ _ => rfl)
   rw [EStore.internLevel_eq]
-  exact ⟨⟨rk, hewf⟩, Ext.of_lss (LsExt.of_ls hlext), rfl, rfl, rfl, hlview,
+  exact ⟨⟨rk, hewf⟩, EStore.internLevel_ext st w, rfl, rfl, rfl, hlview,
     denoteL_unfold hlw' hlview⟩
 
 /-- con-leche: none — the same for a universe-argument LIST node. -/
@@ -565,7 +438,7 @@ theorem EStore.internLevels_spec {st : EStore} {w : LsNodeView}
         denoteLsView (st.internLevels w).1.lss w := by
   obtain ⟨rk, h⟩ := h
   have hlsw : LsWF st.lss := h.lss
-  obtain ⟨hlswf', hlsext, hlsview⟩ := LsStore.intern_spec hlsw hv hcap
+  obtain ⟨hlswf', -, hlsview⟩ := LsStore.intern_spec hlsw hv hcap
   have hls : (st.lss.intern w).1.ls = st.ls := LsStore.ls_intern st.lss w
   have hlsn : (st.lss.intern w).1.ls.ns = st.ns := congrArg LStore.ns hls
   have hewf : EWFAt { st with lss := (st.lss.intern w).1 } rk :=
@@ -577,7 +450,7 @@ theorem EStore.internLevels_spec {st : EStore} {w : LsNodeView}
       (fun _ _ _ => by rw [hls])
       (fun _ _ hu => LsStore.derived_intern hlsw w hu)
   rw [EStore.internLevels_eq]
-  exact ⟨⟨rk, hewf⟩, Ext.of_lss hlsext, rfl, rfl, rfl, hlsview,
+  exact ⟨⟨rk, hewf⟩, EStore.internLevels_ext st w, rfl, rfl, rfl, hlsview,
     denoteLs_unfold hlsview⟩
 
 #print axioms EStore.internName_spec

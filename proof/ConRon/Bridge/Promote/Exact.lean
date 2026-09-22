@@ -38,6 +38,7 @@ mechanical do-notation over those four and is stated here for its consumers —
 and `promoteVG_spec` and nothing else from this file.
 -/
 import ConRon.Bridge.Promote.StoreP
+import ConRon.Arena.PromoteExt
 
 namespace ConRon.Bridge
 

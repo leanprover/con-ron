@@ -19,7 +19,22 @@ steps, one knot induction**:
   `BodySpec` theorem;
 * `Core/Induction.lean` — `knot_spec : ∀ f, KnotSpec mode env fe f`,
   `knot_spec_checkFuel` (what the Checker tier consumes) and the tier's
-  `#print axioms` census.
+  `#print axioms` census;
+* `Core/EnsureSort.lean` — **the seventh entry point**, which is not a
+  `coreKnot` slot and which `Bridge/Checker/Hyp.lean`'s `EnsureSortSpec`
+  asked for (task #97-P3-CoreWalks).  CLOSED;
+* `Core/Walks/**` — **Theorem 1 for the walks of `Arena/Core.lean` that are
+  NOT knot slots**, 133 of them by the census in `Core/Walks.lean`: the
+  readback frame (`Walks/Frame.lean`), the five answer relations
+  (`Walks/Spec.lean`), the five cached verdict walks (`Walks/Cached.lean`,
+  two of them CLOSED), the `defeq` body's cheap tests (`Walks/Guards.lean`,
+  `isBoolTrue_spec` CLOSED), **the fuel merge** (`Walks/Mono.lean`, task
+  #97-P3-Core-2 — one `…_mono` and one `…Fueled_mono` per knot-calling walk
+  of con-leche's `Kernel/Core.lean`, all CLOSED), **the projection table**
+  (`Walks/Proj.lean`, task #97-P3-Core-2 — `projTableName_spec`,
+  `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED on
+  `Bridge/Rel.lean`'s new `denoteProjEntry`) and the sixteen statements
+  (`Walks/Owed.lean`).
 
 **This module imports none of them** — the same rule
 `ConRon/Bridge/ExprOps.lean` carries and for the same reason
@@ -31,9 +46,14 @@ them as siblings; this file is the index.
 ## Where the tier stands
 
 Closed: the statement layer, the whole memo layer (all six wrappers), the
-stuck-tag branch, and **fifty-two per-arm step lemmas** over the six pure
-bodies.  Open: the six `…Body_spec` walks and the four batched-clause carries
-they wait on — see DESIGN §8's `### Task #97-P3-Core` for the per-arm table
-and the reason at each site.
+stuck-tag branch, **fifty-two per-arm step lemmas** over the six pure bodies,
+**the seventh entry point**, the non-slot walk tier's foundation and six of
+its walks, **the whole fuel merge** and **`whnfBody_spec`** — the first of the
+six bodies with no proof obligation of its own left, inheriting `sorryAx`
+from `reduceNat_spec` and `unfoldDefinition_spec` and from nothing else
+(task #97-P3-Core-2).  Open: the other five `…Body_spec` walks, the four
+batched-clause carries they wait on, and 127 of the 133 non-slot walks — see
+DESIGN §8's `### Task #97-P3-Core`, `### Task #97-P3-CoreWalks` and
+`### Task #97-P3-Core-2` for the tables and the reason at each site.
 -/
 import ConRon.Bridge.Core.Knot

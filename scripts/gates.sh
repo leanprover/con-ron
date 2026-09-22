@@ -9,13 +9,16 @@
 #   3. scripts/lint-rust-style.sh           the Aeneas subset (§3.4), both crates
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
 #   5. scripts/provenance-selftest.py        the gate's Lean parser, on its fixture
-#   6. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
-#   7. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
-#   8. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
-#   9. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
-#  10. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
-#  11. scripts/extract.sh --check           committed generated Lean == crate
-#  12. cd proof && lake build               the whole proof library elaborates
+#   6. scripts/twin-lines.py check          every `Lean twin:` line names a
+#                                           declaration of `proof/ConRon/**` at
+#                                           its current lines (§3.7)
+#   7. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
+#   8. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
+#   9. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
+#  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
+#  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
+#  12. scripts/extract.sh --check           committed generated Lean == crate
+#  13. cd proof && lake build               the whole proof library elaborates
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag: on a many-core machine the first build of the
 #      vendored con-leche can exhaust memory, task #74)
@@ -58,6 +61,11 @@ run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root
 run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
 run provenance    python3 "$root/scripts/provenance.py" check
 run provenance-self python3 "$root/scripts/provenance-selftest.py"
+# The other half of the same ledger: `provenance` checks what the Rust was
+# ported FROM (con-leche, a pinned tree), `twin-lines` what it is a port OF
+# (`proof/ConRon/**`, OUR tree, which every task edits — so its ranges rot
+# faster).  Task #97-TWIN.
+run twin-lines    python3 "$root/scripts/twin-lines.py" check
 run overview-links "$root/scripts/overview-links.sh"
 run holes         "$root/scripts/holes.sh" --check
 run gen-pins      "$root/scripts/gen-pins.sh" --check
@@ -72,4 +80,11 @@ echo "gates: all $n OK"
 # every landing shows where the port and the proof stand.
 echo
 python3 "$root/scripts/progress.py" --summary
+# The arena's own ledger (task #97-CENSUS): `progress.py` above is the OLD
+# tower's report — it credits a con-leche declaration when `Refine/<M>.lean`
+# states `f_refines`, and that tree is retired.  This one counts the TWINS of
+# `proof/ConRon/Arena/**` against Theorem 1 (`Bridge/**`) and Theorem 2
+# (`Refine2/**`).  A REPORT, never a FAIL: it runs after the gates and its
+# exit code is ignored on purpose.
+python3 "$root/scripts/arena-census.py" --summary || true
 python3 "$root/scripts/loc.py" --summary
