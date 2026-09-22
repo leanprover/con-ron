@@ -38274,7 +38274,11 @@ adopted: this tier does too (§8's last bullet).
 
 * **The Core tier (P3-Core)**: §7 — merged, and the `knot` field is
   discharged.  What is left for it is `EnsureSortSpec` (move it down) and the
-  pin-table frame clause.
+  pin-table frame clause.  **Its own open item "`PinsOK` surviving
+  `dropScratch`" is closed here**: `Bridge/Checker/Inv.lean`'s `PinsOK.pmono`,
+  from `PersPins` (the pin handles are persistent — `internReservedPins` runs
+  before the parse with the scratch tier closed) and `PExt`.  The Core tier may
+  use it as it stands.
 * **The Inductives tier**: `IndSpec μ` is one clause about
   `Inductives.checkIndDecl`, at the route `basisPinHit` did NOT recognise (the
   recogniser's exactness is item 15 and stays here).  Its conclusion is
