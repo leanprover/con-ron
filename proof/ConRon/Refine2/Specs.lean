@@ -3237,6 +3237,30 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
 
 /-! ## `arena::monad::intern_e_bvar` -/
 
+/-- **The twin's `intern` at a view its cons probe already finds** — the hit
+arm of `EStore.internAt`, read forward.  `Arena/Monad.lean`'s `internE` probes
+`find?` BEFORE it tests the capacity (task #97-P5-1's finding 9, fixed in the
+twin by task #97-P3-1), so `internE_run_of_cap` has a hit arm now and this is
+what discharges it: on a hit the store is unchanged and the handle is the one
+the probe answered. -/
+private theorem intern_eq_of_find_some {st : EStore} {v : ENodeView} {h : EIdx}
+    (hbm : EStore.eViewNeedsBM v = false) (hf : st.find? v = some h) :
+    st.intern v = (st, h) := by
+  have h1 : st.findBMOfView v = some (Idx.ofWord 0) := by
+    cases v <;> simp_all [EStore.eViewNeedsBM, EStore.findBMOfView]
+  have h2 : st.internBMOfView v = (st, Idx.ofWord 0) := by
+    cases v <;> simp_all [EStore.eViewNeedsBM, EStore.internBMOfView]
+  unfold EStore.find? at hf
+  unfold EStore.intern
+  simp only [h1, h2] at *
+  unfold EStore.findAt at hf
+  unfold EStore.internAt
+  split at hf
+  · simp_all
+  · split at hf
+    · simp_all
+    · simp at hf
+
 /-- `Arena.internE`'s run at a view whose array is below the cap and which
 needs no binder datum. -/
 theorem internE_run_of_cap {lst : AState} {v : ENodeView}
@@ -3247,15 +3271,16 @@ theorem internE_run_of_cap {lst : AState} {v : ENodeView}
       = .ok ((lst.store.intern v).2,
              { lst with store := (lst.store.intern v).1 }) := by
   rw [Arena.internE]
-  simp only [hbm, Bool.not_false, Bool.true_or, Bool.and_true, decide_eq_true_eq]
-  show StateT.run
-      (if (if lst.store.scratchOn then lst.store.scr.sizeOf v
-            else lst.store.pers.sizeOf v) < Idx.idxCap then
-         ((do set ({ lst with store := (lst.store.intern v).1 } : AState)
-              pure (lst.store.intern v).2) : AM EIdx)
-       else Arena.fail (.native "arena: expression constructor array full")) lst = _
-  rw [if_pos hcap]
-  rfl
+  cases hf : lst.store.find? v with
+  | some hh =>
+    rw [intern_eq_of_find_some hbm hf]
+    simp only [StateT.run, Bind.bind, StateT.bind, get, getThe, MonadStateOf.get,
+      StateT.get, Pure.pure, StateT.pure, Except.pure, Except.bind, hf]
+  | none =>
+    simp only [StateT.run, Bind.bind, StateT.bind, get, getThe, MonadStateOf.get,
+      StateT.get, Pure.pure, StateT.pure, Except.pure, Except.bind, hf, hbm,
+      Bool.not_false, Bool.true_or, Bool.and_true, decide_eq_true_eq,
+      if_pos hcap, set, MonadStateOf.set, StateT.set]
 
 theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
