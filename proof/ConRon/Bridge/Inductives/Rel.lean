@@ -734,6 +734,65 @@ theorem internParamL_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
   rw [hx]
   rfl
 
+/-- con-leche: none — `internLNode` at a `.max`: `structProjGuards`' fold
+step, and the one level node of this tier with two children. -/
+theorem internMaxL_run {s s' : AState} {a b : LIdx} {aP bP : Level} {h : LIdx}
+    (hok : StateOK s) (ha : denoteL s.store.ls a = some aP)
+    (hb : denoteL s.store.ls b = some bP)
+    (hrun : internLNode (.max a b) s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = some (.max aP bP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internLNode_run hok
+      ⟨by intro c hc
+          simp only [LNodeView.lchildren, List.mem_cons] at hc
+          rcases hc with rfl | rfl | hc
+          · exact lview_isSome_of_denote ha
+          · exact lview_isSome_of_denote hb
+          · exact absurd hc (by simp),
+       by simp [LNodeView.nchildren]⟩ hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteLView, denoteL_ext ha hstep.ext, denoteL_ext hb hstep.ext,
+    opt2]
+
+/-- con-leche: none — **the level list reads at an INDEX**, with the fallback
+carried through: `structProjGuards`' `sorts.getD j z` against con-leche's
+`sorts.getD j .zero`. -/
+theorem denoteLList_getD {st : LStore} : ∀ {us : List LIdx} {xs : List Level},
+    denoteLList st us = some xs → ∀ {z : LIdx} {zP : Level},
+      denoteL st z = some zP → ∀ (j : Nat),
+        denoteL st (us.getD j z) = some (xs.getD j zP) := by
+  intro us
+  induction us with
+  | nil =>
+    intro xs h z zP hz j
+    simp only [denoteLList] at h
+    obtain rfl := Option.some.inj h
+    simpa using hz
+  | cons u us ih =>
+    intro xs h z zP hz j
+    simp only [denoteLList, opt2] at h
+    cases hu : denoteL st u with
+    | none => rw [hu] at h; simp at h
+    | some y =>
+      cases hus : denoteLList st us with
+      | none => rw [hu, hus] at h; simp at h
+      | some ys =>
+        rw [hu, hus] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero => simpa using hu
+        | succ j => simpa using ih hus hz j
+
+/-- con-leche: none — **`zeroLevel`, as a run**: the pin read this tier's
+`structProjGuards` and `structPartsCore?` open with, and the reason
+`PSpecP` exists. -/
+theorem zeroLevel_run {s s' : AState} {u : LIdx} (hp : PinsOK s)
+    (hrun : Arena.zeroLevel s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls u = some .zero := by
+  simp only [Arena.zeroLevel] at hrun
+  exact AM.of_run (P := fun t => t = s) rfl hrun (pinZeroLevel_spec s hp)
+
 /-- con-leche: none — **`internLsNode`, as a run**: a universe-argument list
 node, which is what `paramLevels` answers. -/
 theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
