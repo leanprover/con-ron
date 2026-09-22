@@ -71,10 +71,19 @@ abstraction is `absEIdxList` with no reversal.  The same holds of
 
 ## Proofs
 
-Every lemma here is `sorry`: closing them needs the store and memo inversion
-layer of `Refine2/Specs.lean` (`view`/`viewApp`/`viewBindI`/`derivedE`/
-`internE` and the per-walk memo probe and insert), which is landing
-separately.  The STATEMENT is the deliverable, and it elaborates — which is
+**Eight of the sixty-five are closed (task #97-P5-3): the packed-range family**
+— `bvar_bound_go`, `bvar_bound_memo`, `fvar_range_go`, `fvar_range_memo`,
+`bvar_b`, `fvar_b`, `has_fvar_fast`, `loose_bvars_bounded_fast` — which read
+the derived column and the per-declaration memo and **intern nothing**.  They
+are `ExprOps/Read.lean`'s memo idiom at a walk whose memo lives in the STATE
+(`bvarBGet`/`bvarBSet`) rather than being threaded, so they are `Sim` and not
+`WOut`.
+
+**The other fifty-seven all intern**, and every intern wrapper they reach is
+one of `Refine2/Specs.lean`'s remaining twelve — `intern_e_run` above all,
+which waits on `Arena/WFProofs.lean`'s `EStore.internBindI_ext` (written on
+branch `wf-ext`, not yet on `arena`).  So the thirteen `intern_rebuilt_*` are
+only the most visible of fifty-seven blocked by one merge.  The STATEMENT is the deliverable, and it elaborates — which is
 what makes it worth anything.  The `Specs.lean` primitives each group waits on
 are named in its section note.
 -/
@@ -712,73 +721,1135 @@ memoised exactly as con-leche's is.  `Specs.lean` primitives: `derivedE`,
 `bvarBGet`/`bvarBSet`/`bvarBClear`, `fvarBGet`/`fvarBSet`/`fvarBClear`, the
 five projections. -/
 
-/-- `Arena/ExprOps.lean:1408 bvarBoundGo`. -/
+/-! ## The two `AOut` combinators, and the port's two `Nat` scalars -/
+
+/-- The error arm of a chained recursive call: the callee threw, so the whole
+bind throws, whatever the base states are. -/
+theorem aout_err_bind {β γ δ : Type} {A : γ → β} {C : Type} {AC : C → δ}
+    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
+    {lstA lstB : AState} {stA stB : arena.monad.AState}
+    {x : AM β} {f : β → AM δ}
+    (h : AOut A (fun _ => True) pers lstA (.Err e) stA (x.run lstA)) :
+    AOut AC (fun _ => True) pers lstB (.Err e) stB
+      ((do let v ← x; f v).run lstA) := by
+  refine AOut.err ?_
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+/-- An outcome measured from a later state is one measured from an earlier
+one, `Ext` composed. -/
+theorem aout_rebase {γ δ : Type} {AC : γ → δ} {pers : arena.store.PersTier}
+    {lst lst1 : AState} {st2 : arena.monad.AState}
+    {o : core.result.Result γ kernel.core_types.CheckError}
+    {y : Except Arena.CheckError (δ × AState)}
+    (hext : Ext lst.store lst1.store)
+    (h : AOut AC (fun _ => True) pers lst1 o st2 y) :
+    AOut AC (fun _ => True) pers lst o st2 y := by
+  cases o with
+  | Err e => exact h
+  | Ok c =>
+    obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := h
+    exact AOut.ok hy hrel2 hinv2 (Ext.trans hext hext2) trivial
+
+/-- `kernel::expr_ops::sub_nat` is `Nat` subtraction on the abstraction. -/
+theorem sub_nat_val {a b r : Std.U64}
+    (h : kernel.expr_ops.sub_nat a b = ok r) : absU r = absU a - absU b := by
+  rw [kernel.expr_ops.sub_nat] at h
+  split at h <;> rename_i hge
+  · exact (ConRon.Refine.Nat.usub_val h).2
+  · simp only [Result.ok.injEq] at h
+    rw [← h]
+    show (0 : Nat) = a.val - b.val
+    scalar_tac
+
+/-! ## `bvarBoundGo`'s node step, as an object -/
+
+/-- **The twin's arm dispatch of `bvarBoundGo`, transcribed** — the port
+inlines the arms where the twin (task #97-P3-1's split) names them. -/
+def bvarBoundNodeSpec (fuel : Nat) : ENodeView → AM Nat
+  | .bvar i => pure (i + 1)
+  | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 0
+  | .app f a => bvarBoundArmApp fuel f a
+  | .lam ty body _ | .forallE ty body _ => bvarBoundArmBind fuel ty body
+  | .letE ty val body => bvarBoundArmLet fuel ty val body
+  | .proj _ _ sub => bvarBoundGo fuel sub
+
+/-- The owed twin equation, in the port's own association: the memo probe,
+the node step, the memo write. -/
+theorem bvarBoundGo_unfold (fuel : Nat) (h : EIdx) :
+    bvarBoundGo (fuel + 1) h = (do
+      match ← bvarBGet h with
+      | some r => pure r
+      | none => do
+        let r ← (do let w ← view h; bvarBoundNodeSpec fuel w)
+        bvarBSet h r
+        pure r) := by
+  rw [bvarBoundGo_succ]
+  simp only [bvarBoundNodeSpec, bvarBoundArmApp, bvarBoundArmBind,
+    bvarBoundArmLet]
+  congr 1
+
+/-- The `bvar_bound_go` statement at one fuel value. -/
+def BGoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {fuel : Std.U64} {h : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st →
+    arena.expr_ops.bvar_bound_go pers st fuel h = ok o →
+    Sim absU (fun _ => True) pers lst o (bvarBoundGo (absU fuel) (absEIdx h))
+
+private theorem bvar_bound_go_aux (n : Nat) : BGoAt n := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.bvar_bound_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨rr, hrr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hrrv := fail_run hrr
+    have ho := Result.ok_injective hrun
+    rw [← ho, hrrv]
+    show AErrSim _ ((bvarBoundGo (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, bvarBoundGo_zero, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.bvar_bound_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hget := bvar_b_get_run hrel hinv hop
+    show AOut absU (fun _ => True) pers lst o.1 o.2
+      ((bvarBoundGo (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = m + 1 from hn, bvarBoundGo_unfold, StateT.run_bind, hget]
+    cases hoc : op with
+    | some r =>
+      rw [hoc] at hrun
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+    | none =>
+      rw [hoc] at hrun
+      show AOut absU (fun _ => True) pers lst o.1 o.2
+        ((do
+          let r ← (do let w ← Arena.view (absEIdx h); bvarBoundNodeSpec m w)
+          bvarBSet (absEIdx h) r
+          pure r).run lst)
+      obtain ⟨rv, hrv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hview := view_run hrel hinv hrv
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨st1, body⟩ := p
+      have hnode : AOut absU (fun _ => True) pers lst body st1
+          ((do let w ← Arena.view (absEIdx h); bvarBoundNodeSpec m w).run lst) := by
+        cases hrc : rv with
+        | Err e =>
+          rw [hrc] at hp hview
+          have hpp := Result.ok_injective hp
+          simp only [Prod.mk.injEq] at hpp
+          obtain ⟨rfl, rfl⟩ := hpp
+          show AErrSim e _
+          rw [StateT.run_bind]
+          exact AErrSim.bind hview _
+        | Ok ev =>
+          rw [hrc] at hp hview
+          obtain ⟨lst0, hx, -, -, -, -⟩ := hview
+          have hlst : lst0 = lst := view_run_state hx
+          rw [hlst] at hx
+          rw [StateT.run_bind, hx]
+          cases ev with
+          | BVar i0 =>
+            obtain ⟨i1, hi1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            refine AOut.ok ?_ hrel hinv (Ext.refl _) trivial
+            show Except.ok (absU i0 + 1, lst) = _
+            rw [show absU i1 = absU i0 + 1 from ConRon.Refine.Nat.uadd_val hi1]
+          | FVar _ _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | «Sort» _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | Const _ _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | Lit _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | Proj _ _ s0 =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := s0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact hrec1
+          | App f0 a0 =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := f0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((bvarBoundArmApp m (absEIdx f0) (absEIdx a0)).run lst)
+            rw [bvarBoundArmApp]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := a0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              obtain ⟨r3, hr3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              show AOut absU (fun _ => True) pers lst r3 st3
+                ((do let y ← bvarBoundGo m (absEIdx a0)
+                     pure (max (absU x1) y)).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hr3 hrec2
+                have ho3 : (core.result.Result.Err e :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hr3 hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨i3, hi3, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                have ho3 : (core.result.Result.Ok i3 :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+                show Except.ok (max (absU x1) (absU y1), lst2) = _
+                rw [show absU i3 = max (absU x1) (absU y1) from
+                  ConRon.Refine.Expr.max_u64_val hi3]
+          | Lam ty0 b0 mm =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := ty0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((bvarBoundArmBind m (absEIdx ty0) (absEIdx b0)).run lst)
+            rw [bvarBoundArmBind]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := b0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              obtain ⟨r3, hr3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              show AOut absU (fun _ => True) pers lst r3 st3
+                ((do let y ← bvarBoundGo m (absEIdx b0)
+                     pure (max (absU x1) (y - 1))).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hr3 hrec2
+                have ho3 : (core.result.Result.Err e :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hr3 hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨i4, hi4, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                obtain ⟨i3, hi3, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                have ho3 : (core.result.Result.Ok i3 :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+                show Except.ok (max (absU x1) (absU y1 - 1), lst2) = _
+                rw [show absU i3 = max (absU x1) (absU i4) from
+                    ConRon.Refine.Expr.max_u64_val hi3,
+                  show absU i4 = absU y1 - 1 from sub_nat_val hi4]
+          | ForallE ty0 b0 mm =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := ty0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((bvarBoundArmBind m (absEIdx ty0) (absEIdx b0)).run lst)
+            rw [bvarBoundArmBind]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := b0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              obtain ⟨r3, hr3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              show AOut absU (fun _ => True) pers lst r3 st3
+                ((do let y ← bvarBoundGo m (absEIdx b0)
+                     pure (max (absU x1) (y - 1))).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hr3 hrec2
+                have ho3 : (core.result.Result.Err e :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hr3 hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨i4, hi4, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                obtain ⟨i3, hi3, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                have ho3 : (core.result.Result.Ok i3 :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+                show Except.ok (max (absU x1) (absU y1 - 1), lst2) = _
+                rw [show absU i3 = max (absU x1) (absU i4) from
+                    ConRon.Refine.Expr.max_u64_val hi3,
+                  show absU i4 = absU y1 - 1 from sub_nat_val hi4]
+          | LetE ty0 v0 b0 =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := ty0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((bvarBoundArmLet m (absEIdx ty0) (absEIdx v0) (absEIdx b0)).run lst)
+            rw [bvarBoundArmLet]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := v0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              show AOut absU (fun _ => True) pers lst body st1
+                ((do let y ← bvarBoundGo m (absEIdx v0)
+                     let z ← bvarBoundGo m (absEIdx b0)
+                     pure (max (max (absU x1) y) (z - 1))).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hp hrec2
+                have hpp := Result.ok_injective hp
+                simp only [Prod.mk.injEq] at hpp
+                obtain ⟨rfl, rfl⟩ := hpp
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hp hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨q3, hq3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+                obtain ⟨r3, st4⟩ := q3
+                have hrec3 := ih (h := b0) hi2v hrel2 hinv2 hq3
+                rw [show absU i2 = m from hi2v] at hrec3
+                obtain ⟨r4, hr4, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+                have hpp := Result.ok_injective hp
+                simp only [Prod.mk.injEq] at hpp
+                obtain ⟨rfl, rfl⟩ := hpp
+                show AOut absU (fun _ => True) pers lst r4 st4
+                  ((do let z ← bvarBoundGo m (absEIdx b0)
+                       pure (max (max (absU x1) (absU y1)) (z - 1))).run lst2)
+                cases hr3c : r3 with
+                | Err e =>
+                  rw [hr3c] at hr4 hrec3
+                  have ho4 : (core.result.Result.Err e :
+                      core.result.Result Std.U64 _) = r4 := Result.ok_injective hr4
+                  rw [← ho4]
+                  exact aout_err_bind hrec3
+                | Ok z1 =>
+                  rw [hr3c] at hr4 hrec3
+                  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := hrec3
+                  rw [StateT.run_bind, hx3]
+                  obtain ⟨i5, hi5, hr4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr4
+                  obtain ⟨i6, hi6, hr4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr4
+                  obtain ⟨i7, hi7, hr4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr4
+                  have ho4 : (core.result.Result.Ok i7 :
+                      core.result.Result Std.U64 _) = r4 := Result.ok_injective hr4
+                  rw [← ho4]
+                  refine AOut.ok ?_ hrel3 hinv3
+                    (Ext.trans hext1 (Ext.trans hext2 hext3)) trivial
+                  show Except.ok
+                    (max (max (absU x1) (absU y1)) (absU z1 - 1), lst3) = _
+                  rw [show absU i7 = max (absU i5) (absU i6) from
+                      ConRon.Refine.Expr.max_u64_val hi7,
+                    show absU i5 = max (absU x1) (absU y1) from
+                      ConRon.Refine.Expr.max_u64_val hi5,
+                    show absU i6 = absU z1 - 1 from sub_nat_val hi6]
+      cases hbc : body with
+      | Err e =>
+        rw [hbc] at hrun hnode
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact aout_err_bind hnode
+      | Ok r1 =>
+        rw [hbc] at hrun hnode
+        obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨st2, hst2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hnode
+        rw [StateT.run_bind, hx1]
+        have hee : e1 = h := dupId_eidx h e1 he1
+        rw [hee] at hst2
+        obtain ⟨lst2, hs2, hrel2, hinv2, hext2⟩ := bvar_b_set_run hrel1 hinv1 hst2
+        show AOut absU (fun _ => True) pers lst (core.result.Result.Ok r1) st2
+          ((do
+            let _ ← Arena.bvarBSet (absEIdx h) (absU r1)
+            pure (absU r1)).run lst1)
+        rw [StateT.run_bind, hs2]
+        exact AOut.ok rfl hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+
 theorem bvar_bound_go_refines {pers st lst} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.bvar_bound_go pers st fuel h = ok o) :
-    Sim absU (fun _ => True) pers lst o
-      (bvarBoundGo (absU fuel) (absEIdx h)) := by
-  sorry
+    Sim absU (fun _ => True) pers lst o (bvarBoundGo (absU fuel) (absEIdx h)) :=
+  bvar_bound_go_aux fuel.val rfl hrel hinv hrun
 
-/-- `Arena/ExprOps.lean:1437 bvarBoundMemo`. -/
-theorem bvar_bound_memo_refines {pers st lst} {fuel : Std.U64}
-    {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.bvar_bound_memo pers st fuel e = ok o) :
-    Sim absU (fun _ => True) pers lst o
-      (bvarBoundMemo (absU fuel) (absEIdx e)) := by
-  sorry
+/-- **The twin's arm dispatch of `fvarRangeGo`, transcribed** — the port
+inlines the arms where the twin (task #97-P3-1's split) names them. -/
+def fvarRangeNodeSpec (fuel : Nat) : ENodeView → AM Nat
+  | .fvar idx _ => pure (idx + 1)
+  | .bvar _ | .sort _ | .const _ _ | .lit _ => pure 0
+  | .app f a => fvarRangeArmApp fuel f a
+  | .lam ty body _ | .forallE ty body _ => fvarRangeArmBind fuel ty body
+  | .letE ty val body => fvarRangeArmLet fuel ty val body
+  | .proj _ _ sub => fvarRangeGo fuel sub
 
-/-- `Arena/ExprOps.lean:1447 fvarRangeGo`. -/
+/-- The owed twin equation, in the port's own association: the memo probe,
+the node step, the memo write. -/
+theorem fvarRangeGo_unfold (fuel : Nat) (h : EIdx) :
+    fvarRangeGo (fuel + 1) h = (do
+      match ← fvarBGet h with
+      | some r => pure r
+      | none => do
+        let r ← (do let w ← view h; fvarRangeNodeSpec fuel w)
+        fvarBSet h r
+        pure r) := by
+  rw [fvarRangeGo_succ]
+  simp only [fvarRangeNodeSpec, fvarRangeArmApp, fvarRangeArmBind,
+    fvarRangeArmLet]
+  congr 1
+
+/-- The `bvar_bound_go` statement at one fuel value. -/
+def FRGoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {fuel : Std.U64} {h : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st →
+    arena.expr_ops.fvar_range_go pers st fuel h = ok o →
+    Sim absU (fun _ => True) pers lst o (fvarRangeGo (absU fuel) (absEIdx h))
+
+private theorem fvar_range_go_aux (n : Nat) : FRGoAt n := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.fvar_range_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨rr, hrr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hrrv := fail_run hrr
+    have ho := Result.ok_injective hrun
+    rw [← ho, hrrv]
+    show AErrSim _ ((fvarRangeGo (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, fvarRangeGo_zero, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.fvar_range_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hget := fvar_b_get_run hrel hinv hop
+    show AOut absU (fun _ => True) pers lst o.1 o.2
+      ((fvarRangeGo (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = m + 1 from hn, fvarRangeGo_unfold, StateT.run_bind, hget]
+    cases hoc : op with
+    | some r =>
+      rw [hoc] at hrun
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+    | none =>
+      rw [hoc] at hrun
+      show AOut absU (fun _ => True) pers lst o.1 o.2
+        ((do
+          let r ← (do let w ← Arena.view (absEIdx h); fvarRangeNodeSpec m w)
+          fvarBSet (absEIdx h) r
+          pure r).run lst)
+      obtain ⟨rv, hrv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hview := view_run hrel hinv hrv
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨st1, body⟩ := p
+      have hnode : AOut absU (fun _ => True) pers lst body st1
+          ((do let w ← Arena.view (absEIdx h); fvarRangeNodeSpec m w).run lst) := by
+        cases hrc : rv with
+        | Err e =>
+          rw [hrc] at hp hview
+          have hpp := Result.ok_injective hp
+          simp only [Prod.mk.injEq] at hpp
+          obtain ⟨rfl, rfl⟩ := hpp
+          show AErrSim e _
+          rw [StateT.run_bind]
+          exact AErrSim.bind hview _
+        | Ok ev =>
+          rw [hrc] at hp hview
+          obtain ⟨lst0, hx, -, -, -, -⟩ := hview
+          have hlst : lst0 = lst := view_run_state hx
+          rw [hlst] at hx
+          rw [StateT.run_bind, hx]
+          cases ev with
+          | BVar _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | FVar idx0 _ =>
+            obtain ⟨i1, hi1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            refine AOut.ok ?_ hrel hinv (Ext.refl _) trivial
+            show Except.ok (absU idx0 + 1, lst) = _
+            rw [show absU i1 = absU idx0 + 1 from ConRon.Refine.Nat.uadd_val hi1]
+          | «Sort» _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | Const _ _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | Lit _ =>
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          | Proj _ _ s0 =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := s0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            have hpp := Result.ok_injective hp
+            simp only [Prod.mk.injEq] at hpp
+            obtain ⟨rfl, rfl⟩ := hpp
+            exact hrec1
+          | App f0 a0 =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := f0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((fvarRangeArmApp m (absEIdx f0) (absEIdx a0)).run lst)
+            rw [fvarRangeArmApp]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := a0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              obtain ⟨r3, hr3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              show AOut absU (fun _ => True) pers lst r3 st3
+                ((do let y ← fvarRangeGo m (absEIdx a0)
+                     pure (max (absU x1) y)).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hr3 hrec2
+                have ho3 : (core.result.Result.Err e :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hr3 hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨i3, hi3, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                have ho3 : (core.result.Result.Ok i3 :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+                show Except.ok (max (absU x1) (absU y1), lst2) = _
+                rw [show absU i3 = max (absU x1) (absU y1) from
+                  ConRon.Refine.Expr.max_u64_val hi3]
+          | Lam ty0 b0 mm =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := ty0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((fvarRangeArmBind m (absEIdx ty0) (absEIdx b0)).run lst)
+            rw [fvarRangeArmBind]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := b0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              obtain ⟨r3, hr3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              show AOut absU (fun _ => True) pers lst r3 st3
+                ((do let y ← fvarRangeGo m (absEIdx b0)
+                     pure (max (absU x1) y)).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hr3 hrec2
+                have ho3 : (core.result.Result.Err e :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hr3 hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨i3, hi3, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                have ho3 : (core.result.Result.Ok i3 :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+                show Except.ok (max (absU x1) (absU y1), lst2) = _
+                rw [show absU i3 = max (absU x1) (absU y1) from
+                  ConRon.Refine.Expr.max_u64_val hi3]
+          | ForallE ty0 b0 mm =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := ty0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((fvarRangeArmBind m (absEIdx ty0) (absEIdx b0)).run lst)
+            rw [fvarRangeArmBind]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := b0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              obtain ⟨r3, hr3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              show AOut absU (fun _ => True) pers lst r3 st3
+                ((do let y ← fvarRangeGo m (absEIdx b0)
+                     pure (max (absU x1) y)).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hr3 hrec2
+                have ho3 : (core.result.Result.Err e :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hr3 hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨i3, hi3, hr3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr3
+                have ho3 : (core.result.Result.Ok i3 :
+                    core.result.Result Std.U64 _) = r3 := Result.ok_injective hr3
+                rw [← ho3]
+                refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+                show Except.ok (max (absU x1) (absU y1), lst2) = _
+                rw [show absU i3 = max (absU x1) (absU y1) from
+                  ConRon.Refine.Expr.max_u64_val hi3]
+          | LetE ty0 v0 b0 =>
+            obtain ⟨i2, hi2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            have hi2v : i2.val = m := by
+              have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+                (ConRon.Refine.Nat.usub_val hi2).2
+              rw [h1, hn]; rfl
+            obtain ⟨q1, hq1, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+            obtain ⟨r1, st2⟩ := q1
+            have hrec1 := ih (h := ty0) hi2v hrel hinv hq1
+            rw [show absU i2 = m from hi2v] at hrec1
+            show AOut absU (fun _ => True) pers lst body st1
+              ((fvarRangeArmLet m (absEIdx ty0) (absEIdx v0) (absEIdx b0)).run lst)
+            rw [fvarRangeArmLet]
+            cases hr1c : r1 with
+            | Err e =>
+              rw [hr1c] at hp hrec1
+              have hpp := Result.ok_injective hp
+              simp only [Prod.mk.injEq] at hpp
+              obtain ⟨rfl, rfl⟩ := hpp
+              exact aout_err_bind hrec1
+            | Ok x1 =>
+              rw [hr1c] at hp hrec1
+              obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hrec1
+              rw [StateT.run_bind, hx1]
+              obtain ⟨q2, hq2, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+              obtain ⟨r2, st3⟩ := q2
+              have hrec2 := ih (h := v0) hi2v hrel1 hinv1 hq2
+              rw [show absU i2 = m from hi2v] at hrec2
+              show AOut absU (fun _ => True) pers lst body st1
+                ((do let y ← fvarRangeGo m (absEIdx v0)
+                     let z ← fvarRangeGo m (absEIdx b0)
+                     pure (max (max (absU x1) y) z)).run lst1)
+              cases hr2c : r2 with
+              | Err e =>
+                rw [hr2c] at hp hrec2
+                have hpp := Result.ok_injective hp
+                simp only [Prod.mk.injEq] at hpp
+                obtain ⟨rfl, rfl⟩ := hpp
+                exact aout_err_bind hrec2
+              | Ok y1 =>
+                rw [hr2c] at hp hrec2
+                obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hrec2
+                rw [StateT.run_bind, hx2]
+                obtain ⟨q3, hq3, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+                obtain ⟨r3, st4⟩ := q3
+                have hrec3 := ih (h := b0) hi2v hrel2 hinv2 hq3
+                rw [show absU i2 = m from hi2v] at hrec3
+                obtain ⟨r4, hr4, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+                have hpp := Result.ok_injective hp
+                simp only [Prod.mk.injEq] at hpp
+                obtain ⟨rfl, rfl⟩ := hpp
+                show AOut absU (fun _ => True) pers lst r4 st4
+                  ((do let z ← fvarRangeGo m (absEIdx b0)
+                       pure (max (max (absU x1) (absU y1)) z)).run lst2)
+                cases hr3c : r3 with
+                | Err e =>
+                  rw [hr3c] at hr4 hrec3
+                  have ho4 : (core.result.Result.Err e :
+                      core.result.Result Std.U64 _) = r4 := Result.ok_injective hr4
+                  rw [← ho4]
+                  exact aout_err_bind hrec3
+                | Ok z1 =>
+                  rw [hr3c] at hr4 hrec3
+                  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := hrec3
+                  rw [StateT.run_bind, hx3]
+                  obtain ⟨i5, hi5, hr4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr4
+                  obtain ⟨i7, hi7, hr4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr4
+                  have ho4 : (core.result.Result.Ok i7 :
+                      core.result.Result Std.U64 _) = r4 := Result.ok_injective hr4
+                  rw [← ho4]
+                  refine AOut.ok ?_ hrel3 hinv3
+                    (Ext.trans hext1 (Ext.trans hext2 hext3)) trivial
+                  show Except.ok
+                    (max (max (absU x1) (absU y1)) (absU z1), lst3) = _
+                  rw [show absU i7 = max (absU i5) (absU z1) from
+                      ConRon.Refine.Expr.max_u64_val hi7,
+                    show absU i5 = max (absU x1) (absU y1) from
+                      ConRon.Refine.Expr.max_u64_val hi5]
+      cases hbc : body with
+      | Err e =>
+        rw [hbc] at hrun hnode
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact aout_err_bind hnode
+      | Ok r1 =>
+        rw [hbc] at hrun hnode
+        obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨st2, hst2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hnode
+        rw [StateT.run_bind, hx1]
+        have hee : e1 = h := dupId_eidx h e1 he1
+        rw [hee] at hst2
+        obtain ⟨lst2, hs2, hrel2, hinv2, hext2⟩ := fvar_b_set_run hrel1 hinv1 hst2
+        show AOut absU (fun _ => True) pers lst (core.result.Result.Ok r1) st2
+          ((do
+            let _ ← Arena.fvarBSet (absEIdx h) (absU r1)
+            pure (absU r1)).run lst1)
+        rw [StateT.run_bind, hs2]
+        exact AOut.ok rfl hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+
 theorem fvar_range_go_refines {pers st lst} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.fvar_range_go pers st fuel h = ok o) :
-    Sim absU (fun _ => True) pers lst o
-      (fvarRangeGo (absU fuel) (absEIdx h)) := by
-  sorry
+    Sim absU (fun _ => True) pers lst o (fvarRangeGo (absU fuel) (absEIdx h)) :=
+  fvar_range_go_aux fuel.val rfl hrel hinv hrun
 
-/-- `Arena/ExprOps.lean:1476 fvarRangeMemo`. -/
+/-! ## The four range entry points and their two memo brackets -/
+
+theorem bvar_bound_memo_refines {pers st lst} {fuel : Std.U64}
+    {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.expr_ops.bvar_bound_memo pers st fuel e = ok o) :
+    Sim absU (fun _ => True) pers lst o (bvarBoundMemo (absU fuel) (absEIdx e)) := by
+  rw [arena.expr_ops.bvar_bound_memo] at hrun
+  obtain ⟨st1, hst1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st2⟩ := q
+  obtain ⟨lst1, hc1, hrel1, hinv1, hext1⟩ := bvar_b_clear_run hrel hinv hst1
+  have hgo := bvar_bound_go_refines hrel1 hinv1 hq
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((do
+      let _ ← Arena.bvarBClear
+      let r ← bvarBoundGo (absU fuel) (absEIdx e)
+      let _ ← Arena.bvarBClear
+      pure r).run lst)
+  rw [StateT.run_bind, hc1]
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((do
+      let r ← bvarBoundGo (absU fuel) (absEIdx e)
+      let _ ← Arena.bvarBClear
+      pure r).run lst1)
+  cases hrc : r with
+  | Err er =>
+    rw [hrc] at hrun hgo
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact aout_err_bind hgo
+  | Ok r1 =>
+    rw [hrc] at hrun hgo
+    obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hgo
+    rw [StateT.run_bind, hx2]
+    obtain ⟨st3, hst3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    obtain ⟨lst3, hc3, hrel3, hinv3, hext3⟩ := bvar_b_clear_run hrel2 hinv2 hst3
+    show AOut absU (fun _ => True) pers lst (core.result.Result.Ok r1) st3
+      ((do
+        let _ ← Arena.bvarBClear
+        pure (absU r1)).run lst2)
+    rw [StateT.run_bind, hc3]
+    exact AOut.ok rfl hrel3 hinv3
+      (Ext.trans hext1 (Ext.trans hext2 hext3)) trivial
+
 theorem fvar_range_memo_refines {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.fvar_range_memo pers st fuel e = ok o) :
-    Sim absU (fun _ => True) pers lst o
-      (fvarRangeMemo (absU fuel) (absEIdx e)) := by
-  sorry
+    Sim absU (fun _ => True) pers lst o (fvarRangeMemo (absU fuel) (absEIdx e)) := by
+  rw [arena.expr_ops.fvar_range_memo] at hrun
+  obtain ⟨st1, hst1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st2⟩ := q
+  obtain ⟨lst1, hc1, hrel1, hinv1, hext1⟩ := fvar_b_clear_run hrel hinv hst1
+  have hgo := fvar_range_go_refines hrel1 hinv1 hq
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((do
+      let _ ← Arena.fvarBClear
+      let r ← fvarRangeGo (absU fuel) (absEIdx e)
+      let _ ← Arena.fvarBClear
+      pure r).run lst)
+  rw [StateT.run_bind, hc1]
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((do
+      let r ← fvarRangeGo (absU fuel) (absEIdx e)
+      let _ ← Arena.fvarBClear
+      pure r).run lst1)
+  cases hrc : r with
+  | Err er =>
+    rw [hrc] at hrun hgo
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact aout_err_bind hgo
+  | Ok r1 =>
+    rw [hrc] at hrun hgo
+    obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hgo
+    rw [StateT.run_bind, hx2]
+    obtain ⟨st3, hst3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    obtain ⟨lst3, hc3, hrel3, hinv3, hext3⟩ := fvar_b_clear_run hrel2 hinv2 hst3
+    show AOut absU (fun _ => True) pers lst (core.result.Result.Ok r1) st3
+      ((do
+        let _ ← Arena.fvarBClear
+        pure (absU r1)).run lst2)
+    rw [StateT.run_bind, hc3]
+    exact AOut.ok rfl hrel3 hinv3
+      (Ext.trans hext1 (Ext.trans hext2 hext3)) trivial
 
-/-- `Arena/ExprOps.lean:1486 bvarB` — the `O(1)` read with the saturated
-fallback. -/
-theorem bvar_b_refines {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {o}
+theorem bvar_b_refines {pers st lst} {fuel : Std.U64}
+    {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.bvar_b pers st fuel e = ok o) :
     Sim absU (fun _ => True) pers lst o (bvarB (absU fuel) (absEIdx e)) := by
-  sorry
+  rw [arena.expr_ops.bvar_b] at hrun
+  obtain ⟨der, hder, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨sr, hsr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hderE := hder
+  rw [arena.monad.derived_e] at hderE
+  obtain ⟨hbv, -, -⟩ := derObsE_fields (estore_derived_abs hrel.store hderE)
+  have hbb := ConRon.Refine.Expr.bvar_of_data_val hr
+  have hsrv := ConRon.Refine.Expr.sat_range_val hsr
+  have hbn : (ConLeche.bvarOfData (lst.store.derived (absEIdx e))).toNat = absU r := by
+    rw [hbv]; exact hbb.symm
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((do
+      let d ← Arena.derivedE (absEIdx e)
+      if (ConLeche.bvarOfData d).toNat == ConLeche.satRange then
+        bvarBoundMemo (absU fuel) (absEIdx e)
+      else pure (ConLeche.bvarOfData d).toNat).run lst)
+  rw [StateT.run_bind,
+    show (Arena.derivedE (absEIdx e)).run lst
+      = .ok (lst.store.derived (absEIdx e), lst) from rfl]
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((if ((ConLeche.bvarOfData (lst.store.derived (absEIdx e))).toNat
+            == ConLeche.satRange) = true then
+        bvarBoundMemo (absU fuel) (absEIdx e)
+      else pure (ConLeche.bvarOfData (lst.store.derived (absEIdx e))).toNat).run lst)
+  by_cases hc : r = sr
+  · rw [if_pos hc] at hrun
+    rw [if_pos (show ((ConLeche.bvarOfData (lst.store.derived (absEIdx e))).toNat
+        == ConLeche.satRange) = true by rw [hbn, hc, ← hsrv]; simp)]
+    exact bvar_bound_memo_refines hrel hinv hrun
+  · rw [if_neg hc] at hrun
+    rw [if_neg (show ¬ (((ConLeche.bvarOfData (lst.store.derived (absEIdx e))).toNat
+        == ConLeche.satRange) = true) by
+      rw [hbn, ← hsrv]
+      simp only [beq_iff_eq]
+      intro hz
+      exact hc (Std.UScalar.eq_of_val_eq hz))]
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    refine AOut.ok ?_ hrel hinv (Ext.refl _) trivial
+    show Except.ok ((ConLeche.bvarOfData (lst.store.derived (absEIdx e))).toNat, lst)
+      = _
+    rw [hbn]
 
-/-- `Arena/ExprOps.lean:1494 fvarB`. -/
-theorem fvar_b_refines {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {o}
+theorem fvar_b_refines {pers st lst} {fuel : Std.U64}
+    {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.fvar_b pers st fuel e = ok o) :
     Sim absU (fun _ => True) pers lst o (fvarB (absU fuel) (absEIdx e)) := by
-  sorry
+  rw [arena.expr_ops.fvar_b] at hrun
+  obtain ⟨der, hder, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨sr, hsr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hderE := hder
+  rw [arena.monad.derived_e] at hderE
+  obtain ⟨-, hfv, -⟩ := derObsE_fields (estore_derived_abs hrel.store hderE)
+  have hbb := ConRon.Refine.Expr.fvar_of_data_val hr
+  have hsrv := ConRon.Refine.Expr.sat_range_val hsr
+  have hbn : (ConLeche.fvarOfData (lst.store.derived (absEIdx e))).toNat = absU r := by
+    rw [hfv]; exact hbb.symm
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((do
+      let d ← Arena.derivedE (absEIdx e)
+      if (ConLeche.fvarOfData d).toNat == ConLeche.satRange then
+        fvarRangeMemo (absU fuel) (absEIdx e)
+      else pure (ConLeche.fvarOfData d).toNat).run lst)
+  rw [StateT.run_bind,
+    show (Arena.derivedE (absEIdx e)).run lst
+      = .ok (lst.store.derived (absEIdx e), lst) from rfl]
+  show AOut absU (fun _ => True) pers lst o.1 o.2
+    ((if ((ConLeche.fvarOfData (lst.store.derived (absEIdx e))).toNat
+            == ConLeche.satRange) = true then
+        fvarRangeMemo (absU fuel) (absEIdx e)
+      else pure (ConLeche.fvarOfData (lst.store.derived (absEIdx e))).toNat).run lst)
+  by_cases hc : r = sr
+  · rw [if_pos hc] at hrun
+    rw [if_pos (show ((ConLeche.fvarOfData (lst.store.derived (absEIdx e))).toNat
+        == ConLeche.satRange) = true by rw [hbn, hc, ← hsrv]; simp)]
+    exact fvar_range_memo_refines hrel hinv hrun
+  · rw [if_neg hc] at hrun
+    rw [if_neg (show ¬ (((ConLeche.fvarOfData (lst.store.derived (absEIdx e))).toNat
+        == ConLeche.satRange) = true) by
+      rw [hbn, ← hsrv]
+      simp only [beq_iff_eq]
+      intro hz
+      exact hc (Std.UScalar.eq_of_val_eq hz))]
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    refine AOut.ok ?_ hrel hinv (Ext.refl _) trivial
+    show Except.ok ((ConLeche.fvarOfData (lst.store.derived (absEIdx e))).toNat, lst)
+      = _
+    rw [hbn]
 
-/-- `Arena/ExprOps.lean:1501 hasFvarFast`. -/
 theorem has_fvar_fast_refines {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.has_fvar_fast pers st fuel e = ok o) :
     Sim id (fun _ => True) pers lst o (hasFvarFast (absU fuel) (absEIdx e)) := by
-  sorry
+  rw [arena.expr_ops.has_fvar_fast] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hfb := fvar_b_refines hrel hinv hq
+  show AOut id (fun _ => True) pers lst o.1 o.2
+    ((do
+      let r ← fvarB (absU fuel) (absEIdx e)
+      pure (r != 0)).run lst)
+  cases hrc : r with
+  | Err er =>
+    rw [hrc] at hrun hfb
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact aout_err_bind hfb
+  | Ok r1 =>
+    rw [hrc] at hrun hfb
+    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hfb
+    rw [StateT.run_bind, hx1]
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    refine AOut.ok ?_ hrel1 hinv1 hext1 trivial
+    show Except.ok ((absU r1 != 0), lst1) = Except.ok (id (r1 != 0#u64), lst1)
+    have hb : ((absU r1 != 0) : Bool) = id (r1 != 0#u64) := by
+      show ((absU r1 != 0) : Bool) = (r1 != 0#u64)
+      by_cases hz : r1 = 0#u64
+      · subst hz; rfl
+      · have hne : absU r1 ≠ 0 := fun hzz => hz (Std.UScalar.eq_of_val_eq hzz)
+        have h1 : ((absU r1 != 0) : Bool) = true := by simp [hne]
+        have h2 : ((r1 != 0#u64) : Bool) = true := by simp [hz]
+        rw [h1, h2]
+    exact congrArg (fun b => Except.ok ((b : Bool), lst1)) hb
 
-/-- `Arena/ExprOps.lean:1507 looseBVarsBoundedFast`. -/
 theorem loose_bvars_bounded_fast_refines {pers st lst} {fuel k : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.loose_bvars_bounded_fast pers st fuel k e = ok o) :
     Sim id (fun _ => True) pers lst o
       (looseBVarsBoundedFast (absU fuel) (absU k) (absEIdx e)) := by
-  sorry
+  rw [arena.expr_ops.loose_bvars_bounded_fast] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hbb := bvar_b_refines hrel hinv hq
+  show AOut id (fun _ => True) pers lst o.1 o.2
+    ((do
+      let r ← bvarB (absU fuel) (absEIdx e)
+      pure (decide (r ≤ absU k))).run lst)
+  cases hrc : r with
+  | Err er =>
+    rw [hrc] at hrun hbb
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact aout_err_bind hbb
+  | Ok r1 =>
+    rw [hrc] at hrun hbb
+    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hbb
+    rw [StateT.run_bind, hx1]
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    refine AOut.ok ?_ hrel1 hinv1 hext1 trivial
+    show Except.ok (decide (absU r1 ≤ absU k), lst1)
+      = Except.ok (id (decide (r1 ≤ k)), lst1)
+    have hb : (decide (absU r1 ≤ absU k) : Bool) = id (decide (r1 ≤ k)) :=
+      decide_eq_decide.mpr ⟨fun hx => by scalar_tac, fun hx => by scalar_tac⟩
+    exact congrArg (fun b => Except.ok ((b : Bool), lst1)) hb
+
+
+
+
+
+
+
+
+
 
 /-! ## The level substitution
 
@@ -835,5 +1906,46 @@ theorem inst_lp_fast_refines {pers st lst} {fuel : Std.U64}
     Sim absEIdx (fun _ => True) pers lst o
       (instLPFast (absU fuel) (absNIdxList ks) (absLsIdx us) (absEIdx e)) := by
   sorry
+
+
+/-! ## The axiom census
+
+The packed-range family — the two memoised walks, their two brackets and the
+four entry points — plus the two owed twin equations and `sub_nat_val`, at
+the three standard axioms and nothing else.  Everything else in this file is
+still a `sorry`: see the module note. -/
+
+/-- info: 'ConRon.Refine2.bvar_bound_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bvar_bound_go_refines
+
+/-- info: 'ConRon.Refine2.bvar_bound_memo_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bvar_bound_memo_refines
+
+/-- info: 'ConRon.Refine2.fvar_range_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_range_go_refines
+
+/-- info: 'ConRon.Refine2.fvar_range_memo_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_range_memo_refines
+
+/-- info: 'ConRon.Refine2.bvar_b_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bvar_b_refines
+
+/-- info: 'ConRon.Refine2.fvar_b_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_b_refines
+
+/-- info: 'ConRon.Refine2.has_fvar_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms has_fvar_fast_refines
+
+/-- info: 'ConRon.Refine2.loose_bvars_bounded_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms loose_bvars_bounded_fast_refines
+
+/-- info: 'ConRon.Refine2.bvarBoundGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bvarBoundGo_unfold
+
+/-- info: 'ConRon.Refine2.fvarRangeGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvarRangeGo_unfold
+
+/-- info: 'ConRon.Refine2.sub_nat_val' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sub_nat_val
 
 end ConRon.Refine2
