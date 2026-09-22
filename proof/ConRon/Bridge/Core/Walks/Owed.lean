@@ -96,6 +96,7 @@ structural gap; everything else on this list is labour.**
 -/
 import ConRon.Bridge.Core.Walks.Spec
 import ConRon.Bridge.Core.Walks.Cached
+import ConRon.Bridge.Core.Walks.Mono
 import ConRon.Bridge.ExprOps.Spine
 
 namespace ConRon.Bridge.Core
@@ -759,24 +760,176 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r⌝⦄ := by
   sorry
 
+/-! ### `defEqList`, the tier's first `List` recursion
+
+The two list inversions, the four pure-side step equations, the induction
+itself, and the caller-facing statement derived from it.
+
+**The statement the induction runs on is not the one `Owed.lean` published**,
+and for finding 5.2's reason one step further out: at the recursive call the
+subjects `as'` and `bs'` are known but their DENOTATIONS are not — the state
+has moved, so `denoteEList s'.store as' = some ?xs` arrives with a
+metavariable and `mvcgen` guesses `?xs := xs`, the whole list.  So
+`defEqList_go` takes the two denotations as existentials and hands them back
+as universals — the primed shape of `Bridge/Core/Knot.lean`'s six slots, at a
+walk rather than a slot — and `defEqList_spec` below is four lines over it.
+The rule generalises: *the ∃/∀ shape is not about knot slots, it is about
+every recursive call whose state has moved.* -/
+
+theorem denoteEList_nil_inv {st : EStore} {xs : List Expr}
+    (h : Frontend.denoteEList st [] = some xs) : xs = [] := by
+  simp only [Frontend.denoteEList] at h; exact (Option.some.inj h).symm
+
+theorem denoteEList_cons_inv {st : EStore} {a : EIdx} {as : List EIdx}
+    {xs : List Expr} (h : Frontend.denoteEList st (a :: as) = some xs) :
+    ∃ x xs', denoteE st a = some x ∧ Frontend.denoteEList st as = some xs' ∧
+      xs = x :: xs' := by
+  simp only [Frontend.denoteEList] at h
+  cases ha : denoteE st a with
+  | none => rw [ha] at h; simp at h
+  | some x =>
+    cases has : Frontend.denoteEList st as with
+    | none => rw [ha, has] at h; simp at h
+    | some xs' => rw [ha, has] at h; exact ⟨x, xs', rfl, rfl, (Option.some.inj h).symm⟩
+
+theorem defEqListFueled_nil {F d : Nat} :
+    ConLeche.defEqListFueled mode env F d [] [] = .ok true := rfl
+
+theorem defEqListFueled_ln {F d : Nat} {y : Expr} {ys : List Expr} :
+    ConLeche.defEqListFueled mode env F d [] (y :: ys) = .ok false := rfl
+
+theorem defEqListFueled_rn {F d : Nat} {x : Expr} {xs : List Expr} :
+    ConLeche.defEqListFueled mode env F d (x :: xs) [] = .ok false := rfl
+
+theorem defEqListFueled_cons_true {F d : Nat} {x y : Expr}
+    {xs ys : List Expr} {r : Bool}
+    (h : ConLeche.isDefEqCore mode env F d x y = .ok true)
+    (ht : ConLeche.defEqListFueled mode env F d xs ys = .ok r) :
+    ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys) = .ok r := by
+  have hd : (ConLeche.pureFns mode env F).defeq d x y = .ok true := h
+  simp only [ConLeche.defEqListFueled, ConLeche.defEqList, hd, bind,
+    Except.bind, if_true]
+  exact ht
+
+theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
+    {xs ys : List Expr}
+    (h : ConLeche.isDefEqCore mode env F d x y = .ok false) :
+    ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys) = .ok false := by
+  have hd : (ConLeche.pureFns mode env F).defeq d x y = .ok false := h
+  simp only [ConLeche.defEqListFueled, ConLeche.defEqList, hd, bind,
+    Except.bind]
+  rfl
+
+theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
+    ∀ (as bs : List EIdx) (s₀ : AState),
+      CheckOK mode env fe s₀ →
+      (∃ xs, Frontend.denoteEList s₀.store as = some xs ∧
+        ∀ x ∈ xs, Expr.WScoped d x) →
+      (∃ ys, Frontend.denoteEList s₀.store bs = some ys ∧
+        ∀ y ∈ ys, Expr.WScoped d y) →
+      ⦃fun s => ⌜s = s₀⌝⦄
+        ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d as bs
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          ∀ xs ys, Frontend.denoteEList s₀.store as = some xs →
+            Frontend.denoteEList s₀.store bs = some ys →
+            SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys) r⌝⦄ := by
+  intro as
+  induction as with
+  | nil =>
+    intro bs s₀ hok hda hdb
+    cases bs with
+    | nil =>
+      mvcgen [ConRon.Arena.defEqList]
+      bridge_peel; subst_vars
+      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
+      obtain rfl := denoteEList_nil_inv hx
+      obtain rfl := denoteEList_nil_inv hy
+      exact ⟨0, defEqListFueled_nil⟩
+    | cons b bs' =>
+      mvcgen [ConRon.Arena.defEqList]
+      bridge_peel; subst_vars
+      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
+      obtain rfl := denoteEList_nil_inv hx
+      obtain ⟨y, ys', _, _, rfl⟩ := denoteEList_cons_inv hy
+      exact ⟨0, defEqListFueled_ln⟩
+  | cons a as' ih =>
+    intro bs s₀ hok hda hdb
+    cases bs with
+    | nil =>
+      mvcgen [ConRon.Arena.defEqList]
+      bridge_peel; subst_vars
+      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
+      obtain ⟨x, xs', _, _, rfl⟩ := denoteEList_cons_inv hx
+      obtain rfl := denoteEList_nil_inv hy
+      exact ⟨0, defEqListFueled_rn⟩
+    | cons b bs' =>
+      have hdq := hsim.defeq'
+      mvcgen [ConRon.Arena.defEqList, hdq, ih]
+      case vc1 => bridge_peel; subst_vars; exact hok
+      case vc2 =>
+        bridge_peel; subst_vars
+        obtain ⟨xs, hxs, hw⟩ := hda
+        obtain ⟨x, xs', hx, _, rfl⟩ := denoteEList_cons_inv hxs
+        exact ⟨x, hx, hw x (by simp)⟩
+      case vc3 =>
+        bridge_peel; subst_vars
+        obtain ⟨ys, hys, hw⟩ := hdb
+        obtain ⟨y, ys', hy, _, rfl⟩ := denoteEList_cons_inv hys
+        exact ⟨y, hy, hw y (by simp)⟩
+      case vc4 =>
+        bridge_peel; subst_vars
+        rename_i s2 s1 rb s0 hck1 hxt21 hpn12 hdefeq
+        intro hck hxt hpn hrec
+        refine ⟨hck, hxt21.trans hxt, by rw [hpn, hpn12],
+          fun xs ys hx hy => ?_⟩
+        obtain ⟨x, xs', hdx, hdxs, rfl⟩ := denoteEList_cons_inv hx
+        obtain ⟨y, ys', hdy, hdys, rfl⟩ := denoteEList_cons_inv hy
+        obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
+        obtain ⟨F2, hF2⟩ :=
+          hrec xs' ys' (denoteEList_ext hxt21 as' xs' hdxs)
+            (denoteEList_ext hxt21 bs' ys' hdys)
+        exact ⟨max F1 F2,
+          defEqListFueled_cons_true
+            (ConLeche.isDefEqCore_mono (Nat.le_max_left _ _) hF1)
+            (defEqListFueled_mono (Nat.le_max_right _ _) hF2)⟩
+      case vc5 => bridge_peel; subst_vars; intro s hck _ _ _; exact hck
+      case vc6 =>
+        bridge_peel; subst_vars
+        intro s _ hxt _ _
+        obtain ⟨xs, hxs, hw⟩ := hda
+        obtain ⟨x, xs', _, hdxs, rfl⟩ := denoteEList_cons_inv hxs
+        exact ⟨xs', denoteEList_ext hxt as' xs' hdxs,
+          fun z hz => hw z (by simp [hz])⟩
+      case vc7 =>
+        bridge_peel; subst_vars
+        intro s _ hxt _ _
+        obtain ⟨ys, hys, hw⟩ := hdb
+        obtain ⟨y, ys', _, hdys, rfl⟩ := denoteEList_cons_inv hys
+        exact ⟨ys', denoteEList_ext hxt bs' ys' hdys,
+          fun z hz => hw z (by simp [hz])⟩
+      case vc8 =>
+        bridge_peel; subst_vars
+        rename_i s1 rb hnb s0 hck0 hxt10 hpn01 hdefeq
+        obtain rfl : rb = false := by
+          cases rb with
+          | false => rfl
+          | true => exact absurd rfl hnb
+        refine ⟨hck0, hxt10, hpn01, fun xs ys hx hy => ?_⟩
+        obtain ⟨x, xs', hdx, _, rfl⟩ := denoteEList_cons_inv hx
+        obtain ⟨y, ys', hdy, _, rfl⟩ := denoteEList_cons_inv hy
+        obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
+        exact ⟨F1, defEqListFueled_cons_false hF1⟩
+
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **THEOREM 1 for
 `defEqList`**: pairwise definitional equality of two argument vectors.
+**CLOSED** (round 3), at the published statement, over `defEqList_go`'s
+induction.
 
-**OPEN**: a `List` induction over `KnotSpec.defeq` — no `ExprOps` rule and no
-new denotation — **plus the fuel merge**.  The two subjects are LISTS, so
-task #97-P3-0's finding 3 applies: they are quantified inside the relation
-(here, by `Frontend.denoteEList` hypotheses at the entry) rather than taken
-as `∀`s a recursive call would leave as metavariables.
-
-**The fuel merge is the tier's one unpriced line item** (DESIGN §8's
-`### Task #97-P3-CoreWalks` §6.1).  Task #97-P3-Core said con-leche's
-`FueledM` wrapper is not needed here because the arena's side is a triple;
-that is true of a BODY and false of a LOOP.  Each iteration of this
-recursion hands out its own `∃ F` and they have to become one, which is
-`Verify/Mono.lean`'s job — and con-leche has `isDefEqCore_mono` and
-`pureFns_mono` but no `defEqList_mono`, because `FueledM` did its merging
-for it.  Ten lines in `Verify/Mono.lean`'s own shape, owed by the bridge,
-and the same debt sits unpaid under `whnfBody_spec`'s loop. -/
+DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 named the fuel merge as the one
+thing this walk was missing beyond the induction; `Walks/Mono.lean`'s
+`defEqListFueled_mono` is it, and the cons arm's `max F₁ F₂` over it and
+con-leche's own `isDefEqCore_mono` is two lines. -/
 theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (as bs : List EIdx) (xs ys : List Expr)
     (hok : CheckOK mode env fe s₀)
@@ -789,7 +942,10 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys)
           r⌝⦄ := by
-  sorry
+  have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  exact ⟨h1, h2, h3, h4 xs ys hda hdb⟩
 
 /-! ## 5. The annotation pass's three
 
