@@ -45600,7 +45600,11 @@ sub-statements** — `nativeParts?_spec`, `checkNative_spec`,
 `bvarRange_congr` is the one new idea: con-leche spells the same spine at a
 different offset (`structPsAt (nF + 1) nP` against `fun i => bvar (nF + nP -
 i)`, `structPsAt 0 nF` against `fun j => bvar (nF - 1 - j)`) and the whole
-difference is `omega`.
+difference is `omega`.  (Fourteen names, twelve `sorry` sites: `bvarsDesc_spec`
+and `structProjPs_spec` never had one of their own — they are
+`structPsAt_spec` at `0` and at `1` through `structProjPs_eq` — and closing
+`structPsAt_spec` is what made them axiom-clean, which round 1 §9 predicted in
+so many words.)
 
 **`NativeParts.lean`, 29 → 23 (6).**  `piBinders_spec`,
 `structRecPrefixAt_spec`, `structTeleVars_spec`, `mkPisOf_spec`,
@@ -45617,10 +45621,13 @@ it and that tier has not stated it.
 `Bridge/Inductives/Rel.lean` now imports `ConRon.Bridge.Core.Walks.Cached`.
 `lvlEq?_spec` lives there and nothing in `Bridge/Checker/Hyp.lean`'s closure
 reaches it — `Core/Walks/{Cached,Proj}.lean` are SIBLINGS of the main chain,
-built by the `globs` and imported by nobody.  Adding the import costs 11 jobs
-and no conflict (`lake build ConRonBridge`: 605 → **616 jobs**, 0 errors), and
-the tier cannot state §R2.2's correction without it.  The checker tier is in
-the same position and does not know it yet.
+built by the `globs` and imported by NOBODY.  So the import costs no jobs at
+all (the glob was building those modules either way) and it risks only the
+`match`-auxiliary clash the `lakefile.toml` note warns about, which does not
+happen: `lake build ConRonBridge` is **616 jobs, 0 errors** with it.  The tier
+cannot state §R2.2's correction without it, and **the Checker tier is in the
+same position and does not know it yet** — `lvlEq?_spec` and `lvlsEq?_spec`
+are closed and unreachable from everything above `Bridge/Core/Induction.lean`.
 
 ##### R2.6 What is left, and what each item waits on
 
@@ -45661,7 +45668,7 @@ large block with no external blocker, and it is what stands between
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonBridge` | **0 errors, 616 jobs** (605 before §R2.5's import) |
+| `cd proof && lake build ConRonBridge` | **0 errors, 616 jobs** (605 at the end of round 1; the eleven are other tiers' new modules, not §R2.5's import, which adds none) |
 | `scripts/gates.sh` | **all 13 OK** |
 | `#print axioms` | `Bridge/Inductives/Axioms.lean`: **72 closed results** (22 after round 1), every one `[propext, Classical.choice, Quot.sound]`; only `checkIndDecl_bridge` and `indSpec_of_bridge` carry `sorryAx`.  No `bv_decide` axiom |
 | per-theorem elaboration | nothing above **2.2 s** in the whole tier (`Rel.lean`, which is now 1 156 lines); the 20 s flag is not approached |
