@@ -41486,9 +41486,20 @@ the port, in the same commit as the regenerated model.
 
 #### 6. The merge, and the gates
 
-`arena` moved once under this branch (`fa8b956c`, task #97-P5-Ind round 2's
-`Refine2/Inductives/**`) and is merged; **no conflict**, the only shared file
-being DESIGN.md's task log, which is append-both.
+`arena` moved **twice** under this branch and both are merged, with **no
+`.lean` conflict either time** — the only shared file is DESIGN.md's task log,
+which is append-both.
+
+* **`fa8b956c`** — task #97-P5-Ind round 2's `Refine2/Inductives/**`.  The
+  gate row below is this tip's.
+* **`5fda621b`** — task #97-P3-Ind round 2's `Bridge/Inductives/**`.  A
+  different tier, and nothing of it is in `ConRonRefine2`'s import graph; but
+  this round MOVED `Generated/Funs.lean` (§2), which invalidates `Bridge/**`
+  too, so the gate that change can touch was re-run rather than assumed:
+  `lake build` **green, 2 209 jobs**, and `lake build ConRonRefine2` green at
+  2 220 jobs and the same 875 `sorry`.  The other twelve gates were not
+  re-run: what moved is one proof tier and DESIGN.md, and neither can reach
+  `cargo`, the lints, the provenance census or the extraction.
 
 | gate | result |
 |---|---|
