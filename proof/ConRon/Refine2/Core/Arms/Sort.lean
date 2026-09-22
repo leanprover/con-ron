@@ -17,7 +17,7 @@ tier did not have, and both of them are findings rather than plumbing.
    chain taken apart by `Arena/WFProofs.lean`'s own `tag_cases`.  **Both are
    UNCONDITIONAL — no `StoreWF`**, which confirms that section's reading:
    P5-0's finding 3 weakens to `EResolves` alone everywhere.
-   `EStore_view_tagOf` **belongs in `Specs.lean`** beside `view_run` and is
+   `EStore_view_tagOf` **lives in `Specs.lean`** beside `view_run` and is
    here only because this tier may not edit that file.
 
 2. **Finding 3 at a callee's ANSWER, not at the caller's argument.**  On a
@@ -90,98 +90,13 @@ theorem EStore_view_of_tag_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort
     · rw [if_pos hs, if_pos hs]; exact key _
     · rw [if_neg hs, if_neg hs]; rfl
 
-/-- **`ETables.get` answers the view whose constructor is the tag it tested** —
-the ten-way half of the agreement, once.  `ENodeView.tagOf` is
-`Arena/WFProofs.lean`'s and `tag_cases` is its ten-way `if` splitter, so the
-proof is the same six lines eight times. -/
-theorem ETables_get_tagOf {t : ETables} {i : EIdx} {v : ENodeView}
-    (h : t.get i = some v) : i.tag = v.tagOf := by
-  simp only [ETables.get] at h
-  tag_cases h
-  · revert h
-    cases t.bvars.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.fvars.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.sorts.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.consts.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.apps.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · simp at h
-  · revert h
-    cases t.lets.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.lits.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.projs.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · simp at h
+/-! ## The tag/view agreement
 
-/-- **`view` answers the view whose constructor is the handle's own tag,
-UNCONDITIONALLY** — task #97-P5-2 §10's `estore_view_tagOf`, which that section
-predicted is free of `StoreWF` and which this tier needs in both its halves.
-The binder arm is the one that is not `ETables_get_tagOf`: `view` builds
-`eBindView i.tag …`, whose `tagOf` is `i.tag` exactly under `ETag.isBind`.
-
-**This belongs in `Refine2/Specs.lean`** beside `view_run`; it is here because
-this tier may not edit that file, and the migration is the two lines that
-name it. -/
-theorem EStore_view_tagOf {st : EStore} {i : EIdx} {v : ENodeView}
-    (h : st.view i = some v) : i.tag = v.tagOf := by
-  rw [EStore.view] at h
-  by_cases hb : ETag.isBind i.tag = true
-  · rw [if_pos hb] at h
-    split at h
-    · exact absurd h (by simp)
-    · rename_i ty b m _
-      simp only [Option.some.injEq] at h
-      rw [← h, eBindView]
-      by_cases hl : i.tag == ETag.lam
-      · rw [if_pos hl]; exact eq_of_beq hl
-      · rw [if_neg hl]
-        simp only [ETag.isBind, Bool.or_eq_true] at hb
-        rcases hb with hx | hx
-        · exact absurd hx hl
-        · exact eq_of_beq hx
-  · rw [if_neg hb] at h
-    by_cases hp : i.isPersistent
-    · rw [if_pos hp] at h; exact ETables_get_tagOf h
-    · rw [if_neg hp] at h
-      by_cases hs : st.scratchOn
-      · rw [if_pos hs] at h; exact ETables_get_tagOf h
-      · rw [if_neg hs] at h; exact absurd h (by simp)
+`ETables_get_tagOf` and `EStore_view_tagOf` were written here and in task
+#97-P5-3's `ExprOps/Read.lean` on the same day; **they live in
+`Refine2/Specs.lean` now**, which is where this file's own note said they
+belong, and this tier consumes them from there.  The migration was the
+deletion that used to be here. -/
 
 /-- **A `.sort` view comes only from a `sort`-tagged handle** — the negative
 half the port's `else` arm (`Invalid`) needs: the twin must not succeed where
