@@ -104,6 +104,19 @@ arrive peeled into the context and the blocks read exactly like
   The discharge was not free: `Bridge/ExprOps/Ranges.lean` had to state the
   two memo-frame conjuncts `BvarBSpec` asks for and `bvarB_spec` did not
   (`s'.memos.lowerC` and `s'.memos.inst1LC`) — see §4 of that round.
+* **`BMExt` is in every record of this file** (round 4).  `LiftSpec`,
+  `LowerSpec` and `Inst1LSpec` stated `Ext` and not `BMExt`, where their
+  siblings `InstLPureSpec` / `InstLSpec` state both — and
+  `Bridge/Inductives/Rel.lean`'s `PStep` has a `bm` field, so a
+  `PSpec`-grade twin that lifts could not produce a frame AT ALL
+  (`structIdxAt_spec` and, through it, the Inductives tier's groups 3 and 4
+  and `closeTelescope`).  The conjunct is threaded through the three records,
+  `liftLooseBVarsFast`, `lowerBVarsFast`, `instantiate1LiftFast`,
+  `instantiateListFast` (spec and run form each) and `instPisAtLift_spec`.
+  It cost **one `BMExt.refl _` or one
+  `by grind only [BMExt.trans, BMExt.refl]` per verification condition and
+  nothing else**: `Bridge/Specs.lean`'s intern specs have carried `BMExt`
+  since task #97-P3-1 §3, so the fact was already in every arm's context.
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.Ranges
@@ -1402,6 +1415,7 @@ structure LiftSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
     (denoteE s₁.store c).isSome = true →
     ⦃fun s => ⌜s = s₁⌝⦄ rec c cc
     ⦃⇓? r s' => ⌜StateOK s' ∧ LiftMemoA amount s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
         LiftAt amount cc s₁.store c s'.store r⌝⦄
@@ -1441,44 +1455,44 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         LiftAt.cutoff hok.wf (by grind) (by grind)⟩
     -- `bvar`, the branch that interns the lifted index
     next =>
       bridge_peel
       subst_vars
       refine fun hwf2 hx _hbm _hlss hmem hcc hpp _hvw hrr => ?_
-      exact ⟨⟨hwf2⟩, MemoOK.mono hm hx (by rw [hmem]), hx, hcc, hpp,
+      exact ⟨⟨hwf2⟩, MemoOK.mono hm hx (by rw [hmem]), hx, _hbm, hcc, hpp,
         by rw [hmem], LiftAt.bvar_up hok.wf (by subst_hyp) (by subst_hyp) hrr⟩
     -- `bvar`, the branch below the cutoff
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         LiftAt.bvar_self hok.wf (by subst_hyp) (by subst_hyp)⟩
     -- the four leaves
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         RelE.leaf_view hok.wf (by subst_hyp) (fun _ hh => liftLooseBVars_leaf hh)
           (by grind)⟩
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         RelE.leaf_view hok.wf (by subst_hyp) (fun _ hh => liftLooseBVars_leaf hh)
           (by grind)⟩
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         RelE.leaf_view hok.wf (by subst_hyp) (fun _ hh => liftLooseBVars_leaf hh)
           (by grind)⟩
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
         RelE.leaf_view hok.wf (by subst_hyp) (fun _ hh => liftLooseBVars_leaf hh)
           (by grind)⟩
     -- `app`: the memo insert's answer, then the arm's postcondition
@@ -1492,7 +1506,8 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, by grind, ?_⟩
       exact LiftAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     -- `lam`: the memo insert's answer, then the arm's postcondition
     next =>
@@ -1505,7 +1520,8 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, by grind, ?_⟩
       exact LiftAt.lam_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     -- `forallE`: the memo insert's answer, then the arm's postcondition
     next =>
@@ -1518,7 +1534,8 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, by grind, ?_⟩
       exact LiftAt.forallE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     -- `letE`: the memo insert's answer, then the arm's postcondition
     next =>
@@ -1531,7 +1548,8 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, by grind, ?_⟩
       exact LiftAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     -- `proj`: the memo insert's answer, then the arm's postcondition
     next =>
@@ -1548,7 +1566,8 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
       obtain ⟨nm, es, _, hn0, _⟩ :=
         denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, by grind, ?_⟩
       exact LiftAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:532-534 liftLooseBVarsFast —
@@ -1557,6 +1576,7 @@ theorem liftLooseBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ liftLooseBVarsFast fuel amount c e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.liftC = ∅ ∧ s'.memos.inst1LC = s₀.memos.inst1LC ∧
         LiftAt amount c s₀.store e s'.store r⌝⦄ := by
@@ -1570,7 +1590,8 @@ theorem liftLooseBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState}
     {e r : EIdx} (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (liftLooseBVarsFast fuel amount c e).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ s'.caches = s₀.caches ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+      s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.liftC = ∅ ∧
       s'.memos.inst1LC = s₀.memos.inst1LC ∧
       LiftAt amount c s₀.store e s'.store r :=
@@ -1620,6 +1641,7 @@ structure LowerSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
     LowerMemoA amount s₁ → (denoteE s₁.store c).isSome = true →
     ⦃fun s => ⌜s = s₁⌝⦄ rec c cc
     ⦃⇓? r s' => ⌜StateOK s' ∧ LowerMemoA amount s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         LowerAt amount cc s₁.store c s'.store r⌝⦄
 
@@ -1660,7 +1682,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.tgt_eq (by subst_hyp)
         (LowerAt.cutoff (by subst_hyp) (by subst_hyp))
     -- `bvar`, the branch that interns the lowered index
@@ -1669,7 +1692,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       subst_vars
       refine fun hwf2 hx _hbm _hlss _hmem _hcc _hpp _hvw hrr => ?_
       refine ⟨⟨hwf2⟩, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (LowerAt.bvar_downV (by subst_hyp) (by subst_hyp) (by subst_hyp) hrr)
     -- `bvar`, inside the window
@@ -1677,7 +1701,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (LowerAt.bvar_selfV (by subst_hyp) (by subst_hyp) (by subst_hyp))
     -- the four leaves
@@ -1685,7 +1710,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => lowerBVars_leaf hh) (by grind))
@@ -1693,7 +1719,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => lowerBVars_leaf hh) (by grind))
@@ -1701,7 +1728,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => lowerBVars_leaf hh) (by grind))
@@ -1709,7 +1737,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => lowerBVars_leaf hh) (by grind))
@@ -1723,7 +1752,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1735,7 +1765,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1747,7 +1778,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1759,7 +1791,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1775,7 +1808,8 @@ theorem lowerBVarsGo_spec (amount : Nat) :
         denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
@@ -1787,6 +1821,7 @@ structure Inst1LSpec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
     (denoteE s₁.store c).isSome = true →
     ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
     ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1LMemoA ve s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1LAt ve dd s₁.store c s'.store r⌝⦄
 
@@ -1827,16 +1862,18 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.tgt_eq (by subst_hyp)
         (Inst1LAt.cutoff (by subst_hyp) (by subst_hyp))
     -- `bvar`, the SUBSTITUTING branch: the nested `liftLooseBVarsFast`
     next =>
       bridge_peel
       subst_vars
-      refine fun hok2 hx _hcc _hpp _hlc _hilc hans => ?_
+      refine fun hok2 hx _hbm2 _hcc _hpp _hlc _hilc hans => ?_
       refine ⟨hok2, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_substV (by subst_hyp) (by subst_hyp) (by subst_hyp)
           (hans ve (by grind)))
@@ -1846,7 +1883,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       subst_vars
       refine fun hwf2 hx _hbm _hlss _hmem _hcc _hpp _hvw hrr => ?_
       refine ⟨⟨hwf2⟩, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_downV (by subst_hyp) (by subst_hyp) (by subst_hyp)
           (by subst_hyp) hrr)
@@ -1855,7 +1893,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_selfV (by subst_hyp) (by subst_hyp) (by subst_hyp)
           (by subst_hyp))
@@ -1864,7 +1903,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => instantiate1Lift_leaf hh) (by grind))
@@ -1872,7 +1912,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => instantiate1Lift_leaf hh) (by grind))
@@ -1880,7 +1921,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => instantiate1Lift_leaf hh) (by grind))
@@ -1888,7 +1930,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       bridge_peel
       subst_vars
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
           (fun _ hh => instantiate1Lift_leaf hh) (by grind))
@@ -1902,7 +1945,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1914,7 +1958,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1926,7 +1971,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1938,7 +1984,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
       subst_vars
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     next =>
       bridge_peel
@@ -1954,7 +2001,8 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
         denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl],
+        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast —
@@ -1964,6 +2012,7 @@ theorem lowerBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ lowerBVarsFast fuel amount c e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.lowerC = ∅ ∧ LowerAt amount c s₀.store e s'.store r⌝⦄ := by
   have hr := (lowerBVarsGo_spec amount fuel).run
@@ -1976,7 +2025,8 @@ theorem lowerBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
     (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (lowerBVarsFast fuel amount c e).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ s'.caches = s₀.caches ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+      s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.lowerC = ∅ ∧
       LowerAt amount c s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun
@@ -1990,6 +2040,7 @@ theorem instantiate1LiftFast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instantiate1LiftFast fuel e v d
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1LC = ∅ ∧ Inst1LAt ve d s₀.store e s'.store r⌝⦄ := by
   have hr := (instantiate1LiftGo_spec v ve fuel).run
@@ -2003,7 +2054,8 @@ theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiate1LiftFast fuel e v d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ s'.caches = s₀.caches ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+      s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.inst1LC = ∅ ∧
       Inst1LAt ve d s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun
@@ -2058,6 +2110,7 @@ theorem instPisAtLift_spec (fuel : Nat) :
       (denoteE s₀.store c).isSome = true →
       ⦃fun s => ⌜s = s₀⌝⦄ instPisAtLift fuel args c
       ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+          BMExt s₀.store s'.store ∧
           s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
           ∀ xs, Frontend.denoteEList s₀.store args = some xs →
             RelEO (fun e => Expr.instPisAtLift xs e) s₀.store c s'.store r⌝⦄ := by
@@ -2086,8 +2139,9 @@ theorem instPisAtLift_spec (fuel : Nat) :
       next =>
         bridge_peel
         subst_vars
-        intro hok2 hx2 hcc hpp hans
-        refine ⟨hok2, by grind only [Ext.trans], by grind, by grind, ?_⟩
+        intro hok2 hx2 hbm2 hcc hpp hans
+        refine ⟨hok2, by grind only [Ext.trans],
+          by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
         intro xs hxs
         simp only [Frontend.denoteEList, hea, heas] at hxs
         obtain rfl := Option.some.inj hxs
@@ -2096,13 +2150,13 @@ theorem instPisAtLift_spec (fuel : Nat) :
       next =>
         bridge_peel
         subst_vars
-        intro _ _ hx2 _ _ _ _
+        intro _ _ hx2 _ _ _ _ _
         rw [denoteEList_ext hx2 _ _ heas]
         rfl
       next =>
         bridge_peel
         subst_vars
-        refine ⟨hok, Ext.refl _, rfl, rfl, ?_⟩
+        refine ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, ?_⟩
         intro xs hxs
         simp only [Frontend.denoteEList, hea, heas] at hxs
         obtain rfl := Option.some.inj hxs
@@ -2703,6 +2757,7 @@ theorem instantiateListFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instantiateListFast fuel e vs d
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.instLC = ∅ ∧ InstLAt ws d s₀.store e s'.store r⌝⦄ := by
   have hr := (instantiateListGo_spec vs ws fuel).run
@@ -2716,7 +2771,8 @@ theorem instantiateListFast_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
     (hvec : InstLVec s₀.store vs ws)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiateListFast fuel e vs d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ s'.caches = s₀.caches ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+      s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.instLC = ∅ ∧
       InstLAt ws d s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun
