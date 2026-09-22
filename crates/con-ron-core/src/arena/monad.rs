@@ -262,6 +262,17 @@ impl Memos {
     /// value as `empty`, reached in place: `enter_scratch` runs this once per
     /// declaration, and `arena::core_state::reset_map`'s note is why the
     /// bucket arrays are kept rather than handed back (task #97-P6-1).
+    ///
+    /// **All THIRTEEN tables, and that is a fix** (task #97-P5-Bracket's
+    /// finding 2).  `inst_lp_l_c` and `inst_lp_ls_c` — task #97-P6-16's two
+    /// level-substitution memos at a `LIdx` and a `LsIdx` — were added after
+    /// this body was written and were not added to it, so `reset` did not
+    /// reach `empty` and the twin's `enterScratch` (`memos := Memos.empty`)
+    /// and this did not agree.  The run never noticed, because
+    /// `inst_lp_clear` clears all three at every entry to
+    /// `instantiate_level_params_fast`; Theorem 2's `enter_scratch_refines`
+    /// did, because `MemosRel _ Memos.empty` is false of a table that still
+    /// holds a row.
     pub fn reset(&mut self) {
         reset_map(&mut self.inst1_c);
         reset_map(&mut self.inst_l_c);
@@ -273,7 +284,9 @@ impl Memos {
         reset_map(&mut self.inst1_l_c);
         reset_map(&mut self.inst_lp_c);
         reset_map(&mut self.bvar_b_c);
-        reset_map(&mut self.fvar_b_c)
+        reset_map(&mut self.fvar_b_c);
+        reset_map(&mut self.inst_lp_l_c);
+        reset_map(&mut self.inst_lp_ls_c)
     }
 }
 
