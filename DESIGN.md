@@ -38668,6 +38668,319 @@ the end of the task log, and `proof/ConRon/Bridge.lean`'s three blocks (the
 module list, the import-rule paragraph and the imports), where both rounds
 added a tier.
 
+### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
+
+The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
+`sorry` — the twenty-four `intern_*` it had built the plumbing for, and the
+eight readbacks §5 of that section calls "a different animal" — and the
+`ExprOps` tier untouched at 31 + 65.  Branch `p5-2` off `arena`'s tip
+`7a92f794`, merged forward twice (tasks #97-P3-Core and #97-P3-1).
+
+**`ConRonRefine2` is green at 115 `sorry`, from 128.**  `Specs.lean` 32 → 25,
+`ExprOps/Read.lean` 31 → 25, `ExprOps/Mut.lean` 65 → 65.  The number
+understates the round: what closed is the whole of `intern`'s STORE tier —
+**all eleven expression arrays, end to end** — plus the seven non-binder monad
+wrappers over it, plus the tier's first fuel inductions.
+
+#### 1. The six-arm peel is constructor-independent, and that is the whole cost model
+
+Task #97-P5-1 §3b wrote `intern` at `bvar` out in full — 190 lines — and
+predicted "the twenty-four remaining constructors are ~2 900 lines, most of it
+the six-arm peel repeated".  It is: the peel is **textually** independent of
+the constructor, so nine of the ten remaining expression arrays were generated
+from the `bvar` and `fvar` proofs by substitution (the table field, the node
+record, the `Eq2Fwd`/`DupId`/injectivity triple, the `ETag` constant, the cons
+key, the twin's view and the arm's own `der_of_*`), and **five of them
+compiled on the first attempt**.
+
+| array | template | what varies |
+|---|---|---|
+| `bvar` | — (task #97-P5-1 §3b) | — |
+| `lit` | `bvar` | no handle child, so no `sk` prologue; the cons key carries a `Literal`, so `RelOn P` asks the caller for `LiteralWF` |
+| `bm` | `bvar` | the datum store: a `BMIdx` whose `pack` takes no tag, the twin entry `internBM`, and a `PropWhen` key |
+| `fvar` | `bvar` + finding 7's prologue | one child |
+| `sort` | `fvar` | one child, at the LEVEL store's handle |
+| `const`, `app`, `proj` | `fvar` | two children |
+| `let_e` | `fvar` | three children |
+| `lam_i`, `forall_e_i` | `fvar` | three children, the third a `BMIdx`; the twin entry is `internBindI`, whose `findBind`/`pushBind` are the tag's own array by `rfl` |
+
+The `sk` prologue (finding 7: the port skips the persistent cons probe when a
+child is scratch) is the one arity-dependent piece, and it is fifteen lines at
+one child, twenty at two, twenty-five at three — a nested `split` per child,
+answering a disjunct of "not all children are persistent".  That disjunction
+is the `hchild` hypothesis, and it is Theorem 1's `StoreWF` clause `childOK`.
+
+#### 2. The `der_of_*` family reduces to two lemmas
+
+Task #97-P5-1 called the eleven `der_of_*` arms "the only part that is not a
+copy".  They are, but they are not eleven proofs: they are two.
+
+* **`derObsE_pack`** — the twin's `packData` against the port's `pack_data`,
+  OBSERVED fields only: equal range fields and equal flag give equal
+  observations, through con-leche's `bvarOfData_pack`/`fvarOfData_pack`/
+  `lpOfData_pack` and `Refine/Expr.lean`'s `pack_bits`.  Twelve lines.
+* **`derObsE_fields`** — its inverse, at the `Nat` level the port's own
+  forward readings (`bvar_of_data_val`, …) live at, for the five arms that
+  read a CHILD's word back.
+
+With those, `der_of_sort_obs` and `der_of_const_obs` are ten lines each (the
+`hasParam` bit off `estore_lder_obs` / `estore_lsder_obs`, which needed the
+level-list tier's `lstables_der_at_abs` / `lsstore_derived_abs` — four new
+lemmas mirroring the level tier's), `der_of_lit_obs` is eight, `der_of_proj_obs`
+is twenty, and `der_of_app_obs`, `der_of_let_obs`, `der_of_bind_i_obs` are
+thirty to sixty (the `max`/`satPred` arithmetic and the three-way `lpOfData`
+disjunction).  `satPred_toNat` is the one extra lemma the `letE` and binder
+arms want.
+
+#### 3. Finding 10 — the binder datum's derived column leaves the relation too, and `TblInv` grows a clause
+
+Task #97-P5-1 §1 found that the derived word's HASH cannot be in the
+refinement relation, because Lean core's `mixHash` is `opaque`; `TblRel`
+therefore carries an observation `obsD`, with three instances.  The binder
+datum store is a **fourth**, and `Refine2/AbsStore.lean` had it wrong:
+`ETablesRel`'s `bms` row was declared at `derObsE`, and a `BMNode`'s derived
+column holds `hash m.pw` and nothing else.  It is `derObsN` — *nothing is
+observable* — and that is checkable in the port: `getBMDer` reads the
+has-a-parameter bit off the **record** (`r.pw.hasParams`), not off the column,
+and the column's only other reader is the parent's own hash.
+
+But `pm` IS observed — it is `derOfBind`'s fifth argument, hence the parent
+word's `lpOfData` — and `prop_when::has_params` refines
+`PropWhen.hasParams` only on a `WFShape` value.  So the record read back out
+of the node column has to be well formed, which `TblInv` did not say.  It now
+does:
+
+    structure TblInv … where
+      inv    : Inv hA rt.cons
+      keys   : KeysOk P rt.cons
+      nodesP : ∀ p ∈ rt.rows.val, P p.1     -- NEW
+
+`keys` says it of the cons TABLE; `nodesP` says it of the ARRAY, and the two
+are separate because `Tbl.node` reads the array and not the table.  `push` and
+`push_at` re-establish it from the caller's own `P a`, so it costs one clause
+in `tbl_push_abs` and one in `tbl_find_slot_abs` and nothing anywhere else —
+and `tbl_node_wf` is the reader.  **The lesson generalises: a `RelOn P` table
+whose VALUE is read back (rather than only probed) needs the node column's own
+`P`, and the arena has four such tables.**
+
+#### 4. Finding 11 — bind the refinement result before you feed it to a `dl`
+
+`tbl_push_abs` takes the derived word `dl` as an explicit argument and the
+observation equality as the next one.  Writing
+
+    hpushT hoc d (ls.derOfBindAtI 19 …) (der_of_bind_i_obs … hd) hnew t1 ht1
+
+makes the elaborator check `der_of_bind_i_obs`'s conclusion — which mentions
+`absU64 ?tag` — against an expected type that says `19`, i.e. solve
+`absU64 ?tag =?= 19` **backwards**, with `?tag` unassigned; it does not
+terminate (a `whnf` timeout that survives `maxHeartbeats 1000000`).  Splitting
+it in two —
+
+    have hder := der_of_bind_i_obs … hd
+    obtain ⟨hrel1, hinv1⟩ := hpushT hoc d _ hder hnew t1 ht1
+
+— fixes the direction (`hd` assigns `?tag` first) and the file elaborates in
+6.7 s.  The rule for the recipe: **never let a numeric literal on the twin's
+side meet an abstraction function with an unassigned argument**; name the
+refinement result and let unification run forwards.
+
+#### 5. Finding 9 is retired, and what replaced it
+
+Task #97-P5-1's finding 9 — "the capacity test is on the wrong side of the
+probe in the twin", which made §8.2's success arm FALSE on a cons hit at a
+full array — was fixed in the twin by task #97-P3-1 (`Arena/Monad.lean`'s
+`internE` probes with `EStore.find?` first and tests `Idx.idxCap` only on the
+miss).  `arena` was merged mid-round and the statements were re-cut at the new
+shape.  `hcap` did not disappear; it became the **miss path's own** side
+condition,
+
+    (hcap : lst.store.find? v = none → (if … then … else …) < Idx.idxCap)
+
+which is what a caller can actually discharge, because on the miss the port's
+`Tbl::full` is `true` on exactly the same input and answers `Native` — and
+§8.2 rules that a port `Native` claims nothing.
+
+What the new shape needs of the store tier is that **a cons hit moves
+nothing**, and that is three lemmas this round adds:
+`internBM_of_findBM`, `internBMOfView_of_findBMOfView`, `internAt_of_findAt`
+and `intern_of_find`.  `internE_run_of_cap` is then eleven lines.
+
+Two small `StateT` lemmas came out of the same work and belong to the shared
+layer, because every walk of the `ExprOps` and Core tiers wants them:
+**`run_get_bind`** (a twin action that reads the state: the `get` is the
+identity on the run, so a `rfl`-level unfolding of a monadic body can be
+stated without spelling the body twice) and **`view_run_state`** (`Arena.view`
+is a READER, so the existential post-state of `view_run`'s `AOut` collapses).
+
+#### 6. The fuel-induction idiom, measured
+
+Round 3 said the shape step is per function and does not automate.  At the
+fuelled walks it takes **one** form, written out three times this round:
+
+    private theorem <f>_aux (n : Nat) :
+        ∀ {pers st lst} {fuel : Std.U64} {h} {o},
+          fuel.val = n → AStateRel pers st lst → AStateInv pers st →
+          <rust f> pers st fuel h = ok o →
+          AOut <abs> (fun _ => True) pers lst o st ((<twin f> (absU fuel) …).run lst) := by
+      induction n with
+      | zero  => …the port's `Internal`, which the twin mirrors…
+      | succ m ih => …
+
+with everything but `n` generalised, and `fuel - 1#u64` against `Nat`
+predecessor through `Refine/Nat.lean`'s `usub_val`.  The public statement is
+then one line: `<f>_aux fuel.val rfl hrel hinv hrun`.
+
+| walk | arms | lines | note |
+|---|---:|---:|---|
+| `get_app_fn` | tag-first, 2 | 52 | the model; no resolution hypothesis, because the twin spells the tag too |
+| `get_app_args_go` | tag-first, 2 | 76 | plus a `Vec::push` against `as ++ [a]` and an error arm that has to be transported through the bind |
+| `result_sort` | **view, 10** | 74 | **the ten arms cost nothing beyond a `cases` on the abstracted view**: `view_run` answers the whole view, so the port's ten-way `match` and the twin's three-way one line up by construction |
+
+The third row is the useful one: round 3's worry was that a ten-arm body would
+cost ten times a two-arm one.  It does not — `Specs.lean`'s `view_run` has
+already done the ten-way work, and the walk above it pays one `cases`.
+
+#### 7. What each closed, by group
+
+| group | lemmas | closed | file |
+|---|---:|---:|---|
+| the level-list tier's derived column (`lstables_der_at`, `lsstore_derived`, `estore_lder`, `estore_lsder`) | 4 | **4** | `Specs.lean` |
+| `der_of_*` (`derObsE_pack`, `derObsE_fields`, `satPred_toNat` + eight arms) | 11 | **11** | `Specs.lean` |
+| the binder datum's two scalars (`etables_get_bm_der`, `estore_bm_der`) | 2 | **2** | `Specs.lean` |
+| the node records' `DupId` and injectivity | 16 | **16** | `Specs.lean` |
+| `EStore.intern_<ctor>` at the ten remaining expression arrays | 10 | **10** | `Specs.lean` |
+| the probe-first `internE` (`intern_of_find` and its three feeders, `run_get_bind`, `view_run_state`, `internE_run_of_cap`) | 7 | **7** | `Specs.lean` |
+| `arena::monad::intern_e_<ctor>` at the seven non-binder constructors | 7 | **7** | `Specs.lean` |
+| the `O(1)` derived reads (`inst_list_cutoff`, `lidx_has_param`, `eidx_has_level_param`) | 3 | **3** | `ExprOps/Read.lean` |
+| the fuel inductions (`get_app_fn`, `get_app_args_go`, `result_sort`) | 3 | **3** | `ExprOps/Read.lean` |
+| **total** | **63** | **63** | |
+
+#### 8. Elaboration
+
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, two runs.  The import
+baselines measured the same way: `import ConRon.Refine2.Shape` 1.90 / 2.26 s,
+`import ConRon.Refine2.Specs` 2.37 / 2.04 s (the spread is the machine, not
+the file).
+
+| file | lines | theorems | `sorry` | raw (2 runs) |
+|---|---:|---:|---:|---|
+| `Refine2/Idiom.lean` | 183 | 12 | 0 | 2.08 / 2.09 s |
+| `Refine2/AbsStore.lean` | 459 | 13 | 0 | 2.26 / 2.29 s |
+| `Refine2/Inv.lean` | 496 | 25 | 0 | 2.30 / 2.34 s |
+| `Refine2/AbsState.lean` | 382 | 10 | 0 | 2.20 / 2.15 s |
+| `Refine2/Shape.lean` | 342 | 26 | 0 | 2.07 / 2.04 s |
+| `Refine2/Specs.lean` | **7 513** | **220** | **25** | **7.10 / 7.06 s** |
+| `Refine2/ExprOps/Pure.lean` | 931 | 34 | 0 | 2.97 / 2.94 s |
+| `Refine2/ExprOps/Read.lean` | 1 144 | 37 | 25 | 2.50 / 2.43 s |
+| `Refine2/ExprOps/Mut.lean` | 839 | 65 | 65 | 2.12 / 2.13 s |
+
+**No declaration is anywhere near the 20-second flag, and none is over one
+second.**  At `set_option profiler` with a 300 ms threshold, the whole of
+`Specs.lean` reports **one `omega` at 1.05 s** (`derObsE_absU64`'s, task
+#97-P5-1's own outlier) and **three `simp` calls between 308 and 321 ms** (the
+`Eq2Fwd` and tier-select `simp only`s); `ExprOps/{Pure,Read,Mut}.lean` report
+**nothing at all** above the threshold.  `Specs.lean` is 7.1 s raw against a
+~2.1 s import baseline, so ≈ **5.0 s net for 220 theorems — 23 ms a lemma**,
+against task #97-P5-1's 10 ms: the intern proofs are longer (120 lines each)
+but they are still `rw` chains and `split`s over generated bodies, with
+`grind` nowhere in the tier.
+
+#### 9. The axiom census
+
+**Fifty-five more `#guard_msgs`'d `#print axioms` rows** — the tier now
+carries 102 (86 in `Specs.lean`, 7 in `ExprOps/Read.lean`, 6 in `Inv.lean`,
+3 in `ExprOps/Pure.lean`) — over every group of §7.  Every one reads `[propext, Classical.choice, Quot.sound]`
+— **except two, which read `[propext, Quot.sound]`**: `satPred_toNat` and
+`absFVarNode_inj` need no choice at all.  No `sorryAx` on a closed lemma, and
+still **no `bv_decide` axiom anywhere**.
+
+#### 10. What is left, exactly
+
+**`Specs.lean`, 25:**
+
+* **8 readbacks** — `read_{name,level,levels,names}_run` and their four
+  memoised siblings.  Untouched, and task #97-P5-1 §5's reading of them
+  stands: they are not store reads but an induction on `StoreWF`'s rank
+  against `Arena/Denote.lean`'s `denoteN`/`denoteL`/`denoteLs`.  They should
+  be scheduled with that hypothesis, and nothing in this round makes them
+  cheaper.
+* **5 binder/dispatch interns** — `intern_e_{lam,forall_e,lam_i,forall_e_i,
+  bind_i}_run` and `intern_e_run`.  **They wait on ONE missing lemma, and it
+  is `Arena/`'s, not this tier's: `Ext st (st.internBindI tag ty b mi).1`.**
+  `EStore.intern_ext` exists; `internBindI` has no sibling, and `AOut`'s
+  success arm demands `Ext`.  `Bridge/StoreBind.lean`'s
+  `EStore.internBindI_eq_internAt` is the route (it needs a `BinderMeta` and
+  `st.bmDer mi = (hash m.pw, m.pw.hasParams)`, which is `StoreWF`'s
+  `bmDerExact`), but the cleanest fix is a four-line `EStore.internBindI_ext`
+  beside `intern_ext` in `Arena/WFProofs.lean`.  Note also that
+  `Arena/Monad.lean`'s `internLamIE`/`internForallEIE` were NOT moved to
+  probe-first by task #97-P3-1, so those two keep the pre-probe `hcap`; a
+  follow-up twin change would retire it the same way finding 9 was retired.
+* **3 node interns + 4 persistent interns** — `intern_{n,l,ls}_node_run` and
+  `intern_persistent_{e,n,l,ls}_run`.  These are a DIFFERENT shape, and that
+  is the finding: the name, level and level-list stores' `intern` is written
+  over named helpers (`NStore.pers_find`, `NTables.find`, `NTables.full_of`,
+  `NStore.der_of_view`, `NTables.push`) rather than inline `Tbl` calls, so
+  they need a small helper layer of their own (~6 lemmas) before the six-arm
+  peel applies.  The expression store's eleven arrays do not share it.
+* **4 transient walks** — `intern_{name,level,level_list,levels}_run`, which
+  are structural recursions over a transient `Name`/`Level` value and want the
+  node interns under them.
+
+**`ExprOps/Read.lean`, 25:** six walks whose twin task #97-P3-1 split into
+`mutual` arm `def`s (`size_b`, `size_f`, `fvar_leaves`, `wscoped_b`,
+`has_fvar`, `loose_bvars_bounded`) and the eight memo-threading companions of
+`wscoped_b_go` / `fvar_leaves_go` / `leaves_sub_go`, plus `leaf_guard`; and the
+eight tag-first readers of P5-0's finding 3 (`is_lam`, `lam_pw`, `forall_pw`,
+`fvar_type_d`, `strip_lams`, `strip_pis`, `pi_result`, `pi_arity`).  **The
+eight tag-first ones need ONE lemma this tier does not have**: `st.view h =
+some v → h.tag = v.tagOf`.  That lemma is UNCONDITIONAL — each arm of
+`ETables.get` produces the view whose `tagOf` is the tag it tested, and
+`view`'s binder arm builds `eBindView i.tag …`, whose `tagOf` is `i.tag`
+under `isBind` — so **P5-0's finding 3 can be weakened: those eight need
+`EResolves` and not `StoreWF`** (the positive branch's second obligation, that
+the port's `view_bind_i` answers `some`, follows from `view h = some v` as
+well, since `view`'s bind arm goes through `viewBind`).  The argument is
+written out here; it is NOT mechanised, and mechanising it is ~60 lines
+against `ETables.get`'s ten-way `if` chain.  `Arena/WFProofs.lean` has
+`ENodeView.tagOf` and the `get_inv` machinery but no such lemma.
+
+**`ExprOps/Mut.lean`, 65:** untouched.  Thirteen `intern_rebuilt_*` wait on
+the five binder/dispatch wrappers above; the rest are fuel inductions in §6's
+idiom over the arm-split twins.
+
+#### 11. What the Core tier needs, beyond task #97-P5-1's notes
+
+Task #97-P5-1 §8 named three (the knot's lane dispatch as a `KnotRel`, the
+inline memo probes wanting `map_find_slot_insert_at_abs`, and finding 3's pair
+carried as a `StateOK` clause).  All three stand.  This round adds four:
+
+1. **`run_get_bind` and `view_run_state` are prerequisites, not conveniences.**
+   Every `match ← view h` in `core` — and there are hundreds — needs the
+   second to collapse `AOut`'s existential post-state, and every `rfl`-level
+   unfolding of a monadic body needs the first.  They are in `Specs.lean` now.
+2. **The fuel induction is `<f>_aux (n : Nat)` with everything generalised**
+   (§6).  `core`'s six bodies are tied at fuel, so the Core tier's induction is
+   this one at the KNOT rather than at a single function — which is exactly
+   what `KnotRel` has to be established by.
+3. **A ten-arm `view` walk costs one `cases`** (§6).  The Core tier's
+   `whnfCore`/`infer` arms are that shape, so the arm count is not the cost
+   driver there either; the memo probes are.
+4. **`Ext` at every appending primitive.**  `intern_ext` exists;
+   `internBindI`, `internBM`, `internNNode`, `internLNode`, `internLsNode` and
+   `promote` do not have one, and `AOut` demands `Ext` at every one of them.
+   This is `Arena/WFProofs.lean`'s work and it blocks P5 at five places today.
+
+#### 12. The gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green**, 2 093 jobs, **115 `sorry`** (was 128) and no errors |
+| `cd proof && lake build` | green — the default targets are untouched |
+| `scripts/provenance.py check` | 0 findings (no `Arena/` or Rust file changed) |
+| `scripts/overview-links.sh` | OK |
+| the diff | `proof/ConRon/Refine2/{AbsStore,Inv,Specs}.lean`, `proof/ConRon/Refine2/ExprOps/{Read,Mut}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
 ### Task #97-P5-Core — Theorem 2: the Core tier's knot (2026-09-22, Opus under Fable)
 
 DESIGN §8.6's **P5**, the `arena::core` tier — the largest module of the crate
