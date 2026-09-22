@@ -28,6 +28,7 @@ The clauses, in the order a reader meets them:
 | `derExact` | the derived column is `derOfView` of the node — *locally*; the global `derived st i = e.data` is a theorem (`derived_exact`) |
 | `sized` | the derived array is as long as the node array |
 | `cap` | no constructor array exceeds 2^27 entries, so a handle's 27-bit index is injective on it |
+| `bmKey` | every binder key a cons table holds names a datum the store can decode |
 | `scrOff` | the scratch tier is empty while the scratch flag is off |
 | `sync` | the nesting's scratch flags move together (task #97a) |
 
@@ -88,6 +89,14 @@ def ENodeView.lchildren : ENodeView → List LIdx
 def ENodeView.lschildren : ENodeView → List LsIdx
   | .const _ us => [us]
   | _ => []
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the datum a node
+view carries, if it carries one.  `EStore.findBMOfView` is `findBM` at this
+(task #97-P6-16). -/
+def ENodeView.bmOf : ENodeView → Option ConLeche.BinderMeta
+  | .lam _ _ m => some m
+  | .forallE _ _ m => some m
+  | _ => none
 
 /-! ## Table shape predicates -/
 
@@ -252,6 +261,10 @@ structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
   bmConsS : ∀ m i, st.scr.findBM m = some i ↔
     (st.viewBM i = some m ∧ i.isPersistent = false ∧ i.tag = 0)
   bmFresh : ∀ m i, st.scr.findBM m = some i → st.pers.findBM m = none
+  bmKeyP : ∀ v mj i, st.pers.find? v mj = some i →
+    v.bmOf = none ∨ ∃ m, st.pers.findBM m = some mj
+  bmKeyS : ∀ v mj i, st.scr.find? v mj = some i →
+    v.bmOf = none ∨ ∃ m, st.findBM m = some mj
   derExact : ∀ i v, st.view i = some v → st.derived i = st.derOfView v
   bmDerExact : ∀ i m, st.viewBM i = some m → st.bmDer i = (hash m.pw, m.pw.hasParams)
   sizedP : st.pers.Sized
