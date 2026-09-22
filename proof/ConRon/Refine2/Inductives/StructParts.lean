@@ -70,14 +70,36 @@ theorem nidx_vec_tail_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize} {out : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrun : arena.inductives.struct_parts.nidx_vec_tail_from ns i out = ok o) :
     absNIdxL o = absNIdxL out ++ absNIdxLFrom ns i := by
-  sorry
+  simp only [absNIdxL, absNIdxLFrom]
+  refine vec_cursor_copy ns absNIdx absNIdx
+    (arena.inductives.struct_parts.nidx_vec_tail_from ns) ?_ ?_ i out o hrun
+  · intro i out o hn h
+    rw [arena.inductives.struct_parts.nidx_vec_tail_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < ns.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.struct_parts.nidx_vec_tail_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnx : n1 = x := by
+      have h1 := vec_index_some hn1; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hnx
+    exact ⟨i2, n2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn2], h⟩
 
 /-- `nidx_vec_tail` is `List.tail` on the abstraction — the twin's
 `elim :: relps` pattern. -/
 theorem nidx_vec_tail_refines {ns : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrun : arena.inductives.struct_parts.nidx_vec_tail ns = ok o) :
     absNIdxL o = (absNIdxL ns).tail := by
-  sorry
+  rw [arena.inductives.struct_parts.nidx_vec_tail] at hrun
+  rw [nidx_vec_tail_from_refines hrun]
+  have h1 : ((1#usize : Std.Usize)).val = 1 := by scalar_tac
+  simp [absNIdxL, absNIdxLFrom, alloc.vec.Vec.new, h1, List.drop_one]
 
 /-! ## The level lists -/
 
@@ -418,7 +440,24 @@ theorem hlb_probe_refines
     (hm : WMemoRel rm lm)
     (hrun : arena.inductives.struct_parts.hlb_probe rm k = ok o) :
     o = lm[absEIdxNat k]? := by
-  sorry
+  rw [arena.inductives.struct_parts.hlb_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hmr, hminv⟩ := hm
+  have hto := ConRon.Refine.HashMap2.get_refines_wf eidxNat_eq2 hminv
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hmr k trivial
+  rw [← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option Bool) = o := Result.ok_injective hrun
+    subst h2
+    rfl
+  | some v =>
+    rw [hrc] at hrun
+    have h2 : some v = o := Result.ok_injective hrun
+    subst h2
+    rfl
 
 /-- `has_loose_bvar_b_ins` ⊑ `hasLooseBVarBIns` — one answer recorded. -/
 theorem has_loose_bvar_b_ins_refines {e : arena.handle.EIdx} {i : Std.U64}
@@ -428,7 +467,34 @@ theorem has_loose_bvar_b_ins_refines {e : arena.handle.EIdx} {i : Std.U64}
     (hrun : arena.inductives.struct_parts.has_loose_bvar_b_ins e i r = ok o) :
     o.1 = (hasLooseBVarBIns (absEIdx e) (absU i) (r.1, lm)).1 ∧
       WMemoRel o.2 (hasLooseBVarBIns (absEIdx e) (absU i) (r.1, lm)).2 := by
-  sorry
+  obtain ⟨b, memo⟩ := r
+  rw [arena.inductives.struct_parts.has_loose_bvar_b_ins] at hrun
+  obtain ⟨en, hen, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨old, memo1⟩ := q
+  have ho : (b, memo1) = o := Result.ok_injective hrun
+  obtain ⟨hrel, hinv⟩ := hm
+  rw [arena.monad.eidx_nat_key] at hen
+  obtain ⟨e1, he1, hen⟩ := ConRon.Refine.bind_eq_ok_iff.mp hen
+  have henv : en = ⟨e1, i⟩ := (Result.ok_injective hen).symm
+  have hee : e1 = e := dupId_eidx e e1 he1
+  have hinj : ∀ a b : arena.monad.EIdxNat, True → True →
+      absEIdxNat a = absEIdxNat b → a = b := by
+    intro a b _ _ hab
+    obtain ⟨⟨wa⟩, da⟩ := a; obtain ⟨⟨wb⟩, db⟩ := b
+    simp only [absEIdxNat, absEIdx, Prod.mk.injEq, Idx.ofWord.injEq] at hab
+    have hw : wa = wb := absU32_inj hab.1
+    have hd : da = db := Std.UScalar.eq_imp _ _ hab.2
+    rw [hw, hd]
+  subst henv
+  subst hee
+  obtain ⟨hrel', hkeys'⟩ :=
+    ConRon.Refine.HashMap2.Rel_insert_wf eidxNat_eq2 hinj hinv
+      ConRon.Refine.HashMap2.KeysOk_true hrel trivial hq
+  have hinv' := (ConRon.Refine.HashMap2.insert_refines_wf eidxNat_eq2 hinv
+    ConRon.Refine.HashMap2.KeysOk_true trivial hq).1
+  rw [← ho]
+  exact ⟨rfl, ⟨hrel', hinv'⟩⟩
 
 /-- `has_loose_bvar_b_node` ⊑ `hasLooseBVarBGo`'s arm dispatch. -/
 theorem has_loose_bvar_b_node_refines {pers st lst}
@@ -584,7 +650,24 @@ theorem mc_probe_refines {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     (hm : LMemoRel rm lm)
     (hrun : arena.inductives.struct_parts.mc_probe rm k = ok o) :
     o = lm[absEIdx k]? := by
-  sorry
+  rw [arena.inductives.struct_parts.mc_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hmr, hminv⟩ := hm
+  have hto := ConRon.Refine.HashMap2.get_refines_wf eidx_eq2 hminv
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hmr k trivial
+  rw [← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option Bool) = o := Result.ok_injective hrun
+    subst h2
+    rfl
+  | some v =>
+    rw [hrc] at hrun
+    have h2 : some v = o := Result.ok_injective hrun
+    subst h2
+    rfl
 
 /-- `mentions_const_node` ⊑ `mentionsConstGo`'s arm dispatch. -/
 theorem mentions_const_node_refines {pers st lst} {t : arena.handle.NIdx}

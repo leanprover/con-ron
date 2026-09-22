@@ -171,6 +171,69 @@ namespace ConRon.Bridge
 #print axioms reservedBasisNameValues_eq
 #print axioms reduceOpNames_run
 
+-- the level tier's readers and inversions, and the whole lockstep `canon`
+-- comparison (task #97-P3-Checker round 4)
+#print axioms viewE_run
+#print axioms viewL_run
+#print axioms viewLs_run
+#print axioms denoteL_view_eq
+#print axioms denoteL_zero_inv
+#print axioms denoteL_succ_inv
+#print axioms denoteL_max_inv
+#print axioms denoteL_imax_inv
+#print axioms denoteL_param_inv
+#print axioms denoteNList_length
+#print axioms denoteNList_get
+#print axioms canonFindIdx_denote
+#print axioms canonNameMap_denote
+#print axioms CanonMapD.mono
+#print axioms canonLevelEq_run
+#print axioms denoteLList_cons
+#print axioms canonLevelListEq_run
+#print axioms denoteLs_view_inv
+#print axioms canonLevelsEq_run
+#print axioms canonExprEq_run
+#print axioms denoteEList_inj
+#print axioms denoteFire_inj
+#print axioms denoteRule_inv
+#print axioms denoteRules_cons
+#print axioms canonRuleHead_eq
+#print axioms canonRulesEq_run
+#print axioms IConstantVal.canonEq_run
+#print axioms denoteCI_axiom_inv
+#print axioms denoteCI_ctor_inv
+#print axioms denoteCI_proj_inv
+#print axioms denoteCI_defn_inv
+#print axioms denoteCI_thm_inv
+#print axioms denoteCI_ind_inv
+#print axioms denoteCI_rec_inv
+
+-- the two memoised DAG walks of the front door (task #97-P3-Checker round 4),
+-- which is what takes `Bridge/Checker/Base.lean` to zero
+#print axioms readNames_run
+#print axioms readLevel_run
+#print axioms readLevels_run
+#print axioms LPDMemoOK.empty
+#print axioms LPDMemoOK.insert
+#print axioms allLevelParamsDefinedGo_run
+#print axioms allLevelParamsDefined_run
+#print axioms IFEnvOK.find_isSome
+#print axioms constsResolve_run
+#print axioms CRMemoOK.empty
+#print axioms CRMemoOK.insert
+#print axioms constsResolveFGo_run
+#print axioms constsResolveFFast_run
+
+-- the install half of the front door, and the pinned-constant install
+#print axioms installConstantVal_pure
+#print axioms installConstantVal_bridge
+#print axioms installValue_pure
+#print axioms installValue_bridge
+#print axioms installBasisDecl_bridge
+
+-- the readback facts that moved down out of `Base.lean` (round 4)
+#print axioms beq_handle_iff
+
 -- **THE DECLARATION FRONT DOOR** (item 11) and the three list checks (item 12)
 #print axioms denoteCV_inv
 #print axioms denoteCIList_get
@@ -222,6 +285,11 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- list induction is closed and its `sorryAx` is `IConstantInfo.canonEq_run`'s,
 -- which is `canonExprEq`'s fuel induction and nothing else.
 #print axioms canonEqList_run
+
+-- `IConstantInfo.canonEq_run` (round 4) is forty-eight of its forty-nine arms:
+-- its `sorryAx` is the `.projInfo`/`.projInfo` arm alone, which is a STATEMENT
+-- defect (DESIGN, round 4 §3.2 — `denoteProjTable` drops `tableName`).
+#print axioms IConstantInfo.canonEq_run
 
 #print axioms checkDecl_defn_pure_nn
 #print axioms checkDecl_defn_pure_nd
