@@ -6647,6 +6647,158 @@ theorem intern_e_lit_run {pers st lst} (hrel : AStateRel pers st lst)
     rw [Arena.internLitE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
 
+/-! ## The binder `intern` wrappers (task #97-P5-3 round 2)
+
+Task #97-P5-2 §10 named these five as waiting on ONE lemma, and named it
+right: `Ext st (st.internBindI tag ty b mi).1`, which `Arena/WFProofs.lean`
+did not have.  It has it now (task #97a follow-up 4: `EStore.internBindI_ext`
+and its `internLamI` / `internForallEI` instances), so the three that go
+straight to `internBindI` are `intern_e_lit_run`'s proof at the binder array
+— the hypotheses being finding 7's `hchild` (the skipped persistent probe),
+finding 8's `hfrozen`, and the twin's own capacity test, which at a binder is
+`bindSizeOf` on BOTH tiers rather than `sizeOf` on the one the store is in. -/
+
+/-- `Arena.internLamIE`'s run below the binder array's cap. -/
+theorem internLamIE_run_of_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
+    (hcap : lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
+      lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap) :
+    (Arena.internLamIE ty b mi).run lst
+      = .ok ((lst.store.internLamI ty b mi).2,
+             { lst with store := (lst.store.internLamI ty b mi).1 }) := by
+  rw [Arena.internLamIE, run_get_bind, if_pos hcap]
+  show (match lst.store.internLamI ty b mi with
+        | (st, h) => (do set { lst with store := st }; pure h : AM EIdx)).run lst = _
+  cases hi : lst.store.internLamI ty b mi with
+  | mk st1 h1 => rfl
+
+/-- `Arena.internForallEIE`'s run below the binder array's cap. -/
+theorem internForallEIE_run_of_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
+    (hcap : lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
+      lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap) :
+    (Arena.internForallEIE ty b mi).run lst
+      = .ok ((lst.store.internForallEI ty b mi).2,
+             { lst with store := (lst.store.internForallEI ty b mi).1 }) := by
+  rw [Arena.internForallEIE, run_get_bind, if_pos hcap]
+  show (match lst.store.internForallEI ty b mi with
+        | (st, h) => (do set { lst with store := st }; pure h : AM EIdx)).run lst = _
+  cases hi : lst.store.internForallEI ty b mi with
+  | mk st1 h1 => rfl
+
+/-- `arena::monad::intern_e_lam_i` against `Arena.internLamIE`. -/
+theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx)
+    (hchild : ((absEIdx ty).isPersistent = false ∨
+        (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
+      lst.store.pers.lams.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
+    (hcap : lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
+      lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap)
+    {o}
+    (hrun : arena.monad.intern_e_lam_i pers st ty b mi = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o
+      (Arena.internLamIE (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
+  rw [arena.monad.intern_e_lam_i] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_lam_i_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store :=
+        (lst.store.internLamI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.internLamI_ext _ _ _ _) trivial
+    rw [internLamIE_run_of_cap hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
+
+/-- `arena::monad::intern_e_forall_e_i` against `Arena.internForallEIE`. -/
+theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx)
+    (hchild : ((absEIdx ty).isPersistent = false ∨
+        (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
+      lst.store.pers.foralls.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
+    (hcap : lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
+      lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap)
+    {o}
+    (hrun : arena.monad.intern_e_forall_e_i pers st ty b mi = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o
+      (Arena.internForallEIE (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
+  rw [arena.monad.intern_e_forall_e_i] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_forall_e_i_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      hchild hp
+  show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
+    refine AOut.ok
+      (lst' := { lst with store :=
+        (lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+      (EStore.internForallEI_ext _ _ _ _) trivial
+    rw [internForallEIE_run_of_cap hcap, hhd]
+  | Err ee => exact AOut.err (AErrSim.of_none (herr ee hr))
+
+/-- `arena::monad::intern_e_bind_i` against `Arena.internBindIE` — the tag
+dispatch, and nothing but. -/
+theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (tag : Std.U32) (ty : arena.handle.EIdx) (b : arena.handle.EIdx)
+    (mi : arena.handle.BMIdx)
+    (hchildL : absU32 tag = ETag.lam →
+      ((absEIdx ty).isPersistent = false ∨
+        (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
+      lst.store.pers.lams.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
+    (hchildF : absU32 tag ≠ ETag.lam →
+      ((absEIdx ty).isPersistent = false ∨
+        (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
+      lst.store.pers.foralls.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
+    (hcapL : absU32 tag = ETag.lam →
+      lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
+        lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap)
+    (hcapF : absU32 tag ≠ ETag.lam →
+      lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
+        lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap)
+    {o}
+    (hrun : arena.monad.intern_e_bind_i pers st tag ty b mi = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o
+      (Arena.internBindIE (absU32 tag) (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
+  rw [arena.monad.intern_e_bind_i] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((Arena.internBindIE (absU32 tag) (absEIdx ty) (absEIdx b) (absBMIdx mi)).run lst)
+  rw [Arena.internBindIE]
+  by_cases hc : tag = arena.handle.ETAG_LAM
+  · subst hc
+    rw [if_pos rfl] at hrun
+    rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
+      rw [etag_lam_abs]; simp)]
+    exact intern_e_lam_i_run hrel hinv hfrozen ty b mi
+      (hchildL (by rw [etag_lam_abs])) (hcapL (by rw [etag_lam_abs])) hrun
+  · rw [if_neg hc] at hrun
+    have hne : absU32 tag ≠ ETag.lam := by
+      rw [← etag_lam_abs]
+      intro hcc; exact hc (absU32_inj hcc)
+    rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
+    exact intern_e_forall_e_i_run hrel hinv hfrozen ty b mi
+      (hchildF hne) (hcapF hne) hrun
+
 /-- `arena::monad::intern_e_lam` against `Arena.internLamE`. -/
 theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st) (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) {o}
@@ -6661,26 +6813,8 @@ theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
     Sim absEIdx (fun _ => True) pers lst o (Arena.internForallEE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)) := by
   sorry
 
-/-- `arena::monad::intern_e_lam_i` against `Arena.internLamIE`. -/
-theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx) {o}
-    (hrun : arena.monad.intern_e_lam_i pers st ty b mi = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internLamIE (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
-  sorry
 
-/-- `arena::monad::intern_e_forall_e_i` against `Arena.internForallEIE`. -/
-theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx) {o}
-    (hrun : arena.monad.intern_e_forall_e_i pers st ty b mi = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internForallEIE (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
-  sorry
 
-/-- `arena::monad::intern_e_bind_i` against `Arena.internBindIE`. -/
-theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (tag : Std.U32) (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx) {o}
-    (hrun : arena.monad.intern_e_bind_i pers st tag ty b mi = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internBindIE (absU32 tag) (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
-  sorry
 
 /-- `arena::monad::intern_n_node` against `Arena.internNNode`. -/
 theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
@@ -7619,5 +7753,21 @@ theorem EStore_view_tagOf {st : EStore} {i : EIdx} {v : ENodeView}
 
 /-- info: 'ConRon.Refine2.EStore_view_tagOf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms EStore_view_tagOf
+
+
+/-- info: 'ConRon.Refine2.internLamIE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms internLamIE_run_of_cap
+
+/-- info: 'ConRon.Refine2.internForallEIE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms internForallEIE_run_of_cap
+
+/-- info: 'ConRon.Refine2.intern_e_lam_i_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_lam_i_run
+
+/-- info: 'ConRon.Refine2.intern_e_forall_e_i_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_forall_e_i_run
+
+/-- info: 'ConRon.Refine2.intern_e_bind_i_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_bind_i_run
 
 end ConRon.Refine2
