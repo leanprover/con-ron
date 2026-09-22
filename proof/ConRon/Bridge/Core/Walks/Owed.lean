@@ -740,26 +740,6 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           r⌝⦄ := by
   sorry
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — **THEOREM 1
-for `defeqSpine`**: two applications of the same constant are defeq if their
-universe arguments and their argument vectors are.
-
-**OPEN**: `getAppFn_spec`/`getAppArgs_spec` (`ExprOps` tier), `lvlsEq?_spec`
-(CLOSED, `Bridge/Core/Walks/Cached.lean`) and `defEqList_spec` below.  Three
-of the four are in hand, which makes this the most nearly reachable of the
-five. -/
-theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.defeqSpine (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r⌝⦄ := by
-  sorry
-
 /-! ### `defEqList`, the tier's first `List` recursion
 
 The two list inversions, the four pure-side step equations, the induction
@@ -946,6 +926,195 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   mvcgen [hb]
   intro h1 h2 h3 h4
   exact ⟨h1, h2, h3, h4 xs ys hda hdb⟩
+
+/-! ### `defeqSpine`, the walk that consumes the whole round
+
+It is the first walk of the tier whose callee list is entirely made of
+things this round or the last one closed: `getAppFn_spec` and
+`getAppArgs_spec` (the `ExprOps` import, §0c), `lvlsEq?_spec` (round 2,
+strengthened to the equation), and `defEqList_go` (above).  Twenty
+verification conditions, sixteen of them the four `StateOK`/`isSome`
+preconditions of the four spine reads. -/
+
+theorem name_eq_iff_of_denoteN {st : NStore} (hwf : NStoreWF st)
+    {n₁ n₂ : NIdx} {nm₁ nm₂ : ConLeche.Name}
+    (h1 : denoteN st n₁ = some nm₁) (h2 : denoteN st n₂ = some nm₂) :
+    (n₁ = n₂) ↔ (nm₁ = nm₂) := by
+  constructor
+  · intro h; subst h; rw [h1] at h2; exact Option.some.inj h2
+  · intro h; subst h; exact denoteN_inj hwf h1 h2
+
+theorem defeqSpineFueled_const {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
+    {us us' : List Level} {r : Bool}
+    (hx : x.getAppFn = .const n us) (hy : y.getAppFn = .const n' us')
+    (hc : n = n' ∧ x.getAppArgs.length = y.getAppArgs.length)
+    (hlv : Level.isEquivList us us' = some true)
+    (hr : ConLeche.defEqListFueled mode env F d x.getAppArgs y.getAppArgs
+      = .ok r) :
+    ConLeche.defeqSpineFueled mode env F d x y = .ok r := by
+  simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx, hy,
+    if_pos hc, hlv]
+  exact hr
+
+theorem defeqSpineFueled_lvl {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
+    {us us' : List Level}
+    (hx : x.getAppFn = .const n us) (hy : y.getAppFn = .const n' us')
+    (hc : n = n' ∧ x.getAppArgs.length = y.getAppArgs.length)
+    (hlv : ¬ (Level.isEquivList us us' = some true)) :
+    ConLeche.defeqSpineFueled mode env F d x y = .ok false := by
+  simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx, hy,
+    if_pos hc]
+  cases hl : Level.isEquivList us us' with
+  | none => rfl
+  | some v =>
+    cases v with
+    | true => exact absurd hl hlv
+    | false => rfl
+
+theorem defeqSpineFueled_ne {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
+    {us us' : List Level}
+    (hx : x.getAppFn = .const n us) (hy : y.getAppFn = .const n' us')
+    (hc : ¬ (n = n' ∧ x.getAppArgs.length = y.getAppArgs.length)) :
+    ConLeche.defeqSpineFueled mode env F d x y = .ok false := by
+  simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx, hy,
+    if_neg hc]
+  rfl
+
+theorem defeqSpineFueled_nc_right {F d : Nat} {x y : Expr}
+    {n : ConLeche.Name} {us : List Level} (hx : x.getAppFn = .const n us)
+    (hy : ∀ m vs, y.getAppFn ≠ .const m vs) :
+    ConLeche.defeqSpineFueled mode env F d x y = .ok false := by
+  simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx]
+  rfl
+
+theorem defeqSpineFueled_nc_left {F d : Nat} {x y : Expr}
+    (hx : ∀ m vs, x.getAppFn ≠ .const m vs) :
+    ConLeche.defeqSpineFueled mode env F d x y = .ok false := by
+  simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — **THEOREM 1
+for `defeqSpine`**: two applications of the same constant are defeq if their
+universe arguments and their argument vectors are.  **CLOSED** (round 3).
+
+Two of DESIGN §8.3's "index inequality IS structural inequality" in one
+guard: the twin tests `n = n'` on `NIdx` where con-leche tests `Name`
+equality (`name_eq_iff_of_denoteN`, both directions), and `aa.length =
+bb.length` on handle lists where con-leche tests the denoted spines'
+(`denoteEList_len`, both directions).  The walk DECLINES on either, so both
+are needed at both signs — round 2's rule at a compound guard. -/
+theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
+    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hdb : denoteE s₀.store b = some y)
+    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.defeqSpine (coreKnot mode fe id fuel) fe d a b
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r⌝⦄ := by
+  have hfn := ExprOps.getAppFn_spec coreWalkFuel
+  have hag := ExprOps.getAppArgs_spec coreWalkFuel
+  have hdl := defEqList_go hsim d
+  obtain ⟨rk, hrk⟩ := hok.state.wf
+  mvcgen [ConRon.Arena.defeqSpine, hfn, hag, lvlsEq?_spec, hdl]
+  case vc1 => bridge_peel; subst_vars; exact hok.state
+  case vc3 => bridge_peel; subst_vars; exact hok.state
+  case vc5 => bridge_peel; subst_vars; exact hok.state
+  case vc7 => bridge_peel; subst_vars; exact hok.state
+  case vc2 => bridge_peel; subst_vars; rw [hda]; rfl
+  case vc6 => bridge_peel; subst_vars; rw [hda]; rfl
+  case vc4 => bridge_peel; subst_vars; rw [hdb]; rfl
+  case vc8 => bridge_peel; subst_vars; rw [hdb]; rfl
+  case vc12 => bridge_peel; subst_vars; exact hok
+  case vc13 =>
+    bridge_peel; subst_vars
+    rename_i rfa usa rfb cn usb aa bb s2 s1 rb s0 hlen hck1 hst1 hpn1 hlvs
+      hrelB hrelA hviewB hrelFb hrelFa hviewA
+    intro hck hxt hpn hrec
+    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
+      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
+    obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
+      denote_const_inv hok.state.wf hviewB (hrelFb y hdb)
+    have hnn : nma = nmb := Option.some.inj (hna.symm.trans hnb)
+    have hdaa := hrelA x hda
+    have hdbb := hrelB y hdb
+    have hlenX : x.getAppArgs.length = y.getAppArgs.length := by
+      rw [denoteEList_len hdaa, denoteEList_len hdbb, hlen]
+    obtain ⟨lus, lvs, hlu, hlv, hiso⟩ := hlvs
+    rw [husa] at hlu; rw [husb] at hlv
+    obtain rfl : lus = lsa := (Option.some.inj hlu).symm
+    obtain rfl : lvs = lsb := (Option.some.inj hlv).symm
+    refine ⟨hck, by rw [← hst1]; exact hxt, by rw [hpn, hpn1], ?_⟩
+    obtain ⟨F, hF⟩ :=
+      hrec x.getAppArgs y.getAppArgs (by rw [hst1]; exact hdaa)
+        (by rw [hst1]; exact hdbb)
+    exact ⟨F, defeqSpineFueled_const hgfa hgfb ⟨hnn, hlenX⟩ hiso.symm hF⟩
+  case vc14 => bridge_peel; subst_vars; intro s hck _ _ _; exact hck
+  case vc15 =>
+    bridge_peel; subst_vars
+    rename_i rfa usa rfb cn usb aa bb s2 hlen hrelB hrelA hviewB hrelFb
+      hrelFa hviewA
+    intro s _ hst _ _
+    exact ⟨x.getAppArgs, by rw [hst]; exact hrelA x hda,
+      fun z hz => hwa.getAppArgs z hz⟩
+  case vc16 =>
+    bridge_peel; subst_vars
+    rename_i rfa usa rfb cn usb aa bb s2 hlen hrelB hrelA hviewB hrelFb
+      hrelFa hviewA
+    intro s _ hst _ _
+    exact ⟨y.getAppArgs, by rw [hst]; exact hrelB y hdb,
+      fun z hz => hwb.getAppArgs z hz⟩
+  case vc17 =>
+    bridge_peel; subst_vars
+    rename_i rfa usa rfb cn usb aa bb s1 rv hnt s0 hlen hck0 hst0 hpn0 hlvs
+      hrelB hrelA hviewB hrelFb hrelFa hviewA
+    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
+      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
+    obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
+      denote_const_inv hok.state.wf hviewB (hrelFb y hdb)
+    have hnn : nma = nmb := Option.some.inj (hna.symm.trans hnb)
+    have hdaa := hrelA x hda
+    have hdbb := hrelB y hdb
+    have hlenX : x.getAppArgs.length = y.getAppArgs.length := by
+      rw [denoteEList_len hdaa, denoteEList_len hdbb, hlen]
+    obtain ⟨lus, lvs, hlu, hlv, hiso⟩ := hlvs
+    rw [husa] at hlu; rw [husb] at hlv
+    obtain rfl : lus = lsa := (Option.some.inj hlu).symm
+    obtain rfl : lvs = lsb := (Option.some.inj hlv).symm
+    refine ⟨hck0, by rw [hst0]; exact Ext.refl _, hpn0,
+      ⟨0, defeqSpineFueled_lvl hgfa hgfb ⟨hnn, hlenX⟩
+        (fun hc => hnt (hiso.trans hc))⟩⟩
+  case vc18 =>
+    bridge_peel; subst_vars
+    rename_i rfa cna usa rfb cnb usb aa bb hne s0 hrelB hrelA hviewB hrelFb
+      hviewA hrelFa
+    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
+      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
+    obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
+      denote_const_inv hok.state.wf hviewB (hrelFb y hdb)
+    have hdaa := hrelA x hda
+    have hdbb := hrelB y hdb
+    refine ⟨hok, Ext.refl _, rfl, ⟨0, defeqSpineFueled_ne hgfa hgfb ?_⟩⟩
+    intro hc
+    obtain ⟨h1, h2⟩ := hc
+    refine hne ⟨(name_eq_iff_of_denoteN hrk.nsWF hna hnb).mpr h1, ?_⟩
+    rw [← denoteEList_len hdaa, ← denoteEList_len hdbb]
+    exact h2
+  case vc19 =>
+    bridge_peel; subst_vars
+    rename_i rfa cna usa rfb vb hncb s0 hviewB hrelFb hviewA hrelFa
+    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
+      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
+    exact ⟨hok, Ext.refl _, rfl,
+      ⟨0, defeqSpineFueled_nc_right hgfa
+        (denote_not_const hok.state.wf hviewB (hrelFb y hdb) hncb)⟩⟩
+  case vc20 =>
+    bridge_peel; subst_vars
+    rename_i rfa va hnca s0 hviewA hrelFa
+    exact ⟨hok, Ext.refl _, rfl,
+      ⟨0, defeqSpineFueled_nc_left
+        (denote_not_const hok.state.wf hviewA (hrelFa x hda) hnca)⟩⟩
 
 /-! ## 5. The annotation pass's three
 
