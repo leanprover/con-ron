@@ -89,6 +89,7 @@ declaration-layer transports and they are what the install routes' statements
 name.
 -/
 import ConRon.Bridge.Checker.Hyp
+import ConRon.Bridge.Core.Walks.Cached
 
 namespace ConRon.Bridge.Inductives
 
@@ -470,6 +471,289 @@ theorem bindOk {α β : Type} {x : AM α} {f : α → AM β} {s s' : AState}
     obtain ⟨a, s₁⟩ := p
     intro h
     exact ⟨a, s₁, rfl, h⟩
+
+/-- con-leche: none — the `AM` `pure`'s inversion, the other half of
+`bindOk`: an accepting `pure` moved nothing and answered what it was given.
+Every `do` block of the tier ends in one. -/
+theorem pureOk {α : Type} {a r : α} {s s' : AState}
+    (h : (pure a : AM α) s = .ok (r, s')) : r = a ∧ s' = s := by
+  have h' : Except.ok ((a, s) : α × AState) = .ok (r, s') := h
+  injection h' with h''
+  injection h'' with h1 h2
+  exact ⟨h1.symm, h2.symm⟩
+
+/-! ## The primitives, in RUN form
+
+`Bridge/Specs.lean` states one `@[spec]` triple per `Monad.lean` primitive,
+and this tier is written in RUN form (the module note above says why: its work
+is composition and `bind` inversion, not verification conditions).  So every
+leaf proof here would otherwise begin with the same `AM.of_run` and the same
+seven-way `obtain` over the frame equations — at some two hundred call sites.
+
+The primitives the generators actually use get their run form ONCE, here,
+each packaging the frame as a `PStep` and keeping only the conjunct its
+callers read.  A proof downstream is then `bindOk` plus one of these plus the
+answer's own algebra, which is what task #97-P3-0 §4's rule 3 asks of a
+statement layer. -/
+
+/-- con-leche: none — a level-handle list that denotes denotes at each
+element. -/
+theorem denoteLList_mem {st : LStore} :
+    ∀ {us : List LIdx} {xs : List Level}, denoteLList st us = some xs →
+      ∀ {c : LIdx}, c ∈ us → ∃ u, denoteL st c = some u := by
+  intro us
+  induction us with
+  | nil => intro xs _ c hc; exact absurd hc (by simp)
+  | cons u us ih =>
+    intro xs h c hc
+    simp only [denoteLList, opt2] at h
+    cases hu : denoteL st u with
+    | none => rw [hu] at h; simp at h
+    | some y =>
+      cases hus : denoteLList st us with
+      | none => rw [hu, hus] at h; simp at h
+      | some ys =>
+        rcases List.mem_cons.mp hc with rfl | hc'
+        · exact ⟨y, hu⟩
+        · exact ih hus hc'
+
+/-- con-leche: none — a universe-argument list handle that denotes has a
+view. -/
+theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List Level}
+    (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
+  obtain ⟨v, hv, _⟩ := denoteLs_view hd
+  rw [hv]; rfl
+
+/-- con-leche: none — `EStore.viewBM` reads only `pers`, `scr` and
+`scratchOn`, so a primitive that leaves those three alone leaves the whole
+binder-datum store alone.  The three NESTED interners (name, level, level
+list) are exactly that. -/
+theorem bmExt_of_nested {st st' : EStore} (hp : st'.pers = st.pers)
+    (hs : st'.scr = st.scr) (hon : st'.scratchOn = st.scratchOn) :
+    BMExt st st' := by
+  intro mi m h
+  simp only [EStore.viewBM, EStore.persGetBM, hp, hs, hon]
+  exact h
+
+/-- con-leche: none — **`internE`, as a run**: the arena grew, nothing else
+moved, and the new handle denotes what the node view says. -/
+theorem internE_run {s s' : AState} {w : ENodeView} {h : EIdx}
+    (hok : StateOK s) (hv : s.store.ViewOK w)
+    (hrun : internE w s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = denoteEView s'.store w := by
+  obtain ⟨h1, h2, h3, _h4, _h5, h6, h7, _h8, h9⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s w hok.wf hv)
+  exact ⟨⟨⟨h1⟩, h2, h3, h6, h7⟩, h9⟩
+
+/-- con-leche: none — `internE` at a `.bvar`: no precondition at all. -/
+theorem internBVarE_run {s s' : AState} {i : Nat} {h : EIdx} (hok : StateOK s)
+    (hrun : internE (.bvar i) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.bvar i) :=
+  internE_run hok viewOK_bvar hrun
+
+/-- con-leche: none — `internE` at a `.sort`. -/
+theorem internSortE_run {s s' : AState} {u : LIdx} {uP : Level} {h : EIdx}
+    (hok : StateOK s) (hu : denoteL s.store.ls u = some uP)
+    (hrun : internE (.sort u) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.sort uP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_sort (lview_isSome_of_denote hu)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteL_ext hu hstep.ext, Option.map_some]
+
+/-- con-leche: none — `internE` at a `.const`: the head of every family and
+every spine this tier builds. -/
+theorem internConstE_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
+    {us : LsIdx} {usP : List Level} {h : EIdx} (hok : StateOK s)
+    (hn : denoteN s.store.ns n = some nm)
+    (hus : denoteLs s.store.lss us = some usP)
+    (hrun : internE (.const n us) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.const nm usP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_const (nview_isSome_of_denote hn)
+      (lsview_isSome_of_denote hus)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteN_ext hn hstep.ext, denoteLs_ext hus hstep.ext,
+    opt2]
+
+/-- con-leche: none — `internE` at a `.proj`: `structProjArgP`'s node. -/
+theorem internProjE_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
+    {i : Nat} {e : EIdx} {eP : Expr} {h : EIdx} (hok : StateOK s)
+    (hn : denoteN s.store.ns n = some nm) (he : denoteE s.store e = some eP)
+    (hrun : internE (.proj n i e) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.proj nm i eP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_proj (nview_isSome_of_denote hn)
+      (by rw [he]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteN_ext hn hstep.ext, denote_ext he hstep.ext,
+    opt2]
+
+/-- con-leche: none — `internE` at a binder whose datum is a VALUE
+(`replacePisPw`, `pisToLamsPw` and the recursor generators build their binders
+this way, not through the datum-handle face). -/
+theorem internForallEE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
+    {m : BinderMeta} {h : EIdx} (hok : StateOK s)
+    (hty : denoteE s.store ty = some tyP) (hb : denoteE s.store b = some bP)
+    (hrun : internE (.forallE ty b m) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.forallE tyP bP m) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_forallE (by rw [hty]; rfl) (by rw [hb]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hty hstep.ext, denote_ext hb hstep.ext,
+    opt2]
+
+/-- con-leche: none — the same at a `.lam`. -/
+theorem internLamE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
+    {m : BinderMeta} {h : EIdx} (hok : StateOK s)
+    (hty : denoteE s.store ty = some tyP) (hb : denoteE s.store b = some bP)
+    (hrun : internE (.lam ty b m) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.lam tyP bP m) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_lam (by rw [hty]; rfl) (by rw [hb]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hty hstep.ext, denote_ext hb hstep.ext,
+    opt2]
+
+/-- con-leche: none — **`internLNode`, as a run**.  The nested stores keep
+`pers`/`scr`/`scratchOn`, so `BMExt` is `bmExt_of_nested`. -/
+theorem internLNode_run {s s' : AState} {v : LNodeView} {h : LIdx}
+    (hok : StateOK s) (hv : s.store.ls.ViewOK v)
+    (hrun : internLNode v s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = denoteLView s'.store.ls v := by
+  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLNode_spec s v hok.wf hv)
+  exact ⟨⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩, h10⟩
+
+/-- con-leche: none — `internLNode` at `.zero`: `structElimLevel`'s small
+arm. -/
+theorem internZeroL_run {s s' : AState} {h : LIdx} (hok : StateOK s)
+    (hrun : internLNode .zero s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = some .zero :=
+  internLNode_run hok ⟨by simp [LNodeView.lchildren],
+    by simp [LNodeView.nchildren]⟩ hrun
+
+/-- con-leche: none — `internLNode` at a `.param`: `paramLevels`' element and
+`structElimLevel`'s large arm. -/
+theorem internParamL_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
+    {h : LIdx} (hok : StateOK s) (hn : denoteN s.store.ns n = some nm)
+    (hrun : internLNode (.param n) s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = some (.param nm) := by
+  obtain ⟨hstep, hd⟩ :=
+    internLNode_run hok ⟨by simp [LNodeView.lchildren],
+      by intro c hc
+         simp only [LNodeView.nchildren] at hc
+         rcases List.mem_singleton.mp hc with rfl
+         exact nview_isSome_of_denote hn⟩ hrun
+  refine ⟨hstep, ?_⟩
+  have hx : denoteN s'.store.ls.ns n = some nm := denoteN_ext hn hstep.ext
+  rw [hd]
+  show Option.map Level.param (denoteN s'.store.ls.ns n) = some (Level.param nm)
+  rw [hx]
+  rfl
+
+/-- con-leche: none — **`internLsNode`, as a run**: a universe-argument list
+node, which is what `paramLevels` answers. -/
+theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
+    {h : LsIdx} (hok : StateOK s) (hv : denoteLList s.store.ls v = some vP)
+    (hrun : internLsNode v s = .ok (h, s')) :
+    PStep s s' ∧ denoteLs s'.store.lss h = some vP := by
+  have hvok : s.store.lss.ViewOK v := by
+    intro c hc
+    obtain ⟨u, hu⟩ := denoteLList_mem hv hc
+    exact lview_isSome_of_denote hu
+  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLsNode_spec s v hok.wf hvok)
+  have hstep : PStep s s' := ⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩
+  refine ⟨hstep, ?_⟩
+  rw [h10]
+  exact denoteLList_ext hstep.ext.lss.ls _ _ hv
+
+/-- con-leche: none — **`internNNode`, as a run**. -/
+theorem internNNode_run {s s' : AState} {v : NNodeView} {h : NIdx}
+    (hok : StateOK s) (hv : s.store.ns.ViewOK v)
+    (hrun : internNNode v s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = denoteNView s'.store.ns v := by
+  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
+  exact ⟨⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩, h10⟩
+
+/-- con-leche: none — a handle list's denotation splits over an append, which
+is what the two-spine generators (`structCtorSpine`, `structFamI`) need before
+`mkAppN`.  Belongs in `Bridge/Rel.lean` beside `denoteEList_snoc`. -/
+theorem denoteEList_append {st : EStore} :
+    ∀ {a : List EIdx} {as : List Expr} {b : List EIdx} {bs : List Expr},
+      Frontend.denoteEList st a = some as →
+      Frontend.denoteEList st b = some bs →
+      Frontend.denoteEList st (a ++ b) = some (as ++ bs) := by
+  intro a
+  induction a with
+  | nil =>
+    intro as b bs ha hb
+    simp only [Frontend.denoteEList, Option.some.injEq] at ha
+    subst ha
+    simpa using hb
+  | cons x xs ih =>
+    intro as b bs ha hb
+    simp only [Frontend.denoteEList] at ha
+    cases hx : denoteE st x with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : Frontend.denoteEList st xs with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        obtain rfl := Option.some.inj ha
+        simp only [List.cons_append, Frontend.denoteEList, hx, ih hxs hb]
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN — **`mkAppN`, as a
+run**.  `Bridge/ExprOps/Spine.lean`'s `mkAppN_spec` is closed and says the
+same thing, but its frame has no `BMExt` conjunct and `PStep` needs one, so
+the four-line induction is done here rather than re-stated there (the twin is
+`internE (.app f a)` folded over the list, so each step's `BMExt` is
+`internE_run`'s own). -/
+theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
+    {f : EIdx} {fP : Expr} {r : EIdx}, StateOK s →
+    denoteE s.store f = some fP →
+    Frontend.denoteEList s.store args = some argsP →
+    ConRon.Arena.mkAppN f args s = .ok (r, s') →
+    PStep s s' ∧ denoteE s'.store r = some (Expr.mkAppN fP argsP) := by
+  intro args
+  induction args with
+  | nil =>
+    intro argsP s s' f fP r hok hf hargs hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at hargs
+    subst hargs
+    simp only [ConRon.Arena.mkAppN, pure, StateT.pure, Except.pure] at hrun
+    obtain ⟨rfl, rfl⟩ := Prod.mk.injEq .. ▸ (Except.ok.inj hrun)
+    exact ⟨PStep.refl hok, hf⟩
+  | cons a as ih =>
+    intro argsP s s' f fP r hok hf hargs hrun
+    simp only [Frontend.denoteEList] at hargs
+    cases ha : denoteE s.store a with
+    | none => rw [ha] at hargs; simp at hargs
+    | some x =>
+      cases has : Frontend.denoteEList s.store as with
+      | none => rw [ha, has] at hargs; simp at hargs
+      | some xs =>
+        rw [ha, has] at hargs
+        obtain rfl := Option.some.inj hargs
+        simp only [ConRon.Arena.mkAppN] at hrun
+        obtain ⟨g, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨hstep1, hg⟩ :=
+          internE_run hok (viewOK_app (by rw [hf]; rfl) (by rw [ha]; rfl)) h1
+        have hg' : denoteE s₁.store g = some (.app fP x) := by
+          rw [hg]
+          simp only [denoteEView, denote_ext hf hstep1.ext,
+            denote_ext ha hstep1.ext, opt2]
+        obtain ⟨hstep2, hr⟩ :=
+          ih xs hstep1.ok hg' (denoteEList_ext hstep1.ext _ _ has) h2
+        exact ⟨hstep1.trans hstep2, hr⟩
 
 /-! ## Two transports the spec layer does not have
 

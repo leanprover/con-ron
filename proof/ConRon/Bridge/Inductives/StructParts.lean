@@ -57,84 +57,270 @@ def MentionsMemoOK (T : ConLeche.Name) (tbl : Std.HashMap EIdx Bool)
 inline at every use; over handles a level list is a node, so the twin builds
 it once and this is the one statement that says the node is that list.
 
-`sorry`: `internLNode_spec` at each element and `internLsNode_spec` at the
-result, by a list induction — `Bridge/Specs.lean` has both. -/
+**CLOSED** (task #97-P3-Ind round 2): the `let rec go` by list induction over
+`internParamL_run`, then `internLsNode_run` at the result.  Both run forms are
+`Bridge/Inductives/Rel.lean`'s, which is where this tier's `AM.of_run`
+boilerplate lives. -/
+theorem paramLevels_go_run : ∀ (lps : List NIdx) {lpsP : List ConLeche.Name}
+    {s s' : AState} {r : List LIdx}, StateOK s →
+    Frontend.denoteNList s.store.ns lps = some lpsP →
+    Arena.paramLevels.go lps s = .ok (r, s') →
+    PStep s s' ∧ denoteLList s'.store.ls r = some (lpsP.map Level.param) := by
+  intro lps
+  induction lps with
+  | nil =>
+    intro lpsP s s' r hok hd hrun
+    simp only [Frontend.denoteNList, Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.paramLevels.go] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons n ns ih =>
+    intro lpsP s s' r hok hd hrun
+    simp only [Frontend.denoteNList] at hd
+    cases hn : denoteN s.store.ns n with
+    | none => rw [hn] at hd; simp at hd
+    | some x =>
+      cases hns : Frontend.denoteNList s.store.ns ns with
+      | none => rw [hn, hns] at hd; simp at hd
+      | some xs =>
+        rw [hn, hns] at hd
+        obtain rfl := Option.some.inj hd
+        simp only [Arena.paramLevels.go] at hrun
+        obtain ⟨u, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨hstep1, hu⟩ := internParamL_run hok hn h1
+        obtain ⟨hstep2, hrest⟩ :=
+          ih hstep1.ok (denoteNListE_ext hstep1.ext _ _ hns) h3
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        refine ⟨hstep1.trans hstep2, ?_⟩
+        simp only [denoteLList, opt2, denoteL_ext hu hstep2.ext, hrest,
+          List.map_cons]
+
 theorem paramLevels_spec (lps : List NIdx) (lpsP : List ConLeche.Name) :
     PSpec (fun st => Frontend.denoteNList st.ns lps = some lpsP)
       (Arena.paramLevels lps) (RLs (lpsP.map Level.param)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.paramLevels] at hrun
+  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hus⟩ := paramLevels_go_run lps hok hd h1
+  obtain ⟨hstep2, hr⟩ := internLsNode_run hstep1.ok hus h2
+  exact ⟨hstep1.trans hstep2, hr⟩
 
 /-! ## The families and the spines -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:134-137 structPsAt
 The parameter variables as seen from under `o` extra binders.
 
-`sorry`: a `Nat` recursion over `internBVarE_spec`; the pure side is a
-`List.range` map, so the induction is on `nP` with the cursor `k` generalised. -/
+**CLOSED** (task #97-P3-Ind round 2): a `Nat` recursion over
+`internBVarE_run` with the cursor `k` generalised.  The pure side is a
+`List.range` map, so the step is `List.range_succ_eq_map` and one `omega` on
+the index arithmetic (`k + (j + 1) = k + 1 + j`). -/
+theorem structPsAt_go_run (o nP : Nat) : ∀ (n k : Nat) {s s' : AState}
+    {r : List EIdx}, StateOK s → Arena.structPsAt.go o nP n k s = .ok (r, s') →
+    PStep s s' ∧ Frontend.denoteEList s'.store r
+      = some ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + j))) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k s s' r hok hrun
+    simp only [Arena.structPsAt.go] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | succ n ih =>
+    intro k s s' r hok hrun
+    simp only [Arena.structPsAt.go] at hrun
+    obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
+    obtain ⟨hstep2, hrest⟩ := ih (k + 1) hstep1.ok h3
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨hstep1.trans hstep2, ?_⟩
+    have hkey : ((List.range (n + 1)).map fun j => Expr.bvar (o + nP - 1 - (k + j)))
+        = Expr.bvar (o + nP - 1 - k) ::
+          ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + 1 + j))) := by
+      rw [List.range_succ_eq_map, List.map_cons, List.map_map]
+      congr 1
+      refine List.map_congr_left (fun j _ => ?_)
+      simp only [Function.comp_apply]
+      congr 1
+      omega
+    rw [hkey]
+    simp only [Frontend.denoteEList, denote_ext hb hstep2.ext, hrest]
+
 theorem structPsAt_spec (o nP : Nat) :
     PSpec PT (Arena.structPsAt o nP) (REL (ConLeche.structPsAt o nP)) := by
-  sorry
+  intro s₀ s' r hok _ hrun
+  obtain ⟨hstep, hd⟩ := structPsAt_go_run o nP nP 0 hok hrun
+  refine ⟨hstep, ?_⟩
+  simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
 
 /-- con-leche: none — `bvarsDesc n` is `structPsAt 0 n`, `rfl` on both sides. -/
 theorem bvarsDesc_spec (n : Nat) :
     PSpec PT (Arena.bvarsDesc n) (REL (ConLeche.structPsAt 0 n)) :=
   structPsAt_spec 0 n
 
+/-- con-leche: none — two `bvar` spines over the same range agree as soon as
+their index arithmetic does.  The four spine generators below differ from
+con-leche's only in how the offset is spelled (`structPsAt (nF + 1) nP`
+against `fun i => bvar (nF + nP - i)`, `structPsAt 0 nF` against `fun j =>
+bvar (nF - 1 - j)`), and this plus `omega` is the whole of that difference. -/
+theorem bvarRange_congr {n : Nat} {f g : Nat → Nat} (h : ∀ j, f j = g j) :
+    ((List.range n).map fun j => Expr.bvar (f j))
+      = (List.range n).map fun j => Expr.bvar (g j) :=
+  List.map_congr_left (fun j _ => by rw [h j])
+
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:82-86 structFam
 The type former applied to its parameter variables.
 
-`sorry`: `paramLevels_spec`, `internConstE_spec` and `mkAppN`'s own spec
-(`Bridge/ExprOps/Spine.lean`), composed. -/
+**CLOSED** (task #97-P3-Ind round 2): `paramLevels_spec`, `internConstE_run`,
+`structPsAt_spec` and `mkAppN_run`, composed by three `bindOk`s. -/
 theorem structFam_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP o : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP)
       (Arena.structFam T lps nP o) (RE (ConLeche.structFam TP lpsP nP o)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps⟩ := hpre
+  simp only [Arena.structFam] at hrun
+  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hus⟩ := paramLevels_spec lps lpsP s₀ s₁ us hok hlps h1
+  obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hstep2, hhd⟩ :=
+    internConstE_run hstep1.ok (denoteN_ext hT hstep1.ext) hus h3
+  obtain ⟨ps, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨hstep3, hps⟩ := structPsAt_spec o nP s₂ s₃ ps hstep2.ok trivial h5
+  obtain ⟨hstep4, hr⟩ :=
+    mkAppN_run ps _ hstep3.ok (denote_ext hhd hstep3.ext) hps h6
+  refine ⟨hstep1.trans (hstep2.trans (hstep3.trans hstep4)), ?_⟩
+  simpa only [ConLeche.structFam, ConLeche.structPsAt] using hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:88-94 structCtorSpine
 The constructor applied to the parameter and field variables.
 
-`sorry`: as `structFam_spec`, with the two spines appended. -/
+**CLOSED** (task #97-P3-Ind round 2): `structFam_spec`'s composition with the
+two spines appended (`denoteEList_append`), and `bvarRange_congr` for the two
+places con-leche spells the offset differently — `structPsAt (nF + 1) nP`
+against `fun i => bvar (nF + nP - i)`, `structPsAt 0 nF` against `fun j =>
+bvar (nF - 1 - j)`.  Both are `omega`. -/
 theorem structCtorSpine_spec (C : NIdx) (CP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF : Nat) :
     PSpec (fun st => denoteN st.ns C = some CP ∧
         Frontend.denoteNList st.ns lps = some lpsP)
       (Arena.structCtorSpine C lps nP nF)
       (RE (ConLeche.structCtorSpine CP lpsP nP nF)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hC, hlps⟩ := hpre
+  simp only [Arena.structCtorSpine] at hrun
+  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hus⟩ := paramLevels_spec lps lpsP s₀ s₁ us hok hlps h1
+  obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hstep2, hhd⟩ :=
+    internConstE_run hstep1.ok (denoteN_ext hC hstep1.ext) hus h3
+  obtain ⟨ps, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨hstep3, hps⟩ :=
+    structPsAt_spec (nF + 1) nP s₂ s₃ ps hstep2.ok trivial h5
+  obtain ⟨fs, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨hstep4, hfs⟩ := bvarsDesc_spec nF s₃ s₄ fs hstep3.ok trivial h7
+  obtain ⟨hstep5, hr⟩ :=
+    mkAppN_run (ps ++ fs) _ hstep4.ok
+      (denote_ext hhd (hstep3.ext.trans hstep4.ext))
+      (denoteEList_append (denoteEList_ext hstep4.ext _ _ hps) hfs) h8
+  refine ⟨hstep1.trans (hstep2.trans (hstep3.trans (hstep4.trans hstep5))), ?_⟩
+  have hargs : ((List.range nP).map fun i => Expr.bvar (nF + nP - i)) ++
+        ((List.range nF).map fun j => Expr.bvar (nF - 1 - j))
+      = ConLeche.structPsAt (nF + 1) nP ++ ConLeche.structPsAt 0 nF := by
+    simp only [ConLeche.structPsAt]
+    rw [bvarRange_congr (n := nP) (f := fun i => nF + nP - i)
+          (g := fun k => nF + 1 + nP - 1 - k) (fun j => by omega),
+        bvarRange_congr (n := nF) (f := fun j => nF - 1 - j)
+          (g := fun k => 0 + nF - 1 - k) (fun j => by omega)]
+  rw [ConLeche.structCtorSpine, hargs]
+  exact hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:96-99 structRuleBody
 The minor premise applied to the field variables.
 
-`sorry`: `internBVarE_spec`, `bvarsDesc_spec` and `mkAppN`'s spec. -/
+**CLOSED** (task #97-P3-Ind round 2): `internBVarE_run`, `bvarsDesc_spec` and
+`mkAppN_run`. -/
 theorem structRuleBody_spec (nF : Nat) :
     PSpec PT (Arena.structRuleBody nF) (RE (ConLeche.structRuleBody nF)) := by
-  sorry
+  intro s₀ s' r hok _ hrun
+  simp only [Arena.structRuleBody] at hrun
+  obtain ⟨hd, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hhd⟩ := internBVarE_run hok h1
+  obtain ⟨fs, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hstep2, hfs⟩ := bvarsDesc_spec nF s₁ s₂ fs hstep1.ok trivial h3
+  obtain ⟨hstep3, hr⟩ :=
+    mkAppN_run fs _ hstep2.ok (denote_ext hhd hstep2.ext) hfs h4
+  refine ⟨hstep1.trans (hstep2.trans hstep3), ?_⟩
+  have hargs : ((List.range nF).map fun j => Expr.bvar (nF - 1 - j))
+      = ConLeche.structPsAt 0 nF := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  rw [ConLeche.structRuleBody, hargs]
+  exact hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:139-142 structElimLevel
 The recursor's elimination level.
 
-`sorry`: `internLNode_spec` at `.param`/`.zero`, one `if`. -/
+**CLOSED** (task #97-P3-Ind round 2): `internParamL_run` / `internZeroL_run`
+under one `cases` on the eliminator bit. -/
 theorem structElimLevel_spec (elim : NIdx) (elimP : ConLeche.Name)
     (large : Bool) :
     PSpec (fun st => denoteN st.ns elim = some elimP)
       (Arena.structElimLevel elim large)
       (RL (ConLeche.structElimLevel elimP large)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  cases large with
+  | true =>
+    simp only [Arena.structElimLevel, if_true] at hrun
+    obtain ⟨hstep, hr⟩ := internParamL_run hok hd hrun
+    exact ⟨hstep, by simpa only [ConLeche.structElimLevel, if_true] using hr⟩
+  | false =>
+    simp only [Arena.structElimLevel, Bool.false_eq_true, if_false] at hrun
+    obtain ⟨hstep, hr⟩ := internZeroL_run hok hrun
+    exact ⟨hstep, by
+      simpa only [ConLeche.structElimLevel, Bool.false_eq_true, if_false]
+        using hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:144-150 structCtorSpineAt
 `structCtorSpine` at an arbitrary offset between the parameters and the
 fields.
 
-`sorry`: as `structCtorSpine_spec`. -/
+**CLOSED** (task #97-P3-Ind round 2): `structCtorSpine_spec`'s proof at the
+offset `o + nF`; con-leche spells its first spine as `structPsAt (o + nF) nP`
+here, so only the field spine needs `bvarRange_congr`. -/
 theorem structCtorSpineAt_spec (C : NIdx) (CP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (o nP nF : Nat) :
     PSpec (fun st => denoteN st.ns C = some CP ∧
         Frontend.denoteNList st.ns lps = some lpsP)
       (Arena.structCtorSpineAt C lps o nP nF)
       (RE (ConLeche.structCtorSpineAt CP lpsP o nP nF)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hC, hlps⟩ := hpre
+  simp only [Arena.structCtorSpineAt] at hrun
+  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hus⟩ := paramLevels_spec lps lpsP s₀ s₁ us hok hlps h1
+  obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hstep2, hhd⟩ :=
+    internConstE_run hstep1.ok (denoteN_ext hC hstep1.ext) hus h3
+  obtain ⟨ps, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨hstep3, hps⟩ :=
+    structPsAt_spec (o + nF) nP s₂ s₃ ps hstep2.ok trivial h5
+  obtain ⟨fs, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨hstep4, hfs⟩ := bvarsDesc_spec nF s₃ s₄ fs hstep3.ok trivial h7
+  obtain ⟨hstep5, hr⟩ :=
+    mkAppN_run (ps ++ fs) _ hstep4.ok
+      (denote_ext hhd (hstep3.ext.trans hstep4.ext))
+      (denoteEList_append (denoteEList_ext hstep4.ext _ _ hps) hfs) h8
+  refine ⟨hstep1.trans (hstep2.trans (hstep3.trans (hstep4.trans hstep5))), ?_⟩
+  have hargs : ((List.range nF).map fun j => Expr.bvar (nF - 1 - j))
+      = ConLeche.structPsAt 0 nF := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  rw [ConLeche.structCtorSpineAt, hargs]
+  exact hr
 
 /-! ## The Π→Π and Π→λ rewrites -/
 
@@ -167,14 +353,35 @@ theorem pisToLamsPw_spec (pw : PropWhen) (k : Nat) (h b : EIdx)
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:189-194 structFamI
 The family at its parameters and `nIdx` index variables.
 
-`sorry`: `structFam_spec`'s argument with the index spine appended. -/
+**CLOSED** (task #97-P3-Ind round 2): `structFam_spec`'s composition with the
+index spine appended.  Both sides spell both spines as `structPsAt`, so there
+is no arithmetic step at all here. -/
 theorem structFamI_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx e o : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP)
       (Arena.structFamI T lps nP nIdx e o)
       (RE (ConLeche.structFamI TP lpsP nP nIdx e o)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps⟩ := hpre
+  simp only [Arena.structFamI] at hrun
+  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hus⟩ := paramLevels_spec lps lpsP s₀ s₁ us hok hlps h1
+  obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hstep2, hhd⟩ :=
+    internConstE_run hstep1.ok (denoteN_ext hT hstep1.ext) hus h3
+  obtain ⟨ps, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨hstep3, hps⟩ :=
+    structPsAt_spec (o + e + nIdx) nP s₂ s₃ ps hstep2.ok trivial h5
+  obtain ⟨is, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨hstep4, his⟩ := structPsAt_spec o nIdx s₃ s₄ is hstep3.ok trivial h7
+  obtain ⟨hstep5, hr⟩ :=
+    mkAppN_run (ps ++ is) _ hstep4.ok
+      (denote_ext hhd (hstep3.ext.trans hstep4.ext))
+      (denoteEList_append (denoteEList_ext hstep4.ext _ _ hps) his) h8
+  refine ⟨hstep1.trans (hstep2.trans (hstep3.trans (hstep4.trans hstep5))), ?_⟩
+  rw [ConLeche.structFamI]
+  exact hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:196-202 structCtorResidOk
 Does the constructor's residual target the family?  A `Bool` answer, so `RV`
@@ -275,11 +482,18 @@ theorem structProjPs_spec (nP : Nat) :
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:339-345 structProjArgP
 The `j`-th projection applied to the structure variable.
 
-`sorry`: `internProjE_spec` and `internBVarE_spec`. -/
+**CLOSED** (task #97-P3-Ind round 2): `internBVarE_run` then
+`internProjE_run`. -/
 theorem structProjArgP_spec (T : NIdx) (TP : ConLeche.Name) (j : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP)
       (Arena.structProjArgP T j) (RE (ConLeche.structProjArgP TP j)) := by
-  sorry
+  intro s₀ s' r hok hT hrun
+  simp only [Arena.structProjArgP] at hrun
+  obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
+  obtain ⟨hstep2, hr⟩ :=
+    internProjE_run hstep1.ok (denoteN_ext hT hstep1.ext) hb h2
+  exact ⟨hstep1.trans hstep2, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:347-354 structProjResidP
 The constructor type's residual after `i` projections have been substituted.
