@@ -45269,4 +45269,14 @@ the numbers task #97-P5-3 round 3 left them at.
 
 #### 5. The gates
 
-GATES_TABLE
+| gate | result |
+|---|---|
+| `scripts/gates.sh` (`LAKE_JOBS=4`) | **all 13 OK** — `cargo-build` 0 s, `cargo-test` 4 s, `lint-rust` 2 s, `provenance` `6 651 item(s) (4 099 Rust, 2 552 arena Lean), 4 201 citation(s), all current at pin 78ded4b6`, `provenance-self`, `twin-lines` 1 983 citations in 42 files, `overview-links` 48 links / 31 files, `holes` 1 type / 5 fns, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 90 s OK** (the Rust diff is `Lean twin:` DIGITS only, so the generated model does not move and `Core/Eqns.lean` is not re-derived), `lake-build` 111 s / **2 209 jobs** |
+| `cd proof && lake build ConRonArena` | **green**, 106 jobs, **0 `sorry`** — and `ExprOpsTest` / `CheckerTest` elaborate, so their `#guard`s pass on the probe-first twin |
+| `cd proof && lake build ConRonBridge` | **green**, **616 jobs**, **235 `sorry`** — `Bridge/ExprOps/**` still **0 across all thirteen modules**, which is the number this task was told not to lose |
+| `cd proof && lake build ConRonRefine2` | **green**, **2 219 jobs**, **898 `sorry`** — `Specs.lean` 20, `ExprOps/Mut.lean` 44, both unchanged |
+| `scripts/twin-lines.py update` | **103 citations relocated, 0 GONE** — `Arena/Store.lean` gained a `def` and `Arena/Monad.lean` twenty-two lines, so every `Lean twin:` range below them moved.  Digits only in four Rust files (`arena/{env,intern,monad,store}.rs`), no prose rewrapped, `extract.sh --check` unaffected |
+| `scripts/arena-census.py --summary` | runs; `Arena/ExprOps` **92/92 stated, 92 closed** for T1 and **89/92 stated, 52 closed** for T2, unchanged.  Its self-check lists `EStore.findBindI_eq_findAt` (and the `eBindView` shape lemmas it sits beside) under "T1 unrecognised": they are helper equations of `StoreBind.lean`, not a twin's Theorem-1 statement, which is the same reading `ETables.findBind_eq_find?` already had |
+| merged `arena` **once** — `0b79feae` at `226980af` | auto-merged every hunk, `.lean` and DESIGN.md alike; no hand work.  What moved on `arena` is `Bridge/Checker/**`, `Refine2/{Checker,Promote}/**` and DESIGN.md — no file this task touches — so the merge cannot interact with the edit, and both Lean gates above were run ON the merge |
+| the diff | `proof/ConRon/Arena/{Monad,Store}.lean`, `proof/ConRon/Bridge/{Specs,StoreBind,ExprOps/Abs}.lean`, `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean`, the four Rust files' `Lean twin:` digits, and this section |
+
