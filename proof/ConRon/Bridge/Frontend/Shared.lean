@@ -305,11 +305,139 @@ denotes reads back.  The store's node count bounds every path through it (a
 child is interned before its parent), which is `storeFuel`'s own justification
 in `Arena/Frontend/ExportC.lean`.
 
-`sorry`: the rank induction of `Arena/WFProofs.lean`, run at `denoteEGo`
-instead of at `denoteE`.  Task #97-P3-Frontend's sorry list, item 1. -/
+The rank induction of `Arena/WFProofs.lean`, run at `denoteEGo` instead of at
+`denoteE`: `EWFAt.childOK` gives `rk c < rk i` at every expression child, and
+`rankP`/`rankS` put `rk h` under the store's node count — which is exactly the
+fuel `denoteEShared` calls at. -/
+theorem denoteEGo_isSome {st : EStore} {rk : EIdx → Nat} (hwf : EWFAt st rk) :
+    ∀ (fuel : Nat) {m : DMemo}, DMemoOK st m → ∀ {h : EIdx} {e : Expr},
+      denoteE st h = some e → rk h < fuel →
+        ∃ m', denoteEGo st m fuel h = some (m', e) ∧ DMemoOK st m' := by
+  intro fuel
+  induction fuel with
+  | zero => intro m hm h e hd hr; omega
+  | succ f ih =>
+    intro m hm h e hd hr
+    rw [denoteEGo]
+    cases hmem : m[h]? with
+    | some x =>
+      have : x = e := by rw [hm h x hmem] at hd; exact (Option.some.injEq _ _ ▸ hd)
+      subst this
+      exact ⟨m, rfl, hm⟩
+    | none =>
+    -- the node has a view, because its denotation does
+    obtain ⟨v, hv⟩ : ∃ v, st.view h = some v := by
+      simp only [denoteE, denoteEAux, Option.bind_eq_some_iff] at hd
+      obtain ⟨v, hv, -⟩ := hd
+      exact ⟨v, hv⟩
+    have hun : denoteEView st v = some e := by
+      rw [← denoteE_unfold hwf hv]; exact hd
+    have hch : ∀ c ∈ v.echildren, rk c < f := by
+      intro c hc
+      have := (hwf.childOK h v hv c hc).2.1
+      omega
+    cases v with
+    | bvar k =>
+      simp only [hv]
+      simp only [denoteEView, Option.some.injEq] at hun
+      subst hun
+      exact ⟨m.insert h (Expr.bvar k), rfl, hm.insert (by rw [hd])⟩
+    | lit l =>
+      simp only [hv]
+      simp only [denoteEView, Option.some.injEq] at hun
+      subst hun
+      exact ⟨m.insert h (Expr.lit l), rfl, hm.insert (by rw [hd])⟩
+    | sort u =>
+      simp only [hv]
+      simp only [denoteEView, Option.map_eq_some_iff] at hun
+      obtain ⟨l, hl, he⟩ := hun
+      subst he
+      exact ⟨m.insert h (Expr.sort l), by rw [hl], hm.insert (by rw [hd])⟩
+    | const n us =>
+      simp only [hv]
+      simp only [denoteEView, opt2_eq_some_iff] at hun
+      obtain ⟨nm, ls, hn, hls, he⟩ := hun
+      subst he
+      exact ⟨m.insert h (Expr.const nm ls), by rw [hn, hls], hm.insert (by rw [hd])⟩
+    | fvar k ty =>
+      simp only [hv]
+      simp only [denoteEView, Option.map_eq_some_iff] at hun
+      obtain ⟨t, ht, he⟩ := hun
+      obtain ⟨m1, h1, hm1⟩ :=
+        ih hm ht (hch ty (by simp [ENodeView.echildren]))
+      subst he
+      exact ⟨m1.insert h (Expr.fvar k t), by rw [h1], hm1.insert (by rw [hd])⟩
+    | app g a =>
+      simp only [hv]
+      simp only [denoteEView, opt2_eq_some_iff] at hun
+      obtain ⟨ef, ea, hf, ha, he⟩ := hun
+      obtain ⟨m1, h1, hm1⟩ := ih hm hf (hch g (by simp [ENodeView.echildren]))
+      obtain ⟨m2, h2, hm2⟩ := ih hm1 ha (hch a (by simp [ENodeView.echildren]))
+      subst he
+      exact ⟨m2.insert h (Expr.app ef ea), by rw [h1]; simp only []; rw [h2],
+        hm2.insert (by rw [hd])⟩
+    | lam ty b bi =>
+      simp only [hv]
+      simp only [denoteEView, opt2_eq_some_iff] at hun
+      obtain ⟨et, eb, ht, hb, he⟩ := hun
+      obtain ⟨m1, h1, hm1⟩ := ih hm ht (hch ty (by simp [ENodeView.echildren]))
+      obtain ⟨m2, h2, hm2⟩ := ih hm1 hb (hch b (by simp [ENodeView.echildren]))
+      subst he
+      exact ⟨m2.insert h (Expr.lam et eb bi), by rw [h1]; simp only []; rw [h2],
+        hm2.insert (by rw [hd])⟩
+    | forallE ty b bi =>
+      simp only [hv]
+      simp only [denoteEView, opt2_eq_some_iff] at hun
+      obtain ⟨et, eb, ht, hb, he⟩ := hun
+      obtain ⟨m1, h1, hm1⟩ := ih hm ht (hch ty (by simp [ENodeView.echildren]))
+      obtain ⟨m2, h2, hm2⟩ := ih hm1 hb (hch b (by simp [ENodeView.echildren]))
+      subst he
+      exact ⟨m2.insert h (Expr.forallE et eb bi),
+        by rw [h1]; simp only []; rw [h2], hm2.insert (by rw [hd])⟩
+    | letE ty w b =>
+      simp only [hv]
+      simp only [denoteEView, opt3] at hun
+      split at hun
+      · rename_i et ev eb ht hw hb
+        simp only [Option.some.injEq] at hun
+        obtain ⟨m1, h1, hm1⟩ := ih hm ht (hch ty (by simp [ENodeView.echildren]))
+        obtain ⟨m2, h2, hm2⟩ := ih hm1 hw (hch w (by simp [ENodeView.echildren]))
+        obtain ⟨m3, h3, hm3⟩ := ih hm2 hb (hch b (by simp [ENodeView.echildren]))
+        subst hun
+        exact ⟨m3.insert h (Expr.letE et ev eb),
+          by rw [h1]; simp only []; rw [h2]; simp only []; rw [h3],
+          hm3.insert (by rw [hd])⟩
+      · exact absurd hun (by simp)
+    | proj n i sub =>
+      simp only [hv]
+      simp only [denoteEView, opt2_eq_some_iff] at hun
+      obtain ⟨nm, es, hn, hs, he⟩ := hun
+      obtain ⟨m1, h1, hm1⟩ := ih hm hs (hch sub (by simp [ENodeView.echildren]))
+      subst he
+      exact ⟨m1.insert h (Expr.proj nm i es), by rw [hn, h1],
+        hm1.insert (by rw [hd])⟩
+
+/-- con-leche: none — the other half of the same equation: a handle that
+denotes reads back.  The store's node count bounds every path through it (a
+child is interned before its parent), which is `storeFuel`'s own justification
+in `Arena/Frontend/ExportC.lean`. -/
 theorem denoteEShared_isSome {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {e : Expr} (hd : denoteE st h = some e) : denoteEShared st h = some e := by
-  sorry
+  obtain ⟨rk, hwf'⟩ := hwf
+  have hvs : (st.view h).isSome = true := by
+    simp only [denoteE, denoteEAux, Option.bind_eq_some_iff] at hd
+    obtain ⟨v, hv, -⟩ := hd
+    rw [hv]; rfl
+  have hrank : rk h < st.nodeCount + 1 := by
+    by_cases hp : h.isPersistent = true
+    · have := hwf'.rankP h hp hvs
+      simp only [EStore.nodeCount]
+      omega
+    · have := hwf'.rankS h (by simpa using hp) hvs
+      omega
+  obtain ⟨m', hgo, -⟩ :=
+    denoteEGo_isSome hwf' (st.nodeCount + 1) (DMemoOK.empty st) hd hrank
+  simp only [denoteEShared, hgo]
 
 /-- con-leche: none — the equation in full, as
 `Arena/Frontend/Readback.lean`'s note writes it. -/
@@ -742,16 +870,348 @@ theorem internDecls_run {s s' : AState} (hok : StateOK s)
 of three closures; these two equations are what
 `Bridge/Frontend/Modeller.lean`'s `inProcessModeller_refines` composes. -/
 
-/-- con-leche: none — the block the seam reads back is the block the relation
-names.
+/-! ### The readback's existence direction, at the record layers
 
-`sorry`: `denoteCVGo_spec` through the three member families, then
-`BlockRecRel`'s three `Forall₂` clauses.  Task #97-P3-Frontend's sorry list,
-item 1. -/
+`denoteEGo_isSome` is the leaf; each layer above it is the same three lines
+(destructure the plain denotation, apply the layer below, rebuild). -/
+
+/-- con-leche: none — `denoteEGo_isSome` at the fuel `denoteEShared` and every
+record layer call it at. -/
+theorem denoteEGo_isSome' {st : EStore} (hwf : StoreWF st) {m : DMemo}
+    (hm : DMemoOK st m) {h : EIdx} {e : Expr} (hd : denoteE st h = some e) :
+    ∃ m', denoteEGo st m (st.nodeCount + 1) h = some (m', e) ∧ DMemoOK st m' := by
+  obtain ⟨rk, hwf'⟩ := hwf
+  have hvs : (st.view h).isSome = true := by
+    simp only [denoteE, denoteEAux, Option.bind_eq_some_iff] at hd
+    obtain ⟨v, hv, -⟩ := hd
+    rw [hv]; rfl
+  have hrank : rk h < st.nodeCount + 1 := by
+    by_cases hp : h.isPersistent = true
+    · have := hwf'.rankP h hp hvs
+      simp only [EStore.nodeCount]
+      omega
+    · have := hwf'.rankS h (by simpa using hp) hvs
+      omega
+  exact denoteEGo_isSome hwf' (st.nodeCount + 1) hm hd hrank
+
+/-- con-leche: none — the `ConstantVal` layer. -/
+theorem denoteCVGo_isSome {st : EStore} (hwf : StoreWF st) {m : DMemo}
+    (hm : DMemoOK st m) {cv : IConstantVal} {c : ConstantVal}
+    (hd : denoteCV st cv = some c) :
+    ∃ m', denoteCVGo st m cv = some (m', c) ∧ DMemoOK st m' := by
+  rw [denoteCV] at hd
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at hd; simp at hd
+  | some n =>
+  cases hlp : denoteNList st.ns cv.levelParams with
+  | none => rw [hn, hlp] at hd; simp at hd
+  | some lps =>
+  cases ht : denoteE st cv.type with
+  | none => rw [hn, hlp, ht] at hd; simp at hd
+  | some ty =>
+  rw [hn, hlp, ht] at hd
+  simp only [Option.some.injEq] at hd
+  obtain ⟨m1, h1, hm1⟩ := denoteEGo_isSome' hwf hm ht
+  exact ⟨m1, by rw [denoteCVGo, hn, hlp, h1]; simp only []; rw [hd], hm1⟩
+
+/-- con-leche: none — the expression-LIST layer. -/
+theorem denoteEListGo_isSome {st : EStore} (hwf : StoreWF st) :
+    ∀ (hs : List EIdx) {m : DMemo} {es : List Expr}, DMemoOK st m →
+      denoteEList st hs = some es →
+        ∃ m', denoteEListGo st m hs = some (m', es) ∧ DMemoOK st m' := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro m es hm hd
+    simp only [denoteEList, Option.some.injEq] at hd
+    subst hd
+    exact ⟨m, rfl, hm⟩
+  | cons h hs ih =>
+    intro m es hm hd
+    rw [denoteEList] at hd
+    cases h1 : denoteE st h with
+    | none => rw [h1] at hd; simp at hd
+    | some e =>
+    cases h2 : denoteEList st hs with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some xs =>
+    rw [h1, h2] at hd
+    simp only [Option.some.injEq] at hd
+    obtain ⟨m1, g1, hm1⟩ := denoteEGo_isSome' hwf hm h1
+    obtain ⟨m2, g2, hm2⟩ := ih hm1 h2
+    exact ⟨m2, by
+      rw [denoteEListGo, g1]; simp only []; rw [g2]; simp only []; rw [hd], hm2⟩
+
+/-- con-leche: none — the firing-mode layer. -/
+theorem denoteFireGo_isSome {st : EStore} (hwf : StoreWF st) {m : DMemo}
+    (hm : DMemoOK st m) {fr : IRecRuleFire} {f : RecRuleFire}
+    (hd : denoteFire st fr = some f) :
+    ∃ m', denoteFireGo st m fr = some (m', f) ∧ DMemoOK st m' := by
+  cases fr with
+  | inert =>
+    simp only [denoteFire, Option.some.injEq] at hd; subst hd
+    exact ⟨m, rfl, hm⟩
+  | plain =>
+    simp only [denoteFire, Option.some.injEq] at hd; subst hd
+    exact ⟨m, rfl, hm⟩
+  | nested lvls pins =>
+    rw [denoteFire] at hd
+    cases hl : denoteLList st.ls lvls with
+    | none => rw [hl] at hd; simp at hd
+    | some ls =>
+    cases hp : denoteEList st pins with
+    | none => rw [hl, hp] at hd; simp at hd
+    | some ps =>
+    rw [hl, hp] at hd
+    simp only [Option.some.injEq] at hd
+    obtain ⟨m1, g1, hm1⟩ := denoteEListGo_isSome hwf pins hm hp
+    exact ⟨m1, by rw [denoteFireGo, hl, g1]; simp only []; rw [hd], hm1⟩
+
+/-- con-leche: none — one rule. -/
+theorem denoteRuleGo_isSome {st : EStore} (hwf : StoreWF st) {m : DMemo}
+    (hm : DMemoOK st m) {rl : IRecRule} {r : RecRule}
+    (hd : denoteRule st rl = some r) :
+    ∃ m', denoteRuleGo st m rl = some (m', r) ∧ DMemoOK st m' := by
+  rw [denoteRule] at hd
+  cases hc : denoteN st.ns rl.ctor with
+  | none => rw [hc] at hd; simp at hd
+  | some c =>
+  cases hf : denoteFire st rl.fire with
+  | none => rw [hc, hf] at hd; simp at hd
+  | some f =>
+  cases hr : denoteE st rl.rhs with
+  | none => rw [hc, hf, hr] at hd; simp at hd
+  | some rhs =>
+  rw [hc, hf, hr] at hd
+  simp only [Option.some.injEq] at hd
+  obtain ⟨m1, g1, hm1⟩ := denoteFireGo_isSome hwf hm hf
+  obtain ⟨m2, g2, hm2⟩ := denoteEGo_isSome' hwf hm1 hr
+  exact ⟨m2, by
+    rw [denoteRuleGo, hc, g1]; simp only []; rw [g2]; simp only []; rw [hd], hm2⟩
+
+/-- con-leche: none — a rule list. -/
+theorem denoteRulesGo_isSome {st : EStore} (hwf : StoreWF st) :
+    ∀ (rs : List IRecRule) {m : DMemo} {xs : List RecRule}, DMemoOK st m →
+      denoteRules st rs = some xs →
+        ∃ m', denoteRulesGo st m rs = some (m', xs) ∧ DMemoOK st m' := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro m xs hm hd
+    simp only [denoteRules, Option.some.injEq] at hd; subst hd
+    exact ⟨m, rfl, hm⟩
+  | cons r rs ih =>
+    intro m xs hm hd
+    rw [denoteRules] at hd
+    cases h1 : denoteRule st r with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+    cases h2 : denoteRules st rs with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some ys =>
+    rw [h1, h2] at hd
+    simp only [Option.some.injEq] at hd
+    obtain ⟨m1, g1, hm1⟩ := denoteRuleGo_isSome hwf hm h1
+    obtain ⟨m2, g2, hm2⟩ := ih hm1 h2
+    exact ⟨m2, by
+      rw [denoteRulesGo, g1]; simp only []; rw [g2]; simp only []; rw [hd], hm2⟩
+
+/-- con-leche: none — one type former of a parsed block, from the relation. -/
+theorem denoteMTypeGo_of_rel {st : EStore} (hwf : StoreWF st) {m : DMemo}
+    (hm : DMemoOK st m) {t : MIndTypeRec}
+    {tc : ConLeche.Frontend.InModel.IndTypeRec} (h : MIndTypeRecRel st t tc) :
+    ∃ m', denoteMTypeGo st m t = some (m', tc) ∧ DMemoOK st m' := by
+  obtain ⟨m1, g1, hm1⟩ := denoteCVGo_isSome hwf hm h.cv
+  refine ⟨m1, ?_, hm1⟩
+  rw [denoteMTypeGo, g1, h.ctors]
+  simp only []
+  rw [h.nP, h.nIdx, h.isRec, h.isReflexive, h.numNested]
+
+/-- con-leche: none — the type-former list. -/
+theorem denoteMTypesGo_of_rel {st : EStore} (hwf : StoreWF st) :
+    ∀ {ts : List MIndTypeRec} {tcs : List ConLeche.Frontend.InModel.IndTypeRec}
+      {m : DMemo}, DMemoOK st m → ListRel (MIndTypeRecRel st) ts tcs →
+      ∃ m', denoteMTypesGo st m ts = some (m', tcs) ∧ DMemoOK st m' := by
+  intro ts tcs m hm h
+  induction h generalizing m with
+  | nil => exact ⟨m, rfl, hm⟩
+  | @cons a b as bs hab _ ih =>
+    obtain ⟨m1, g1, hm1⟩ := denoteMTypeGo_of_rel hwf hm hab
+    obtain ⟨m2, g2, hm2⟩ := ih hm1
+    exact ⟨m2, by rw [denoteMTypesGo, g1]; simp only []; rw [g2], hm2⟩
+
+/-- con-leche: none — one constructor record. -/
+theorem denoteMCtorGo_of_rel {st : EStore} (hwf : StoreWF st) {m : DMemo}
+    (hm : DMemoOK st m) {c : MIndCtorRec}
+    {cc : ConLeche.Frontend.InModel.IndCtorRec} (h : MIndCtorRecRel st c cc) :
+    ∃ m', denoteMCtorGo st m c = some (m', cc) ∧ DMemoOK st m' := by
+  obtain ⟨m1, g1, hm1⟩ := denoteCVGo_isSome hwf hm h.cv
+  refine ⟨m1, ?_, hm1⟩
+  rw [denoteMCtorGo, g1]
+  simp only []
+  rw [h.nP, h.nF]
+
+/-- con-leche: none — the constructor list. -/
+theorem denoteMCtorsGo_of_rel {st : EStore} (hwf : StoreWF st) :
+    ∀ {cs : List MIndCtorRec} {ccs : List ConLeche.Frontend.InModel.IndCtorRec}
+      {m : DMemo}, DMemoOK st m → ListRel (MIndCtorRecRel st) cs ccs →
+      ∃ m', denoteMCtorsGo st m cs = some (m', ccs) ∧ DMemoOK st m' := by
+  intro cs ccs m hm h
+  induction h generalizing m with
+  | nil => exact ⟨m, rfl, hm⟩
+  | @cons a b as bs hab _ ih =>
+    obtain ⟨m1, g1, hm1⟩ := denoteMCtorGo_of_rel hwf hm hab
+    obtain ⟨m2, g2, hm2⟩ := ih hm1
+    exact ⟨m2, by rw [denoteMCtorsGo, g1]; simp only []; rw [g2], hm2⟩
+
+/-- con-leche: none — one recursor record. -/
+theorem denoteMRecGo_of_rel {st : EStore} (hwf : StoreWF st) {m : DMemo}
+    (hm : DMemoOK st m) {r : MIndRecRec}
+    {rc : ConLeche.Frontend.InModel.IndRecRec} (h : MIndRecRecRel st r rc) :
+    ∃ m', denoteMRecGo st m r = some (m', rc) ∧ DMemoOK st m' := by
+  obtain ⟨m1, g1, hm1⟩ := denoteCVGo_isSome hwf hm h.cv
+  obtain ⟨m2, g2, hm2⟩ := denoteRulesGo_isSome hwf r.rules hm1 h.rules
+  refine ⟨m2, ?_, hm2⟩
+  rw [denoteMRecGo, g1]
+  simp only []
+  rw [g2]
+  simp only []
+  rw [h.nP, h.nM, h.nm, h.nI]
+
+/-- con-leche: none — the recursor list. -/
+theorem denoteMRecsGo_of_rel {st : EStore} (hwf : StoreWF st) :
+    ∀ {rs : List MIndRecRec} {rcs : List ConLeche.Frontend.InModel.IndRecRec}
+      {m : DMemo}, DMemoOK st m → ListRel (MIndRecRecRel st) rs rcs →
+      ∃ m', denoteMRecsGo st m rs = some (m', rcs) ∧ DMemoOK st m' := by
+  intro rs rcs m hm h
+  induction h generalizing m with
+  | nil => exact ⟨m, rfl, hm⟩
+  | @cons a b as bs hab _ ih =>
+    obtain ⟨m1, g1, hm1⟩ := denoteMRecGo_of_rel hwf hm hab
+    obtain ⟨m2, g2, hm2⟩ := ih hm1
+    exact ⟨m2, by rw [denoteMRecsGo, g1]; simp only []; rw [g2], hm2⟩
+
+/-- con-leche: none — the block the seam reads back is the block the relation
+names: `denoteCVGo`'s existence direction through the three member families,
+then `BlockRecRel`'s three `ListRel` clauses. -/
 theorem denoteBlockRec_eq_of_rel {st : EStore} (hwf : StoreWF st) {b : BlockRec}
     {bP : ConLeche.Frontend.InModel.BlockRec} (h : BlockRecRel st b bP) :
     denoteBlockRec st b = some bP := by
-  sorry
+  obtain ⟨m1, g1, hm1⟩ := denoteMTypesGo_of_rel hwf (DMemoOK.empty st) h.types
+  obtain ⟨m2, g2, hm2⟩ := denoteMCtorsGo_of_rel hwf hm1 h.ctors
+  obtain ⟨m3, g3, hm3⟩ := denoteMRecsGo_of_rel hwf hm2 h.recs
+  rw [denoteBlockRec, denoteBlockRecGo, g1]
+  simp only []
+  rw [g2]
+  simp only []
+  rw [g3]
+
+/-! ### `nameHandle?`, both directions
+
+`ctxOf` probes the name store with `nameHandle?` where `CtxRel` quantifies over
+handles that DENOTE, so the bridge between them is two lemmas: what the probe
+answers denotes the name it was asked for, and a name that denotes at all is
+one the probe answers.  The second needs `denoteN_inj` — two handles denoting
+one name are one handle — which is DESIGN §8.3's soundness obligation. -/
+
+/-- con-leche: none — a handle `nameHandle?` answers denotes the name it was
+asked for. -/
+theorem nameHandle?_sound {st : NStore} (hwf : NStoreWF st) :
+    ∀ (n : ConLeche.Name) {h : NIdx}, nameHandle? st n = some h →
+      denoteN st h = some n := by
+  obtain ⟨rk, hw⟩ := hwf
+  intro n
+  induction n with
+  | anonymous =>
+    intro h hf
+    rw [nameHandle?] at hf
+    have hv := Arena.NStore.view_of_find ⟨rk, hw⟩ hf
+    rw [Arena.denoteN_unfold hw hv]; rfl
+  | str p s ih =>
+    intro h hf
+    rw [nameHandle?] at hf
+    cases hp : nameHandle? st p with
+    | none => rw [hp] at hf; exact absurd hf (by simp)
+    | some hpi =>
+      rw [hp] at hf
+      have hdp := ih hp
+      have hv := Arena.NStore.view_of_find ⟨rk, hw⟩ hf
+      rw [Arena.denoteN_unfold hw hv]
+      simp [Arena.denoteNView, hdp]
+  | num p k ih =>
+    intro h hf
+    rw [nameHandle?] at hf
+    cases hp : nameHandle? st p with
+    | none => rw [hp] at hf; exact absurd hf (by simp)
+    | some hpi =>
+      rw [hp] at hf
+      have hdp := ih hp
+      have hv := Arena.NStore.view_of_find ⟨rk, hw⟩ hf
+      rw [Arena.denoteN_unfold hw hv]
+      simp [Arena.denoteNView, hdp]
+
+/-- con-leche: none — a node the store holds is a node `NStore.find?`
+answers. -/
+theorem find?_isSome_of_view {st : NStore} {rk : NIdx → Nat} (hw : Arena.NWFAt st rk)
+    {h : NIdx} {v : NNodeView} (hv : st.view h = some v) :
+    (st.find? v).isSome = true := by
+  simp only [Arena.NStore.find?]
+  cases hp : st.pers.find? v with
+  | some i => simp
+  | none =>
+    by_cases hper : h.isPersistent = true
+    · rw [(hw.consP v h).mpr ⟨hv, hper⟩] at hp; exact absurd hp (by simp)
+    · have hper' : h.isPersistent = false := by simpa using hper
+      have hon : st.scratchOn = true := by
+        by_cases hoff : st.scratchOn = true
+        · exact hoff
+        · exfalso
+          have hoff' : st.scratchOn = false := by simpa using hoff
+          rw [Arena.NStore.view, if_neg hper, if_neg (by rw [hoff']; simp)] at hv
+          exact absurd hv (by simp)
+      rw [if_pos hon, (hw.consS v h).mpr ⟨hv, hper'⟩]
+      simp
+
+/-- con-leche: none — a name that denotes is a name `nameHandle?` answers. -/
+theorem nameHandle?_isSome {st : NStore} (hwf : NStoreWF st) :
+    ∀ (n : ConLeche.Name) {h : NIdx}, denoteN st h = some n →
+      (nameHandle? st n).isSome = true := by
+  obtain ⟨rk, hw⟩ := hwf
+  intro n
+  induction n with
+  | anonymous =>
+    intro h hd
+    obtain ⟨v, hv⟩ := Arena.denoteN_view hd
+    rw [Arena.denoteN_unfold hw hv] at hd
+    obtain rfl := Arena.denoteNView_anonymous hd
+    rw [nameHandle?]
+    exact find?_isSome_of_view hw hv
+  | str p s ih =>
+    intro h hd
+    obtain ⟨v, hv⟩ := Arena.denoteN_view hd
+    rw [Arena.denoteN_unfold hw hv] at hd
+    obtain ⟨pi, rfl, hdp⟩ := Arena.denoteNView_str hd
+    have hsi := ih hdp
+    cases hpq : nameHandle? st p with
+    | none => rw [hpq] at hsi; exact absurd hsi (by simp)
+    | some hpi =>
+      obtain rfl : hpi = pi :=
+        Arena.denoteN_inj ⟨rk, hw⟩ (nameHandle?_sound ⟨rk, hw⟩ p hpq) hdp
+      rw [nameHandle?, hpq]
+      exact find?_isSome_of_view hw hv
+  | num p k ih =>
+    intro h hd
+    obtain ⟨v, hv⟩ := Arena.denoteN_view hd
+    rw [Arena.denoteN_unfold hw hv] at hd
+    obtain ⟨pi, rfl, hdp⟩ := Arena.denoteNView_num hd
+    have hsi := ih hdp
+    cases hpq : nameHandle? st p with
+    | none => rw [hpq] at hsi; exact absurd hsi (by simp)
+    | some hpi =>
+      obtain rfl : hpi = pi :=
+        Arena.denoteN_inj ⟨rk, hw⟩ (nameHandle?_sound ⟨rk, hw⟩ p hpq) hdp
+      rw [nameHandle?, hpq]
+      exact find?_isSome_of_view hw hv
 
 /-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:119-124 Ctx — the context
 the seam builds IS the context the relation names.  Function extensionality at
@@ -759,13 +1219,73 @@ three fields, each of which probes the name store with `nameHandle?` where the
 relation quantifies over handles that denote — and the two meet because
 `denoteN` is injective (DESIGN §8.3's soundness obligation).
 
-`sorry`: `nameHandle?`'s own exactness (`NStore.find?` at a name that was
-interned) plus `denoteN_inj`, then `denoteEShared_eq_denoteE` at the `tbl`
-field and `denoteBlockRec_eq_of_rel` at the `blocks` one.  Task
-#97-P3-Frontend's sorry list, item 3. -/
+`nameHandle?`'s own exactness — both halves — plus `denoteN_inj`, then
+`denoteEShared_eq_denoteE` at the `tbl` field and `denoteBlockRec_eq_of_rel`
+at the `blocks` one.  **The three COVER clauses of `CtxRel` are what make this
+true at all** (round 2's finding 12): a name the store never interned has no
+handle, `ctxOf` answers `none` / `0` there, and nothing but a cover clause
+says con-leche's context does too. -/
 theorem ctxOf_eq_of_rel {st : EStore} (hwf : StoreWF st) {c : Ctx}
     {cc : ConLeche.Frontend.InModel.Ctx} (h : CtxRel st c cc) :
     ctxOf st c = cc := by
-  sorry
+  have hns : NStoreWF st.ns := by
+    obtain ⟨rk, hw⟩ := hwf
+    obtain ⟨rkl, hl⟩ := hw.lss.ls
+    exact hl.ns
+  cases cc with
+  | mk tbl heights blocks =>
+  simp only [ctxOf]
+  congr 1
+  · funext n
+    cases hnh : nameHandle? st.ns n with
+    | none =>
+      cases htn : tbl n with
+      | none => rfl
+      | some q =>
+        obtain ⟨hh, hdh⟩ := h.tblCover n q htn
+        have hs := nameHandle?_isSome hns n hdh
+        rw [hnh] at hs; exact absurd hs (by simp)
+    | some hh =>
+      simp only []
+      have hdh : denoteN st.ns hh = some n := nameHandle?_sound hns n hnh
+      have hrel := h.tbl hh n hdh
+      simp only [] at hrel
+      cases hc : c.tbl hh with
+      | none => exact (hrel.none_left hc).symm
+      | some p =>
+        obtain ⟨q, hq, hpq⟩ := hrel.some_left hc
+        rw [hq]
+        simp only [hpq.1, denoteEShared_eq_denoteE hwf p.2, hpq.2]
+  · funext n
+    cases hnh : nameHandle? st.ns n with
+    | none =>
+      by_cases hz : heights n = 0
+      · rw [hz]
+      · obtain ⟨hh, hdh⟩ := h.heightsCover n hz
+        have hs := nameHandle?_isSome hns n hdh
+        rw [hnh] at hs; exact absurd hs (by simp)
+    | some hh =>
+      simp only []
+      exact h.heights hh n (nameHandle?_sound hns n hnh)
+  · funext n
+    cases hnh : nameHandle? st.ns n with
+    | none =>
+      cases htn : blocks n with
+      | none => rfl
+      | some b =>
+        obtain ⟨hh, hdh⟩ := h.blocksCover n b htn
+        have hs := nameHandle?_isSome hns n hdh
+        rw [hnh] at hs; exact absurd hs (by simp)
+    | some hh =>
+      simp only []
+      have hdh : denoteN st.ns hh = some n := nameHandle?_sound hns n hnh
+      have hrel := h.blocks hh n hdh
+      simp only [] at hrel
+      cases hc : c.blocks hh with
+      | none => exact (hrel.none_left hc).symm
+      | some bb =>
+        obtain ⟨bP, hbP, hbrel⟩ := hrel.some_left hc
+        rw [hbP]
+        exact denoteBlockRec_eq_of_rel hwf hbrel
 
 end ConRon.Bridge.Frontend

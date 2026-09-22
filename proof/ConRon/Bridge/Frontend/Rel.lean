@@ -540,6 +540,15 @@ structure CtxRel (st : EStore) (c : Ctx) (cc : ConLeche.Frontend.InModel.Ctx) :
   heights : ∀ h n, denoteN st.ns h = some n → c.heights h = cc.heights n
   blocks : ∀ h n, denoteN st.ns h = some n →
     OptRel (BlockRecRel st) (c.blocks h) (cc.blocks n)
+  -- **the three COVER clauses** (task #97-P3-Frontend-2 round 2, finding 12):
+  -- the three above say nothing about a name the store has never interned,
+  -- and `ctxOf` answers `none`/`0` there — so without these the readback of
+  -- the twin's context is not con-leche's context, and
+  -- `inProcessModeller_refines` is not provable.  Same shape and same reason
+  -- as `MapRel`'s `cover` beside its `hit`.
+  tblCover : ∀ n q, cc.tbl n = some q → ∃ h, denoteN st.ns h = some n
+  heightsCover : ∀ n, cc.heights n ≠ 0 → ∃ h, denoteN st.ns h = some n
+  blocksCover : ∀ n b, cc.blocks n = some b → ∃ h, denoteN st.ns h = some n
 
 /-! ## The parse state -/
 
