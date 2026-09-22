@@ -1,0 +1,34 @@
+# `scripts/arena-census.py --selftest`'s expectation.
+#
+#     <twin> <T1 verdict> <T2 verdict>   # <file>  T1 <theorem>  T2 <theorem>
+#
+# The first three fields are compared; the rest of the line is the evidence,
+# for a human reading a mismatch.  Verdicts: `closed`, `sorry` (stated, not
+# proved), `part` (some of the citing Rust functions have a lemma, not all),
+# `.` (nothing stated), `-` (listed in this fixture's own skip file).
+#
+# Twenty rows and exactly twenty: `instantiate1ArmApp` and
+# `instantiate1ArmBVar` are ARMS and must NOT appear — they fold into
+# `instantiate1Go`, whose `closed` verdict counts `instantiate1ArmApp_spec`
+# as well as `instantiate1Go_spec`.
+
+checkDecl          sorry  sorry  # Checker.lean                 T1 checkDecl_bridge_defn        T2 check_decl_refines
+checkDeclsPure     closed sorry  # Checker.lean                 T1 Arena.checkDeclsPure_bridge  T2 check_decls_pure_refines
+coreWalkFuel       -      -      # Core.lean                    T1 (skip)                       T2 (skip)
+isBoolTrue         closed .      # Core.lean                    T1 isBoolTrue_spec              T2 is_bool_true
+flushCaches        closed .      # Core.lean                    T1 flushCaches_run              T2 flush_caches
+iotaRec            sorry  part   # Core.lean                    T1 iotaRec_spec                 T2 iota_rec_at_refines [1/2]
+eidxCopyUpto       .      .      # ExprOps.lean                 T1 !                            T2 -
+instantiate1Go     closed sorry  # ExprOps.lean                 T1 instantiate1Go_spec +1       T2 instantiate1_go_refines
+instantiateList    sorry  sorry  # ExprOps.lean                 T1 instantiateList_spec         T2 instantiate_list_refines
+exprPtrBEq         closed closed # ExprOps.lean                 T1 exprPtrBEq_exact             T2 expr_ptr_beq_refines
+wscopedBFast       closed closed # ExprOps.lean                 T1 wscopedBFast_spec            T2 wscoped_b_fast_refines
+reboundError       .      closed # Frontend/ExportC.lean        T1 -                            T2 rebound_error_no_claim(N)
+P00                -      .      # Frontend/PreludeText.lean    T1 (skip)                       T2 -
+preludeText        -      sorry  # Frontend/PreludeText.lean    T1 (skip)                       T2 builtin_prelude_text_refines
+derivedE           closed .      # Monad.lean                   T1 derivedE_spec                T2 derived_e
+viewApp            closed .      # Monad.lean                   T1 viewApp_spec                 T2 view_app
+internE            closed .      # Monad.lean                   T1 internE_specV                T2 intern_e
+PMemo.empty        .      .      # Promote.lean                 T1 !                            T2 empty
+promoteN           sorry  sorry  # Promote.lean                 T1 promoteN_spec                T2 promote_n_refines
+fixture            -      -      # StoreTest.lean               T1 (skip)                       T2 (skip)
