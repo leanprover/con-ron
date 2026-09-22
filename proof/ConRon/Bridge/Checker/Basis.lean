@@ -132,7 +132,9 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {F : Nat} {env : Env}
 `stdAxiomOk`, `trustCompilerOk` and `ofReduceAxOk` (`Arena/DeclCheck.lean`)
 are the `.axiomDecl` arm's four environment tests.  Each reads the environment
 index and compares an interned literal, so each is `IFEnvOK` plus one intern
-exactness; none of them calls the core. -/
+exactness; none of them calls the core — which is why each concludes
+`s'.caches = s.caches` (task #97-P3-Checker-2: the arm needs it to rebuild
+`CheckOK` after the test). -/
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (stdAxiomOk) — the standard
 axioms' environment shape test is con-leche's.
@@ -144,8 +146,39 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
     (hrun : stdAxiomOk fe cvA s = .ok (r, s')) :
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧
       r = ConLeche.stdAxiomOk env c := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/DeclCheck.lean (trustCompilerOk) — the
+`Lean.trustCompiler` environment shape test is con-leche's.
+
+`sorry`: `IFEnvOK` at the `True`/`True.intro` lookups and
+`IConstantVal.matchesPin` through `erasePwEq`, exactly as `stdAxiomOk_run`.
+Task #97-P3-Checker's sorry list, item 16. -/
+theorem trustCompilerOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+    {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
+    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
+    (hrun : trustCompilerOk fe cvA s = .ok (r, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧
+      r = ConLeche.trustCompilerOk env c := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/DeclCheck.lean (ofReduceAxOk) — the
+`Lean.ofReduceNat`/`ofReduceBool` environment shape test is con-leche's.
+
+`sorry`: `ofReduceOp`'s handle comparison, then `IFEnvOK` at the pinned `Eq`
+basis and at `reduceElemOk` / `reduceStoredOk`.  Task #97-P3-Checker's sorry
+list, item 16. -/
+theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+    {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
+    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
+    (hrun : ofReduceAxOk fe cvA s = .ok (r, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧
+      r = ConLeche.ofReduceAxOk env c := by
   sorry
 
 end ConRon.Bridge

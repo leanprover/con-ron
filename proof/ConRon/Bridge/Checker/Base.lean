@@ -195,6 +195,53 @@ theorem denoteNList_contains {st : EStore} (hwf : StoreWF st) :
             rw [beq_eq_false_iff_ne.mpr hae', beq_eq_false_iff_ne.mpr hne']
         simp only [List.contains_cons, hhead, ih ys has n x hx]
 
+/-- con-leche: none — **a handle comparison is a name comparison**, at two
+handles that denote.  The `→` half is `denoteN`'s functionality and the `←`
+half is its injectivity (DESIGN §8.3's soundness obligation); every pinned-name
+test of the declaration checker cashes this. -/
+theorem beq_handle_iff {st : EStore} (hwf : StoreWF st) {n p : NIdx}
+    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
+    (hp : denoteN st.ns p = some x) : (n == p) = true ↔ nm = x := by
+  obtain ⟨rk, hrk⟩ := hwf
+  constructor
+  · intro h
+    obtain rfl := eq_of_beq h
+    rw [hn] at hp
+    exact Option.some.inj hp
+  · intro h
+    subst h
+    exact beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hp)
+
+/-- con-leche: none — `Frontend.denoteCIList`'s indexed inversion. -/
+theorem denoteCIList_get {st : EStore} :
+    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo) (i : Nat)
+      (ci : IConstantInfo),
+      Frontend.denoteCIList st cs = some xs → cs[i]? = some ci →
+        ∃ x, xs[i]? = some x ∧ Frontend.denoteCI st ci = some x := by
+  intro cs
+  induction cs with
+  | nil => intro xs i ci _ h2; simp at h2
+  | cons a as ih =>
+    intro xs i ci h1 h2
+    simp only [Frontend.denoteCIList] at h1
+    cases ha : Frontend.denoteCI st a with
+    | none => rw [ha] at h1; simp at h1
+    | some y =>
+      cases has : Frontend.denoteCIList st as with
+      | none => rw [ha, has] at h1; simp at h1
+      | some ys =>
+        rw [ha, has] at h1
+        simp only [Option.some.injEq] at h1
+        subst h1
+        cases i with
+        | zero =>
+          simp only [List.getElem?_cons_zero, Option.some.injEq] at h2 ⊢
+          subst h2
+          exact ⟨y, rfl, ha⟩
+        | succ k =>
+          simp only [List.getElem?_cons_succ] at h2 ⊢
+          exact ih ys k ci has h2
+
 /-- con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup — the handle test
 is the name test, by `denoteNList_contains` at every tail. -/
 theorem nameNodup_spec {st : EStore} (hwf : StoreWF st) :
@@ -593,7 +640,6 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
   have hknot := hk.knot env fe hok.envWF
   have hsortS := hk.sort env fe hok.envWF
-  have hframe := hk.frame fe
   have hck0 : CheckOK μ env fe s := hok.check
   have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
       {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
@@ -687,12 +733,12 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     exact denoteFEnv_pext (PExt.of_ext hp2.ext) hok.persEnv hok.denote
   -- 7. the annotation
   obtain ⟨type, s7, g7r, r11⟩ := AM.bind_ok r10
-  obtain ⟨hck7, hx7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
+  obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s6.store t.store ∧
+      t.pins = s6.pins ∧
       Core.SimE (ConLeche.annotateCore μ env) 0 c.type t.store r)
     rfl g7r (hknot.annotate s6 0 cv.type c.type hck6 hty6 hws)
   obtain ⟨v, hv7, hwsv, F7, hF7⟩ := hsim7
-  have hp7 : s7.pins = s6.pins := hframe.annotate 0 cv.type s6 s7 type g7r
   have hnm7 : denoteN s7.store.ns cv.name = some c.name := denoteN_ext hnm6 hx7
   have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
@@ -733,24 +779,24 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       = some c.levelParams := by rw [h9st]; exact hlps8
   -- 10. the inference
   obtain ⟨stype, s10, g10r, r16⟩ := AM.bind_ok r15
-  obtain ⟨hck10, hx10, hsim10⟩ := AM.of_run (P := fun t => t = s9)
+  obtain ⟨hck10, hx10, hp10, hsim10⟩ := AM.of_run (P := fun t => t = s9)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s9.store t.store ∧
+      t.pins = s9.pins ∧
       Core.SimE (ConLeche.inferTypeCore μ env) 0 v t.store r)
     rfl g10r (hknot.infer s9 0 type v hck9 hv9 hwsv)
   obtain ⟨w, hw10, hwsw, F10, hF10⟩ := hsim10
-  have hp10 : s10.pins = s9.pins := hframe.infer 0 type s9 s10 stype g10r
   have hv10 : denoteE s10.store type = some v := denote_ext hv9 hx10
   have hnm10 : denoteN s10.store.ns cv.name = some c.name := denoteN_ext hnm9 hx10
   have hlps10 : Frontend.denoteNList s10.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hx10.lss.ls.ns _ _ hlps9
   -- 11. the sort test
   obtain ⟨u, s11, g11r, r17⟩ := AM.bind_ok r16
-  obtain ⟨hck11, hx11, hsim11⟩ := AM.of_run (P := fun t => t = s10)
+  obtain ⟨hck11, hx11, hp11, hsim11⟩ := AM.of_run (P := fun t => t = s10)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s10.store t.store ∧
+      t.pins = s10.pins ∧
       SimL (ConLeche.ensureSortCore μ env) 0 w t.store r)
     rfl g11r (hsortS s10 0 stype w hck10 hw10 hwsw)
   obtain ⟨uu, huu, F11, hF11⟩ := hsim11
-  have hp11 : s11.pins = s10.pins := hframe.sort 0 stype s10 s11 u g11r
   have hv11 : denoteE s11.store type = some v := denote_ext hv10 hx11
   have hnm11 : denoteN s11.store.ns cv.name = some c.name := denoteN_ext hnm10 hx11
   have hlps11 : Frontend.denoteNList s11.store.ns cv.levelParams
@@ -907,7 +953,6 @@ theorem checkTypedList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
         ConLeche.checkTypedList (ConLeche.fueledOps μ F) env depth xs ys
           = .ok () := by
   have hknot := hk.knot env fe henv
-  have hframe := hk.frame fe
   intro depth as
   induction as with
   | nil =>
@@ -931,22 +976,22 @@ theorem checkTypedList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
       simp only [Arena.checkTypedList] at hrun
       -- the inference
       obtain ⟨ty, s1, g1, r1⟩ := AM.bind_ok hrun
-      obtain ⟨hok1, hx1, hsim1⟩ := AM.of_run (P := fun u => u = s)
+      obtain ⟨hok1, hx1, hp1, hsim1⟩ := AM.of_run (P := fun u => u = s)
         (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧
+          u.pins = s.pins ∧
           Core.SimE (ConLeche.inferTypeCore μ env) depth x u.store r)
         rfl g1 (hknot.infer s depth a x hok hx (hwx x (by simp)))
       obtain ⟨w, hw1, hwsw, F1, hF1⟩ := hsim1
-      have hp1 : s1.pins = s.pins := hframe.infer depth a s s1 ty g1
       have hy1 : denoteE s1.store t = some y := denote_ext hy hx1
       -- the conversion
       obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1
-      obtain ⟨hok2, hx2, hsim2⟩ := AM.of_run (P := fun u => u = s1)
+      obtain ⟨hok2, hx2, hp2, hsim2⟩ := AM.of_run (P := fun u => u = s1)
         (Q := fun r u => CheckOK μ env fe u ∧ Ext s1.store u.store ∧
+          u.pins = s1.pins ∧
           Core.SimV (ConLeche.isDefEqCore μ env) depth w y r)
         rfl g2 (hknot.defeq s1 depth ty t w y hok1 hw1 hy1 hwsw
           (hwy y (by simp)))
       obtain ⟨F2, hF2⟩ := hsim2
-      have hp2 : s2.pins = s1.pins := hframe.defeq depth ty t s1 s2 b2 g2
       obtain ⟨hb2, r3⟩ := AM.dunless_ok AM.Never.fail_any r2
       replace r3 := AM.pure_bind_ok r3
       subst hb2
@@ -983,7 +1028,6 @@ theorem checkAnnotList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
         ConLeche.checkAnnotList (ConLeche.fueledOps μ F) env depth xs
           = .ok () := by
   have hknot := hk.knot env fe henv
-  have hframe := hk.frame fe
   intro depth as
   induction as with
   | nil =>
@@ -997,12 +1041,12 @@ theorem checkAnnotList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     obtain ⟨x, xs', hx, hxs, rfl⟩ := denoteEList_cons ha
     simp only [Arena.checkAnnotList] at hrun
     obtain ⟨aA, s1, g1, r1⟩ := AM.bind_ok hrun
-    obtain ⟨hok1, hx1, hsim1⟩ := AM.of_run (P := fun u => u = s)
+    obtain ⟨hok1, hx1, hp1, hsim1⟩ := AM.of_run (P := fun u => u = s)
       (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧
+        u.pins = s.pins ∧
         Core.SimE (ConLeche.annotateCore μ env) depth x u.store r)
       rfl g1 (hknot.annotate s depth a x hok hx (hwx x (by simp)))
     obtain ⟨v, hv1, hwsv, F1, hF1⟩ := hsim1
-    have hp1 : s1.pins = s.pins := hframe.annotate depth a s s1 aA g1
     obtain ⟨heq, r2⟩ := AM.dunless_ok AM.Never.fail_any r1
     replace r2 := AM.pure_bind_ok r2
     have haA : aA = a := eq_of_beq heq
@@ -1033,7 +1077,6 @@ theorem checkDefEqList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
         ConLeche.checkDefEqList (ConLeche.fueledOps μ F) env depth xs ys
           = .ok () := by
   have hknot := hk.knot env fe henv
-  have hframe := hk.frame fe
   intro depth as
   induction as with
   | nil =>
@@ -1056,13 +1099,13 @@ theorem checkDefEqList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
       obtain ⟨y, ys', hy, hys, rfl⟩ := denoteEList_cons hb
       simp only [Arena.checkDefEqList] at hrun
       obtain ⟨c1, s1, g1, r1⟩ := AM.bind_ok hrun
-      obtain ⟨hok1, hx1, hsim1⟩ := AM.of_run (P := fun u => u = s)
+      obtain ⟨hok1, hx1, hp1, hsim1⟩ := AM.of_run (P := fun u => u = s)
         (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧
+          u.pins = s.pins ∧
           Core.SimV (ConLeche.isDefEqCore μ env) depth x y r)
         rfl g1 (hknot.defeq s depth a b x y hok hx hy (hwx x (by simp))
           (hwy y (by simp)))
       obtain ⟨F1, hF1⟩ := hsim1
-      have hp1 : s1.pins = s.pins := hframe.defeq depth a b s s1 c1 g1
       obtain ⟨hc1, r2⟩ := AM.dunless_ok AM.Never.fail_any r1
       replace r2 := AM.pure_bind_ok r2
       subst hc1

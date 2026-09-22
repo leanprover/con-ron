@@ -182,7 +182,120 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
         ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env' := by
   sorry
 
-/-! ## The structural-`Nat` gate -/
+/-! ## The structural-`Nat` gate
+
+Six readers and one certifier.  None of the six calls the core — they read the
+environment index and intern pinned literals — so each has `PinStep`'s frame
+and an answer relation, and the certifier alone is a `CoreStep`. -/
+
+/-- con-leche: none — a list of equation PAIRS denotes, pointwise.  The
+`certifyNatEqs` chain is stated with it rather than with the membership shape
+the round that stated it used, because the recursion is positional: the arena
+certifies the `i`-th pair against con-leche's `i`-th (task
+#97-P3-Checker-2). -/
+def EqPairsDenote (st : EStore) :
+    List (EIdx × EIdx) → List (Expr × Expr) → Prop
+  | [], [] => True
+  | p :: ps, q :: qs =>
+    denoteE st p.1 = some q.1 ∧ denoteE st p.2 = some q.2 ∧
+      EqPairsDenote st ps qs
+  | _, _ => False
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:475-481 natOpNames — the seven
+structural fast-path operations, off the pin table.
+
+`sorry`: seven `pinAt_run`s, as `reservedBasisNames_run`
+(`Bridge/Checker/Base.lean`) but without the interns.  Task #97-P3-Checker's
+sorry list, item 13. -/
+theorem natOpNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
+    (hr : natOpNames s = .ok (ns, s')) :
+    s' = s ∧ denoteNL s.store ns ConLeche.natOpNames := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:483-498 natDivModNames — the
+eight WF-recursive operations, off the pin table.
+
+`sorry`: eight `pinAt_run`s.  Task #97-P3-Checker's sorry list, item 13. -/
+theorem natDivModNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
+    (hr : natDivModNames s = .ok (ns, s')) :
+    s' = s ∧ denoteNL s.store ns ConLeche.natDivModNames := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:500-523 natOpDeps — the
+operations involved in `c`'s recurrences.  The twin's dispatch is a chain of
+HANDLE comparisons where con-leche's is a chain of name comparisons, so the
+answer is exact for `denoteN_inj`'s reason.
+
+`sorry`: fourteen `pinAt_run`s and `beq_handle_iff`
+(`Bridge/Checker/Base.lean`) at each arm.  Task #97-P3-Checker's sorry list,
+item 13. -/
+theorem natOpDeps_run {cn : NIdx} {nm : ConLeche.Name} {ds : List NIdx}
+    {s s' : AState} (hok : StateOK s) (hn : denoteN s.store.ns cn = some nm)
+    (hr : natOpDeps cn s = .ok (ds, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧ denoteNL s'.store ds (ConLeche.natOpDeps nm) := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpGuard) — the
+structural-`Nat` environment guard is con-leche's at the denoted environment.
+
+`sorry`: `natLitSupported` / `natOpDepsStored` / the `Bool`-family lookups
+through `IFEnvOK`, then `natOpDeps_run`.  Task #97-P3-Checker's sorry list,
+item 23. -/
+theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
+    {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
+    (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns cn = some nm)
+    (hr : natOpGuard fe2 cn s = .ok (r, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧ r = ConLeche.natOpGuard env2 nm := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpStoredOk) — the twin's list
+recursion answers con-leche's `List.all` (DESIGN §3.4 forbids the closure).
+
+`sorry`: a list induction over `natOpStoredOk`'s own `IFEnvOK` reads.  Task
+#97-P3-Checker's sorry list, item 23. -/
+theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
+    {xs : List ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
+    (hie : IFEnvOK env2 fe2 s) (hd : denoteNL s.store ds xs)
+    (hr : natOpStoredOkAll fe2 ds s = .ok (r, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧ r = xs.all (ConLeche.natOpStoredOk env2) := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpEquations) — the recurrence
+equations, interned.
+
+`sorry`: the pinned-literal constructions through the frontend tier's intern
+exactness, as `Bridge/Checker/Basis.lean`'s item 15.  Task #97-P3-Checker's
+sorry list, item 23. -/
+theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
+    {eqs : List (EIdx × EIdx)} {s s' : AState} (hok : StateOK s)
+    (hp : PinsOK s) (hn : denoteN s.store.ns cn = some nm)
+    (hr : natOpEquations d cn s = .ok (eqs, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧
+      EqPairsDenote s'.store eqs (ConLeche.natOpEquations d nm) := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean (Expr.substConst0) — the
+self-reference substitution, pair by pair.
+
+`sorry`: a list recursion over `Bridge/ExprOps/**`'s `substConst0` spec.  Task
+#97-P3-Checker's sorry list, item 23. -/
+theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
+    {x : Expr} {eqs r : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
+    {s s' : AState} (hok : StateOK s) (hn : denoteN s.store.ns cn = some nm)
+    (hv : denoteE s.store rh = some x) (hd : EqPairsDenote s.store eqs xs)
+    (hr : substConst0Pairs cn rh eqs s = .ok (r, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧
+      EqPairsDenote s'.store r
+        (xs.map fun eq => (Expr.substConst0 nm x eq.1,
+          Expr.substConst0 nm x eq.2)) := by
+  sorry
+
+
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the
 recurrence equations, certified by definitional equality in the pre-insertion
@@ -196,8 +309,8 @@ theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {eqs : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
     {r : Bool} {s s' : AState} (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) (hok : FoldOK μ env fe s)
-    (hden : ∀ p ∈ eqs, ∃ q ∈ xs, denoteE s.store p.1 = some q.1 ∧
-      denoteE s.store p.2 = some q.2)
+    (hden : EqPairsDenote s.store eqs xs)
+    (hws : ∀ q ∈ xs, Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2)
     (hrun : certifyNatEqs μ fe eqs s = .ok (r, s')) :
     CoreStep μ env fe s s' ∧
       (r = true → ∃ F, ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env xs

@@ -35,11 +35,13 @@ discharges it, and `CoreSpec.of_knot` below does that in one line.
 also needs `PersPins s'` (the pin handles are persistent), and that is
 transported by `s'.pins = s₀.pins` and nothing else.  No core entry writes
 `s.pins`, so the clause is free; `CoreStep` below carries it, and adding it to
-`KnotSpec`'s postcondition is the one thing this tier asks of the Core tier.
-Until it does, `CorePinFrame` below SAYS it, as the third field of `CoreSpec`
-— which is what lets the run-form proofs of `Bridge/Checker/Base.lean` and
-`Bridge/Checker/DeclVal.lean` conclude `CoreStep` at all (task
-#97-P3-Checker-2).
+`KnotSpec`'s postcondition was the one thing this tier asked of the Core tier.
+**It is there** (task #97-P3-CoreWalks): every slot of `KnotSpec` and
+`EnsureSortSpec` now ends `s'.pins = s₀.pins`, which is what lets the run-form
+proofs of `Bridge/Checker/Base.lean` and `Bridge/Checker/Arms.lean` conclude
+`CoreStep` at all.  Task #97-P3-Checker-2's stop-gap `CorePinFrame` — a
+third field of `CoreSpec` saying the same thing — is deleted with this
+merge.
 
 **`IndSpec μ` — the INDUCTIVES tier's**.  `Arena/Inductives.lean`'s
 `checkIndDecl` is 9 500 lines of arena twin under it, and `checkDecl`'s
@@ -115,44 +117,6 @@ def EnsureSortSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
         s'.pins = s₀.pins ∧
         SimL (ConLeche.ensureSortCore mode env) d e s'.store r⌝⦄
 
-/-! ## The pin-table frame
-
-Task #97-P3-Checker §7's "the one thing this tier asks of the Core tier", as
-a statement rather than as a request.  `KnotSpec`'s postcondition is
-`CheckOK ∧ Ext`, and `CheckOK` carries `PinsOK s'` — so the pin table still
-DENOTES across a core call.  What the fold needs on top is `PersPins s'`, the
-fact that the pin HANDLES are persistent, and that is transported by the pin
-table's EQUATION and by nothing else.
-
-No core entry writes `s.pins` (the table is filled once, by
-`internReservedPins`, before the parse), so every clause below is free — but
-it has to be *said*, and a caller that consumes `Core.KnotSpec` directly
-cannot say it.  `CoreStep` above carries it, this record supplies it, and
-`CoreSpec` bundles it with the other two. -/
-
-/-- con-leche: none — **no core entry point writes the pin table**.  Seven
-clauses, one per entry of `Arena/Core.lean`'s bottom section (the six slots of
-`coreKnot` and `ensureSortCore`, which is not a slot).
-
-When the Core tier adds `s'.pins = s₀.pins` to `KnotSpec`'s postcondition —
-which is what task #97-P3-Checker §7 asks it for — this record is discharged
-by seven projections and disappears from `CoreSpec`. -/
-structure CorePinFrame (mode : CheckMode) (fe : IFEnv) (f : Nat) : Prop where
-  whnfCore : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
-    (Arena.coreKnot mode fe id f).whnfCore d i s = .ok (r, s') → s'.pins = s.pins
-  whnf : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
-    (Arena.coreKnot mode fe id f).whnf d i s = .ok (r, s') → s'.pins = s.pins
-  infer : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
-    (Arena.coreKnot mode fe id f).infer d i s = .ok (r, s') → s'.pins = s.pins
-  inferIO : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
-    (Arena.coreKnot mode fe id f).inferIO d i s = .ok (r, s') → s'.pins = s.pins
-  defeq : ∀ (d : Nat) (i j : EIdx) (s s' : AState) (r : Bool),
-    (Arena.coreKnot mode fe id f).defeq d i j s = .ok (r, s') → s'.pins = s.pins
-  annotate : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : EIdx),
-    (Arena.coreKnot mode fe id f).annotate d i s = .ok (r, s') → s'.pins = s.pins
-  sort : ∀ (d : Nat) (i : EIdx) (s s' : AState) (r : LIdx),
-    Arena.ensureSortCore mode fe f d i s = .ok (r, s') → s'.pins = s.pins
-
 /-! ## The Core tier's theorem, as this tier uses it -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **THE CORE
@@ -165,7 +129,6 @@ declaration while `Bridge/Core/Induction.lean`'s `knot_spec` fixes one. -/
 structure CoreSpec (mode : CheckMode) (f : Nat) : Prop where
   knot : ∀ (env : Env) (fe : IFEnv), EnvWF env → Core.KnotSpec mode env fe f
   sort : ∀ (env : Env) (fe : IFEnv), EnvWF env → EnsureSortSpec mode env fe f
-  frame : ∀ (fe : IFEnv), CorePinFrame mode fe f
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **the Core
 tier's half, discharged**: `Bridge/Core/Induction.lean`'s
@@ -176,10 +139,9 @@ This is the whole adapter the merge needed: the Core round's statement and
 this round's hypothesis are the same statement, and one line joins them. -/
 theorem CoreSpec.of_knot {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hs : ∀ (env : Env) (fe : IFEnv), EnvWF env →
-      EnsureSortSpec μ env fe Arena.checkFuel)
-    (hf : ∀ (fe : IFEnv), CorePinFrame μ fe Arena.checkFuel) :
+      EnsureSortSpec μ env fe Arena.checkFuel) :
     CoreSpec μ Arena.checkFuel :=
-  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv hμ, hs, hf⟩
+  ⟨fun _ _ henv => Core.knot_spec_checkFuel henv hμ, hs⟩
 
 /-- con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore — **the
 seventh entry point, discharged** (task #97-P3-CoreWalks, the Checker tier's

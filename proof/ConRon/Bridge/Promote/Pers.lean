@@ -85,6 +85,14 @@ theorem AM.Never.bind {α β : Type} {x : AM α} {g : α → AM β}
   obtain ⟨a, s₁, _, h2⟩ := AM.bind_ok hb
   exact h a s₁ b s' h2
 
+/-- con-leche: none — the guard bodies of the declaration checker, as a
+non-equation: `readName n >>= fun x => fail (… x)` cannot succeed.  It is what
+every `absurd` in `Bridge/Checker/Arms.lean` takes. -/
+theorem AM.readFail_ne {α β : Type} {x : AM α} {f : α → Arena.CheckError}
+    {s s' : AState} {b : β} :
+    (x >>= fun a => (Arena.fail (f a) : AM β)) s ≠ .ok (b, s') :=
+  (AM.Never.bind fun _ => AM.Never.fail _) s b s'
+
 /-- con-leche: none — an `if` in `AM`, inverted. -/
 theorem AM.ite_ok {α : Type} {c : Prop} [Decidable c] {X Y : AM α}
     {s s' : AState} {a : α} (h : (if c then X else Y) s = .ok (a, s')) :

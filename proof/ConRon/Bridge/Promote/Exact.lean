@@ -285,6 +285,18 @@ preserves it; `IFEnv.restrictTo` does not, which is why phase B's prefix view
 is handled by a congruence (`mkFEnv_find?_visibleBelow`) and not by this. -/
 def IFEnvCoh (fe : IFEnv) : Prop := fe = mkIFEnv fe.env
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **what a push does
+to the denotation**: one more constant at the front, which is exactly what
+con-leche's `⟨ci :: env.consts⟩` writes. -/
+theorem denoteFEnv_push {st : EStore} {fe : IFEnv} {env : Env}
+    {ci : IConstantInfo} {c : ConstantInfo} (h : denoteFEnv st fe = some env)
+    (hci : Frontend.denoteCI st ci = some c) :
+    denoteFEnv st (fe.push ci) = some ⟨c :: env.consts⟩ := by
+  simp only [denoteFEnv, denoteIEnv, IFEnv.push, Option.map_eq_some_iff] at h ⊢
+  obtain ⟨cs, hcs, he⟩ := h
+  subst he
+  exact ⟨c :: cs, by simp only [Frontend.denoteCIList, hci, hcs], rfl⟩
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **`IFEnv.push`
 preserves the coherence clause**: the index of the cons-extended environment
 is the index `mkIFEnv` would build for it.

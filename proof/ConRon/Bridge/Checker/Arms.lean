@@ -167,15 +167,103 @@ theorem checkDecl_opaque_pin_pure {μ : CheckMode} {F : Nat}
   simp only [ConLeche.checkDecl, h1, h2, h3, h4, if_true, bind, Except.bind,
     pure, Except.pure]
 
+/-! ### The `.axiomDecl` arm's six exits -/
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — the
+`Quot.sound` record: compared with the pinned block's fifth constant and
+installing nothing. -/
+theorem checkDecl_axiom_quotSound_pure {μ : CheckMode} {F : Nat}
+    {pinsP : List NatOpPinSet} {env : Env} {c : ConstantVal}
+    (hnm : c.name = ConLeche.quotSoundName)
+    (heq : ConLeche.ConstantInfo.canonEq (.axiomInfo c)
+      (ConLeche.quotBasis.getD 4 (.axiomInfo default)) = true) :
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+      = .ok env := by
+  simp only [ConLeche.checkDecl, hnm, heq, if_true, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — a standard
+axiom, installed. -/
+theorem checkDecl_axiom_std_pure {μ : CheckMode} {F : Nat}
+    {pinsP : List NatOpPinSet} {env : Env} {c cA : ConstantVal}
+    (hnm : ¬ (c.name = ConLeche.quotSoundName))
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA)
+    (h2 : ConLeche.stdAxiomOk env cA = true) :
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+      = .ok ⟨.axiomInfo cA :: env.consts⟩ := by
+  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, if_true, bind, Except.bind,
+    pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl —
+`Lean.trustCompiler`, installed. -/
+theorem checkDecl_axiom_trust_pure {μ : CheckMode} {F : Nat}
+    {pinsP : List NatOpPinSet} {env : Env} {c cA : ConstantVal}
+    (hnm : ¬ (c.name = ConLeche.quotSoundName))
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA)
+    (h2 : ConLeche.stdAxiomOk env cA = false)
+    (h3 : cA.name = ConLeche.trustCompilerName)
+    (h4 : ConLeche.trustCompilerOk env cA = true) :
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+      = .ok ⟨.axiomInfo cA :: env.consts⟩ := by
+  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, h3, h4, Bool.false_eq_true,
+    if_false, if_true, bind, Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — an
+`ofReduce*` axiom, installed. -/
+theorem checkDecl_axiom_ofReduce_pure {μ : CheckMode} {F : Nat}
+    {pinsP : List NatOpPinSet} {env : Env} {c cA : ConstantVal}
+    (hnm : ¬ (c.name = ConLeche.quotSoundName))
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA)
+    (h2 : ConLeche.stdAxiomOk env cA = false)
+    (h3 : ¬ (cA.name = ConLeche.trustCompilerName))
+    (h4 : cA.name = ConLeche.ofReduceNatName ∨
+      cA.name = ConLeche.ofReduceBoolName)
+    (h5 : ConLeche.ofReduceAxOk env cA = true) :
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+      = .ok ⟨.axiomInfo cA :: env.consts⟩ := by
+  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, h5, Bool.false_eq_true,
+    if_false, if_true, if_neg h3, if_pos h4, bind, Except.bind, pure,
+    Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — `sorryAx`, the
+one axiom the checker tolerates as a DECLARATION: skipped, installing
+nothing. -/
+theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
+    {pinsP : List NatOpPinSet} {env : Env} {c cA : ConstantVal}
+    (hnm : ¬ (c.name = ConLeche.quotSoundName))
+    (h1 : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA)
+    (h2 : ConLeche.stdAxiomOk env cA = false)
+    (h3 : ¬ (cA.name = ConLeche.trustCompilerName))
+    (h4 : ¬ (cA.name = ConLeche.ofReduceNatName ∨
+      cA.name = ConLeche.ofReduceBoolName))
+    (h5 : ¬ (cA.name = ConLeche.propextName ∨ cA.name = ConLeche.choiceName))
+    (h6 : cA.name = ConLeche.sorryAxName) :
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
+      = .ok env := by
+  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, Bool.false_eq_true,
+    if_false, if_neg h3, if_neg h4, if_neg h5, if_pos h6, bind, Except.bind,
+    pure, Except.pure]
+
 /-! ## The seven arms -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl (the `.defnDecl`
 arm) — a definition, with the two `Nat`-operation pin gates behind it.
 
-`sorry`: `checkConstantVal_bridge` and `checkDefnVal_bridge`
-(`Bridge/Checker/Base.lean`), then `natOpGuard` / `certifyNatEqs` /
-`checkDivModPin` (`Arena/DeclCheck.lean`), each of which is a `KnotSpec`
-consumer over a pinned term.  Task #97-P3-Checker's sorry list, item 7. -/
+**The one arm of the seven still asserted**, and the only one whose
+sub-statements were not all there: task #97-P3-Checker-2 wrote the five that
+were missing (`Bridge/Checker/DeclVal.lean`'s `natOpNames_run`,
+`natDivModNames_run`, `natOpDeps_run`, `natOpGuard_run`,
+`natOpStoredOkAll_run`, `natOpEquations_run`, `substConst0Pairs_run`), so what
+is left here is the assembly and nothing else.  It is the widest of the seven
+to assemble because Lean's `do` elaborator copies the tail into both arms of
+BOTH gates, so the four combinations — structural-`Nat` taken or not ×
+`Nat.div`/`Nat.mod` taken or not — are four leaves, each needing its own pure
+step lemma about con-leche's clause.
+
+`sorry`: `checkConstantVal_bridge` → `checkDefnVal_bridge` → `natOpNames_run`
+→ (`natOpGuard_run`, `natOpStoredOkAll_run`, `IFEnvOK`'s `hit` at
+`fe2.find? cv.name`, `natOpEquations_run`, `substConst0Pairs_run`,
+`certifyNatEqs_bridge`) → `natDivModNames_run` → `checkDivModPin_bridge`, and
+the four pure step lemmas.  Task #97-P3-Checker's sorry list, item 7. -/
 theorem checkDecl_bridge_defn {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
@@ -312,9 +400,12 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
 the standard axioms, `Lean.trustCompiler`, the two `ofReduce*` axioms, the two
 positively-declined standard shapes and `sorryAx`.
 
-`sorry`: `IConstantInfo.canonEq`'s exactness (`Bridge/Checker/Canon.lean`),
-`stdAxiomOk` / `trustCompilerOk` / `ofReduceAxOk` (`Arena/DeclCheck.lean`) and
-the pin readers' denotations.  Task #97-P3-Checker's sorry list, item 7. -/
+**PROVED** (task #97-P3-Checker-2): six exits, assembled — `pinAt_run` and
+`beq_handle_iff` for each pinned-name test, `BasisKind.decls_run` +
+`IConstantInfo.canonEq_run` for the `Quot.sound` comparison,
+`checkConstantVal_bridge` for the front door, the three shape tests for the
+three installing families, and `IFEnvCoh.push` / `Pushed.push` /
+`denoteFEnv_push` for what an install does to the environment. -/
 theorem checkDecl_bridge_axiom {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {c : ConstantVal}
@@ -323,7 +414,215 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : Arena.checkDecl μ pins fe (.axiomDecl cv) s = .ok (fe', s')) :
     DeclOut μ pinsP env (.axiomDecl c) s fe fe' s' := by
-  sorry
+  simp only [Arena.checkDecl] at hrun
+  obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
+  -- the `Quot.sound` record's own comparison, first
+  obtain ⟨qs, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨e1, d1⟩ :=
+    pinAt_run (x := ConLeche.quotSoundName) hok.check.pins rfl g1
+  rw [e1] at r1
+  have hqs : (cv.name == qs) = true ↔ c.name = ConLeche.quotSoundName :=
+    beq_handle_iff hok.check.state.wf hnm d1
+  rcases AM.ite_ok r1 with ⟨hyes, hgood⟩ | ⟨hno, hgood⟩
+  · -- the pinned quotient-soundness record: compared, installing nothing
+    obtain ⟨blk, s2, g2, r2⟩ := AM.bind_ok hgood
+    obtain ⟨hst2, hx2, hc2, hp2, hblk⟩ :=
+      BasisKind.decls_run hok.check.state g2
+    have hcv2 : Frontend.denoteCV s2.store cv = some c := denoteCV_ext hcv hx2
+    cases hb4 : blk[4]? with
+    | none => rw [hb4] at r2; exact absurd r2 (AM.Never.fail _ _ _ _)
+    | some pinned =>
+      rw [hb4] at r2
+      obtain ⟨x4, hx4, hd4⟩ :=
+        denoteCIList_get blk (ConLeche.BasisKind.decls .quotK) 4 pinned hblk hb4
+      obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok r2
+      obtain ⟨hst3, hx3, hc3, hp3, he3⟩ :=
+        IConstantInfo.canonEq_run (ci := .axiomInfo cv)
+          (c := ConstantInfo.axiomInfo c) hst2
+          (by simp only [Frontend.denoteCI, hcv2, Option.map_some]) hd4 g3
+      rcases AM.ite_ok r3 with ⟨hy3, hg3⟩ | ⟨_, hbad3⟩
+      · have hext : Ext s.store s3.store := hx2.trans hx3
+        have hpins3 : s3.pins = s.pins := by rw [hp3, hp2]
+        have hden3 : denoteFEnv s3.store fe = some env :=
+          denoteFEnv_mono hext hok.denote
+        have hcanon : ConLeche.ConstantInfo.canonEq (.axiomInfo c)
+            (ConLeche.quotBasis.getD 4 (.axiomInfo default)) = true := by
+          show ConLeche.ConstantInfo.canonEq (.axiomInfo c)
+            ((ConLeche.BasisKind.decls .quotK).getD 4
+              (.axiomInfo default)) = true
+          simp only [List.getD, hx4, Option.getD_some]
+          exact he3 ▸ hy3
+        have hpureQ : ConLeche.checkDecl μ (ConLeche.fueledOps μ 0) pinsP env
+            (.axiomDecl c) = .ok env :=
+          checkDecl_axiom_quotSound_pure (hqs.mp hyes) hcanon
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hg3
+        exact
+          { state := hst3
+            ext := hext
+            pins := hpins3
+            coh := hok.coh
+            pushed := Pushed.refl _
+            run := ⟨env, 0, hden3, hpureQ⟩ }
+      · exact absurd hbad3 (AM.Never.fail _ _ _ _)
+  · -- the ordinary axiom route
+    have hnmP : ¬ (c.name = ConLeche.quotSoundName) := fun h => hno (hqs.mpr h)
+    obtain ⟨cvA, s2, g2, r2⟩ := AM.bind_ok hgood
+    obtain ⟨hstep2, cA, F2, hcA, hpure2⟩ :=
+      checkConstantVal_bridge hμ hk hok hcv g2
+    have hok2 : FoldOK μ env fe s2 := hok.ofCore hstep2
+    -- the standard-axiom shape test
+    obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok r2
+    obtain ⟨hst3, hx3, hc3, hp3, he3⟩ := stdAxiomOk_run hok2 hcA g3
+    have hok3 : FoldOK μ env fe s3 :=
+      hok2.step (hok2.check.mono hst3 hx3 hc3 hp3) hx3 hp3
+    have hcA3 : Frontend.denoteCV s3.store cvA = some cA := denoteCV_ext hcA hx3
+    have hnmA3 : denoteN s3.store.ns cvA.name = some cA.name :=
+      (denoteCV_inv hcA3).1
+    have hciA3 : Frontend.denoteCI s3.store (.axiomInfo cvA)
+        = some (.axiomInfo cA) := by
+      simp only [Frontend.denoteCI, hcA3, Option.map_some]
+    have hext02 : Ext s.store s3.store := hstep2.ext.trans hx3
+    have hpin02 : s3.pins = s.pins := by rw [hp3, hstep2.pins]
+    rcases AM.ite_ok r3 with ⟨hy3, hg3⟩ | ⟨hn3, hg3⟩
+    · -- a standard axiom, installed
+      have hden : denoteFEnv s3.store (fe.push (.axiomInfo cvA))
+          = some ⟨.axiomInfo cA :: env.consts⟩ :=
+        denoteFEnv_push (denoteFEnv_mono hext02 hok.denote) hciA3
+      have hpureS := checkDecl_axiom_std_pure (pinsP := pinsP) hnmP hpure2
+        (he3 ▸ hy3)
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hg3
+      exact
+        { state := hst3
+          ext := hext02
+          pins := hpin02
+          coh := hok.coh.push _
+          pushed := Pushed.push _ _
+          run := ⟨⟨.axiomInfo cA :: env.consts⟩, F2, hden, hpureS⟩ }
+    · -- not a standard axiom: the three named families, then `sorryAx`
+      have hstdP : ConLeche.stdAxiomOk env cA = false := by
+        rw [← he3]
+        cases hbb : b3 with
+        | false => rfl
+        | true => rw [hbb] at hn3; exact absurd rfl hn3
+      obtain ⟨tc, s4, g4, r4⟩ := AM.bind_ok hg3
+      obtain ⟨e4, d4⟩ :=
+        pinAt_run (x := ConLeche.trustCompilerName) hok3.check.pins rfl g4
+      rw [e4] at r4
+      have htc : (cvA.name == tc) = true ↔ cA.name = ConLeche.trustCompilerName :=
+        beq_handle_iff hst3.wf hnmA3 d4
+      rcases AM.ite_ok r4 with ⟨hy4, hg4⟩ | ⟨hn4, hg4⟩
+      · -- `Lean.trustCompiler`
+        obtain ⟨b5, s5, g5, r5⟩ := AM.bind_ok hg4
+        obtain ⟨hst5, hx5, hc5, hp5, he5⟩ := trustCompilerOk_run hok3 hcA3 g5
+        rcases AM.ite_ok r5 with ⟨hy5, hg5⟩ | ⟨_, hbad5⟩
+        · have hext : Ext s.store s5.store := hext02.trans hx5
+          have hpins5 : s5.pins = s.pins := by rw [hp5, hpin02]
+          have hden : denoteFEnv s5.store (fe.push (.axiomInfo cvA))
+              = some ⟨.axiomInfo cA :: env.consts⟩ :=
+            denoteFEnv_push (denoteFEnv_mono hext hok.denote)
+              (denoteCI_ext hciA3 hx5)
+          have hpureT := checkDecl_axiom_trust_pure (pinsP := pinsP) hnmP
+            hpure2 hstdP (htc.mp hy4) (he5 ▸ hy5)
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hg5
+          exact
+            { state := hst5
+              ext := hext
+              pins := hpins5
+              coh := hok.coh.push _
+              pushed := Pushed.push _ _
+              run := ⟨⟨.axiomInfo cA :: env.consts⟩, F2, hden, hpureT⟩ }
+        · exact absurd hbad5 AM.readFail_ne
+      · -- not `trustCompiler`
+        have htcP : ¬ (cA.name = ConLeche.trustCompilerName) :=
+          fun h => hn4 (htc.mpr h)
+        obtain ⟨rn, s6, g6, r6⟩ := AM.bind_ok hg4
+        obtain ⟨e6, d6⟩ :=
+          pinAt_run (x := ConLeche.ofReduceNatName) hok3.check.pins rfl g6
+        rw [e6] at r6
+        obtain ⟨bn, s7, g7, r7⟩ := AM.bind_ok r6
+        obtain ⟨e7, d7⟩ :=
+          pinAt_run (x := ConLeche.ofReduceBoolName) hok3.check.pins rfl g7
+        rw [e7] at r7
+        have hrn : (cvA.name == rn) = true ↔ cA.name = ConLeche.ofReduceNatName :=
+          beq_handle_iff hst3.wf hnmA3 d6
+        have hbn : (cvA.name == bn) = true ↔ cA.name = ConLeche.ofReduceBoolName :=
+          beq_handle_iff hst3.wf hnmA3 d7
+        rcases AM.ite_ok r7 with ⟨hy7, hg7⟩ | ⟨hn7, hg7⟩
+        · -- an `ofReduce*` axiom
+          have hor : cA.name = ConLeche.ofReduceNatName ∨
+              cA.name = ConLeche.ofReduceBoolName := by
+            rcases Bool.or_eq_true _ _ |>.mp hy7 with h | h
+            · exact Or.inl (hrn.mp h)
+            · exact Or.inr (hbn.mp h)
+          obtain ⟨b8, s8, g8, r8⟩ := AM.bind_ok hg7
+          obtain ⟨hst8, hx8, hc8, hp8, he8⟩ := ofReduceAxOk_run hok3 hcA3 g8
+          rcases AM.ite_ok r8 with ⟨hy8, hg8⟩ | ⟨_, hbad8⟩
+          · have hext : Ext s.store s8.store := hext02.trans hx8
+            have hpins8 : s8.pins = s.pins := by rw [hp8, hpin02]
+            have hden : denoteFEnv s8.store (fe.push (.axiomInfo cvA))
+                = some ⟨.axiomInfo cA :: env.consts⟩ :=
+              denoteFEnv_push (denoteFEnv_mono hext hok.denote)
+                (denoteCI_ext hciA3 hx8)
+            have hpureR := checkDecl_axiom_ofReduce_pure (pinsP := pinsP) hnmP
+              hpure2 hstdP htcP hor (he8 ▸ hy8)
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok hg8
+            exact
+              { state := hst8
+                ext := hext
+                pins := hpins8
+                coh := hok.coh.push _
+                pushed := Pushed.push _ _
+                run := ⟨⟨.axiomInfo cA :: env.consts⟩, F2, hden, hpureR⟩ }
+          · exact absurd hbad8 AM.readFail_ne
+        · -- neither: `propext`/`choice` decline, `sorryAx` skip, else decline
+          have horP : ¬ (cA.name = ConLeche.ofReduceNatName ∨
+              cA.name = ConLeche.ofReduceBoolName) := by
+            intro h
+            refine hn7 ?_
+            rcases h with h | h
+            · exact Bool.or_eq_true _ _ |>.mpr (Or.inl (hrn.mpr h))
+            · exact Bool.or_eq_true _ _ |>.mpr (Or.inr (hbn.mpr h))
+          obtain ⟨pe, s9, g9, r9⟩ := AM.bind_ok hg7
+          obtain ⟨e9, d9⟩ :=
+            pinAt_run (x := ConLeche.propextName) hok3.check.pins rfl g9
+          rw [e9] at r9
+          obtain ⟨ch, s10, g10, r10⟩ := AM.bind_ok r9
+          obtain ⟨e10, d10⟩ :=
+            pinAt_run (x := ConLeche.choiceName) hok3.check.pins rfl g10
+          rw [e10] at r10
+          have hpe : (cvA.name == pe) = true ↔ cA.name = ConLeche.propextName :=
+            beq_handle_iff hst3.wf hnmA3 d9
+          have hch : (cvA.name == ch) = true ↔ cA.name = ConLeche.choiceName :=
+            beq_handle_iff hst3.wf hnmA3 d10
+          rcases AM.ite_ok r10 with ⟨_, hbad10⟩ | ⟨hn10, hg10⟩
+          · exact absurd hbad10 AM.readFail_ne
+          · have hstdShape : ¬ (cA.name = ConLeche.propextName ∨
+                cA.name = ConLeche.choiceName) := by
+              intro h
+              refine hn10 ?_
+              rcases h with h | h
+              · exact Bool.or_eq_true _ _ |>.mpr (Or.inl (hpe.mpr h))
+              · exact Bool.or_eq_true _ _ |>.mpr (Or.inr (hch.mpr h))
+            obtain ⟨sa, s11, g11, r11⟩ := AM.bind_ok hg10
+            obtain ⟨e11, d11⟩ :=
+              pinAt_run (x := ConLeche.sorryAxName) hok3.check.pins rfl g11
+            rw [e11] at r11
+            have hsa : (cvA.name == sa) = true ↔ cA.name = ConLeche.sorryAxName :=
+              beq_handle_iff hst3.wf hnmA3 d11
+            rcases AM.ite_ok r11 with ⟨hy11, hg11⟩ | ⟨_, hbad11⟩
+            · have hden : denoteFEnv s3.store fe = some env :=
+                denoteFEnv_mono hext02 hok.denote
+              have hpureA := checkDecl_axiom_sorryAx_pure (pinsP := pinsP) hnmP
+                hpure2 hstdP htcP horP hstdShape (hsa.mp hy11)
+              obtain ⟨rfl, rfl⟩ := AM.pure_ok hg11
+              exact
+                { state := hst3
+                  ext := hext02
+                  pins := hpin02
+                  coh := hok.coh
+                  pushed := Pushed.refl _
+                  run := ⟨env, F2, hden, hpureA⟩ }
+            · exact absurd hbad11 AM.readFail_ne
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:562 checkDecl (the `.basisDecl`
 arm) — the fold's own pinned-block record.
