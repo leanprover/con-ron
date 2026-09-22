@@ -83,6 +83,7 @@ an `intern`, which is what the streaming fold's induction rests on. -/
 #print axioms ParseStep.refl
 #print axioms ParseStep.trans
 #print axioms ParseStep.of_eq
+#print axioms ParseStep.of_caches
 
 /-! ## The parse result -/
 

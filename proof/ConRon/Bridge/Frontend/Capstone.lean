@@ -87,9 +87,8 @@ hands `installThenCheck` satisfies `FoldOK` at the empty environment.
 Its four halves, and what each costs:
 
 * `CheckOK` — `StateOK` is `ParseStep`'s, `PinsOK` is
-  `Bridge/Checker/Pins.lean`'s `internReservedPins_run`, `CacheOK` is
-  vacuous at the empty per-declaration tables the parse never writes
-  (`ParseStep.caches`), and `IFEnvOK Env.empty (mkIFEnv IEnv.empty)` is
+  `Bridge/Checker/Pins.lean`'s `internReservedPins_run`, `CacheOK` is the
+  fourth hypothesis, and `IFEnvOK Env.empty (mkIFEnv IEnv.empty)` is
   `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` at the empty index;
 * `EnvWF Env.empty` — immediate;
 * `PersPins` — `internReservedPins_run`, carried by `PinsOK.mono`;
@@ -97,17 +96,23 @@ Its four halves, and what each costs:
   `rfl`-level at `mkIFEnv IEnv.empty`.
 
 **The fourth hypothesis is the driver's own start**, and it was missing from
-the round-one statement: `CacheOK` is vacuous at the EMPTY per-declaration
-tables (`Bridge/Specs.lean`'s `CacheOK.of_empty`), and what the parse gives is
-that the tables did not MOVE (`ParseStep.caches`), not that they were empty.
-`AState.init` sets them empty (`Arena/Monad.lean:146`), so the driver has it;
-a statement about an arbitrary start state has to say so. -/
+the round-one statement: what the parse gives is that the per-declaration
+tables did not MOVE, not that they were empty.  `AState.init` sets them empty
+(`Arena/Monad.lean:146`), so the driver has it; a statement about an arbitrary
+start state has to say so.
+
+*(Task #97-P3-Frame turned it from `s.caches = Caches.empty` into `CacheOK`
+itself.  The parse is not cache-neutral after all — the owner census compares
+two levels, see `Bridge/Frontend/Rel.lean`'s frame note — so "the tables are
+empty" does not survive a `ParseStep`, while `CacheOK` does, through
+`CheckOK.monoF`.  `CacheOK.of_empty` is what the driver reaches it with and is
+one line at each of the two call sites.)* -/
 theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
-    (hpins : PinsOK s) (hpp : PersPins s) (hc : s.caches = Caches.empty) :
+    (hpins : PinsOK s) (hpp : PersPins s) (hc : CacheOK μ Env.empty s) :
     FoldOK μ Env.empty (mkIFEnv IEnv.empty) s where
   check :=
     { state := hok
-      caches := CacheOK.of_empty hc
+      caches := hc
       pins := hpins
       ienv := IFEnvOK_of_denote (μ := μ) hok rfl
         (by intro n t hn
@@ -128,7 +133,8 @@ theorem FoldOK_post_parse {μ : CheckMode} {s s' : AState}
     (hstep : ParseStep s s') :
     FoldOK μ Env.empty (mkIFEnv IEnv.empty) s' :=
   FoldOK_of_start hstep.ok (hpins.mono hstep.ext hstep.pins)
-    (hpp.mono hstep.pins) (by rw [hstep.caches, hc])
+    (hpp.mono hstep.pins)
+    ((CacheOK.of_empty hc).monoF hstep.ext hstep.cframe)
 
 /-! ## 2. The pure fold's stream ingredient
 
@@ -547,9 +553,10 @@ theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨env', F', -, hfinal⟩ :=
     Arena.installThenCheck_bridge rfl hk hind hpps
       (FoldOK_of_start hokP hpinsP hppP
-        (by
-          rw [hcachesP, hstep3.caches, hstep2.caches, hstep1.caches, hcachesA]
-          exact hc0))
+        (((CacheOK.of_empty (s := sA) (by rw [hcachesA]; exact hc0)).monoF
+              ((hstep1.ext.trans hstep2.ext).trans hstep3.ext)
+              ((hstep1.cframe.trans hstep2.cframe).trans hstep3.cframe)).mono
+          hxP hcachesP))
       hipins (fun x hx => hpersDs x (by simpa using hx))
       (denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)) hcheck
   obtain ⟨cv, vl, hty, hmem⟩ :=

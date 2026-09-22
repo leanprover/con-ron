@@ -46948,3 +46948,516 @@ ready underneath the name one.
 **Lanes entered outside this task's own**: one, `Arena/WFProofs.lean`, and only
 its append-only section at the end (the brief's allowance).  `Refine2/ExprOps/Mut.lean`
 was not touched: nothing this round changed forces a call site.
+
+### Task #97-P3-Frame — the two frames named a table that moves; the statement was wrong, not the code (2026-09-22, Opus under Fable)
+
+**One defect, stated in one line.**  `Bridge/Inductives/Rel.lean`'s `PStep`
+and `Bridge/Frontend/Rel.lean`'s `ParseStep` both carried
+`caches : s'.caches = s.caches`, and that equation is FALSE of every run that
+compares two level HANDLES.  `Arena/Core.lean:140 lvlEq?` probes
+`caches.lvlEqC`, and on a miss it reads both handles back through
+`readLevelM` — which writes `caches.readLC` — and records the verdict in
+`caches.lvlEqC`.  Two of the fourteen per-declaration tables move.  Four
+statements of the inductive tier had already been weakened from `PSpec` to
+`CSpec` because of it (task #97-P3-Ind round 2); the one that could NOT be
+worked around that way is `Bridge/Frontend/ProjRec.lean`'s
+`projRecOwners_run`, whose hypothesis is `StateOK` and which therefore cannot
+reach `CheckOK` at all.
+
+#### 1. The ruling: fix the statement, not the code
+
+The tempting repair — make the twin compute `isProp` the way con-leche writes
+it, `Level.isEquiv (← readLevel s) .zero`, with no cache — was rejected, and
+the reason is layer C.  `crates/con-ron-core/src/arena/core.rs:544 lvl_eq`
+probes `lvl_eq_probe`, then on a miss calls `read_level_m` twice (which
+inserts into `st.caches.read_l_c`, `arena/monad.rs:1141`) and `lvl_eq_set`;
+and all three call sites in the inductive tier —
+`arena/inductives/sum_parts.rs:170`, `struct_parts.rs:832`,
+`native_parts.rs:2129` — are `zero_level` then `core::lvl_eq`.  A Lean-only
+change would therefore CREATE a layer-B/layer-C divergence where none exists,
+and `Refine2/AbsState.lean`'s `CachesRel` relates the two `lvlEqC`/`readLC`
+tables pointwise, so it would break Theorem 2 at `with_sort_refines` while
+making Theorem 1 prettier.  The port's caching is a deliberate optimisation
+and it is faithfully mirrored on both sides; what was wrong was the sentence
+about it.
+
+#### 2. `CacheFrame` — the frame that is true, in the readback specs' shape
+
+The precedent is in the tier already.  `Bridge/Specs.lean`'s three readback
+specs say
+
+```
+s'.caches = { s₀.caches with readLC := s'.caches.readLC }
+```
+
+— the record equation that names exactly the table allowed to move — and
+`Bridge/Core/Walks/Frame.lean`'s `ReadbackFrame` carries the moved tables'
+invariants as IMPLICATIONS rather than facts, so that `.refl` is `id`.
+`Bridge/StateOK.lean` now has the same thing one table wider:
+
+```
+structure CacheFrame (s s' : AState) : Prop where
+  caches : s'.caches = { s.caches with
+    readLC := s'.caches.readLC, lvlEqC := s'.caches.lvlEqC }
+  readL : ReadLCacheOK s.caches.readLC s.store →
+    ReadLCacheOK s'.caches.readLC s'.store
+  lvlEq : ReadLCacheOK s.caches.readLC s.store →
+    LvlEqCacheOK s.caches.lvlEqC s.store →
+    LvlEqCacheOK s'.caches.lvlEqC s'.store
+```
+
+Three things about it are not free choices.
+
+* **The implications, and not facts.**  A `StateOK`-graded statement says
+  nothing whatever about cache CONTENTS, so a frame asserting `ReadLCacheOK`
+  outright could not be proved at `PStep`/`ParseStep`'s own hypothesis.  As
+  implications the frame is provable there, `.refl` is `id`, `.trans`
+  composes, and a caller that HOLDS `CheckOK` — which is where the two
+  invariants live — gets them back.
+* **`lvlEq` takes BOTH invariants.**  On a miss the row written to `lvlEqC` is
+  `Level.isEquiv` of whatever `readLevelM` answered, so a poisoned `readLC`
+  poisons `lvlEqC`: `LvlEqCacheOK` alone does not survive the call, the pair
+  does.  The shape is forced by the program.
+* **One record equation and not twelve.**  `rw [hf.caches]` recovers each of
+  the twelve clauses that did not move, which is exactly how
+  `CacheOK.ofReadbackFrame` works; `CacheOK.monoF` and `CheckOK.monoF` (beside
+  the old `mono`, which is `CacheFrame.of_eq`'s special case and is kept
+  because most callers still have the plain equation) are the transport.
+
+#### 3. `lvlEq?_frame` — the verification, CLOSED
+
+The task's own exit condition was *"if the frame genuinely cannot be carried
+at `StateOK`, stop and say so"*.  It can, and the proof is in the tree:
+`Bridge/Core/Walks/Cached.lean` §4b now closes
+
+```
+theorem lvlEq?_frame (hrun : lvlEq? u v s = .ok (r, s')) :
+    s'.store = s.store ∧ s'.memos = s.memos ∧ s'.pins = s.pins ∧
+      CacheFrame s s'
+```
+
+with **no cache-content hypothesis at all**, on top of `readLevelM_frame`
+(the same at the readback) and `readLevelM_denote`.  `#print axioms` on all
+four: the standard three, no `sorryAx`.
+
+Two things it is worth recording about that proof.
+
+* **It is run form, and the reason is the `[spec]` commitment.**
+  `readLevelM_spec` is registered `@[spec]`, so `mvcgen` applies it rather
+  than unfolding `readLevelM`, and its `ReadLCacheOK` hypothesis then arrives
+  as a verification condition a `StateOK`-graded proof cannot discharge.  A
+  registered `[spec]` cannot be erased and `mvcgen` cannot be made to prefer a
+  locally supplied theorem — `Frame.lean`'s note measured both, and this is
+  the second place in the library where that costs a hand-written unfolding.
+  It is twenty lines of `AM.bind_ok` / `get_ok` / `set_ok` / `pure_ok`.
+* **The miss branch is ONE `CacheFrame` and not a `.trans` of three.**  The
+  insert's own `lvlEq` obligation needs the two handles' DENOTATIONS, and
+  those come from `readLevelM_spec` at the INITIAL state; the intermediate
+  state's `ReadLCacheOK` does not re-deliver them.  So the readbacks compose
+  (`CacheFrame.ofReadLevelM` twice, `.trans`) and the insert does not — its
+  implications quantify over `s`.
+
+#### 4. The four Inductives specs stay at `CSpec`, and the reason changed
+
+`withSort_spec`, `structPartsCore?_spec`, `nativeShape?_spec` and
+`nativeParts?_spec` were weakened to `CSpec` by task #97-P3-Ind round 2, whose
+note said the FRAME was what forced them up.  After this task that reason is
+gone — `lvlEq?_frame` is closed at `StateOK` — and they stay at `CSpec`
+anyway, because the real reason is the ANSWER:
+
+`ShapeRel.isProp` and `SPartsRel.isProp` are conjuncts of those statements,
+and `isProp` IS `lvlEq?`'s verdict.  The verdict a cache HIT answers is
+`Level.isEquiv`'s only because `LvlEqCacheOK` says so, and `StateOK` does not
+carry it.  At `PSpec` those four theorems would be false of a poisoned cache.
+**`CSpec` is the grade the answer lives at, not a weakening for convenience**
+— and `withSort_spec` is closed at it, which is the other half of the rule:
+do not break a closed proof to make a statement prettier.  The four notes now
+say this instead of the frame story.
+
+The same reading is what saves `projRecOwners_run` at `StateOK`, and it is
+worth spelling out because it is the whole reason the task existed:
+
+* its FRAME is `lvlEq?_frame`, which needs no invariant;
+* its ANSWER does not depend on the verdict.  `isProp` fills a FIELD of a
+  record the recogniser has already decided to return, and `projRecOwners`
+  reads the two recognisers through `.isSome` alone
+  (`Arena/Frontend/ProjRec.lean:510-515`), so a wrong `isProp` could not
+  change the owner list.  What it still owes the Inductives tier is an
+  `isSome`-only lemma at `StateOK`, and its `sorry` note now names that
+  rather than the `CSpec` statements it cannot use.
+
+#### 5. What moved
+
+| file | edit |
+|---|---|
+| `Bridge/StateOK.lean` | +94: `CacheFrame` with `.refl` / `.trans` / `.of_eq`, `CacheOK.monoF`, `CheckOK.monoF`.  `CheckOK.mono` is untouched and still used by everything that has the plain equation |
+| `Bridge/Core/Walks/Cached.lean` | +203: §4b, the four closed frame lemmas and the two `AM` inversions this tier lacked (they live in `ConRon.Bridge.Core`, so they do not collide with `ConRon.Bridge.Frontend`'s copies) |
+| `Bridge/Inductives/Rel.lean` | `PStep.caches` → `PStep.cframe : CacheFrame s s'`; `refl`/`trans`/`toCore` follow; **`PStep.of_caches`** is the constructor the ~107 twins that write no table use; the module's FINDING section rewritten to the ruling |
+| `Bridge/Frontend/Rel.lean` | the same at `ParseStep`, plus `ParseStep.of_caches`; the frame note now says *"the parse interns, and the ONE other thing it does is compare two levels"* and names `registerProjOwners` as the place |
+| `Bridge/Frontend/Capstone.lean` | `FoldOK_of_start`'s fourth hypothesis becomes `CacheOK μ Env.empty s` instead of `s.caches = Caches.empty`: "the tables are empty" does not survive a `ParseStep` any more, `CacheOK` does.  `FoldOK_post_parse` and `no_False_declaration_pipeline` reach it with `CacheOK.of_empty … |>.monoF`, one line each |
+| `Bridge/Frontend/ProjRec.lean` | `projRecOwners_run`'s note: why `StateOK` is enough, and what it really owes |
+| `Bridge/Inductives/{SumParts,StructParts,NativeParts}.lean` | the four notes, per §4 |
+| `Bridge/{Inductives,Frontend}/Axioms.lean` | the two new constructors in the census |
+
+**No `Arena/` file, no `crates/` file, no `Generated/` file.**  `git diff`
+over `*.lean` matches three lines containing the token `sorry` and all three
+are prose inside a doc comment: the declaration-level count is unchanged in
+every tier.
+
+#### 6. The `sorry` count, and the gates
+
+| tier | before | after |
+|---|---|---|
+| `ConRonArena` (the twin, layer B) | **0** | **0** |
+| `ConRonBridge` (Theorem 1) | **214** | **214** |
+| `ConRonRefine2` (Theorem 2) | **866** | **866** — no file of it is touched |
+
+"before" is the count at the branch point (`arena` `19aa6e2e`) and "after" at
+the tip; they are equal because the diff adds and removes exactly zero
+declaration-level `sorry` (`git diff 19aa6e2e -- '*.lean' | grep -E
+'^[+-].*\bsorry\b'` matches three lines, all prose in a doc comment).  The
+`ConRonRefine2` number is the merged state's — task #97-P5-Specs landed on
+`arena` between the branch point and the merge and moved it from 875.  `Bridge/Core/Walks/Cached.lean` still has its
+three (`constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec`) and gained four
+CLOSED theorems beside them.
+
+**Two files had to be repaired rather than merely restated**, and both were
+anonymous constructions of the record the task widened: `Inductives/Rel.lean`'s
+four intern runs (`internE_run`, `internLNode_run`, `internLsNode_run`,
+`internNNode_run`) and `Frontend/Chunks.lean`'s `StateD_init_run`.  Each now
+reads `PStep.of_caches …` / `ParseStep.of_caches …` where it read `⟨…, hc,
+…⟩`, which is the same proof with the cache equation handed to the
+constructor instead of to the field.  That is the whole cost of the widening
+inside the two tiers: **five call sites.**
+
+#### 7. The gates
+
+| gate | result |
+|---|---|
+| `LAKE_JOBS=4 scripts/gates.sh` | **all 13 OK** — `cargo-build` 3 s, `cargo-test` 7 s, `lint-rust` 2 s, `provenance`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 90 s**, **`lake-build` 362 s / 2 209 jobs** |
+| `cd proof && lake build ConRonBridge` | **green, 616 jobs, 214 `sorry`** |
+| `cd proof && lake build ConRonArena` | **green, 0 `sorry`** |
+| `cd proof && lake build ConRonRefine2` | **green, 866 `sorry`** |
+| `#print axioms` on the four new closed theorems | `readLevelM_frame`, `readLevelM_denote`, `CacheFrame.ofReadLevelM`, `lvlEq?_frame` — `[propext, Classical.choice, Quot.sound]`, **no `sorryAx`**; the two new constructors `PStep.of_caches` / `ParseStep.of_caches` likewise |
+| merged `arena` twice — `48438ac0` (task #97-P5-Specs) into `10cfa700`, then `710f3778` (its round-2 DESIGN section) | the first merge was clean and was taken BEFORE this section was appended, which is why it had no DESIGN.md conflict; it touches `Refine2/{Specs,AbsState,Core/Bracket,ExprOps/Mut}.lean` and DESIGN.md only.  The second is **DESIGN.md only**, so the gates are not re-run for it (CLAUDE.md's merge rule), and it conflicted the way every DESIGN.md merge in this campaign does — two sections appended at the same place, both kept, theirs first |
+| the diff | `proof/ConRon/Bridge/{StateOK,Core/Walks/Cached}.lean`, `Bridge/Inductives/{Rel,SumParts,StructParts,NativeParts,Axioms}.lean`, `Bridge/Frontend/{Rel,Chunks,Capstone,ProjRec,Axioms}.lean`, and this section |
+
+### Task #97-BUNDLE-SPIKE — should `AState.store` carry its invariant in its type?  No; and the reason is not the count (2026-09-22, Opus under Fable)
+
+An **evidence** task, asked because the maintainer's own caution is the point:
+*"I doubt that quantitative measurements can answer qualitative questions."*
+con-leche's retired arena (its task #103) bundled the invariant into the type —
+
+```lean
+structure WFStore where
+  raw : EStore
+  wf  : raw.WF
+```
+
+— wired it into the **frontend** (`State.store`, `ParseResult.store`), measured
+−0.84 % instructions with RSS at parity, and **parked the checker-internal
+`IState.store` flip and never did it**.  The question here is whether the same
+move is worth making for Theorem 1 (`Bridge/**`).
+
+**Recommendation: do not do it.**  Not for the frontend either — con-ron has no
+frontend store to flip.  Three independent obstructions, each demonstrated
+below, and only the third is about proof size.
+
+The spike's three scratch files elaborate against the built tree
+(`cd proof && lake env lean …`, 1.4–1.8 s each, no errors):
+`_tmp/t97bundle/bundle-ops.lean` (the bundle and the lifted ops),
+`_tmp/t97bundle/bundle-monad.lean` (the monadic obstruction),
+`_tmp/t97bundle/bundle-consumers.lean` (two consumer theorems, restated and
+reproved bundled).
+
+#### 1. The bundle itself is fine — that is not where the problem is
+
+`bundle-ops.lean` builds `WFStore` over our `StoreWF` and lifts three ops with
+con-leche's definitional `*_raw` equations, all by `rfl`:
+
+```lean
+def WFStore.empty : WFStore := ⟨.empty, EStore.empty_wf⟩
+def WFStore.enableScratch (s : WFStore) : WFStore :=
+  ⟨s.raw.enableScratch, EStore.enableScratch_wf s.wf⟩
+def WFStore.dropScratch (s : WFStore) : WFStore :=
+  ⟨s.raw.dropScratch, EStore.dropScratch_wf s.wf⟩
+def WFStore.intern (s : WFStore) (v : ENodeView)
+    (hv : s.raw.ViewOK v) (hcap : s.raw.capOK v) : WFStore × EIdx :=
+  (⟨(s.raw.intern v).1, EStore.intern_wf s.wf hv hcap⟩, (s.raw.intern v).2)
+
+theorem WFStore.intern_raw … :
+    ((s.intern v hv hcap).1.raw, (s.intern v hv hcap).2) = s.raw.intern v := rfl
+```
+
+`Arena/WFProofs.lean` has every lemma these four need, today.  The obstruction
+is one line further on: **`intern` takes two preconditions**, and one of them
+is not the port's to give.
+
+#### 2. Obstruction one — `internE` lives in `AM`, and `ViewOK` cannot be supplied there
+
+`EStore.intern_wf` needs `st.ViewOK w` (every child of the node decodes) and
+`st.capOK w`.  `capOK` is free: `Arena/Monad.lean`'s `internE` **is** the
+capacity branch, and `Refine2/Specs.lean`'s `ECapAt` gets it from the port's own
+`Tbl::full` (task #97-P5-Specs).  `ViewOK` is not free, and `Refine2/Specs.lean`
+already says so in as many words: *"That one is NOT free and is not the port's
+to give: a walk that interns `app f a` knows `f` and `a` decode because it just
+interned them, and nothing weaker proves it."*
+
+Today `ViewOK` is a **hypothesis of a Hoare triple** (`internE_spec`'s `hv`), so
+it never has to exist as a term.  Bundled, it must be a term: the bundle is
+constructed by `WFStore.intern`, and `WFStore.intern` takes the proof.  Inside
+`AM = StateT AState (Except CheckError)` the state is not in scope at a call
+site.  `Arena/ExprOps.lean`'s `app` arm is the whole argument in five lines:
+
+```lean
+let f' ← instantiate1Go v fuel f d
+let a' ← instantiate1Go v fuel a d
+let r  ← internAppE f' a'          -- no store term anywhere in this scope
+```
+
+`bundle-monad.lean` writes out the only two spellings that typecheck.
+
+**Attempt 1 — the erased hypothesis as a parameter** (con-leche's own shape).
+The hypothesis must speak of the store the call will *run* in, so the only
+well-typed spelling quantifies over every state:
+
+```lean
+def internE1 (v : ENodeView) (hv : ∀ s : BState, s.store.raw.ViewOK v) : BM EIdx
+```
+
+It elaborates, and it is useless: the premise is **false**, which the spike
+proves rather than asserts —
+
+```lean
+example : ¬ (∀ s : BState, s.store.raw.ViewOK (.app ⟨0⟩ ⟨0⟩)) := …  -- by decide
+```
+
+**Attempt 2 — the total op with a dead `else`.**  Writable (the spike gives
+`ViewOK` a `Decidable` instance and writes `internE2`), and it costs twice:
+
+* a **runtime test of `ViewOK` on the hottest operation in the checker** —
+  up to three `EStore.view` calls, each of which *builds an `ENodeView`*, per
+  intern.  There is nothing to pay for it with: con-leche's −0.84 % came from
+  **deleting** its one-shot `O(nodes)` `wfB` sweep, and **con-ron has no runtime
+  well-formedness check at all** (`grep wfB` over `Arena/` and
+  `crates/con-ron-core/` is empty).  Every cycle the bundle costs here is a new
+  cycle.
+* a branch the Rust does not have, whose answer differs.  Theorem 2's direction
+  is **"Rust `Ok` ⇒ twin `ok`"** (task #97-P5-0's finding 3 is exactly this
+  asymmetry), so every intern refinement lemma must rule the dead branch out —
+  with `hview`, the same hypothesis at the same sites it already carries.
+
+The deeper reading: §8.4's ruling *"`AM := StateT AState (Except CheckError)`
+and nothing else"* exists because Theorem 2 wants an equational match with the
+Rust's `&mut self`.  con-leche could bundle its frontend store because that
+store was threaded as an ordinary **value** through `State.store`.  The decision
+that makes Theorem 2 cheap is the decision that makes the bundle unwritable.
+The only fully coherent alternative — arena ops returning subtypes so a handle
+carries its own resolution evidence — is dependent typing through the whole
+checker and is not on the table.
+
+#### 3. Obstruction two — the promotion bracket has no well-formed state to be in
+
+`Bridge/Promote/StoreP.lean` exists because `internPersistent` **breaks
+`StoreWF` transiently**: it appends a scratch-built view to the persistent
+table, which is exactly what `fresh` forbids.  Its four specs are stated at
+`StoreWFP` — `StoreWF` minus `fresh` and `bmFresh` — and only
+`StoreWFP.dropScratch_wf` closes the bracket back to `StoreWF`.
+
+```lean
+theorem EStore.internPersistent_spec {st : EStore} {w : ENodeView}
+    (h : StoreWFP st) … : StoreWFP (st.internPersistent w).1 ∧ …
+```
+
+`Arena/Promote.lean`'s eighteen `promote*` functions run in `AM`.  If
+`AState.store : WFStore`, **those seventeen functions have no state to run
+in**: the type is inhabited only by well-formed stores and the store is not
+well formed there.  Two ways out, both expensive:
+
+* bundle `StoreWFP` instead — but `StoreWFP` drops `fresh`, and `fresh` is what
+  `EWFAt.view_inj` uses (`WFProofs.lean:852-867`, both cross-tier cases), hence
+  what `denoteE_inj` / `denoteN_inj` / `denoteLs_inj` use, hence what
+  `beq_handle_iff` and `isBoolTrue_spec` use.  A bundled `StoreWFP` breaks the
+  checker's handle-equality reasoning;
+* **split the monad** — a second state type and a second monad for the
+  promotion, the eighteen `promote*` functions re-typed over it, a conversion
+  at each end of the bracket, and `arena::promote` on the Rust side to match.
+
+#### 4. Obstruction three — what the proofs actually gain, measured on six theorems
+
+This is the part a count cannot answer, so here are the worked cases.  The
+headline surface (287 statements, 360 `hwf` binders) is, re-measured over the
+whole tier: **569 of `Bridge/**`'s 1 650 theorem statements** mention `StoreWF`
+or `StateOK` — 370 a bare `StoreWF st`, 195 a `StateOK`, 4 both.  Of the 569,
+**180 never touch it** (pure plumbing: in one end, out the other) and 389 use it
+at least once.  So the ceiling is: 180 statements get genuinely simpler; 389
+trade a hypothesis for a projection.
+
+| # | kind | theorem | statement | proof body |
+|---|---|---|---|---|
+| 1 | store-layer leaf | `Bridge/Rel.lean` `denote_app_inv` (+9 siblings) | 3 binders → 2 | unchanged; `hwf` → `st.wf` |
+| 2 | the producer | `Bridge/Specs.lean` `internE_spec` | `hwf` goes, **`hv : ViewOK` stays**; 9 conjuncts → 8 | unchanged, and §2 says it cannot be written |
+| 3 | memoised walk | `Bridge/ExprOps/Inst1.lean` `Inst1Spec` / `instantiate1ArmApp_spec` | `StateOK s₁` hypothesis and `StateOK s'` conjunct go: 7 conjuncts → 6 | ~4 tokens per arm |
+| 4 | knot / cached walk | `Bridge/Core/Walks/Guards.lean` `isBoolTrue_spec` | `CheckOK` loses 1 of 4 fields | **zero lines** |
+| 5 | inductives tier | `Bridge/Inductives/Rel.lean` `PStep`, `internE_run`, `piSortTeleLen?_spec` | `PStep` 5 fields → 4; `PStep.refl` hypothesis-free | ~4 tokens |
+| 6 | the frontend (the control) | `Bridge/Frontend/Shared.lean` `internExpr_run` | 8 conjuncts → 7 | — |
+
+**Case 1, written out.**  `bundle-consumers.lean` restates and reproves it:
+
+```lean
+theorem bdenote_app_inv {st : WFStore} {h f a : EIdx} {e : Expr}
+    (hw : bview st h = some (.app f a)) (he : bdenoteE st h = some e) :
+    ∃ ef ea, e = .app ef ea ∧ bdenoteE st f = some ef ∧ bdenoteE st a = some ea :=
+  denote_app_inv st.wf hw he
+```
+
+One binder leaves the statement and `st.wf` enters the body.  That is the
+*whole* saving, and it is the best case in the tier.
+
+**Case 3, written out.**  `Inst1At.app_step` loses `hwf` and keeps its other
+eight hypotheses:
+
+```lean
+theorem bInst1At_app_step {ve : Expr} {d : Nat} {st s1 s2 s3 : WFStore}
+    {h f a rf ra r : EIdx}
+    (hview : bview st h = some (.app f a))
+    (hx1 : BExt st s1) (hf : bInst1At ve d st f s1 rf)
+    (hx2 : BExt s1 s2) (ha : bInst1At ve d s1 a s2 ra) (hx3 : BExt s2 s3)
+    (hr : bdenoteE s3 r = denoteEView s3.raw (.app rf ra)) :
+    bInst1At ve d st h s3 r :=
+  ConRon.Bridge.ExprOps.Inst1At.app_step st.wf hview hx1 hf hx2 ha hx3 hr
+```
+
+Note `denoteEView s3.raw`: a node **view** is a raw-store notion, so `.raw`
+leaks back at exactly the boundary where interning happens.
+
+**Case 4 is the one that decides it.**  `isBoolTrue_spec` opens with
+
+```lean
+obtain ⟨rk, hrk⟩ := hok.state.wf
+```
+
+and then uses `hrk.lss` and `hrk.nsWF`.  What the proof needs is not `StoreWF`
+but the **rank**, `EWFAt st rk`, and the nested stores' invariants — and
+`StoreWF` is `∃ rk, EWFAt st rk`, so the `obtain` stays word for word with
+`hok.state.wf` replaced by `s₀.store.wf`.  **Not one line of that proof
+changes.**  The same is true everywhere `hrk.*` appears: bundling hides the
+existential's *introduction*, never its *elimination*, and every real use of
+the invariant in this library is an elimination.
+
+**Case 6 — the control does not exist.**  con-leche flipped `State.store` and
+`ParseResult.store`.  con-ron's frontend has **no store field**:
+`Arena/Frontend/ExportC.lean`'s `StateD` is tables and counters and not one of
+its fields is an `EStore`; `ParseResultD` likewise; `StateD.init` is
+`AM StateD`.  Outside `Arena/Store.lean` and the `*Test.lean` files, **nothing
+in con-ron threads an `EStore` as a value** — there is one store and it is
+monadic.  "Do it only for the frontend" is not a smaller version of the
+proposal; it is not a proposal.
+
+#### 5. Which ops on the path have no WF-preservation lemma today
+
+`Arena/WFProofs.lean` (537 theorems) covers the **primitive** store API at all
+four tiers: `empty_wf`, `intern_wf` / `intern_spec` (conditional on `ViewOK` +
+`capOK`), `enableScratch_wf`, `dropScratch_wf`, `internName_wf`,
+`internLevel_wf`, `internLevels_wf`, `internBM_spec`, `internBMOfView_spec`,
+`internAt_wf_view`.  Not covered:
+
+* **the twelve `internPersistent`-family ops** — `EStore`/`NStore`/`LStore`/
+  `LsStore.internPersistent`, `internBMPersistent`, `internBMOfViewPersistent`,
+  and the six `intern{Name,Level,Levels}Persistent` nesting wrappers.  The five
+  statements that would cover them are the five `sorry`s of
+  `Bridge/Promote/StoreP.lean`, and they conclude `StoreWFP`, not `StoreWF`
+  (§3);
+* **every walk.**  `instantiate1Fast`, `abstract1`, `lift`, `reset`, the
+  telescope walks, the inductives tier's ~110 twins, the knot's six slots: none
+  of them has a standalone WF-preservation lemma, and none ever will have one
+  cheaply, because their WF preservation is a **conjunct of their Theorem-1
+  statement, proved by the same induction as the commutation**.  214 of those
+  inductions are still `sorry`.
+
+#### 6. Does it survive the Aeneas side?
+
+Theorem 2 is roughly a **wash**, which is not the same as free.
+
+`Refine2/AbsState.lean`'s `AStateRel` already carries
+`storeWF : StoreWF ls.store` (task #97-P5-Specs' finding 16), discharged at
+twelve producer sites via `intern_storeWF hwf hview hcap hbm`.  Bundled:
+
+* the `storeWF` **field goes**, and with it the twelve discharges — a real
+  saving, and the only unambiguous one in this whole analysis;
+* `StoreRel pers rs.store ls.store` becomes `… ls.store.raw`, everywhere;
+* the ten `hview : same = false → lst.store.ViewOK …` hypotheses of
+  `Refine2/ExprOps/Mut.lean` and `Refine2/Specs.lean` **stay, unchanged**.
+  Today they prove `storeWF`; bundled, they rule out `internE2`'s dead branch.
+  Same hypothesis, same sites, different use;
+* `internE_run_of_cap` — the workhorse equation "the twin's run reduces to
+  `lst.store.intern v`" — gains `ViewOK` as a hypothesis, because the twin now
+  branches on it.
+
+So a saving on Theorem 1 is *not* paid for on Theorem 2.  It is paid for in the
+binary, at the intern, forever.
+
+#### 7. Where con-leche's parked-flip reasoning applies to us
+
+con-leche balked because the WF-preservation evidence for its mutating
+traversals was *"entangled with the denotation-commutation inductions that the
+module split deliberately keeps out of the self-contained arena module."*
+
+Our layout is different and the entanglement is **identical**.
+
+* `Arena/WFProofs.lean` imports only `ConRon.Arena.WF`, which imports
+  `ConRon.Arena.Denote` — so denotation is *inside* our self-contained layer by
+  construction (91 of its 537 theorems mention `denote`, and `derExact` /
+  `denoteE_unfold` are clauses and lemmas of the invariant itself).  For the
+  **primitives** we are therefore strictly better off than con-leche was:
+  `intern_spec` delivers `StoreWF ∧ Ext ∧ view ∧ denote` in one statement, in
+  the self-contained module.  con-leche's stated blocker does not apply there.
+* For the **walks** it applies exactly, one floor up.  `StateOK s'` for
+  `instantiate1Fast` exists nowhere except inside `Bridge/ExprOps/Inst1.lean`'s
+  `instantiate1Go_spec`, which proves it and `Inst1At` by the same fuel
+  induction.  con-leche's recommended route — "prove WF-only range-invariant
+  preservation lemmas, no denotation, so self-contained" — is *already done* for
+  us at the primitives and is **not what the flip needs**: the flip needs
+  `ViewOK` as a term at the call site (§2), and no amount of extra WF lemmas
+  produces one.
+
+So the answer to "is our evidence self-contained?" is: **yes for the ops the
+bundle would be built from, and it does not help.**
+
+#### 8. What could not be determined without trying it
+
+* **Elaboration time.**  Lesson 36 records that *"a proof architecture whose
+  value relation mentions the state costs elaborator time in proportion"*, and
+  the interned tower needed `maxHeartbeats` 2 M–12.8 M where the cached one did
+  not.  Removing one conjunct from 569 statements might cut a few percent of the
+  tier's elaboration or nothing at all; reading cannot tell, and the only way to
+  find out is to do it.
+* **`grind`'s behaviour.**  `StoreWF` currently sits in the hypothesis pool of
+  most `bridge_vcs` goals.  Bundled it becomes a projection `s.store.wf` that no
+  hypothesis mentions.  Fewer facts may be faster; a projection `grind` cannot
+  see may break proofs that currently close by `grind only [StateOK,
+  StateOK.mk]`.  Unknowable without the experiment.
+* **Runtime.**  The `ViewOK` test's cost per intern is bounded by three
+  `EStore.view` calls but was not measured; nothing in this spike ran the
+  binary.
+
+#### 9. Ruling
+
+**Do not bundle.**  The obligation does not disappear: it relocates from
+`internE_spec`'s `hwf` — a hypothesis that costs one binder — to a **term the
+monadic twin cannot construct**, and the two ways of constructing it anyway
+cost either a false premise or a runtime check on the hottest path plus a
+branch the Rust does not have.  The promotion bracket has no well-formed state
+to live in.  And the best case among six worked consumer theorems is "one
+binder leaves the statement, `st.wf` enters the body"; the representative case
+(`isBoolTrue_spec`) is **zero lines**, because what our proofs eliminate is the
+rank, not the existential.
+
+What *is* worth keeping from con-leche's #103 is already kept: the invariant
+lives beside the implementation (lesson 27), its evidence is self-contained at
+the primitives, and `StateOK` / `PStep` / `CheckOK` already amortise the
+plumbing into **one field of a record** rather than a loose hypothesis — which
+is why the "287 theorems" headline overstates the cost by a wide margin.  The
+180 statements that thread the clause without using it are the real residue,
+and a cheaper answer to them, if one is ever wanted, is a frame *record* for the
+`ExprOps` tier's remaining loose `StoreWF` binders — not a change of type.
