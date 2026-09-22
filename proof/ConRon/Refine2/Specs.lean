@@ -3237,6 +3237,47 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
 
 /-! ## `arena::monad::intern_e_bvar` -/
 
+/-! ### The twin's probe-then-cap `internE` (task #97-P3-1's finding-9 fix)
+
+`Arena.internE` probes `EStore.find?` BEFORE it tests the capacity, which is
+what the port does (task #97-P5-1's finding 9, fixed in the twin at
+#97-P3-1).  So the run splits on the probe, and the hit arm needs *"a cons hit
+leaves the store alone and answers the handle the table holds"* — which
+`EStore.intern` does too, one layer down. -/
+
+/-- A cons hit at an already-probed datum handle: `internAt` is the identity
+on the store and answers what `findAt` answered. -/
+theorem internAt_of_findAt {st : EStore} {v : ENodeView} {mi : BMIdx} {i : EIdx}
+    (h : st.findAt v mi = some i) : st.internAt v mi = (st, i) := by
+  rw [EStore.findAt] at h
+  rw [EStore.internAt]
+  cases hp : st.pers.find? v mi with
+  | some j =>
+    rw [hp] at h
+    rw [← Option.some.inj h]
+  | none =>
+    rw [hp] at h
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs] at h ⊢
+      cases hq : st.scr.find? v mi with
+      | some j => rw [hq] at h; rw [← Option.some.inj h]
+      | none => rw [hq] at h; exact absurd h (by simp)
+    · rw [if_neg hs] at h; exact absurd h (by simp)
+
+/-- The same at the whole view, for a view that names no binder datum: its
+datum handle is the constant `0` on both the probing and the interning side,
+so the two agree by `internAt_of_findAt`. -/
+theorem intern_of_find_of_noBM {st : EStore} {v : ENodeView} {i : EIdx}
+    (hbm : EStore.eViewNeedsBM v = false) (h : st.find? v = some i) :
+    st.intern v = (st, i) := by
+  have hf : st.findBMOfView v = some (Idx.ofWord 0) := by
+    cases v <;> simp_all [EStore.eViewNeedsBM, EStore.findBMOfView]
+  have hi : st.internBMOfView v = (st, Idx.ofWord 0) := by
+    cases v <;> simp_all [EStore.eViewNeedsBM, EStore.internBMOfView]
+  rw [EStore.find?, hf] at h
+  rw [EStore.intern, hi]
+  exact internAt_of_findAt h
+
 /-- `Arena.internE`'s run at a view whose array is below the cap and which
 needs no binder datum. -/
 theorem internE_run_of_cap {lst : AState} {v : ENodeView}
@@ -3247,15 +3288,28 @@ theorem internE_run_of_cap {lst : AState} {v : ENodeView}
       = .ok ((lst.store.intern v).2,
              { lst with store := (lst.store.intern v).1 }) := by
   rw [Arena.internE]
-  simp only [hbm, Bool.not_false, Bool.true_or, Bool.and_true, decide_eq_true_eq]
   show StateT.run
-      (if (if lst.store.scratchOn then lst.store.scr.sizeOf v
-            else lst.store.pers.sizeOf v) < Idx.idxCap then
-         ((do set ({ lst with store := (lst.store.intern v).1 } : AState)
-              pure (lst.store.intern v).2) : AM EIdx)
-       else Arena.fail (.native "arena: expression constructor array full")) lst = _
-  rw [if_pos hcap]
-  rfl
+      ((match lst.store.find? v with
+        | some h => pure h
+        | none =>
+          if (if lst.store.scratchOn then lst.store.scr.sizeOf v
+               else lst.store.pers.sizeOf v) < Idx.idxCap &&
+              (!EStore.eViewNeedsBM v ||
+                (if lst.store.scratchOn then lst.store.scr.bmSize
+                 else lst.store.pers.bmSize) < Idx.idxCap) then
+            ((do set ({ lst with store := (lst.store.intern v).1 } : AState)
+                 pure (lst.store.intern v).2) : AM EIdx)
+          else Arena.fail (.native "arena: expression constructor array full"))
+        : AM EIdx) lst = _
+  cases hq : lst.store.find? v with
+  | some h =>
+    rw [intern_of_find_of_noBM hbm hq]
+    rfl
+  | none =>
+    simp only [hbm, Bool.not_false, Bool.true_or, Bool.and_true,
+      decide_eq_true_eq]
+    rw [if_pos hcap]
+    rfl
 
 theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
