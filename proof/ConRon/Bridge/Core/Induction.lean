@@ -236,7 +236,13 @@ standard axioms. -/
 
 Nine declarations, each with its reason at its site and in DESIGN §8's task
 section `### Task #97-P3-Core`: the six body walks, the three batched-clause
-carries and the port-side peel.  `knot_spec` inherits from the six. -/
+carries and the port-side peel.  `knot_spec` inherits from the six.
+
+**`whnfBody_spec` is no longer one of them in substance** (task
+#97-P3-Core-2): its induction, its fuel merge and its entry bracket are
+written, and the `sorryAx` it still prints comes from two walk theorems of
+`Bridge/Core/Walks/Owed.lean` — `reduceNat_spec` and `unfoldDefinition_spec`
+— and from nothing else. -/
 
 #print axioms whnfCoreBody_app_batched
 #print axioms whnfCoreBody_spec

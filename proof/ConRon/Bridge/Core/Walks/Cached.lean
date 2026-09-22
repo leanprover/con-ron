@@ -237,26 +237,32 @@ theorem CacheOK.insertLvlsEq {s : AState} (hc : CacheOK mode env s)
 for `lvlEq?`**, the first `Arena/Core.lean` walk that is not a knot slot to
 have one.
 
-The verdict the walk answers is `Level.isEquiv`'s at the two handles'
-denotations, and the state keeps `CheckOK` with the store and the pins
-untouched.  `none` is con-leche's own fuel exhaustion inside `isEquiv` and
-claims nothing — which is why the last conjunct is an implication out of
-`r = some b` rather than an equation on `r`. -/
+The verdict the walk answers **IS** `Level.isEquiv`'s at the two handles'
+denotations — the `Option Bool` and not just its `some` half — and the state
+keeps `CheckOK` with the store and the pins untouched.
+
+*(Task #97-P3-Core-2 strengthened the last conjunct from "∀ b, r = some b →
+…" to the equation.  The walk's `none` is `isEquiv`'s own `none` and nothing
+else — `lvlEq?` returns the memo row or `Level.isEquiv lu lv` itself — and a
+caller that must decide a GUARD off the verdict needs the negative half:
+`IProjEntry.fireOk` fires the projection rule when the structure sort is NOT
+provably zero, so a one-directional spec leaves the `none` case unrelatable.
+`Bridge/Inductives/SumParts.lean`'s own note asks for the same thing, in its
+words "`lvlEq?_spec` read at both signs".)* -/
 theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ lvlEq? u v
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
-        ∀ b, r = some b → ∃ lu lv, denoteL s₀.store.ls u = some lu ∧
+        ∃ lu lv, denoteL s₀.store.ls u = some lu ∧
           denoteL s₀.store.ls v = some lv ∧
-          Level.isEquiv lu lv = some b⌝⦄ := by
+          r = Level.isEquiv lu lv⌝⦄ := by
   mvcgen [lvlEq?]
   case vc1 =>
     bridge_peel; subst_vars
     rename_i hhit
     refine ⟨hok, rfl, rfl, ?_⟩
-    intro b hb
-    obtain rfl := Option.some.inj hb
-    exact hok.caches.lvlEq (u, v) _ hhit
+    obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlEq (u, v) _ hhit
+    exact ⟨lu, lv, hu, hv, he.symm⟩
   case vc2 => bridge_peel; subst_vars; exact hok.caches.readL
   case vc3 => bridge_peel; subst_vars; assumption
   case vc4 =>
@@ -272,17 +278,15 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
       hf.store, hf.pins, ?_⟩
     · rw [hf.store]; exact hdu
     · rw [hf2.store]; exact hdv
-    · intro b hb
-      obtain rfl := Option.some.inj hb
-      exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq⟩
+    · exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩
   case vc5 =>
     bridge_peel; subst_vars
-    rename_i _heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 _hdu hL1 _hdv hL2
+    rename_i heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
     have hf1 := ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1
     have hf2 := ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
     exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
-      fun b hb => absurd hb (by simp)⟩
+      ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩⟩
 
 /-! ## 3. `lvlsEq?` — the same at two universe-argument lists, CLOSED -/
 
@@ -294,17 +298,16 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
     ⦃fun s => ⌜s = s₀⌝⦄ lvlsEq? us vs
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
-        ∀ b, r = some b → ∃ lus lvs, denoteLs s₀.store.lss us = some lus ∧
+        ∃ lus lvs, denoteLs s₀.store.lss us = some lus ∧
           denoteLs s₀.store.lss vs = some lvs ∧
-          Level.isEquivList lus lvs = some b⌝⦄ := by
+          r = Level.isEquivList lus lvs⌝⦄ := by
   mvcgen [lvlsEq?]
   case vc1 =>
     bridge_peel; subst_vars
     rename_i hhit
     refine ⟨hok, rfl, rfl, ?_⟩
-    intro b hb
-    obtain rfl := Option.some.inj hb
-    exact hok.caches.lvlsEq (us, vs) _ hhit
+    obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlsEq (us, vs) _ hhit
+    exact ⟨lu, lv, hu, hv, he.symm⟩
   case vc2 => bridge_peel; subst_vars; exact hok.caches.readLs
   case vc3 => bridge_peel; subst_vars; assumption
   case vc4 =>
@@ -320,17 +323,15 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
       hf.store, hf.pins, ?_⟩
     · rw [hf.store]; exact hdu
     · rw [hf2.store]; exact hdv
-    · intro b hb
-      obtain rfl := Option.some.inj hb
-      exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq⟩
+    · exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩
   case vc5 =>
     bridge_peel; subst_vars
-    rename_i _heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 _hdu hL1 _hdv hL2
+    rename_i heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
     have hf1 := ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1
     have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
     exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
-      fun b hb => absurd hb (by simp)⟩
+      ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩⟩
 
 /-! ## 4. The three instantiated-constant caches
 

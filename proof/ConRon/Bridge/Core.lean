@@ -28,8 +28,13 @@ steps, one knot induction**:
   readback frame (`Walks/Frame.lean`), the five answer relations
   (`Walks/Spec.lean`), the five cached verdict walks (`Walks/Cached.lean`,
   two of them CLOSED), the `defeq` body's cheap tests (`Walks/Guards.lean`,
-  `isBoolTrue_spec` CLOSED) and the sixteen statements the round did not
-  reach (`Walks/Owed.lean`).
+  `isBoolTrue_spec` CLOSED), **the fuel merge** (`Walks/Mono.lean`, task
+  #97-P3-Core-2 — one `…_mono` and one `…Fueled_mono` per knot-calling walk
+  of con-leche's `Kernel/Core.lean`, all CLOSED), **the projection table**
+  (`Walks/Proj.lean`, task #97-P3-Core-2 — `projTableName_spec`,
+  `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED on
+  `Bridge/Rel.lean`'s new `denoteProjEntry`) and the sixteen statements
+  (`Walks/Owed.lean`).
 
 **This module imports none of them** — the same rule
 `ConRon/Bridge/ExprOps.lean` carries and for the same reason
@@ -42,10 +47,13 @@ them as siblings; this file is the index.
 
 Closed: the statement layer, the whole memo layer (all six wrappers), the
 stuck-tag branch, **fifty-two per-arm step lemmas** over the six pure bodies,
-**the seventh entry point** and **the non-slot walk tier's foundation plus
-its first three walks** (task #97-P3-CoreWalks).  Open: the six `…Body_spec`
-walks, the four batched-clause carries they wait on, and 130 of the 133
-non-slot walks — see DESIGN §8's `### Task #97-P3-Core` and
-`### Task #97-P3-CoreWalks` for the tables and the reason at each site.
+**the seventh entry point**, the non-slot walk tier's foundation and six of
+its walks, **the whole fuel merge** and **`whnfBody_spec`** — the first of the
+six bodies with no proof obligation of its own left, inheriting `sorryAx`
+from `reduceNat_spec` and `unfoldDefinition_spec` and from nothing else
+(task #97-P3-Core-2).  Open: the other five `…Body_spec` walks, the four
+batched-clause carries they wait on, and 127 of the 133 non-slot walks — see
+DESIGN §8's `### Task #97-P3-Core`, `### Task #97-P3-CoreWalks` and
+`### Task #97-P3-Core-2` for the tables and the reason at each site.
 -/
 import ConRon.Bridge.Core.Knot
