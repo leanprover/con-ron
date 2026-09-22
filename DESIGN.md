@@ -39704,6 +39704,321 @@ net (~3.6 s), and that is twenty-six assembled theorems rather than one.
 | `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 54/242, closed 23** (round 2: 50/292 stated, 16 closed) |
 | the diff | `proof/ConRon/Bridge/Checker/**` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
 
+#### Round 4 — the two memoised walks, the whole `canon` comparison, and three more defects (2026-09-22, Opus under Fable)
+
+Branch `p3-checker-4` off `arena`'s `c80e9c34`.  The diff is
+`proof/ConRon/Bridge/Checker/**` and this text: no Rust file, no generated
+model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no other
+`Bridge/` module, no `lakefile.toml`.
+
+**37 open → 31**, and `Bridge/Checker/Base.lean` — the module every arm
+bottoms out in — is at **zero**.
+
+##### 1. Six closed, and what each of them unblocked
+
+| theorem | file | what it is |
+|---|---|---|
+| `allLevelParamsDefined_run` | `Base.lean` | the memoised level-parameter DAG walk: a thirteen-arm fuel induction with `LPDMemoOK` threaded |
+| `constsResolveFFast_run` | `Base.lean` | the memoised unresolved-constant walk, over a new `constsResolve_run` (the pure walk, with the two literal arms' thirteen pin reads) |
+| `IConstantVal.canonEq_run` | `Canon.lean` | the header comparison, over a new `canonExprEq_run` (100 arms) and `canonLevelEq_run` (25) |
+| `installConstantVal_bridge` | `Split.lean` | the install half of the front door |
+| `installValue_bridge` | `Split.lean` | the same five steps at the value |
+| `installBasisDecl_bridge` | `Basis.lean` | one pinned constant, duplicate-checked |
+
+`IConstantInfo.canonEq_run` is **all but one of its forty-nine arms** as well
+(§4), so `Canon.lean` is 2 open → 1.
+
+The dependency chain is worth naming because it is the round's shape: the two
+memoised walks are what `checkConstantVal_bridge` (`Base.lean`, proved in
+round 2) was still carrying `sorryAx` for, and they are also exactly what
+`installConstantVal_bridge` and `installValue_bridge` wait on — so **four of
+the six fell out of two**.  `installBasisDecl_bridge` is round 3 §3.1's
+twenty-liner, unblocked by the Inductives tier's `denoteCI_name_of` arriving
+in `Bridge/StateOK.lean` mid-round (§5).
+
+##### 2. Three more `PSpecP` defects, from the grep round 3 asked for
+
+Round 3's rule — *"`PSpecP` is the grade for a twin that reads a pin"* — was
+turned into a mechanical sweep: a transitive call-graph closure of
+`Arena/**` over the pin primitives (`pinAt`, `zeroLevel`, `sortOne`,
+`emptyLevels`, `reservedBasisNames`), checked against every `StateOK`-only
+statement of the tier.  It found **three more instances of `natOpDeps_run`'s
+defect**, all in `Bridge/Checker/DeclVal.lean`:
+
+| theorem | the pin it reads |
+|---|---|
+| `natOpGuard_run` | eight — `natLitSupported`'s three, `natBeqName`, `natBleName`, `natDivModNames`, `boolTrueName`, `boolFalseName` |
+| `natOpStoredOkAll_run` | each step is `natOpStoredOk`, which is `natOpTyPinned` on a hit |
+| `substConst0Pairs_run` | `substConst0`'s `.const` arm reads `emptyLevels` and compares the stored universe-argument handle against it |
+
+All three gained `PinsOK s`; all three are free at their one call site
+(`Arms.lean`'s `defn` arm, which holds `FoldOK`).  **No other `StateOK`-only
+statement of the tier reads a pin** — the sweep is exhaustive, which is the
+point of doing it mechanically.
+
+##### 3. `denoteFEnv_restrictTo` is FALSE as stated
+
+The round's fourth defect, and the first of the campaign that is false rather
+than under-hypothesised.  `Bridge/Checker/Split.lean`'s statement is
+
+```lean
+    ∃ envK, denoteFEnv s.store (fe.restrictTo k) = some envK ∧
+      envK.find? = (env.prefixTo k).find?
+```
+
+and `IFEnv.restrictTo k` is `{ fe with visibleBelow := k }` — a change to the
+INDEX's bound and to nothing else — while `denoteFEnv st fe` is
+`denoteIEnv st fe.env`, which reads `fe.env.consts` and ignores `idx` and
+`visibleBelow` entirely.  So `denoteFEnv s.store (fe.restrictTo k)
+= denoteFEnv s.store fe = some env`, `envK = env` is forced, and the second
+conjunct is `env.find? = (env.prefixTo k).find?` — false at `k = 0` and any
+non-empty `env`.
+
+con-leche's own `mkFEnv_find?_visibleBelow` (`Verify/EnvBound.lean:243`) is a
+statement about `FEnv.find?`, not about a denotation, and the arena twin of it
+is a statement about the INDEX: **`IFEnvOK (env.prefixTo k) (fe.restrictTo k) s`**
+— "the restricted index is the index of the prefix environment" — which is
+also what the one consumer (`Arena.checkPending_bridge`, phase B) actually
+needs.  Written into the docstring, not rewritten: replacing a conclusion is a
+statement decision.
+
+##### 3.1 `IFEnvOK_of_denote`'s `hproj` is too weak for `cover`
+
+The fifth defect, found while taking `IFEnvOK_of_denote` on (it is
+`mkIFEnvGo_counter_lt` + `denoteCI_name_of`, and round 4 has both).  Its
+
+    hproj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t
+
+quantifies over what `fe.find?` ANSWERS, and `fe.find?` is `List.find?`: an
+entry shadowed by an EARLIER entry with the same name handle is not covered.
+`hit` is fine — the entry `find?` returns is the entry `hproj` speaks about.
+`cover` is not: it starts from `env.find? nm = some c`, picks the `ci` at the
+same position of `fe.env.consts`, and must show `ci` is the FIRST entry with
+its handle; that needs `denoteCI_name_of` AT `ci`, and `ci` is precisely the
+entry `fe.find?` may not return.  Two entries with equal name handles, the
+later a `.projInfo` whose `tableName` is that handle and whose `IProjTableOK`
+is false, satisfy every hypothesis and refute `cover`.
+
+The fix is one word in the quantifier — `∀ t, .projInfo t ∈ fe.env.consts →
+IProjTableOK s.store t` — and the same debtor still discharges it
+(`projTableOK_of_install`: the install is the only place a `.projInfo` row is
+made).  Not changed here: `Bridge/Frontend/Axioms.lean` and
+`Bridge/Frontend/Capstone.lean` consume the theorem.
+
+##### 3.2 `IConstantInfo.canonEq_run`'s `.projInfo` arm — the same gap, a fourth site
+
+The sixth defect.  Forty-eight of the forty-nine arms are proved; the
+`.projInfo`/`.projInfo` one cannot be, because the arena compares two
+`IProjTable`s by RECORD equality and `Frontend.denoteProjTable` **drops
+`tableName`**: two tables differing only there denote the same `ProjTable`, so
+the twin answers `false` where con-leche answers `true`.  It is provable with
+`IProjTableOK` on both sides (`named` pins `tableName` to `projTableName` of
+the denoted `structName`; every other field is injective — `denoteN_inj`,
+`denoteL_inj`, `denoteLList_inj`, and the new `denoteEList_inj`), which is the
+same hypothesis `denoteCI_name_of` and `IFEnvOK_of_denote` take at the same
+gap.  Left as the module's one `sorry`, with the argument written at it.
+
+**So the `.projInfo` gap now has four named sites** — `denoteCI_name_of`
+(fixed, Inductives tier), `installBasisDecl_bridge` (fixed here, §5),
+`IFEnvOK_of_denote` (§3.1) and `IConstantInfo.canonEq_run` (this one) — and
+one shape of answer at all four.
+
+##### 4. The `canon` comparison, end to end
+
+`Bridge/Checker/Canon.lean` went from two statements over an empty file to the
+whole lockstep comparison: `canonLevelEq_run` (25 arms), `canonLevelListEq_run`,
+`canonLevelsEq_run`, `canonExprEq_run` (100 arms), `canonRulesEq_run`,
+`IConstantVal.canonEq_run` and `IConstantInfo.canonEq_run` (49 arms).
+
+**The one decision worth recording: the bridge is to con-leche's `…Fast`
+twin, not to `canonExpr … = canonExpr …`.**  con-leche carries each comparison
+twice — a specification that builds both canonical forms and compares them,
+and a lockstep `…Fast` that descends both sides together — joined by
+`@[csimp]` and by a pure `Expr` induction (`canonExprEqFast_iff`,
+`canonRulesEqFast_iff`, `ConstantVal.canonEqFast_iff`,
+`ConstantInfo.canonEqFast_iff`).  The arena has ONE function per algorithm and
+it is the lockstep one, so the bridge's target is `canonExprEqFast` and the
+`@[csimp]` equations (`ConstantVal.canonEq_eq_canonEqFast`,
+`ConstantInfo.canonEq_eq_canonEqFast`) carry it the rest of the way.  Taking
+con-leche's word for its own pure lemma is what keeps this a transliteration
+instead of a second proof of the same `Expr` fact — it is the same ruling
+DESIGN §8.7 makes about importing con-leche's representation-free data.
+
+Ninety of `canonExprEq_run`'s hundred arms and twenty of `canonLevelEq_run`'s
+twenty-five are the constructor MISMATCH, and each is two lines
+(`AM.pure_ok`, then `simp [canonExprEqFast]` — `canonLevel`/`canonExpr`
+rewrite only the `.param` leaf and the levels, so they preserve every node's
+constructor and two different constructors can never become equal).  They were
+generated mechanically and compiled with two fixes between them.
+
+Three pieces of vocabulary came with it and belong to the tier, not to the
+comparison: `CanonMapD` (the renaming's data: the parameter handles denote,
+the numeral handles denote the numerals, the two lists are equally long),
+`canonNameMap_denote` (the renaming commutes with the readback — one
+`findIdx?` agreement, which is `denoteN`'s injectivity at each element), and
+the level tier's five `denoteL_*_inv` view inversions, which are
+`Bridge/Rel.lean`'s ten expression twins one store down.
+
+##### 5. Four moves inside the tier, and one that arrived from outside
+
+`Bridge/Checker/Base.lean` and `Bridge/Checker/Canon.lean` are SIBLINGS — both
+import `Checker/Hyp.lean` and neither imports the other — so anything both
+need has to sit at or below `Hyp`.  Round 4 moved four such things down:
+
+| what | from | to | why |
+|---|---|---|---|
+| `beq_handle_iff` | `Base.lean` | `Inv.lean` | a fact about the readback, not about `CheckerBase`; `Canon.lean` needs it |
+| `denoteCV_inv` | `Base.lean` | `Inv.lean` | the same |
+| `viewE_run` | (new) | `Hyp.lean` | both siblings walk the expression store |
+| `pinAt_run` | beside `PinStep` | `Base.lean`'s readers section | `constsResolve`'s literal arms read pins and sit above where it was |
+
+Nothing about any statement changed.  And **`denoteCI_name` /
+`denoteCI_name_proj` / `denoteCI_name_of` arrived from the Inductives tier**
+in `Bridge/StateOK.lean` during the round, which is what made
+`installBasisDecl_bridge` a twenty-line proof; its statement gained the
+`hproj` clause the `.projInfo` arm costs, which is free at the one call site
+(a pinned basis block contains no `.projInfo`).
+
+##### 6. The import wall — the recommendation (round 3 §3's ask)
+
+Round 3 found 11 of 37 undischargeable in place because
+`Bridge/Frontend/Rel.lean:60` reads `import ConRon.Bridge.Checker`, putting
+the frontend tier's intern exactness ABOVE the statements that need it.  The
+round was asked for options and a recommendation.  **Recommendation: narrow
+that import.  Four lines, no statement changes, and it compiles.**
+
+**What `Frontend/**` actually uses from `Checker/**`**, by file (a name-level
+sweep of all 173 Checker declarations against each Frontend module):
+
+| Frontend module | needs from `Checker/**` |
+|---|---|
+| `Rel.lean` | `FoldOK`, `denoteDecls`, `denoteDecl_pext` — **all three in `Checker/Inv.lean`** |
+| `Shared.lean`, `Chunks.lean`, `Modeller.lean`, `Prepare.lean` | `denoteDecls` — `Checker/Inv.lean` |
+| `Lines.lean` | `FoldOK` — `Checker/Inv.lean` |
+| `ProjRec.lean` | `viewN_run` — `Checker/Base.lean` |
+| `Capstone.lean`, `Axioms.lean` | `CoreSpec`, `IndSpec`, `PinsDenote`, `IFEnvOK_of_denote`, `internAllPins_run`, `internReservedPins_run`, `Arena.installThenCheck_bridge`, `Arena.model_exists` — the real top of the tier |
+
+So the dependency splits cleanly in two: the **bottom** of the frontend tier
+needs `Checker/Inv.lean` (the BOTTOM of the Checker tier — it imports only
+`Promote/Exact` and `ConLeche.Verify.EnvWF`) and nothing else, while the
+**top** needs the real theorems.  The blanket `import ConRon.Bridge.Checker`
+in `Frontend/Rel.lean` pulls all fourteen Checker modules in for three names
+that all live in the lowest one, and that is the whole of the inversion.
+
+**The change**, four import lines:
+
+| file | |
+|---|---|
+| `Frontend/Rel.lean` | `import ConRon.Bridge.Checker` → `import ConRon.Bridge.Checker.Inv` |
+| `Frontend/ProjRec.lean` | `+ import ConRon.Bridge.Checker.Base` |
+| `Frontend/Capstone.lean` | `+ import ConRon.Bridge.Checker` |
+| `Frontend/Axioms.lean` | `+ import ConRon.Bridge.Checker` |
+
+after which `Frontend/Shared.lean`'s Checker closure is `{Checker/Inv}` alone
+and `Checker/{Base,Pins,Basis,DeclVal}` may `import
+ConRon.Bridge.Frontend.Shared`.
+
+**It is not a sketch.**  Round 4 applied exactly those four edits plus
+`import ConRon.Bridge.Frontend.Shared` in `Checker/Pins.lean`, built the whole
+library (`616 jobs, 0 errors`), and checked that
+`Frontend.internExpr_run`, `Frontend.internCI_istep`,
+`Frontend.internCIList_istep` and `Frontend.internCV_istep` are in scope from
+`Checker/Pins.lean` with exactly the statements the pin walks want.  The trial
+was then reverted — five other agents are live in `Bridge/**` and an import
+reshuffle would break all of them — so this is a scheduling item, not a diff.
+
+**The cost.**  `Frontend/Rel.lean` measures 10.8 G `instructions:u` and
+`Frontend/Shared.lean` 37.8 G, so the Checker pin walks' import baseline grows
+by their olean load and the build serialises `Shared` (≈3 s) before
+`Checker/Base`; against that, `Frontend/Rel.lean` stops importing 51 G of
+Checker tier it does not use, so the frontend tier's own build gets MORE
+parallel.  Net: a wash, for a false dependency removed.
+
+**The two rejected options, priced.**
+
+* **Split the Checker tier so the pin walks sit above the frontend.**  It is
+  not just `Pins.lean` and half of `Basis.lean` that move: `Arms.lean`
+  consumes `BasisKind.decls_run` (the `.axiomDecl` arm's `Quot.sound`
+  comparison), `Fold.lean` consumes `Arms`, `Capstone.lean` consumes `Fold` —
+  so seven of the fourteen modules (~2 100 lines) end up above the frontend,
+  and a coherent tier is cut in half for no conceptual reason.  Strictly worse
+  than four import lines.
+* **Restate so the exactness arrives as a named hypothesis.**  This is the
+  tier's own idiom — `Bridge/Checker/Hyp.lean`'s `CoreSpec` and `IndSpec` are
+  exactly "the tiers this one does not own, as hypotheses", and an
+  `InternSpec` beside them would discharge at `Frontend/Capstone.lean`, which
+  already sees both sides.  But `CoreSpec`/`IndSpec` exist because those tiers
+  are big and independent, not because of an import cycle — `Hyp.lean` imports
+  `Bridge/Core/Induction` and `CoreSpec.of_knot` discharges it in one line
+  right there.  Here the hypothesis would be a workaround for a convenience
+  import, carried on 11 statements and on every consumer up through `Arms`,
+  `Fold` and `Capstone`.  Keep it in reserve for the case where the import
+  narrowing turns out to be blocked by something this sweep missed.
+
+`internReservedPins_run` is still NOT blocked by the import order and still
+blocked by round 3's other ask: its `PersPins` half needs `PersN h` from
+`Bridge/Specs.lean`'s registered `internName_spec`, which does not state it.
+`NStore` has tiers, so that is real content and it belongs in the registered
+spec.
+
+##### 7. What each of the 31 remaining items waits on
+
+| where | open | waits on |
+|---|---:|---|
+| `Basis.lean` | 8 | **§6** for all eight — `internCIList` exactness (`BasisKind.decls_run`, `declsA_run`) and the five statements above them, plus the three axiom shapes, which read the index at interned literals |
+| `DeclVal.lean` | 11 | the three value checks (`installValue_bridge` is now available, so each is `KnotSpec.infer` + `EnsureSortSpec` + `KnotSpec.defeq` away), `natOpGuard_run` / `natOpStoredOkAll_run` (want `natOpTyPinned`, an expression-handle comparison with no statement yet), `natOpEquations_run` / `substConst0Pairs_run` (§6's wall), the two pin gates and `certifyNatEqs_bridge` |
+| `Split.lean` | 5 | `checkValueGroup_bridge` (the core calls), `denoteFEnv_restrictTo` (**§3 — false as stated**), `annotStep_bridge`, `checkPending_bridge`, `installThenCheck_bridge` (the second fold) |
+| `Pins.lean` | 3 | **§6** for two, `internName_spec`'s missing persistence clause for the third |
+| `Inv.lean` | 2 | `IFEnvOK_of_denote` (**§3.1 — `hproj` needs reshaping**, then a ~250-line `mkIFEnvGo`/`List.find?` induction), `projTableOK_of_install` (the Inductives tier's) |
+| `Canon.lean` | 1 | **§3.2** — a statement decision |
+| `Fold.lean` | 1 | `checkDeclStep_bridge`, the bracket — the promotion tier and `IFEnvOK_of_denote` |
+
+So of the 31: **11 blocked by the import order, 3 by a statement decision, 1
+by a cross-tier lemma, and 16 are real work in this tier.**
+
+##### 8. The layer, and its size
+
+Per-module `instructions:u` for `lake env lean <module>` (the measure of
+record; the import baseline is 7.6 G, which `Mono.lean` and `Pins.lean`
+measure exactly), and the net above it:
+
+| module | instructions | net | open |
+|---|---:|---:|---:|
+| `Inv.lean` | 12.7 G | 5.1 G | 2 |
+| `Hyp.lean` | 7.8 G | 0.2 G | 0 |
+| `Decl.lean` | 7.8 G | 0.2 G | 0 |
+| `Canon.lean` | **27.1 G** | 19.5 G | 1 |
+| `Base.lean` | **24.3 G** | 16.7 G | **0** |
+| `Basis.lean` | 7.9 G | 0.3 G | 8 |
+| `DeclVal.lean` | 13.4 G | 5.8 G | 11 |
+| `Arms.lean` | 35.2 G | 27.7 G | 0 |
+| `Mono.lean` | 7.6 G | 0.0 G | 0 |
+| `Fold.lean` | 9.7 G | 2.1 G | 1 |
+| `Pins.lean` | 7.6 G | 0.0 G | 3 |
+| `Split.lean` | 10.4 G | 2.8 G | 5 |
+| `Capstone.lean` | 7.9 G | 0.3 G | 0 |
+| `Axioms.lean` | 7.9 G | 0.3 G | — |
+| **the tier's net** | | **~81 G** | **31** |
+
+Round 3's net was ~51 G; the 30 G the round adds is 19.5 G of `Canon.lean`
+(the 125 new arms) and 9 G of `Base.lean` (the two memoised walks) — i.e. it
+is all new PROOF, none of it regression.  **No theorem is near the 20 s
+flag**: the slowest module is still `Arms.lean` at 27.7 G net (~3.6 s), and
+`Canon.lean`'s 19.5 G is 2.9 s wall across 132 theorems.  Round 3's rule
+(*"never accumulate a list-indexed invariant along a do-block chain"*) was
+followed throughout — every walk carries per-step facts and assembles once —
+and nothing in the round needed a raised heartbeat budget.
+
+##### 9. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 367 s) |
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 169 `sorry` warnings, of which **31** are this tier's (round 3: 37) |
+| `#print axioms` | `Bridge/Checker/Axioms.lean` lists **194 results: 179 closed** and **15 with `sorryAx`** (round 3: 140 / 126 / 14).  The fifteen are `CoreSpec.of_knot`, the seven arms, the three headline theorems, `Arena.no_proof_of_False`, `Arena.installThenCheck_bridge`, `canonEqList_run` (an assembly) and `IConstantInfo.canonEq_run` (forty-eight of forty-nine arms; §3.2).  None carries `CoreSpec` or `IndSpec`; no `bv_decide` axiom anywhere |
+| `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 61/242, closed 36** (round 3: 54/242 stated, 23 closed) |
+| the diff | `proof/ConRon/Bridge/Checker/**` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
@@ -43181,6 +43496,418 @@ a search.
 | `scripts/gates.sh` | all 13 OK |
 | the diff | `proof/ConRon/Bridge/Frontend/{Capstone,Shared,Modeller,ProjRec,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module — `Bridge/Specs.lean` was not touched after all (finding 13) |
 
+#### Round 4 — the three table entries, the projection artifact, and two frames that were not true
+
+Off `arena`'s tip `c80e9c34`, merged forward to `65a2aa9e`, on the same nine
+modules.  Brief: take `projRecOwners_run` now that the Inductives tier has
+stated the two `isSome` lemmas, and if `ProjRec.lean` stalls take `Lines.lean`
+or `Prepare.lean` and get one of them to zero.
+
+**Eight of the twenty-four closed**, and the tier's closed census is **153**
+(was 121).  The two things worth the round, though, are not the eight: they
+are **two statement defects, both of the "says too much to be true" kind**
+(round 3's finding 14, again) — one repaired and closed here, one reported and
+deliberately left open because its repair is a hypothesis and therefore the
+maintainer's call.
+
+| item | declarations | |
+|---|---|---|
+| 5 | `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run` | **the three table entries**, the `.expr` one ten constructors wide |
+| 6 (part) | `blockRecOf_run` | the parsed block the seam is handed |
+| 10 | `isProjIotaName_run`, `projIotaLevel_run` | the artifact's recogniser and its `Eq` level — the second one **restated** (finding 15) |
+| 11 (part) | `stripPisAll_run`, `mkLams_run` | the rewrite's two telescope peels |
+
+**`Lines.lean` did not reach zero and `Prepare.lean` cannot**, and finding 16
+is why: **eight of the eleven still open in those two modules** (both of
+`Lines.lean`'s item 6 and every one of `Prepare.lean`'s six) are blocked on a
+statement question and not on a proof.
+
+##### Finding 15 — `projIotaLevel_run`'s frame said `s' = s` of a walk that INTERNS
+
+`Arena/Frontend/projIotaLevel` ends in
+
+    let eqH ← internName ConLeche.eqName
+    pure (if n == eqH then some l else none)
+
+— the twin SPEAKS the name `Eq` in order to compare the head constant against
+it, and speaking a name means interning it (the module note's own third
+bullet: *"a name the rewrite needs to SPEAK … is interned"*).  On a store that
+does not already hold `Eq` the run extends the arena, so round 1's `s' = s` is
+not true of it.  This is finding 14's shape exactly: a promise that holds only
+of the states where the function happens to do nothing.
+
+The repair is a STRENGTHENING and not a weakening, so round 4 made it and
+proved the result:
+
+* the frame is `ParseStep s s'`, which the one consumer (`noteProjIota`,
+  `Arena/Frontend/ExportC.lean:325-334`) can carry — it inserts the answer
+  into `StateD.projLevels`, whose relation is read at the state the step
+  LEAVES;
+* the answer is an `OptRel` and **not** the accept direction alone.  Round 1
+  wrote `∀ l, o = some l → …`, and that is too weak for the consumer:
+  `projLevels` is a `MapRel`, `MapRel`'s `cover` clause reads the `none` case,
+  and a level con-leche registers that the twin does not would break it.  The
+  two-sided statement is where **`denoteN_inj` becomes load-bearing** in this
+  module — the twin compares HANDLES where con-leche compares names, and only
+  injectivity rules out a twin miss at a con-leche hit.
+
+##### Finding 16 — `IDeclaration.names` and `IConstantInfo.toConstantVal` are not exact at a `.projInfo`, and eight statements assume they are
+
+This is the round's real result and it is a defect in the STATEMENTS, not in
+the port.  Two halves, both at `.projInfo`:
+
+**(a) The frame.**  `IConstantInfo.toConstantVal` (`Arena/Env.lean:224-230`)
+has a `.projInfo` arm that interns — `internLNode .zero`,
+`internLNode (.succ z)`, `internE (.sort one)` — because con-leche's
+`ConstantInfo.toConstantVal` builds the closed dummy type `Sort 1` as a VALUE
+(`ConLeche/Kernel/Env.lean:642`).  So `noteDecl` (its `.indDecl` arm maps
+`toConstantVal` over the block) and `IDeclaration.usedConsts` (through
+`usedConstsBlock`) both MOVE the store, and `noteDecl_run`, `pushDecl_run`,
+`usedConsts_run`, `hoistTargets_run` and `hoistNatOpGround_run` all say
+`s' = s`.
+
+**(b) The name.**  `IConstantInfo.name` at a `.projInfo tbl` is the STORED
+handle `tbl.tableName`, where con-leche's is
+`ConLeche.projTableName tbl.structName` — and `denoteProjTable`
+(`Arena/Frontend/Readback.lean:159-168`) **does not mention `tableName` at
+all**.  `Bridge/StateOK.lean:507-511`'s `IProjTableOK.named` is the only thing
+that ties the two.  So `denoteDecl st d = some dP` does NOT give
+`denoteNList st.ns d.names = some dP.names`, and `noteDecl_run`,
+`preludeKey_run`, `pick_denote`, `frontOf_run` and `hoistTargets_run` all need
+exactly that.
+
+**Why it cannot be discharged at the call site.**  Neither half is reachable
+from a PARSED record — a parsed `.indDecl` block holds `indInfo`/`ctorInfo`/
+`recInfo` only.  But these theorems quantify over every `IDeclaration` that
+denotes, and `pushGenList` pushes what the **modeller** generated, which
+`ModellerWF`/`ModellerRefines` constrain only by
+`(denoteDecls s'.store hs).isSome`.  So the missing fact is not available
+upstream either.  **Two repairs are possible and they are not equivalent**:
+
+1. give each statement an `IProjTableOK` side condition for the projection
+   tables of its block — honest, local, and it propagates as an obligation all
+   the way up to `processLineCoreD_run` and the capstone's `hmw`/`hmr`; or
+2. strengthen the seam's promise (`Bridge/Frontend/Modeller.lean`) to say that
+   a generated record's projection tables are well formed — one place instead
+   of eight, at the cost of asking more of an unverified modeller.
+
+Round 4 did neither: adding a hypothesis is a weakening of a stated theorem
+and the campaign's rule is to stop and say so.  **The eight statements carry
+the finding in their `sorry` notes** so the next round starts from the
+decision rather than from the surprise.
+
+##### The three table entries, and what made them cheap
+
+Item 5 is the line's parse proper — a name entry, a level entry and an
+expression entry — and after round 3's intern direction it is four moves each:
+read the children out of the three tables (`StateD_{name,level,expr}_run`,
+plus the new `StateD_levels_run` for the `const` arm's universe list), intern
+the node in `Bridge/Frontend/Shared.lean`'s `IStep` frame, transport the
+children's denotations across the append, and write the table.  What the round
+added to the vocabulary is small and all of it is reused:
+
+* `freshName_run` / `freshLevel_run` / `freshExpr_run` — the rebinding guards,
+  whose agreement with con-leche's is `IdTableRel.bound` and nothing else;
+* `PersStateD.insert{Name,Level,Expr}` — the persistence half of a table
+  write, one `IdTable.get?_insert` apiece;
+* `internLNode_istep` and `internLsNode_istep` in `Shared.lean`, beside the
+  seven `…_istep` wrappers round 3 put there.
+
+**`parseExprEntryD_run`'s ten arms needed no `internBindIE`.**  Round 1's note
+said the `lam`/`forallE` arms would go through `Bridge/StoreBind.lean`; they
+do not, because `ENodeView.lam` carries con-leche's `BinderMeta` as a VALUE
+(`Arena/Store.lean:348`: *"`BinderMeta` and `Literal` stay values"*), so
+`parsePwD_run`'s equation is the whole of what the binder datum costs.
+
+##### Two tactic notes, both about `match`
+
+* **A string-literal pattern does not reduce under `simp only`**, even when
+  the discriminant is a constructor: the matcher is `String.decEq`-based and
+  `simp` has nothing to fire on.  `split` does the job — but only while the
+  discriminant is still a VARIABLE, so `isProjIotaName_run` splits on the
+  `viewN` result before destructuring it.  ("Internal error in `split`:
+  Failed to find match-expression discriminants" is what the other order
+  gives.)
+* **`rw [f]` at a pattern-matching `def` can pick a LATER equation and leave
+  its side condition as a goal.**  `rw [ConLeche.Frontend.isProjIotaName]` in
+  a `… = false` goal closes the goal and hands back
+  `∀ pre s, nP ≠ ((pre.str "_model").str s).str "iota"`, which is exactly the
+  fact wanted — pleasant here, confusing the first time.  Where the equation
+  is needed as an equation, a `rfl` lemma restating the `match` is the stable
+  form; `clProjIotaLevel_eq` is one.
+
+##### The sorry list after round 4 — sixteen declarations
+
+| module | open | |
+|---|---:|---|
+| `ProjRec.lean` | 5 | `occursConstFast_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run` |
+| `Lines.lean` | 5 | `noteDecl_run`, `pushDecl_run` (finding 16), `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Prepare.lean` | 6 | items 20-21, **all six touched by finding 16** |
+| `Rel`, `Shared`, `Modeller`, `Chunks`, `Capstone` | **0** | |
+
+**`projRecOwners_run` did not land, and the blocker moved one node further
+in.**  Every LEAF the route needs now exists — `stripPisAll_run` and
+`mkLams_run` are closed, `stripPis`/`readLevel`/`view` have run forms here,
+and the Inductives tier has STATED `structPartsCore?_isSome` and
+`nativeParts?_isSome` (both open, both at `PSpecP`, i.e. `StateOK` **plus
+`PinsOK`**; the parse has `PinsOK` because it runs after `internAllPins`, and
+`projRecOwners_run`'s hypothesis list will have to say so).  What is missing is
+the middle: `ctorsMentionBlock_run` waits on `occursConstFast_run`, and that
+waits on **two con-leche-tier facts con-leche does not have** —
+`occursConstB n 4096 e = (some r, _) → r = occursConst n e` and
+`(occursConstGo n ∅ e).1 = occursConst n e`.  `ConLeche/Verify/` mentions
+neither `occursConstB` nor `occursConstGo`: the memoised and budgeted walks
+are unverified on con-leche's side, and the pure `occursConst` is their only
+specification.  They belong here in finding 6's shape (a con-leche-tier lemma
+stated in this tier so the gap is a lemma and not a hole).
+
+##### The import rule widens by one, inside `Bridge/`
+
+`Bridge/Frontend/ProjRec.lean` adds **`ConRon.Bridge.ExprOps.Spine`**, for the
+closed `piResult_spec` and `getAppFn_spec` that `projIotaLevel` reads.  Their
+run forms (`piResult_run`, `getAppFn_run`) are local here; `Bridge/Inductives/
+Rel.lean` has the same four-line bridges and is not on this cone.
+
+##### The axiom census after round 4
+
+`Bridge/Frontend/Axioms.lean`: **153 closed results** (was 121), every one
+within `[propext, Classical.choice, Quot.sound]` — five of them at `[propext]`
+alone, four more at `[propext, Quot.sound]` (the three new `denoteLList`
+lemmas among them), and `ListRel.mono` still at no axiom at all.  The eighteen `sorryAx` entries are
+unchanged in kind: fourteen proved-but-resting-on-a-leaf and the four
+headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
+`ModellerWF` nor `ModellerRefines`**.
+
+##### Gates, round 4
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 16 of this tier's declarations open |
+| `scripts/gates.sh` | all 13 OK, on the merge of `arena`'s `65a2aa9e` |
+| the diff | `proof/ConRon/Bridge/Frontend/{ProjRec,Lines,Shared,Prepare,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
+
+#### Round 5 — finding 16 repaired, both halves, and the prelude's front
+
+Off `arena`'s tip `6e4ff12e`, merged forward to `aa4c7a76` and then to
+`ffe22843`, on the same nine modules.  Brief: execute round 4's **finding 16** — repair the frame half as a
+correction, repair the name half by strengthening the seam's promise once
+rather than propagating a side condition through eight statements — and then
+take `Lines.lean` or `Prepare.lean` to zero.
+
+**Both halves are repaired and five of the sixteen closed.**  Neither module
+reached zero, and §4 says exactly what stands in the way of each.  The round's
+real result, though, is the third half of finding 16 that round 4 did not see,
+and the two corrections the ruling needed; they are §2.
+
+##### 1. Finding 16(a) — the frame, corrected
+
+`IConstantInfo.toConstantVal`'s `.projInfo` arm interns (`Arena/Env.lean:224-230`:
+`internLNode .zero`, `internLNode (.succ z)`, `internE (.sort one)`, because
+con-leche's `ConstantInfo.toConstantVal` builds the closed dummy type `Sort 1`
+as a VALUE, `ConLeche/Kernel/Env.lean:642`), so five statements said `s' = s`
+of a run that moves the store.  All five are restated at `ParseStep s s'`, with
+their answers read at `s'.store`: `noteDecl_run`, `pushDecl_run`,
+`usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run`.  This is round
+4's own finding 15 one module over, and `preparePrelude_run`'s proof — the one
+closed theorem that consumed two of them — needed only `ParseStep.trans` and
+`denoteDeclArray_ext` to follow.
+
+##### 2. Finding 16(b) — the name, and the three things the ruling needed
+
+The ruling was *"strengthen the seam's promise once; the obligation lands where
+it is already proved, because the concrete modeller is the inductives install
+and `projTableOK_of_install` establishes `IProjTableOK`"*, with an instruction
+to check that last step rather than trust it.  Checked, it is **wrong in two
+ways and short by one**, and the conclusion survives all three.
+
+**First, the Inductives tier's three lemmas do not give it for free.**  Round
+4's note pointed at `denoteCI_name`/`denoteCI_name_proj`/`denoteCI_name_of`
+(now landed in `Bridge/StateOK.lean` and therefore on this tier's cone).
+`denoteCI_name_proj` takes `IProjTableOK st t` — it is exactly the statement
+that the fact is NOT free — so they relocate the question, they do not answer
+it.
+
+**Correction 1 — the concrete modeller is NOT the inductives install.**
+`Arena/Frontend/InModel.lean`'s `inProcessModeller` reads the block back,
+calls `ConLeche.Frontend.InModel.generate` and runs `internDecls ∅ ds` on what
+it returns.  `projTableOK_of_install` (`Bridge/Checker/Inv.lean:722`) is the
+CHECKER tier's lemma about `checkStructProjTable` pushing a table into the
+environment; it is not on this path at all.
+
+**Correction 2 — the full `IProjTableOK` clause is not dischargeable there,
+and the half the eight need is.**  `IProjTableOK` has three clauses and only
+`named` is what a name equation reads.  `internProjTable`
+(`Arena/Frontend/Readback.lean:583-590`) INTERNS the reserved name itself
+(`let sn ← internName t.structName; let tn ← projTableName sn`), so `named` is
+true of its answer by construction — that is the whole of the new
+`projTableName_istep` conjunct and of `internProjTable_istep`'s.  The two SIZE
+clauses (`bodies.size = numFields`, `guards.length = numFields`) are a fact
+about con-leche's OWN `ProjTable` and nothing states them; the only other
+route to them is to prove that `genMutual`/`genNested` never emit a
+`.projInfo` — true (both push `.indInfo ++ .ctorInfo* ++ [.recInfo]`) but a
+several-hundred-line lemma about an explicitly unverified generator.  So the
+clause the seam promises is `IProjNamed`, which is `IProjTableOK.named`
+standing alone, and asking for less of an unverified modeller is the better
+side of that trade anyway.
+
+**Correction 3 — the seam clause alone is NOT enough, and the missing piece is
+`IFEnvOK.proj` one module over.**  `Bridge/Frontend/Prepare.lean`'s six
+theorems do not receive records from the modeller: they receive `r.decls` from
+the PARSE, at the capstone.  So the fact has to travel out of the parse, and
+the shape that carries it is the one `Bridge/StateOK.lean` already chose for
+exactly this gap: a clause on the RELATION.  `StateDRel` and `ParseResultRel`
+gain
+
+    projNamed : DeclsProjNamed st sd.decls
+
+**and that is what makes "one place, not eight" true.**  The streaming fold
+only ever TRANSPORTS the relation, so the clause costs the ten closed theorems
+of `Chunks.lean` and `Lines.lean` nothing at all: `StateDRel.ext` and
+`ParseResultRel.ext` gain one `.mono` line, `ParseResultRel.ofState` one
+projection, `StateD_init_run` one field (`DeclsProjNamed.empty`), and every
+other closed proof compiles unchanged because it passes the relation rather
+than builds it.  The clause has exactly two debtors, and they are the two
+places a record ENTERS the stream: `pushDecl` (the parse — a record it builds
+itself is one of the five `.…Decl`s, vacuously, or an `.indDecl` block of
+`.indInfo`/`.ctorInfo`/`.recInfo`, also vacuously) and `pushGenList` (the
+modeller — `ModellerWF`'s new clause).  **Nothing propagates to the
+capstone**: `Arena.no_False_declaration` and its two siblings take the same
+hypotheses they took in round 4.
+
+##### 3. The vocabulary, and where it went
+
+`Bridge/Frontend/Rel.lean`:
+
+* **`IProjNamed st t`** — `IProjTableOK.named` alone, with `.mono` and
+  `IProjTableOK.toNamed`;
+* **`CIProjNamed`**, **`DeclProjNamed`**, **`DeclsProjNamed`** — the same at a
+  stored constant, a record and a stream, with `.mono`, `.empty`, `.push` and
+  the six vacuous `DeclProjNamed.of_…Decl` introductions;
+* **`ciName_denote_proj`, `ciName_denote_of`, `ciNames_denote`,
+  `declNames_denote`** — the name equations the clause buys.  `declNames_denote`
+  is the one round 4's finding named: *a record that denotes has
+  `IDeclaration.names`' exactness, given `DeclProjNamed` and nothing more*.
+  The NON-projection half is not restated here: it is
+  `Bridge/StateOK.lean`'s own `denoteCI_name`, which the second `arena` merge
+  brought onto this tier's cone (see §6).
+
+`Bridge/Frontend/Shared.lean`: `projTableName_istep` gains the denotation
+conjunct, and `internProjTable_istep`/`internCI_istep`/`internCIList_istep`/
+`internDecl_istep`/`internDecls_istep` each gain the clause — six of
+`internCI_istep`'s seven arms are `CIProjNamed.of_ne (by simp)`.
+
+`Bridge/Frontend/Modeller.lean`: `ModellerWF` gains
+`∀ d ∈ hs, DeclProjNamed s'.store d`, and `inProcessModeller_wf` discharges it
+from `internDecls_istep`'s new conjunct.  **The seam's promise is the only
+statement in the tier that grew a clause**, which is what the ruling asked for.
+
+##### 4. What closed, and what stops each module
+
+| item | declarations | |
+|---|---|---|
+| 6 | `noteDecl_run`, `pushDecl_run` | the declaration table, on `toConstantVal_run` (the `.projInfo` arm's three interns), `noteBlock_run` (the block `mapM`) and `noteFold_rel` (`MapRel.insert` at `constTypes` and `heights`) |
+| 20 | `preludeKey_run`, `pick_denote`, `frontOf_run` | the prelude's front, on `declNames_denote` and four new list facts |
+
+Eleven new closed results beside them: `IProjNamed.mono`, `CIProjNamed.{mono,
+of_ne,of_proj}`, `DeclProjNamed.{mono,of_indDecl}`, `DeclsProjNamed.{mono,
+empty,push}`, `denoteNList_contains`, `declares_denote`,
+`denoteDecls_{getElem?,eraseIdx,findIdx}`, `mem_eraseIdxIfInBounds`.
+**`denoteNList_contains` is where `denoteN_inj` is load-bearing in
+`Prepare.lean`** — `declares` is a handle test where con-leche's is a name
+test, and only injectivity rules out a twin hit at a con-leche miss.
+
+**`Lines.lean` is at three** — `validateIndD_run`, `installIndD_run`,
+`processLineCoreD_run` — and it cannot reach zero from here: `installIndD_run`
+waits on `registerProjOwners_run`, which is `ProjRec.lean`'s, and
+`processLineCoreD_run` waits on `installIndD_run`.
+
+**`Prepare.lean` is at three** — `usedConsts_run`, `hoistTargets_run`,
+`hoistNatOpGround_run` — and the first of them is the GRAY `seen`-set fuel
+induction that `Bridge/ExprOps/Leaves.lean`'s `fvarLeavesGo_spec` is open on
+for the same reason, with `hoistTargets_run` (a worklist closure over a
+`Std.HashMap NIdx Nat`) behind it.  Neither is a round's work.
+
+##### 5. `occursConstFast`'s two con-leche-tier asks, stated
+
+Round 4 reported that `ConLeche/Verify/` mentions neither `occursConstB` nor
+`occursConstGo` — con-leche's own note says why (*"`occursConst` has exactly
+one caller and no proof depends on it […] the pure definition above stays as
+its specification"*) — so `occursConstFast_run` needs two facts con-leche does
+not have.  They are stated here in §5's **finding 6** shape,
+`clOccursConstB_eq` and `clOccursConstGo_eq`, with **`clOccursConstFast_eq`
+proved on top of them**: `ConLeche.Frontend.occursConstFast n e =
+ConLeche.Frontend.occursConst n e`.  So `occursConstFast_run`'s remaining gap
+is the ARENA side alone — the twin's memoised walk over handles against the
+pure `occursConst` over the denoted tree — and the con-leche side is a named
+ask rather than a hole in a proof.  `ProjRec.lean` is therefore at **seven**
+where round 4 left it at five: five proofs and two asks of con-leche.
+
+##### 6. Half a dedup taken, and half left for the next round
+
+The Inductives tier's `denoteCI_name`/`denoteCI_name_proj`/`denoteCI_name_of`
+landed in `Bridge/StateOK.lean` — that is, on this tier's cone — in the merge
+this round took halfway through, so `Bridge/Frontend/Rel.lean` keeps only what
+they cannot give: the round's own `ciName_denote` was **deleted** and its uses
+point at the shared `denoteCI_name`.
+
+The other half is a debt, and it is one line of somebody else's file.
+`denoteCI_name_proj` takes `IProjTableOK st t` and its proof opens with
+`obtain ⟨sn, hsn, htn⟩ := hok.named` — **it uses the `named` clause and
+nothing else.**  Weakening its hypothesis to `IProjNamed` (and
+`denoteCI_name_of`'s with it) would let `Bridge/Frontend/Rel.lean` drop
+`ciName_denote_proj`/`ciName_denote_of` too.  That file is the Inductives
+tier's and moved on `arena` while this round ran, so round 5 left it alone and
+states the debt here.
+
+##### 7. Two tactic notes, both about `match`
+
+* **A pattern-matching lambda compiles to a per-declaration `match_N`
+  auxiliary**, so `noteDecl`'s fold step is a DIFFERENT term in
+  `Arena/Frontend/ExportC.lean`, in `noteFold_rel` and in `noteDecl_run` — and
+  `rw` fails across the three with "did not find an occurrence" on two terms
+  that print identically.  `exact` does not: `isDefEq` unfolds the auxiliaries.
+  The pattern that works is to state the fold lemma with the lambda written out
+  and to CONNECT it with `exact`, never with `rw`.
+* **`cases h : e` abstracts `e` in the GOAL as well as introducing `h`**, so at
+  the leaf of such a case split the remaining obligation is `rfl` and not `h` —
+  three proofs of this round were written with `exact h` first and all three
+  reported `type mismatch: some n = some {…}.name`.
+
+##### 8. The sorry list after round 5 — thirteen declarations
+
+| module | open | |
+|---|---:|---|
+| `ProjRec.lean` | 7 | `occursConstFast_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run`, and the two con-leche-tier asks `clOccursConstB_eq`/`clOccursConstGo_eq` (§5) |
+| `Lines.lean` | 3 | `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Prepare.lean` | 3 | `usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run` |
+| `Rel`, `Shared`, `Modeller`, `Chunks`, `Capstone` | **0** | |
+
+The critical path is unchanged in shape and two nodes shorter:
+`processLineCoreD_run` → `installIndD_run` → `registerProjOwners_run` →
+`projRecOwners_run` → `occursConstFast_run`, and `noteDecl_run`/`pushDecl_run`
+are off it.
+
+##### 9. The axiom census after round 5
+
+`Bridge/Frontend/Axioms.lean`: **181 closed results** (was 153), every one
+within `[propext, Classical.choice, Quot.sound]`; the eighteen `sorryAx`
+entries are unchanged in kind (fourteen proved-but-resting-on-a-leaf and the
+four headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
+`ModellerWF` nor `ModellerRefines`**).  `clOccursConstFast_eq` is deliberately
+NOT in the list: it is proved modulo an ask of con-leche, so it carries
+`sorryAx`, and the census's rule — *a result that carries `sorryAx` is not in
+this file* — is what makes that visible.
+
+##### 10. Gates, round 5
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 13 of this tier's declarations open |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 112 s), and again on the second merge, `arena`'s `ffe22843` |
+| the diff | `proof/ConRon/Bridge/Frontend/{Rel,Shared,Modeller,Lines,Prepare,ProjRec,Capstone,Chunks,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module — the seam's strengthening stayed inside `Bridge/Frontend/**`, which is what §2's correction 3 bought |
+
+The tier is **8 825 lines** (was 7 478) in nine modules plus the index.
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at
@@ -46502,7 +47229,502 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
 | the merge | `arena` at `0b79feae` merged in as a fast-forward (this branch had no commit at the time), so landing is a fast-forward of `arena` onto this tip |
 | the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,SumParts,NativeParts}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, no other `Refine2/` file — in particular **not** `Specs.lean`, `ExprOps/**`, `Checker/**` or `Promote/**`, which are other agents' lanes this round |
 
+#### Round 3 — the cursor recursion factored out, and the answer to "is it the same thirty lines fifty-two times" (2026-09-22, Opus under Fable)
+
+Branch `p5-ind-3` off `arena`'s `c80e9c34`, merged forward once (`aa4c7a76`,
+task #97-P3-Ind round 4 — `Bridge/**` only, textual for this tier).  The diff
+is nine files: `proof/ConRon/Refine2/Inductives/{Shape,Spec,SumParts,
+StructParts,SumInstall,NativeParts,NativeInstall,Modeled}.lean` and this
+section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no
+`Bridge/`, no other `Refine2/` file — in particular **not** `Specs.lean`,
+`ExprOps/**`, `Checker/**` or `Promote/**`.
+
+**The tier went from 312 open `sorry` to 270 — forty-two closed**, which is
+round 2's 25 plus this round's 42 against round 1's 337.  Round 2's brief for
+this round was the 52 state-free `_refines`; **42 of them are closed and the
+other six are §R3.5's finding**.
+
+##### R3.1 THE ANSWER: no, and the number is twenty
+
+Round 2 measured one state-free `_refines` at **thirty lines** (`kinds_copy`,
+written out, then `u64_vec_dup` copied verbatim) and asked whether the block
+was "the same thirty lines fifty-two times".  It is not, and the reason is
+worth the whole round: **thirty lines was the UN-FACTORED price.**  The
+measure induction inside it is the same in every one of them, and lifting it
+out once turns the block into four recipes and a wrapper.
+
+`Refine2/Inductives/Shape.lean` grew by 545 lines and twenty-three
+declarations (two of them `private` cursor inductions behind a wrapper), and
+every one of them is used by more than one caller:
+
+* **`cursor_induction`** — *the* induction.  A property that holds past a
+  bound and is preserved backwards by one step of a cursor holds everywhere.
+  It is stated over an arbitrary index type with a `val : ι → Nat`, because
+  the tier's cursors are `Usize` in fourteen places and `U64` in two
+  (`all_negative`, `rules_pin_ok`), and the step's induction hypothesis is
+  quantified over **every** `j` with `val j = val i + 1` rather than one
+  chosen `j`, because the port's `i + 1#usize` is a `Result` and the successor
+  is only known through `absSz_add_one`.  15 lines, used by all three shapes
+  below and by six proofs directly.
+* **`vec_cursor_copy`** — the copier.  `F` reads `xs` at the cursor, pushes
+  one element, recurses; the answer READ THROUGH THE ABSTRACTION is the
+  accumulator followed by the image of the suffix.  Two abstractions `f : β → δ`
+  and `g : α → δ` rather than one, because the port's element type is often
+  narrower than the source's (`ctors_of` drops a field, `rhss_of` keeps one),
+  and the conclusion is at `List.map` because every `absXL` of the file is
+  exactly that.
+* **`vec_cursor_all` / `vec_cursor_any`** — the scan, in both polarities:
+  `true` past the end and `false` at the first failure, or `false` past the
+  end and `true` at the first hit.  Between them they are every `*_contains`,
+  `*_any`, `*_seen` and `*_pin_ok` of the tier.
+* **the eight `arena::env` copies and comparisons** the tier inherits and had
+  been restating: `i_constant_val_dup_abs`, `eidx_vec_dup_val`,
+  `i_rec_rule_fire_dup_abs`, `i_rec_rule_dup_abs`, `i_rec_rules_dup_abs`,
+  `i_ind_caps_dup_abs`, `i_proj_table_dup_abs`, `i_constant_info_dup_abs`,
+  `i_constant_info_name_abs`; plus `nidx_eq2_abs` / `eidx_eq2_abs` (*a handle
+  comparison IS the abstraction's, at both signs*), `nidx_vec_contains_abs`,
+  `nidx_vec_beq_abs`, `filter_range_filter_ge` and the `nidx_cons` pair.
+* **`is_rec_info_abs`** — a restatement, not a duplication by accident:
+  `Refine2/Checker/Base.lean`'s `is_rec_info_refines` is closed and true, but
+  `Checker/Top.lean` imports the inductives and not the other way round, so it
+  cannot be cited from here.  Three lines.
+
+**Measured, over the 42 proofs this round closed: 1 039 proof-body lines,
+mean 24.7, median 21.**  By family:
+
+| family | how many | lines each |
+|---|---:|---|
+| a `vec_cursor_copy` instance | 6 (+3 in `Shape.lean`) | **20–22** |
+| a `vec_cursor_any` instance | 6 (+1 in `Shape.lean`) | **26–36** |
+| a `vec_cursor_all` instance | 1 | 66 (`ctors_pin_ok`, three nested tests) |
+| the wrapper at cursor 0 / 1 (`ctors_copy`, `sum_split`, `nidx_cons`, `nidx_vec_tail`, `rename_by`, `native_is_rec`) | 8 | **1–4** |
+| a record copy or completion (`inductive_shape_dup`, `native_parts_dup`, `complete`, `with_kinds`, `native_rec_lps_ok`) | 5 | 3–11 |
+| a memo probe or insert | 5 | **18** / 18–28 |
+| a bespoke cursor induction (a filter, a zip, a `Nodup`, a `find?`) | 8 | 33–59 |
+| the one deep `_unfold` (§R3.4) | 1 | 74 |
+
+So the honest sentence for scheduling is: **the state-free block is one
+545-line investment and then twenty lines apiece**, and the investment is
+already made — the four shapes above are in `Shape.lean` and the next round
+pays only the per-instance price.  `nidx_cons_from_refines` and
+`nidx_cons_refines` are literally one line each, because their content had to
+move to `Shape.lean` anyway (§R3.3).
+
+##### R3.2 What closed, file by file
+
+| file | r2 | r3 | closed |
+|---|---:|---:|---:|
+| `SumParts.lean` | 6 | **1** | 5 — everything but the file's one `Sim` |
+| `NativeParts.lean` | 66 | **53** | 13 |
+| `NativeInstall.lean` | 40 | **31** | 9 |
+| `Modeled.lean` | 92 | **84** | 8 |
+| `StructParts.lean` | 50 | **45** | 5 |
+| `SumInstall.lean` | 24 | **23** | 1 |
+| `Spec.lean` | 5 | **4** | 1 (`nativeShape_unfold`, §R3.4) |
+| the tier | **312** | **270** | **42** |
+
+`SumParts.lean` is the file to look at: **`with_sort` is all that is left of
+it**, and `with_sort` is the module's one store read.  `sum_split_from` is the
+round's prettiest proof — the port's cursor against the twin's structural
+recursion on `List ConstantInfo`, whose `[.recInfo …]` singleton pattern is
+the port's `i + 1 = block.len()` test, 59 lines.
+
+`Modeled.lean`'s eight include **`rename_by_rel`, and that is finding 15
+cashed**: `arena::inductives::modeled::RenameBy` IS the twin's partial
+application `renameBy tbl`, so the `RenameRel` hypothesis that every
+`rename_consts` statement of `Refine2/ExprOps/Mut.lean` carries is now
+discharged at this tier's every call site by a two-line lemma.
+
+##### R3.3 Five notes the next round should not rediscover
+
+* **`rw [f]` is not `rw [f.eq_def]`.**  For a `def` whose body is a `match`
+  with a catch-all, `rw [f]` picks a *conditional* equation and leaves its
+  "no other pattern applies" side condition as an extra goal at the end of the
+  proof — which surfaces as a mystifying `case x_1 : ∀ …, block = … → False`.
+  `rw [f.eq_def]` gives the whole match.  This cost an hour on
+  `nativeShape_unfold`.
+* **`subst (Result.ok_injective h)` is a syntax error**; `obtain rfl :=
+  Result.ok_injective h` is the move.
+* **A hypothesis passed to `simp` is NOT normalised first.**  `simp
+  [hmem]` uses `hmem : a ∉ (l.drop n).map f` as the rewrite `(a ∈ (l.drop
+  n).map f) = False`, and if simp's own normal form of the goal is
+  `a ∈ (l.map f).drop n` the rule never fires and the linter says
+  "unused simp argument".  State such a helper in simp's normal form
+  (`ctor_names_nodup_refines` is where this bit).
+* **`split` reaches only one side of an equation between two `if`s** — it
+  splits the first it finds.  `by_cases hc : <the condition>` and then
+  `rw [if_pos hc, if_pos hc]` (twice, once per side) is the move.
+* **A `let (a, b, c) := q` pattern in a generated body does not zeta-reduce**
+  under `simp only []`, `dsimp only` or `split`.  `ConRon.Refine.bind_eq_ok_iff`
+  sees through it (it works up to defeq) but `rw [if_pos …]` does not; the fix
+  is one `have h : <the reduced body> = ok o := h`, which typechecks by defeq.
+  `ctors_pin_ok_refines` carries it.
+* **A lemma cannot move up the file to where its consumer is.**  DESIGN §3.4
+  keeps the `_refines` file in the port's own order, and
+  `native_rec_lps_ok` stands EARLIER in `native_parts.rs` than the
+  `nidx_cons` it calls.  The content goes to `Shape.lean`
+  (`nidx_cons_from_map`, `nidx_cons_abs`) and both `_refines` become
+  one-liners citing it.
+
+##### R3.4 The deep `_unfold`s: one of the eleven is closed, and the recipe is written down
+
+Round 2 left eleven `_unfold`s of the `let x ← match … ; <more do>` shape and
+recorded that a *generic* peel does not terminate.  **`nativeShape_unfold` is
+closed**, 74 lines, and it is the pattern for the other ten:
+
+1. `rw [f.eq_def]`, then `rcases`/`cases` the block and `simp only []` to
+   iota-reduce the cased discriminant on BOTH sides (the statement's own
+   `match` does not reduce by itself);
+2. `refine am_bind_congr _ ?_` and `intro` once per bind that is shared;
+3. **at the join point, a `have hK : ∀ x, <the twin's INLINED tail> =
+   <the spec's factored tail> x`, written out by hand.**  This is the bridge
+   rule 11's `twin_reduce` cannot build, and there is no way around writing
+   the twin's tail out: the continuation the `do` elaborator pushed into every
+   arm is not a named constant.  With `hK` in hand every arm of every cased
+   discriminant closes with `twin_reduce` and `exact hK _`, and the ten-way
+   `ENodeView` dispatch is one `cases v <;> twin_reduce <;> first | exact hK _
+   | (refine am_bind_congr _ ?_; intro lvl; exact hK lvl)`.
+4. a two-sided `if` wants `by_cases` (see §R3.3), not `split`.
+
+The cost is **74 lines for a three-level peel with one join point**.
+`structShape` has eight levels and two join points and will cost two to three
+times that; the six `SpecModeled.lean` ones are the tier's longest `do`
+blocks.  Nothing in them waits on another tier.
+
+##### R3.5 THE FINDING — six state-free statements are FALSE on a 32-bit target, and the cause is a `u64 as usize` index
+
+The six of round 2's 52 that did not close are not hard; **four of them are
+not provable as written**, and the other two wait on a lemma this tier does
+not own.
+
+`Refine/Scalars.lean` (task #57) already says why, in the general: Aeneas
+models `i as usize` as `i.val % 2 ^ System.Platform.numBits`, the platform
+width is abstract (`Usize.bounds_eq`), and *"the port's guards compare the
+CAST, so on a 32-bit target a wrapped index passes a guard the cited `v[i]?`
+answers `none` at, and the refinement is genuinely false"*.  DESIGN §(c)'s
+standing treatment is a hypothesis at the lemma, discharged at the call site —
+**except where the Rust was fixed instead**, which is what task #59 finding 1
+did to `modeled.rs`'s twenty-seven casts.
+
+Four functions of this tier still have the shape, and their `_refines` are
+stated with no bound:
+
+| statement | the cast | why the statement is false without a bound |
+|---|---|---|
+| `native_parts::kind_get_d` | `ks[j as usize]` | the `else` arm is fine (`j < len` forces no wrap); the `then` arm answers `ks[j mod 2^32]` where the twin's `getD j .ordinary` answers `.ordinary` |
+| `struct_parts::used_get_d` | `used[j as usize]` | the same |
+| `struct_parts::sort_get_d` | `sorts[j as usize]` | the same |
+| `native_parts::rules_pin_ok` | `rules[j as usize]`, `cs[j as usize]` (six casts) | `j` is universally quantified and only bounded by `n`, which is also universally quantified |
+
+**Nothing was weakened and nothing was closed vacuously**: the four are left
+`sorry` and the decision is Fable's, because it is the same decision task #59
+took and there are two answers.  The bound each needs is exactly
+`absU j ≤ Std.Usize.max`, and **every call site can discharge it** — in
+particular `native_rec_pin_ok`'s call `rules_pin_ok v2 v1 n 0` has
+`n = p.ctors.len() as u64`, so `j ≤ n ≤ Usize.max` by `Vec.property` — which
+is why the fifth of the six, **`native_parts::native_rec_pin_ok`, waits on
+`rules_pin_ok` and on nothing else**.  If the Rust is the thing to fix
+(`kind_get_d(ks, j : u64)` narrowing to a `usize` cursor the way
+`core_k::take_exprs_n` did), that is a Rust change and outside this lane.
+
+The sixth is different and is an obligation, not a defect:
+**`sum_install::cons_sum_ctors` and `sum_install_f::cons_sum_ctors_f` wait on
+an `ifenv_push` lemma that does not exist anywhere in `Refine2/`** — *`IFEnvRel
+rf lf → IFEnvInv rf → ifenv_push rf ci = ok rf' → IFEnvRel rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf'`*.
+`IFEnvRel` and `IFEnvInv` are `Refine2/Checker/Shape.lean`'s, the index insert
+is `HashMap2`'s, and `Refine2/Promote/Promote.lean` is where the environment's
+other structural lemmas live.  **It belongs to whoever owns `Checker/**` or
+`Promote/**`; it is not this tier's to re-derive**, and it unblocks every
+`cons_*` fold of the install routes, not just these two.
+
+##### R3.6 What the next round needs, and from whom (unchanged where round 2 said it)
+
+* **`Refine2/Specs.lean`'s `intern_*` / `read_*` `_run` family** is still the
+  number to schedule by: 248 of the tier's 306 `_refines` wait on it, and this
+  round did not change that — the 42 closed here are exactly the ones that did
+  not.  What is left of the state-free block is §R3.5's six.
+* **`ifenv_push`** (§R3.5) — `Checker/**` or `Promote/**`.
+* **`openPisAtFvarsF_length`** — round 2's R2.7 obligation, unchanged:
+  `nativeOpenedOk_unfold` is still not a pure regrouping and is still left
+  `sorry` rather than weakened.  (This round re-read the twin and confirms
+  round 2's reading: `Arena/Inductives/NativeInstall.lean:136-174` dispatches
+  on two scrutinees and answers `false` off the end of `xFvs`, where
+  `Spec.lean`'s `nativeFieldsAtSpec` reads the variable totally.)
+* **The ten remaining deep `_unfold`s** need nobody: §R3.4 is the recipe and
+  the only cost is lines.
+* **A decision on §R3.5's four casts** — a hypothesis at the lemma, or a
+  narrowing in the Rust.
+
+##### R3.7 The axiom census
+
+Nine `#print axioms` rows were added under `#guard_msgs`: four in
+`Inductives/Shape.lean` (the two cursor shapes, `nidx_vec_beq_abs`,
+`i_constant_info_dup_abs`), one in each of `SumParts`, `NativeInstall` and
+`Spec`, two in `NativeParts` and two in `Modeled`.  Every one reads
+`[propext, Classical.choice, Quot.sound]` — **no `sorryAx` on anything this
+round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.  Two of
+them read less than that: **`vec_cursor_copy` and `vec_cursor_any` need only
+`[propext, Quot.sound]`** — the tier's whole state-free idiom is
+choice-free, which is worth knowing because it is the part every later round
+will build on.
+
+##### R3.8 The gates, at the tip
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** (`cargo-build` 5 s / `cargo-test` 10 s / `lint-rust` 3 s / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` 117 s / `lake-build` 128 s) |
+| `cd proof && lake build ConRonRefine2` | green, **2 221 jobs**, 0 errors — run explicitly, it is not a default target |
+| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 11** (was 2); the tier's `sorry` count 312 → **270** |
+| the merge | `arena` at `aa4c7a76` merged in cleanly (`Bridge/**` and `DESIGN.md` only, textual for this tier), so landing is a fast-forward |
+| the diff | the eight `Refine2/Inductives/*.lean` above and this section |
+
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
+
+#### Round 4 — the installs read back, FOUR more statement defects, and the three name lemmas moved down (2026-09-22, Opus under Fable)
+
+Branch `p3-ind-4` off `arena`'s tip `c80e9c34`, merged forward twice
+(`65a2aa9e`, task #97-P3-Core round 4, and `6e4ff12e`, task #97-P3-Frontend
+round 4; both are ABOVE or BESIDE this tier — `Bridge/Core/**` and
+`Bridge/Frontend/**` reach none of its modules — plus `CLAUDE.md` and their
+`DESIGN.md` sections).  The diff is six files: `Bridge/Inductives/{Rel,NativeParts,SumInstall,
+Modeled}.lean`, `Bridge/StateOK.lean` (§R4.1's move, the one file outside
+`Bridge/Inductives/**` this round touches, and the one round 3 named) and this
+section.  **No Rust file, no generated model, no `Arena/`, no `Refine/`, no
+`Refine2/`, no `lakefile.toml`.**
+
+**The tier went from 91 open `sorry` to 83** — eight statements closed — and
+`lake build ConRonBridge` is **617 jobs, 0 errors** (616 in round 3; the one
+added job is `Bridge/Core/Walks/Spine.lean`, which the forward merge brought,
+not this tier).
+
+| module | open (r3 → r4) |
+|---|---:|
+| `Rel.lean` — the vocabulary | 0 → **0** |
+| `StructParts.lean` | 6 → **6** |
+| `SumParts.lean` | 0 → **0** |
+| `NativeParts.lean` | 24 → **21** |
+| `StructInstall.lean` | 2 → **2** |
+| `SumInstall.lean` | 14 → **13** |
+| `NativeInstall.lean` | 14 → **14** |
+| `Modeled.lean` | 31 → **27** |
+| `Decl.lean` — the arm | 0 → **0** |
+| **the tier** | **91 → 83** |
+
+##### R4.1 The three name lemmas are in `Bridge/StateOK.lean`
+
+Round 3's §R3.6 asked for this by name and it is done: `denoteCV_type`,
+`denoteCV_name`, `denoteCI_name`, `denoteCI_name_proj` and `denoteCI_name_of`
+moved from `Bridge/Inductives/Rel.lean` to `Bridge/StateOK.lean`, beside
+`IProjTableOK` — verbatim, as round 3 predicted ("a copy, not a rewrite"), plus
+one new sibling (`denoteCV_lps`, the level-parameter projection, because
+`Bridge/Checker/Base.lean`'s three-way `denoteCV_inv` sits in a module this
+tier cannot see).  `Rel.lean` keeps a pointer note where they were.
+
+They are now BELOW the Checker tier, so `IFEnvOK_of_denote`,
+`denoteFEnv_restrictTo` and `installBasisDecl_bridge` — the three sites round 3
+found stuck on the `.projInfo` name gap — can cite them.  Nothing in this tier
+changed: `ConRon.Bridge` is `ConRon.Bridge.Inductives`' parent namespace, so
+every use reads the same.
+
+##### R4.2 THE FINDINGS — four statement defects, and one of them is not about a statement
+
+Round 3 found one defect by trying to prove things.  Round 4 found four, which
+brings this tier's total to **seven** and the campaign's to **fourteen**.
+
+**1. `structFieldTeleOf_spec` / `structFieldIdxOf_spec` — the `default` trap,
+CONFIRMED FALSE** (round 3 §R3.9 asked for exactly this check).  Both twins
+read `(cbs.getD (nP + i) default).1`.  The arena's `default` is
+`(default : EIdx × BinderMeta)`, i.e. the handle `Idx.ofWord 0` — tag 0, the
+persistent tier, slot 0; con-leche's is `(default : Expr × BinderMeta)`, i.e.
+`Expr.bvar 0`.  Nothing relates them and `StateOK` says nothing about what
+persistent expression slot 0 holds, so at a state whose slot 0 is an
+application `structFieldIdxOf` answers that spine dropped by `nP` where
+con-leche answers `[]`, and at one whose slot 0 is a `∀` `structFieldTeleOf`
+answers a non-empty telescope where con-leche answers `[]`.  `nP = 0`,
+`nF = 0`, `i = 0` is a two-line witness for either.
+
+The fallback is taken exactly when `nP + i ≥ cbs.length`, and
+`ConLeche.Expr.stripPis_length` says `cbs.length = nP + nF` on the accepting
+branch, so **`i < nF` is exactly the hypothesis that keeps both on real
+data** — and it is one the callers have (`i ∈ recIdx`, `recIdx = recIdxOf ks`
+is a sublist of `List.range ks.length`).  Both statements gained it and both
+are now PROVED.  The bound travels on to six more statements —
+`structRuleBodyR_spec` and `structIhPis_spec` (`∀ i ∈ recIdx, i < nF`),
+`structMinorTyR_spec`, and `structMinorsPisR_spec` / `structMinorsLamsR_spec`
+/ `structRecTyR_spec` / `structRecRhsR_spec` (`∀ c ∈ csP, ∀ i ∈ c.2.2.2,
+i < c.2.1`) — each of which is false without it for the same reason.
+
+**2. `iotaThmName_spec` named the WRONG NAME.**  Round 1 stated the answer as
+`(cvNameP.str "iota").num j`.  con-leche's three call sites
+(`ConLeche/Kernel/Inductives/Modeled.lean:73`, `:170`, `:216`) all spell
+`(cvName.str "_model").str s!"iota_{j}"`, and the twin interns exactly that.
+A transcription slip, not a gap; corrected and PROVED, at no cost to its three
+(still open) consumers, which had not cited it.
+
+**3. `blockRenameTable_spec` quantified the RENAME FUNCTION.**  It took
+`(f : ConLeche.Name → ConLeche.Name)` as a free parameter and claimed the
+table denotes it — false at every `f` but one, because a name the table does
+not mention is its own image and `RenameRel st r f` at a fresh name then says
+`nm = f nm`.  The instantiation is `checkMemberVal`'s own
+(`Modeled.lean:382`), `fun n => if blockNames.contains n then n.str "_model"
+else n`.  Corrected and PROVED; `beq_handle_eq` at `renameBy`'s lookup is what
+turns "these are different handles" into "these are different names".
+
+**4. `nativeCapsAt_spec` is FALSE, and the reason is a hole in the DENOTATION
+layer.**  The `_` arm of both sides answers the DEFAULT capability record, and
+the two defaults do not correspond: `IIndCaps.etaCtor` defaults to
+`(default : NIdx)`, the zero word, while `ConLeche.IndCaps.etaCtor` defaults
+to `.anonymous` — `Arena/Env.lean`'s own comment on the field says so ("con-
+leche's default is `.anonymous`; the handle's is the zero word.  Neither is a
+name the field ever *denotes*").  `Frontend.denoteCaps` reads `etaCtor`
+UNCONDITIONALLY, so the statement asks for
+
+    denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous
+
+and **no invariant of this library says that**: `StateOK` does not, and
+`PinsOK`'s six clauses (the forty-nine pin slots, the reserved list, the three
+nullary values) do not.  The zero word is tag `NTag.anonymous = 0`, tier
+`tierP`, index 0, so it decodes exactly when the persistent name store's
+`anons` table is non-empty — true in every state the checker reaches, and
+provable from nothing that is currently stated.
+
+**This is bigger than one `sorry`.**  `checkSumInd` pushes
+`.indInfo cvTa caps` with exactly this record, so at every MULTI-CONSTRUCTOR
+inductive the fixpoint route installs, `Frontend.denoteCI` of the new row —
+and therefore `denoteFEnv` of the new index, `InstRel`'s `denote` clause and
+`FoldOK.denote` above it — is `none` unless the zero name handle decodes.  It
+wants a decision one level up, and there are two candidates:
+
+* **`PinsOK` gains the clause** `denoteN s.store.ns default = some .anonymous`.
+  `internAllPins` establishes it (it interns names, and every name bottoms out
+  at `.anonymous`), and it is one lemma once stated — but it is a field on a
+  structure every tier constructs.
+* **`Frontend.denoteCaps` stops reading `etaCtor` where `eta = false`** — the
+  same "a simulation's denotation should forget the representation's extra
+  data" argument that settled `.projInfo`'s `tableName` in round 3, except that
+  here the forgetting is conditional.  That is the Frontend tier's call.
+
+Left `sorry`, with the finding written out at the site, rather than proved at
+a weakened statement: the singleton arm goes through today.  The same hole
+blocks `nativeCaps_spec` (`NativeInstall.lean`), which is this statement at
+`p.toInductiveShape`.
+
+**5. `nativeRecPinOk_spec` and `nativeRecLpsOk_spec` were missing `StoreWF`.**
+Both compare HANDLES on the left and NAMES on the right, so the `false`
+direction is `denoteN_inj` — a fact about a WELL-FORMED store, which neither
+asked for.  `StoreWF st` is the hypothesis and every caller has it
+(`StateOK.wf`); `nativeRecLpsOk_spec` is PROVED at the corrected statement.
+
+##### R4.3 What closed
+
+Eight statements, every one at `[propext, Classical.choice, Quot.sound]`:
+
+* `structFieldTeleOf_spec` and `structFieldIdxOf_spec` (§R4.2's first finding),
+  through `denoteBP_someB` — the BINDER half of `stripPis`' inversion, which
+  round 3's `stripPis_some` stopped short of because its three consumers only
+  read the residual — and `denoteBinders_getD` at the position the bound
+  licenses;
+* `nativeRecLpsOk_spec`, on `beq_nhandleList_eq`;
+* `zipFvarDoms_spec` (`SumInstall.lean`), the list induction over
+  `fvarTypeD_run`;
+* `blockRenameTable_spec`, `eqApp3?_spec`, `iotaThmName_spec` and
+  `ctorTargetsFam_spec` (`Modeled.lean`) — the last is this tier's second cash
+  of `denoteE_inj`, at the one comparison the structure-likeness gate makes.
+
+`Bridge/Inductives/Rel.lean` grew by nine closed declarations, all of them
+things a later round will want: `denoteEList_drop` (`denoteEList_take`'s other
+half), `denoteBinders_eq_denoteBL` (the two tiers wrote the same binder-list
+denotation under two names; one induction identifies them),
+`denoteBP_someB`, `denoteBinders_getD`, `viewLs_run`, `denoteLs_of_view`,
+`fvarTypeD_run`, `denoteNListE_inj` and `beq_nhandleList_eq`
+(`denoteEList_inj` / `beq_ehandleList_eq` at NAME handles).
+
+##### R4.4 THE BLOCKER — `LiftSpec` does not state `BMExt`, and that is ten statements
+
+This round set out to take the installs or `Modeled.lean` and get a file to
+zero.  Neither happened, and the reason is worth writing down precisely,
+because it is one missing CONJUNCT in another tier's statement.
+
+`PStep` — this tier's PURE frame — has a `bm : BMExt s.store s'.store` clause
+(task #97-P3-1's binder-datum extension; `Ext` cannot say it because a `BMIdx`
+denotes nothing).  `Bridge/ExprOps/Subst.lean`'s `LiftSpec` and its entry
+point `liftLooseBVarsFast_spec` state `StateOK`, `Ext`, the cache and pin
+frames, two memo equations and `LiftAt` — and **not `BMExt`**.  Its sibling
+`InstLPureSpec` (the `instantiateList` family, same file, same round) does
+state it, and its arms discharge it with one `grind only [BMExt.trans,
+BMExt.refl]`.
+
+So a `PSpec`-grade twin of this tier that LIFTS cannot produce a `PStep` at
+all.  That is `structIdxAt_spec` and, through it, the whole of round 2's group
+3 — `structTeleAt`, `structIhApp`, `structRuleBodyR`, `structIhPis`,
+`structMinorTyR`, `structMinorsPisR`, `structMinorsLamsR`, `structRecTyR`,
+`structRecRhsR` — **ten statements**, which round 3's table listed as blocked
+on `liftLooseBVarsFast_spec` and which are blocked on one conjunct of it
+instead.  `CSpec`-grade twins are unaffected (`CoreStep` is `CheckOK` + `Ext` +
+`pins`, with no `BMExt`), which is why `Modeled.lean`'s `nestedRuleShape_spec`
+— the one twin of that file that lifts — is not on this list.
+
+**OWNER: task #97-P3-0's tier (`Bridge/ExprOps/**`).**  One conjunct in
+`LiftSpec`, threaded through `liftLooseBVarsGo_spec`'s arms exactly as
+`instListArmApp_spec` and `instListArmBind_spec` already thread it; then one
+more in `liftLooseBVarsFast_spec`, and `lowerBVarsGo_spec`'s family for
+`Modeled.lean`'s `lowerBVarsFast` if a PURE-grade consumer ever appears.
+
+This is the SAME SHAPE as round 3 §R3.8's `BvarBSpec` debt (two memo-frame
+conjuncts missing from `bvarBoundGo_spec`), and §R3.8's `FvarBSpec` cousin
+(`abstract1Fast_spec` takes it, `fvarB_spec` does not state `abs1C`).  Three
+frame conjuncts, one tier, and between them they block group 3 (ten), group 4
+(five) and `closeTelescope_spec` — and through `closeTelescope`,
+`checkSumTele`, `normCtorVal`, `checkSumCtor` and `checkSumCtors`.
+
+##### R4.5 Why no file reached zero, file by file
+
+| module | open | what stands between it and zero |
+|---|---:|---|
+| `StructInstall.lean` | 2 | `checkStructProjTable_spec` needs `structProjBodies_spec`, which is group 4, which is `BvarBSpec` (§R3.8).  The other one (`checkStructDomsAt_spec`) is `CoreSpec.knot`'s `defeq` slot and is reachable today |
+| `SumInstall.lean` | 13 | `closeTelescope_spec` is `FvarBSpec`, and four more (`checkSumTele`, `normCtorVal`, `checkSumCtor`, `checkSumCtors`) go through it; `nativeCapsAt_spec` is §R4.2's fourth finding |
+| `NativeInstall.lean` | 14 | `checkNativeTable_spec` needs `checkStructProjTable_spec`; `checkNativeRec_spec` and `checkNativeRules_spec` need group 3 (§R4.4); `nativeCaps_spec` is §R4.2's fourth finding |
+| `NativeParts.lean` | 21 | ten are group 3 (§R4.4); the other eleven are the recognisers, gated on `structShape_spec` |
+| `StructParts.lean` | 6 | three are `structShape_spec`'s block, three are group 4 (`BvarBSpec`) |
+| `Modeled.lean` | 27 | the LARGEST reachable block of the tier — see §R4.7 |
+
+`checkConstantVal_bridge` — round 3's headline blocker, "the campaign's
+bottleneck", which gated 26 of this tier's statements — is **PROVED** on
+`arena` now (`Bridge/Checker/Base.lean`: eleven guards and stages, no `sorry`
+of its own; it carries `sorryAx` only through two leaf walks,
+`allLevelParamsDefined_run` and `constsResolveFFast_run`).  `IFEnvCoh.push`,
+`Pushed.push`, `denoteFEnv_push` and `mkIFEnvGo_counter_lt`
+(`Bridge/Promote/Exact.lean`) are CLOSED outright.  The install layer is open
+for business; what is not is the frame layer under it.
+
+##### R4.6 What the Frontend tier asked for, priced
+
+Round 3 §R3.5 stated `structPartsCore?_isSome` and `nativeParts?_isSome` at
+`PSpecP` and asked round 4 whether they come cheap.  **They do not**, and the
+price is exactly what round 3 guessed: both are `structShape_spec`'s block.
+`structShape_spec` is the tier's group-2 gateway — three `stripPis`, a
+two-deep `view` dispatch, an INDEXED read of the binder telescope, a level
+handle comparison (`denoteL_inj`, still not stated) and five expression
+comparisons — and it is the single highest-leverage remaining proof of this
+tier: seventeen statements wait on it, including these two and the Frontend
+tier's `projRecOwners_run`.  One of its five pieces landed this round
+(`denoteBinders_getD` is the indexed binder read, §R4.3).
+
+##### R4.7 What the next round should do
+
+1. **`structShape_spec`** (§R4.6).  Seventeen statements, one proof, and one of
+   its five pieces is now in `Rel.lean`.  It also wants `denoteL_inj` at a
+   level handle, which `Rel.lean` does not yet state.
+2. **`Modeled.lean`'s remaining 27**, which is the tier's largest block with no
+   external blocker except `checkIotaThmN_spec`/`nestedRuleShape_spec`'s lift
+   (CSpec grade — unaffected by §R4.4).  `projBack_spec` and `projFwd_spec`
+   are the next two by cheapness: each is `projModelName`/`projFnName` in run
+   form (two `internNNode_run`s apiece) plus a `List.find?` alignment between
+   the twin's handle table and con-leche's `List.range nF` scan.
+3. **Chase §R4.4's one conjunct** with the `ExprOps` tier before starting group
+   3; it is a `grind only [BMExt.trans, BMExt.refl]` in a file that already
+   does exactly that three functions away.
 
 #### Round 3 — the three memoised walks, a seventh statement defect, and the `.projInfo` name gap (2026-09-22, Opus under Fable)
 

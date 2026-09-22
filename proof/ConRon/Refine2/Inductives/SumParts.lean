@@ -40,14 +40,37 @@ theorem ctors_copy_from_refines
     {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {o}
     (hrun : arena.inductives.sum_parts.ctors_copy_from cs i out = ok o) :
     absCtorsL o = absCtorsL out ++ absCtorsLFrom cs i := by
-  sorry
+  simp only [absCtorsL, absCtorsLFrom]
+  refine vec_cursor_copy cs _ _
+    (arena.inductives.sum_parts.ctors_copy_from cs) ?_ ?_ i out o hrun
+  · intro i out o hn h
+    rw [arena.inductives.sum_parts.ctors_copy_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < cs.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.sum_parts.ctors_copy_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨iv, nf⟩ := q
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, (iv1, nf), out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by simp [i_constant_val_dup_abs hiv1], h⟩
 
 /-- `ctors_copy` is the identity on the abstraction. -/
 theorem ctors_copy_refines
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {o}
     (hrun : arena.inductives.sum_parts.ctors_copy cs = ok o) :
     absCtorsL o = absCtorsL cs := by
-  sorry
+  rw [arena.inductives.sum_parts.ctors_copy] at hrun
+  have h := ctors_copy_from_refines hrun
+  simpa [absCtorsL, absCtorsLFrom, alloc.vec.Vec.new,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h
 
 /-- `inductive_shape_dup` is the identity on the abstraction — the twin's
 `InductiveShape` is a value and has no copy. -/
@@ -55,7 +78,17 @@ theorem inductive_shape_dup_refines
     {p : arena.inductives.sum_parts.InductiveShape} {o}
     (hrun : arena.inductives.sum_parts.inductive_shape_dup p = ok o) :
     absInductiveShape o = absInductiveShape p := by
-  sorry
+  rw [arena.inductives.sum_parts.inductive_shape_dup] at hrun
+  obtain ⟨iv, hiv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨iv1, hiv1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨v1, hv1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [← Result.ok_injective hrun]
+  simp only [absInductiveShape, i_constant_val_dup_abs hiv,
+    i_constant_val_dup_abs hiv1, dupId_nidx _ _ hn, dupId_lidx _ _ hl,
+    ctors_copy_refines hv, absEIdxL, eidx_vec_dup_val hv1]
 
 /-! ## The member split
 
@@ -76,7 +109,65 @@ theorem sum_split_from_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
         absU q.2.2.2.1, q.2.2.2.2.val.map absIRecRule))
       = (sumSplit (absICILFrom block i)).map
           fun q => (absCtors3L out ++ q.1, q.2) := by
-  sorry
+  refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
+    (fun i out => ∀ o, arena.inductives.sum_parts.sum_split_from block i out = ok o →
+      (o.map fun q => (absCtors3L q.1, absIConstantVal q.2.1, absU q.2.2.1,
+          absU q.2.2.2.1, q.2.2.2.2.val.map absIRecRule))
+        = (sumSplit (absICILFrom block i)).map
+            fun q => (absCtors3L out ++ q.1, q.2)) ?_ ?_ i out o hrun
+  · intro i out hn o h
+    rw [arena.inductives.sum_parts.sum_split_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len block by scalar_tac), Result.ok.injEq] at h
+    subst h
+    simp only [absICILFrom, List.drop_eq_nil_of_le hn, List.map_nil, Option.map_none]
+    rfl
+  · intro i out hi ih o h
+    rw [arena.inductives.sum_parts.sum_split_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hb, hiiv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hii)
+    have hdrop : block.val.drop i.val = ii :: block.val.drop (i.val + 1) := by
+      rw [List.drop_eq_getElem_cons hb, hiiv]
+    simp only [absICILFrom, hdrop, List.map_cons]
+    cases ii with
+    | AxiomInfo cv => obtain rfl := Result.ok_injective h; rfl
+    | DefnInfo cv v hint => obtain rfl := Result.ok_injective h; rfl
+    | ThmInfo cv v => obtain rfl := Result.ok_injective h; rfl
+    | IndInfo cv caps => obtain rfl := Result.ok_injective h; rfl
+    | ProjInfo tbl => obtain rfl := Result.ok_injective h; rfl
+    | CtorInfo cv np nf =>
+      simp only [] at h
+      obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v := absSz_add_one hi2
+      have h2 := ih i2 out1 hi2v o h
+      rw [h2]
+      simp only [absICILFrom, hi2v, absIConstantInfo, absCtors3L,
+        ConRon.Refine.vec_push_val hout1, List.map_append, List.map_cons,
+        List.map_nil, i_constant_val_dup_abs hiv]
+      simp only [sumSplit]
+      cases sumSplit ((block.val.drop (i.val + 1)).map absIConstantInfo) <;> simp
+    | RecInfo cv mi rp rules =>
+      simp only [] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      by_cases hlen : i.val + 1 = block.val.length
+      · rw [if_pos (show i2 = alloc.vec.Vec.len block by scalar_tac)] at h
+        obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain rfl := Result.ok_injective h
+        simp only [absIConstantInfo,
+          List.drop_eq_nil_of_le (by omega : block.val.length ≤ i.val + 1),
+          List.map_nil, Option.map_some]
+        simp [sumSplit, i_constant_val_dup_abs hiv, i_rec_rules_dup_abs hv]
+      · rw [if_neg (show ¬ i2 = alloc.vec.Vec.len block by scalar_tac)] at h
+        obtain rfl := Result.ok_injective h
+        have hlt : i.val + 1 < block.val.length := by omega
+        rcases hr : block.val.drop (i.val + 1) with _ | ⟨y, ys⟩
+        · exact absurd (List.drop_eq_nil_iff.mp hr) (by omega)
+        · simp only [absIConstantInfo, List.map_cons, Option.map_none]
+          rfl
 
 /-- `sum_split` ⊑ `sumSplit`. -/
 theorem sum_split_refines {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
@@ -84,7 +175,10 @@ theorem sum_split_refines {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (o.map fun q => (absCtors3L q.1, absIConstantVal q.2.1, absU q.2.2.1,
         absU q.2.2.2.1, q.2.2.2.2.val.map absIRecRule))
       = sumSplit (absICIL block) := by
-  sorry
+  rw [arena.inductives.sum_parts.sum_split] at hrun
+  have h := sum_split_from_refines hrun
+  simpa [absCtors3L, absICIL, absICILFrom, alloc.vec.Vec.new,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h
 
 /-! ## The completion, and the two readers -/
 
@@ -129,5 +223,14 @@ theorem major_idx_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
   have h3 := ConRon.Refine.Nat.uadd_val hrun
   simp only [InductiveShape.majorIdx, absInductiveShape, absU] at *
   omega
+
+/-! ## The axiom census
+
+The file's five closed `_refines` read `[propext, Classical.choice,
+Quot.sound]` and nothing else; the block's dearest stands for them. -/
+
+/-- info: 'ConRon.Refine2.sum_split_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sum_split_refines
+
 
 end ConRon.Refine2

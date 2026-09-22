@@ -137,8 +137,45 @@ official's `is_K_target`.  Twinned in `SumInstall.lean` rather than
 `NativeInstall.lean` (task #97d-2's deviation 3: `checkSumInd`'s `capsOf`
 became `isRec`, which moves this one module earlier).
 
-`sorry`: the shape relation's fields plus `Bridge/Specs.lean`'s `lvlEq?`
-reader; the answer is `Frontend.denoteCaps` at the one name handle. -/
+**STATEMENT DEFECT, round 4 — and it is NOT confined to this statement.**
+The `_` arm of both sides answers the DEFAULT capability record, and the two
+defaults do not correspond: `Arena/Env.lean`'s `IIndCaps.etaCtor` defaults to
+`(default : NIdx)`, the zero word, while `ConLeche.IndCaps.etaCtor` defaults
+to `.anonymous` — and `Arena/Env.lean`'s own comment on that field says so
+outright ("con-leche's default is `.anonymous`; the handle's is the zero word.
+Neither is a name the field ever *denotes*").  `Frontend.denoteCaps` READS
+`etaCtor` unconditionally, so `RCaps (ConLeche.nativeCapsAt q isRec)` at a
+block with zero or two-or-more constructors asks for
+
+    denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous
+
+and **no invariant of this library says that**.  `StateOK` does not; `PinsOK`
+does not (its six clauses are the forty-nine pin slots, the reserved list and
+the three nullary values).  The zero word is tag `NTag.anonymous = 0`, tier
+`tierP`, index 0, so it decodes exactly when the persistent name store's
+`anons` table is non-empty — true in every state the checker actually reaches,
+and provable from nothing that is currently stated.
+
+**Why this is bigger than one `sorry`.**  `checkSumInd` pushes
+`.indInfo cvTa caps` with exactly this record, so at every MULTI-CONSTRUCTOR
+inductive the fixpoint route installs, `Frontend.denoteCI` of the new row —
+and therefore `denoteFEnv` of the new index, and therefore `InstRel`'s
+`denote` clause and `FoldOK.denote` above it — is `none` unless the zero name
+handle decodes.  This is a hole in the DENOTATION layer, not in this tier's
+statement layer, and it wants a decision one level up: either the pin
+invariant gains the clause (`denoteN s.store.ns default = some .anonymous`,
+which `internAllPins` establishes and which is one lemma once stated), or
+`Frontend.denoteCaps` stops reading `etaCtor` where `eta = false` — the same
+"the denotation should forget the representation's extra data" argument that
+settled `.projInfo`'s `tableName` in round 3, but here the forgetting is
+conditional and that is a Frontend-tier call.
+
+Left `sorry` rather than proved at a weakened statement: the singleton arm
+goes through today (the shape relation's fields, `readLevel_spec` — the twin
+does NOT call `lvlEq?`, so `PSpec` is the right grade — and `denoteCV_name` at
+the constructor handle), and it is the `_` arm alone that is stuck.  The same
+hole blocks `nativeCaps_spec` (`Bridge/Inductives/NativeInstall.lean`), which
+is this statement at `p.toInductiveShape`. -/
 theorem nativeCapsAt_spec (p : Arena.InductiveShape)
     (q : ConLeche.InductiveShape) (isRec : Bool) :
     PSpec (fun st => ShapeRel st p q)
@@ -236,7 +273,10 @@ theorem normFieldDoms_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 `normCtorVal`: it reads each free variable's own type off the store, which is
 what makes the normalised domains the ones the walk opened.
 
-`sorry`: `Bridge/ExprOps/Leaves.lean`'s `fvarTypeD` spec, a list induction. -/
+**PROVED** (task #97-P3-Ind round 4): the list induction over `fvarTypeD_run`
+(`Bridge/Inductives/Rel.lean`, off `Bridge/ExprOps/Spine.lean`'s closed
+`fvarTypeD_spec`).  `fvarTypeD` is read-only, so the whole zip is one
+`PStep.refl`. -/
 theorem zipFvarDoms_spec (xs : List EIdx) (xsP : List Expr)
     (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)) :
     PSpec (fun st => Frontend.denoteEList st xs = some xsP ∧
@@ -244,7 +284,56 @@ theorem zipFvarDoms_spec (xs : List EIdx) (xsP : List Expr)
       (Arena.zipFvarDoms xs bs)
       (fun st r => ∃ ts, denoteBinders st r = some ts ∧
         ts.length = min xsP.length bsP.length) := by
-  sorry
+  induction xs generalizing xsP bs bsP with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hx, hb⟩ := hpre
+    simp only [Frontend.denoteEList, Option.some.injEq] at hx
+    subst hx
+    simp only [Arena.zipFvarDoms] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, [], rfl, by simp⟩
+  | cons x xs ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hx, hb⟩ := hpre
+    cases bs with
+    | nil =>
+      simp only [denoteBinders, Option.some.injEq] at hb
+      subst hb
+      simp only [Arena.zipFvarDoms] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨PStep.refl hok, [], rfl, by simp⟩
+    | cons b bs =>
+      obtain ⟨bt, bm⟩ := b
+      simp only [Frontend.denoteEList] at hx
+      cases hx1 : denoteE s₀.store x with
+      | none => rw [hx1] at hx; simp at hx
+      | some xP =>
+        cases hxs : Frontend.denoteEList s₀.store xs with
+        | none => rw [hx1, hxs] at hx; simp at hx
+        | some xsP' =>
+          rw [hx1, hxs] at hx
+          obtain rfl := Option.some.inj hx
+          simp only [denoteBinders] at hb
+          cases hb1 : denoteE s₀.store bt with
+          | none => rw [hb1] at hb; simp at hb
+          | some btP =>
+            cases hbs : denoteBinders s₀.store bs with
+            | none => rw [hb1, hbs] at hb; simp at hb
+            | some bsP' =>
+              rw [hb1, hbs] at hb
+              obtain rfl := Option.some.inj hb
+              simp only [Arena.zipFvarDoms] at hrun
+              obtain ⟨t, s₁, h1, h2⟩ := bindOk hrun
+              obtain ⟨rfl, ht⟩ := fvarTypeD_run hok hx1 h1
+              obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+              obtain ⟨hstep, ts, hts, hlen⟩ :=
+                ih xsP' bs bsP' _ s₂ rest hok ⟨hxs, hbs⟩ h3
+              obtain ⟨rfl, rfl⟩ := pureOk h4
+              refine ⟨hstep, (xP.fvarTypeD, bm) :: ts, ?_, ?_⟩
+              · simp only [denoteBinders, denote_ext ht hstep.ext, hts]
+              · simp only [List.length_cons, hlen]
+                omega
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF

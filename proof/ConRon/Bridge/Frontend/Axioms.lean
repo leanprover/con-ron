@@ -24,6 +24,33 @@ it closes, its census belongs here.
 composition, the pure fold's stream ingredient and two of the three capstone
 letters to the closed list; they are in their own sections below.
 
+**Round four** adds item 5 in full (the three table entries), `blockRecOf_run`
+of item 6, and four of `ProjRec.lean`'s nine — `isProjIotaName_run`,
+`projIotaLevel_run`, `stripPisAll_run`, `mkLams_run`.  Its two findings are
+statement defects, not proof gaps: finding 15 (`projIotaLevel_run`'s frame was
+`s' = s` at a walk that interns `Eq`) is REPAIRED and closed here; finding 16
+(`IConstantInfo.toConstantVal` and `IDeclaration.names` are not exact at a
+`.projInfo` without `IProjTableOK`) is reported and left open, because the
+repair adds a hypothesis and that is the maintainer's call.
+
+**Round five** repairs finding 16 and closes five more.  The repair is two
+things, and the census records both: the frame half is a CORRECTION (five
+statements said `s' = s` of a run that interns `Sort 1` at a `.projInfo`) and
+the name half is a STRENGTHENING of the seam's promise plus a new clause on
+`StateDRel`/`ParseResultRel` — `projNamed`, the move `Bridge/StateOK.lean`'s
+`IFEnvOK.proj` made one module over, for exactly the same reason.  What closes
+on top of it is `noteDecl_run`/`pushDecl_run` (item 6) and the prelude's front,
+`preludeKey_run`/`pick_denote`/`frontOf_run` (item 20), with the new
+vocabulary and its name equations below.
+
+It also states the two con-leche-tier facts `occursConstFast_run` needs and
+con-leche does not have (`Bridge/Frontend/ProjRec.lean`'s `clOccursConstB_eq`
+and `clOccursConstGo_eq`, §5's finding-6 shape).  Their corollary
+`clOccursConstFast_eq` is proved on top of them and therefore carries
+`sorryAx`, so it is NOT in the list below — which is the rule working as
+intended: the census lists what is proved, and that one is proved *modulo an
+ask of con-leche*.
+
 **Round three** adds the INTERN direction (item 2) and the seam (item 8).  Two
 of the four named hypotheses are therefore no longer only hypotheses:
 `ModellerWF` and `ModellerRefines` hold of the modeller the driver actually
@@ -44,6 +71,20 @@ namespace ConRon.Bridge.Frontend
 #print axioms IdTableRel.bound
 #print axioms IdTableRel.singleton
 #print axioms IdTableRel.insert
+
+#print axioms ciName_denote_proj
+#print axioms ciName_denote_of
+#print axioms ciNames_denote
+#print axioms declNames_denote
+#print axioms IProjNamed.mono
+#print axioms CIProjNamed.mono
+#print axioms CIProjNamed.of_ne
+#print axioms CIProjNamed.of_proj
+#print axioms DeclProjNamed.mono
+#print axioms DeclProjNamed.of_indDecl
+#print axioms DeclsProjNamed.mono
+#print axioms DeclsProjNamed.empty
+#print axioms DeclsProjNamed.push
 
 #print axioms ListRel.length_eq
 #print axioms ListRel.mono
@@ -208,11 +249,35 @@ has. -/
 #print axioms inProcessModeller_wf
 #print axioms inProcessModeller_refines
 
-/-! ## The projection artifact's name (round 3) -/
+/-! ## The projection artifact's name and level (rounds 3 and 4)
+
+Round 4 adds the recogniser (`isProjIotaName_run`), the `Eq`-level read
+(`projIotaLevel_run` — restated over `ParseStep` and as a two-sided `OptRel`,
+finding 15) and the two telescope peels the rewrite is built out of. -/
 
 #print axioms viewN_run
+#print axioms viewLs_run
+#print axioms readLevel_run
+#print axioms view_run
+#print axioms piResult_run
+#print axioms getAppFn_run
 #print axioms nsWF_of_StateOK
+#print axioms denoteN_str_inv
+#print axioms view_str_of_denoteN
 #print axioms projIotaName_run
+#print axioms clIsProjIotaName_false
+#print axioms isProjIotaName_run
+#print axioms denoteLList_length
+#print axioms denoteLList_singleton
+#print axioms clProjIotaLevel_eq
+#print axioms projIotaLevel_none
+#print axioms projIotaLevel_run
+
+/-! ## The rewrite's two telescope peels (round 4) -/
+
+#print axioms stripPisAll_stop
+#print axioms stripPisAll_run
+#print axioms mkLams_run
 
 /-! ## The parse's initial state (round 2) — CLOSED
 
@@ -222,6 +287,31 @@ round 2 closed it: the two intern specs through `AM.of_run`, `IdTableRel`'s
 `PersN_of_view` / `PersL_of_view`. -/
 
 #print axioms StateD_init_run
+
+/-! ## The three table entries (round 4) — item 5 CLOSED
+
+The rebinding guards, the `PersStateD` half of a table write, and the three
+entry parsers: `parseNameEntryD_run`, `parseLevelEntryD_run` and — the tier's
+real work, ten constructors — `parseExprEntryD_run`. -/
+
+#print axioms freshName_run
+#print axioms freshLevel_run
+#print axioms freshExpr_run
+#print axioms PersStateD.insertName
+#print axioms PersStateD.insertLevel
+#print axioms PersStateD.insertExpr
+#print axioms denoteLList_mem
+#print axioms StateD_levels_run
+#print axioms internLNode_istep
+#print axioms internLsNode_istep
+#print axioms parseNameEntryD_run
+#print axioms parseLevelEntryD_run
+#print axioms parseExprEntryD_run
+
+/-! ## The parsed block, resolved (round 4) -/
+
+#print axioms parseRules_run
+#print axioms blockRecOf_run
 
 /-! ## The line's sum -/
 
@@ -278,6 +368,21 @@ can tell the two apart.
 #print axioms chunkFinish_run
 #print axioms parseBytes_run
 #print axioms parseChunksGo_run
+#print axioms toConstantVal_run
+#print axioms noteBlock_run
+#print axioms noteFold_rel
+#print axioms noteDecl_run
+#print axioms pushDecl_run
+#print axioms denoteNList_contains
+#print axioms declares_denote
+#print axioms denoteDecls_getElem?
+#print axioms denoteDecls_eraseIdx
+#print axioms denoteDecls_findIdx
+#print axioms mem_eraseIdxIfInBounds
+#print axioms preludeKey_run
+#print axioms pick_denote
+#print axioms frontOf_run
+
 #print axioms parseChunks_run
 #print axioms builtinPreludeE_run
 #print axioms preparePrelude_run

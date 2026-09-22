@@ -817,4 +817,221 @@ theorem CheckOK.monoF {mode : CheckMode} {env : Env} {fe : IFEnv}
   pins := h.pins.mono hx hp
   ienv := h.ienv.mono hx
 
+/-! ## The stored constant's NAME, and the `.projInfo` name gap
+
+Task #97-P3-Ind round 3 found and proved these five, in
+`Bridge/Inductives/Rel.lean`, and named this module as where they belong:
+the lowest one that has both `Frontend.denoteCI` and `IProjTableOK`, and the
+one below the Checker tier — whose `IFEnvOK_of_denote`, `denoteFEnv_restrictTo`
+and `installBasisDecl_bridge` were the three sites stuck on them and cannot
+see `Bridge/Inductives/**`.  Round 4 moved them here unchanged.
+
+`Frontend.denoteProjTable` drops `tableName`, so
+`Frontend.denoteCI st ci = some c` does NOT give
+`denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
+STORED `t.tableName` and the pure side the RECOMPUTED
+`projTableName t.structName`.  The fix is neither a hypothesis at each site
+(that weakens the statement) nor a `denoteProjTable` that reads `tableName`
+(the denotation is deliberately forgetful — `tableName` is the arena's own
+redundancy, kept so the index's key is pure).  It is `IProjTableOK.named`,
+the invariant that ties the two names, and it is available at every site that
+needs it: inside the index through `IFEnvOK.proj`, and at the ONE install that
+creates a `.projInfo` row (`checkStructProjTable`) because the table was just
+built there.  Everywhere else `ci` is provably not a `.projInfo` and
+`denoteCI_name` applies with no invariant at all. -/
+
+/-- con-leche: none — a denoting `IConstantVal`'s TYPE denotes: the one
+projection of `Frontend.denoteCV` this tier reads directly. -/
+theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) : denoteE st cv.type = some c.type := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-- con-leche: none — a denoting `IConstantVal`'s LEVEL PARAMETERS denote.
+(`Bridge/Checker/Base.lean`'s `denoteCV_inv` is the three-way version, but it
+sits in a module the inductive tier cannot see.) -/
+theorem denoteCV_lps {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) :
+    Frontend.denoteNList st.ns cv.levelParams = some c.levelParams := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-- con-leche: none — a denoting `IConstantVal`'s NAME denotes. -/
+theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) :
+    denoteN st.ns cv.name = some c.name := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+
+/-! ### The `.projInfo` NAME GAP
+
+`Frontend.denoteProjTable` drops `tableName`, so
+`Frontend.denoteCI st ci = some c` does NOT give
+`denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
+STORED `t.tableName` and the pure side is the RECOMPUTED
+`projTableName t.structName`.  Three sites above this tier have hit the same
+wall — `IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and (task #97-P3-Checker
+round 2) `installBasisDecl_bridge` — and the fix is NOT to add a hypothesis to
+any of them, nor to make `denoteProjTable` read `tableName` (the denotation is
+deliberately forgetful; `tableName` is the arena's own redundancy, kept so the
+index's key is pure).
+
+The fix is these three lemmas.  `IProjTableOK.named` is the invariant that
+ties the two names, and it is available at every site that needs it: inside
+the index through `IFEnvOK.proj`, and at the ONE install that creates a
+`.projInfo` row (`checkStructProjTable`, this tier's) because the table was
+just built there.  Everywhere else `ci` is provably not a `.projInfo` and the
+first lemma applies with no invariant at all.
+
+**They belong in `Bridge/StateOK.lean`, beside `IProjTableOK`** — that is the
+lowest module that has both `Frontend.denoteCI` and the invariant, and it is
+below the Checker tier, which cannot see this file.  They are proved here
+because this tier owns `IProjTableOK`'s `named` clause and its debtor. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:644 ConstantInfo.name — **a stored
+constant that is not a projection table is named by its own handle.**  Six of
+the seven constructors carry an `IConstantVal` and `denoteCV_name` is the
+whole proof. -/
+theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (hnp : ∀ t, ci ≠ .projInfo t)
+    (h : Frontend.denoteCI st ci = some c) :
+    denoteN st.ns ci.name = some c.name := by
+  cases ci with
+  | axiomInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact denoteCV_name hcv
+  | ctorInfo v nP nF =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact denoteCV_name hcv
+  | defnInfo v e hh =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hcv, he] at h; simp at h
+      | some x =>
+        rw [hcv, he] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | thmInfo v e =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hcv, he] at h; simp at h
+      | some x =>
+        rw [hcv, he] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | indInfo v caps =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases hc : Frontend.denoteCaps st caps with
+      | none => rw [hcv, hc] at h; simp at h
+      | some x =>
+        rw [hcv, hc] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | recInfo v mI rP rs =>
+    simp only [Frontend.denoteCI] at h
+    cases hcv : Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases hr : Frontend.denoteRules st rs with
+      | none => rw [hcv, hr] at h; simp at h
+      | some x =>
+        rw [hcv, hr] at h
+        obtain rfl := Option.some.inj h
+        exact denoteCV_name hcv
+  | projInfo t => exact absurd rfl (hnp t)
+
+/-- con-leche: ConLeche/Kernel/Env.lean:642 ConstantInfo.toConstantVal (the
+`.projInfo` arm) — **and a projection table is named by its handle exactly
+when `IProjTableOK.named` says so.**  That clause is not decoration: it is the
+only thing that ties the stored `tableName` to the recomputed
+`projTableName`. -/
+theorem denoteCI_name_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
+    (hok : IProjTableOK st t)
+    (h : Frontend.denoteCI st (.projInfo t) = some c) :
+    denoteN st.ns (IConstantInfo.name (.projInfo t)) = some c.name := by
+  obtain ⟨sn, hsn, htn⟩ := hok.named
+  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+  obtain ⟨pt, hpt, rfl⟩ := h
+  simp only [Frontend.denoteProjTable, hsn] at hpt
+  cases hlps : Frontend.denoteNList st.ns t.levelParams with
+  | none => rw [hlps] at hpt; simp at hpt
+  | some lps =>
+    cases hc : denoteN st.ns t.ctor with
+    | none => rw [hlps, hc] at hpt; simp at hpt
+    | some cn =>
+      cases hss : denoteL st.ls t.structSort with
+      | none => rw [hlps, hc, hss] at hpt; simp at hpt
+      | some ss =>
+        cases hbs : Frontend.denoteEArray st t.bodies with
+        | none => rw [hlps, hc, hss, hbs] at hpt; simp at hpt
+        | some bs =>
+          cases hgs : denoteLList st.ls t.guards with
+          | none => rw [hlps, hc, hss, hbs, hgs] at hpt; simp at hpt
+          | some gs =>
+            rw [hlps, hc, hss, hbs, hgs] at hpt
+            obtain rfl := Option.some.inj hpt
+            exact htn
+
+/-- con-leche: none — **the two halves as one**: the name fact at any stored
+constant, asking for `IProjTableOK` only where it is a projection table.  This
+is the shape the three stuck sites want. -/
+theorem denoteCI_name_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (hproj : ∀ t, ci = .projInfo t → IProjTableOK st t)
+    (h : Frontend.denoteCI st ci = some c) :
+    denoteN st.ns ci.name = some c.name := by
+  cases ci with
+  | projInfo t => exact denoteCI_name_proj (hproj t rfl) h
+  | axiomInfo v => exact denoteCI_name (by simp) h
+  | defnInfo v e hh => exact denoteCI_name (by simp) h
+  | thmInfo v e => exact denoteCI_name (by simp) h
+  | indInfo v caps => exact denoteCI_name (by simp) h
+  | ctorInfo v nP nF => exact denoteCI_name (by simp) h
+  | recInfo v mI rP rs => exact denoteCI_name (by simp) h
+
+
 end ConRon.Bridge

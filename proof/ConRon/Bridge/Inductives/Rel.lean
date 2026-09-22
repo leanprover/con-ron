@@ -575,6 +575,22 @@ theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
     (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
   AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
 
+/-- con-leche: none — **`viewLs`, as a run**: `view_run` at the level-list
+store.  `eqApp3?` reads a `const` node's universe arguments through it. -/
+theorem viewLs_run {s s' : AState} {u : LsIdx} {v : List LIdx}
+    (hrun : viewLs u s = .ok (v, s')) :
+    s' = s ∧ s.store.lss.view u = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (viewLs_spec s u)
+
+/-- con-leche: none — a level-list handle's denotation, read through its
+view. -/
+theorem denoteLs_of_view {st : EStore} {u : LsIdx} {v : List LIdx}
+    {ls : List Level} (hv : st.lss.view u = some v)
+    (hd : denoteLs st.lss u = some ls) : denoteLList st.ls v = some ls := by
+  have h : denoteLList st.lss.ls v = some ls := by
+    simpa only [denoteLs, hv] using hd
+  exact h
+
 /-- con-leche: none — a level-handle list that denotes denotes at each
 element. -/
 theorem denoteLList_mem {st : LStore} :
@@ -868,6 +884,73 @@ theorem beq_ehandleList_eq {st : EStore} (hwf : StoreWF st)
     rw [h1] at hne
     exact absurd hne (by simp)
 
+/-- con-leche: none — `denoteN_inj` at a LIST: two NAME-handle lists that
+denote the same names ARE the same list.  `denoteEList_inj`'s twin, for the
+level-parameter lists the recursor's pin compares. -/
+theorem denoteNListE_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ {as bs : List NIdx} {xs : List ConLeche.Name},
+      Frontend.denoteNList st.ns as = some xs →
+      Frontend.denoteNList st.ns bs = some xs → as = bs := by
+  obtain ⟨rk, hrk⟩ := hwf
+  intro as
+  induction as with
+  | nil =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteNList] at ha
+    obtain rfl := Option.some.inj ha
+    cases bs with
+    | nil => rfl
+    | cons b bs =>
+      simp only [Frontend.denoteNList] at hb
+      split at hb
+      · exact absurd hb (by simp)
+      · exact absurd hb (by simp)
+  | cons a as ih =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteNList] at ha
+    cases hx : denoteN st.ns a with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : Frontend.denoteNList st.ns as with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        obtain rfl := Option.some.inj ha
+        cases bs with
+        | nil => simp only [Frontend.denoteNList] at hb; exact absurd hb (by simp)
+        | cons b bs =>
+          simp only [Frontend.denoteNList] at hb
+          cases hy : denoteN st.ns b with
+          | none => rw [hy] at hb; simp at hb
+          | some z =>
+            cases hys : Frontend.denoteNList st.ns bs with
+            | none => rw [hy, hys] at hb; simp at hb
+            | some zs =>
+              rw [hy, hys] at hb
+              obtain ⟨rfl, rfl⟩ := List.cons.inj (Option.some.inj hb)
+              rw [denoteN_inj hrk.nsWF hx hy, ih hxs hys]
+
+/-- con-leche: none — and so a NAME-handle-list comparison is a structural
+one, at both signs. -/
+theorem beq_nhandleList_eq {st : EStore} (hwf : StoreWF st)
+    {as bs : List NIdx} {xs ys : List ConLeche.Name}
+    (ha : Frontend.denoteNList st.ns as = some xs)
+    (hb : Frontend.denoteNList st.ns bs = some ys) : (as == bs) = (xs == ys) := by
+  cases h1 : as == bs with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteNListE_inj hwf ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
 /-- con-leche: none — a denoting handle list denotes at a PREFIX. -/
 theorem denoteEList_take {st : EStore} :
     ∀ {hs : List EIdx} {xs : List Expr},
@@ -896,6 +979,72 @@ theorem denoteEList_take {st : EStore} :
         | succ n =>
           simp only [List.take_succ_cons, Frontend.denoteEList, hx, ih hxs n]
 
+/-- con-leche: none — a denoting handle list denotes at a SUFFIX, the other
+half of `denoteEList_take`: `structFieldIdxOf` answers `getAppArgs.drop nP`. -/
+theorem denoteEList_drop {st : EStore} :
+    ∀ {hs : List EIdx} {xs : List Expr},
+      Frontend.denoteEList st hs = some xs → ∀ (n : Nat),
+        Frontend.denoteEList st (hs.drop n) = some (xs.drop n) := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs h n
+    simp only [Frontend.denoteEList] at h
+    obtain rfl := Option.some.inj h
+    simp [Frontend.denoteEList]
+  | cons a as ih =>
+    intro xs h n
+    simp only [Frontend.denoteEList] at h
+    cases hx : denoteE st a with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      cases hxs : Frontend.denoteEList st as with
+      | none => rw [hx, hxs] at h; simp at h
+      | some ys =>
+        rw [hx, hxs] at h
+        obtain rfl := Option.some.inj h
+        cases n with
+        | zero => simp only [List.drop_zero, Frontend.denoteEList, hx, hxs]
+        | succ n => simpa only [List.drop_succ_cons] using ih hxs n
+
+/-- con-leche: none — **`denoteBinders` IS `Bridge/ExprOps/Spine.lean`'s
+`denoteBL`**: the same definition under two names, written independently by
+the two tiers (this one's note says `Bridge/Rel.lean` has no relation for the
+shape; the `ExprOps` tier grew one for `stripPis`' answer).  One induction
+identifies them, and it is what lets this tier read the BINDERS off
+`stripPis` rather than only the residual. -/
+theorem denoteBinders_eq_denoteBL {st : EStore} :
+    ∀ (bs : List (EIdx × BinderMeta)),
+      denoteBinders st bs = ExprOps.denoteBL st bs := by
+  intro bs
+  induction bs with
+  | nil => rfl
+  | cons a as ih =>
+    obtain ⟨t, m⟩ := a
+    simp only [denoteBinders, ExprOps.denoteBL, ih]
+    rfl
+
+/-- con-leche: none — `stripPis`' `some` answer, with its BINDER LIST: the
+inversion `Bridge/Inductives/StructParts.lean`'s `stripPis_some` stopped short
+of, because its three consumers only read the residual.  The two field
+readers read the binders. -/
+theorem denoteBP_someB {st : EStore} {k : Nat} {cP : Expr}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
+    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧
+      denoteBinders st bs = some xs ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      refine ⟨xs, x, (Option.some.inj h).symm, ?_, ?_⟩
+      · rw [denoteBinders_eq_denoteBL]; exact hb
+      · first | exact he | rfl
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean getAppFn — the run form of
 `Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
 theorem getAppFn_run {fuel : Nat} {s₀ s' : AState} {h r : EIdx} {hP : Expr}
@@ -915,6 +1064,16 @@ theorem getAppArgs_run {fuel : Nat} {s₀ s' : AState} {h : EIdx}
     s' = s₀ ∧ Frontend.denoteEList s₀.store rs = some hP.getAppArgs := by
   obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (ExprOps.getAppArgs_spec fuel s₀ h hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 hP hd⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — the run
+form of `Bridge/ExprOps/Spine.lean`'s closed `fvarTypeD_spec`. -/
+theorem fvarTypeD_run {s₀ s' : AState} {h r : EIdx} {hP : Expr}
+    (hok : StateOK s₀) (hd : denoteE s₀.store h = some hP)
+    (hrun : Arena.fvarTypeD h s₀ = .ok (r, s')) :
+    s' = s₀ ∧ denoteE s₀.store r = some hP.fvarTypeD := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.fvarTypeD_spec s₀ h hok (by rw [hd]; rfl))
   exact ⟨h1, h2 hP hd⟩
 
 /-- con-leche: none — **the level list reads at an INDEX**, with the fallback
@@ -1054,178 +1213,46 @@ theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
           ih xs hstep1.ok hg' (denoteEList_ext hstep1.ext _ _ has) h2
         exact ⟨hstep1.trans hstep2, hr⟩
 
-/-- con-leche: none — a denoting `IConstantVal`'s TYPE denotes: the one
-projection of `Frontend.denoteCV` this tier reads directly. -/
-theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
-    (h : Frontend.denoteCV st cv = some c) : denoteE st cv.type = some c.type := by
-  simp only [Frontend.denoteCV] at h
-  cases hn : denoteN st.ns cv.name with
-  | none => rw [hn] at h; simp at h
-  | some n =>
-    cases hl : Frontend.denoteNList st.ns cv.levelParams with
-    | none => rw [hn, hl] at h; simp at h
-    | some lps =>
-      cases ht : denoteE st cv.type with
-      | none => rw [hn, hl, ht] at h; simp at h
-      | some ty =>
-        rw [hn, hl, ht] at h
+/-! ### The stored constant's NAME, and the `.projInfo` name gap — MOVED
+
+`denoteCV_type`, `denoteCV_name`, `denoteCI_name`, `denoteCI_name_proj` and
+`denoteCI_name_of` were proved here in round 3 and **moved to
+`Bridge/StateOK.lean` in round 4**, beside `IProjTableOK` — the lowest module
+that has both `Frontend.denoteCI` and the invariant, and the one below the
+Checker tier, whose `IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and
+`installBasisDecl_bridge` need them and cannot see `Bridge/Inductives/**`.
+They are in scope here unchanged (`ConRon.Bridge` is this namespace's
+parent), so every use in this tier reads the same. -/
+
+/-- con-leche: none — **a denoting binder telescope denotes AT A POSITION**,
+which is the read `structFieldTeleOf` and `structFieldIdxOf` make.  The bound
+is not decoration: below it the two sides' `getD` FALLBACKS are unrelated
+(`default : EIdx × BinderMeta` on one side, `default : Expr × BinderMeta` on
+the other), which is the defect round 4 records at those two statements. -/
+theorem denoteBinders_getD {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)} {k : Nat},
+      denoteBinders st bs = some xs → k < bs.length →
+      denoteE st (bs.getD k default).1 = some (xs.getD k default).1 := by
+  intro bs
+  induction bs with
+  | nil => intro xs k _ hk; simp at hk
+  | cons a as ih =>
+    intro xs k h hk
+    obtain ⟨t, m⟩ := a
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some x =>
+      cases has : denoteBinders st as with
+      | none => rw [ht, has] at h; simp at h
+      | some ys =>
+        rw [ht, has] at h
         obtain rfl := Option.some.inj h
-        rfl
-
-/-- con-leche: none — a denoting `IConstantVal`'s NAME denotes. -/
-theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
-    (h : Frontend.denoteCV st cv = some c) :
-    denoteN st.ns cv.name = some c.name := by
-  simp only [Frontend.denoteCV] at h
-  cases hn : denoteN st.ns cv.name with
-  | none => rw [hn] at h; simp at h
-  | some n =>
-    cases hl : Frontend.denoteNList st.ns cv.levelParams with
-    | none => rw [hn, hl] at h; simp at h
-    | some lps =>
-      cases ht : denoteE st cv.type with
-      | none => rw [hn, hl, ht] at h; simp at h
-      | some ty =>
-        rw [hn, hl, ht] at h
-        obtain rfl := Option.some.inj h
-        rfl
-
-
-/-! ### The `.projInfo` NAME GAP
-
-`Frontend.denoteProjTable` drops `tableName`, so
-`Frontend.denoteCI st ci = some c` does NOT give
-`denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
-STORED `t.tableName` and the pure side is the RECOMPUTED
-`projTableName t.structName`.  Three sites above this tier have hit the same
-wall — `IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and (task #97-P3-Checker
-round 2) `installBasisDecl_bridge` — and the fix is NOT to add a hypothesis to
-any of them, nor to make `denoteProjTable` read `tableName` (the denotation is
-deliberately forgetful; `tableName` is the arena's own redundancy, kept so the
-index's key is pure).
-
-The fix is these three lemmas.  `IProjTableOK.named` is the invariant that
-ties the two names, and it is available at every site that needs it: inside
-the index through `IFEnvOK.proj`, and at the ONE install that creates a
-`.projInfo` row (`checkStructProjTable`, this tier's) because the table was
-just built there.  Everywhere else `ci` is provably not a `.projInfo` and the
-first lemma applies with no invariant at all.
-
-**They belong in `Bridge/StateOK.lean`, beside `IProjTableOK`** — that is the
-lowest module that has both `Frontend.denoteCI` and the invariant, and it is
-below the Checker tier, which cannot see this file.  They are proved here
-because this tier owns `IProjTableOK`'s `named` clause and its debtor. -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:644 ConstantInfo.name — **a stored
-constant that is not a projection table is named by its own handle.**  Six of
-the seven constructors carry an `IConstantVal` and `denoteCV_name` is the
-whole proof. -/
-theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (hnp : ∀ t, ci ≠ .projInfo t)
-    (h : Frontend.denoteCI st ci = some c) :
-    denoteN st.ns ci.name = some c.name := by
-  cases ci with
-  | axiomInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    exact denoteCV_name hcv
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    exact denoteCV_name hcv
-  | defnInfo v e hh =>
-    simp only [Frontend.denoteCI] at h
-    cases hcv : Frontend.denoteCV st v with
-    | none => rw [hcv] at h; simp at h
-    | some cv =>
-      cases he : denoteE st e with
-      | none => rw [hcv, he] at h; simp at h
-      | some x =>
-        rw [hcv, he] at h
-        obtain rfl := Option.some.inj h
-        exact denoteCV_name hcv
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h
-    cases hcv : Frontend.denoteCV st v with
-    | none => rw [hcv] at h; simp at h
-    | some cv =>
-      cases he : denoteE st e with
-      | none => rw [hcv, he] at h; simp at h
-      | some x =>
-        rw [hcv, he] at h
-        obtain rfl := Option.some.inj h
-        exact denoteCV_name hcv
-  | indInfo v caps =>
-    simp only [Frontend.denoteCI] at h
-    cases hcv : Frontend.denoteCV st v with
-    | none => rw [hcv] at h; simp at h
-    | some cv =>
-      cases hc : Frontend.denoteCaps st caps with
-      | none => rw [hcv, hc] at h; simp at h
-      | some x =>
-        rw [hcv, hc] at h
-        obtain rfl := Option.some.inj h
-        exact denoteCV_name hcv
-  | recInfo v mI rP rs =>
-    simp only [Frontend.denoteCI] at h
-    cases hcv : Frontend.denoteCV st v with
-    | none => rw [hcv] at h; simp at h
-    | some cv =>
-      cases hr : Frontend.denoteRules st rs with
-      | none => rw [hcv, hr] at h; simp at h
-      | some x =>
-        rw [hcv, hr] at h
-        obtain rfl := Option.some.inj h
-        exact denoteCV_name hcv
-  | projInfo t => exact absurd rfl (hnp t)
-
-/-- con-leche: ConLeche/Kernel/Env.lean:642 ConstantInfo.toConstantVal (the
-`.projInfo` arm) — **and a projection table is named by its handle exactly
-when `IProjTableOK.named` says so.**  That clause is not decoration: it is the
-only thing that ties the stored `tableName` to the recomputed
-`projTableName`. -/
-theorem denoteCI_name_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
-    (hok : IProjTableOK st t)
-    (h : Frontend.denoteCI st (.projInfo t) = some c) :
-    denoteN st.ns (IConstantInfo.name (.projInfo t)) = some c.name := by
-  obtain ⟨sn, hsn, htn⟩ := hok.named
-  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-  obtain ⟨pt, hpt, rfl⟩ := h
-  simp only [Frontend.denoteProjTable, hsn] at hpt
-  cases hlps : Frontend.denoteNList st.ns t.levelParams with
-  | none => rw [hlps] at hpt; simp at hpt
-  | some lps =>
-    cases hc : denoteN st.ns t.ctor with
-    | none => rw [hlps, hc] at hpt; simp at hpt
-    | some cn =>
-      cases hss : denoteL st.ls t.structSort with
-      | none => rw [hlps, hc, hss] at hpt; simp at hpt
-      | some ss =>
-        cases hbs : Frontend.denoteEArray st t.bodies with
-        | none => rw [hlps, hc, hss, hbs] at hpt; simp at hpt
-        | some bs =>
-          cases hgs : denoteLList st.ls t.guards with
-          | none => rw [hlps, hc, hss, hbs, hgs] at hpt; simp at hpt
-          | some gs =>
-            rw [hlps, hc, hss, hbs, hgs] at hpt
-            obtain rfl := Option.some.inj hpt
-            exact htn
-
-/-- con-leche: none — **the two halves as one**: the name fact at any stored
-constant, asking for `IProjTableOK` only where it is a projection table.  This
-is the shape the three stuck sites want. -/
-theorem denoteCI_name_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (hproj : ∀ t, ci = .projInfo t → IProjTableOK st t)
-    (h : Frontend.denoteCI st ci = some c) :
-    denoteN st.ns ci.name = some c.name := by
-  cases ci with
-  | projInfo t => exact denoteCI_name_proj (hproj t rfl) h
-  | axiomInfo v => exact denoteCI_name (by simp) h
-  | defnInfo v e hh => exact denoteCI_name (by simp) h
-  | thmInfo v e => exact denoteCI_name (by simp) h
-  | indInfo v caps => exact denoteCI_name (by simp) h
-  | ctorInfo v nP nF => exact denoteCI_name (by simp) h
-  | recInfo v mI rP rs => exact denoteCI_name (by simp) h
+        cases k with
+        | zero => simpa only [List.getD_cons_zero] using ht
+        | succ k =>
+          have hk' : k < as.length := by simpa using hk
+          simpa only [List.getD_cons_succ] using ih has hk'
 
 /-- con-leche: none — a binder telescope's denotation keeps its length. -/
 theorem denoteBinders_length {st : EStore} :
