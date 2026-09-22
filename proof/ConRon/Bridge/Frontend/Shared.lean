@@ -839,9 +839,17 @@ behind, and it is persistent when the scratch tier is closed.
 `sorry`: the structural recursion over `ConLeche.Expr`, each arm one
 `Bridge/Specs.lean` `internE` face, with `EMemoOK` carried and
 `Bridge/Rel.lean`'s `denote_ext` moving the earlier children forward.  The
-persistence clause is `intern`'s `scratchOn = false` branch, which
-`Arena/WFProofs.lean`'s `intern_view_spec` already exposes.  Task
-#97-P3-Frontend's sorry list, item 2. -/
+persistence clause is FREE now (`Bridge/Frontend/Rel.lean`'s `PersE_of_view`
+at the spec's `view` conjunct, round 2's replacement for finding 9.1).
+
+**What is missing is two specs, and they are not in this tier's files**
+(round 2's finding 13): `internExprGo`'s `.sort` arm calls `internLevel` and
+its `.const` arm calls `internLevels`, and `Bridge/Specs.lean` states
+`internLNode_spec` / `internLsNode_spec` (the NODE interns) but no
+`internLevel_spec` / `internLevels_spec` for a whole transient `Level` tree or
+`List Level` — where it does state `internName_spec` for a whole `Name`.  The
+two are `internName_spec`'s proof verbatim, one structural induction each, and
+they belong beside it.  Task #97-P3-Frontend's sorry list, item 2. -/
 theorem internExpr_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {e : Expr} {h : EIdx}
     (hrun : ConRon.Arena.Frontend.internExpr e s = .ok (h, s')) :
@@ -854,7 +862,13 @@ theorem internExpr_run {s s' : AState} (hok : StateOK s)
 modeller seam interns.
 
 `sorry`: `internExpr_run` through `internCV` / `internCI` / `internDecl`, list
-by list.  Task #97-P3-Frontend's sorry list, item 2. -/
+by list — eleven more layers, each of them three lines once the leaf is in
+hand (`internNameList`, `internLevelList`, `internExprList`, `internCV`,
+`internFire`, `internRule`, `internRules`, `internCaps`, `internProjTable`,
+`internCI`, `internCIList`, `internDecl`).  **This is the last blocker of item
+8** (`inProcessModeller_wf` / `_refines`): items 1 and 3 closed in round 2, so
+the seam's two promises now wait on the intern direction alone.  Task
+#97-P3-Frontend's sorry list, item 2. -/
 theorem internDecls_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
     {ds : List Declaration} {hs : List IDeclaration}
