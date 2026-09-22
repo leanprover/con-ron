@@ -46,7 +46,8 @@ theorem whnf_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel per
       (Arena.whnfCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.whnf_core] at hrun
-  have h := hk.whnfCore hrel hinv hctx hwf hres hf hrun
+  have h := hk.whnfCore hrel hinv hctx hwf hres
+    (fun hx => absurd hx laneFull_ne_gated) hf hrun
   rw [laneKnot_full] at h
   exact h
 
