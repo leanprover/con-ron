@@ -10565,4 +10565,26 @@ theorem LsStore.internPersistent_view {st : LsStore} (h : LsStoreWF' st)
     rw [if_pos hp]
     exact hspec.1
 
+
+/-! ### The three nested stores, extracted from the weak invariant -/
+
+theorem EWFAt'.lssWF {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    LsStoreWF' st.lss := h.lss
+
+theorem EWFAt'.lsWF {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    LStoreWF' st.ls := h.lss.ls
+
+theorem EWFAt'.nsWF {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    NStoreWF' st.ns := by
+  obtain ⟨rkl, hl⟩ := h.lss.ls; exact hl.ns
+
+theorem StoreWF'.lssWF {st : EStore} (h : StoreWF' st) : LsStoreWF' st.lss := by
+  obtain ⟨rk, h⟩ := h; exact h.lssWF
+
+theorem StoreWF'.lsWF {st : EStore} (h : StoreWF' st) : LStoreWF' st.ls := by
+  obtain ⟨rk, h⟩ := h; exact h.lsWF
+
+theorem StoreWF'.nsWF {st : EStore} (h : StoreWF' st) : NStoreWF' st.ns := by
+  obtain ⟨rk, h⟩ := h; exact h.nsWF
+
 end ConRon.Arena
