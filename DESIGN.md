@@ -45897,6 +45897,311 @@ change**, and that is a sharper statement than round 2 could make.
 | merged `arena` **twice** — `0e13370e`, then `e54dd80e` | auto-merged every hunk, `.lean` and DESIGN.md alike; no hand work.  The second merge is `Bridge/**` only, which `ConRonRefine2` does not import, but both Lean gates were re-run on it anyway and are the numbers above |
 | the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, and `ExprOps/{Pure,Read}.lean` untouched — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected by this branch and are not re-run |
 
+#### Round 3 — six of the sixteen non-slot walks closed, the knot's slots in answer shape, and the import wall (same day, branch `p3-core-3` off `arena` `57129e8d`)
+
+Round 2 ended with `whnfBody_spec` PROVED-modulo-two and a thirty-one-`sorry`
+Core tier whose §9 named four next steps.  This round did not take any of the
+four first: it took the one thing round 2's §6 table said was blocking three
+walks at once — *"no import of the `ExprOps` tier is made by
+`Bridge/Core/Walks/**` this round, which is the only reason this is not
+proved here"* — and found that the import is both free and impossible,
+depending on WHICH module makes it.  That is finding 17 below and it is the
+round's most useful result for scheduling.
+
+**Six of `Walks/Owed.lean`'s sixteen are closed** (`unfoldableHead`,
+`headHint`, `sameConstHeads`, `defeqSpine`, `isPropType`, `defEqList`), the
+Core tier is **31 `sorry` → 25**, and `Walks/Owed.lean` is **16 → 10**.
+
+##### 1. What the round landed
+
+| module | raw | non-blank | top-level decls | elaboration |
+|---|---:|---:|---:|---:|
+| `Bridge/Core/Walks/Spine.lean` — **NEW**: five closed walks and the twenty-five facts and step equations they need | 925 | 857 | 30 | **3 s** |
+| `Bridge/Core/Walks/Owed.lean` — `defEqList` closed, `etaCert`'s pure side, six statements moved out | 676 (+313−106) | 599 | 23 | **1 s** |
+| `Bridge/Core/Knot.lean` — the six slots in ANSWER shape | 419 (+152) | 367 | 17 (+6) | **2 s** |
+
+(The three are `lake env lean` on the file with its imports already built, so
+each figure includes olean loading and is an upper bound.)
+
+`lake build ConRonBridge` on the merged tree: **0 errors, 617 jobs** (616 on
+the branch point, `arena` `57129e8d`; the round adds one module).  Nothing
+the round wrote is anywhere near the 20 s flag;
+the slowest module it touches is the new `Walks/Spine.lean` at **3 s**.
+That is the fourth round in a row where the Core tier costs ~1–2 s per
+module, and task #97-P3-Core §8's reason still holds: there is no `grind`
+closer over a twin's arms anywhere in it.
+
+##### 2. The six slots in ANSWER shape — `Bridge/Core/Knot.lean`
+
+Task #97-P3-Core-2's finding 5.2 was stated about two WALKS
+(`reduceNat_spec`, `unfoldDefinition_spec`) and re-shaped them one at a time.
+It is not about walks:
+
+> `KnotSpec`'s six fields take the subject's denotation as an explicit
+> `(e : Expr)` argument.  A caller that reaches a slot through ANOTHER call
+> does not know that denotation when `mvcgen` applies the spec; `mvcgen`
+> guesses the only `Expr` in scope — the *original* subject — and the side
+> goal it leaves is false.
+
+`isPropType` is the smallest walk that meets it (`r.inferIO` on
+`r.annotate`'s answer, `ensureSort`'s `r.whnf` on `r.inferIO`'s), and every
+remaining walk of `Owed.lean` that chains two knot calls meets it too.  So
+the six slots are restated ONCE, at the knot: the denotation goes IN as an
+existential (which names no metavariable) and OUT as a universal.
+`KnotSpec.whnfCore'` … `KnotSpec.defeq'`, **four lines each**, `denoteE`'s
+functionality at one handle the whole argument.  The unprimed fields stay —
+a caller that already holds the denotation should keep using them, which
+leaves it one fewer `∀` to instantiate.
+
+**And the rule generalises past the knot, twice in this round:**
+
+* `defEqList_go` — the induction cannot run on the published statement,
+  because at the recursive call the subjects `as'`/`bs'` are known and their
+  denotations are not (the state moved), so `denoteEList s'.store as' = some
+  ?xs` arrives with a metavariable.  *The ∃/∀ shape is not about knot slots;
+  it is about every recursive call whose state has moved.*
+* `instantiate1Fast_specE` — `Bridge/ExprOps/Inst1.lean`'s
+  `instantiate1Fast_spec` takes the SUBSTITUTED VALUE's denotation as an
+  explicit `(ve : Expr)`, and `etaCert` substitutes a free variable it has
+  just INTERNED.  Measured: `mvcgen` guesses `ve := y`, the comparand.  The
+  primed form is four lines and it is what every interning caller of the
+  substitution walks will want.
+
+##### 3. The five walks of `Walks/Spine.lean`, and the four facts nobody had
+
+| theorem | VCs | what it cashes |
+|---|---:|---|
+| `unfoldableHead_spec` | 6 | the delta step's DECISION |
+| `headHint_spec` | 5 | the head constant's reducibility hint |
+| `sameConstHeads_spec` | 9 | the lazy-delta same-head short-circuit |
+| `defeqSpine_spec` | 20 | levels-and-spine congruence |
+| `isPropType_spec` | 11 | annotate → inferIO → ensureSort → `lvlEq?` |
+
+Four facts they need and no tier had:
+
+1. **`viewLen_of_denoteLs`** — task #97-P6-10's length projection of `viewLs`
+   reads the stored record's own length and never rebuilds the list, and
+   nothing said the number it answers IS the length of what the handle
+   DENOTES.  Two one-line projection equations under it
+   (`lsTables_getLen_eq`, `lsStore_viewLen_eq`).
+2. **`denoteCI` does not change a constant's CONSTRUCTOR at `defnInfo`, in
+   BOTH directions** (`denoteCI_defnInfo_inv`, `denoteCI_defn_inv`) — task
+   #97-P3-Core-2 proved the same fact at `projInfo` and needed one direction
+   only.  A walk that asks *"is the head a DEFINITION?"* decides a GUARD, so
+   it needs the negative half as much as the positive one; that is round 2's
+   own rule one rung down.
+3. **The environment index's two halves, packaged** — `env_defn_of_index` and
+   `env_not_defn_of_index` are `IFEnvOK.hit` / `IFEnvOK.miss` plus `denoteN`'s
+   functionality at one handle, and neither is a one-liner at the site.
+4. **`beq_of_denoteN` / `name_eq_iff_of_denoteN`** — DESIGN §8.3's *"index
+   inequality IS structural inequality"* at the NAME store, as a `Bool`
+   equation and as a propositional one, both directions each (functionality
+   one way, `denoteN_inj` the other).  `defeqSpine`'s guard is COMPOUND
+   (`n = n' ∧ aa.length = bb.length` against `Name` equality and the denoted
+   spines' lengths) and the walk declines on either, so both halves of both
+   transfers are load-bearing.
+
+##### 4. Finding 17 — `simp` discharges a con-leche match-equation's negative side condition from the local context
+
+Measured, and it pays three times in `Walks/Spine.lean`:
+
+```lean
+theorem unfoldableHead_of_not_defn (hgf : x.getAppFn = .const nm ls)
+    (h : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) :
+    ConLeche.unfoldableHead env x = false := by
+  simp only [ConLeche.unfoldableHead, hgf]
+```
+
+is the WHOLE proof: `simp` unfolds the `def`, rewrites the scrutinee, and
+then applies `ConLeche.unfoldDefinition.match_1.eq_2` — whose side condition
+is exactly `h` — discharging it from the context.  So the "the head is not a
+stored definition" arm of each of these walks is one `simp only` and no case
+bash.
+
+**The limit is the PAIR match.**  `sameConstHeads` matches on
+`(f₁.getAppFn, f₂.getAppFn)` and `defeqSpine` on two heads in sequence; there
+the discharger does not fire and the arm needs
+`cases … <;> cases … <;> first | rfl | exact absurd …` (100 subgoals, all
+`rfl`, ~0.3 s).  *A one-scrutinee negative arm is free; a two-scrutinee one
+is a double case bash.*
+
+##### 5. Finding 18 — the import wall, and where the Core tier's chain must now stay
+
+`lakefile.toml`'s `ConRonBridge` entry has said since task #97-P3-0 that *"two
+modules of the `ExprOps` tier cannot sit in ONE import closure — `grind`
+generates the same `match`-auxiliary for an `Arena/ExprOps.lean` definition in
+each, and Lean refuses the second."*  **The same clash reaches the Core tier,
+and not only through the `ExprOps` tier.**  Both halves were found by
+building, in this order:
+
+```
+import ConRon.Bridge.Core.EnsureSort failed, environment already contains
+'ConRon.Arena.piResultIsProp.match_1.congr_eq_1._sparseCasesOn_2'
+from ConRon.Bridge.Core.Walks.Owed
+```
+
+* `Bridge/Checker/Hyp.lean` imports `Core.EnsureSort` beside `Core.Induction`,
+  and `Core.Induction` reaches `Walks/Owed.lean` through the six `Arms/`
+  modules.  So `Owed.lean` cannot import `ExprOps/Spine.lean`.
+* `Bridge/Inductives/Rel.lean` imports `Core.EnsureSort` beside
+  `Walks/Cached.lean`.  So `Cached.lean` cannot hold `isPropType_spec`
+  either — **and that one has nothing to do with the `ExprOps` tier**: the
+  auxiliary is the derived congruence lemma of the `ENodeView` match, and
+  `mvcgen` over `ConRon.Arena.ensureSort` generates it exactly as
+  `Core/EnsureSort.lean` does.
+
+The rule the round takes from it, and the one the next round has to plan
+around:
+
+> **`Bridge/Core/**`'s knot-facing chain — `Knot → Memo → Arms/* →
+> Induction` — stays free of the `ExprOps` tier AND of `mvcgen` over
+> `ensureSort`.  A walk that needs either lives in a SIBLING module off the
+> chain.**
+
+`Bridge/Core/Walks/Spine.lean` is that sibling, and it costs nothing today
+(nothing on the chain imports it).  **It is not a fix, and the next round
+should not treat it as one**: `Arena/Core.lean` calls `ensureSort` from
+`inferBodyIO`'s `.forallE` arm (line 2820), from `annotateBody` (3470) and
+from `inferLamsLeafCheck` (2453), so `Arms/InferIO.lean`,
+`Arms/Annotate.lean` and `Arms/Infer.lean` all meet this wall the day those
+arms are written — and all three are ON the chain, because `Induction.lean`
+imports the six.  A sibling module cannot help them.
+
+**The clash is a single-owner problem and the fix should be upstream of
+everything.**  The auxiliary is *derived on demand*, so whichever module
+needs it first writes it into its own olean; two independent derivations in
+one closure are what Lean refuses.  Give it ONE home — force its derivation
+in `Bridge/Specs.lean`, the common ancestor of every module of this library
+— and every importer reuses that one, in the Core tier and in the `ExprOps`
+tier alike (`lakefile.toml`'s original note would stop being true too).
+That is a few lines and one experiment, and it is worth doing before the
+three `Arms/` arms rather than after.  Booked here; the owner is whoever
+next touches `Bridge/Specs.lean`.
+
+##### 6. Finding 19 — `instLPFast_spec` has no cache frame, and that is what the three instantiated-constant caches are actually waiting on
+
+Round 2's §6 said `Walks/Cached.lean`'s three (`constTyAt_spec`,
+`constValAt_spec`, `ruleRhsAt_spec`) were waiting on `ExprOps.instLPFast_spec`
+and that *"what each proof needs is the one call's spec and nothing else"*.
+**`instLPFast_spec` is closed and the three are still blocked**, and the
+reason is in the statement rather than in the work:
+
+```
+⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ReadLCacheOK s'.caches.readLC s'.store ∧
+    ReadLsCacheOK s'.caches.readLsC s'.store ∧
+    s'.pins = s₀.pins ∧ (s'.memos.instLPC = ∅ ∨ s' = s₀) ∧
+    RelE (fun x => Expr.instantiateLevelParams ksv usv x) s₀.store e s'.store r⌝⦄
+```
+
+It says NOTHING about `s'.caches` beyond the two readback clauses.  A caller
+graded `CheckOK` has to rebuild `CacheOK mode env s'`, whose other twelve
+clauses are about `s'.caches.constValC`, `…whnfCoreC`, … — and neither
+`CheckOK.mono` (`s'.caches = s.caches`) nor `CheckOK.monoF`
+(`Bridge/StateOK.lean`'s `CacheFrame`, which frames `readLC`/`lvlEqC`) can be
+supplied.  `ExprOps/Owed.lean`'s own note explains why the equation was not
+written — the two level arms write `readLC`/`readLsC` — but the honest frame
+is the `ReadbackFrame`/`CacheFrame` shape this library already has twice:
+
+> **The ask (owner: whoever next touches `Bridge/ExprOps/{Owed,InstLP}.lean`).**
+> Two conjuncts on `instLPFast_spec`:
+> `s'.caches = { s₀.caches with readLC := s'.caches.readLC, readNC := s'.caches.readNC, readLsC := s'.caches.readLsC }`
+> and `ReadNCacheOK s'.caches.readNC s'.store`.  The program only ever writes
+> those three tables (`readNamesM`, `readLevelsM`, `readLevelM` under
+> `substLMemoAt`/`substLsMemoAt`); the second conjunct traces to
+> `ExprOps/InstLP.lean`'s `substLMemoAt_spec`, which `ExprOps/Owed.lean`'s
+> own note 3 already names.
+
+**What it blocks, measured by trying:** `constTyAt_spec`, `constValAt_spec`,
+`ruleRhsAt_spec` and `IProjEntry.typeAt_spec` directly (four statements), and
+through them `unfoldDefinition_spec`, `projCert_spec`, `projCertAt_spec` —
+i.e. `whnfBody_spec`'s remaining delta half.  This is the same shape of
+finding as task #97-P3-CoreWalks' finding 3 (*"a registered `@[spec]` is a
+commitment"*) at a theorem that is not registered, which is why it can be
+fixed without a flag day.
+
+##### 7. Two corrections to round 2's own notes
+
+1. **`isPropType_spec` was not waiting on `typeSortPW`.**  `Owed.lean`'s OPEN
+   note said *"`KnotSpec.annotate` (available) then the head-symbol reader
+   `typeSortPW`, which is an `ExprOps` walk"*.  `typeSortPW` is `annotPwPi`'s
+   reader (`Arena/PropRead.lean`), and `isPropType` reads no head symbol at
+   all: it is annotate, inferIO, `ensureSort`, `zeroLevel`, `lvlEq?`.  It
+   needed the knot and the level comparison and nothing else, which is why it
+   closed this round.
+2. **`annotPwPi`/`annotPwLam` are blocked on a tier that does not exist**, not
+   on the `ExprOps` tier: `typeSortPW` and `proofPW` live in
+   `Arena/PropRead.lean` and have NO bridge spec anywhere.  Same for
+   `propIrrel_spec`, whose `notProofFast`/`isProofFast` are in the same file.
+   **That is three of the ten remaining statements of `Owed.lean` waiting on
+   one unwritten module**, and it is a line item nobody had costed — the
+   exact shape of task #97-P3-CoreWalks §6.1's fuel merge, one round later.
+
+##### 8. The sorry list, per file — twenty-five
+
+| file | before | after | what is left |
+|---|---:|---:|---|
+| `Core/Arms/WhnfCore.lean` | 2 | 2 | `whnfCoreBody_app_batched`, `whnfCoreBody_spec` |
+| `Core/Arms/Whnf.lean` | 0 | 0 | — (`whnfBody_spec` PROVED, inherits from two) |
+| `Core/Arms/Infer.lean` | 3 | 3 | the three `inferBody` pieces |
+| `Core/Arms/InferIO.lean` | 1 | 1 | `inferBodyIO_spec` |
+| `Core/Arms/Defeq.lean` | 2 | 2 | `defeqPeel_chain`, `defeqBody_spec` |
+| `Core/Arms/Annotate.lean` | 2 | 2 | `annotateBody_binders_batched`, `annotateBody_spec` |
+| `Core/Walks/Cached.lean` | 3 | 3 | the three instantiated-constant caches — **finding 19** |
+| `Core/Walks/Owed.lean` | 16 | **10** | `unfoldDefinition`, `reduceNat`, `iotaRec`, `projLitToCtor`, `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `annotPwPi`, `annotPwLam` |
+| `Core/Walks/Proj.lean` | 2 | 2 | `IProjEntry.typeAt_spec` (**finding 19**), `projCert_spec` |
+| `Core/Walks/Spine.lean` | — | **0** | NEW |
+| **total** | **31** | **25** | |
+
+`knot_spec` and `knot_spec_checkFuel` still inherit from the same five
+`…Body_spec`; `whnfBody_spec` still inherits `sorryAx` from `reduceNat_spec`
+and `unfoldDefinition_spec` and from nothing else.
+
+##### 9. The axiom census
+
+Every closed result of the round at `[propext, Classical.choice, Quot.sound]`
+— the six primed knot slots; `Walks/Spine.lean`'s twenty-five facts and five
+walks; `Walks/Owed.lean`'s `denoteEList_cons_inv`,
+`defEqListFueled_cons_true`, `defEqList_go`, `defEqList_spec` and
+`etaCertFueled_yes` — with two at `[propext, Quot.sound]` alone
+(`viewLen_of_denoteLs`, `denoteNList_len`).  No `sorryAx` on a closed result,
+no `bv_decide` axiom, as everywhere in this library.
+
+##### 10. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK**, on the merged tree |
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs** (615 before); 25 `sorry` in `Bridge/Core/**`, all in §8 |
+| `#print axioms` | §9 |
+| elaboration | §1 — nothing above **2.4 s** |
+| merged `arena` once — `72f5994d` (task #97-P3-Frontend round 3) | auto-merged every hunk, `.lean` and DESIGN.md alike; no hand work.  The merge is `Bridge/{Checker,Frontend}/**` only; `ConRonBridge` was rebuilt on it and is the number above |
+| the diff | `proof/ConRon/Bridge/Core/**` and this section.  **No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module** — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
+##### 11. What the next round of this tier should take
+
+1. **`reduceNat_spec`** — still the one walk `whnfBody_spec` waits on that
+   needs nothing from another tier, and after finding 19 it is the ONLY half
+   of `whnfBody_spec` this tier can close on its own.  Five state-only walks
+   under it (`rawNatLit?`, `natLitSupported`, `natOpStored`, `natBinOpName`,
+   `natOpResult`), and its statement is already in §2's shape.
+2. **`etaCert_spec`** — its whole pure side is proved (`etaCertFueled_nf`,
+   `_dom`, `_body`, `_yes`) and so is the callee rule its shape needs
+   (`instantiate1Fast_specE`).  What is left is twenty-three verification
+   conditions on the arena side, two of them `internE`'s `ViewOK` and the
+   rest bookkeeping.  It is the cheapest of the ten.
+3. **The `Arena/PropRead.lean` tier** — `typeSortPW`, `proofPW`,
+   `notProofFast`, `isProofFast`.  Three of the ten (`propIrrel`,
+   `annotPwPi`, `annotPwLam`) wait on it and nothing else does; it is a
+   module, not a line item (§7.2).
+4. **Finding 19's two conjuncts**, in a window where `Bridge/ExprOps/**` is
+   quiet.  They unblock four statements directly and three more through them.
+5. **Finding 18's import wall — give the derived `ENodeView` match auxiliary
+   ONE owner in `Bridge/Specs.lean`** — before `Arms/{InferIO,Annotate,Infer}`
+   need `ensureSort`.  All three are on the knot-facing chain, so the sibling
+   module this round wrote cannot help them, and the experiment is a few
+   lines.
+
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, round 2 (2026-09-22, Opus under Fable)
 
 (The section this continues is `### Task #97-P5-Ind` above; its §6 is the
