@@ -42,20 +42,43 @@ six more.
   that is not a memo wrapper: five verification conditions, no `ExprOps`
   callee rule, no new denotation, and DESIGN §8.3's "index inequality IS
   structural inequality" cashed twice in one walk.
+* `Walks/Mono.lean` — **the fuel merge** (task #97-P3-Core-2, DESIGN §8's
+  `### Task #97-P3-CoreWalks` §6.1): one `…_mono` at the record and one
+  `…Fueled_mono` at the fuel for every knot-calling walk of con-leche's
+  `Kernel/Core.lean` — twenty-two of each, plus `merge2`, the `max`-and-lift
+  idiom every caller repeats.  All CLOSED, and the module mentions no arena
+  state at all: it is pure con-leche over `Verify/PairM.lean`'s projections
+  and `Verify/Mono.lean`'s `pureFns_mono`.
+* `Walks/Proj.lean` — **the projection table** (task #97-P3-Core-2), on
+  `Bridge/Rel.lean`'s new `denoteProjEntry`: `projTableName_spec`,
+  `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED,
+  `IProjEntry.typeAt_spec` and `projCert_spec` stated.  §5's structural gap
+  below is closed by it.
 * `Walks/Owed.lean` — **the sixteen statements the round did not reach**,
   each with what it is waiting on written at the site.  `defEqList_spec` is
-  the nearest and waits only on the fuel merge (DESIGN §8's
-  `### Task #97-P3-CoreWalks` §6.1).
+  the nearest and its fuel merge is now IN HAND (`Walks/Mono.lean`'s
+  `defEqListFueled_mono`); `reduceNat_spec` and `unfoldDefinition_spec` were
+  RESTATED by task #97-P3-Core-2 in the existential-precondition shape
+  (§0 of that module) so that `whnfLoop_spec` can call them.
 
 **This module imports none of them** — the rule `Bridge/Core.lean` and
 `Bridge/ExprOps.lean` carry, for the reason `lakefile.toml`'s `ConRonBridge`
 entry gives.  The library globs `ConRon.Bridge.+`; this file is the index.
 
-## The one thing the tier is missing that is not a proof
+## The one thing the tier was missing that is not a proof — CLOSED
 
-`Arena/Env.lean`'s `IProjEntry` has no denotation, so `IProjEntry.typeAt`,
-`projCert` and `IProjEntry.fireOk` cannot even be STATED, and neither can the
-`.proj` arms of `whnfCoreBody` and `inferBody` below their guard.
-`denoteProjEntry` belongs in `Bridge/Rel.lean` beside the other ten
-transports, and it should be the next round's first commit.
+`Arena/Env.lean`'s `IProjEntry` had no denotation, so `IProjEntry.typeAt`,
+`projCert` and `IProjEntry.fireOk` could not even be STATED, and neither
+could the `.proj` arms of `whnfCoreBody` and `inferBody` below their guard.
+**Task #97-P3-Core-2 added `denoteProjEntry` to `Bridge/Rel.lean`** beside
+the other ten transports, with its `Ext` transport, its field inversion and
+the exactness lemma `denoteProjTable_entry` (*taking the per-field view
+commutes with the denotation*), and `Walks/Proj.lean` is what it unblocks.
+
+Its one caveat is recorded there and in DESIGN: the exactness lemma holds
+**in range**, because both `entry` functions read their two indexed columns
+with a DEFAULT and the two defaults are unrelated across the denotation.
+con-leche's `ConstWF` records `bodies.size = numFields` and says nothing
+about `guards`, so `ProjTablesShaped` carries that one clause as a
+hypothesis until the install's own invariant reaches this tier.
 -/
