@@ -126,6 +126,28 @@ scanner's remaining 68 key literals byte arrays too, so `crates/con-ron-core/src
 is `&str`-free and this finding can no longer bite it.  What is still a `&str` is the one
 constant too large to be an array, which is the pair of limits above meeting in the middle.
 
+**F18. `!b` is emitted as Lean's `¬ b` — a `Prop` — and that only works where the
+expected type is known.** **[bug]** (#97-SWAP) A Rust `!b` whose `b` came out of a bind is
+printed as `¬ b`, and Lean puts it back in `Bool` through the `Decidable` coercion: fine
+almost everywhere, and the model has 36 of them that elaborate.  It is NOT fine where the
+backend has joined two `if`s into one tuple-returning `if`, because the coercion does not
+reach inside the pair:
+
+```lean
+let (b, sk) ← if self.scratch_on
+              then do let b1 ← EIdx.is_persistent ty
+                      ok (true, ¬ b1)          -- Bool × Prop
+              else ok (false, false)           -- Bool × Bool
+```
+
+Lean then says *"Application type mismatch: the argument b3 has type Prop but is expected to
+have type Bool"* at the `let`'s own binder, which points at the join and not at the `¬`.
+Three sites in the arena hit it (two handle-store interns and `nativeCapsAt`'s three-way
+`&&`), and all three were found by *elaborating* the generated model — `charon cargo` and
+`aeneas` both report success, so the extraction gate alone does not catch this.  Fix, in the
+Rust: spell the negation as a branch, `if p { false } else { true }`.  Ask: print `!b` for a
+`Bool` negation, which is what Lean's `Bool` has.
+
 ### 2.2 External holes we did not want, and how each was avoided
 
 Our standing gate is that `*External_Template.lean` contains **exactly one type and four

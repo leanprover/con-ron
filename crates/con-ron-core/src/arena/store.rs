@@ -4056,8 +4056,20 @@ impl EStore {
     /// node record built ONCE and shared by all four.  See `intern`'s note.
     pub fn intern_fvar(&mut self, pers: &PersTier, idx: u64, ty: EIdx) -> Result<EIdx, CheckError> {
         let r: FVarNode = FVarNode { idx, ty };
+        // The negation is spelled as a branch rather than `!…` (task
+        // #97-SWAP, AENEAS_FINDINGS.md F18): Aeneas renders a `!b` whose `b`
+        // came from a bind as Lean's `¬ b`, i.e. a `Prop`, and relies on the
+        // `Decidable` coercion to put it back in `Bool` — which works
+        // everywhere the expected type is known, and NOT here, where the
+        // backend joins this `if` with the one below into a tuple-returning
+        // one and the `Prop` reaches a `Bool × Bool` slot.  The generated
+        // model does not elaborate then.
         let sk: bool = if self.scratch_on {
-            !r.ty.is_persistent()
+            if r.ty.is_persistent() {
+                false
+            } else {
+                true
+            }
         } else {
             false
         };
@@ -4111,8 +4123,20 @@ impl EStore {
     /// node record built ONCE and shared by all four.  See `intern`'s note.
     pub fn intern_sort(&mut self, pers: &PersTier, u: LIdx) -> Result<EIdx, CheckError> {
         let r: SortNode = SortNode { u };
+        // The negation is spelled as a branch rather than `!…` (task
+        // #97-SWAP, AENEAS_FINDINGS.md F18): Aeneas renders a `!b` whose `b`
+        // came from a bind as Lean's `¬ b`, i.e. a `Prop`, and relies on the
+        // `Decidable` coercion to put it back in `Bool` — which works
+        // everywhere the expected type is known, and NOT here, where the
+        // backend joins this `if` with the one below into a tuple-returning
+        // one and the `Prop` reaches a `Bool × Bool` slot.  The generated
+        // model does not elaborate then.
         let sk: bool = if self.scratch_on {
-            !r.u.is_persistent()
+            if r.u.is_persistent() {
+                false
+            } else {
+                true
+            }
         } else {
             false
         };

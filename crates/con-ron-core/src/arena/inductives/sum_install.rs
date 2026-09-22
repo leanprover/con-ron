@@ -359,10 +359,25 @@ pub fn native_caps_at(
         // is what Aeneas cannot join (task #97-P4a's second extraction rule)
         let c_name: NIdx = p.ctors[0].0.name.dup2();
         let c_fields: u64 = p.ctors[0].1;
+        // `eta`'s three-way conjunction is spelled as a branch nest rather
+        // than `a && !b && !c` (task #97-SWAP, AENEAS_FINDINGS.md F18):
+        // Aeneas renders the trailing `!is_rec` as Lean's `¬ is_rec`, a
+        // `Prop`, and the `if` nest it joins this with returns a tuple, so
+        // the `Prop` reaches a `Bool × Bool` slot and the generated model
+        // does not elaborate.
+        let eta: bool = if p.n_idx != 0 {
+            false
+        } else if p.is_prop {
+            false
+        } else if is_rec {
+            false
+        } else {
+            true
+        };
         match read_level_m(pers, st, &p.res_sort) {
             Err(e) => Err(e),
             Ok(l) => Ok(IIndCaps {
-                eta: p.n_idx == 0 && !p.is_prop && !is_rec,
+                eta,
                 eta_ctor: c_name,
                 eta_params: p.n_p,
                 eta_fields: c_fields,
