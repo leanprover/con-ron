@@ -513,6 +513,271 @@ theorem i_rec_rules_dup_abs {rs r : alloc.vec.Vec arena.env.IRecRule}
   simpa [alloc.vec.Vec.with_capacity,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
 
+/-! ### The boolean scans, once
+
+The copier's sibling: a cursor recursion that answers a `Bool`.  Two
+polarities occur in this tier — `all` (a default of `true` past the end, `false`
+at the first element that fails) and `any` (`false` past the end, `true` at the
+first hit) — and between them they are every `*_contains`, `*_any`, `*_seen`
+and `*_pin_ok` of the tier. -/
+
+/-- The scan that answers `true` past the end and stops at the first failure. -/
+theorem vec_cursor_all {α : Type} (xs : alloc.vec.Vec α) (p : α → Bool)
+    (F : Std.Usize → Result Bool)
+    (hstop : ∀ (i : Std.Usize) (o : Bool),
+      xs.val.length ≤ i.val → F i = ok o → o = true)
+    (hstep : ∀ (i : Std.Usize) (x : α) (o : Bool),
+      xs.val[i.val]? = some x → F i = ok o →
+      (p x = true ∧ ∃ j : Std.Usize, j.val = i.val + 1 ∧ F j = ok o) ∨
+      (p x = false ∧ o = false)) :
+    ∀ (i : Std.Usize) (o : Bool), F i = ok o → o = (xs.val.drop i.val).all p := by
+  intro i o h
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ o, F i = ok o → o = (xs.val.drop i.val).all p) ?_ ?_ i () o h
+  · intro i _ hn o h
+    rw [hstop i o hn h, List.drop_eq_nil_of_le hn]
+    rfl
+  · intro i _ hi ih o h
+    obtain ⟨x, hx⟩ : ∃ x, xs.val[i.val]? = some x :=
+      ⟨xs.val[i.val], List.getElem?_eq_getElem hi⟩
+    obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    rw [List.drop_eq_getElem_cons hb, hxv, List.all_cons]
+    rcases hstep i x o hx h with ⟨hp, j, hj, hF⟩ | ⟨hp, ho⟩
+    · rw [ih j () hj o hF, hj, hp, Bool.true_and]
+    · rw [ho, hp, Bool.false_and]
+
+/-- The scan that answers `false` past the end and stops at the first hit. -/
+theorem vec_cursor_any {α : Type} (xs : alloc.vec.Vec α) (p : α → Bool)
+    (F : Std.Usize → Result Bool)
+    (hstop : ∀ (i : Std.Usize) (o : Bool),
+      xs.val.length ≤ i.val → F i = ok o → o = false)
+    (hstep : ∀ (i : Std.Usize) (x : α) (o : Bool),
+      xs.val[i.val]? = some x → F i = ok o →
+      (p x = true ∧ o = true) ∨
+      (p x = false ∧ ∃ j : Std.Usize, j.val = i.val + 1 ∧ F j = ok o)) :
+    ∀ (i : Std.Usize) (o : Bool), F i = ok o → o = (xs.val.drop i.val).any p := by
+  intro i o h
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ o, F i = ok o → o = (xs.val.drop i.val).any p) ?_ ?_ i () o h
+  · intro i _ hn o h
+    rw [hstop i o hn h, List.drop_eq_nil_of_le hn]
+    rfl
+  · intro i _ hi ih o h
+    obtain ⟨x, hx⟩ : ∃ x, xs.val[i.val]? = some x :=
+      ⟨xs.val[i.val], List.getElem?_eq_getElem hi⟩
+    obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    rw [List.drop_eq_getElem_cons hb, hxv, List.any_cons]
+    rcases hstep i x o hx h with ⟨hp, ho⟩ | ⟨hp, j, hj, hF⟩
+    · rw [ho, hp, Bool.true_or]
+    · rw [ih j () hj o hF, hj, hp, Bool.false_or]
+
+/-- **A handle comparison IS the abstraction's.**  `eq2` on an `NIdx` is word
+equality and `absNIdx` is injective, so the port's test and the twin's `==`
+agree at both signs. -/
+theorem nidx_eq2_abs {a b : arena.handle.NIdx} {o : Bool}
+    (h : arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
+    o = (absNIdx a == absNIdx b) := by
+  rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
+  rw [← Result.ok_injective h]
+  by_cases hab : a = b
+  · subst hab; simp
+  · have h1 : a.word ≠ b.word := by
+      intro hc; exact hab (by cases a; cases b; simp_all)
+    have h2 : absNIdx a ≠ absNIdx b := fun hc => hab (absNIdx_inj hc)
+    simp [h1, h2]
+
+/-- The same at an `EIdx`. -/
+theorem eidx_eq2_abs {a b : arena.handle.EIdx} {o : Bool}
+    (h : arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
+    o = (absEIdx a == absEIdx b) := by
+  rw [arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
+  rw [← Result.ok_injective h]
+  by_cases hab : a = b
+  · subst hab; simp
+  · have h1 : a.word ≠ b.word := by
+      intro hc; exact hab (by cases a; cases b; simp_all)
+    have h2 : absEIdx a ≠ absEIdx b := fun hc => hab (absEIdx_inj hc)
+    simp [h1, h2]
+
+/-- **`arena::env::nidx_vec_contains` ⊑ `List.contains`.** -/
+theorem nidx_vec_contains_abs {ns : alloc.vec.Vec arena.handle.NIdx}
+    {n : arena.handle.NIdx} {o : Bool}
+    (h : arena.env.nidx_vec_contains ns n = ok o) :
+    o = (absNIdxL ns).contains (absNIdx n) := by
+  rw [arena.env.nidx_vec_contains] at h
+  have key : ∀ (i : Std.Usize) (o : Bool),
+      arena.env.nidx_vec_contains_from ns i n = ok o →
+      o = (ns.val.drop i.val).any fun m => absNIdx m == absNIdx n := by
+    refine vec_cursor_any ns _ (fun i => arena.env.nidx_vec_contains_from ns i n) ?_ ?_
+    · intro i o hn h
+      rw [arena.env.nidx_vec_contains_from.eq_def] at h
+      rw [if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+      rw [h]
+    · intro i x o hx h
+      have hlt : i.val < ns.val.length := (List.getElem?_eq_some_iff.mp hx).1
+      rw [arena.env.nidx_vec_contains_from.eq_def] at h
+      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnx : n1 = x := by
+        have h1 := vec_index_some hn1; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+      subst hnx
+      have hbv : b = (absNIdx n1 == absNIdx n) := nidx_eq2_abs hb
+      cases hbb : b
+      · rw [hbb] at h hbv
+        rw [if_neg (by simp)] at h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+      · rw [hbb] at h hbv
+        rw [if_pos (by simp), Result.ok.injEq] at h
+        exact Or.inl ⟨hbv.symm, h.symm⟩
+  rw [key 0#usize o h, show ((0#usize : Std.Usize)).val = 0 by scalar_tac,
+    List.drop_zero, absNIdxL]
+  have hcomm : (fun m => absNIdx m == absNIdx n) = (fun x => absNIdx n == absNIdx x) := by
+    funext m
+    by_cases hm : absNIdx m = absNIdx n
+    · simp [hm]
+    · have hm' : ¬ absNIdx n = absNIdx m := fun hc => hm hc.symm
+      simp [hm, hm']
+  rw [hcomm]
+  simp only [List.contains_eq_any_beq, List.any_map, Function.comp_def]
+
+/-- **`arena::core::nidx_vec_beq` ⊑ `==` on the abstraction.** -/
+theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
+    (h : arena.core.nidx_vec_beq a b = ok o) :
+    o = (absNIdxL a == absNIdxL b) := by
+  rw [arena.core.nidx_vec_beq] at h
+  by_cases hl : alloc.vec.Vec.len a = alloc.vec.Vec.len b
+  · have hlv : a.val.length = b.val.length := by scalar_tac
+    rw [if_pos hl] at h
+    have key : ∀ (i : Std.Usize) (o : Bool),
+        arena.core.nidx_vec_beq_from a b i = ok o →
+        o = ((a.val.drop i.val).map absNIdx == (b.val.drop i.val).map absNIdx) := by
+      intro i o hh
+      refine cursor_induction (fun i : Std.Usize => i.val) a.val.length
+        (fun i (_ : Unit) => ∀ o, arena.core.nidx_vec_beq_from a b i = ok o →
+          o = ((a.val.drop i.val).map absNIdx == (b.val.drop i.val).map absNIdx))
+        ?_ ?_ i () o hh
+      · intro i _ hn o h
+        rw [arena.core.nidx_vec_beq_from.eq_def] at h
+        rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
+        rw [← h, List.drop_eq_nil_of_le hn,
+          List.drop_eq_nil_of_le (show b.val.length ≤ i.val by omega)]
+        simp
+      · intro i _ hi ih o h
+        rw [arena.core.nidx_vec_beq_from.eq_def] at h
+        rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+        obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨ha1, ha2⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hn)
+        obtain ⟨hb1', hb2⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hn1)
+        rw [List.drop_eq_getElem_cons ha1, List.drop_eq_getElem_cons hb1',
+          ha2, hb2, List.map_cons, List.map_cons]
+        have hbv : b1 = (absNIdx n == absNIdx n1) := nidx_eq2_abs hb1
+        cases hbb : b1
+        · rw [hbb] at h hbv
+          rw [if_neg (by simp), Result.ok.injEq] at h
+          rw [← h]
+          simp only [List.cons_beq_cons, ← hbv]
+          simp
+        · rw [hbb] at h hbv
+          rw [if_pos (by simp)] at h
+          obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+          rw [ih i2 () hi2v o h, hi2v]
+          simp only [List.cons_beq_cons, ← hbv]
+          simp
+    rw [key 0#usize o h]
+    simp [absNIdxL, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+  · rw [if_neg hl, Result.ok.injEq] at h
+    have hlv : a.val.length ≠ b.val.length := by
+      intro hc; exact hl (by scalar_tac)
+    have hne : absNIdxL a ≠ absNIdxL b := by
+      intro hc
+      exact hlv (by simpa [absNIdxL] using congrArg List.length hc)
+    rw [← h, eq_comm]
+    exact beq_eq_false_iff_ne.mpr hne
+
+/-- **A filtered `List.range`, read from a cursor on**, is the filter of the
+range that starts there.  `recIdxOf` is such a filter and the port's
+`rec_idx_of` walks it from a cursor, so this is what lets the walk's induction
+be stated at `List.range'`. -/
+theorem filter_range_filter_ge (P : Nat → Bool) (n i : Nat) :
+    (((List.range n).filter P).filter fun j => decide (i ≤ j))
+      = (List.range' i (n - i)).filter P := by
+  rcases Nat.lt_or_ge n i with h | h
+  · rw [show n - i = 0 by omega]
+    simp only [List.range'_zero, List.filter_nil]
+    refine List.filter_eq_nil_iff.mpr ?_
+    intro j hj
+    have hj' : j ∈ List.range n := List.mem_of_mem_filter hj
+    rw [List.mem_range] at hj'
+    simp only [decide_eq_true_eq]
+    omega
+  · have hsplit : List.range n = List.range' 0 i ++ List.range' i (n - i) := by
+      rw [List.range_eq_range']
+      have hap : List.range' 0 i 1 ++ List.range' (0 + 1 * i) (n - i) 1
+          = List.range' 0 (i + (n - i)) 1 := List.range'_append
+      simp only [Nat.zero_add, Nat.one_mul] at hap
+      rw [hap, show i + (n - i) = n by omega]
+    rw [hsplit, List.filter_append, List.filter_append]
+    have h1 : (List.filter P (List.range' 0 i)).filter (fun j => decide (i ≤ j)) = [] := by
+      refine List.filter_eq_nil_iff.mpr ?_
+      intro j hj
+      have hj' : j ∈ List.range' 0 i := List.mem_of_mem_filter hj
+      rw [List.mem_range'_1] at hj'
+      simp only [decide_eq_true_eq]
+      omega
+    have h2 : (List.filter P (List.range' i (n - i))).filter (fun j => decide (i ≤ j))
+        = List.filter P (List.range' i (n - i)) := by
+      refine List.filter_eq_self.mpr ?_
+      intro j hj
+      have hj' : j ∈ List.range' i (n - i) := List.mem_of_mem_filter hj
+      rw [List.mem_range'_1] at hj'
+      simp only [decide_eq_true_eq]
+      omega
+    rw [h1, h2, List.nil_append]
+
+/-- **`native_parts::nidx_cons_from` copies a `Vec<NIdx>` onto an accumulator.**
+It sits here rather than beside its `_refines` because `native_rec_lps_ok`
+needs it and stands EARLIER in `native_parts.rs`, and DESIGN §3.4 keeps the
+port's order in the `_refines` file. -/
+theorem nidx_cons_from_map {ns : alloc.vec.Vec arena.handle.NIdx} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.native_parts.nidx_cons_from ns i out = ok o →
+      o.val.map absNIdx = out.val.map absNIdx ++ (ns.val.drop i.val).map absNIdx := by
+  refine vec_cursor_copy ns absNIdx absNIdx
+    (arena.inductives.native_parts.nidx_cons_from ns) ?_ ?_
+  · intro i out o hn h
+    rw [arena.inductives.native_parts.nidx_cons_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < ns.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.native_parts.nidx_cons_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnx : n1 = x := by
+      have h1 := vec_index_some hn1; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hnx
+    exact ⟨i2, n2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn2], h⟩
+
+/-- `native_parts::nidx_cons` is the twin's `n :: ns`. -/
+theorem nidx_cons_abs {n : arena.handle.NIdx} {ns o : alloc.vec.Vec arena.handle.NIdx}
+    (h : arena.inductives.native_parts.nidx_cons n ns = ok o) :
+    o.val.map absNIdx = absNIdx n :: ns.val.map absNIdx := by
+  rw [arena.inductives.native_parts.nidx_cons] at h
+  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [nidx_cons_from_map 0#usize out o h]
+  simp [ConRon.Refine.vec_push_val hout, alloc.vec.Vec.new, dupId_nidx _ _ hn1,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
 attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFrom
   absBinderL absBinderLFrom absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom
   absCtors4L absCtors4LFrom absRecsL absRecsLFrom absRenameTbl
