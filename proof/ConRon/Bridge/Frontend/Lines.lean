@@ -1587,6 +1587,10 @@ modeller seam.  This is the one theorem of the tier that takes the modeller's
 two promises, and it takes them because `installIndD` is where the seam is
 called.
 
+Since round 5 `hmw` carries one clause more — a generated record's projection
+tables are rightly named (`DeclProjNamed`) — and that is what `pushGenList`
+hands `pushDecl_run` for the records the seam returned.
+
 `sorry`: `registerProjOwners_run` (`Bridge/Frontend/ProjRec.lean`),
 `blockRecOf_run`, then `hmw`/`hmr` at the seam and `pushGenList_run` for what
 it returns.  Task #97-P3-Frontend's sorry list, item 7. -/
@@ -1611,6 +1615,16 @@ record's own semantics**: six declaration kinds, the projection rewrite on two
 of them, and the inductive route.  `Arena/Frontend/ExportC.lean`'s own note
 says "every branch, guard and error string is con-leche's", and this is that
 sentence as a theorem.
+
+**What round 5's repair costs this arm**: `pushDecl_run` now asks
+`DeclProjNamed` of the record it pushes, and both sources have it.  A record
+this function builds itself is an `.axiomDecl`/`.defnDecl`/`.thmDecl`/
+`.opaqueDecl`/`.quotDecl` (`DeclProjNamed.of_…`, vacuous) or an `.indDecl`
+block of `.indInfo`/`.ctorInfo`/`.recInfo` (`DeclProjNamed.of_indDecl` at a
+block with no `.projInfo` in it); a record `pushGenList` pushes came from the
+modeller, and `ModellerWF`'s own clause is exactly this.  **Nothing propagates
+past here** — that is what putting the fact in `StateDRel.projNamed` and in
+the seam's promise bought.
 
 `sorry`: six arms over `parseCVD_run`, `getDeclD_run`, `projRewriteD_run`
 (`Bridge/Frontend/ProjRec.lean`) and `pushDecl_run`, plus the `ind` arm over
