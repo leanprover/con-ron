@@ -207,6 +207,243 @@ theorem tbl_find_abs (hrel : TblRel P absA absI absD obsD rt lt)
 
 end Tbl
 
+/-! ## The handle the push builds -/
+
+/-- `arena::handle::word_mk` against `Idx.mk`'s word. -/
+theorem word_mk_abs {tag tier idx w : Std.U32}
+    (h : arena.handle.word_mk tag tier idx = ok w) :
+    absU32 tag * 268435456 + absU32 tier * 134217728 + absU32 idx = absU32 w := by
+  rw [arena.handle.word_mk, arena.handle.TAG_SPAN, arena.handle.IDX_CAP] at h
+  obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have e0 := absU32_mul hi
+  have e1 := absU32_mul hi1
+  have e2 := absU32_add hi2
+  have e3 := absU32_add h
+  have c0 : absU32 (268435456#u32 : Std.U32) = 268435456 := rfl
+  have c1 : absU32 (134217728#u32 : Std.U32) = 134217728 := rfl
+  rw [← e3, ← e2, ← e0, ← e1, c0, c1]
+
+theorem eidx_pack_abs {tag tier idx : Std.U32} {h : arena.handle.EIdx}
+    (hp : arena.handle.EIdx.pack tag tier idx = ok h) :
+    absEIdx h = Idx.mk (absU32 tag) (absU32 tier) (absU32 idx) := by
+  rw [arena.handle.EIdx.pack] at hp
+  obtain ⟨w, hw, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+  have h2 : arena.handle.EIdx.mk w = h := Result.ok_injective hp
+  subst h2
+  rw [Idx.mk, absEIdx, ← word_mk_abs hw]
+
+theorem nidx_pack_abs {tag tier idx : Std.U32} {h : arena.handle.NIdx}
+    (hp : arena.handle.NIdx.pack tag tier idx = ok h) :
+    absNIdx h = Idx.mk (absU32 tag) (absU32 tier) (absU32 idx) := by
+  rw [arena.handle.NIdx.pack] at hp
+  obtain ⟨w, hw, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+  have h2 : arena.handle.NIdx.mk w = h := Result.ok_injective hp
+  subst h2
+  rw [Idx.mk, absNIdx, ← word_mk_abs hw]
+
+theorem lidx_pack_abs {tag tier idx : Std.U32} {h : arena.handle.LIdx}
+    (hp : arena.handle.LIdx.pack tag tier idx = ok h) :
+    absLIdx h = Idx.mk (absU32 tag) (absU32 tier) (absU32 idx) := by
+  rw [arena.handle.LIdx.pack] at hp
+  obtain ⟨w, hw, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+  have h2 : arena.handle.LIdx.mk w = h := Result.ok_injective hp
+  subst h2
+  rw [Idx.mk, absLIdx, ← word_mk_abs hw]
+
+theorem lsidx_pack_abs {tag tier idx : Std.U32} {h : arena.handle.LsIdx}
+    (hp : arena.handle.LsIdx.pack tag tier idx = ok h) :
+    absLsIdx h = Idx.mk (absU32 tag) (absU32 tier) (absU32 idx) := by
+  rw [arena.handle.LsIdx.pack] at hp
+  obtain ⟨w, hw, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+  have h2 : arena.handle.LsIdx.mk w = h := Result.ok_injective hp
+  subst h2
+  rw [Idx.mk, absLsIdx, ← word_mk_abs hw]
+
+/-- The datum store has ONE constructor, so `BMIdx::pack` takes no tag and the
+twin writes `Idx.mk 0 tier _` (task #97-P6-16). -/
+theorem bmidx_pack_abs {tier idx : Std.U32} {h : arena.handle.BMIdx}
+    (hp : arena.handle.BMIdx.pack tier idx = ok h) :
+    absBMIdx h = Idx.mk 0 (absU32 tier) (absU32 idx) := by
+  rw [arena.handle.BMIdx.pack] at hp
+  obtain ⟨w, hw, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+  have h2 : arena.handle.BMIdx.mk w = h := Result.ok_injective hp
+  subst h2
+  have hz : absU32 (0#u32 : Std.U32) = 0 := rfl
+  rw [Idx.mk, absBMIdx, ← word_mk_abs hw, hz]
+
+/-- The `as u32` on the array length, against the twin's `UInt32.ofNat size`:
+**unconditional**, and `Refine2/AbsStore.lean`'s note on the capacity
+invariant is why — `UScalar.cast .U32` truncates by `2 ^ 32` and
+`UInt32.ofNat` by the same modulus. -/
+theorem cast_u32_size {i : Std.Usize} {r : Std.U32}
+    (h : lift (UScalar.cast .U32 i) = ok r) : absU32 r = UInt32.ofNat i.val := by
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  apply UInt32.toNat_inj.mp
+  rw [absU32_toNat, UScalar.cast_val_eq]
+  simp
+
+/-! ### The derived word's three OBSERVABLE fields, read off the port's word
+
+`Refine/Expr.lean`'s `pack_bits` already says what the port's `pack_data`
+packed, on `.val`; con-leche's `bvarOfData_pack` / `fvarOfData_pack` /
+`lpOfData_pack` say the same of the twin's `packData`.  The lemma below is the
+bridge between the two spellings — `derObsE` of an abstracted port word IS the
+three `Nat` fields — and with it every `der_of_*` arm is those two roundtrips
+plus the arm's own bound on the two ranges.  **The hash never appears**, which
+is the point of `derObsE` (`Refine2/AbsStore.lean`'s note). -/
+
+/-- `derObsE` read off a `Std.U64` through `absU64`: the three fields are the
+`Nat` fields of the word. -/
+theorem derObsE_absU64 (w : Std.U64) :
+    derObsE (absU64 w)
+      = (UInt64.ofNat (w.val / 65536 % 32768), UInt64.ofNat (w.val / 2 % 32768),
+          decide (w.val % 2 = 1)) := by
+  rw [derObsE]
+  refine Prod.ext ?_ (Prod.ext ?_ ?_)
+  · show ConLeche.bvarOfData (absU64 w) = _
+    rw [ConLeche.bvarOfData]
+    have hb : w.val / 65536 % 32768 < 2 ^ 64 := by have := u64_val_lt w; omega
+    apply UInt64.toNat_inj.mp
+    rw [UInt64.toNat_ofNat_of_lt' hb, UInt64.toNat_mod, UInt64.toNat_div,
+      absU64_toNat]
+    rfl
+  · show ConLeche.fvarOfData (absU64 w) = _
+    rw [ConLeche.fvarOfData]
+    have hb : w.val / 2 % 32768 < 2 ^ 64 := by have := u64_val_lt w; omega
+    apply UInt64.toNat_inj.mp
+    rw [UInt64.toNat_ofNat_of_lt' hb, UInt64.toNat_mod, UInt64.toNat_div,
+      absU64_toNat]
+    rfl
+  · show ConLeche.lpOfData (absU64 w) = _
+    rw [ConLeche.lpOfData]
+    have : (absU64 w % 2).toNat = w.val % 2 := by
+      rw [UInt64.toNat_mod, absU64_toNat]; rfl
+    by_cases hc : w.val % 2 = 1
+    · simp only [hc, decide_true]
+      have h2 : (absU64 w % 2) = 1 := by
+        apply UInt64.toNat_inj.mp; rw [this, hc]; rfl
+      simp [h2]
+    · simp only [hc, decide_false]
+      have h2 : (absU64 w % 2) ≠ 1 := by
+        intro hcc
+        exact hc (by rw [← this, hcc]; rfl)
+      simp [h2]
+
+/-! ## Floor 1b: the three WRITING operations of one table
+
+What `intern` does below the tier select, and the piece task #97-P5-0's
+"what the 62 open ones wait on is now ONE piece of plumbing" named.  Three
+lemmas over the generic `Tbl`, and the eighteen arrays instantiate them. -/
+
+section Tbl
+
+variable {A I D α ι δ ω : Type} [DecidableEq A] [BEq α] [Hashable α]
+  [LawfulBEq α] [LawfulHashable α]
+  {P : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ} {obsD : δ → ω}
+  {rt : arena.store.Tbl A I D} {lt : Tbl α ι δ}
+  {hH : ron.hashmap.Hashable A} {hE : ron.hashmap.Eq2 A}
+  {hDA : ron.hashmap.Dup A} {hDI : ron.hashmap.Dup I} {hDD : ron.hashmap.Dup D}
+  {hDf : arena.store.DerDefault D}
+
+omit [LawfulBEq α] [LawfulHashable α] in
+/-- How long the constructor's array is — the index the pushed handle gets. -/
+theorem tbl_size_abs (hrel : TblRel P absA absI absD obsD rt lt) {n : Std.Usize}
+    (h : arena.store.Tbl.size hH hE hDA hDI hDD hDf rt = ok n) : n.val = lt.size := by
+  rw [arena.store.Tbl.size, Result.ok.injEq] at h
+  subst h
+  show rt.rows.val.length = lt.nodes.size
+  rw [← Array.length_toList, hrel.nodes, List.length_map]
+
+/-- **`Tbl::push`**: the cons insert, then the two columns.  The twin's
+`Tbl.push` is one `match` that appends to both arrays and inserts; the port's
+is `dup2`, `HashMap2::insert`, `Vec::push` of the PAIR (task #97-P6-10's
+interleaved column), which is why the two `map`s of `TblRel` split it. -/
+theorem tbl_push_abs (hrel : TblRel P absA absI absD obsD rt lt)
+    (hinv : TblInv hH P rt) (heq : Eq2Fwd hE P) (hdupA : DupId hDA)
+    (hinjA : ∀ a b, P a → P b → absA a = absA b → a = b)
+    {a : A} (hk : P a) {d : D} {i : I} {rt'}
+    (h : arena.store.Tbl.push hH hE hDA hDI hDD hDf rt a d i = ok rt') :
+    TblRel P absA absI absD obsD rt' (lt.push (absA a) (absD d) (absI i)) ∧
+      TblInv hH P rt' := by
+  rw [arena.store.Tbl.push] at h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [hdupA a t ht] at h
+  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨old, hm⟩ := p
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hrt : arena.store.Tbl.mk v hm = rt' := Result.ok_injective h
+  subst hrt
+  obtain ⟨hcons, hkeys⟩ :=
+    ConRon.Refine.HashMap2.Rel_insert_wf heq hinjA hinv.inv hinv.keys hrel.cons hk hp
+  have hinv' := (ConRon.Refine.HashMap2.insert_refines_wf heq hinv.inv hinv.keys hk hp).1
+  have hvv := ConRon.Refine.vec_push_val hv
+  refine ⟨⟨?_, ?_, hcons⟩, ⟨hinv', hkeys⟩⟩
+  · show (lt.nodes.push (absA a)).toList = _
+    rw [Array.toList_push, hrel.nodes, hvv, List.map_append]
+    rfl
+  · show ((lt.der.push (absD d)).toList).map obsD = _
+    rw [Array.toList_push, List.map_append, hrel.der, hvv, List.map_append]
+    rfl
+
+/-- **`Tbl::find_slot`** (task #97-survey's N2, the fused find-or-insert): the
+probe that answers what `Tbl::find` answers *and* hands back the slot, plus —
+its last component — the identification that `find_slot` then `push_at` is
+`push`.  `find_slot` mutates the table (`ensure_slots` may allocate), which is
+why the relation has to be re-established for `rt1`; `toFun` is unchanged, so
+it is the same relation. -/
+theorem tbl_find_slot_abs (hrel : TblRel P absA absI absD obsD rt lt)
+    (hinv : TblInv hH P rt) (heq : Eq2Fwd hE P) (hdupA : DupId hDA)
+    (hdupI : DupId hDI) (hinjA : ∀ a b, P a → P b → absA a = absA b → a = b)
+    {a : A} (hk : P a) {at1 : Std.Usize} {o : Option I} {rt1}
+    (h : arena.store.Tbl.find_slot hH hE hDA hDI hDD hDf rt a = ok ((at1, o), rt1)) :
+    TblRel P absA absI absD obsD rt1 lt ∧ TblInv hH P rt1 ∧
+      lt.find? (absA a) = o.map absI ∧
+      (o = none → ∀ (d : D) (i : I) rt2,
+        arena.store.Tbl.push_at hH hE hDA hDI hDD hDf rt1 at1 a d i = ok rt2 →
+        TblRel P absA absI absD obsD rt2 (lt.push (absA a) (absD d) (absI i)) ∧
+          TblInv hH P rt2) := by
+  rw [arena.store.Tbl.find_slot] at h
+  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨pr, hmq⟩ := q
+  have he := Result.ok_injective h
+  have hat : pr = (at1, o) := congrArg Prod.fst he
+  have hrt1 : rt1 = { rt with cons := hmq } := (congrArg Prod.snd he).symm
+  subst hrt1
+  subst hat
+  obtain ⟨hinv1, hkeys1, htf1, -, hoval, hid⟩ :=
+    ConRon.Refine.HashMap2.find_slot_spec hdupI heq hinv.inv hinv.keys hk hq
+  have hcons1 : RelOn P hmq lt.cons absA absI := by
+    intro k hkk; rw [htf1]; exact hrel.cons k hkk
+  refine ⟨⟨hrel.nodes, hrel.der, hcons1⟩, ⟨hinv1, hkeys1⟩, ?_, ?_⟩
+  · show lt.cons[absA a]? = o.map absI
+    rw [← hrel.cons a hk, ← hoval]
+  · intro hnone d i rt2 h2
+    rw [arena.store.Tbl.push_at] at h2
+    obtain ⟨t, ht, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+    rw [hdupA a t ht] at h2
+    obtain ⟨hm2, hins, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+    obtain ⟨v, hv, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+    have hrt2 : arena.store.Tbl.mk v hm2 = rt2 := Result.ok_injective h2
+    subst hrt2
+    have hfull := hid hnone i hm2 hins
+    obtain ⟨hcons2, hkeys2⟩ :=
+      ConRon.Refine.HashMap2.Rel_insert_wf heq hinjA hinv.inv hinv.keys hrel.cons hk hfull
+    have hinv2 :=
+      (ConRon.Refine.HashMap2.insert_refines_wf heq hinv.inv hinv.keys hk hfull).1
+    have hvv := ConRon.Refine.vec_push_val hv
+    refine ⟨⟨?_, ?_, hcons2⟩, ⟨hinv2, hkeys2⟩⟩
+    · show (lt.nodes.push (absA a)).toList = _
+      rw [Array.toList_push, hrel.nodes, hvv, List.map_append]
+      rfl
+    · show ((lt.der.push (absD d)).toList).map obsD = _
+      rw [Array.toList_push, List.map_append, hrel.der, hvv, List.map_append]
+      rfl
+
+end Tbl
+
 /-! ## Floor 2: the expression tier's projections
 
 Eleven readers of `ETables`, each `Tbl.node` at one array plus the handle's
@@ -3454,6 +3691,54 @@ the census that would have caught it. -/
 
 /-- info: 'ConRon.Refine2.etag_isBind_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms etag_isBind_abs
+
+/-- info: 'ConRon.Refine2.inst1_set_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst1_set_run
+
+/-- info: 'ConRon.Refine2.inst_lp_clear_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_lp_clear_run
+
+/-- info: 'ConRon.Refine2.ntables_get_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ntables_get_abs
+
+/-- info: 'ConRon.Refine2.ltables_get_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ltables_get_abs
+
+/-- info: 'ConRon.Refine2.lstables_get_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lstables_get_abs
+
+/-- info: 'ConRon.Refine2.lidx_vec_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lidx_vec_dup_eq
+
+/-- info: 'ConRon.Refine2.view_n_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms view_n_run
+
+/-- info: 'ConRon.Refine2.view_l_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms view_l_run
+
+/-- info: 'ConRon.Refine2.view_ls_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms view_ls_run
+
+/-- info: 'ConRon.Refine2.derived_l_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms derived_l_run
+
+/-- info: 'ConRon.Refine2.tbl_push_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms tbl_push_abs
+
+/-- info: 'ConRon.Refine2.tbl_find_slot_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms tbl_find_slot_abs
+
+/-- info: 'ConRon.Refine2.tbl_size_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms tbl_size_abs
+
+/-- info: 'ConRon.Refine2.eidx_pack_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms eidx_pack_abs
+
+/-- info: 'ConRon.Refine2.cast_u32_size' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cast_u32_size
+
+/-- info: 'ConRon.Refine2.derObsE_absU64' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms derObsE_absU64
 
 
 end ConRon.Refine2
