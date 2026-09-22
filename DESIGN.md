@@ -38887,9 +38887,9 @@ but they are still `rw` chains and `split`s over generated bodies, with
 
 #### 9. The axiom census
 
-**Forty-eight more `#guard_msgs`'d `#print axioms` rows** (86 in `Specs.lean`,
-14 in `ExprOps/Read.lean`, 6 in `Inv.lean`, 3 in `ExprOps/Pure.lean`), over
-every group of §7.  Every one reads `[propext, Classical.choice, Quot.sound]`
+**Fifty-five more `#guard_msgs`'d `#print axioms` rows** — the tier now
+carries 102 (86 in `Specs.lean`, 7 in `ExprOps/Read.lean`, 6 in `Inv.lean`,
+3 in `ExprOps/Pure.lean`) — over every group of §7.  Every one reads `[propext, Classical.choice, Quot.sound]`
 — **except two, which read `[propext, Quot.sound]`**: `satPred_toNat` and
 `absFVarNode_inj` need no choice at all.  No `sorryAx` on a closed lemma, and
 still **no `bv_decide` axiom anywhere**.
@@ -38934,11 +38934,16 @@ still **no `bv_decide` axiom anywhere**.
 eight tag-first readers of P5-0's finding 3 (`is_lam`, `lam_pw`, `forall_pw`,
 `fvar_type_d`, `strip_lams`, `strip_pis`, `pi_result`, `pi_arity`).  **The
 eight tag-first ones need ONE lemma this tier does not have**: `st.view h =
-some v → h.tag = v.tagOf`, which is UNCONDITIONAL (each arm of `ETables.get`
-produces the view whose `tagOf` is the tag it tested) — so they need
-`EResolves` and NOT `StoreWF`, which is a weakening of P5-0's finding 3 worth
-recording.  `Arena/WFProofs.lean` has `ENodeView.tagOf` and the `get_inv`
-machinery but no such lemma.
+some v → h.tag = v.tagOf`.  That lemma is UNCONDITIONAL — each arm of
+`ETables.get` produces the view whose `tagOf` is the tag it tested, and
+`view`'s binder arm builds `eBindView i.tag …`, whose `tagOf` is `i.tag`
+under `isBind` — so **P5-0's finding 3 can be weakened: those eight need
+`EResolves` and not `StoreWF`** (the positive branch's second obligation, that
+the port's `view_bind_i` answers `some`, follows from `view h = some v` as
+well, since `view`'s bind arm goes through `viewBind`).  The argument is
+written out here; it is NOT mechanised, and mechanising it is ~60 lines
+against `ETables.get`'s ten-way `if` chain.  `Arena/WFProofs.lean` has
+`ENodeView.tagOf` and the `get_inv` machinery but no such lemma.
 
 **`ExprOps/Mut.lean`, 65:** untouched.  Thirteen `intern_rebuilt_*` wait on
 the five binder/dispatch wrappers above; the rest are fuel inductions in §6's
