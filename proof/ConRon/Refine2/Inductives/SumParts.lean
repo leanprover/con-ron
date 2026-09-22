@@ -104,12 +104,30 @@ this module's arithmetic crosses the container. -/
 theorem rule_prefix_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
     (hrun : arena.inductives.sum_parts.rule_prefix p = ok o) :
     absU o = (absInductiveShape p).rulePrefix := by
-  sorry
+  rw [arena.inductives.sum_parts.rule_prefix] at hrun
+  obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have h1 := ConRon.Refine.Nat.uadd_val hi
+  have h3 := ConRon.Refine.Nat.uadd_val hrun
+  simp only [lift, Result.ok.injEq] at hi2
+  subst hi2
+  simp only [InductiveShape.rulePrefix, absInductiveShape, absU, absCtorsL,
+    List.length_map]
+  have hc : (Std.UScalar.cast .U64 (alloc.vec.Vec.len p.ctors)).val
+      = p.ctors.val.length := by
+    rw [ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+  rw [h3, h1, hc]
+  scalar_tac
 
 /-- `major_idx` ⊑ `InductiveShape.majorIdx`. -/
 theorem major_idx_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
     (hrun : arena.inductives.sum_parts.major_idx p = ok o) :
     absU o = (absInductiveShape p).majorIdx := by
-  sorry
+  rw [arena.inductives.sum_parts.major_idx] at hrun
+  obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have h1 := rule_prefix_refines hi
+  have h3 := ConRon.Refine.Nat.uadd_val hrun
+  simp only [InductiveShape.majorIdx, absInductiveShape, absU] at *
+  omega
 
 end ConRon.Refine2

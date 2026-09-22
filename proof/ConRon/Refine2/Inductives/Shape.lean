@@ -332,4 +332,9 @@ attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFr
   absRenameTblFrom absRenameBy absInductiveShape absStructParts absRecFieldKind
   absKindL absKindLFrom absKindLL absKindLLFrom absNativeParts
 
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms list_allM_counted
+
 end ConRon.Refine2

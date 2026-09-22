@@ -1204,4 +1204,17 @@ theorem checkNativeTail_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
       else checkNativeTailSortsSpec mode fe q) := by
   rfl
 
+/-! ## The axiom census
+
+The twelve `_unfold`s this round closed read `[propext, Classical.choice,
+Quot.sound]` and nothing else — no `sorryAx` on a closed equation.  Two rows
+stand for the twelve: the cheapest family (a `let rec` induction) and the
+dearest (a memoised walk under rule 11's peel). -/
+
+/-- info: 'ConRon.Refine2.paramLevels_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms paramLevels_unfold
+
+/-- info: 'ConRon.Refine2.hasLooseBVarBGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms hasLooseBVarBGo_unfold
+
 end ConRon.Refine2

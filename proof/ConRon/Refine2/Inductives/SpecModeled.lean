@@ -993,4 +993,12 @@ theorem checkModeled_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
         checkIndRecs mode blockNames fe₂ recs) := by
   sorry
 
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.projBack_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms projBack_unfold
+
+/-- info: 'ConRon.Refine2.checkProjFn_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkProjFn_unfold
+
 end ConRon.Refine2

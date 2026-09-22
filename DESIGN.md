@@ -45226,7 +45226,7 @@ the tier.
 | **`_unfold`, a memoised walk** | 3 | **9–13 lines** — rule 11 plus `pair_peel` (new, §R2.4) | nothing |
 | **`_unfold`, a list fold** | 3 | **6–18 lines** — one of the four `*_counted` lemmas (new) plus `twin_reduce` | nothing |
 | **`_unfold`, a deep `let x ← match`** | **11** | **NOT CLOSED** — see §R2.5 | nothing, but see §R2.5 |
-| `_refines`, state-free (`Vec` cursor, record copy, arithmetic) | 52 | **~14 lines** — `Refine2/ExprOps/Pure.lean`'s `eidx_copy_upto_aux` is the measured template | 20 wait on nothing, 15 on tier-mates, 18 across tiers |
+| `_refines`, state-free (`Vec` cursor, record copy, arithmetic) | 52 | **30 lines, MEASURED** — see §R2.3b; the second one was a verbatim copy of the first and worked first try | 20 wait on nothing, 15 on tier-mates, 18 across tiers |
 | `_refines`, stateful (`Sim`/`SimRel`) | 253 | not priced — 248 are blocked | `Specs.lean`'s intern family |
 
 **The single most useful sentence of this section**: *the `*Parts`/`*Install`
@@ -45243,6 +45243,9 @@ thirty-two are literally `by rfl`.**
 |---|---:|---:|---|
 | `Spec.lean` | 17 | **5** | 12 |
 | `SpecModeled.lean` | 15 | **6** | 9 |
+| `SumParts.lean` | 8 | **6** | 2 (§R2.3b) |
+| `NativeParts.lean` | 68 | **66** | 2 (§R2.3b) |
+| **the tier** | **337** | **312** | **25** |
 
 * **11 by `rfl`** — `checkSumInd`, `normPosDom`, `recPositivity`,
   `checkNativeTail` (`Spec.lean`); `checkIotaSidesTy`, `checkIotaRule`,
@@ -45261,6 +45264,34 @@ thirty-two are literally `by rfl`.**
   `mentionsFvarGo`, 9–13 lines each, and the recipe is §R2.4's.
 * **3 list folds** — `checkStructProjTable`, `checkSumCtor` (both
   `List.allM`), `recCtorKinds`'s sibling clauses, via §R2.4's `*_counted`.
+
+##### R2.3b And four `_refines`, so the tier's closed count is no longer zero
+
+`scripts/arena-census.py` reads `Arena/Inductives` **T2 stated 130, closed 2**
+at this tip, from 0.  **The census does not see the `_unfold`s**, and that is
+correct: they are claims about the TWIN, and the census counts theorems that
+name a Rust function.  So the twenty-one above move the `sorry` count and not
+the census, and four `_refines` were closed on purpose to move both:
+
+* **`sum_parts::rule_prefix` and `major_idx`** — round 1 set `rule_prefix`
+  down as *"twenty minutes of plumbing"*; it is **12 lines** and the plumbing
+  is exactly three lemmas: `ConRon.Refine.bind_eq_ok_iff` to open the two
+  `Result` binds, `ConRon.Refine.Nat.uadd_val` for each checked `+`, and
+  `ConRon.Refine.ExprOps.usize_cast_u64_val` for `ctors.len() as u64` — which
+  is unconditional (a `usize` is never wider than 64 bits), unlike the
+  `u64 as usize` the `*_get_d` getters do.  **`scalar_tac` and not `omega` is
+  the closer**: `omega` does not know `(1#u64).val = 1`.  `major_idx` is then
+  6 lines at `rule_prefix_refines`.
+* **`native_parts::u64_vec_dup` and `kinds_copy`** — the state-free copier,
+  and **the measured price of that family is 30 lines**: a measure induction
+  on `xs.length ≤ i + n`, the `partial_fixpoint`'s `eq_def`, `if_pos`/`if_neg`
+  at `Vec.len` by `scalar_tac`, four `bind_eq_ok_iff`, `vec_index_some` +
+  `List.getElem?_eq_some_iff`, `vec_push_val`, `absSz_add_one`, and
+  `List.drop_eq_getElem_cons` to move the cursor one step.  `kinds_copy` is
+  the same thirty lines with `absKindL` for `absNatL` and one extra
+  `rec_field_kind_dup_refines`; it was written by copying and **worked on the
+  first elaboration**.  That is the evidence for the price table's claim that
+  the 52 state-free `_refines` ARE one recipe repeated.
 
 ##### R2.4 What this round added to the idiom
 
@@ -45341,6 +45372,12 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
   reflinks) and skips the whole rebuild; do that before the first `lake build`
   in any new worktree.  Measured: `lake build ConRonRefine2` from the copied
   tree, 24 m 40 s wall / 49 m user, 2 219 jobs.
+* **Five `#print axioms` rows under `#guard_msgs`** were added — two in
+  `Inductives/Spec.lean` (the cheapest and the dearest closed `_unfold`), two
+  in `Inductives/SpecModeled.lean`, one in `Inductives/Shape.lean` for
+  `list_allM_counted`.  Every one reads `[propext, Classical.choice,
+  Quot.sound]`: **no `sorryAx` on anything this round closed**, and still no
+  `bv_decide` axiom anywhere in `Refine2/`.
 * **Elaboration of the two files after this round**: `Spec.lean` 5 s,
   `SpecModeled.lean` 3 s (`lake env lean`, one run each), against an import
   baseline of 2–3 s — so the 21 closed proofs cost ~2 s and ~1 s net.  No

@@ -88,7 +88,45 @@ theorem kinds_copy_refines
     {out : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} {o}
     (hrun : arena.inductives.native_parts.kinds_copy ks i out = ok o) :
     absKindL o = absKindL out ++ absKindLFrom ks i := by
-  sorry
+  have aux : ∀ (n : Nat) (i : Std.Usize)
+      (out o : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind),
+      ks.val.length ≤ i.val + n →
+      arena.inductives.native_parts.kinds_copy ks i out = ok o →
+      absKindL o = absKindL out ++ absKindLFrom ks i := by
+    intro n
+    induction n with
+    | zero =>
+      intro i out o hn h
+      rw [arena.inductives.native_parts.kinds_copy.eq_def] at h
+      rw [if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+      subst h
+      simp [absKindL, absKindLFrom,
+        List.drop_eq_nil_of_le (by omega : ks.val.length ≤ i.val)]
+    | succ n ih =>
+      intro i out o hn h
+      rw [arena.inductives.native_parts.kinds_copy.eq_def] at h
+      by_cases hc : i.val ≥ ks.val.length
+      · rw [if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+        subst h
+        simp [absKindL, absKindLFrom,
+          List.drop_eq_nil_of_le (by omega : ks.val.length ≤ i.val)]
+      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by scalar_tac)] at h
+        obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hb, hkv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hk)
+        have hkd : absRecFieldKind k1 = absRecFieldKind k := rec_field_kind_dup_refines hk1
+        have hpv : out1.val = out.val ++ [k1] := ConRon.Refine.vec_push_val hout1
+        have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+        have hih := ih i2 out1 o (by omega) h
+        rw [hih]
+        simp only [absKindL, absKindLFrom, hpv, hi2v, List.map_append,
+          List.append_assoc, List.map_cons, List.map_nil, hkd]
+        congr 1
+        rw [List.drop_eq_getElem_cons hb, hkv]
+        simp
+  exact aux ks.val.length i out o (by omega) hrun
 
 /-- `kindss_copy` is the identity on the abstraction from the cursor on. -/
 theorem kindss_copy_refines
@@ -544,7 +582,41 @@ theorem u64_vec_dup_refines {xs : alloc.vec.Vec Std.U64} {i : Std.Usize}
     {out : alloc.vec.Vec Std.U64} {o}
     (hrun : arena.inductives.native_parts.u64_vec_dup xs i out = ok o) :
     absNatL o = absNatL out ++ absNatLFrom xs i := by
-  sorry
+  have aux : ∀ (n : Nat) (i : Std.Usize) (out o : alloc.vec.Vec Std.U64),
+      xs.val.length ≤ i.val + n →
+      arena.inductives.native_parts.u64_vec_dup xs i out = ok o →
+      absNatL o = absNatL out ++ absNatLFrom xs i := by
+    intro n
+    induction n with
+    | zero =>
+      intro i out o hn h
+      rw [arena.inductives.native_parts.u64_vec_dup.eq_def] at h
+      rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      subst h
+      simp [absNatL, absNatLFrom, List.drop_eq_nil_of_le (by omega : xs.val.length ≤ i.val)]
+    | succ n ih =>
+      intro i out o hn h
+      rw [arena.inductives.native_parts.u64_vec_dup.eq_def] at h
+      by_cases hc : i.val ≥ xs.val.length
+      · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+        subst h
+        simp [absNatL, absNatLFrom,
+          List.drop_eq_nil_of_le (by omega : xs.val.length ≤ i.val)]
+      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+        obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hx)
+        have hpv : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
+        have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+        have hih := ih i2 out1 o (by omega) h
+        rw [hih]
+        simp only [absNatL, absNatLFrom, hpv, hi2v, List.map_append,
+          List.append_assoc, List.map_cons, List.map_nil]
+        congr 1
+        rw [List.drop_eq_getElem_cons hb, hxv]
+        simp
+  exact aux xs.val.length i out o (by omega) hrun
 
 /-! ## The generated recursor type and rules -/
 
