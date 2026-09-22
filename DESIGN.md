@@ -40685,10 +40685,50 @@ at task #97-P5-Core.
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green, 2 116 jobs**, **125 `sorry`** (was 126) and no errors |
-| `scripts/gates.sh` | **all 13 OK** — `cargo-build` 3 s, `cargo-test` 7 s, `lint-rust` 2 s, `provenance` 1 s, `provenance-self` 0 s, `twin-lines` 0 s, `overview-links` 0 s, `holes` 0 s, `gen-pins` 6 s, `gen-prelude` 0 s, `gen-prelude-lean` 0 s, `extract-check` 98 s, `lake-build` 113 s |
+| `cd proof && lake build ConRonRefine2` (before the `arena` merge) | **green, 2 116 jobs**, **125 `sorry`** (was 126) and no errors |
+| `cd proof && lake build ConRonRefine2` (after it) | **RED, and not this branch's doing** — see §11 |
+| `scripts/gates.sh` | **all 13 OK, run twice** — before the `arena` merge (`extract-check` 98 s, `lake-build` 113 s, everything else ≤ 7 s) and after it (`extract-check` 150 s, `lake-build` 1 s, everything else ≤ 4 s) |
 | `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
 | `scripts/twin-lines.py check` | 1 924 `Lean twin:` citations in 42 files, every one at its twin's current lines |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
 | `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
 | the diff | `proof/ConRon/Refine2/Core/Eqns.lean`, `proof/ConRon/Refine2/Core/Arms.lean`, `proof/ConRon/Refine2/Core/Arms/{Sort,Gated,Loops,Batched}.lean`, two lines of `proof/ConRon/Refine2/Core.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Specs.lean`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check` cannot be affected, and were run anyway |
+
+#### 11. `arena`'s tip does not build `ConRonRefine2`, and it is a name collision
+
+The merge of `arena` at `cb75e1a8` was clean in every file and leaves
+`lake build ConRonRefine2` **failing**, at a declaration neither this round
+nor task #97-P5-Core wrote:
+
+    ConRon/Refine2.lean:31:0: import ConRon.Refine2.Checker.KnotHyp failed,
+      environment already contains 'ConRon.Refine2.KnotRel.whnfCore'
+      from ConRon.Refine2.Core.KnotRel
+
+`Refine2/Checker/KnotHyp.lean` (task #97-P5-Checker) declares a
+**`structure KnotRel (F : Nat)` in `namespace ConRon.Refine2`**, and
+`Refine2/Core/KnotRel.lean` (task #97-P5-Core) declares a
+`structure KnotRel (f : Nat)` in the same namespace; `proof/ConRon/Refine2.lean`
+imports both.  The two rounds ran concurrently, each was green on its own
+branch, and the merge that put them together did not rebuild the library.
+
+**It is pre-existing**: this branch touches `Core/Arms*`, `Core/Eqns.lean` and
+two lines of `Core.lean`, none of which is `Core/KnotRel.lean` or anything
+under `Checker/`, and the same import pair is in `arena`'s own
+`proof/ConRon/Refine2.lean`.  `scripts/gates.sh` does not catch it because
+`ConRonRefine2` is deliberately NOT a default target (task #97-P5-0 §10), so
+all 13 gates are green on `arena` and on this branch with the library red.
+
+**The fix is one rename and it belongs to the Checker tier**, whose `KnotRel`
+is *"the knot hypotheses the checker tier assumes"* and not the knot:
+`Refine2/Checker/KnotHyp.lean`'s structure and its four readers
+(`Checker/{KnotHyp,DeclCheck,Base,Top}.lean`) want a name of their own —
+`CheckerKnotHyp`, say — leaving `KnotRel` to `Core/KnotRel.lean`, which is
+what `Core/Induction.lean`'s `knot_rel` and `Core/Entries.lean`'s six entries
+are stated about.  Not done here: it is four files this round does not own.
+
+**What it means for the numbers above**: the `125 sorry` row is measured on
+this branch BEFORE the merge, which is the last state in which the library
+builds at all; after the merge the count cannot be taken until the rename
+lands.  Everything else in §10 — the thirteen gates, including
+`extract-check` and the default-target `lake build` — is measured after it.
+
