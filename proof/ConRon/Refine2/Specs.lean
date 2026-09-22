@@ -4135,13 +4135,6 @@ against the Rust's one `Vec::push` of a pair (`Refine/Abs.lean`'s
 `Idx::pack(tag, tier, rows.len() as u32)` — which `Refine2/AbsStore.lean`'s
 module note shows needs NO capacity hypothesis. -/
 
-/-- `arena::monad::intern_e` against `Arena.internE`. -/
-theorem intern_e_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) (v : arena.store.ENodeView) {o}
-    (hrun : arena.monad.intern_e pers st v = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internE (absENodeView v)) := by
-  sorry
-
 /-! ### `intern`, the `bvar` constructor: the pattern the other twenty-four follow
 
 Written out once, end to end, so that the remaining twenty-four are the same
@@ -8509,6 +8502,78 @@ theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
 
 
 
+/-- **`arena::monad::intern_e` against `Arena.internE`** — the ten-way
+dispatcher, and nothing but.
+
+`EStore::intern` is a `match` on the view that calls `intern_bvar` …
+`intern_proj`, and `arena::monad::intern_e_bvar` … `intern_e_proj` wrap the
+same ten at the same place, so **each arm is definitionally its wrapper** and
+the proof is `cases v` above ten `exact`s.
+
+What the arms need is the interesting part, and it is where finding 16's
+clause pays a second time: **`hchild` is gone at six of the ten**, because
+round 3 §2's `hchild_*` derive it from `StoreWF` and `hrel.storeWF` is that
+now.  What survives as a hypothesis is what genuinely is not the port's to
+give — `ViewOK` (the children decode), the literal's own well-formedness, and
+at the two binder arms the datum-array capacity, the `PropWhen` shape, the
+persistent binder probe and `ECapAt` (finding 15 is why the last two are not
+free here either). -/
+theorem intern_e_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (v : arena.store.ENodeView)
+    (hview : lst.store.ViewOK (absENodeView v))
+    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
+    (hbmcap : lst.store.capOKBM)
+    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
+      ConRon.Refine.PropWhenWF m.pw)
+    (hchildL : ∀ ty b m, v = .Lam ty b m →
+      (((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.lams.find?
+        ⟨absEIdx ty, absEIdx b,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none))
+    (hchildF : ∀ ty b m, v = .ForallE ty b m →
+      (((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.foralls.find?
+        ⟨absEIdx ty, absEIdx b,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none))
+    (hcapB : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
+      ECapAt lst.store (absENodeView v))
+    {o}
+    (hrun : arena.monad.intern_e pers st v = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o (Arena.internE (absENodeView v)) := by
+  cases v with
+  | BVar i => exact intern_e_bvar_run hrel hinv hfrozen i hrun
+  | FVar idx ty =>
+    exact intern_e_fvar_run hrel hinv hfrozen idx ty
+      (fun h => hchild_fvar hrel.storeWF h) hview hrun
+  | «Sort» u =>
+    exact intern_e_sort_run hrel hinv hfrozen u
+      (fun h => hchild_sort hrel.storeWF h) hview hrun
+  | Const n us =>
+    exact intern_e_const_run hrel hinv hfrozen n us
+      (fun h => hchild_const hrel.storeWF h) hview hrun
+  | App f a =>
+    exact intern_e_app_run hrel hinv hfrozen f a
+      (fun h => hchild_app hrel.storeWF h) hview hrun
+  | Lam ty b m =>
+    exact intern_e_lam_run hrel hinv hfrozen hbmcap ty b m
+      (hpw ty b m (Or.inl rfl)) (hchildL ty b m rfl) (hcapB ty b m (Or.inl rfl))
+      hview hrun
+  | ForallE ty b m =>
+    exact intern_e_forall_e_run hrel hinv hfrozen hbmcap ty b m
+      (hpw ty b m (Or.inr rfl)) (hchildF ty b m rfl) (hcapB ty b m (Or.inr rfl))
+      hview hrun
+  | LetE ty val b =>
+    exact intern_e_let_e_run hrel hinv hfrozen ty val b
+      (fun h => hchild_let_e hrel.storeWF h) hview hrun
+  | Lit l => exact intern_e_lit_run hrel hinv hfrozen l (hlit l rfl) hrun
+  | Proj n i e =>
+    exact intern_e_proj_run hrel hinv hfrozen n i e
+      (fun h => hchild_proj hrel.storeWF h) hview hrun
+
 /-- `arena::monad::intern_n_node` against `Arena.internNNode`. -/
 theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st) (v : arena.store.NNodeView) {o}
@@ -10104,5 +10169,8 @@ Finding 14's two halves and the binder composition of §2. -/
 
 /-- info: 'ConRon.Refine2.read_names_m_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms read_names_m_run
+
+/-- info: 'ConRon.Refine2.intern_e_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_run
 
 end ConRon.Refine2
