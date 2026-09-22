@@ -3632,6 +3632,132 @@ theorem internE_run_of_cap {lst : AState} {v : ENodeView}
              { lst with store := (lst.store.intern v).1 }) :=
   internE_run_of_caps hcap (ECapBMAt.of_no_bm hbm)
 
+/-! ## Finding 16's clause, at an `intern` wrapper (task #97-P5-Specs)
+
+`Refine2/AbsState.lean`'s `AStateRel` now carries `StoreWF` on the TWIN store,
+so every producer of the relation owes it.  `Arena/WFProofs.lean`'s
+`EStore.intern_wf` is the discharge at an intern and it wants two things:
+
+* **`capOK`** — which is task #97-P5-3 round 3 §1's `ECapAt` on the MISS path
+  and vacuous on the hit path, because `intern_of_find` says the store does
+  not move there.  So the port's own `Tbl::full` pays for it, exactly as
+  round 3 predicted (*"finding 14's real dividend is that it makes this
+  clause provable"*).
+* **`ViewOK`** — the children decode.  That one is NOT free and is not the
+  port's to give: a walk that interns `app f a` knows `f` and `a` decode
+  because it just interned them (`EStore.intern_spec`'s `view` conjunct), and
+  nothing weaker proves it.  It therefore becomes a hypothesis of the eight
+  non-binder wrappers and the two binder dispatchers — one hypothesis, in the
+  shape `EStore.ViewOK` already has, so a caller discharges it with the
+  builders below. -/
+
+/-- The clause at `EStore.intern`: `intern_wf` on the miss, and on the hit the
+store does not move at all (`intern_of_find`), so there is nothing to prove. -/
+theorem intern_storeWF {st : EStore} {v : ENodeView} (hwf : StoreWF st)
+    (hview : st.ViewOK v) (hcap : ECapAt st v) (hbm : ECapBMAt st v) :
+    StoreWF (st.intern v).1 := by
+  cases hf : st.find? v with
+  | some h => rw [intern_of_find hf]; exact hwf
+  | none => exact EStore.intern_wf hwf hview ⟨hcap hf, fun hb => hbm hf hb⟩
+
+/-- `intern_storeWF` at a NON-binder view, where the datum test is vacuous. -/
+theorem intern_storeWF_of_cap {st : EStore} {v : ENodeView} (hwf : StoreWF st)
+    (hnb : EStore.eViewNeedsBM v = false) (hview : st.ViewOK v)
+    (hcap : ECapAt st v) : StoreWF (st.intern v).1 :=
+  intern_storeWF hwf hview hcap (ECapBMAt.of_no_bm hnb)
+
+/-! ### The ten `ViewOK` builders
+
+One per constructor, so that a caller says what it knows (a child's `view`
+is `some`) rather than assembling a four-field structure.  `bvar` and `lit`
+have no children at all and need no hypothesis. -/
+
+theorem viewOK_bvar {st : EStore} (k : Nat) : st.ViewOK (.bvar k) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_lit {st : EStore} (l : ConLeche.Literal) : st.ViewOK (.lit l) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_fvar {st : EStore} {k : Nat} {ty : EIdx}
+    (hty : (st.view ty).isSome = true) : st.ViewOK (.fvar k ty) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc; subst hc; exact hty,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_sort {st : EStore} {u : LIdx}
+    (hu : (st.ls.view u).isSome = true) : st.ViewOK (.sort u) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc; subst hc; exact hu,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_const {st : EStore} {n : NIdx} {us : LsIdx}
+    (hn : (st.ns.view n).isSome = true) (hus : (st.lss.view us).isSome = true) :
+    st.ViewOK (.const n us) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
+   by intro c hc; simp [ENodeView.nchildren] at hc; subst hc; exact hn,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc; subst hc; exact hus⟩
+
+theorem viewOK_app {st : EStore} {f a : EIdx} (hf : (st.view f).isSome = true)
+    (ha : (st.view a).isSome = true) : st.ViewOK (.app f a) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc
+      rcases hc with rfl | rfl
+      · exact hf
+      · exact ha,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_letE {st : EStore} {ty v b : EIdx} (hty : (st.view ty).isSome = true)
+    (hv : (st.view v).isSome = true) (hb : (st.view b).isSome = true) :
+    st.ViewOK (.letE ty v b) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc
+      rcases hc with rfl | rfl | rfl
+      · exact hty
+      · exact hv
+      · exact hb,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_proj {st : EStore} {n : NIdx} {i : Nat} {e : EIdx}
+    (hn : (st.ns.view n).isSome = true) (he : (st.view e).isSome = true) :
+    st.ViewOK (.proj n i e) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc; subst hc; exact he,
+   by intro c hc; simp [ENodeView.nchildren] at hc; subst hc; exact hn,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_lam {st : EStore} {ty b : EIdx} {m : ConLeche.BinderMeta}
+    (hty : (st.view ty).isSome = true) (hb : (st.view b).isSome = true) :
+    st.ViewOK (.lam ty b m) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc
+      rcases hc with rfl | rfl
+      · exact hty
+      · exact hb,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
+theorem viewOK_forallE {st : EStore} {ty b : EIdx} {m : ConLeche.BinderMeta}
+    (hty : (st.view ty).isSome = true) (hb : (st.view b).isSome = true) :
+    st.ViewOK (.forallE ty b m) :=
+  ⟨by intro c hc; simp [ENodeView.echildren] at hc
+      rcases hc with rfl | rfl
+      · exact hty
+      · exact hb,
+   by intro c hc; simp [ENodeView.nchildren] at hc,
+   by intro c hc; simp [ENodeView.lchildren] at hc,
+   by intro c hc; simp [ENodeView.lschildren] at hc⟩
+
 theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
@@ -3653,7 +3779,8 @@ theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.bvar (absU i))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl (viewOK_bvar _) hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internBVarE, internE_run_of_cap rfl hcap, hhd]
@@ -6886,6 +7013,7 @@ theorem intern_e_fvar_run {pers st lst} (hrel : AStateRel pers st lst)
     (idx : Std.U64) (ty : arena.handle.EIdx)
     (hchild : (absEIdx ty).isPersistent = false →
       lst.store.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
+    (hview : lst.store.ViewOK (.fvar (absU idx) (absEIdx ty)))
     {o}
     (hrun : arena.monad.intern_e_fvar pers st idx ty = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internFVarE (absU idx) (absEIdx ty)) := by
@@ -6903,7 +7031,8 @@ theorem intern_e_fvar_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.fvar (absU idx) (absEIdx ty))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl hview hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internFVarE, internE_run_of_cap rfl hcap, hhd]
@@ -6916,6 +7045,7 @@ theorem intern_e_sort_run {pers st lst} (hrel : AStateRel pers st lst)
     (u : arena.handle.LIdx)
     (hchild : (absLIdx u).isPersistent = false →
       lst.store.pers.sorts.find? ⟨absLIdx u⟩ = none)
+    (hview : lst.store.ViewOK (.sort (absLIdx u)))
     {o}
     (hrun : arena.monad.intern_e_sort pers st u = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internSortE (absLIdx u)) := by
@@ -6933,7 +7063,8 @@ theorem intern_e_sort_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.sort (absLIdx u))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl hview hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internSortE, internE_run_of_cap rfl hcap, hhd]
@@ -6946,6 +7077,7 @@ theorem intern_e_const_run {pers st lst} (hrel : AStateRel pers st lst)
     (n : arena.handle.NIdx) (us : arena.handle.LsIdx)
     (hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
       lst.store.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
+    (hview : lst.store.ViewOK (.const (absNIdx n) (absLsIdx us)))
     {o}
     (hrun : arena.monad.intern_e_const pers st n us = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internConstE (absNIdx n) (absLsIdx us)) := by
@@ -6963,7 +7095,8 @@ theorem intern_e_const_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.const (absNIdx n) (absLsIdx us))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl hview hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internConstE, internE_run_of_cap rfl hcap, hhd]
@@ -6976,6 +7109,7 @@ theorem intern_e_app_run {pers st lst} (hrel : AStateRel pers st lst)
     (f a : arena.handle.EIdx)
     (hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
       lst.store.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
+    (hview : lst.store.ViewOK (.app (absEIdx f) (absEIdx a)))
     {o}
     (hrun : arena.monad.intern_e_app pers st f a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internAppE (absEIdx f) (absEIdx a)) := by
@@ -6993,7 +7127,8 @@ theorem intern_e_app_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.app (absEIdx f) (absEIdx a))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl hview hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internAppE, internE_run_of_cap rfl hcap, hhd]
@@ -7006,6 +7141,7 @@ theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
     (ty val bo : arena.handle.EIdx)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
       lst.store.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx bo⟩ = none)
+    (hview : lst.store.ViewOK (.letE (absEIdx ty) (absEIdx val) (absEIdx bo)))
     {o}
     (hrun : arena.monad.intern_e_let_e pers st ty val bo = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internLetEE (absEIdx ty) (absEIdx val) (absEIdx bo)) := by
@@ -7023,7 +7159,8 @@ theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl hview hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internLetEE, internE_run_of_cap rfl hcap, hhd]
@@ -7036,6 +7173,7 @@ theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
     (n : arena.handle.NIdx) (i : Std.U64) (ep : arena.handle.EIdx)
     (hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
       lst.store.pers.projs.find? ⟨absNIdx n, absU i, absEIdx ep⟩ = none)
+    (hview : lst.store.ViewOK (.proj (absNIdx n) (absU i) (absEIdx ep)))
     {o}
     (hrun : arena.monad.intern_e_proj pers st n i ep = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internProjE (absNIdx n) (absU i) (absEIdx ep)) := by
@@ -7053,7 +7191,8 @@ theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.proj (absNIdx n) (absU i) (absEIdx ep))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl hview hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internProjE, internE_run_of_cap rfl hcap, hhd]
@@ -7082,7 +7221,8 @@ theorem intern_e_lit_run {pers st lst} (hrel : AStateRel pers st lst)
     obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
     refine AOut.ok
       (lst' := { lst with store := (lst.store.intern (.lit (ConRon.Refine.absLiteral l))).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl (viewOK_lit _) hcap⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.intern_ext _ _) trivial
     rw [Arena.internLitE, internE_run_of_cap rfl hcap, hhd]
@@ -7135,6 +7275,7 @@ theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
       lst.store.pers.lams.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
     (hcap : lst.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
       lst.store.pers.bindSizeOf ETag.lam < Idx.idxCap)
+    (hwfI : StoreWF (lst.store.internLamI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
     {o}
     (hrun : arena.monad.intern_e_lam_i pers st ty b mi = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -7154,7 +7295,8 @@ theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
     refine AOut.ok
       (lst' := { lst with store :=
         (lst.store.internLamI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        hwfI⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.internLamI_ext _ _ _ _) trivial
     rw [internLamIE_run_of_cap hcap, hhd]
@@ -7170,6 +7312,7 @@ theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
       lst.store.pers.foralls.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
     (hcap : lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
       lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap)
+    (hwfI : StoreWF (lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
     {o}
     (hrun : arena.monad.intern_e_forall_e_i pers st ty b mi = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -7190,7 +7333,8 @@ theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
     refine AOut.ok
       (lst' := { lst with store :=
         (lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        hwfI⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.internForallEI_ext _ _ _ _) trivial
     rw [internForallEIE_run_of_cap hcap, hhd]
@@ -7217,6 +7361,10 @@ theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
     (hcapF : absU32 tag ≠ ETag.lam →
       lst.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
         lst.store.pers.bindSizeOf ETag.forallE < Idx.idxCap)
+    (hwfL : absU32 tag = ETag.lam →
+      StoreWF (lst.store.internLamI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
+    (hwfF : absU32 tag ≠ ETag.lam →
+      StoreWF (lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)).1)
     {o}
     (hrun : arena.monad.intern_e_bind_i pers st tag ty b mi = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -7231,14 +7379,15 @@ theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
     rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
       rw [etag_lam_abs]; simp)]
     exact intern_e_lam_i_run hrel hinv hfrozen ty b mi
-      (hchildL (by rw [etag_lam_abs])) (hcapL (by rw [etag_lam_abs])) hrun
+      (hchildL (by rw [etag_lam_abs])) (hcapL (by rw [etag_lam_abs]))
+      (hwfL (by rw [etag_lam_abs])) hrun
   · rw [if_neg hc] at hrun
     have hne : absU32 tag ≠ ETag.lam := by
       rw [← etag_lam_abs]
       intro hcc; exact hc (absU32_inj hcc)
     rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
     exact intern_e_forall_e_i_run hrel hinv hfrozen ty b mi
-      (hchildF hne) (hcapF hne) hrun
+      (hchildF hne) (hcapF hne) (hwfF hne) hrun
 
 /-! ## `intern` at a binder view IS the datum intern then `internBindI`
 
@@ -7370,6 +7519,7 @@ theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
           (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
     (hcap : ECapAt lst.store
       (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
+    (hview : lst.store.ViewOK (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
     {o}
     (hrun : arena.monad.intern_e_lam pers st ty b m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -7394,7 +7544,8 @@ theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
     refine AOut.ok
       (lst' := { lst with store := (lst.store.internLam (absEIdx ty) (absEIdx b)
         (ConRon.Refine.absBinderMeta m)).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        (by rw [← hiv]; exact intern_storeWF hrel.storeWF hview hcap (fun _ _ => hbmcap))⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (by rw [← hiv]; exact EStore.intern_ext _ _) trivial
     rw [Arena.internLamE,
@@ -7415,6 +7566,7 @@ theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
           (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
     (hcap : ECapAt lst.store
       (.forallE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
+    (hview : lst.store.ViewOK (.forallE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
     {o}
     (hrun : arena.monad.intern_e_forall_e pers st ty b m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -7440,7 +7592,8 @@ theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
     refine AOut.ok
       (lst' := { lst with store := (lst.store.internForallE (absEIdx ty) (absEIdx b)
         (ConRon.Refine.absBinderMeta m)).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        (by rw [← hiv]; exact intern_storeWF hrel.storeWF hview hcap (fun _ _ => hbmcap))⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (by rw [← hiv]; exact EStore.intern_ext _ _) trivial
     rw [Arena.internForallEE,
