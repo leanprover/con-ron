@@ -27,6 +27,35 @@ already stated there for exactly this reason, and its statements take
 
 `PStep.toCore` is the one-line bridge between them.
 
+**FINDING (task #97-P3-Ind round 2): `lvlEq?` is a CORE-grade call, and four
+statements of this tier had it at the pure grade.**  `Arena/Core.lean`'s
+`lvlEq?` is a CACHED verdict walk: it probes `caches.lvlEqC`, and on a miss it
+reads both handles back through `readLevelM` (which writes `caches.readLC`)
+and records the verdict (which writes `caches.lvlEqC`).  So a twin that calls
+it moves TWO of the fourteen per-declaration cache tables, and `PStep`'s
+`caches : s'.caches = s.caches` is **false of it** — not hard to prove, false.
+
+Three twins of this tier call `lvlEq?` — `InductiveShape.withSort`
+(`SumParts.lean:62`), `structPartsCore?` (`StructParts.lean:289`) and
+`nativeShape?` (`NativeParts.lean:505`), the last of which `nativeParts?`
+calls — and round 1 stated all four at `PSpec`.  They are now `CSpec`, which
+is the frame `lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`, CLOSED) actually
+delivers: `CheckOK` in, `CheckOK` out, the store and the pins untouched.  Note
+that `CSpec` is the WEAKER statement — `PSpec.toCSpec` derives it — so if the
+twins are ever changed to compute `isProp` the way con-leche writes it
+(`Level.isEquiv (← readLevel s) .zero`, no cache at all) the `PSpec` form
+becomes provable again and these four go back to it with no consumer change.
+
+Every consumer inside this tier has `CheckOK` where it needs them
+(`checkIndDecl_bridge` through `FoldOK.check`, `checkSumInd_spec` by its own
+grade), so the correction costs the tier nothing.  **It is not free outside
+it**: `Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls
+`structPartsCore?` AND `nativeParts?` (`Arena/Frontend/ProjRec.lean:510-515`)
+and concludes `ParseStep`, whose `caches` clause is the same false one, at a
+hypothesis (`StateOK`) too weak to reach `CheckOK`.  That is the Frontend
+tier's to decide and this tier cannot decide it for them; see the task
+section.
+
 ## The two statement shapes
 
 Rather than write the statement out at ~110 declarations, the tier has
@@ -479,6 +508,108 @@ theorem denoteFEnv_ext {st st' : EStore} (hx : Ext st st') {fe : IFEnv}
   obtain ⟨xs, hxs, he⟩ := h
   exact ⟨xs, denoteCIList_ext hx _ xs hxs, he⟩
 
+/-! ## The projection table's obligation
+
+`Bridge/StateOK.lean`'s `IProjTableOK` is a field of `IFEnvOK`, and
+`Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` takes it as the hypothesis
+`hproj`.  Its ONE debtor is `Arena.checkStructProjTable` — the only function
+of the whole arena that pushes a `.projInfo` row — and this tier owns it;
+`Bridge/Checker/Inv.lean`'s `projTableOK_of_install` names it by file and
+theorem.
+
+Two of the record's three clauses the install itself tests (`unless
+bodies.size = nF` is `bodies` verbatim, `let tn ← projTableName T` is
+`named`'s second half).  The third, `guards.length = numFields`, is about an
+ARGUMENT, so it cannot be tested there and its site is the CALLER:
+`Arena.checkNativeTable` builds `structProjGuards cA.1.type p.nP cA.2 sorts`
+and passes it beside `cA.2`, and `structProjGuards`' own answer has length
+`nF` by construction (`structProjGuards_length`).  So
+`checkStructProjTable_spec` takes `guards.length = nF` as a HYPOTHESIS and
+`checkNativeTable_spec` discharges it.
+
+The clause an install can actually CONCLUDE is RELATIVE — "every projection
+table the new index holds was already in the old one, or is well shaped at the
+new store" — because a route chains a dozen installs and only the structure
+route's stage 4 pushes one.  `ProjOut` is that clause; it composes
+(`ProjOut.trans`, transporting the older tables over the store the chain
+grew), and it is a FIELD of `InstRel` so that every install of the tier
+carries it rather than each caller restating it.
+
+`ProjOut.absolute` turns it back into the absolute statement
+`IFEnvOK_of_denote` wants, against the fold's own `IFEnvOK env fe s` at the
+index the step started from. -/
+
+/-- con-leche: none — a level-handle list's denotation has its own length.
+What `checkNativeTable_spec` reads `guards.length = nF` off, against
+`structProjGuards_length`.  Belongs in `Bridge/Rel.lean` beside
+`denoteLList_ext`. -/
+theorem denoteLList_length {st : LStore} :
+    ∀ (us : List LIdx) (xs : List Level), denoteLList st us = some xs →
+      us.length = xs.length := by
+  intro us
+  induction us with
+  | nil => intro xs h; simp only [denoteLList, Option.some.injEq] at h; simp [← h]
+  | cons u us ih =>
+    intro xs h
+    simp only [denoteLList, opt2] at h
+    cases hu : denoteL st u with
+    | none => rw [hu] at h; simp at h
+    | some y =>
+      cases hus : denoteLList st us with
+      | none => rw [hu, hus] at h; simp at h
+      | some ys =>
+        rw [hu, hus] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        simp only [List.length_cons, ih _ hus]
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
+clause) — **what an install owes about projection tables**: every table the
+new index holds is either one the old index already held, or one that is well
+shaped and rightly named at the new store. -/
+def ProjOut (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
+  ∀ n t, fe'.find? n = some (.projInfo t) →
+    fe.find? n = some (.projInfo t) ∨ IProjTableOK st t
+
+/-- con-leche: none — an install that changes nothing owes nothing. -/
+theorem ProjOut.refl (fe : IFEnv) (st : EStore) : ProjOut fe st fe :=
+  fun _ _ h => Or.inl h
+
+/-- con-leche: none — the obligation survives the arena's growth, by
+`IProjTableOK.mono`. -/
+theorem ProjOut.mono {fe fe' : IFEnv} {st st' : EStore}
+    (h : ProjOut fe st fe') (hx : Ext st st') : ProjOut fe st' fe' := by
+  intro n t hf
+  rcases h n t hf with h' | h'
+  · exact Or.inl h'
+  · exact Or.inr (h'.mono hx)
+
+/-- con-leche: none — **the obligation chains**, which is what a route's
+dozen stages need of it.  The older half's tables are transported over the
+store the later stages grew. -/
+theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv} {st₁ st₂ : EStore}
+    (h₁ : ProjOut fe₀ st₁ fe₁) (h₂ : ProjOut fe₁ st₂ fe₂) (hx : Ext st₁ st₂) :
+    ProjOut fe₀ st₂ fe₂ := by
+  intro n t hf
+  rcases h₂ n t hf with h' | h'
+  · rcases h₁ n t h' with h'' | h''
+    · exact Or.inl h''
+    · exact Or.inr (h''.mono hx)
+  · exact Or.inr h'
+
+/-- con-leche: none — **the absolute form**, which is what
+`Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` asks for: the fold's invariant
+at the index the step started from, plus the step's own `ProjOut`, is the
+invariant at the index it produced. -/
+theorem ProjOut.absolute {env : Env} {fe fe' : IFEnv} {s : AState}
+    {st' : EStore} (hfe : IFEnvOK env fe s) (hx : Ext s.store st')
+    (h : ProjOut fe st' fe') :
+    ∀ n t, fe'.find? n = some (.projInfo t) → IProjTableOK st' t := by
+  intro n t hf
+  rcases h n t hf with h' | h'
+  · exact (hfe.proj n t h').mono hx
+  · exact h'
+
 /-! ## The environment's own relation
 
 An install route's argument and answer are `IFEnv`s, and the pure side's are
@@ -504,17 +635,28 @@ structure InstRel (fe : IFEnv) (P : Env → Prop) (st : EStore) (fe' : IFEnv) :
   pushed : Pushed fe fe'
   visible : fe.visibleBelow ≤ fe'.visibleBelow
   denote : ∃ env', denoteFEnv st fe' = some env' ∧ P env'
+  /-- **the projection tables this install left behind are well shaped** —
+  the section above says why the clause is relative and why it lives here
+  rather than at the one install that can discharge it. -/
+  proj : ProjOut fe st fe'
 
 /-- con-leche: none — `InstRel` composes along a chain of installs: the
-environment relations chain by `Pushed.trans`, and the pure side's runs are
-chained by the caller (each install's `P` names its own con-leche function). -/
+environment relations chain by `Pushed.trans`, the projection obligation by
+`ProjOut.trans`, and the pure side's runs are chained by the caller (each
+install's `P` names its own con-leche function).
+
+**The `Ext` argument is what `proj` costs**: an earlier stage's tables are
+well shaped at the store THAT stage left, and the chain's conclusion is at the
+store the last stage left.  Every caller has it — it is the `ext` field of the
+`PStep`/`CoreStep` the same two stages produced. -/
 theorem InstRel.trans {fe₀ fe₁ fe₂ : IFEnv} {P₁ P₂ : Env → Prop}
-    {st₁ st₂ : EStore} (h₁ : InstRel fe₀ P₁ st₁ fe₁)
+    {st₁ st₂ : EStore} (hx : Ext st₁ st₂) (h₁ : InstRel fe₀ P₁ st₁ fe₁)
     (h₂ : InstRel fe₁ P₂ st₂ fe₂) : InstRel fe₀ P₂ st₂ fe₂ where
   coh := h₂.coh
   pushed := h₁.pushed.trans h₂.pushed
   visible := Nat.le_trans h₁.visible h₂.visible
   denote := h₂.denote
+  proj := h₁.proj.trans h₂.proj hx
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what an inductive install route leaves behind**.  Seven clauses, and the
@@ -535,5 +677,14 @@ structure IndOut (fe fe' : IFEnv) (s s' : AState) (run : Env → Prop) : Prop wh
   pushed : Pushed fe fe'
   visible : fe.visibleBelow ≤ fe'.visibleBelow
   denote : ∃ env', denoteFEnv s'.store fe' = some env' ∧ run env'
+  /-- **the eighth clause** (task #97-P3-Ind round 2): the arm's own
+  `ProjOut`.  `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` needs
+  `IProjTableOK` at every stored table of the index the step produced, and
+  `ProjOut.absolute` is what turns this clause plus the fold's incoming
+  `IFEnvOK` into that.  `Bridge/Checker/Hyp.lean`'s `IndSpec` and
+  `Bridge/Checker/Decl.lean`'s `DeclOut` do not carry it yet — that is the
+  checker tier's two-line follow-on, and `indSpec_of_bridge` simply drops it
+  until then. -/
+  proj : ProjOut fe s'.store fe'
 
 end ConRon.Bridge.Inductives

@@ -460,11 +460,17 @@ theorem nativeRecLpsOk_spec (st : EStore) (p : Arena.InductiveShape)
 Read a block into the shape record, or refuse it.  **Two-sided**: the dispatch
 reads it.
 
-`sorry`: `sumSplit_spec`, `nativeCounts?_spec`, `nativeRecPinOk_spec`,
-`nativeRecLpsOk_spec` and `internNNode_spec` at `T.str "rec"`. -/
-theorem nativeShape?_spec (nPd : Nat) (block : List IConstantInfo)
-    (blockP : List ConstantInfo) :
-    PSpec (fun st => Frontend.denoteCIList st block = some blockP)
+**CORE grade, not pure** (task #97-P3-Ind round 2's finding; the argument is
+in `Bridge/Inductives/Rel.lean`'s frame section).  Like `structPartsCore?`
+this recogniser asks `lvlEq? s z` for `isProp`, and `lvlEq?` moves two of the
+fourteen per-declaration cache tables, so `PStep` is the wrong frame.
+
+`sorry`: `sumSplit_spec` (closed), `nativeCounts?_spec`, `nativeRecPinOk_spec`,
+`nativeRecLpsOk_spec`, `lvlEq?_spec` (closed) and `internNNode_spec` at
+`T.str "rec"`. -/
+theorem nativeShape?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) :
+    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.nativeShape? nPd block)
       (ROp RShape (ConLeche.nativeShape? nPd blockP)) := by
   sorry
@@ -473,11 +479,16 @@ theorem nativeShape?_spec (nPd : Nat) (block : List IConstantInfo)
 **THE DISPATCH'S RECOGNISER** — `checkIndDecl` routes on this and on nothing
 else (task #219), so its two-sidedness is the soundness of the route choice.
 
+**CORE grade, not pure**, because `nativeShape?` is (task #97-P3-Ind round 2's
+finding).  This is the statement `checkIndDecl_bridge` consumes, so round 1's
+`PSpec` form was a false lemma UNDER A PROVED THEOREM — the one place in the
+tier where the defect was load-bearing rather than merely stated.
+
 `sorry`: `nativeShape?_spec`, `recCtorKinds_spec` at each constructor and
 `withKinds_spec` (closed above). -/
-theorem nativeParts?_spec (nPd : Nat) (block : List IConstantInfo)
-    (blockP : List ConstantInfo) :
-    PSpec (fun st => Frontend.denoteCIList st block = some blockP)
+theorem nativeParts?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) :
+    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.nativeParts? nPd block)
       (ROp RParts (ConLeche.nativeParts? nPd blockP)) := by
   sorry

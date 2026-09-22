@@ -231,11 +231,19 @@ Recognise a direct simple-structure block.  `none` means "not this class", and
 the relation is TWO-SIDED (`ROp`): a twin that failed to recognise a block
 con-leche recognises would take the other route.
 
+**CORE grade, not pure** (task #97-P3-Ind round 2's finding; the argument is
+in `Bridge/Inductives/Rel.lean`'s frame section).  The recogniser reads the
+former's result sort and asks `lvlEq? s z` for `isProp`, and `lvlEq?` fills
+two per-declaration cache tables — so `PStep`'s `caches` clause, which round 1
+stated here, is false of it.  `structShape` itself is untouched and stays
+pure: the `lvlEq?` call is in `structPartsCore?`'s own body.
+
 `sorry`: `structShape_spec`, `stripLams`' and `stripPis`' specs, the reserved
-name table through `PinsOK`, and `internNNode_spec` at `T.str "rec"`. -/
-theorem structPartsCore?_spec (block : List IConstantInfo)
-    (blockP : List ConstantInfo) :
-    PSpec (fun st => Frontend.denoteCIList st block = some blockP)
+name table through `PinsOK`, `lvlEq?_spec` (closed) and `internNNode_spec` at
+`T.str "rec"`. -/
+theorem structPartsCore?_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) :
+    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.structPartsCore? block)
       (ROp RSParts (ConLeche.structPartsCore? blockP)) := by
   sorry
@@ -350,6 +358,20 @@ theorem structUsedLaterList_spec (cty : EIdx) (ctyP : Expr) (nP : Nat)
       (Arena.structUsedLaterList cty nP memo n base)
       (RV ((List.range n).map fun k => ConLeche.structUsedLater ctyP nP (base + k))) := by
   sorry
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:643-656
+structProjGuards — **the guard list has one entry per field**, by
+construction: the pure function is a `List.range nF` map.  This is the fact
+`Bridge/StateOK.lean`'s `IProjTableOK.guards` asks of the table
+`checkStructProjTable` pushes, and `checkStructProjTable_spec`'s hypothesis
+`hg` is where it has to arrive (`Bridge/Checker/Inv.lean`'s
+`projTableOK_of_install` names the same hypothesis).  The chain is
+`structProjGuards_spec` (the handle list denotes the pure one) plus
+`denoteLList_length` (a denotation keeps its length) plus this. -/
+theorem structProjGuards_length (cty : Expr) (nP nF : Nat)
+    (sorts : List Level) :
+    (ConLeche.structProjGuards cty nP nF sorts).length = nF := by
+  simp only [ConLeche.structProjGuards, List.length_map, List.length_range]
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:643-656 structProjGuards
 con-leche: ConLeche/Kernel/Inductives/StructParts.lean:722-732 structProjGuardsFast

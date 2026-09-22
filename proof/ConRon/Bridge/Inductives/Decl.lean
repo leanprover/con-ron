@@ -144,12 +144,18 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
     obtain ⟨p, s₂, h3, h4⟩ := bindOk h2
     have hb₁ : Frontend.denoteCIList s₁.store block = some b :=
       denoteCIList_ext hstep1.ext _ _ hb
+    -- the recogniser is CORE grade: it asks `lvlEq?` for the former's
+    -- `isProp` and `lvlEq?` fills two per-declaration cache tables, so its
+    -- frame is `CoreStep` and not `PStep` (round 2's finding, argued in
+    -- `Bridge/Inductives/Rel.lean`'s frame section)
+    have hck₁ : CheckOK μ env fe s₁ := (hstep1.toCore hok.check).ok
     obtain ⟨hstep2, hr2⟩ :=
-      nativeParts?_spec nP block b s₁ s₂ p hstep1.ok hb₁ h3
-    have hstep12 : PStep s s₂ := hstep1.trans hstep2
-    have hck₂ : CheckOK μ env fe s₂ := (hstep12.toCore hok.check).ok
+      nativeParts?_spec fe nP block b s₁ s₂ p hck₁ hb₁ h3
+    have hext12 : Ext s.store s₂.store := hstep1.ext.trans hstep2.ext
+    have hpins12 : s₂.pins = s.pins := by rw [hstep2.pins, hstep1.pins]
+    have hck₂ : CheckOK μ env fe s₂ := hstep2.ok
     have hfe₂ : denoteFEnv s₂.store fe = some env :=
-      denoteFEnv_ext hstep12.ext hok.denote
+      denoteFEnv_ext hext12 hok.denote
     have hb₂ : Frontend.denoteCIList s₂.store block = some b :=
       denoteCIList_ext hstep2.ext _ _ hb₁
     -- the two routes
@@ -161,13 +167,14 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
       obtain ⟨env', hden, F, hrunP⟩ := hinst.denote
       exact
         { state := hcore.ok.state
-          ext := (hstep12.ext.trans hcore.ext)
-          pins := by rw [hcore.pins, hstep12.pins]
+          ext := (hext12.trans hcore.ext)
+          pins := by rw [hcore.pins, hpins12]
           coh := hinst.coh
           pushed := hinst.pushed
           visible := hinst.visible
           denote := ⟨env', hden, F, by
-            rw [checkDecl_ind_route hpin hparams, hr2]; exact hrunP⟩ }
+            rw [checkDecl_ind_route hpin hparams, hr2]; exact hrunP⟩
+          proj := hinst.proj }
     | some pa =>
       simp only [ROp] at hr2
       obtain ⟨q, hq, hrel⟩ := hr2
@@ -176,13 +183,14 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
       obtain ⟨env', hden, F, hrunP⟩ := hinst.denote
       exact
         { state := hcore.ok.state
-          ext := (hstep12.ext.trans hcore.ext)
-          pins := by rw [hcore.pins, hstep12.pins]
+          ext := (hext12.trans hcore.ext)
+          pins := by rw [hcore.pins, hpins12]
           coh := hinst.coh
           pushed := hinst.pushed
           visible := hinst.visible
           denote := ⟨env', hden, F, by
-            rw [checkDecl_ind_route hpin hparams, hq]; exact hrunP⟩ }
+            rw [checkDecl_ind_route hpin hparams, hq]; exact hrunP⟩
+          proj := hinst.proj }
 
 /-! ## `IndSpec`, and the two clauses that stand between it and this arm -/
 
