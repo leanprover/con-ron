@@ -32,6 +32,12 @@ section for every task you land.
 * The Lean model of the crate is *committed*, under `proof/ConRon/Generated/`;
   regenerate it with `scripts/extract.sh` whenever `crates/con-ron-core`
   changes, and commit the result in the same commit.
+* `lake build` and `ulimit -v` do not mix: Lean reserves address space per
+  thread, and under `ulimit -v 60000000` the build aborts with "failed to
+  create thread" on the Mathlib-side modules even at `LEAN_NUM_THREADS=1`.
+  Run Lean builds with no `ulimit -v` (or 200 GB), `LEAN_NUM_THREADS=1`
+  when a module aborts, `LAKE_JOBS=4`; the `ulimit` rule below is for
+  CHECKER runs, not for `lake`.
 * Large artifacts (exports, scratch builds) go to `_tmp/` (gitignored).
   Run every checker under `timeout` and **always** under `ulimit -v`: a
   runaway checker must die rather than take the machine down.  The budget for
