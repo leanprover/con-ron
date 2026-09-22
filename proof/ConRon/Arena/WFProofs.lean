@@ -10474,4 +10474,95 @@ theorem EStore.internLevelsPersistent_wf' {st : EStore} (h : StoreWF' st)
     exact hwf.derExact i u hi
   · rw [hlss, LsStore.scratchOn_internPersistent]; exact hwf.sync
 
+
+/-! ### What a promote-intern ANSWERS
+
+Two conjuncts of `Bridge/Promote/StoreP.lean`'s `internPersistent_spec`, at
+the weak invariant: the handle is PERSISTENT (which is the whole purpose of
+`internPersistent` — a promotion must hand back a handle that survives
+`dropScratch`) and it decodes to the view that was interned.  Both split
+hit/miss: the hit reads `consP`, the miss reads the push. -/
+
+theorem NStore.internPersistent_pers {st : NStore} (h : NStoreWF' st)
+    {w : NNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    ((st.internPersistent w).2).isPersistent = true := by
+  obtain ⟨rk, h⟩ := h
+  simp only [NStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).2
+  · rename_i hf
+    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
+    rw [(NTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
+
+theorem NStore.internPersistent_view {st : NStore} (h : NStoreWF' st)
+    {w : NNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
+  obtain ⟨rk, h⟩ := h
+  simp only [NStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).1
+  · rename_i hf
+    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+    have hspec := NTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
+    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+      show (_ == 0) = true
+      rw [hspec.2]; decide
+    simp only [NStore.view]
+    rw [if_pos hp]
+    exact hspec.1
+
+theorem LStore.internPersistent_pers {st : LStore} (h : LStoreWF' st)
+    {w : LNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    ((st.internPersistent w).2).isPersistent = true := by
+  obtain ⟨rk, h⟩ := h
+  simp only [LStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).2
+  · rename_i hf
+    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
+    rw [(LTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
+
+theorem LStore.internPersistent_view {st : LStore} (h : LStoreWF' st)
+    {w : LNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
+  obtain ⟨rk, h⟩ := h
+  simp only [LStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).1
+  · rename_i hf
+    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+    have hspec := LTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
+    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+      show (_ == 0) = true
+      rw [hspec.2]; decide
+    simp only [LStore.view]
+    rw [if_pos hp]
+    exact hspec.1
+
+theorem LsStore.internPersistent_pers {st : LsStore} (h : LsStoreWF' st)
+    {w : LsNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    ((st.internPersistent w).2).isPersistent = true := by
+  simp only [LsStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).2
+  · rename_i hf
+    show ((st.pers.push w (st.derOfView w) Idx.tierP).2.tier == 0) = true
+    rw [(LsTables.push_spec st.pers w _ Idx.tierP (by decide) (hcap hf)).2]; decide
+
+theorem LsStore.internPersistent_view {st : LsStore} (h : LsStoreWF' st)
+    {w : LsNodeView} (hcap : st.pers.find? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    (st.internPersistent w).1.view (st.internPersistent w).2 = some w := by
+  simp only [LsStore.internPersistent]
+  split
+  · rename_i i hf; exact ((h.consP w i).mp hf).1
+  · rename_i hf
+    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+    have hspec := LsTables.push_spec st.pers w (st.derOfView w) Idx.tierP htr (hcap hf)
+    have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+      show (_ == 0) = true
+      rw [hspec.2]; decide
+    simp only [LsStore.view]
+    rw [if_pos hp]
+    exact hspec.1
+
 end ConRon.Arena
