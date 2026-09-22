@@ -40566,10 +40566,11 @@ the template for `promote_l` / `promote_ls` / `promote_e`.
 **The mutual block is one induction.**  `promote_n` at `f + 1` calls
 `promote_n_node` at `f`, and `promote_n_node` at `f` calls `promote_n` at `f`;
 so the node lemma is derived INSIDE the successor step from that step's own
-induction hypothesis, and no second induction is needed.  (The standalone
-`promote_n_node_refines` is still `sorry`; it is that derivation with the
-hypothesis supplied from `promote_n_refines`, one `▸` away, and was left for
-the round that does the other three walks.)
+induction hypothesis, and no second induction is needed.  The node lemma is
+`promote_n_node_aux`, a private theorem taking the `promote_n` statement at
+`n` as a hypothesis; `promote_n_aux`'s successor step feeds it its own `ih`
+and the public `promote_n_node_refines` feeds it `promote_n_refines`, one `▸`
+for the fuel.
 
 **`Arena/PromoteExt.lean` is not what this needed, and that is worth
 recording.**  Task #97a's follow-up 4 built `AExt`/`AExtOf` and twenty
@@ -40593,13 +40594,13 @@ same note task #97-P5-Arms §9 makes about `EStore_view_tagOf`.
 | `IFEnvRelI` and its three accessors, `IFEnvInv`'s two new accessors, `SimRel.mono` | `Checker/Shape.lean` | **6** |
 | `IFEnvInv.coreCtx` / `coreCtxSelf` (§4) | `Checker/KnotHyp.lean` | **2** |
 | the `_unfold`s: `checkConstantVal`, `installConstantVal`, `installValue`, `checkValueGroup`, `constsResolveFGo`, `indParamsOk`, `checkProjRule` | `Checker/Spec.lean` | **7** |
-| `promoteN_unfold`, `promoteL_unfold`, `promoteE_unfold`; `pmemo_empty_refines`; `viewN_run_state`; **`promote_n_refines`** | `Promote/Promote.lean` | **6** |
+| `promoteN_unfold`, `promoteL_unfold`, `promoteE_unfold`; `pmemo_empty_refines`; `viewN_run_state`; **`promote_n_refines`** and **`promote_n_node_refines`** | `Promote/Promote.lean` | **7** |
 | the capstone spine (§5) plus `mk_ifenv_empty_refines` and four cursor helpers | `Checker/Top.lean` | **12** |
-| **the round** | | **38** |
+| **the round** | | **39** |
 
 `ConRonRefine2` stands at **905 `sorry`** and 2 219 jobs, green.  The two
-tiers' own open count is **344** (was 360): `Promote/Intern.lean` 24,
-`Promote/Promote.lean` 30, `Checker/Axioms.lean` 59, `Checker/Canon.lean` 30,
+tiers' own open count is **342** (was 360): `Promote/Intern.lean` 24,
+`Promote/Promote.lean` 29, `Checker/Axioms.lean` 59, `Checker/Canon.lean` 30,
 `Checker/Pins.lean` 6, `Checker/Spec.lean` 1, `Checker/Base.lean` 61,
 `Checker/DeclCheck.lean` 92, `Checker/Top.lean` 40, `Checker/Shape.lean` 0,
 `Checker/KnotHyp.lean` 0.
@@ -40627,18 +40628,23 @@ file holding that file's own `import` lines, measured the same way.
 
 | file | lines | raw (2 runs) | its import baseline | net |
 |---|---:|---|---:|---:|
-| `Checker/Shape.lean` | 635 | 2.30 / 2.22 s | 1.97 s | **0.29 s** |
-| `Checker/KnotHyp.lean` | 126 | 2.01 / 1.93 s | 1.95 s | **0.02 s** |
-| `Checker/Spec.lean` | 1 048 | 3.80 / 3.93 s | 1.95 s | **1.92 s** |
+| `Checker/Shape.lean` | 640 | 2.30 / 2.22 s | 1.97 s | **0.29 s** |
+| `Checker/KnotHyp.lean` | 128 | 2.01 / 1.93 s | 1.95 s | **0.02 s** |
+| `Checker/Spec.lean` | 1 072 | 3.80 / 3.93 s | 1.95 s | **1.92 s** |
 | `Promote/Intern.lean` | 330 | 2.00 / 2.06 s | 2.00 s | **0.03 s** |
-| `Promote/Promote.lean` | 790 | 2.39 / 2.34 s | 2.11 s | **0.25 s** |
+| `Promote/Promote.lean` | 1 043 | 2.39 / 2.34 s | 2.11 s | **0.25 s** |
 | `Checker/Pins.lean` | 1 091 | 2.22 / 2.18 s | 2.11 s | **0.09 s** |
 | `Checker/Canon.lean` | 409 | 2.12 / 2.09 s | 2.03 s | **0.08 s** |
 | `Checker/Axioms.lean` | 556 | 2.07 / 2.04 s | 1.93 s | **0.13 s** |
 | `Checker/Base.lean` | 889 | 2.21 / 2.23 s | 2.02 s | **0.20 s** |
 | `Checker/DeclCheck.lean` | 1 103 | 2.23 / 2.23 s | 2.28 s | **0.00 s** |
-| `Checker/Top.lean` | 1 125 | 2.68 / 2.69 s | 2.18 s | **0.50 s** |
-| **the tier** | **8 102** | | | **≈ 3.5 s** |
+| `Checker/Top.lean` | 1 141 | 2.68 / 2.69 s | 2.18 s | **0.50 s** |
+| **the tier** | **8 402** | | | **≈ 3.5 s** |
+
+(The line counts are the tip's; the timings were taken at the first `arena`
+merge, before the module notes of §11 were written — text, not elaboration.
+`Promote/Promote.lean` grew 790 → 1 043 lines for §6's walk, and its 0.25 s
+is measured at 790.)
 
 **No theorem is anywhere near the 20-second flag, and nothing in the tier is
 above one second.**  The one figure worth naming is `Checker/Spec.lean`'s
@@ -40663,7 +40669,8 @@ BECAUSE they read `sorryAx`:
 
 * `install_then_check_refines` and `check_decls_pure_refines` — §5's three
   leaves;
-* `promote_n_refines` — `Refine2/Specs.lean`'s `intern_persistent_n_run`.
+* `promote_n_refines` — `Refine2/Specs.lean`'s `intern_persistent_n_run`
+  (`promote_n_node_refines` is the same through it).
 
 Still no `bv_decide` axiom anywhere in `Refine2/`, and no `sorryAx` on any
 lemma this round claims is closed.
