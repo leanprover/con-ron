@@ -30,18 +30,18 @@ line up with `laneKnot`'s own `if`s by `laneKnot_gated` / `laneKnot_io` /
 
 ## The three divergences the step had to prove, not assume
 
-1. **The stuck-tag short circuit is tested at EVERY lane in the port and at
-   the FULL lane only in the twin.**  `knot_whnf_core` answers `Ok(e.dup2())`
-   at a `sort`/`fvar`/`forallE`/`lam`/`const`/`lit` handle *before* it looks
-   at the lane, where `coreKnotGated`'s `whnfCore` slot is
-   `whnfCoreBodyGated … d e` with no such test.  The two agree because
-   `whnfCoreBodyGated` returns its argument at those six views — that is the
-   obligation `whnfCoreStuckTag`'s own doc comment states — but it is an
-   obligation about a BODY, so it is `BodyRel`'s to discharge and
-   `knotRel_succ` takes it as a hypothesis (`stuckGated`, `stuckGatedWhnf`).
-   Task #97-P6-7's lever 2 is where the asymmetry comes from: the port hoisted
-   the test out of the body and the twin hoisted it only into the memoized
-   slot.
+1. **The stuck-tag short circuit, which used to be an asymmetry and is not
+   one any more.**  `knot_whnf_core` answers `Ok(e.dup2())` at a
+   `sort`/`fvar`/`forallE`/`lam`/`const`/`lit` handle *before* it looks at the
+   lane — task #97-P6-7's lever 2 hoisted it out of the body in the PORT — and
+   the twin originally hoisted it into the memoized slot only, so the gated
+   lane had no test at all and `BodyRel` carried two `stuckGated*` obligations
+   about `whnfCoreBodyGated`.  Task #97-P3-CoreWalks put the test in
+   `coreKnotGated`'s two reduction slots and task #97-P5-Core-2 put it in the
+   `| fuel + 1 =>` branch ALONE, leaving `coreKnotGated 0` the unconditional
+   `fail` the port's `fuel = 0` arm is.  Both slots now test exactly where the
+   port does, the step reads the agreement off the knot's own equation, and
+   neither `BodyRel` nor `KnotRel` carries anything for it.
 2. **At `LANE_IO`, `knot_whnf_core` / `knot_whnf` / `knot_defeq` /
    `knot_annotate` fall through to the FULL lane's memoized arm**, and
    `coreKnotIO (f + 1)`'s four corresponding slots are literally
@@ -120,15 +120,19 @@ theorem coreKnot_zero_run (mode fe d a b lst) :
         = .error (.internal "fuel exhausted: annotate")) := by
   rw [coreKnot]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- **The gated knot's fuel-0 slots, less its two reduction ones** (task
-#97-P5-Arms, after task #97-P3-CoreWalks' twin fix).  `coreKnotGated 0`'s
-`whnfCore` and `whnf` no longer `fail` unconditionally — they answer `pure e`
-at a stuck tag — where the port's `knot_*` test `fuel = 0` FIRST and raise
-`Internal` whatever the tag is.  So those two are not listed here and
-`KnotRel`'s two reduction fields exclude the gated lane at `f = 0` instead
-(`lane = LANE_GATED → 1 ≤ f`). -/
+/-- **The gated knot's fuel-0 slots, all six again** (task #97-P5-Core-2).
+Task #97-P3-CoreWalks' hoist had made `coreKnotGated 0`'s `whnfCore` and
+`whnf` answer `pure e` at a stuck tag, where the port's `knot_*` test
+`fuel = 0` FIRST and raise `Internal` whatever the tag is; §11(b) of task
+#97-P5-Arms asked for the test to sit in the `| fuel + 1 =>` branch only, and
+with that this lemma is the same six conjuncts as its two siblings and
+`KnotRel`'s two reduction fields carry no side condition. -/
 theorem coreKnotGated_zero_run (mode fe d a b lst) :
-    (((coreKnotGated mode fe 0).infer d a).run lst
+    (((coreKnotGated mode fe 0).whnfCore d a).run lst
+        = .error (.internal "fuel exhausted: whnfCore")) ∧
+      (((coreKnotGated mode fe 0).whnf d a).run lst
+        = .error (.internal "fuel exhausted: whnf")) ∧
+      (((coreKnotGated mode fe 0).infer d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
       (((coreKnotGated mode fe 0).inferIO d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
@@ -136,7 +140,7 @@ theorem coreKnotGated_zero_run (mode fe d a b lst) :
         = .error (.internal "fuel exhausted: defeq")) ∧
       (((coreKnotGated mode fe 0).annotate d a).run lst
         = .error (.internal "fuel exhausted: annotate")) := by
-  rw [coreKnotGated]; exact ⟨rfl, rfl, rfl, rfl⟩
+  rw [coreKnotGated]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem coreKnotIO_zero_run (mode fe d a b lst) :
     (((coreKnotIO mode fe 0).whnfCore d a).run lst
@@ -153,29 +157,32 @@ theorem coreKnotIO_zero_run (mode fe d a b lst) :
         = .error (.internal "fuel exhausted: annotate")) := by
   rw [coreKnotIO]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- The two reduction slots at fuel `0`, **off the gated lane** — see
-`coreKnotGated_zero_run`'s note for why the gated one is excluded. -/
-theorem laneKnot_zero_whnfCore (mode fe lane d e lst)
-    (hg : ¬ lane = arena.core.LANE_GATED) :
+/-- The two reduction slots at fuel `0`, **at every lane** — the gated one
+included, since task #97-P5-Core-2 gave `coreKnotGated 0` back its
+unconditional `fail`. -/
+theorem laneKnot_zero_whnfCore (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).whnfCore d e).run lst
       = .error (.internal "fuel exhausted: whnfCore") := by
-  rw [laneKnot, if_neg hg]; split
-  · exact (coreKnotIO_zero_run mode fe d e e lst).1
-  · exact (coreKnot_zero_run mode fe d e e lst).1
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d e e lst).1
+  · split
+    · exact (coreKnotIO_zero_run mode fe d e e lst).1
+    · exact (coreKnot_zero_run mode fe d e e lst).1
 
-theorem laneKnot_zero_whnf (mode fe lane d e lst)
-    (hg : ¬ lane = arena.core.LANE_GATED) :
+theorem laneKnot_zero_whnf (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).whnf d e).run lst
       = .error (.internal "fuel exhausted: whnf") := by
-  rw [laneKnot, if_neg hg]; split
-  · exact (coreKnotIO_zero_run mode fe d e e lst).2.1
-  · exact (coreKnot_zero_run mode fe d e e lst).2.1
+  rw [laneKnot]; split
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.1
+  · split
+    · exact (coreKnotIO_zero_run mode fe d e e lst).2.1
+    · exact (coreKnot_zero_run mode fe d e e lst).2.1
 
 theorem laneKnot_zero_infer (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).infer d e).run lst
       = .error (.internal "fuel exhausted: infer") := by
   rw [laneKnot]; split
-  · exact (coreKnotGated_zero_run mode fe d e e lst).1
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.2.1
   · split
     · exact (coreKnotIO_zero_run mode fe d e e lst).2.2.1
     · exact (coreKnot_zero_run mode fe d e e lst).2.2.1
@@ -184,7 +191,7 @@ theorem laneKnot_zero_inferIO (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).inferIO d e).run lst
       = .error (.internal "fuel exhausted: infer") := by
   rw [laneKnot]; split
-  · exact (coreKnotGated_zero_run mode fe d e e lst).2.1
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.2.2.1
   · split
     · exact (coreKnotIO_zero_run mode fe d e e lst).2.2.2.1
     · exact (coreKnot_zero_run mode fe d e e lst).2.2.2.1
@@ -193,7 +200,7 @@ theorem laneKnot_zero_defeq (mode fe lane d a b lst) :
     ((laneKnot mode fe lane 0).defeq d a b).run lst
       = .error (.internal "fuel exhausted: defeq") := by
   rw [laneKnot]; split
-  · exact (coreKnotGated_zero_run mode fe d a b lst).2.2.1
+  · exact (coreKnotGated_zero_run mode fe d a b lst).2.2.2.2.1
   · split
     · exact (coreKnotIO_zero_run mode fe d a b lst).2.2.2.2.1
     · exact (coreKnot_zero_run mode fe d a b lst).2.2.2.2.1
@@ -202,7 +209,7 @@ theorem laneKnot_zero_annotate (mode fe lane d e lst) :
     ((laneKnot mode fe lane 0).annotate d e).run lst
       = .error (.internal "fuel exhausted: annotate") := by
   rw [laneKnot]; split
-  · exact (coreKnotGated_zero_run mode fe d e e lst).2.2.2
+  · exact (coreKnotGated_zero_run mode fe d e e lst).2.2.2.2.2
   · split
     · exact (coreKnotIO_zero_run mode fe d e e lst).2.2.2.2.2
     · exact (coreKnot_zero_run mode fe d e e lst).2.2.2.2.2
@@ -217,24 +224,22 @@ are never compared). -/
 
 theorem knotRel_zero : KnotRel 0 := by
   constructor
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hgate hf hrun
+  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
     rw [arena.core.knot_whnf_core, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _
-      (fun h => absurd (hgate h) (by omega))))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hgate hf hrun
+    exact AOut.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _))
+  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
     rw [arena.core.knot_whnf, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _
-      (fun h => absurd (hgate h) (by omega))))
+    exact AOut.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _))
   · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
     rw [arena.core.knot_infer, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1163,9 +1168,8 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
 
 /-- **`BodyRel f → KnotRel (f + 1)`** — the six fields above, assembled. -/
 theorem knotRel_succ {f : Nat} (hb : BodyRel f) : KnotRel (f + 1) where
-  whnfCore h1 h2 h3 h4 h5 _hg h6 h7 :=
-    knotRel_succ_whnfCore hb h1 h2 h3 h4 h5 h6 h7
-  whnf h1 h2 h3 h4 h5 _hg h6 h7 := knotRel_succ_whnf hb h1 h2 h3 h4 h5 h6 h7
+  whnfCore h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_whnfCore hb h1 h2 h3 h4 h5 h6 h7
+  whnf h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_whnf hb h1 h2 h3 h4 h5 h6 h7
   infer h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_infer hb h1 h2 h3 h4 h5 h6 h7
   inferIO h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_inferIO hb h1 h2 h3 h4 h5 h6 h7
   defeq h1 h2 h3 h4 h5 h6 h7 h8 := knotRel_succ_defeq hb h1 h2 h3 h4 h5 h6 h7 h8
