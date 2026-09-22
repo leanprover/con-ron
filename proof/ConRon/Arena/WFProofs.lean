@@ -9194,4 +9194,43 @@ theorem EStore.internLevels_wf {st : EStore} (h : StoreWF st) {v : LsNodeView}
     exact hwf.derExact i u hi
   · rw [hlss, LsStore.scratchOn_intern]; exact hwf.sync
 
+
+/-! ### FINDING 17: `internPersistent` and the `fresh` clause (task #97-P5-Specs
+round 2)
+
+`NWFAt.fresh` says *"a view in the SCRATCH cons table is not in the persistent
+one"*, and `NStore.internPersistent` appends to the persistent tier **whatever
+tier the store is in** — which is the whole point of it (DESIGN §8.3:
+promotion runs with the scratch tier live).  The two cannot both hold at a
+view the scratch tier already has, and that state is reachable: `intern`
+appends to the tier the store is IN regardless of its children, so
+`internNNode (.str p_pers "foo")` lands in SCRATCH during phase B, and
+`Arena/Promote.lean`'s `promoteN` of that handle promotes its (already
+persistent) children to themselves and then interns the SAME view
+persistently.
+
+So `StoreWF (st.internPersistent w).1` is not a lemma waiting to be written.
+It is recorded here as a proved NEGATIVE so that the next round does not spend
+itself looking for the proof; the three shapes the fix can take are in
+DESIGN.md's task #97-P5-Specs round 2 §6.  `EWFAt.childOK`'s *"a persistent
+node's children are persistent"* is a second, milder version of the same gap.
+-/
+
+theorem NStore.internPersistent_breaks_fresh {st : NStore} {v : NNodeView}
+    {i : NIdx} (hp : st.pers.find? v = none) (hs : st.scr.find? v = some i) :
+    ¬ NStoreWF (st.internPersistent v).1 := by
+  rintro ⟨rk, hwf⟩
+  have hst : (st.internPersistent v).1
+      = { st with pers := (st.pers.push v (st.derOfView v) Idx.tierP).1 } := by
+    simp only [NStore.internPersistent, hp]
+  have h1 : (st.internPersistent v).1.scr.find? v = some i := by rw [hst]; exact hs
+  have h2 : (st.internPersistent v).1.pers.find? v
+      = some (st.pers.push v (st.derOfView v) Idx.tierP).2 := by
+    rw [hst]
+    show (st.pers.push v (st.derOfView v) Idx.tierP).1.find? v = _
+    rw [NTables.find?_push, if_pos rfl]
+  have hf := hwf.fresh v i h1
+  rw [h2] at hf
+  simp at hf
+
 end ConRon.Arena

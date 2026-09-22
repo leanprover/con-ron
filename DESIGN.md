@@ -46710,3 +46710,207 @@ was written.
 
 `DESIGN.md`'s conflict was two sections appended at the same place; both kept,
 theirs first.
+
+#### Round 2 — the name, level and level-list tiers' `intern` (2026-09-22)
+
+Round 1 left eleven, all interning, and priced the bottleneck as *"the nine
+`{N,L,Ls}store_intern_*_abs`, ≈ 190 lines each on the E tier's template"*.
+**That price was wrong, and in the cheap direction: the nine are four.**
+`Specs.lean` **11 → 8**; the three `intern_{n,l,ls}_node_run` — round 1's
+biggest group, **56 of the 94 remaining port call sites** — are closed.
+
+##### 1. Why the nine collapse into four: the Rust dispatches once, not ten times
+
+The expression tier's eight `estore_intern_*_abs` are ≈ 190 lines EACH because
+`EStore::intern_bvar` … `intern_proj` are **eight separate Rust functions**,
+each with its own copy of the probe/full/push chain at its own array.  The
+three tiers below it are not written that way:
+
+    NTables::find / full_of / push        one function, `match v` inside
+    LTables::find / full_of / push        one function, `match v` inside
+    LsTables::find / full_of / push       one array, no match at all
+
+and the twin's `NTables.find?` / `sizeOf` / `push` dispatch at exactly the same
+place.  So the per-constructor work collapses into **three tier lemmas with a
+`cases v` inside**, and the store-level `intern` proof — the control flow, which
+is what the 190 lines actually were — has **no case split at all**.
+
+| what round 1 scheduled | what it cost |
+|---|---:|
+| 3 name `_abs` (anonymous, str, num) | `ntables_{find,full,push}_abs` **26 + 14 + 80** |
+| 5 level `_abs` (zero, succ, max, imax, param) | `ltables_{find,full,push}_abs` **37 + 20 + 124** |
+| 1 level-list `_abs` | `lstables_{find,full,push}_abs` **9 + 6 + 32** |
+
+The control flow is then written **three times, once per tier** —
+`nstore_intern_other_abs` 148, `lstore_intern_abs` 141, `lsstore_intern_abs`
+141 — plus one more time for the `str` arm (below).  Against nine × 190 ≈ 1 710
+that is ≈ 790, and the difference is entirely "the port dispatches once".
+
+**The general rule, for the tiers still to come**: count the Rust FUNCTIONS,
+not the twin's constructors.  Where the port has one `match`, the refinement
+has one lemma; where the port has N entry points, it has N proofs.
+
+##### 2. The one place it does not collapse: `NNodeView::Str`
+
+`NStore::intern` routes `Str` through `intern_str`, not `intern_other`: it
+computes the derived word from the prefix and the code points and hands
+`intern_str` the cons key already built, so that `NTables::find`'s own
+`str_copy` is not paid twice.  The twin makes no such distinction —
+`NStore.intern` is one function and `NTables.find?`/`push` at a `.str` view ARE
+the `strs` array's, definitionally — so the control flow is written out a
+second time there, at the `Tbl` lemmas instead of the `NTables` ones:
+`nstore_intern_str_abs`, **164 lines**, of which four differ from
+`nstore_intern_other_abs`.
+
+The cheaper route was considered and rejected on risk: proving
+`intern_str st pers ⟨p,s⟩ d = intern_other st pers (.Str p s)` needs
+`str_copy s = ok s`, i.e. **totality** of `str_copy` (the `Vec::push` bound),
+which `str_copy_eq` does not give — it is conditional on success.  ≈ 30 lines
+of `scalar_tac` against 160 of duplication, but with a rabbit hole at the end
+of it; the duplicate is what landed.
+
+##### 3. The derived record: free at names, a real obligation at levels
+
+`derObsN` is `Unit` — nothing of a name's derived word is observable — so
+`Tbl::push`'s `hdl` obligation is `rfl` at the whole name tier and **no
+`der_of_view` refinement is needed there at all**.
+
+`derObsL` is the has-a-parameter bit, so the level and level-list tiers owe it:
+
+* `lstore_der_of_view_abs` (**62**) — five arms; the interesting two are `max`
+  and `imax`, where the port branches (`if du.has_param then … else
+  {dw with …}`) and the twin `||`s.  They agree arm for arm.
+* `lsstore_der_of_view_from_abs` (**49**) + `lsstore_der_of_view_abs` (7) — the
+  level-list derived record is computed by a LOOP over the `Vec`, so this one
+  is a fuel induction on `v.length - i`, `denote_l_list_from_abs`'s shape
+  exactly (round 1 §4's cursor-loop pattern, reused verbatim).
+
+##### 4. `Arena/WFProofs.lean`: the `StoreWF` half of the three nested interns
+
+Finding 16's clause (`AStateRel.storeWF`) makes every `_run` lemma owe
+`StoreWF` of the twin state it produces, and for the three nested interns the
+arena had only the `Ext` half.  The append-only section adds the other half,
+**293 lines**, and it is the same three observations at each level:
+
+* the outer tables do not move (`rfl` at most clauses, and
+  `{ hwf with … }` — a structure-instance UPDATE on the proof — carries the
+  twenty-odd unchanged clauses for free, the same trick round 1 §found for
+  `AStateRel`);
+* the nested `view` only grows (`*.view_intern_mono`, already there);
+* **the nested `derived` does not move at a handle that already decodes** —
+  `NStore.derived_intern_eq` / `LStore.` / `LsStore.` (≈ 20 lines each, via
+  `*Tables.derAt_push_of_get`).  This is the one genuinely new lemma, and
+  `derExact` is why it is needed: the OUTER `derOfView` reads the NESTED
+  store's derived column (`LStore.derOfView (.param n)` is
+  `mixHash 11 (st.ns.derived n)`), so "the nested store grew" has to be shown
+  not to disturb it.
+
+`EStore.internName_wf`, `EStore.internLevel_wf`, `EStore.internLevels_wf` and
+their two intermediate levels each, plus `{N,L,Ls}Store.derived_congr` and
+`scratchOn_intern`.
+
+##### 5. What the three `_run` lemmas cost, and the hypotheses they grew
+
+| lemma | lines | new hypotheses |
+|---|---:|---|
+| `estore_intern_name_abs` | 44 | — (three record-update wrappers) |
+| `internNNode_run_of_cap` + `NStore_intern_of_find` + `EStore_internName_of_find` + `internName_storeWF` | 12 + 15 + 7 + 6 | — |
+| **`intern_n_node_run`** | **34** | `hfrozen` at the NAME store, `NNodeViewWF v`, `hview : lst.store.ns.ViewOK …` |
+| `estore_intern_level_abs` | 35 | — |
+| **`intern_l_node_run`** | **34** | `hfrozen` at the LEVEL store, `hview` |
+| `estore_intern_levels_abs` | 25 | — |
+| **`intern_ls_node_run`** | **28** | `hfrozen` at the LEVEL-LIST store, `hview` |
+
+`hview` is round 1 §2's hypothesis one tier down, for the same reason and in
+the same shape.  **`hfrozen` is per-store, and that is worth a line**: the Rust
+`EStore`, `LsStore`, `LStore` and `NStore` each carry their OWN `shared_on` and
+`scratch_on`, and no invariant in `Refine2/Inv.lean` ties them together, so
+`intern_n_node_run` asks for `st.store.lss.ls.ns.shared_on = true →
+st.store.lss.ls.ns.scratch_on = true` and not for the expression store's.  (The
+twin's `sync` clauses tie the twin's, and `StoreRel` ties each twin flag to its
+own Rust one, so the Rust-side sync IS derivable from `StoreWF` — but only for
+`scratch_on`, not for `shared_on`, which the twin does not model.)
+
+##### 6. FINDING 17 — `intern_persistent_*_run` is not provable as stated, twice over
+
+Round 1's schedule said the remaining four `intern_persistent_{e,n,l,ls}_run`
+wanted *"the same nine lemmas at the persistent tier, plus `StoreWF
+(st.internPersistent w).1`"*.  The `_abs` half is done for the name tier
+(`nstore_intern_persistent_abs`, **76** lines, and it needed one hypothesis —
+see below).  **The `_run` half is not a matter of effort: the statements as
+written in `Specs.lean` are false, for two independent reasons, and
+`Refine2/Promote/Promote.lean` already consumes three of them.**
+
+**(a) The frozen tier.**  `NStore::intern_persistent` answers `Err (Internal
+"arena: append to a frozen persistent tier")` when `shared_on = true` and the
+cons probe misses.  `absAErrKind (.Internal _) = some .internal`, so `AErrSim`
+demands the twin fail with `internal` — and `Arena.internPersistentN` has
+exactly two outcomes, `ok` and `.native`.  Nothing in `AStateRel` /
+`AStateInv` forbids `shared_on = true` at a view the persistent tier does not
+hold, so the statement is FALSE there.  The fix is one hypothesis,
+`st.store.…​.shared_on = false`, which is what the promotion phase actually
+holds; `nstore_intern_persistent_abs` takes it already.
+
+**(b) The scratch tier, and this one is a DESIGN question, not a hypothesis.**
+`Arena/WF.lean`'s `NWFAt.fresh` says *"a view in the scratch cons table is not
+in the persistent one"*:
+
+    fresh : ∀ v i, st.scr.find? v = some i → st.pers.find? v = none
+
+`NStore.internPersistent v` appends `v` to the PERSISTENT tier **whatever tier
+the store is in**, which is the whole point of it (DESIGN §8.3: promotion runs
+with the scratch tier live).  So at any `v` the scratch tier already holds,
+`internPersistent v` breaks `fresh` — and that state is reachable by the
+promotion walk itself: `intern` appends to the tier the store is IN regardless
+of its children, so `internNNode (.str p_pers "foo")` lands in SCRATCH during
+phase B, and `promote_n` of that handle promotes its (already persistent)
+children to themselves and then calls `internPersistentN` at the **same view**.
+`NStore.internPersistent_breaks_fresh` in the append-only section is that
+statement, proved:
+
+    theorem NStore.internPersistent_breaks_fresh {st : NStore} {v : NNodeView}
+        {i : NIdx} (hp : st.pers.find? v = none) (hs : st.scr.find? v = some i) :
+        ¬ NStoreWF (st.internPersistent v).1
+
+`EWFAt.childOK`'s *"a persistent node's children are persistent"* is a second,
+milder version of the same gap: `internPersistent` at a view with a scratch
+child produces a persistent node with a scratch child.
+
+So `StoreWF (st.internPersistent w).1` is **not** a lemma waiting to be
+written; one of `Arena/WF.lean`'s `fresh` clause, `Arena/Store.lean`'s
+`internPersistent`, or `Arena/Promote.lean`'s phase order has to move first.
+The three shapes the coordinator can choose between:
+
+1. **Weaken `fresh`** to the persistent tier's own business (it exists to keep
+   `find?` deterministic; `find?` probes persistent FIRST, so a duplicate in
+   scratch is shadowed and harmless — this looks like the cheap answer, but it
+   is a change to Theorem 1's invariant and every proof that reads `fresh`);
+2. **make `internPersistent` probe the scratch tier too** and return the
+   scratch handle — wrong, promotion must hand back a persistent handle;
+3. **have `internPersistent` remove the view from the scratch cons table** as
+   it promotes — a real API change, and the `Ext`/denotation obligations move
+   with it.
+
+This round did not choose; the finding and its proof are the deliverable.
+`intern_persistent_{e,n,l,ls}_run` stay `sorry`, with `nstore_intern_persistent_abs`
+ready underneath the name one.
+
+##### 7. What is left in `Specs.lean`: eight
+
+| group | count | port call sites | what it needs |
+|---|---:|---:|---|
+| `intern_{name,level,level_list,levels}_run` | 4 | 30 | **nothing but the walk** — the three `intern_*_node_run` they recurse through are closed; each is a structural induction over the transient tree (no fuel), threading `hview` and `hfrozen` |
+| `intern_persistent_{e,n,l,ls}_run` | 4 | 19 | finding 17 first; then the E tier's own `intern_persistent` needs generic `etables_{find,full,push}_abs` (ten arms each) and a persistent `estore_intern_bm_abs`, which the non-persistent E tier did NOT need because its ten entry points are separate functions |
+
+##### 8. Rules confirmed
+
+* **Rule 11 bit again, in the same shape and with the same fix**: after
+  `cases hitc : hit`, `rw [hitc] at h` leaves `match some hp with …` STUCK —
+  `simp only [hitc] at h` is what iota-reduces it.  Round 1 recorded this for
+  Aeneas pair patterns; it is the same for any `match` scrutinee a `cases`
+  substitutes into a hypothesis.
+* `simp` unfolds too much at the walk layer: `simp [NStore.find?, hpp]`
+  delta-expanded `absNNodeView v` into its `match` and then `hpp` no longer
+  matched.  `simp only [NStore.find?, hpp]` is the discipline.
+* **The scratch file paid off again**: 2 s against 17 s for the module, and
+  this round's last mile was one unterminated `/-!` comment and nothing else.
