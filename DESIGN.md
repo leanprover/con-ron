@@ -38659,6 +38659,24 @@ over this tier; it belongs in every tier's own round.
 
 #### 9. Gates
 
+`scripts/gates.sh` on the merged tip, once: **all 13 OK** (`cargo-build` 3 s,
+`cargo-test` 7 s, `lint-rust` 2 s, `provenance` 0 s, `provenance-self` 1 s,
+`twin-lines` 0 s, `overview-links` 0 s, `holes` 0 s, `gen-pins` 1 s,
+`gen-prelude` 0 s, `gen-prelude-lean` 0 s, `extract-check` 91 s, `lake-build`
+358 s).  `ConRonBridge` is not a default target, so it was built separately
+and is **617 jobs, green**, with `Bridge/ExprOps/**` at **0 `sorry` across
+all thirteen modules** as it was before the round.
+
+`scripts/arena-census.py` on the same tip: `Arena/ExprOps` **92/92 T1 stated,
+92 closed** — unchanged, which is the point: this round changed thirteen
+STATEMENTS and no closure count.
+
+| | |
+|---|---|
+| branch | `p3-exprops-4` off `arena` `c80e9c34`, merged forward twice (`65a2aa9e`, `ffe22843`) |
+| the diff | `proof/ConRon/Bridge/ExprOps/{Ranges,Subst,MemoSpecs,InstLP,Owed,Inst1}.lean`, `proof/ConRon/Bridge/Specs.lean`, three tokens in `proof/ConRon/Bridge/{Frontend/Shared,Inductives/Rel}.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/` |
+| `#print axioms` | every theorem this round touched: `[propext, Classical.choice, Quot.sound]` |
+
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the Core round: DESIGN §8.2's **Theorem 1** at
