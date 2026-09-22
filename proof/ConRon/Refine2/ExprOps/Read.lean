@@ -3346,28 +3346,12 @@ theorem strip_pis_refines {pers : arena.store.PersTier}
   strip_pis_aux k.val rfl hrel hinv hwf hres hrun
 
 
-/-! ## The memoized DAG walks (finding 2)
+/-! ## The three arm-dispatch transcriptions
 
-Three walks and their five Rust-only companions.  Each probes the derived
-word's `fvarB` field first (the `O(1)` cutoff), then the memo, then the view —
-and the twin does the same three in the same order, so the only shape work is
-the memo relation.  **They wait on `Specs.lean`'s `derivedE` and `view`, and
-on the `HashMap2` probe/insert pair (`Refine/HashMap2.lean`'s
-`get_refines_wf` / `Rel_insert_wf`, which `Specs.lean` re-exports as the
-memo primitives).** -/
-
-/-- `wscoped_b_go` ⊑ `wscopedBGo`. -/
-theorem wscoped_b_go_refines {pers : arena.store.PersTier}
-    {st : arena.monad.AState} {lst : AState}
-    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
-    {lm : Std.HashMap (EIdx × Nat) Bool} {fuel d : Std.U64}
-    {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hm : WMemoRel rm lm)
-    (hrun : arena.expr_ops.wscoped_b_go pers st rm fuel d h = ok o) :
-    WOut pers lst o st
-      ((wscopedBGo lm (absU fuel) (absU d) (absEIdx h)).run lst) := by
-  sorry
+`wscoped_b_node`, `fvar_leaves_node` and `leaves_sub_node` are three of task
+#97-P6-2's Rust-only splits and have no named twin, so each gets a local
+transcription of the twin's own `match` plus a `*_unfold` equation tying it
+back.  They are hoisted here, ahead of the machinery that consumes them. -/
 
 /-- **The twin's arm dispatch of `wscopedBGo`, transcribed** — `wscoped_b_node`
 has no named twin (one of task #97-P6-2's fifteen Rust-only splits), so the
@@ -3395,21 +3379,796 @@ def wscopedBNodeSpec (memo : Std.HashMap (EIdx × Nat) Bool) (fuel d : Nat) :
     else pure (false, memo)
   | .proj _ _ sub => wscopedBGo memo fuel d sub
 
-/-- The owed equation: the twin's `wscopedBGo` at `fuel + 1` IS the cutoff,
-the probe, `wscopedBNodeSpec` at the view, and the insert.  `rfl`-level once
-the `do` block is unfolded; it is the one lemma of this file that is not a
-`Specs.lean` primitive. -/
-theorem wscopedBGo_unfold (memo : Std.HashMap (EIdx × Nat) Bool) (fuel d : Nat)
-    (h : EIdx) :
+/-- **The twin's arm dispatch of `fvarLeavesGo`, transcribed** — `fvar_leaves_node`
+has no named twin.  Note that the twin inserts into `seen` BEFORE the
+dispatch, so the fragment takes the already-extended set, which is what the
+Rust's `fvl_record` has done by the time it calls this. -/
+def fvarLeavesNodeSpec (acc : List (Nat × EIdx)) (seen : Std.HashMap EIdx Unit)
+    (fuel : Nat) : ENodeView → AM (List (Nat × EIdx) × Std.HashMap EIdx Unit)
+  | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
+  | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
+  | .app f a => do
+    let (acc, seen) ← fvarLeavesGo acc seen fuel f
+    fvarLeavesGo acc seen fuel a
+  | .lam ty body _ => do
+    let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+    fvarLeavesGo acc seen fuel body
+  | .forallE ty body _ => do
+    let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+    fvarLeavesGo acc seen fuel body
+  | .letE ty val body => do
+    let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+    let (acc, seen) ← fvarLeavesGo acc seen fuel val
+    fvarLeavesGo acc seen fuel body
+  | .proj _ _ sub => fvarLeavesGo acc seen fuel sub
+
+/-- **The twin's arm dispatch of `leavesSubGo`, transcribed** —
+`leaves_sub_node` has no named twin. -/
+def leavesSubNodeSpec (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
+    (fuel : Nat) : ENodeView → AM (Bool × Std.HashMap EIdx Bool)
+  | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
+  | .fvar idx ty =>
+    if leafMem bl idx ty then leavesSubGo bl memo fuel ty
+    else pure (false, memo)
+  | .app f a => do
+    let (rf, memo) ← leavesSubGo bl memo fuel f
+    if rf then leavesSubGo bl memo fuel a else pure (false, memo)
+  | .lam ty body _ => do
+    let (rt, memo) ← leavesSubGo bl memo fuel ty
+    if rt then leavesSubGo bl memo fuel body else pure (false, memo)
+  | .forallE ty body _ => do
+    let (rt, memo) ← leavesSubGo bl memo fuel ty
+    if rt then leavesSubGo bl memo fuel body else pure (false, memo)
+  | .letE ty val body => do
+    let (rt, memo) ← leavesSubGo bl memo fuel ty
+    if rt then do
+      let (rv, memo) ← leavesSubGo bl memo fuel val
+      if rv then leavesSubGo bl memo fuel body else pure (false, memo)
+    else pure (false, memo)
+  | .proj _ _ sub => leavesSubGo bl memo fuel sub
+
+/-! ## The memo-threading machinery (finding 2), and the three-body induction
+
+`wscoped_b_{go,node,two}` is ONE `mutual` block in the Rust and one in the
+twin, and the three bodies call each other at the SAME fuel except for
+`go → node`, which decrements.  So the induction is on `go` alone
+(`WGoAt`/`LGoAt`) and `two`/`node` are *derived at the same fuel* from it
+(`wscoped_two_of_go`, `wscoped_node_of_go`) — which is the shape the Core
+tier's `KnotRel` will want, one rung up.
+
+The predicate `WGoAt n` has to be a `def` rather than an inline `∀`: a `have
+htwo := wscoped_two_of_go hgo` instantiates the implicit binders of an inline
+`∀` eagerly and then has nothing to apply.  That is the one idiom rule this
+group added.
+
+`wscopedBGo_unfold` / `leavesSubGo_unfold` are the twin-side equations that
+make `wscopedBNodeSpec` / `leavesSubNodeSpec` the node step: they are
+`<f>_succ` plus `bind_assoc` plus the arm `def`s, and the `bind_assoc` has to
+come AFTER the arm identification — `simp` pushes the continuation into the
+`match` arms otherwise and the spec no longer matches. -/
+
+/-! ## `wscopedBGo`: the twin's arm dispatch identified with `wscopedBNodeSpec` -/
+
+/-- The twin's own `match` at `wscopedBGo`'s node step IS
+`wscopedBNodeSpec` — one `cases` and the three arm `def`s. -/
+theorem wscopedBNodeSpec_eq (memo : Std.HashMap (EIdx × Nat) Bool)
+    (fuel d : Nat) (w : ENodeView) :
+    (match w with
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
+      | .fvar idx ty =>
+        if idx < d then wscopedBGo memo fuel idx ty else pure (false, memo)
+      | .app f a => wscopedBGoArmApp memo fuel d f a
+      | .lam ty body _ => wscopedBGoArmBind memo fuel d ty body
+      | .forallE ty body _ => wscopedBGoArmBind memo fuel d ty body
+      | .letE ty val body => wscopedBGoArmLet memo fuel d ty val body
+      | .proj _ _ sub => wscopedBGo memo fuel d sub)
+      = wscopedBNodeSpec memo fuel d w := by
+  cases w <;>
+    simp only [wscopedBNodeSpec, wscopedBGoArmApp, wscopedBGoArmBind,
+      wscopedBGoArmLet]
+
+theorem wscopedBGo_unfold (memo : Std.HashMap (EIdx × Nat) Bool) (fuel d : Nat) (h : EIdx) :
     wscopedBGo memo (fuel + 1) d h = (do
-      if (fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
+      if (ConLeche.fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
       else
         match memo[(h, d)]? with
         | some r => pure (r, memo)
         | none => do
           let (r, memo') ← wscopedBNodeSpec memo fuel d (← view h)
           pure (r, memo'.insert (h, d) r)) := by
-  sorry
+  rw [wscopedBGo_succ]
+  simp only [wscopedBNodeSpec, wscopedBGoArmApp, wscopedBGoArmBind,
+    wscopedBGoArmLet, bind_assoc]
+  congr 1
+  funext w
+  split
+  · rfl
+  · cases hme : memo[(h, d)]? with
+    | some r => rfl
+    | none =>
+      dsimp only
+      congr 1
+      funext v
+      cases v <;> dsimp only <;> (try split) <;>
+        first
+          | rfl
+          | simp only [bind_assoc]
+
+/-! ### The two `WOut` combinators -/
+
+theorem wout_err_bind {e : kernel.core_types.CheckError}
+    {pers : arena.store.PersTier} {lstA lstB : AState}
+    {stA stB : arena.monad.AState}
+    {x : AM (Bool × Std.HashMap (EIdx × Nat) Bool)}
+    {f : (Bool × Std.HashMap (EIdx × Nat) Bool) →
+      AM (Bool × Std.HashMap (EIdx × Nat) Bool)}
+    (h : WOut pers lstA (.Err e) stA (x.run lstA)) :
+    WOut pers lstB (.Err e) stB ((do let v ← x; f v).run lstA) := by
+  show AErrSim e _
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+theorem wout_rebase {pers : arena.store.PersTier} {lst lst1 : AState}
+    {st2 : arena.monad.AState}
+    {o : core.result.Result
+      (Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+      kernel.core_types.CheckError}
+    {y : Except Arena.CheckError
+      ((Bool × Std.HashMap (EIdx × Nat) Bool) × AState)}
+    (hext : Ext lst.store lst1.store) (h : WOut pers lst1 o st2 y) :
+    WOut pers lst o st2 y := by
+  cases o with
+  | Err e => exact h
+  | Ok r =>
+    obtain ⟨m', lst2, hy, hmm, hrel2, hinv2, hext2⟩ := h
+    exact ⟨m', lst2, hy, hmm, hrel2, hinv2, Ext.trans hext hext2⟩
+
+/-- The `go`-shaped statement at one fuel value, as a predicate, so that the
+three mutually recursive bodies can be proved in the order `go`, `two`,
+`node` inside one induction. -/
+def WGoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} {fuel d : Std.U64}
+    {h : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → WMemoRel rm lm →
+    arena.expr_ops.wscoped_b_go pers st rm fuel d h = ok o →
+    WOut pers lst o st ((wscopedBGo lm (absU fuel) (absU d) (absEIdx h)).run lst)
+
+/-- The `two`-shaped statement at one fuel value. -/
+def WTwoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} {fuel d : Std.U64}
+    {x y : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → WMemoRel rm lm →
+    arena.expr_ops.wscoped_b_two pers st rm fuel d x y = ok o →
+    WOut pers lst o st ((do
+      let (rf, m) ← wscopedBGo lm (absU fuel) (absU d) (absEIdx x)
+      if rf then wscopedBGo m (absU fuel) (absU d) (absEIdx y)
+      else pure (false, m)).run lst)
+
+/-- The `node`-shaped statement at one fuel value. -/
+def WNodeAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} {fuel d : Std.U64}
+    {v : arena.store.ENodeView} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → WMemoRel rm lm →
+    arena.expr_ops.wscoped_b_node pers st rm fuel d v = ok o →
+    WOut pers lst o st
+      ((wscopedBNodeSpec lm (absU fuel) (absU d) (absENodeView v)).run lst)
+
+private theorem wscoped_two_of_go {n : Nat} (hgo : WGoAt n) : WTwoAt n := by
+  intro pers st lst rm lm fuel d x y o hn hrel hinv hm hrun
+  rw [arena.expr_ops.wscoped_b_two] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hg1 := hgo hn hrel hinv hm hr
+  cases hrc : r with
+  | Err e =>
+    rw [hrc] at hrun hg1
+    have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+      Result.ok_injective hrun
+    rw [← ho]
+    exact wout_err_bind hg1
+  | Ok p =>
+    obtain ⟨b, mr⟩ := p
+    rw [hrc] at hrun hg1
+    obtain ⟨m1, lst1, heq, hm1, hrel1, hinv1, hext1⟩ := hg1
+    rw [StateT.run_bind, heq]
+    show WOut pers lst o st
+      ((if b then wscopedBGo m1 (absU fuel) (absU d) (absEIdx y)
+        else pure (false, m1)).run lst1)
+    by_cases hb : b = true
+    · subst hb
+      have hg2 := hgo hn hrel1 hinv1 hm1 hrun
+      exact wout_rebase hext1 hg2
+    · simp only [Bool.not_eq_true] at hb
+      subst hb
+      have ho : (core.result.Result.Ok (false, mr) :
+          core.result.Result _ _) = o := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨m1, lst1, rfl, hm1, hrel1, hinv1, hext1⟩
+
+private theorem wscoped_node_of_go {n : Nat} (hgo : WGoAt n) : WNodeAt n := by
+  have htwo : WTwoAt n := wscoped_two_of_go hgo
+  intro pers st lst rm lm fuel d v o hn hrel hinv hm hrun
+  rw [arena.expr_ops.wscoped_b_node.eq_def] at hrun
+  cases v with
+  | BVar _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | «Sort» _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | Const _ _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | Lit _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | Proj _ _ s0 => exact hgo hn hrel hinv hm hrun
+  | App f0 a0 => exact htwo hn hrel hinv hm hrun
+  | Lam ty0 b0 mm => exact htwo hn hrel hinv hm hrun
+  | ForallE ty0 b0 mm => exact htwo hn hrel hinv hm hrun
+  | FVar idx0 ty0 =>
+    have hrun2 : (if idx0 < d then
+        arena.expr_ops.wscoped_b_go pers st rm fuel idx0 ty0
+      else ok (core.result.Result.Ok (false, rm))) = ok o := by
+      simpa using hrun
+    show WOut pers lst o st
+      ((if absU idx0 < absU d then wscopedBGo lm (absU fuel) (absU idx0) (absEIdx ty0)
+        else pure (false, lm)).run lst)
+    by_cases hlt : idx0 < d
+    · rw [if_pos hlt] at hrun2
+      rw [if_pos (show absU idx0 < absU d from hlt)]
+      exact hgo hn hrel hinv hm hrun2
+    · rw [if_neg hlt] at hrun2
+      rw [if_neg (show ¬ (absU idx0 < absU d) from hlt)]
+      have ho := Result.ok_injective hrun2
+      rw [← ho]
+      exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | LetE ty0 v0 b0 =>
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hg1 := hgo hn hrel hinv hm hr
+    show WOut pers lst o st ((do
+      let (rt, memo) ← wscopedBGo lm (absU fuel) (absU d) (absEIdx ty0)
+      if rt then do
+        let (rv, memo) ← wscopedBGo memo (absU fuel) (absU d) (absEIdx v0)
+        if rv then wscopedBGo memo (absU fuel) (absU d) (absEIdx b0)
+        else pure (false, memo)
+      else pure (false, memo)).run lst)
+    cases hrc : r with
+    | Err e =>
+      rw [hrc] at hrun hg1
+      have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      exact wout_err_bind hg1
+    | Ok p =>
+      obtain ⟨b, mr⟩ := p
+      rw [hrc] at hrun hg1
+      obtain ⟨m1, lst1, heq, hm1, hrel1, hinv1, hext1⟩ := hg1
+      rw [StateT.run_bind, heq]
+      show WOut pers lst o st
+        ((if b then do
+            let (rv, memo) ← wscopedBGo m1 (absU fuel) (absU d) (absEIdx v0)
+            if rv then wscopedBGo memo (absU fuel) (absU d) (absEIdx b0)
+            else pure (false, memo)
+          else pure (false, m1)).run lst1)
+      by_cases hb : b = true
+      · subst hb
+        exact wout_rebase hext1 (htwo hn hrel1 hinv1 hm1 hrun)
+      · simp only [Bool.not_eq_true] at hb
+        subst hb
+        have ho : (core.result.Result.Ok (false, mr) :
+            core.result.Result _ _) = o := Result.ok_injective hrun
+        rw [← ho]
+        exact ⟨m1, lst1, rfl, hm1, hrel1, hinv1, hext1⟩
+
+private theorem wscoped_go_aux (n : Nat) : WGoAt n := by
+  induction n with
+  | zero =>
+    intro pers st lst rm lm fuel d h o hn hrel hinv hm hrun
+    rw [arena.expr_ops.wscoped_b_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    show AErrSim _ ((wscopedBGo lm (absU fuel) (absU d) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, wscopedBGo_zero, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst rm lm fuel d h o hn hrel hinv hm hrun
+    rw [arena.expr_ops.wscoped_b_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hder := hw
+    rw [arena.monad.derived_e] at hder
+    obtain ⟨-, hfv, -⟩ := derObsE_fields (estore_derived_abs hrel.store hder)
+    have hi1v := ConRon.Refine.Expr.fvar_of_data_val hi1
+    have hfz : (ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat = i1.val := by
+      rw [hfv, hi1v]
+    rw [show absU fuel = m + 1 from hn, wscopedBGo_unfold, StateT.run_bind,
+      show (Arena.derivedE (absEIdx h)).run lst
+        = .ok (lst.store.derived (absEIdx h), lst) from rfl]
+    show WOut pers lst o st
+      ((if ((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0) = true
+        then pure (true, lm)
+        else
+          match lm[(absEIdx h, absU d)]? with
+          | some r => pure (r, lm)
+          | none => do
+            let (r, memo') ← wscopedBNodeSpec lm m (absU d) (← view (absEIdx h))
+            pure (r, memo'.insert (absEIdx h, absU d) r)).run lst)
+    by_cases hc : i1 = 0#u64
+    · rw [if_pos hc] at hrun
+      have hz : ((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0)
+          = true := by rw [hfz, hc]; rfl
+      rw [if_pos hz]
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+    · rw [if_neg hc] at hrun
+      have hz : ¬ (((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0)
+          = true) := by
+        rw [hfz]
+        simp only [beq_iff_eq]
+        intro hzz
+        exact hc (Std.UScalar.eq_of_val_eq (by rw [hzz]; rfl))
+      rw [if_neg hz]
+      obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hkabs : absEIdxNat k = (absEIdx h, absU d) := by
+        rw [arena.monad.eidx_nat_key] at hk
+        obtain ⟨e, he, hk⟩ := ConRon.Refine.bind_eq_ok_iff.mp hk
+        have hee : e = h := dupId_eidx h e he
+        have hkk : ({ h := e, d := d } : arena.monad.EIdxNat) = k :=
+          Result.ok_injective hk
+        rw [← hkk, hee]; rfl
+      have hget := wscoped_memo_get_refines hm.2
+        ConRon.Refine.HashMap2.KeysOk_true hm.1 hop
+      rw [hkabs] at hget
+      cases hoc : op with
+      | some b =>
+        rw [hoc] at hrun hget
+        rw [hget]
+        have ho : (core.result.Result.Ok (b, rm) :
+            core.result.Result _ _) = o := Result.ok_injective hrun
+        rw [← ho]
+        exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+      | none =>
+        rw [hoc] at hrun hget
+        rw [hget]
+        obtain ⟨rv, hrv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hview := view_run hrel hinv hrv
+        show WOut pers lst o st ((do
+          let (r, memo') ← wscopedBNodeSpec lm m (absU d) (← view (absEIdx h))
+          pure (r, memo'.insert (absEIdx h, absU d) r)).run lst)
+        cases hrvc : rv with
+        | Err e =>
+          rw [hrvc] at hrun hview
+          have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+            Result.ok_injective hrun
+          rw [← ho]
+          show AErrSim e _
+          rw [StateT.run_bind]
+          intro kk hk2
+          obtain ⟨le, hle, hlk⟩ := hview kk hk2
+          exact ⟨le, by rw [hle]; rfl, hlk⟩
+        | Ok v =>
+          rw [hrvc] at hrun hview
+          obtain ⟨lst0, hx, -, -, -, -⟩ := hview
+          have hlst : lst0 = lst := view_run_state hx
+          rw [hlst] at hx
+          rw [StateT.run_bind, hx]
+          obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi2v : i2.val = m := by
+            have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+              (ConRon.Refine.Nat.usub_val hi2).2
+            rw [h1, hn]; rfl
+          have hnode := wscoped_node_of_go ih hi2v hrel hinv hm hr1
+          rw [show absU i2 = m from hi2v] at hnode
+          show WOut pers lst o st ((do
+            let (r, memo') ← wscopedBNodeSpec lm m (absU d) (absENodeView v)
+            pure (r, memo'.insert (absEIdx h, absU d) r)).run lst)
+          cases hr1c : r1 with
+          | Err e =>
+            rw [hr1c] at hrun hnode
+            have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+              Result.ok_injective hrun
+            rw [← ho]
+            exact wout_err_bind hnode
+          | Ok p =>
+            obtain ⟨b, mr⟩ := p
+            rw [hr1c] at hrun hnode
+            obtain ⟨m1, lst1, heq, hm1, hrel1, hinv1, hext1⟩ := hnode
+            rw [StateT.run_bind, heq]
+            obtain ⟨mset, hmset, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            have ho : (core.result.Result.Ok (b, mset) :
+                core.result.Result _ _) = o := Result.ok_injective hrun
+            rw [← ho]
+            have hset := wscoped_memo_set_refines hm1.2
+              ConRon.Refine.HashMap2.KeysOk_true hm1.1 hmset
+            rw [hkabs] at hset
+            exact ⟨m1.insert (absEIdx h, absU d) b, lst1, rfl,
+              ⟨hset.1, hset.2.1⟩, hrel1, hinv1, hext1⟩
+
+theorem lout_err_bind {e : kernel.core_types.CheckError}
+    {pers : arena.store.PersTier} {lstA lstB : AState}
+    {stA stB : arena.monad.AState}
+    {x : AM (Bool × Std.HashMap EIdx Bool)}
+    {f : (Bool × Std.HashMap EIdx Bool) → AM (Bool × Std.HashMap EIdx Bool)}
+    (h : LOut pers lstA (.Err e) stA (x.run lstA)) :
+    LOut pers lstB (.Err e) stB ((do let v ← x; f v).run lstA) := by
+  show AErrSim e _
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+theorem lout_rebase {pers : arena.store.PersTier} {lst lst1 : AState}
+    {st2 : arena.monad.AState}
+    {o : core.result.Result
+      (Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      kernel.core_types.CheckError}
+    {y : Except Arena.CheckError ((Bool × Std.HashMap EIdx Bool) × AState)}
+    (hext : Ext lst.store lst1.store) (h : LOut pers lst1 o st2 y) :
+    LOut pers lst o st2 y := by
+  cases o with
+  | Err e => exact h
+  | Ok r =>
+    obtain ⟨m', lst2, hy, hmm, hrel2, hinv2, hext2⟩ := h
+    exact ⟨m', lst2, hy, hmm, hrel2, hinv2, Ext.trans hext hext2⟩
+
+/-- The twin's own `match` at `leavesSubGo`'s node step IS
+`leavesSubNodeSpec`. -/
+theorem leavesSubNodeSpec_eq (bl : List (Nat × EIdx))
+    (memo : Std.HashMap EIdx Bool) (fuel : Nat) (w : ENodeView) :
+    (match w with
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
+      | .fvar idx ty =>
+        if leafMem bl idx ty then leavesSubGo bl memo fuel ty
+        else pure (false, memo)
+      | .app f a => leavesSubArmApp bl memo fuel f a
+      | .lam ty body _ => leavesSubArmBind bl memo fuel ty body
+      | .forallE ty body _ => leavesSubArmBind bl memo fuel ty body
+      | .letE ty val body => leavesSubArmLet bl memo fuel ty val body
+      | .proj _ _ sub => leavesSubGo bl memo fuel sub)
+      = leavesSubNodeSpec bl memo fuel w := by
+  cases w <;>
+    simp only [leavesSubNodeSpec, leavesSubArmApp, leavesSubArmBind,
+      leavesSubArmLet]
+
+theorem leavesSubGo_unfold (bl : List (Nat × EIdx))
+    (memo : Std.HashMap EIdx Bool) (fuel : Nat) (h : EIdx) :
+    leavesSubGo bl memo (fuel + 1) h = (do
+      if (ConLeche.fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
+      else
+        match memo[h]? with
+        | some r => pure (r, memo)
+        | none => do
+          let (r, memo') ← leavesSubNodeSpec bl memo fuel (← view h)
+          pure (r, memo'.insert h r)) := by
+  rw [leavesSubGo_succ]
+  simp only [leavesSubNodeSpec, leavesSubArmApp, leavesSubArmBind,
+    leavesSubArmLet, bind_assoc]
+  congr 1
+  funext w
+  split
+  · rfl
+  · cases hme : memo[h]? with
+    | some r => rfl
+    | none =>
+      dsimp only
+      congr 1
+      funext v
+      cases v <;> dsimp only <;> (try split) <;>
+        first
+          | rfl
+          | simp only [bind_assoc]
+
+/-- The `go`-shaped statement at one fuel value, as a predicate, so that the
+three mutually recursive bodies can be proved in the order `go`, `two`,
+`node` inside one induction. -/
+def LGoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)} {fuel : Std.U64}
+    {h : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
+    arena.expr_ops.leaves_sub_go pers st bl rm fuel h = ok o →
+    LOut pers lst o st ((leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx h)).run lst)
+
+/-- The `two`-shaped statement at one fuel value. -/
+def LTwoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)} {fuel : Std.U64}
+    {x y : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
+    arena.expr_ops.leaves_sub_two pers st bl rm fuel x y = ok o →
+    LOut pers lst o st ((do
+      let (rf, m) ← leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx x)
+      if rf then leavesSubGo (absLeaves bl) m (absU fuel) (absEIdx y)
+      else pure (false, m)).run lst)
+
+/-- The `node`-shaped statement at one fuel value. -/
+def LNodeAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)} {fuel : Std.U64}
+    {v : arena.store.ENodeView} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
+    arena.expr_ops.leaves_sub_node pers st bl rm fuel v = ok o →
+    LOut pers lst o st
+      ((leavesSubNodeSpec (absLeaves bl) lm (absU fuel) (absENodeView v)).run lst)
+
+private theorem lsub_two_of_go {n : Nat} (hgo : LGoAt n) : LTwoAt n := by
+  intro pers st lst rm lm bl fuel x y o hn hrel hinv hm hrun
+  rw [arena.expr_ops.leaves_sub_two] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hg1 := hgo hn hrel hinv hm hr
+  cases hrc : r with
+  | Err e =>
+    rw [hrc] at hrun hg1
+    have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+      Result.ok_injective hrun
+    rw [← ho]
+    exact lout_err_bind hg1
+  | Ok p =>
+    obtain ⟨b, mr⟩ := p
+    rw [hrc] at hrun hg1
+    obtain ⟨m1, lst1, heq, hm1, hrel1, hinv1, hext1⟩ := hg1
+    rw [StateT.run_bind, heq]
+    show LOut pers lst o st
+      ((if b then leavesSubGo (absLeaves bl) m1 (absU fuel) (absEIdx y)
+        else pure (false, m1)).run lst1)
+    by_cases hb : b = true
+    · subst hb
+      have hg2 := hgo hn hrel1 hinv1 hm1 hrun
+      exact lout_rebase hext1 hg2
+    · simp only [Bool.not_eq_true] at hb
+      subst hb
+      have ho : (core.result.Result.Ok (false, mr) :
+          core.result.Result _ _) = o := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨m1, lst1, rfl, hm1, hrel1, hinv1, hext1⟩
+
+private theorem lsub_node_of_go {n : Nat} (hgo : LGoAt n) : LNodeAt n := by
+  have htwo : LTwoAt n := lsub_two_of_go hgo
+  intro pers st lst rm lm bl fuel v o hn hrel hinv hm hrun
+  rw [arena.expr_ops.leaves_sub_node.eq_def] at hrun
+  cases v with
+  | BVar _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | «Sort» _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | Const _ _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | Lit _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | Proj _ _ s0 => exact hgo hn hrel hinv hm hrun
+  | App f0 a0 => exact htwo hn hrel hinv hm hrun
+  | Lam ty0 b0 mm => exact htwo hn hrel hinv hm hrun
+  | ForallE ty0 b0 mm => exact htwo hn hrel hinv hm hrun
+  | FVar idx0 ty0 =>
+    obtain ⟨b0, hb0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hlm := leaf_mem_refines hb0
+    show LOut pers lst o st
+      ((if leafMem (absLeaves bl) (absU idx0) (absEIdx ty0) then
+          leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx ty0)
+        else pure (false, lm)).run lst)
+    rw [show absLeaves bl = absFvlL bl from rfl, hlm]
+    by_cases hb : b0 = true
+    · subst hb
+      rw [if_pos rfl] at hrun
+      simp only [if_true]
+      exact hgo hn hrel hinv hm hrun
+    · simp only [Bool.not_eq_true] at hb
+      subst hb
+      simp only [Bool.false_eq_true, if_false]
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+  | LetE ty0 v0 b0 =>
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hg1 := hgo hn hrel hinv hm hr
+    show LOut pers lst o st ((do
+      let (rt, memo) ← leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx ty0)
+      if rt then do
+        let (rv, memo) ← leavesSubGo (absLeaves bl) memo (absU fuel) (absEIdx v0)
+        if rv then leavesSubGo (absLeaves bl) memo (absU fuel) (absEIdx b0)
+        else pure (false, memo)
+      else pure (false, memo)).run lst)
+    cases hrc : r with
+    | Err e =>
+      rw [hrc] at hrun hg1
+      have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      exact lout_err_bind hg1
+    | Ok p =>
+      obtain ⟨b, mr⟩ := p
+      rw [hrc] at hrun hg1
+      obtain ⟨m1, lst1, heq, hm1, hrel1, hinv1, hext1⟩ := hg1
+      rw [StateT.run_bind, heq]
+      show LOut pers lst o st
+        ((if b then do
+            let (rv, memo) ← leavesSubGo (absLeaves bl) m1 (absU fuel) (absEIdx v0)
+            if rv then leavesSubGo (absLeaves bl) memo (absU fuel) (absEIdx b0)
+            else pure (false, memo)
+          else pure (false, m1)).run lst1)
+      by_cases hb : b = true
+      · subst hb
+        exact lout_rebase hext1 (htwo hn hrel1 hinv1 hm1 hrun)
+      · simp only [Bool.not_eq_true] at hb
+        subst hb
+        have ho : (core.result.Result.Ok (false, mr) :
+            core.result.Result _ _) = o := Result.ok_injective hrun
+        rw [← ho]
+        exact ⟨m1, lst1, rfl, hm1, hrel1, hinv1, hext1⟩
+
+private theorem lsub_go_aux (n : Nat) : LGoAt n := by
+  induction n with
+  | zero =>
+    intro pers st lst rm lm bl fuel h o hn hrel hinv hm hrun
+    rw [arena.expr_ops.leaves_sub_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    show AErrSim _ ((leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, leavesSubGo_zero, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst rm lm bl fuel h o hn hrel hinv hm hrun
+    rw [arena.expr_ops.leaves_sub_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hder := hw
+    rw [arena.monad.derived_e] at hder
+    obtain ⟨-, hfv, -⟩ := derObsE_fields (estore_derived_abs hrel.store hder)
+    have hi1v := ConRon.Refine.Expr.fvar_of_data_val hi1
+    have hfz : (ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat = i1.val := by
+      rw [hfv, hi1v]
+    rw [show absU fuel = m + 1 from hn, leavesSubGo_unfold, StateT.run_bind,
+      show (Arena.derivedE (absEIdx h)).run lst
+        = .ok (lst.store.derived (absEIdx h), lst) from rfl]
+    show LOut pers lst o st
+      ((if ((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0) = true
+        then pure (true, lm)
+        else
+          match lm[absEIdx h]? with
+          | some r => pure (r, lm)
+          | none => do
+            let (r, memo') ← leavesSubNodeSpec (absLeaves bl) lm m (← view (absEIdx h))
+            pure (r, memo'.insert (absEIdx h) r)).run lst)
+    by_cases hc : i1 = 0#u64
+    · rw [if_pos hc] at hrun
+      have hz : ((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0)
+          = true := by rw [hfz, hc]; rfl
+      rw [if_pos hz]
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+    · rw [if_neg hc] at hrun
+      have hz : ¬ (((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0)
+          = true) := by
+        rw [hfz]
+        simp only [beq_iff_eq]
+        intro hzz
+        exact hc (Std.UScalar.eq_of_val_eq (by rw [hzz]; rfl))
+      rw [if_neg hz]
+      obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hget := leaves_sub_get_refines hm.2
+        ConRon.Refine.HashMap2.KeysOk_true hm.1 hop
+      cases hoc : op with
+      | some b =>
+        rw [hoc] at hrun hget
+        rw [hget]
+        have ho : (core.result.Result.Ok (b, rm) :
+            core.result.Result _ _) = o := Result.ok_injective hrun
+        rw [← ho]
+        exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
+      | none =>
+        rw [hoc] at hrun hget
+        rw [hget]
+        obtain ⟨rv, hrv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hview := view_run hrel hinv hrv
+        show LOut pers lst o st ((do
+          let (r, memo') ← leavesSubNodeSpec (absLeaves bl) lm m (← view (absEIdx h))
+          pure (r, memo'.insert (absEIdx h) r)).run lst)
+        cases hrvc : rv with
+        | Err e =>
+          rw [hrvc] at hrun hview
+          have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+            Result.ok_injective hrun
+          rw [← ho]
+          show AErrSim e _
+          rw [StateT.run_bind]
+          intro kk hk2
+          obtain ⟨le, hle, hlk⟩ := hview kk hk2
+          exact ⟨le, by rw [hle]; rfl, hlk⟩
+        | Ok v =>
+          rw [hrvc] at hrun hview
+          obtain ⟨lst0, hx, -, -, -, -⟩ := hview
+          have hlst : lst0 = lst := view_run_state hx
+          rw [hlst] at hx
+          rw [StateT.run_bind, hx]
+          obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi2v : i2.val = m := by
+            have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+              (ConRon.Refine.Nat.usub_val hi2).2
+            rw [h1, hn]; rfl
+          have hnode := lsub_node_of_go ih hi2v hrel hinv hm hr1
+          rw [show absU i2 = m from hi2v] at hnode
+          show LOut pers lst o st ((do
+            let (r, memo') ← leavesSubNodeSpec (absLeaves bl) lm m (absENodeView v)
+            pure (r, memo'.insert (absEIdx h) r)).run lst)
+          cases hr1c : r1 with
+          | Err e =>
+            rw [hr1c] at hrun hnode
+            have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+              Result.ok_injective hrun
+            rw [← ho]
+            exact lout_err_bind hnode
+          | Ok p =>
+            obtain ⟨b, mr⟩ := p
+            rw [hr1c] at hrun hnode
+            obtain ⟨m1, lst1, heq, hm1, hrel1, hinv1, hext1⟩ := hnode
+            rw [StateT.run_bind, heq]
+            obtain ⟨mset, hmset, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            have ho : (core.result.Result.Ok (b, mset) :
+                core.result.Result _ _) = o := Result.ok_injective hrun
+            rw [← ho]
+            have hset := leaves_sub_set_refines hm1.2
+              ConRon.Refine.HashMap2.KeysOk_true hm1.1 hmset
+            exact ⟨m1.insert (absEIdx h) b, lst1, rfl,
+              ⟨hset.1, hset.2.1⟩, hrel1, hinv1, hext1⟩
+
+
+/-! ## The memoized DAG walks (finding 2)
+
+Three walks and their five Rust-only companions.  Each probes the derived
+word's `fvarB` field first (the `O(1)` cutoff), then the memo, then the view —
+and the twin does the same three in the same order, so the only shape work is
+the memo relation.  **They wait on `Specs.lean`'s `derivedE` and `view`, and
+on the `HashMap2` probe/insert pair (`Refine/HashMap2.lean`'s
+`get_refines_wf` / `Rel_insert_wf`, which `Specs.lean` re-exports as the
+memo primitives).** -/
+
+/-- `wscoped_b_go` ⊑ `wscopedBGo`. -/
+theorem wscoped_b_go_refines {pers : arena.store.PersTier}
+    {st : arena.monad.AState} {lst : AState}
+    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} {fuel d : Std.U64}
+    {h : arena.handle.EIdx} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hm : WMemoRel rm lm)
+    (hrun : arena.expr_ops.wscoped_b_go pers st rm fuel d h = ok o) :
+    WOut pers lst o st
+      ((wscopedBGo lm (absU fuel) (absU d) (absEIdx h)).run lst) := by
+  exact wscoped_go_aux fuel.val rfl hrel hinv hm hrun
 
 /-- `wscoped_b_node` ⊑ the twin's arm dispatch. -/
 theorem wscoped_b_node_refines {pers : arena.store.PersTier}
@@ -3422,7 +4181,7 @@ theorem wscoped_b_node_refines {pers : arena.store.PersTier}
     (hrun : arena.expr_ops.wscoped_b_node pers st rm fuel d v = ok o) :
     WOut pers lst o st
       ((wscopedBNodeSpec lm (absU fuel) (absU d) (absENodeView v)).run lst) := by
-  sorry
+  exact wscoped_node_of_go (wscoped_go_aux fuel.val) rfl hrel hinv hm hrun
 
 /-- `wscoped_b_two` ⊑ the twin's two-child arm, INLINE (`Refine/README.md`'s
 "one equation per inlined fragment"). -/
@@ -3438,7 +4197,7 @@ theorem wscoped_b_two_refines {pers : arena.store.PersTier}
       let (rf, m) ← wscopedBGo lm (absU fuel) (absU d) (absEIdx x)
       if rf then wscopedBGo m (absU fuel) (absU d) (absEIdx y)
       else pure (false, m)).run lst) := by
-  sorry
+  exact wscoped_two_of_go (wscoped_go_aux fuel.val) rfl hrel hinv hm hrun
 
 /-- `wscoped_b_fast` ⊑ `wscopedBFast` — one memoized walk from the empty
 memo.  `Refine/HashMap2.lean`'s `Rel_empty` is the `WMemoRel` at the entry. -/
@@ -3490,29 +4249,6 @@ theorem fvar_leaves_go_refines {pers : arena.store.PersTier}
     FOut pers lst o st
       ((fvarLeavesGo (absLeaves racc) ls (absU fuel) (absEIdx h)).run lst) := by
   sorry
-
-/-- **The twin's arm dispatch of `fvarLeavesGo`, transcribed** — `fvar_leaves_node`
-has no named twin.  Note that the twin inserts into `seen` BEFORE the
-dispatch, so the fragment takes the already-extended set, which is what the
-Rust's `fvl_record` has done by the time it calls this. -/
-def fvarLeavesNodeSpec (acc : List (Nat × EIdx)) (seen : Std.HashMap EIdx Unit)
-    (fuel : Nat) : ENodeView → AM (List (Nat × EIdx) × Std.HashMap EIdx Unit)
-  | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
-  | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
-  | .app f a => do
-    let (acc, seen) ← fvarLeavesGo acc seen fuel f
-    fvarLeavesGo acc seen fuel a
-  | .lam ty body _ => do
-    let (acc, seen) ← fvarLeavesGo acc seen fuel ty
-    fvarLeavesGo acc seen fuel body
-  | .forallE ty body _ => do
-    let (acc, seen) ← fvarLeavesGo acc seen fuel ty
-    fvarLeavesGo acc seen fuel body
-  | .letE ty val body => do
-    let (acc, seen) ← fvarLeavesGo acc seen fuel ty
-    let (acc, seen) ← fvarLeavesGo acc seen fuel val
-    fvarLeavesGo acc seen fuel body
-  | .proj _ _ sub => fvarLeavesGo acc seen fuel sub
 
 /-- `fvar_leaves_node` ⊑ the twin's arm dispatch. -/
 theorem fvar_leaves_node_refines {pers : arena.store.PersTier}
@@ -3596,32 +4332,7 @@ theorem leaves_sub_go_refines {pers : arena.store.PersTier}
     (hrun : arena.expr_ops.leaves_sub_go pers st bl rm fuel h = ok o) :
     LOut pers lst o st
       ((leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx h)).run lst) := by
-  sorry
-
-/-- **The twin's arm dispatch of `leavesSubGo`, transcribed** —
-`leaves_sub_node` has no named twin. -/
-def leavesSubNodeSpec (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
-    (fuel : Nat) : ENodeView → AM (Bool × Std.HashMap EIdx Bool)
-  | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
-  | .fvar idx ty =>
-    if leafMem bl idx ty then leavesSubGo bl memo fuel ty
-    else pure (false, memo)
-  | .app f a => do
-    let (rf, memo) ← leavesSubGo bl memo fuel f
-    if rf then leavesSubGo bl memo fuel a else pure (false, memo)
-  | .lam ty body _ => do
-    let (rt, memo) ← leavesSubGo bl memo fuel ty
-    if rt then leavesSubGo bl memo fuel body else pure (false, memo)
-  | .forallE ty body _ => do
-    let (rt, memo) ← leavesSubGo bl memo fuel ty
-    if rt then leavesSubGo bl memo fuel body else pure (false, memo)
-  | .letE ty val body => do
-    let (rt, memo) ← leavesSubGo bl memo fuel ty
-    if rt then do
-      let (rv, memo) ← leavesSubGo bl memo fuel val
-      if rv then leavesSubGo bl memo fuel body else pure (false, memo)
-    else pure (false, memo)
-  | .proj _ _ sub => leavesSubGo bl memo fuel sub
+  exact lsub_go_aux fuel.val rfl hrel hinv hm hrun
 
 /-- `leaves_sub_node` ⊑ the twin's arm dispatch. -/
 theorem leaves_sub_node_refines {pers : arena.store.PersTier}
@@ -3636,7 +4347,7 @@ theorem leaves_sub_node_refines {pers : arena.store.PersTier}
     LOut pers lst o st
       ((leavesSubNodeSpec (absLeaves bl) lm (absU fuel)
         (absENodeView v)).run lst) := by
-  sorry
+  exact lsub_node_of_go (lsub_go_aux fuel.val) rfl hrel hinv hm hrun
 
 /-- `leaves_sub_two` ⊑ the twin's two-child arm, inline. -/
 theorem leaves_sub_two_refines {pers : arena.store.PersTier}
@@ -3652,7 +4363,7 @@ theorem leaves_sub_two_refines {pers : arena.store.PersTier}
       let (rf, m) ← leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx x)
       if rf then leavesSubGo (absLeaves bl) m (absU fuel) (absEIdx y)
       else pure (false, m)).run lst) := by
-  sorry
+  exact lsub_two_of_go (lsub_go_aux fuel.val) rfl hrel hinv hm hrun
 
 /-- `leaf_guard` ⊑ `leafGuard` — the fabrication leaf guard: the `fvarB = 0`
 short-circuit, `base`'s leaf list, then one memoized walk of `fab`. -/
