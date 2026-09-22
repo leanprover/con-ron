@@ -227,8 +227,8 @@ sibling readback tables framed. -/
 
 /-! ## The intern specs with the two MONOTONICITY conjuncts
 
-**The second finding of P3's group B, and the one that retires
-`ExprOps/Inst1.lean`'s open `sorry`.**
+**The second finding of P3's group B, and the one that retired
+`ExprOps/Inst1.lean`'s last open goal.**
 
 `Bridge/Rel.lean`'s `Ext` is about DENOTATIONS: "every handle of `st` denotes
 the same in `st'`".  A rebuilding walk needs two facts it does not give.

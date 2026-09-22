@@ -38214,6 +38214,194 @@ no change**: it imports `Bridge/Specs.lean` and consumes its postconditions
 through `grind`, which is what makes an extra conjunct free.  All twelve gates
 and the 383-fixture sweep were re-run on the merged state.
 
+#### Follow-up (task #97-P3-2, 2026-09-22, Opus under Fable) — the twelve closed
+
+Phase **P3-2**: §6's open list, worked to zero.  Branch `p3-2` off `arena`'s
+tip `be5aab5d`; the diff is `proof/ConRon/Bridge/ExprOps/**`,
+`proof/ConRon/Bridge/{Axioms,SpecsL}.lean` and this sub-section.  No Rust
+file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`.
+
+**`grep -c sorry proof/ConRon/Bridge/ExprOps/*.lean` is 0** over all thirteen
+modules — including the six doc comments that still said otherwise, two of
+which (`Spine.lean`, `TelescopeF.lean`) had been false since #97-P3-1 closed
+`instantiate1Go_spec`.  `lake build ConRonBridge` reports **no `sorryAx`
+under `Bridge/ExprOps/` at all**; the library's remaining forty-three are the
+`Core`, `Checker`, `Frontend` and `Inductives` tiers', which are other
+rounds'.
+
+| theorem | how it closed | elaboration, before → after |
+|---|---|---:|
+| `abstract1Go_spec` (5 arms) | the **arm-spec conversion** | `Abs.lean` 116 s → **73 s** |
+| `instantiateList_spec`, `instantiateListGo_spec`, `instPisAtLift_spec` | the same conversion | `Subst.lean` 338 s → **318 s** |
+| `fvarLeavesGo_spec` | `StoreWF`'s rank as a second PARAMETER of the invariant | `Leaves.lean` 8.3 s → **28.6 s** |
+| `abstract1Fast_spec`, `abstractRangeGo_spec`, `abstractRangeFast_spec`, `renameConstsGo_spec`, `renameConstsFast_spec`, `instLPGo_spec`, `instLPFast_spec` | three fuel inductions in `Reset.lean`'s shape plus four brackets | `Owed.lean` 1.7 s → **286 s** |
+
+`leafGuard_spec` and `fvarLeavesFast_spec` — §6's "two theorems still report
+`sorryAx` and nothing else" — closed with `fvarLeavesGo_spec`, as predicted.
+The other ten modules are unchanged (`Guards.lean` 31 s, `Inst1.lean` 28 s,
+`Reset.lean` 128 s, …).  Wall times are `lake env lean` on a machine running
+three to five concurrent agents (load average 25–111); treat them as ±15 %.
+The measure of record for `Owed.lean`, the one new large module, is
+**1 542.6 G instructions:u**.
+
+**§6's read of the open list was right in three cases out of four.**
+
+1. *`abstract1Go_spec`: "the `fvarB` HOP, not the arms … none is a
+   mathematical gap."*  True, and the fix was cheaper than the hop lemma it
+   asked for: **`abstractRangeGo`'s dispatcher calls `fvarB`, its five arms do
+   not**, so converting the walk to arm specs removes the hop from the arms
+   entirely and every hypothesis is found by `assumption`, exactly as
+   `Inst1.lean`'s are.  The `…_hop` family and the `| sorry` alternative in
+   `abs_hyp` are both gone.  Two things the conversion needed that §2 did not
+   predict:
+   * **`internRebuiltBindI_spec'` is the one intern face `MemoSpecs.lean`'s
+     `_specV` family skipped**, so the binder arm had no view-monotonicity
+     conjunct to chain.  Five lemmas fix it (`view_internBindI_mono`,
+     `internBindIE_specV`, `internRebuiltBindI_specV`, …).  They are
+     `@[local spec high]` — measured: `mvcgen [.., internRebuiltBindI_specV]`
+     in the list does **not** beat the `@[spec]` in the database, so the
+     stronger theorem has to be registered, and `local` is what keeps it from
+     moving `Owed.lean`'s verification conditions under the concurrent round.
+     A local attribute does not cross an import, so `Owed.lean` repeats the
+     line.
+   * **`mvcgen` matches an arm spec's POSTCONDITION first**, so at a
+     dispatcher that calls `fvarB` before the tag chain it assigns the arm's
+     `s₁ := s₀` — the state *before* `fvarB` — and the arm's precondition then
+     arrives as the false goal `s = s'`.  Five three-line `…_hop` wrappers
+     that name the two states separately fix it, and the dispatcher becomes
+     `all_goals try rfl` then `bridge_vcs`, with **two** verification
+     conditions surviving against the inline body's eleven.
+2. *`Subst`'s three: "the arm-spec conversion `Inst1.lean` demonstrates
+   applies directly."*  True.  Ten arm theorems, two surviving verification
+   conditions per dispatcher, and the binder arms closed on `BMExt` with the
+   one-line `grind [BMExt.get]` #97-P3-1 §3 promised.  `InstLPureSpec` and
+   `InstLSpec` gained the `BMExt` conjunct `Inst1Spec` already carried.  One
+   place the template did not transfer verbatim, and it is a rule: **an
+   UNMEMOIZED arm ends WITH the intern**, so `mvcgen` hands the intern's
+   postcondition as the goal's *antecedents* and that block must `intro`
+   first; a memoized arm ends with `pure r` after the memo insert and reads
+   letter for letter like `Inst1.lean`'s.
+3. *`Owed`'s seven: "each with its step-lemma layer already written."*  True
+   of the layer, and `renameConstsGo_spec` really is `resetMetaGo_spec`
+   transcribed — its one wrinkle is that the walk never interns a NAME, so
+   `s'.store.ns = s₀.store.ns` follows from the intern specs' `lss` equation
+   (`EStore.ns` is a projection of `lss`) and carries the `f`/`fn` hypothesis
+   forward.  `(hfv : FvarBSpec)` went onto the three `abstractRange*` /
+   `abstract1Fast` statements as §6 said it would.
+4. *`fvarLeavesGo_spec`: "the only genuine gap … needs `StoreWF`'s rank as a
+   second induction beside the fuel."*  **Half right, and the cheaper half.**
+   It needs the rank, and it does **not** need a second induction: the rank
+   enters as a second *parameter of the invariant* and the fuel induction is
+   untouched.  `SeenOK st acc seen c` is con-leche's `SeenInv` with "is being
+   processed by an ancestor of the current call" read as *has rank above the
+   current subject's*; `EWFAt.childOK`'s rank clause is the only part of
+   `StoreWF` used; `SeenOK.of_grow` — the node inserted, some prefix of its
+   children walked, the invariant re-established at the next child — is the
+   whole argument in ten lines.  Two more parts carry it: `SeenGrow st acc'
+   seen seen'` ("every key of the returned set is black at the returned
+   accumulator, or was already a key of the set the call was given"), which is
+   what a completed call gives back and what turns the node's own gray entry
+   black; and `AccGrow`, the accumulator's membership monotonicity, which
+   carries a black key past a sibling's walk.  **The rank is quantified INSIDE
+   `SeenOK`** (`∀ rk, EWFAt st rk → …`, template rule 6), so no statement in
+   the file grew an argument and `fvarLeavesFast_spec` — the one
+   `ExprOps/Guards.lean` consumes — did not move.
+
+#### Five statement changes, and why each was forced
+
+Three were sanctioned in advance (`(hfv : FvarBSpec)` on the two
+`abstractRange*` and on `abstract1Fast_spec`); two more are additive
+(`BMExt` onto `InstLPureSpec` / `InstLSpec`).  The five below are corrections
+the old shapes could not survive, all documented at their sites:
+
+* `abstractRangeGo_spec`'s memo hypothesis `Abs1MemoA d` → `AbsRangeMemoA d k`.
+  `abs1C` is shared by the two abstraction walks (§8.3's "that is a table
+  IDENTITY, not a clause"); inside an `abstractRangeFast` call it holds
+  `abstractRange` answers, so the `abstract1` reading is simply false at
+  `k ≠ 1`.
+* `abstractRangeFast_spec`'s `s'.memos.abs1C = ∅` → `(… = ∅ ∨ s' = s₀)`, and
+  `instLPFast_spec`'s `s'.memos.instLPC = ∅` likewise.  Both entries test a
+  cutoff FIRST and return the subject without clearing — `abstractRangeFast`
+  the `k = 0` identity (task #97-P6-11), `instLPFast` the `hasLP` bit hoisted
+  over the readbacks (task #97-P6-10).  The disjunct is not a weakening: the
+  branch it covers moved nothing at all.
+* `instLPGo_spec` and `instLPFast_spec` **drop** `s'.caches = s₀.caches` and
+  carry `ReadLCacheOK` / `ReadLsCacheOK` as hypotheses and conjuncts instead.
+  The level arms' memoised readback writes `caches.readLC` / `readLsC` —
+  `ExprOps/InstLP.lean`'s header already said so.  `instLPFast_spec` carries
+  `ReadNCacheOK` as a hypothesis ONLY, because `substLMemoAt_spec` does not
+  frame `caches.readNC`.
+
+Nothing outside the tier consumes any of these; `Bridge/Core/**` mentions
+`ExprOps.instantiateList_spec` in one prose line and nothing else.
+
+#### `readNamesM_spec`'s caches frame (the coordinator's ask)
+
+`Bridge/Specs.lean`'s three readback specs carry
+`s'.caches = { s₀.caches with readXC := s'.caches.readXC }` and
+`Bridge/SpecsL.lean`'s `readNamesM_spec` did not, so
+`Bridge/Core/Walks/Proj.lean`'s `IProjEntry.fireOk_spec` could not rebuild
+`CacheOK` across a level-parameter readback and went through a twenty-five
+line detour.  The conjunct is added here — **the rule this tier learned is
+that a registered `@[spec]` is a commitment**: `mvcgen` ignores a stronger
+theorem passed locally and `attribute [-spec]` is refused, so a frame has to
+be in the spec the first time.  It costs nothing: the one-line closer
+`grind [Frontend.denoteNList, ReadNCacheOK]` takes the `cons` step unchanged
+and `SpecsL.lean` still elaborates in 3.1 s.  No consumer broke.  The detour
+in `Proj.lean` is now removable and is deliberately NOT removed here — that
+module is another round's lane, and its own note says the copy goes the day
+this conjunct lands.
+
+#### What the tier is now, and what is left
+
+**All 92 declarations of `Arena/ExprOps.lean` have a statement and every one
+is proved.**  Thirteen modules, **12 453 raw lines**, 131 `#print axioms`
+lines, and the trust census in `Bridge/Axioms.lean` grew the fourteen results
+of the `fvar`-leaf group: the lakefile's note that two modules of this tier
+cannot share an import closure is true of *some* pairs and not of all
+(`Owed.lean` already imports three), and `Inst1`, `Leaves` and `Guards`
+coexist.
+
+Three things a later round should take, none of them a gap:
+
+* **`ExprOps/Owed.lean`'s `readNameM_specF` / `readNamesM_specF` (~70 lines)
+  are redundant** now that `readNamesM_spec` carries the frame.  They still
+  compile; deleting them is a cleanup, not a fix.
+* **`Bridge/Core/Arms/Annotate.lean:34` and `:236` say
+  `abstractRangeFast_spec` is "still `sorry`"** — stale, and not this round's
+  file to edit.
+* **Three walks are over the 20 s per-theorem aim** and were deliberately not
+  converted to arm specs: `abstractRangeGo_spec` (506.3 G instructions, ≈72 s),
+  `instLPGo_spec` (523.4 G, ≈75 s), `renameConstsGo_spec` (432.6 G, ≈62 s),
+  and `fvarLeavesGo_spec` (~20 s).  The comparison that decided it: the tier's
+  own committed exemplar of exactly that shape, `ExprOps/Reset.lean`, costs
+  **801.9 G / 129.8 s** for the whole file — each of the three is cheaper than
+  the walk already in the tier, and the cheap route (arm DEFINITIONS,
+  `Reset.lean` style) never got stuck.  Enforcing 20 s here is a tier-wide
+  conversion, `Reset.lean` included, not a fix for one file.  This is
+  #97-P3-1 §2's last bullet holding at scale: **the split is a fact about the
+  CODE; whether the PROOF consumes it arm-by-arm is a per-walk choice, and the
+  measurement says to make it only where the closer was expensive.**
+
+#### Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** on the merged state (`extract-check` 129 s, `lake-build` 387 s) |
+| `lake build ConRonBridge` | **0 errors**, 615 jobs |
+| `grep -c sorry proof/ConRon/Bridge/ExprOps/*.lean` | **0**, all thirteen modules |
+| `#print axioms` | every result under `Bridge/ExprOps/**` is `[propext, Classical.choice, Quot.sound]`; the library's remaining `sorryAx` are `Bridge/{Core,Checker,Frontend,Inductives}`'s |
+| the diff | `proof/ConRon/Bridge/ExprOps/**`, `proof/ConRon/Bridge/{Axioms,SpecsL}.lean`, this sub-section |
+
+`arena` moved twice under this branch and both were merged in:
+**#97-P3-Core-2** (`cbc4cef3` — `Bridge/Core/**`, `scripts/twin-lines.py`
+and the census fixtures, whose `readNamesM_spec` ask §"the coordinator's ask"
+above answers) and **#97-P3-Frontend-2 round 2** (`0e13370e` —
+`Bridge/Frontend/**` plus 182 lines of `Arena/WFProofs.lean`).  Neither
+conflicted, and neither touches a statement this tier makes.  The gates and
+`lake build ConRonBridge` were re-run on the second merged state; the
+thirteenth gate (`twin-lines`) is #97-P3-Core-2's.
+
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the Core round: DESIGN §8.2's **Theorem 1** at
