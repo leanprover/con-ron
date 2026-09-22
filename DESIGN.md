@@ -45158,3 +45158,115 @@ change**, and that is a sharper statement than round 2 could make.
 | `scripts/arena-census.py --summary` | runs; `Arena/ExprOps` reads **92/92 stated, 92 closed** for T1 (task #97-P3-1's follow-up landed on `arena` between the two merges) and **89/92 stated, 52 closed** for T2 — the 52 being this task's, from round 2's 45 |
 | merged `arena` **twice** — `0e13370e`, then `e54dd80e` | auto-merged every hunk, `.lean` and DESIGN.md alike; no hand work.  The second merge is `Bridge/**` only, which `ConRonRefine2` does not import, but both Lean gates were re-run on it anyway and are the numbers above |
 | the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, and `ExprOps/{Pure,Read}.lean` untouched — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected by this branch and are not re-run |
+
+### Task #97-P5-Twin — the binder intern probes BEFORE it tests capacity (2026-09-22, Opus under Fable)
+
+**One twin bug, found by a proof, and the repair it forces.**  Task #97-P5-3
+round 3's **finding 15** said it exactly: `Arena/Monad.lean`'s `internLamIE` /
+`internForallEIE` tested the binder array's capacity BEFORE the cons probe,
+where the port probes first and tests `Tbl::full` only where it is about to
+APPEND.  On a cons HIT at a full `lams` / `foralls` array the twin threw
+`native` and the port answered `Ok` — a behavioural divergence between layer B
+(the Lean twin) and layer C (the Rust), not a proof artefact, and one no work
+on the proof side can absorb.  Task #97-P3-1 had already made this change to
+`internE`, `internNNode`, `internLNode`, `internLsNode` and the four
+persistent siblings (its own **finding 9**); the two `_i` faces were left
+behind because they do not go through `internE`.  This task makes them match.
+
+#### 1. The port is right, and the twin was wrong twice
+
+`crates/con-ron-core/src/arena/store.rs`'s `intern_lam_i` (and
+`intern_forall_e_i`) reads, in order: the persistent probe under the
+scratch-child skip, the scratch probe via `find_slot`, `self.scr.lams.full()`
+**inside the scratch-miss arm**, the append; and, when the scratch tier is
+closed, `self.pers.lams.full()` **inside the persistent-miss arm**.  So the
+port makes TWO decisions the old twin did not:
+
+* **a cons hit needs no room at all** — the node is already in the array, and
+  con-leche's pure checker (layer A) has no capacity notion whatsoever, so
+  there is nothing on that path to decline;
+* **the tier that is not being appended to is irrelevant** — the old twin's
+  test was `scr.bindSizeOf tag < idxCap ∧ pers.bindSizeOf tag < idxCap`, a
+  conjunction over BOTH tiers, so it declined on the strength of an array the
+  append never touches.  Finding 15 called this out as the worse half for a
+  walk: "the conjunct is about the tier the port does NOT append to, which the
+  port's success cannot prove even on the miss".
+
+Both are fixed, and the shape is `internE`'s own, copied and not invented.
+
+#### 2. The edit, in two files of `Arena/`
+
+**`Arena/Store.lean`, +17 lines** — `EStore.findBindI tag ty b mi`, the
+two-tier cons probe at a binder record whose datum is already a HANDLE.  It is
+literally `internBindI`'s own two `match` scrutinees in `internBindI`'s order
+(persistent, then scratch when the scratch tier is open), named so the monad
+can probe without interning.  `EStore.find?` played this part for `internE`;
+there was no `_i` analogue because nothing needed one.
+
+**`Arena/Monad.lean`** — `internLamIE` and `internForallEIE` become
+
+```
+  match s.store.findBindI ETag.lam ty b mi with
+  | some h => pure h
+  | none =>
+    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.lam
+             else s.store.pers.bindSizeOf ETag.lam
+    if n < Idx.idxCap then … else fail (.native …)
+```
+
+which is `internE`'s text with `find?`/`sizeOf` replaced by
+`findBindI`/`bindSizeOf` and the datum test dropped — a `_i` face's datum is
+already interned, it IS the cons key, so it needs no room on either path.
+`internBindIE` (the tag dispatcher) is unchanged, and so is every caller in
+`Arena/ExprOps.lean`.
+
+**The double probe is the precedent's cost, carried.**  The twin now probes
+once in `findBindI` and again inside `internBindI`, exactly as `internE` has
+probed twice since #97-P3-1.  The twin is the SPECIFICATION the two theorems
+talk about, not the deliverable — the Rust probes once — so the shape that
+makes the refinement statable wins over the shape that would run faster, and
+`con-ron-lean` pays for it only at binder interns.
+
+#### 3. The fallout, and how it was repaired
+
+Five files, and every repair is the same two-armed shape: the HIT arm is new,
+the MISS arm is the old proof with its capacity derivation deleted.
+
+| file | what the edit forced |
+|---|---|
+| `Bridge/StoreBind.lean` | three lemmas, +44 lines: `EStore.findBindI_eq_findAt` (the probe at a binder RECORD is the probe at the VIEW the datum spells out — `ETables.findBind_eq_find?`, which this file already had for `internBindI_eq_internAt`), `findBindI_eq_find?` (…and therefore `find?`, because `EWFAt.findBM_of_viewBM` says the datum handle is the one `findBMOfView` answers), and `EStore.view_of_findBindI`, the HIT path's fact: a binder cons hit names a node whose view is `eBindView tag ty b m`.  It is `Arena/WFProofs.lean`'s `EStore.view_of_find` at the binder arrays, i.e. `StoreWF`'s own `consP`/`consS` read left to right, with no capacity in it |
+| `Bridge/Specs.lean` | `internLamIE_spec` / `internForallEIE_spec` grow the `vc1.h_1` (cons-hit) case — store unmoved, `Ext.refl`, `BMExt.refl`, `view_of_findBindI`, `denoteE_unfold` — and their miss arm LOSES the seven-line `hcap'` derivation, because `mvcgen` now hands over the `if scratchOn …` form the store spec wants.  `internBindIE_spec` and `internBindIE_spec'` are unchanged: their statements never mentioned the capacity |
+| `Bridge/ExprOps/Abs.lean` | `internLamIE_specV` / `internForallEIE_specV` — the same two changes, plus `fun _ _ hj => hj` for the view-monotonicity conjunct on the hit arm (a store that did not move carries every view forward by `id`) |
+| `Refine2/Specs.lean` | `EBindCapAt st tag ty b mi`, `ECapAt`'s binder twin (`findBindI … = none → (if scratchOn then scr else pers).bindSizeOf tag < idxCap`) with its three `of_find_ne` / `of_scr_size` / `of_pers_size` constructors; `internBindI_of_findBindI` (a binder cons hit interns nothing — `internAt_of_findAt` at the binder arrays); `internLamIE_run_of_cap` / `internForallEIE_run_of_cap` re-proved with the two arms; and the `hcap` hypotheses of `intern_e_lam_i_run`, `intern_e_forall_e_i_run` and `intern_e_bind_i_run` weakened from the both-tier conjunction to `EBindCapAt` |
+| `Refine2/ExprOps/Mut.lean` | `intern_rebuilt_bind_i_refines`'s `hcapL` / `hcapF`, the same weakening.  Nothing else in the file: it has no callers yet, so the change stops here |
+
+**What was deliberately NOT done.**  `EBindCapAt` is now *dischargeable from
+the port* — that is the whole dividend of the twin change, and it is the
+mirror of what finding 14 §1 did for `ECapAt` — but actually discharging it
+needs `estore_intern_lam_i_abs` / `estore_intern_forall_e_i_abs` to grow the
+conjunct, which is the Refine2 tier's own work and is left to it.  No `sorry`
+was closed, opened or moved anywhere; no statement was weakened to absorb the
+change; and the three walks finding 15 named (`instantiate1_go`,
+`instantiate_list`, `instantiate_list_go`) are now blocked on finding 16
+alone.
+
+#### 4. The `sorry` count in each affected tier, before and after
+
+| tier | before | after |
+|---|---|---|
+| `ConRonArena` (the twin, layer B) | **0** | **0** |
+| `ConRonBridge` (Theorem 1) | **235** | **235** |
+| `ConRonBridge`, the `ExprOps` tier's thirteen modules | **0** | **0** |
+| `ConRonRefine2` (Theorem 2) | **898** | **898** |
+
+Both "before" columns are the count at the SAME merged state (`arena`
+`0b79feae` merged in at `226980af`), and they are the "after" count because
+the diff adds and removes exactly zero lines containing `sorry` —
+`git diff 55d2fe02 -- '*.lean' | grep -c '^[+-].*sorry'` reads **0**, which is
+the statement that the repair is a repair and not an absorption.
+`Refine2/Specs.lean` still reads **20** and `Refine2/ExprOps/Mut.lean` **44**,
+the numbers task #97-P5-3 round 3 left them at.
+
+#### 5. The gates
+
+GATES_TABLE
