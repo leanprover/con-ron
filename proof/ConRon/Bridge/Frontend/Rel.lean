@@ -76,6 +76,12 @@ is the Checker tier's (`Bridge/Checker/Fold.lean`'s `AM.bind_ok`); what the
 frontend adds is the two leaves, because its functions end in a `pure` or a
 `fail` in almost every arm. -/
 
+/-- con-leche: none — `get` moves nothing and answers the state. -/
+theorem AM.get_ok {s s' t : AState} (h : (get : AM AState) s = .ok (t, s')) :
+    t = s ∧ s' = s := by
+  have he : ((s, s) : AState × AState) = (t, s') := Except.ok.inj h
+  exact ⟨(congrArg Prod.fst he).symm, (congrArg Prod.snd he).symm⟩
+
 /-- con-leche: none — a `pure` moves nothing and answers itself. -/
 theorem AM.pure_ok {α : Type} {a b : α} {s s' : AState}
     (h : (pure a : AM α) s = .ok (b, s')) : b = a ∧ s' = s := by
@@ -89,6 +95,77 @@ theorem AM.fail_ok {α : Type} {e : Arena.CheckError} {s s' : AState} {a : α}
     (h : (fail e : AM α) s = .ok (a, s')) : False := by
   simp only [fail, throwThe, MonadExceptOf.throw] at h
   exact nomatch h
+
+/-! ## Persistence, from a view and the closed scratch tier
+
+The `PersStateD` half of every theorem of this tier is this observation and
+nothing else: **a scratch handle reads as ABSENT while the scratch tier is
+off** (`Arena/Store.lean:475`'s `view` — `if i.isPersistent then … else if
+st.scratchOn then … else none`), so a handle that HAS a view on a closed store
+is persistent.  The parse runs with the scratch tier closed, so every handle
+it interns — every handle `Bridge/Specs.lean`'s intern specs hand back with a
+`view` conjunct — is persistent for free.
+
+Task #97-P3-Frontend-2's round 2 replaces finding 9.1 with this: what
+`StateD_init_run` was missing was not an intern lemma at all, it was the
+observation above plus the `sync` chain that carries `scratchOn = false` down
+the nesting.  (The three store-layer twins of
+`EStore.intern_isPersistent_of_off` went in anyway — `Arena/WFProofs.lean`'s
+last section — because they are the fact stated where it belongs, and a caller
+that has the capacity bound but not the view wants them.) -/
+
+/-- con-leche: none — the scratch flag is the same at every level of the
+nesting: `EWFAt.sync`, `LsWF.sync` and `LWFAt.sync` composed. -/
+theorem scratchOn_nested {st : EStore} (hwf : StoreWF st) :
+    st.lss.scratchOn = st.scratchOn ∧ st.ls.scratchOn = st.scratchOn ∧
+      st.ns.scratchOn = st.scratchOn := by
+  obtain ⟨rk, h⟩ := hwf
+  have h1 : st.scratchOn = st.lss.scratchOn := h.sync
+  have hlsw := h.lss
+  have h2 : st.lss.scratchOn = st.lss.ls.scratchOn := hlsw.sync
+  obtain ⟨rkl, hl⟩ := hlsw.ls
+  have h3 : st.lss.ls.scratchOn = st.lss.ls.ns.scratchOn := hl.sync
+  exact ⟨h1.symm, (h1.trans h2).symm, (h1.trans (h2.trans h3)).symm⟩
+
+/-- con-leche: none — **a name handle with a view on a closed store is
+persistent.** -/
+theorem PersN_of_view {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {h : NIdx} {v : NNodeView}
+    (hv : st.ns.view h = some v) : PersN h := by
+  by_cases hp : h.isPersistent = true
+  · exact hp
+  · exfalso
+    rw [Arena.NStore.view, if_neg hp,
+      if_neg (by rw [(scratchOn_nested hwf).2.2, hoff]; simp)] at hv
+    exact absurd hv (by simp)
+
+/-- con-leche: none — the same at a LEVEL handle. -/
+theorem PersL_of_view {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {h : LIdx} {v : LNodeView}
+    (hv : st.ls.view h = some v) : PersL h := by
+  by_cases hp : h.isPersistent = true
+  · exact hp
+  · exfalso
+    rw [Arena.LStore.view, if_neg hp,
+      if_neg (by rw [(scratchOn_nested hwf).2.1, hoff]; simp)] at hv
+    exact absurd hv (by simp)
+
+/-- con-leche: none — the same at an EXPRESSION handle. -/
+theorem PersE_of_view {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {h : EIdx} {v : ENodeView}
+    (hv : st.view h = some v) : PersE h := by
+  by_cases hp : h.isPersistent = true
+  · exact hp
+  · exfalso
+    rw [Arena.EStore.view] at hv
+    by_cases hb : ETag.isBind h.tag
+    · rw [if_pos hb] at hv
+      have hbi : st.viewBindI h = none := by
+        rw [Arena.EStore.viewBindI, if_neg hp, if_neg (by rw [hoff]; simp)]
+      rw [Arena.EStore.viewBind, hbi] at hv
+      exact absurd hv (by simp)
+    · rw [if_neg hb, if_neg hp, if_neg (by rw [hoff]; simp)] at hv
+      exact absurd hv (by simp)
 
 /-! ## The frame
 
@@ -463,6 +540,15 @@ structure CtxRel (st : EStore) (c : Ctx) (cc : ConLeche.Frontend.InModel.Ctx) :
   heights : ∀ h n, denoteN st.ns h = some n → c.heights h = cc.heights n
   blocks : ∀ h n, denoteN st.ns h = some n →
     OptRel (BlockRecRel st) (c.blocks h) (cc.blocks n)
+  -- **the three COVER clauses** (task #97-P3-Frontend-2 round 2, finding 12):
+  -- the three above say nothing about a name the store has never interned,
+  -- and `ctxOf` answers `none`/`0` there — so without these the readback of
+  -- the twin's context is not con-leche's context, and
+  -- `inProcessModeller_refines` is not provable.  Same shape and same reason
+  -- as `MapRel`'s `cover` beside its `hit`.
+  tblCover : ∀ n q, cc.tbl n = some q → ∃ h, denoteN st.ns h = some n
+  heightsCover : ∀ n, cc.heights n ≠ 0 → ∃ h, denoteN st.ns h = some n
+  blocksCover : ∀ n b, cc.blocks n = some b → ∃ h, denoteN st.ns h = some n
 
 /-! ## The parse state -/
 

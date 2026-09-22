@@ -45,8 +45,13 @@ namespace ConRon.Bridge.Frontend
 #print axioms MapRel.empty
 #print axioms MapRel.insert
 #print axioms IdTableRel.empty
+#print axioms AM.get_ok
 #print axioms AM.pure_ok
 #print axioms AM.fail_ok
+#print axioms scratchOn_nested
+#print axioms PersN_of_view
+#print axioms PersL_of_view
+#print axioms PersE_of_view
 
 /-! ## The declaration stream -/
 
@@ -104,10 +109,43 @@ write a `MapRel`. -/
 #print axioms parseCVD_run
 #print axioms parseRuleD_run
 
-/-! ## The readback -/
+/-! ## The readback (round 2) — CLOSED
+
+Item 1 in full: the ten-arm fuel induction both ways (`denoteEGo_spec_le` and
+`denoteEGo_isSome`), the record layers over it, and the two `AM` faces.  Item
+3 with them: `ctxOf_eq_of_rel`, over `nameHandle?`'s two exactness halves. -/
 
 #print axioms DMemoOK.empty
+#print axioms DMemoOK.insert
 #print axioms EMemoOK.empty
+#print axioms denoteEGo_spec
+#print axioms denoteEListGo_spec
+#print axioms denoteCVGo_spec
+#print axioms denoteFireGo_spec
+#print axioms denoteRuleGo_spec
+#print axioms denoteRulesGo_spec
+#print axioms denoteProjTableGo_spec
+#print axioms denoteCIGo_spec
+#print axioms denoteCIListGo_spec
+#print axioms denoteEShared_eq
+#print axioms denoteEGo_isSome
+#print axioms denoteEShared_isSome
+#print axioms denoteEShared_eq_denoteE
+#print axioms readExpr_run
+#print axioms readCIList_run
+#print axioms denoteBlockRec_eq_of_rel
+#print axioms nameHandle?_sound
+#print axioms nameHandle?_isSome
+#print axioms ctxOf_eq_of_rel
+
+/-! ## The parse's initial state (round 2) — CLOSED
+
+`StateD_init_run` is the base case of the streaming fold's induction, and
+round 2 closed it: the two intern specs through `AM.of_run`, `IdTableRel`'s
+`singleton` and `empty`, `MapRel.empty`, and — the `PersStateD` half —
+`PersN_of_view` / `PersL_of_view`. -/
+
+#print axioms StateD_init_run
 
 /-! ## The line's sum -/
 
@@ -168,6 +206,7 @@ can tell the two apart.
 #print axioms builtinPreludeE_run
 #print axioms preparePrelude_run
 #print axioms mem_preparePrelude_denote
+#print axioms FoldOK_of_start
 #print axioms FoldOK_post_parse
 
 /-! ## The headlines, and the four named hypotheses

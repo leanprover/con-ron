@@ -41486,6 +41486,178 @@ the round made the distinction visible:
 | `scripts/gates.sh` | **all 13 OK**, three times: on the branch before the merge (`extract-check` 95 s, `lake-build` 361 s), after the record-header round, and after the merge (`extract-check` 92 s, `lake-build` 59 s incremental) |
 | the diff | `proof/ConRon/Bridge/Frontend/{Rel,Lines,Chunks,Prepare,Capstone,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
 
+##### Round 2 — the two stores' last lemmas, and two statements that were wrong
+
+Off `arena` `10032aa9` (which carries round 1 as a checkpoint plus wf-ext's
+`Arena/PromoteExt.lean` and the 27 unconditional `…_ext` lemmas).  Brief:
+close item 15 with the store-layer lemmas the round was licensed to add, state
+item 26 against the strengthened `internAllPins_run`, and take items 1 and 2 as
+far as they go.
+
+**Twenty-seven more of the fifty-six closed — twenty-nine are left — and three
+of the nine modules are sorry-free.**  `Rel.lean` was already;
+`Chunks.lean` and `Capstone.lean` are now.
+
+| item | declarations | |
+|---|---|---|
+| 1 | `denoteEGo_spec`, `denoteEShared_isSome`, `denoteCVGo_spec`, `denoteCIListGo_spec`, `readExpr_run`, `readCIList_run`, `denoteBlockRec_eq_of_rel` | **the whole readback direction**, both ways, plus eleven record-layer lemmas |
+| 3 | `ctxOf_eq_of_rel` | over `nameHandle?`'s two exactness halves |
+| 15 | `StateD_init_run` | |
+| 26 | `Arena.no_False_declaration_pipeline` | **the tier's headline** |
+
+##### Finding 11 — the persistence clause was never an intern lemma
+
+Round 1's finding 9.1 said `StateD_init_run` was blocked on three missing
+store-layer lemmas (`NStore`/`LStore`/`LsStore` twins of
+`EStore.intern_isPersistent_of_off`).  That was half right.  The other half is
+cheaper and is the one the tier actually uses:
+
+> **a scratch handle reads as ABSENT while the scratch tier is off**
+> (`Arena/Store.lean:475`'s `view`: `if i.isPersistent then … else if
+> st.scratchOn then … else none`), so a handle that HAS a view on a closed
+> store is persistent.
+
+`Bridge/Frontend/Rel.lean` states that as `PersN_of_view` / `PersL_of_view` /
+`PersE_of_view`, over `scratchOn_nested` (`EWFAt.sync`, `LsWF.sync` and
+`LWFAt.sync` composed, which carries `scratchOn = false` down the nesting).
+Every intern spec in `Bridge/Specs.lean` already hands back a `view` conjunct,
+so **every handle the parse interns is persistent for free** — no new spec, no
+capacity bound, no rank.
+
+The three store-layer twins went in anyway, in **one delimited section
+appended at the end of `Arena/WFProofs.lean`** (append-only, so a concurrent
+round's append merges trivially): they are the fact stated where it belongs,
+and a caller that has the capacity bound but not the view wants them.  The
+same section carries **`EStore.empty_wf`** — `StoreWF EStore.empty`, with
+`NStore`/`LStore`/`LsStore` twins under it — because `runPipeline` starts at
+`AState.init EStore.empty` and §6's third letter needs the invariant there.
+
+##### Finding 12 — `CtxRel` was too weak to be true
+
+Round 1's `CtxRel` has three clauses and each is *∀ a handle that denotes*.
+So it says **nothing** about a name the store has never interned — and
+`ctxOf` answers `none` / `0` at exactly those names.  `ctxOf st c = cc` is
+therefore not a consequence of it, and `inProcessModeller_refines` was
+unprovable as stated.
+
+`CtxRel` grows three COVER clauses (`tblCover`, `heightsCover`,
+`blocksCover`): *every entry of con-leche's side is named by a handle the
+twin's side knows*.  **Same shape and same reason as `MapRel`'s `cover`
+beside its `hit`**, which §3's finding 1 already recorded for the parse state
+— the round-one relation simply did not carry the lesson across from the
+state to the context.  Nothing but `ModellerRefines` consumes `CtxRel`, so the
+change is local, and `ctxOf_eq_of_rel` closes with it.
+
+Its other half is `nameHandle?`, both directions: `nameHandle?_sound` (what
+the probe answers denotes the name it was asked for) and `nameHandle?_isSome`
+(a name that denotes at all is one the probe answers).  The second needs
+`denoteN_inj` — two handles denoting one name are one handle — which is
+DESIGN §8.3's soundness obligation, spent here for the second time in the
+tier.
+
+##### Finding 13 — item 2 waits on two specs `Bridge/Specs.lean` does not have
+
+`internExprGo`'s `.sort` arm calls `internLevel` and its `.const` arm calls
+`internLevels`.  `Bridge/Specs.lean` states `internLNode_spec` and
+`internLsNode_spec` (the NODE interns) and `internName_spec` for a whole
+transient `Name` — but **no `internLevel_spec` for a whole `Level` tree and no
+`internLevels_spec` for a `List Level`**.  The two are `internName_spec`'s
+proof verbatim, one structural induction each, and they belong beside it.
+
+With them item 2 is the ten-arm structural recursion plus eleven record
+layers of three lines each, and **item 8 falls with it**: items 1 and 3 closed
+this round, so `inProcessModeller_wf` / `_refines` now wait on the intern
+direction alone.
+
+##### Item 26, and the one conjunct it is parked on
+
+`Arena.no_False_declaration_pipeline` is `runPipelineM` unfolded into its
+seven stages (`internReservedPins`, `builtinPreludeE`, `StateD.init`,
+`parseChunksGo`, `preparePrelude`, `internAllPins`, `installThenCheck`) and
+§3's four steps composed.  It is `_prelude`'s assembly verbatim **except for
+the pin walk in the middle**, which the letter above does not have between the
+preparation and the fold; the fold's start invariant is re-established at the
+state that walk leaves.
+
+`FoldOK_post_parse` split into `FoldOK_of_start` (at one state) and the
+`ParseStep` corollary, because the pin walk's frame is not a `ParseStep`.  The
+conjunct `Bridge/Checker/Pins.lean`'s `internAllPins_run` does not carry —
+`s'.caches = s.caches` and `s'.memos = s.memos` — is named
+**`InternAllPinsFrame`** and taken as a hypothesis, so the letter closes by
+itself the day task #97-P3-Checker-2 lands the strengthening; the definition
+and the hypothesis are deleted then.
+
+**The letter takes no well-formedness hypothesis at all**: `StateOK`, the
+closed scratch tier and the empty caches at `AState.init EStore.empty` are
+`EStore.empty_wf` and `rfl`.
+
+##### Elaboration, after round 2
+
+Same protocol as §6 (`LEAN_NUM_THREADS=1 LAKE_JOBS=1`, the tier's `.olean`s
+deleted, the index module as baseline).
+
+| module | wall | net | raw | decls | open |
+|---|---:|---:|---:|---:|---:|
+| `Rel.lean` | 1.9 s | 1.1 s | 902 | 60 | 0 |
+| `Modeller.lean` | 1.3 s | 0.5 s | 147 | 5 | 2 |
+| `Shared.lean` | 2.7 s | 1.9 s | 1 305 | 40 | 2 |
+| `ProjRec.lean` | 1.1 s | 0.3 s | 234 | 10 | 10 |
+| `Lines.lean` | 1.1 s | 0.3 s | 578 | 26 | 9 |
+| `Chunks.lean` | 1.2 s | 0.4 s | 650 | 15 | 0 |
+| `Prepare.lean` | 0.93 s | 0.1 s | 299 | 11 | 6 |
+| `Capstone.lean` | 1.1 s | 0.3 s | 559 | 12 | 0 |
+| `Axioms.lean` | 0.85 s | 0.04 s | 234 | — | — |
+| the index module (baseline) | 0.81 s | — | 75 | — | — |
+| **the tier** | **~13 s** | **~5 s** | **4 983** | **179** | **29** |
+
+The tier grew by 1 379 lines and its net elaboration by about three seconds,
+all of it in `Shared.lean` (the two ten-arm fuel inductions).  **Still nothing
+within an order of magnitude of the 20 s flag**: `-Dprofiler.threshold=300`
+over `Shared.lean` reports four entries, the slowest a **654 ms**
+`rewriteSeq`; `Capstone.lean` at `threshold=200` reports none at all.  §6's
+reason stands — no `grind`, no `mvcgen` — and round 2 adds one: the readback's
+arms are `rw` and `simp only` at a named branch fact, ten times, never a
+search.
+
+##### The sorry list after round 2 — twenty-nine declarations, nine items
+
+| module | open | |
+|---|---:|---|
+| `ProjRec.lean` | 10 | items 10-13, unchanged: `projIotaName_run`, `isProjIotaName_run`, `projIotaLevel_run`, `occursConstFast_run`, `stripPisAll_run`, `mkLams_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run` |
+| `Lines.lean` | 9 | items 5-7, 9: `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run`, `noteDecl_run`, `pushDecl_run`, `blockRecOf_run`, `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Prepare.lean` | 6 | items 20-21, unchanged |
+| `Shared.lean` | 2 | item 2: `internExpr_run`, `internDecls_run` (finding 13) |
+| `Modeller.lean` | 2 | item 8: `inProcessModeller_wf`, `inProcessModeller_refines` — **now waiting on item 2 alone** |
+| `Rel.lean`, `Chunks.lean`, `Capstone.lean` | **0** | |
+
+**The critical path is unchanged in shape and shorter by two nodes**: the
+streaming fold and all three capstone letters wait on `processLineCoreD_run`
+(item 9), which waits on items 5-7 and 12, which wait on items 10-11 and 13.
+`StateD_init_run` is off it; so is everything the capstones needed of the
+preparation and the prelude.  Of the three obligations round 1 named outside
+this tier, **two are discharged** (the store-layer persistence and
+`StoreWF EStore.empty`, both added here) and one is parked on a named
+hypothesis (`InternAllPinsFrame`).
+
+##### The axiom census after round 2
+
+`Bridge/Frontend/Axioms.lean`: **87 closed results**, every one within
+`[propext, Classical.choice, Quot.sound]`; **14 proved-but-resting-on-a-leaf**
+(the chunk tier above `applyLine_run`, the preparation, and
+`FoldOK_of_start`/`FoldOK_post_parse` on `Bridge/Checker/Inv.lean`'s
+`IFEnvOK_of_denote`); and the four headlines, still `sorryAx` and still naming
+**neither `CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** —
+nor, for the seam letter, anything but `InternAllPinsFrame`.
+
+##### Gates, round 2
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 613 jobs**; 29 of this tier's declarations open |
+| `scripts/gates.sh` | all 13 OK after the final `arena` merge |
+| the diff | round 1's six modules plus `proof/ConRon/Bridge/Frontend/Shared.lean` and **one appended section of `proof/ConRon/Arena/WFProofs.lean`** (the only file outside `Bridge/Frontend/**` this round touches, and by the coordinator's licence) |
+
+
 **`arena` moved once under this branch** — tasks **#97-P3-Ind** (the
 inductive tier, `Bridge/Inductives/**`), **#97-P3-CoreWalks** and
 **#97-P5-Frontend** (`Refine2/Frontend/**`) — and the merge was clean
