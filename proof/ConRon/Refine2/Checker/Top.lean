@@ -99,9 +99,6 @@ private theorem absPendingCheckL_new_toArray :
 
 private theorem toList_toArray' {α : Type} (l : List α) : l.toArray.toList = l := rfl
 
-private theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
-    (Except.ok a : Except ε α) >>= f = f a := rfl
-
 /-! ## The empty environment, on both sides
 
 `check_decls_pure` and `install_then_check` both open with

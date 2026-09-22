@@ -91,6 +91,11 @@ theorem am_ite_bind {α β : Type} (c : Prop) [Decidable c] (a b : AM α)
     (k : α → AM β) : ((if c then a else b) >>= k) = if c then a >>= k else b >>= k := by
   split <;> rfl
 
+/-- `Except.ok v >>= f = f v` — the step every composed run needs before
+`am_run_bind` can see the next bind. -/
+theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
+    (Except.ok a : Except ε α) >>= f = f a := rfl
+
 /-- **Peel a common `do` prefix.**  `congr 1` on `x >>= f = x >>= g` in `AM`
 eta-expands the FUNCTION (`AM α` is `AState → …`) instead of peeling the bind,
 which strands the goal at an applied state.  This is the peel that works, and
