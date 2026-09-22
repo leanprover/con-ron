@@ -395,6 +395,249 @@ theorem ParseResultRel.ofState {st : EStore} {sd : StateD}
     genRecords := h.genRecords, genOwner := h.genOwner, inModelGen := h.inModelGen,
     inModelDeclined := h.inModelDeclined }
 
+/-! ## Transport across an append
+
+Every clause of `StateDRel` is a denotation, and `Bridge/Rel.lean`'s ten
+`…_ext` lemmas move a denotation across an append — so the whole relation
+does, and the parse's induction never has to re-establish it.  This is the
+`Ext` twin of `Bridge/Checker/Inv.lean`'s nineteen `…_pext` transports; the
+frontend tier needs only the `Ext` one, because the parse never opens the
+scratch tier.
+
+**`MapRel`'s `cover` clause transports too, and it costs nothing.**  That is
+worth saying, because `Bridge/StateOK.lean`'s `IFEnvOK` needs `cover` exactly
+where the naive "a miss is a miss" fails: a handle that decoded to nothing
+before an extension may decode after it.  `cover` says the opposite direction
+— *every entry of the value side is named by a handle the twin's side knows*
+— and an extension keeps that handle decoding, so the clause survives by
+`denoteN_ext` alone. -/
+
+theorem ListRel.mono {α : Type u} {β : Type v} {R R' : α → β → Prop}
+    (hR : ∀ a b, R a b → R' a b) :
+    ∀ {as : List α} {bs : List β}, ListRel R as bs → ListRel R' as bs := by
+  intro as bs h
+  induction h with
+  | nil => exact .nil
+  | cons hab _ ih => exact .cons (hR _ _ hab) ih
+
+theorem IdTableRel.mono {α β : Type} {R R' : α → β → Prop}
+    (hR : ∀ a b, R a b → R' a b) {t : ConLeche.Frontend.IdTable α}
+    {u : ConLeche.Frontend.IdTable β} (h : IdTableRel R t u) :
+    IdTableRel R' t u := by
+  intro i
+  have hi := h i
+  cases hu : t.get? i with
+  | none => rw [hi.none_left hu]; exact OptRel.refl_none
+  | some a =>
+    obtain ⟨b, hv, hab⟩ := hi.some_left hu
+    rw [hv]; exact hR _ _ hab
+
+theorem MapRel.mono {α β : Type} {st st' : EStore} {R R' : α → β → Prop}
+    (hx : Ext st st') (hR : ∀ a b, R a b → R' a b) {m : Std.HashMap NIdx α}
+    {mc : Std.HashMap ConLeche.Name β} (h : MapRel st R m mc) :
+    MapRel st' R' m mc where
+  hit := by
+    intro k a hk
+    obtain ⟨n, b, hn, hb, hab⟩ := h.hit k a hk
+    exact ⟨n, b, denoteN_ext hn hx, hb, hR _ _ hab⟩
+  cover := by
+    intro n b hn
+    obtain ⟨k, a, hk, ha, hab⟩ := h.cover n b hn
+    exact ⟨k, a, denoteN_ext hk hx, ha, hR _ _ hab⟩
+
+/-- con-leche: none — `Bridge/Rel.lean`'s `denoteCI_ext` at a BLOCK.  It has a
+`…_pext` twin (`Bridge/Checker/Inv.lean:320`) and no `…_ext` one, because the
+Checker tier only ever moves a block across a drop. -/
+theorem denoteCIList_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo),
+      ConRon.Arena.Frontend.denoteCIList st cs = some xs →
+        ConRon.Arena.Frontend.denoteCIList st' cs = some xs := by
+  intro cs
+  induction cs with
+  | nil => intro _ h; exact h
+  | cons a as ih =>
+    intro xs h
+    simp only [ConRon.Arena.Frontend.denoteCIList] at h ⊢
+    cases ha : ConRon.Arena.Frontend.denoteCI st a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : ConRon.Arena.Frontend.denoteCIList st as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        rw [denoteCI_ext ha hx, ih ys has]
+        exact h
+
+/-- con-leche: none — a declaration record survives an append.  The `…_ext`
+twin of `Bridge/Checker/Inv.lean`'s `denoteDecl_pext`. -/
+theorem denoteDecl_ext {st st' : EStore} (hx : Ext st st') {pd : IDeclaration}
+    {d : ConLeche.Declaration}
+    (h : ConRon.Arena.Frontend.denoteDecl st pd = some d) :
+    ConRon.Arena.Frontend.denoteDecl st' pd = some d := by
+  cases pd with
+  | basisDecl k => exact h
+  | axiomDecl v =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at h ⊢
+    obtain ⟨cv, hcv, hc⟩ := h
+    exact ⟨cv, denoteCV_ext hcv hx, hc⟩
+  | quotDecl k v =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at h ⊢
+    obtain ⟨cv, hcv, hc⟩ := h
+    exact ⟨cv, denoteCV_ext hcv hx, hc⟩
+  | indDecl block nP =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at h ⊢
+    obtain ⟨b, hb, hc⟩ := h
+    exact ⟨b, denoteCIList_ext hx _ b hb, hc⟩
+  | defnDecl v e hint =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at h ⊢
+    cases hcv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hcv, he] at h; simp at h
+      | some x =>
+        rw [hcv, he] at h; rw [denoteCV_ext hcv hx, denote_ext he hx]; exact h
+  | thmDecl v e =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at h ⊢
+    cases hcv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hcv, he] at h; simp at h
+      | some x =>
+        rw [hcv, he] at h; rw [denoteCV_ext hcv hx, denote_ext he hx]; exact h
+  | opaqueDecl v e =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at h ⊢
+    cases hcv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hcv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hcv, he] at h; simp at h
+      | some x =>
+        rw [hcv, he] at h; rw [denoteCV_ext hcv hx, denote_ext he hx]; exact h
+
+/-- con-leche: none — the declaration STREAM survives an append, record by
+record: the left-hand side of DESIGN §8.2's parser statement, carried across
+every `intern` the parse does after it. -/
+theorem denoteDecls_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ (ds : List IDeclaration) (xs : List ConLeche.Declaration),
+      denoteDecls st ds = some xs → denoteDecls st' ds = some xs := by
+  intro ds
+  induction ds with
+  | nil => intro _ h; exact h
+  | cons a as ih =>
+    intro xs h
+    simp only [denoteDecls] at h ⊢
+    cases ha : ConRon.Arena.Frontend.denoteDecl st a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : denoteDecls st as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        rw [denoteDecl_ext hx ha, ih ys has]
+        exact h
+
+theorem denoteDeclArray_ext {st st' : EStore} (hx : Ext st st')
+    {ds : Array IDeclaration} {xs : Array ConLeche.Declaration}
+    (h : denoteDeclArray st ds = some xs) : denoteDeclArray st' ds = some xs := by
+  simp only [denoteDeclArray, Option.map_eq_some_iff] at h ⊢
+  obtain ⟨ys, hys, hEq⟩ := h
+  exact ⟨ys, denoteDecls_ext hx _ ys hys, hEq⟩
+
+theorem ProjRecOwnerRel.ext {st st' : EStore} (hx : Ext st st') {o : ProjRecOwner}
+    {oc : ConLeche.Frontend.ProjRecOwner} (h : ProjRecOwnerRel st o oc) :
+    ProjRecOwnerRel st' o oc where
+  T := denoteN_ext h.T hx
+  lps := denoteNListE_ext hx _ _ h.lps
+  nP := h.nP
+  ctor := denoteN_ext h.ctor hx
+  nF := h.nF
+  recName := denoteN_ext h.recName hx
+  recLps := denoteNListE_ext hx _ _ h.recLps
+  recType := denote_ext h.recType hx
+  numMotives := h.numMotives
+  numMinors := h.numMinors
+
+theorem MIndTypeRecRel.ext {st st' : EStore} (hx : Ext st st') {t : MIndTypeRec}
+    {tc : ConLeche.Frontend.InModel.IndTypeRec} (h : MIndTypeRecRel st t tc) :
+    MIndTypeRecRel st' t tc where
+  cv := denoteCV_ext h.cv hx
+  nP := h.nP
+  nIdx := h.nIdx
+  ctors := denoteNListE_ext hx _ _ h.ctors
+  isRec := h.isRec
+  isReflexive := h.isReflexive
+  numNested := h.numNested
+
+theorem MIndCtorRecRel.ext {st st' : EStore} (hx : Ext st st') {c : MIndCtorRec}
+    {cc : ConLeche.Frontend.InModel.IndCtorRec} (h : MIndCtorRecRel st c cc) :
+    MIndCtorRecRel st' c cc where
+  cv := denoteCV_ext h.cv hx
+  nP := h.nP
+  nF := h.nF
+
+theorem MIndRecRecRel.ext {st st' : EStore} (hx : Ext st st') {r : MIndRecRec}
+    {rc : ConLeche.Frontend.InModel.IndRecRec} (h : MIndRecRecRel st r rc) :
+    MIndRecRecRel st' r rc where
+  cv := denoteCV_ext h.cv hx
+  nP := h.nP
+  nM := h.nM
+  nm := h.nm
+  nI := h.nI
+  rules := denoteRules_ext hx _ _ h.rules
+
+theorem BlockRecRel.ext {st st' : EStore} (hx : Ext st st') {b : BlockRec}
+    {bc : ConLeche.Frontend.InModel.BlockRec} (h : BlockRecRel st b bc) :
+    BlockRecRel st' b bc where
+  types := h.types.mono (fun _ _ => MIndTypeRecRel.ext hx)
+  ctors := h.ctors.mono (fun _ _ => MIndCtorRecRel.ext hx)
+  recs := h.recs.mono (fun _ _ => MIndRecRecRel.ext hx)
+
+/-- con-leche: none — **the parse-state relation survives an append**: the
+fact the streaming fold's induction rests on, and the reason a line's theorem
+may say `StateDRel s'.store sd' sc'` while the next line's hypothesis is
+`StateDRel s''.store sd' sc'`.  Eighteen clauses, one `Bridge/Rel.lean`
+`…_ext` lemma each; the five scalar clauses are the hypothesis itself. -/
+theorem StateDRel.ext {st st' : EStore} (hx : Ext st st') {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
+    StateDRel st' sd sc where
+  names := h.names.mono (fun _ _ hd => denoteN_ext hd hx)
+  levels := h.levels.mono (fun _ _ hd => denoteL_ext hd hx)
+  exprs := h.exprs.mono (fun _ _ hd => denote_ext hd hx)
+  decls := denoteDeclArray_ext hx h.decls
+  projOwners := h.projOwners.mono hx (fun _ _ ho => ProjRecOwnerRel.ext hx ho)
+  projLevels := h.projLevels.mono hx (fun _ _ hd => denoteL_ext hd hx)
+  projRewrites := denoteNListE_ext hx _ _ h.projRewrites
+  constTypes := h.constTypes.mono hx
+    (fun _ _ hp => ⟨denoteNListE_ext hx _ _ hp.1, denote_ext hp.2 hx⟩)
+  heights := h.heights.mono hx (fun _ _ hp => hp)
+  inModel := h.inModel
+  inModelled := denoteNListE_ext hx _ _ h.inModelled
+  genRecords := h.genRecords
+  genOwner := h.genOwner.mono hx (fun _ _ hd => denoteN_ext hd hx)
+  inModelGen := h.inModelGen.mono
+    (fun _ _ hp => ⟨hp.1, denoteDeclArray_ext hx hp.2⟩)
+  indCount := h.indCount
+  indBlocks := h.indBlocks.mono hx (fun _ _ hb => BlockRecRel.ext hx hb)
+  inModelCensus := h.inModelCensus
+  inModelDeclined := h.inModelDeclined.mono
+    (fun _ _ hp => ⟨denoteN_ext hp.1 hx, hp.2⟩)
+
+/-- con-leche: none — the same for the parse RESULT. -/
+theorem ParseResultRel.ext {st st' : EStore} (hx : Ext st st') {r : ParseResultD}
+    {rc : ConLeche.Frontend.ParseResultD} (h : ParseResultRel st r rc) :
+    ParseResultRel st' r rc where
+  decls := denoteDeclArray_ext hx h.decls
+  projRewrites := denoteNListE_ext hx _ _ h.projRewrites
+  inModelled := denoteNListE_ext hx _ _ h.inModelled
+  genRecords := h.genRecords
+  genOwner := h.genOwner.mono hx (fun _ _ hd => denoteN_ext hd hx)
+  inModelGen := h.inModelGen.mono
+    (fun _ _ hp => ⟨hp.1, denoteDeclArray_ext hx hp.2⟩)
+  inModelDeclined := h.inModelDeclined.mono
+    (fun _ _ hp => ⟨denoteN_ext hp.1 hx, hp.2⟩)
+
 /-! ## Persistence
 
 `Bridge/Checker/Capstone.lean`'s second frontend obligation: every handle the

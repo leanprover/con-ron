@@ -69,17 +69,27 @@ def parseChunksC (st : ConLeche.Frontend.StateD) (carry : ByteArray)
     | .error e => .error e
     | .ok (st, carry, lineNo, total) => parseChunksC st carry lineNo total cs
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:891-901 parseChunks — the
-respelling is the original.
+/-- con-leche: ConLeche/Frontend/ExportC.lean:895-901 parseChunks.go — the
+respelling is the original, step for step.  A list induction whose step is
+`rfl` on both sides: `where go` and a top-level `def` with the same clauses
+are the same function, and only Lean's equation compiler stands between
+them. -/
+theorem parseChunksC_eq (st : ConLeche.Frontend.StateD) (carry : ByteArray)
+    (lineNo total : Nat) (cs : List ByteArray) :
+    ConLeche.Frontend.parseChunks.go st carry lineNo total cs
+      = parseChunksC st carry lineNo total cs := by
+  induction cs generalizing st carry lineNo total with
+  | nil => rfl
+  | cons c cs ih =>
+    simp only [ConLeche.Frontend.parseChunks.go, parseChunksC]
+    split <;> simp_all
 
-`sorry`: a list induction whose step is `rfl` on both sides; `where go` and a
-top-level `def` with the same clauses are the same function, and only Lean's
-equation compiler stands between them.  Task #97-P3-Frontend's sorry list,
-item 14. -/
+/-- con-leche: ConLeche/Frontend/ExportC.lean:891-893 parseChunks — the entry
+point at the respelling. -/
 theorem parseChunks_eq (chunks : List ByteArray) (im ce : Bool) :
     ConLeche.Frontend.parseChunks chunks im ce
-      = parseChunksC (.init im ce) .empty 0 0 chunks := by
-  sorry
+      = parseChunksC (.init im ce) .empty 0 0 chunks :=
+  parseChunksC_eq _ _ _ _ _
 
 /-! ## The initial state -/
 

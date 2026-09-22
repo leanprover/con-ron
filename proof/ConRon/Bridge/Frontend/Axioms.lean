@@ -34,9 +34,31 @@ namespace ConRon.Bridge.Frontend
 #print axioms IdTableRel.singleton
 #print axioms IdTableRel.insert
 
+#print axioms ListRel.length_eq
+#print axioms ListRel.mono
+#print axioms IdTableRel.mono
+#print axioms MapRel.mono
+
 /-! ## The declaration stream -/
 
 #print axioms denoteDecls_length
+#print axioms denoteCIList_ext
+#print axioms denoteDecl_ext
+#print axioms denoteDecls_ext
+#print axioms denoteDeclArray_ext
+
+/-! ## Transport across an append
+
+The eighteen-clause relation and the seven-clause result relation both survive
+an `intern`, which is what the streaming fold's induction rests on. -/
+
+#print axioms ProjRecOwnerRel.ext
+#print axioms MIndTypeRecRel.ext
+#print axioms MIndCtorRecRel.ext
+#print axioms MIndRecRecRel.ext
+#print axioms BlockRecRel.ext
+#print axioms StateDRel.ext
+#print axioms ParseResultRel.ext
 
 /-! ## The parse's frame -/
 
@@ -60,6 +82,11 @@ namespace ConRon.Bridge.Frontend
 
 #print axioms DMemoOK.empty
 #print axioms EMemoOK.empty
+
+/-! ## The streaming fold's escape hatch -/
+
+#print axioms parseChunksC_eq
+#print axioms parseChunks_eq
 
 /-! ## The seam -/
 

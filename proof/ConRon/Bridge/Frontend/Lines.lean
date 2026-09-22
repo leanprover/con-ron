@@ -37,27 +37,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
 
-/-! ## The frame's transport -/
-
-/-- con-leche: none — the frame carries the parse-state relation forward:
-every clause of `StateDRel` is a denotation, and `Bridge/Rel.lean`'s ten
-`…_ext` lemmas move a denotation across an append.
-
-`sorry`: eighteen clauses, one `…_ext` each; the five scalar clauses are
-`rfl` and the three `MapRel`s need `denoteN_inj` for `cover` (a handle that
-denotes `n` after the extension denoted `n` before, because the extension only
-added handles).  Task #97-P3-Frontend's sorry list, item 4. -/
-theorem StateDRel.ext {st st' : EStore} (hx : Ext st st') {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
-    StateDRel st' sd sc := by
-  sorry
-
-/-- con-leche: none — the same for the parse RESULT. -/
-theorem ParseResultRel.ext {st st' : EStore} (hx : Ext st st') {r : ParseResultD}
-    {rc : ConLeche.Frontend.ParseResultD} (h : ParseResultRel st r rc) :
-    ParseResultRel st' r rc := by
-  sorry
-
 /-! ## The verdict, and the sum -/
 
 /-- con-leche: ConLeche/Frontend/Export.lean:77-81 RecordVerdict — two record
