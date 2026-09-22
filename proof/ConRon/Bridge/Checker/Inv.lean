@@ -595,8 +595,9 @@ field exists to make cheap, and which `checkStructProjTable` establishes when
 it builds the table.  With it this theorem is the induction below and nothing
 more.  Until then it is stated, and the consumer that needs it is
 `Arena.checkDeclStep_bridge`'s `ienv` clause and nothing else — the seven arms
-take `IFEnvOK` from `FoldOK.check.ienv`, which is why task
-#97-P3-Checker-2 could prove six of them without this.
+take `IFEnvOK` from `FoldOK.check.ienv` (and, in the `.defnDecl` arm, from
+`checkDefnVal_bridge`'s own `IFEnvOK env2 fe2 s'`), which is why task
+#97-P3-Checker-2 could prove ALL SEVEN without this.
 
 `sorry`: the `hit`/`cover` pair is an induction on `fe.env.consts` through
 `mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality, PLUS the
