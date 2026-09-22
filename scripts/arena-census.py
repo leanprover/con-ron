@@ -189,7 +189,7 @@ TIERS = (
                     "StdAxioms", "TrustAxioms", "Env", "FEnv")),
     ("Inductives", ("Inductives",)),
     ("Frontend",   ("Frontend",)),
-    ("Promote",    ("Promote",)),
+    ("Promote",    ("Promote", "PromoteExt")),
     ("Driver",     ("Main", "Bench")),
     ("Tests",      ("StoreTest", "ExprOpsTest", "CoreTest", "CheckerTest",
                     "InductivesTest", "Frontend/ProjRecTest")),
@@ -693,7 +693,8 @@ def self_check(census):
     not know, and without this line it would pass silently as "unstated"."""
     blind = [r for r in census.rows
              if not r.t1 and not r.t1_other and not r.t1_skipped]
-    odd = [r for r in census.rows if not r.t1 and r.t1_other]
+    odd = [r for r in census.rows
+           if not r.t1 and r.t1_other and not r.t1_skipped]
     t2_blind = [r for r in census.rows if r.t2_cited and not r.t2_stated
                 and not r.t2_other and not r.t2_skipped]
     t2_odd = [r for r in census.rows

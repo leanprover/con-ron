@@ -41640,8 +41640,9 @@ longer exists: it credits a con-leche declaration when some Rust item cites
 it and when `proof/ConRon/Refine/<M>.lean` states that item's `f_refines`,
 and `Refine/` was deleted.  It still describes master, so it stays; the
 arena branch needed a second report, about the two theorems it is actually
-building.  Branch `census` off `arena`'s tip `e0616fdf`; nothing under
-`proof/` or `crates/` is touched.
+building.  Branch `census` off `arena`'s tip `e0616fdf`, with `arena`'s `ee337c53`
+merged in before landing (#97-P5-Arms and #97a follow-up 4, both under
+`proof/`); nothing under `proof/` or `crates/` is written by this branch.
 
 #### 1. What the census counts, and why the unit is the twin
 
@@ -41655,7 +41656,7 @@ twin (B) — and each one is asked the two questions the phase plan asks:
   `<rust_fn>_refines`, and is that block `sorry`-free?
 
 Everything is read out of the source tree — python3 stdlib, no build,
-**1.7 s** over 1 564 twins, 1 311 Bridge theorems, 1 259 Refine2 theorems
+**1.7 s** over 1 565 twins, 1 311 Bridge theorems, 1 297 Refine2 theorems
 and 1 924 `Lean twin:` citations.  The `Lean twin:` parser is
 `scripts/twin-lines.py`'s, imported and not copied, and the Lean declaration
 parser under both is `provenance.py`'s: one parser, one set of rules about
@@ -41693,6 +41694,15 @@ Three decisions about the unit, each of which changes the denominator:
    A skip naming no definition is reported STALE, one whose twin is stated
    anyway REDUNDANT, one with no reason MALFORMED.
 
+**The tier table is explicit, and unlisted is LOUD.**  A twin's tier is the
+round of §8.6 that owns it, which is also the `Bridge/` and `Refine2/`
+subdirectory its theorems live in, and the arena module → tier map is a
+literal table rather than a prefix rule: a module that is not in it gets a
+tier line of its own, named `?<module>`, instead of joining a wrong one.
+That fired on its first outing — merging `arena`'s `ee337c53` brought
+`Arena/PromoteExt.lean` in, and the next run printed `Arena/?PromoteExt 1`
+until the table learnt it.
+
 #### 2. The conventions, discovered rather than decreed
 
 The T1 conventions were read off the tree: every `theorem` of `Bridge/**`
@@ -41719,44 +41729,44 @@ stated only when every citing function has one, and a row where some do is
 convention the script does not know would otherwise pass silently as
 "unstated".  It reports four populations, and the second one is a finding:
 
-* **658 twins with NO Bridge theorem naming them at all** — genuinely
+* **661 twins with NO Bridge theorem naming them at all** — genuinely
   unstated;
-* **79 matched ONLY by an unrecognised suffix** (Store 41, Frontend 19, Core
+* **77 matched ONLY by an unrecognised suffix** (Store 39, Frontend 19, Core
   10, Checker 4, ExprOps 4, Promote 1).  At least one of those IS the
   statement: `Bridge/ExprOps/Subst.lean`'s `eidxCopyUpto_toList` says
-  "**Theorem 1 for `eidxCopyUpto`**" in its own doc comment.  So the 737
-  "T1 unstated" rows are an upper bound, over by up to 79, and closing that
+  "**Theorem 1 for `eidxCopyUpto`**" in its own doc comment.  So the 738
+  "T1 unstated" rows are an upper bound, over by up to 77, and closing that
   gap is a naming decision for the coordinator rather than a script change;
 * **31 Bridge theorems credited to more than one twin** — one unqualified
   `viewApp_spec` and two twins with the leaf `viewApp` (`Monad.lean`'s
   wrapper and `Store.lean`'s projection).  Both rows read "stated";
-* on the T2 side, **379 cited twins with no Refine2 theorem naming their
+* on the T2 side, **376 cited twins with no Refine2 theorem naming their
   Rust function at all**, against **176 named by a theorem under another
   shape** (Store 163) — the store tier's specs are `estore_view_app_abs` and
   `derived_e_run`, not `view_app_refines`, so its `6/315` T2 column is a
   statement about the NAMING and not about the work.
 
-#### 3. The numbers at `e0616fdf`
+#### 3. The numbers at `58e2479e`
 
 | tier | twins | T1 owed | T1 stated | T1 closed | T2 owed | T2 cited | T2 stated | T2 closed |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `Arena/Store` | 315 | 315 | 116 (36%) | 111 (35%) | 315 | 218 (69%) | 6 (1%) | 1 (0%) |
 | `Arena/ExprOps` | 92 | 92 | 86 (93%) | 74 (80%) | 92 | 86 (93%) | 86 (93%) | 10 (10%) |
-| `Arena/Core` | 232 | 213 | 38 (17%) | 13 (6%) | 213 | 197 (92%) | 13 (6%) | 6 (2%) |
+| `Arena/Core` | 232 | 213 | 38 (17%) | 13 (6%) | 213 | 197 (92%) | 16 (7%) | 11 (5%) |
 | `Arena/Checker` | 294 | 292 | 45 (15%) | 8 (2%) | 292 | 170 (58%) | 150 (51%) | 1 (0%) |
 | `Arena/Inductives` | 130 | 130 | 127 (97%) | 9 (6%) | 130 | 130 (100%) | 1 (0%) | 0 (0%) |
 | `Arena/Frontend` | 257 | 141 | 46 (32%) | 2 (1%) | 210 | 110 (52%) | 101 (48%) | 5 (2%) |
-| `Arena/Promote` | 21 | 21 | 9 (42%) | 0 (0%) | 21 | 21 (100%) | 20 (95%) | 0 (0%) |
+| `Arena/Promote` | 22 | 22 | 9 (40%) | 0 (0%) | 22 | 21 (95%) | 20 (90%) | 0 (0%) |
 | `Arena/Driver` | 25 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
 | `Arena/Tests` | 198 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
-| **total** | **1564** | **1204** | **467 (38%)** | **217 (18%)** | **1273** | **932 (73%)** | **377 (29%)** | **23 (1%)** |
+| **total** | **1565** | **1205** | **467 (38%)** | **217 (18%)** | **1274** | **932 (73%)** | **380 (29%)** | **28 (2%)** |
 
 `T1 owed` / `T2 owed` are the twins less that tier's skips; every percentage
 is against those.  The `--summary` line `scripts/gates.sh` now prints is the
 same table plus:
 
-    arena census: 1564 twins (+99 arms folded in, 360 skipped for T1, 291 for T2)
-      | T1 stated 38% closed 18% | T2 stated 29% closed 1%
+    arena census: 1565 twins (+99 arms folded in, 360 skipped for T1, 291 for T2)
+      | T1 stated 38% closed 18% | T2 stated 29% closed 2%
 
 Read across the two halves, the shape of the campaign is legible in one
 glance:
@@ -41768,10 +41778,10 @@ glance:
 * **`Inductives` is stated 97 % and closed 6 %**, which is P3-Ind's own
   report ("the statements first, the arms after") turned into a number;
 * **`Core` and `Checker` are where the bridge work is**: 38 of 213 and 45 of
-  292 stated.  Those two tiers hold 422 of the 737 unstated rows;
-* **T2 closed is 23 of 1 273**, i.e. the refinement tier is a statement
-  layer at this point and almost nothing in it is discharged.  `ExprOps` (10)
-  and `Core` (6) hold most of what is;
+  292 stated.  Those two tiers hold 422 of the 738 unstated rows;
+* **T2 closed is 28 of 1 274**, i.e. the refinement tier is a statement
+  layer at this point and almost nothing in it is discharged.  `Core` (11,
+  #97-P5-Arms's first bodies) and `ExprOps` (10) hold most of what is;
 * the **`Store` T2 column (6 stated of 315)** is the naming artefact of §2,
   not a hole: 163 of its rows have a Refine2 theorem naming their Rust
   function under the `_abs`/`_run` shape.
@@ -41783,13 +41793,13 @@ missing, which is what a coordinator hands out.  Per tier at this tip:
 
 | what is missing | total | Store | ExprOps | Core | Checker | Inductives | Frontend | Promote |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| T1 UNSTATED — no Bridge theorem | 737 | 199 | 6 | 175 | 247 | 3 | 95 | 12 |
+| T1 UNSTATED — no Bridge theorem | 738 | 199 | 6 | 175 | 247 | 3 | 95 | 13 |
 | T1 SORRY — stated, not closed | 250 | 5 | 12 | 25 | 37 | 118 | 44 | 9 |
-| T2 UNCITED — no Rust function names it | 341 | 97 | 6 | 16 | 122 | 0 | 100 | 0 |
-| T2 UNSTATED — cited, no `<fn>_refines` | 555 | 212 | 0 | 184 | 20 | 129 | 9 | 1 |
-| T2 SORRY — stated, not closed | 354 | 5 | 76 | 7 | 149 | 1 | 96 | 20 |
+| T2 UNCITED — no Rust function names it | 342 | 97 | 6 | 16 | 122 | 0 | 100 | 1 |
+| T2 UNSTATED — cited, no `<fn>_refines` | 552 | 212 | 0 | 181 | 20 | 129 | 9 | 1 |
+| T2 SORRY — stated, not closed | 352 | 5 | 76 | 5 | 149 | 1 | 96 | 20 |
 
-The **341 T2-UNCITED** rows are the one group that is not proof work: a twin
+The **342 T2-UNCITED** rows are the one group that is not proof work: a twin
 no Rust function cites is either a definition the Rust inlined, one that
 exists only for the bridge (`WF.lean`'s `StoreWF`, `Tbl.Sized` — `Prop`s,
 which the Rust has no counterpart for at all), or a genuine gap in the

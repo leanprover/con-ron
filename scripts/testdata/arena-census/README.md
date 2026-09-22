@@ -6,11 +6,14 @@ directory instead of the repository, and compares what it says with
 
 It is a miniature of the real tree: twenty twins taken from
 `proof/ConRon/Arena/**` at task #97-CENSUS's tip, each with its real name,
-its real Bridge theorem name(s), its real `sorry` state, its real Rust
-function and its real `Refine2` lemma — bodies elided to one line, and the
-twenty chosen so that every verdict the census can reach appears at least
-once (closed, `sorry`, unstated, uncited, partly stated, `_no_claim`,
-skipped, and a walk whose ARM carries its own spec).
+its real Bridge theorem name, its real `sorry` state, its real Rust function
+and its real `Refine2` lemma — so every row's verdict here is the verdict
+the census gives that twin in the repository, confirmed by hand before it
+was copied in.  Bodies are elided to one line and a walk's five arms are cut
+down to two, neither of which changes a verdict.  The twenty were chosen so
+that every verdict the census can reach appears at least once (closed,
+`sorry`, `part`, unstated, uncited, `_no_claim`, skipped for both, skipped
+for T1 only, and a walk whose ARM carries its own spec).
 
 Why a fixture and not the real tree: eight agents are writing under
 `proof/` at any moment, so a self-test pinned to the repository's own
