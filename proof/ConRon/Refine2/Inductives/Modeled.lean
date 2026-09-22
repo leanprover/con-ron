@@ -127,7 +127,39 @@ theorem rename_by_from_refines
     {n : arena.handle.NIdx} {o}
     (hrun : arena.inductives.modeled.rename_by_from tbl i n = ok o) :
     absNIdx o = renameBy (absRenameTblFrom tbl i) (absNIdx n) := by
-  sorry
+  simp only [absRenameTblFrom, renameBy]
+  refine cursor_induction (fun i : Std.Usize => i.val) tbl.val.length
+    (fun i (_ : Unit) => ∀ o, arena.inductives.modeled.rename_by_from tbl i n = ok o →
+      absNIdx o = (match ((tbl.val.drop i.val).map
+          fun p => (absNIdx p.1, absNIdx p.2)).find? (·.1 == absNIdx n) with
+        | some p => p.2
+        | none => absNIdx n))
+    ?_ ?_ i () o hrun
+  · intro i _ hn o h
+    rw [arena.inductives.modeled.rename_by_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len tbl by scalar_tac)] at h
+    rw [dupId_nidx _ _ h, List.drop_eq_nil_of_le hn]
+    rfl
+  · intro i _ hi ih o h
+    rw [arena.inductives.modeled.rename_by_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len tbl by scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hqb, hqv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hq)
+    obtain ⟨n1, n2⟩ := q
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv : b = (absNIdx n1 == absNIdx n) := nidx_eq2_abs hb
+    rw [List.drop_eq_getElem_cons hqb, hqv, List.map_cons, List.find?_cons]
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      simp only [← hbv]
+      rw [ih i2 () hi2v o h, hi2v]
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp)] at h
+      simp only [← hbv]
+      rw [dupId_nidx _ _ h]
 
 /-- `rename_by` ⊑ `renameBy`. -/
 theorem rename_by_refines
@@ -135,7 +167,10 @@ theorem rename_by_refines
     {n : arena.handle.NIdx} {o}
     (hrun : arena.inductives.modeled.rename_by tbl n = ok o) :
     absNIdx o = renameBy (absRenameTbl tbl) (absNIdx n) := by
-  sorry
+  rw [arena.inductives.modeled.rename_by] at hrun
+  rw [rename_by_from_refines hrun]
+  simp [absRenameTbl, absRenameTblFrom,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
 
 /-- **Finding 15, cashed.**  `RenameBy` IS the twin's partial application
 `renameBy tbl`, so the `RenameRel` hypothesis every `rename_consts` statement
@@ -144,7 +179,8 @@ site by this one lemma. -/
 theorem rename_by_rel {r : arena.inductives.modeled.RenameBy} :
     RenameRel arena.inductives.modeled.RenameBy.Insts.Con_ron_coreArenaExpr_opsNIdxToNIdx
       r (renameBy (absRenameBy r)) := by
-  sorry
+  intro n o hrun
+  exact (rename_by_refines hrun).symm
 
 /-- `block_rename_table_from` ⊑ `blockRenameTable` from the cursor on, with
 the accumulated pairs in front. -/
@@ -267,7 +303,30 @@ theorem last_d_eidx_refines {xs : alloc.vec.Vec arena.handle.EIdx}
     {dflt : arena.handle.EIdx} {o}
     (hrun : arena.inductives.modeled.last_d_eidx xs dflt = ok o) :
     absEIdx o = (absEIdxL xs).getLastD (absEIdx dflt) := by
-  sorry
+  rw [arena.inductives.modeled.last_d_eidx] at hrun
+  by_cases hz : alloc.vec.Vec.len xs = 0#usize
+  · rw [if_pos hz] at hrun
+    have hnil : xs.val = [] := by
+      have : xs.val.length = 0 := by scalar_tac
+      exact List.eq_nil_of_length_eq_zero this
+    rw [dupId_eidx _ _ hrun, absEIdxL, hnil]
+    rfl
+  · rw [if_neg hz] at hrun
+    have hpos : 0 < xs.val.length := by
+      rcases Nat.eq_zero_or_pos xs.val.length with hc | hc
+      · exact absurd (show alloc.vec.Vec.len xs = 0#usize by scalar_tac) hz
+      · exact hc
+    obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hi2v : i2.val = xs.val.length - 1 := by
+      obtain ⟨-, hv⟩ := ConRon.Refine.Nat.usub_val hi2
+      simpa using hv
+    have hget : xs.val[xs.val.length - 1]? = some e := by
+      rw [← hi2v]; exact vec_index_some he
+    rw [dupId_eidx _ _ hrun, absEIdxL, List.getLastD_eq_getLast?,
+      List.getLast?_eq_getElem?]
+    simp only [List.length_map, List.getElem?_map, hget]
+    rfl
 
 /-- `iota_stmt_open_at` ⊑ the prologue's tail: the telescope, the equation
 head and its arity (finding 20's hoisted `eqHeadLevel` among them). -/
@@ -1402,14 +1461,66 @@ theorem filter_recs_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     {out : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrun : arena.inductives.modeled.filter_recs block want i out = ok o) :
     absICIL o = absICIL out ++ filterRecsSpec (absICILFrom block i) want := by
-  sorry
+  simp only [absICIL, absICILFrom, filterRecsSpec]
+  refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
+    (fun i out => ∀ o, arena.inductives.modeled.filter_recs block want i out = ok o →
+      o.val.map absIConstantInfo = out.val.map absIConstantInfo ++
+        ((block.val.drop i.val).map absIConstantInfo).filter
+          (fun ci => isRecInfo ci == want))
+    ?_ ?_ i out o hrun
+  · intro i out hn o h
+    rw [arena.inductives.modeled.filter_recs.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len block by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le hn]
+    simp
+  · intro i out hi ih o h
+    rw [arena.inductives.modeled.filter_recs.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hqb, hqv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hii)
+    have hbv : b = isRecInfo (absIConstantInfo ii) := is_rec_info_abs hb
+    rw [List.drop_eq_getElem_cons hqb, hqv, List.map_cons, List.filter_cons]
+    by_cases hw : b = want
+    · rw [if_pos hw] at h
+      obtain ⟨ii1, hii1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 out1 hi2v o h, hi2v, if_pos (by rw [← hbv, hw]; simp),
+        ConRon.Refine.vec_push_val hout1]
+      simp [i_constant_info_dup_abs hii1]
+    · rw [if_neg hw] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 out hi2v o h, hi2v, if_neg (by rw [← hbv]; simpa using hw)]
 
 /-- `block_names_of` ⊑ `block.map (·.name)` from the cursor on. -/
 theorem block_names_of_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     {i : Std.Usize} {out : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrun : arena.inductives.modeled.block_names_of block i out = ok o) :
     absNIdxL o = absNIdxL out ++ blockNamesOfSpec (absICILFrom block i) := by
-  sorry
+  simp only [absNIdxL, absICILFrom, blockNamesOfSpec, List.map_map,
+    Function.comp_def]
+  refine vec_cursor_copy block absNIdx _
+    (arena.inductives.modeled.block_names_of block) ?_ ?_ i out o hrun
+  · intro i out o hn h
+    rw [arena.inductives.modeled.block_names_of.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len block by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < block.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.inductives.modeled.block_names_of.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hix : ii = x := by
+      have h1 := vec_index_some hii; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hix
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      i_constant_info_name_abs hn, h⟩
 
 /-- `filter_kind` ⊑ the twin's two constructor filters, at a tag. -/
 theorem filter_kind_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
@@ -1417,7 +1528,62 @@ theorem filter_kind_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     {out : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrun : arena.inductives.modeled.filter_kind block kind i out = ok o) :
     absICIL o = absICIL out ++ filterKindSpec (absICILFrom block i) (absU kind) := by
-  sorry
+  simp only [absICIL, absICILFrom, filterKindSpec]
+  refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
+    (fun i out => ∀ o,
+      arena.inductives.modeled.filter_kind block kind i out = ok o →
+      o.val.map absIConstantInfo = out.val.map absIConstantInfo ++
+        ((block.val.drop i.val).map absIConstantInfo).filter
+          (fun ci => match ci with
+            | .indInfo _ _ => absU kind == 0
+            | .ctorInfo _ _ _ => absU kind == 1
+            | _ => false))
+    ?_ ?_ i out o hrun
+  · intro i out hn o h
+    rw [arena.inductives.modeled.filter_kind.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len block by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le hn]
+    simp
+  · intro i out hi ih o h
+    rw [arena.inductives.modeled.filter_kind.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hit, hhit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hqb, hqv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hii)
+    have hk0 : (decide (kind = 0#u64)) = (absU kind == 0) := by
+      by_cases hk : kind = 0#u64
+      · subst hk; rfl
+      · have h2 : ¬ (absU kind = 0) := by
+          simp only [absU]; intro hc; exact hk (by scalar_tac)
+        simp [hk, h2]
+    have hk1 : (decide (kind = 1#u64)) = (absU kind == 1) := by
+      by_cases hk : kind = 1#u64
+      · subst hk; rfl
+      · have h2 : ¬ (absU kind = 1) := by
+          simp only [absU]; intro hc; exact hk (by scalar_tac)
+        simp [hk, h2]
+    have hhitv : hit = (match absIConstantInfo ii with
+        | .indInfo _ _ => absU kind == 0
+        | .ctorInfo _ _ _ => absU kind == 1
+        | _ => false) := by
+      cases ii <;> simp only [] at hhit <;> rw [← Result.ok_injective hhit] <;>
+        simp only [absIConstantInfo, hk0, hk1]
+    rw [List.drop_eq_getElem_cons hqb, hqv, List.map_cons, List.filter_cons, ← hhitv]
+    cases hb : hit
+    · rw [hb] at h hhitv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 out hi2v o h, hi2v]
+      simp
+    · rw [hb] at h hhitv
+      rw [if_pos (by simp)] at h
+      obtain ⟨ii1, hii1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 out1 hi2v o h, hi2v, ConRon.Refine.vec_push_val hout1]
+      simp [i_constant_info_dup_abs hii1]
 
 /-- `single_ind_ctor` ⊑ the twin's two-list match
 `[.indInfo cvT _], [.ctorInfo cvC nP nF]`. -/
@@ -1426,7 +1592,61 @@ theorem single_ind_ctor_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     (o.map fun q => (absIConstantVal q.1, absIConstantVal q.2.1, absU q.2.2.1,
         absU q.2.2.2))
       = singleIndCtorSpec (absICIL block) := by
-  sorry
+  rw [arena.inductives.modeled.single_ind_ctor] at hrun
+  obtain ⟨inds, hinds, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ctors, hctors, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hz : ((0#usize : Std.Usize)).val = 0 := by scalar_tac
+  have hi : absICIL inds = filterKindSpec (absICIL block) 0 := by
+    have h2 := filter_kind_refines hinds
+    simpa [absICIL, absICILFrom, alloc.vec.Vec.new, absU, hz] using h2
+  have hc : absICIL ctors = filterKindSpec (absICIL block) 1 := by
+    have h2 := filter_kind_refines hctors
+    simpa [absICIL, absICILFrom, alloc.vec.Vec.new, absU, hz] using h2
+  rw [singleIndCtorSpec, ← hi, ← hc, absICIL, absICIL]
+  by_cases hl1 : inds.val.length = 1
+  · rw [if_neg (by simp only [bne_iff_ne, ne_eq, not_not]; scalar_tac)] at hrun
+    by_cases hl2 : ctors.val.length = 1
+    · rw [if_neg (by simp only [bne_iff_ne, ne_eq, not_not]; scalar_tac)] at hrun
+      obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨ii1, hii1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨a, ha⟩ := List.length_eq_one_iff.mp hl1
+      obtain ⟨b, hb⟩ := List.length_eq_one_iff.mp hl2
+      have hav : a = ii := by
+        have h0 := vec_index_some hii; rw [ha, hz] at h0; simpa using h0
+      have hbv : b = ii1 := by
+        have h0 := vec_index_some hii1; rw [hb, hz] at h0; simpa using h0
+      rw [hav] at ha
+      rw [hbv] at hb
+      rw [ha, hb, List.map_cons, List.map_nil, List.map_cons, List.map_nil]
+      cases ii
+      case IndInfo cv_t caps =>
+        cases ii1
+        case CtorInfo cv_c n_p n_f =>
+          obtain ⟨iv, hiv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨iv1, hiv1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          rw [← Result.ok_injective hrun]
+          simp [absIConstantInfo, i_constant_val_dup_abs hiv,
+            i_constant_val_dup_abs hiv1]
+        all_goals (rw [← Result.ok_injective hrun]; rfl)
+      all_goals (rw [← Result.ok_injective hrun]; rfl)
+    · rw [if_pos (by simp only [bne_iff_ne, ne_eq]; intro hcc; exact hl2 (by scalar_tac))]
+        at hrun
+      rw [← Result.ok_injective hrun]
+      obtain ⟨a, ha⟩ := List.length_eq_one_iff.mp hl1
+      rw [ha]
+      rcases hm : ctors.val with _ | ⟨y, ys⟩
+      · cases a <;> simp only [List.map_cons, List.map_nil] <;> rfl
+      · rcases ys with _ | ⟨y2, ys2⟩
+        · exact absurd (by simp [hm]) hl2
+        · cases a <;> simp
+  · rw [if_pos (by simp only [bne_iff_ne, ne_eq]; intro hcc; exact hl1 (by scalar_tac))]
+      at hrun
+    rw [← Result.ok_injective hrun]
+    rcases hm : inds.val with _ | ⟨x, xs⟩
+    · simp only [List.map_cons, List.map_nil]; rfl
+    · rcases xs with _ | ⟨x2, xs2⟩
+      · exact absurd (by simp [hm]) hl1
+      · simp
 
 /-- `proj_fn_family_free` ⊑ the projection-function name family's freeness
 from field `j` on — the same test the direct route's table install makes. -/

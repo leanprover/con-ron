@@ -778,6 +778,99 @@ theorem nidx_cons_abs {n : arena.handle.NIdx} {ns o : alloc.vec.Vec arena.handle
   simp [ConRon.Refine.vec_push_val hout, alloc.vec.Vec.new, dupId_nidx _ _ hn1,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
 
+/-! ### The declaration copies, and the two readers of a block member
+
+`arena::inductives::modeled` filters and copies a block, so it needs
+`i_constant_info_dup` to be the identity on the abstraction and
+`i_constant_info_name` to be the twin's `.name`.  `is_rec_info_abs` restates
+`Refine2/Checker/Base.lean`'s `is_rec_info_refines`, which is TRUE but stands
+above this tier in the module graph (`Checker/Top.lean` imports the inductives,
+not the other way round), so it cannot be cited here. -/
+
+/-- `arena::env::i_ind_caps_dup` is the identity on the abstraction. -/
+theorem i_ind_caps_dup_abs {c o : arena.env.IIndCaps}
+    (h : arena.env.i_ind_caps_dup c = ok o) : absIIndCaps o = absIIndCaps c := by
+  rw [arena.env.i_ind_caps_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+  simp only [absIIndCaps, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw]
+
+/-- `arena::env::i_proj_table_dup` is the identity on the abstraction. -/
+theorem i_proj_table_dup_abs {t o : arena.env.IProjTable}
+    (h : arena.env.i_proj_table_dup t = ok o) : absIProjTable o = absIProjTable t := by
+  rw [arena.env.i_proj_table_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+  simp only [absIProjTable, dupId_nidx _ _ hn, dupId_nidx _ _ hn1,
+    dupId_nidx _ _ hn2, dupId_lidx _ _ hl, nidx_vec_dup_val hv,
+    eidx_vec_dup_val hv1,
+    lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv2; exact hv2)]
+
+/-- **`arena::env::i_constant_info_dup` is the identity on the abstraction.** -/
+theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
+    (h : arena.env.i_constant_info_dup c = ok o) :
+    absIConstantInfo o = absIConstantInfo c := by
+  rw [arena.env.i_constant_info_dup.eq_def] at h
+  cases c with
+  | AxiomInfo cv =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv]
+  | DefnInfo cv v hint =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨rh, hrh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    have hrhv : rh = hint := by
+      rw [kernel.env.reducibility_hint_dup.eq_def] at hrh
+      cases hint <;> simp only [] at hrh <;> exact (Result.ok_injective hrh).symm
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv, dupId_eidx _ _ he, hrhv]
+  | ThmInfo cv v =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv, dupId_eidx _ _ he]
+  | IndInfo cv caps =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv, i_ind_caps_dup_abs hic]
+  | CtorInfo cv a b =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv]
+  | RecInfo cv a b rs =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv, i_rec_rules_dup_abs hv]
+  | ProjInfo t =>
+    obtain ⟨it, hit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIConstantInfo, i_proj_table_dup_abs hit]
+
+/-- `arena::env::i_constant_info_name` is the twin's `IConstantInfo.name`. -/
+theorem i_constant_info_name_abs {c : arena.env.IConstantInfo}
+    {o : arena.handle.NIdx} (h : arena.env.i_constant_info_name c = ok o) :
+    absNIdx o = (absIConstantInfo c).name := by
+  rw [arena.env.i_constant_info_name.eq_def] at h
+  cases c <;> simp only [absIConstantInfo, IConstantInfo.name, absIConstantVal,
+    absIProjTable, dupId_nidx _ _ h]
+
+/-- `arena::checker_base::is_rec_info` ⊑ `isRecInfo`, restated for this tier. -/
+theorem is_rec_info_abs {ci : arena.env.IConstantInfo} {o : Bool}
+    (h : arena.checker_base.is_rec_info ci = ok o) :
+    o = isRecInfo (absIConstantInfo ci) := by
+  rw [arena.checker_base.is_rec_info.eq_def] at h
+  cases ci <;> (rw [← Result.ok_injective h]; rfl)
+
 attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFrom
   absBinderL absBinderLFrom absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom
   absCtors4L absCtors4LFrom absRecsL absRecsLFrom absRenameTbl
