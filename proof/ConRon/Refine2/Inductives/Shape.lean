@@ -326,6 +326,193 @@ macro_rules
         | (refine am_bind_congr _ ?_; intro __x)
         | split)
 
+/-! ## The state-free cursor recursion, once
+
+DESIGN §3.4's third rule turns every `List` operation of a twin into a named
+cursor recursion over a `Vec`, and the state-free half of this tier is that
+recursion fifty-odd times: `if i ≥ len then ok out else <read, transform,
+push>; f (i+1) out'`.  Round 2 wrote the measure induction out by hand twice
+(`kinds_copy`, `u64_vec_dup`) and measured it at thirty lines; the two
+declarations below are that induction factored out, so an instance owes only
+its own two arms.
+
+`cursor_induction` is the induction itself and says nothing about `Vec`s —
+any recursion whose cursor moves up by one towards a fixed bound is an
+instance.  `vec_cursor_copy` is the specialisation every *copier* of the tier
+wants: read the source at the cursor, push ONE element computed from it, and
+the answer is the accumulator followed by the image of what is left. -/
+
+/-- **The cursor recursion's induction principle.**  A property that holds
+past the bound and is preserved backwards by a single step of the cursor holds
+everywhere.  The step gets its induction hypothesis for *every* `j` whose
+value is `i + 1`, not for one chosen `j`, because the port's `i + 1#usize` is
+a `Result` and the successor is only known through `absSz_add_one`. -/
+theorem cursor_induction {ι : Type} {γ : Sort u} (val : ι → Nat) (n : Nat)
+    (P : ι → γ → Prop)
+    (hbase : ∀ (i : ι) (a : γ), n ≤ val i → P i a)
+    (hstep : ∀ (i : ι) (a : γ), val i < n →
+      (∀ (j : ι) (b : γ), val j = val i + 1 → P j b) → P i a) :
+    ∀ (i : ι) (a : γ), P i a := by
+  have key : ∀ (k : Nat) (i : ι) (a : γ), n - val i ≤ k → P i a := by
+    intro k
+    induction k with
+    | zero => intro i a hk; exact hbase i a (by omega)
+    | succ k ih =>
+      intro i a hk
+      by_cases h : n ≤ val i
+      · exact hbase i a h
+      · exact hstep i a (by omega) (fun j b hj => ih j b (by omega))
+  intro i a
+  exact key (n - val i) i a (Nat.le_refl _)
+
+/-- **The tier's copier, once.**  `F` reads `xs` at the cursor, pushes one
+element computed from it, and recurses; the answer, READ THROUGH THE
+ABSTRACTION, is the accumulator followed by the image of the suffix.  A caller
+supplies the two arms — `hstop` (past the end the accumulator comes back
+unchanged) and `hstep` (one element in, one element out, and the pushed
+element abstracts to the source element's image) — and gets the measure
+induction for free.  The two abstractions `f` and `g` are separate because the
+port's element type is often narrower than the source's (`ctors_of` drops a
+field, `rhss_of` keeps one), and the conclusion is stated at `List.map`
+because every `absXL` of this file is exactly that. -/
+theorem vec_cursor_copy {α β δ : Type} (xs : alloc.vec.Vec α) (f : β → δ) (g : α → δ)
+    (F : Std.Usize → alloc.vec.Vec β → Result (alloc.vec.Vec β))
+    (hstop : ∀ (i : Std.Usize) (out o : alloc.vec.Vec β),
+      xs.val.length ≤ i.val → F i out = ok o → o.val = out.val)
+    (hstep : ∀ (i : Std.Usize) (x : α) (out o : alloc.vec.Vec β),
+      xs.val[i.val]? = some x → F i out = ok o →
+      ∃ (j : Std.Usize) (y : β) (out1 : alloc.vec.Vec β),
+        j.val = i.val + 1 ∧ out1.val = out.val ++ [y] ∧ f y = g x ∧ F j out1 = ok o) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec β), F i out = ok o →
+      o.val.map f = out.val.map f ++ (xs.val.drop i.val).map g := by
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i out => ∀ o, F i out = ok o →
+      o.val.map f = out.val.map f ++ (xs.val.drop i.val).map g) ?_ ?_
+  · intro i out hn o h
+    rw [hstop i out o hn h, List.drop_eq_nil_of_le hn]
+    simp
+  · intro i out hi ih o h
+    obtain ⟨x, hx⟩ : ∃ x, xs.val[i.val]? = some x :=
+      ⟨xs.val[i.val], List.getElem?_eq_getElem hi⟩
+    obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨j, y, out1, hj, hout1, hfy, hF⟩ := hstep i x out o hx h
+    rw [ih j out1 hj o hF, hout1, hj, List.drop_eq_getElem_cons hb, hxv]
+    simp [hfy]
+
+/-- **`arena::env::i_constant_val_dup` is the identity on the abstraction.**
+Three `dup2`s and `nidx_vec_dup`, all four of them identities
+(`Refine2/Inv.lean`'s `DupId` rows and `Core/Arms/Delta.lean`'s
+`nidx_vec_dup_val`).  Six functions of this tier copy a constructor record
+and every one of them goes through this. -/
+theorem i_constant_val_dup_abs {cv o : arena.env.IConstantVal}
+    (h : arena.env.i_constant_val_dup cv = ok o) :
+    absIConstantVal o = absIConstantVal cv := by
+  rw [arena.env.i_constant_val_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have ho := Result.ok_injective h
+  subst ho
+  simp only [absIConstantVal, dupId_nidx _ _ hn, dupId_eidx _ _ he,
+    nidx_vec_dup_val hv]
+
+/-! ### The four `arena::env` copies this tier inherits
+
+`nidx_vec_dup` and `lidx_vec_dup` already have their identity lemmas
+(`Core/Arms/Delta.lean`, `Refine2/Specs.lean`); the other two are stated here,
+as the first two instances of `vec_cursor_copy`, because `inductive_shape_dup`
+and every `IRecRule` copier of this tier goes through them. -/
+
+private theorem eidx_vec_dup_from_map {es : alloc.vec.Vec arena.handle.EIdx} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.EIdx),
+      arena.env.eidx_vec_dup_from es i out = ok o →
+      o.val.map id = out.val.map id ++ (es.val.drop i.val).map id := by
+  refine vec_cursor_copy es id id (arena.env.eidx_vec_dup_from es) ?_ ?_
+  · intro i out o hn h
+    rw [arena.env.eidx_vec_dup_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len es by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < es.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.env.eidx_vec_dup_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len es by scalar_tac)] at h
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hex : e = x := by
+      have h1 := vec_index_some he; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    exact ⟨i2, e1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [← hex, dupId_eidx _ _ he1], h⟩
+
+/-- **`arena::env::eidx_vec_dup` is the identity on the value.** -/
+theorem eidx_vec_dup_val {es r : alloc.vec.Vec arena.handle.EIdx}
+    (h : arena.env.eidx_vec_dup es = ok r) : r.val = es.val := by
+  rw [arena.env.eidx_vec_dup] at h
+  have h2 := eidx_vec_dup_from_map 0#usize _ r h
+  simpa [alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
+
+/-- `arena::env::i_rec_rule_fire_dup` is the identity on the abstraction. -/
+theorem i_rec_rule_fire_dup_abs {f o : arena.env.IRecRuleFire}
+    (h : arena.env.i_rec_rule_fire_dup f = ok o) :
+    absIRecRuleFire o = absIRecRuleFire f := by
+  rw [arena.env.i_rec_rule_fire_dup.eq_def] at h
+  cases f with
+  | Inert => rw [Result.ok_injective h]
+  | Plain => rw [Result.ok_injective h]
+  | Nested lvls pins =>
+    simp only [] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    simp only [absIRecRuleFire, lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv; exact hv),
+      eidx_vec_dup_val hv1]
+
+/-- `arena::env::i_rec_rule_dup` is the identity on the abstraction. -/
+theorem i_rec_rule_dup_abs {r o : arena.env.IRecRule}
+    (h : arena.env.i_rec_rule_dup r = ok o) : absIRecRule o = absIRecRule r := by
+  rw [arena.env.i_rec_rule_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨irf, hirf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+  simp only [absIRecRule, dupId_nidx _ _ hn, dupId_eidx _ _ he,
+    i_rec_rule_fire_dup_abs hirf]
+
+private theorem i_rec_rules_dup_from_map {rs : alloc.vec.Vec arena.env.IRecRule} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.env.IRecRule),
+      arena.env.i_rec_rules_dup_from rs i out = ok o →
+      o.val.map absIRecRule
+        = out.val.map absIRecRule ++ (rs.val.drop i.val).map absIRecRule := by
+  refine vec_cursor_copy rs absIRecRule absIRecRule
+    (arena.env.i_rec_rules_dup_from rs) ?_ ?_
+  · intro i out o hn h
+    rw [arena.env.i_rec_rules_dup_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < rs.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.env.i_rec_rules_dup_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+    obtain ⟨ir, hir, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ir1, hir1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hex : ir = x := by
+      have h1 := vec_index_some hir; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    exact ⟨i2, ir1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [← hex, i_rec_rule_dup_abs hir1], h⟩
+
+/-- **`arena::env::i_rec_rules_dup` is the identity on the abstraction.** -/
+theorem i_rec_rules_dup_abs {rs r : alloc.vec.Vec arena.env.IRecRule}
+    (h : arena.env.i_rec_rules_dup rs = ok r) :
+    r.val.map absIRecRule = rs.val.map absIRecRule := by
+  rw [arena.env.i_rec_rules_dup] at h
+  have h2 := i_rec_rules_dup_from_map 0#usize _ r h
+  simpa [alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
+
 attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFrom
   absBinderL absBinderLFrom absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom
   absCtors4L absCtors4LFrom absRecsL absRecsLFrom absRenameTbl
