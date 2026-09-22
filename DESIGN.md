@@ -37662,6 +37662,334 @@ waits on a primitive** and the tier is fuel inductions and nothing else.
 | `scripts/overview-links.sh` | OK |
 | the diff | `proof/ConRon/Refine2/{AbsStore,Shape,Specs}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
 
+### Task #97-P3-1 — the arm split, and Theorem 1's exemplar closed (2026-09-22, Opus under Fable)
+
+Phase **P3**, second round: DESIGN §8.6's **arm-split ruling** (coordinator,
+2026-09-22) carried out in `Arena/ExprOps.lean`, the `Bridge/ExprOps` tier
+re-pointed at it, and the open list of task #97-P3-0 worked down.
+
+#### 1. The split, and what it is worth
+
+**All 23 multi-arm walks of `Arena/ExprOps.lean` are split**: a dispatcher, one
+`def` per constructor arm inside a `mutual` block, the dispatcher calling the
+arms by name, the lexicographic `(fuel, tag)` measure task #97b predicted (the
+dispatcher at tag `0` calls an arm at `fuel - 1`; an arm at tag `1` calls the
+dispatcher at its own fuel).  Two rules the round fixed and the Core tier
+should copy:
+
+* **the cut goes at the memo probe** (task #97b's own words): an arm owns its
+  probe, its projection, its recursion, its rebuild and its insert, so the
+  dispatcher is the cutoff, the tag chain and nothing else;
+* **a leaf arm whose body is one expression stays in the dispatcher.**  There
+  is nothing to split — it produces no verification condition of its own — and
+  a `def` for it would be a twin-ledger row for nothing.  Arms that share a
+  clause in con-leche (`lam`/`forallE` in `sizeB`, `wscopedB`, …) share one
+  `def` here, for the same reason.
+
+**The function list.**  23 dispatchers, **99 new arm `def`s**, 46 equation
+lemmas (a `…_zero` and a `…_succ` per walk).  Per walk, in file order:
+
+| walk | arms |
+|---|---|
+| `instantiate1Go` | `instantiate1Arm{BVar,App,Bind,Let,Proj}` |
+| `instantiateList` | `instListArm{App,Bind,Let,Proj,BVar}` |
+| `instantiateListGo` | `instListGoArm{App,Bind,Let,Proj}` |
+| `liftLooseBVarsGo` | `liftArm{App,Lam,ForallE,Let,Proj}` |
+| `resetMetaGo` | `resetArm{FVar,App,Lam,ForallE,Let,Proj}` |
+| `sizeB` | `sizeBArm{App,Bind,Let,Proj}` |
+| `abstractRange` | `absRangeArm{App,Lam,ForallE,Let,Proj}` |
+| `sizeF` | `sizeFArm{FVar,App,Bind,Let,Proj}` |
+| `fvarLeaves` | `fvarLeavesArm{FVar,App,Bind,Let}` |
+| `wscopedB` | `wscopedBArm{App,Bind,Let}` |
+| `wscopedBGo` | `wscopedBGoArm{App,Bind,Let}` |
+| `fvarLeavesGo` | `fvarLeavesGoArm{App,Bind,Let}` |
+| `leavesSubGo` | `leavesSubArm{App,Bind,Let}` |
+| `looseBVarsBounded` | `looseBArm{App,Bind,Let}` |
+| `hasFvar` | `hasFvarArm{App,Bind,Let}` |
+| `renameConstsGo` | `renameArm{FVar,App,Lam,ForallE,Let,Proj}` |
+| `bvarBoundGo` | `bvarBoundArm{App,Bind,Let}` |
+| `fvarRangeGo` | `fvarRangeArm{App,Bind,Let}` |
+| `abstract1Go` | `abstract1Arm{FVar,App,Bind,Let,Proj}` |
+| `abstractRangeGo` | `absRangeArmFVar`, `absRangeGoArm{App,Bind,Let,Proj}` |
+| `lowerBVarsGo` | `lowerArm{App,Lam,ForallE,Let,Proj}` |
+| `instantiate1LiftGo` | `inst1LiftArm{App,Lam,ForallE,Let,Proj}` |
+| `instLPGo` | `instLPArm{FVar,App,Lam,ForallE,Let,Proj}` |
+
+**The Rust is untouched, and owes a repoint.**  `crates/con-ron-core/src/
+arena/expr_ops.rs` carries 110 `Lean twin: proof/ConRon/Arena/ExprOps.lean:
+<range> <name>` lines; the 23 that name a split walk now point at the
+DISPATCHER, which is right, but every one of the 110 ranges is stale (they
+were stale before this round too — the gate does not read them).  A follow-up
+should re-point them in one pass and decide whether the twin ledger wants a
+row per arm or one row per walk with a "shape" note; this round did not touch
+a Rust file.
+
+Every arm carries the same `con-leche:` citation as the walk it came out of,
+so `scripts/provenance.py check` is at **0 findings** over 2 340 arena Lean
+items (2 189 before).  `ExprOpsTest.lean`'s 183 kernel-reduced differential
+`#guard`s pass and `scripts/diff-e2e.sh --bin=…/con-ron-lean` is **383/383**:
+the split changes no behaviour, as it must not.
+
+**`instantiate1Go_spec`'s elaboration, the number the ruling asked for.**
+Measured on this machine, same command, before and after:
+
+| | before (inline arms) | after (dispatcher + 5 arms) |
+|---|---:|---:|
+| `Bridge/ExprOps/Inst1.lean`, wall | **72.5 s** | **28.3 s** |
+| the same, `--threads=1` | 72.5 s | 78.8 s |
+| `mvcgen`'s verification conditions on the walk | 79 | 32 on the dispatcher, 2 surviving the closer |
+| the `sorry`s in the file | 5 | **0** |
+
+Two things the table says and the ruling did not predict.
+
+1. **The win is parallelism, not total work.**  The inline body was ONE
+   theorem, so nothing in it could elaborate concurrently; the split is six
+   independent theorems and Lean runs them at once — 72.5 s of wall becomes
+   28.3 s.  Single-threaded the file costs 6 s MORE than before (78.8 s
+   against 72.5 s), because each arm re-elaborates the shared context and
+   because the file now proves five goals it used to `sorry`.  At ~700
+   functions the wall-clock figure is the one that matters for a build, and it
+   is the one that moved.
+2. **The dispatcher is free.**  Per-theorem tactic time in the file:
+
+| theorem | tactic time |
+|---|---:|
+| `instantiate1ArmApp_spec` | 13.9 s |
+| `instantiate1ArmBind_spec` | 13.0 s |
+| `instantiate1ArmBVar_spec` | 9.8 s |
+| `instantiate1ArmLet_spec` | 9.8 s |
+| `instantiate1ArmProj_spec` | 8.2 s |
+| `Inst1Spec` (the record) | 1.2 s |
+| **`instantiate1Go_spec` (the dispatcher)** | **0.9 s** |
+| every other declaration in the file | < 0.1 s |
+| total attributed | 56.9 s |
+
+   Nothing is over 20 s.  The 72 s monolith became six theorems of at most
+   13.9 s, and the theorem the ruling named — the dispatcher — is **0.9 s**.
+
+#### 2. What the arms need that the inline body did not
+
+* **Each arm carries its own tag hypothesis.**  `EStore.viewApp` does not test
+  the tag (it is the array read the tag dispatch has already decided, tasks
+  #97-P6-10 and #97-P6-13), so `view_of_viewApp` needs `h.tag = ETag.app` and
+  the arm theorem takes it as a parameter.  The dispatcher supplies it from
+  the branch it is in, as one more verification condition that `assumption`
+  closes.  **An arm is NOT a total function of its handle** — this is the one
+  place where "the arm fails on the wrong tag, so it needs no hypothesis"
+  would have been wrong.
+* **The `…Spec` record is what an arm satisfies too**, at the arm's own
+  argument list, so the dispatcher's `mvcgen` list is literally the five arm
+  theorems and there is nothing else to say.
+* **A walk whose arms are cheap does not need arm SPECS at all.**  Handing
+  `mvcgen` the arm DEFINITIONS (`mvcgen [f_succ, fArmApp, …, hrec]`) inlines
+  them again and reproduces exactly the verification conditions the inline
+  body produced, so the one-line `bridge_vcs` closers of the scalar and list
+  groups keep working unchanged — `ExprOps/Walks.lean` is 38.1 s after the
+  split against 37.5 s before.  **The split is a fact about the CODE; whether
+  the PROOF consumes it arm-by-arm is a per-walk choice**, and the measurement
+  says to make it only where the closer was expensive.
+
+#### 3. `BMExt`, and the binder arm of every rebuilding walk
+
+Task #97-P3-0 §7's first item, done.  `Bridge/StoreBM.lean` gains
+
+    def BMExt (st st' : EStore) : Prop :=
+      ∀ mi m, st.viewBM mi = some m → st'.viewBM mi = some m
+
+with `refl`, `trans`, `BMExt.intern`, `BMExt.internAt`, `BMExt.isSome`, and —
+the load-bearing one — `BMExt.get` as a `@[grind →]` forward rule whose ematch
+pattern is the `viewBM` read.  With it a walk's binder arm never mentions
+`BMExt` at all: the closer chains the datum forward through however many
+`intern`s the two recursive calls did.  The conjunct is threaded through
+`EStore.internBindI_spec` and the twenty-one intern specs of
+`Bridge/Specs.lean` (`internE_spec` and its ten faces, `internRebuilt_spec`
+and its eleven, the two binder pairs), which is the "mechanical postcondition
+change across twelve specs" §7 asked for.
+
+It closes **both** open goals of `instantiate1Go_spec`'s binder arm, and it is
+what the rebuilding walks of `Abs`, `Reset`, `Subst` and `InstLP` need for
+theirs.
+
+#### 4. The `bvar` arm, and what the split bought there
+
+Task #97-P3-0's second open group was "the answer relation's `RelE` is a `def`
+and `grind` will not unfold one; `unfold RelE` in the closer takes them and
+breaks the `proj` arm".  With the arms split the question does not arise: the
+`bvar` arm is **its own theorem**, nine lines, three `refine ⟨…⟩`s over
+`Expr.instantiate1`'s own three branches, and no other arm sees the unfolding.
+`instantiate1ArmBVar_spec` is 9.8 s.  This is the general lesson: *a tactic
+that is right for one arm and wrong for another is a reason to split, not a
+reason to choose*.
+
+Template rule 7 ("the closer must `intro` first") was measured again here and
+**withdrawn as a closer change**: `repeat' intro` in front of `bridge_peel`
+breaks the goals whose target is itself a `∀` (a memo invariant is
+`MemoOK f tbl st`, an `abbrev` over a `∀`), and cost four verification
+conditions in `instantiate1ArmApp_spec` alone.  The `intro` belongs in the
+ARM, where the shape is known — `instantiate1ArmBVar_spec`'s `i > dd` branch
+does exactly that and says so.
+
+#### 5. Finding 9 of task #97-P5-1, fixed in the twin
+
+A twin/Rust divergence P5-1 found while building Theorem 2's `intern`: the
+Rust tests `Tbl::full` only where it is about to APPEND (inside the cons-table
+miss path), while the twin tested `capOK`/`sizeOf` BEFORE probing — so on a
+cons HIT at a full constructor array the Rust answers `Ok` and the twin threw
+`native`.  **Fixed**: `Arena/Monad.lean`'s `internE`, `internNNode`,
+`internLNode`, `internLsNode`, `internPersistentE`, `internPersistentN`,
+`internPersistentL` and `internPersistentLs` now probe first (`EStore.find?`,
+`NStore.find?`, …, `EStore.persFind?`) and test the capacity on the miss path
+only.
+
+What the hit path owes the bridge is one fact per store, and it is `StoreWF`'s
+own `consP` / `consS` clause read left to right — `WFProofs.lean` gains
+`{N,L,Ls,E}Store.find?_cases` and `{N,L,Ls,E}Store.view_of_find` plus the four
+`view_of_persFind`, **and stays sorry-free**; no existing store theorem's
+statement moved, and `EStore.intern_spec`'s `capOK` hypothesis is still
+exactly what the miss path establishes.  `Bridge/Specs.lean`'s four intern
+wrappers and `ExprOps/MemoSpecs.lean`'s `internE_specV` grew a `case vc1.h_1`
+block of six lines each for the hit.
+
+**Twin-ledger row: resolved.**  One divergence is recorded and NOT closed, and
+it is smaller and unreachable: a node-cons MISS whose binder DATUM is a cons
+hit still tests the datum array's capacity, where `intern_bm` would not.
+Saying it needs `EStore.intern_spec` at a capacity that is the node array's
+alone — a change to a frozen store theorem's statement, which this round was
+asked not to make.  The datum array holds one entry per distinct `PropWhen`,
+so it cannot approach `idxCap`.
+
+#### 6. The tier: what closed, and what is left
+
+**`ExprOps/Inst1.lean` is sorry-free**, and with it six of the eight theorems
+that task #97-P3-0 listed as "inheriting a `sorryAx` and nothing else" —
+`instPis_spec`, `instPisAt_spec`, `instLamsAt_spec`, `instSpine_spec`,
+`instPisAtF_spec`, `instLamsAtF_spec` — now report the three axioms, exactly
+as §6 of that section predicted ("closing the five goals of
+`instantiate1Go_spec` closes six of those eight with no statement change").
+`Owed.lean`'s `resetMetaFast_spec` closed too (three lines, the
+`instantiate1Fast_spec` bracket).  The tier's `sorry` count goes **14 → 12**
+and the inheriting count **8 → 2**.
+
+`Bridge/Axioms.lean` now prints **104** results — the spec layer, the store
+obligations, `BMExt` and its two `intern` facts, the four `view_of_find`
+lemmas the probe-first fix needed, the five arm theorems, the dispatcher, the
+entry bracket and the run form.  **Every one is inside
+`[propext, Classical.choice, Quot.sound]`**, and the three nested-store
+`view_of_find`s need only two of the three.  No `sorryAx`, no `bv_decide`
+axiom.
+
+**Elaboration, module by module**, before (task #97-P3-0) and after:
+
+| module | before | after |
+|---|---:|---:|
+| `ExprOps/Inst1.lean` | 73 s | **28 s** |
+| `ExprOps/Subst.lean` | 369 s | 338 s |
+| `ExprOps/Abs.lean` | 113 s | 116 s |
+| `ExprOps/Reset.lean` | 101 s | 99 s |
+| `ExprOps/Walks.lean` | 38 s | 37 s |
+| `ExprOps/Ranges.lean` | 35 s | 35 s |
+| `ExprOps/Guards.lean` | 32 s | 31 s |
+| `ExprOps/Spine.lean` | 29 s | 30 s |
+| `ExprOps/Leaves.lean` | 8.4 s | 8.3 s |
+| `ExprOps/InstLP.lean` | 8.4 s | 8.4 s |
+| `ExprOps/TelescopeF.lean` | 7.9 s | 7.8 s |
+| `ExprOps/MemoSpecs.lean` | 2.3 s | 2.3 s |
+| `ExprOps/Owed.lean` | 0.8 s | 1.7 s |
+| the spec layer | ~16 s | ~17 s |
+| **`lake build ConRonBridge`** | 128 jobs | 128 jobs, 0 errors |
+
+Nothing is over 20 s that was not over 20 s before, and the one module whose
+proof was converted to arm specs fell by 45 s.  **The other eleven modules
+took the arm DEFINITIONS, not arm specs, so their numbers are unchanged —
+which is the point of §2's last bullet**: the split does not cost a walk whose
+closer was already cheap, and it does not pay one either.
+
+**The open list, twelve declarations.**  Every one has its reason at the site.
+
+| theorem | what it needs |
+|---|---|
+| `ExprOps.abstract1Go_spec` (5 arms) | the `fvarB` HOP, not the arms.  `Abs1At.bind_step'`, `.fvar_hit'`, `.leaf''` all assemble and `BMExt.get` supplies the binder arm's datum — but each wants its `StoreWF` and its `view` at the state `fvarB` RETURNED, whose store is equal to but not syntactically `s₀.store`, and `view_of_viewBindI_wf` / `denoteE_view` have no hop-aware form.  What is missing is one more lemma in `ExprOps/MemoSpecs.lean`'s `…_hop` family — `bindI_datum_hop (hst : st0 = st) (hwf : StoreWF st) htg h1 : ∃ m, st0.viewBM mi = some m ∧ st0.view i = some (eBindView …)`, three lines of `subst hst` — and template rule 7 at the one arm that interns.  MEASURED: with the five arms written out against this round's machinery, three of the five reduce to exactly that hop and two to the `internBVarE` implication chain; none is a mathematical gap |
+| `ExprOps.instantiateList_spec`, `instantiateListGo_spec` | group A's round ran out; the step-lemma layer is in the same file, and the walks are now split so the arm-spec conversion `Inst1.lean` demonstrates applies directly |
+| `ExprOps.instPisAtLift_spec` | ditto |
+| `ExprOps.fvarLeavesGo_spec` | unchanged from task #97-P3-0: the `seen` set's GRAY invariant needs `StoreWF`'s rank as a second induction beside the fuel, as con-leche's `Verify/Cached/GuardsC.lean`'s `SeenInv` does.  This is the one entry on the list that is a mathematical gap and not a plumbing gap, and the split does not touch it — the arms are split, the invariant is not about arms |
+| the seven of `ExprOps/Owed.lean` | `abstract1Fast` and `abstractRangeFast` wait on `abstract1Go_spec` / `abstractRangeGo_spec`; `abstractRangeGo_spec`, `renameConstsGo_spec` and `instLPGo_spec` are the three walks whose fuel induction the last round ran out on, each with its step-lemma layer already written in `Abs.lean` / `Reset.lean` / `InstLP.lean`; `renameConstsFast` and `instLPFast` are their brackets.  `abstract1Fast_spec` and `abstractRangeFast_spec` will need `(hfv : FvarBSpec)` added to their statements, because `Owed.lean` does not import `Ranges.lean` and cannot (the `globs` build shape keeps `grind`'s match-auxiliaries apart) |
+
+Two theorems still report `sorryAx` and nothing else: `fvarLeavesFast_spec`
+and `leafGuard_spec`, both through `fvarLeavesGo_spec`.
+
+#### 7. What the Core tier needs
+
+`Arena/Core.lean` is 3 757 lines and its bodies are inline; task #97-P3-0's
+last open question was "§4's ruling decides its cost", and this round answers
+it with numbers.
+
+* **Split `Core.lean` the same way, and split it BEFORE writing a line of its
+  Theorem 1.**  The recipe is fixed: dispatcher plus one `def` per
+  constructor arm, the cut at the memo probe, the `(fuel, tag)` measure, two
+  equation lemmas per walk (template rule 9), a leaf arm that is one
+  expression left in the dispatcher.  It is mechanical — 23 walks took one
+  pass here, with `ExprOpsTest`'s guards and the 383-fixture sweep as the
+  safety net — and it is what makes each body's theorem a handful of
+  verification conditions instead of eighty.
+* **The knot as a record, exactly as task #97s round 2's subject 2 measured
+  it.**  `whnfCore`, `inferIO` and `defeq` are mutually recursive, so the
+  tier's shape is a `CoreFnsA` record of Theorem-1 hypotheses (one field per
+  knot member, each a `…Spec` record at the previous fuel) taken as a
+  hypothesis by every arm theorem and discharged once by the knot's own fuel
+  induction.  Round 2's finding is that **the record costs nothing**: its
+  fields go into `mvcgen`'s list like any other spec and all twelve resulting
+  side goals fall to the uniform closer.  What does not fall is *the exits of
+  the pure function*, and each needs one step lemma per CLAUSE of the pure
+  function (round 2's rule 8), not per constructor of the subject.
+* **`KnotSpec` is stated at a fuel, not at a fixed point.**  Every arm's
+  hypothesis is `CoreFnsA μ env F` for the previous `F`, and the dispatcher's
+  induction is on `F`; the conclusion the bridge finally wants is the
+  `∃ F` of §8.2's Theorem 1, introduced once at `checkDecl`, exactly as
+  `CacheOK`'s depth-universal shape (`∃ F, ∀ d, …`) already is.
+* **The memo wrappers get their specs from this round's set unchanged.**  The
+  thirteen probe/record/drop triples of `Bridge/Specs.lean` and the four
+  generic memo invariants of `Bridge/StateOK.lean` are per-call and
+  key-shaped, not per-walk, so `Core.lean`'s tables reuse them; what each
+  Core walk adds is one `abbrev` fixing its pure function, as the `ExprOps`
+  tier's thirteen do.
+* **`CacheOK` is what `StateOK` does not carry.**  `ExprOps` theorems mention
+  `StoreWF` and nothing else on purpose (task #97-P3-0 §2); the Core tier's
+  statements carry `CacheOK mode env s` beside it, and `CheckOK.mono`'s two
+  equations are what carries the fourteen tables past a call that only grows
+  the arena.
+* **Thread `BMExt` from the start.**  It is in every intern spec now, so a
+  Core walk that rebuilds a binder gets its `internBindIE` precondition from
+  `BMExt.get` with no work; a walk that does not rebuild never mentions it.
+* **The per-call memo FRAME is still owed** (task #97-P3-0 §7's second item):
+  a walk's spec says its own table's invariant is preserved and frames
+  `caches` and `pins`, but not that the other twelve tables stood still.  The
+  shape that does it in one equation is `{ s'.memos with xC := s₀.memos.xC } =
+  s₀.memos`.  The `ExprOps` tier needs it only where one walk calls another;
+  `Core.lean` nests constantly, so it should go in with the tier rather than
+  after it.
+
+#### 8. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 12 OK** (`extract-check` 92 s, `lake-build` 362 s) |
+| `lake build ConRonArena con-ron-lean ConRonBridge` | **0 errors**; `ConRonArena` + `con-ron-lean` 194 jobs, `ConRonBridge` 128 jobs |
+| `ExprOpsTest.lean` | 183 kernel-reduced differential `#guard`s, all pass (part of `ConRonArena`) |
+| `scripts/diff-e2e.sh --bin=…/con-ron-lean` | **383/383 agree**, 0 differ, 0 errors — twice: after the eleven rebuilding walks were split, and again after the remaining twelve |
+| `scripts/provenance.py check` | **0 findings**, 6 439 items (4 099 Rust, 2 340 arena Lean), 4 200 citations, all current at pin `78ded4b6` |
+| `#print axioms` | `Bridge/Axioms.lean`, **104 results**, every one inside `[propext, Classical.choice, Quot.sound]`; no `sorryAx`, no `bv_decide` axiom.  `Bridge/ExprOps/**`'s own `#print axioms` lines report `sorryAx` on exactly the twelve open declarations plus `fvarLeavesFast_spec` and `leafGuard_spec` |
+| the diff | `proof/ConRon/Arena/{ExprOps,Monad,WFProofs}.lean`, `proof/ConRon/Bridge/{Specs,StoreBM,StoreBind,Axioms}.lean`, `proof/ConRon/Bridge/ExprOps/**` and this section.  No Rust file, no generated model, no `Refine/`, no `Refine2/` |
+
+`arena` moved twice under this branch and both were merged in: task
+**#97-P5-1** (Theorem 2's intern plumbing, `7a92f794` — `Refine2/` only, whose
+finding 9 is §5 above) and task **#97-P3-Core** (`50a80f5b` — Theorem 1's Core
+tier, `Bridge/Core/**` only, 2 857 new lines).  The only conflict was textual,
+this section against theirs at the end of the task log.  **The Core tier was
+written against the PRE-split twins and the PRE-`BMExt` intern specs and needed
+no change**: it imports `Bridge/Specs.lean` and consumes its postconditions
+through `grind`, which is what makes an extra conjunct free.  All twelve gates
+and the 383-fixture sweep were re-run on the merged state.
+
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the Core round: DESIGN §8.2's **Theorem 1** at

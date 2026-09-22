@@ -306,13 +306,13 @@ theorem resetMetaGo_spec : ∀ fuel, ResetSpec (resetMetaGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    mvcgen [resetMetaGo]
+    mvcgen [resetMetaGo_zero]
     all_goals bridge_vcs [Expr.resetMeta]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
     have hrec := ih.run
-    mvcgen [resetMetaGo, hrec]
+    mvcgen [resetMetaGo_succ, resetArmFVar, resetArmApp, resetArmLam, resetArmForallE, resetArmLet, resetArmProj, hrec]
     all_goals try bridge_vcs [Expr.resetMeta]
     -- Ten structural verification conditions remain, in goal order: the four
     -- LEAF views, then the six rebuilding arms.  This is task #97s round 2's

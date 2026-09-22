@@ -368,13 +368,13 @@ theorem abstractRange_spec (d k : Nat) :
   | zero =>
     constructor
     intro s₀ h c _ _
-    mvcgen [abstractRange]
+    mvcgen [abstractRange_zero]
     all_goals bridge_vcs [Expr.abstractRange]
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hden
     have hrec := ih.run
-    mvcgen [abstractRange, hrec]
+    mvcgen [abstractRange_succ, absRangeArmApp, absRangeArmLam, absRangeArmForallE, absRangeArmLet, absRangeArmProj, hrec]
     all_goals try bridge_vcs [Expr.abstractRange]
     -- Eleven structural verification conditions remain, in goal order: the
     -- four LEAF views, the `fvar` leaf's two branches, and the five rebuilding
@@ -786,14 +786,14 @@ theorem abstract1Go_spec (hfv : FvarBSpec) (d : Nat) :
   | zero =>
     constructor
     intro s₀ h kk _ _ _
-    mvcgen [abstract1Go]
+    mvcgen [abstract1Go_zero]
     all_goals bridge_vcs [Expr.abstract1]
   | succ fuel ih =>
     constructor
     intro s₀ h kk hok hm hden
     have hrec := ih.run
     have hfvb := hfv.run
-    mvcgen [abstract1Go, hrec, hfvb]
+    mvcgen [abstract1Go_succ, abstract1ArmApp, abstract1ArmBind, abstract1ArmFVar, abstract1ArmLet, abstract1ArmProj, hrec, hfvb]
     all_goals try bridge_vcs [Expr.abstract1]
     all_goals try bridge_vcs [Expr.abstract1, view_of_viewBindI,
       view_of_viewBindI_wf, isSome_eBindView, view_isSome]
