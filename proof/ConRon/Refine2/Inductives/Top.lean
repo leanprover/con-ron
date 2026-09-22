@@ -20,12 +20,22 @@ everything else is the modeled path's.
           (Inductives.checkIndDecl (absMode mode) lf (absICIL block) (absU n_p))
 
 — and carries it at thirteen statements, nine of which are the capstones'
-route down.  `ind_rel` below supplies it **from `KnotRel checkFuel` and
-nothing else**, which is the right shape for the seam: the two capstones
+route down.  `ind_rel_of_knot` below supplies it **from `KnotRel checkFuel`
+and nothing else**, which is the right shape for the seam: the two capstones
 already take `hknot : KnotRel checkFuel` beside `hind : IndRel`, so they
-consume `ind_rel hknot` with no change to their statements, and when
-`Refine2/Core/**` lands `knot_rel : ∀ F, KnotRel F` both hypotheses fall at
-once.
+consume it with no change to their statements.
+
+**And since task #97-P5-Arms reconciled the two `KnotRel`s, the hypothesis is
+gone.**  `Refine2/Checker/KnotHyp.lean`'s `knotRel_checkFuel'` is now a
+THEOREM — `Refine2/Core/Arms.lean`'s `knotRel` at `Arena.checkFuel` — so
+`ind_rel : IndRel` below is unconditional, and the thirteen sites take it
+with no argument at all.  What `KnotRel` means moved under this tier in that
+round (the Checker tier's six front doors became the Core tier's six `knot_*`
+dispatchers at a lane) and **nothing of this tier had to change for it**:
+`hknot` is a pure binder at all 74 sites, no proof here projects a field, and
+`Refine2/Core/Entries.lean`'s six theorems plus
+`Refine2/Core/Arms/Sort.lean`'s `ensure_sort_core_refines` are exactly the
+seven front doors this tier calls.
 
 **`IndRel` needs no `hvis`.**  `check_ind_decl` takes no `vis` argument: it
 passes `fe.visible_below` to `checker_base::ind_params_ok` itself and moves
@@ -73,12 +83,18 @@ theorem inductives_check_ind_decl_refines {pers st lst} {mode : kernel.env.Check
 checker's capstones already carry beside this one.
 
 `Refine2/Checker/Top.lean` consumes `IndRel` at thirteen sites without
-change: `ind_rel hknot` is what its `hind` argument now takes, and the seam
-task #97-P5-Checker §9 asked for (*"land the proof, delete the hypothesis"*)
-is met at the calling convention rather than by editing that file. -/
-theorem ind_rel (hknot : KnotRel checkFuel) : IndRel where
+change: `ind_rel` is what its `hind` argument now takes, and the seam task
+#97-P5-Checker §9 asked for (*"land the proof, delete the hypothesis"*) is met
+at the calling convention rather than by editing that file. -/
+theorem ind_rel_of_knot (hknot : KnotRel checkFuel) : IndRel where
   checkIndDecl := fun hrel hinv hfe hfinv hrun =>
     inductives_check_ind_decl_refines hrel hinv hfe hfinv hknot hrun
+
+/-- **`IndRel`, unconditionally** — `ind_rel_of_knot` at
+`Refine2/Checker/KnotHyp.lean`'s `knotRel_checkFuel'`, which task
+#97-P5-Arms made a theorem.  This is what `Refine2/Checker/Top.lean`'s
+thirteen `hind : IndRel` sites take, with no argument. -/
+theorem ind_rel : IndRel := ind_rel_of_knot knotRel_checkFuel'
 
 /-! ## The axiom census at the seam
 

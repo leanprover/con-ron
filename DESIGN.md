@@ -40129,26 +40129,29 @@ Phase **P5** of DESIGN §8.6, fourth round: DESIGN §8.2's **Theorem 2** at
 between, **306 `pub fn`s against 152 twin `def`s**, the largest
 Rust-to-twin ratio in the crate (task #97-P4d-2 measured the port at 3.8× the
 twin's lines and called the cursor recursions *"the densest use of the rule in
-the port"*).  Branch `p5-ind` off `arena`'s tip `6ed09d15`.  **Nothing outside
-`proof/ConRon/Refine2/Inductives/**` is written** except one import line and
-one table row in `proof/ConRon/Refine2.lean`.
+the port"*).  Branch `p5-ind` off `arena`'s tip `6ed09d15`, merged forward twice (§8).
+**Nothing outside `proof/ConRon/Refine2/Inductives/**` is written** except one
+import line and one table row in `proof/ConRon/Refine2.lean`.
 
 **The deliverable is `IndRel`, and it is discharged.**
 `Refine2/Inductives/Top.lean`'s
 
-    theorem ind_rel (hknot : KnotRel checkFuel) : IndRel
+    theorem ind_rel : IndRel
 
 is the seam task #97-P5-Checker §9 asked for (*"land the proof, delete the
 hypothesis"*), met at the calling convention rather than by editing that file:
 `Refine2/Checker/Top.lean`'s thirteen `IndRel`-carrying statements — nine of
-them the capstones' route down — already take `hknot : KnotRel checkFuel`
-beside `hind : IndRel`, so `ind_rel hknot` feeds every one of them **with no
-change to any statement of that tier**, and when `Refine2/Core/**` lands
-`knot_rel : ∀ F, KnotRel F` both hypotheses fall together.  `ind_rel` itself
-is closed — its `#print axioms` row is recorded rather than dropped, and reads
-`[propext, sorryAx, Classical.choice, Quot.sound]`, which is the honest form of
-*"the SEAM is closed and the tier's own obligations are not"*.  What it rests
-on is `inductives_check_ind_decl_refines` (the module qualifier because
+them the capstones' route down — take `ind_rel` **with no argument and with no
+change to any statement of that tier**.  It is unconditional because task
+#97-P5-Arms (§8) made `knotRel_checkFuel'` a theorem; `ind_rel_of_knot`, which
+takes `KnotRel checkFuel`, is the conditional form beneath it and is what the
+seam really says.
+
+`ind_rel` is closed — its `#print axioms` row is recorded rather than dropped,
+and reads `[propext, sorryAx, Classical.choice, Quot.sound]`, which is the
+honest form of *"the SEAM is closed and the tier's own obligations are not"*.
+What it rests on is `inductives_check_ind_decl_refines` (the module qualifier
+because
 `Refine2/Checker/Top.lean` already has a `check_ind_decl_refines`, about
 `arena::checker::check_ind_decl` — the basis-pin wrapper one level above this
 one, and the very statement whose `hind` this supplies), and through that the
@@ -40407,43 +40410,71 @@ real cost.  At **7 080 lines and 340 declarations for ≈ 30 s of elaboration
 across the tier**, the inductives tier is the cheapest of the four P5 rounds
 per statement, and the reason is that it is almost entirely statement.
 
-#### 8. The gates, and one RED one that is not this branch's
+#### 8. The two merges, and the `KnotRel` collision this round found
 
-| gate | result |
-|---|---|
-| `cd proof && lake build ConRon.Refine2.Inductives.Top` | **green, 2 193 jobs**, no errors, **337 `sorry` warnings** and nothing else; the tier's twelve modules build, `ind_rel`'s `#guard_msgs`'d axiom row passes |
-| `cd proof && lake build ConRonRefine2` | **RED, and red before this branch existed** — see below |
-| `cd proof && lake build` | green — the default targets are untouched |
-| `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
-| `scripts/overview-links.sh` | 48 links, 31 files, OK |
-| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
-| the diff | `proof/ConRon/Refine2/Inductives/**` and two lines of `proof/ConRon/Refine2.lean`, plus this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Specs.lean`, no `ExprOps/`, no `Core/`, no `Checker/` — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+`arena` moved twice under this branch and both merges are in it.
 
-**`lake build ConRonRefine2` fails at `arena`'s tip `6ed09d15`, before this
-branch touches anything**, and whoever lands the next `Refine2` round has to
-fix it:
+**Merge 1, `e0616fdf`** (tasks #97-P3-Ind, #97-P5-Frontend, #97-P3-CoreWalks):
+two textual conflicts, both resolved by keeping BOTH sides —
+`proof/ConRon/Refine2.lean`'s import list and index table (this tier's
+`Inductives.Top` beside the Frontend tier's ten `Frontend.*`) and DESIGN.md's
+task log.  No `.lean` conflict: #97-P3-Ind and #97-P3-CoreWalks are `Bridge/**`
+(Theorem 1), #97-P5-Frontend is `Refine2/Frontend/**`, and the one twin change
+— `Arena/CoreGated.lean`'s stuck-tag hoist — is in a knot this tier never
+names.  `ConRon/Generated/` was unmoved.
+
+**This round found the `KnotRel` collision, and merge 2 is its fix.**  At
+`arena`'s tip `6ed09d15` — before this branch touched anything —
+`lake build ConRonRefine2` did not import at all:
 
     error: ConRon/Refine2.lean:31: import ConRon.Refine2.Checker.KnotHyp failed,
       environment already contains 'ConRon.Refine2.KnotRel.whnfCore'
       from ConRon.Refine2.Core.KnotRel
 
-Tasks **#97-P5-Core** and **#97-P5-Checker** each declared a
+Tasks **#97-P5-Core** and **#97-P5-Checker** had each declared a
 `ConRon.Refine2.KnotRel` — the first at `arena::core`'s six LANE DISPATCHERS
 (`knot_whnf_core … lane fuel`, six fields over `laneKnot`), the second at the
 six fuelled ENTRY POINTS (`annotate_core`, `infer_type_core`, …, six `Sim`s).
-Both branches were green in isolation and the merge that put them on `arena`
-never rebuilt the library root, so the clash landed unnoticed.  They are
-genuinely different relations and both are needed; the fix is one rename in
-whichever file its owner is free to touch (this tier consumes the Checker
-one — `Refine2/Checker/KnotHyp.lean`'s — and nothing of `Refine2/Core/**`, so
-either rename works for it).  **Nothing of this branch is implicated**: the
-tier's twelve modules build and so does `ConRon.Refine2.Inductives.Top`, which
-is what `ind_rel` lives in.
+Both branches were green in isolation, `scripts/gates.sh` does not build
+`ConRonRefine2` (it is deliberately not a default target), and so the clash
+survived two merges unnoticed.  **Merge 2, `b9d800f8`** (task #97-P5-Arms) is
+the reconciliation `Refine2/Checker/KnotHyp.lean`'s own module note had
+predicted: the Checker structure goes, `Refine2/Core/KnotRel.lean`'s stays,
+and that file now maps the old six clauses onto `Core/Entries.lean`'s six
+theorems plus `Core/Arms/Sort.lean`'s `ensure_sort_core_refines`.
+
+**Nothing of this tier had to change for it, and that is worth recording.**
+`hknot` is a pure binder at all 74 sites — no proof here projects a field — so
+the seventy-four statements kept their text verbatim while the relation under
+them was replaced.  The adaptation was ONE theorem:
+
+    theorem ind_rel_of_knot (hknot : KnotRel checkFuel) : IndRel        -- was `ind_rel`
+    theorem ind_rel : IndRel := ind_rel_of_knot knotRel_checkFuel'      -- NEW
+
+because `knotRel_checkFuel'` is a THEOREM after #97-P5-Arms
+(`Core/Arms.lean`'s `knotRel` at `Arena.checkFuel`), so **`IndRel` is now
+unconditional** and `Refine2/Checker/Top.lean`'s thirteen `hind : IndRel`
+sites take `ind_rel` with no argument.  The seven front doors this tier calls
+are exactly the seven that file lists, and no field is missing.
+
+#### 8a. The gates, at the tip
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green, 2 217 jobs**, 0 errors, 968 `sorry` warnings — the library root imports again for the first time since the collision landed |
+| `cd proof && lake build ConRon.Refine2.Inductives.Top` | green; the tier's twelve modules build and `ind_rel`'s `#guard_msgs`'d axiom row passes |
+| `cd proof && lake build` | green — the default targets are untouched |
+| `scripts/provenance.py check` | 0 findings — `6 465 item(s) (4 099 Rust, 2 366 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| the diff | `proof/ConRon/Refine2/Inductives/**`, two lines of `proof/ConRon/Refine2.lean` and this section, plus the two merges.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Specs.lean`, no `ExprOps/`, and of `Core/` and `Checker/` only what the merges brought — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected by this branch's own work and are not re-run |
 
 #### 9. What the Frontend tier and P3 need
 
-* **`IndRel` is gone as a hypothesis** the moment `Refine2/Core/**` proves
-  `∀ F, KnotRel F`: `ind_rel` is already written and takes only that.
+* **`IndRel` is gone as a hypothesis, already**: `ind_rel : IndRel` is
+  unconditional at this tip (§8), so the thirteen `hind` sites of
+  `Refine2/Checker/Top.lean` can drop the argument whenever their owner next
+  touches them — no statement of that tier has to change for it.
 * **Finding 19's visibility-bound clause is `arena::env`'s to prove**, not
   P3's and not this tier's: *lowering `visible_below` by one hides exactly the
   row the type former's push added, because a redeclaration cannot make an
