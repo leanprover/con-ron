@@ -36873,11 +36873,12 @@ proved and which this tier reuses at `absBinderMeta`, `absLiteral`,
 
 #### 8. The axiom census
 
-`#print axioms` under `#guard_msgs` in `Refine2/Inv.lean` (six rows: the two
-value-carrying `Eq2Fwd`s, the `lidx_vec_eq` induction, and three of the
-handle-only ones) and in `Refine2/Specs.lean` (ten rows across all five
-floors): **`[propext, Classical.choice, Quot.sound]` and nothing else** on
-every closed lemma named.  No `sorryAx` on a closed lemma, and — the one worth
+**Twenty-seven `#print axioms` rows under `#guard_msgs`**: six in
+`Refine2/Inv.lean` (the two value-carrying `Eq2Fwd`s, the `lidx_vec_eq`
+induction and three handle-only ones), eighteen in `Refine2/Specs.lean`
+(across all five floors, `view` and `derived` among them) and three in
+`Refine2/ExprOps/Pure.lean`.  Every one reads
+**`[propext, Classical.choice, Quot.sound]` and nothing else**.  No `sorryAx` on a closed lemma, and — the one worth
 naming — **no `bv_decide` axiom anywhere**, which is what `Arena/Handle.lean`'s
 own note predicted when it wrote the handle packing with `*`, `/` and `%`
 instead of `>>>`/`&&&`: every roundtrip is `omega` after `UInt32.toNat`.
