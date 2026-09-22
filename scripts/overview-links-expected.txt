@@ -81,29 +81,6 @@
    745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
    746      False := by
 
-== scripts/lint-rust-style.sh#L68-L88
-    68  # `unsafe`.  **The rule is none at all, and since task #97-SWAP-2 there is no
-    69  # exemption** (the 2026-09-12 ruling: `std` does it if it can).
-    70  #
-    71  # Tasks #94-#97-SWAP had one: `crates/con-ron-core/src/ron/tagged.rs`, the
-    72  # generic tagged counted handle, whose pointee type is chosen at run time from
-    73  # four tag bits so that no `std` smart pointer can express it.  Task #97-SWAP
-    74  # then measured what it was still FOR -- the arena checker holds no `Expr`, so
-    75  # the only `Expr` values a run builds are the PINNED DATA
-    76  # (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,trust_pins,
-    77  # pins_decode}`), walked once at startup by `arena::intern` -- and task
-    78  # #97-SWAP-2 put those few thousand nodes back on `ron::ptr::P` =
-    79  # `std::sync::Arc` and deleted `ron/{tagged,node}.rs`.  So this check asserts
-    80  # ZERO, and any `unsafe` in the verified crate is now a lint failure with no
-    81  # path exemption to add.
-    82  check_unsafe() {
-    83    local hits
-    84    hits=$(gather | grep -E '\bunsafe\b' \
-    85      | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow')
-    86    if [ -n "$hits" ]; then
-    87      echo "== unsafe (NONE is allowed in the verified crate, task #97-SWAP-2)"
-    88      echo "$hits"; fail=1
-
 == crates/con-ron/src/bin/con-ron.rs#L87-L202
     87  const USAGE: &str = "\
     88  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
