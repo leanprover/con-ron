@@ -482,6 +482,31 @@ IConstantInfo` with an **unconditional** spec `find? = denoteEnv.find?`".
 Stated at the denoted `ConstantInfo`, so that the Core tier's every
 `fe.find?` is one rewrite. -/
 
+/-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName — **the
+projection table's NAME clause, standing alone**: the stored `tableName`
+decodes to the name con-leche recomputes from the structure's.
+
+It is separated from the other two clauses because the two halves have
+different debtors (task #97-P3-Frontend round 5's finding, ruled on by the
+maintainer).  `IProjTableOK`'s size clauses are established by the INSTALL
+(`Bridge/Inductives/StructInstall.lean`'s `checkStructProjTable`, through
+`Bridge/Checker/Inv.lean`'s `projTableOK_of_install`); this one is also true
+by CONSTRUCTION of the modeller's readback, because
+`Arena/Frontend/Readback.lean`'s `internProjTable` interns `projTableName sn`
+itself — and it is the only one of the three that the modeller seam can
+discharge, since `bodies.size = numFields` would have to come from a con-leche
+fact about `ProjTable` that nothing states.  So the NAME clause is the one
+that travels, and every consumer that only reads the name takes this. -/
+def IProjNamed (st : EStore) (t : IProjTable) : Prop :=
+  ∃ sn, denoteN st.ns t.structName = some sn ∧
+    denoteN st.ns t.tableName = some (ConLeche.projTableName sn)
+
+/-- con-leche: none — both halves are `denoteN`s, so an append keeps them. -/
+theorem IProjNamed.mono {st st' : EStore} {t : IProjTable}
+    (h : IProjNamed st t) (hx : Ext st st') : IProjNamed st' t := by
+  obtain ⟨sn, h1, h2⟩ := h
+  exact ⟨sn, denoteN_ext h1 hx, denoteN_ext h2 hx⟩
+
 /-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
 clause) — **what a STORED projection table satisfies**, over the ARENA's
 `IProjTable` and not over con-leche's `ProjTable`.
@@ -509,6 +534,11 @@ structure IProjTableOK (st : EStore) (t : IProjTable) : Prop where
   guards : t.guards.length = t.numFields
   named : ∃ sn, denoteN st.ns t.structName = some sn ∧
     denoteN st.ns t.tableName = some (ConLeche.projTableName sn)
+
+/-- con-leche: none — the environment invariant implies the name clause, so a
+site that holds the stronger fact never re-proves this one. -/
+theorem IProjTableOK.toNamed {st : EStore} {t : IProjTable}
+    (h : IProjTableOK st t) : IProjNamed st t := h.named
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — the
 index answers exactly what the denoted environment answers.
@@ -991,10 +1021,10 @@ when `IProjTableOK.named` says so.**  That clause is not decoration: it is the
 only thing that ties the stored `tableName` to the recomputed
 `projTableName`. -/
 theorem denoteCI_name_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
-    (hok : IProjTableOK st t)
+    (hok : IProjNamed st t)
     (h : Frontend.denoteCI st (.projInfo t) = some c) :
     denoteN st.ns (IConstantInfo.name (.projInfo t)) = some c.name := by
-  obtain ⟨sn, hsn, htn⟩ := hok.named
+  obtain ⟨sn, hsn, htn⟩ := hok
   simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
   obtain ⟨pt, hpt, rfl⟩ := h
   simp only [Frontend.denoteProjTable, hsn] at hpt
@@ -1021,7 +1051,7 @@ theorem denoteCI_name_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
 constant, asking for `IProjTableOK` only where it is a projection table.  This
 is the shape the three stuck sites want. -/
 theorem denoteCI_name_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (hproj : ∀ t, ci = .projInfo t → IProjTableOK st t)
+    (hproj : ∀ t, ci = .projInfo t → IProjNamed st t)
     (h : Frontend.denoteCI st ci = some c) :
     denoteN st.ns ci.name = some c.name := by
   cases ci with
