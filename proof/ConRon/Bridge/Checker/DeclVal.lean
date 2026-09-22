@@ -34,6 +34,7 @@ the most expensive proofs, because the certificates they check are pinned
 terms the core must run on.
 -/
 import ConRon.Bridge.Checker.Base
+import ConRon.Bridge.Checker.Decl
 
 open ConLeche ConRon.Arena
 

@@ -100,6 +100,11 @@ namespace ConRon.Bridge
 Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`
 nor `IndSpec`, which are hypotheses of the statement. -/
 
+-- the Core tier's half of `CoreSpec`, discharged by
+-- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` (which carries
+-- `sorryAx` through its six `…Body_spec` walks)
+#print axioms CoreSpec.of_knot
+
 #print axioms Arena.checkDecl_bridge
 #print axioms Arena.checkDeclsPure_bridge
 #print axioms Arena.model_exists

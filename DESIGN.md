@@ -37988,7 +37988,7 @@ module.**
 | `Bridge/Promote/StoreP.lean` — `StoreWFP` and the `internPersistent` obligations | 247 | 214 | 12 | 5 | 0.8 s |
 | `Bridge/Promote/Exact.lean` — the promotion's exactness and `PMemoOK` | 333 | 278 | 26 | 9 | 0.8 s |
 | `Bridge/Checker/Inv.lean` — `FoldOK`, and the declaration layer across a drop | 519 | 477 | 25 | 1 | 1.1 s |
-| `Bridge/Checker/Hyp.lean` — `CoreSpec` (P3-Core's `KnotSpec`) and `IndSpec` | 222 | 186 | 12 | 0 | 0.8 s |
+| `Bridge/Checker/Hyp.lean` — `CoreSpec` (P3-Core's `KnotSpec`, imported) and `IndSpec` | 164 | 134 | 8 | 0 | 0.8 s |
 | `Bridge/Checker/Decl.lean` — `checkDecl`'s seven arms, `PinsDenote` | 275 | 237 | 11 | 7 | 0.8 s |
 | `Bridge/Checker/Mono.lean` — one fuel for the whole fold | 53 | 41 | 1 | 0 | 0.7 s |
 | `Bridge/Checker/Fold.lean` — **THE PER-DECLARATION BRIDGE and its fold** | 350 | 313 | 10 | 1 | 0.9 s |
@@ -38001,7 +38001,7 @@ module.**
 | `Bridge/Checker/Split.lean` — the install/check seam, `installThenCheck` | 233 | 197 | 8 | 7 | 0.9 s |
 | `Bridge/Checker/Axioms.lean` — the trust census | 108 | 91 | — | 0 | 0.7 s |
 | the two index modules | 59 | 54 | — | — | 1.3 s |
-| **the tier** | **≈3 570** | **≈3 060** | **179** | **59** | **~14 s** |
+| **the tier** | **3 517** | **3 022** | **175** | **59** | **~14 s** |
 
 **No theorem is near the 20 s flag** — the slowest module of the tier is
 `Bridge/Checker/Capstone.lean` at 1.3 s, and that is olean loading
@@ -38225,37 +38225,56 @@ seven arms; item 21 is one lemma in a file this task does not own.
 
 #### 7. The Core tier's statement, taken as written
 
-P3-Core's `Bridge/Core/Knot.lean` landed on the concurrent branch while this
-round ran, so `Bridge/Checker/Hyp.lean`'s `KnotSpec` is **P3-Core's own
-statement, field for field**: the same six slots of
-`ConRon.Arena.coreKnot mode fe id f`, the same `CheckOK`/`Ext` frame, the same
-`SimE`/`SimV` answer relations (the pure side's fuel existential and the
-answer's `Expr.WScoped` folded in) and the same `WScoped d e` precondition.
-Three deltas, all deliberate, and none of them a disagreement:
+P3-Core landed on `arena` (`50a80f5b`) while this round ran, so there is no
+restatement to reconcile: `Bridge/Checker/Hyp.lean` **imports
+`ConRon.Bridge.Core.Induction` and uses `Bridge/Core/Knot.lean`'s `KnotSpec`
+verbatim** — the six slots of `ConRon.Arena.coreKnot mode fe id f` at
+`CheckOK`/`Ext`, with `SimE`/`SimV` and the `Expr.WScoped d e` precondition.
+The round's own draft of the same statement (written before the merge, in run
+form) is deleted.
 
-1. **The RUN form.**  P3-Core states each slot as a `Std.Do` triple because
-   its arms use `mvcgen`; this tier states them as runs because its proofs are
-   `AM.bind_ok` inversions and never call `mvcgen`.  The two are one
-   `Bridge/Rel.lean`-`AM.of_run` apart, so **the merge's adapter is six
-   lines**, one per slot, and neither statement changes.
-2. **`ensureSortCore` is not a slot.**  `coreKnot` has six; `Arena/Core.lean`
-   builds `ensureSortCore` on top of them, and the declaration front door calls
-   it at every constant.  `EnsureSortSpec` is that seventh obligation, at the
-   same frame.  It is one `whnf` call and a tag test, so it is the Core tier's
-   to discharge and cheap — **it should move into `Bridge/Core` at the
-   merge.**
-3. **Quantified over `env` and `fe`.**  P3-Core's `knot_spec` fixes one
-   environment (`(henv : EnvWF env) (hμ) : ∀ f, KnotSpec mode env fe f`); the
-   FOLD's environment changes at every declaration.  So `CoreSpec mode f`
-   bundles `∀ env fe, EnvWF env → KnotSpec mode env fe f` with the same for
-   `EnsureSortSpec`, and `FoldOK` carries `EnvWF env` as a clause — which
-   con-leche's own join point (`BridgeC.lean:609`'s `henv`) carries too.
+`CoreSpec mode f` is what remains, and it is two fields:
+
+```lean
+structure CoreSpec (mode : CheckMode) (f : Nat) : Prop where
+  knot : ∀ (env : Env) (fe : IFEnv), EnvWF env → Core.KnotSpec mode env fe f
+  sort : ∀ (env : Env) (fe : IFEnv), EnvWF env → EnsureSortSpec mode env fe f
+```
+
+**The `knot` field is already discharged.**  `Bridge/Core/Induction.lean`'s
+`knot_spec_checkFuel henv hμ` IS it, so the adapter is one line
+(`CoreSpec.of_knot`, closed) and the capstone's Core hypothesis reduces to
+`EnsureSortSpec` alone.  Three notes on the seam.
+
+1. **`CoreSpec` quantifies over `env` and `fe`.**  `knot_spec` fixes one
+   environment; the FOLD's environment changes at every declaration.  Its
+   `EnvWF env` hypothesis is P3-Core's `henv`, which is why `FoldOK` carries
+   `EnvWF` as a clause — con-leche's own join point
+   (`Verify/Cached/BridgeC.lean:609`) carries it too.
+2. **`ensureSortCore` is not a slot of `coreKnot`.**  `Arena/Core.lean` builds
+   it on top (`ensureSort (pureFnsA mode fe fuel) fe depth e`), so the
+   six-field record does not reach it — and the declaration front door calls it
+   at every constant.  `EnsureSortSpec` is stated here in `BodySpec`'s shape (a
+   `Std.Do` triple) so that the Core tier can discharge it with `mvcgen` like
+   everything else it owns; **it should move into `Bridge/Core` when someone
+   takes it.**  It is one `whnf` call and a tag test.
+3. **The one thing this tier asks of the Core tier: add
+   `s'.pins = s₀.pins` to `KnotSpec`'s postcondition.**  `CheckOK` carries
+   `PinsOK s'`, so the pin table still DENOTES across a core call — but the
+   fold also needs `PersPins s'` (the pin handles are persistent, which is what
+   makes `PinsOK` survive the next `dropScratch`), and that is transported by
+   the pin-table EQUATION and nothing else.  No core entry writes `s.pins`, so
+   the clause is free.  `CoreStep` carries it here; a caller that consumes
+   `Core.KnotSpec` directly cannot produce it.
+
+The Core round's own finding that it may import con-leche's `Verify/*` is
+adopted: this tier does too (§8's last bullet).
 
 #### 8. What the next tiers need
 
-* **The Core tier (P3-Core)**: §7.  At the merge, delete this tier's copy of
-  `KnotSpec`/`SimE`/`SimV`, keep `CoreSpec`'s two quantified fields as the
-  adapter, and move `EnsureSortSpec` down.
+* **The Core tier (P3-Core)**: §7 — merged, and the `knot` field is
+  discharged.  What is left for it is `EnsureSortSpec` (move it down) and the
+  pin-table frame clause.
 * **The Inductives tier**: `IndSpec μ` is one clause about
   `Inductives.checkIndDecl`, at the route `basisPinHit` did NOT recognise (the
   recogniser's exactness is item 15 and stays here).  Its conclusion is
@@ -38287,14 +38306,16 @@ Three deltas, all deliberate, and none of them a disagreement:
   `proof/ConRon/Bridge`** (task #97-P3-0 §7), so the `con-leche:` citations in
   these seventeen modules are stylistic rather than gate-enforced.  Every
   declaration carries one anyway.
-* **The import rule widens by three modules.**  Task #97-P3-0's was con-leche's
-  `Kernel/*` only.  This tier adds `ConLeche.Verify.BridgeDecl`
-  (`checkDecl_datF`), `ConLeche.Verify.EnvBound`
-  (`mkFEnv_find?_visibleBelow`), `ConLeche.Verify.EnvWF` (`EnvWF`),
-  `ConLeche.Verify.Shift` (`Expr.WScoped`, which P3-Core's statement names) and
-  `ConLeche.Model.Fold` (`checkDeclsPure_sound_of` — the capstone cannot be
-  stated without it).  Each is used in ONE file for one or two declarations,
-  and all are prebuilt in con-leche's `.lake`, so none costs elaboration here.
+* **The import rule widens, as the Core round's did.**  Task #97-P3-0's was
+  con-leche's `Kernel/*` only; P3-Core added `Verify/*`.  This tier adds four
+  declarations in four files — `ConLeche.Verify.BridgeDecl`'s
+  `checkDecl_datF` (`Bridge/Checker/Mono.lean`), `ConLeche.Verify.EnvBound`'s
+  `mkFEnv_find?_visibleBelow` (`Bridge/Checker/Split.lean`),
+  `ConLeche.Verify.EnvWF`'s `EnvWF` (`Bridge/Checker/Inv.lean`) — **and
+  `ConLeche.Model.Fold`'s `checkDeclsPure_sound_of`**
+  (`Bridge/Checker/Capstone.lean`), which is the first import of con-leche's
+  MODEL tier anywhere in `ConRon/`: the capstone cannot be stated without it.
+  All are prebuilt in con-leche's `.lake`, so none costs elaboration here.
 * **`ConRonBridge` stays out of `defaultTargets`** while the tier carries
   `sorry`s.  `lake build ConRonBridge` is the command.
 
@@ -38303,5 +38324,5 @@ Three deltas, all deliberate, and none of them a disagreement:
 | gate | |
 |---|---|
 | `lake build ConRonBridge` | 0 errors; `ConRon/Bridge/**` only |
-| `#print axioms` | `Bridge/Checker/Axioms.lean`: 46 closed results, every one `[propext, Classical.choice, Quot.sound]`; the five headline theorems carry `sorryAx` and **neither `CoreSpec` nor `IndSpec`** |
-| the diff | `proof/ConRon/Bridge/Promote{,/*}.lean`, `proof/ConRon/Bridge/Checker{,/*}.lean`, `proof/ConRon/Bridge.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh`/`provenance.py check`/`overview-links.sh` cannot be affected and are not re-run |
+| `#print axioms` | `Bridge/Checker/Axioms.lean`: **46 closed results**, every one `[propext, Classical.choice, Quot.sound]` (`orElseStepOf_ok_iff` at `[propext]` alone); the five headline theorems and `CoreSpec.of_knot` carry `sorryAx` and **neither `CoreSpec` nor `IndSpec`** — the two named hypotheses are hypotheses of the statements, not axioms of the environment |
+| the diff | `proof/ConRon/Bridge/Promote{,/*}.lean`, `proof/ConRon/Bridge/Checker{,/*}.lean`, `proof/ConRon/Bridge.lean` (three blocks, merged with P3-Core's) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh`/`provenance.py check`/`overview-links.sh` cannot be affected and are not re-run |
