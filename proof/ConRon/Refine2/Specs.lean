@@ -3373,8 +3373,6 @@ theorem intern_of_find {st : EStore} {v : ENodeView} {h : EIdx}
 condition: on a cons HIT the store does not move (`intern_of_find`), and on a
 MISS the capacity test is the twin's own — where the port's `Tbl::full` reads
 `true` on exactly the same input and answers `Native`, which claims nothing. -/
-/-- `Arena.internE`'s run at a view whose array is below the cap and which
-needs no binder datum. -/
 theorem internE_run_of_cap {lst : AState} {v : ENodeView}
     (hbm : EStore.eViewNeedsBM v = false)
     (hcap : lst.store.find? v = none →
