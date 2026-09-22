@@ -45952,6 +45952,259 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
 
+#### Round 3 — the three memoised walks, a seventh statement defect, and the `.projInfo` name gap (2026-09-22, Opus under Fable)
+
+Branch `p3-ind-3` off `arena`'s tip `57129e8d`, merged forward once.  The diff
+is `proof/ConRon/Bridge/Inductives/**` plus the two lifts round 2 named
+(`Bridge/Promote/Exact.lean` gains `mkIFEnvGo_counter_lt`) and this section:
+no Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no
+`lakefile.toml`.
+
+**The tier went from 98 open `sorry` to 89** — ten statements closed and one
+new pair stated (§R3.5) — and `StructParts.lean` from 14 to 6.
+
+| module | open (r2 → r3) |
+|---|---:|
+| `Rel.lean` — the vocabulary | 0 → **0** |
+| `StructParts.lean` | 14 → **6** |
+| `SumParts.lean` | 0 → **0** |
+| `NativeParts.lean` | 23 → **24** (§R3.5's `nativeParts?_isSome`) |
+| `StructInstall.lean` | 2 → **2** |
+| `SumInstall.lean` | 14 → **14** |
+| `NativeInstall.lean` | 14 → **14** |
+| `Modeled.lean` | 31 → **31** |
+| `Decl.lean` — the arm | 0 → **0** |
+| **the tier** | **98 → 89** |
+
+##### R3.1 Group 1 is CLOSED — the three memoised walks
+
+Round 2's list put group 1 first because it was "the only large block with no
+external blocker".  All nine are closed.
+
+`hasLooseBVarBGo_spec` is the shape the other two copy.  A fuel induction
+generalising the memo, the cursor AND the handle, whose arm is the ten-way
+`view` dispatch; the memo travels IN as a hypothesis (`LooseMemoOK`) and OUT
+as a conclusion, so the proof has exactly two shared tails —
+
+* `hit`, the memo hit, discharged by the invariant itself: a recorded answer
+  IS the real one, and `denoteE`'s functionality identifies the key's term
+  with the walk's;
+* `fin`, the memo miss, discharged by `LooseMemoOK.insert` — con-leche's
+  `LooseBVarMemoInv.insert` at handle keys.
+
+and ten arms that differ only in which `Expr.hasLooseBVarB` equation they
+quote.  The early return is `Bridge/ExprOps/Ranges.lean`'s **closed**
+`bvarB_run`, read through `bvarB_pstep` (the packed-bound read moves the
+`bvarBound` memo, which `PStep` does not frame, and nothing else) plus
+`hasLooseBVarB_cut` — the cutoff's own fact, which is the `if` in con-leche's
+definition and not a theorem at all.
+
+`mentionsConstGo_spec` is the same without the cutoff, and its `.const` and
+`.proj` arms are the first place this tier cashes **`denoteN_inj`**: they
+RETURN a handle comparison, so they need `beq_handle_eq` — a handle
+comparison is a name comparison, at both signs — and the `false` half is
+injectivity.  `Bridge/Checker/Base.lean` has the `iff` form
+(`beq_handle_iff`) but that module is not in this tier's closure, so
+`Bridge/Inductives/Rel.lean` restates it from `denoteN_inj` directly.
+
+The six statements between them — `hasLooseBVarBFast`, `structUsedLater`,
+`structUsedLaterGo`, `structUsedLaterList`, `structProjGuards`,
+`mentionsConst` — are composition.  `structUsedLaterList_spec` is stated
+STRONGER than con-leche's own (con-leche says what the `t`-th entry is; this
+names the whole list), because `structProjGuards`' fold reads it as a list.
+`structProjGuards_spec` itself is the round's one real proof after the walks:
+the twin's two `let rec`s become two inductions, `col` over `List.range' j k`
+and `row` over `List.range' i k`, with the guard `j < nF` travelling as
+`j + k ≤ nF`.
+
+##### R3.2 THE FINDING — `structProjGuards_spec` was false at `PSpec`, and `PSpecP` is the shape
+
+The campaign's **seventh** statement defect, the second in this tier — and
+the same CLASS as task #97-P3-Checker round 3's `natOpDeps_run`, found
+independently on the same day: a statement that reads the pin table and asks
+only for `StateOK`.  Two of these in one day is a pattern, not a coincidence,
+and §R3.2's last paragraph is the sweep that should follow.
+
+`PSpec`'s precondition is a predicate on the **store**.  It therefore cannot
+say anything about the PIN TABLE — and `Arena/Pins.lean`'s `pinsReady`, the
+executable guard every pin read tests, checks only that the name array has
+`pinCount` entries.  A twin that opens with `let z ← zeroLevel` accepts at a
+state whose `pins.zeroLevel` denotes `.param foo` and answers with that
+handle.
+
+`structProjGuards` is exactly such a twin, and the statement collapses to the
+missing fact at a two-line instance: `sorts = []`, `sortsP = []`, `nF = 1`
+makes `RLL (ConLeche.structProjGuards ctyP nP 1 [])` say
+`denoteL st.ls z = some .zero` and nothing else — which is `PinsOK.zeroLevel`
+verbatim.
+
+`Bridge/Inductives/Rel.lean` gains **`PSpecP`**: `StateOK` **and** `PinsOK`
+in, `PStep` out.  Two transports come with it — `PSpec.toPSpecP` (a twin that
+does not read the table has the stronger statement) and `PSpecP.toCSpec`
+(`CheckOK.pins` is what a core-grade consumer already holds).  Dropping to
+`CSpec` instead, which is the other statement that carries `PinsOK`, would
+have given away `PStep`'s `BMExt` and cache-frame conjuncts for nothing: the
+twin is pure, it just reads a table.
+
+**This is the only `PSpec` of the tier that reads pins**, and the sweep that
+establishes it is mechanical: `grep` `Arena/Inductives/**` for `zeroLevel`,
+`sortOne`, `emptyLevels` and `reservedBasisNames`, then check the grade of
+each twin's statement.  The other four hits — `withSort`,
+`structPartsCore?`, `nativeShape?` and `SumInstall`'s — are already at `CSpec`
+or above, which has `PinsOK` through `CheckOK`.  So the correction is one
+statement, and its consumers (`checkNativeTable`, `checkStructProjTable`) are
+core-grade and lose nothing.  **Every tier should run that grep**: a pin read
+under a `StateOK`-only statement is unprovable, silently, and two rounds found
+one each today.
+
+##### R3.3 What else closed
+
+`structCtorResidOk_spec` — the first cash of **`denoteE_inj`** in this tier.
+Three comparisons: a handle (`beq_ehandle_eq`), a length (`denoteEList_len`)
+and a handle LIST (`beq_ehandleList_eq` after `denoteEList_take`), the last
+two new in `Rel.lean` along with `denoteEList_inj`.  With
+`Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`/`getAppArgs_spec` in run
+form the proof is fifteen lines.
+
+`Bridge/Inductives/Rel.lean` grew by ~35 closed declarations: the two memo
+invariants' algebra (`LooseMemoOK`/`MentionsMemoOK` `.empty`/`.mono`/`.insert`),
+`internMaxL_run`, `denoteLList_getD`, `zeroLevel_run`, `beq_handle_eq`, the
+four `denoteE_inj` consequences above, `getAppFn_run`/`getAppArgs_run`, and
+§R3.6's three.
+
+**Two imports were added, for the same reason round 2 added one.**
+`Bridge/Inductives/Rel.lean` now imports `Bridge/ExprOps/Ranges` and
+`Bridge/ExprOps/Spine`.  Both are siblings of the main chain that the globs
+were building anyway, so the cost is zero jobs; `bvarB_run`, `stripPis_spec`,
+`getAppFn_spec` and `getAppArgs_spec` are all closed there and this tier had
+been treating them as unavailable.
+
+##### R3.4 The two lifts round 2 named
+
+`mkIFEnvGo_counter_lt` **moved** to `Bridge/Promote/Exact.lean`, beside
+`IFEnvCoh.push`.  It is three lines about `mkIFEnvGo` and nothing else, so the
+lift is clean; task #97-P3-Checker reports it unblocks `IFEnvOK_of_denote` and
+`denoteFEnv_restrictTo`, both of which were stuck above this tier on a lemma
+that already existed below it.
+
+`piSortTeleLen?_spec` **stayed**.  It is not a clean lift: it is written in
+this tier's RUN form, against `bindOk`, `pureOk`, `failOk` and `view_run` —
+all of which live in `Bridge/Inductives/Rel.lean`, which sits ABOVE
+`Bridge/ExprOps/**`.  Moving the statement means either moving that layer down
+or rewriting the proof in the `mvcgen` idiom, and neither is a three-line
+edit.  The citation in its docstring now says so.
+
+##### R3.5 What another tier asked for, and what it got
+
+`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` asked this tier for an
+`isSome`-only statement at `StateOK`: it reads both recognisers through
+`.isSome` alone and cannot consume their `CSpec`, whose `…Rel.isProp`
+conjunct is `lvlEq?`'s verdict.
+
+`structPartsCore?_isSome` and `nativeParts?_isSome` are now stated, **open**,
+with their dependency lists.  They are at **`PSpecP`, not `PSpec`** — §R3.2's
+finding again, and here the pin read is load-bearing for the ANSWER rather
+than incidental: `structPartsCore?` tests `reservedBasisNames.contains T`, so
+the recognition verdict itself is wrong at a state whose pin table is wrong.
+The parse runs after `internAllPins`, so the Frontend tier has `PinsOK`.
+
+They are not derivable from the `CSpec` statements (those conclude at
+`CheckOK`, which the parse does not have) and they are not cheap: their
+dependency list is `structPartsCore?_spec`'s MINUS `lvlEq?`, which is
+`structShape_spec` and the recogniser's dispatch — round 2's group 2.  The
+intended end state is one dispatch lemma feeding both; this round states the
+consumer's half so the Frontend tier can cite it by name instead of by
+prose.
+
+##### R3.6 The `.projInfo` NAME GAP — the defect behind three stuck sites
+
+`Frontend.denoteProjTable` drops `tableName`.  So
+`Frontend.denoteCI st ci = some c` does **not** give
+`denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
+STORED `t.tableName`, the pure side the RECOMPUTED
+`projTableName t.structName`.  Three sites above this tier have hit it —
+`IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and `installBasisDecl_bridge`.
+
+Two fixes are wrong and one is right.
+
+* **Adding the hypothesis** at each site weakens the statement; task
+  #97-P3-Checker declined it, correctly.
+* **Making `denoteProjTable` read `tableName`** would change what the
+  denotation MEANS.  It is deliberately forgetful: `tableName` is the arena's
+  own redundancy (kept so the index's key is pure), con-leche's `ProjTable`
+  has no such field, and a simulation's denotation should forget exactly the
+  representation's extra data.  `IProjTableOK.named` is the invariant that
+  pins it, and that is the right place for it.
+* **A hypothesis-free `hnm` at the one call site** is what task
+  #97-P3-Checker round 3 offered as the cheap alternative
+  (`checkBasisDecl_bridge` installs a pinned block, which contains no
+  `.projInfo`).  That observation is right and it is now free: the first
+  lemma below PROVES `hnm` from the constructor, with no hypothesis and no
+  invariant.
+* **The right fix is three lemmas**, and they are proved, in
+  `Bridge/Inductives/Rel.lean`: `denoteCI_name` (a stored constant that is not
+  a projection table is named by its own handle — `denoteCV_name` at six
+  constructors, no invariant at all), `denoteCI_name_proj` (and a projection
+  table is, exactly when `IProjTableOK.named` says so) and `denoteCI_name_of`
+  (the two as one, asking for the invariant only where the constructor is
+  `.projInfo`).
+
+**They belong in `Bridge/StateOK.lean`, beside `IProjTableOK`** — the lowest
+module that has both `Frontend.denoteCI` and the invariant, and below the
+Checker tier, which cannot see `Bridge/Inductives/**`.  They are proved here
+because this tier owns `IProjTableOK`'s `named` clause and its one debtor;
+moving them down is a copy, not a rewrite.  Whoever owns `Bridge/StateOK.lean`
+should take them, and the three sites then have `IProjTableOK` where they need
+it: inside the index through `IFEnvOK.proj`, and at the one install that
+creates a `.projInfo` row because the table was just built there.
+
+##### R3.7 What is left, and what each item waits on
+
+89 open.  Round 2's six groups, revised.
+
+| # | where | count | blocker |
+|---|---|---:|---|
+| 1 | the three memoised walks | 0 | **CLOSED** (§R3.1) |
+| 2 | the two recognisers and the classification | 16 | `structShape_spec` is the gateway: three `stripPis`, a two-deep `view` dispatch, an indexed read of the binder telescope (`denoteBL` at `getD`, not yet stated) and six comparisons — handles, a LEVEL handle (`denoteL_inj`, not yet stated) and a name.  The `denoteE_inj`/`denoteN_inj` layer §R3.3 built is what it will use |
+| 3 | the recursor generators | 10 | group 2 plus `Bridge/ExprOps/Subst.lean`'s `liftLooseBVarsFast_spec` (CLOSED) |
+| 4 | `structProjResidP`, `structProjBodiesGo`, `structProjBodies`, `closeTelescope`, `zipFvarDoms` | 5 | **`hbb : ∀ f, BvarBSpec (bvarB f)`** — see §R3.8.  `instPisAtLift_spec` and `instantiate1LiftFast_spec` are CLOSED but take it as a hypothesis, and it is not dischargeable from anything proved |
+| 5 | the `CoreSpec` consumers | 14 | `Bridge/Core/Knot.lean`'s `KnotSpec` plus `CoreSpec.sort`'s `EnsureSortSpec` |
+| 6 | the INSTALLS | 45 | `Bridge/Checker/Base.lean`'s `checkConstantVal_bridge`, still the campaign's bottleneck |
+
+##### R3.8 THE NAMED HYPOTHESIS — `BvarBSpec` is not dischargeable, and group 4 waits on it
+
+`Bridge/ExprOps/Subst.lean` says of its `hbb` hypothesis: *"Rather than assume
+its spec as an `axiom` […] the two walks take it as a HYPOTHESIS; one `exact`
+discharges it when that group's file lands."*  **That file has landed
+(`Bridge/ExprOps/Ranges.lean`, all thirteen `Bridge/ExprOps/**` modules are at
+zero) and the `exact` does not go through.**
+
+`BvarBSpec` asks for two conjuncts that `bvarB_spec` and `bvarBoundMemo_spec`
+do not state: `s'.memos.lowerC = s₁.memos.lowerC` and
+`s'.memos.inst1LC = s₁.memos.inst1LC`.  They are true — `bvarBoundMemo`
+touches `bvarBC` and nothing else — but proving them means threading two more
+frame conjuncts through `bvarBoundGo_spec`'s induction, which is
+`Bridge/ExprOps/Ranges.lean`'s work and not this tier's.  This is task
+#97-P3-0 §7's "per-call memo FRAME" arriving as a concrete debt.
+
+**OWNER: task #97-P3-0's tier (`Bridge/ExprOps/**`), whose own note in
+`Subst.lean` promised the `exact`.**
+Until it is paid, `instPisAtLift_spec` and `instantiate1LiftFast_spec` are
+closed theorems nobody can call, and this tier's group 4 — five statements,
+three of them `StructParts.lean`'s last non-recogniser ones — cannot start.
+
+##### R3.9 One thing the next round should check before attempting it
+
+`NativeParts.lean`'s `structFieldTeleOf_spec` and `structFieldIdxOf_spec`
+quantify `i` with no bound, and both twins read
+`(cbs.getD (nP + i) default).1`.  On the arena side that `default` is
+`(default : EIdx × BinderMeta)`, on con-leche's it is
+`(default : Expr × BinderMeta)`, and nothing says the first denotes the
+second.  For `i < nF` the fallback is never taken and the statements are
+about real data; outside that range they may be false.  **Check the two
+`default`s before proving, and add `i < nF` if they disagree** — the twins are
+only ever called with `i < nF`.
+
 #### Round 2 — the `guards` clause, a fifth statement defect, and two files at zero (2026-09-22, Opus under Fable)
 
 Branch `p3-ind-2` off `arena`'s tip `4137393b`, merged forward once
