@@ -745,6 +745,178 @@ theorem IFEnv.find?_mem {fe : IFEnv} (hcoh : IFEnvCoh fe) {n : NIdx}
       exact mkIFEnvGo_mem _ n (c0, ci0) hg
     · rw [if_neg hc] at h; simp at h
 
+/-! ## The index IS the list
+
+con-leche's `mkFEnv_find?` (`Verify/EnvBound.lean`), at the arena's hash-map
+index: `mkIFEnvGo` inserts from the back, so the FRONT entry is inserted last
+and wins, which is exactly what `List.find?` does — and every counter it hands
+out is below the list's length, so the visibility bound never hides anything.
+Three small inductions, and then the whole of `IFEnvOK_of_denote` is a
+statement about two LISTS. -/
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — the counter the index
+build ends at is the list's length. -/
+theorem mkIFEnvGo_fst : ∀ (cs : List IConstantInfo),
+    (mkIFEnvGo cs).1 = cs.length := by
+  intro cs
+  induction cs with
+  | nil => rfl
+  | cons a as ih => simp only [mkIFEnvGo, List.length_cons, ih]
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean idxSpec — **the index answers
+`List.find?`**: the front entry is inserted last, so the hash map's answer is
+the first list entry with that handle. -/
+theorem mkIFEnvGo_snd : ∀ (cs : List IConstantInfo) (n : NIdx),
+    ((mkIFEnvGo cs).2[n]?).map Prod.snd = cs.find? (fun ci => ci.name == n) := by
+  intro cs
+  induction cs with
+  | nil => intro n; simp [mkIFEnvGo]
+  | cons a as ih =>
+    intro n
+    simp only [mkIFEnvGo, List.find?_cons]
+    rw [Std.HashMap.getElem?_insert]
+    by_cases hn : a.name == n
+    · rw [if_pos hn]; simp [hn]
+    · rw [if_neg hn]; simp only [hn]; exact ih n
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean idxBelow — every counter the
+index hands out is below the list's length, so `mkIFEnv`'s own visibility
+bound hides nothing. -/
+theorem mkIFEnvGo_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
+    (c : Nat) (ci : IConstantInfo),
+    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < cs.length := by
+  intro cs
+  induction cs with
+  | nil => intro n c ci h; simp [mkIFEnvGo] at h
+  | cons a as ih =>
+    intro n c ci h
+    simp only [mkIFEnvGo] at h
+    rw [Std.HashMap.getElem?_insert] at h
+    by_cases hn : a.name == n
+    · rw [if_pos hn] at h
+      obtain ⟨rfl, -⟩ := Prod.mk.injEq _ _ _ _ ▸ Option.some.inj h
+      rw [mkIFEnvGo_fst]
+      simp
+    · rw [if_neg hn] at h
+      exact Nat.lt_succ_of_lt (ih n c ci h)
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find? — **the index of
+a list IS the list's lookup**. -/
+theorem mkIFEnv_find? (e : IEnv) (n : NIdx) : (mkIFEnv e).find? n = e.find? n := by
+  show (match (mkIFEnvGo e.consts).2[n]? with
+        | some (c, ci) => if c < (mkIFEnvGo e.consts).1 then some ci else none
+        | none => none) = e.consts.find? (fun ci => ci.name == n)
+  have hm := mkIFEnvGo_snd e.consts n
+  cases hg : (mkIFEnvGo e.consts).2[n]? with
+  | none => rw [hg] at hm; exact hm
+  | some p =>
+    obtain ⟨c0, ci0⟩ := p
+    rw [hg] at hm
+    dsimp only
+    rw [if_pos (by rw [mkIFEnvGo_fst]; exact mkIFEnvGo_lt e.consts n c0 ci0 hg)]
+    simpa using hm
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find? — the same at a
+COHERENT index, which is the form every consumer has. -/
+theorem IFEnvCoh.find? {fe : IFEnv} (hcoh : IFEnvCoh fe) (n : NIdx) :
+    fe.find? n = fe.env.find? n := by
+  have h1 : fe.idx = (mkIFEnv fe.env).idx := congrArg IFEnv.idx hcoh
+  have h2 : fe.visibleBelow = (mkIFEnv fe.env).visibleBelow :=
+    congrArg IFEnv.visibleBelow hcoh
+  have h3 : fe.find? n = (mkIFEnv fe.env).find? n := by
+    simp only [IFEnv.find?, h1, h2]
+  rw [h3, mkIFEnv_find?]
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the two `find?`s agree,
+entry by entry**: the arena's list and its denotation answer at handles and
+names that denote each other.  One induction, both directions, and
+`denoteN_inj` is what makes the negative cases go through — a handle the
+arena's `find?` walked past cannot be the handle of the name con-leche's
+`find?` stopped at, because the two handles would then denote the same name
+and be equal. -/
+theorem denoteCIList_find? {st : EStore} (hwf : StoreWF st) :
+    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
+      Frontend.denoteCIList st cs = some zs →
+      (∀ t, IConstantInfo.projInfo t ∈ cs → IProjTableOK st t) →
+      (∀ n ci, cs.find? (fun d => d.name == n) = some ci →
+        ∃ nm c, denoteN st.ns n = some nm ∧ Frontend.denoteCI st ci = some c ∧
+          zs.find? (fun d => d.name == nm) = some c) ∧
+      (∀ nm c, zs.find? (fun d => d.name == nm) = some c →
+        ∃ n ci, denoteN st.ns n = some nm ∧
+          cs.find? (fun d => d.name == n) = some ci ∧
+          Frontend.denoteCI st ci = some c) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  intro cs
+  induction cs with
+  | nil =>
+    intro zs hz _
+    simp only [Frontend.denoteCIList, Option.some.injEq] at hz
+    subst hz
+    exact ⟨by intro n ci h; simp at h, by intro nm c h; simp at h⟩
+  | cons a as ih =>
+    intro zs hz hproj
+    simp only [Frontend.denoteCIList] at hz
+    cases ha : Frontend.denoteCI st a with
+    | none => rw [ha] at hz; simp at hz
+    | some x =>
+      cases has : Frontend.denoteCIList st as with
+      | none => rw [ha, has] at hz; simp at hz
+      | some xs =>
+        rw [ha, has] at hz
+        obtain rfl := Option.some.inj hz.symm
+        have hnm : denoteN st.ns a.name = some x.name :=
+          denoteCI_name_of (fun t ht => hproj t (by simp [ht])) ha
+        obtain ⟨ihH, ihC⟩ :=
+          ih xs has (fun t ht => hproj t (List.mem_cons_of_mem _ ht))
+        constructor
+        · intro n ci h
+          simp only [List.find?_cons] at h
+          cases hb : (a.name == n) with
+          | true =>
+            rw [hb] at h
+            simp only [Option.some.injEq] at h
+            subst h
+            obtain rfl : a.name = n := by simpa using hb
+            exact ⟨x.name, x, hnm, ha, by simp⟩
+          | false =>
+            rw [hb] at h
+            simp only at h
+            obtain ⟨nm, c, hn1, hc1, hf1⟩ := ihH n ci h
+            refine ⟨nm, c, hn1, hc1, ?_⟩
+            have hne : (x.name == nm) = false := by
+              cases hx : (x.name == nm) with
+              | false => rfl
+              | true =>
+                obtain rfl : x.name = nm := by simpa using hx
+                rw [denoteN_inj hrk.nsWF hnm hn1] at hb
+                simp at hb
+            simp only [List.find?_cons, hne]
+            exact hf1
+        · intro nm c h
+          simp only [List.find?_cons] at h
+          cases hb : (x.name == nm) with
+          | true =>
+            rw [hb] at h
+            simp only [Option.some.injEq] at h
+            subst h
+            obtain rfl : x.name = nm := by simpa using hb
+            exact ⟨a.name, a, hnm, by simp, ha⟩
+          | false =>
+            rw [hb] at h
+            simp only at h
+            obtain ⟨n, ci, hn1, hf1, hc1⟩ := ihC nm c h
+            refine ⟨n, ci, hn1, ?_, hc1⟩
+            have hne : (a.name == n) = false := by
+              cases hx : (a.name == n) with
+              | false => rfl
+              | true =>
+                obtain rfl : a.name = n := by simpa using hx
+                rw [hn1] at hnm
+                obtain rfl : x.name = nm := (Option.some.inj hnm).symm
+                simp at hb
+            simp only [List.find?_cons, hne]
+            exact hf1
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec from the
 denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
 and "the index is its list's index", because `IEnv.find?` and `Env.find?` are
@@ -799,17 +971,33 @@ created, so every row of the list satisfies it).  The conclusion's own
 delivers it, because `IFEnvCoh` makes every answer of `fe.find?` a member of
 `fe.env.consts` (`IFEnv.find?_mem`).
 
-`sorry`: the `hit`/`cover` pair is an induction on `fe.env.consts` through
-`mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality and
-`denoteCI_name_of` at each entry.  It is the one place `IFEnvCoh` is consumed
-rather than propagated, and the argument is con-leche's `mkFEnv_find?` at a
-denoted list.  Task #97-P3-Checker's sorry list, item 6. -/
+**PROVED** (task #97-P3-Checker round 5), in two halves.  `IFEnvCoh.find?`
+(above) retires the index — `mkIFEnvGo` inserts from the back, so the hash
+map answers what `List.find?` answers, and every counter it hands out is below
+the list's length, so `mkIFEnv`'s own bound hides nothing — after which the
+theorem is a statement about two LISTS and `denoteCIList_find?` is the whole
+of it: one induction, both directions, `denoteCI_name_of` at each entry and
+`denoteN_inj` in the two negative cases.  It is the one place `IFEnvCoh` is
+consumed rather than propagated, and it is con-leche's `mkFEnv_find?` at a
+denoted list, exactly as round 2 predicted.  Task #97-P3-Checker's sorry
+list, item 6, closed. -/
 theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
     (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts →
       IProjTableOK s.store t)
     (hd : denoteFEnv s.store fe = some env) : IFEnvOK env fe s := by
-  sorry
+  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
+  obtain ⟨zs, hzs, rfl⟩ := hd
+  obtain ⟨hH, hC⟩ := denoteCIList_find? hwf.wf fe.env.consts zs hzs hproj
+  refine ⟨?_, ?_, ?_⟩
+  · intro n ci hf
+    rw [hcoh.find?] at hf
+    exact hH n ci hf
+  · intro nm c he
+    obtain ⟨n, ci, h1, h2, h3⟩ := hC nm c he
+    exact ⟨n, ci, h1, by rw [hcoh.find?]; exact h2, h3⟩
+  · intro n t hf
+    exact hproj t (IFEnv.find?_mem hcoh hf)
 
 /-! ## The one debtor of `IFEnvOK.proj`
 
