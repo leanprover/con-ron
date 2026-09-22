@@ -1173,6 +1173,831 @@ vacuous at `P := fun _ => True` (`HashMap2.KeysOk_true`), which is why
     subst h2
     rw [dupId_lsidx _ _ hx]
 
+/-! ## The derived word: the ten-way dispatch
+
+`ETables.der_at` reads the handle's tag ONCE and compares it against the ten
+`ETAG_*` constants; the twin writes `i.tag == ETag.bvar` ten times.  The two
+agree through `eidx_tag_abs` plus the ten one-line `etag_*_abs` equations, and
+each arm is then `tbl_der_at_abs` at that array.  This is the shape
+`ETables.get` will take when `view` is closed, so it is worth reading as the
+template: **ten arms, five lines each, and the same five lines ten times.**
+
+`arena::handle::ETAG_*` is `@[irreducible]` (Aeneas emits every `const` that
+way), which is the constant round 3's soundness trap was about — hence the
+`attribute [-grind]` line at the top of this file and the explicit
+`rw [arena.handle.ETAG_*]` rather than a `decide`. -/
+
+/-- `U64`'s `dup2` is the identity. -/
+theorem dupId_u64 : DupId U64.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h; exact (Result.ok_injective h).symm
+
+/-- `LDer`'s `dup2` is the identity. -/
+theorem dupId_lder : DupId arena.store.LDer.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h; exact (Result.ok_injective h).symm
+
+/-- `u64`'s out-of-range derived word is `0`, and the twin's `default` is
+too — which is `tbl_der_at_abs`'s `hdf` hypothesis at the expression and name
+stores. -/
+theorem derDefault_u64 : ∀ d : Std.U64,
+    U64.Insts.Con_ron_coreArenaStoreDerDefault.der_default = ok d →
+    absU64 d = default := by
+  intro d h
+  rw [U64.Insts.Con_ron_coreArenaStoreDerDefault.der_default] at h
+  rw [← Result.ok_injective h]
+  rfl
+
+/-- `LDer`'s out-of-range value is `⟨0, false⟩`, and the twin's `deriving
+Inhabited` gives `⟨default, default⟩` — the same two. -/
+theorem derDefault_lder : ∀ d : arena.store.LDer,
+    arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault.der_default = ok d →
+    absLDer d = default := by
+  intro d h
+  rw [arena.store.LDer.Insts.Con_ron_coreArenaStoreDerDefault.der_default] at h
+  rw [← Result.ok_injective h]
+  rfl
+
+/-- The tag comparison, once: the twin's `h.tag == ETag.C` is the Rust's
+`t = ETAG_C`, given that the constant abstracts to the tag. -/
+theorem etag_dec {t c : Std.U32} {lc : UInt32} (hc : absU32 c = lc) :
+    ((absU32 t == lc) = true) ↔ (t = c) := by
+  rw [← hc, beq_iff_eq]
+  exact ⟨fun h => absU32_inj h, fun h => by rw [h]⟩
+
+theorem etag_bvar_abs : absU32 arena.handle.ETAG_BVAR = ETag.bvar := by
+  rw [arena.handle.ETAG_BVAR]; rfl
+
+theorem etag_fvar_abs : absU32 arena.handle.ETAG_FVAR = ETag.fvar := by
+  rw [arena.handle.ETAG_FVAR]; rfl
+
+theorem etag_sort_abs : absU32 arena.handle.ETAG_SORT = ETag.sort := by
+  rw [arena.handle.ETAG_SORT]; rfl
+
+theorem etag_const_abs : absU32 arena.handle.ETAG_CONST = ETag.const := by
+  rw [arena.handle.ETAG_CONST]; rfl
+
+theorem etag_app_abs : absU32 arena.handle.ETAG_APP = ETag.app := by
+  rw [arena.handle.ETAG_APP]; rfl
+
+theorem etag_lam_abs : absU32 arena.handle.ETAG_LAM = ETag.lam := by
+  rw [arena.handle.ETAG_LAM]; rfl
+
+theorem etag_forallE_abs : absU32 arena.handle.ETAG_FORALL_E = ETag.forallE := by
+  rw [arena.handle.ETAG_FORALL_E]; rfl
+
+theorem etag_letE_abs : absU32 arena.handle.ETAG_LET_E = ETag.letE := by
+  rw [arena.handle.ETAG_LET_E]; rfl
+
+theorem etag_lit_abs : absU32 arena.handle.ETAG_LIT = ETag.lit := by
+  rw [arena.handle.ETAG_LIT]; rfl
+
+theorem etag_proj_abs : absU32 arena.handle.ETAG_PROJ = ETag.proj := by
+  rw [arena.handle.ETAG_PROJ]; rfl
+
+/-- `arena::store::ETables.der_at` against `ETables.derAt`. -/
+theorem etables_der_at_abs {rt lt} (hrel : ETablesRel rt lt)
+    {i : arena.handle.EIdx} {d : Std.U64}
+    (h : arena.store.ETables.der_at rt i = ok d) :
+    lt.derAt (absEIdx i) = absU64 d := by
+  rw [arena.store.ETables.der_at] at h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [ETables.derAt, eidx_tag_abs ht]
+  by_cases hb0 : t = arena.handle.ETAG_BVAR
+  · rw [if_pos ((etag_dec etag_bvar_abs).mpr hb0)]
+    rw [if_pos hb0] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.bvars dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb0 ((etag_dec etag_bvar_abs).mp hx))]
+  rw [if_neg hb0] at h
+  by_cases hb1 : t = arena.handle.ETAG_FVAR
+  · rw [if_pos ((etag_dec etag_fvar_abs).mpr hb1)]
+    rw [if_pos hb1] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.fvars dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb1 ((etag_dec etag_fvar_abs).mp hx))]
+  rw [if_neg hb1] at h
+  by_cases hb2 : t = arena.handle.ETAG_SORT
+  · rw [if_pos ((etag_dec etag_sort_abs).mpr hb2)]
+    rw [if_pos hb2] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.sorts dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb2 ((etag_dec etag_sort_abs).mp hx))]
+  rw [if_neg hb2] at h
+  by_cases hb3 : t = arena.handle.ETAG_CONST
+  · rw [if_pos ((etag_dec etag_const_abs).mpr hb3)]
+    rw [if_pos hb3] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.consts dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb3 ((etag_dec etag_const_abs).mp hx))]
+  rw [if_neg hb3] at h
+  by_cases hb4 : t = arena.handle.ETAG_APP
+  · rw [if_pos ((etag_dec etag_app_abs).mpr hb4)]
+    rw [if_pos hb4] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.apps dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb4 ((etag_dec etag_app_abs).mp hx))]
+  rw [if_neg hb4] at h
+  by_cases hb5 : t = arena.handle.ETAG_LAM
+  · rw [if_pos ((etag_dec etag_lam_abs).mpr hb5)]
+    rw [if_pos hb5] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.lams dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb5 ((etag_dec etag_lam_abs).mp hx))]
+  rw [if_neg hb5] at h
+  by_cases hb6 : t = arena.handle.ETAG_FORALL_E
+  · rw [if_pos ((etag_dec etag_forallE_abs).mpr hb6)]
+    rw [if_pos hb6] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.foralls dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb6 ((etag_dec etag_forallE_abs).mp hx))]
+  rw [if_neg hb6] at h
+  by_cases hb7 : t = arena.handle.ETAG_LET_E
+  · rw [if_pos ((etag_dec etag_letE_abs).mpr hb7)]
+    rw [if_pos hb7] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.lets dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb7 ((etag_dec etag_letE_abs).mp hx))]
+  rw [if_neg hb7] at h
+  by_cases hb8 : t = arena.handle.ETAG_LIT
+  · rw [if_pos ((etag_dec etag_lit_abs).mpr hb8)]
+    rw [if_pos hb8] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.lits dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb8 ((etag_dec etag_lit_abs).mp hx))]
+  rw [if_neg hb8] at h
+  by_cases hb9 : t = arena.handle.ETAG_PROJ
+  · rw [if_pos ((etag_dec etag_proj_abs).mpr hb9)]
+    rw [if_pos hb9] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [eidx_idxNat hn]
+    exact tbl_der_at_abs hrel.projs dupId_u64 derDefault_u64 h
+  rw [if_neg (fun hx => hb9 ((etag_dec etag_proj_abs).mp hx))]
+  rw [if_neg hb9] at h
+  have h2 : (0#u64 : Std.U64) = d := Result.ok_injective h
+  rw [← h2]
+  rfl
+
+/-- `arena::store::EStore.derived` against `EStore.derived` — the tier select
+over the ten-way dispatch, and `pers_der_at`'s `shared_on` is `rPersE` again
+(task #97-LC §1). -/
+theorem estore_derived_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    {i : arena.handle.EIdx} {d : Std.U64}
+    (h : arena.store.EStore.derived rs pers i = ok d) :
+    ls.derived (absEIdx i) = absU64 d := by
+  rw [arena.store.EStore.derived] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hb2 := eidx_is_persistent_abs hb
+  rw [EStore.derived]
+  split at h <;> rename_i hbv
+  · rw [if_pos (show (absEIdx i).isPersistent = true by rw [hb2, hbv])]
+    rw [arena.store.EStore.pers_der_at] at h
+    have h3 : arena.store.ETables.der_at (rPersE pers rs) i = ok d := by
+      unfold rPersE
+      split at h <;> rename_i hs
+      · rw [if_pos hs]; exact h
+      · rw [if_neg hs]; exact h
+    exact etables_der_at_abs hrel.perst h3
+  · rw [if_neg (show ¬ (absEIdx i).isPersistent = true by rw [hb2]; simpa using hbv),
+      hrel.scratchOn]
+    split at h <;> rename_i hs
+    · rw [if_pos hs]
+      exact etables_der_at_abs hrel.scrt h
+    · rw [if_neg hs]
+      have h2 : (0#u64 : Std.U64) = d := Result.ok_injective h
+      rw [← h2]
+      rfl
+
+/-- `arena::monad::derived_e` against `Arena.derivedE` — the packed derived
+word, in `O(1)` off the derived column. -/
+@[grind →] theorem derived_e_run {pers st lst} (hrel : AStateRel pers st lst)
+    {h : arena.handle.EIdx} {d : Std.U64}
+    (hrun : arena.monad.derived_e pers st h = ok d) :
+    SimR absU64 lst d (Arena.derivedE (absEIdx h)) := by
+  rw [arena.monad.derived_e] at hrun
+  show (Arena.derivedE (absEIdx h)).run lst = _
+  rw [show (Arena.derivedE (absEIdx h)).run lst
+        = .ok (lst.store.derived (absEIdx h), lst) from rfl,
+    estore_derived_abs hrel.store hrun]
+
+/-! ## `view`: the ten-way decode
+
+`ETables.get`'s ten arms in the twin's own order — the five leading
+constructor reads, **`isBind` answering `none`** (task #97-P6-16: a binder's
+datum carries its own tier bit, so one tier cannot resolve it), then `letE`,
+`lit`, `proj` and the final `none`.  The Rust is that function clause for
+clause, so the proof is `der_at`'s ten-arm peel again with a node-view
+construction at the end of each arm.
+
+`EStore.view` then dispatches the two binder tags through `viewBind`, which is
+`viewBindI` followed by `viewBM` — the one place two tier selects meet — and
+`monad::view` is that under a state read with `view`'s own `Internal`
+decline. -/
+
+/-- `arena::handle::e_tag_is_bind` against `ETag.isBind`. -/
+theorem etag_isBind_abs {t : Std.U32} {b : Bool}
+    (h : arena.handle.e_tag_is_bind t = ok b) : ETag.isBind (absU32 t) = b := by
+  rw [arena.handle.e_tag_is_bind] at h
+  rw [ETag.isBind]
+  by_cases hl : t = arena.handle.ETAG_LAM
+  · rw [if_pos hl] at h
+    have h2 : true = b := Result.ok_injective h
+    rw [← h2, (etag_dec etag_lam_abs).mpr hl]
+    rfl
+  · rw [if_neg hl] at h
+    have h2 : decide (t = arena.handle.ETAG_FORALL_E) = b := Result.ok_injective h
+    have hlf : (absU32 t == ETag.lam) = false := by
+      by_contra hc
+      exact hl ((etag_dec etag_lam_abs).mp (by simpa using hc))
+    rw [hlf, ← h2]
+    simp only [Bool.false_or]
+    by_cases hf : t = arena.handle.ETAG_FORALL_E
+    · rw [(etag_dec etag_forallE_abs).mpr hf, decide_eq_true hf]
+    · have hff : (absU32 t == ETag.forallE) = false := by
+        by_contra hc
+        exact hf ((etag_dec etag_forallE_abs).mp (by simpa using hc))
+      rw [hff, decide_eq_false hf]
+
+/-- `arena::store::ETables.get` against `ETables.get`. -/
+theorem etables_get_abs {rt lt} (hrel : ETablesRel rt lt)
+    {i : arena.handle.EIdx} {o : Option arena.store.ENodeView}
+    (h : arena.store.ETables.get rt i = ok o) :
+    lt.get (absEIdx i) = o.map absENodeView := by
+  rw [arena.store.ETables.get] at h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [ETables.get, eidx_tag_abs ht]
+  by_cases hb0 : t = arena.handle.ETAG_BVAR
+  · rw [if_pos ((etag_dec etag_bvar_abs).mpr hb0)]
+    rw [if_pos hb0] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.bvars hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rfl
+  rw [if_neg (fun hx => hb0 ((etag_dec etag_bvar_abs).mp hx))]
+  rw [if_neg hb0] at h
+  by_cases hb1 : t = arena.handle.ETAG_FVAR
+  · rw [if_pos ((etag_dec etag_fvar_abs).mpr hb1)]
+    rw [if_pos hb1] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.fvars hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_eidx _ _ hx0]
+      rfl
+  rw [if_neg (fun hx => hb1 ((etag_dec etag_fvar_abs).mp hx))]
+  rw [if_neg hb1] at h
+  by_cases hb2 : t = arena.handle.ETAG_SORT
+  · rw [if_pos ((etag_dec etag_sort_abs).mpr hb2)]
+    rw [if_pos hb2] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.sorts hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_lidx _ _ hx0]
+      rfl
+  rw [if_neg (fun hx => hb2 ((etag_dec etag_sort_abs).mp hx))]
+  rw [if_neg hb2] at h
+  by_cases hb3 : t = arena.handle.ETAG_CONST
+  · rw [if_pos ((etag_dec etag_const_abs).mpr hb3)]
+    rw [if_pos hb3] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.consts hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x1, hx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_nidx _ _ hx0, dupId_lsidx _ _ hx1]
+      rfl
+  rw [if_neg (fun hx => hb3 ((etag_dec etag_const_abs).mp hx))]
+  rw [if_neg hb3] at h
+  by_cases hb4 : t = arena.handle.ETAG_APP
+  · rw [if_pos ((etag_dec etag_app_abs).mpr hb4)]
+    rw [if_pos hb4] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.apps hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x1, hx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_eidx _ _ hx0, dupId_eidx _ _ hx1]
+      rfl
+  rw [if_neg (fun hx => hb4 ((etag_dec etag_app_abs).mp hx))]
+  rw [if_neg hb4] at h
+  obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [etag_isBind_abs hbb]
+  split at h <;> rename_i hbv
+  · rw [if_pos hbv]
+    have h2 : (none : Option arena.store.ENodeView) = o := Result.ok_injective h
+    subst h2
+    rfl
+  rw [if_neg hbv]
+  by_cases hb5 : t = arena.handle.ETAG_LET_E
+  · rw [if_pos ((etag_dec etag_letE_abs).mpr hb5)]
+    rw [if_pos hb5] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.lets hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x1, hx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x2, hx2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_eidx _ _ hx0, dupId_eidx _ _ hx1, dupId_eidx _ _ hx2]
+      rfl
+  rw [if_neg (fun hx => hb5 ((etag_dec etag_letE_abs).mp hx))]
+  rw [if_neg hb5] at h
+  by_cases hb6 : t = arena.handle.ETAG_LIT
+  · rw [if_pos ((etag_dec etag_lit_abs).mpr hb6)]
+    rw [if_pos hb6] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.lits hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [ConRon.Refine.Expr.literal_dup_eq hx0]
+      rfl
+  rw [if_neg (fun hx => hb6 ((etag_dec etag_lit_abs).mp hx))]
+  rw [if_neg hb6] at h
+  by_cases hb7 : t = arena.handle.ETAG_PROJ
+  · rw [if_pos ((etag_dec etag_proj_abs).mpr hb7)]
+    rw [if_pos hb7] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.projs hp
+    rw [eidx_idxNat hm, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o :=
+        Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x1, hx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_nidx _ _ hx0, dupId_eidx _ _ hx1]
+      rfl
+  rw [if_neg (fun hx => hb7 ((etag_dec etag_proj_abs).mp hx))]
+  rw [if_neg hb7] at h
+  have h2 : (none : Option arena.store.ENodeView) = o := Result.ok_injective h
+  subst h2
+  rfl
+
+
+/-- A binder-datum handle's tier bit. -/
+theorem bmidx_is_persistent_abs {i : arena.handle.BMIdx} {b : Bool}
+    (h : arena.handle.BMIdx.is_persistent i = ok b) :
+    (absBMIdx i).isPersistent = b := by
+  rw [arena.handle.BMIdx.is_persistent] at h
+  have hp := word_is_persistent_abs h
+  simpa [Idx.isPersistent, Idx.tier, absBMIdx] using hp
+
+/-! ### The binder arms: two tier selects meeting
+
+`ETables.get_bind` is the tag dispatch between the `lams` and the `foralls`
+array, `ETables.get_bm` reads the binder-datum store, and `EStore.view_bind`
+is the first followed by the second — the one place where a handle's tier bit
+and its DATUM's tier bit are both consulted (task #97-P6-16).
+
+**`get_bind` needs the caller's guard, and that is finding 3 again.**  The
+twin's `ETables.getBind` has a third arm answering `none` at a non-binder
+tag; the Rust's has two, so at a `bvar` handle it reads the `foralls` array
+where the twin answers `none`.  Every caller guards it with `e_tag_is_bind`
+(that is what `EStore::view` does), so the two never differ in the program —
+but the LEMMA is false without the guard, and it is stated with it. -/
+
+theorem etables_get_bm_abs {rt lt} (hrel : ETablesRel rt lt)
+    {m : arena.handle.BMIdx} {o}
+    (h : arena.store.ETables.get_bm rt m = ok o) :
+    lt.getBM (absBMIdx m) = o.map ConRon.Refine.absBinderMeta := by
+  rw [arena.store.ETables.get_bm] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hnode := tbl_node_abs hrel.bms hp
+  rw [ETables.getBM, bmidx_idxNat hn, hnode]
+  cases hpc : p with
+  | none =>
+    rw [hpc] at h
+    have h2 : (none : Option kernel.expr.BinderMeta) = o := Result.ok_injective h
+    subst h2
+    rfl
+  | some r =>
+    rw [hpc] at h
+    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h2 : some bm = o := Result.ok_injective h
+    subst h2
+    rw [ConRon.Refine.PropWhen.dup_eq hpw] at hbm
+    have h3 : bm = ⟨r.pw⟩ := by
+      rw [kernel.expr.binder_meta] at hbm
+      exact (Result.ok_injective hbm).symm
+    subst h3
+    rfl
+
+theorem etables_get_bind_abs {rt lt} (hrel : ETablesRel rt lt)
+    {i : arena.handle.EIdx} {o}
+    (hbind : ETag.isBind (absEIdx i).tag = true)
+    (h : arena.store.ETables.get_bind rt i = ok o) :
+    lt.getBind (absEIdx i) = o.map absBindI := by
+  rw [arena.store.ETables.get_bind] at h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [eidx_tag_abs ht] at hbind
+  rw [ETables.getBind, eidx_tag_abs ht]
+  by_cases hl : t = arena.handle.ETAG_LAM
+  · rw [if_pos ((etag_dec etag_lam_abs).mpr hl)]
+    rw [if_pos hl] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.lams hp
+    rw [eidx_idxNat hn, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option (arena.handle.EIdx × arena.handle.EIdx ×
+        arena.handle.BMIdx)) = o := Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x1, hx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x2, hx2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_eidx _ _ hx0, dupId_eidx _ _ hx1, dupId_bmidx _ _ hx2]
+      rfl
+  · have hlf : (absU32 t == ETag.lam) = false := by
+      by_contra hc
+      exact hl ((etag_dec etag_lam_abs).mp (by simpa using hc))
+    have hf : t = arena.handle.ETAG_FORALL_E := by
+      rw [ETag.isBind, hlf, Bool.false_or] at hbind
+      exact (etag_dec etag_forallE_abs).mp hbind
+    rw [if_neg (by rw [hlf]; simp), if_pos ((etag_dec etag_forallE_abs).mpr hf)]
+    rw [if_neg hl] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnode := tbl_node_abs hrel.foralls hp
+    rw [eidx_idxNat hn, hnode]
+    cases hpc : p with
+    | none =>
+      rw [hpc] at h
+      have h2 : (none : Option (arena.handle.EIdx × arena.handle.EIdx ×
+        arena.handle.BMIdx)) = o := Result.ok_injective h
+      subst h2
+      rfl
+    | some r =>
+      rw [hpc] at h
+      obtain ⟨x0, hx0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x1, hx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨x2, hx2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some _ = o := Result.ok_injective h
+      subst h2
+      rw [dupId_eidx _ _ hx0, dupId_eidx _ _ hx1, dupId_bmidx _ _ hx2]
+      rfl
+
+theorem estore_view_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    {m : arena.handle.BMIdx} {o}
+    (h : arena.store.EStore.view_bm rs pers m = ok o) :
+    ls.viewBM (absBMIdx m) = o.map ConRon.Refine.absBinderMeta := by
+  rw [arena.store.EStore.view_bm] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hb2 := bmidx_is_persistent_abs hb
+  rw [EStore.viewBM]
+  split at h <;> rename_i hbv
+  · rw [if_pos (show (absBMIdx m).isPersistent = true by rw [hb2, hbv]),
+      EStore.persGetBM]
+    rw [arena.store.EStore.pers_get_bm] at h
+    have h3 : arena.store.ETables.get_bm (rPersE pers rs) m = ok o := by
+      unfold rPersE
+      split at h <;> rename_i hs
+      · rw [if_pos hs]; exact h
+      · rw [if_neg hs]; exact h
+    exact etables_get_bm_abs hrel.perst h3
+  · rw [if_neg (show ¬ (absBMIdx m).isPersistent = true by rw [hb2]; simpa using hbv),
+      hrel.scratchOn]
+    split at h <;> rename_i hs
+    · rw [if_pos hs]
+      exact etables_get_bm_abs hrel.scrt h
+    · rw [if_neg hs]
+      have h2 : (none : Option kernel.expr.BinderMeta) = o := Result.ok_injective h
+      subst h2
+      rfl
+
+theorem estore_view_bind_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    {i : arena.handle.EIdx} {o}
+    (hbind : ETag.isBind (absEIdx i).tag = true)
+    (h : arena.store.EStore.view_bind_i rs pers i = ok o) :
+    ls.viewBindI (absEIdx i) = o.map absBindI := by
+  rw [arena.store.EStore.view_bind_i] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hb2 := eidx_is_persistent_abs hb
+  rw [EStore.viewBindI]
+  split at h <;> rename_i hbv
+  · rw [if_pos (show (absEIdx i).isPersistent = true by rw [hb2, hbv]),
+      EStore.persGetBind]
+    rw [arena.store.EStore.pers_get_bind] at h
+    have h3 : arena.store.ETables.get_bind (rPersE pers rs) i = ok o := by
+      unfold rPersE
+      split at h <;> rename_i hs
+      · rw [if_pos hs]; exact h
+      · rw [if_neg hs]; exact h
+    exact etables_get_bind_abs hrel.perst hbind h3
+  · rw [if_neg (show ¬ (absEIdx i).isPersistent = true by rw [hb2]; simpa using hbv),
+      hrel.scratchOn]
+    split at h <;> rename_i hs
+    · rw [if_pos hs]
+      exact etables_get_bind_abs hrel.scrt hbind h
+    · rw [if_neg hs]
+      have h2 : (none : Option (arena.handle.EIdx × arena.handle.EIdx ×
+        arena.handle.BMIdx)) = o := Result.ok_injective h
+      subst h2
+      rfl
+
+theorem estore_view_bind_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    {i : arena.handle.EIdx} {o}
+    (hbind : ETag.isBind (absEIdx i).tag = true)
+    (h : arena.store.EStore.view_bind rs pers i = ok o) :
+    ls.viewBind (absEIdx i) = o.map absBindM := by
+  rw [arena.store.EStore.view_bind] at h
+  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hqa := estore_view_bind_i_abs hrel hbind hq
+  rw [EStore.viewBind, hqa]
+  cases hqc : q with
+  | none =>
+    rw [hqc] at h
+    have h2 : (none : Option (arena.handle.EIdx × arena.handle.EIdx ×
+      kernel.expr.BinderMeta)) = o := Result.ok_injective h
+    subst h2
+    rfl
+  | some tt =>
+    rw [hqc] at h
+    obtain ⟨ty, bo, mi⟩ := tt
+    obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hua := estore_view_bm_abs hrel hu
+    simp only [Option.map_some, absBindI]
+    rw [hua]
+    cases huc : u with
+    | none =>
+      rw [huc] at h
+      have h2 : (none : Option (arena.handle.EIdx × arena.handle.EIdx ×
+        kernel.expr.BinderMeta)) = o := Result.ok_injective h
+      subst h2
+      rfl
+    | some mm =>
+      rw [huc] at h
+      have h2 : some (ty, bo, mm) = o := Result.ok_injective h
+      subst h2
+      rfl
+
+theorem e_bind_view_abs {t : Std.U32} {ty bo : arena.handle.EIdx}
+    {m : kernel.expr.BinderMeta} {v : arena.store.ENodeView}
+    (h : arena.store.e_bind_view t ty bo m = ok v) :
+    eBindView (absU32 t) (absEIdx ty) (absEIdx bo)
+      (ConRon.Refine.absBinderMeta m) = absENodeView v := by
+  rw [arena.store.e_bind_view] at h
+  rw [eBindView]
+  by_cases hl : t = arena.handle.ETAG_LAM
+  · rw [if_pos ((etag_dec etag_lam_abs).mpr hl)]
+    rw [if_pos hl] at h
+    have h2 : arena.store.ENodeView.Lam ty bo m = v := Result.ok_injective h
+    subst h2
+    rfl
+  · rw [if_neg (fun hx => hl ((etag_dec etag_lam_abs).mp hx))]
+    rw [if_neg hl] at h
+    have h2 : arena.store.ENodeView.ForallE ty bo m = v := Result.ok_injective h
+    subst h2
+    rfl
+
+theorem estore_view_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    {i : arena.handle.EIdx} {o}
+    (h : arena.store.EStore.view rs pers i = ok o) :
+    ls.view (absEIdx i) = o.map absENodeView := by
+  rw [arena.store.EStore.view] at h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [EStore.view, eidx_tag_abs ht, etag_isBind_abs hbb]
+  split at h <;> rename_i hbv
+  · rw [if_pos hbv]
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqa := estore_view_bind_abs hrel
+      (by rw [eidx_tag_abs ht, etag_isBind_abs hbb]; exact hbv) hq
+    rw [hqa]
+    cases hqc : q with
+    | none =>
+      rw [hqc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o := Result.ok_injective h
+      subst h2
+      rfl
+    | some tt =>
+      rw [hqc] at h
+      obtain ⟨ty, bo, mm⟩ := tt
+      obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some ev = o := Result.ok_injective h
+      subst h2
+      simp only [Option.map_some, absBindM]
+      rw [e_bind_view_abs hev]
+  · rw [if_neg hbv]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hb2 := eidx_is_persistent_abs hb1
+    split at h <;> rename_i hpv
+    · rw [if_pos (show (absEIdx i).isPersistent = true by rw [hb2, hpv])]
+      rw [arena.store.EStore.pers_get] at h
+      have h3 : arena.store.ETables.get (rPersE pers rs) i = ok o := by
+        unfold rPersE
+        split at h <;> rename_i hs
+        · rw [if_pos hs]; exact h
+        · rw [if_neg hs]; exact h
+      exact etables_get_abs hrel.perst h3
+    · rw [if_neg (show ¬ (absEIdx i).isPersistent = true by
+            rw [hb2]; simpa using hpv), hrel.scratchOn]
+      split at h <;> rename_i hs
+      · rw [if_pos hs]
+        exact etables_get_abs hrel.scrt h
+      · rw [if_neg hs]
+        have h2 : (none : Option arena.store.ENodeView) = o := Result.ok_injective h
+        subst h2
+        rfl
+
+/-! ### `arena::monad`'s `view` and the binder readers
+
+`view` is the one reader of the tier with an ERROR arm — the dangling-handle
+`Internal` decline both sides spell — so it is `AOut` and not `SimR`, and its
+success arm leaves the state where it found it (`Ext.refl`).
+
+The three binder readers carry finding 3's guard, for the reason
+`etables_get_bind_abs` does: the twin's `getBind` has a third arm answering
+`none` at a non-binder tag and the Rust's has two. -/
+
+/-- `arena::monad::view` against `Arena.view`. -/
+@[grind →] theorem view_run {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {h : arena.handle.EIdx} {o}
+    (hrun : arena.monad.view pers st h = ok o) :
+    AOut absENodeView (fun _ => True) pers lst o st
+      ((Arena.view (absEIdx h)).run lst) := by
+  rw [arena.monad.view] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hqa := estore_view_abs hrel.store hq
+  have hrunL : (Arena.view (absEIdx h)).run lst
+      = (match lst.store.view (absEIdx h) with
+         | some v => Except.ok (v, lst)
+         | none => Except.error (Arena.CheckError.internal
+             "arena: dangling expression handle")) := by
+    show ((match lst.store.view (absEIdx h) with
+            | some v => (pure v : AM ENodeView)
+            | none => Arena.fail
+                (.internal "arena: dangling expression handle")).run lst) = _
+    cases lst.store.view (absEIdx h) <;> rfl
+  cases hqc : q with
+  | none =>
+    rw [hqc] at hrun
+    obtain ⟨s, _, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, _, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 : core.result.Result.Err
+        (kernel.core_types.CheckError.Internal v) = o := Result.ok_injective hrun
+    subst h2
+    refine AErrSim.internal (s := "arena: dangling expression handle") ?_
+    rw [hrunL, hqa, hqc]
+    rfl
+  | some v =>
+    rw [hqc] at hrun
+    have h2 : core.result.Result.Ok v = o := Result.ok_injective hrun
+    subst h2
+    refine AOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _) trivial
+    rw [hrunL, hqa, hqc]
+    rfl
+
+/-- `arena::monad::view_bind_i` against `Arena.viewBindI` (task #97-P6-16: the
+binder projection that stops at the datum's HANDLE). -/
+@[grind →] theorem view_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
+    {h : arena.handle.EIdx} {o}
+    (hbind : ETag.isBind (absEIdx h).tag = true)
+    (hrun : arena.monad.view_bind_i pers st h = ok o) :
+    SimR (Option.map absBindI) lst o (Arena.viewBindI (absEIdx h)) := by
+  rw [arena.monad.view_bind_i] at hrun
+  show (Arena.viewBindI (absEIdx h)).run lst = _
+  rw [show (Arena.viewBindI (absEIdx h)).run lst
+        = .ok (lst.store.viewBindI (absEIdx h), lst) from rfl,
+    estore_view_bind_i_abs hrel.store hbind hrun]
+
+/-- `arena::monad::view_bind` against `Arena.viewBind` — `viewBindI` then
+`viewBM`, the two tier selects meeting. -/
+@[grind →] theorem view_bind_run {pers st lst} (hrel : AStateRel pers st lst)
+    {h : arena.handle.EIdx} {o}
+    (hbind : ETag.isBind (absEIdx h).tag = true)
+    (hrun : arena.monad.view_bind pers st h = ok o) :
+    SimR (Option.map absBindM) lst o (Arena.viewBind (absEIdx h)) := by
+  rw [arena.monad.view_bind] at hrun
+  show (Arena.viewBind (absEIdx h)).run lst = _
+  rw [show (Arena.viewBind (absEIdx h)).run lst
+        = .ok (lst.store.viewBind (absEIdx h), lst) from rfl,
+    estore_view_bind_abs hrel.store hbind hrun]
+
+/-- **`Arena.viewBM` has no `arena::monad` wrapper** — a shape difference, and
+a small one: `arena/monad.rs` stops at `view_bind`/`view_bind_i` and its
+binder-datum read goes straight to `EStore::view_bm`, where the twin's
+`Monad.lean` names a `viewBM` of its own.  Both are the same store read under
+the same state, so the refinement states the lemma at the STORE function and
+the twin's monadic wrapper is `rfl` over it. -/
+@[grind →] theorem view_bm_run {pers st lst} (hrel : AStateRel pers st lst)
+    {m : arena.handle.BMIdx} {o}
+    (hrun : arena.store.EStore.view_bm st.store pers m = ok o) :
+    SimR (Option.map ConRon.Refine.absBinderMeta) lst o
+      (Arena.viewBM (absBMIdx m)) := by
+  show (Arena.viewBM (absBMIdx m)).run lst = _
+  rw [show (Arena.viewBM (absBMIdx m)).run lst
+        = .ok (lst.store.viewBM (absBMIdx m), lst) from rfl,
+    estore_view_bm_abs hrel.store hrun]
+
 /-! ## The rest of the layer: stated, not yet closed
 
 The brief's ask is *one `_run` lemma per primitive of `arena::monad` /
@@ -1190,58 +2015,11 @@ interface; the `sorry`s are named in the task's report and are the next
 round's work.  **The statements are not weakened**: each is the full-outcome
 claim of DESIGN §8.2 at the abstraction the twin has. -/
 
-/-- `arena::monad::view` against `Arena.view` — the ten-way decode.  Needs
-`ETables.get`'s own abstraction, which is `etables_get_*_abs` at ten arms plus
-`getBind`'s tag dispatch through `viewBM`. -/
-theorem view_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view pers st h = ok o) :
-    AOut absENodeView (fun _ => True) pers lst o st
-      ((Arena.view (absEIdx h)).run lst) := by
-  sorry
-
-/-- `arena::monad::derived_e` against `Arena.derivedE` — the packed derived
-word.  Needs `ETables.der_at`'s ten-way dispatch over `tbl_der_at_abs`. -/
-theorem derived_e_run {pers st lst} (hrel : AStateRel pers st lst)
-    {h : arena.handle.EIdx} {d : Std.U64}
-    (hrun : arena.monad.derived_e pers st h = ok d) :
-    SimR absU64 lst d (Arena.derivedE (absEIdx h)) := by
-  sorry
-
 /-- `arena::monad::derived_l` against `Arena.derivedL`. -/
 theorem derived_l_run {pers st lst} (hrel : AStateRel pers st lst)
     {h : arena.handle.LIdx} {d : arena.store.LDer}
     (hrun : arena.monad.derived_l pers st h = ok d) :
     SimR absLDer lst d (Arena.derivedL (absLIdx h)) := by
-  sorry
-
-/-- `arena::monad::view_bind_i` against `Arena.viewBindI` (task #97-P6-16: the
-binder projection that stops at the datum's HANDLE). -/
-theorem view_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
-    {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view_bind_i pers st h = ok o) :
-    SimR (Option.map absBindI) lst o (Arena.viewBindI (absEIdx h)) := by
-  sorry
-
-/-- **`Arena.viewBM` has no `arena::monad` wrapper** — a shape difference, and
-a small one: `arena/monad.rs` stops at `view_bind`/`view_bind_i` and its
-binder-datum read goes straight to `EStore::view_bm`, where the twin's
-`Monad.lean` names a `viewBM` of its own.  Both are the same store read under
-the same state, so the refinement states the lemma at the STORE function and
-the twin's monadic wrapper is `rfl` over it. -/
-theorem view_bm_run {pers st lst} (hrel : AStateRel pers st lst)
-    {m : arena.handle.BMIdx} {o}
-    (hrun : arena.store.EStore.view_bm st.store pers m = ok o) :
-    SimR (Option.map ConRon.Refine.absBinderMeta) lst o
-      (Arena.viewBM (absBMIdx m)) := by
-  sorry
-
-/-- `arena::monad::view_bind` against `Arena.viewBind` — `viewBindI` then
-`viewBM`, the two tier selects meeting. -/
-theorem view_bind_run {pers st lst} (hrel : AStateRel pers st lst)
-    {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view_bind pers st h = ok o) :
-    SimR (Option.map absBindM) lst o (Arena.viewBind (absEIdx h)) := by
   sorry
 
 /-- `arena::monad::view_ls_len` against `Arena.viewLsLen` (task #97-P6-10's
@@ -1764,6 +2542,30 @@ the census that would have caught it. -/
 
 /-- info: 'ConRon.Refine2.fail_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms fail_run
+
+/-- info: 'ConRon.Refine2.etables_get_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms etables_get_abs
+
+/-- info: 'ConRon.Refine2.etables_der_at_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms etables_der_at_abs
+
+/-- info: 'ConRon.Refine2.etables_get_bind_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms etables_get_bind_abs
+
+/-- info: 'ConRon.Refine2.estore_view_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_view_abs
+
+/-- info: 'ConRon.Refine2.estore_view_bind_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_view_bind_abs
+
+/-- info: 'ConRon.Refine2.view_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms view_run
+
+/-- info: 'ConRon.Refine2.derived_e_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms derived_e_run
+
+/-- info: 'ConRon.Refine2.etag_isBind_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms etag_isBind_abs
 
 
 end ConRon.Refine2

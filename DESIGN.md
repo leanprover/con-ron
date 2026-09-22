@@ -36640,8 +36640,8 @@ obligation at every store read in the crate.
 | `Refine2/Inv.lean` | 487 | `TblInv` and the tier/store invariants; **eighteen `Eq2Fwd` and five `DupId` obligations, all closed** |
 | `Refine2/AbsState.lean` | 382 | `MemosRel`/`MemosInv` (13 tables), `CachesRel`/`CachesInv` (14), `PinsRel`, `AStateRel`/`AStateInv`; the `arena::env` declaration layer and `IFEnvRel` |
 | `Refine2/Shape.lean` | 317 | `AErrKind`/`AErrSim`, `AOut`, `Sim`/`SimR`/`SimP`/`SimS` and their eliminators |
-| `Refine2/Specs.lean` | 1 769 | the inversion layer: **122 `_run` lemmas, 55 closed** |
-| **the foundation** (with the 35-line root) | **3 583** | |
+| `Refine2/Specs.lean` | 2 547 | the inversion layer: **149 lemmas, 87 closed** — including `view` and `derived`, the two hottest primitives of the tier |
+| **the foundation** (with the 35-line root) | **4 361** | |
 | `Refine2/ExprOps/Pure.lean` | 931 | the 22 state-free helpers |
 | `Refine2/ExprOps/Read.lean` | 755 | the 33 read-only walks |
 | `Refine2/ExprOps/Mut.lean` | 839 | the 65 state-threading twins |
@@ -36660,30 +36660,38 @@ two `Array`s, a `ron::HashMap2` against a `Std.HashMap`); the two above it are
 "Rust-shaped Lean" bought and it shows — each tier-select proof is eleven
 lines and the same eleven lines nine times.
 
-| floor | primitives | closed |
+| floor | lemmas | closed |
 |---|---:|---:|
-| 0 the `Vec` read and the handle's index | 7 | **7** |
+| 0 the `Vec` read, the handle's fields, the ten tag constants and the `dup`/default identities | 24 | **24** |
 | 1 one table (`node`, `der_at`, `find`) | 3 | **3** |
-| 2 `ETables` projections | 9 | **9** |
-| 3 `EStore` tier selects | 9 | **9** |
-| 4 `arena::monad` readers (+ `run_get_pure`) | 10 | **10** |
+| 2 `ETables` (nine projections, `get`, `der_at`, `get_bind`, `get_bm`) | 13 | **13** |
+| 3 `EStore` (nine projections, `view`, `derived`, the three binder readers, `e_bind_view`) | 15 | **15** |
+| 4 `arena::monad`'s readers (nine projections, `view`, `derived_e`, the three binder readers, the `StateT` plumbing) | 15 | **15** |
 | 4 the named failure primitive | 4 | **4** |
 | 4 the thirteen memo probes | 13 | **13** |
-| 4 `view`/`derived`/the binder and name/level readers | 14 | 0 |
-| 4 the memoised readbacks (task #97-P6-13) | 4 | 0 |
+| 4 the name/level/level-list readers and the memoised readbacks | 13 | 0 |
 | 4 `intern` (14 `intern_e_*`, 3 node, 4 persistent, 4 transient) | 25 | 0 |
-| 4 the thirteen memo writes and eleven clears | 24 | 0 |
-| **total** | **122** | **55** |
+| 4 the thirteen memo writes and the eleven clears | 24 | 0 |
+| **total** | **149** | **87** |
 
-**What the 67 open ones wait on is three pieces of plumbing, not
-sixty-seven proofs.**  `view` needs `ETables.get`'s ten-way dispatch — nine of
-the ten arms ARE the `etables_get_*_abs` already closed, and the two binder
-arms are where `getBind`'s tag dispatch meets `viewBM`'s own tier select.
-`derived_e` needs `ETables.der_at`'s ten-way dispatch over `tbl_der_at_abs`,
-which is closed.  `intern` needs `HashMap2.Rel_insert_wf` on the cons table,
-`Array.push` on the two columns against the Rust's one `Vec::push` of a pair,
-and `Idx.mk` against `Idx::pack` — the last of which finding 1 says is free.
-Three pieces, eighteen instantiations, and the layer closes.
+**The two hottest primitives are closed, and the third is what is left.**
+`view` — 47 of the twin's own call sites, more than any other — is
+`ETables.get`'s ten arms in the twin's order (the five leading constructor
+reads, `isBind` answering `none`, then `letE`, `lit`, `proj`), then
+`EStore.view`'s dispatch of the two binder tags through `viewBind`, which is
+`viewBindI` followed by `viewBM`: **the one place a handle's tier bit and its
+DATUM's tier bit are both consulted**, and the only proof of the tier that
+composes two tier selects.  `derived_e` is `ETables.der_at`'s ten-way
+dispatch over `tbl_der_at_abs`, and is the template the `get` proof follows —
+ten arms, five lines each, the same five lines ten times.
+
+**What the 62 open ones wait on is now ONE piece of plumbing.**  `intern`
+needs `HashMap2.Rel_insert_wf` on the cons table, `Array.push` on the two
+columns against the Rust's one `Vec::push` of a pair, and `Idx.mk` against
+`Idx::pack` — the last of which finding 1 says is free.  One piece, eighteen
+instantiations, and with it the memo writes (the same `Rel_insert_wf` at a
+memo table) and the name/level readers (`denoteN`/`denoteL` under the same
+tier select) follow.
 
 #### 5. The `ExprOps` tier
 
@@ -36728,6 +36736,17 @@ two of the seven walks where the twin does spell the tag — which is why the
 count is nine and not eleven.  **This is a hypothesis Theorem 1 owes at
 roughly sixty sites across the crate, not just here**, and §8.3's amendment
 should say so.
+
+The same asymmetry appears one floor lower and is worth naming because it is
+SHARPER there: the twin's `ETables.getBind` has a **third arm answering
+`none`** at a non-binder tag, and the Rust's `ETables::get_bind` has two — at
+a `bvar` handle it reads the `foralls` array where the twin answers `none`.
+Every caller guards it with `e_tag_is_bind` (that is exactly what
+`EStore::view` does), so the two never differ in the program; but the LEMMA is
+false without the guard, so `etables_get_bind_abs`,
+`estore_view_bind_{i_,}abs` and `view_bind{,_i}_run` carry
+`ETag.isBind (absEIdx i).tag = true` as a hypothesis.  Finding 3 in the Read
+tier is the same fact met from above.
 
 **Finding 4 — `AOut` cannot state a walk that threads its memo as an
 argument-and-result pair.**  `AOut`'s abstraction of the result is a
@@ -36870,10 +36889,11 @@ lemmas are about).
 
 #### 9. What the next tiers need
 
-* **Close `Specs.lean`'s three pieces of plumbing** (§4), in this order:
-  `ETables.get`'s ten-way dispatch (`view`), `ETables.der_at`'s (`derived`),
-  and `EStore.intern`'s probe-then-push at the eighteen arrays.  That is what
-  the great majority of this branch's 163 open lemmas are waiting on, and it
+* **Close `Specs.lean`'s remaining piece of plumbing** (§4):
+  `EStore.intern`'s probe-then-push at the eighteen arrays.  `view` and
+  `derived` — the two hottest — are closed here; `intern` is the third and
+  the memo writes and the name/level readers fall out of the same lemma.  That is what
+  the great majority of this branch's 158 open lemmas are waiting on, and it
   is the only part of the tower whose cost is not already measured.
 * **Move findings 4's three outcome shapes into `Refine2/Shape.lean`**: the
   Core tier's `whnf`/`infer`/`defeq` walks thread their memos the same way.
@@ -36905,7 +36925,7 @@ lemmas are about).
 | gate | result |
 |---|---|
 | `cd proof && lake build` | **green, 2 208 jobs** — the default targets are untouched (`ConRonRefine2` is a fourth library root and deliberately NOT a default target, so a half-built P5 tier never blocks them) |
-| `cd proof && lake build ConRonRefine2` | **green, 2 093 jobs**, 163 `declaration uses 'sorry'` warnings (67 in `Specs.lean`, 31 in `Read.lean`, 65 in `Mut.lean`, **none in `Pure.lean`**) and no errors |
+| `cd proof && lake build ConRonRefine2` | **green, 2 093 jobs**, 158 `declaration uses 'sorry'` warnings (62 in `Specs.lean`, 31 in `Read.lean`, 65 in `Mut.lean`, **none in `Pure.lean`**) and no errors |
 | `scripts/provenance.py check` | 0 findings — `6 281 item(s) (4 099 Rust, 2 182 arena Lean), 4 101 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
 | `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
