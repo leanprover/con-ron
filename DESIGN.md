@@ -36969,7 +36969,7 @@ lemmas are about).
   same four `Read.lean` and `Mut.lean` re-declare locally, so they belong in
   `Refine2/AbsStore.lean` beside the node records.
 
-#### 10. The gates
+#### 11. The gates
 
 | gate | result |
 |---|---|
@@ -40074,7 +40074,7 @@ for sixty theorems, **4.7 ms a theorem**.
   `decl_check` is, and the answer is the same: one collected transcription
   file per tier, with `_unfold` equations, and no edit to the twin.
 
-#### 10. The gates
+#### 11. The gates
 
 | gate | result |
 |---|---|
@@ -41049,7 +41049,7 @@ axiom anywhere in `Refine2/`.  `Classical.choice` enters only through the
 note says.  (The fifteen `*_no_claim` statements are `trivial` and carry no
 axiom at all; they are not censused.)
 
-#### 10. The gates
+#### 11. The gates
 
 | gate | result |
 |---|---|
@@ -41072,8 +41072,9 @@ section argued could be weakened but did not mechanise.  Branch `p5-3` off
 **`ExprOps/Read.lean` is CLOSED, 25 → 0 `sorry`, and two of its statements had
 to be corrected on the way.**  The file is 1 118 → 4 880 lines, 90 theorems,
 **37 `#print axioms` rows, every one of them the three standard axioms except
-`leafMem_reverse`, which is `[propext]` alone**.  `ConRonRefine2` is 115 → 90
-(`ExprOps/Mut.lean` 65, `Specs.lean` 25, both untouched).
+`leafMem_reverse`, which is `[propext]` alone**.  `ExprOps/Mut.lean` is
+**65 → 57**: its packed-range family (§9), the eight of its sixty-five that
+intern nothing.  **The three files of this task are 115 → 82.**
 
 #### 1. Finding 13 — P5-2 §10's weakening is HALF right, and the half it misses is the recursion
 
@@ -41257,7 +41258,7 @@ measured the same way is **1.92 / 1.97 s**.
 | `Refine2/Specs.lean` | 7 623 | 250 | 25 | 8.45 / 8.50 s |
 | `Refine2/ExprOps/Pure.lean` | 931 | 34 | 0 | 2.83 / 2.90 s |
 | `Refine2/ExprOps/Read.lean` | **4 880** | **90** | **0** | **6.69 / 6.71 s** |
-| `Refine2/ExprOps/Mut.lean` | 839 | 65 | 65 | 2.06 / 2.08 s |
+| `Refine2/ExprOps/Mut.lean` | **1 951** | **72** | **57** | **4.46 / 4.07 s** |
 
 `Read.lean` is **≈ 4.8 s net for 90 theorems — 53 ms a lemma**, against
 `Specs.lean`'s 23 ms: the walks are longer than the inversion layer's `rw`
@@ -41312,40 +41313,66 @@ all, which is one of the five blocked on `internBindI_ext`.  So the thirteen
 `intern_rebuilt_*` the brief singles out are only the most visible of 57 that
 are blocked by the same merge.
 
-The **eight that are genuinely unblocked** are the packed-range family —
-`bvar_bound_go`, `bvar_bound_memo`, `fvar_range_go`, `fvar_range_memo`,
-`bvar_b`, `fvar_b`, `has_fvar_fast`, `loose_bvars_bounded_fast` — which read
-the derived column and the per-declaration memo and intern nothing.  They are
-§4's idiom at a walk whose memo lives in the STATE (`bvarBGet`/`bvarBSet`)
-rather than being threaded, so they are `Sim` and not `WOut`, and
-`Specs.lean` already has every primitive they need (`bvar_b_get_run`,
-`bvar_b_set_run`, `bvar_b_clear_run` and their `fvar_b` siblings).  **They are
-this round's unfinished business** and are ~800 lines at the measured rate.
+The **eight that are genuinely unblocked** are the packed-range family, and
+**this round closed them** — see §9.
 
-#### 9. What the next round needs
+#### 9. `Mut.lean`'s packed-range family, closed
+
+`bvar_bound_go`, `bvar_bound_memo`, `fvar_range_go`, `fvar_range_memo`,
+`bvar_b`, `fvar_b`, `has_fvar_fast`, `loose_bvars_bounded_fast` — the eight
+of `Mut.lean`'s sixty-five that read the derived column and the
+per-declaration memo and **intern nothing**, so nothing above blocks them.
+
+They are §4's idiom at a walk whose memo lives in the **state**
+(`bvarBGet`/`bvarBSet`, thirteen `Specs.lean` primitives that were already
+there) rather than being threaded through the call, so the outcome shape is
+`Sim` and not `WOut` and there is no `two`/`node` split to derive: the Rust
+inlines its ten arms where the twin (task #97-P3-1's split again) names them,
+so the induction is single and the node step is `<f>NodeSpec` + `<f>_unfold`
+as in §4 — `rw [<f>_succ]`, `simp only [<spec>, <the three arm defs>]`,
+`congr 1`, three lines each.
+
+| lemma | lines | note |
+|---|---:|---|
+| `bvar_bound_go` | **372** | ten arms; `max_u64` and the saturating `sub_nat` at the binder and `letE` arms |
+| `fvar_range_go` | **366** | `bvar_bound_go` by substitution, the `bvar`/`fvar` leaf swapped and the `sub_nat`s gone — **compiled on the first attempt** |
+| `bvar_bound_memo` / `fvar_range_memo` | 45 each | the clear-walk-clear bracket, `SimS` at both clears |
+| `bvar_b` / `fvar_b` | 49 each | the `O(1)` read and its saturated fallback, off `derObsE_fields` |
+| `has_fvar_fast` | 37 | `r != 0` |
+| `loose_bvars_bounded_fast` | 56 | `r ≤ k` |
+
+One new scalar reading, `sub_nat_val`: `kernel::expr_ops::sub_nat` is
+saturating (`if a ≥ b then a - b else 0`), so on the abstraction it is
+**`Nat` subtraction** and the twin's `y - 1` needs no side condition at all.
+
+`Mut.lean` is 839 → 1 951 lines, 72 theorems, `sorry` 65 → **57**, and 2.06 →
+**4.46 / 4.07 s** raw (≈ 2.2 s net over the same 1.9 s baseline, for the
+eleven new declarations).  Eleven more `#print axioms` rows, all three
+standard axioms.
+
+#### 10. What the next round needs
 
 1. **`Arena/WFProofs.lean`'s `Ext` family has to land on `arena`.**  It is
-   written (`wf-ext`) and it unblocks 5 `Specs.lean` lemmas and 57 of
-   `ExprOps/Mut.lean`'s 65 — i.e. **62 of `ConRonRefine2`'s 90 remaining
+   written (`wf-ext`) and it unblocks 5 `Specs.lean` lemmas and **all 57** of
+   `ExprOps/Mut.lean`'s remaining ones — i.e. **62 of this task's 82 remaining
    `sorry`s stand behind one merge**.  Nothing else in P5 is close to that
    leverage.
 2. **`p5-arms`'s `Core/Arms/Sort.lean` drops its two tag/view lemmas** when it
    lands; they are in `Specs.lean` now at its own names and text (§1).
-3. **The eight packed-range lemmas of `Mut.lean`** (§8), which need no merge.
-4. **The readbacks want the rank induction**, and that is the one group of P5
+3. **The readbacks want the rank induction**, and that is the one group of P5
    whose cost is still unmeasured.
 
-#### 10. The gates
+#### 11. The gates
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2`, at `p5-3` **before** the `arena` merge | **green**, 2 093 jobs, **90 `sorry`** (was 115) and no errors |
+| `cd proof && lake build ConRonRefine2`, at `p5-3` **before** the `arena` merge | **green**, 2 093 jobs, **90 `sorry`** (was 115) and no errors; **82** after §9 |
 | `cd proof && lake build` | **green**, 2 208 jobs — the default targets are untouched |
 | `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
 | `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
 | `cd proof && lake build ConRonRefine2`, **after** merging `arena` `e0616fdf` | **RED, and not by this branch** — see below |
-| the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Read}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+| the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Read,ExprOps/Mut}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
 
 **`arena` at `e0616fdf` does not build `ConRonRefine2`, and the failure is
 `Refine2/Core/Induction.lean`'s, not this branch's.**  Eight errors, all in
@@ -41356,6 +41383,6 @@ unfoldings of the zero clause are stale against it —
 `Induction.lean:136` `Application type mismatch: rfl`, `:810` and `:970`
 `unsolved goals`, `:1155` a `#guard_msgs` mismatch.  Every other module of the
 tier compiles, including all three of `ExprOps/{Pure,Read,Mut}.lean` and
-`Specs.lean` (90 `sorry`, no errors).  **This is task #97-P5-Core's to fix and
+`Specs.lean` (**82 `sorry`** between the three, no errors).  **This is task #97-P5-Core's to fix and
 it blocks every P5 branch's gate run**, which is why this section reports the
 pre-merge number as the branch's own.
