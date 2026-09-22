@@ -755,6 +755,31 @@ theorem internMaxL_run {s s' : AState} {a b : LIdx} {aP bP : Level} {h : LIdx}
   simp only [denoteLView, denoteL_ext ha hstep.ext, denoteL_ext hb hstep.ext,
     opt2]
 
+/-- con-leche: none — **a handle comparison IS a name comparison**, as an
+equation between `Bool`s: `Bridge/Checker/Base.lean`'s `beq_handle_iff` read
+at both signs (restated here rather than imported: that module is not in this
+tier's closure), which is the shape a walk that RETURNS the comparison needs
+(`mentionsConstGo`'s `.const` and `.proj` arms).  The `false` half is
+`denoteN_inj` — DESIGN §8.3's soundness obligation. -/
+theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {n p : NIdx}
+    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
+    (hp : denoteN st.ns p = some x) : (n == p) = (nm == x) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  cases hb : n == p with
+  | true =>
+    obtain rfl := eq_of_beq hb
+    rw [hn] at hp
+    obtain rfl := Option.some.inj hp
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (n == p) = true := beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hp)
+    rw [hb] at hne
+    exact absurd hne (by simp)
+
 /-- con-leche: none — **the level list reads at an INDEX**, with the fallback
 carried through: `structProjGuards`' `sorts.getD j z` against con-leche's
 `sorts.getD j .zero`. -/

@@ -1281,9 +1281,12 @@ The memoised walk.  Note the `fvar` arm: a free variable carries its type, and
 the walk descends into it — DESIGN §8.3's "a handle determines its own typing
 context".
 
-`sorry`: a fuel induction with the memo threaded; the name equality is
-`denoteN_inj` (`Bridge/Rel.lean`), which is what makes handle inequality
-structural inequality. -/
+**CLOSED** (task #97-P3-Ind round 3): the same fuel induction as
+`hasLooseBVarBGo_spec`, without the cutoff — `mentionsConst` has no packed
+bound to stop at.  The `.const` and `.proj` arms RETURN a handle comparison,
+so they need `beq_handle_eq` (`Bridge/Inductives/Rel.lean`) at both signs, and
+its `false` half is `denoteN_inj`: DESIGN §8.3's soundness obligation, cashed
+here twice. -/
 theorem mentionsConstGo_spec (T : NIdx) (TP : ConLeche.Name)
     (memo : Std.HashMap EIdx Bool) (fuel : Nat) (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP ∧
@@ -1291,16 +1294,200 @@ theorem mentionsConstGo_spec (T : NIdx) (TP : ConLeche.Name)
       (Arena.mentionsConstGo T memo fuel h)
       (fun st r => r.1 = Expr.mentionsConst TP hP ∧
         MentionsMemoOK TP r.2 st) := by
-  sorry
+  induction fuel generalizing memo h hP with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.mentionsConstGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hT, hd, hm⟩ := hp
+    simp only [Arena.mentionsConstGo] at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    -- the shared tail: record the answer in the memo and stop
+    have fin : ∀ {s₂ s₃ : AState} {b : Bool} {mm : Std.HashMap EIdx Bool}
+        {r' : Bool × Std.HashMap EIdx Bool},
+        PStep s₀ s₂ → b = Expr.mentionsConst TP hP →
+        MentionsMemoOK TP mm s₂.store →
+        (pure ((b, mm.insert h b) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₂ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsConst TP hP ∧
+          MentionsMemoOK TP r'.2 s₃.store := by
+      intro s₂ s₃ b mm r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, MentionsMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    -- the shared memo HIT
+    have hit : ∀ {s₃ : AState} {r₀ : Bool}
+        {r' : Bool × Std.HashMap EIdx Bool},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsConst TP hP ∧
+          MentionsMemoOK TP r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case const n us =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨nm, ls, rfl, hn, _⟩ := denote_const_inv hok.wf hw hd
+      refine ⟨PStep.refl hok, ?_, hm⟩
+      simp only [Expr.mentionsConst]
+      exact beq_handle_eq hok.wf hn hT
+    case fvar k ty =>
+      obtain ⟨t, rfl, hty⟩ := denote_fvar_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p, s₂, hin, hz⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo ty t _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hin
+        have hrA' : b1 = Expr.mentionsConst TP t := hrA
+        exact fin hsA (by simp only [Expr.mentionsConst]; exact hrA') hmA hz
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo f ef _ _ (b1, m1) hok ⟨hT, hf, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP ef := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 a ea _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext ha hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP ea := hrB
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB']) hmB hz
+    case lam ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP et := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 b eb _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP eb := hrB
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB']) hmB hz
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP et := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 b eb _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP eb := hrB
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB']) hmB hz
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ :=
+        denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo lt et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP et := hrA
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ :=
+          ih m1 lv ev _ _ (b2, m2) hsA.ok
+            ⟨denoteN_ext hT hsA.ext, denote_ext hval hsA.ext, hmA⟩ hc2
+        have hrB' : b2 = Expr.mentionsConst TP ev := hrB
+        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨b3, m3⟩ := p3
+        obtain ⟨hsC, hrC, hmC⟩ :=
+          ih m2 lb eb _ _ (b3, m3) hsB.ok
+            ⟨denoteN_ext (denoteN_ext hT hsA.ext) hsB.ext,
+             denote_ext (denote_ext hbd hsA.ext) hsB.ext, hmB⟩ hc3
+        have hrC' : b3 = Expr.mentionsConst TP eb := hrC
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC)
+          (by simp only [Expr.mentionsConst]; rw [hrA', hrB', hrC']) hmC hz
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ :=
+          ih memo psub es _ _ (b1, m1) hok ⟨hT, hsub, hm⟩ hc1
+        have hrA' : b1 = Expr.mentionsConst TP es := hrA
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin hsA
+          (by simp only [Expr.mentionsConst]
+              rw [hrA', beq_handle_eq hok.wf hn hT]) hmA hz
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
 The entry at an empty memo.
 
-`sorry`: `mentionsConstGo_spec`. -/
+**CLOSED** (task #97-P3-Ind round 3): `mentionsConstGo_spec` at the empty
+memo, which `MentionsMemoOK.empty` says is sound. -/
 theorem mentionsConst_spec (T : NIdx) (TP : ConLeche.Name) (e : EIdx)
     (eP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st e = some eP)
       (Arena.mentionsConst T e) (RV (Expr.mentionsConst TP eP)) := by
-  sorry
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hT, hd⟩ := hp
+  simp only [Arena.mentionsConst] at hrun
+  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ :=
+    mentionsConstGo_spec T TP ∅ Arena.coreWalkFuel e eP s₀ s₁ q hok
+      ⟨hT, hd, MentionsMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, hr⟩
 
 end ConRon.Bridge.Inductives
