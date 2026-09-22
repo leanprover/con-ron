@@ -707,6 +707,44 @@ theorem FoldOK.toStepOK {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
   coh := h.coh
   denote := h.denote
 
+/-- con-leche: none — **every entry the index answers with is an entry of the
+list it was built from**.  `mkIFEnvGo` only ever inserts entries of its own
+list, so a hash-map hit is a list member.  (Task #97-P3-Checker round 5: this
+is what makes the membership-shaped `hproj` of `IFEnvOK_of_denote` strictly
+stronger than the `find?`-shaped clause its conclusion has to deliver.) -/
+theorem mkIFEnvGo_mem : ∀ (cs : List IConstantInfo) (n : NIdx)
+    (p : Nat × IConstantInfo), (mkIFEnvGo cs).2[n]? = some p → p.2 ∈ cs := by
+  intro cs
+  induction cs with
+  | nil => intro n p h; simp [mkIFEnvGo] at h
+  | cons a as ih =>
+    intro n p h
+    simp only [mkIFEnvGo] at h
+    rw [Std.HashMap.getElem?_insert] at h
+    by_cases hn : a.name == n
+    · rw [if_pos hn] at h
+      obtain rfl := Option.some.inj h
+      simp
+    · rw [if_neg hn] at h
+      exact List.mem_cons_of_mem _ (ih n p h)
+
+/-- con-leche: none — `mkIFEnvGo_mem` at the index of a coherent `IFEnv`. -/
+theorem IFEnv.find?_mem {fe : IFEnv} (hcoh : IFEnvCoh fe) {n : NIdx}
+    {ci : IConstantInfo} (h : fe.find? n = some ci) : ci ∈ fe.env.consts := by
+  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx hcoh
+  simp only [IFEnv.find?, hidx] at h
+  cases hg : (mkIFEnvGo fe.env.consts).2[n]? with
+  | none => rw [hg] at h; simp at h
+  | some p =>
+    obtain ⟨c0, ci0⟩ := p
+    rw [hg] at h
+    dsimp only at h
+    by_cases hc : c0 < fe.visibleBelow
+    · rw [if_pos hc] at h
+      obtain rfl : ci0 = ci := Option.some.inj h
+      exact mkIFEnvGo_mem _ n (c0, ci0) hg
+    · rw [if_neg hc] at h; simp at h
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec from the
 denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
 and "the index is its list's index", because `IEnv.find?` and `Env.find?` are
@@ -735,37 +773,41 @@ conclusion re-delivers.  The same clause record carries task #97-P3-Core-2's
 `ProjTablesShaped`: they are one problem (the projection-table denotation does
 not carry what its consumers need) and one fix.
 
+**`hproj` WAS TOO WEAK FOR `cover`, and this is the repair** (found by task
+#97-P3-Checker round 4, authorised and applied in round 5).  Round 4's
+hypothesis was
+
+    ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t
+
+which quantifies over what `fe.find?` ANSWERS, and `fe.find?` is a hash-map
+read of the index `mkIFEnvGo` builds — an entry SHADOWED by a later insert at
+the same name handle is not covered by it.  `hit` is fine, because the entry
+`find?` returns is the entry the hypothesis speaks about.  `cover` is not: it
+starts from `env.find? nm = some c`, picks the `ci` at the same position of
+`fe.env.consts`, and must show `ci` is the entry the index answers with; that
+argument needs `denoteCI_name_of` AT `ci`, and `ci` is precisely the entry
+`fe.find?` may never return.  Concretely: two entries whose name handles are
+equal, the later a `.projInfo` whose `tableName` is that handle and whose
+`IProjTableOK` is false, satisfy every one of round 4's hypotheses and refute
+`cover`.
+
+The repair is one word in the quantifier — membership in `fe.env.consts`
+rather than an answer of `fe.find?` — and the SAME debtor still discharges it
+(`projTableOK_of_install`: the install is the only place a `.projInfo` row is
+created, so every row of the list satisfies it).  The conclusion's own
+`IFEnvOK.proj` field is still at the `find?` shape, and this hypothesis
+delivers it, because `IFEnvCoh` makes every answer of `fe.find?` a member of
+`fe.env.consts` (`IFEnv.find?_mem`).
+
 `sorry`: the `hit`/`cover` pair is an induction on `fe.env.consts` through
 `mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality and
-`hproj` at the `.projInfo` arm.  It is the one place `IFEnvCoh` is consumed
+`denoteCI_name_of` at each entry.  It is the one place `IFEnvCoh` is consumed
 rather than propagated, and the argument is con-leche's `mkFEnv_find?` at a
-denoted list.  Task #97-P3-Checker's sorry list, item 6.
-
-**`hproj` IS TOO WEAK FOR `cover`** (task #97-P3-Checker round 4, found while
-taking this on).  As written it quantifies over what `fe.find?` ANSWERS, and
-`fe.find?` is `List.find?`: an entry shadowed by an EARLIER entry with the
-same name handle is not covered by it.  `hit` is fine — the entry `find?`
-returns is the entry `hproj` speaks about — but `cover` starts from
-`env.find? nm = some c`, picks the corresponding `ci` out of `fe.env.consts`
-at the same position, and must show that `ci` is the FIRST entry with its
-handle; that argument needs `denoteN ci.name = some c.name`, i.e.
-`denoteCI_name_of` AT `ci`, and `ci` is exactly the entry `fe.find?` might not
-return.  Concretely: two entries whose name handles are equal, the later one a
-`.projInfo` whose `tableName` is that handle and whose `IProjTableOK` is
-false, satisfy every hypothesis and refute `cover`.
-
-The fix is one word in the quantifier —
-
-    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t)
-
-— and it is still discharged by the same debtor (`projTableOK_of_install`: the
-install is the only place a `.projInfo` row is created, so every row of the
-list satisfies it).  NOT changed here: `Bridge/Frontend/Axioms.lean` and
-`Bridge/Frontend/Capstone.lean` consume this theorem, so the reshape is the
-coordinator's. -/
+denoted list.  Task #97-P3-Checker's sorry list, item 6. -/
 theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
-    (hproj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t)
+    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts →
+      IProjTableOK s.store t)
     (hd : denoteFEnv s.store fe = some env) : IFEnvOK env fe s := by
   sorry
 

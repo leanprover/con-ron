@@ -115,8 +115,8 @@ theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
       caches := hc
       pins := hpins
       ienv := IFEnvOK_of_denote (μ := μ) hok rfl
-        (by intro n t hn
-            simp [IFEnv.find?, mkIFEnv, mkIFEnvGo, IEnv.empty] at hn) rfl }
+        (by intro t hn
+            simp [mkIFEnv, IEnv.empty] at hn) rfl }
   envWF := by intro c hc'; exact absurd hc' (by simp [Env.empty])
   persPins := hpp
   persEnv := { env := by intro c hc'; simp [mkIFEnv, IEnv.empty] at hc'
