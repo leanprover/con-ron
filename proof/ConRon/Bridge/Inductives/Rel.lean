@@ -547,6 +547,17 @@ theorem pureOk {α : Type} {a r : α} {s s' : AState}
   injection h'' with h1 h2
   exact ⟨h1.symm, h2.symm⟩
 
+/-- con-leche: none — **the `do`-elaborator's `if`, lifted out of the bind**.
+`Arena/Inductives/StructParts.lean`'s `structShape` writes `let want ← if
+large then internLNode (.param elim) else internLNode .zero`, and the
+elaborator answers by DUPLICATING everything after it into both arms — the
+minor premise and the major domain included.  This equation puts the `if` back
+where the source wrote it, so the continuation is inverted once. -/
+theorem am_if_bind {α β : Type} {c : Prop} [Decidable c] (x y : AM α)
+    (k : α → AM β) :
+    (if c then (x >>= k) else (y >>= k)) = ((if c then x else y) >>= k) := by
+  split <;> rfl
+
 /-! ## The primitives, in RUN form
 
 `Bridge/Specs.lean` states one `@[spec]` triple per `Monad.lean` primitive,
@@ -687,6 +698,20 @@ theorem internProjE_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
   simp only [denoteEView, denoteN_ext hn hstep.ext, denote_ext he hstep.ext,
     opt2]
 
+/-- con-leche: none — `internE` at an `.app`: `structShape`'s two assembled
+right-hand sides (`bvar 2 (bvar 0)` and the minor premise's body). -/
+theorem internAppE_run {s s' : AState} {f a : EIdx} {fP aP : Expr} {h : EIdx}
+    (hok : StateOK s) (hf : denoteE s.store f = some fP)
+    (ha : denoteE s.store a = some aP)
+    (hrun : internE (.app f a) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.app fP aP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_app (by rw [hf]; rfl) (by rw [ha]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hf hstep.ext, denote_ext ha hstep.ext,
+    opt2]
+
 /-- con-leche: none — `internE` at a binder whose datum is a VALUE
 (`replacePisPw`, `pisToLamsPw` and the recursor generators build their binders
 this way, not through the datum-handle face). -/
@@ -817,6 +842,30 @@ theorem beq_ehandle_eq {st : EStore} (hwf : StoreWF st) {a b : EIdx}
     intro heq
     subst heq
     have hne : (a == b) = true := beq_iff_eq.mpr (denoteE_inj hwf ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — **a LEVEL-handle comparison is a structural comparison**,
+at both signs: `beq_ehandle_eq` one store down.  The `false` half is
+`denoteL_inj` (`Arena/WFProofs.lean`).  `structShape`'s motive branch is the
+first consumer — it compares the motive codomain's level handle against the
+`Sort elim` / `Prop` it interned, where con-leche compares `Level`s. -/
+theorem beq_lhandle_eq {st : EStore} (hwf : StoreWF st) {a b : LIdx}
+    {x y : Level} (ha : denoteL st.ls a = some x)
+    (hb : denoteL st.ls b = some y) : (a == b) = (x == y) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  cases h1 : a == b with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (a == b) = true := beq_iff_eq.mpr (denoteL_inj hrk.lsWF ha hb)
     rw [h1] at hne
     exact absurd hne (by simp)
 
@@ -1045,6 +1094,49 @@ theorem denoteBP_someB {st : EStore} {k : Nat} {cP : Expr}
       · rw [denoteBinders_eq_denoteBL]; exact hb
       · first | exact he | rfl
 
+/-! ### `stripPis`, in run form
+
+`Bridge/ExprOps/Spine.lean`'s `stripPis_spec` is CLOSED; this tier's
+consumers are the three telescope readers (`structUsedLater`,
+`structUsedLaterGo` and, through them, `structProjGuards`) and — since round
+5 — `structShape_spec`, which is why these live here rather than in
+`StructParts.lean`.  Two inversions of `denoteBP` are the shape the readers
+need; `denoteBP_someB` above is the third, for the twins that read the peeled
+BINDERS. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the run form
+at this tier's frame; `stripPis` is read-only, so the state does not move at
+all. -/
+theorem stripPis_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
+    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    (hd : denoteE s₀.store c = some cP)
+    (hrun : Arena.stripPis k c s₀ = .ok (r, s')) :
+    s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripPis k cP) := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.stripPis_spec k s₀ c hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 cP hd⟩
+
+/-- con-leche: none — a `none` answer is `none` on the pure side too: the
+two-sidedness `stripPis`' dispatch needs. -/
+theorem stripPis_none {st : EStore} {k : Nat} {cP : Expr}
+    (h : ExprOps.denoteBP st none = some (Expr.stripPis k cP)) :
+    Expr.stripPis k cP = none := (Option.some.inj h).symm
+
+/-- con-leche: none — and a `some` answer names the pure residual. -/
+theorem stripPis_some {st : EStore} {k : Nat} {cP : Expr}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
+    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean getAppFn — the run form of
 `Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
 theorem getAppFn_run {fuel : Nat} {s₀ s' : AState} {h r : EIdx} {hP : Expr}
@@ -1253,6 +1345,56 @@ theorem denoteBinders_getD {st : EStore} :
         | succ k =>
           have hk' : k < as.length := by simpa using hk
           simpa only [List.getD_cons_succ] using ih has hk'
+
+/-- con-leche: none — **a denoting binder telescope reads at an INDEX with the
+`Option` CARRIED**, both ways.  `structShape` reads `rbs[nP]?`, `rbs[nP+1]?`
+and `rbs[nP+2]?` and dispatches on the `Option`, so the `none` answers have to
+correspond as well as the `some` ones; the `BinderMeta` travels verbatim
+(`denoteBinders` copies it), which is why the two sides share one `m`. -/
+theorem denoteBinders_getElem? {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
+      denoteBinders st bs = some xs → ∀ (k : Nat),
+        (∀ b m, bs[k]? = some (b, m) →
+          ∃ x, xs[k]? = some (x, m) ∧ denoteE st b = some x) ∧
+        (bs[k]? = none → xs[k]? = none) := by
+  intro bs
+  induction bs with
+  | nil =>
+    intro xs h k
+    simp only [denoteBinders, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro b m hb; simp at hb, by intro _; simp⟩
+  | cons a as ih =>
+    intro xs h k
+    obtain ⟨t, m⟩ := a
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some y =>
+      cases has : denoteBinders st as with
+      | none => rw [ht, has] at h; simp at h
+      | some ys =>
+        rw [ht, has] at h
+        obtain rfl := Option.some.inj h
+        cases k with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro b m' hb
+            simp only [List.getElem?_cons_zero, Option.some.injEq,
+              Prod.mk.injEq] at hb
+            obtain ⟨rfl, rfl⟩ := hb
+            exact ⟨y, by simp, ht⟩
+          · intro hb; simp at hb
+        | succ k =>
+          obtain ⟨hA, hB⟩ := ih has k
+          refine ⟨?_, ?_⟩
+          · intro b m' hb
+            simp only [List.getElem?_cons_succ] at hb
+            obtain ⟨x, hx, hd⟩ := hA b m' hb
+            exact ⟨x, by simpa using hx, hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
 
 /-- con-leche: none — a binder telescope's denotation keeps its length. -/
 theorem denoteBinders_length {st : EStore} :
