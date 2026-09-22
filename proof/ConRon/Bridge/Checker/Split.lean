@@ -65,12 +65,36 @@ set_option autoImplicit false
 /-! ## The install half -/
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal —
+the PURE half: nine guards accepted means con-leche's install accepts with the
+annotated header. -/
+theorem installConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
+    {c : ConstantVal} {ty : Expr}
+    (h1 : env.find? c.name = none)
+    (h2 : ConLeche.reservedBasisNames.contains c.name = false)
+    (h3 : c.name.isProjFnShape = false)
+    (h4 : ConLeche.Name.nodup c.levelParams = true)
+    (h5 : c.type.looseBVarsBounded 0 = true)
+    (h6 : c.type.hasFvar = false)
+    (h7 : ConLeche.annotateCore μ env F 0 c.type = .ok ty)
+    (h8 : ty.allLevelParamsDefined c.levelParams = true)
+    (h9 : ty.constsResolve env = true) :
+    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env c
+      = .ok { c with type := ty } := by
+  simp only [ConLeche.installConstantVal, ConLeche.fueledOps, h1, h2, h3, h4,
+    h5, h6, h7, h8, h9, Option.isSome_none, Bool.false_eq_true, if_false,
+    if_true, bind, Except.bind, pure, Except.pure]
+
+
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal —
 the header's guards and annotation, without the inference.
 
-`sorry`: the same six guards as `checkConstantVal_bridge`
-(`Bridge/Checker/Base.lean`) minus the last two calls; in fact the two share a
-proof and this one is the shorter half.  Task #97-P3-Checker's sorry list,
-item 17. -/
+**PROVED** (task #97-P3-Checker round 4): the same six guards as
+`checkConstantVal_bridge` (`Bridge/Checker/Base.lean`) and its annotation,
+stopping before the inference and the sort test — con-leche's own
+`installConstantVal` is `checkConstantVal` minus exactly those two calls, so
+the two proofs are the same nine steps and this one ends at the ninth.  It
+was waiting on `allLevelParamsDefined_run` and `constsResolveFFast_run`,
+closed in the same round. -/
 theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
@@ -78,14 +102,184 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
     (hrun : installConstantVal μ fe cv s = .ok (cvA, s')) :
     CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
       ConLeche.installConstantVal (ConLeche.fueledOps μ F) env c = .ok cA := by
-  sorry
+  obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
+  have hknot := hk.knot env fe hok.envWF
+  have hck0 : CheckOK μ env fe s := hok.check
+  have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
+      {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
+    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
+  simp only [Arena.installConstantVal] at hrun
+  -- 1. the duplicate-declaration guard
+  obtain ⟨hdup, r1⟩ := AM.dguard_ok hnever hrun
+  replace r1 := AM.pure_bind_ok r1
+  have hfind : fe.find? cv.name = none := by
+    cases hf : fe.find? cv.name with
+    | none => rfl
+    | some ci => rw [hf] at hdup; exact absurd rfl hdup
+  have hfindP : env.find? c.name = none :=
+    IFEnvOK.miss hck0.state hck0.ienv hnm hfind
+  -- 2. the reserved-name guard
+  obtain ⟨rs, s2, g2r, r2⟩ := AM.bind_ok r1
+  obtain ⟨hp2, hrs⟩ := reservedBasisNames_run hck0.state.wf hck0.pins g2r
+  have hck2 : CheckOK μ env fe s2 := hck0.mono ⟨hp2.wf⟩ hp2.ext hp2.caches hp2.pins
+  have hnm2 : denoteN s2.store.ns cv.name = some c.name := denoteN_ext hnm hp2.ext
+  have hlps2 : Frontend.denoteNList s2.store.ns cv.levelParams
+      = some c.levelParams := denoteNList_ext hp2.ext.lss.ls.ns _ _ hlps
+  have hty2 : denoteE s2.store cv.type = some c.type := denote_ext hty hp2.ext
+  obtain ⟨hres, r3⟩ := AM.dguard_ok hnever r2
+  replace r3 := AM.pure_bind_ok r3
+  have hresP : ConLeche.reservedBasisNames.contains c.name = false := by
+    have hc := denoteNList_contains hck2.state.wf rs reservedBasisNameValues
+      (denoteNL_toList rs reservedBasisNameValues hrs) cv.name c.name hnm2
+    rw [← reservedBasisNameValues_eq, ← hc]
+    cases hb : rs.contains cv.name with
+    | false => rfl
+    | true => rw [hb] at hres; exact absurd rfl hres
+  -- 3. the reserved-projection-name guard
+  obtain ⟨b3, s3, g3r, r4⟩ := AM.bind_ok r3
+  obtain ⟨hs3, hb3⟩ := isProjFnShape_run hck2.state rfl hnm2 g3r
+  obtain ⟨hproj, r5⟩ := AM.dguard_ok hnever r4
+  replace r5 := AM.pure_bind_ok r5
+  have hprojP : c.name.isProjFnShape = false := by
+    rw [← hb3]
+    cases hb : b3 with
+    | false => rfl
+    | true => rw [hb] at hproj; exact absurd rfl hproj
+  -- 4. the duplicate-universe-parameter guard
+  obtain ⟨hnod, r6⟩ := AM.dunless_ok hnever r5
+  replace r6 := AM.pure_bind_ok r6
+  have hnodP : ConLeche.Name.nodup c.levelParams = true := by
+    rw [← nameNodup_spec hck2.state.wf cv.levelParams c.levelParams hlps2]
+    exact hnod
+  subst hs3
+  -- 5. the loose-bound-variable guard
+  obtain ⟨b5, s5, g5r, r7⟩ := AM.bind_ok r6
+  obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s3)
+    (Q := fun r t => t.store = s3.store ∧ t.caches = s3.caches ∧
+      t.pins = s3.pins ∧ RelV (Expr.looseBVarsBounded 0) s3.store cv.type r)
+    rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s3
+      cv.type hck2.state (by rw [hty2]; rfl))
+  obtain ⟨hlbb, r8⟩ := AM.dunless_ok hnever r7
+  replace r8 := AM.pure_bind_ok r8
+  have hlbbP : c.type.looseBVarsBounded 0 = true := by
+    rw [← h5r c.type hty2]; exact hlbb
+  have hck5 : CheckOK μ env fe s5 :=
+    hck2.mono ⟨by rw [h5st]; exact hck2.state.wf⟩ (by rw [h5st]; exact Ext.refl _)
+      h5c h5p
+  have hnm5 : denoteN s5.store.ns cv.name = some c.name := by rw [h5st]; exact hnm2
+  have hty5 : denoteE s5.store cv.type = some c.type := by rw [h5st]; exact hty2
+  have hlps5 : Frontend.denoteNList s5.store.ns cv.levelParams
+      = some c.levelParams := by rw [h5st]; exact hlps2
+  -- 6. the free-variable guard
+  obtain ⟨b6, s6, g6r, r9⟩ := AM.bind_ok r8
+  obtain ⟨h6st, h6c, h6p, h6r⟩ := AM.of_run (P := fun t => t = s5)
+    (Q := fun r t => t.store = s5.store ∧ t.caches = s5.caches ∧
+      t.pins = s5.pins ∧ RelV Expr.hasFvar s5.store cv.type r)
+    rfl g6r (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s5 cv.type
+      hck5.state (by rw [hty5]; rfl))
+  obtain ⟨hfv, r10⟩ := AM.dguard_ok hnever r9
+  replace r10 := AM.pure_bind_ok r10
+  have hfvP : c.type.hasFvar = false := by
+    rw [← h6r c.type hty5]
+    cases hb : b6 with
+    | false => rfl
+    | true => rw [hb] at hfv; exact absurd rfl hfv
+  have hck6 : CheckOK μ env fe s6 :=
+    hck5.mono ⟨by rw [h6st]; exact hck5.state.wf⟩ (by rw [h6st]; exact Ext.refl _)
+      h6c h6p
+  have hnm6 : denoteN s6.store.ns cv.name = some c.name := by rw [h6st]; exact hnm5
+  have hty6 : denoteE s6.store cv.type = some c.type := by rw [h6st]; exact hty5
+  have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
+      = some c.levelParams := by rw [h6st]; exact hlps5
+  have hws : Expr.WScoped 0 c.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
+  have hden6 : denoteFEnv s6.store fe = some env := by
+    rw [h6st, h5st]
+    exact denoteFEnv_pext (PExt.of_ext hp2.ext) hok.persEnv hok.denote
+  -- 7. the annotation
+  obtain ⟨type, s7, g7r, r11⟩ := AM.bind_ok r10
+  obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s6.store t.store ∧
+      t.pins = s6.pins ∧
+      Core.SimE (ConLeche.annotateCore μ env) 0 c.type t.store r)
+    rfl g7r (hknot.annotate s6 0 cv.type c.type hck6 hty6 hws)
+  obtain ⟨v, hv7, hwsv, F7, hF7⟩ := hsim7
+  have hnm7 : denoteN s7.store.ns cv.name = some c.name := denoteN_ext hnm6 hx7
+  have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
+      = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
+  have hden7 : denoteFEnv s7.store fe = some env :=
+    denoteFEnv_pext (PExt.of_ext hx7) hok.persEnv hden6
+  -- 8. the undeclared-universe-parameter guard
+  obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
+  obtain ⟨h8st, h8c, h8p, h8r⟩ :=
+    allLevelParamsDefined_run hck7.state hlps7 hv7 g8r
+  obtain ⟨hlpd, r13⟩ := AM.dunless_ok hnever r12
+  replace r13 := AM.pure_bind_ok r13
+  have hlpdP : v.allLevelParamsDefined c.levelParams = true := by
+    rw [← h8r]; exact hlpd
+  have hck8 : CheckOK μ env fe s8 :=
+    hck7.mono ⟨by rw [h8st]; exact hck7.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
+      h8c h8p
+  have hv8 : denoteE s8.store type = some v := by rw [h8st]; exact hv7
+  have hnm8 : denoteN s8.store.ns cv.name = some c.name := by rw [h8st]; exact hnm7
+  have hlps8 : Frontend.denoteNList s8.store.ns cv.levelParams
+      = some c.levelParams := by rw [h8st]; exact hlps7
+  have hden8 : denoteFEnv s8.store fe = some env := by rw [h8st]; exact hden7
+  -- 9. the unresolved-constant guard
+  obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
+  have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p, hp2.pins]
+  obtain ⟨h9st, h9c, h9p, h9r⟩ :=
+    constsResolveFFast_run ⟨hck8, hok.envWF, hok.persPins.mono hpins8,
+      hok.persEnv, hok.coh, hden8⟩ hv8 g9r
+  obtain ⟨hcr, r15⟩ := AM.dunless_ok
+    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
+  replace r15 := AM.pure_bind_ok r15
+  have hcrP : v.constsResolve env = true := by rw [← h9r]; exact hcr
+  have hck9 : CheckOK μ env fe s9 :=
+    hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
+      h9c h9p
+  have hv9 : denoteE s9.store type = some v := by rw [h9st]; exact hv8
+  have hnm9 : denoteN s9.store.ns cv.name = some c.name := by rw [h9st]; exact hnm8
+  have hlps9 : Frontend.denoteNList s9.store.ns cv.levelParams
+      = some c.levelParams := by rw [h9st]; exact hlps8
+  -- 10. the answer
+  obtain ⟨hcvA, hs'⟩ := AM.pure_ok r15
+  subst hcvA
+  subst hs'
+  have hext : Ext s.store s'.store := by
+    refine hp2.ext.trans ?_
+    rw [← h5st, ← h6st]
+    refine hx7.trans ?_
+    rw [← h8st, ← h9st]
+    exact Ext.refl _
+  have hpins : s'.pins = s.pins := by
+    rw [h9p, h8p, hp7, h6p, h5p, hp2.pins]
+  refine ⟨⟨hck9, hext, hpins⟩, ⟨{ c with type := v }, F7, ?_, ?_⟩⟩
+  · simp only [Frontend.denoteCV, hnm9, hlps9, hv9]
+  · exact installConstantVal_pure hfindP hresP hprojP hnodP hlbbP hfvP hF7
+      hlpdP hcrP
+
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
+PURE half: five guards accepted means con-leche's install accepts with the
+annotated value. -/
+theorem installValue_pure {μ : CheckMode} {F : Nat} {env : Env}
+    {c : ConstantVal} {x ty : Expr}
+    (h5 : x.looseBVarsBounded 0 = true)
+    (h6 : x.hasFvar = false)
+    (h7 : ConLeche.annotateCore μ env F 0 x = .ok ty)
+    (h8 : ty.allLevelParamsDefined c.levelParams = true)
+    (h9 : ty.constsResolve env = true) :
+    ConLeche.installValue (ConLeche.fueledOps μ F) env c x = .ok ty := by
+  simp only [ConLeche.installValue, ConLeche.fueledOps, h5, h6, h7, h8, h9,
+    Bool.false_eq_true, if_false, if_true, bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
 value's guards and annotation.
 
-`sorry`: `looseBVarsBoundedFast` / `hasFvarFast` (`Bridge/ExprOps/Walks.lean`),
-`KnotSpec.annotate`, `allLevelParamsDefined_run`,
-`constsResolveFFast_run`.  Task #97-P3-Checker's sorry list, item 17. -/
+**PROVED** (task #97-P3-Checker round 4): the last five steps of
+`installConstantVal_bridge`, at the VALUE rather than the type —
+`looseBVarsBoundedFast` and `hasFvarFast` (`Bridge/ExprOps/Walks.lean`),
+`KnotSpec.annotate`, `allLevelParamsDefined_run` and
+`constsResolveFFast_run`. -/
 theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cv : IConstantVal} {c : ConstantVal} {value jv : EIdx} {x : Expr}
     {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
@@ -94,7 +288,104 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     (hrun : installValue μ fe cv value s = .ok (jv, s')) :
     CoreStep μ env fe s s' ∧ ∃ y F, denoteE s'.store jv = some y ∧
       ConLeche.installValue (ConLeche.fueledOps μ F) env c x = .ok y := by
-  sorry
+  obtain ⟨hnm, hlps, -⟩ := denoteCV_inv hcv
+  have hknot := hk.knot env fe hok.envWF
+  have hck0 : CheckOK μ env fe s := hok.check
+  have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
+      {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
+    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
+  simp only [Arena.installValue] at hrun
+  -- 1. the loose-bound-variable guard
+  obtain ⟨b5, s5, g5r, r7⟩ := AM.bind_ok hrun
+  obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t.store = s.store ∧ t.caches = s.caches ∧
+      t.pins = s.pins ∧ RelV (Expr.looseBVarsBounded 0) s.store value r)
+    rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s
+      value hck0.state (by rw [hv]; rfl))
+  obtain ⟨hlbb, r8⟩ := AM.dunless_ok hnever r7
+  replace r8 := AM.pure_bind_ok r8
+  have hlbbP : x.looseBVarsBounded 0 = true := by
+    rw [← h5r x hv]; exact hlbb
+  have hck5 : CheckOK μ env fe s5 :=
+    hck0.mono ⟨by rw [h5st]; exact hck0.state.wf⟩ (by rw [h5st]; exact Ext.refl _)
+      h5c h5p
+  have hv5 : denoteE s5.store value = some x := by rw [h5st]; exact hv
+  have hlps5 : Frontend.denoteNList s5.store.ns cv.levelParams
+      = some c.levelParams := by rw [h5st]; exact hlps
+  -- 2. the free-variable guard
+  obtain ⟨b6, s6, g6r, r9⟩ := AM.bind_ok r8
+  obtain ⟨h6st, h6c, h6p, h6r⟩ := AM.of_run (P := fun t => t = s5)
+    (Q := fun r t => t.store = s5.store ∧ t.caches = s5.caches ∧
+      t.pins = s5.pins ∧ RelV Expr.hasFvar s5.store value r)
+    rfl g6r (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s5 value
+      hck5.state (by rw [hv5]; rfl))
+  obtain ⟨hfv, r10⟩ := AM.dguard_ok hnever r9
+  replace r10 := AM.pure_bind_ok r10
+  have hfvP : x.hasFvar = false := by
+    rw [← h6r x hv5]
+    cases hb : b6 with
+    | false => rfl
+    | true => rw [hb] at hfv; exact absurd rfl hfv
+  have hck6 : CheckOK μ env fe s6 :=
+    hck5.mono ⟨by rw [h6st]; exact hck5.state.wf⟩ (by rw [h6st]; exact Ext.refl _)
+      h6c h6p
+  have hv6 : denoteE s6.store value = some x := by rw [h6st]; exact hv5
+  have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
+      = some c.levelParams := by rw [h6st]; exact hlps5
+  have hws : Expr.WScoped 0 x := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
+  have hden6 : denoteFEnv s6.store fe = some env := by
+    rw [h6st, h5st]; exact hok.denote
+  -- 3. the annotation
+  obtain ⟨jv2, s7, g7r, r11⟩ := AM.bind_ok r10
+  obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s6.store t.store ∧
+      t.pins = s6.pins ∧
+      Core.SimE (ConLeche.annotateCore μ env) 0 x t.store r)
+    rfl g7r (hknot.annotate s6 0 value x hck6 hv6 hws)
+  obtain ⟨w, hw7, hwsw, F7, hF7⟩ := hsim7
+  have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
+      = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
+  have hden7 : denoteFEnv s7.store fe = some env :=
+    denoteFEnv_pext (PExt.of_ext hx7) hok.persEnv hden6
+  -- 4. the undeclared-universe-parameter guard
+  obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
+  obtain ⟨h8st, h8c, h8p, h8r⟩ :=
+    allLevelParamsDefined_run hck7.state hlps7 hw7 g8r
+  obtain ⟨hlpd, r13⟩ := AM.dunless_ok hnever r12
+  replace r13 := AM.pure_bind_ok r13
+  have hlpdP : w.allLevelParamsDefined c.levelParams = true := by
+    rw [← h8r]; exact hlpd
+  have hck8 : CheckOK μ env fe s8 :=
+    hck7.mono ⟨by rw [h8st]; exact hck7.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
+      h8c h8p
+  have hw8 : denoteE s8.store jv2 = some w := by rw [h8st]; exact hw7
+  have hden8 : denoteFEnv s8.store fe = some env := by rw [h8st]; exact hden7
+  -- 5. the unresolved-constant guard
+  obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
+  have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p]
+  obtain ⟨h9st, h9c, h9p, h9r⟩ :=
+    constsResolveFFast_run ⟨hck8, hok.envWF, hok.persPins.mono hpins8,
+      hok.persEnv, hok.coh, hden8⟩ hw8 g9r
+  obtain ⟨hcr, r15⟩ := AM.dunless_ok
+    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
+  replace r15 := AM.pure_bind_ok r15
+  have hcrP : w.constsResolve env = true := by rw [← h9r]; exact hcr
+  have hck9 : CheckOK μ env fe s9 :=
+    hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
+      h9c h9p
+  have hw9 : denoteE s9.store jv2 = some w := by rw [h9st]; exact hw8
+  -- 6. the answer
+  obtain ⟨hjv, hs'⟩ := AM.pure_ok r15
+  subst hjv
+  subst hs'
+  have hext : Ext s.store s'.store := by
+    rw [← h5st, ← h6st]
+    refine hx7.trans ?_
+    rw [← h8st, ← h9st]
+    exact Ext.refl _
+  have hpins : s'.pins = s.pins := by rw [h9p, h8p, hp7, h6p, h5p]
+  exact ⟨⟨hck9, hext, hpins⟩, ⟨w, F7, hw9,
+    installValue_pure hlbbP hfvP hF7 hlpdP hcrP⟩⟩
 
 /-! ## The check half -/
 
