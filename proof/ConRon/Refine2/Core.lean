@@ -16,7 +16,7 @@ entries against `Arena/Core.lean`'s `coreKnot`, `Arena/CoreGated.lean`'s
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and `ensure_sort_refines` | all |
 | `Core/Arms/Gated.lean` | `bodyRel_stuckGatedCore`, the gated body's identity at a stuck tag (a `BodyRel` field until task #97-P5-Core-2 made it unnecessary) | all |
 | `Core/Arms/Delta.lean` | the `whnf` loop's delta leaf: `ifenv_find_abs`, the `const` tag/view agreement, `const_val_at_refines` and **`unfold_definition_refines`** (task #97-P5-Core-2) | all |
-| `Core/Arms/Loops.lean` | the two loops' second fuel dimension — `whnf_step`/`whnf_loop`/`whnf_body` closed modulo ONE leaf; the `defeq` triple stated | 7 of 8 |
+| `Core/Arms/Loops.lean` | the two loops' second fuel dimension — `whnf_step`/`whnf_loop`/`whnf_body` closed modulo ONE leaf (`reduce_nat`); the `defeq` triple stated | 11 of 14 |
 | `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14 | 0 of 5 |
 
 **The tier's one idea** is `KnotRel`: §3.4 forbids the port a record of

@@ -17,7 +17,7 @@ statement; the arms themselves live in `Core/Arms/`:
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and **`ensure_sort_refines`** | **all** |
 | `Core/Arms/Gated.lean` | `bodyRel_stuckGatedCore` — the gated body's identity at a stuck tag (task #97-P5-Core's finding 12, first half).  It was a `BodyRel` FIELD until task #97-P5-Core-2 put the port's fuel-0 arm back in `coreKnotGated`; the fact stays true and stays proved | **all** |
 | `Core/Arms/Delta.lean` | the `whnf` loop's DELTA leaf (task #97-P5-Core-2): `ifenv_find_abs` (the environment index's one reader), the `const` tag/view agreement, `nidx_vec_dup_val`, `const_val_at_refines` and **`unfold_definition_refines`** | **all** |
-| `Core/Arms/Loops.lean` | the two loops' SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed** modulo ONE leaf (`reduce_nat`); the `defeq` triple stated at the corrected shape | 7 of 8 |
+| `Core/Arms/Loops.lean` | the two loops' SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed** modulo ONE leaf (`reduce_nat`); the `defeq` triple stated at the corrected shape | 11 of 14 |
 | `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14, each against the twin's own batched form | 0 of 5 |
 
 ## What each body needs, counted

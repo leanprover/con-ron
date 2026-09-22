@@ -124,8 +124,12 @@ structure CoreAmbient (pers : arena.store.PersTier) (vis : Std.U64)
   DENOTATION-preservation statement (`Arena/Denote.lean`), so on its own it
   says nothing about `view`; it carries `EResolves` only because
   `Arena/WF.lean`'s denotation is total on a well-formed store, which is again
-  Theorem 1's.  `whnf_step` needs it because `unfold_definition` reads the
-  `whnfCore` reduct at the state `reduce_nat` left. -/
+  Theorem 1's.  `whnf_step` needed it to hand `unfold_definition` the
+  `whnfCore` reduct at the state `reduce_nat` left; task #97-P5-Core-2's
+  `unfold_definition_refines` asks for neither `StoreWF` nor `EResolves` on
+  its argument (its only tag-first dispatch is on `get_app_fn`'s ANSWER, which
+  is `ExprOpsHyp.headRes`), so this clause has **no consumer left** and is
+  kept only because `reduce_nat` may want it. -/
   resExt : ∀ {lst1 lst2 : AState} {h : EIdx}, StoreWF lst1.store →
     Ext lst1.store lst2.store → EResolves lst1 h → EResolves lst2 h
 
