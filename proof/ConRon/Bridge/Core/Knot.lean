@@ -358,6 +358,19 @@ theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   obtain rfl := (Option.some.inj hbb).symm
   exact h4
 
+/-! ### The primed slots' axiom census -/
+
+section Census
+
+#print axioms KnotSpec.whnfCore'
+#print axioms KnotSpec.whnf'
+#print axioms KnotSpec.infer'
+#print axioms KnotSpec.annotate'
+#print axioms KnotSpec.inferIO'
+#print axioms KnotSpec.defeq'
+
+end Census
+
 /-! ## The body statement, once
 
 Every one of the six body theorems has the same shape — the body at a knot

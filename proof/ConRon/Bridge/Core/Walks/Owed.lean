@@ -658,4 +658,19 @@ theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           pw⌝⦄ := by
   sorry
 
+/-! ## 6. The axiom census
+
+The round's one CLOSED walk in this module, its induction, and the pure-side
+step equations of the two walks whose arena side is still open. -/
+
+section Census
+
+#print axioms denoteEList_cons_inv
+#print axioms defEqListFueled_cons_true
+#print axioms defEqList_go
+#print axioms defEqList_spec
+#print axioms etaCertFueled_yes
+
+end Census
+
 end ConRon.Bridge.Core

@@ -897,4 +897,29 @@ theorem isPropType_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
             hF3)
           hiso
 
+/-! ## 6. The axiom census -/
+
+section Census
+
+#print axioms viewLen_of_denoteLs
+#print axioms denoteNList_len
+#print axioms denoteCI_defnInfo_inv
+#print axioms denoteCI_defn_inv
+#print axioms denoteCV_inv
+#print axioms denote_not_const
+#print axioms denote_not_app
+#print axioms env_defn_of_index
+#print axioms env_not_defn_of_index
+#print axioms beq_of_denoteN
+#print axioms name_eq_iff_of_denoteN
+#print axioms instantiate1Fast_specE
+/-! **The five closed walks of this module.** -/
+#print axioms unfoldableHead_spec
+#print axioms headHint_spec
+#print axioms sameConstHeads_spec
+#print axioms defeqSpine_spec
+#print axioms isPropType_spec
+
+end Census
+
 end ConRon.Bridge.Core
