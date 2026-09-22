@@ -46929,3 +46929,22 @@ ready underneath the name one.
   matched.  `simp only [NStore.find?, hpp]` is the discipline.
 * **The scratch file paid off again**: 2 s against 17 s for the module, and
   this round's last mile was one unterminated `/-!` comment and nothing else.
+
+##### 9. Elaboration and the gates
+
+| file | lines | `sorry` | note |
+|---|---:|---:|---|
+| `Refine2/Specs.lean` | **12 056** | **8** (from 11) | +1 780 lines |
+| `Arena/WFProofs.lean` | 9 236 | 0 | +354, one append-only section |
+| `Refine2/ExprOps/Mut.lean` | 2 419 | 44 | untouched — the three closed `_run` have no call site yet |
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green** — `Specs.lean` **8**, **863** `sorry` declarations across the tier (from 866) |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 92 s, `lake-build` 112 s; no Rust or generated file moved) |
+| merged `arena` once (`48438ac0`) | DESIGN.md only |
+| the diff | `proof/ConRon/Refine2/Specs.lean`, `proof/ConRon/Arena/WFProofs.lean` and this section.  No Rust file, no generated model, no `Refine/`, no `Bridge/`, no `Refine2/Core/**`, no `Refine2/Promote/**` |
+
+**Lanes entered outside this task's own**: one, `Arena/WFProofs.lean`, and only
+its append-only section at the end (the brief's allowance).  `Refine2/ExprOps/Mut.lean`
+was not touched: nothing this round changed forces a call site.
