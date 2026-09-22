@@ -103,6 +103,17 @@ def LPDMemoOK (params : List ConLeche.Name) (tbl : Std.HashMap EIdx Bool)
 
 /-! ### The three read-only readers, in run form -/
 
+/-- con-leche: none — `pinAt` in run form, off `Bridge/Specs.lean`'s triple.  (Moved up from beside `PinStep` in round 4: `constsResolve`'s
+literal arms read pins and they sit above this line.) -/
+theorem pinAt_run {i : Nat} {s s' : AState} {n : NIdx} {x : ConLeche.Name}
+    (hp : PinsOK s) (hx : pinNames[i]? = some x)
+    (hr : pinAt i s = .ok (n, s')) :
+    s' = s ∧ denoteN s.store.ns n = some x := by
+  have h := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ ∀ y, pinNames[i]? = some y →
+      denoteN s.store.ns r = some y) rfl hr (pinAt_spec s i hp)
+  exact ⟨h.1, h.2 x hx⟩
+
 /-- con-leche: none — `readNames`'s inversion, off `Bridge/Specs.lean`'s
 triple. -/
 theorem readNames_run {hs : List NIdx} {xs : List ConLeche.Name}
@@ -403,22 +414,468 @@ theorem allLevelParamsDefined_run {lps : List NIdx} {ks : List ConLeche.Name}
   obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
   exact ⟨rfl, rfl, rfl, hb⟩
 
+/-! ### The environment lookup, both ways
+
+`constsResolve` asks `fe.find?`; con-leche asks `env.find?`.  The two agree at
+a handle that denotes, and BOTH directions are needed: the hit is
+`IFEnvOK.hit` plus `denoteN`'s functionality, the miss is `IFEnvOK.miss`,
+which is `denoteN`'s injectivity (DESIGN §8.3 lesson 13). -/
+
+theorem IFEnvOK.find_isSome {env : Env} {fe : IFEnv} {s : AState}
+    (hok : StateOK s) (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) :
+    (fe.find? n).isSome = (env.find? nm).isSome := by
+  cases hf : fe.find? n with
+  | none => rw [h.miss hok hd hf]; rfl
+  | some ci =>
+    obtain ⟨nm', c, hd', -, hfind⟩ := h.hit n ci hf
+    rw [hd] at hd'
+    obtain rfl := Option.some.inj hd'
+    rw [hfind]; rfl
+
+/-! ### `constsResolve` — the pure walk
+
+`Arena/Core.lean`'s `constsResolve` is con-leche's `Expr.constsResolve`,
+which is the SPECIFICATION the memoised walk below is measured against
+(con-leche's `@[csimp]` pair).  The two literal arms read the pin table, so
+this is a `PinsOK` theorem (round 3's `PSpecP` grade). -/
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:235-260 Expr.constsResolve — the
+pure walk over handles is con-leche's over terms. -/
+theorem constsResolve_run {env : Env} {fe : IFEnv} :
+    ∀ (fuel : Nat) {h : EIdx} {e : Expr} {b : Bool} {s s' : AState},
+      StateOK s → PinsOK s → IFEnvOK env fe s → denoteE s.store h = some e →
+      constsResolve fe fuel h s = .ok (b, s') →
+      s' = s ∧ b = Expr.constsResolve env e := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h e b s s' _ _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro h e b s s' hok hp hie hd hrun
+    have hwf : StoreWF s.store := hok.wf
+    simp only [Arena.constsResolve] at hrun
+    obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok (α := ENodeView) hrun
+    obtain ⟨rfl, hv⟩ := viewE_run g1
+    cases v with
+    | bvar i =>
+      obtain rfl := denote_bvar_inv hwf hv hd
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+      exact ⟨rfl, rfl⟩
+    | sort u =>
+      obtain ⟨l, rfl, -⟩ := denote_sort_inv hwf hv hd
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+      exact ⟨rfl, rfl⟩
+    | const n us =>
+      obtain ⟨nm, ls, rfl, hn, -⟩ := denote_const_inv hwf hv hd
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+      exact ⟨rfl, hie.find_isSome hok hn⟩
+    | fvar k t =>
+      obtain ⟨xt, rfl, hxt⟩ := denote_fvar_inv hwf hv hd
+      obtain ⟨rfl, hb⟩ := ih hok hp hie hxt k1
+      exact ⟨rfl, hb⟩
+    | proj n i sub =>
+      obtain ⟨nm, xe, rfl, hn, hxe⟩ := denote_proj_inv hwf hv hd
+      have hfs := hie.find_isSome hok hn
+      rcases AM.ite_ok k1 with ⟨hc, k2⟩ | ⟨hc, k2⟩
+      · obtain ⟨rfl, hb⟩ := ih hok hp hie hxe k2
+        refine ⟨rfl, ?_⟩
+        simp only [Expr.constsResolve, ← hfs, hc, Bool.true_and, hb]
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+        refine ⟨rfl, ?_⟩
+        have hcf : (env.find? nm).isSome = false := by rw [← hfs]; simpa using hc
+        simp only [Expr.constsResolve, hcf, Bool.false_and]
+    | app f a =>
+      obtain ⟨xf, xa, rfl, hxf, hxa⟩ := denote_app_inv hwf hv hd
+      obtain ⟨b1, s2, g2, k2⟩ := AM.bind_ok (α := Bool) k1
+      obtain ⟨rfl, hb1⟩ := ih hok hp hie hxf g2
+      rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+      · obtain ⟨rfl, hb2⟩ := ih hok hp hie hxa k3
+        exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hc, Bool.true_and, hb2]⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        have hbf : b1 = false := by simpa using hc
+        exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hbf, Bool.false_and]⟩
+    | lam t bd m =>
+      obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_lam_inv hwf hv hd
+      obtain ⟨b1, s2, g2, k2⟩ := AM.bind_ok (α := Bool) k1
+      obtain ⟨rfl, hb1⟩ := ih hok hp hie hxt g2
+      rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+      · obtain ⟨rfl, hb2⟩ := ih hok hp hie hxb k3
+        exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hc, Bool.true_and, hb2]⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        have hbf : b1 = false := by simpa using hc
+        exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hbf, Bool.false_and]⟩
+    | forallE t bd m =>
+      obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_forallE_inv hwf hv hd
+      obtain ⟨b1, s2, g2, k2⟩ := AM.bind_ok (α := Bool) k1
+      obtain ⟨rfl, hb1⟩ := ih hok hp hie hxt g2
+      rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+      · obtain ⟨rfl, hb2⟩ := ih hok hp hie hxb k3
+        exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hc, Bool.true_and, hb2]⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        have hbf : b1 = false := by simpa using hc
+        exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hbf, Bool.false_and]⟩
+    | letE t w bd =>
+      obtain ⟨xt, xw, xb, rfl, hxt, hxw, hxb⟩ := denote_letE_inv hwf hv hd
+      obtain ⟨b1, s2, g2, k2⟩ := AM.bind_ok (α := Bool) k1
+      obtain ⟨rfl, hb1⟩ := ih hok hp hie hxt g2
+      rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        have hbf : b1 = false := by simpa using hc
+        exact ⟨rfl, by
+          simp only [Expr.constsResolve, ← hb1, hbf, Bool.false_and]⟩
+      · obtain ⟨b2, s3, g3, k4⟩ := AM.bind_ok (α := Bool) k3
+        obtain ⟨rfl, hb2⟩ := ih hok hp hie hxw g3
+        have hbt : b1 = true := by simpa using hc
+        rcases AM.ite_ok k4 with ⟨hc2, k5⟩ | ⟨hc2, k5⟩
+        · obtain ⟨rfl, hb3⟩ := ih hok hp hie hxb k5
+          exact ⟨rfl, by
+            simp only [Expr.constsResolve, ← hb1, ← hb2, hbt, hc2, Bool.true_and,
+              hb3]⟩
+        · obtain ⟨rfl, rfl⟩ := AM.pure_ok k5
+          have hbf2 : b2 = false := by simpa using hc2
+          exact ⟨rfl, by
+            simp only [Expr.constsResolve, ← hb1, ← hb2, hbt, hbf2, Bool.true_and,
+              Bool.false_and]⟩
+    | lit l =>
+      obtain rfl := denote_lit_inv hwf hv hd
+      cases l with
+      | natVal q =>
+        obtain ⟨p1, u1, q1, w1⟩ := AM.bind_ok (α := NIdx) k1
+        obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.natName) hp rfl q1
+        obtain ⟨p2, u2, q2, w2⟩ := AM.bind_ok (α := NIdx) w1
+        obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natZeroName) hp rfl q2
+        obtain ⟨p3, u3, q3, w3⟩ := AM.bind_ok (α := NIdx) w2
+        obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natSuccName) hp rfl q3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok w3
+        exact ⟨rfl, by
+          simp only [Expr.constsResolve, hie.find_isSome hok d1,
+            hie.find_isSome hok d2, hie.find_isSome hok d3]⟩
+      | strVal q =>
+        obtain ⟨p1, u1, q1, w1⟩ := AM.bind_ok (α := NIdx) k1
+        obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.natName) hp rfl q1
+        obtain ⟨p2, u2, q2, w2⟩ := AM.bind_ok (α := NIdx) w1
+        obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natZeroName) hp rfl q2
+        obtain ⟨p3, u3, q3, w3⟩ := AM.bind_ok (α := NIdx) w2
+        obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natSuccName) hp rfl q3
+        obtain ⟨p4, u4, q4, w4⟩ := AM.bind_ok (α := NIdx) w3
+        obtain ⟨rfl, d4⟩ := pinAt_run (x := ConLeche.stringName) hp rfl q4
+        obtain ⟨p5, u5, q5, w5⟩ := AM.bind_ok (α := NIdx) w4
+        obtain ⟨rfl, d5⟩ := pinAt_run (x := ConLeche.stringOfListName) hp rfl q5
+        obtain ⟨p6, u6, q6, w6⟩ := AM.bind_ok (α := NIdx) w5
+        obtain ⟨rfl, d6⟩ := pinAt_run (x := ConLeche.listName) hp rfl q6
+        obtain ⟨p7, u7, q7, w7⟩ := AM.bind_ok (α := NIdx) w6
+        obtain ⟨rfl, d7⟩ := pinAt_run (x := ConLeche.listNilName) hp rfl q7
+        obtain ⟨p8, u8, q8, w8⟩ := AM.bind_ok (α := NIdx) w7
+        obtain ⟨rfl, d8⟩ := pinAt_run (x := ConLeche.listConsName) hp rfl q8
+        obtain ⟨p9, u9, q9, w9⟩ := AM.bind_ok (α := NIdx) w8
+        obtain ⟨rfl, d9⟩ := pinAt_run (x := ConLeche.charName) hp rfl q9
+        obtain ⟨p10, u10, q10, w10⟩ := AM.bind_ok (α := NIdx) w9
+        obtain ⟨rfl, d10⟩ := pinAt_run (x := ConLeche.charOfNatName) hp rfl q10
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok w10
+        exact ⟨rfl, by
+          simp only [Expr.constsResolve, hie.find_isSome hok d1,
+            hie.find_isSome hok d2, hie.find_isSome hok d3,
+            hie.find_isSome hok d4, hie.find_isSome hok d5,
+            hie.find_isSome hok d6, hie.find_isSome hok d7,
+            hie.find_isSome hok d8, hie.find_isSome hok d9,
+            hie.find_isSome hok d10]⟩
+
+/-! ### `constsResolveF` — the memoised walk
+
+Same shape as `allLevelParamsDefinedGo_run`: an explicitly threaded table, its
+invariant a hypothesis and a conclusion, and `lpdClose` for the insert every
+arm ends with.  The four leaf constructors are NOT memoised (con-leche's
+`…Go` calls the pure walk at them), so their arms are `constsResolve_run`
+directly. -/
+
+/-- con-leche: ConLeche/Kernel/DeclCheck.lean:89-124 Expr.constsResolveFGo —
+the memo invariant: a recorded answer is the real one. -/
+def CRMemoOK (env : Env) (tbl : Std.HashMap EIdx Bool) (st : EStore) : Prop :=
+  ∀ k v, tbl[k]? = some v →
+    ∃ e, denoteE st k = some e ∧ v = Expr.constsResolve env e
+
+theorem CRMemoOK.empty {env : Env} {st : EStore} : CRMemoOK env ∅ st := by
+  intro k v hk; simp at hk
+
+theorem CRMemoOK.insert {env : Env} {st : EStore}
+    {tbl : Std.HashMap EIdx Bool} (hm : CRMemoOK env tbl st) {h : EIdx}
+    {e : Expr} (hd : denoteE st h = some e) {b : Bool}
+    (hb : b = Expr.constsResolve env e) :
+    CRMemoOK env (tbl.insert h b) st := by
+  intro k v hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i heq
+    obtain rfl := Option.some.inj hk
+    obtain rfl := eq_of_beq heq
+    exact ⟨e, hd, hb⟩
+  · exact hm k v hk
+
+/-- con-leche: none — the four UNMEMOISED leaf arms: the pure walk, and the
+table untouched. -/
+private theorem crLeaf {tbl tbl' : Std.HashMap EIdx Bool} {b : Bool}
+    {X : AM Bool} {s s' : AState}
+    (hx : (X >>= fun r =>
+        (pure (r, tbl) : AM (Bool × Std.HashMap EIdx Bool))) s
+      = .ok ((b, tbl'), s')) : X s = .ok (b, s') ∧ tbl' = tbl := by
+  obtain ⟨r, s2, g2, k2⟩ := AM.bind_ok (α := Bool) hx
+  obtain ⟨hq, hs⟩ := AM.pure_ok k2
+  simp only [Prod.mk.injEq] at hq
+  obtain ⟨rfl, rfl⟩ := hq
+  subst hs
+  exact ⟨g2, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/DeclCheck.lean:89-124 Expr.constsResolveFGo —
+**the memoised walk is the pure one**. -/
+theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
+    ∀ (fuel : Nat) {tbl tbl' : Std.HashMap EIdx Bool} {h : EIdx} {e : Expr}
+      {b : Bool} {s s' : AState},
+      StateOK s → PinsOK s → IFEnvOK env fe s → CRMemoOK env tbl s.store →
+      denoteE s.store h = some e →
+      constsResolveFGo fe tbl fuel h s = .ok ((b, tbl'), s') →
+      s' = s ∧ b = Expr.constsResolve env e ∧ CRMemoOK env tbl' s.store := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro tbl tbl' h e b s s' _ _ _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro tbl tbl' h e b s s' hok hp hie hm hd hrun
+    have hwf : StoreWF s.store := hok.wf
+    simp only [Arena.constsResolveFGo] at hrun
+    obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok (α := ENodeView) hrun
+    obtain ⟨rfl, hv⟩ := viewE_run g1
+    cases v with
+    | bvar i =>
+      obtain ⟨gP, rfl⟩ := crLeaf k1
+      obtain ⟨rfl, hb⟩ := constsResolve_run coreWalkFuel hok hp hie hd gP
+      exact ⟨rfl, hb, hm⟩
+    | sort u =>
+      obtain ⟨gP, rfl⟩ := crLeaf k1
+      obtain ⟨rfl, hb⟩ := constsResolve_run coreWalkFuel hok hp hie hd gP
+      exact ⟨rfl, hb, hm⟩
+    | lit l =>
+      obtain ⟨gP, rfl⟩ := crLeaf k1
+      obtain ⟨rfl, hb⟩ := constsResolve_run coreWalkFuel hok hp hie hd gP
+      exact ⟨rfl, hb, hm⟩
+    | const n us =>
+      obtain ⟨gP, rfl⟩ := crLeaf k1
+      obtain ⟨rfl, hb⟩ := constsResolve_run coreWalkFuel hok hp hie hd gP
+      exact ⟨rfl, hb, hm⟩
+    | fvar k t =>
+      obtain ⟨xt, rfl, hxt⟩ := denote_fvar_inv hwf hv hd
+      cases hhit : tbl[h]? with
+      | some r =>
+        rw [hhit] at k1
+        obtain ⟨hq, rfl⟩ := AM.pure_ok k1
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        obtain ⟨e', hd', hr'⟩ := hm h b hhit
+        rw [hd] at hd'
+        obtain rfl := Option.some.inj hd'
+        exact ⟨rfl, hr', hm⟩
+      | none =>
+        rw [hhit] at k1
+        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
+        obtain ⟨rfl, hv2⟩ := viewE_run g2
+        rw [hv] at hv2
+        obtain rfl := (Option.some.inj hv2).symm
+        obtain ⟨t2, s3, gX, rfl, rfl⟩ := lpdClose k2
+        obtain ⟨rfl, hb, hm2⟩ := ih hok hp hie hm hxt gX
+        exact ⟨rfl, hb, hm2.insert hd hb⟩
+    | proj n i sub =>
+      obtain ⟨nm, xe, rfl, hn, hxe⟩ := denote_proj_inv hwf hv hd
+      cases hhit : tbl[h]? with
+      | some r =>
+        rw [hhit] at k1
+        obtain ⟨hq, rfl⟩ := AM.pure_ok k1
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        obtain ⟨e', hd', hr'⟩ := hm h b hhit
+        rw [hd] at hd'
+        obtain rfl := Option.some.inj hd'
+        exact ⟨rfl, hr', hm⟩
+      | none =>
+        rw [hhit] at k1
+        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
+        obtain ⟨rfl, hv2⟩ := viewE_run g2
+        rw [hv] at hv2
+        obtain rfl := (Option.some.inj hv2).symm
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hp hie hm hxe g3
+        obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k3
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        have hres : ((fe.find? n).isSome && b1)
+            = Expr.constsResolve env (.proj nm i xe) := by
+          simp only [Expr.constsResolve, hie.find_isSome hok hn, ← hb1]
+        exact ⟨rfl, hres, hm1.insert hd hres⟩
+    | app f a =>
+      obtain ⟨xf, xa, rfl, hxf, hxa⟩ := denote_app_inv hwf hv hd
+      cases hhit : tbl[h]? with
+      | some r =>
+        rw [hhit] at k1
+        obtain ⟨hq, rfl⟩ := AM.pure_ok k1
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        obtain ⟨e', hd', hr'⟩ := hm h b hhit
+        rw [hd] at hd'
+        obtain rfl := Option.some.inj hd'
+        exact ⟨rfl, hr', hm⟩
+      | none =>
+        rw [hhit] at k1
+        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
+        obtain ⟨rfl, hv2⟩ := viewE_run g2
+        rw [hv] at hv2
+        obtain rfl := (Option.some.inj hv2).symm
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hp hie hm hxf g3
+        obtain ⟨q2, s4, g4, k4⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k3
+        obtain ⟨b2, tb2⟩ := q2
+        obtain ⟨rfl, hb2, hm2⟩ := ih hok hp hie hm1 hxa g4
+        obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k4
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        have hres : (b1 && b2) = Expr.constsResolve env (.app xf xa) := by
+          simp only [Expr.constsResolve, ← hb1, ← hb2]
+        exact ⟨rfl, hres, hm2.insert hd hres⟩
+    | lam t bd m =>
+      obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_lam_inv hwf hv hd
+      cases hhit : tbl[h]? with
+      | some r =>
+        rw [hhit] at k1
+        obtain ⟨hq, rfl⟩ := AM.pure_ok k1
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        obtain ⟨e', hd', hr'⟩ := hm h b hhit
+        rw [hd] at hd'
+        obtain rfl := Option.some.inj hd'
+        exact ⟨rfl, hr', hm⟩
+      | none =>
+        rw [hhit] at k1
+        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
+        obtain ⟨rfl, hv2⟩ := viewE_run g2
+        rw [hv] at hv2
+        obtain rfl := (Option.some.inj hv2).symm
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hp hie hm hxt g3
+        obtain ⟨q2, s4, g4, k4⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k3
+        obtain ⟨b2, tb2⟩ := q2
+        obtain ⟨rfl, hb2, hm2⟩ := ih hok hp hie hm1 hxb g4
+        obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k4
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        have hres : (b1 && b2) = Expr.constsResolve env (.lam xt xb m) := by
+          simp only [Expr.constsResolve, ← hb1, ← hb2]
+        exact ⟨rfl, hres, hm2.insert hd hres⟩
+    | forallE t bd m =>
+      obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_forallE_inv hwf hv hd
+      cases hhit : tbl[h]? with
+      | some r =>
+        rw [hhit] at k1
+        obtain ⟨hq, rfl⟩ := AM.pure_ok k1
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        obtain ⟨e', hd', hr'⟩ := hm h b hhit
+        rw [hd] at hd'
+        obtain rfl := Option.some.inj hd'
+        exact ⟨rfl, hr', hm⟩
+      | none =>
+        rw [hhit] at k1
+        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
+        obtain ⟨rfl, hv2⟩ := viewE_run g2
+        rw [hv] at hv2
+        obtain rfl := (Option.some.inj hv2).symm
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hp hie hm hxt g3
+        obtain ⟨q2, s4, g4, k4⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k3
+        obtain ⟨b2, tb2⟩ := q2
+        obtain ⟨rfl, hb2, hm2⟩ := ih hok hp hie hm1 hxb g4
+        obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k4
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        have hres : (b1 && b2) = Expr.constsResolve env (.forallE xt xb m) := by
+          simp only [Expr.constsResolve, ← hb1, ← hb2]
+        exact ⟨rfl, hres, hm2.insert hd hres⟩
+    | letE t w bd =>
+      obtain ⟨xt, xw, xb, rfl, hxt, hxw, hxb⟩ := denote_letE_inv hwf hv hd
+      cases hhit : tbl[h]? with
+      | some r =>
+        rw [hhit] at k1
+        obtain ⟨hq, rfl⟩ := AM.pure_ok k1
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        obtain ⟨e', hd', hr'⟩ := hm h b hhit
+        rw [hd] at hd'
+        obtain rfl := Option.some.inj hd'
+        exact ⟨rfl, hr', hm⟩
+      | none =>
+        rw [hhit] at k1
+        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
+        obtain ⟨rfl, hv2⟩ := viewE_run g2
+        rw [hv] at hv2
+        obtain rfl := (Option.some.inj hv2).symm
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hp hie hm hxt g3
+        obtain ⟨q2, s4, g4, k4⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k3
+        obtain ⟨b2, tb2⟩ := q2
+        obtain ⟨rfl, hb2, hm2⟩ := ih hok hp hie hm1 hxw g4
+        obtain ⟨q3, s5, g5, k5⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k4
+        obtain ⟨b3, tb3⟩ := q3
+        obtain ⟨rfl, hb3, hm3⟩ := ih hok hp hie hm2 hxb g5
+        obtain ⟨t2, s6, gX, rfl, rfl⟩ := lpdClose k5
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        have hres : (b1 && b2 && b3)
+            = Expr.constsResolve env (.letE xt xw xb) := by
+          simp only [Expr.constsResolve, ← hb1, ← hb2, ← hb3]
+        exact ⟨rfl, hres, hm3.insert hd hres⟩
+
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean:197-199 Expr.constsResolveFFast
 — **Theorem 1 for the front door's unresolved-constant guard**: the memoised
 DAG walk answers what con-leche's `Expr.constsResolve` answers at the denoted
 environment.
 
-`sorry`: the fuel induction, with the memo invariant and `IFEnvOK`'s `hit` /
-`miss` pair at the `.const` and `.proj` arms (the walk asks `fe.find?` and
-con-leche asks `env.find?`, and `IFEnvOK.miss` — hence `denoteN_inj` — is what
-makes the two agree on a MISS).  Task #97-P3-Checker's sorry list, item 9. -/
+**PROVED** (task #97-P3-Checker round 4): `constsResolveFGo_run`'s fuel
+induction at the empty memo, over `constsResolve_run`'s pure walk at the four
+unmemoised leaves.  `IFEnvOK.find_isSome` is the whole `.const`/`.proj`
+content, and its MISS half is `denoteN_inj`. -/
 theorem constsResolveFFast_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {e : EIdx} {x : Expr} {r : Bool} {s s' : AState}
     (hok : FoldOK μ env fe s) (hd : denoteE s.store e = some x)
     (hrun : constsResolveFFast fe e s = .ok (r, s')) :
     s'.store = s.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
       r = Expr.constsResolve env x := by
-  sorry
+  simp only [Arena.constsResolveFFast] at hrun
+  obtain ⟨p, s1, g1, k1⟩ :=
+    AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) hrun
+  obtain ⟨b, tb⟩ := p
+  obtain ⟨rfl, hb, -⟩ := constsResolveFGo_run coreWalkFuel hok.check.state
+    hok.check.pins hok.check.ienv CRMemoOK.empty hd g1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+  exact ⟨rfl, rfl, rfl, hb⟩
 
 /-! ## The name-shape guards
 
@@ -647,16 +1104,6 @@ theorem PinStep.trans {a b c : AState} (h₁ : PinStep a b) (h₂ : PinStep b c)
 
 theorem PinStep.pinsOK {s s' : AState} (h : PinStep s s') (hp : PinsOK s) :
     PinsOK s' := hp.mono h.ext h.pins
-
-/-- con-leche: none — `pinAt` in run form, off `Bridge/Specs.lean`'s triple. -/
-theorem pinAt_run {i : Nat} {s s' : AState} {n : NIdx} {x : ConLeche.Name}
-    (hp : PinsOK s) (hx : pinNames[i]? = some x)
-    (hr : pinAt i s = .ok (n, s')) :
-    s' = s ∧ denoteN s.store.ns n = some x := by
-  have h := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ ∀ y, pinNames[i]? = some y →
-      denoteN s.store.ns r = some y) rfl hr (pinAt_spec s i hp)
-  exact ⟨h.1, h.2 x hx⟩
 
 /-- con-leche: none — `internName` in run form, off `Bridge/Specs.lean`'s
 triple. -/
