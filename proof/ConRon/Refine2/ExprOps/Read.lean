@@ -8,9 +8,13 @@ post-state is its pre-state, which is why every statement below is `AOut`
 (or `SimR`) at the *same* `st` on both sides and its `Ext` conjunct is
 `Ext.refl`.
 
-The statements are here; the proofs wait on `Refine2/Specs.lean`'s store-reader
-inversion layer, which is not landed yet, and each `sorry` names the primitive
-it waits on.
+**CLOSED, end to end (task #97-P5-3).**  The statements were P5-0's; the
+store-reader inversion layer they waited on landed at tasks #97-P5-1 and
+#97-P5-2, and this file is now sorry-free.  Two of P5-0's statements had to
+be CORRECTED on the way — finding 1's `StoreWF` is `EResolves` alone at the
+four one-node readers (P5-2 §10's argument, mechanised below as
+`estore_view_tagOf`), and `FOut`'s accumulator is the twin's list REVERSED
+(finding 12, below).
 
 ## Three findings this file had to absorb, and they are DESIGN.md's business
 
@@ -137,10 +141,12 @@ def LMemoRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
 
 /-- `fvar_leaves_go`'s `seen` set.  **Membership, not value** (finding 3): the
 Rust's table is `bool`-valued and the twin's `Unit`-valued, and no reader
-looks at either value. -/
+looks at either value — which is what `RelOn` at the value abstraction
+`fun _ => ()` says, and stating it that way (rather than as an `isSome`
+agreement) is what lets `Refine/HashMap2WF.lean`'s kit apply unchanged. -/
 def SeenRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
     (lm : Std.HashMap EIdx Unit) : Prop :=
-  (∀ k, (toFun rm k).isSome = (lm[absEIdx k]?).isSome) ∧
+  RelOn (fun _ => True) rm lm absEIdx (fun _ => ()) ∧
     Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm
 
 /-! ## The three memo-threading outcome shapes (finding 2) -/
@@ -169,7 +175,16 @@ def LOut (pers : arena.store.PersTier) (lst : AState)
       AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
   | .Err e => AErrSim e x
 
-/-- The outcome of `fvar_leaves_go`'s accumulator-and-`seen` pair. -/
+/-- The outcome of `fvar_leaves_go`'s accumulator-and-`seen` pair.
+
+**Finding 12 (this round): the port's accumulator is the twin's list
+REVERSED, and the statement has to say so.**  `fvar_leaves_go` pushes where
+the twin conses — the port's own doc comment says "the two lists are each
+other's reverse" and explains why (a `Vec` has no cons, and `leaf_mem`, the
+only reader, is order blind).  P5-0 stated this group at `absLeaves r.1`,
+which is false; it is `(absLeaves r.1).reverse`.  The same correction goes to
+`fvar_leaves_fast_refines`, which P5-0 had "closed" against the wrong
+statement (vacuously, off the `sorry` below it). -/
 def FOut (pers : arena.store.PersTier) (lst : AState)
     (o : core.result.Result ((alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) ×
       ron.hashmap2.HashMap2 arena.handle.EIdx Bool) kernel.core_types.CheckError)
@@ -177,7 +192,8 @@ def FOut (pers : arena.store.PersTier) (lst : AState)
     (x : Except Arena.CheckError
       ((List (Nat × EIdx) × Std.HashMap EIdx Unit) × AState)) : Prop :=
   match o with
-  | .Ok r => ∃ s' lst', x = .ok ((absLeaves r.1, s'), lst') ∧ SeenRel r.2 s' ∧
+  | .Ok r => ∃ s' lst', x = .ok (((absLeaves r.1).reverse, s'), lst') ∧
+      SeenRel r.2 s' ∧
       AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
   | .Err e => AErrSim e x
 
@@ -3873,6 +3889,24 @@ theorem leavesSubGo_unfold (bl : List (Nat × EIdx))
           | rfl
           | simp only [bind_assoc]
 
+/-- **`leafMem` is append blind.** -/
+theorem leafMem_app (l1 l2 : List (Nat × EIdx)) (i : Nat) (t : EIdx) :
+    leafMem (l1 ++ l2) i t = (leafMem l1 i t || leafMem l2 i t) := by
+  induction l1 with
+  | nil => simp [leafMem]
+  | cons p r ih =>
+    rw [List.cons_append, leafMem_cons, leafMem_cons, ih, Bool.or_assoc]
+
+/-- **`leafMem` is order blind**, which is what makes `fvar_leaves_go`'s
+push-order deviation (finding 12) sound at its one reader. -/
+theorem leafMem_reverse (l : List (Nat × EIdx)) (i : Nat) (t : EIdx) :
+    leafMem l.reverse i t = leafMem l i t := by
+  induction l with
+  | nil => rfl
+  | cons p r ih =>
+    rw [List.reverse_cons, leafMem_app, ih, leafMem_cons, leafMem_cons,
+      leafMem, Bool.or_false, Bool.or_comm]
+
 /-- The `go`-shaped statement at one fuel value, as a predicate, so that the
 three mutually recursive bodies can be proved in the order `go`, `two`,
 `node` inside one induction. -/
@@ -3880,24 +3914,28 @@ def LGoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     {lm : Std.HashMap EIdx Bool}
-    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)} {fuel : Std.U64}
+    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {lbl : List (Nat × EIdx)} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o},
-    fuel.val = n → AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
+    fuel.val = n → (∀ i t, leafMem lbl i t = leafMem (absFvlL bl) i t) →
+    AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
     arena.expr_ops.leaves_sub_go pers st bl rm fuel h = ok o →
-    LOut pers lst o st ((leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx h)).run lst)
+    LOut pers lst o st ((leavesSubGo lbl lm (absU fuel) (absEIdx h)).run lst)
 
 /-- The `two`-shaped statement at one fuel value. -/
 def LTwoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     {lm : Std.HashMap EIdx Bool}
-    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)} {fuel : Std.U64}
+    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {lbl : List (Nat × EIdx)} {fuel : Std.U64}
     {x y : arena.handle.EIdx} {o},
-    fuel.val = n → AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
+    fuel.val = n → (∀ i t, leafMem lbl i t = leafMem (absFvlL bl) i t) →
+    AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
     arena.expr_ops.leaves_sub_two pers st bl rm fuel x y = ok o →
     LOut pers lst o st ((do
-      let (rf, m) ← leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx x)
-      if rf then leavesSubGo (absLeaves bl) m (absU fuel) (absEIdx y)
+      let (rf, m) ← leavesSubGo lbl lm (absU fuel) (absEIdx x)
+      if rf then leavesSubGo lbl m (absU fuel) (absEIdx y)
       else pure (false, m)).run lst)
 
 /-- The `node`-shaped statement at one fuel value. -/
@@ -3905,18 +3943,20 @@ def LNodeAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     {lm : Std.HashMap EIdx Bool}
-    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)} {fuel : Std.U64}
+    {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {lbl : List (Nat × EIdx)} {fuel : Std.U64}
     {v : arena.store.ENodeView} {o},
-    fuel.val = n → AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
+    fuel.val = n → (∀ i t, leafMem lbl i t = leafMem (absFvlL bl) i t) →
+    AStateRel pers st lst → AStateInv pers st → LMemoRel rm lm →
     arena.expr_ops.leaves_sub_node pers st bl rm fuel v = ok o →
     LOut pers lst o st
-      ((leavesSubNodeSpec (absLeaves bl) lm (absU fuel) (absENodeView v)).run lst)
+      ((leavesSubNodeSpec lbl lm (absU fuel) (absENodeView v)).run lst)
 
 private theorem lsub_two_of_go {n : Nat} (hgo : LGoAt n) : LTwoAt n := by
-  intro pers st lst rm lm bl fuel x y o hn hrel hinv hm hrun
+  intro pers st lst rm lm bl lbl fuel x y o hn hbl hrel hinv hm hrun
   rw [arena.expr_ops.leaves_sub_two] at hrun
   obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hg1 := hgo hn hrel hinv hm hr
+  have hg1 := hgo hn hbl hrel hinv hm hr
   cases hrc : r with
   | Err e =>
     rw [hrc] at hrun hg1
@@ -3930,11 +3970,11 @@ private theorem lsub_two_of_go {n : Nat} (hgo : LGoAt n) : LTwoAt n := by
     obtain ⟨m1, lst1, heq, hm1, hrel1, hinv1, hext1⟩ := hg1
     rw [StateT.run_bind, heq]
     show LOut pers lst o st
-      ((if b then leavesSubGo (absLeaves bl) m1 (absU fuel) (absEIdx y)
+      ((if b then leavesSubGo lbl m1 (absU fuel) (absEIdx y)
         else pure (false, m1)).run lst1)
     by_cases hb : b = true
     · subst hb
-      have hg2 := hgo hn hrel1 hinv1 hm1 hrun
+      have hg2 := hgo hn hbl hrel1 hinv1 hm1 hrun
       exact lout_rebase hext1 hg2
     · simp only [Bool.not_eq_true] at hb
       subst hb
@@ -3945,7 +3985,7 @@ private theorem lsub_two_of_go {n : Nat} (hgo : LGoAt n) : LTwoAt n := by
 
 private theorem lsub_node_of_go {n : Nat} (hgo : LGoAt n) : LNodeAt n := by
   have htwo : LTwoAt n := lsub_two_of_go hgo
-  intro pers st lst rm lm bl fuel v o hn hrel hinv hm hrun
+  intro pers st lst rm lm bl lbl fuel v o hn hbl hrel hinv hm hrun
   rw [arena.expr_ops.leaves_sub_node.eq_def] at hrun
   cases v with
   | BVar _ =>
@@ -3964,23 +4004,23 @@ private theorem lsub_node_of_go {n : Nat} (hgo : LGoAt n) : LNodeAt n := by
     have ho := Result.ok_injective hrun
     rw [← ho]
     exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
-  | Proj _ _ s0 => exact hgo hn hrel hinv hm hrun
-  | App f0 a0 => exact htwo hn hrel hinv hm hrun
-  | Lam ty0 b0 mm => exact htwo hn hrel hinv hm hrun
-  | ForallE ty0 b0 mm => exact htwo hn hrel hinv hm hrun
+  | Proj _ _ s0 => exact hgo hn hbl hrel hinv hm hrun
+  | App f0 a0 => exact htwo hn hbl hrel hinv hm hrun
+  | Lam ty0 b0 mm => exact htwo hn hbl hrel hinv hm hrun
+  | ForallE ty0 b0 mm => exact htwo hn hbl hrel hinv hm hrun
   | FVar idx0 ty0 =>
     obtain ⟨b0, hb0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hlm := leaf_mem_refines hb0
     show LOut pers lst o st
-      ((if leafMem (absLeaves bl) (absU idx0) (absEIdx ty0) then
-          leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx ty0)
+      ((if leafMem lbl (absU idx0) (absEIdx ty0) then
+          leavesSubGo lbl lm (absU fuel) (absEIdx ty0)
         else pure (false, lm)).run lst)
-    rw [show absLeaves bl = absFvlL bl from rfl, hlm]
+    rw [hbl (absU idx0) (absEIdx ty0), hlm]
     by_cases hb : b0 = true
     · subst hb
       rw [if_pos rfl] at hrun
       simp only [if_true]
-      exact hgo hn hrel hinv hm hrun
+      exact hgo hn hbl hrel hinv hm hrun
     · simp only [Bool.not_eq_true] at hb
       subst hb
       simp only [Bool.false_eq_true, if_false]
@@ -3989,12 +4029,12 @@ private theorem lsub_node_of_go {n : Nat} (hgo : LGoAt n) : LNodeAt n := by
       exact ⟨lm, lst, rfl, hm, hrel, hinv, Ext.refl _⟩
   | LetE ty0 v0 b0 =>
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hg1 := hgo hn hrel hinv hm hr
+    have hg1 := hgo hn hbl hrel hinv hm hr
     show LOut pers lst o st ((do
-      let (rt, memo) ← leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx ty0)
+      let (rt, memo) ← leavesSubGo lbl lm (absU fuel) (absEIdx ty0)
       if rt then do
-        let (rv, memo) ← leavesSubGo (absLeaves bl) memo (absU fuel) (absEIdx v0)
-        if rv then leavesSubGo (absLeaves bl) memo (absU fuel) (absEIdx b0)
+        let (rv, memo) ← leavesSubGo lbl memo (absU fuel) (absEIdx v0)
+        if rv then leavesSubGo lbl memo (absU fuel) (absEIdx b0)
         else pure (false, memo)
       else pure (false, memo)).run lst)
     cases hrc : r with
@@ -4011,13 +4051,13 @@ private theorem lsub_node_of_go {n : Nat} (hgo : LGoAt n) : LNodeAt n := by
       rw [StateT.run_bind, heq]
       show LOut pers lst o st
         ((if b then do
-            let (rv, memo) ← leavesSubGo (absLeaves bl) m1 (absU fuel) (absEIdx v0)
-            if rv then leavesSubGo (absLeaves bl) memo (absU fuel) (absEIdx b0)
+            let (rv, memo) ← leavesSubGo lbl m1 (absU fuel) (absEIdx v0)
+            if rv then leavesSubGo lbl memo (absU fuel) (absEIdx b0)
             else pure (false, memo)
           else pure (false, m1)).run lst1)
       by_cases hb : b = true
       · subst hb
-        exact lout_rebase hext1 (htwo hn hrel1 hinv1 hm1 hrun)
+        exact lout_rebase hext1 (htwo hn hbl hrel1 hinv1 hm1 hrun)
       · simp only [Bool.not_eq_true] at hb
         subst hb
         have ho : (core.result.Result.Ok (false, mr) :
@@ -4028,17 +4068,17 @@ private theorem lsub_node_of_go {n : Nat} (hgo : LGoAt n) : LNodeAt n := by
 private theorem lsub_go_aux (n : Nat) : LGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst rm lm bl fuel h o hn hrel hinv hm hrun
+    intro pers st lst rm lm bl lbl fuel h o hn hbl hrel hinv hm hrun
     rw [arena.expr_ops.leaves_sub_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hrun]
-    show AErrSim _ ((leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx h)).run lst)
+    show AErrSim _ ((leavesSubGo lbl lm (absU fuel) (absEIdx h)).run lst)
     rw [show absU fuel = 0 from hn, leavesSubGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst rm lm bl fuel h o hn hrel hinv hm hrun
+    intro pers st lst rm lm bl lbl fuel h o hn hbl hrel hinv hm hrun
     rw [arena.expr_ops.leaves_sub_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -4060,7 +4100,7 @@ private theorem lsub_go_aux (n : Nat) : LGoAt n := by
           match lm[absEIdx h]? with
           | some r => pure (r, lm)
           | none => do
-            let (r, memo') ← leavesSubNodeSpec (absLeaves bl) lm m (← view (absEIdx h))
+            let (r, memo') ← leavesSubNodeSpec lbl lm m (← view (absEIdx h))
             pure (r, memo'.insert (absEIdx h) r)).run lst)
     by_cases hc : i1 = 0#u64
     · rw [if_pos hc] at hrun
@@ -4095,7 +4135,7 @@ private theorem lsub_go_aux (n : Nat) : LGoAt n := by
         obtain ⟨rv, hrv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hview := view_run hrel hinv hrv
         show LOut pers lst o st ((do
-          let (r, memo') ← leavesSubNodeSpec (absLeaves bl) lm m (← view (absEIdx h))
+          let (r, memo') ← leavesSubNodeSpec lbl lm m (← view (absEIdx h))
           pure (r, memo'.insert (absEIdx h) r)).run lst)
         cases hrvc : rv with
         | Err e =>
@@ -4120,10 +4160,10 @@ private theorem lsub_go_aux (n : Nat) : LGoAt n := by
             have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
               (ConRon.Refine.Nat.usub_val hi2).2
             rw [h1, hn]; rfl
-          have hnode := lsub_node_of_go ih hi2v hrel hinv hm hr1
+          have hnode := lsub_node_of_go ih hi2v hbl hrel hinv hm hr1
           rw [show absU i2 = m from hi2v] at hnode
           show LOut pers lst o st ((do
-            let (r, memo') ← leavesSubNodeSpec (absLeaves bl) lm m (absENodeView v)
+            let (r, memo') ← leavesSubNodeSpec lbl lm m (absENodeView v)
             pure (r, memo'.insert (absEIdx h) r)).run lst)
           cases hr1c : r1 with
           | Err e =>
@@ -4237,6 +4277,290 @@ theorem wscoped_b_fast_refines {pers : arena.store.PersTier}
     rw [← h2]
     exact AOut.err (AErrSim.bind hgo _)
 
+theorem fout_err_bind {e : kernel.core_types.CheckError}
+    {pers : arena.store.PersTier} {lstA lstB : AState}
+    {stA stB : arena.monad.AState}
+    {x : AM (List (Nat × EIdx) × Std.HashMap EIdx Unit)}
+    {f : (List (Nat × EIdx) × Std.HashMap EIdx Unit) →
+      AM (List (Nat × EIdx) × Std.HashMap EIdx Unit)}
+    (h : FOut pers lstA (.Err e) stA (x.run lstA)) :
+    FOut pers lstB (.Err e) stB ((do let v ← x; f v).run lstA) := by
+  show AErrSim e _
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+theorem fout_rebase {pers : arena.store.PersTier} {lst lst1 : AState}
+    {st2 : arena.monad.AState}
+    {o : core.result.Result ((alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) ×
+      ron.hashmap2.HashMap2 arena.handle.EIdx Bool) kernel.core_types.CheckError}
+    {y : Except Arena.CheckError
+      ((List (Nat × EIdx) × Std.HashMap EIdx Unit) × AState)}
+    (hext : Ext lst.store lst1.store) (h : FOut pers lst1 o st2 y) :
+    FOut pers lst o st2 y := by
+  cases o with
+  | Err e => exact h
+  | Ok r =>
+    obtain ⟨s', lst2, hy, hss, hrel2, hinv2, hext2⟩ := h
+    exact ⟨s', lst2, hy, hss, hrel2, hinv2, Ext.trans hext hext2⟩
+
+/-- The twin's own `match` at `fvarLeavesGo`'s node step IS
+`fvarLeavesNodeSpec`. -/
+theorem fvarLeavesNodeSpec_eq (acc : List (Nat × EIdx))
+    (seen : Std.HashMap EIdx Unit) (fuel : Nat) (w : ENodeView) :
+    (match w with
+      | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
+      | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
+      | .app f a => fvarLeavesGoArmApp acc seen fuel f a
+      | .lam ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+      | .forallE ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+      | .letE ty val body => fvarLeavesGoArmLet acc seen fuel ty val body
+      | .proj _ _ sub => fvarLeavesGo acc seen fuel sub)
+      = fvarLeavesNodeSpec acc seen fuel w := by
+  cases w <;>
+    simp only [fvarLeavesNodeSpec, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
+      fvarLeavesGoArmLet]
+
+theorem fvarLeavesGo_unfold (acc : List (Nat × EIdx))
+    (seen : Std.HashMap EIdx Unit) (fuel : Nat) (h : EIdx) :
+    fvarLeavesGo acc seen (fuel + 1) h = (do
+      if (ConLeche.fvarOfData (← derivedE h)).toNat == 0 then pure (acc, seen)
+      else
+        match seen[h]? with
+        | some _ => pure (acc, seen)
+        | none => fvarLeavesNodeSpec acc (seen.insert h ()) fuel (← view h)) := by
+  rw [fvarLeavesGo_succ]
+  simp only [fvarLeavesNodeSpec, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
+    fvarLeavesGoArmLet]
+  congr 1
+
+/-- The `go`-shaped statement at one fuel value. -/
+def FGoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {racc : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {rs : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashMap EIdx Unit} {fuel : Std.U64} {h : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → SeenRel rs ls →
+    arena.expr_ops.fvar_leaves_go pers st racc rs fuel h = ok o →
+    FOut pers lst o st
+      ((fvarLeavesGo (absLeaves racc).reverse ls (absU fuel) (absEIdx h)).run lst)
+
+/-- The `two`-shaped statement at one fuel value. -/
+def FTwoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {racc : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {rs : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashMap EIdx Unit} {fuel : Std.U64}
+    {x y : arena.handle.EIdx} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → SeenRel rs ls →
+    arena.expr_ops.fvar_leaves_two pers st racc rs fuel x y = ok o →
+    FOut pers lst o st ((do
+      let (acc, seen) ←
+        fvarLeavesGo (absLeaves racc).reverse ls (absU fuel) (absEIdx x)
+      fvarLeavesGo acc seen (absU fuel) (absEIdx y)).run lst)
+
+/-- The `node`-shaped statement at one fuel value. -/
+def FNodeAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {racc : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
+    {rs : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashMap EIdx Unit} {fuel : Std.U64}
+    {v : arena.store.ENodeView} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st → SeenRel rs ls →
+    arena.expr_ops.fvar_leaves_node pers st racc rs fuel v = ok o →
+    FOut pers lst o st
+      ((fvarLeavesNodeSpec (absLeaves racc).reverse ls (absU fuel)
+        (absENodeView v)).run lst)
+
+private theorem fvl_two_of_go {n : Nat} (hgo : FGoAt n) : FTwoAt n := by
+  intro pers st lst racc rs ls fuel x y o hn hrel hinv hs hrun
+  rw [arena.expr_ops.fvar_leaves_two] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hg1 := hgo hn hrel hinv hs hr
+  cases hrc : r with
+  | Err e =>
+    rw [hrc] at hrun hg1
+    have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+      Result.ok_injective hrun
+    rw [← ho]
+    exact fout_err_bind hg1
+  | Ok p =>
+    obtain ⟨a2, s2⟩ := p
+    rw [hrc] at hrun hg1
+    obtain ⟨s1, lst1, heq, hs1, hrel1, hinv1, hext1⟩ := hg1
+    rw [StateT.run_bind, heq]
+    show FOut pers lst o st
+      ((fvarLeavesGo (absLeaves a2).reverse s1 (absU fuel) (absEIdx y)).run lst1)
+    exact fout_rebase hext1 (hgo hn hrel1 hinv1 hs1 hrun)
+
+private theorem fvl_node_of_go {n : Nat} (hgo : FGoAt n) : FNodeAt n := by
+  have htwo : FTwoAt n := fvl_two_of_go hgo
+  intro pers st lst racc rs ls fuel v o hn hrel hinv hs hrun
+  rw [arena.expr_ops.fvar_leaves_node.eq_def] at hrun
+  cases v with
+  | BVar _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨ls, lst, rfl, hs, hrel, hinv, Ext.refl _⟩
+  | «Sort» _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨ls, lst, rfl, hs, hrel, hinv, Ext.refl _⟩
+  | Const _ _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨ls, lst, rfl, hs, hrel, hinv, Ext.refl _⟩
+  | Lit _ =>
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact ⟨ls, lst, rfl, hs, hrel, hinv, Ext.refl _⟩
+  | Proj _ _ s0 => exact hgo hn hrel hinv hs hrun
+  | App f0 a0 => exact htwo hn hrel hinv hs hrun
+  | Lam ty0 b0 mm => exact htwo hn hrel hinv hs hrun
+  | ForallE ty0 b0 mm => exact htwo hn hrel hinv hs hrun
+  | FVar idx0 ty0 =>
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨acc1, hacc1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hee : e1 = ty0 := dupId_eidx ty0 e1 he1
+    have hav : (absLeaves acc1).reverse
+        = (absU idx0, absEIdx ty0) :: (absLeaves racc).reverse := by
+      unfold absLeaves
+      rw [ConRon.Refine.vec_push_val hacc1, List.map_append, List.reverse_append,
+        hee]
+      rfl
+    have hg := hgo hn hrel hinv hs hrun
+    rw [hav] at hg
+    exact hg
+  | LetE ty0 v0 b0 =>
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hg1 := hgo hn hrel hinv hs hr
+    show FOut pers lst o st ((do
+      let (acc, seen) ←
+        fvarLeavesGo (absLeaves racc).reverse ls (absU fuel) (absEIdx ty0)
+      let (acc, seen) ← fvarLeavesGo acc seen (absU fuel) (absEIdx v0)
+      fvarLeavesGo acc seen (absU fuel) (absEIdx b0)).run lst)
+    cases hrc : r with
+    | Err e =>
+      rw [hrc] at hrun hg1
+      have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      exact fout_err_bind hg1
+    | Ok p =>
+      obtain ⟨a2, s2⟩ := p
+      rw [hrc] at hrun hg1
+      obtain ⟨s1, lst1, heq, hs1, hrel1, hinv1, hext1⟩ := hg1
+      rw [StateT.run_bind, heq]
+      show FOut pers lst o st ((do
+        let (acc, seen) ←
+          fvarLeavesGo (absLeaves a2).reverse s1 (absU fuel) (absEIdx v0)
+        fvarLeavesGo acc seen (absU fuel) (absEIdx b0)).run lst1)
+      exact fout_rebase hext1 (htwo hn hrel1 hinv1 hs1 hrun)
+
+private theorem fvl_go_aux (n : Nat) : FGoAt n := by
+  induction n with
+  | zero =>
+    intro pers st lst racc rs ls fuel h o hn hrel hinv hs hrun
+    rw [arena.expr_ops.fvar_leaves_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    show AErrSim _ ((fvarLeavesGo (absLeaves racc).reverse ls
+      (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, fvarLeavesGo_zero, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst racc rs ls fuel h o hn hrel hinv hs hrun
+    rw [arena.expr_ops.fvar_leaves_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hder := hw
+    rw [arena.monad.derived_e] at hder
+    obtain ⟨-, hfv, -⟩ := derObsE_fields (estore_derived_abs hrel.store hder)
+    have hi1v := ConRon.Refine.Expr.fvar_of_data_val hi1
+    have hfz : (ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat = i1.val := by
+      rw [hfv, hi1v]
+    rw [show absU fuel = m + 1 from hn, fvarLeavesGo_unfold, StateT.run_bind,
+      show (Arena.derivedE (absEIdx h)).run lst
+        = .ok (lst.store.derived (absEIdx h), lst) from rfl]
+    show FOut pers lst o st
+      ((do
+        if ((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0) = true
+        then pure ((absLeaves racc).reverse, ls)
+        else
+          match ls[absEIdx h]? with
+          | some _ => pure ((absLeaves racc).reverse, ls)
+          | none =>
+            fvarLeavesNodeSpec (absLeaves racc).reverse
+              (ls.insert (absEIdx h) ()) m (← view (absEIdx h))).run lst)
+    by_cases hc : i1 = 0#u64
+    · rw [if_pos hc] at hrun
+      have hz : ((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0)
+          = true := by rw [hfz, hc]; rfl
+      rw [if_pos hz]
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨ls, lst, rfl, hs, hrel, hinv, Ext.refl _⟩
+    · rw [if_neg hc] at hrun
+      have hz : ¬ (((ConLeche.fvarOfData (lst.store.derived (absEIdx h))).toNat == 0)
+          = true) := by
+        rw [hfz]
+        simp only [beq_iff_eq]
+        intro hzz
+        exact hc (Std.UScalar.eq_of_val_eq (by rw [hzz]; rfl))
+      rw [if_neg hz]
+      obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hsn := fvl_seen_refines hs.2 ConRon.Refine.HashMap2.KeysOk_true hs.1 hb
+      cases hlk : ls[absEIdx h]? with
+      | some u =>
+        have hbt : b = true := by
+          rw [hsn, Std.HashMap.contains_eq_isSome_getElem?, hlk]; rfl
+        rw [hbt] at hrun
+        rw [if_pos rfl] at hrun
+        have ho := Result.ok_injective hrun
+        rw [← ho]
+        exact ⟨ls, lst, rfl, hs, hrel, hinv, Ext.refl _⟩
+      | none =>
+        have hbf : b = false := by
+          rw [hsn, Std.HashMap.contains_eq_isSome_getElem?, hlk]; rfl
+        rw [hbf] at hrun
+        rw [if_neg (by simp)] at hrun
+        simp only [Bool.false_eq_true, if_false]
+        obtain ⟨rv, hrv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hview := view_run hrel hinv hrv
+        cases hrvc : rv with
+        | Err e =>
+          rw [hrvc] at hrun hview
+          have ho : (core.result.Result.Err e : core.result.Result _ _) = o :=
+            Result.ok_injective hrun
+          rw [← ho]
+          show AErrSim e _
+          rw [StateT.run_bind]
+          intro kk hk2
+          obtain ⟨le, hle, hlk2⟩ := hview kk hk2
+          exact ⟨le, by rw [hle]; rfl, hlk2⟩
+        | Ok v =>
+          rw [hrvc] at hrun hview
+          obtain ⟨lst0, hx, -, -, -, -⟩ := hview
+          have hlst : lst0 = lst := view_run_state hx
+          rw [hlst] at hx
+          rw [StateT.run_bind, hx]
+          obtain ⟨hm, hhm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi2v : i2.val = m := by
+            have h1 : i2.val = fuel.val - (1#u64 : Std.U64).val :=
+              (ConRon.Refine.Nat.usub_val hi2).2
+            rw [h1, hn]; rfl
+          have hrec := fvl_record_refines hs.2
+            ConRon.Refine.HashMap2.KeysOk_true hs.1 hhm
+          have hs' : SeenRel hm (ls.insert (absEIdx h) ()) :=
+            ⟨hrec.1, hrec.2.1⟩
+          have hnode := fvl_node_of_go ih hi2v hrel hinv hs' hrun
+          rw [show absU i2 = m from hi2v] at hnode
+          exact hnode
+
 /-- `fvar_leaves_go` ⊑ `fvarLeavesGo`. -/
 theorem fvar_leaves_go_refines {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState}
@@ -4247,8 +4571,9 @@ theorem fvar_leaves_go_refines {pers : arena.store.PersTier}
     (hs : SeenRel rs ls)
     (hrun : arena.expr_ops.fvar_leaves_go pers st racc rs fuel h = ok o) :
     FOut pers lst o st
-      ((fvarLeavesGo (absLeaves racc) ls (absU fuel) (absEIdx h)).run lst) := by
-  sorry
+      ((fvarLeavesGo (absLeaves racc).reverse ls (absU fuel)
+        (absEIdx h)).run lst) :=
+  fvl_go_aux fuel.val rfl hrel hinv hs hrun
 
 /-- `fvar_leaves_node` ⊑ the twin's arm dispatch. -/
 theorem fvar_leaves_node_refines {pers : arena.store.PersTier}
@@ -4261,9 +4586,9 @@ theorem fvar_leaves_node_refines {pers : arena.store.PersTier}
     (hs : SeenRel rs ls)
     (hrun : arena.expr_ops.fvar_leaves_node pers st racc rs fuel v = ok o) :
     FOut pers lst o st
-      ((fvarLeavesNodeSpec (absLeaves racc) ls (absU fuel)
-        (absENodeView v)).run lst) := by
-  sorry
+      ((fvarLeavesNodeSpec (absLeaves racc).reverse ls (absU fuel)
+        (absENodeView v)).run lst) :=
+  fvl_node_of_go (fvl_go_aux fuel.val) rfl hrel hinv hs hrun
 
 /-- `fvar_leaves_two` ⊑ the twin's two-child arm, inline. -/
 theorem fvar_leaves_two_refines {pers : arena.store.PersTier}
@@ -4276,9 +4601,10 @@ theorem fvar_leaves_two_refines {pers : arena.store.PersTier}
     (hs : SeenRel rs ls)
     (hrun : arena.expr_ops.fvar_leaves_two pers st racc rs fuel x y = ok o) :
     FOut pers lst o st ((do
-      let (acc, seen) ← fvarLeavesGo (absLeaves racc) ls (absU fuel) (absEIdx x)
-      fvarLeavesGo acc seen (absU fuel) (absEIdx y)).run lst) := by
-  sorry
+      let (acc, seen) ←
+        fvarLeavesGo (absLeaves racc).reverse ls (absU fuel) (absEIdx x)
+      fvarLeavesGo acc seen (absU fuel) (absEIdx y)).run lst) :=
+  fvl_two_of_go (fvl_go_aux fuel.val) rfl hrel hinv hs hrun
 
 /-- `fvar_leaves_fast` ⊑ `fvarLeavesFast`. -/
 theorem fvar_leaves_fast_refines {pers : arena.store.PersTier}
@@ -4286,7 +4612,7 @@ theorem fvar_leaves_fast_refines {pers : arena.store.PersTier}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.fvar_leaves_fast pers st fuel h = ok o) :
-    AOut absLeaves (fun _ => True) pers lst o st
+    AOut (fun v => (absLeaves v).reverse) (fun _ => True) pers lst o st
       ((fvarLeavesFast (absU fuel) (absEIdx h)).run lst) := by
   rw [arena.expr_ops.fvar_leaves_fast] at hrun
   obtain ⟨seen, hseen, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -4295,14 +4621,13 @@ theorem fvar_leaves_fast_refines {pers : arena.store.PersTier}
     ConRon.Refine.HashMap2.new_refines
       (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable)
       hseen
-  have hs : SeenRel seen ∅ := by
-    refine ⟨fun k => ?_, hnInv⟩
-    rw [hnNone k]
-    simp
-  have hacc : absLeaves (alloc.vec.Vec.new (Std.U64 × arena.handle.EIdx)) = [] := rfl
+  have hs : SeenRel seen ∅ :=
+    ⟨ConRon.Refine.HashMap2.RelOn_empty hnNone, hnInv⟩
+  have hacc : (absLeaves (alloc.vec.Vec.new (Std.U64 × arena.handle.EIdx))).reverse
+      = [] := rfl
   have hgo := fvar_leaves_go_refines hrel hinv hs hr
   rw [hacc] at hgo
-  show AOut absLeaves (fun _ => True) pers lst o st
+  show AOut (fun v => (absLeaves v).reverse) (fun _ => True) pers lst o st
     ((do let p ← fvarLeavesGo [] ∅ (absU fuel) (absEIdx h); pure p.1).run lst)
   rw [StateT.run_bind]
   cases hrc : r with
@@ -4332,7 +4657,7 @@ theorem leaves_sub_go_refines {pers : arena.store.PersTier}
     (hrun : arena.expr_ops.leaves_sub_go pers st bl rm fuel h = ok o) :
     LOut pers lst o st
       ((leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx h)).run lst) := by
-  exact lsub_go_aux fuel.val rfl hrel hinv hm hrun
+  exact lsub_go_aux fuel.val rfl (fun _ _ => rfl) hrel hinv hm hrun
 
 /-- `leaves_sub_node` ⊑ the twin's arm dispatch. -/
 theorem leaves_sub_node_refines {pers : arena.store.PersTier}
@@ -4347,7 +4672,7 @@ theorem leaves_sub_node_refines {pers : arena.store.PersTier}
     LOut pers lst o st
       ((leavesSubNodeSpec (absLeaves bl) lm (absU fuel)
         (absENodeView v)).run lst) := by
-  exact lsub_node_of_go (lsub_go_aux fuel.val) rfl hrel hinv hm hrun
+  exact lsub_node_of_go (lsub_go_aux fuel.val) rfl (fun _ _ => rfl) hrel hinv hm hrun
 
 /-- `leaves_sub_two` ⊑ the twin's two-child arm, inline. -/
 theorem leaves_sub_two_refines {pers : arena.store.PersTier}
@@ -4363,7 +4688,7 @@ theorem leaves_sub_two_refines {pers : arena.store.PersTier}
       let (rf, m) ← leavesSubGo (absLeaves bl) lm (absU fuel) (absEIdx x)
       if rf then leavesSubGo (absLeaves bl) m (absU fuel) (absEIdx y)
       else pure (false, m)).run lst) := by
-  exact lsub_two_of_go (lsub_go_aux fuel.val) rfl hrel hinv hm hrun
+  exact lsub_two_of_go (lsub_go_aux fuel.val) rfl (fun _ _ => rfl) hrel hinv hm hrun
 
 /-- `leaf_guard` ⊑ `leafGuard` — the fabrication leaf guard: the `fvarB = 0`
 short-circuit, `base`'s leaf list, then one memoized walk of `fab`. -/
@@ -4374,13 +4699,103 @@ theorem leaf_guard_refines {pers : arena.store.PersTier}
     (hrun : arena.expr_ops.leaf_guard pers st fuel fab base = ok o) :
     AOut id (fun _ => True) pers lst o st
       ((leafGuard (absU fuel) (absEIdx fab) (absEIdx base)).run lst) := by
-  sorry
+  rw [arena.expr_ops.leaf_guard] at hrun
+  obtain ⟨w, hw, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hder := hw
+  rw [arena.monad.derived_e] at hder
+  obtain ⟨-, hfv, -⟩ := derObsE_fields (estore_derived_abs hrel.store hder)
+  have hi1v := ConRon.Refine.Expr.fvar_of_data_val hi1
+  have hfz : (ConLeche.fvarOfData (lst.store.derived (absEIdx fab))).toNat = i1.val := by
+    rw [hfv, hi1v]
+  rw [show leafGuard (absU fuel) (absEIdx fab) (absEIdx base) = (do
+      if (ConLeche.fvarOfData (← derivedE (absEIdx fab))).toNat == 0 then pure true
+      else do
+        let bl ← fvarLeavesFast (absU fuel) (absEIdx base)
+        let p ← leavesSubGo bl ∅ (absU fuel) (absEIdx fab)
+        pure p.1) from rfl,
+    StateT.run_bind,
+    show (Arena.derivedE (absEIdx fab)).run lst
+      = .ok (lst.store.derived (absEIdx fab), lst) from rfl]
+  show AOut id (fun _ => True) pers lst o st
+    ((do
+      if ((ConLeche.fvarOfData (lst.store.derived (absEIdx fab))).toNat == 0) = true
+      then pure true
+      else do
+        let bl ← fvarLeavesFast (absU fuel) (absEIdx base)
+        let p ← leavesSubGo bl ∅ (absU fuel) (absEIdx fab)
+        pure p.1).run lst)
+  by_cases hc : i1 = 0#u64
+  · rw [if_pos hc] at hrun
+    have hz : ((ConLeche.fvarOfData (lst.store.derived (absEIdx fab))).toNat == 0)
+        = true := by rw [hfz, hc]; rfl
+    rw [if_pos hz]
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · rw [if_neg hc] at hrun
+    have hz : ¬ (((ConLeche.fvarOfData (lst.store.derived (absEIdx fab))).toNat == 0)
+        = true) := by
+      rw [hfz]
+      simp only [beq_iff_eq]
+      intro hzz
+      exact hc (Std.UScalar.eq_of_val_eq (by rw [hzz]; rfl))
+    rw [if_neg hz]
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hfl := fvar_leaves_fast_refines hrel hinv hr
+    cases hrc : r with
+    | Err e =>
+      rw [hrc] at hrun hfl
+      have ho : (core.result.Result.Err e : core.result.Result Bool _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      exact aout_err_bind hfl
+    | Ok bl =>
+      rw [hrc] at hrun hfl
+      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hfl
+      rw [StateT.run_bind, hx1]
+      obtain ⟨memo, hmemo, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hnInv, -, hnNone⟩ :=
+        ConRon.Refine.HashMap2.new_refines
+          (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable)
+          hmemo
+      have hm : LMemoRel memo ∅ :=
+        ⟨ConRon.Refine.HashMap2.RelOn_empty hnNone, hnInv⟩
+      have hgo := lsub_go_aux (lbl := (absLeaves bl).reverse) fuel.val rfl
+        (fun i t => leafMem_reverse _ i t) hrel1 hinv1 hm hr1
+      show AOut id (fun _ => True) pers lst o st
+        ((do
+          let p ← leavesSubGo (absLeaves bl).reverse ∅ (absU fuel) (absEIdx fab)
+          pure p.1).run lst1)
+      rw [StateT.run_bind]
+      cases hr1c : r1 with
+      | Err e =>
+        rw [hr1c] at hrun hgo
+        have ho : (core.result.Result.Err e : core.result.Result Bool _) = o :=
+          Result.ok_injective hrun
+        rw [← ho]
+        exact AOut.err (AErrSim.bind hgo _)
+      | Ok p =>
+        obtain ⟨b, m2⟩ := p
+        rw [hr1c] at hrun hgo
+        obtain ⟨m1, lst2, heq, -, hrel2, hinv2, hext2⟩ := hgo
+        have ho : (core.result.Result.Ok b : core.result.Result Bool _) = o :=
+          Result.ok_injective hrun
+        rw [← ho]
+        refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+        rw [heq]
+        rfl
+
 
 
 /-! ## The axiom census
 
-The three `O(1)` derived reads and the three fuel inductions this round
-closed, at the three standard axioms and nothing else. -/
+The three `O(1)` derived reads and the three fuel inductions task #97-P5-2
+closed, plus the whole of task #97-P5-3's file — the tag/view agreement, the
+eight tag-first readers, the six arm-split walks, the three memo-threading
+families with their owed twin equations, and `leaf_guard` — at the three
+standard axioms and nothing else. -/
 
 /-- info: 'ConRon.Refine2.ExprOps.inst_list_cutoff_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms inst_list_cutoff_refines
@@ -4403,5 +4818,99 @@ closed, at the three standard axioms and nothing else. -/
 /-- info: 'ConRon.Refine2.ExprOps.result_sort_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms result_sort_refines
 
+
+
+/-- info: 'ConRon.Refine2.ExprOps.estore_view_tagOf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_view_tagOf
+
+/-- info: 'ConRon.Refine2.ExprOps.is_lam_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms is_lam_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.lam_pw_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lam_pw_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.forall_pw_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms forall_pw_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.fvar_type_d_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_type_d_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.strip_lams_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms strip_lams_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.strip_pis_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms strip_pis_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.pi_result_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pi_result_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.pi_arity_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pi_arity_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.size_b_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms size_b_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.size_f_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms size_f_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.has_fvar_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms has_fvar_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.wscoped_b_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms wscoped_b_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.loose_bvars_bounded_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms loose_bvars_bounded_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.fvar_leaves_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_leaves_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.wscopedBGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms wscopedBGo_unfold
+
+/-- info: 'ConRon.Refine2.ExprOps.wscoped_b_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms wscoped_b_go_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.wscoped_b_node_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms wscoped_b_node_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.wscoped_b_two_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms wscoped_b_two_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.wscoped_b_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms wscoped_b_fast_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.leavesSubGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms leavesSubGo_unfold
+
+/-- info: 'ConRon.Refine2.ExprOps.leaves_sub_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms leaves_sub_go_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.leaves_sub_node_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms leaves_sub_node_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.leaves_sub_two_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms leaves_sub_two_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.leafMem_reverse' depends on axioms: [propext] -/
+#guard_msgs in #print axioms leafMem_reverse
+
+/-- info: 'ConRon.Refine2.ExprOps.fvarLeavesGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvarLeavesGo_unfold
+
+/-- info: 'ConRon.Refine2.ExprOps.fvar_leaves_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_leaves_go_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.fvar_leaves_node_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_leaves_node_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.fvar_leaves_two_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_leaves_two_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.fvar_leaves_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms fvar_leaves_fast_refines
+
+/-- info: 'ConRon.Refine2.ExprOps.leaf_guard_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms leaf_guard_refines
 
 end ConRon.Refine2.ExprOps
