@@ -38667,3 +38667,253 @@ merged in.  The only two conflicts were textual: this section against theirs at
 the end of the task log, and `proof/ConRon/Bridge.lean`'s three blocks (the
 module list, the import-rule paragraph and the imports), where both rounds
 added a tier.
+
+### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
+
+Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at
+`Arena/Inductives.lean` and the ten modules under it — con-leche's `.indDecl`
+arm (`ConLeche/Kernel/Checker.lean:564-600`) and the two routes behind it —
+i.e. the hypothesis `Bridge/Checker/Hyp.lean` names **`IndSpec`**.  Branch
+`p3-ind` off `arena`'s tip `dd369780`, merged up to `be5aab5d` (the arm split
+of `Arena/ExprOps.lean`) before the work landed.  The diff is
+`proof/ConRon/Bridge/Inductives/**`, `proof/ConRon/Bridge/Inductives.lean`,
+two blocks of `proof/ConRon/Bridge.lean` and this section: **no Rust file, no
+generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `lakefile.toml`,
+no other `Bridge/` module.**
+
+#### 1. The layer, and its size
+
+| module | raw | non-blank | decls | open | elab |
+|---|---:|---:|---:|---:|---:|
+| `Inductives/Rel.lean` — the two frames, the two statement shapes, the relations | 539 | 459 | 51 | **0** | 1.2 s |
+| `Inductives/StructParts.lean` — the generators and the structure recogniser | 425 | 347 | 31 | 26 | 0.93 s |
+| `Inductives/SumParts.lean` — `sumSplit`, `withSort` | 80 | 65 | 3 | 2 | 0.73 s |
+| `Inductives/NativeParts.lean` — the classification and the GENERATED recursor | 485 | 406 | 32 | 29 | 0.85 s |
+| `Inductives/StructInstall.lean` — the domains and the projection table | 87 | 73 | 2 | 2 | 0.77 s |
+| `Inductives/SumInstall.lean` — the direct install's stages | 364 | 316 | 17 | 14 | 0.85 s |
+| `Inductives/NativeInstall.lean` — the fixpoint route | 326 | 279 | 17 | 14 | 0.87 s |
+| `Inductives/Modeled.lean` — the modeled route | 623 | 542 | 33 | 31 | 0.99 s |
+| `Inductives/Decl.lean` — **the arm and `IndSpec`** | 225 | 195 | 4 | 2 | 0.84 s |
+| `Inductives/Axioms.lean` — the trust census | 70 | 56 | — | — | 0.74 s |
+| `Inductives.lean` — the index | 50 | 43 | — | — | 0.74 s |
+| **the tier** | **3 274** | **2 781** | **190** | **120** | **~9.6 s gross** |
+
+**No theorem is anywhere near the 20 s flag** — the slowest module of the
+tier is `Rel.lean` at 1.2 s and the import baseline is 0.73 s, so the tier's
+NET elaboration is about **2.6 s**.  That is the third measurement of task
+#97-P3-Checker §1's finding and it now has a name: **this tier has no `grind`
+and no `mvcgen` in it either**.  The inductive install is composition, list
+induction and record transport, and the 72 s / 338 s numbers of the `ExprOps`
+tier belong to the closer on a twin walk's verification conditions and to
+nothing else.  `lake build ConRonBridge`: **532 jobs, 0 errors** (521 after
+P3-Checker).
+
+#### 2. THE FINDING — `IndSpec` as `Hyp.lean` states it cannot be discharged
+
+Two of `IndSpec.run`'s seven conjuncts are wrong for this arm, and the tier
+found both by trying to prove them.
+
+**1. `PersIFEnv fe'` is FALSE.**  `Arena/Checker.lean`'s per-declaration
+bracket is `flushCaches; enterScratch; <the step>; promoteNew; dropScratch`
+(§8.3's amended "Phase A runs in the scratch tier too, with promotion"), so
+`checkDecl` — and therefore `Inductives.checkIndDecl` — runs with the
+**scratch tier open**, and every constant the route installs carries a
+freshly interned, hence scratch, type: `checkMemberVal` annotates,
+`checkNativeRec` FABRICATES the recursor, `checkStructProjTable` builds the
+projection bodies.  Persistence is `promoteNew`'s business one level up.
+`Bridge/Checker/Decl.lean`'s own `DeclOut` says exactly this in prose —
+"There is **no persistence clause**: `checkDecl` does not promote […] Writing
+`PersIFEnv` into `DeclOut` would be stating a falsehood about the very
+deviation task #97-P6-2 introduced" — and `IndSpec`, written in the same
+round, contradicts it.
+
+**2. `Pushed fe fe'` is MISSING**, and the consumer needs it.
+`checkDecl_bridge_ind`'s conclusion is `DeclOut`, whose five plumbing clauses
+include `pushed : Pushed fe fe'` — the clause that makes `checkDeclStep`'s
+promotion counter `k` mean "the constants this step installed".  Only the arm
+can supply it, so a hypothesis that omits it cannot discharge the arm even
+when every sub-statement under it is closed.
+
+**The fix is two lines in `Bridge/Checker/Hyp.lean`** — drop `PersIFEnv fe'`
+from `IndSpec.run`, add `Pushed fe fe'` — and it is consumer-compatible:
+`Bridge/Checker/Capstone.lean` never reads `IndSpec`, it passes it to
+`checkDecl_bridge_ind`, which wants `Pushed` and does not want `PersIFEnv`.
+This task does not own that file, so the correction is stated rather than
+made: `IndOut` (`Bridge/Inductives/Rel.lean`) is `IndSpec`'s conclusion with
+the two clauses corrected, `checkIndDecl_bridge` is **proved at `IndOut`**,
+and `indSpec_of_bridge` adapts it to `Hyp.lean`'s letter with **one `sorry`,
+on the one conjunct that is false** — written out as its own `sorry` so that
+"which clause is unprovable" is a fact of the source rather than of a
+docstring.
+
+#### 3. The statement layer: two grades, two shapes, eleven relations
+
+`Bridge/Inductives/Rel.lean` is **51 declarations and not one `sorry`**, and
+it is what makes the other eight modules statements-and-proofs only.
+
+* **Two frames.**  `PStep` (the store grows, the binder-datum store with it,
+  the fourteen caches and the pin table stand still) for the ~70 twins that
+  only intern and read; `Bridge/Checker/Hyp.lean`'s `CoreStep` for the ~40
+  that call the knot.  `PStep.toCore` is the one-line bridge, through
+  `Bridge/StateOK.lean`'s `CheckOK.mono`.  This is task #97-P3-0 §2's rule
+  ("`StateOK` is the only clause the `ExprOps` tier mentions") applied to a
+  tier where two thirds of the functions qualify for it.
+* **Two statement shapes**, each taking the PRECONDITION and the ANSWER
+  RELATION as parameters:
+
+      PSpec P c R  :  ∀ s₀ s' r, StateOK s₀ → P s₀.store →
+                      c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
+      CSpec μ env fe P c R  :  the same at CheckOK / CoreStep
+
+  **RUN form rather than a `Std.Do` triple**, and the reason is the tier's
+  own: `IndSpec` is stated in run form, `Bridge/Checker/Fold.lean` (the
+  consumer) is written in run form, and every composition in this tier is a
+  `bind` inversion.  A leaf walk that wants `mvcgen` reads its triple at the
+  `.ok` branch; nothing above the leaves does.
+* **Eleven answer relations** — `RE`, `RL`, `RLs`, `RN`, `REL`, `REA`, `RLL`,
+  `RLLL`, `REO`, `RCV`, `RV` — plus the `Option` lift `ROp`, the binder
+  telescope `RB`, the three constructor lists (`RCs`, `RCs3`, `RCs4`), the
+  three kind shapes (`RK`, `RKs`, `RKss`) and `RCaps`.
+* **Four record relations** with their `ext` transports: `ShapeRel`
+  (`InductiveShape`), `PartsRel` (`NativeParts`), `SPartsRel`
+  (`StructParts`), `SplitRel` (`sumSplit`'s answer).
+* **`InstRel` and `IndOut`.**  Every install twin of the tier answers an
+  `IFEnv`, and `InstRel fe P st fe'` is the one relation all of them use:
+  the index is still its list's index, it only pushed, its visibility bound
+  only rose, and it denotes an environment con-leche's own install produces.
+  `InstRel.trans` is what chains a route's stages.  `IndOut` is `InstRel`
+  plus what the STATE did, i.e. §2's corrected `IndSpec` conclusion.
+
+#### 4. `ROp` is two-sided, and that is a soundness clause
+
+`nativeParts?` IS the dispatch (con-leche's task #219: "the dispatch is the
+RECOGNISER alone"), so a twin that answered `none` where con-leche answers
+`some` would send the arena down the modeled route while the pure checker
+went down the fixpoint one — and Theorem 1 would be a statement about a
+different program.  So the tier's `Option` relation says `none ↔ none`:
+
+    ROp R x st none     = (x = none)
+    ROp R x st (some a) = ∃ b, x = some b ∧ R b st a
+
+This is the only place in the tier where a one-sided refinement would be
+unsound, and it is why `nativeParts?_spec`, `structPartsCore?_spec`,
+`nativeShape?_spec` and `recCtorKinds_spec` are stated the way they are.
+
+#### 5. The five removed higher-order arguments, written down
+
+Task #97d-2's deviation 3 removed five function arguments con-leche passes
+(DESIGN §3.4 forbids a closure).  A deviation is discharged by a statement
+that names con-leche's function AT the value the twin computes, and here are
+the five:
+
+| twin | con-leche's argument | the statement's instantiation |
+|---|---|---|
+| `checkSumInd` | `capsOf : InductiveShape → IndCaps` | `fun x => ConLeche.nativeCapsAt x isRec` |
+| `structRuleBodyR` | `teleOf` / `idxOf` | `fun i => structFieldTeleOf ctyP nP nF i` and its sibling |
+| `structIhPis` | `teleOf` / `idxOf` | the same pair |
+| `domsMatchRenamed` | `g : Nat → Expr → Expr` | `fun _ e => e.renameConsts fP` |
+| `sumRules` | `find? : Name → Option ConstantInfo` | `env.find?` |
+
+and the sixth, `renameConsts`' own `f : NIdx → NIdx`, is **data** on the twin
+side (`blockRenameTable`, `projBack`, `projFwd` are association lists and
+`renameBy` is their lookup).  `RenameRel st tbl f` — "at every handle that
+denotes a name, the table's lookup denotes `f`'s value" — is what that costs
+the proof, and each of the three table builders has a statement saying so.
+
+#### 6. What is CLOSED
+
+**Seventy declarations**, every one at `[propext, Classical.choice,
+Quot.sound]` (two, `recIdxOf_spec` and `nativeIsRec_spec`, at `[propext,
+Quot.sound]` alone).  No `sorryAx`, and — the point of task #97a's arithmetic
+packing — no `bv_decide` axiom anywhere in the tier.
+
+* **the whole of `Rel.lean`**: the two frames and their algebra
+  (`PStep.refl/trans/toCore`, `PSpec.toCSpec`), the `AM` bind inversion
+  (`bindOk`), `denoteBinders_ext`, `denoteCtors_ext`, `denoteCIList_ext`,
+  `denoteFEnv_ext`, `ShapeRel.ext`, `PartsRel.ext`, `InstRel.trans`;
+* **the four pure identifications** the twins' data types need:
+  `recIdxOf_spec` (the twin's `RecFieldKind` is con-leche's under `kindOf`),
+  `nativeIsRec_spec`, `complete_spec`, `withKinds_spec`;
+* **`structProjPs_eq`** — the tier's one arithmetic identification:
+  con-leche writes the projection parameter spine as `bvar (nP - k)` and
+  `structPsAt 1 nP` as `bvar (1 + nP - 1 - k)`, and `omega` says they agree;
+* **`denoteCtors_length`, `rulePrefix_spec`, `majorIdx_spec`** — the two
+  arithmetic readers off the shape record are equal on the nose;
+* **`checkDecl_ind_route`** — the pure side's own step lemma in task
+  #97-P3-Core §5's rule-8 shape: at a block `basisPinHit` refused and whose
+  declared parameter count checks out, `checkDecl` IS the route dispatch
+  (`simp only [checkDecl, hpin, hparams]`, then `rfl`);
+* **`checkIndDecl_bridge` — THE ARM ITSELF.**  It is *proved*, not asserted:
+  two `bindOk` inversions, `indParamsOk_spec`, `nativeParts?_spec`, the two
+  route theorems and `checkDecl_ind_route`, assembled into `IndOut`.  It
+  carries `sorryAx` only through its four sub-statements, so **the moment
+  those four close, the arm closes with no further work** — which is the
+  claim this round set out to make checkable.
+
+#### 7. The sorry list — 120 declarations in eight groups
+
+Each is `sorry` with its reason at the site.  Grouped by what discharges it.
+
+| # | declarations | what it needs |
+|---|---|---|
+| 1 | `paramLevels_spec`, `structPsAt_spec`, `structFam_spec`, `structCtorSpine_spec`, `structRuleBody_spec`, `structElimLevel_spec`, `structCtorSpineAt_spec`, `structFamI_spec`, `structProjPs_spec`, `structProjArgP_spec`, `structRecPrefixAt_spec`, `structTeleVars_spec`, `mkPisOf_spec`, `mkLamsOf_spec` (14) | the INTERN layer alone: `internE_spec`'s ten faces, `internLNode_spec`, `internLsNode_spec`, `mkAppN`'s spec, over a `Nat` or list recursion.  **The cheapest group of the tier and the one to take first** — no knot, no memo, no telescope |
+| 2 | `replacePisPw_spec`, `pisToLamsPw_spec`, `structMotiveTyI_spec`, `structIdxAt_spec`, `structTeleAt_spec`, `structIhApp_spec`, `structRuleBodyR_spec`, `structIhPis_spec`, `structMinorTyR_spec`, `structMinorsPisR_spec`, `structMinorsLamsR_spec`, `structRecTyR_spec`, `structRecRhsR_spec` (13) | the generated recursor: group 1 plus `Bridge/ExprOps/Subst.lean`'s `liftLooseBVarsFast_spec` and `Bridge/Rel.lean`'s `RelE.forallE`/`.lam` step lemmas at a CHANGED binder datum |
+| 3 | `hasLooseBVarBGo_spec`, `hasLooseBVarBFast_spec`, the four `structUsedLater*_spec`, `mentionsConstGo_spec`, `mentionsConst_spec`, `mentionsFvarGo_spec`, `mentionsFvar_spec` (10) | the three EXPLICIT memos (task #97d-2's deviation 5).  Each is a fuel induction with the memo threaded, in `Bridge/ExprOps/Walks.lean`'s shape, against the invariants `LooseMemoOK` / `MentionsMemoOK` / `FvarMemoOK` this tier states |
+| 4 | `structShape_spec`, `structPartsCore?_spec`, `sumSplit_spec`, `nativeCounts?_spec`, `nativeRecPinOk_spec`, `nativeRecLpsOk_spec`, `nativeShape?_spec`, `nativeParts?_spec`, `recFamOk_spec`, `recPositivity_spec`, `recFieldKind_spec`, `recCtorKinds_spec`, `recCtorKindsAll_spec`, `nativeCtors4_spec`, `nativeRulePrefixOk_spec`, `nativeRulesOk_spec` (16) | the two RECOGNISERS and the classification: `stripPis`/`stripLams` (`Bridge/ExprOps/TelescopeF.lean`), the tag dispatch through `EStore.tagOf_of_view`, and **`denoteE_inj`/`denoteN_inj`** at every handle comparison — DESIGN §8.3's soundness obligation, which this tier cashes twenty-odd times |
+| 5 | `piBinders_spec`, `structFieldTeleOf_spec`, `structFieldIdxOf_spec`, `structProjResidP_spec`, `structProjBodiesGo_spec`, `structProjBodies_spec`, `structProjGuards_spec`, `closeTelescope_spec`, `zipFvarDoms_spec` (9) | the telescope readers, and **`Bridge/ExprOps/Owed.lean`'s `instPisAtLift_spec`** — still open on the `ExprOps` tier's own list (task #97-P3-0 §6) — plus `instantiate1LiftFast_spec` and `abstract1Fast_spec` |
+| 6 | `checkStructDomsAt_spec`, `whnfTelescope_spec`, `checkSumTele_spec`, `checkStructFieldSortsI_spec`, `normPosDom_spec`, `normFieldDoms_spec`, `normCtorVal_spec`, `checkSumCtor_spec`, `checkSumCtors_spec`, `checkNativeRules_spec`, `checkNativeRec_spec`, `nativeOpenedOk_spec`, `nativeFieldsOk_spec`, `classifyFixKinds_spec` (14) | the **`CoreSpec` consumers**: each is a `Nat` or list recursion over one or two slots of `Bridge/Core/Knot.lean`'s `KnotSpec` plus `CoreSpec.sort`'s `EnsureSortSpec` — which `Bridge/Checker/Hyp.lean` says is still the Core tier's to move down and discharge |
+| 7 | `nativeCapsAt_spec`, `nativeCaps_spec`, `nativeRawRec_spec`, `withSort_spec`, `indBlockCaps_spec`, `checkEtaThm_spec`, `checkUnitThm_spec`, `ctorTargetsFam_spec`, `ctorResidualOk_spec`, `eqBasisStored_spec`, `eqApp3?_spec`, `iotaThmName_spec`, `blockRenameTable_spec`, `projBack_spec`, `projFwd_spec`, `domsMatchRenamed_spec`, `checkProjLookups_spec`, `checkProjTy_spec` (18) | the capability record, the rename tables and the lookups: `IFEnvOK`'s `hit`/`cover` pair (through `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote`, item 6 of task #97-P3-Checker's list), `Bridge/Specs.lean`'s pin readers (closed) and `denoteN_inj` |
+| 8 | `checkIotaSidesTy_spec`, `checkIotaThm_spec`, `nestedRuleShape_spec`, `checkIotaThmN_spec`, `checkIotaRule_spec`, `checkIotaRules_spec`, `checkMemberVal_spec`, `checkIndMember_spec`, `checkIndMembers_spec`, `provisionRecs_spec`, `installIndRecs_spec`, `checkIndRecs_spec`, `checkProjIota_spec`, `checkProjFn_spec`, `installProjFnStep_spec`, `installProjFns_spec`, `checkStructProjTable_spec`, `checkNativeTable_spec`, `consSumCtors_spec`, `sumRules_spec`, `checkSumInd_spec`, `checkNativePass_spec`, `checkNativeTail_spec`, `checkNative_spec`, `checkModeled_spec`, `indParamsOk_spec` (26) | the INSTALLS.  Every one bottoms out in **`Bridge/Checker/Base.lean`'s `checkConstantVal_bridge`** (task #97-P3-Checker's item 11, "the single highest-value remaining proof") and in **`IFEnv.push`'s two lemmas** — `IFEnvCoh` is preserved by `push` and `Pushed` is `⟨[ci], rfl⟩` — which nobody has written yet and which this tier needs fourteen times |
+
+**What the list is NOT.**  There is no mathematical gap in it: the twins are
+task #97d-2's literal transliterations of con-leche's functions, they agreed
+with con-leche on all 46 differential fixtures on the FIRST run, and every
+item above is a denotation carried across a clause con-leche already has.
+What it is, is **the `ExprOps` tier's work at a different subject** — 120
+walks, each cheap, none of them deep.
+
+#### 8. What the next rounds need
+
+* **`IFEnv.push`'s two lemmas** (`IFEnvCoh (fe.push ci)` from `IFEnvCoh fe`,
+  and `Pushed fe (fe.push ci)`) are the single most reused missing fact of
+  this tier: fourteen install statements want them and none exists.  They
+  belong in `Bridge/Promote/Exact.lean` beside `IFEnvCoh` itself.  **Three
+  lines each.**
+* **`Bridge/Checker/Hyp.lean`'s `IndSpec`** needs §2's two-line correction
+  before `indSpec_of_bridge` can close.
+* **`EnsureSortSpec`** (task #97-P3-Checker §7's "it should move into
+  `Bridge/Core` when someone takes it") is a hypothesis of six statements
+  here.  It is one `whnf` call and a tag test.
+* **`Bridge/Checker/Base.lean`'s `checkConstantVal_bridge`** gates 26 of this
+  tier's 120 items, on top of the seven arms it already gates.  It is the
+  campaign's bottleneck and it is one function.
+* **`Bridge/ExprOps/Owed.lean`'s `instPisAtLift_spec`** gates group 5, as it
+  gates the Core tier's `.app` carry.
+* **The import shape.**  `Bridge/Inductives/**` imports
+  `Bridge/Checker/Hyp.lean` and NOT `Bridge/Checker/Fold.lean`, deliberately:
+  `Bridge/Checker/Decl.lean` will import `Bridge/Inductives/Decl.lean` to
+  discharge `checkDecl_bridge_ind`, so an import the other way would close a
+  cycle.  The one lemma that costs is the `AM` bind inversion, restated here
+  as `bindOk` with the citation that says where its twin lives.
+* **`scripts/provenance.py`'s `ARENA_ROOTS` still does not include
+  `proof/ConRon/Bridge`** (task #97-P3-0 §7), so the `con-leche:` citations
+  in these ten modules are stylistic rather than gate-enforced.  Every
+  declaration carries one anyway, lifted verbatim from the twin it is about.
+
+#### 9. Gates
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 532 jobs** (521 after P3-Checker); 205 `sorry` warnings, of which 120 are this tier's (§7) and 85 the earlier tiers' |
+| `scripts/gates.sh` | all OK |
+| `#print axioms` | `Bridge/Inductives/Axioms.lean`, **22 closed results listed, every one `[propext, Classical.choice, Quot.sound]`** (`recIdxOf_spec` and `nativeIsRec_spec` at `[propext, Quot.sound]`), and the two headline theorems at `[propext, sorryAx, Classical.choice, Quot.sound]` — **neither carrying `CoreSpec`**, which is a hypothesis of the statement and not an axiom of the environment.  No `bv_decide` axiom |
+| per-theorem elaboration | nothing above **1.2 s** in the whole tier; the 20 s flag is not approached by any module, let alone any theorem |
+| the diff | `proof/ConRon/Bridge/Inductives{,/*}.lean`, `proof/ConRon/Bridge.lean` (two blocks) and this section.  No Rust file, no generated model, no `Arena/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
+**Is `IndSpec` discharged?**  **No, and §2 says why in two parts.**  The arm
+`checkIndDecl_bridge` is *proved* at the corrected conclusion `IndOut`,
+modulo the four sub-statements of §7 — so the assembly is done and the
+remaining work is 120 leaf walks and the items of §8.  What stands between
+that and `IndSpec` itself is one conjunct of `Hyp.lean`'s statement that is
+**false of this arm**, and correcting it is a two-line edit to a file this
+task does not own.
