@@ -24,8 +24,23 @@ is that transcription, collected rather than scattered, so that
 
 **Every definition here is a transcription of a CONTIGUOUS run of clauses of
 one named twin, and every `_unfold` says exactly that.**  The `_unfold`s are
-the file's proof obligation and they are `rfl`-shaped: the twin is a `do`
-block and the transcription is its tail.
+the file's proof obligation.
+
+**They are NOT `rfl`-shaped** (task #97-P5-Checker-2, correcting that round's
+§6).  The `do` elaborator pushes a statement's continuation INTO the branches
+of the `if` above it — a join point — so a twin written `if c then fail e` and
+then `rest` is `if c then fail e else rest`, where a transcription that names
+the guard separately is `(if c then fail e else pure ()) >>= fun _ => rest`;
+and `StateT`'s `bind` matches on the inner `Except`, so the two are not
+definitionally equal at an opaque prefix.  **Rule 11**
+(`Refine2/Checker/Shape.lean`) is the four-lemma reduction that closes them:
+`bind_assoc`, `pure_bind`, `am_{ite,dite}_bind` and `am_fail_bind`, spelled
+`twin_reduce [...]`.  Where the twin groups at a `match` rather than an `if`,
+`am_bind_congr` peels the common prefix first — `congr 1` will NOT, because
+`AM α` is a function type and `congr 1` eta-expands it instead.
+
+Seven of the eight are closed; `divModCertStmts_unfold` is the exception and
+its note says why.
 -/
 import ConRon.Refine2.Checker.KnotHyp
 
@@ -758,7 +773,16 @@ def divModCertStmtsAtSpec (cx : CertCtxA) (c : NIdx) :
   else if c == cx.xorN then certXorSpec cx c
   else certDivModSpec cx c
 
-/-- `divModCertStmts` is its context and its dispatch. -/
+/-- `divModCertStmts` is its context and its dispatch.
+
+**The tier's one open `_unfold`, and it is a COST problem.**  The two sides
+are the same `do` block regrouped — twenty-one `let`s and a seven-way
+dispatch — but the single `twin_reduce` that spells out all fifteen
+`cert*Spec` definitions does not finish inside ten minutes on the resulting
+term.  The fix is to peel the twenty-one binders with `am_bind_congr` and
+`split` the dispatch, rather than to hand `simp` the whole thing at once;
+task #97-P5-Checker-2 left it rather than spend the round's last hour on
+it. -/
 theorem divModCertStmts_unfold (c : NIdx) :
     divModCertStmts c = (do divModCertStmtsAtSpec (← certCtxSpec) c) := by
   sorry

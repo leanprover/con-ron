@@ -31,19 +31,39 @@ compared is the state on the error arm, and it must not be —
 made every append inside it copy), and the port's `&mut` state is simply not
 read by anything after an `Err`.
 
-## Finding 14 — `check_ind_decl` is the Inductives tier's, and it is a hypothesis
+## Finding 14 — `check_ind_decl` is the Inductives tier's, and it is DISCHARGED
 
 `checkDecl`'s `.indDecl` arm calls `Inductives.checkIndDecl`, which is
-`arena::inductives::*` — 6 705 lines that are NOT this tier's.  `IndRel`
-below is that seam as a hypothesis, in the shape `KnotRel` has for the Core
-seam: one clause, discharged when the Inductives tier lands, carried by every
-lemma from `check_decl_refines` upward until then.
+`arena::inductives::*` — 6 705 lines that are NOT this tier's.  Task
+#97-P5-Checker carried that seam as a hypothesis (`hind : IndRel`) at thirteen
+sites; task #97-P5-Ind proved `ind_rel : IndRel` unconditionally, and task
+#97-P5-Checker-2 deleted the thirteen binders.
+
+**That cost an import swap, and it is the right end state.**  `IndRel` used to
+be declared HERE and proved in `Refine2/Inductives/Top.lean`, which imports
+this file — so no proof here could reach `ind_rel`.  The structure now lives
+in `Refine2/Checker/Shape.lean` (the base both tiers already import), that
+file's `import ConRon.Refine2.Checker.Top` is gone, and this file imports the
+Inductives tier instead.  A capstone with no hypotheses must transitively
+import every tier that discharges one.
+
+`KnotRel checkFuel` went the same way and needed nothing:
+`Refine2/Checker/KnotHyp.lean`'s `knotRel_checkFuel'` is a theorem of task
+#97-P5-Arms, so the sixty-two binders that carried it were carrying a
+redundant hypothesis.
 
 ## What this file's capstone still owes
 
-`KnotRel checkFuel` (P5-Core), `IndRel` (the Inductives tier) and the
-`Refine2/Specs.lean` primitives task #97-P5-1 §8 lists.  Nothing else: the
-statement is closed under this tier's own lemmas.
+**Nothing but its own leaves.**  `install_then_check_refines` and
+`check_decls_pure_refines` take `AStateRel` and `AStateInv` and no more, and
+their proofs are complete: the spine is `annot_fold_refines` /
+`annot_decl_step_refines` / `check_pending_list_refines` /
+`check_decls_pure_go_refines`, all closed here, and the three `sorry`s under
+them are `annot_step_refines`, `check_pending_refines` and
+`check_decl_step_refines` — each of which is the per-declaration BRACKET and
+waits on `arena::core::{flush_caches, enter_scratch, drop_scratch}`, which the
+Core tier has not stated.  The axiom census at the foot of this file prints
+that, rather than hiding it.
 -/
 import ConRon.Refine2.Checker.DeclCheck
 import ConRon.Refine2.Inductives.Top
@@ -911,11 +931,10 @@ the state there, by both sides' own design.
 
 * `AStateRel pers st lst` / `AStateInv pers st` — the state, related and
   well-formed on the Rust side;
-* `KnotRel checkFuel` — the Core tier's six entry points
-  (`Refine2/Checker/KnotHyp.lean`), a THEOREM of P5-Core's;
-* `IndRel` — the Inductives tier's one entry point (finding 14);
 
-and nothing else.  The driver's fold above this is unverified and calls this
+and nothing else.  `KnotRel checkFuel` and `IndRel` were the other two until
+task #97-P5-Checker-2; both are theorems now (`knotRel_checkFuel'`,
+`ind_rel`) and the binders are gone.  The driver's fold above this is unverified and calls this
 per record; `scripts/holes.sh` is where that boundary is recorded. -/
 theorem install_then_check_refines {pers st lst}
     {mode : kernel.env.CheckMode}

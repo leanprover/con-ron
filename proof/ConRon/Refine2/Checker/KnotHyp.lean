@@ -82,8 +82,10 @@ open ConRon.Arena
 /-- **The knot at the checker's own fuel, unconditionally.**  `checkFuel` is
 `Arena.checkFuel = 100000`, and `Refine2/Core/Arms.lean`'s `knotRel` gives
 `KnotRel` at every fuel — so the hypothesis the sixty-two statements of this
-tier carry is discharged here, once, and `#print axioms` on it reports the
-`sorryAx` that `bodyRel_of_knot` still stands on. -/
+tier USED to carry is discharged here, once.  **Task #97-P5-Checker-2 deleted
+all sixty-two binders**: a redundant hypothesis is not a seam, and a proof
+that needs the knot takes this theorem by name.  `#print axioms` on it reports
+the `sorryAx` that `bodyRel_of_knot` still stands on. -/
 theorem knotRel_checkFuel' : KnotRel Arena.checkFuel := knotRel _
 
 /-! ## `CoreCtx`, from the checker tier's own three facts
