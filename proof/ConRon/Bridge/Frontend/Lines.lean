@@ -899,12 +899,43 @@ theorem parseRuleD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   simp only [hcln, hclr]
   rfl
 
+/-- con-leche: ConLeche/Frontend/ExportC.lean:346-349 parseRuleD — the rule
+list, `mapM`ed: `blockRecOf`'s recursor records carry one apiece. -/
+theorem parseRules_run {s : AState} (hok : StateOK s) {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc) :
+    ∀ (rus : List ConLeche.Frontend.RuleRec) {rls : List IRecRule}
+      {s' : AState}, (rus.mapM (parseRuleD sd)) s = .ok (rls, s') →
+      s' = s ∧ ∃ rs, rus.mapM (ConLeche.Frontend.parseRuleD sc) = .ok rs ∧
+        denoteRules s.store rls = some rs := by
+  intro rus
+  induction rus with
+  | nil =>
+    intro rls s' hrun
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hv; subst hst
+    exact ⟨rfl, [], rfl, rfl⟩
+  | cons ru rus ih =>
+    intro rls s' hrun
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨rl, s₁, hone, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, r, hclr, hdr⟩ := parseRuleD_run hok hrel hone
+    rw [hs1] at hrest
+    obtain ⟨rls', s₂, hmany, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs2, rs, hclrs, hdrs⟩ := ih hmany
+    rw [hs2] at hrest2
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hv; subst hst
+    refine ⟨rfl, r :: rs, ?_, ?_⟩
+    · simp only [List.mapM_cons, hclr, hclrs]
+      rfl
+    · simp only [denoteRules, hdr, hdrs]
+
 /-- con-leche: ConLeche/Frontend/ExportC.lean:353-354 blockRecOf — the parsed
 block, resolved, which is what the modeller seam is handed.
 
-`sorry`: `parseCVD_run` and `parseRuleD_run` at three lists, then
-`BlockRecRel`'s three `Forall₂`s.  Task #97-P3-Frontend's sorry list, item
-6. -/
+Three `mapM`s over `parseCVD_run` and `parseRuleD_run`; nothing moves the
+store, so the three `ListRel`s of `BlockRecRel` are read off at `s` itself. -/
 theorem blockRecOf_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {tys : List ConLeche.Frontend.IndTypeRec}
@@ -913,7 +944,148 @@ theorem blockRecOf_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     (hrun : blockRecOf sd tys cts rcs s = .ok (b, s')) :
     s' = s ∧ ∃ bP, ConLeche.Frontend.blockRecOf sc tys cts rcs = .ok bP ∧
       BlockRecRel s.store b bP := by
-  sorry
+  -- the three member lists, each a `mapM` whose step is `parseCVD_run`
+  have htys : ∀ (ts : List ConLeche.Frontend.IndTypeRec)
+      {out : List MIndTypeRec} {t : AState},
+      (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
+        pure { cv := ← parseCVD sd x.cv, nP := x.numParams, nIdx := x.numIndices,
+               ctors := ← x.ctors.mapM sd.name, isRec := x.isRec,
+               isReflexive := x.isReflexive,
+               numNested := x.numNested : MIndTypeRec }) s = .ok (out, t) →
+      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
+        pure { cv := ← ConLeche.Frontend.parseCVD sc x.cv, nP := x.numParams,
+               nIdx := x.numIndices, ctors := ← x.ctors.mapM
+                 (ConLeche.Frontend.StateD.name sc),
+               isRec := x.isRec, isReflexive := x.isReflexive,
+               numNested := x.numNested : ConLeche.Frontend.InModel.IndTypeRec })
+          = .ok outP ∧ ListRel (MIndTypeRecRel s.store) out outP := by
+    intro ts
+    induction ts with
+    | nil =>
+      intro out t hrun
+      simp only [List.mapM_nil] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hv; subst hst
+      exact ⟨rfl, [], rfl, .nil⟩
+    | cons x xs ih =>
+      intro out t hrun
+      simp only [List.mapM_cons] at hrun
+      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨cv, s₂, hcv, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      rw [hs2] at hone2
+      obtain ⟨cs, s₃, hcs, hone3⟩ := AM.bind_ok hone2
+      obtain ⟨hs3, csP, hclcs, hdcs⟩ := StateD_names_run hrel x.ctors hcs
+      rw [hs3] at hone3
+      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone3
+      rw [hst1] at hrest
+      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
+      rw [hs4] at hrest2
+      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
+      subst hv2; subst hst2; subst hv1
+      refine ⟨rfl, (⟨cvP, x.numParams, x.numIndices, csP, x.isRec,
+          x.isReflexive, x.numNested⟩
+          : ConLeche.Frontend.InModel.IndTypeRec) :: ysP, ?_,
+        .cons ⟨hdcv, rfl, rfl, hdcs, rfl, rfl, rfl⟩ hdys⟩
+      simp only [List.mapM_cons, hclcv, hclcs, hclys]
+      rfl
+  have hcts : ∀ (ts : List ConLeche.Frontend.IndCtorRec)
+      {out : List MIndCtorRec} {t : AState},
+      (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
+        pure { cv := ← parseCVD sd x.cv, nP := x.numParams,
+               nF := x.numFields : MIndCtorRec }) s = .ok (out, t) →
+      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
+        pure { cv := ← ConLeche.Frontend.parseCVD sc x.cv, nP := x.numParams,
+               nF := x.numFields : ConLeche.Frontend.InModel.IndCtorRec })
+          = .ok outP ∧ ListRel (MIndCtorRecRel s.store) out outP := by
+    intro ts
+    induction ts with
+    | nil =>
+      intro out t hrun
+      simp only [List.mapM_nil] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hv; subst hst
+      exact ⟨rfl, [], rfl, .nil⟩
+    | cons x xs ih =>
+      intro out t hrun
+      simp only [List.mapM_cons] at hrun
+      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨cv, s₂, hcv, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      rw [hs2] at hone2
+      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone2
+      rw [hst1] at hrest
+      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
+      rw [hs4] at hrest2
+      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
+      subst hv2; subst hst2; subst hv1
+      refine ⟨rfl, (⟨cvP, x.numParams, x.numFields⟩
+          : ConLeche.Frontend.InModel.IndCtorRec) :: ysP, ?_,
+        .cons ⟨hdcv, rfl, rfl⟩ hdys⟩
+      simp only [List.mapM_cons, hclcv, hclys]
+      rfl
+  have hrcs : ∀ (ts : List ConLeche.Frontend.IndRecRec)
+      {out : List MIndRecRec} {t : AState},
+      (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
+        let rules ← x.rules.mapM (parseRuleD sd)
+        pure { cv := ← parseCVD sd x.cv, nP := x.numParams, nM := x.numMotives,
+               nm := x.numMinors, nI := x.numIndices,
+               rules := rules : MIndRecRec }) s = .ok (out, t) →
+      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
+        let rules ← x.rules.mapM (ConLeche.Frontend.parseRuleD sc)
+        pure { cv := ← ConLeche.Frontend.parseCVD sc x.cv, nP := x.numParams,
+               nM := x.numMotives, nm := x.numMinors, nI := x.numIndices,
+               rules := rules : ConLeche.Frontend.InModel.IndRecRec })
+          = .ok outP ∧ ListRel (MIndRecRecRel s.store) out outP := by
+    intro ts
+    induction ts with
+    | nil =>
+      intro out t hrun
+      simp only [List.mapM_nil] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hv; subst hst
+      exact ⟨rfl, [], rfl, .nil⟩
+    | cons x xs ih =>
+      intro out t hrun
+      simp only [List.mapM_cons] at hrun
+      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨rls, s₂, hrls, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, rsP, hclrs, hdrs⟩ := parseRules_run hok hrel x.rules hrls
+      rw [hs2] at hone2
+      obtain ⟨cv, s₃, hcv, hone3⟩ := AM.bind_ok hone2
+      obtain ⟨hs3, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      rw [hs3] at hone3
+      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone3
+      rw [hst1] at hrest
+      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
+      rw [hs4] at hrest2
+      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
+      subst hv2; subst hst2; subst hv1
+      refine ⟨rfl, (⟨cvP, x.numParams, x.numMotives, x.numMinors,
+          x.numIndices, rsP⟩
+          : ConLeche.Frontend.InModel.IndRecRec) :: ysP, ?_,
+        .cons ⟨hdcv, rfl, rfl, rfl, rfl, hdrs⟩ hdys⟩
+      simp only [List.mapM_cons, hclrs, hclcv, hclys]
+      rfl
+  rw [ConRon.Arena.Frontend.blockRecOf] at hrun
+  obtain ⟨ts, s₁, hts, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, tsP, hcltys, hdtys⟩ := htys tys hts
+  rw [hs1] at hrest
+  obtain ⟨cs, s₂, hcs, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨hs2, csP, hclcts, hdcts⟩ := hcts cts hcs
+  rw [hs2] at hrest2
+  obtain ⟨rs, s₃, hrs, hrest3⟩ := AM.bind_ok hrest2
+  obtain ⟨hs3, rsP, hclrcs, hdrcs⟩ := hrcs rcs hrs
+  rw [hs3] at hrest3
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+  subst hv; subst hst
+  refine ⟨rfl, ⟨tsP, csP, rsP⟩, ?_, ⟨hdtys, hdcts, hdrcs⟩⟩
+  rw [ConLeche.Frontend.blockRecOf]
+  simp only [hcltys, hclcts, hclrcs]
+  rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the half
 of an `inductive` record's processing that READS: the block's redundant fields
