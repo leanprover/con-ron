@@ -76,6 +76,12 @@ is the Checker tier's (`Bridge/Checker/Fold.lean`'s `AM.bind_ok`); what the
 frontend adds is the two leaves, because its functions end in a `pure` or a
 `fail` in almost every arm. -/
 
+/-- con-leche: none — `get` moves nothing and answers the state. -/
+theorem AM.get_ok {s s' t : AState} (h : (get : AM AState) s = .ok (t, s')) :
+    t = s ∧ s' = s := by
+  have he : ((s, s) : AState × AState) = (t, s') := Except.ok.inj h
+  exact ⟨(congrArg Prod.fst he).symm, (congrArg Prod.snd he).symm⟩
+
 /-- con-leche: none — a `pure` moves nothing and answers itself. -/
 theorem AM.pure_ok {α : Type} {a b : α} {s s' : AState}
     (h : (pure a : AM α) s = .ok (b, s')) : b = a ∧ s' = s := by
