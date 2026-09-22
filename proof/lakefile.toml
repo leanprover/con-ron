@@ -48,6 +48,15 @@ roots = ["ConRon.Spike.LevelName"]
 name = "ConRonArena"
 roots = ["ConRon.Arena"]
 
+# THEOREM 1 (DESIGN.md §8.2), the bridge from the arena twin (B) to
+# con-leche's PURE checker (A) — phase P3.  Its own root, because it is the
+# only library that imports BOTH `ConRon.Arena` and con-leche's pure tier
+# and nothing else: no `ConRon.Refine`, no Aeneas, no Mathlib.  Task #97
+# P3-0.
+[[lean_lib]]
+name = "ConRonBridge"
+roots = ["ConRon.Bridge"]
+
 # The P2s spike (DESIGN.md §8.6, task #97s): a FOURTH root, not a default
 # target and not imported by `ConRon.Arena`.  It prices the proof idioms of
 # §8's two theorems (`mvcgen` + `@[spec]` against a hand proof) on three
