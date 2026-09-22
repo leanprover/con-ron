@@ -40011,6 +40011,14 @@ and nothing in the round needed a raised heartbeat budget.
 
 ##### 9. Gates
 
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 367 s) |
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 169 `sorry` warnings, of which **31** are this tier's (round 3: 37) |
+| `#print axioms` | `Bridge/Checker/Axioms.lean` lists **194 results: 179 closed** and **15 with `sorryAx`** (round 3: 140 / 126 / 14).  The fifteen are `CoreSpec.of_knot`, the seven arms, the three headline theorems, `Arena.no_proof_of_False`, `Arena.installThenCheck_bridge`, `canonEqList_run` (an assembly) and `IConstantInfo.canonEq_run` (forty-eight of forty-nine arms; §3.2).  None carries `CoreSpec` or `IndSpec`; no `bv_decide` axiom anywhere |
+| `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 61/242, closed 36** (round 3: 54/242 stated, 23 closed) |
+| the diff | `proof/ConRon/Bridge/Checker/**` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
