@@ -156,26 +156,103 @@ theorem piBinders_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
          | (obtain rfl := Option.some.inj hde
             simpa only [Expr.piBinders] using hd))
 
+/-! ### THE `default` TRAP — `i < nF` is part of both statements
+
+Task #97-P3-Ind round 3 flagged these two for the next round to CHECK before
+proving, and the check says the statements were FALSE.  Both twins read
+`(cbs.getD (nP + i) default).1`.  On the arena side that `default` is
+`(default : EIdx × BinderMeta)`, i.e. the handle `Idx.ofWord 0` — tag 0, the
+persistent tier, slot 0 — and on con-leche's it is
+`(default : Expr × BinderMeta)`, i.e. `Expr.bvar 0`.  **Nothing relates
+them**, and `StateOK` says nothing about what persistent expression slot 0
+holds: at a state whose slot 0 is an application, `structFieldIdxOf` answers
+that application's argument spine dropped by `nP` where con-leche answers
+`[]` (`(Expr.bvar 0).getAppArgs = []`), and at one whose slot 0 is a `∀`,
+`structFieldTeleOf` answers a non-empty telescope where con-leche answers
+`[]`.  `nP = 0`, `nF = 0`, `i = 0` is a two-line witness for either.
+
+The fallback is taken exactly when `nP + i ≥ cbs.length`, and
+`ConLeche.Expr.stripPis_length` says `cbs.length = nP + nF` on the accepting
+branch — so **`i < nF` is exactly the hypothesis that keeps both statements on
+real data**, and it is a hypothesis the twins' only callers have: they are
+called at `i ∈ recIdx` and `recIdx = recIdxOf ks` is a sublist of
+`List.range ks.length`.  `structRuleBodyR_spec` and `structIhPis_spec` carry
+it on as `∀ i ∈ recIdx, i < nF`; see their statements. -/
+
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:156-161 structFieldTeleOf
 Field `i`'s own Π-telescope.
 
-`sorry`: `piBinders_spec` under the constructor telescope. -/
-theorem structFieldTeleOf_spec (cty : EIdx) (ctyP : Expr) (nP nF i : Nat) :
+**PROVED** (round 4), at the corrected statement: `stripPis_pstep` with
+`denoteBP_someB` (the binder half of the inversion, new in `Rel.lean`),
+`denoteBinders_getD` at the position the bound licenses, and
+`piBinders_spec`. -/
+theorem structFieldTeleOf_spec (cty : EIdx) (ctyP : Expr) (nP nF i : Nat)
+    (hi : i < nF) :
     PSpec (fun st => denoteE st cty = some ctyP)
       (Arena.structFieldTeleOf cty nP nF i)
       (RB (ConLeche.structFieldTeleOf ctyP nP nF i)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.structFieldTeleOf] at hrun
+  obtain ⟨sp, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
+  cases sp with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨PStep.refl hok, ?_⟩
+    simp only [RB, ConLeche.structFieldTeleOf, stripPis_none hbp, denoteBinders]
+  | some p =>
+    obtain ⟨cbs, cbody⟩ := p
+    obtain ⟨cbsP, bodyP, hsp, hcbs, _hbody⟩ := denoteBP_someB hbp
+    have hlen : cbsP.length = nP + nF := ConLeche.Expr.stripPis_length _ hsp
+    have hlen2 : cbs.length = cbsP.length := denoteBinders_length hcbs
+    have hk : nP + i < cbs.length := by omega
+    obtain ⟨pb, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨pbs, pbody⟩ := pb
+    obtain ⟨hstep, hb1, _hb2⟩ :=
+      piBinders_spec Arena.coreWalkFuel _ _ _ s₂ (pbs, pbody) hok
+        (denoteBinders_getD hcbs hk) h3
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨hstep, ?_⟩
+    simp only [RB, ConLeche.structFieldTeleOf, hsp]
+    exact hb1
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:163-169 structFieldIdxOf
 Field `i`'s index arguments.
 
-`sorry`: `piBinders_spec` and `Bridge/ExprOps/Spine.lean`'s `getAppSpine`
-spec. -/
-theorem structFieldIdxOf_spec (cty : EIdx) (ctyP : Expr) (nP nF i : Nat) :
+**PROVED** (round 4), at the corrected statement: `structFieldTeleOf_spec`'s
+route to the field domain, then `getAppArgs_run` and `denoteEList_drop`. -/
+theorem structFieldIdxOf_spec (cty : EIdx) (ctyP : Expr) (nP nF i : Nat)
+    (hi : i < nF) :
     PSpec (fun st => denoteE st cty = some ctyP)
       (Arena.structFieldIdxOf cty nP nF i)
       (REL (ConLeche.structFieldIdxOf ctyP nP nF i)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.structFieldIdxOf] at hrun
+  obtain ⟨sp, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
+  cases sp with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨PStep.refl hok, ?_⟩
+    simp only [REL, ConLeche.structFieldIdxOf, stripPis_none hbp,
+      Frontend.denoteEList]
+  | some p =>
+    obtain ⟨cbs, cbody⟩ := p
+    obtain ⟨cbsP, bodyP, hsp, hcbs, _hbody⟩ := denoteBP_someB hbp
+    have hlen : cbsP.length = nP + nF := ConLeche.Expr.stripPis_length _ hsp
+    have hlen2 : cbs.length = cbsP.length := denoteBinders_length hcbs
+    have hk : nP + i < cbs.length := by omega
+    obtain ⟨pb, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨pbs, pbody⟩ := pb
+    obtain ⟨hstep, _hb1, hb2⟩ :=
+      piBinders_spec Arena.coreWalkFuel _ _ _ s₂ (pbs, pbody) hok
+        (denoteBinders_getD hcbs hk) h3
+    obtain ⟨args, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨rfl, hargs⟩ := getAppArgs_run hstep.ok hb2 h5
+    obtain ⟨rfl, rfl⟩ := pureOk h6
+    refine ⟨hstep, ?_⟩
+    simp only [REL, ConLeche.structFieldIdxOf, hsp]
+    exact denoteEList_drop hargs nP
 
 /-! ## The three pure record operations
 
@@ -393,7 +470,8 @@ con-leche at those two readers — which is what discharges the deviation.
 and `mkAppN`'s spec. -/
 theorem structRuleBodyR_spec (recC : NIdx) (recCP : ConLeche.Name)
     (rlvls : LsIdx) (rlvlsP : List Level) (pw : PropWhen) (nP n nF j : Nat)
-    (recIdx : List Nat) (cty : EIdx) (ctyP : Expr) :
+    (recIdx : List Nat) (cty : EIdx) (ctyP : Expr)
+    (hri : ∀ i ∈ recIdx, i < nF) :
     PSpec (fun st => denoteN st.ns recC = some recCP ∧
         denoteLs st.lss rlvls = some rlvlsP ∧ denoteE st cty = some ctyP)
       (Arena.structRuleBodyR recC rlvls pw nP n nF j recIdx cty)
@@ -410,7 +488,8 @@ its version (it reads it through `teleOf`).
 `sorry`: a list induction over `structTeleAt_spec`, `structIhApp_spec` and
 `mkPisOf_spec`. -/
 theorem structIhPis_spec (nF o nP : Nat) (pw : PropWhen) (cty : EIdx)
-    (ctyP : Expr) (is : List Nat) (l : Nat) (body : EIdx) (bodyP : Expr) :
+    (ctyP : Expr) (is : List Nat) (l : Nat) (body : EIdx) (bodyP : Expr)
+    (his : ∀ i ∈ is, i < nF) :
     PSpec (fun st => denoteE st cty = some ctyP ∧
         denoteE st body = some bodyP)
       (Arena.structIhPis nF o nP pw cty is l body)
@@ -426,7 +505,7 @@ One minor premise's type.
 and `structRecPrefixAt_spec`. -/
 theorem structMinorTyR_spec (C : NIdx) (CP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF o : Nat) (pw : PropWhen) (cty : EIdx)
-    (ctyP : Expr) (recIdx : List Nat) :
+    (ctyP : Expr) (recIdx : List Nat) (hri : ∀ i ∈ recIdx, i < nF) :
     PSpec (fun st => denoteN st.ns C = some CP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st cty = some ctyP)
@@ -441,7 +520,8 @@ All the minor premises as Π binders in front of a body.
 theorem structMinorsPisR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
     (nP : Nat) (pw : PropWhen) (cs : List (NIdx × Nat × EIdx × List Nat))
     (csP : List (ConLeche.Name × Nat × Expr × List Nat)) (o : Nat)
-    (body : EIdx) (bodyP : Expr) :
+    (body : EIdx) (bodyP : Expr)
+    (hcs : ∀ c ∈ csP, ∀ i ∈ c.2.2.2, i < c.2.1) :
     PSpec (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteCtors4 st cs = some csP ∧ denoteE st body = some bodyP)
       (Arena.structMinorsPisR lps nP pw cs o body)
@@ -455,7 +535,8 @@ The same as λ binders.
 theorem structMinorsLamsR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
     (nP : Nat) (pw : PropWhen) (cs : List (NIdx × Nat × EIdx × List Nat))
     (csP : List (ConLeche.Name × Nat × Expr × List Nat)) (o : Nat)
-    (body : EIdx) (bodyP : Expr) :
+    (body : EIdx) (bodyP : Expr)
+    (hcs : ∀ c ∈ csP, ∀ i ∈ c.2.2.2, i < c.2.1) :
     PSpec (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteCtors4 st cs = some csP ∧ denoteE st body = some bodyP)
       (Arena.structMinorsLamsR lps nP pw cs o body)
@@ -473,7 +554,8 @@ theorem structRecTyR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (elim : NIdx) (elimP : ConLeche.Name)
     (large : Bool) (nP nIdx : Nat) (tty : EIdx) (ttyP : Expr)
     (ctors : List (NIdx × Nat × EIdx × List Nat))
-    (ctorsP : List (ConLeche.Name × Nat × Expr × List Nat)) :
+    (ctorsP : List (ConLeche.Name × Nat × Expr × List Nat))
+    (hcs : ∀ c ∈ ctorsP, ∀ i ∈ c.2.2.2, i < c.2.1) :
     PSpec (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteN st.ns elim = some elimP ∧ denoteE st tty = some ttyP ∧
@@ -492,7 +574,8 @@ theorem structRecRhsR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (large : Bool) (nP nIdx : Nat) (tty : EIdx) (ttyP : Expr)
     (ctors : List (NIdx × Nat × EIdx × List Nat))
     (ctorsP : List (ConLeche.Name × Nat × Expr × List Nat)) (recC : NIdx)
-    (recCP : ConLeche.Name) (rlvls : LsIdx) (rlvlsP : List Level) (j : Nat) :
+    (recCP : ConLeche.Name) (rlvls : LsIdx) (rlvlsP : List Level) (j : Nat)
+    (hcs : ∀ c ∈ ctorsP, ∀ i ∈ c.2.2.2, i < c.2.1) :
     PSpec (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteN st.ns elim = some elimP ∧ denoteE st tty = some ttyP ∧
@@ -598,9 +681,18 @@ theorem nativeCounts?_spec (nPd : Nat) (cvT : IConstantVal)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
 The stream's recursor record passed the structural pin.  Pure on both sides.
 
-`sorry`: the block's `denoteCIList` inverted at each member, plus `denoteN_inj`
-at the recursor's name. -/
-theorem nativeRecPinOk_spec (st : EStore) (p : Arena.InductiveShape)
+**MISSING HYPOTHESIS, round 4** (with `nativeRecLpsOk_spec` below, the same
+one).  Both statements compare HANDLES on the left and NAMES on the right, so
+the `false` direction is `denoteN_inj` — and injectivity is a fact about a
+WELL-FORMED store, which neither statement asked for.  As written they are not
+provable and not true: in a store with two name handles decoding to the same
+name, the twin's `==` is `false` where con-leche's is `true`.  `StoreWF st` is
+the hypothesis, and every caller has it (`StateOK.wf`).
+
+`sorry`: the block's `denoteCIList` inverted at each member, `sumSplit_spec`,
+and `beq_handle_eq` at the rule/constructor names. -/
+theorem nativeRecPinOk_spec (st : EStore) (hwf : StoreWF st)
+    (p : Arena.InductiveShape)
     (q : ConLeche.InductiveShape) (block : List IConstantInfo)
     (blockP : List ConstantInfo) (hp : ShapeRel st p q)
     (hb : Frontend.denoteCIList st block = some blockP) :
@@ -611,11 +703,26 @@ theorem nativeRecPinOk_spec (st : EStore) (p : Arena.InductiveShape)
 The recursor's level parameters are the block's (with the elimination
 parameter in front at the large eliminator).  Pure on both sides.
 
-`sorry`: `denoteNList`'s injectivity at the two level-parameter lists. -/
-theorem nativeRecLpsOk_spec (st : EStore) (p : Arena.InductiveShape)
+**PROVED** (round 4), at the corrected statement — see `nativeRecPinOk_spec`
+above for the hypothesis this gained and why.  `beq_nhandleList_eq`
+(`Bridge/Inductives/Rel.lean`, new: `denoteEList_inj`'s twin at NAME handles)
+is the whole proof, at the two level-parameter lists and at the eliminator
+handle consed in front of one of them. -/
+theorem nativeRecLpsOk_spec (st : EStore) (hwf : StoreWF st)
+    (p : Arena.InductiveShape)
     (q : ConLeche.InductiveShape) (hp : ShapeRel st p q) :
     Arena.nativeRecLpsOk p = ConLeche.nativeRecLpsOk q := by
-  sorry
+  have hlpsR : Frontend.denoteNList st.ns p.cvR.levelParams
+      = some q.cvR.levelParams := denoteCV_lps hp.cvR
+  have hlpsT : Frontend.denoteNList st.ns p.cvT.levelParams
+      = some q.cvT.levelParams := denoteCV_lps hp.cvT
+  have hcons : Frontend.denoteNList st.ns (p.elim :: p.cvT.levelParams)
+      = some (q.elim :: q.cvT.levelParams) := by
+    simp only [Frontend.denoteNList, hp.elim, hlpsT]
+  simp only [Arena.nativeRecLpsOk, ConLeche.nativeRecLpsOk, hp.large]
+  cases q.large with
+  | true => simpa using beq_nhandleList_eq hwf hlpsR hcons
+  | false => simpa using beq_nhandleList_eq hwf hlpsR hlpsT
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
 Read a block into the shape record, or refuse it.  **Two-sided**: the dispatch

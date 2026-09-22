@@ -24,6 +24,15 @@ it closes, its census belongs here.
 composition, the pure fold's stream ingredient and two of the three capstone
 letters to the closed list; they are in their own sections below.
 
+**Round four** adds item 5 in full (the three table entries), `blockRecOf_run`
+of item 6, and four of `ProjRec.lean`'s nine — `isProjIotaName_run`,
+`projIotaLevel_run`, `stripPisAll_run`, `mkLams_run`.  Its two findings are
+statement defects, not proof gaps: finding 15 (`projIotaLevel_run`'s frame was
+`s' = s` at a walk that interns `Eq`) is REPAIRED and closed here; finding 16
+(`IConstantInfo.toConstantVal` and `IDeclaration.names` are not exact at a
+`.projInfo` without `IProjTableOK`) is reported and left open, because the
+repair adds a hypothesis and that is the maintainer's call.
+
 **Round three** adds the INTERN direction (item 2) and the seam (item 8).  Two
 of the four named hypotheses are therefore no longer only hypotheses:
 `ModellerWF` and `ModellerRefines` hold of the modeller the driver actually
@@ -208,11 +217,35 @@ has. -/
 #print axioms inProcessModeller_wf
 #print axioms inProcessModeller_refines
 
-/-! ## The projection artifact's name (round 3) -/
+/-! ## The projection artifact's name and level (rounds 3 and 4)
+
+Round 4 adds the recogniser (`isProjIotaName_run`), the `Eq`-level read
+(`projIotaLevel_run` — restated over `ParseStep` and as a two-sided `OptRel`,
+finding 15) and the two telescope peels the rewrite is built out of. -/
 
 #print axioms viewN_run
+#print axioms viewLs_run
+#print axioms readLevel_run
+#print axioms view_run
+#print axioms piResult_run
+#print axioms getAppFn_run
 #print axioms nsWF_of_StateOK
+#print axioms denoteN_str_inv
+#print axioms view_str_of_denoteN
 #print axioms projIotaName_run
+#print axioms clIsProjIotaName_false
+#print axioms isProjIotaName_run
+#print axioms denoteLList_length
+#print axioms denoteLList_singleton
+#print axioms clProjIotaLevel_eq
+#print axioms projIotaLevel_none
+#print axioms projIotaLevel_run
+
+/-! ## The rewrite's two telescope peels (round 4) -/
+
+#print axioms stripPisAll_stop
+#print axioms stripPisAll_run
+#print axioms mkLams_run
 
 /-! ## The parse's initial state (round 2) — CLOSED
 
@@ -222,6 +255,31 @@ round 2 closed it: the two intern specs through `AM.of_run`, `IdTableRel`'s
 `PersN_of_view` / `PersL_of_view`. -/
 
 #print axioms StateD_init_run
+
+/-! ## The three table entries (round 4) — item 5 CLOSED
+
+The rebinding guards, the `PersStateD` half of a table write, and the three
+entry parsers: `parseNameEntryD_run`, `parseLevelEntryD_run` and — the tier's
+real work, ten constructors — `parseExprEntryD_run`. -/
+
+#print axioms freshName_run
+#print axioms freshLevel_run
+#print axioms freshExpr_run
+#print axioms PersStateD.insertName
+#print axioms PersStateD.insertLevel
+#print axioms PersStateD.insertExpr
+#print axioms denoteLList_mem
+#print axioms StateD_levels_run
+#print axioms internLNode_istep
+#print axioms internLsNode_istep
+#print axioms parseNameEntryD_run
+#print axioms parseLevelEntryD_run
+#print axioms parseExprEntryD_run
+
+/-! ## The parsed block, resolved (round 4) -/
+
+#print axioms parseRules_run
+#print axioms blockRecOf_run
 
 /-! ## The line's sum -/
 
