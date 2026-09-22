@@ -7,15 +7,16 @@ entries against `Arena/Core.lean`'s `coreKnot`, `Arena/CoreGated.lean`'s
 
 | file | what | closed |
 |---|---|---|
-| `Core/Probes.lean` | the six `Caches` probes and the six capped writes the knot's slots call, and `relOn_size` — the SIZE agreement the capacity test needs and `RelOn` does not carry | all |
+| `Core/Probes.lean` | the seven `Caches` probes and the seven capped writes the knot's slots and the delta step call, and `relOn_size` — the SIZE agreement the capacity test needs and `RelOn` does not carry | all |
 | `Core/KnotRel.lean` | `laneKnot` / `laneKnotAt` (the port's `u32` lane and `bool` io flag as the twin's record), `CoreCtx`, and the two relations `KnotRel f` / `BodyRel f` | — |
 | `Core/Induction.lean` | `knotRel_zero`, the six `knotRel_succ_*` fields, `knotRel_succ : BodyRel f → KnotRel (f + 1)` and the fuel induction `knot_rel` | all |
 | `Core/Entries.lean` | the six fueled entry points, from `KnotRel` — what the Checker tier consumes | all |
 | `Core/Eqns.lean` | the 109 `partial_fixpoint` unfolding equations of `arena::core`'s two mutual blocks, derived ONCE and cached into one `.olean` (task #97-P5-Arms) | — |
 | `Core/Arms.lean` | the tier index, `bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f` and the census of the ≈ 95 helpers under it | **open** |
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and `ensure_sort_refines` | all |
-| `Core/Arms/Gated.lean` | `BodyRel`'s one twin-only field, `stuckGatedCore` | all |
-| `Core/Arms/Loops.lean` | the two loops' second fuel dimension — `whnf_step`/`whnf_loop`/`whnf_body` closed modulo two leaves; the `defeq` triple stated | 6 of 9 |
+| `Core/Arms/Gated.lean` | `bodyRel_stuckGatedCore`, the gated body's identity at a stuck tag (a `BodyRel` field until task #97-P5-Core-2 made it unnecessary) | all |
+| `Core/Arms/Delta.lean` | the `whnf` loop's delta leaf: `ifenv_find_abs`, the `const` tag/view agreement, `const_val_at_refines` and **`unfold_definition_refines`** (task #97-P5-Core-2) | all |
+| `Core/Arms/Loops.lean` | the two loops' second fuel dimension — `whnf_step`/`whnf_loop`/`whnf_body` closed modulo ONE leaf; the `defeq` triple stated | 7 of 8 |
 | `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14 | 0 of 5 |
 
 **The tier's one idea** is `KnotRel`: §3.4 forbids the port a record of

@@ -45,19 +45,24 @@ bundled as `CoreAmbient` so that P3's `StateOK` deletes them in one edit:
   `knot_whnf_core`, because `whnf_step` hands the reduct straight to
   `reduce_nat` and to `unfold_definition`, both of which read its view.
 
+and, since task #97-P5-Core-2, `ExprOpsHyp pers` — `Core/Arms/Delta.lean`'s
+bundle of the `arena::expr_ops` lemmas the delta leaf borrows, stated by name
+rather than cited so that nothing here depends on P5-3's open `sorry`s.
+
 Neither is new: both are clauses of what task #97-P5-0's finding 3 and task
 #97-P5-Core §3 already say P3 owes this tier.
 
 ## What is still `sorry`, and why the cut is here
 
-`reduce_nat_refines` and `unfold_definition_refines` — the `whnf` loop's two
-leaves — are stated and open, and so is the whole `defeq` pair.  They are the
-BODIES' own work (`reduce_nat` alone pulls in the fifteen `natOp*` guards;
-`defeq_after_whnf` has ≈ 40 helpers under it) and nothing about the LOOP
-depends on their proofs: taken as hypotheses, the two `whnf` loop inductions
-close, which is what this file is for.
+`unfold_definition_refines` **closed** at task #97-P5-Core-2 and moved to
+`Core/Arms/Delta.lean`.  What is left of the `whnf` loop is `reduce_nat` —
+the fifteen `natOp*` guards and `natOpResult`'s dispatch, a body of its own
+and not a step of the loop — and the whole `defeq` pair, whose leaf
+`defeq_after_whnf` has ≈ 40 helpers under it.  Nothing about the LOOP depends
+on either: taken as hypotheses, the two `whnf` loop inductions close, which is
+what this file is for.
 -/
-import ConRon.Refine2.Core.Arms.Sort
+import ConRon.Refine2.Core.Arms.Delta
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -124,15 +129,11 @@ structure CoreAmbient (pers : arena.store.PersTier) (vis : Std.U64)
   resExt : ∀ {lst1 lst2 : AState} {h : EIdx}, StoreWF lst1.store →
     Ext lst1.store lst2.store → EResolves lst1 h → EResolves lst2 h
 
-/-- The `Option EIdx` form of `AnswerResolves`: what `reduce_nat` and
-`unfold_definition` owe about the reduct they hand back to the loop. -/
-def AnswerResolvesOpt (pers : arena.store.PersTier)
-    (p : core.result.Result (Option arena.handle.EIdx)
-      kernel.core_types.CheckError × arena.monad.AState) : Prop :=
-  ∀ w, p.1 = .Ok (some w) → ∀ lst', AStateRel pers p.2 lst' →
-    EResolves lst' (absEIdx w)
+/-! ## The `whnf` loop's two leaves — one closed, one open
 
-/-! ## The `whnf` loop's two leaves — stated, open -/
+`AnswerResolvesOpt` and `unfold_definition_refines` moved to
+`Core/Arms/Delta.lean` when task #97-P5-Core-2 closed the delta leaf; what is
+left here is `reduce_nat`. -/
 
 /-- `arena::core::reduce_nat` against `Arena.reduceNat` — the literal
 acceleration.  **Open**: the fifteen `natOp*` guards and `natOpResult`'s own
@@ -148,20 +149,6 @@ theorem reduce_nat_refines {f : Nat} (hk : KnotRel f)
     Sim (Option.map absEIdx) (fun _ => True) pers lst o
       (reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
-    ∧ AnswerResolvesOpt pers o := by
-  sorry
-
-/-- `arena::core::unfold_definition` against `Arena.unfoldDefinition` — one
-delta step.  **Open**: `getAppFn`, the environment probe, `constValAt`'s
-memoised level substitution and `mkAppN`.  It takes neither `mode` nor `lane`
-nor `fuel` — it is not a knot caller — so it carries no `KnotRel`. -/
-theorem unfold_definition_refines {pers vis st fe lfe e lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e))
-    (hrun : arena.core.unfold_definition pers vis st fe e = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
-      (unfoldDefinition lfe (absEIdx e))
     ∧ AnswerResolvesOpt pers o := by
   sorry
 
@@ -258,11 +245,11 @@ forty-line body twice. -/
 
 private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth n e lst o}
-    (ha : CoreAmbient pers vis mode lane fu fe)
+    (hx : ExprOpsHyp pers) (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hres : EResolves lst (absEIdx e))
-    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hcont : ∀ {st' : arena.monad.AState} {lst' : AState} {e' o'},
       AStateRel pers st' lst' → AStateInv pers st' → StoreWF lst'.store →
       EResolves lst' (absEIdx e') →
@@ -279,7 +266,7 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
   rw [arena.core.whnf_step] at hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r, st1⟩ := p
-  have hwc := hk.whnfCore hrel hinv hctx hwf hres hgate hf hp
+  have hwc := hk.whnfCore hrel hinv hctx hwf hres hf hp
   have t0 := whnfStep_run (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
     (absU depth)
     (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
@@ -348,8 +335,7 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
           rw [t1, hb2]; rfl
         obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r3, st3⟩ := p3
-        obtain ⟨hud, hudres⟩ :=
-          unfold_definition_refines hrel2 hinv2 hctx hwf2 (ha.resExt hwf1 hext2 hres1) hp3
+        obtain ⟨hud, hudres⟩ := unfold_definition_refines hx hrel2 hinv2 hctx hp3
         cases r3 with
         | Err er =>
           rw [← Result.ok_injective hrun]
@@ -385,10 +371,10 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
 
 private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
     ∀ {pers vis st mode lane fu fe lfe depth n e lst o},
-      CoreAmbient pers vis mode lane fu fe →
+      ExprOpsHyp pers → CoreAmbient pers vis mode lane fu fe →
       AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
       StoreWF lst.store → EResolves lst (absEIdx e) →
-      (lane = arena.core.LANE_GATED → 1 ≤ f) → absU fu = f →
+      absU fu = f →
       absU n = m →
       arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o →
       Sim absEIdx (fun _ => True) pers lst o
@@ -396,8 +382,8 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
           (absU depth) m (absEIdx e)) := by
   induction m with
   | zero =>
-    intro pers vis st mode lane fu fe lfe depth n e lst o _ha _hrel _hinv _hctx
-      _hwf _hres _hgate _hf hn hrun
+    intro pers vis st mode lane fu fe lfe depth n e lst o _hx _ha _hrel _hinv
+      _hctx _hwf _hres _hf hn hrun
     rw [arena.core.whnf_loop, if_pos (absU_eq_zero hn)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -407,67 +393,67 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
     exact AOut.err (AErrSim.internal (s := "fuel exhausted: whnf loop")
       (whnfLoop_zero_run _ _ _ _ _))
   | succ m ih =>
-    intro pers vis st mode lane fu fe lfe depth n e lst o ha hrel hinv hctx hwf
-      hres hgate hf hn hrun
+    intro pers vis st mode lane fu fe lfe depth n e lst o hx ha hrel hinv hctx
+      hwf hres hf hn hrun
     rw [arena.core.whnf_loop, if_neg (absU_ne_zero hn)] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hiv : absU i = m := absU_pred hn hi
     rw [whnfLoop_succ, ← hiv]
-    refine whnf_step_of_cont hk ha hrel hinv hctx hwf hres hgate hf ?_ hrun
+    refine whnf_step_of_cont hk hx ha hrel hinv hctx hwf hres hf ?_ hrun
     intro st' lst' e' o' hrel' hinv' hwf' hres' hrun'
     rw [hiv]
-    exact ih ha hrel' hinv' hctx hwf' hres' hgate hf hiv hrun'
+    exact ih hx ha hrel' hinv' hctx hwf' hres' hf hiv hrun'
 
 /-- `arena::core::whnf_loop` against `Arena.whnfLoop` — the second fuel
 dimension, closed. -/
 theorem whnf_loop_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth n e lst o}
-    (ha : CoreAmbient pers vis mode lane fu fe)
+    (hx : ExprOpsHyp pers) (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hres : EResolves lst (absEIdx e))
-    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hrun : arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absU n) (absEIdx e)) :=
-  whnf_loop_aux hk (absU n) ha hrel hinv hctx hwf hres hgate hf rfl hrun
+  whnf_loop_aux hk (absU n) hx ha hrel hinv hctx hwf hres hf rfl hrun
 
 /-- `arena::core::whnf_step` against `Arena.whnfStep` with the rest of the loop
 named: **the port's `n` IS the twin's continuation `whnfLoop … (absU n)`** — no
 `- 1`, see the module note's finding 13. -/
 theorem whnf_step_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth n e lst o}
-    (ha : CoreAmbient pers vis mode lane fu fe)
+    (hx : ExprOpsHyp pers) (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hres : EResolves lst (absEIdx e))
-    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hrun : arena.core.whnf_step pers vis st mode lane fu fe depth n e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth)
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
           (absU depth) (absU n)) (absEIdx e)) :=
-  whnf_step_of_cont hk ha hrel hinv hctx hwf hres hgate hf
-    (fun h1 h2 h3 h4 h5 => whnf_loop_refines hk ha h1 h2 hctx h3 h4 hgate hf h5)
+  whnf_step_of_cont hk hx ha hrel hinv hctx hwf hres hf
+    (fun h1 h2 h3 h4 h5 => whnf_loop_refines hk hx ha h1 h2 hctx h3 h4 hf h5)
     hrun
 
 /-- `arena::core::whnf_body` against `Arena.whnfBody`: the loop at its own step
 budget, `WHNF_LOOP_FUEL = whnfLoopFuel = 100000` on both sides. -/
 theorem whnf_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
-    (ha : CoreAmbient pers vis mode lane fu fe)
+    (hx : ExprOpsHyp pers) (ha : CoreAmbient pers vis mode lane fu fe)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hres : EResolves lst (absEIdx e))
-    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hrun : arena.core.whnf_body pers vis st mode lane fu fe depth e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (whnfBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   rw [arena.core.whnf_body] at hrun
-  have h := whnf_loop_refines hk ha hrel hinv hctx hwf hres hgate hf hrun
+  have h := whnf_loop_refines hk hx ha hrel hinv hctx hwf hres hf hrun
   rw [show absU arena.core.WHNF_LOOP_FUEL = Arena.whnfLoopFuel from by
     rw [arena.core.WHNF_LOOP_FUEL, Arena.whnfLoopFuel]; rfl] at h
   exact h
@@ -489,7 +475,7 @@ theorem defeq_loop_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hra : EResolves lst (absEIdx a)) (hrb : EResolves lst (absEIdx b))
-    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hrun : arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -506,7 +492,7 @@ theorem defeq_step_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hra : EResolves lst (absEIdx a)) (hrb : EResolves lst (absEIdx b))
-    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hrun : arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -526,7 +512,7 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hra : EResolves lst (absEIdx a)) (hrb : EResolves lst (absEIdx b))
-    (hgate : lane = arena.core.LANE_GATED → 1 ≤ f) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hrun : arena.core.defeq_body pers vis st mode lane fu fe depth a b
       = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -534,7 +520,7 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_body] at hrun
-  have h := defeq_loop_refines hk ha hrel hinv hctx hwf hra hrb hgate hf hrun
+  have h := defeq_loop_refines hk ha hrel hinv hctx hwf hra hrb hf hrun
   rw [show absU arena.core.DEFEQ_LOOP_FUEL = Arena.defeqLoopFuel from by
     rw [arena.core.DEFEQ_LOOP_FUEL, Arena.defeqLoopFuel]; rfl] at h
   exact h

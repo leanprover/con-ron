@@ -244,9 +244,9 @@ theorem ensureSort_run (r : CoreFnsA) (fe : IFEnv) (d : Nat) (e : EIdx)
 /-! ## `arena::core::ensure_sort` -/
 
 /-- `arena::core::ensure_sort` against `Arena.ensureSort`: `r.whnf` and then one
-view read.  The entry `ensure_sort_core` is this at `LANE_FULL`, where the
-gated side condition `hg` is vacuous (`Core/Entries.lean`'s
-`laneFull_ne_gated`).
+view read.  The entry `ensure_sort_core` is this at `LANE_FULL`; since task
+#97-P5-Core-2 there is no gated side condition to be vacuous there, because
+`KnotRel.whnf` carries none.
 
 `hout` is the module note's second finding: `ensure_sort` dispatches on the tag
 of `knot_whnf`'s OWN answer, so finding 3's "this handle resolves" is owed
@@ -256,7 +256,6 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
     (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
-    (hg : lane = arena.core.LANE_GATED → 1 ≤ f)
     (hout : ∀ p, arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok p →
       AnswerResolves pers p)
     (hrun : arena.core.ensure_sort pers vis st mode lane fu fe depth e = ok o) :
@@ -266,7 +265,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
   rw [arena.core.ensure_sort] at hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r, st1⟩ := p
-  have hw := hk.whnf hrel hinv hctx hwf hres hg hf hp
+  have hw := hk.whnf hrel hinv hctx hwf hres hf hp
   have htw := ensureSort_run (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
     lfe (absU depth) (absEIdx e) lst
   cases r with
@@ -351,9 +350,8 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
 /-- **`arena::core::ensure_sort_core`, the Checker tier's seventh front door.**
 Task #97-P5-Core §8: *"`ensure_sort_core` is the seventh (T) declaration and is
 NOT an entry of `Core/Entries.lean`'s kind: `ensure_sort` is a body"*.  It is
-`ensure_sort` at `LANE_FULL`, so the gated side condition is vacuous here
-exactly as it is in `Core/Entries.lean`'s six, and `Refine2/Checker/**` takes
-this beside them. -/
+`ensure_sort` at `LANE_FULL`, and `Refine2/Checker/**` takes this beside
+`Core/Entries.lean`'s six. -/
 theorem ensure_sort_core_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode fe lfe fu depth e lst o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
@@ -366,8 +364,7 @@ theorem ensure_sort_core_refines {f : Nat} (hk : KnotRel f)
       (ensureSortCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.ensure_sort_core] at hrun
-  have h := ensure_sort_refines hk hrel hinv hctx hwf hres hf
-    (fun hx => absurd hx laneFull_ne_gated) hout hrun
+  have h := ensure_sort_refines hk hrel hinv hctx hwf hres hf hout hrun
   rw [laneKnot_full] at h
   exact h
 

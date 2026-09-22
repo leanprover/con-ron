@@ -15,8 +15,9 @@ statement; the arms themselves live in `Core/Arms/`:
 |---|---|---|
 | `Core/Eqns.lean` | the 109 `partial_fixpoint` unfolding equations of `arena::core`'s two mutual blocks, derived ONCE (≈ 9.4 s each; ≈ 17 min, once) and cached into one `.olean` that every arm file imports | — |
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and **`ensure_sort_refines`** | **all** |
-| `Core/Arms/Gated.lean` | `BodyRel`'s one twin-only field, `stuckGatedCore` (task #97-P5-Core's finding 12, first half) | **all** |
-| `Core/Arms/Loops.lean` | the two loops' SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed** modulo their two leaves; the `defeq` triple stated at the corrected shape | 6 of 9 |
+| `Core/Arms/Gated.lean` | `bodyRel_stuckGatedCore` — the gated body's identity at a stuck tag (task #97-P5-Core's finding 12, first half).  It was a `BodyRel` FIELD until task #97-P5-Core-2 put the port's fuel-0 arm back in `coreKnotGated`; the fact stays true and stays proved | **all** |
+| `Core/Arms/Delta.lean` | the `whnf` loop's DELTA leaf (task #97-P5-Core-2): `ifenv_find_abs` (the environment index's one reader), the `const` tag/view agreement, `nidx_vec_dup_val`, `const_val_at_refines` and **`unfold_definition_refines`** | **all** |
+| `Core/Arms/Loops.lean` | the two loops' SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed** modulo ONE leaf (`reduce_nat`); the `defeq` triple stated at the corrected shape | 7 of 8 |
 | `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14, each against the twin's own batched form | 0 of 5 |
 
 ## What each body needs, counted
@@ -33,7 +34,7 @@ bodies' own arms are:
 | body | arms (twin clauses) | port helpers under it |
 |---|---:|---:|
 | `whnf_core_body` | 10 views, of which `app` and `proj` recurse | `whnf_app`, `beta_peel`, `whnf_core_stuck_app`, `whnf_core_proj{,_at,_fire}`, `proj_cert{,_at}`, `iota_rec*` (11) |
-| `whnf_body` | the loop (`whnf_loop`/`whnf_step` at `WHNF_LOOP_FUEL`) — **closed**, `Core/Arms/Loops.lean` | `reduce_nat{,_succ,_bin,_wf}`, `unfold_definition` |
+| `whnf_body` | the loop (`whnf_loop`/`whnf_step` at `WHNF_LOOP_FUEL`) — **closed**, `Core/Arms/Loops.lean` | `reduce_nat{,_succ,_bin,_wf}` (open); `unfold_definition` **closed**, `Core/Arms/Delta.lean` |
 | `infer_body` | 10 views | `infer_forall`, `infer_proj`, `infer_lam{,_open,_cod}`, `infer_spine`, `infer_app`, `infer_lams{,_leaf,_leaf_check}`, `infer_pis{,_leaf}` |
 | `infer_body_io` | 10 views | `infer_forall_io{,_at}`, `infer_app_io_at`, `infer_spine_io`, `infer_proj_io` |
 | `defeq_body` | the loop (`defeq_loop`/`defeq_step` at `DEFEQ_LOOP_FUEL`) | `defeq_{spine,binders,peel,peel_leaf,lit_app,lit_const,struct,apps,unfold_both,delta_both,delta,after_whnf}`, `bool_true_shortcut`, `proof_irrel`, `prop_irrel`, `eta_cert*`, `struct_*_cert*`, `major_to_ctor*` (≈ 40) |
@@ -59,6 +60,7 @@ and the exemplar (`ensure_sort`, closed end to end).
 -/
 import ConRon.Refine2.Core.Arms.Sort
 import ConRon.Refine2.Core.Arms.Gated
+import ConRon.Refine2.Core.Arms.Delta
 import ConRon.Refine2.Core.Arms.Loops
 import ConRon.Refine2.Core.Arms.Batched
 
@@ -78,10 +80,11 @@ loops, the batched clauses and the ≈ 95 helpers under them.  This is what
 `Core/Induction.lean`'s `knot_rel` consumes and what the next round owes; the
 census is in this file's module note.
 
-Its two gated fields (`stuckGatedCore`, `stuckGatedWhnf`) are the two
-divergences `Core/Induction.lean` names: the port hoists the stuck-tag test
-out of every lane and the twin hoists it only into the memoized slot, and at
-`f = 0` the second of them is FALSE, which is why it carries `1 ≤ f`. -/
+Its two gated fields are GONE (task #97-P5-Core-2): the twin's
+`coreKnotGated` now tests the stuck tag exactly where the port's `knot_*` do
+and fails unconditionally at fuel `0`, so `Core/Induction.lean` reads the
+agreement off the knot's own equation and neither relation carries anything
+for it. -/
 theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := by
   sorry
 
