@@ -16,16 +16,16 @@ induction, the per-arm `_step` lemmas, the `attribute [-grind]` line, the
 | `eidxCopyUpto` | :205 | `eidxCopyUpto_toList` |
 | `takeEidx` | :221 | `takeEidx_toList`, `denoteEList_takeEidx` |
 | `lastEidx` | :225 | `lastEidx_toList`, `denoteEList_lastEidx`, `InstLVec.last` |
-| `instantiateList` | :346 | `InstLPureSpec`, `instantiateList_spec` |
-| `instantiateListGo` | :412 | `InstLSpec`, `instantiateListGo_spec` |
-| `instantiateListFast` | :474 | `instantiateListFast_spec`, `_run` |
+| `instantiateList` | :431 | `InstLPureSpec`, `instListArm{App,Bind,Let,Proj,BVar}_spec`, `instantiateList_spec` |
+| `instantiateListGo` | :558 | `InstLSpec`, `instListGoArm{App,Bind,Let,Proj}_spec`, `instantiateListGo_spec` |
+| `instantiateListFast` | :670 | `instantiateListFast_spec`, `_run` |
 | `liftLooseBVarsGo` | :491 | `LiftSpec`, `liftLooseBVarsGo_spec` |
 | `liftLooseBVarsFast` | :552 | `liftLooseBVarsFast_spec`, `_run` |
 | `lowerBVarsGo` | :1700 | `LowerSpec`, `lowerBVarsGo_spec` |
 | `lowerBVarsFast` | :1761 | `lowerBVarsFast_spec`, `_run` |
 | `instantiate1LiftGo` | :1779 | `Inst1LSpec`, `instantiate1LiftGo_spec` |
 | `instantiate1LiftFast` | :1843 | `instantiate1LiftFast_spec`, `_run` |
-| `instPisAtLift` | :1851 | `instPisAtLift_spec` |
+| `instPisAtLift` | :3057 | `RelEO.instPisAtLift_{cons,none}`, `instPisAtLift_spec` |
 
 ## The four deviations from con-leche this group carries
 
@@ -55,6 +55,32 @@ induction, the per-arm `_step` lemmas, the `attribute [-grind]` line, the
    `InstLVec.last` (`lastEidx vs m` denotes `ws.take m`) are the two facts the
    `.bvar` arm consumes, and `reverse_drop_eq_take_reverse` is the list law
    behind the second.
+
+## The arm split, at this file's two tag-dispatching walks (task #97-P3-2)
+
+DESIGN §8.6's arm-split ruling, carried into the proof for `instantiateList`
+and `instantiateListGo`: one theorem per constructor arm
+(`instListArm…_spec`, `instListGoArm…_spec`), each taking the previous fuel
+level's record as its induction hypothesis and its own tag hypothesis, and a
+dispatcher whose `mvcgen` list is the arm theorems.  Two verification
+conditions then survive each dispatcher — the derived-word cutoff and the
+catch-all leaf — against the twenty-odd the inline body left, and the three
+goals task #97-P3-0 recorded as open are closed:
+
+* the `.bvar` arm's four branches, through `InstLAt.bvar_{below,cutV,recV,
+  aboveV}` and `InstLVec.get'`;
+* the binder arms' `internBindIE` side conditions, through `BMExt`
+  (`Bridge/StoreBM.lean`) — the conjunct every `…Spec` record of this file's
+  two walks now carries;
+* `instPisAtLift`'s `cons` step, through `RelEO.instPisAtLift_cons` and
+  `RelEO.instPisAtLift_none`.
+
+**The unmemoized walk's arms differ in shape from the memoized walk's**: the
+pure arms END with the intern, so `mvcgen` leaves its postcondition as the
+goal's ANTECEDENTS and the block has to `intro` before it can `refine`; the
+memoized arms end with `pure r` after the memo insert, so the same facts
+arrive peeled into the context and the blocks read exactly like
+`ExprOps/Inst1.lean`'s.
 
 ## The two mechanical findings this file adds to the recipe
 
@@ -1209,6 +1235,73 @@ theorem InstLVec.isSome_ext {st st' : EStore} {vs : Array EIdx}
   obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp h
   rw [denoteEList_ext hx _ _ hxs]; rfl
 
+/-! ### The same four, at the arm's OWN hypotheses
+
+`Inst1.lean`'s group-7 finding, at this walk's one non-congruence arm: the
+twin's `.bvar` clause reads the vector with a DEPENDENT array access
+(`vs[vs.size - 1 - (j - d)]'h`) and dispatches on the TAG, so the four lemmas
+above arrive one reversal and one `?`-vs-`'h` conversion away from what the
+verification condition holds.  Doing both inside the lemma is what makes each
+branch one `exact`. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:227 instantiateList — `InstLVec.get`
+at the twin's own DEPENDENT array read. -/
+theorem InstLVec.get' {st : EStore} {vs : Array EIdx} {ws : List Expr}
+    {m : Nat} (h : InstLVec st vs ws) (hm : m < vs.size) :
+    ∃ w, ws[m]? = some w ∧
+      denoteE st (vs[vs.size - 1 - m]'(by omega)) = some w :=
+  h.get hm (by rw [Array.getElem?_eq_getElem])
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:227 instantiateList — and the
+replacement therefore denotes, which is what the recursion's precondition
+asks. -/
+theorem InstLVec.isSome_get {st : EStore} {vs : Array EIdx} {ws : List Expr}
+    {m : Nat} (h : InstLVec st vs ws) (hm : m < vs.size) :
+    (denoteE st (vs[vs.size - 1 - m]'(by omega))).isSome = true := by
+  obtain ⟨w, _, hvi⟩ := h.get' hm
+  rw [hvi]; rfl
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:227-228 instantiateList —
+`InstLAt.bvar_cut` at the arm's own hypotheses. -/
+theorem InstLAt.bvar_cutV {st : EStore} (hwf : StoreWF st) {c : EIdx}
+    {vs : Array EIdx} {ws : List Expr} {d j : Nat}
+    (hvec : InstLVec st vs ws) (htg : (c.tag == ETag.bvar) = true)
+    (hvb : some j = st.viewBVar c) (hge : ¬ (j < d)) (hsz : j - d < vs.size)
+    (hsat : (bvarOfData
+      (st.derived (vs[vs.size - 1 - (j - d)]'(by omega)))).toNat < satRange)
+    (hle : (bvarOfData
+      (st.derived (vs[vs.size - 1 - (j - d)]'(by omega)))).toNat ≤ d) :
+    InstLAt ws d st c st (vs[vs.size - 1 - (j - d)]'(by omega)) := by
+  obtain ⟨w, hw, hvi⟩ := hvec.get' hsz
+  exact InstLAt.bvar_cut hwf (view_of_viewBVar_tag htg hvb.symm) hge
+    (by rw [hvec.length]; exact hsz) hw hvi hsat hle
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:228 instantiateList —
+`InstLAt.bvar_rec` at the arm's own hypotheses. -/
+theorem InstLAt.bvar_recV {st st' : EStore} (hwf : StoreWF st) {c r : EIdx}
+    {vs : Array EIdx} {ws : List Expr} {d j : Nat}
+    (hvec : InstLVec st vs ws) (htg : (c.tag == ETag.bvar) = true)
+    (hvb : some j = st.viewBVar c) (hge : ¬ (j < d)) (hsz : j - d < vs.size)
+    (hrec : InstLAt (ws.take (j - d)) d st
+      (vs[vs.size - 1 - (j - d)]'(by omega)) st' r) :
+    InstLAt ws d st c st' r := by
+  obtain ⟨w, hw, hvi⟩ := hvec.get' hsz
+  exact InstLAt.bvar_rec hwf (view_of_viewBVar_tag htg hvb.symm) hge
+    (by rw [hvec.length]; exact hsz) hw hvi hrec
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:230 instantiateList —
+`InstLAt.bvar_above` at the arm's own hypotheses: the vector's SIZE is the
+list's length, through `InstLVec.length`. -/
+theorem InstLAt.bvar_aboveV {st st' : EStore} (hwf : StoreWF st) {c r : EIdx}
+    {vs : Array EIdx} {ws : List Expr} {d j : Nat}
+    (hvec : InstLVec st vs ws) (htg : (c.tag == ETag.bvar) = true)
+    (hvb : some j = st.viewBVar c) (hge : ¬ (j < d))
+    (hsz : ¬ (j - d < vs.size))
+    (hr : denoteE st' r = denoteEView st' (.bvar (j - vs.size))) :
+    InstLAt ws d st c st' r :=
+  InstLAt.bvar_above hwf (view_of_viewBVar_tag htg hvb.symm) hge hsz
+    hvec.length hr
+
 /-! ## I. `bvarB`'s Theorem 1, as the two con-leche cutoffs consume it
 
 `lowerBVarsGo` and `instantiate1LiftGo` test con-leche's own `bvarB` — the
@@ -1894,6 +1987,37 @@ theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
   AM.of_run (P := fun s => s = s₀) rfl hrun
     (instantiate1LiftFast_spec fuel s₀ e v d ve hbb hok hv hden)
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2377-2380 instPisAtLift — the
+`cons` STEP: a `∀`-head is peeled, its body instantiated at the argument by
+the nested `instantiate1LiftFast`, and the rest of the list consumed by the
+recursion.  Stated as one lemma so that the walk's one structural
+verification condition is a single `exact`. -/
+theorem RelEO.instPisAtLift_cons {st s1 s2 : EStore} {c ty body r1 : EIdx}
+    {m : BinderMeta} {r : Option EIdx} {ea : Expr} {eas : List Expr}
+    (hwf : StoreWF st) (hview : st.view c = some (.forallE ty body m))
+    (h1 : Inst1LAt ea 0 st body s1 r1)
+    (h2 : RelEO (fun e => Expr.instPisAtLift eas e) s1 r1 s2 r) :
+    RelEO (fun e => Expr.instPisAtLift (ea :: eas) e) st c s2 r := by
+  intro e he
+  obtain ⟨et, eb, rfl, _hdt, hdb⟩ := denote_forallE_inv hwf hview he
+  exact h2 _ (h1 eb hdb)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2380 instPisAtLift — the `cons`
+step at a NON-`∀` head: con-leche's own catch-all clause answers `none`, and
+so does the twin. -/
+theorem RelEO.instPisAtLift_none {st st' : EStore} (hwf : StoreWF st)
+    {c : EIdx} {vw : ENodeView} (hview : st.view c = some vw)
+    (hne : ∀ ty b m, vw ≠ .forallE ty b m) {ea : Expr} {eas : List Expr} :
+    RelEO (fun e => Expr.instPisAtLift (ea :: eas) e) st c st' none := by
+  intro e he
+  rw [denoteE_view_eq hwf hview] at he
+  show denoteEO st' none = some (Expr.instPisAtLift (ea :: eas) e)
+  cases vw <;>
+    simp_all only [denoteEView, denoteEO, ne_eq, reduceCtorEq, not_false_eq_true,
+      forall_const, Option.map_eq_some_iff, opt2_eq_some_iff,
+      opt3_eq_some_iff] <;>
+    grind [Expr.instPisAtLift]
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift —
 **THEOREM 1 for `instPisAtLift`**: instantiate the leading `∀`-binders at
 *open* arguments.  The answer is an OPTION of a handle, so the relation is
@@ -1931,14 +2055,36 @@ theorem instPisAtLift_spec (fuel : Nat) (hbb : ∀ f, BvarBSpec (bvarB f)) :
     · rename_i ea eas hea heas
       have hil := fun (s : AState) (e : EIdx) =>
         instantiate1LiftFast_spec fuel s e a 0 ea hbb
-      -- **OPEN** (task #97-P3-0): group A's round ran out here; the residual
-      -- verification conditions of the `cons` step are the ones the closer
-      -- does not take, in the shape `ExprOps/Inst1.lean` records.
       mvcgen [instPisAtLift, hrec, hil]
-      all_goals first
-        | bridge_vcs [Expr.instPisAtLift, RelEO, denoteEO,
-            Frontend.denoteEList]
-        | sorry
+      all_goals try bridge_vcs [Expr.instPisAtLift, RelEO, denoteEO,
+        Frontend.denoteEList]
+      -- THREE verification conditions survive the closer: the `cons` step's
+      -- own postcondition, the recursive call's `denoteEList` precondition at
+      -- the store the nested lift left behind, and the non-`∀` head.
+      next =>
+        bridge_peel
+        subst_vars
+        intro hok2 hx2 hcc hpp hans
+        refine ⟨hok2, by grind only [Ext.trans], by grind, by grind, ?_⟩
+        intro xs hxs
+        simp only [Frontend.denoteEList, hea, heas] at hxs
+        obtain rfl := Option.some.inj hxs
+        refine RelEO.instPisAtLift_cons hok.wf (by subst_hyp) (by subst_hyp) ?_
+        exact hans _ (denoteEList_ext (by subst_hyp) _ _ heas)
+      next =>
+        bridge_peel
+        subst_vars
+        intro _ _ hx2 _ _ _ _
+        rw [denoteEList_ext hx2 _ _ heas]
+        rfl
+      next =>
+        bridge_peel
+        subst_vars
+        refine ⟨hok, Ext.refl _, rfl, rfl, ?_⟩
+        intro xs hxs
+        simp only [Frontend.denoteEList, hea, heas] at hxs
+        obtain rfl := Option.some.inj hxs
+        exact RelEO.instPisAtLift_none hok.wf (by assumption) (by assumption)
     · exact absurd hxs0 (by simp)
 
 /-! ## L. Theorem 1 for `instantiateList` -/
@@ -1987,25 +2133,242 @@ theorem denoteEList_lastEidx {st : EStore} {xs : Array EIdx} {es : List Expr}
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of the UNMEMOIZED `instantiateList`'s recursion.
 
-Two departures from the template, both forced by the `.bvar` arm, which
-recurses at a SHORTER list (`lastEidx vs (j - d)`):
+Two departures from `Inst1.lean`'s `Inst1Spec`, both forced by this walk:
 
-* the substitution list `ws` is not a parameter but sits under a `∀` in the
-  postcondition.  As a parameter it is a `List Expr` the program does not
-  mention, and `mvcgen` would fill it in from the context — always with the
-  OUTER `ws`, which is wrong for exactly that arm (the same failure mode
-  `liftSet_specG` documents for `amount`);
-* the answer's own `isSome` and the vector's own `isSome` are extra
-  conjuncts, because with the answer relation behind a `∀ ws, …` the
-  `intern` preconditions of the rebuilding arms can no longer be read off it. -/
+* the substitution VECTOR and the list it denotes are both parameters, tied
+  by `InstLVec` (task #97-P6-15's push-order reversal).  The `.bvar` arm
+  recurses at a SHORTER list, so it does not take this record as its
+  induction hypothesis but the whole family `∀ m, InstLPureSpec (lastEidx vs
+  m) (ws.take m) …` — which is why the fuel induction generalises over the
+  vector;
+* `s'.memos = s₁.memos` rather than a memo invariant: this walk is the
+  unmemoized one and touches no table at all, and `instantiateListGo`'s
+  `.bvar` branch needs exactly that frame to carry `InstLMemoA ws` across it.
+
+`BMExt` (task #97-P3-1, `Bridge/StoreBM.lean`) is the binder-datum store's own
+extension, which `Ext` cannot say because a `BMIdx` denotes nothing; it is
+what closes the binder arm, whose `internBindIE` precondition is asked at the
+store the two recursive calls left behind. -/
 structure InstLPureSpec (vs : Array EIdx) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ →
     InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
     ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r⌝⦄
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+`app` ARM: project, recurse into both children, rebuild. -/
+theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : (c.tag == ETag.app) = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListArmApp vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListArmApp, hrec]
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  -- ONE verification condition survives: `internAppE`'s postcondition, which
+  -- arrives as an implication chain because the intern is the arm's ANSWER
+  -- (there is no memo insert behind it — this is the unmemoized walk).
+  next =>
+    refine fun hwf2 hx _hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    bridge_peel
+    subst_vars
+    refine ⟨⟨hwf2⟩, by grind only [Ext.trans],
+      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hrr
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+BINDER ARM (`lam` and `forallE` in one, as the tag dispatch tests them).  The
+datum survives the two recursive calls by `BMExt` (task #97-P3-1). -/
+theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : ETag.isBind c.tag = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListArmBind vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListArmBind, hrec]
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  -- the two recursive calls' subjects denote
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    exact (isSome_eBindView hok.wf hvw hden).1
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    have h2 := isSome_eBindView hok.wf hvw hden
+    grind
+  -- the arm's postcondition, through `internBindIE`'s answer
+  next =>
+    refine fun hwf2 hx _hbx _hlss _hscr _hmm _hcc _hpp hans => ?_
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, hbm, _htag0, _hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    refine ⟨⟨hwf2⟩, by grind only [Ext.trans],
+      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) ?_
+    grind
+  -- `internBindIE`'s three side conditions.  The datum survives the two
+  -- recursive calls by `BMExt` — the conjunct `Bridge/StoreBM.lean` exists
+  -- for, and the reason task #97-P3-0 left this arm open.
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, hbm, _htag0, _hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    grind [BMExt.get]
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    have h2 := isSome_eBindView hok.wf hvw hden
+    refine fun s _ _ _ _ _ _ _ => ?_
+    exact view_isSome (by grind)
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    have h2 := isSome_eBindView hok.wf hvw hden
+    refine fun s _ _ _ _ _ _ _ => ?_
+    exact view_isSome (by grind)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+`letE` ARM; the body descends at `dd + 1`. -/
+theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : (c.tag == ETag.letE) = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListArmLet vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListArmLet, hrec]
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  next =>
+    refine fun hwf2 hx _hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    bridge_peel
+    subst_vars
+    refine ⟨⟨hwf2⟩, by grind only [Ext.trans],
+      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) hrr
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
+`proj` ARM.  The struct NAME is carried unchanged, and its denotation comes
+from `denote_eq_proj`'s existential, which `grind` cannot see through. -/
+theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : (c.tag == ETag.proj) = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListArmProj vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListArmProj, hrec]
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  next =>
+    refine fun hwf2 hx _hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    bridge_peel
+    subst_vars
+    obtain ⟨nm, es, _, hn0, _⟩ :=
+      denote_eq_proj hok.wf (h := c)
+        (view_of_viewProj_tag htg (by subst_hyp)) hden
+    refine ⟨⟨hwf2⟩, by grind only [Ext.trans],
+      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) hrr hn0
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — the
+`bvar` ARM, the one arm of this walk that is not a congruence: it recurses
+into the REPLACEMENT with the SHORTER vector `lastEidx vs (j - d)`, which is
+why its induction hypothesis is the whole family `ih m` rather than one
+record.  `InstLVec.get` is the indexed read through the push-order reversal
+and `InstLVec.last` the shortened vector's denotation. -/
+theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : ∀ m, InstLPureSpec (lastEidx vs m) (ws.take m)
+      (instantiateList (lastEidx vs m) fuel))
+    (s₁ : AState) (c : EIdx) (dd : Nat) (hok : StateOK s₁)
+    (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : (c.tag == ETag.bvar) = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListArmBVar vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := fun (m : Nat) => (ih m).run
+  mvcgen [instListArmBVar, hrec]
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.last,
+    InstLVec.ext, InstLVec.length]
+  -- `j < d`: a bound variable of the term itself.
+  next =>
+    bridge_peel
+    subst_vars
+    exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+      InstLAt.bvar_below hok.wf
+        (view_of_viewBVar_tag (by subst_hyp) (by subst_hyp)) (by subst_hyp)⟩
+  -- in range, the twin's HOISTED cutoff firing at the replacement.
+  next =>
+    bridge_peel
+    subst_vars
+    exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+      InstLAt.bvar_cutV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) (by grind) (by grind)⟩
+  -- in range, con-leche's own recursion into the replacement at the SHORTER
+  -- vector.
+  next =>
+    refine fun hok2 hx hbx hcc hpp hmm hans => ?_
+    bridge_peel
+    subst_vars
+    exact ⟨hok2, hx, hbx, hcc, hpp, hmm,
+      InstLAt.bvar_recV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) hans⟩
+  -- that recursion's subject denotes.
+  next =>
+    refine fun s hs _ => ?_
+    subst hs
+    bridge_peel
+    subst_vars
+    exact InstLVec.isSome_get hvec (by subst_hyp)
+  -- out of range: the index drops by the vector's length.
+  next =>
+    refine fun hwf2 hx hbx _hlss _hmm _hcc _hpp _hvw hrr => ?_
+    bridge_peel
+    subst_vars
+    refine ⟨⟨hwf2⟩, by grind only [Ext.trans],
+      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    exact InstLAt.bvar_aboveV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) hrr
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList —
 **THEOREM 1 for the unmemoized bulk instantiation**, by induction on the fuel,
@@ -2037,87 +2400,237 @@ theorem instantiateList_spec :
     intro vs ws
     constructor
     intro s₀ h d hok hvec hden
-    have hrec := (ih vs ws).run
-    have hrec2 := fun (m : Nat) => (ih (lastEidx vs m) (ws.take m)).run
-    mvcgen [instantiateList_succ, instListArmApp, instListArmBind, instListArmLet, instListArmProj, instListArmBVar, hrec, hrec2]
-    all_goals try bridge_vcs [Expr.instantiateList, InstLVec.last,
-      InstLVec.ext, InstLVec.length]
-    all_goals try (bridge_peel
-                   subst_vars
-                   exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
-                     InstLAt.cutoff hok.wf (by grind) (by grind)⟩)
-    all_goals try (bridge_peel
-                   subst_vars
-                   obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
-                   obtain ⟨vw, hvw⟩ := denoteE_view he0
-                   exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
-                     InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind)
-                       (by grind) (by grind)⟩)
-    all_goals try (bridge_peel
-                   subst_vars
-                   refine ⟨by grind only [StateOK, StateOK.mk],
-                     by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-                   exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp)
-                     (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                     (by subst_hyp) (by subst_hyp))
-    all_goals try (bridge_peel
-                   subst_vars
-                   refine ⟨by grind only [StateOK, StateOK.mk],
-                     by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-                   exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp)
-                     (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                     (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    all_goals try (bridge_peel
-                   subst_vars
-                   obtain ⟨nm, es, _, hn0, _⟩ :=
-                     denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
-                   refine ⟨by grind only [StateOK, StateOK.mk],
-                     by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-                   exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp)
-                     (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                     hn0)
-    all_goals try (bridge_peel
-                   subst_vars
-                   obtain ⟨mm, hbm, htag0, hvw⟩ :=
-                     view_of_viewBindI_wf hok.wf (i := h) (by subst_hyp)
-                       (by subst_hyp)
-                   refine ⟨by grind only [StateOK, StateOK.mk],
-                     by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-                   exact InstLAt.bind_step' hok.wf (by subst_hyp) rfl
-                     (by subst_hyp) hbm (by subst_hyp) (by subst_hyp)
-                     (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    all_goals try (bridge_peel
-                   subst_vars
-                   exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
-                     InstLAt.bvar_below hok.wf
-                       (view_of_viewBVar_tag (by subst_hyp) (by subst_hyp))
-                       (by subst_hyp)⟩)
-    -- **OPEN** (task #97-P3-0): the `.bvar` arm's two in-range branches (the
-    -- hoisted cutoff at the replacement and the recursion into it — they need
-    -- `InstLAt.bvar_cut` / `.bvar_rec` with `InstLVec.get`'s indexed read
-    -- spelled out), its out-of-range branch (`InstLAt.bvar_above`), and the
-    -- binder arm's `internBindIE` side conditions.  The last is the same gap
-    -- `ExprOps/Inst1.lean` leaves open: `internBindIE`'s precondition
-    -- `(s.store.viewBM mi).isSome` is asked at the store the recursive calls
-    -- left behind, while `bmOK_of_viewBindI` answers it at the store the
-    -- `viewBindI` read was taken in.
-    all_goals sorry
+    have happ := instListArmApp_spec vs ws fuel (ih vs ws)
+    have hbind := instListArmBind_spec vs ws fuel (ih vs ws)
+    have hlet := instListArmLet_spec vs ws fuel (ih vs ws)
+    have hproj := instListArmProj_spec vs ws fuel (ih vs ws)
+    have hbvar := instListArmBVar_spec vs ws fuel
+      (fun m => ih (lastEidx vs m) (ws.take m))
+    mvcgen [instantiateList_succ, happ, hbind, hbvar, hlet, hproj]
+    all_goals try bridge_vcs [Expr.instantiateList]
+    -- TWO verification conditions survive the closer: the derived-word cutoff
+    -- and the catch-all leaf.
+    next =>
+      bridge_peel
+      subst_vars
+      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+        InstLAt.cutoff hok.wf (by grind) (by grind)⟩
+    next =>
+      bridge_peel
+      subst_vars
+      obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
+      obtain ⟨vw, hvw⟩ := denoteE_view he0
+      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+        InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
+          (by grind)⟩
 
 /-! ### `instantiateListGo`, the memoized walk -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
-one level of the MEMOIZED `instantiateListGo`'s recursion.  Here `ws` IS a
-parameter: the memo table is keyed for one substitution list (`InstLMemoA ws`),
-the walk never shortens it, and `mvcgen`'s context search therefore picks the
-right one. -/
+one level of the MEMOIZED `instantiateListGo`'s recursion.  The memo table is
+keyed for ONE substitution list (`InstLMemoA ws`) and this walk never shortens
+it — the shortening `.bvar` arm is the unmemoized walk, called by name — so
+the record carries the invariant where the pure walk carries a memo frame.
+`BMExt` is here for the binder arm, exactly as in `InstLPureSpec`. -/
 structure InstLSpec (vs : Array EIdx) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ → InstLMemoA ws s₁ →
     InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
     ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
     ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r⌝⦄
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+`app` ARM: probe, project, recurse into both children, rebuild, insert. -/
+theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
+    (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : (c.tag == ETag.app) = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmApp vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListGoArmApp, hrec]
+  all_goals try exact fun dd e => Expr.instantiateList e ws dd
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  -- the memo insert's answer, then the arm's postcondition
+  next =>
+    bridge_peel
+    subst_vars
+    refine RelE.retarget ?_ ?_ hden
+    · exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) (by subst_hyp)
+    · grind only [Ext.trans]
+  next =>
+    bridge_peel
+    subst_vars
+    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
+      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind, by grind, ?_⟩
+    exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+BINDER ARM, the one `BMExt` exists for (task #97-P3-1). -/
+theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
+    (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : ETag.isBind c.tag = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmBind vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListGoArmBind, hrec]
+  all_goals try exact fun dd e => Expr.instantiateList e ws dd
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  -- the two recursive calls' subjects denote
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    exact (isSome_eBindView hok.wf hvw hden).1
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    have h2 := isSome_eBindView hok.wf hvw hden
+    grind
+  -- `internBindIE`'s three side conditions.  The datum survives the two
+  -- recursive calls by `BMExt` — the conjunct `Bridge/StoreBM.lean` exists
+  -- for, and the reason task #97-P3-0 left this arm open.
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, hbm, _htag0, _hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    grind [BMExt.get]
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    have h2 := isSome_eBindView hok.wf hvw hden
+    exact view_isSome (by grind)
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, _hbm, _, hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    have h2 := isSome_eBindView hok.wf hvw hden
+    exact view_isSome (by grind)
+  -- the memo insert's answer, then the arm's postcondition
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, hbm, _htag0, _hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    refine RelE.retarget ?_ ?_ hden
+    · refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
+        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) ?_
+      grind
+    · grind only [Ext.trans]
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨mm, hbm, _htag0, _hvw⟩ :=
+      view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
+    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
+      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind, by grind, ?_⟩
+    refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) ?_
+    grind
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+`letE` ARM; the body descends at `dd + 1`. -/
+theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
+    (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : (c.tag == ETag.letE) = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmLet vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListGoArmLet, hrec]
+  all_goals try exact fun dd e => Expr.instantiateList e ws dd
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  next =>
+    bridge_peel
+    subst_vars
+    refine RelE.retarget ?_ ?_ hden
+    · exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+    · grind only [Ext.trans]
+  next =>
+    bridge_peel
+    subst_vars
+    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
+      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind, by grind, ?_⟩
+    exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) (by subst_hyp)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
+`proj` ARM.  The struct NAME is carried unchanged, and its denotation comes
+from `denote_eq_proj`'s existential, which `grind` cannot see through. -/
+theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
+    (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
+    (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
+    (hvec : InstLVec s₁.store vs ws)
+    (hden : (denoteE s₁.store c).isSome = true)
+    (htg : (c.tag == ETag.proj) = true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmProj vs fuel c dd
+    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
+        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
+        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+  have hrec := ih.run
+  mvcgen [instListGoArmProj, hrec]
+  all_goals try exact fun dd e => Expr.instantiateList e ws dd
+  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨nm, es, _, hn0, _⟩ :=
+      denote_eq_proj hok.wf (h := c)
+        (view_of_viewProj_tag htg (by subst_hyp)) hden
+    refine RelE.retarget ?_ ?_ hden
+    · exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp)
+        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
+    · grind only [Ext.trans]
+  next =>
+    bridge_peel
+    subst_vars
+    obtain ⟨nm, es, _, hn0, _⟩ :=
+      denote_eq_proj hok.wf (h := c)
+        (view_of_viewProj_tag htg (by subst_hyp)) hden
+    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
+      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind, by grind, ?_⟩
+    exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo —
 **THEOREM 1 for the memoized bulk instantiation**.  Its `.bvar` arm delegates
@@ -2136,71 +2649,29 @@ theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
   | succ fuel ih =>
     constructor
     intro s₀ h d hok hm hvec hden
-    have hrec := ih.run
+    have happ := instListGoArmApp_spec vs ws fuel ih
+    have hbind := instListGoArmBind_spec vs ws fuel ih
+    have hlet := instListGoArmLet_spec vs ws fuel ih
+    have hproj := instListGoArmProj_spec vs ws fuel ih
     have hpure := (instantiateList_spec fuel vs ws).run
-    mvcgen [instantiateListGo_succ, instListGoArmApp, instListGoArmBind, instListGoArmLet, instListGoArmProj, hrec, hpure]
-    all_goals try exact fun dd e => Expr.instantiateList e ws dd
-    all_goals try bridge_vcs [Expr.instantiateList, InstLVec.last,
-      InstLVec.ext, InstLVec.length]
-    all_goals try (bridge_peel
-                   subst_vars
-                   exact ⟨hok, hm, Ext.refl _, rfl, rfl,
-                     InstLAt.cutoff hok.wf (by grind) (by grind)⟩)
-    all_goals try (bridge_peel
-                   subst_vars
-                   obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
-                   obtain ⟨vw, hvw⟩ := denoteE_view he0
-                   exact ⟨hok, hm, Ext.refl _, rfl, rfl,
-                     InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind)
-                       (by grind) (by grind)⟩)
-    all_goals try (bridge_peel
-                   subst_vars
-                   refine RelE.retarget ?_ ?_ hden
-                   · first
-                     | exact InstLAt.app_step hok.wf (by subst_hyp)
-                         (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                         (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                         (by subst_hyp)
-                     | exact InstLAt.letE_step hok.wf (by subst_hyp)
-                         (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                         (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                         (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                   · grind only [Ext.trans])
-    all_goals try (bridge_peel
-                   subst_vars
-                   refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-                     by grind only [Ext.trans], by grind, by grind, ?_⟩
-                   first
-                   | exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp)
-                       (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                       (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                   | exact InstLAt.letE_step hok.wf (by subst_hyp)
-                       (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                       (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                       (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    all_goals try (bridge_peel
-                   subst_vars
-                   obtain ⟨nm, es, _, hn0, _⟩ :=
-                     denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
-                   refine RelE.retarget ?_ ?_ hden
-                   · exact InstLAt.proj_step hok.wf (by subst_hyp)
-                       (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                       (by subst_hyp) (by subst_hyp) hn0
-                   · grind only [Ext.trans])
-    all_goals try (bridge_peel
-                   subst_vars
-                   obtain ⟨nm, es, _, hn0, _⟩ :=
-                     denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
-                   refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-                     by grind only [Ext.trans], by grind, by grind, ?_⟩
-                   exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp)
-                     (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-                     hn0)
-    -- **OPEN** (task #97-P3-0): the binder arm's `internBindIE` side
-    -- conditions and its two structural verification conditions — the same
-    -- gap `ExprOps/Inst1.lean` leaves open, for the same reason (see the note
-    -- in `instantiateList_spec` above).
-    all_goals sorry
+    mvcgen [instantiateListGo_succ, happ, hbind, hlet, hproj, hpure]
+    all_goals try bridge_vcs [Expr.instantiateList]
+    -- TWO verification conditions survive the closer: the derived-word cutoff
+    -- and the catch-all leaf.  The `.bvar` branch is the UNMEMOIZED walk, by
+    -- name, exactly as con-leche's is.
+    next =>
+      bridge_peel
+      subst_vars
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl,
+        InstLAt.cutoff hok.wf (by grind) (by grind)⟩
+    next =>
+      bridge_peel
+      subst_vars
+      obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
+      obtain ⟨vw, hvw⟩ := denoteE_view he0
+      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl,
+        InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
+          (by grind)⟩
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:371-373 instantiateListFast —
 **THEOREM 1 for `instantiateList`, at the entry point**. -/
@@ -2231,8 +2702,9 @@ theorem instantiateListFast_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
 
 /-! ## The axiom check
 
-Every theorem of this file that is CLOSED, so that the three `sorry`s the
-`instantiateList` pair still carries cannot hide anywhere else. -/
+Every theorem of this file, so that nothing can hide anywhere: since task
+#97-P3-2 the module is `sorry`-free, and the `instantiateList` pair — the two
+walks whose three open goals the arm split closed — is checked by name. -/
 
 #print axioms instantiateList_of_bvarBound_le
 #print axioms liftLooseBVars_of_bvarBound_le
@@ -2261,5 +2733,24 @@ Every theorem of this file that is CLOSED, so that the three `sorry`s the
 #print axioms instantiate1LiftFast_spec
 #print axioms instantiate1LiftFast_run
 #print axioms instPisAtLift_spec
+#print axioms RelEO.instPisAtLift_cons
+#print axioms RelEO.instPisAtLift_none
+#print axioms InstLVec.get'
+#print axioms InstLAt.bvar_cutV
+#print axioms InstLAt.bvar_recV
+#print axioms InstLAt.bvar_aboveV
+#print axioms instListArmApp_spec
+#print axioms instListArmBind_spec
+#print axioms instListArmLet_spec
+#print axioms instListArmProj_spec
+#print axioms instListArmBVar_spec
+#print axioms instantiateList_spec
+#print axioms instListGoArmApp_spec
+#print axioms instListGoArmBind_spec
+#print axioms instListGoArmLet_spec
+#print axioms instListGoArmProj_spec
+#print axioms instantiateListGo_spec
+#print axioms instantiateListFast_spec
+#print axioms instantiateListFast_run
 
 end ConRon.Bridge.ExprOps
