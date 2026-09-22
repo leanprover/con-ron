@@ -39152,3 +39152,276 @@ rounds later, and pays for it with one `scripts/twin-lines.py update`.  The
 `GONE` list is the part that still needs a human, and it is the part that
 should: it is where a Rust function's twin stopped being the thing it was
 ported against.
+
+### Task #97-P5-Core — Theorem 2: the Core tier's knot (2026-09-22, Opus under Fable)
+
+DESIGN §8.6's **P5**, the `arena::core` tier — the largest module of the crate
+(11 719 lines of Rust, 3 757 of twin).  Branch `p5-core` off `arena`'s tip
+`7a92f794`.  **Nothing outside `proof/ConRon/Refine2/Core/**` is written**
+except one import line in `proof/ConRon/Refine2.lean`.
+
+**The round's deliverable is the KNOT, and it is closed.**  Task #97-P5-1's
+"what the Core tier needs" asked for the lane dispatch to be *"written before
+any `core` lemma is stated"*; it is written, and the fuel induction that ties
+it runs end to end:
+
+    knotRel_zero  :                          KnotRel 0                 closed
+    knotRel_succ  : BodyRel f            ->  KnotRel (f + 1)           closed
+    knot_rel      : (∀ f, KnotRel f -> BodyRel f) -> ∀ f, KnotRel f    closed
+    bodyRel_of_knot : ∀ f, KnotRel f -> BodyRel f                      OPEN
+
+and the six fueled entry points of `ConLeche/Kernel/TypeChecker.lean` fall out
+of `KnotRel` in four lines each.  What is open is the other half — the six
+BODIES and the ≈ 95 helpers under them — which is a round of its own and whose
+shape is in `Refine2/Core/Arms.lean` rather than in this section.
+
+#### 1. `KnotRel`, and why the lane is a relation and not a case analysis
+
+§3.4 forbids the port a record of closures, so `arena::core`'s six entry
+points take **the lane as a `u32` scalar** where the twin picks a field of
+`CoreFnsA`:
+
+| port | twin |
+|---|---|
+| `knot_whnf_core … lane fuel …` | `(laneKnot mode fe lane f).whnfCore` |
+| `LANE_FULL` (`0`) | `Core.lean`'s `coreKnot mode fe id` |
+| `LANE_GATED` (`1`) | `CoreGated.lean`'s `coreKnotGated mode fe` |
+| `LANE_IO` (`2`) | `CoreIO.lean`'s `coreKnotIO mode fe` |
+| `knot_infer_at … io …` | `CoreFnsA.ioView` applied or not — **the port's `io : bool` IS the `ioView` substitution**, which is what its own doc comment claims and which the refinement confirms |
+
+`laneKnot` / `laneKnotAt` are that table as two three-line functions, and
+`KnotRel f` is a SIX-FIELD structure — *"at fuel `f`, each port entry refines
+the corresponding slot of the lane's knot"* — because the six are mutually
+recursive through the bodies (established together or not at all) and because
+an arm wants to name one of them in a `grind` list without dragging the other
+five's instantiations in.  `BodyRel f` is its partner at the bodies.
+
+**The induction is on the knot's fuel and nothing else.**  `knot_X … fuel`
+calls `X_body … (fuel - 1)` and a body's own `knot_*` calls are at the SAME
+fuel, so `KnotRel f -> BodyRel f` is the step's PREMISE and `BodyRel f ->
+KnotRel (f + 1)` is the step; `absU_eq_zero` / `absU_ne_zero` / `absU_pred`
+are round 3's twelve-line fuel shape step, stated **once for the whole tier**
+because all six entries decrement the same way.  That is the one place this
+tier is cheaper than round 3 predicted.
+
+#### 2. Three findings about the port against the twin
+
+**Finding 10 — task #97-P5-1's `map_find_slot_insert_at_abs` is not needed,
+and the prediction is withdrawn.**  That task asked for *"`find_slot` +
+`insert_at` on a bare memo table"* on the ground that task #97-P6-13 put the
+three hot probe-and-inserts into the call site.  **`find_slot` and `push_at`
+occur in `arena/store.rs` and nowhere else in the crate**: the fused
+find-or-insert is the INTERN path's (task #97-survey's N2), which
+`Specs.lean`'s `tbl_find_slot_abs` already covers.  The knot's grades call
+`whnf_core_probe` / `whnf_core_set` and their five siblings — **named
+functions over `HashMap2::get` and `HashMap2::insert`** — so the lemma the
+Core tier wants is `Specs.lean`'s `inst1_get_run` / `inst1_set_run` twelve
+more times at the `Caches` tables.  What #97-P6-13 inlined into the slot was
+the TWIN's `memoEI` closure pair (deviation 6), not the port's table
+operation.
+
+**Finding 11 — the capacity test needs a SIZE agreement, which `RelOn` does
+not carry.**  `Memos` has no cap; `Caches` does (§8.3's lesson 10):
+
+    if st.caches.whnf_core_c.len() < CACHE_CAP    let mp := if mp.size < cacheCap
+    { () } else { … = HashMap2::new() }                 then mp else ∅
+
+and the two branches must be the SAME branch or the port clears a table the
+twin keeps.  `RelOn P m s absK absV` is a one-way probe agreement and says
+nothing about keys outside the image of `absK`.  **`relOn_size` is the first
+place in the tier where the relation has to be a BIJECTION**, and it is:
+`absU32` is onto (`absU32_surj`, six lines — a twin handle word is a `UInt32`
+and a port handle word is a `U32`, the same 32 bits) and every `Caches` key
+abstraction is a tuple of it.  The lemma is then the port's `sl_v`, nodup by
+`HashMap2.Inv`, against `Std.HashMap.keys`, nodup by `distinct_keys`, carried
+across by `absK` — 25 lines, `List.perm_ext_iff_of_nodup`.  **It is a fact
+about `RelOn` and belongs in `Refine/HashMap2WF.lean`**; it is in
+`Refine2/Core/Probes.lean` because this tier may not edit that file, and the
+migration is three lines.
+
+**Finding 12 — the gated lane has no stuck-tag test, and at ONE fuel level
+that is a real divergence.**  Task #97-P6-7's lever 2 hoisted the "the answer
+IS the argument" test out of `whnfCoreBody`; the port hoisted it **above the
+lane dispatch** (`knot_whnf_core` answers `Ok(e.dup2())` before it looks at
+`lane`), the twin hoisted it **into the memoized slot only** (`coreKnotGated`'s
+`whnfCore` slot is `whnfCoreBodyGated … d e` with no test).
+
+* At `whnfCore` the two agree and the obligation is about a BODY:
+  `whnfCoreBodyGated` returns its argument at the six stuck views, which is
+  exactly what `whnfCoreStuckTag`'s own doc comment states.  It is
+  `BodyRel.stuckGatedCore`, and it needs task #97-P5-0's finding 3 (the
+  tag-first / view-first split) — `StoreWF` plus "this handle resolves".
+* At `whnf` it is **false at one fuel level**.  The twin's slot is
+  `whnfBody (coreKnotGated mode fe f) fe d e`, whose first move is
+  `r.whnfCore`, so at `f = 0` — the port's `fuel = 1` — the twin throws
+  `internal` where the port answers `Ok e`.  `KnotRel.whnf` therefore carries
+  `lane = LANE_GATED -> 2 ≤ f`.  Unreachable in the program (`checkFuel` is
+  100 000 and the gated lane is entered at the top), but the LEMMA is false
+  without it.  **The fix is a one-line TWIN change** — hoist the tag test into
+  `coreKnotGated`'s two reduction slots, which is what the port does — and it
+  belongs in the next twin catch-up beside task #97-P5-1's finding 9.
+
+**And one stale comment.**  `knot_infer_io`'s doc comment says *"At
+`LANE_FULL` the selector is `mode.betaGate`, con-leche's `Kernel/Core.lean`
+spelling and not `Cached/CoreC.lean`'s `mode.ioGate`"*.  The CODE reads
+`kernel::env::io_gate(mode)`, which is the twin's `mode.ioGate`, and the two
+are constantly `true` at both modes, so the port's `else` arm (which would
+probe the FULL grade's table) is unreachable and the twin's is dead.  The
+refinement reads the code; the comment should be corrected.
+
+#### 3. Finding 3's pair, carried explicitly
+
+`KnotRel` and `BodyRel`'s every field takes `StoreWF lst.store` and
+`EResolves lst (absEIdx e)` (`ExprOps/Read.lean`'s, reused rather than
+re-declared), because the bodies read the store at every arm and the port's
+tag-first dispatch needs it.  Task #97-P5-0's finding 3 predicted ~60 sites;
+this tier is 13 of them, all in two structures, and **P3 should supply them as
+one clause of `StateOK`** rather than let the Checker tier restate them at
+every `core` call.
+
+#### 4. What closed
+
+| file | lines | theorems | `sorry` | what |
+|---|---:|---:|---:|---|
+| `Refine2/Core/Probes.lean` | 577 | 20 | 0 | `absU32_surj` and the three onto/injective handle facts; `relOn_size` and `cache_len_abs`; `cache_insert_step` (the capped write, once); the six probes; `eidx_pair_abs`; the six writes |
+| `Refine2/Core/KnotRel.lean` | 301 | 7 | 0 | `laneKnot` / `laneKnotAt` and their five equations, `CoreCtx`, `KnotRel`, `BodyRel`, `KnotRel.inferAt` |
+| `Refine2/Core/Induction.lean` | 1 192 | 59 | 0 | the fuel readings, the three knots' fuel-0 slots, `knotRel_zero`, the two stuck-tag readers, `io_gate_abs`, the eighteen slot equations, the six `knotRel_succ_*`, `knotRel_succ`, `knot_rel` |
+| `Refine2/Core/Entries.lean` | 157 | 9 | 0 | the six fueled entry points, `check_fuel_abs`, `knotRel_checkFuel` |
+| `Refine2/Core/Arms.lean` | 261 | 13 | **11** | `bodyRel_of_knot` and the ten named arm statements |
+| `Refine2/Core.lean` | 25 | — | — | the tier index |
+| **the tier** | **2 513** | **108** | **11** | |
+
+The six `knotRel_succ_*` fields are the whole of the knot's shape and they are
+one proof written six times: `absU fu = f + 1` forces the `fuel ≠ 0` arm, the
+lane `if`s line up with `laneKnot`'s own by `laneKnot_gated` / `laneKnot_io` /
+`laneKnot_of_ne`, the probe is `Core/Probes.lean`'s, the body is `BodyRel`'s
+field and the write is `*_set_run`.  **The four lanes that fall through**
+(`knot_whnf_core`, `knot_whnf`, `knot_defeq`, `knot_annotate` at `LANE_IO`)
+are one `rw`: `coreKnotIO (f + 1)`'s corresponding slots are literally
+`(coreKnot mode fe id (f + 1))`'s, at the same fuel.
+
+#### 5. Elaboration, and the one number that matters
+
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, two runs, spread ≤ 0.10 s;
+"net" subtracts that file's own import baseline measured the same way.
+
+| file | lines | theorems | raw | net |
+|---|---:|---:|---:|---:|
+| `Core/Probes.lean` | 577 | 20 | 2.14 s | **0.18 s** |
+| `Core/KnotRel.lean` | 301 | 7 | 11.61 s | **9.66 s** |
+| `Core/Induction.lean` | 1 192 | 59 | 50.9 s | **48.9 s** |
+| `Core/Entries.lean` | 157 | 9 | 1.95 s | **0.05 s** |
+| `Core/Arms.lean` | 261 | 13 | 2.03 s | **0.08 s** |
+
+**No lemma is anywhere near the 20-second flag, and the two big numbers are
+not lemma costs at all.**  Bisected:
+
+* `Core/Induction.lean`'s 48.9 s is **48 s of `blocked (unaccounted)`** in the
+  profiler against 1.1 s of elaboration and 2.0 s of tactic execution, and
+  stubbing all six `knotRel_succ_*` proofs with `sorry` changes it by 0.3 s.
+  It is **the one-off derivation of the `partial_fixpoint` unfolding equations
+  for the six `knot_*` definitions**: a file whose only content is
+  `rw [arena.core.knot_whnf_core] at h; trivial` costs **9.6 s net**, and the
+  same file importing `Core/Induction.lean` costs **0.0 s**.  The equations
+  cache into the `.olean`.
+* `Core/KnotRel.lean`'s 9.66 s is the two structures' field types (twelve
+  ∀-statements over the generated model) plus the five `laneKnot_*` equations,
+  which `decide` on `@[irreducible]` lane constants.
+
+**The cost model for the Arms round follows from that first bullet, and it is
+the round's most useful number.**  `arena::core` is a 6 128-line mutual
+`partial_fixpoint` block of 100 functions plus a second of 10; at ≈ 9 s per
+unfolding equation, deriving all 110 is **≈ 15 minutes, once**.  So the Arms
+tier wants **one module that forces every equation** (a hundred one-line
+`example`s) which every arm file then imports for nothing — otherwise each of
+a dozen arm files re-derives the subset it touches and the tier's build time
+is multiplied by the number of files.  Round 3's per-function budget (20 lines
+of shape step, 2 of idiom, 0.26 s of `grind` a branch) is unchanged and is
+about the PROOFS; this is a cost the spike never met because its subject was
+one function.
+
+#### 6. The axiom census
+
+**Twenty-four `#print axioms` rows under `#guard_msgs`** — eight in
+`Core/Probes.lean`, twelve in `Core/Induction.lean`, four in
+`Core/Entries.lean`.  Every one reads **`[propext, Classical.choice,
+Quot.sound]`** and nothing else, except `absU32_surj`, which reads
+`[propext, Quot.sound]` — no `Classical.choice` at all, the tier's only such
+row.  No `sorryAx` on a closed lemma, and **no `bv_decide` axiom**: the fuel
+reading is `omega` after `UScalar.val`, `relOn_size` is `List.Perm`, and the
+two stuck-tag readers are `etag_dec` ten times.
+
+#### 7. The `sorry` list, exactly
+
+Eleven, all in `Refine2/Core/Arms.lean`, and **ten of them are statements
+whose proof is the next round's**:
+
+| `sorry` | what is missing |
+|---|---|
+| `bodyRel_of_knot` | the six bodies' ten-way dispatches and the ≈ 95 helpers under them; the census is the file's module note |
+| `whnf_step_refines`, `whnf_loop_refines` | the loop's SECOND fuel dimension: an induction on `n` inside the knot's induction on `f`, and the port's `n` read as the twin's continuation `whnfLoop r fe depth (n - 1)` |
+| `defeq_step_refines`, `defeq_loop_refines` | the same pair at the lazy-delta loop |
+| `ensure_sort_refines` | `r.whnf` then one view read — the smallest of the ten, and the natural first |
+| `whnf_app_refines`, `beta_peel_refines` | task #97-P6-9's batched β: an `Array` accumulator in push order against a `List` spine with a cursor |
+| `iota_rec_at_refines` | the ι step at a spine the caller already has |
+| `defeq_peel_leaf_refines` | task #97-P6-14's batched binder descent, at its leaf |
+| `whnf_core_stuck_app_refines` | the gated lane's only remaining caller |
+
+`ConRonRefine2` as a whole is **139 `sorry`** (was 128): the eleven above, and
+`Specs.lean`'s 32 and `ExprOps/**`'s 96 are untouched.
+
+#### 8. What the Checker tier needs
+
+* **`knotRel_checkFuel`** (`Core/Entries.lean`) — `KnotRel (absU CHECK_FUEL)`,
+  with `check_fuel_abs : absU CHECK_FUEL = checkFuel` beside it — and then the
+  six `*_refines`: `whnf_core_refines`, `whnf_refines`,
+  `infer_type_core_refines`, `infer_type_io_refines`,
+  `is_def_eq_core_refines`, `annotate_core_refines`.  **There is nothing else
+  to consume from this tier**: every entry is `LANE_FULL` applied to a knot
+  slot, and the gated side condition of `KnotRel.whnf` is vacuous at
+  `LANE_FULL`.
+* `ensure_sort_core` is the seventh (T) declaration and is NOT an entry of
+  that kind: `ensure_sort` is a body, so its lemma is `ensure_sort_refines` in
+  `Core/Arms.lean` and is open.
+* Every entry takes `StoreWF lst.store` and `EResolves lst (absEIdx h)` — §3
+  above.  `CoreCtx vis fe lfe` (`IFEnvRel` plus `absU vis = lfe.visibleBelow`)
+  is the other ambient hypothesis and is task #97-P6-6b's split scalar tied
+  back to the field it came from.
+* **The gated checker tier** (`arena::checker_gated`, `FUELED_OPS_GATED =
+  LANE_GATED`) consumes `KnotRel` at `LANE_GATED`, and therefore owes
+  `2 ≤ f` wherever it calls `whnf` — finding 12.  At `checkFuel` that is free.
+
+#### 9. The gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green**, 2 111 jobs, **126 `sorry`** (115 of them tasks #97-P5-1/-2's, eleven this tier's) and no errors |
+| `cd proof && lake build` | green, 2 208 jobs — the default targets are untouched |
+| `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| `scripts/lint-rust-style.sh` | OK (no Rust file changed) |
+| the diff | `proof/ConRon/Refine2/Core/**`, `proof/ConRon/Refine2/Core.lean`, one import line in `proof/ConRon/Refine2.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Specs.lean`, no `ExprOps/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+#### 10. `arena` moved twice under this branch
+
+Tasks **#97-P3-1** and **#97-P5-2** landed while this ran, and both were
+merged in.  The conflicts were textual (this section against theirs at the end
+of the task log) with one exception worth naming: **#97-P3-1's twin fix landed
+task #97-P5-1's finding 9** — `Arena.internE` now probes `EStore.find?`
+BEFORE it tests `Idx.idxCap`, as the port does — and
+`Refine2/Specs.lean`'s `internE_run_of_cap` stopped elaborating against it.
+This branch repaired it once (statement unchanged, the proof split on the
+probe); the second merge brought task #97-P5-2's own fix, which is better —
+`hcap` is now the MISS path's side condition rather than a hypothesis of all
+twenty-five `intern_*` statements — and **theirs was taken**.  Nothing in
+`Refine2/Core/**` was affected by either merge: the Core tier's subject is
+`arena::core`, which neither round touched.
+
+**One incoming simplification to take when it lands.**  Task #97-P5-2 is
+mechanising the tag/view agreement as `estore_view_tagOf` —
+*"`view` answers the view whose constructor is the handle's own tag,
+UNCONDITIONALLY, no `StoreWF`"*.  If that holds, the `StoreWF lst.store`
+half of §3's pair can come OUT of `KnotRel` and `BodyRel`'s thirteen fields
+and only `EResolves` stays; the Core tier's statements should be re-cut
+against it rather than keep a hypothesis that turns out to be free.
