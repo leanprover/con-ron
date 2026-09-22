@@ -44144,14 +44144,27 @@ defining file; nothing was churned.)
 
 | file | lines | theorems | `sorry` | raw (2 runs) |
 |---|---:|---:|---:|---|
-| `Refine2/Specs.lean` | **8 438** | **281** | **20** | RAW_SPECS |
-| `Refine2/ExprOps/Pure.lean` | 931 | 34 | 0 | RAW_PURE |
-| `Refine2/ExprOps/Read.lean` | 4 880 | 90 | **0** | RAW_READ |
-| `Refine2/ExprOps/Mut.lean` | **2 412** | **75** | **44** | RAW_MUT |
+| `Refine2/Specs.lean` | **8 438** | **281** | **20** | 8.68 / 8.93 s |
+| `Refine2/ExprOps/Pure.lean` | 931 | 34 | 0 | 2.86 / 2.88 s |
+| `Refine2/ExprOps/Read.lean` | 4 880 | 90 | **0** | 6.52 / 7.03 s |
+| `Refine2/ExprOps/Mut.lean` | **2 412** | **75** | **44** | 8.35 / 8.71 s |
 
-**No declaration is over 300 ms**, the flag is at 20 s, and the profiler's only
-named row in `ExprOps/Mut.lean` is §6's `bvar_range_aux` at 157 ms.  `grind` is
-still nowhere in the tier (§7 is why).
+The import baseline is 2.16 s (`Specs`) / 2.21 s (`ExprOps/Mut`), measured the
+same way.  **`Mut.lean`'s raw figure is load-contaminated** — 3.26 s in round 2
+against 8.35 s here for 213 more lines and one more import
+(`ExprOps/Pure.lean`), with four other agents building on the same machine — so
+as in round 2 the claim of record is the **profiler's**, at a 300 ms threshold:
+
+* `ExprOps/Mut.lean` reports **nothing at all** above 300 ms except the import;
+  §6's `bvar_range_aux`, the file's longest declaration, profiles at **157 ms**
+  of tactic execution.
+* `Specs.lean` reports **no declaration** above 300 ms.  Its rows are task
+  #97-P5-1's known `omega` outlier in `derObsE_absU64` (1.47 s), one more
+  `omega` at 314 ms, and five `simp` calls between 301 and 551 ms — the
+  `Eq2Fwd` and tier-select `simp only`s, unchanged in kind since round 1.
+
+**Nothing is anywhere near the 20 s flag**, and `grind` is still nowhere in the
+tier (§7 is why).
 
 ##### 9. The axiom census
 
@@ -44184,10 +44197,10 @@ change**, and that is a sharper statement than round 2 could make.
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | GATE_REFINE2 |
-| `cd proof && lake build` | GATE_DEFAULT |
-| `scripts/provenance.py check` | GATE_PROV |
-| `scripts/overview-links.sh` | GATE_LINKS |
-| `scripts/arena-census.py --summary` | GATE_CENSUS |
+| `cd proof && lake build ConRonRefine2` | **green**, **2 219 jobs**, no errors — `Specs.lean` **20**, `ExprOps/Mut.lean` **44**, `ExprOps/Read.lean` **0** (**916** `sorry` across the whole tier, from 923) |
+| `cd proof && lake build` | **green**, **2 209 jobs** — the default targets are untouched |
+| `scripts/provenance.py check` | 0 findings — `6 650 item(s) (4 099 Rust, 2 551 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK (and `scripts/twin-lines.py check` 1 983 citations OK, `scripts/holes.sh --check` 1 type / 5 fns OK) |
+| `scripts/arena-census.py --summary` | runs; `Arena/ExprOps` reads **92/92 stated, 80 closed** for T1 and **89/92 stated, 52 closed** for T2 — the 52 being this task's, from round 2's 45 |
 | merged `arena` at `0e13370e` | auto-merged every hunk, `.lean` and DESIGN.md alike; no hand work |
 | the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, and `ExprOps/{Pure,Read}.lean` untouched — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected by this branch and are not re-run |
