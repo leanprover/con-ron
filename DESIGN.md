@@ -42262,8 +42262,8 @@ arena branch needed a second report, about the two theorems it is actually
 building.
 
 The task ran **twice**.  Round 1 built the script and its fixture; round 2
-(branch `census-2` off `arena`'s `2fca3435`, `68aa8437` merged before
-landing) took the four findings round 1's own self-check line printed and
+(branch `census-2` off `arena`'s `2fca3435`, with `68aa8437` and then
+`d9f38ae8` merged before landing) took the four findings round 1's own self-check line printed and
 closed them, which moved almost every number in the table.  **That is the
 argument for the self-check line**: every one of the four was a place where
 the census was quietly wrong, and each was visible only because the script
@@ -42384,9 +42384,9 @@ tiers write five shapes, and all five are Theorem 2:
 
 | shape | who writes it | why |
 |---|---|---|
-| `<fn>_refines` | `Refine2/Checker/**`, `Inductives/**`, `Frontend/**`, `ExprOps/**` | the refinement lemma proper, 938 credits |
+| `<fn>_refines` | `Refine2/Checker/**`, `Inductives/**`, `Frontend/**`, `ExprOps/**` | the refinement lemma proper, 939 credits |
 | `<fn>_no_claim` | the error constructors and `Native` declines | counts as stated AND closed, flagged `(N)` |
-| `<fn>_abs` | `Refine2/AbsStore.lean`, `Core/Induction.lean` | the pure ABSTRACTION equation — `arena.handle.word_index w = ok r → absU32 w % 2^27 = absU32 r`; 58 credits |
+| `<fn>_abs` | `Refine2/AbsStore.lean`, `Core/Induction.lean` | the pure ABSTRACTION equation — `arena.handle.word_index w = ok r → absU32 w % 2^27 = absU32 r`; 60 credits |
 | `<fn>_run` | `Refine2/Specs.lean` | the same in the monad — "the inversion layer keyed on the Rust equation" of task #97-P5-2, `arena.monad.view_app pers st h = ok o → …`; 120 credits |
 | `<fn>_obs` | `Refine2/Specs.lean`'s derived-word arms | the same up to `derObsE` (the hash is not in the relation); 10 credits |
 
@@ -42410,27 +42410,27 @@ A twin cited by several Rust functions (`checkDecl` is cited by 18) needs one
 lemma EACH — the row is stated only when every citing function has one, and a
 row where some do is `part` rather than either.
 
-#### 4. The numbers at `68aa8437`
+#### 4. The numbers at `d9f38ae8`
 
 | tier | twins | T1 owed | T1 stated | T1 closed | T2 owed | T2 cited | T2 stated | T2 closed |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | `Arena/Store` | 380 | 358 | 97 (27%) | 93 (25%) | 297 | 283 (95%) | 148 (49%) | 118 (39%) |
 | `Arena/ExprOps` | 92 | 92 | 92 (100%) | 80 (86%) | 92 | 89 (96%) | 89 (96%) | 48 (52%) |
-| `Arena/Core` | 232 | 212 | 38 (17%) | 13 (6%) | 212 | 197 (92%) | 24 (11%) | 19 (8%) |
+| `Arena/Core` | 232 | 212 | 38 (17%) | 13 (6%) | 212 | 197 (92%) | 24 (11%) | 20 (9%) |
 | `Arena/Checker` | 294 | 242 | 45 (18%) | 8 (3%) | 242 | 226 (93%) | 206 (85%) | 55 (22%) |
 | `Arena/Inductives` | 130 | 130 | 127 (97%) | 9 (6%) | 130 | 130 (100%) | 130 (100%) | 0 (0%) |
 | `Arena/Frontend` | 257 | 141 | 46 (32%) | 15 (10%) | 120 | 111 (92%) | 103 (85%) | 5 (4%) |
 | `Arena/Promote` | 22 | 22 | 9 (40%) | 0 (0%) | 22 | 21 (95%) | 20 (90%) | 0 (0%) |
 | `Arena/Driver` | 27 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
 | `Arena/Tests` | 198 | 0 | 0 (-) | 0 (-) | 0 | 0 (-) | 0 (-) | 0 (-) |
-| **total** | **1632** | **1197** | **454 (37%)** | **218 (18%)** | **1115** | **1057 (94%)** | **720 (64%)** | **245 (21%)** |
+| **total** | **1632** | **1197** | **454 (37%)** | **218 (18%)** | **1115** | **1057 (94%)** | **720 (64%)** | **246 (22%)** |
 
 `T1 owed` / `T2 owed` are the twins less that tier's skips; every percentage
 is against those.  The `--summary` line `scripts/gates.sh` prints is the
 same table plus:
 
     arena census: 1632 twins (+99 arms folded in, 435 skipped for T1, 517 for T2)
-      | T1 stated 37% closed 18% | T2 stated 64% closed 21%
+      | T1 stated 37% closed 18% | T2 stated 64% closed 22%
 
 Against round 1's `T2 stated 39 % closed 2 %` over a 1 274-twin denominator,
 **almost none of that movement is proof work**: it is the same tree read
@@ -42462,7 +42462,7 @@ missing, which is what a coordinator hands out.  Per tier at this tip:
 | T1 SORRY — stated, not closed | 236 | 4 | 12 | 25 | 37 | 118 | 31 | 9 |
 | T2 UNCITED — no Rust function names it | 58 | 14 | 3 | 15 | 16 | 0 | 9 | 1 |
 | T2 UNSTATED — cited, no `_refines`/`_abs`/`_run`/`_obs` | 337 | 135 | 0 | 173 | 20 | 0 | 8 | 1 |
-| T2 SORRY — stated, not closed | 475 | 30 | 41 | 5 | 151 | 130 | 98 | 20 |
+| T2 SORRY — stated, not closed | 474 | 30 | 41 | 4 | 151 | 130 | 98 | 20 |
 
 The **T2 UNCITED** group was 342 rows in round 1 and is 58 now; §7 is where
 the other 284 went.  It is the one group that is not proof work, and it is
@@ -42515,10 +42515,11 @@ red `--selftest` is always a bug in `arena-census.py`.  It runs in **0.06 s**.
 **(1) The 175 `T2 other shape` rows** were the store tier's own convention,
 not a gap: §3's `_abs`/`_run`/`_obs`.  Teaching the script those shapes, and
 then qualifying a Rust method by its `impl` receiver, took the population to
-**22 rows over 8 theorem names** — `intern_of_find`, `tier_s_abs`,
+**23 rows over 9 theorem names** — `intern_of_find`, `tier_s_abs`,
 `vec_index_some`, `word_idx_nat_val`, `der_of_bind_i_obs`,
-`ETables_pushBind_eq_push`, `intern_lam_eq`, `intern_forall_e_eq` — which are
-genuinely *near* the function rather than about it.
+`ETables_pushBind_eq_push`, `intern_lam_eq`, `intern_forall_e_eq`,
+`const_val_set_rel` — which are genuinely *near* the function rather than
+about it.
 
 **(2) The 78 `T1 unrecognised suffix` rows** became 52 once a theorem could
 no longer be credited to a twin in an incompatible namespace, and those 52
@@ -42634,7 +42635,7 @@ swap places rather than one being edited into the other.
 | gate | |
 |---|---|
 | `LAKE_JOBS=4 scripts/gates.sh` (round 1) | **all 13 OK** at `ee337c53` merged — `cargo-build` 3 s, `cargo-test` 8 s, `twin-lines` 1 s, `extract-check` 100 s, `lake-build` 357 s |
-| `LAKE_JOBS=4 scripts/gates.sh` (round 2) | **all 13 OK** at `68aa8437` merged — `cargo-build` 0 s, `cargo-test` 7 s, `lint-rust` 2 s, `provenance` 1 s, `twin-lines` 1 s, `extract-check` **296 s** and `lake-build` **366 s** (both long because the 59 inserted doc lines move the model's `Source:` records, so `Generated/Funs.lean` and its 49 dependents re-elaborate — `scripts/extract.sh` was run and its output committed in the same commit), everything else 0–2 s |
+| `LAKE_JOBS=4 scripts/gates.sh` (round 2) | **all 13 OK** at `68aa8437` merged — `cargo-build` 0 s, `cargo-test` 7 s, `lint-rust` 2 s, `provenance` 1 s, `twin-lines` 1 s, `extract-check` **296 s** and `lake-build` **366 s** (both long because the 59 inserted doc lines move the model's `Source:` records, so `Generated/Funs.lean` and its 49 dependents re-elaborate — `scripts/extract.sh` was run and its output committed in the same commit), everything else 0–2 s.  The later merge of `d9f38ae8` (#97-P5-Core-2) is `proof/` plus fifteen `Lean twin:` DIGITS in `arena/core.rs`/`core_gated.rs` (7+7 and 8+8 lines, no line added), so no `Source:` record of the model moves and no generated doc line changes; the branch gated itself and the cheap gates were re-run here (`cargo build`/`test`, `lint-rust`, `provenance`, `twin-lines` at 1 983 citations, `holes`, the three `gen-*` checks, `overview-links` — all OK), while `extract-check` and `lake-build` are not, per CLAUDE.md's merge rule.  Its only effect on the census is `Core` T2 closed 19 → 20 |
 | `scripts/arena-census.py --selftest` | 26 fixture rows and 16 self-check counts, every verdict as recorded (0.06 s) |
 | `scripts/arena-census.py --summary` | 1.8 s, no STALE / REDUNDANT / MALFORMED skip, no orphan arm, 0 double-credited theorems |
 | the diff (round 2) | `scripts/arena-census.py`, `scripts/arena-census-skip.txt` (92 → 341 lines), `scripts/testdata/arena-census/**`, this section, and **59 `/// Lean twin:` lines in `crates/con-ron-core/src/arena/{pins,expr_ops}.rs` with the generated model they move**.  Nothing else in the Rust, nothing under `proof/` |

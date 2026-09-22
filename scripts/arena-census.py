@@ -128,7 +128,7 @@ rules — the same argument that file makes about `provenance.py`).  A
 citation sits in the doc block of the Rust item just below it; the item's
 `fn` name is the T2 subject.  `proof/ConRon/Refine2/**` then states
 
-    <rust_fn>_refines     the refinement lemma (938 credits at the tip), or
+    <rust_fn>_refines     the refinement lemma (939 credits at the tip), or
     <rust_fn>_no_claim    the "this arm claims nothing" lemma, which counts
                           as stated AND closed, flagged `N` in the table — a
                           `Native` decline or an error constructor the port
