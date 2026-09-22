@@ -31,7 +31,7 @@ representation, not the algorithm), so its theorem is `readLevel`'s exactness
 there is no level algorithm to relate at all.  That is lesson 4's ~1 800
 saved proof lines, collected here.
 -/
-import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Frontend.Shared
 import ConRon.Arena.Frontend.ProjRec
 
 namespace ConRon.Bridge.Frontend
@@ -42,18 +42,59 @@ open ConLeche ConRon.Arena ConRon.Arena.Frontend
 
 /-! ## The name and level helpers -/
 
+/-- con-leche: none — `viewN` in run form, off `Bridge/Specs.lean`'s triple. -/
+theorem viewN_run {s s' : AState} {h : NIdx} {v : NNodeView}
+    (hrun : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (viewN_spec s h)
+
+/-- con-leche: none — the name store's own well-formedness, dug out of the
+arena's: `StoreWF`'s nesting carries it down three levels. -/
+theorem nsWF_of_StateOK {s : AState} (hok : StateOK s) :
+    Arena.NStoreWF s.store.ns := by
+  obtain ⟨rk, hw⟩ := hok.wf
+  obtain ⟨rkl, hl⟩ := hw.lss.ls
+  exact hl.ns
+
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:110 projIotaName — the artifact
 name `T._model.proj_i.iota`, interned.
 
-`sorry`: `Bridge/StoreNested.lean`'s `EStore.internName` spec at a `.str` and
-a `.num` node.  Task #97-P3-Frontend's sorry list, item 10. -/
+Three `internNNode`s, in `Bridge/Frontend/Shared.lean`'s `IStep` shape; the
+persistence is the closed scratch tier's (`PersN_of_view`). -/
 theorem projIotaName_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {T : NIdx} {TP : ConLeche.Name}
     (hT : denoteN s.store.ns T = some TP) {i : Nat} {n : NIdx}
     (hrun : projIotaName T i s = .ok (n, s')) :
     ParseStep s s' ∧ PersN n ∧
       denoteN s'.store.ns n = some (ConLeche.Frontend.projIotaName TP i) := by
-  sorry
+  rw [ConRon.Arena.Frontend.projIotaName] at hrun
+  obtain ⟨a, s₁, h1, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hstep1, -, hda⟩ :=
+    internNNode_istep hok hoff
+      (by intro c hc
+          simp only [NNodeView.children, List.mem_singleton] at hc
+          subst hc; exact nview_isSome_of_denote hT) h1
+  have hda' : denoteN s₁.store.ns a = some (TP.str "_model") := by
+    rw [hda]
+    simp only [denoteNView, denoteN_ext hT hstep1.ext, Option.map_some]
+  obtain ⟨b, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨hstep2, -, hdb⟩ :=
+    internNNode_istep hstep1.ok hstep1.off
+      (by intro c hc
+          simp only [NNodeView.children, List.mem_singleton] at hc
+          subst hc; exact nview_isSome_of_denote hda') h2
+  have hdb' : denoteN s₂.store.ns b
+      = some ((TP.str "_model").str s!"proj_{i}") := by
+    rw [hdb]
+    simp only [denoteNView, denoteN_ext hda' hstep2.ext, Option.map_some]
+  obtain ⟨hstep3, hpn, hdn⟩ :=
+    internNNode_istep hstep2.ok hstep2.off
+      (by intro c hc
+          simp only [NNodeView.children, List.mem_singleton] at hc
+          subst hc; exact nview_isSome_of_denote hdb') hrest2
+  refine ⟨((hstep1.trans hstep2).trans hstep3).toParse hoff, hpn, ?_⟩
+  rw [hdn]
+  simp only [denoteNView, denoteN_ext hdb' hstep3.ext, Option.map_some]
+  rfl
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:116 isProjIotaName — the
 recogniser, which reads the name back and runs con-leche's own test.

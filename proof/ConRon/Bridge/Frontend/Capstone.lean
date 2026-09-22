@@ -414,30 +414,18 @@ of it — `runPipeline` fixes `Frontend.inProcessModeller`, which delegates to
 con-leche's own generator (`Bridge/Frontend/Modeller.lean`'s
 `inProcessModeller_wf` / `_refines`). -/
 
-/-- con-leche: none — **the one conjunct `Bridge/Checker/Pins.lean`'s
-`internAllPins_run` does not yet state**, named here so that the seam letter
-below can be assembled today and close by itself the day it lands.
-
-`internAllPins` is thirty-five pin READS and one `internPinSets`; none of them
-writes a per-declaration cache or a memo table, so this is the same frame
-`ParseStep` carries for the parse.  It is the Checker tier's item 13 to
-discharge (task #97-P3-Checker-2 has the ask); when `internAllPins_run` grows
-the two conjuncts, this definition and the hypothesis below are DELETED and the
-letter's hypotheses are again `hk`, `hind` and the prelude gate. -/
-def InternAllPinsFrame : Prop :=
-  ∀ (ps : List NatOpPinSet) (r : List INatOpPinSet) (s s' : AState),
-    internAllPins ps s = .ok (r, s') → s'.caches = s.caches ∧ s'.memos = s.memos
-
 /-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **THE
 BYTE-LEVEL CAPSTONE, AT THE SEAM**: a file whose chunks are one of the shapes
 `jsonWithTheoremFalse` describes makes the Lean arena checker's whole pipeline
 — the reserved pins, the built-in prelude, the streaming parse, the
 preparation and the two-phase fold — return an error.
 
-Two named hypotheses (`CoreSpec`, `IndSpec`), one gate (`hbytes`, the
+Two named hypotheses (`CoreSpec`, `IndSpec`) and one gate (`hbytes`, the
 prelude's committed bytes; `scripts/gen-prelude-lean.sh --check`, step 11 of
-`scripts/gates.sh`) and — temporarily — `hframe`, the conjunct
-`internAllPins_run` is being strengthened with (see `InternAllPinsFrame`).
+`scripts/gates.sh`) — **and nothing else**.  Round 2 carried a third,
+`InternAllPinsFrame`, for the one conjunct `internAllPins_run` did not state;
+task #97-P3-Checker-2 landed the strengthening (`s'.caches = s.caches ∧
+s'.memos = s.memos`), so the definition and the hypothesis are gone.
 **The modeller's two promises are not hypotheses**: `runPipeline` fixes
 `Frontend.inProcessModeller`, and `inProcessModeller_wf` / `_refines` are
 theorems about it.
@@ -448,7 +436,7 @@ theorems about it.
 The one place it is NOT `Arena.no_False_declaration_prelude` applied is the
 `internAllPins` step, which the letter above does not have between the
 preparation and the fold; the fold's start invariant is re-established at the
-state that walk leaves, which is what `hframe` buys.
+state that walk leaves, off that walk's own `caches` frame.
 
 The start state is `AState.init EStore.empty`, so `StateOK`, the closed
 scratch tier and the empty caches are all `Arena/WFProofs.lean`'s
@@ -457,7 +445,6 @@ well-formedness at all.** -/
 theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
-    (hframe : InternAllPinsFrame)
     (pins : List NatOpPinSet) (chunks : List ByteArray)
     (hfalse : ConLeche.jsonWithTheoremFalse chunks) :
     ∃ e, Arena.runPipeline chunks .verified pins = .error e := by
@@ -544,12 +531,11 @@ theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
       (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre hrelR.decls hpersR hprep
   have hoff3 : s3.store.scratchOn = false := by
     rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoffA
-  obtain ⟨hokP, hxP, hpinsP, hppP, hipins, hpps, -⟩ :=
+  obtain ⟨hokP, hxP, hpinsP, hppP, hipins, hpps, -, hcachesP, -⟩ :=
     internAllPins_run hstep3.ok
       (hpinsA.mono ((hstep1.ext.trans hstep2.ext).trans hstep3.ext)
         (by rw [hstep3.pins, hstep2.pins, hstep1.pins]))
       (hppA.mono (by rw [hstep3.pins, hstep2.pins, hstep1.pins])) hoff3 hpinsrun
-  obtain ⟨hcachesP, -⟩ := hframe pins ipins s3 s3' hpinsrun
   obtain ⟨env', F', -, hfinal⟩ :=
     Arena.installThenCheck_bridge rfl hk hind hpps
       (FoldOK_of_start hokP hpinsP hppP

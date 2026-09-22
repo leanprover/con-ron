@@ -48,7 +48,7 @@ because that is the discipline the original campaign fixed: *a statement about
 an unverified argument is a hypothesis of the statement, never an axiom of the
 environment*.
 -/
-import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Frontend.Shared
 import ConRon.Arena.Frontend.InModel
 
 namespace ConRon.Bridge.Frontend
@@ -67,9 +67,22 @@ PERSISTENT (the parse runs with the scratch tier closed, so a generated record
 that were not would vanish at the fold's first `dropScratch`).
 
 This is the clause that discharges `Bridge/Checker/Capstone.lean`'s `hpd` for
-the generated half of the stream; the parsed half gets it from the parse. -/
+the generated half of the stream; the parsed half gets it from the parse.
+
+**`StateOK s` and the closed scratch tier are hypotheses of the promise**
+(task #97-P3-Frontend round 3's finding 14).  Round 1 wrote the promise
+without them, the way the original campaign's `ModellerWF`
+(`RefineOld/Frontend/Base.lean:154`) is written — but the original's seam is
+PURE and this one runs in `AM`, so its conclusion talks about the store the
+call leaves behind.  With no hypothesis about the store it was handed, `StateOK
+s'` is simply false: at a `Modeller` that returns `[]` the run leaves the state
+alone, so the promise would say `StateOK s` of every state.  Both hypotheses
+hold at every call site (`installIndD_run` is the only consumer and it takes
+them), and a promise about an UNVERIFIED modeller is a promise about what it
+does to a well-formed store — not a promise that it repairs a broken one. -/
 def ModellerWF (md : Modeller) : Prop :=
-  ∀ ctx b s hs s', md.generate ctx b s = .ok (.ok hs, s') →
+  ∀ ctx b s hs s', StateOK s → s.store.scratchOn = false →
+    md.generate ctx b s = .ok (.ok hs, s') →
     StateOK s' ∧ Ext s.store s'.store ∧
       (∀ d ∈ hs, PersDecl d) ∧ (denoteDecls s'.store hs).isSome = true ∧
       s'.memos = s.memos ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
@@ -86,9 +99,15 @@ The decline half is what makes the parse's exactness an `iff` at the record
 level without a second induction: `installIndD`'s `.declined` verdict is
 con-leche's `.declined` verdict, so a stream the twin declines is a stream
 con-leche declines, and the capstone's contrapositive ("the twin never
-accepts") does not have to reason about coverage at all. -/
+accepts") does not have to reason about coverage at all.
+
+`StateOK s` and the closed scratch tier are hypotheses here for the same
+reason as above (finding 14): the answer's DENOTATION is a fact about the
+store, and `denoteDecls` at a store that is not well formed relates nothing to
+anything. -/
 def ModellerRefines (md : Modeller) : Prop :=
-  ∀ ctx ctxP b bP s o s', CtxRel s.store ctx ctxP → BlockRecRel s.store b bP →
+  ∀ ctx ctxP b bP s o s', StateOK s → s.store.scratchOn = false →
+    CtxRel s.store ctx ctxP → BlockRecRel s.store b bP →
     md.generate ctx b s = .ok (o, s') →
     (∀ hs, o = .ok hs → ∀ dsP, denoteDecls s'.store hs = some dsP →
         ConLeche.Frontend.InModel.generate ctxP bP = .ok dsP) ∧
@@ -105,13 +124,39 @@ assumptions about a foreign program.  They are stated here and proved where
 /-- con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — **the delegating
 modeller keeps the first promise.**
 
-`sorry`: `Arena/Frontend/Readback.lean`'s intern exactness
-(`internDecls_run`, `Bridge/Frontend/Shared.lean`) gives the denotation and
-the persistence of the generated records in one; the frame conjuncts are
-`internExpr`'s, which never writes `caches`, `pins` or the scratch flag.  Task
-#97-P3-Frontend's sorry list, item 8. -/
+`Arena/Frontend/Readback.lean`'s intern exactness (`internDecls_istep`,
+`Bridge/Frontend/Shared.lean`) gives the denotation and the persistence of the
+generated records in one; the frame conjuncts are `internE`'s, which never
+writes `caches`, `pins` or the scratch flag. -/
 theorem inProcessModeller_wf : ModellerWF inProcessModeller := by
-  sorry
+  intro ctx b s hs s' hok hoff hrun
+  simp only [inProcessModeller] at hrun
+  obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨ht, hs₁⟩ := AM.get_ok hget
+  rw [ht, hs₁] at hrest
+  cases hb : denoteBlockRec s.store b with
+  | none => rw [hb] at hrest; exact absurd (AM.fail_ok hrest) (by simp)
+  | some bP =>
+  rw [hb] at hrest
+  simp only [] at hrest
+  cases hg : ConLeche.Frontend.InModel.generate (ctxOf s.store ctx) bP with
+  | error why =>
+    rw [hg] at hrest
+    exact absurd (AM.pure_ok hrest).1 (by simp)
+  | ok ds =>
+  rw [hg] at hrest
+  simp only [] at hrest
+  obtain ⟨p, s₂, hint, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨m2, hsx⟩ := p
+  simp only [] at hrest2
+  obtain ⟨hstep, hpers, hden, -⟩ :=
+    internDecls_istep ds hok hoff (EMemoOK.empty s.store) hint
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+  subst hst
+  simp only [Except.ok.injEq] at hv
+  subst hv
+  exact ⟨hstep.ok, hstep.ext, hpers, by rw [hden]; rfl, hstep.memos,
+    hstep.caches, hstep.pins, by rw [hstep.off, hoff]⟩
 
 /-- con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — **the delegating
 modeller keeps the second promise**, and this is the one theorem of the tier
@@ -122,15 +167,48 @@ shown is that `ctxOf s.store ctx` IS `ctxP` and `denoteBlockRec s.store b` IS
 `Bridge/Frontend/Shared.lean`'s `denoteEShared_eq` lifted to the block and the
 context.
 
-`sorry`: `ctxOf_eq_of_ctxRel` and `denoteBlockRec_eq_of_blockRecRel`
-(`Bridge/Frontend/Shared.lean`), then `internDecls_run` for the returned
+`ctxOf_eq_of_rel` and `denoteBlockRec_eq_of_rel`
+(`Bridge/Frontend/Shared.lean`), then `internDecls_istep` for the returned
 records.  The context equality is the only part with content: `ctxOf` probes
 the name store (`nameHandle?`) where `CtxRel` quantifies over handles that
 denote, and the two agree because `denoteN` is injective (DESIGN §8.3's
-exactness obligation, `Arena/Denote.lean`'s `denoteN_inj`).  Task
-#97-P3-Frontend's sorry list, item 8. -/
+exactness obligation, `Arena/Denote.lean`'s `denoteN_inj`) — plus round 2's
+finding 12, the three COVER clauses, for the names the store never interned. -/
 theorem inProcessModeller_refines : ModellerRefines inProcessModeller := by
-  sorry
+  intro ctx ctxP b bP s o s' hok hoff hc hbr hrun
+  simp only [inProcessModeller] at hrun
+  obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨ht, hs₁⟩ := AM.get_ok hget
+  rw [ht, hs₁] at hrest
+  have hb : denoteBlockRec s.store b = some bP := denoteBlockRec_eq_of_rel hok.wf hbr
+  have hctx : ctxOf s.store ctx = ctxP := ctxOf_eq_of_rel hok.wf hc
+  rw [hb] at hrest
+  simp only [] at hrest
+  cases hg : ConLeche.Frontend.InModel.generate (ctxOf s.store ctx) bP with
+  | error why =>
+    rw [hg] at hrest
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst; subst hv
+    exact ⟨fun hs h => absurd h (by simp),
+      fun m _ => ⟨why, by rw [← hctx]; exact hg⟩⟩
+  | ok ds =>
+  rw [hg] at hrest
+  simp only [] at hrest
+  obtain ⟨p, s₂, hint, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨m2, hsx⟩ := p
+  simp only [] at hrest2
+  obtain ⟨hstep, hpers, hden, -⟩ :=
+    internDecls_istep ds hok hoff (EMemoOK.empty s.store) hint
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+  subst hst; subst hv
+  refine ⟨?_, fun m hm => absurd hm (by simp)⟩
+  intro hs h dsP hd
+  simp only [Except.ok.injEq] at h
+  subst h
+  rw [hden] at hd
+  simp only [Option.some.injEq] at hd
+  subst hd
+  rw [← hctx]; exact hg
 
 /-- con-leche: none — the modeller that declines everything keeps the second
 promise only where con-leche declines too, so it is NOT a `ModellerRefines`
@@ -139,7 +217,7 @@ instantiation for a run with modelling switched off, and a proof about it
 would be a proof about a different pipeline.  What it does keep is the first
 promise, vacuously — it never returns records. -/
 theorem declineModeller_wf : ModellerWF declineModeller := by
-  intro ctx b s hs s' h
+  intro ctx b s hs s' _ _ h
   injection h with h1
   injection h1 with h2 _
   exact nomatch h2

@@ -365,7 +365,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨hstep2, hcoh2, hpush2, env2, F2, hden2, hie2, henv2, hpure2⟩ :=
+  obtain ⟨hstep2, hpush2, env2, F2, hst2, hpure2⟩ :=
     checkDefnVal_bridge hμ hk hok1 hcA hv1 g2
   have hok2 : FoldOK μ env fe s2 := hok1.ofCore hstep2
   have hcA2 : Frontend.denoteCV s2.store cvA = some cA :=
@@ -381,13 +381,12 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
         (.defnDecl c x hint) = .ok env2 →
       DeclOut μ pinsP env (.defnDecl c x hint) s fe fe2 sX := by
     intro sX FX hst hx hp hden hpure
-    exact { state := hst, ext := hx, pins := hp, coh := hcoh2,
+    exact { state := hst, ext := hx, pins := hp, coh := hst2.coh,
             pushed := hpush2, run := ⟨env2, FX, hden, hpure⟩ }
   -- the `Nat.div`/`Nat.mod` gate, which both branches of the first gate end in
   have tail : ∀ (sA : AState) (FA : Nat), FoldOK μ env fe sA →
       Ext s.store sA.store → sA.pins = s.pins →
-      denoteN sA.store.ns cvA.name = some cA.name →
-      denoteFEnv sA.store fe2 = some env2 → IFEnvOK env2 fe2 sA →
+      denoteN sA.store.ns cvA.name = some cA.name → StepOK env2 fe2 sA →
       (ConLeche.natDivModNames.contains cA.name = false →
         ConLeche.checkDecl μ (ConLeche.fueledOps μ FA) pinsP env
           (.defnDecl c x hint) = .ok env2) →
@@ -403,7 +402,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
         else ((pure () : AM Unit) >>= fun _ => (pure fe2 : AM IFEnv)))
         sA = .ok (fe', s') →
       DeclOut μ pinsP env (.defnDecl c x hint) s fe fe' s' := by
-    intro sA FA hokA hextA hpinA hnmA hdenA hieA hno hyes rA
+    intro sA FA hokA hextA hpinA hnmA hstA hno hyes rA
     obtain ⟨ds, sB, gB, rB⟩ := AM.bind_ok rA
     obtain ⟨eB, hds⟩ := natDivModNames_run hokA.check.pins gB
     rw [eB] at rB
@@ -415,14 +414,14 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     rcases AM.ite_ok rB with ⟨hyD, hgD⟩ | ⟨hnD, hgD⟩
     · obtain ⟨u, sC, gC, rC⟩ := AM.bind_ok hgD
       obtain ⟨hstC, hxC, hpC, FD, hpureD⟩ :=
-        checkDivModPin_bridge hμ hk hokA hieA
+        checkDivModPin_bridge hμ hk hokA hstA
           (PinsDenote.mono hextA _ _ hpins) hnmA gC
       obtain ⟨rfl, rfl⟩ := AM.pure_ok rC
       exact mkOut _ (max FA FD) hstC (hextA.trans hxC) (by rw [hpC, hpinA])
-        (denoteFEnv_mono hxC hdenA) (hyes FD (hcontD ▸ hyD) hpureD)
+        (denoteFEnv_mono hxC hstA.denote) (hyes FD (hcontD ▸ hyD) hpureD)
     · replace hgD := AM.pure_bind_ok hgD
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hgD
-      refine mkOut _ FA hokA.check.state hextA hpinA hdenA (hno ?_)
+      refine mkOut _ FA hokA.check.state hextA hpinA hstA.denote (hno ?_)
       rw [← hcontD]
       cases hbb : ds.contains cvA.name with
       | false => rfl
@@ -439,32 +438,31 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     have hnatP : ConLeche.natOpNames.contains cA.name = true := hcont3 ▸ hy3
     obtain ⟨deps, s4, g4, r4⟩ := AM.bind_ok hg3
     obtain ⟨hst4, hx4, hc4, hp4, hdeps⟩ :=
-      natOpDeps_run hok2.check.state hnm2 g4
+      natOpDeps_run hok2.check.state hok2.check.pins hnm2 g4
     have hok4 : FoldOK μ env fe s4 :=
       hok2.step (hok2.check.mono hst4 hx4 hc4 hp4) hx4 hp4
     have hnm4 : denoteN s4.store.ns cvA.name = some cA.name :=
       denoteN_ext hnm2 hx4
-    have hie4 : IFEnvOK env2 fe2 s4 := hie2.mono hx4
+    have hie4 : StepOK env2 fe2 s4 := hst2.mono hx4
     obtain ⟨b5, s5, g5, r5⟩ := AM.bind_ok r4
-    obtain ⟨hst5, hx5, hc5, hp5, he5⟩ := natOpGuard_run hst4 hie4 hnm4 g5
+    obtain ⟨hst5, hx5, hc5, hp5, he5⟩ := natOpGuard_run hst4 hie4.ienv hnm4 g5
     have hok5 : FoldOK μ env fe s5 :=
       hok4.step (hok4.check.mono hst5 hx5 hc5 hp5) hx5 hp5
     have hnm5 : denoteN s5.store.ns cvA.name = some cA.name :=
       denoteN_ext hnm4 hx5
-    have hie5 : IFEnvOK env2 fe2 s5 := hie4.mono hx5
+    have hie5 : StepOK env2 fe2 s5 := hie4.mono hx5
     obtain ⟨b6, s6, g6, r6⟩ := AM.bind_ok r5
     obtain ⟨hst6, hx6, hc6, hp6, he6⟩ :=
-      natOpStoredOkAll_run hst5 hie5 (denoteNL_ext hx5 _ _ hdeps) g6
+      natOpStoredOkAll_run hst5 hie5.ienv (denoteNL_ext hx5 _ _ hdeps) g6
     have hok6 : FoldOK μ env fe s6 :=
       hok5.step (hok5.check.mono hst6 hx6 hc6 hp6) hx6 hp6
     have hnm6 : denoteN s6.store.ns cvA.name = some cA.name :=
       denoteN_ext hnm5 hx6
-    have hie6 : IFEnvOK env2 fe2 s6 := hie5.mono hx6
+    have hie6 : StepOK env2 fe2 s6 := hie5.mono hx6
     have hext06 : Ext s.store s6.store :=
       hext02.trans ((hx4.trans hx5).trans hx6)
     have hpin06 : s6.pins = s.pins := by rw [hp6, hp5, hp4, hpin02]
-    have hden6 : denoteFEnv s6.store fe2 = some env2 :=
-      denoteFEnv_mono ((hx4.trans hx5).trans hx6) hden2
+    have hden6 : denoteFEnv s6.store fe2 = some env2 := hie6.denote
     obtain ⟨hy6, r7⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) r6
     replace r7 := AM.pure_bind_ok r7
     have hgP : (ConLeche.natOpGuard env2 cA.name &&
@@ -478,7 +476,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
       rw [hfind] at r7
       match ci, hfind with
       | .defnInfo cv' jv hint', hfind =>
-        obtain ⟨nm', c', hnm', hci', hfindP⟩ := hie6.hit cvA.name _ hfind
+        obtain ⟨nm', c', hnm', hci', hfindP⟩ := hie6.ienv.hit cvA.name _ hfind
         have hnmEq : nm' = cA.name := by
           rw [hnm6] at hnm'; exact (Option.some.inj hnm').symm
         subst hnmEq
@@ -507,7 +505,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
             obtain ⟨okb, s9, g9, r10⟩ := AM.bind_ok r9
             obtain ⟨hstepC, hcertOf⟩ :=
               certifyNatEqs_bridge hμ hk hok8 hdps
-                (natOpEqs_wscoped henv2 hfindP) g9
+                (natOpEqs_wscoped hst2.envWF hfindP) g9
             obtain ⟨hy10, r11⟩ :=
               AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) r10
             replace r11 := AM.pure_bind_ok r11
@@ -519,16 +517,14 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
               rw [hstepC.pins, hp8, hp7, hpin06]
             have hnm9 : denoteN s9.store.ns cvA.name = some cA.name :=
               denoteN_ext (denoteN_ext (denoteN_ext hnm6 hx7) hx8) hstepC.ext
-            have hden9 : denoteFEnv s9.store fe2 = some env2 :=
-              denoteFEnv_mono ((hx7.trans hx8).trans hstepC.ext) hden6
-            have hie9 : IFEnvOK env2 fe2 s9 :=
+            have hie9 : StepOK env2 fe2 s9 :=
               hie6.mono ((hx7.trans hx8).trans hstepC.ext)
             have hle1 : F1 ≤ max (max F1 F2) FC :=
               Nat.le_trans (Nat.le_max_left F1 F2) (Nat.le_max_left _ FC)
             have hle2 : F2 ≤ max (max F1 F2) FC :=
               Nat.le_trans (Nat.le_max_right F1 F2) (Nat.le_max_left _ FC)
             have hleC : FC ≤ max (max F1 F2) FC := Nat.le_max_right _ FC
-            refine tail s9 (max (max F1 F2) FC) hok9 hext09 hpin09 hnm9 hden9
+            refine tail s9 (max (max F1 F2) FC) hok9 hext09 hpin09 hnm9
               hie9 (fun hd => ?_) (fun FD hd hpin => ?_) r11
             · exact checkDecl_defn_pure_yn
                 (checkConstantVal_mono hle1 hpure1)
@@ -556,7 +552,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     replace hg3 := AM.pure_bind_ok hg3
     have hle1 : F1 ≤ max F1 F2 := Nat.le_max_left _ _
     have hle2 : F2 ≤ max F1 F2 := Nat.le_max_right _ _
-    refine tail s2 (max F1 F2) hok2 hext02 hpin02 hnm2 hden2 hie2
+    refine tail s2 (max F1 F2) hok2 hext02 hpin02 hnm2 hst2
       (fun hd => ?_) (fun FD hd hpin => ?_) hg3
     · exact checkDecl_defn_pure_nn (checkConstantVal_mono hle1 hpure1)
         (checkDefnVal_mono hle2 hpure2) hnatP hd
@@ -587,7 +583,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
     checkConstantVal_bridge hμ hk hok hcv g1
   have hok1 : FoldOK μ env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
-  obtain ⟨hstep2, hcoh2, hpush2, env', F2, hden2, hie2, henv2, hpure2⟩ :=
+  obtain ⟨hstep2, hpush2, env', F2, hstep, hpure2⟩ :=
     checkThmVal_bridge hμ hk hok1 hcA hv1 r1
   have hle1 : F1 ≤ max F1 F2 := Nat.le_max_left _ _
   have hle2 : F2 ≤ max F1 F2 := Nat.le_max_right _ _
@@ -595,9 +591,9 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
     { state := hstep2.ok.state
       ext := hstep1.ext.trans hstep2.ext
       pins := by rw [hstep2.pins, hstep1.pins]
-      coh := hcoh2
+      coh := hstep.coh
       pushed := hpush2
-      run := ⟨env', max F1 F2, hden2,
+      run := ⟨env', max F1 F2, hstep.denote,
         checkDecl_thm_pure (checkConstantVal_mono hle1 hpure1)
           (checkThmVal_mono hle2 hpure2)⟩ }
 
@@ -626,7 +622,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨hstep2, hcoh2, hpush2, env2, F2, hden2, hie2, henv2, hpure2⟩ :=
+  obtain ⟨hstep2, hpush2, env2, F2, hstepOK2, hpure2⟩ :=
     checkOpaqueVal_bridge hμ hk hok1 hcA hv1 g2
   have hx2 : Ext s1.store s2.store := hstep2.ext
   have hp2 : s2.pins = s1.pins := hstep2.pins
@@ -649,7 +645,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
   · -- the gate runs
     obtain ⟨u4, s4, g4, r4⟩ := AM.bind_ok hgood
     obtain ⟨hst4, hx4, hp4, F4, hpure4⟩ :=
-      checkReducePin_bridge hμ hk hok2 hie2 hnm2 hv2 g4
+      checkReducePin_bridge hμ hk hok2 hstepOK2 hnm2 hv2 g4
     obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
     have hle1' : F1 ≤ max (max F1 F2) F4 :=
       Nat.le_trans hle1 (Nat.le_max_left _ F4)
@@ -660,10 +656,10 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
       { state := hst4
         ext := (hstep1.ext.trans hx2).trans hx4
         pins := by rw [hp4, hp2, hstep1.pins]
-        coh := hcoh2
+        coh := hstepOK2.coh
         pushed := hpush2
         run := ⟨env2, max (max F1 F2) F4,
-          denoteFEnv_mono hx4 hden2,
+          denoteFEnv_mono hx4 hstepOK2.denote,
           checkDecl_opaque_pin_pure (checkConstantVal_mono hle1' hpure1)
             (checkOpaqueVal_mono hle2' hpure2) (hcont ▸ hyes)
             (checkReducePin_mono hle4' hpure4)⟩ }
@@ -679,9 +675,9 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
       { state := hst2
         ext := hstep1.ext.trans hx2
         pins := by rw [hp2, hstep1.pins]
-        coh := hcoh2
+        coh := hstepOK2.coh
         pushed := hpush2
-        run := ⟨env2, max F1 F2, hden2,
+        run := ⟨env2, max F1 F2, hstepOK2.denote,
           checkDecl_opaque_pure (checkConstantVal_mono hle1 hpure1)
             (checkOpaqueVal_mono hle2 hpure2) hnoP⟩ }
 

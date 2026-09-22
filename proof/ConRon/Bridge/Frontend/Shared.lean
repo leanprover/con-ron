@@ -39,6 +39,7 @@ P2d twinned them.  Its exactness is the mirror statement, `denoteE st'
 structural recursion, with the `EMemo` invariant in the same shape.
 -/
 import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.SpecsL
 import ConRon.Arena.Frontend.Readback
 
 namespace ConRon.Bridge.Frontend
@@ -832,43 +833,1137 @@ def EMemoOK (st : EStore) (m : EMemo) : Prop :=
 theorem EMemoOK.empty (st : EStore) : EMemoOK st (∅ : EMemo) := by
   intro e h hm; simp at hm
 
+theorem EMemoOK.mono {st st' : EStore} {m : EMemo} (h : EMemoOK st m)
+    (hx : Ext st st') : EMemoOK st' m :=
+  fun e i hi => denote_ext (h e i hi) hx
+
+theorem EMemoOK.insert {st : EStore} {m : EMemo} (hm : EMemoOK st m)
+    {e : Expr} {i : EIdx} (hd : denoteE st i = some e) :
+    EMemoOK st (m.insert e i) := by
+  intro k x hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i heq
+    obtain rfl : e = k := by simpa using heq
+    simp only [Option.some.injEq] at hk
+    subst hk; exact hd
+  · exact hm k x hk
+
+/-! ## The intern direction's frame -/
+
+structure IStep (s s' : AState) : Prop where
+  ok : StateOK s'
+  ext : Ext s.store s'.store
+  off : s'.store.scratchOn = false
+  memos : s'.memos = s.memos
+  caches : s'.caches = s.caches
+  pins : s'.pins = s.pins
+
+theorem IStep.refl {s : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) : IStep s s :=
+  ⟨hok, Ext.refl _, hoff, rfl, rfl, rfl⟩
+
+theorem IStep.trans {a b c : AState} (h₁ : IStep a b) (h₂ : IStep b c) :
+    IStep a c :=
+  ⟨h₂.ok, h₁.ext.trans h₂.ext, h₂.off, by rw [h₂.memos, h₁.memos],
+    by rw [h₂.caches, h₁.caches], by rw [h₂.pins, h₁.pins]⟩
+
+theorem IStep.toParse {s s' : AState} (h : IStep s s')
+    (hoff : s.store.scratchOn = false) : ParseStep s s' :=
+  ParseStep.of_caches h.ok h.ext (by rw [h.off, hoff]) h.memos h.caches h.pins
+
+/-! ## `internE`'s scratch flag -/
+
+theorem EStore.scratchOn_intern (st : EStore) (w : ENodeView) :
+    (st.intern w).1.scratchOn = st.scratchOn := by
+  rw [EStore.intern, EStore.scratchOn_internAt]
+  rcases EStore.internBMOfView_cases st w with he | ⟨m, he⟩ | ⟨m, he⟩ <;> rw [he]
+
+theorem AM.set_state_ok {s s' t : AState} {u : PUnit}
+    (h : (set t : AM PUnit) s = .ok (u, s')) : s' = t := by
+  have he : ((PUnit.unit, t) : PUnit × AState) = (u, s') := Except.ok.inj h
+  exact (congrArg Prod.snd he).symm
+
+theorem internE_scratchOn {s s' : AState} {v : ENodeView} {h : EIdx}
+    (hrun : internE v s = .ok (h, s')) :
+    s'.store.scratchOn = s.store.scratchOn := by
+  rw [internE] at hrun
+  obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨ht, hs₁⟩ := AM.get_ok hget
+  rw [ht, hs₁] at hrest
+  cases hf : s.store.find? v with
+  | some i => rw [hf] at hrest; rw [(AM.pure_ok hrest).2]
+  | none =>
+    rw [hf] at hrest
+    simp only [] at hrest
+    repeat' split at hrest
+    all_goals
+      first
+        | exact absurd (AM.fail_ok hrest) (by simp)
+        | (obtain ⟨u, s₂, hset, hrest2⟩ := AM.bind_ok hrest
+           rw [(AM.pure_ok hrest2).2, AM.set_state_ok hset]
+           exact EStore.scratchOn_intern _ _)
+
+/-! ## The four leaf interns, in run form -/
+
+theorem internE_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {v : ENodeView} (hv : s.store.ViewOK v)
+    {h : EIdx} (hrun : internE v s = .ok (h, s')) :
+    IStep s s' ∧ PersE h ∧ denoteE s'.store h = denoteEView s'.store v := by
+  obtain ⟨hwf, hx, -, -, hm, hc, hp, hview, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s v hok.wf hv)
+  have hon : s'.store.scratchOn = false := by
+    rw [internE_scratchOn hrun]; exact hoff
+  exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, PersE_of_view hwf hon hview, hden⟩
+
+theorem internName_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {nm : ConLeche.Name} {h : NIdx}
+    (hrun : ConRon.Arena.internName nm s = .ok (h, s')) :
+    IStep s s' ∧ PersN h ∧ denoteN s'.store.ns h = some nm := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internName_spec s nm hok.wf)
+  have hon' : s'.store.scratchOn = false := by rw [hon]; exact hoff
+  obtain ⟨w, hw⟩ := Arena.denoteN_view hden
+  exact ⟨⟨⟨hwf⟩, hx, hon', hm, hc, hp⟩, PersN_of_view hwf hon' hw, hden⟩
+
+theorem internLevel_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {u : Level} {h : LIdx}
+    (hrun : ConRon.Arena.internLevel u s = .ok (h, s')) :
+    IStep s s' ∧ PersL h ∧ denoteL s'.store.ls h = some u := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLevel_spec s u hok.wf)
+  have hon' : s'.store.scratchOn = false := by rw [hon]; exact hoff
+  obtain ⟨w, hw⟩ := Arena.denoteL_view hden
+  exact ⟨⟨⟨hwf⟩, hx, hon', hm, hc, hp⟩, PersL_of_view hwf hon' hw, hden⟩
+
+theorem internLevels_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {us : List Level} {h : LsIdx}
+    (hrun : ConRon.Arena.internLevels us s = .ok (h, s')) :
+    IStep s s' ∧ denoteLs s'.store.lss h = some us := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLevels_spec s us hok.wf)
+  exact ⟨⟨⟨hwf⟩, hx, by rw [hon]; exact hoff, hm, hc, hp⟩, hden⟩
+
+/-! ## Two handle lists -/
+
+theorem internNameList_istep : ∀ (ns : List ConLeche.Name) {s s' : AState}
+    {hs : List NIdx}, StateOK s → s.store.scratchOn = false →
+    ConRon.Arena.Frontend.internNameList ns s = .ok (hs, s') →
+    IStep s s' ∧ PersNList hs ∧ denoteNList s'.store.ns hs = some ns := by
+  intro ns
+  induction ns with
+  | nil =>
+    intro s s' hs hok hoff hrun
+    rw [ConRon.Arena.Frontend.internNameList] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst; subst hv
+    exact ⟨IStep.refl hok hoff, by intro n hn; simp at hn, rfl⟩
+  | cons a as ih =>
+    intro s s' hs hok hoff hrun
+    rw [ConRon.Arena.Frontend.internNameList] at hrun
+    obtain ⟨h1, s₁, hn, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hpn, hdn⟩ := internName_istep hok hoff hn
+    obtain ⟨t1, s₂, hns, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hpns, hdns⟩ := ih hstep1.ok hstep1.off hns
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst; subst hv
+    refine ⟨hstep1.trans hstep2, ?_, ?_⟩
+    · intro n hn'
+      simp only [List.mem_cons] at hn'
+      rcases hn' with rfl | hn'
+      · exact hpn
+      · exact hpns n hn'
+    · simp only [denoteNList, denoteN_ext hdn hstep2.ext, hdns]
+
+theorem internLevelList_istep : ∀ (us : List Level) {s s' : AState}
+    {hs : List LIdx}, StateOK s → s.store.scratchOn = false →
+    ConRon.Arena.internLevelList us s = .ok (hs, s') →
+    IStep s s' ∧ PersLList hs ∧ denoteLList s'.store.ls hs = some us := by
+  intro us
+  induction us with
+  | nil =>
+    intro s s' hs hok hoff hrun
+    rw [ConRon.Arena.internLevelList] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst; subst hv
+    exact ⟨IStep.refl hok hoff, by intro u hu; simp at hu, rfl⟩
+  | cons a as ih =>
+    intro s s' hs hok hoff hrun
+    rw [ConRon.Arena.internLevelList] at hrun
+    obtain ⟨h1, s₁, hl, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hpl, hdl⟩ := internLevel_istep hok hoff hl
+    obtain ⟨t1, s₂, hls, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hpls, hdls⟩ := ih hstep1.ok hstep1.off hls
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst; subst hv
+    refine ⟨hstep1.trans hstep2, ?_, ?_⟩
+    · intro u hu
+      simp only [List.mem_cons] at hu
+      rcases hu with rfl | hu
+      · exact hpl
+      · exact hpls u hu
+    · simp only [denoteLList, opt2_eq_some_iff]
+      exact ⟨a, as, denoteL_ext hdl hstep2.ext, hdls, rfl⟩
+
+/-! ## The expression intern, arm by arm -/
+
+theorem internExprGo_istep :
+    ∀ (e : Expr) {s s' : AState} {m m' : EMemo} {h : EIdx},
+      StateOK s → s.store.scratchOn = false → EMemoOK s.store m →
+      internExprGo m e s = .ok ((m', h), s') →
+      IStep s s' ∧ PersE h ∧ denoteE s'.store h = some e ∧
+        EMemoOK s'.store m' := by
+  intro e
+  induction e with
+  | bvar i =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    obtain ⟨x, s₁, hin, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hhh⟩ := hv
+    subst hmm; subst hhh
+    obtain ⟨hstep1, hpe, hden⟩ := internE_istep hok hoff viewOK_bvar hin
+    exact ⟨hstep1, hpe, by rw [hden]; rfl, hm.mono hstep1.ext⟩
+  | lit l =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    obtain ⟨x, s₁, hin, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hhh⟩ := hv
+    subst hmm; subst hhh
+    obtain ⟨hstep1, hpe, hden⟩ := internE_istep hok hoff viewOK_lit hin
+    exact ⟨hstep1, hpe, by rw [hden]; rfl, hm.mono hstep1.ext⟩
+  | sort u =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    obtain ⟨lu, s₁, hl, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hpl, hdl⟩ := internLevel_istep hok hoff hl
+    obtain ⟨x, s₂, hin, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hpe, hden⟩ :=
+      internE_istep hstep1.ok hstep1.off
+        (viewOK_sort (lview_isSome_of_denote hdl)) hin
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hhh⟩ := hv
+    subst hmm; subst hhh
+    refine ⟨hstep1.trans hstep2, hpe, ?_,
+      (hm.mono hstep1.ext).mono hstep2.ext⟩
+    rw [hden]
+    simp only [denoteEView, denoteL_ext hdl hstep2.ext, Option.map_some]
+  | const n us =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    obtain ⟨hn, s₁, hnm, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hpn, hdn⟩ := internName_istep hok hoff hnm
+    obtain ⟨hus, s₂, hls, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hdls⟩ := internLevels_istep hstep1.ok hstep1.off hls
+    obtain ⟨x, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨hstep3, hpe, hden⟩ :=
+      internE_istep hstep2.ok hstep2.off
+        (viewOK_const (nview_isSome_of_denote (denoteN_ext hdn hstep2.ext))
+          (by obtain ⟨w, hw, -⟩ := Arena.denoteLs_view hdls; rw [hw]; rfl)) hin
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hhh⟩ := hv
+    subst hmm; subst hhh
+    refine ⟨(hstep1.trans hstep2).trans hstep3, hpe, ?_,
+      ((hm.mono hstep1.ext).mono hstep2.ext).mono hstep3.ext⟩
+    rw [hden]
+    simp only [denoteEView, opt2_eq_some_iff]
+    exact ⟨n, us, denoteN_ext hdn (hstep2.ext.trans hstep3.ext),
+      hstep3.ext.lss.lst hus us hdls, rfl⟩
+  | fvar i ty ih =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    cases hmem : m[Expr.fvar i ty]? with
+    | some hh =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      have hd := hm _ _ hmem
+      obtain ⟨w, hw⟩ := Arena.denoteE_view hd
+      exact ⟨IStep.refl hok hoff, PersE_of_view hok.wf hoff hw, hd, hm⟩
+    | none =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨m1, t1⟩ := p1
+      obtain ⟨hstep1, hpt, hdt, hm1⟩ := ih hok hoff hm h1
+      simp only [] at hrest
+      obtain ⟨x, s₂, hin, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hstep2, hpe, hden⟩ :=
+        internE_istep hstep1.ok hstep1.off (viewOK_fvar (by rw [hdt]; rfl)) hin
+      have hde : denoteE s₂.store x = some (Expr.fvar i ty) := by
+        rw [hden]
+        simp only [denoteEView, denote_ext hdt hstep2.ext, Option.map_some]
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      exact ⟨hstep1.trans hstep2, hpe, hde,
+        (hm1.mono hstep2.ext).insert hde⟩
+  | app f a ihf iha =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    cases hmem : m[Expr.app f a]? with
+    | some hh =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      have hd := hm _ _ hmem
+      obtain ⟨w, hw⟩ := Arena.denoteE_view hd
+      exact ⟨IStep.refl hok hoff, PersE_of_view hok.wf hoff hw, hd, hm⟩
+    | none =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨m1, hf⟩ := p1
+      obtain ⟨hstep1, hpf, hdf, hm1⟩ := ihf hok hoff hm h1
+      simp only [] at hrest
+      obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨m2, ha⟩ := p2
+      obtain ⟨hstep2, hpa, hda, hm2⟩ := iha hstep1.ok hstep1.off hm1 h2
+      simp only [] at hrest2
+      obtain ⟨x, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
+      obtain ⟨hstep3, hpe, hden⟩ :=
+        internE_istep hstep2.ok hstep2.off
+          (viewOK_app (by rw [denote_ext hdf hstep2.ext]; rfl)
+            (by rw [hda]; rfl)) hin
+      have hde : denoteE s₃.store x = some (Expr.app f a) := by
+        rw [hden]
+        simp only [denoteEView, opt2_eq_some_iff]
+        exact ⟨f, a, denote_ext hdf (hstep2.ext.trans hstep3.ext),
+          denote_ext hda hstep3.ext, rfl⟩
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      exact ⟨(hstep1.trans hstep2).trans hstep3, hpe, hde,
+        (hm2.mono hstep3.ext).insert hde⟩
+  | lam ty b bi ihty ihb =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    cases hmem : m[Expr.lam ty b bi]? with
+    | some hh =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      have hd := hm _ _ hmem
+      obtain ⟨w, hw⟩ := Arena.denoteE_view hd
+      exact ⟨IStep.refl hok hoff, PersE_of_view hok.wf hoff hw, hd, hm⟩
+    | none =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨m1, ht⟩ := p1
+      obtain ⟨hstep1, hpt, hdt, hm1⟩ := ihty hok hoff hm h1
+      simp only [] at hrest
+      obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨m2, hb⟩ := p2
+      obtain ⟨hstep2, hpb, hdb, hm2⟩ := ihb hstep1.ok hstep1.off hm1 h2
+      simp only [] at hrest2
+      obtain ⟨x, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
+      obtain ⟨hstep3, hpe, hden⟩ :=
+        internE_istep hstep2.ok hstep2.off
+          (viewOK_lam (by rw [denote_ext hdt hstep2.ext]; rfl)
+            (by rw [hdb]; rfl)) hin
+      have hde : denoteE s₃.store x = some (Expr.lam ty b bi) := by
+        rw [hden]
+        simp only [denoteEView, opt2_eq_some_iff]
+        exact ⟨ty, b, denote_ext hdt (hstep2.ext.trans hstep3.ext),
+          denote_ext hdb hstep3.ext, rfl⟩
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      exact ⟨(hstep1.trans hstep2).trans hstep3, hpe, hde,
+        (hm2.mono hstep3.ext).insert hde⟩
+  | forallE ty b bi ihty ihb =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    cases hmem : m[Expr.forallE ty b bi]? with
+    | some hh =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      have hd := hm _ _ hmem
+      obtain ⟨w, hw⟩ := Arena.denoteE_view hd
+      exact ⟨IStep.refl hok hoff, PersE_of_view hok.wf hoff hw, hd, hm⟩
+    | none =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨m1, ht⟩ := p1
+      obtain ⟨hstep1, hpt, hdt, hm1⟩ := ihty hok hoff hm h1
+      simp only [] at hrest
+      obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨m2, hb⟩ := p2
+      obtain ⟨hstep2, hpb, hdb, hm2⟩ := ihb hstep1.ok hstep1.off hm1 h2
+      simp only [] at hrest2
+      obtain ⟨x, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
+      obtain ⟨hstep3, hpe, hden⟩ :=
+        internE_istep hstep2.ok hstep2.off
+          (viewOK_forallE (by rw [denote_ext hdt hstep2.ext]; rfl)
+            (by rw [hdb]; rfl)) hin
+      have hde : denoteE s₃.store x = some (Expr.forallE ty b bi) := by
+        rw [hden]
+        simp only [denoteEView, opt2_eq_some_iff]
+        exact ⟨ty, b, denote_ext hdt (hstep2.ext.trans hstep3.ext),
+          denote_ext hdb hstep3.ext, rfl⟩
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      exact ⟨(hstep1.trans hstep2).trans hstep3, hpe, hde,
+        (hm2.mono hstep3.ext).insert hde⟩
+  | letE ty v b ihty ihv ihb =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    cases hmem : m[Expr.letE ty v b]? with
+    | some hh =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨hv', hst⟩ := AM.pure_ok hrun
+      subst hst
+      simp only [Prod.mk.injEq] at hv'
+      obtain ⟨hmm, hhh⟩ := hv'
+      subst hmm; subst hhh
+      have hd := hm _ _ hmem
+      obtain ⟨w, hw⟩ := Arena.denoteE_view hd
+      exact ⟨IStep.refl hok hoff, PersE_of_view hok.wf hoff hw, hd, hm⟩
+    | none =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨m1, ht⟩ := p1
+      obtain ⟨hstep1, hpt, hdt, hm1⟩ := ihty hok hoff hm h1
+      simp only [] at hrest
+      obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨m2, hvv⟩ := p2
+      obtain ⟨hstep2, hpv, hdv, hm2⟩ := ihv hstep1.ok hstep1.off hm1 h2
+      simp only [] at hrest2
+      obtain ⟨p3, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+      obtain ⟨m3, hb⟩ := p3
+      obtain ⟨hstep3, hpb, hdb, hm3⟩ := ihb hstep2.ok hstep2.off hm2 h3
+      simp only [] at hrest3
+      obtain ⟨x, s₄, hin, hrest4⟩ := AM.bind_ok hrest3
+      obtain ⟨hstep4, hpe, hden⟩ :=
+        internE_istep hstep3.ok hstep3.off
+          (viewOK_letE
+            (by rw [denote_ext hdt (hstep2.ext.trans hstep3.ext)]; rfl)
+            (by rw [denote_ext hdv hstep3.ext]; rfl) (by rw [hdb]; rfl)) hin
+      have hde : denoteE s₄.store x = some (Expr.letE ty v b) := by
+        rw [hden]
+        simp only [denoteEView, opt3_eq_some_iff]
+        exact ⟨ty, v, b,
+          denote_ext hdt ((hstep2.ext.trans hstep3.ext).trans hstep4.ext),
+          denote_ext hdv (hstep3.ext.trans hstep4.ext),
+          denote_ext hdb hstep4.ext, rfl⟩
+      obtain ⟨hv', hst⟩ := AM.pure_ok hrest4
+      subst hst
+      simp only [Prod.mk.injEq] at hv'
+      obtain ⟨hmm, hhh⟩ := hv'
+      subst hmm; subst hhh
+      exact ⟨((hstep1.trans hstep2).trans hstep3).trans hstep4, hpe, hde,
+        (hm3.mono hstep4.ext).insert hde⟩
+  | proj n i sub ih =>
+    intro s s' m m' h hok hoff hm hrun
+    rw [internExprGo] at hrun
+    cases hmem : m[Expr.proj n i sub]? with
+    | some hh =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      have hd := hm _ _ hmem
+      obtain ⟨w, hw⟩ := Arena.denoteE_view hd
+      exact ⟨IStep.refl hok hoff, PersE_of_view hok.wf hoff hw, hd, hm⟩
+    | none =>
+      rw [hmem] at hrun
+      simp only [] at hrun
+      obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨m1, hsu⟩ := p1
+      obtain ⟨hstep1, hps, hds, hm1⟩ := ih hok hoff hm h1
+      simp only [] at hrest
+      obtain ⟨hn, s₂, hnm, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hstep2, hpn, hdn⟩ := internName_istep hstep1.ok hstep1.off hnm
+      obtain ⟨x, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
+      obtain ⟨hstep3, hpe, hden⟩ :=
+        internE_istep hstep2.ok hstep2.off
+          (viewOK_proj (nview_isSome_of_denote hdn)
+            (by rw [denote_ext hds hstep2.ext]; rfl)) hin
+      have hde : denoteE s₃.store x = some (Expr.proj n i sub) := by
+        rw [hden]
+        simp only [denoteEView, opt2_eq_some_iff]
+        exact ⟨n, sub, denoteN_ext hdn hstep3.ext,
+          denote_ext hds (hstep2.ext.trans hstep3.ext), rfl⟩
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+      subst hst
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨hmm, hhh⟩ := hv
+      subst hmm; subst hhh
+      exact ⟨(hstep1.trans hstep2).trans hstep3, hpe, hde,
+        (hm1.mono (hstep2.ext.trans hstep3.ext)).insert hde⟩
+
+theorem internExprList_istep : ∀ (es : List Expr) {s s' : AState}
+    {m m' : EMemo} {hs : List EIdx}, StateOK s → s.store.scratchOn = false →
+    EMemoOK s.store m → ConRon.Arena.Frontend.internExprList m es s = .ok ((m', hs), s') →
+    IStep s s' ∧ PersEList hs ∧ denoteEList s'.store hs = some es ∧
+      EMemoOK s'.store m' := by
+  intro es
+  induction es with
+  | nil =>
+    intro s s' m m' hs hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internExprList] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hhh⟩ := hv
+    subst hmm; subst hhh
+    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm⟩
+  | cons e es ih =>
+    intro s s' m m' hs hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internExprList] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, x1⟩ := p1
+    obtain ⟨hstep1, hpe, hde, hm1⟩ := internExprGo_istep e hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, xs⟩ := p2
+    obtain ⟨hstep2, hpes, hdes, hm2⟩ :=
+      ih hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hhh⟩ := hv
+    subst hmm; subst hhh
+    refine ⟨hstep1.trans hstep2, ?_, ?_, hm2⟩
+    · intro x hx
+      simp only [List.mem_cons] at hx
+      rcases hx with rfl | hx
+      · exact hpe
+      · exact hpes x hx
+    · simp only [denoteEList, denote_ext hde hstep2.ext, hdes]
+
+/-! ## The reserved projection-table name -/
+
+theorem internNNode_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {v : NNodeView}
+    (hv : s.store.ns.ViewOK v) {h : NIdx}
+    (hrun : internNNode v s = .ok (h, s')) :
+    IStep s s' ∧ PersN h ∧
+      denoteN s'.store.ns h = denoteNView s'.store.ns v := by
+  obtain ⟨hwf, hx, -, -, hon, hm, hc, hp, hview, hden⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
+  have hon' : s'.store.scratchOn = false := by rw [hon]; exact hoff
+  exact ⟨⟨⟨hwf⟩, hx, hon', hm, hc, hp⟩, PersN_of_view hwf hon' hview, hden⟩
+
+theorem projTableName_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {T : NIdx} {Tn : ConLeche.Name}
+    (hT : denoteN s.store.ns T = some Tn) {h : NIdx}
+    (hrun : ConRon.Arena.projTableName T s = .ok (h, s')) :
+    IStep s s' ∧ PersN h := by
+  rw [ConRon.Arena.projTableName] at hrun
+  obtain ⟨a, s₁, h1, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hstep1, hpa, hda⟩ :=
+    internNNode_istep hok hoff
+      (by intro c hc
+          simp only [NNodeView.children, List.mem_singleton] at hc
+          subst hc; exact nview_isSome_of_denote hT) h1
+  have hda' : (s₁.store.ns.view a).isSome = true := by
+    obtain ⟨w, hw⟩ := Arena.denoteN_view
+      (show denoteN s₁.store.ns a = some (Tn.str "projTable") by
+        rw [hda]; simp only [denoteNView, denoteN_ext hT hstep1.ext,
+          Option.map_some])
+    rw [hw]; rfl
+  obtain ⟨hstep2, hpb, -⟩ :=
+    internNNode_istep hstep1.ok hstep1.off
+      (by intro c hc
+          simp only [NNodeView.children, List.mem_singleton] at hc
+          subst hc; exact hda') hrest
+  exact ⟨hstep1.trans hstep2, hpb⟩
+
+/-! ## The record layers -/
+
+theorem internCV_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
+    {cv : ConstantVal} {icv : IConstantVal}
+    (hrun : internCV m cv s = .ok ((m', icv), s')) :
+    IStep s s' ∧ PersCV icv ∧ denoteCV s'.store icv = some cv ∧
+      EMemoOK s'.store m' := by
+  rw [ConRon.Arena.Frontend.internCV] at hrun
+  obtain ⟨hn, s₁, h1, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hstep1, hpn, hdn⟩ := internName_istep hok hoff h1
+  obtain ⟨hlps, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨hstep2, hplps, hdlps⟩ :=
+    internNameList_istep cv.levelParams hstep1.ok hstep1.off h2
+  obtain ⟨p3, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+  obtain ⟨m3, hty⟩ := p3
+  obtain ⟨hstep3, hpty, hdty, hm3⟩ :=
+    internExprGo_istep cv.type hstep2.ok hstep2.off
+      (hm.mono (hstep1.ext.trans hstep2.ext)) h3
+  simp only [] at hrest3
+  have hd : denoteCV s₃.store ⟨hn, hlps, hty⟩ = some cv := by
+    simp only [denoteCV, denoteN_ext hdn (hstep2.ext.trans hstep3.ext),
+      denoteNListE_ext hstep3.ext _ _ hdlps, hdty]
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+  subst hst
+  simp only [Prod.mk.injEq] at hv
+  obtain ⟨hmm, hii⟩ := hv
+  subst hmm; subst hii
+  exact ⟨(hstep1.trans hstep2).trans hstep3,
+    ⟨hpn, hplps, hpty⟩, hd, hm3⟩
+
+theorem internFire_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
+    {f : RecRuleFire} {fi : IRecRuleFire}
+    (hrun : internFire m f s = .ok ((m', fi), s')) :
+    IStep s s' ∧ PersFire fi ∧ denoteFire s'.store fi = some f ∧
+      EMemoOK s'.store m' := by
+  cases f with
+  | inert =>
+    rw [ConRon.Arena.Frontend.internFire] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨IStep.refl hok hoff, trivial, rfl, hm⟩
+  | plain =>
+    rw [ConRon.Arena.Frontend.internFire] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨IStep.refl hok hoff, trivial, rfl, hm⟩
+  | nested lvls pins =>
+    rw [ConRon.Arena.Frontend.internFire] at hrun
+    obtain ⟨hls, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hpls, hdls⟩ := internLevelList_istep lvls hok hoff h1
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, hps⟩ := p2
+    obtain ⟨hstep2, hpps, hdps, hm2⟩ :=
+      internExprList_istep pins hstep1.ok hstep1.off (hm.mono hstep1.ext) h2
+    simp only [] at hrest2
+    have hd : denoteFire s₂.store (.nested hls hps) = some (.nested lvls pins) := by
+      simp only [denoteFire, denoteLListE_ext hstep2.ext _ _ hdls, hdps]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpls, hpps⟩, hd, hm2⟩
+
+theorem internRule_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
+    {rl : RecRule} {ri : IRecRule}
+    (hrun : internRule m rl s = .ok ((m', ri), s')) :
+    IStep s s' ∧ PersRule ri ∧ denoteRule s'.store ri = some rl ∧
+      EMemoOK s'.store m' := by
+  rw [ConRon.Arena.Frontend.internRule] at hrun
+  obtain ⟨hc, s₁, h1, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hstep1, hpc, hdc⟩ := internName_istep hok hoff h1
+  obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨m2, hf⟩ := p2
+  obtain ⟨hstep2, hpf, hdf, hm2⟩ :=
+    internFire_istep hstep1.ok hstep1.off (hm.mono hstep1.ext) h2
+  simp only [] at hrest2
+  obtain ⟨p3, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+  obtain ⟨m3, hr⟩ := p3
+  obtain ⟨hstep3, hpr, hdr, hm3⟩ :=
+    internExprGo_istep rl.rhs hstep2.ok hstep2.off hm2 h3
+  simp only [] at hrest3
+  have hd : denoteRule s₃.store
+      ⟨hc, rl.nfields, rl.ctorParams, hf, hr, rl.k, rl.eta, rl.paramsBlind⟩
+      = some rl := by
+    simp only [denoteRule, denoteN_ext hdc (hstep2.ext.trans hstep3.ext),
+      denoteFire_ext hdf hstep3.ext, hdr]
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
+  subst hst
+  simp only [Prod.mk.injEq] at hv
+  obtain ⟨hmm, hii⟩ := hv
+  subst hmm; subst hii
+  exact ⟨(hstep1.trans hstep2).trans hstep3, ⟨hpc, hpf, hpr⟩, hd, hm3⟩
+
+theorem internRules_istep : ∀ (rs : List RecRule) {s s' : AState}
+    {m m' : EMemo} {ris : List IRecRule}, StateOK s →
+    s.store.scratchOn = false → EMemoOK s.store m →
+    internRules m rs s = .ok ((m', ris), s') →
+    IStep s s' ∧ PersRules ris ∧ denoteRules s'.store ris = some rs ∧
+      EMemoOK s'.store m' := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro s s' m m' ris hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internRules] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm⟩
+  | cons r rs ih =>
+    intro s s' m m' ris hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internRules] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, x1⟩ := p1
+    obtain ⟨hstep1, hpr, hdr, hm1⟩ := internRule_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, xs⟩ := p2
+    obtain ⟨hstep2, hprs, hdrs, hm2⟩ := ih hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteRules s₂.store (x1 :: xs) = some (r :: rs) := by
+      simp only [denoteRules, denoteRule_ext hdr hstep2.ext, hdrs]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    refine ⟨hstep1.trans hstep2, ?_, hd, hm2⟩
+    intro x hx
+    simp only [List.mem_cons] at hx
+    rcases hx with rfl | hx
+    · exact hpr
+    · exact hprs x hx
+
+theorem internCaps_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {c : IndCaps} {ci : IIndCaps}
+    (hrun : internCaps c s = .ok (ci, s')) :
+    IStep s s' ∧ PersCaps ci ∧ denoteCaps s'.store ci = some c := by
+  rw [ConRon.Arena.Frontend.internCaps] at hrun
+  obtain ⟨ct, s₁, h1, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hstep1, hpc, hdc⟩ := internName_istep hok hoff h1
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+  subst hst; subst hv
+  exact ⟨hstep1, hpc, by simp only [denoteCaps, hdc]⟩
+
+theorem internProjTable_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
+    {t : ProjTable} {ti : IProjTable}
+    (hrun : internProjTable m t s = .ok ((m', ti), s')) :
+    IStep s s' ∧ PersProjTable ti ∧ denoteProjTable s'.store ti = some t ∧
+      EMemoOK s'.store m' := by
+  rw [ConRon.Arena.Frontend.internProjTable] at hrun
+  obtain ⟨sn, s₁, h1, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hstep1, hpsn, hdsn⟩ := internName_istep hok hoff h1
+  obtain ⟨tn, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨hstep2, hptn⟩ := projTableName_istep hstep1.ok hstep1.off hdsn h2
+  obtain ⟨lps, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+  obtain ⟨hstep3, hplps, hdlps⟩ :=
+    internNameList_istep t.levelParams hstep2.ok hstep2.off h3
+  obtain ⟨cn, s₄, h4, hrest4⟩ := AM.bind_ok hrest3
+  obtain ⟨hstep4, hpcn, hdcn⟩ := internName_istep hstep3.ok hstep3.off h4
+  obtain ⟨ss, s₅, h5, hrest5⟩ := AM.bind_ok hrest4
+  obtain ⟨hstep5, hpss, hdss⟩ := internLevel_istep hstep4.ok hstep4.off h5
+  obtain ⟨p6, s₆, h6, hrest6⟩ := AM.bind_ok hrest5
+  obtain ⟨m6, bs⟩ := p6
+  obtain ⟨hstep6, hpbs, hdbs, hm6⟩ :=
+    internExprList_istep t.bodies.toList hstep5.ok hstep5.off
+      (hm.mono ((((hstep1.ext.trans hstep2.ext).trans hstep3.ext).trans
+        hstep4.ext).trans hstep5.ext)) h6
+  simp only [] at hrest6
+  obtain ⟨gs, s₇, h7, hrest7⟩ := AM.bind_ok hrest6
+  obtain ⟨hstep7, hpgs, hdgs⟩ :=
+    internLevelList_istep t.guards hstep6.ok hstep6.off h7
+  have hxs : Ext s₃.store s₇.store :=
+    ((hstep4.ext.trans hstep5.ext).trans hstep6.ext).trans hstep7.ext
+  have hd : denoteProjTable s₇.store
+      ⟨sn, tn, lps, t.numParams, cn, t.numFields, ss, bs.toArray, gs, t.off⟩
+      = some t := by
+    simp only [denoteProjTable,
+      denoteN_ext hdsn ((hstep2.ext.trans hstep3.ext).trans hxs),
+      denoteNListE_ext hxs _ _ hdlps,
+      denoteN_ext hdcn ((hstep5.ext.trans hstep6.ext).trans hstep7.ext),
+      denoteL_ext hdss (hstep6.ext.trans hstep7.ext),
+      denoteEArray, denoteEList_ext hstep7.ext _ _ hdbs, hdgs]
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest7
+  subst hst
+  simp only [Prod.mk.injEq] at hv
+  obtain ⟨hmm, hii⟩ := hv
+  subst hmm; subst hii
+  exact ⟨((((((hstep1.trans hstep2).trans hstep3).trans hstep4).trans
+      hstep5).trans hstep6).trans hstep7),
+    ⟨hpsn, hptn, hplps, hpcn, hpss, by
+       simpa only [List.toList_toArray] using hpbs, hpgs⟩,
+    hd, hm6.mono hstep7.ext⟩
+
+
+theorem internCI_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
+    {c : ConstantInfo} {ci : IConstantInfo}
+    (hrun : internCI m c s = .ok ((m', ci), s')) :
+    IStep s s' ∧ PersCI ci ∧ denoteCI s'.store ci = some c ∧
+      EMemoOK s'.store m' := by
+  cases c with
+  | axiomInfo v =>
+    rw [ConRon.Arena.Frontend.internCI] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, hpcv, by simp only [denoteCI, hdcv, Option.map_some], hm1⟩
+  | ctorInfo v nP nF =>
+    rw [ConRon.Arena.Frontend.internCI] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, hpcv, by simp only [denoteCI, hdcv, Option.map_some], hm1⟩
+  | defnInfo v e hh =>
+    rw [ConRon.Arena.Frontend.internCI] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, x⟩ := p2
+    obtain ⟨hstep2, hpx, hdx, hm2⟩ :=
+      internExprGo_istep e hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteCI s₂.store (.defnInfo cv x hh) = some (.defnInfo v e hh) := by
+      simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdx]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+  | thmInfo v e =>
+    rw [ConRon.Arena.Frontend.internCI] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, x⟩ := p2
+    obtain ⟨hstep2, hpx, hdx, hm2⟩ :=
+      internExprGo_istep e hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteCI s₂.store (.thmInfo cv x) = some (.thmInfo v e) := by
+      simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdx]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+  | indInfo v cps =>
+    rw [ConRon.Arena.Frontend.internCI] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨caps, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hpcaps, hdcaps⟩ :=
+      internCaps_istep hstep1.ok hstep1.off h2
+    have hd : denoteCI s₂.store (.indInfo cv caps) = some (.indInfo v cps) := by
+      simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdcaps]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpcaps⟩, hd, hm1.mono hstep2.ext⟩
+  | recInfo v mI rP rs =>
+    rw [ConRon.Arena.Frontend.internCI] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, rules⟩ := p2
+    obtain ⟨hstep2, hprs, hdrs, hm2⟩ :=
+      internRules_istep rs hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteCI s₂.store (.recInfo cv mI rP rules)
+        = some (.recInfo v mI rP rs) := by
+      simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdrs]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hprs⟩, hd, hm2⟩
+  | projInfo t =>
+    rw [ConRon.Arena.Frontend.internCI] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, tbl⟩ := p1
+    obtain ⟨hstep1, hpt, hdt, hm1⟩ := internProjTable_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, hpt, by simp only [denoteCI, hdt, Option.map_some], hm1⟩
+
+theorem internCIList_istep : ∀ (cs : List ConstantInfo) {s s' : AState}
+    {m m' : EMemo} {cis : List IConstantInfo}, StateOK s →
+    s.store.scratchOn = false → EMemoOK s.store m →
+    internCIList m cs s = .ok ((m', cis), s') →
+    IStep s s' ∧ PersCIList cis ∧ denoteCIList s'.store cis = some cs ∧
+      EMemoOK s'.store m' := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro s s' m m' cis hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internCIList] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm⟩
+  | cons c cs ih =>
+    intro s s' m m' cis hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internCIList] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, x1⟩ := p1
+    obtain ⟨hstep1, hpc, hdc, hm1⟩ := internCI_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, xs⟩ := p2
+    obtain ⟨hstep2, hpcs, hdcs, hm2⟩ := ih hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteCIList s₂.store (x1 :: xs) = some (c :: cs) := by
+      simp only [denoteCIList, denoteCI_ext hdc hstep2.ext, hdcs]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    refine ⟨hstep1.trans hstep2, ?_, hd, hm2⟩
+    intro x hx
+    simp only [List.mem_cons] at hx
+    rcases hx with rfl | hx
+    · exact hpc
+    · exact hpcs x hx
+
+theorem internDecl_istep {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
+    {d : Declaration} {di : IDeclaration}
+    (hrun : internDecl m d s = .ok ((m', di), s')) :
+    IStep s s' ∧ PersDecl di ∧ denoteDecl s'.store di = some d ∧
+      EMemoOK s'.store m' := by
+  cases d with
+  | basisDecl k =>
+    rw [ConRon.Arena.Frontend.internDecl] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨IStep.refl hok hoff, trivial, rfl, hm⟩
+  | axiomDecl v =>
+    rw [ConRon.Arena.Frontend.internDecl] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, hpcv, by simp only [denoteDecl, hdcv, Option.map_some], hm1⟩
+  | quotDecl k v =>
+    rw [ConRon.Arena.Frontend.internDecl] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, hpcv, by simp only [denoteDecl, hdcv, Option.map_some], hm1⟩
+  | defnDecl v e hh =>
+    rw [ConRon.Arena.Frontend.internDecl] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, x⟩ := p2
+    obtain ⟨hstep2, hpx, hdx, hm2⟩ :=
+      internExprGo_istep e hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteDecl s₂.store (.defnDecl cv x hh)
+        = some (.defnDecl v e hh) := by
+      simp only [denoteDecl, denoteCV_ext hdcv hstep2.ext, hdx]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+  | thmDecl v e =>
+    rw [ConRon.Arena.Frontend.internDecl] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, x⟩ := p2
+    obtain ⟨hstep2, hpx, hdx, hm2⟩ :=
+      internExprGo_istep e hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteDecl s₂.store (.thmDecl cv x) = some (.thmDecl v e) := by
+      simp only [denoteDecl, denoteCV_ext hdcv hstep2.ext, hdx]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+  | opaqueDecl v e =>
+    rw [ConRon.Arena.Frontend.internDecl] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, cv⟩ := p1
+    obtain ⟨hstep1, hpcv, hdcv, hm1⟩ := internCV_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, x⟩ := p2
+    obtain ⟨hstep2, hpx, hdx, hm2⟩ :=
+      internExprGo_istep e hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : denoteDecl s₂.store (.opaqueDecl cv x)
+        = some (.opaqueDecl v e) := by
+      simp only [denoteDecl, denoteCV_ext hdcv hstep2.ext, hdx]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+  | indDecl block nP =>
+    rw [ConRon.Arena.Frontend.internDecl] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, b⟩ := p1
+    obtain ⟨hstep1, hpb, hdb, hm1⟩ := internCIList_istep block hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨hstep1, hpb, by simp only [denoteDecl, hdb, Option.map_some], hm1⟩
+
+theorem internDecls_istep : ∀ (ds : List Declaration) {s s' : AState}
+    {m m' : EMemo} {dis : List IDeclaration}, StateOK s →
+    s.store.scratchOn = false → EMemoOK s.store m →
+    internDecls m ds s = .ok ((m', dis), s') →
+    IStep s s' ∧ (∀ d ∈ dis, PersDecl d) ∧
+      ConRon.Bridge.denoteDecls s'.store dis = some ds ∧ EMemoOK s'.store m' := by
+  intro ds
+  induction ds with
+  | nil =>
+    intro s s' m m' dis hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internDecls] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm⟩
+  | cons d ds ih =>
+    intro s s' m m' dis hok hoff hm hrun
+    rw [ConRon.Arena.Frontend.internDecls] at hrun
+    obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨m1, x1⟩ := p1
+    obtain ⟨hstep1, hpd, hdd, hm1⟩ := internDecl_istep hok hoff hm h1
+    simp only [] at hrest
+    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨m2, xs⟩ := p2
+    obtain ⟨hstep2, hpds, hdds, hm2⟩ := ih hstep1.ok hstep1.off hm1 h2
+    simp only [] at hrest2
+    have hd : ConRon.Bridge.denoteDecls s₂.store (x1 :: xs) = some (d :: ds) := by
+      simp only [ConRon.Bridge.denoteDecls, denoteDecl_ext hstep2.ext hdd, hdds]
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨hmm, hii⟩ := hv
+    subst hmm; subst hii
+    refine ⟨hstep1.trans hstep2, ?_, hd, hm2⟩
+    intro x hx
+    simp only [List.mem_cons] at hx
+    rcases hx with rfl | hx
+    · exact hpd
+    · exact hpds x hx
+
+
 /-- con-leche: none — **the intern is the readback's inverse**: what
 `internExpr` returns denotes what it was given, in the store the call leaves
 behind, and it is persistent when the scratch tier is closed.
 
-`sorry`: the structural recursion over `ConLeche.Expr`, each arm one
-`Bridge/Specs.lean` `internE` face, with `EMemoOK` carried and
-`Bridge/Rel.lean`'s `denote_ext` moving the earlier children forward.  The
-persistence clause is FREE now (`Bridge/Frontend/Rel.lean`'s `PersE_of_view`
-at the spec's `view` conjunct, round 2's replacement for finding 9.1).
-
-**What is missing is two specs, and they are not in this tier's files**
-(round 2's finding 13): `internExprGo`'s `.sort` arm calls `internLevel` and
-its `.const` arm calls `internLevels`, and `Bridge/Specs.lean` states
-`internLNode_spec` / `internLsNode_spec` (the NODE interns) but no
-`internLevel_spec` / `internLevels_spec` for a whole transient `Level` tree or
-`List Level` — where it does state `internName_spec` for a whole `Name`.  The
-two are `internName_spec`'s proof verbatim, one structural induction each, and
-they belong beside it.  Task #97-P3-Frontend's sorry list, item 2. -/
+`internExprGo_istep` at a fresh memo.  The persistence clause is FREE
+(`Bridge/Frontend/Rel.lean`'s `PersE_of_view` at the spec's `view` conjunct,
+round 2's replacement for finding 9.1). -/
 theorem internExpr_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {e : Expr} {h : EIdx}
     (hrun : ConRon.Arena.Frontend.internExpr e s = .ok (h, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ denoteE s'.store h = some e ∧
       PersE h ∧ s'.store.scratchOn = false ∧ s'.memos = s.memos ∧
       s'.caches = s.caches ∧ s'.pins = s.pins := by
-  sorry
+  rw [ConRon.Arena.Frontend.internExpr] at hrun
+  obtain ⟨p, s₁, hgo, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨m1, hh⟩ := p
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+  subst hst; subst hv
+  obtain ⟨hstep, hpe, hden, -⟩ :=
+    internExprGo_istep e hok hoff (EMemoOK.empty s.store) hgo
+  exact ⟨hstep.ok, hstep.ext, hden, hpe, hstep.off, hstep.memos, hstep.caches,
+    hstep.pins⟩
 
 /-- con-leche: none — the same at a declaration list, which is what the
 modeller seam interns.
 
-`sorry`: `internExpr_run` through `internCV` / `internCI` / `internDecl`, list
-by list — eleven more layers, each of them three lines once the leaf is in
-hand (`internNameList`, `internLevelList`, `internExprList`, `internCV`,
-`internFire`, `internRule`, `internRules`, `internCaps`, `internProjTable`,
-`internCI`, `internCIList`, `internDecl`).  **This is the last blocker of item
-8** (`inProcessModeller_wf` / `_refines`): items 1 and 3 closed in round 2, so
-the seam's two promises now wait on the intern direction alone.  Task
-#97-P3-Frontend's sorry list, item 2. -/
+`internDecls_istep`, i.e. the twelve record layers above `internExprGo_istep`
+composed.  **This was the last blocker of item 8** (`inProcessModeller_wf` /
+`_refines`). -/
 theorem internDecls_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
     {ds : List Declaration} {hs : List IDeclaration}
@@ -876,7 +1971,9 @@ theorem internDecls_run {s s' : AState} (hok : StateOK s)
     StateOK s' ∧ Ext s.store s'.store ∧ denoteDecls s'.store hs = some ds ∧
       (∀ d ∈ hs, PersDecl d) ∧ s'.store.scratchOn = false ∧
       s'.memos = s.memos ∧ s'.caches = s.caches ∧ s'.pins = s.pins := by
-  sorry
+  obtain ⟨hstep, hpers, hden, -⟩ := internDecls_istep ds hok hoff hm hrun
+  exact ⟨hstep.ok, hstep.ext, hden, hpers, hstep.off, hstep.memos,
+    hstep.caches, hstep.pins⟩
 
 /-! ## The seam's two readbacks
 
