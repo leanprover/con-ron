@@ -78,7 +78,7 @@ rank is above the current subject's) and the fuel induction is unchanged.
 `EWFAt.childOK`'s rank clause is the only part of `StoreWF` used, the rank
 is quantified INSIDE `SeenOK` so no statement in the file grew an argument,
 and `fvarLeavesFast_spec` — the one `ExprOps/Guards.lean` consumes — is
-where it was.  **Nothing in this file is `sorry`ed.**
+where it was.  **Nothing in this file is unproved.**
 
 Because the answer is a SET and not a list — a shared subterm is walked once,
 where `Expr.fvarLeaves` re-concatenates its leaves per occurrence — that

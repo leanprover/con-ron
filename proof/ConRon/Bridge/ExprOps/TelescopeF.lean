@@ -29,13 +29,12 @@ the same reversal's own test, computed rather than written out
 
 ## The axiom check
 
-**Nothing in this file is `sorry`ed.**  `instPisAtFGo_spec`,
-`instLamsAtFGo_spec` and `recRulePlain_spec` report
-`[propext, Classical.choice, Quot.sound]`.  `instPisAtF_spec` and
-`instLamsAtF_spec` also report `sorryAx`, inherited through
-`ExprOps/Spine`'s `instPisAt_spec` / `instLamsAt_spec` from
-`ExprOps/Inst1`'s six open verification conditions; close those and these
-close with them.
+**Nothing in this file is unproved**, and since task #97-P3-1 nothing it
+consumes is either: `instPisAtFGo_spec`, `instLamsAtFGo_spec`,
+`recRulePlain_spec`, `instPisAtF_spec` and `instLamsAtF_spec` all report
+`[propext, Classical.choice, Quot.sound]`.  The last two used to inherit
+`ExprOps/Inst1`'s open goals through `ExprOps/Spine`'s `instPisAt_spec` /
+`instLamsAt_spec`; the arm split closed those.
 
 ## `instantiateListFast` as a HYPOTHESIS
 

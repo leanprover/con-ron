@@ -1308,7 +1308,7 @@ theorem InstLAt.bvar_aboveV {st st' : EStore} (hwf : StoreWF st) {c r : EIdx}
 packed field, or the memoized recomputation on the saturated branch
 (`Arena/ExprOps.lean:1486`).  **`bvarB` is not one of this file's thirteen
 twins**: it belongs to the packed-range group.  Rather than assume its spec as
-an `axiom` (which would put `sorryAx`'s cousin into `#print axioms`), the two
+an `axiom` (which would put an extra name into `#print axioms`), the two
 walks take it as a HYPOTHESIS; one `exact` discharges it when that group's
 file lands. -/
 
@@ -2703,8 +2703,9 @@ theorem instantiateListFast_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
 /-! ## The axiom check
 
 Every theorem of this file, so that nothing can hide anywhere: since task
-#97-P3-2 the module is `sorry`-free, and the `instantiateList` pair — the two
-walks whose three open goals the arm split closed — is checked by name. -/
+#97-P3-2 the module has no unproved goal, and the `instantiateList` pair —
+the two walks whose three open goals the arm split closed — is checked by
+name. -/
 
 #print axioms instantiateList_of_bvarBound_le
 #print axioms liftLooseBVars_of_bvarBound_le
