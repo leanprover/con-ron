@@ -22098,29 +22098,50 @@ fewer conjuncts of six.  The same holds of the four
 re-run of `intern_wf` at the persistent branch, which this round did not
 take.
 
-**Flagged for the coordinator (a dedupe, not a conflict).**  Four results now
-exist in both trees, because `Bridge/` proved them under the invariant before
-the store layer had them unconditionally:
-`Bridge/StoreBind.lean`'s `EStore.internAt_ext`, and
-`Bridge/StoreNested.lean`'s `LExt.of_ns` / `LsExt.of_ls` / `Ext.of_lss` with
-`denoteLAux_store_mono_nested` / `denoteEAux_store_mono_nested` beneath them.
-They are in `namespace ConRon.Bridge`, so nothing is ambiguous and
-`ConRonBridge` builds unchanged, but the Bridge copies should be deleted in
-favour of `Arena`'s (the `Arena` forms are strictly more general: the
-`of_view_mono` combinators take an arbitrary `st'`, where `Ext.of_lss`
-requires `st' = { st with lss := … }`).
+**The dedupe, taken (the coordinator's ruling).**  Six results existed in both
+trees, because `Bridge/` proved them under the invariant before the store
+layer had them unconditionally.  The Bridge copies are **deleted** and the
+consumers repointed at `Arena`'s:
 
-**Gates.**  `lake build ConRonArena` green, **zero warnings**, 106 jobs;
-`WFProofs.lean` 8 s and `PromoteExt.lean` 2.2 s (`LEAN_NUM_THREADS=1`,
-`LAKE_JOBS=4`).  `lake build ConRonBridge` and `lake build ConRonRefine2`
-green at their pre-existing `sorry` counts — the additions are purely
-additive.  `scripts/provenance.py check`: 0 findings, **2 494 arena Lean
-items**, +155 on the branch tip's 2 339 (85 theorems in `WFProofs.lean`, 70
-declarations in `PromoteExt.lean`).  `#print axioms` — a section at the foot of
-`PromoteExt.lean` prints nineteen of them on every build, and the other
-fifty-one were checked in a scratch file — reports
-`[propext, Classical.choice, Quot.sound]` on every result, **except five**
-(`{N,L,Ls}Ext.of_view_mono`, `denoteLAux_store_mono_ns`,
+| deleted from | now reads |
+|---|---|
+| `Bridge/StoreBind.lean`'s `EStore.internAt_ext` | `Arena`'s, by name — same signature, so `internBindI_spec`'s use is unchanged text |
+| `Bridge/StoreNested.lean`'s `LExt.of_ns`, `LsExt.of_ls`, `Ext.of_lss` and the two `denote…Aux_store_mono_nested` beneath them | `EStore.internName_ext` / `internLevel_ext` / `internLevels_ext` at the three `…_spec`s, one term each where the composition was three |
+
+That is 24 lines out of `StoreBind.lean` and 155 out of `StoreNested.lean`
+for 19 in — the `Arena` forms are strictly more general (`…Ext.of_view_mono`
+takes an arbitrary result store, where `Ext.of_lss` required
+`st' = { st with lss := … }`), so the three `…_spec` proofs lose their
+`hnext`/`hlext`/`hlsext` bindings outright.  `EStore.{internName,internLevel,
+internLevels,internBindI}_spec` still print
+`[propext, Classical.choice, Quot.sound]`.  `Bridge/Promote/Exact.lean` gained
+the one line `import ConRon.Arena.PromoteExt`, and nothing else under
+`Bridge/Promote/**` (whose owner is the P3-Checker-2 agent) was touched.
+
+**The merge.**  `arena` `cb75e1a8` (task #97-P3-Ind, with two arena merges
+under it) merges into this branch with **no conflict in any `.lean` file** —
+the round's whole store-layer diff is one block at the END of
+`WFProofs.lean` and one new module, which is why — and `DESIGN.md`
+append-both.  `scripts/twin-lines.py check` (new on `arena`, task #97-TWIN)
+is green at 1 924 citations: appending rather than inserting is what keeps
+every Rust `Lean twin:` line number valid.
+
+**Gates** (all after the merge and the dedupe).
+`lake build ConRonArena ConRonBridge ConRonRefine2` green, **zero warnings**
+outside the pre-existing `sorry` notices (`LEAN_NUM_THREADS=1`,
+`LAKE_JOBS=4`, no `ulimit -v`); `PromoteExt.lean` 1.6-3.9 s.
+`scripts/provenance.py check`: 0 findings, **2 494 arena Lean items**, +155
+on the branch tip's 2 339 (85 theorems in `WFProofs.lean`, 70 declarations
+in `PromoteExt.lean`).  `scripts/twin-lines.py check` (1 924 citations),
+`scripts/provenance-selftest.py` and `scripts/overview-links.sh`: green.
+The cargo gates, the style lint, `holes.sh`, the three `gen-*.sh` and
+`extract.sh --check` were NOT re-run: the branch differs from `arena`'s tip
+in seven files, all `.lean` or `DESIGN.md`, so no Rust, no script and no
+generated model moved from the state that tip was gated at.  `#print axioms`
+— a section at the foot of `PromoteExt.lean` prints nineteen of them on
+every build, and the other fifty-one were checked in a scratch file —
+reports `[propext, Classical.choice, Quot.sound]` on every result, **except
+five** (`{N,L,Ls}Ext.of_view_mono`, `denoteLAux_store_mono_ns`,
 `denoteLList_mono_of_lext`) which need only `[propext, Quot.sound]`.  No
 `sorryAx`, no `bv_decide` axiom.  Both modules are at the **default
 `maxHeartbeats`** and pull in no Mathlib.
