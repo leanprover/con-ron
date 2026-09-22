@@ -68,7 +68,7 @@ theorem checkIotaSidesTy_unfold (mode : ConLeche.CheckMode) (feSelf : IFEnv)
         let n ← readName cvName
         fail (.notImplemented s!"iota statement rhs type for {n}")
       checkIotaSlotTySpec mode feSelf depth alphaS lA cvName) := by
-  sorry
+  rfl
 
 /-! ## `projBack` and `projFwd`'s two inner `let rec`s
 
@@ -93,7 +93,12 @@ theorem projBack_unfold (T ctor : NIdx) (nF : Nat) :
       let tm ← internNNode (.str T "_model")
       let cm ← internNNode (.str ctor "_model")
       pure ((tm, T) :: (cm, ctor) :: (← projPairsFromSpec T true nF 0))) := by
-  sorry
+  have hgo : ∀ k j, projBack.go T k j = projPairsFromSpec T true k j := by
+    intro k
+    induction k with
+    | zero => intro j; rfl
+    | succ k ih => intro j; simp only [projBack.go, projPairsFromSpec, ih]; rfl
+  simp only [projBack, hgo]
 
 /-- The owed equation: `projFwd` IS the two model names and
 `projPairsFromSpec` at `false`. -/
@@ -102,7 +107,12 @@ theorem projFwd_unfold (T ctor : NIdx) (nF : Nat) :
       let tm ← internNNode (.str T "_model")
       let cm ← internNNode (.str ctor "_model")
       pure ((T, tm) :: (ctor, cm) :: (← projPairsFromSpec T false nF 0))) := by
-  sorry
+  have hgo : ∀ k j, projFwd.go T k j = projPairsFromSpec T false k j := by
+    intro k
+    induction k with
+    | zero => intro j; rfl
+    | succ k ih => intro j; simp only [projFwd.go, projPairsFromSpec, ih]; rfl
+  simp only [projFwd, hgo]
 
 /-! ## The prologue both statement checks share
 
@@ -564,7 +574,7 @@ theorem checkIotaRule_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
       | _ => do
         let cn ← readName r.ctor
         fail (.invalid s!"iota rule constructor {cn} not stored")) := by
-  sorry
+  rfl
 
 /-! ## `checkMemberVal`, split two ways -/
 
@@ -597,7 +607,7 @@ theorem checkMemberVal_unfold (mode : ConLeche.CheckMode) (blockNames : List NId
       if ConLeche.Name.isModelSuffix an then
         fail (.invalid s!"model-shaped member name {an}")
       checkMemberModelSpec f fe' cvA blockNames an) := by
-  sorry
+  rfl
 
 /-! ## `checkProjLookups` and `checkProjTy`, split two ways each -/
 
@@ -627,7 +637,7 @@ theorem checkProjLookups_unfold (fe' : IFEnv) (T ctorName : NIdx)
       unless cnP = nP ∧ cnF = nF do
         fail (.notImplemented "projection constructor arity mismatch")
       checkProjLookupsModelSpec fe' T lps i cvj) := by
-  sorry
+  rfl
 
 /-- The public type's resolution, well-formedness and parameter telescope. -/
 def checkProjTyWfSpec (fe' : IFEnv) (lps : List NIdx) (nP : Nat) (pty : EIdx) :
@@ -653,7 +663,7 @@ theorem checkProjTy_unfold (fe' : IFEnv) (T ctorName : NIdx) (lps : List NIdx)
       unless (← renameConstsFast coreWalkFuel (renameBy fwd) pty) == mty do
         fail (.notImplemented "projection type roundtrip")
       checkProjTyWfSpec fe' lps nP pty) := by
-  sorry
+  rfl
 
 /-! ## `checkProjIota`, split five ways -/
 
@@ -727,7 +737,7 @@ theorem checkProjIota_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
       unless tcv.levelParams = lps do
         fail (.notImplemented "projection iota level mismatch")
       checkProjIotaDomsSpec mode feSelf T ctorName lps cvj nP nF i pmn tcv.type) := by
-  sorry
+  rfl
 
 /-! ## `checkProjFn`, split two ways -/
 
@@ -752,7 +762,7 @@ theorem checkProjFn_unfold (mode : ConLeche.CheckMode) (fe' : IFEnv)
       unless i < nF do
         fail (.invalid "projection index out of range")
       checkProjFnRuleSpec mode fe' T ctorName lps cvj nP nF i pty) := by
-  sorry
+  rfl
 
 /-! ## `checkEtaThm`, split seven ways -/
 
@@ -982,5 +992,13 @@ theorem checkModeled_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
         let fe₂ ← checkIndMembers mode blockNames {} fe nonrecs
         checkIndRecs mode blockNames fe₂ recs) := by
   sorry
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.projBack_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms projBack_unfold
+
+/-- info: 'ConRon.Refine2.checkProjFn_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkProjFn_unfold
 
 end ConRon.Refine2

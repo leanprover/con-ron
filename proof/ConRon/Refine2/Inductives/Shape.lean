@@ -212,10 +212,129 @@ structure NativePassRel (r : arena.inductives.native_install.NativePass)
   ctorsA : l.ctorsA = absCtorsL r.ctors_a
   sortss : l.sortss = absLIdxLL r.sortss
 
+/-! ## Rule 11 at a COUNTED recursion — the tier's four list closers
+
+DESIGN §3.4 turns every `List` operation of a twin into a named cursor
+recursion in the port, and `Refine2/Inductives/Spec.lean` transcribes the twin
+side the same way.  So an `_unfold` equation about a twin that calls
+`List.allM`, `List.mapM` or `(List.range n).allM` has to say *"the library
+fold IS the counted recursion"*, and that is one induction each rather than
+one per call site.  Task #97-P5-Checker's **rule 11** (`am_bind_congr` and
+`twin_reduce`, `Refine2/Checker/Shape.lean`) is what the step of each needs:
+`congr 1` eta-expands the state function instead of peeling the bind.
+
+The four are stated against an ARBITRARY `G` with its two clauses as
+hypotheses, so a caller supplies `G := <its transcription>` and discharges
+both by `rfl` — which is what makes them one lemma for the whole tier rather
+than one per unfold. -/
+
+/-- `List.allM` IS the cursor recursion that transcribes it. -/
+theorem list_allM_counted {α : Type} (F : α → AM Bool) (G : List α → AM Bool)
+    (h0 : G [] = pure true)
+    (hs : ∀ a l, G (a :: l) = (do if ← F a then G l else pure false)) :
+    ∀ l, l.allM F = G l := by
+  intro l
+  induction l with
+  | nil => rw [h0]; rfl
+  | cons a l ih =>
+    rw [hs]
+    simp only [List.allM, ih]
+    refine am_bind_congr _ ?_
+    intro b
+    cases b <;> rfl
+
+/-- `(List.range' i m).allM` IS the counted recursion that transcribes it —
+and `List.range n` is `List.range' 0 n`. -/
+theorem range_allM_counted (F : Nat → AM Bool) (G : Nat → Nat → AM Bool)
+    (h0 : ∀ i, G 0 i = pure true)
+    (hs : ∀ m i, G (m + 1) i = (do if ← F i then G m (i + 1) else pure false)) :
+    ∀ m i, (List.range' i m).allM F = G m i := by
+  intro m
+  induction m with
+  | zero => intro i; rw [h0]; rfl
+  | succ m ih =>
+    intro i
+    rw [hs]
+    simp only [List.range'_succ, List.allM, ih]
+    refine am_bind_congr _ ?_
+    intro b
+    cases b <;> rfl
+
+/-- `(List.range' i m).mapM` IS the counted recursion that transcribes it. -/
+theorem range_mapM_counted {γ : Type} (F : Nat → AM γ) (G : Nat → Nat → AM (List γ))
+    (h0 : ∀ i, G 0 i = pure [])
+    (hs : ∀ m i, G (m + 1) i = (do let a ← F i; let rest ← G m (i + 1); pure (a :: rest))) :
+    ∀ m i, (List.range' i m).mapM F = G m i := by
+  intro m
+  induction m with
+  | zero => intro i; rw [h0]; rfl
+  | succ m ih =>
+    intro i
+    rw [hs]
+    simp only [List.range'_succ, List.mapM_cons, ih]
+
+/-- `List.mapM` IS the cursor recursion that transcribes it. -/
+theorem list_mapM_counted {α γ : Type} (F : α → AM γ) (G : List α → AM (List γ))
+    (h0 : G [] = pure [])
+    (hs : ∀ a l, G (a :: l) = (do let b ← F a; let rest ← G l; pure (b :: rest))) :
+    ∀ l, l.mapM F = G l := by
+  intro l
+  induction l with
+  | nil => rw [h0]; rfl
+  | cons a l ih => rw [hs]; simp only [List.mapM_cons, ih]
+
+/-- **The memo walks' arm peel.**  A twin that writes
+`let r ← match v with …; pure (ins h r)` has its continuation pushed into
+every arm by the `do` elaborator, while the transcription binds once; rule 11's
+`simp only` cannot bridge that (the two matchers are different constants), so
+the arms are peeled by hand.  Three walks of this tier have exactly this
+shape at one, two and three nested binds, and this is the one tactic that
+closes all three. -/
+syntax "pair_peel" : tactic
+macro_rules
+  | `(tactic| pair_peel) =>
+    `(tactic| first
+        | rfl
+        | (refine am_bind_congr _ ?_
+           intro __p
+           obtain ⟨__b, __m⟩ := __p
+           cases __b <;> (try twin_reduce) <;>
+             (first
+               | rfl
+               | (refine am_bind_congr _ ?_
+                  intro __q
+                  obtain ⟨__b2, __m2⟩ := __q
+                  cases __b2 <;> (try twin_reduce) <;>
+                    (first
+                      | rfl
+                      | (refine am_bind_congr _ ?_
+                         intro __r
+                         obtain ⟨__b3, __m3⟩ := __r
+                         cases __b3 <;> (try twin_reduce) <;> rfl))))))
+
+/-- **The generic peel.**  `twin_reduce` puts both sides in right-associated
+`bind` form; what is then left of a join point is `(match x with …) >>= k`
+against `match x with | … => … >>= k`, which `split` closes — but only once
+`am_bind_congr` has stripped the lambda that binds `x`.  Alternating the two
+until nothing applies is the recipe, and it is what the deep `_unfold`s of
+this tier need beyond rule 11's `simp only`. -/
+syntax "twin_peel" : tactic
+macro_rules
+  | `(tactic| twin_peel) =>
+    `(tactic| repeat' first
+        | rfl
+        | (refine am_bind_congr _ ?_; intro __x)
+        | split)
+
 attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFrom
   absBinderL absBinderLFrom absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom
   absCtors4L absCtors4LFrom absRecsL absRecsLFrom absRenameTbl
   absRenameTblFrom absRenameBy absInductiveShape absStructParts absRecFieldKind
   absKindL absKindLFrom absKindLL absKindLLFrom absNativeParts
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms list_allM_counted
 
 end ConRon.Refine2

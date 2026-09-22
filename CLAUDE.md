@@ -51,6 +51,12 @@ section for every task you land.
   several runs of a benchmark small enough to repeat (`Init`, the fixtures) —
   never from one run of a large one.  Report the spread when you report wall
   time.
+* **A new worktree should copy the build, not rebuild it.**  A fresh
+  worktree with no `proof/.lake/build` pays ~17 minutes and 6 GB
+  re-deriving `Refine2/Core/Eqns.lean`'s 109 `partial_fixpoint` equations.
+  `cp -a --reflink=auto <a tree that has it>/proof/.lake/build
+  proof/.lake/build` is instantaneous on this filesystem.  Do it before the
+  first `lake build` in any new worktree.
 * **Shared state between agent worktrees.** `_tmp/` is one directory shared
   through a symlink by every worktree: never rebuild, clean or re-copy
   `_tmp/aeneas-lean` (the patched Aeneas library and Mathlib) from a worktree
