@@ -43688,8 +43688,8 @@ headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
 
 #### Round 5 — finding 16 repaired, both halves, and the prelude's front
 
-Off `arena`'s tip `6e4ff12e`, merged forward to `aa4c7a76`, on the same nine
-modules.  Brief: execute round 4's **finding 16** — repair the frame half as a
+Off `arena`'s tip `6e4ff12e`, merged forward to `aa4c7a76` and then to
+`ffe22843`, on the same nine modules.  Brief: execute round 4's **finding 16** — repair the frame half as a
 correction, repair the name half by strengthening the seam's promise once
 rather than propagating a side condition through eight statements — and then
 take `Lines.lean` or `Prepare.lean` to zero.
@@ -43903,7 +43903,7 @@ this file* — is what makes that visible.
 | gate | |
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 13 of this tier's declarations open |
-| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 112 s), on the merge of `arena`'s `aa4c7a76` |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 112 s), and again on the second merge, `arena`'s `ffe22843` |
 | the diff | `proof/ConRon/Bridge/Frontend/{Rel,Shared,Modeller,Lines,Prepare,ProjRec,Capstone,Chunks,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module — the seam's strengthening stayed inside `Bridge/Frontend/**`, which is what §2's correction 3 bought |
 
 The tier is **8 825 lines** (was 7 478) in nine modules plus the index.
