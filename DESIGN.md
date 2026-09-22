@@ -21946,6 +21946,137 @@ intermittently with `failed to create thread` even at `LEAN_NUM_THREADS=1`
 -space cap meeting Lean's per-thread reservation, not the proof — worth a
 line in the iteration protocol rather than a raised limit.
 
+#### Follow-up 4 (2026-09-22, Opus under Fable): `Ext` at EVERY appending primitive, the store's and the promotion's
+
+Task #97-P5-2 §10 and §11 item 4 name the gap: `EStore.intern_ext` exists,
+and `internBindI`, `internBM`, `internNNode`/`internLNode`/`internLsNode`,
+the four `internPersistent`s and `promote` have no sibling — while
+`Refine2`'s `AOut` demands `Ext lst.store lst'.store` at every one of them.
+**Five** of Theorem 2's statements (`intern_e_{lam,forall_e,lam_i,
+forall_e_i,bind_i}_run`, and `intern_e_run` with them) are blocked on the
+first of those alone, and `Bridge/Promote/Exact.lean`'s four `promote*_spec`s
+each carry `Ext` and a `PFrame` among their open conjuncts.
+
+**The finding is that none of this needed an argument.**  `EStore.intern_ext`
+is fifteen lines: `view` monotonicity, the fuel traded up through
+`denoteEAux_mono`, then `denoteEAux_store_mono`.  What was missing is that
+those fifteen lines were written at ONE entry point and `Store.lean` has a
+dozen.  So they are factored into four combinators —
+
+```lean
+theorem Ext.of_view_mono {st st' : EStore} (hlss : LsExt st.lss st'.lss)
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v)
+    (hc : st.nodeCount ≤ st'.nodeCount) : Ext st st'
+```
+
+and its `{N,L,Ls}` siblings — after which each of the twenty-seven `…_ext`
+theorems is three lines and no induction.  Two of the four needed a
+generalisation one layer down: `denoteLAux_store_mono` and
+`denoteEAux_store_mono` hold the nested store FIXED (`st'.ns = st.ns`,
+`st'.lss = st.lss`), which is true of `intern` at the expression tier and
+false of exactly the three entries §11 asks about, whose business is to move
+it.  `denoteLAux_store_mono_ns` and `denoteEAux_store_mono_lss` take the
+nested EXTENSION instead, which is the weakest hypothesis the `param` /
+`sort` / `const` / `proj` arms use.
+
+**Every statement is unconditional** — no `StoreWF`, no `ViewOK`, no `capOK`.
+That is the point and not an accident: an append moves no handle that decoded
+before it whatever the invariant says.  `Bridge/StoreBind.lean`'s
+`internBindI_spec` and `Bridge/StoreNested.lean`'s `internName_spec` need the
+invariant because they also conclude something about `view` of the NEW
+handle; `AOut`'s success arm does not, and cannot supply it.  (`internBindI`
+is the sharp case: the bridge reaches it through
+`internBindI_eq_internAt`, which wants a `BinderMeta` the datum handle
+decodes to and `EWFAt.bmDerExact`.  Taken directly on `ETables.pushBind` —
+whose four plumbing lemmas are new here — no such thing is needed.)
+
+**The two deliverables.**
+
+*`Arena/WFProofs.lean`, +720 raw lines (626 non-blank, 85 theorems), one
+delimited section at the end of the file* — `Ext` and its `view`/`lss`/
+`scratchOn`/`nodeCount` plumbing at `internAt`, `internBM`, `internBMOfView`,
+`internBindI` and its four faces (`internLamI`, `internForallEI`,
+`internEBindI`, and `internLam`/`internForallE` as two `trans`),
+`internBMPersistent`, `internBMOfViewPersistent`, `EStore.internPersistent`,
+`{N,L,Ls}Store.internPersistent`, and the six lifts through the nesting
+(`EStore.internName`/`internLevel`/`internLevels` and their persistent twins,
+with `LStore.internName`, `LsStore.internName`/`internLevel` beneath them).
+
+*`Arena/PromoteExt.lean`, new, 587 raw lines (489 non-blank, 68 theorems)* —
+the promotion, which could not be stated beside the others because it is
+MONADIC.  `AExt s s'` is the step relation (the arena extended; the memos,
+the caches, the pin table and the scratch flag standing still — i.e. `Ext` ∧
+`Bridge/Promote/Exact.lean`'s `PFrame`), `AExtOf a` says `a` is such a step,
+and `AExtOf` is closed under `pure`, `fail`, `bind` and the four readers and
+holds of each `internPersistent*`.  All twenty walks of `Arena/Promote.lean`
+follow — `promoteN/L/LList/Ls/E`, `promoteNList/EList`, the ten declaration
+clauses, `promoteVG` and `promoteNew` — with `Ext`-only corollaries
+(`promoteE_ext`, `promoteCI_ext`, `promoteDecl_ext`, `promoteVG_ext`,
+`promoteNew_ext`, …) in the shape `Exact.lean`'s specs ask for.
+
+**Three things the monadic half taught, and they are the reusable part.**
+
+1. **`with_reducible` on every leaf.**  `aext_auto` is a `repeat' first` over
+   ~30 alternatives.  At default transparency a failing leaf costs an
+   `isDefEq` against an unfolded body — `view ?h =?= promoteN m k p` deltas
+   both sides — and four of the walks blew the default `maxHeartbeats`.  At
+   reducible transparency a leaf matches syntactically or fails at once, and
+   the file elaborates in **2.2 s** at the default heartbeat count.
+2. **`refine AExtOf.bind ?_ fun _ => ?_`, never `apply` + `intro`.**
+   `AExtOf` is a `def` that unfolds to a `∀`, so a bare `intro` walks INTO
+   the definition and strands the goal as a hypothesis about a run.
+   Introducing the binder in the `refine` keeps every goal at the `AExtOf`
+   level.
+3. **A tactic whose leaf list names the theorem it is running inside will
+   close the goal with itself.**  Lean then reports it as a failed
+   TERMINATION check, which reads nothing like the circular proof it is.  The
+   fix is the file's naming convention: each walk is proved as `…_aext` and
+   re-exported as `AExtOf.of_…` on the next line, so the leaf for a walk
+   exists only after that walk is proved and `first` skips an alternative
+   naming a constant that does not exist yet.
+
+A fourth, smaller: **a theorem named `Foo.bar` opens `Foo` for its own body**,
+so `theorem AExt.internPersistentN` made `internPersistentN` in the proof's
+`simp only` list resolve to the theorem being declared and the `simp` silently
+did nothing.  That is why the workers are `internPersistentN_aext` and not
+`AExt.internPersistentN`.
+
+**What is still owed, and by whom.**  The exactness half —
+`denoteE st' (promote h) = denoteE st h` — is NOT here and cannot be: it
+needs `StoreWFP`, `PMemoOK` and the rank, which are `Bridge`'s vocabulary.
+`Bridge/Promote/Exact.lean`'s `promote*_spec` keeps it, and now owes two
+fewer conjuncts of six.  The same holds of the four
+`internPersistent_spec`s in `Bridge/Promote/StoreP.lean`: their `Ext` and
+`view` conjuncts are here; their `StoreWFP` conjunct is the store-layer
+re-run of `intern_wf` at the persistent branch, which this round did not
+take.
+
+**Flagged for the coordinator (a dedupe, not a conflict).**  Four results now
+exist in both trees, because `Bridge/` proved them under the invariant before
+the store layer had them unconditionally:
+`Bridge/StoreBind.lean`'s `EStore.internAt_ext`, and
+`Bridge/StoreNested.lean`'s `LExt.of_ns` / `LsExt.of_ls` / `Ext.of_lss` with
+`denoteLAux_store_mono_nested` / `denoteEAux_store_mono_nested` beneath them.
+They are in `namespace ConRon.Bridge`, so nothing is ambiguous and
+`ConRonBridge` builds unchanged, but the Bridge copies should be deleted in
+favour of `Arena`'s (the `Arena` forms are strictly more general: the
+`of_view_mono` combinators take an arbitrary `st'`, where `Ext.of_lss`
+requires `st' = { st with lss := … }`).
+
+**Gates.**  `lake build ConRonArena` green, **zero warnings**, 106 jobs;
+`WFProofs.lean` 8 s and `PromoteExt.lean` 2.2 s (`LEAN_NUM_THREADS=1`,
+`LAKE_JOBS=4`).  `lake build ConRonBridge` and `lake build ConRonRefine2`
+green at their pre-existing `sorry` counts — the additions are purely
+additive.  `scripts/provenance.py check`: 0 findings, **2 494 arena Lean
+items** (was 2 401).  `#print axioms` — a section at the foot of
+`PromoteExt.lean` prints nineteen of them on every build, and the other
+fifty-one were checked in a scratch file — reports
+`[propext, Classical.choice, Quot.sound]` on every result, **except five**
+(`{N,L,Ls}Ext.of_view_mono`, `denoteLAux_store_mono_ns`,
+`denoteLList_mono_of_lext`) which need only `[propext, Quot.sound]`.  No
+`sorryAx`, no `bv_decide` axiom.  Both modules are at the **default
+`maxHeartbeats`** and pull in no Mathlib.
+
 #### For P2b
 
 * `tag_cases` is written (see the follow-ups above); read that subsection's
