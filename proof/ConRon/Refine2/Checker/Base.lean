@@ -27,7 +27,7 @@ lst'.store` in EVERY success arm rather than store equality, at no cost
 conclusions are the only ones in the tier that are `Ext`-ONLY: nothing is
 claimed about the two stores beyond one extending the other.
 
-## Finding 10 — `vis` out of the index is a hypothesis at forty-one sites
+## Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites
 
 Task #97-P6-6b took the visibility counter OUT of the environment record's
 read path: `ifenv_find(vis, fe, n)` takes `vis : u64` beside `fe`, because
@@ -39,8 +39,8 @@ takes a `vis` parameter carries
 
 and it is discharged at the top by `IFEnvRel.visibleBelow` — the call sites
 all pass `fe.visible_below` — but must be threaded through the tier, because
-inside it `vis` is an ordinary argument.  **Forty-one of this file's and
-`DeclCheck.lean`'s statements carry it**, and like task #97-P5-0's finding 3
+inside it `vis` is an ordinary argument.  **Seventy-one statements of this
+tier carry it**, and like task #97-P5-0's finding 3
 it is a fact about the port's own calling convention rather than a
 divergence.
 
@@ -881,5 +881,17 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       (checkValueGroup (ConRon.Refine.absMode mode) lf (absValueGroup g)) := by
   sorry
+
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.or_else_attempt_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms or_else_attempt_refines
+
+/-- info: 'ConRon.Refine2.is_rec_info_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms is_rec_info_refines
+
+/-- info: 'ConRon.Refine2.memo_b_get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms memo_b_get_refines
 
 end ConRon.Refine2

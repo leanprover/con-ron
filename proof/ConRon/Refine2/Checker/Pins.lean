@@ -1053,4 +1053,39 @@ theorem intern_pin_sets_refines {pers st lst}
         (← internPinSets ((pss.val.drop i.val).map ConRon.Refine.absNatOpPinSet)))) := by
   sorry
 
+
+/-! ## The axiom census
+
+DESIGN.md §8.2's own discipline (task #97-P5-0 §8, task #97-P5-1 §7): every
+CLOSED lemma of the tier is `#print axioms`-checked under `#guard_msgs`, and
+every one reads `[propext, Classical.choice, Quot.sound]` and nothing else —
+no `sorryAx` on a closed lemma, no `bv_decide` axiom anywhere.  `pin_at` is
+the one this file's fifty-four readers all reduce to, so it is the row that
+matters; three of the forty-nine wrappers and the three table readers stand
+for the rest. -/
+
+/-- info: 'ConRon.Refine2.pin_at_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_at_refines
+
+/-- info: 'ConRon.Refine2.pins_ready_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pins_ready_refines
+
+/-- info: 'ConRon.Refine2.pin_eq_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_eq_refines
+
+/-- info: 'ConRon.Refine2.pin_nat_div_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_nat_div_refines
+
+/-- info: 'ConRon.Refine2.pin_of_reduce_bool_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_of_reduce_bool_refines
+
+/-- info: 'ConRon.Refine2.pin_empty_levels_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_empty_levels_refines
+
+/-- info: 'ConRon.Refine2.pin_zero_level_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_zero_level_refines
+
+/-- info: 'ConRon.Refine2.pin_sort_one_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_sort_one_refines
+
 end ConRon.Refine2

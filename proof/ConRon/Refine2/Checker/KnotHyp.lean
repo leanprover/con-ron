@@ -22,7 +22,8 @@ against `CoreFnsA` directly because that is the form every lemma of this tier
 uses: a checker body never holds the record, it calls `annotateCore mode fe
 checkFuel d e` by name (`Arena/CheckerBase.lean`'s module note 2 — *"the
 record is the statement subject P3 needs, and the bodies call
-`Arena/Core.lean`'s entries by name"*).
+`Arena/Core.lean`'s entries by name"* — sixty-two statements of this tier
+carry `KnotRel checkFuel`, and not one of them holds the record).
 
 **This is a HYPOTHESIS of this tier and a THEOREM of P5-Core's.**  Until the
 two branches merge, every lemma below the `Core` seam carries `KnotRel

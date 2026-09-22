@@ -707,4 +707,23 @@ theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
       (promoteNew lm (absU fuel) (absU k) lf) := by
   sorry
 
+
+/-! ## The axiom census
+
+The eight memo primitives are this file's closed group; `pmemo_get_e` and
+`pmemo_set_e` stand for the other six, which are the same proof at another
+handle type. -/
+
+/-- info: 'ConRon.Refine2.pmemo_get_e_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pmemo_get_e_refines
+
+/-- info: 'ConRon.Refine2.pmemo_set_e_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pmemo_set_e_refines
+
+/-- info: 'ConRon.Refine2.pmemo_get_n_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pmemo_get_n_refines
+
+/-- info: 'ConRon.Refine2.pmemo_set_ls_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pmemo_set_ls_refines
+
 end ConRon.Refine2
