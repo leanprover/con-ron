@@ -40151,3 +40151,223 @@ one import went in beside the Checker tier's.  The one adjustment the second
 merge forced was editorial: `scripts/gates.sh` grew two gates, so
 `gen-prelude-lean.sh --check` is step **11** and the two module notes that
 cite it were corrected.
+
+#### Follow-up — P3-Frontend-2: the critical path, taken (2026-09-22, Opus under Fable)
+
+Phase **P3-Frontend-2**, off `arena`'s tip `df189416`, on the same nine
+modules and nothing else.  The brief was §7's critical path in §7's order —
+items 5-7 → 9 → 16 → 18, then everything the capstones consume — plus §5's
+finding 6 (`checkDeclsPure_thmDecl_const`) as an upstream ask.
+
+**Fourteen of the fifty-six closed, and the two that mattered most are
+sorry-FREE.**  The round did not reach the record-assembly steps (items 5-7);
+it went straight at what SITS ON them, so that the whole streaming fold and
+both assembled capstone letters now rest on named leaves rather than on a
+sorry each.
+
+##### 1. What closed
+
+| item | declarations | |
+|---|---|---|
+| 9 (half) | `applyLine_run` | six arms over the three entry parsers and `applyDeclD_run`; the `header`/`blank` arms are `rfl` on both sides |
+| 16 | `applyFinalLine_run`, `feedChunk_run` (+ `feedChunk_run_le`) | the loop's strong induction, at the twin's own measure |
+| 17 | `chunkStep_run`, `chunkFinish_run` | |
+| 18 | `parseBytes_run`, `parseChunksGo_run`, `parseChunks_run` | **so `parseChunks_exact` — DESIGN §8.2's parser statement — is now a theorem whose only open premises are `applyLine_run`'s and `StateD_init_run`** |
+| 19 | `builtinPreludeE_run` | `parseBytes_run` under the prelude gate |
+| 22 | `preparePrelude_run` | `frontOf_run` and `hoistNatOpGround_run` composed |
+| 23 | `FoldOK_post_parse` | rests on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` and nothing else |
+| 24 | `checkDeclsPure_thmDecl_const`, `no_False_theorem_accepted_pure` | **`[propext, Classical.choice, Quot.sound]`** — no `sorryAx` |
+| 25 | `Arena.no_False_declaration`, `Arena.no_False_declaration_prelude` | the four steps of §6's table, composed |
+
+Eight new library results beside them, every one closed: `MapRel.insert`,
+`IdTableRel.empty`, `AM.{pure_ok,fail_ok}`, `denoteDeclArray_iff`,
+`denoteDecls_append`, `denoteDeclArray_append`, `annotateCore_const`,
+`checkDeclsPure_prefix`.  The tier is **143 declarations in 3 471 lines**
+(was 132 in 2 792), **42 open** (was 56).
+
+##### 2. Finding 7 — the pure fold's PREFIX is a run, and that is the whole of §5's finding 6
+
+con-leche proves its stream ingredient at the Cached tier in three parts (the
+annotation of a bare constant, the `thmDecl` step's push, and `PushChain` —
+"pushed constants persist to the end of the run").  Transposed onto
+`checkDeclsPure`, **the third part is not needed at all**:
+
+    checkDeclsPure μ ops pins ds = ds.foldlM (checkDecl μ ops pins) Env.empty
+
+is a plain `foldlM`, so `List.foldlM_append` says every PREFIX of an accepted
+run is an accepted run at the same mode, ops and fuel
+(`checkDeclsPure_prefix`).  The record's own step is therefore the END of an
+accepted run, and `ConLeche.Model.no_proof_of_False_pure` applies there — the
+constant never has to be carried past it.  The CACHED fold is not of that
+shape (`Cached.checkDecls` runs two phases over the whole array and phase B
+pends every value phase A installed), which is exactly why con-leche needs
+`installRun_trace`'s `PushChain` and this tier does not.
+
+What survives of con-leche's proof is its first two parts, and both are
+cheaper here too: `annotateCore_const` is `rfl` at every non-zero fuel (the
+pure knot has no annotation memo, so there is no hit branch to rule out —
+`annotate_const_of_miss` spends its argument on exactly that), and the step's
+push is `ConLeche.Semantics.declThmRun_of`, which con-leche already has.
+
+**The upstream ask shrinks accordingly.**  What belongs beside
+`Cached.checkDecls_thmDecl_const` in `ConLeche/Verify/Cached/StreamThm.lean`
+is not a proof this repository owes con-leche but a RE-STATEMENT: the pure
+tier's lemma has the prefix conclusion, not the whole run's, and its proof is
+twenty lines.  `Bridge/Frontend/Capstone.lean` §2 carries it, closed, in the
+meantime; the whole statement is about con-leche's own functions and mentions
+no handle.
+
+##### 3. Finding 8 — the import rule widens by one more, and it is the scanner's
+
+DESIGN §2's "no scanner tier" claim is intact and the saving is intact, but
+the bridge does need ONE line from `ConLeche/Frontend/Scan/Equiv.lean`:
+con-leche's `feedChunk` and `applyFinalLine` call **`scanLineSpec`** (the
+naive reference, with `@[csimp]` substituting the fast one in compiled code)
+and the twin calls **`scanLineFwd`** directly, because *"that is what both
+binaries execute"* (`Arena/Frontend/ExportC.lean`).  So
+`Bridge/Frontend/Chunks.lean` imports `ConLeche.Frontend.Scan.Equiv` for
+`scanLineFwd_eq` (`:932`).
+
+This is a citation, not a tier: the 1 800 lines behind that equation are
+con-leche's, already proved and already built, and what the arena avoids is
+re-implementing the recogniser (the original campaign's seven files and
+17 479 lines of `RefineOld/Frontend/Scan*`), not citing con-leche's own
+equality between its two spellings.  §8's import list reads: `Rel.lean` adds
+`ConLeche.Frontend.ExportC`, **`Chunks.lean` adds
+`ConLeche.Frontend.Scan.Equiv`**, `Prepare.lean` adds
+`ConLeche.Frontend.{Prelude,NatOpGround}` and `ConLeche.Verify.Frontend.Prepare`,
+`Capstone.lean` adds `ConRon.Arena.Main` and `ConLeche.MainTheorem`.
+
+##### 4. Finding 9 — three obligations that are NOT this tier's, named exactly
+
+Each of these stopped a proof that was otherwise finished, and each is one or
+three lines where it belongs:
+
+1. **`StateD_init_run` (item 15)** needs *the handle a name/level intern
+   returns on a closed scratch tier is persistent*.  `Arena/WFProofs.lean` has
+   it for the EXPRESSION store (`EStore.intern_isPersistent_of_off`,
+   `internAt_isPersistent_of_off` — `Bridge/StoreBind.lean` already cites
+   them) and has **no `NStore`/`LStore`/`LsStore` twin**.  Until it does, the
+   `names` and `levels` clauses of `PersStateD` cannot be discharged at all
+   from the frontend tier.  Owner: the arena's WF layer.
+2. **`Arena.no_False_declaration_pipeline` (item 26)** is
+   `Arena.no_False_declaration_prelude`'s assembly verbatim except that
+   `runPipelineM` runs `internAllPins` BETWEEN `preparePrelude` and
+   `installThenCheck`, so the fold's start invariant has to be re-established
+   at the state that walk leaves — and `FoldOK_post_parse` asks for a
+   `ParseStep`, whose `caches` conjunct `Bridge/Checker/Pins.lean`'s
+   `internAllPins_run` does not state.  The ask: **`internAllPins_run` should
+   carry `s'.caches = s.caches` and `s'.memos = s.memos`** beside its six
+   existing conjuncts.  `internAllPins` is thirty-five pin reads and one
+   `internPinSets`, none of which writes a per-declaration cache, so the
+   conjunct costs nothing where it is proved and cannot be had from here.
+   Owner: the Checker tier (its own item 13).  With it, the letter is ten
+   lines.
+3. **`FoldOK_post_parse` grew a hypothesis** and the two capstone letters grew
+   it with them: `hcache0 : s0.caches = Caches.empty`.  `CacheOK` is vacuous
+   at EMPTY per-declaration tables (`Bridge/Specs.lean`'s `CacheOK.of_empty`)
+   and what the parse gives is that the tables did not MOVE
+   (`ParseStep.caches`), not that they were empty.  `AState.init` sets them
+   empty (`Arena/Monad.lean:146`), so the driver has it; a letter about an
+   arbitrary start state has to say so.  It joins §6's "the driver's startup"
+   row and changes nothing else about the letters.
+
+##### 5. Finding 10 — `MapRel`'s insert is where `denoteN_inj` earns its keep
+
+§3's finding 1 recorded that `MapRel`'s `cover` clause transports across an
+append for free — no injectivity needed.  The INSERT is the other half of that
+story and it needs injectivity twice: `hit` at a handle the insert missed has
+to land on a KEY the insert missed (two distinct handles denoting one name
+would break it), and `cover` at a name the insert missed has to land on a
+handle it missed.  `MapRel.insert` is the only thing in `Rel.lean` that puts
+anything IN a map — `mono` and `empty` only carry and start one — and it is
+what the six `noteDecl` arms, `registerProjOwners` and `noteProjIota` will all
+read.
+
+##### 6. Elaboration
+
+Measured at `LEAN_NUM_THREADS=1 LAKE_JOBS=1` on a loaded machine, after
+deleting the tier's `.olean`s; the index module (imports only, no declaration
+of its own) is the baseline.
+
+| module | wall | net | raw | decls | open |
+|---|---:|---:|---:|---:|---:|
+| `Rel.lean` | 1.6 s | 0.84 s | 816 | 55 | 0 |
+| `Modeller.lean` | 0.79 s | 0.03 s | 147 | 5 | 2 |
+| `Shared.lean` | 0.86 s | 0.10 s | 237 | 16 | 10 |
+| `ProjRec.lean` | 0.89 s | 0.12 s | 234 | 10 | 10 |
+| `Lines.lean` | 1.00 s | 0.23 s | 458 | 23 | 12 |
+| `Chunks.lean` | 1.10 s | 0.34 s | 586 | 14 | 1 |
+| `Prepare.lean` | 0.89 s | 0.13 s | 299 | 11 | 6 |
+| `Capstone.lean` | 0.88 s | 0.12 s | 437 | 9 | 1 |
+| `Axioms.lean` | 0.77 s | 0.01 s | 182 | — | — |
+| the index module (baseline) | 0.76 s | — | 75 | — | — |
+| **the tier** | **~9 s** | **~2 s** | **3 471** | **143** | **42** |
+
+**No theorem is anywhere near the 20 s flag, and none is within two orders of
+magnitude of it.**  `-Dprofiler=true -Dprofiler.threshold=20` over the two
+heaviest modules reports exactly four entries in `Chunks.lean` — the slowest a
+**66 ms** `rewriteSeq`, then a 35 ms `simp` and two type-checking entries of
+32 ms and 23 ms — and two in `Rel.lean`, a 29 ms `simp` and a 52 ms
+elaboration.  The round's own additions did not move the tier's cost: it grew
+by 679 lines and the net elaboration is still about two seconds, for §1's
+reason (**no `grind`, no `mvcgen`**) and one more the round confirmed: the
+chunk tier is `AM.bind_ok` / `AM.pure_ok` and `simp only` with a named branch
+fact, never a search.
+
+##### 7. The sorry list, exactly — forty-two declarations, nineteen items
+
+Unchanged in shape from §7; the closed rows are struck from it.  What is left,
+by module:
+
+| module | open | |
+|---|---:|---|
+| `Shared.lean` | 10 | items 1-3: `denoteEGo_spec`, `denoteEShared_isSome`, `denoteCVGo_spec`, `denoteCIListGo_spec`, `readExpr_run`, `readCIList_run`, `internExpr_run`, `internDecls_run`, `denoteBlockRec_eq_of_rel`, `ctxOf_eq_of_rel` |
+| `ProjRec.lean` | 10 | items 10-13: `projIotaName_run`, `isProjIotaName_run`, `projIotaLevel_run`, `occursConstFast_run`, `stripPisAll_run`, `mkLams_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run` |
+| `Lines.lean` | 12 | items 5-7, 9: `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run`, `parsePwD_run`, `parseCVD_run`, `noteDecl_run`, `pushDecl_run`, `parseRuleD_run`, `blockRecOf_run`, `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Prepare.lean` | 6 | items 20-21: `preludeKey_run`, `pick_denote`, `frontOf_run`, `usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run` |
+| `Modeller.lean` | 2 | item 8: `inProcessModeller_wf`, `inProcessModeller_refines` |
+| `Chunks.lean` | 1 | item 15: `StateD_init_run` (finding 9.1) |
+| `Capstone.lean` | 1 | item 26: `Arena.no_False_declaration_pipeline` (finding 9.2) |
+
+**The critical path is now one node.**  Items 16-18 are closed, item 9's
+`applyLine_run` is closed, so the whole streaming fold and both assembled
+capstone letters wait on **`processLineCoreD_run`** (item 9) and
+`StateD_init_run` (item 15) — and `processLineCoreD_run` waits on items 5-7
+and 12, which wait on items 10-11 and 13, of which item 13's second half is
+the Inductives tier's and item 11's `occursConstFast_run` has
+`Bridge/ExprOps/Leaves.lean`'s open GRAY shape.  Nothing on that path is
+blocked on a statement that does not exist; every one of them is a proof
+someone has to write.
+
+##### 8. The axiom census, re-read
+
+`Bridge/Frontend/Axioms.lean` now has three sections instead of two, because
+the round made the distinction visible:
+
+* **the closed census** — 55 results, every one within
+  `[propext, Classical.choice, Quot.sound]` and several at `[propext]` alone.
+  It gained `MapRel.insert`, `IdTableRel.empty`, `AM.{pure_ok,fail_ok}`, the
+  three `denoteDeclArray` lemmas, and — the headline —
+  `annotateCore_const`, `checkDeclsPure_prefix`,
+  `checkDeclsPure_thmDecl_const` and `no_False_theorem_accepted_pure`;
+* **PROVED, but resting on an open leaf** — thirteen results whose own proof
+  is complete and which carry `sorryAx` only through a lemma of the sorry list
+  they cite (`applyLine_run`, the seven chunk-tier theorems,
+  `builtinPreludeE_run`, `preparePrelude_run`, `mem_preparePrelude_denote`,
+  `FoldOK_post_parse`).  The campaign's rule keeps them out of the census
+  proper; the distance between "proved" and "closed" is what the tier's
+  remaining work is, and this is the only place a reader can read it off;
+* **the headlines** — `parseChunks_exact` and the three capstone letters,
+  still carrying `sorryAx`, still naming **neither `CoreSpec` nor `IndSpec`
+  nor `ModellerWF` nor `ModellerRefines`**.  That claim is the one §6 makes
+  and it is unchanged: the four are hypotheses of the statements, not axioms
+  of the environment.
+
+##### 9. Gates
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 124 `sorry` warnings, of which 42 are this tier's |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 95 s, `lake-build` 361 s) |
+| the diff | `proof/ConRon/Bridge/Frontend/{Rel,Lines,Chunks,Prepare,Capstone,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
