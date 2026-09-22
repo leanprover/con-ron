@@ -12,7 +12,7 @@ parse state denotes con-leche's, field for field**.
 `Arena/Frontend/ExportC.lean`'s `StateD` is a field-for-field mirror of
 `ConLeche/Frontend/ExportC.lean:82-134`'s — eighteen fields, in the same order,
 with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` — so the
-relation is a field-for-field conjunction, and the three shapes it needs are:
+relation is a field-for-field conjunction, and the four shapes it needs are:
 
 * **`OptRel`** — a relation lifted to `Option`, `none` matching `none`.  The
   three stream-index tables are `IdTable`s of handles against `IdTable`s of
@@ -26,6 +26,9 @@ relation is a field-for-field conjunction, and the three shapes it needs are:
   `Bridge/StateOK.lean`'s `IFEnvOK` shape and for the same reason: the naive
   "a miss is a miss" is not preserved by an arena extension, but "every entry
   of the value side is named by a handle the twin's side knows" is);
+* **`ListRel`** — Mathlib's `List.Forall₂` under another name; the library
+  imports no Mathlib (task #97-P3-0) and core has no such relation, so the
+  tier carries its own four-line inductive;
 * the declaration ARRAY, which is `Bridge/Checker/Inv.lean`'s `denoteDecls` on
   `Array.toList`.
 

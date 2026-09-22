@@ -9,8 +9,10 @@ DESIGN §8.2's parser statement and the byte-level capstone:
 Nine modules, in dependency order:
 
 * `Bridge/Frontend/Rel.lean` — the parse-state relation (`StateDRel`,
-  `ParseResultRel`, `PersStateD`), the three generic shapes it is built from
-  (`OptRel`, `IdTableRel`, `MapRel`) and the parse's frame (`ParseStep`);
+  `ParseResultRel`, `PersStateD`), the four generic shapes it is built from
+  (`OptRel`, `ListRel`, `IdTableRel`, `MapRel`), the transport that carries
+  it across an append (`StateDRel.ext`) and the parse's frame
+  (`ParseStep`);
 * `Bridge/Frontend/ProjRec.lean` — the projection rewrite and the owner
   census, with the three deviations `Arena/Frontend/ProjRec.lean`'s module
   note records as three theorems;
