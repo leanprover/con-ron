@@ -43587,8 +43587,8 @@ this file* — is what makes that visible.
 
 | gate | |
 |---|---|
-| `cd proof && lake build ConRonBridge` | **0 errors**; 13 of this tier's declarations open |
-| `scripts/gates.sh` | all 13 OK, on the merge of `arena`'s `aa4c7a76` |
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 13 of this tier's declarations open |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 112 s), on the merge of `arena`'s `aa4c7a76` |
 | the diff | `proof/ConRon/Bridge/Frontend/{Rel,Shared,Modeller,Lines,Prepare,ProjRec,Capstone,Chunks,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module — the seam's strengthening stayed inside `Bridge/Frontend/**`, which is what §2's correction 3 bought |
 
 The tier is **8 825 lines** (was 7 478) in nine modules plus the index.
