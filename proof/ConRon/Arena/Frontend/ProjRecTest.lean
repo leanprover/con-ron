@@ -229,7 +229,7 @@ private def build : AM Fx := do
 
 /-- con-leche: none — the fixture built into an empty store. -/
 private def buildRes : Except CheckError (Fx × AState) :=
-  build.run (AState.init EStore.empty)
+  (do internReservedPins; build).run (AState.init EStore.empty)
 
 #guard (match buildRes with | .ok _ => true | .error _ => false)
 

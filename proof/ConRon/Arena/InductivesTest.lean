@@ -149,7 +149,7 @@ private def chk (base : List ConstantInfo) (block : List ConstantInfo) (nP : Nat
       | .ok envE => do pure (some (← envE.consts.mapM iCI))
       | .error _ => pure none
     pure (fe'.env.consts, want)
-  match run.run (AState.init EStore.empty), expect with
+  match (do internReservedPins; run).run (AState.init EStore.empty), expect with
   | .ok ((got, some want), _), .ok _ => got == want
   | .error a, .error b => errEq a b
   | _, _ => false

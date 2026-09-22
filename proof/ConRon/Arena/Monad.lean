@@ -98,11 +98,19 @@ structure Memos where
   bvarBC : Std.HashMap EIdx Nat
   /-- `fvarRange` (`ExprOps.lean:1397-1422`). -/
   fvarBC : Std.HashMap EIdx Nat
+  /-- `instantiateLevelParams`' LEVEL-handle substitution, a per-call memo of
+  `instLPGo`'s own level work (task #97-P6-13).  The key omits `ks`/`us` for
+  the reason DESIGN §8.3 gives for the three walks above: the table is cleared
+  at every top-level call (`instLPClear`), so within one call the two vectors
+  are constants. -/
+  instLPLC : Std.HashMap LIdx LIdx
+  /-- The same at a universe-argument LIST handle, for the `.const` arm. -/
+  instLPLsC : Std.HashMap LsIdx LsIdx
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast — every
 walk starts from the empty memo (`(instantiate1Go v {} e d).1`), so this is
 what a top-level entry installs. -/
-def Memos.empty : Memos := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
+def Memos.empty : Memos := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 
 instance : Inhabited Memos := ⟨Memos.empty⟩
 
@@ -121,6 +129,11 @@ structure AState where
   own beside `memos`, because the per-call clear and the per-declaration
   drop are different operations on different lifetimes. -/
   caches : Caches
+  /-- The PIN TABLE (task #97-P6-4a, `Arena/CoreState.lean`): the reserved
+  constant names interned once at the driver.  Empty until `internAllPins`
+  fills it, which is what makes an early read a stop rather than a wrong
+  answer. -/
+  pins : Pins
 
 /-- con-leche: ConLeche/Cached/StateC.lean:164-166 CheckCM
 con-leche: ConLeche/Kernel/Core.lean:80 CheckM
@@ -130,7 +143,7 @@ else"). -/
 abbrev AM := StateT AState (Except CheckError)
 
 /-- con-leche: none — the initial state over a given arena. -/
-def AState.init (st : EStore) : AState := ⟨st, .empty, .empty⟩
+def AState.init (st : EStore) : AState := ⟨st, .empty, .empty, .empty⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — **the one failure
 primitive of (B)** (task #97s template rule 7).  Written as a bare `throw`,
@@ -164,7 +177,13 @@ and `EStore.intern_spec`'s `capOK` hypothesis is discharged by this branch. -/
 def internE (v : ENodeView) : AM EIdx := do
   let s ← get
   let n := if s.store.scratchOn then s.store.scr.sizeOf v else s.store.pers.sizeOf v
-  if n < Idx.idxCap then
+  -- **The binder datum's own array is part of the test** (task #97-P6-16): a
+  -- `lam`/`forallE` view interns a `BMNode` too, and a `BMIdx` past `idxCap`
+  -- would wrap into the tier bit.  Only the two binder arms reach the datum
+  -- store, so only they are tested — which is where the Rust's `intern_bm`
+  -- makes the same test, and raises the same `Native`.
+  let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
+  if n < Idx.idxCap && (!EStore.eViewNeedsBM v || nbm < Idx.idxCap) then
     let st := s.store
     let s := { s with store := EStore.empty }
     let (st, h) := st.intern v
@@ -172,6 +191,159 @@ def internE (v : ENodeView) : AM EIdx := do
     pure h
   else
     fail (.native "arena: expression constructor array full")
+
+/-! ### The dangling-handle declines, named once
+
+DESIGN §8.4's "one named `fail`" rule at the two handle kinds whose
+PROJECTIONS answer `Option`: a projection that has already decided the tag
+returns the field and nothing else, and the caller spells the decline with
+`view`'s own error.  Naming them keeps the thirteen projections' callers from
+inventing thirteen messages (task #97-P6-10; `#[cold]` on the Rust side, which
+Charon does not read). -/
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `none` arm of
+`view`, spelled once. -/
+def failDanglingE {α : Type} : AM α :=
+  fail (.internal "arena: dangling expression handle")
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — the `none` arm of
+`viewLs`, spelled once. -/
+def failDanglingLs {α : Type} : AM α :=
+  fail (.internal "arena: dangling level-list handle")
+
+/-! ### The per-constructor PROJECTIONS of `view` (tasks #97-P6-10, #97-P6-13)
+
+A walk that has already read the tag off the handle word wants one
+constructor's fields and nothing else; going through `view` would decode a
+whole `ENodeView` and dispatch on the tag a second time.  Each projection is
+`EStore`'s own under a state read, and each answers `Option` rather than
+failing, so that the caller spells `view`'s decline itself. -/
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `app` projection. -/
+@[inline] def viewApp (h : EIdx) : AM (Option (EIdx × EIdx)) := do
+  let s ← get; pure (s.store.viewApp h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `bvar` projection. -/
+@[inline] def viewBVar (h : EIdx) : AM (Option Nat) := do
+  let s ← get; pure (s.store.viewBVar h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `sort` projection. -/
+@[inline] def viewSort (h : EIdx) : AM (Option LIdx) := do
+  let s ← get; pure (s.store.viewSort h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `const` projection. -/
+@[inline] def viewConst (h : EIdx) : AM (Option (NIdx × LsIdx)) := do
+  let s ← get; pure (s.store.viewConst h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the head NAME of a
+`const` node; the level arguments are left in the store. -/
+@[inline] def viewConstName (h : EIdx) : AM (Option NIdx) := do
+  let s ← get; pure (s.store.viewConstName h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `fvar` index. -/
+@[inline] def viewFVarIdx (h : EIdx) : AM (Option Nat) := do
+  let s ← get; pure (s.store.viewFVarIdx h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `fvar` binder
+type. -/
+@[inline] def viewFVarTy (h : EIdx) : AM (Option EIdx) := do
+  let s ← get; pure (s.store.viewFVarTy h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `lit` projection. -/
+@[inline] def viewLit (h : EIdx) : AM (Option ConLeche.Literal) := do
+  let s ← get; pure (s.store.viewLit h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the binder projection,
+with the datum decoded. -/
+@[inline] def viewBind (h : EIdx) : AM (Option (EIdx × EIdx × ConLeche.BinderMeta)) := do
+  let s ← get; pure (s.store.viewBind h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the binder
+projection that stops at the datum's HANDLE (task #97-P6-16): a walk that
+takes a binder apart and puts it back never looks inside the datum. -/
+@[inline] def viewBindI (h : EIdx) : AM (Option (EIdx × EIdx × BMIdx)) := do
+  let s ← get; pure (s.store.viewBindI h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — decode a binder
+datum handle. -/
+@[inline] def viewBM (mi : BMIdx) : AM (Option ConLeche.BinderMeta) := do
+  let s ← get; pure (s.store.viewBM mi)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `letE`
+projection. -/
+@[inline] def viewLet (h : EIdx) : AM (Option (EIdx × EIdx × EIdx)) := do
+  let s ← get; pure (s.store.viewLet h)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `proj`
+projection. -/
+@[inline] def viewProj (h : EIdx) : AM (Option (NIdx × Nat × EIdx)) := do
+  let s ← get; pure (s.store.viewProj h)
+
+/-! ### `internE`'s clauses, one entry per constructor (task #97-P6-15)
+
+`internE` takes an `ENodeView`, so every caller BUILT one; these entries take
+the arm's own fields, so the view is never built at all.  Same store
+operation, same capacity test, same `Native` decline — the equation the bridge
+owes is `internCE (fields) = internE (.C fields)`, `rfl`. -/
+
+/-- con-leche: none — `internE` at the `bvar` constructor. -/
+@[inline] def internBVarE (i : Nat) : AM EIdx := internE (.bvar i)
+/-- con-leche: none — `internE` at the `fvar` constructor. -/
+@[inline] def internFVarE (idx : Nat) (ty : EIdx) : AM EIdx := internE (.fvar idx ty)
+/-- con-leche: none — `internE` at the `sort` constructor. -/
+@[inline] def internSortE (u : LIdx) : AM EIdx := internE (.sort u)
+/-- con-leche: none — `internE` at the `const` constructor. -/
+@[inline] def internConstE (n : NIdx) (us : LsIdx) : AM EIdx := internE (.const n us)
+/-- con-leche: none — `internE` at the `app` constructor. -/
+@[inline] def internAppE (f a : EIdx) : AM EIdx := internE (.app f a)
+/-- con-leche: none — `internE` at the `lam` constructor. -/
+@[inline] def internLamE (ty b : EIdx) (m : ConLeche.BinderMeta) : AM EIdx :=
+  internE (.lam ty b m)
+/-- con-leche: none — `internE` at the `forallE` constructor. -/
+@[inline] def internForallEE (ty b : EIdx) (m : ConLeche.BinderMeta) : AM EIdx :=
+  internE (.forallE ty b m)
+/-- con-leche: none — `internE` at the `letE` constructor. -/
+@[inline] def internLetEE (ty val b : EIdx) : AM EIdx := internE (.letE ty val b)
+/-- con-leche: none — `internE` at the `lit` constructor. -/
+@[inline] def internLitE (l : ConLeche.Literal) : AM EIdx := internE (.lit l)
+/-- con-leche: none — `internE` at the `proj` constructor. -/
+@[inline] def internProjE (n : NIdx) (i : Nat) (e : EIdx) : AM EIdx :=
+  internE (.proj n i e)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
+`lam` constructor with the binder datum already a HANDLE (task #97-P6-16).
+The capacity test is `internE`'s own, at the binder array. -/
+def internLamIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
+  let s ← get
+  if s.store.scr.bindSizeOf ETag.lam < Idx.idxCap ∧
+      s.store.pers.bindSizeOf ETag.lam < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internLamI ty b mi
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: expression constructor array full")
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
+`forallE` constructor with the binder datum already a HANDLE. -/
+def internForallEIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
+  let s ← get
+  if s.store.scr.bindSizeOf ETag.forallE < Idx.idxCap ∧
+      s.store.pers.bindSizeOf ETag.forallE < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internForallEI ty b mi
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: expression constructor array full")
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two binder
+arms at a tag the caller carries and a datum it holds as a handle: the shape
+the rebuilding walks want, where `eBindView` + `internE` stood. -/
+@[inline] def internBindIE (tag : UInt32) (ty b : EIdx) (mi : BMIdx) : AM EIdx :=
+  if tag == ETag.lam then internLamIE ty b mi else internForallEIE ty b mi
 
 /-! ## The name store's primitives -/
 
@@ -335,6 +507,84 @@ def internLevels (us : List Level) : AM LsIdx := do
   let hs ← internLevelList us
   internLsNode hs
 
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — the LENGTH projection
+of `viewLs` (task #97-P6-10): the callers that only compare a
+universe-argument list's length with a declaration's level-parameter count
+want this, and it reads the record's own length. -/
+@[inline] def viewLsLen (h : LsIdx) : AM (Option Nat) := do
+  let s ← get; pure (s.store.lss.viewLen h)
+
+/-! ## The readback memo (task #97-P6-13)
+
+DESIGN §8.3's "memoised readback per declaration", which nothing had built.
+`readLevel` / `readName` / `readLevels` rebuild a transient tree node by node
+out of the store every time they are asked, and the checker asks per
+OCCURRENCE: `instLPGo`'s `.sort` and `.const` arms, `Level.isEquiv`'s two
+misses, `proofPW`'s substitution and the recursor's comparands.  The
+denotation of a handle is a function of the handle and of the tier it names,
+so a row is valid for exactly as long as the other eleven cache tables are —
+the per-declaration bracket flushes the caches and drops the tier in one
+operation, which is what makes a stale row impossible.
+
+The obligation is a MEMO obligation and not a new algorithm: `denoteL`,
+`denoteN` and `denoteLs` are functions of the store, so a hit answers with the
+row the miss stored. -/
+
+/-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — the memoised
+`readLevel`. -/
+def readLevelM (h : LIdx) : AM Level := do
+  let s ← get
+  match s.caches.readLC[h]? with
+  | some l => pure l
+  | none =>
+    match denoteL s.store.ls h with
+    | none => fail (.internal "arena: dangling level handle")
+    | some l =>
+      let mp := s.caches.readLC
+      let s := { s with caches := { s.caches with readLC := ∅ } }
+      set { s with caches := { s.caches with readLC := mp.insert h l } }
+      pure l
+
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
+`readName`. -/
+def readNameM (h : NIdx) : AM ConLeche.Name := do
+  let s ← get
+  match s.caches.readNC[h]? with
+  | some x => pure x
+  | none =>
+    match denoteN s.store.ns h with
+    | none => fail (.internal "arena: dangling name handle")
+    | some x =>
+      let mp := s.caches.readNC
+      let s := { s with caches := { s.caches with readNC := ∅ } }
+      set { s with caches := { s.caches with readNC := mp.insert h x } }
+      pure x
+
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
+`readNames`.  The recursion is on the list, as `readNames`' is; the Rust's
+`_from` cursor companion is §3.4's standing `List`-as-`Vec` deviation. -/
+def readNamesM : List NIdx → AM (List ConLeche.Name)
+  | [] => pure []
+  | h :: hs => do
+    let x ← readNameM h
+    let xs ← readNamesM hs
+    pure (x :: xs)
+
+/-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — the memoised
+`readLevels`. -/
+def readLevelsM (h : LsIdx) : AM (List Level) := do
+  let s ← get
+  match s.caches.readLsC[h]? with
+  | some us => pure us
+  | none =>
+    match denoteLs s.store.lss h with
+    | none => failDanglingLs
+    | some us =>
+      let mp := s.caches.readLsC
+      let s := { s with caches := { s.caches with readLsC := ∅ } }
+      set { s with caches := { s.caches with readLsC := mp.insert h us } }
+      pure us
+
 /-! ## Interning into the PERSISTENT tier (the promotion's primitives)
 
 DESIGN §8.3, "Phase A runs in the scratch tier too, with promotion".  Four
@@ -349,7 +599,8 @@ one at the same place, against the persistent array; the error is the same
 the persistent tier. -/
 def internPersistentE (v : ENodeView) : AM EIdx := do
   let s ← get
-  if s.store.pers.sizeOf v < Idx.idxCap then
+  if s.store.pers.sizeOf v < Idx.idxCap &&
+      (!EStore.eViewNeedsBM v || s.store.pers.bmSize < Idx.idxCap) then
     let st := s.store
     let s := { s with store := EStore.empty }
     let (st, h) := st.internPersistent v
@@ -573,7 +824,34 @@ level-substitution answer. -/
 the level-substitution memo (it depends on `ks` and `us`). -/
 @[noinline] def instLPClear : AM Unit := do
   let s ← get
-  set { s with memos := { s.memos with instLPC := ∅ } }
+  set { s with memos :=
+    { s.memos with instLPC := ∅, instLPLC := ∅, instLPLsC := ∅ } }
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — probe the
+level-handle substitution memo (task #97-P6-13). -/
+@[inline] def instLPLGet (h : LIdx) : AM (Option LIdx) := do
+  let s ← get; pure s.memos.instLPLC[h]?
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — record a
+level-handle substitution. -/
+@[noinline] def instLPLSet (h : LIdx) (r : LIdx) : AM Unit := do
+  let s ← get
+  let mp := s.memos.instLPLC
+  let s := { s with memos := { s.memos with instLPLC := ∅ } }
+  set { s with memos := { s.memos with instLPLC := mp.insert h r } }
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — probe the
+level-LIST substitution memo. -/
+@[inline] def instLPLsGet (h : LsIdx) : AM (Option LsIdx) := do
+  let s ← get; pure s.memos.instLPLsC[h]?
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — record a
+level-LIST substitution. -/
+@[noinline] def instLPLsSet (h : LsIdx) (r : LsIdx) : AM Unit := do
+  let s ← get
+  let mp := s.memos.instLPLsC
+  let s := { s with memos := { s.memos with instLPLsC := ∅ } }
+  set { s with memos := { s.memos with instLPLsC := mp.insert h r } }
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo — probe the
 loose-bvar-bound memo. -/

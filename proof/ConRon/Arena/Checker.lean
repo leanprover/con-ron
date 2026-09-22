@@ -83,7 +83,7 @@ The quotient block's types mention the pinned equality former, which is why
 it requires the `Eq` basis first. -/
 def checkBasisDecl (fe : IFEnv) (kind : BasisKind) : AM IFEnv := do
   if kind == .quotK then do
-    let en ← pin eqName
+    let en ← pinEq
     unless fe.find? en == some (← eqA) do
       fail (.notImplemented "quotient basis requires the pinned Eq basis")
   installBasisDecls fe (← BasisKind.declsA kind)
@@ -143,7 +143,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- own, and DECLINING when it does not match.  The comparison precedes the
     -- common checks because the name is a reserved basis name: this record IS
     -- the pinned block's, not a redeclaration of it.
-    if cv.name == (← pin quotSoundName) then do
+    if cv.name == (← pinQuotSound) then do
       let blk ← BasisKind.decls .quotK
       match blk[4]? with
       | some pinned =>
@@ -174,7 +174,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       else if cvA.name == (← propextName) || cvA.name == (← choiceName) then
         fail (.notImplemented
           s!"standard axiom shape mismatch ({← readName cv.name})")
-      else if cvA.name == (← pin sorryAxName) then
+      else if cvA.name == (← pinSorryAx) then
         -- `sorryAx` is the one axiom the checker tolerates as a DECLARATION:
         -- the record is skipped and the run continues, and any USE of the
         -- name declines at the record that uses it.
@@ -486,7 +486,7 @@ def internAllPins (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
   let _ ← reduceNatDeclPin; let _ ← reduceBoolDeclPin
   let _ ← reservedBasisNames
   let _ ← natOpNames; let _ ← natDivModNames; let _ ← reduceOpNames
-  let _ ← pin sorryAxName; let _ ← pin quotSoundName
+  let _ ← pinSorryAx; let _ ← pinQuotSound
   internPinSets pins
 
 end ConRon.Arena

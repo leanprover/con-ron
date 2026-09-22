@@ -110,6 +110,7 @@ def LsTables.Sized (t : LsTables) : Prop := t.lists.Sized
 def ETables.Sized (t : ETables) : Prop :=
   t.bvars.Sized ∧ t.fvars.Sized ∧ t.sorts.Sized ∧ t.consts.Sized ∧ t.apps.Sized
     ∧ t.lams.Sized ∧ t.foralls.Sized ∧ t.lets.Sized ∧ t.lits.Sized ∧ t.projs.Sized
+    ∧ t.bms.Sized
 
 /-! ## The name store's invariant -/
 
@@ -208,7 +209,21 @@ def LsStoreWF (st : LsStore) : Prop := LsWF st
 /-- con-leche: none — arena infrastructure; the expression store's
 well-formedness at an explicit rank; it carries the three stores below it.
 Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:900 EStore.TWF`
-(at 94a1cf78). -/
+(at 94a1cf78).
+
+**Why the three binder-datum clauses say `tag = 0`** (task #97-LC).  The
+datum store has ONE constructor, so `ETables.getBM` has no tag dispatch —
+it reads `bms` at the handle's index and nothing else, exactly as the Rust's
+`ETables::get_bm` does, and `BMIdx::pack` passes tag `0` unconditionally.
+The other three stores get the handle's tag back for free, because their
+`get` dispatches on it: there, `(tag, tier, index)` determines the word, and
+a cons table's `↔` is satisfiable.  Here it is not — two handles differing
+only in their tag bits decode to the SAME datum, so without `tag = 0` the
+`bmConsP`/`bmConsS` equivalences would force `findBM` to answer both, and
+`EWFAt` would hold only of a store whose datum tables are empty.  The
+invariant says instead what the dispatch would have said, and both sides
+establish it by construction: `ETables.pushBM` builds its handle as
+`Idx.mk 0 tier _`, and `Idx.tag_mk` gives `tag = 0`. -/
 structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
   lss : LsStoreWF st.lss
   childOK : ∀ i v, st.view i = some v → ∀ c ∈ v.echildren,
@@ -224,16 +239,27 @@ structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
     rk i < st.persCount
   rankS : ∀ i, i.isPersistent = false → (st.view i).isSome = true →
     rk i < st.nodeCount
-  consP : ∀ v i, st.pers.find? v = some i ↔
+  bmChildOK : ∀ i ty b mi, st.viewBindI i = some (ty, b, mi) →
+    (st.viewBM mi).isSome = true ∧ (i.isPersistent = true → mi.isPersistent = true)
+      ∧ mi.tag = 0
+  consP : ∀ v i, st.persFind? v = some i ↔
     (st.view i = some v ∧ i.isPersistent = true)
-  consS : ∀ v i, st.scr.find? v = some i ↔
+  consS : ∀ v i, st.scrFind? v = some i ↔
     (st.view i = some v ∧ i.isPersistent = false)
-  fresh : ∀ v i, st.scr.find? v = some i → st.pers.find? v = none
+  fresh : ∀ v i, st.scrFind? v = some i → st.persFind? v = none
+  bmConsP : ∀ m i, st.pers.findBM m = some i ↔
+    (st.viewBM i = some m ∧ i.isPersistent = true ∧ i.tag = 0)
+  bmConsS : ∀ m i, st.scr.findBM m = some i ↔
+    (st.viewBM i = some m ∧ i.isPersistent = false ∧ i.tag = 0)
+  bmFresh : ∀ m i, st.scr.findBM m = some i → st.pers.findBM m = none
   derExact : ∀ i v, st.view i = some v → st.derived i = st.derOfView v
+  bmDerExact : ∀ i m, st.viewBM i = some m → st.bmDer i = (hash m.pw, m.pw.hasParams)
   sizedP : st.pers.Sized
   sizedS : st.scr.Sized
   capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
   capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
+  bmCapP : st.pers.bmSize ≤ Idx.idxCap
+  bmCapS : st.scr.bmSize ≤ Idx.idxCap
   scrOff : st.scratchOn = false → st.scr = ETables.empty
   sync : st.scratchOn = st.lss.scratchOn
 
