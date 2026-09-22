@@ -42934,9 +42934,11 @@ over 300 ms, in any file of the tier.)
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green**, 2 206 jobs, no errors — `Specs.lean` 22, `ExprOps/Mut.lean` 48, `ExprOps/Read.lean` 0 |
-| `cd proof && lake build` | green, 2 208 jobs |
-| `scripts/provenance.py check` | 0 findings |
+| `cd proof && lake build ConRonRefine2` | **green**, **2 218 jobs**, no errors — `Specs.lean` 22, `ExprOps/Mut.lean` 48, `ExprOps/Read.lean` 0 (923 `sorry` across the whole tier, none of them in this task's three files but `Specs`'s 22 and `Mut`'s 48) |
+| `cd proof && lake build` | green, **2 209 jobs** |
+| `scripts/provenance.py check` | 0 findings — `6 620 item(s) (4 099 Rust, 2 521 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK |
 | `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| `scripts/arena-census.py --summary` (new with #97-CENSUS) | runs; `Arena/ExprOps` reads **86/92 stated, 74 closed** for T1 and **86/92 stated, 45 closed** for T2 — the 45 being this task's |
+| measured at `arena` `2fca3435`, merged twice | the second merge auto-merged every `.lean` hunk; only DESIGN.md needed hand work (append both) |
 | the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Read,ExprOps/Mut}.lean`, `proof/ConRon/Refine2/Core/Arms/Sort.lean` (the dedupe, two deletions) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/` |
