@@ -193,15 +193,14 @@ sibling readback tables framed. -/
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelM h
     ⦃⇓? u s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
-        s'.caches.readLsC = s₀.caches.readLsC ∧
-        s'.caches.readNC = s₀.caches.readNC ∧
+        s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
         denoteL s₀.store.ls h = some u ∧
         ReadLCacheOK s'.caches.readLC s'.store⌝⦄ := by
   unfold readLevelM
   mvcgen
   all_goals (bridge_peel; subst_vars) <;>
     first
-    | (refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
+    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadLCacheOK]
 
@@ -212,15 +211,14 @@ sibling readback tables framed. -/
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelsM h
     ⦃⇓? us s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
-        s'.caches.readLC = s₀.caches.readLC ∧
-        s'.caches.readNC = s₀.caches.readNC ∧
+        s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
         denoteLs s₀.store.lss h = some us ∧
         ReadLsCacheOK s'.caches.readLsC s'.store⌝⦄ := by
   unfold readLevelsM
   mvcgen
   all_goals (bridge_peel; subst_vars) <;>
     first
-    | (refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
+    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadLsCacheOK]
 
