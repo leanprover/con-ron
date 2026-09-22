@@ -45,6 +45,7 @@ whole inductive install is one hypothesis, exactly as
 -/
 import ConRon.Bridge.Checker.Inv
 import ConRon.Bridge.Core.Induction
+import ConRon.Bridge.Core.EnsureSort
 
 open ConLeche ConRon.Arena Std.Do
 
@@ -107,6 +108,7 @@ def EnsureSortSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Expr.WScoped d e →
     ⦃fun s => ⌜s = s₀⌝⦄ Arena.ensureSortCore mode fe f d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimL (ConLeche.ensureSortCore mode env) d e s'.store r⌝⦄
 
 /-! ## The Core tier's theorem, as this tier uses it -/
@@ -134,6 +136,25 @@ theorem CoreSpec.of_knot {μ : CheckMode} (hμ : μ.verifiedChecks = true)
       EnsureSortSpec μ env fe Arena.checkFuel) :
     CoreSpec μ Arena.checkFuel :=
   ⟨fun _ _ henv => Core.knot_spec_checkFuel henv hμ, hs⟩
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore — **the
+seventh entry point, discharged** (task #97-P3-CoreWalks, the Checker tier's
+ask 2): `Bridge/Core/EnsureSort.lean`'s `ensureSortCore_spec` IS this
+statement.  `SimL` there and `SimL` here are the same definition, which is
+why this is one term. -/
+theorem ensureSortSpec_of_knot {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {f : Nat} (hsim : Core.KnotSpec mode env fe f) :
+    EnsureSortSpec mode env fe f :=
+  fun s₀ d i e hok hden hw => Core.ensureSortCore_spec hsim s₀ d i e hok hden hw
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **`CoreSpec`
+with NOTHING left to supply**: both fields come from `Bridge/Core`, so the
+capstone's Core-tier hypothesis is discharged outright (modulo the six body
+walks `KnotSpec` itself is still waiting on).  Task #97-P3-CoreWalks. -/
+theorem CoreSpec.of_core {μ : CheckMode} (hμ : μ.verifiedChecks = true) :
+    CoreSpec μ Arena.checkFuel :=
+  CoreSpec.of_knot hμ
+    (fun _ _ henv => ensureSortSpec_of_knot (Core.knot_spec_checkFuel henv hμ))
 
 /-! ## The inductive install -/
 

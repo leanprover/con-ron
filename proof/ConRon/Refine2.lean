@@ -28,6 +28,7 @@ readings of the machine-word operations are all imported rather than rebuilt.
 | `Refine2/ExprOps/*.lean` | the `arena::expr_ops` tier: 120 functions, one `_refines` each |
 | `Refine2/Core/*.lean` | the `arena::core` tier: `KnotRel`, the knot's memo floor, the fuel induction and the six entry points |
 | `Refine2/Inductives/*.lean` | the `arena::inductives` tier: 306 functions, one `_refines` each, and `IndRel` |
+| `Refine2/Frontend/*.lean` | the `arena::frontend` tier: the syntax vocabulary, `StateDRel`, the six Rust modules, and `parse_chunks_refines` / `builtin_prelude_e_refines` |
 -/
 import ConRon.Refine2.Idiom
 import ConRon.Refine2.AbsStore
@@ -51,3 +52,13 @@ import ConRon.Refine2.Checker.Base
 import ConRon.Refine2.Checker.DeclCheck
 import ConRon.Refine2.Checker.Top
 import ConRon.Refine2.Inductives.Top
+import ConRon.Refine2.Frontend.Abs
+import ConRon.Refine2.Frontend.Shape
+import ConRon.Refine2.Frontend.Types
+import ConRon.Refine2.Frontend.Prepare
+import ConRon.Refine2.Frontend.NatOpGround
+import ConRon.Refine2.Frontend.Spec
+import ConRon.Refine2.Frontend.ProjRec
+import ConRon.Refine2.Frontend.ExportC
+import ConRon.Refine2.Frontend.ExportCInd
+import ConRon.Refine2.Frontend.Top
