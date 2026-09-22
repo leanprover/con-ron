@@ -39582,10 +39582,44 @@ commitment" means it has to be added there, not shadowed here.
 | the frontend's `internCI` / `internCV` / `internCIList` / `internExpr` exactness has to be reachable from `Bridge/Checker/**` — either `Bridge/Frontend/Rel.lean`'s `import ConRon.Bridge.Checker` narrows (it is there for the nineteen `…_pext` twins and `PersStateD`'s consumers), or the intern half moves into a module below both | the Frontend tier, or the coordinator |
 | alternatively the five statements move UP, into the frontend tier, and `Bridge/Checker/Pins.lean` and half of `Basis.lean` become hypotheses of the capstone rather than obligations of this tier | the coordinator |
 
-Until one of those happens, **12 of the tier's 37 open items are
-undischargeable in place** — `Pins.lean`'s 3 and `Basis.lean`'s 9 — which is
-a third of the remaining count and is why this round's leaf work went to
-`DeclVal.lean` and `Canon.lean` instead.
+Until one of those happens, **11 of the tier's 37 open items are
+undischargeable in place** — `Pins.lean`'s 3 and eight of `Basis.lean`'s nine
+— which is nearly a third of the remaining count and is why this round's leaf
+work went to `DeclVal.lean` and `Canon.lean` instead.
+
+##### 3.1 `installBasisDecl_bridge` — the ninth, and the `.projInfo` defect at a third site
+
+`installBasisDecl_bridge` is the one statement of `Basis.lean` the import
+order does NOT block: `installBasisDecl fe ci` is a duplicate test and an
+`IFEnv.push`, and every piece of its conclusion is in hand —
+`IFEnvCoh.push`, `Pushed.push`, `denoteFEnv_push`, `AM.dunless_ok`.  It is a
+twenty-line proof and it is **still not provable as stated**, for round 2's
+§8 item 5 at a third site: the duplicate test passes `fe.find? ci.name =
+none`, and turning that into con-leche's `env.find? c.name = none` through
+`IFEnvOK.miss` needs
+
+    denoteN s.store.ns ci.name = some c.name
+
+which is exactly what `Frontend.denoteCI` does **not** give at `.projInfo`
+(`IConstantInfo.name (.projInfo t)` is the stored `t.tableName`;
+`ConstantInfo.name (.projInfo tbl)` is the recomputed
+`projTableName tbl.structName`; `denoteProjTable` drops `tableName`).
+`IFEnvOK.proj` carries `IProjTableOK` for tables the index already holds, and
+`ci` is the one being installed, so it does not apply.
+
+The fix is the one round 2 already chose — `IProjTableOK` on our side — but
+here it has to reach the constant BEFORE it is indexed, so the statement wants
+either `IProjTableOK s.store t` for `ci`'s table or, equivalently and more
+cheaply, the clause itself as a hypothesis:
+
+    (hnm : denoteN s.store.ns ci.name = some c.name)
+
+free at the one call site (`checkBasisDecl_bridge` installs a pinned block,
+which contains no `.projInfo`).  **It was not added in this round**: adding a
+hypothesis to make a proof go through is weakening a statement, and the
+campaign's rule is to stop and say so.  It is a statement decision for the
+coordinator, and it is the SAME decision as `IFEnvOK_of_denote`'s — whoever
+takes one should take both.
 
 ##### 4. Five leaves closed, cheapest first
 
@@ -39617,7 +39651,7 @@ free at the one call site (`Arms.lean`'s `defn` arm holds `FoldOK`, hence
 | where | open | waits on |
 |---|---:|---|
 | `Pins.lean` | 3 | **§3** — two on the frontend tier's intern exactness being reachable, one on `internName_spec`'s missing persistence clause |
-| `Basis.lean` | 9 | **§3** — `internCIList` exactness; then `canonEqList_run` (closed here) for the two recognisers and `IFEnvOK` for the three axiom shapes |
+| `Basis.lean` | 9 | **§3** for eight of them — `internCIList` exactness; then `canonEqList_run` (closed here) for the two recognisers and `IFEnvOK` for the three axiom shapes.  The ninth, `installBasisDecl_bridge`, is **§3.1**: a twenty-line proof waiting on one statement decision |
 | `Split.lean` | 7 | `denoteFEnv_restrictTo` needs the arena's `mkIFEnv` index lemma (see below); `installThenCheck_bridge` is the second fold |
 | `DeclVal.lean` | 11 | the three value checks (`installValue_bridge`, two `KnotSpec` clauses each), `natOpGuard_run` / `natOpStoredOkAll_run` (both need `natOpTyPinned` / `natOpCod`, which compare EXPRESSION handles and want `denoteE`'s injectivity — no statement for that walk exists yet), `natOpEquations_run` / `substConst0Pairs_run` (interned literals, §3's wall again), the two pin gates and `certifyNatEqs_bridge` |
 | `Base.lean` | 2 | `allLevelParamsDefined_run`, `constsResolveFFast_run` — the two memoised DAG walks, fuel inductions in `Bridge/ExprOps/Walks.lean`'s shape |
@@ -39625,8 +39659,9 @@ free at the one call site (`Arms.lean`'s `defn` arm holds `FoldOK`, hence
 | `Inv.lean` | 2 | `IFEnvOK_of_denote` needs `mkIFEnvGo_counter_lt`, which **exists** — in `Bridge/Inductives/Rel.lean:1044`, ABOVE this tier, with its own docstring saying "it belongs in `Bridge/Promote/Exact.lean`".  Moving it there (three lines of `Std.HashMap.getElem?_insert`) unblocks `IFEnvOK_of_denote` here AND `denoteFEnv_restrictTo` in `Split.lean`; `projTableOK_of_install` is the Inductives tier's, as round 2 said |
 | `Fold.lean` | 1 | `checkDeclStep_bridge`, the bracket — the promotion tier and `IFEnvOK_of_denote` |
 
-So of the 37, **12 are blocked by the import order (§3), 2 by one three-line
-lemma living one tier too high, and 23 are real work in this tier** — of
+So of the 37, **11 are blocked by the import order (§3), 1 by a statement
+decision (§3.1), 2 by one three-line lemma living one tier too high, and 23
+are real work in this tier** — of
 which the largest single group is the `ExprOps`-shaped walks
 (`allLevelParamsDefined`, `constsResolveFFast`, `canonExprEq`, `natOpTyPinned`).
 
@@ -39663,9 +39698,10 @@ net (~3.6 s), and that is twenty-six assembled theorems rather than one.
 
 | gate | |
 |---|---|
-| `scripts/gates.sh` | **all 13 OK** |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 90 s, `lake-build` 358 s) |
 | `cd proof && lake build ConRonBridge` | **0 errors, 616 jobs**; 209 `sorry` warnings, of which **37** are this tier's |
 | `#print axioms` | `Bridge/Checker/Axioms.lean` lists **140 results: 126 closed** and **14 with `sorryAx`** (round 2's thirteen headline theorems plus `canonEqList_run`, which is an assembly).  None carries `CoreSpec` or `IndSpec`; no `bv_decide` axiom anywhere |
+| `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 54/242, closed 23** (round 2: 50/292 stated, 16 closed) |
 | the diff | `proof/ConRon/Bridge/Checker/**` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
 
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
