@@ -68,6 +68,28 @@ open ConLeche ConRon.Arena ConRon.Arena.Frontend
 
 universe u v
 
+/-! ## Inverting an `AM` run
+
+Every theorem of this tier reads a hypothesis of the shape `f … s = .ok (x,
+s')` and has to take it apart one `do`-step at a time.  The bind's inversion
+is the Checker tier's (`Bridge/Checker/Fold.lean`'s `AM.bind_ok`); what the
+frontend adds is the two leaves, because its functions end in a `pure` or a
+`fail` in almost every arm. -/
+
+/-- con-leche: none — a `pure` moves nothing and answers itself. -/
+theorem AM.pure_ok {α : Type} {a b : α} {s s' : AState}
+    (h : (pure a : AM α) s = .ok (b, s')) : b = a ∧ s' = s := by
+  simp only [pure, StateT.pure, Except.pure, Except.ok.injEq, Prod.mk.injEq]
+    at h
+  exact ⟨h.1.symm, h.2.symm⟩
+
+/-- con-leche: none — a `fail` never returns, so a theorem premised on a
+successful run never reaches one. -/
+theorem AM.fail_ok {α : Type} {e : Arena.CheckError} {s s' : AState} {a : α}
+    (h : (fail e : AM α) s = .ok (a, s')) : False := by
+  simp only [fail, throwThe, MonadExceptOf.throw] at h
+  exact nomatch h
+
 /-! ## The frame
 
 One record for the six conjuncts every step of the parse carries, so that a
@@ -224,6 +246,56 @@ theorem MapRel.empty {α β : Type} (st : EStore) (R : α → β → Prop) :
   hit := by intro h a hk; simp at hk
   cover := by intro n b hn; simp at hn
 
+/-- con-leche: none — **one entry, on both sides**, and the one place in this
+module `denoteN_inj` is load-bearing: `hit` at a handle the insert missed has
+to land on a KEY the insert missed, and two distinct handles denoting one name
+would break exactly that.  Injectivity of the name store's denotation (task
+#97a's `denoteN_inj`; DESIGN §8.3 makes exactness a soundness obligation) is
+what rules it out, in both directions.
+
+This is the lemma the six `noteDecl` arms, `registerProjOwners` and
+`noteProjIota` all read: `MapRel.{mono,empty}` carry a map across an append
+and start it, and this is the only thing that puts anything in one. -/
+theorem MapRel.insert {α β : Type} {st : EStore} (hwf : StoreWF st)
+    {R : α → β → Prop} {m : Std.HashMap NIdx α}
+    {mc : Std.HashMap ConLeche.Name β} (h : MapRel st R m mc) {k : NIdx}
+    {n : ConLeche.Name} (hk : denoteN st.ns k = some n) {a : α} {b : β}
+    (hab : R a b) : MapRel st R (m.insert k a) (mc.insert n b) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  refine ⟨?_, ?_⟩
+  · intro i x hx
+    rw [Std.HashMap.getElem?_insert] at hx
+    by_cases hik : k = i
+    · subst hik
+      simp only [beq_self_eq_true, if_pos, Option.some.injEq] at hx
+      subst hx
+      exact ⟨n, b, hk, by simp, hab⟩
+    · rw [if_neg (by simpa using hik)] at hx
+      obtain ⟨n', b', hn', hb', hR⟩ := h.hit i x hx
+      refine ⟨n', b', hn', ?_, hR⟩
+      rw [Std.HashMap.getElem?_insert]
+      by_cases hnn : n = n'
+      · subst hnn
+        exact absurd (denoteN_inj hrk.nsWF hk hn') hik
+      · rw [if_neg (by simpa using hnn)]; exact hb'
+  · intro n' b' hb'
+    rw [Std.HashMap.getElem?_insert] at hb'
+    by_cases hnn : n = n'
+    · subst hnn
+      simp only [beq_self_eq_true, if_pos, Option.some.injEq] at hb'
+      subst hb'
+      exact ⟨k, a, hk, by simp, hab⟩
+    · rw [if_neg (by simpa using hnn)] at hb'
+      obtain ⟨i, x, hi, hx, hR⟩ := h.cover n' b' hb'
+      refine ⟨i, x, hi, ?_, hR⟩
+      rw [Std.HashMap.getElem?_insert]
+      by_cases hik : k = i
+      · subst hik
+        rw [hk] at hi
+        simp only [Option.some.injEq] at hi
+        exact absurd hi hnn
+      · rw [if_neg (by simpa using hik)]; exact hx
+
 /-! ## The declaration array -/
 
 /-- con-leche: none — `Bridge/Checker/Inv.lean`'s `denoteDecls` at an `Array`,
@@ -237,6 +309,64 @@ def denoteDeclArray (st : EStore) (ds : Array IDeclaration) :
 the tier. -/
 theorem denoteDeclArray_empty (st : EStore) :
     denoteDeclArray st (#[] : Array IDeclaration) = some #[] := rfl
+
+/-- con-leche: ConLeche/Frontend/Scan/Types.lean:342-345 IdTable — the two
+EMPTY tables relate: three of `StateD.init`'s eighteen fields are this. -/
+theorem IdTableRel.empty {α β : Type} (R : α → β → Prop) :
+    IdTableRel R ({} : ConLeche.Frontend.IdTable α)
+      ({} : ConLeche.Frontend.IdTable β) := by
+  intro i
+  simp only [ConLeche.Frontend.IdTable.get?_empty]
+  exact OptRel.refl_none
+
+/-- con-leche: none — `denoteDeclArray` read as a list equation, which is the
+form every list induction of the tier wants. -/
+theorem denoteDeclArray_iff {st : EStore} {ds : Array IDeclaration}
+    {xs : Array ConLeche.Declaration} :
+    denoteDeclArray st ds = some xs ↔ denoteDecls st ds.toList = some xs.toList := by
+  constructor
+  · intro h
+    simp only [denoteDeclArray, Option.map_eq_some_iff] at h
+    obtain ⟨ys, hys, hEq⟩ := h
+    subst hEq
+    simpa using hys
+  · intro h
+    simp only [denoteDeclArray, h, Option.map_some, Array.toArray_toList]
+
+/-- con-leche: none — two streams' denotations concatenate: what
+`preparePrelude`'s `front ++ rest` needs. -/
+theorem denoteDecls_append {st : EStore} :
+    ∀ {as bs : List IDeclaration} {xs ys : List ConLeche.Declaration},
+      denoteDecls st as = some xs → denoteDecls st bs = some ys →
+        denoteDecls st (as ++ bs) = some (xs ++ ys) := by
+  intro as
+  induction as with
+  | nil =>
+    intro bs xs ys ha hb
+    simp only [denoteDecls, Option.some.injEq] at ha
+    subst ha; simpa using hb
+  | cons a as ih =>
+    intro bs xs ys ha hb
+    simp only [denoteDecls] at ha ⊢
+    cases hd : ConRon.Arena.Frontend.denoteDecl st a with
+    | none => rw [hd] at ha; simp at ha
+    | some y =>
+      cases hs : denoteDecls st as with
+      | none => rw [hd, hs] at ha; simp at ha
+      | some zs =>
+        rw [hd, hs] at ha
+        simp only [Option.some.injEq] at ha
+        subst ha
+        rw [List.cons_append, denoteDecls, hd, ih hs hb]
+        rfl
+
+/-- con-leche: none — the same at an `Array`. -/
+theorem denoteDeclArray_append {st : EStore} {as bs : Array IDeclaration}
+    {xs ys : Array ConLeche.Declaration}
+    (ha : denoteDeclArray st as = some xs) (hb : denoteDeclArray st bs = some ys) :
+    denoteDeclArray st (as ++ bs) = some (xs ++ ys) := by
+  rw [denoteDeclArray_iff] at ha hb ⊢
+  simpa using denoteDecls_append ha hb
 
 /-- con-leche: none — the stream's denotation is record for record, so it has
 the record's own length.  `Arena/Main.lean`'s verdict number is a LENGTH

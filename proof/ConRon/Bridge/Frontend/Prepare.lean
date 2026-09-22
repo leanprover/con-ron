@@ -83,8 +83,7 @@ its own contract.
 (`ConLeche/Frontend/ExportC.lean:843-845`), so the two sides run the same
 function on the same bytes once the hypothesis is in hand.
 
-`sorry`: `parseBytes_run` under `hbytes`.  Task #97-P3-Frontend's sorry list,
-item 19. -/
+`parseBytes_run` under `hbytes`. -/
 theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
@@ -93,7 +92,22 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     ParseStep s s' ∧ PersPreludeIx pre ∧
       ∃ preC, ConLeche.Frontend.builtinPreludeE = .ok preC ∧
         PreludeIxRel s'.store pre preC := by
-  sorry
+  rw [builtinPreludeE] at hrun
+  obtain ⟨x, s₁, hpb, hrest⟩ := AM.bind_ok hrun
+  cases x with
+  | error e =>
+    simp only [] at hrest
+    exact absurd (AM.pure_ok hrest).1 (by simp)
+  | ok r =>
+    simp only [] at hrest
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+    simp only [Except.ok.injEq] at hv
+    subst hv; subst hs
+    rw [hbytes] at hpb
+    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpb
+    refine ⟨hstep, hpers, ⟨rc.decls⟩, ?_, hrel.decls⟩
+    rw [ConLeche.Frontend.builtinPreludeE, ConLeche.Frontend.parseExportD, hcl]
+    rfl
 
 /-! ## The prelude's front -/
 
@@ -135,18 +149,24 @@ theorem pick_denote {st : EStore} (hwf : StoreWF st) {n : NIdx}
 /-- con-leche: ConLeche/Frontend/Prepare.lean:130-131 frontOf — the prepared
 stream's front, prelude record by prelude record.
 
+**The persistence clauses travel with the denotations**, because both passes
+of the preparation are PERMUTATIONS: no record is built, so every record out
+is a record in, and `Bridge/Checker/Capstone.lean`'s `hpd` at the fold's
+argument is the parse's and the prelude's, carried.
+
 `sorry`: a list induction over `preludeKey_run` and `pick_denote`.  Task
 #97-P3-Frontend's sorry list, item 20. -/
 theorem frontOf_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {acc : Array IDeclaration}
     {accP : Array Declaration} (hacc : denoteDeclArray s.store acc = some accP)
+    (hpacc : PersDecls acc)
     {ps : List IDeclaration} {psP : List Declaration}
-    (hps : denoteDecls s.store ps = some psP)
+    (hps : denoteDecls s.store ps = some psP) (hpps : ∀ d ∈ ps, PersDecl d)
     {ds : Array IDeclaration} {dsP : Array Declaration}
-    (hds : denoteDeclArray s.store ds = some dsP)
+    (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
     {front rest : Array IDeclaration}
     (hrun : frontOf acc ps ds s = .ok ((front, rest), s')) :
-    ParseStep s s' ∧
+    ParseStep s s' ∧ PersDecls front ∧ PersDecls rest ∧
       denoteDeclArray s'.store front
           = some (ConLeche.Frontend.frontOf accP psP dsP).1 ∧
         denoteDeclArray s'.store rest
@@ -194,10 +214,10 @@ over a permutation of indices — the same list of indices on both sides.  Task
 #97-P3-Frontend's sorry list, item 21. -/
 theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}
-    (hds : denoteDeclArray s.store ds = some dsP)
+    (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
     {out : Array IDeclaration} {moved : Array NIdx}
     (hrun : hoistNatOpGround ds s = .ok ((out, moved), s')) :
-    s' = s ∧ denoteDeclArray s.store out
+    s' = s ∧ PersDecls out ∧ denoteDeclArray s.store out
         = some (ConLeche.Frontend.hoistNatOpGround dsP).1 ∧
       denoteNList s.store.ns moved.toList
         = some (ConLeche.Frontend.hoistNatOpGround dsP).2.toList := by
@@ -211,8 +231,7 @@ half of what the capstone's chain needs: the parse's exactness gets the
 records, and this carries them across the two permuting passes into the
 fold's argument.
 
-`sorry`: `frontOf_run` and `hoistNatOpGround_run` composed.  Task
-#97-P3-Frontend's sorry list, item 22. -/
+`frontOf_run` and `hoistNatOpGround_run` composed. -/
 theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
@@ -223,7 +242,40 @@ theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
     ParseStep s s' ∧ PersDecls out ∧
       denoteDeclArray s'.store out
         = some (ConLeche.Frontend.preparePrelude preC dsP) := by
-  sorry
+  rw [preparePrelude] at hrun
+  obtain ⟨prep, s₁, hprepD, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+  subst hv; subst hs
+  rw [prepareD] at hprepD
+  obtain ⟨fr, s₂, hfront, hrest2⟩ := AM.bind_ok hprepD
+  obtain ⟨front, rest⟩ := fr
+  simp only [] at hrest2
+  obtain ⟨dh, s₃, hhoist, hrest3⟩ := AM.bind_ok hrest2
+  obtain ⟨decls, hoisted⟩ := dh
+  simp only [] at hrest3
+  obtain ⟨hv2, hs2⟩ := AM.pure_ok hrest3
+  subst hs2
+  obtain ⟨hstep1, hpf, hpr, hclf, hclr⟩ :=
+    frontOf_run hok hoff (denoteDeclArray_empty s.store) (by intro d hd; simp at hd)
+      (denoteDeclArray_iff.mp hpre) (by
+        intro d hd
+        exact hprep d (by simpa using hd))
+      hds hpds hfront
+  obtain ⟨hs3, hpo, hclo, -⟩ :=
+    hoistNatOpGround_run hstep1.ok hstep1.ok.wf
+      (denoteDeclArray_append hclf hclr)
+      (by
+        intro d hd
+        rcases Array.mem_append.mp hd with h | h
+        · exact hpf d h
+        · exact hpr d h)
+      hhoist
+  subst hs3
+  have hdecls : prep.decls = decls := by rw [hv2]
+  refine ⟨hstep1, ?_, ?_⟩
+  · rw [hdecls]; exact hpo
+  · rw [hdecls, hclo, ConLeche.Frontend.preparePrelude,
+      ConLeche.Frontend.prepareD]
 
 /-- con-leche: ConLeche/Verify/Frontend/Prepare.lean:174 mem_preparePrelude —
 **the preparation keeps every record**, over handles: the corollary the

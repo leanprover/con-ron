@@ -80,4 +80,11 @@ echo "gates: all $n OK"
 # every landing shows where the port and the proof stand.
 echo
 python3 "$root/scripts/progress.py" --summary
+# The arena's own ledger (task #97-CENSUS): `progress.py` above is the OLD
+# tower's report — it credits a con-leche declaration when `Refine/<M>.lean`
+# states `f_refines`, and that tree is retired.  This one counts the TWINS of
+# `proof/ConRon/Arena/**` against Theorem 1 (`Bridge/**`) and Theorem 2
+# (`Refine2/**`).  A REPORT, never a FAIL: it runs after the gates and its
+# exit code is ignored on purpose.
+python3 "$root/scripts/arena-census.py" --summary || true
 python3 "$root/scripts/loc.py" --summary
