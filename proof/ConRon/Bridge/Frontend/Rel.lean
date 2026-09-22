@@ -494,6 +494,358 @@ theorem denoteDecls_length {st : EStore} :
         subst h
         simp [ih ys has]
 
+/-! ## The projection table's name — the repair of round 4's finding 16
+
+Round 4 found that a record which DENOTES does not, by itself, have `names`
+exactness: `IDeclaration.names` (`Arena/Env.lean:262-266`) reads
+`IConstantInfo.name`, which at a `.projInfo tbl` is the STORED handle
+`tbl.tableName`, where con-leche's `ConstantInfo.name` is the RECOMPUTED
+`ConLeche.projTableName tbl.structName` — and `denoteProjTable`
+(`Arena/Frontend/Readback.lean:159-168`) drops `tableName` entirely, because
+the field is the arena's own redundancy (`Arena/Env.lean`'s note: kept so the
+environment index's key is PURE).
+
+**This is the gap `Bridge/StateOK.lean`'s `IFEnvOK` met one module over, and
+the answer is the same one.**  There the fix was a third clause on the
+RELATION — `IFEnvOK.proj`, "every stored projection table is well shaped and
+rightly named" — rather than a side condition on each of `IFEnvOK`'s
+consumers.  Here `StateDRel` and `ParseResultRel` gain `projNamed` for exactly
+the same reason, and the seam's first promise (`Bridge/Frontend/Modeller.lean`'s
+`ModellerWF`) gains the clause for the records that enter the stream through
+the modeller rather than through the parse.
+
+**What is carried is the `named` half of `IProjTableOK` alone**, and that is
+deliberate.  The two size clauses (`bodies`, `guards`) are not what a name
+equation needs, and they are not what the one concrete modeller can give:
+`inProcessModeller` (`Arena/Frontend/InModel.lean`) is `internDecls` over
+con-leche's own generator, and `internProjTable`
+(`Arena/Frontend/Readback.lean:583-590`) INTERNS the reserved name itself
+(`projTableName sn`) — so the `named` half is true of its answer by
+construction, whereas `bodies.size = numFields` would have to be imported from
+con-leche's `ProjTable`, which nothing states.  See DESIGN #97-P3-Frontend
+round 5. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName —
+`Bridge/StateOK.lean:507-511`'s `IProjTableOK.named`, standing alone: the
+stored `tableName` decodes to the name con-leche recomputes from the
+structure's. -/
+def IProjNamed (st : EStore) (t : IProjTable) : Prop :=
+  ∃ sn, denoteN st.ns t.structName = some sn ∧
+    denoteN st.ns t.tableName = some (ConLeche.projTableName sn)
+
+/-- con-leche: none — the environment invariant implies it, so a site that
+holds the stronger fact never has to re-prove this one. -/
+theorem IProjTableOK.toNamed {st : EStore} {t : IProjTable}
+    (h : IProjTableOK st t) : IProjNamed st t := h.named
+
+/-- con-leche: none — both halves are `denoteN`s, so an append keeps them. -/
+theorem IProjNamed.mono {st st' : EStore} {t : IProjTable}
+    (h : IProjNamed st t) (hx : Ext st st') : IProjNamed st' t := by
+  obtain ⟨sn, h1, h2⟩ := h
+  exact ⟨sn, denoteN_ext h1 hx, denoteN_ext h2 hx⟩
+
+/-- con-leche: none — a stored constant that is rightly named: the clause has
+content at a `.projInfo` and nowhere else. -/
+def CIProjNamed (st : EStore) (ci : IConstantInfo) : Prop :=
+  ∀ t, ci = .projInfo t → IProjNamed st t
+
+theorem CIProjNamed.mono {st st' : EStore} {ci : IConstantInfo}
+    (h : CIProjNamed st ci) (hx : Ext st st') : CIProjNamed st' ci :=
+  fun t ht => (h t ht).mono hx
+
+/-- con-leche: none — the six constructors the clause is vacuous at. -/
+theorem CIProjNamed.of_ne {st : EStore} {ci : IConstantInfo}
+    (h : ∀ t, ci ≠ .projInfo t) : CIProjNamed st ci :=
+  fun t ht => absurd ht (h t)
+
+theorem CIProjNamed.of_proj {st : EStore} {t : IProjTable}
+    (h : IProjNamed st t) : CIProjNamed st (.projInfo t) := by
+  intro t' ht
+  simp only [IConstantInfo.projInfo.injEq] at ht
+  subst ht; exact h
+
+/-- con-leche: none — a declaration record whose projection tables are rightly
+named.  Only an `.indDecl` block can hold one, so the other six constructors
+satisfy this vacuously. -/
+def DeclProjNamed (st : EStore) (d : IDeclaration) : Prop :=
+  ∀ block nP, d = .indDecl block nP → ∀ ci ∈ block, CIProjNamed st ci
+
+theorem DeclProjNamed.mono {st st' : EStore} {d : IDeclaration}
+    (h : DeclProjNamed st d) (hx : Ext st st') : DeclProjNamed st' d :=
+  fun block nP hd ci hci => (h block nP hd ci hci).mono hx
+
+/-- con-leche: none — the six constructors that carry no block. -/
+theorem DeclProjNamed.of_axiomDecl {st : EStore} {v : IConstantVal} :
+    DeclProjNamed st (.axiomDecl v) := by intro _ _ h; exact nomatch h
+
+theorem DeclProjNamed.of_defnDecl {st : EStore} {v : IConstantVal} {e : EIdx}
+    {h : ReducibilityHint} : DeclProjNamed st (.defnDecl v e h) := by
+  intro _ _ h; exact nomatch h
+
+theorem DeclProjNamed.of_thmDecl {st : EStore} {v : IConstantVal} {e : EIdx} :
+    DeclProjNamed st (.thmDecl v e) := by intro _ _ h; exact nomatch h
+
+theorem DeclProjNamed.of_opaqueDecl {st : EStore} {v : IConstantVal} {e : EIdx} :
+    DeclProjNamed st (.opaqueDecl v e) := by intro _ _ h; exact nomatch h
+
+theorem DeclProjNamed.of_basisDecl {st : EStore} {k : BasisKind} :
+    DeclProjNamed st (.basisDecl k) := by intro _ _ h; exact nomatch h
+
+theorem DeclProjNamed.of_quotDecl {st : EStore} {k : QuotKind} {v : IConstantVal} :
+    DeclProjNamed st (.quotDecl k v) := by intro _ _ h; exact nomatch h
+
+/-- con-leche: none — a parsed `.indDecl` block: the frontend's own
+`installIndD` builds one out of `.indInfo`, `.ctorInfo` and `.recInfo`, never a
+`.projInfo`, so the clause is vacuous there and this is the shape that says
+so. -/
+theorem DeclProjNamed.of_indDecl {st : EStore} {block : List IConstantInfo}
+    {nP : Nat} (h : ∀ ci ∈ block, CIProjNamed st ci) :
+    DeclProjNamed st (.indDecl block nP) := by
+  intro block' nP' he
+  simp only [IDeclaration.indDecl.injEq] at he
+  obtain ⟨rfl, rfl⟩ := he
+  exact h
+
+/-- con-leche: none — the clause at a whole stream. -/
+def DeclsProjNamed (st : EStore) (ds : Array IDeclaration) : Prop :=
+  ∀ d ∈ ds, DeclProjNamed st d
+
+theorem DeclsProjNamed.mono {st st' : EStore} {ds : Array IDeclaration}
+    (h : DeclsProjNamed st ds) (hx : Ext st st') : DeclsProjNamed st' ds :=
+  fun d hd => (h d hd).mono hx
+
+theorem DeclsProjNamed.empty (st : EStore) : DeclsProjNamed st #[] := by
+  intro d hd; simp at hd
+
+theorem DeclsProjNamed.push {st : EStore} {ds : Array IDeclaration}
+    (h : DeclsProjNamed st ds) {d : IDeclaration} (hd : DeclProjNamed st d) :
+    DeclsProjNamed st (ds.push d) := by
+  intro x hx
+  rcases Array.mem_push.mp hx with hx | hx
+  · exact h x hx
+  · subst hx; exact hd
+
+/-! ### The name equations the clause buys -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:644 ConstantInfo.name — a stored
+constant that is NOT a projection table is named by its own handle.  Six of the
+seven constructors carry an `IConstantVal`, and its `name` field is the first
+thing `denoteCV` reads. -/
+theorem ciName_denote {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (hnp : ∀ t, ci ≠ .projInfo t)
+    (h : ConRon.Arena.Frontend.denoteCI st ci = some c) :
+    denoteN st.ns ci.name = some c.name := by
+  have hcv : ∀ (v : IConstantVal) (cv : ConstantVal),
+      ConRon.Arena.Frontend.denoteCV st v = some cv →
+      denoteN st.ns v.name = some cv.name := by
+    intro v cv hv
+    simp only [ConRon.Arena.Frontend.denoteCV] at hv
+    cases hn : denoteN st.ns v.name with
+    | none => rw [hn] at hv; simp at hv
+    | some n =>
+      cases hl : ConRon.Arena.Frontend.denoteNList st.ns v.levelParams with
+      | none => rw [hn, hl] at hv; simp at hv
+      | some lps =>
+        cases ht : denoteE st v.type with
+        | none => rw [hn, hl, ht] at hv; simp at hv
+        | some ty =>
+          rw [hn, hl, ht] at hv
+          obtain rfl := Option.some.inj hv
+          rfl
+  cases ci with
+  | axiomInfo v =>
+    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hv, rfl⟩ := h
+    exact hcv v cv hv
+  | ctorInfo v nP nF =>
+    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hv, rfl⟩ := h
+    exact hcv v cv hv
+  | defnInfo v e hh =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at h
+    cases hv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hv, he] at h; simp at h
+      | some x => rw [hv, he] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
+  | thmInfo v e =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at h
+    cases hv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hv] at h; simp at h
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hv, he] at h; simp at h
+      | some x => rw [hv, he] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
+  | indInfo v caps =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at h
+    cases hv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hv] at h; simp at h
+    | some cv =>
+      cases hc : ConRon.Arena.Frontend.denoteCaps st caps with
+      | none => rw [hv, hc] at h; simp at h
+      | some x => rw [hv, hc] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
+  | recInfo v mI rP rs =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at h
+    cases hv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hv] at h; simp at h
+    | some cv =>
+      cases hr : ConRon.Arena.Frontend.denoteRules st rs with
+      | none => rw [hv, hr] at h; simp at h
+      | some x => rw [hv, hr] at h; obtain rfl := Option.some.inj h; exact hcv v cv hv
+  | projInfo t => exact absurd rfl (hnp t)
+
+/-- con-leche: ConLeche/Kernel/Env.lean:642 ConstantInfo.toConstantVal (the
+`.projInfo` arm) — and a projection table is named by its stored handle exactly
+when `IProjNamed` says so.  That clause is not decoration: it is the only thing
+that ties `tableName` to `ConLeche.projTableName`. -/
+theorem ciName_denote_proj {st : EStore} {t : IProjTable} {c : ConstantInfo}
+    (hn : IProjNamed st t)
+    (h : ConRon.Arena.Frontend.denoteCI st (.projInfo t) = some c) :
+    denoteN st.ns (IConstantInfo.name (.projInfo t)) = some c.name := by
+  obtain ⟨sn, hsn, htn⟩ := hn
+  simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at h
+  obtain ⟨pt, hpt, rfl⟩ := h
+  simp only [ConRon.Arena.Frontend.denoteProjTable, hsn] at hpt
+  cases hlps : ConRon.Arena.Frontend.denoteNList st.ns t.levelParams with
+  | none => rw [hlps] at hpt; simp at hpt
+  | some lps =>
+    cases hc : denoteN st.ns t.ctor with
+    | none => rw [hlps, hc] at hpt; simp at hpt
+    | some cn =>
+      cases hss : denoteL st.ls t.structSort with
+      | none => rw [hlps, hc, hss] at hpt; simp at hpt
+      | some ss =>
+        cases hbs : ConRon.Arena.Frontend.denoteEArray st t.bodies with
+        | none => rw [hlps, hc, hss, hbs] at hpt; simp at hpt
+        | some bs =>
+          cases hgs : denoteLList st.ls t.guards with
+          | none => rw [hlps, hc, hss, hbs, hgs] at hpt; simp at hpt
+          | some gs =>
+            rw [hlps, hc, hss, hbs, hgs] at hpt
+            obtain rfl := Option.some.inj hpt
+            exact htn
+
+/-- con-leche: none — the two halves as one. -/
+theorem ciName_denote_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (hproj : CIProjNamed st ci)
+    (h : ConRon.Arena.Frontend.denoteCI st ci = some c) :
+    denoteN st.ns ci.name = some c.name := by
+  cases ci with
+  | projInfo t => exact ciName_denote_proj (hproj t rfl) h
+  | axiomInfo v => exact ciName_denote (by simp) h
+  | defnInfo v e hh => exact ciName_denote (by simp) h
+  | thmInfo v e => exact ciName_denote (by simp) h
+  | indInfo v caps => exact ciName_denote (by simp) h
+  | ctorInfo v nP nF => exact ciName_denote (by simp) h
+  | recInfo v mI rP rs => exact ciName_denote (by simp) h
+
+/-- con-leche: none — a block's names, at the list. -/
+theorem ciNames_denote {st : EStore} :
+    ∀ {block : List IConstantInfo} {bP : List ConstantInfo},
+      (∀ ci ∈ block, CIProjNamed st ci) →
+      ConRon.Arena.Frontend.denoteCIList st block = some bP →
+      ConRon.Arena.Frontend.denoteNList st.ns (block.map (·.name))
+        = some (bP.map (·.name))
+  | [], bP, _, h => by
+    simp only [ConRon.Arena.Frontend.denoteCIList, Option.some.injEq] at h
+    subst h; rfl
+  | ci :: cs, bP, hproj, h => by
+    simp only [ConRon.Arena.Frontend.denoteCIList] at h
+    cases hci : ConRon.Arena.Frontend.denoteCI st ci with
+    | none => rw [hci] at h; simp at h
+    | some c =>
+      cases hcs : ConRon.Arena.Frontend.denoteCIList st cs with
+      | none => rw [hci, hcs] at h; simp at h
+      | some xs =>
+        rw [hci, hcs] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        have h1 := ciName_denote_of (hproj ci (by simp)) hci
+        have h2 := ciNames_denote (fun c hc => hproj c (by simp [hc])) hcs
+        simp only [List.map_cons, ConRon.Arena.Frontend.denoteNList, h1, h2]
+
+/-- con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names — **the
+record's declared names denote**, which is what round 4's finding 16 said a
+bare `denoteDecl` does not give.  `DeclProjNamed` is exactly the missing
+hypothesis and nothing more. -/
+theorem declNames_denote {st : EStore} {d : IDeclaration} {dP : Declaration}
+    (hpn : DeclProjNamed st d)
+    (hd : ConRon.Arena.Frontend.denoteDecl st d = some dP) :
+    ConRon.Arena.Frontend.denoteNList st.ns d.names = some dP.names := by
+  have hcv : ∀ (v : IConstantVal) (cv : ConstantVal),
+      ConRon.Arena.Frontend.denoteCV st v = some cv →
+      denoteN st.ns v.name = some cv.name := by
+    intro v cv hv
+    simp only [ConRon.Arena.Frontend.denoteCV] at hv
+    cases hn : denoteN st.ns v.name with
+    | none => rw [hn] at hv; simp at hv
+    | some n =>
+      cases hl : ConRon.Arena.Frontend.denoteNList st.ns v.levelParams with
+      | none => rw [hn, hl] at hv; simp at hv
+      | some lps =>
+        cases ht : denoteE st v.type with
+        | none => rw [hn, hl, ht] at hv; simp at hv
+        | some ty =>
+          rw [hn, hl, ht] at hv
+          obtain rfl := Option.some.inj hv
+          rfl
+  cases d with
+  | axiomDecl v =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨cv, hv, rfl⟩ := hd
+    simp only [IDeclaration.names, Declaration.names,
+      ConRon.Arena.Frontend.denoteNList, hcv v cv hv]
+  | defnDecl v e hh =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hv] at hd; simp at hd
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hv, he] at hd; simp at hd
+      | some x =>
+        rw [hv, he] at hd
+        obtain rfl := Option.some.inj hd
+        simp only [IDeclaration.names, Declaration.names,
+          ConRon.Arena.Frontend.denoteNList, hcv v cv hv]
+  | thmDecl v e =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hv] at hd; simp at hd
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hv, he] at hd; simp at hd
+      | some x =>
+        rw [hv, he] at hd
+        obtain rfl := Option.some.inj hd
+        simp only [IDeclaration.names, Declaration.names,
+          ConRon.Arena.Frontend.denoteNList, hcv v cv hv]
+  | opaqueDecl v e =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hv : ConRon.Arena.Frontend.denoteCV st v with
+    | none => rw [hv] at hd; simp at hd
+    | some cv =>
+      cases he : denoteE st e with
+      | none => rw [hv, he] at hd; simp at hd
+      | some x =>
+        rw [hv, he] at hd
+        obtain rfl := Option.some.inj hd
+        simp only [IDeclaration.names, Declaration.names,
+          ConRon.Arena.Frontend.denoteNList, hcv v cv hv]
+  | basisDecl k =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.some.injEq] at hd
+    subst hd
+    rfl
+  | quotDecl k v =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨cv, hv, rfl⟩ := hd
+    simp only [IDeclaration.names, Declaration.names,
+      ConRon.Arena.Frontend.denoteNList, hcv v cv hv]
+  | indDecl block nP =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨b, hb, rfl⟩ := hd
+    exact ciNames_denote (hpn block nP rfl) hb
+
 /-! ## The frontend's own record denotations -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:85-104 ProjRecOwner — the
@@ -593,6 +945,17 @@ structure StateDRel (st : EStore) (sd : StateD) (sc : ConLeche.Frontend.StateD) 
   levels : IdTableRel (fun h u => denoteL st.ls h = some u) sd.levels sc.levels
   exprs : IdTableRel (fun h e => denoteE st h = some e) sd.exprs sc.exprs
   decls : denoteDeclArray st sd.decls = some sc.decls
+  /-- **the stream's projection tables are rightly named** — round 4's
+  finding 16, repaired the way `Bridge/StateOK.lean`'s `IFEnvOK` repaired the
+  same gap one module over (`IFEnvOK.proj`).  `denoteProjTable` drops
+  `tableName`, so `decls` alone does NOT give `IDeclaration.names`'s
+  exactness; this clause does, through `declNames_denote`, and it travels
+  through the whole streaming fold because the fold only ever transports the
+  relation.  Its two debtors are the two places a record ENTERS the stream:
+  `pushDecl` (the parse, where a block is built out of `.indInfo`/`.ctorInfo`/
+  `.recInfo` and the clause is vacuous) and `pushGenList` (the modeller, where
+  it is `ModellerWF`'s own clause). -/
+  projNamed : DeclsProjNamed st sd.decls
   projOwners : MapRel st (ProjRecOwnerRel st) sd.projOwners sc.projOwners
   projLevels : MapRel st (fun l u => denoteL st.ls l = some u)
     sd.projLevels sc.projLevels
@@ -628,6 +991,9 @@ state.  This is what DESIGN §8.2's exactness statement is about, and its
 structure ParseResultRel (st : EStore) (r : ParseResultD)
     (rc : ConLeche.Frontend.ParseResultD) : Prop where
   decls : denoteDeclArray st r.decls = some rc.decls
+  /-- the same clause at the parse RESULT, which is what carries round 4's
+  finding 16 out of the parse and into `Bridge/Frontend/Prepare.lean`. -/
+  projNamed : DeclsProjNamed st r.decls
   projRewrites : denoteNList st.ns r.projRewrites.toList
     = some rc.projRewrites.toList
   inModelled : denoteNList st.ns r.inModelled.toList = some rc.inModelled.toList
@@ -649,7 +1015,8 @@ theorem ParseResultRel.ofState {st : EStore} {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
     ParseResultRel st (ParseResultD.ofState sd)
       (ConLeche.Frontend.ParseResultD.ofState sc) :=
-  { decls := h.decls, projRewrites := h.projRewrites, inModelled := h.inModelled,
+  { decls := h.decls, projNamed := h.projNamed,
+    projRewrites := h.projRewrites, inModelled := h.inModelled,
     genRecords := h.genRecords, genOwner := h.genOwner, inModelGen := h.inModelGen,
     inModelDeclined := h.inModelDeclined }
 
@@ -864,6 +1231,7 @@ theorem StateDRel.ext {st st' : EStore} (hx : Ext st st') {sd : StateD}
   levels := h.levels.mono (fun _ _ hd => denoteL_ext hd hx)
   exprs := h.exprs.mono (fun _ _ hd => denote_ext hd hx)
   decls := denoteDeclArray_ext hx h.decls
+  projNamed := h.projNamed.mono hx
   projOwners := h.projOwners.mono hx (fun _ _ ho => ProjRecOwnerRel.ext hx ho)
   projLevels := h.projLevels.mono hx (fun _ _ hd => denoteL_ext hd hx)
   projRewrites := denoteNListE_ext hx _ _ h.projRewrites
@@ -887,6 +1255,7 @@ theorem ParseResultRel.ext {st st' : EStore} (hx : Ext st st') {r : ParseResultD
     {rc : ConLeche.Frontend.ParseResultD} (h : ParseResultRel st r rc) :
     ParseResultRel st' r rc where
   decls := denoteDeclArray_ext hx h.decls
+  projNamed := h.projNamed.mono hx
   projRewrites := denoteNListE_ext hx _ _ h.projRewrites
   inModelled := denoteNListE_ext hx _ _ h.inModelled
   genRecords := h.genRecords
