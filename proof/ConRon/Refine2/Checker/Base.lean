@@ -398,7 +398,6 @@ theorem check_constant_val_after_annot_refines {pers st lst} {vis : Std.U64}
     {ty : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_constant_val_after_annot pers vis st mode rf cv ty
       = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
@@ -412,7 +411,6 @@ theorem check_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_constant_val pers vis st mode rf cv = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
       (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
@@ -503,7 +501,6 @@ theorem check_typed_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {xs ts : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_typed_list pers vis st mode rf depth xs ts i
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -517,7 +514,6 @@ theorem check_annot_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_annot_list pers vis st mode rf depth xs i
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -531,7 +527,6 @@ theorem check_def_eq_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -646,7 +641,6 @@ theorem check_proj_rule_frame_refines {pers st lst} {vis : Std.U64} {rf lf}
     {crest_p rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_proj_rule_frame pers vis st mode rf n_p n_f
       fvs_p crest_p rhs_a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -661,7 +655,6 @@ theorem check_proj_rule_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_proj_rule_certs pers vis st mode rf pty cvj
       n_p n_f rhs_a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -676,7 +669,6 @@ theorem check_proj_rule_shape_refines {pers st lst} {vis : Std.U64} {rf lf}
     {bv rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_proj_rule_shape pers vis st mode rf pty cvj
       n_p n_f bv rhs_a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -692,7 +684,6 @@ theorem check_proj_rule_wf_refines {pers st lst} {vis : Std.U64} {rf lf}
     {n_p n_f : Std.U64} {bv rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_proj_rule_wf pers vis st mode rf pty cvj lps
       n_p n_f bv rhs_a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -708,7 +699,6 @@ theorem check_proj_rule_scoped_refines {pers st lst} {vis : Std.U64} {rf lf}
     {n_p n_f : Std.U64} {bv rhs : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_proj_rule_scoped pers vis st mode rf pty cvj lps
       n_p n_f bv rhs = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -726,7 +716,6 @@ theorem check_proj_rule_refines {pers st lst} {vis : Std.U64} {rf lf}
     {n_p n_f i : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_base.check_proj_rule pers vis st mode rf pty cvj lps
       n_p n_f i = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -815,7 +804,6 @@ theorem install_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_split.install_constant_val pers vis st mode rf cv = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
       (installConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
@@ -838,7 +826,6 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (installValue (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
@@ -852,7 +839,6 @@ theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {u : arena.handle.LIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -867,7 +853,6 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {jv : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_split.check_value_group_tail pers vis st mode rf g jv
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -881,7 +866,6 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hknot : KnotRel checkFuel)
     (hrun : arena.checker_split.check_value_group pers vis st mode rf g = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       (checkValueGroup (ConRon.Refine.absMode mode) lf (absValueGroup g)) := by

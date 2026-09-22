@@ -50,6 +50,34 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine.HashMap2 (Inv RelOn)
 
+/-! ## The memo itself -/
+
+/-- **`arena::promote::PMemo::empty` is the twin's `PMemo.empty`** — four
+fresh `HashMap2`s against four empty `Std.HashMap`s, `Refine2/Promote/Intern.lean`'s
+`memo_empty_refines` four times over.  The fold's bracket starts from it, so
+it is what `check_decl_step` and `annot_step` consume. -/
+theorem pmemo_empty_refines {o} (hrun : arena.promote.PMemo.empty = ok o) :
+    PMemoRel o PMemo.empty := by
+  rw [arena.promote.PMemo.empty] at hrun
+  obtain ⟨me, hme, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨mn, hmn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ml, hml, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨mls, hmls, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hie, -, hne⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) hme
+  obtain ⟨hin, -, hnn⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hmn
+  obtain ⟨hil, -, hnl⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.LIdx.Insts.Con_ron_coreRonHashmapHashable) hml
+  obtain ⟨hils, -, hnls⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable) hmls
+  have ho : o = { e_m := me, n_m := mn, l_m := ml, ls_m := mls } :=
+    (Result.ok_injective hrun).symm
+  subst ho
+  exact ⟨ConRon.Refine.HashMap2.RelOn_empty hne, ConRon.Refine.HashMap2.RelOn_empty hnn,
+    ConRon.Refine.HashMap2.RelOn_empty hnl, ConRon.Refine.HashMap2.RelOn_empty hnls,
+    hie, hin, hil, hils⟩
+
 /-! ## The memo's two primitives, per handle kind
 
 Eight one-line functions extraction rule 5 asked for; eight two-line lemmas. -/
@@ -279,7 +307,15 @@ theorem promoteN_unfold (m : PMemo) (fuel : Nat) (h : NIdx) :
         | none => do
           let (m, r) ← promoteNNodeSpec m fuel (← viewN h)
           pure ({ m with nM := m.nM.insert h r }, r)) := by
-  sorry
+  rw [promoteN]
+  split
+  · rfl
+  · cases hm : m.nM[h]? with
+    | some r => rfl
+    | none =>
+      refine am_bind_congr _ ?_
+      intro v
+      cases v <;> twin_reduce [promoteNNodeSpec]
 
 /-- `promoteL` in terms of its transcription. -/
 theorem promoteL_unfold (m : PMemo) (fuel : Nat) (h : LIdx) :
@@ -291,7 +327,15 @@ theorem promoteL_unfold (m : PMemo) (fuel : Nat) (h : LIdx) :
         | none => do
           let (m, r) ← promoteLNodeSpec m fuel (← viewL h)
           pure ({ m with lM := m.lM.insert h r }, r)) := by
-  sorry
+  rw [promoteL]
+  split
+  · rfl
+  · cases hm : m.lM[h]? with
+    | some r => rfl
+    | none =>
+      refine am_bind_congr _ ?_
+      intro v
+      cases v <;> twin_reduce [promoteLNodeSpec]
 
 /-- `promoteE` in terms of its transcription. -/
 theorem promoteE_unfold (m : PMemo) (fuel : Nat) (h : EIdx) :
@@ -303,7 +347,15 @@ theorem promoteE_unfold (m : PMemo) (fuel : Nat) (h : EIdx) :
         | none => do
           let (m, r) ← promoteENodeSpec m fuel (← view h)
           pure ({ m with eM := m.eM.insert h r }, r)) := by
-  sorry
+  rw [promoteE]
+  split
+  · rfl
+  · cases hm : m.eM[h]? with
+    | some r => rfl
+    | none =>
+      refine am_bind_congr _ ?_
+      intro v
+      cases v <;> twin_reduce [promoteENodeSpec]
 
 /-! ## The four handle kinds -/
 

@@ -44,7 +44,6 @@ at this door, which is why the seam's statement is four hypotheses and not
 five.
 -/
 import ConRon.Refine2.Inductives.Modeled
-import ConRon.Refine2.Checker.Top
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

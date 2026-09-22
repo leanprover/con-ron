@@ -238,7 +238,9 @@ theorem checkConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
       checkConstantValGuardsSpec fe cv
       let type ← annotateCore mode fe checkFuel 0 cv.type
       checkConstantValAfterAnnotSpec mode fe cv type) := by
-  sorry
+  twin_reduce [checkConstantVal, checkConstantValGuardsSpec,
+    checkConstantValGuardsRestSpec, checkConstantValAfterAnnotSpec,
+    installConstantValTailSpec]
 
 /-- `installConstantVal` is the same guards and the install-side tail. -/
 theorem installConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
@@ -247,7 +249,8 @@ theorem installConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
       checkConstantValGuardsSpec fe cv
       let type ← annotateCore mode fe checkFuel 0 cv.type
       installConstantValTailSpec fe cv type) := by
-  sorry
+  twin_reduce [installConstantVal, checkConstantValGuardsSpec,
+    checkConstantValGuardsRestSpec, installConstantValTailSpec]
 
 /-- `installValue` is its guards, its annotation and its tail. -/
 theorem installValue_unfold (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
@@ -260,7 +263,7 @@ theorem installValue_unfold (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
           s!"unexpected free variable in value of {← readName cv.name}")
       let valueA ← annotateCore mode fe checkFuel 0 value
       installValueTailSpec fe cv valueA) := by
-  sorry
+  twin_reduce [installValue, installValueTailSpec]
 
 /-- `checkValueGroup` is its three pieces. -/
 theorem checkValueGroup_unfold (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) :
@@ -268,7 +271,8 @@ theorem checkValueGroup_unfold (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) 
       let stype ← inferTypeCore mode fe checkFuel 0 g.cvA.type
       let u ← ensureSortCore mode fe checkFuel 0 stype
       checkValueGroupValueSpec mode fe g u) := by
-  sorry
+  twin_reduce [checkValueGroup, checkValueGroupValueSpec,
+    checkValueGroupTailSpec]
 
 /-- `constsResolveFGo` is its probe and its node transcription. -/
 theorem constsResolveFGo_unfold (fe : IFEnv) (memo : Std.HashMap EIdx Bool)
@@ -283,14 +287,25 @@ theorem constsResolveFGo_unfold (fe : IFEnv) (memo : Std.HashMap EIdx Bool)
         | none => do
           let p ← constsResolveFNodeSpec fe memo fuel h (← view h)
           pure (p.1, p.2.insert h p.1)) := by
-  sorry
+  rw [constsResolveFGo]
+  refine am_bind_congr _ ?_
+  intro v
+  cases v <;> try rfl
+  all_goals
+    (cases hm : memo[h]? with
+     | some r => rfl
+     | none =>
+       refine am_bind_congr _ ?_
+       intro v2
+       cases v2 <;> twin_reduce [constsResolveFNodeSpec])
 
 /-- `indParamsOk` is its per-member test and the `&&` fold. -/
 theorem indParamsOk_unfold (nP : Nat) (ci : IConstantInfo)
     (rest : List IConstantInfo) :
     indParamsOk nP (ci :: rest) = (do
       if ← indParamsOkAtSpec nP ci then indParamsOk nP rest else pure false) := by
-  sorry
+  rw [indParamsOk]
+  cases ci <;> twin_reduce [indParamsOkAtSpec]
 
 /-- `checkProjRule` is its six pieces. -/
 theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
@@ -300,7 +315,8 @@ theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
       let some rhs ← pisToLams (nP + nF) cvj.type bv
         | fail (.notImplemented "projection rule telescope")
       checkProjRuleScopedSpec mode fe pty cvj lps nP nF bv rhs) := by
-  sorry
+  rw [checkProjRule]
+  twin_reduce
 
 
 /-! ## `arena::decl_check`'s splits (finding 11)
