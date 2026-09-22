@@ -1,8 +1,9 @@
 /-
-# `ConRon.Refine2.Core.Arms.Gated` — `BodyRel`'s first field, closed
+# `ConRon.Refine2.Core.Arms.Gated` — the gated body at a stuck tag
 
-**Task #97-P5-Arms.**  `BodyRel.stuckGatedCore` is the only field of either
-relation that mentions no Rust at all: it is a statement about the TWIN,
+**Task #97-P5-Arms**, amended by task #97-P5-Core-2.  This was
+`BodyRel.stuckGatedCore`, the only field of either relation that mentions no
+Rust at all: a statement about the TWIN,
 
     whnfCoreStuckTag h = true → (whnfCoreBodyGated mode r lfe d h).run lst
                                   = .ok (h, lst)
@@ -14,6 +15,14 @@ while the twin hoisted it into the memoized slot only, so `coreKnotGated`'s
 `whnfCore` slot is `whnfCoreBodyGated … d e` with no such test.  Task
 #97-P5-Core's finding 12 names the pair; this is its first half, and
 `whnfCoreStuckTag`'s own doc comment states exactly this as the obligation.
+
+**It is no longer a `BodyRel` field.**  Task #97-P5-Arms §11(b)'s second
+one-line twin change (made by task #97-P5-Core-2) put the stuck-tag test in
+`coreKnotGated`'s `| fuel + 1 =>` branch only, so both reduction slots now
+test exactly where the port's `knot_*` do and `Core/Induction.lean` reads the
+agreement off `coreKnotGated_succ_whnfCore_stuck` instead.  The fact below is
+nonetheless true and stays proved: it is what the gated body's first clause
+claims, and a gated-lane claims tower will want it.
 
 **What it needed** is `Core/Arms/Sort.lean`'s `EStore_view_tagOf`: the four
 tags the stuck test excludes (`app`, `proj`, `letE`, `bvar`) are exactly the
@@ -42,7 +51,8 @@ theorem whnfCoreStuckTag_ne {h : EIdx} (hst : whnfCoreStuckTag h = true) :
   rw [whnfCoreStuckTag] at hst
   refine ⟨?_, ?_, ?_, ?_⟩ <;> intro hx <;> rw [hx] at hst <;> simp at hst
 
-/-- **`BodyRel.stuckGatedCore`, closed.**  The gated lane's `whnfCore` body
+/-- **The gated lane's `whnfCore` body is the identity at a stuck tag.**  It
+was `BodyRel.stuckGatedCore` until task #97-P5-Core-2; the gated `whnfCore` body
 returns its argument at exactly the six views the port's hoisted tag test
 accepts. -/
 theorem bodyRel_stuckGatedCore {mode : ConLeche.CheckMode} {lfe : IFEnv}

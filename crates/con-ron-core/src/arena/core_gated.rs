@@ -147,8 +147,8 @@ pub fn whnf_core_body_gated(
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
 /// con-leche: ConLeche/Kernel/CoreGated.lean:152-155 pureFnsGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-149 coreKnotGated`
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:151-154 pureFnsGated` — **the
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:108-153 coreKnotGated`
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:155-158 pureFnsGated` — **the
 /// P knot**, tied at `AM`: `coreKnot`'s tie with `whnfCoreBodyGated` in the
 /// `whnfCore` slot; `whnf`, `infer`, `defeq` and `annotate` are the *same
 /// bodies*, tied to this knot one fuel level down, and no slot carries a memo.
@@ -158,7 +158,7 @@ pub fn whnf_core_body_gated(
 pub const CORE_KNOT_GATED: u32 = LANE_GATED;
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:157-159 whnfCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:156-160 whnfCoreGated` — head
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:160-164 whnfCoreGated` — head
 /// normalization with the β-cert gate (fueled).
 pub fn whnf_core_gated(
     pers: &PersTier,
@@ -174,7 +174,7 @@ pub fn whnf_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:161-163 whnfGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:162-166 whnfGated` — the full
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:166-170 whnfGated` — the full
 /// reduction loop over the gated knot (fueled).
 pub fn whnf_gated(
     pers: &PersTier,
@@ -190,7 +190,7 @@ pub fn whnf_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:165-168 inferTypeCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:168-172 inferTypeCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:172-176 inferTypeCoreGated` —
 /// type inference over the gated knot (fueled).
 pub fn infer_type_core_gated(
     pers: &PersTier,
@@ -206,7 +206,7 @@ pub fn infer_type_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:170-173 isDefEqCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:174-178 isDefEqCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:178-182 isDefEqCoreGated` —
 /// definitional equality over the gated knot (fueled).
 pub fn is_def_eq_core_gated(
     pers: &PersTier,
@@ -223,7 +223,7 @@ pub fn is_def_eq_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:175-178 annotateCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:180-184 annotateCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:184-188 annotateCoreGated` —
 /// the annotation pass over the gated knot (fueled).
 pub fn annotate_core_gated(
     pers: &PersTier,
@@ -239,7 +239,7 @@ pub fn annotate_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:180-183 ensureSortCoreGated
-/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:186-190 ensureSortCoreGated` —
+/// Lean twin: `proof/ConRon/Arena/CoreGated.lean:190-194 ensureSortCoreGated` —
 /// `ensureSort` over the gated knot (fueled).
 pub fn ensure_sort_core_gated(
     pers: &PersTier,
