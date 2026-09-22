@@ -414,10 +414,67 @@ theorem projIotaLevel_run {s s' : AState} (hok : StateOK s)
 /-! ## The term walks -/
 
 
+/-! ### Two con-leche-tier facts con-leche does not have
+
+`ConLeche/Verify/` mentions neither `occursConstB` nor `occursConstGo`: the
+budgeted and the memoised walks are UNVERIFIED on con-leche's side, and the
+pure `occursConst` (`ConLeche/Frontend/ProjRec.lean:129-136`) is their only
+specification — con-leche's own note says so (*"`occursConst` has exactly one
+caller and no proof depends on it, so the memoised walk is simply what that
+caller uses; the pure definition above stays as its specification"*).
+
+The twin's `occursConstFast` is stated against `ConLeche.Frontend.
+occursConstFast`, so this tier needs the two, and they belong beside
+`occursConst` in con-leche rather than here.  They are stated here in task
+#97-P3-Frontend §5's **finding 6** shape — a con-leche-tier lemma stated in
+this tier so the gap is a LEMMA and not a hole in a proof — exactly as
+`checkDeclsPure_thmDecl_const` is in `Bridge/Frontend/Capstone.lean`. -/
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:152-178 occursConstB — **the
+budgeted descent answers `occursConst` whenever it answers at all.**
+
+`sorry`: a con-leche-tier lemma (finding 6's shape).  A structural induction on
+the `Expr` with the budget generalised; the `some false` arms compose and every
+`none` arm is vacuous.  It belongs in `ConLeche/Verify/Frontend/ProjRec.lean`
+beside `occursConst`, and this tier may not re-derive con-leche's own
+functions. -/
+theorem clOccursConstB_eq {n : ConLeche.Name} :
+    ∀ {fuel : Nat} {e : ConLeche.Expr} {r : Bool},
+      (ConLeche.Frontend.occursConstB n fuel e).1 = some r →
+      r = ConLeche.Frontend.occursConst n e := by
+  sorry
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:182-227 occursConstGo — **the
+memoised descent answers `occursConst` at a fresh set.**
+
+`sorry`: a con-leche-tier lemma (finding 6's shape).  The induction needs the
+set's invariant — *every member is a subterm already shown not to mention `n`*
+— which is the GRAY shape, and `∅` is where it starts true.  Same home as
+`clOccursConstB_eq`. -/
+theorem clOccursConstGo_eq {n : ConLeche.Name} {e : ConLeche.Expr} :
+    (ConLeche.Frontend.occursConstGo n ∅ e).1
+      = ConLeche.Frontend.occursConst n e := by
+  sorry
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:228-231 occursConstFast — **what
+the twin is stated against is the pure `occursConst`**, which is the only
+thing this tier ever has to reason about once the two above are in hand. -/
+theorem clOccursConstFast_eq {n : ConLeche.Name} {e : ConLeche.Expr} :
+    ConLeche.Frontend.occursConstFast n e = ConLeche.Frontend.occursConst n e := by
+  rw [ConLeche.Frontend.occursConstFast]
+  cases h : (ConLeche.Frontend.occursConstB n 4096 e).1 with
+  | none => exact clOccursConstGo_eq
+  | some r => exact clOccursConstB_eq h
+
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:228 occursConstFast — the
 memoised occurrence test.  A `Bool` answer names no handle, so task
 #97-P3-0 §5's finding 1 applies: this is a `RelV` and the closer takes every
 arm.
+
+**What is left after round 5's two con-leche-tier lemmas above**: the
+con-leche side is now the pure `occursConst` (`clOccursConstFast_eq`), so the
+only thing open here is the ARENA side — the twin's `occursConstGo` over
+handles against `occursConst` over the denoted tree.
 
 `sorry`: the fuel induction with the `seen` set's invariant — the same GRAY
 shape `Bridge/ExprOps/Leaves.lean`'s `fvarLeavesGo_spec` is open on, and it

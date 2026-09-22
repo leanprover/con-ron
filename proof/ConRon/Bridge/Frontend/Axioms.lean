@@ -43,6 +43,14 @@ on top of it is `noteDecl_run`/`pushDecl_run` (item 6) and the prelude's front,
 `preludeKey_run`/`pick_denote`/`frontOf_run` (item 20), with the new
 vocabulary and its name equations below.
 
+It also states the two con-leche-tier facts `occursConstFast_run` needs and
+con-leche does not have (`Bridge/Frontend/ProjRec.lean`'s `clOccursConstB_eq`
+and `clOccursConstGo_eq`, §5's finding-6 shape).  Their corollary
+`clOccursConstFast_eq` is proved on top of them and therefore carries
+`sorryAx`, so it is NOT in the list below — which is the rule working as
+intended: the census lists what is proved, and that one is proved *modulo an
+ask of con-leche*.
+
 **Round three** adds the INTERN direction (item 2) and the seam (item 8).  Two
 of the four named hypotheses are therefore no longer only hypotheses:
 `ModellerWF` and `ModellerRefines` hold of the modeller the driver actually
