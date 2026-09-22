@@ -46696,9 +46696,11 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
 
 #### Round 4 — the installs read back, FOUR more statement defects, and the three name lemmas moved down (2026-09-22, Opus under Fable)
 
-Branch `p3-ind-4` off `arena`'s tip `c80e9c34`, merged forward once
-(`65a2aa9e`; `CLAUDE.md` and two `DESIGN.md` task sections, textual for this
-tier).  The diff is six files: `Bridge/Inductives/{Rel,NativeParts,SumInstall,
+Branch `p3-ind-4` off `arena`'s tip `c80e9c34`, merged forward twice
+(`65a2aa9e`, task #97-P3-Core round 4, and `6e4ff12e`, task #97-P3-Frontend
+round 4; both are ABOVE or BESIDE this tier — `Bridge/Core/**` and
+`Bridge/Frontend/**` reach none of its modules — plus `CLAUDE.md` and their
+`DESIGN.md` sections).  The diff is six files: `Bridge/Inductives/{Rel,NativeParts,SumInstall,
 Modeled}.lean`, `Bridge/StateOK.lean` (§R4.1's move, the one file outside
 `Bridge/Inductives/**` this round touches, and the one round 3 named) and this
 section.  **No Rust file, no generated model, no `Arena/`, no `Refine/`, no
