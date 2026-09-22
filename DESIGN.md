@@ -44389,6 +44389,6 @@ change**, and that is a sharper statement than round 2 could make.
 | `cd proof && lake build` | **green**, **2 209 jobs** — the default targets are untouched |
 | `scripts/provenance.py check` | 0 findings — `6 650 item(s) (4 099 Rust, 2 551 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 48 links, 31 files, OK (and `scripts/twin-lines.py check` 1 983 citations OK, `scripts/holes.sh --check` 1 type / 5 fns OK) |
-| `scripts/arena-census.py --summary` | runs; `Arena/ExprOps` reads **92/92 stated, 80 closed** for T1 and **89/92 stated, 52 closed** for T2 — the 52 being this task's, from round 2's 45 |
-| merged `arena` at `0e13370e` | auto-merged every hunk, `.lean` and DESIGN.md alike; no hand work |
+| `scripts/arena-census.py --summary` | runs; `Arena/ExprOps` reads **92/92 stated, 92 closed** for T1 (task #97-P3-1's follow-up landed on `arena` between the two merges) and **89/92 stated, 52 closed** for T2 — the 52 being this task's, from round 2's 45 |
+| merged `arena` **twice** — `0e13370e`, then `e54dd80e` | auto-merged every hunk, `.lean` and DESIGN.md alike; no hand work.  The second merge is `Bridge/**` only, which `ConRonRefine2` does not import, but both Lean gates were re-run on it anyway and are the numbers above |
 | the diff | `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, and `ExprOps/{Pure,Read}.lean` untouched — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected by this branch and are not re-run |
