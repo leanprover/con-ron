@@ -97,12 +97,16 @@ arrive peeled into the context and the blocks read exactly like
   does **not** override an earlier one for the same program.  `liftSet_specG`
   carries the full note.
 * **`bvarB` is not one of these thirteen twins**, and `lowerBVarsGo` /
-  `instantiate1LiftGo` test it.  Rather than assume its spec as an `axiom`,
-  both take it as a hypothesis `hbb : ∀ f, BvarBSpec (bvarB f)` — see
-  `BvarBSpec`.  One `exact` discharges it when the packed-range group's file
-  lands, and `#print axioms` stays clean meanwhile.
+  `instantiate1LiftGo` test it.  Round 3 carried its Theorem 1 as a
+  hypothesis `hbb : ∀ f, BvarBSpec (bvarB f)`; **round 4 discharged it**
+  (`bvarB_bvarBSpec`) and deleted every binder, so the four entry points and
+  `instPisAtLift_spec` are callable with no hypothesis about `bvarB` at all.
+  The discharge was not free: `Bridge/ExprOps/Ranges.lean` had to state the
+  two memo-frame conjuncts `BvarBSpec` asks for and `bvarB_spec` did not
+  (`s'.memos.lowerC` and `s'.memos.inst1LC`) — see §4 of that round.
 -/
 import ConRon.Bridge.Specs
+import ConRon.Bridge.ExprOps.Ranges
 
 namespace ConRon.Bridge.ExprOps
 
@@ -1307,10 +1311,10 @@ theorem InstLAt.bvar_aboveV {st st' : EStore} (hwf : StoreWF st) {c r : EIdx}
 `lowerBVarsGo` and `instantiate1LiftGo` test con-leche's own `bvarB` — the
 packed field, or the memoized recomputation on the saturated branch
 (`Arena/ExprOps.lean:1486`).  **`bvarB` is not one of this file's thirteen
-twins**: it belongs to the packed-range group.  Rather than assume its spec as
-an `axiom` (which would put an extra name into `#print axioms`), the two
-walks take it as a HYPOTHESIS; one `exact` discharges it when that group's
-file lands. -/
+twins**: it belongs to the packed-range group.  Round 3 carried its Theorem 1
+as a HYPOTHESIS so that `#print axioms` stayed clean while that group's file
+was open; round 4 **discharged** it from `ExprOps/Ranges.lean`'s `bvarB_spec`
+(`bvarB_bvarBSpec` below) and deleted the binders. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — Theorem 1 for
 `bvarB`, in the shape the two cutoff walks need: the answer is
@@ -1325,6 +1329,25 @@ structure BvarBSpec (prog : EIdx → AM Nat) : Prop where
         s'.pins = s₁.pins ∧ s'.memos.lowerC = s₁.memos.lowerC ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
         RelV Expr.bvarBound s₁.store c r⌝⦄
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — **`BvarBSpec`,
+discharged**, from `ExprOps/Ranges.lean`'s `bvarB_spec`.
+
+Two of `BvarBSpec`'s eight conjuncts are free of the packed-range group's own
+statement: `StateOK s'` and `StoreWF s'.store` are `hok` transported along
+`s'.store = s₁.store`, because `Bridge/StateOK.lean`'s `StateOK` is the single
+field `StoreWF s.store`.  The other six have to BE `bvarB_spec`'s, and the two
+memo-frame ones (`lowerC`, `inst1LC`) were the gap round 4 closed: `bvarB`
+clears and refills `memos.bvarBC` and touches no other table, and the whole
+chain (`bvarBClear_spec`, `bvarBSet_spec`) hands back a RECORD update
+`{ memos with bvarBC := _ }`, so both conjuncts are a projection away —
+but only once the two `Ranges.lean` statements say so. -/
+theorem bvarB_bvarBSpec (fuel : Nat) : BvarBSpec (bvarB fuel) := by
+  constructor
+  intro s₁ c hok hden
+  have hr := bvarB_spec fuel
+  mvcgen [hr]
+  all_goals bridge_vcs [RelV]
 
 /-! ## J. Theorem 1 for `liftLooseBVars` -/
 
@@ -1608,13 +1631,13 @@ The cutoff is **con-leche's own** (`bvarB ≤ c + amount`), so its licence is
 QUOTED and not reproved: `Expr.lowerBVars_of_bvarBound_le`
 (`ConLeche/Kernel/ExprOps.lean:1959`), wrapped as `LowerAt.cutoff`.
 
-`hbb` is `bvarB`'s Theorem 1 as a HYPOTHESIS, because `bvarB`
-(`Arena/ExprOps.lean:1486`) is not one of this file's thirteen twins — see
-`BvarBSpec` above.  Its one cost in the proof is that every arm's `view` read
-happens at the state `bvarB` returned, whose store is *equal to* but not
-syntactically `s₁.store`; `RelE.src_eq` / `RelE.tgt_eq` and the view-first arm
-lemmas absorb that. -/
-theorem lowerBVarsGo_spec (amount : Nat) (hbb : ∀ f, BvarBSpec (bvarB f)) :
+`bvarB_bvarBSpec` is `bvarB`'s Theorem 1, quoted (round 3 carried it as a
+hypothesis, because `bvarB` — `Arena/ExprOps.lean:1486` — is not one of this
+file's thirteen twins; see `BvarBSpec` above).  Its one cost in the proof is
+that every arm's `view` read happens at the state `bvarB` returned, whose
+store is *equal to* but not syntactically `s₁.store`; `RelE.src_eq` /
+`RelE.tgt_eq` and the view-first arm lemmas absorb that. -/
+theorem lowerBVarsGo_spec (amount : Nat) :
     ∀ fuel, LowerSpec amount (lowerBVarsGo amount fuel) := by
   intro fuel
   induction fuel with
@@ -1627,7 +1650,7 @@ theorem lowerBVarsGo_spec (amount : Nat) (hbb : ∀ f, BvarBSpec (bvarB f)) :
     constructor
     intro s₀ h c hok hm hden
     have hrec := ih.run
-    have hbbr := (hbb fuel).run
+    have hbbr := (bvarB_bvarBSpec fuel).run
     mvcgen [lowerBVarsGo_succ, lowerArmApp, lowerArmLam, lowerArmForallE, lowerArmLet, lowerArmProj, hrec, hbbr]
     all_goals try exact fun cc e => Expr.lowerBVars amount cc e
     all_goals try bridge_vcs [Expr.lowerBVars]
@@ -1780,8 +1803,7 @@ Two things make this the most interesting walk of the group:
    `liftLooseBVarsFast fuel d 0 v`, so the proof consumes
    `liftLooseBVarsFast_spec` and needs its `inst1LC` frame conjunct to carry
    `Inst1LMemoA ve` across the nested call. -/
-theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr)
-    (hbb : ∀ f, BvarBSpec (bvarB f)) :
+theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     ∀ fuel, Inst1LSpec v ve (instantiate1LiftGo v fuel) := by
   intro fuel
   induction fuel with
@@ -1794,7 +1816,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr)
     constructor
     intro s₀ h d hok hm hv hden
     have hrec := ih.run
-    have hbbr := (hbb fuel).run
+    have hbbr := (bvarB_bvarBSpec fuel).run
     have hlift := fun (s : AState) (e : EIdx) => liftLooseBVarsFast_spec fuel d 0 s e
     mvcgen [instantiate1LiftGo_succ, inst1LiftArmApp, inst1LiftArmLam, inst1LiftArmForallE, inst1LiftArmLet, inst1LiftArmProj, hrec, hbbr, hlift]
     all_goals try exact fun dd e => Expr.instantiate1Lift e ve dd
@@ -1938,46 +1960,46 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr)
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast —
 **THEOREM 1 for `lowerBVars`, at the entry point**. -/
 theorem lowerBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
-    (hbb : ∀ f, BvarBSpec (bvarB f)) (hok : StateOK s₀)
+    (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ lowerBVarsFast fuel amount c e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.lowerC = ∅ ∧ LowerAt amount c s₀.store e s'.store r⌝⦄ := by
-  have hr := (lowerBVarsGo_spec amount hbb fuel).run
+  have hr := (lowerBVarsGo_spec amount fuel).run
   mvcgen [lowerBVarsFast, hr]
   all_goals bridge_vcs [Expr.lowerBVars]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
 a RUN. -/
 theorem lowerBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
-    (hbb : ∀ f, BvarBSpec (bvarB f)) (hok : StateOK s₀)
+    (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (lowerBVarsFast fuel amount c e).run s₀ = Except.ok (r, s')) :
     StateOK s' ∧ Ext s₀.store s'.store ∧ s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.lowerC = ∅ ∧
       LowerAt amount c s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun
-    (lowerBVarsFast_spec fuel amount c s₀ e hbb hok hden)
+    (lowerBVarsFast_spec fuel amount c s₀ e hok hden)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast —
 **THEOREM 1 for `instantiate1Lift`, at the entry point**. -/
 theorem instantiate1LiftFast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx)
-    (d : Nat) (ve : Expr) (hbb : ∀ f, BvarBSpec (bvarB f)) (hok : StateOK s₀)
+    (d : Nat) (ve : Expr) (hok : StateOK s₀)
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instantiate1LiftFast fuel e v d
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1LC = ∅ ∧ Inst1LAt ve d s₀.store e s'.store r⌝⦄ := by
-  have hr := (instantiate1LiftGo_spec v ve hbb fuel).run
+  have hr := (instantiate1LiftGo_spec v ve fuel).run
   mvcgen [instantiate1LiftFast, hr]
   all_goals bridge_vcs [Expr.instantiate1Lift]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
 a RUN. -/
 theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
-    {d : Nat} {ve : Expr} (hbb : ∀ f, BvarBSpec (bvarB f)) (hok : StateOK s₀)
+    {d : Nat} {ve : Expr} (hok : StateOK s₀)
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiate1LiftFast fuel e v d).run s₀ = Except.ok (r, s')) :
@@ -1985,7 +2007,7 @@ theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
       s'.pins = s₀.pins ∧ s'.memos.inst1LC = ∅ ∧
       Inst1LAt ve d s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun
-    (instantiate1LiftFast_spec fuel s₀ e v d ve hbb hok hv hden)
+    (instantiate1LiftFast_spec fuel s₀ e v d ve hok hv hden)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2377-2380 instPisAtLift — the
 `cons` STEP: a `∀`-head is peeled, its body instantiated at the argument by
@@ -2030,7 +2052,7 @@ denotation sits in the POSTCONDITION (`∀ xs, denoteEList … = some xs → …
 rather than as a parameter, for the reason `liftSet_specG` documents: a
 `List Expr` parameter that the program does not mention is filled in by
 `mvcgen`'s context search. -/
-theorem instPisAtLift_spec (fuel : Nat) (hbb : ∀ f, BvarBSpec (bvarB f)) :
+theorem instPisAtLift_spec (fuel : Nat) :
     ∀ (args : List EIdx) (s₀ : AState) (c : EIdx), StateOK s₀ →
       (Frontend.denoteEList s₀.store args).isSome = true →
       (denoteE s₀.store c).isSome = true →
@@ -2054,7 +2076,7 @@ theorem instPisAtLift_spec (fuel : Nat) (hbb : ∀ f, BvarBSpec (bvarB f)) :
     split at hxs0
     · rename_i ea eas hea heas
       have hil := fun (s : AState) (e : EIdx) =>
-        instantiate1LiftFast_spec fuel s e a 0 ea hbb
+        instantiate1LiftFast_spec fuel s e a 0 ea
       mvcgen [instPisAtLift, hrec, hil]
       all_goals try bridge_vcs [Expr.instPisAtLift, RelEO, denoteEO,
         Frontend.denoteEList]
@@ -2724,6 +2746,7 @@ name. -/
 #print axioms lowerSet_specG
 #print axioms inst1LSet_specG
 #print axioms instLSet_specG
+#print axioms bvarB_bvarBSpec
 #print axioms liftLooseBVarsGo_spec
 #print axioms liftLooseBVarsFast_spec
 #print axioms liftLooseBVarsFast_run
