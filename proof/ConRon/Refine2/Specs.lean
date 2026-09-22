@@ -7509,7 +7509,7 @@ hypothesis: this round's **finding 15**. -/
 theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hwf : StoreWF lst.store) (hbmcap : lst.store.capOKBM)
+    (hbmcap : lst.store.capOKBM)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
@@ -7537,7 +7537,7 @@ theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
       (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m))
       = lst.store.internLam (absEIdx ty) (absEIdx b)
           (ConRon.Refine.absBinderMeta m) :=
-    intern_lam_eq hwf hbmcap _ _ _
+    intern_lam_eq hrel.storeWF hbmcap _ _ _
   cases hr : r with
   | Ok hh =>
     obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr
@@ -7556,7 +7556,7 @@ theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
 theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hwf : StoreWF lst.store) (hbmcap : lst.store.capOKBM)
+    (hbmcap : lst.store.capOKBM)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
@@ -7585,7 +7585,7 @@ theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
       (.forallE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m))
       = lst.store.internForallE (absEIdx ty) (absEIdx b)
           (ConRon.Refine.absBinderMeta m) :=
-    intern_forall_e_eq hwf hbmcap _ _ _
+    intern_forall_e_eq hrel.storeWF hbmcap _ _ _
   cases hr : r with
   | Ok hh =>
     obtain ⟨hhd, hrel', hinv'⟩ := hok hh hr

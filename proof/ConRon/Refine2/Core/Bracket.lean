@@ -741,7 +741,10 @@ theorem enter_scratch_refines {pers st lst st'}
   subst hst
   obtain ⟨hmr, hmi⟩ := memos_reset hinv.memos hm
   obtain ⟨hsr, hsi⟩ := estore_enable hrel.store hinv.store he
-  exact ⟨rfl, { hrel with store := hsr, memos := hmr },
+  -- task #97-P5-Specs: `AStateRel` now carries `StoreWF` on the twin store, and
+  -- `EStore.enableScratch_wf` is what re-establishes it across the opening.
+  have hwf' : StoreWF lst.store.enableScratch := EStore.enableScratch_wf hrel.storeWF
+  exact ⟨rfl, { hrel with store := hsr, memos := hmr, storeWF := hwf' },
     { hinv with store := hsi, memos := hmi }⟩
 
 /-- **`drop_scratch` ⊑ `dropScratch`** — the bracket closed: the caches
@@ -769,7 +772,9 @@ theorem drop_scratch_refines {pers st lst st'}
   obtain ⟨-, hr1, hi1⟩ := flush_caches_refines hrel hinv h1
   obtain ⟨hsr, hsi⟩ := estore_drop hr1.store hi1.store he
   refine ⟨rfl, ?_, ?_⟩
-  · exact { hr1 with store := hsr }
+  -- task #97-P5-Specs: `EStore.dropScratch_wf` for `AStateRel`'s `storeWF`.
+  · have hwf' : StoreWF lst.store.dropScratch := EStore.dropScratch_wf hrel.storeWF
+    exact { hr1 with store := hsr, storeWF := hwf' }
   · exact { hi1 with store := hsi }
 
 /-! ## The boundary, at the whole state, and the named hypothesis
