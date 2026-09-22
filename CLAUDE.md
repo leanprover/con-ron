@@ -22,6 +22,17 @@ section for every task you land.
 * Rust style rules for Aeneas are in `DESIGN.md` §3.4 and enforced by
   `scripts/lint-rust-style.sh` and `scripts/provenance.py check`
   (DESIGN.md §3.7).
+* **Gate latency: build the MODULE in the inner loop, the gates at the end.**
+  `scripts/gates.sh` is the *landing* gate, not the edit loop.  An agent
+  filling in a `sorry` has changed one module: `lake build
+  ConRon.Refine2.Specs` (or whichever) is what tells it whether the proof
+  went through, and it costs seconds where the full gates cost minutes —
+  `extract-check` alone is 100–300 s, and a merge that moves
+  `Generated/Funs.lean` costs ~1 000 s of `Core/Eqns.lean` re-derivation.
+  Run the module build after every edit, the whole-target build
+  (`lake build`, `lake build ConRonBridge`, `lake build ConRonRefine2`) when
+  a file is finished, and `scripts/gates.sh` once before reporting.  Never
+  run the gates to check a single proof.
 * **`scripts/gates.sh` is the one command every task must run before
   committing**: `cargo build`, `cargo test`, the style lint, the provenance
   check, the OVERVIEW link gate, the pin check, `scripts/extract.sh --check`
