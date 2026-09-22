@@ -24,6 +24,32 @@ This is `Bridge/ExprOps/Owed.lean`'s role one tier up: a statement is not a
 proof, but it is the interface, and the six body walks cannot be written
 against a walk that has no statement.
 
+## 0. The shape correction of task #97-P3-Core-2, and why it was forced
+
+The first two statements of this module — `unfoldDefinition_spec` and
+`reduceNat_spec`, the two `whnfBody_spec` consumes — took the subject's
+denotation as an explicit `(x : Expr)` argument with a
+`denoteE s₀.store e = some x` hypothesis.  **That shape cannot be used from a
+caller that reaches the walk through another call**, and `whnfStep` is
+exactly such a caller: it runs `r.whnfCore` first and hands `reduceNat` the
+REDUCT, whose denotation is not known until the first call's postcondition is
+in hand.  `mvcgen` must guess `x` when it applies the spec, it guesses the
+only `Expr` in scope (the *original* subject), and the side goal it leaves —
+`denoteE s.store <reduct> = some <original>` — is false.
+
+The fix is task #97-P3-0's own **rule 4** (*"a precondition with no `Expr` in
+it, so that a recursive call's side goal carries no metavariable"*) taken one
+step further: the denotation goes into the hypothesis as an **existential**
+(`∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x`, which names no
+metavariable) and out of the postcondition as a **universal** (`∀ x,
+denoteE s₀.store e = some x → …`), which is the shape
+`Bridge/Core/Walks/Cached.lean`'s closed exemplars already have and the shape
+`Bridge/Core/Arms/Whnf.lean`'s `whnfLoop_spec` needs at every iteration.
+The other fourteen statements below keep the explicit-argument shape for now;
+each should move the day its caller is written, and the rule is: *a walk
+whose subject is another walk's ANSWER must not take that answer's denotation
+as an explicit argument.*
+
 ## 1. The three answer shapes, and which walk has which
 
 `Bridge/Core/Walks/Spec.lean`'s relations, at the pure call with its fuel
@@ -154,12 +180,16 @@ conclusion is an equation through `denoteEO` (`Bridge/Rel.lean`).
 on `ExprOps.instLPFast_spec`.  **This is the deepest chain on the list**, and
 it is the reason `whnfBody_spec` cannot close before the `ExprOps` tier
 does. -/
-theorem unfoldDefinition_spec (s₀ : AState) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
+theorem unfoldDefinition_spec (s₀ : AState) (d : Nat) (e : EIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.unfoldDefinition fe e
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteEO s'.store r = some (ConLeche.unfoldDefinition env x)⌝⦄ := by
+        ∀ x, denoteE s₀.store e = some x →
+          denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
+          ∀ y, ConLeche.unfoldDefinition env x = some y →
+            Expr.WScoped d y⌝⦄ := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
@@ -175,15 +205,15 @@ for `rawNatLit?`, `natLitSupported`, `natOpStored`, `natBinOpName` and
 this round did not reach either.  Nothing in it needs the `ExprOps`
 tier. -/
 theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x)
-    (hw : Expr.WScoped d x) :
+    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
     ⦃fun s => ⌜s = s₀⌝⦄
       ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
-          s'.store r⌝⦄ := by
+        ∀ x, denoteE s₀.store e = some x →
+          SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
+            s'.store r⌝⦄ := by
   sorry
 
 /-! ## 3. The ι step and the projection rule

@@ -1161,7 +1161,7 @@ structure arena.inductives.modeled.RenameBy where
   tbl : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)
 
 /-- Trait declaration: [con_ron_core::arena::expr_ops::NIdxToNIdx]
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2739:0-2742:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2745:0-2748:1
     Visibility: public -/
 structure arena.expr_ops.NIdxToNIdx (Self : Type) where
   rename : Self → arena.handle.NIdx → Result arena.handle.NIdx

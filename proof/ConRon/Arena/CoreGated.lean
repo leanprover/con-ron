@@ -110,23 +110,27 @@ knot**: `coreKnot`'s tie with `whnfCoreBodyGated` in the `whnfCore` slot;
 `whnf`, `infer`, `defeq` and `annotate` are the *same bodies*, tied to this
 knot one fuel level down.
 
-**The stuck-tag test sits ABOVE the fuel dispatch in the two reduction
-slots** (task #97-P3-CoreWalks, fixing finding 3 of task #97-P5-Core).  The
-Rust tests `whnf_core_stuck_tag` above the LANE dispatch — so in the gated
-lane at fuel `0` it answers `Ok e` where a twin that tested the tag only
-inside the memoized slot threw `internal`.  Task #97-P6-7's lever 2 is a test
-on the handle word alone: it reads no store and no memo, so hoisting it over
-the fuel check changes nothing but the divergence, and it lets
-`Refine2/Core/KnotRel.lean` drop `KnotRel.whnf`'s
-`lane = LANE_GATED → 2 ≤ f` side condition. -/
+**The stuck-tag test sits ABOVE the body in the two reduction slots of the
+`| fuel + 1 =>` branch, and NOT in the `| 0 =>` one** (task #97-P3-CoreWalks
+hoisted it, fixing finding 12 of task #97-P5-Core; task #97-P5-Core-2 took it
+back out of the fuel-0 branch, which is task #97-P5-Arms §11(b)).  The Rust
+tests `fuel == 0` FIRST and raises `Internal` there whatever the tag is, and
+tests `whnf_core_stuck_tag` above the LANE dispatch only after that — so this
+is the port's own order, clause for clause:
+
+    fuel = 0  →  the unconditional `fail` of the `| 0 =>` branch
+    fuel > 0  →  the tag test, then the body
+
+Task #97-P6-7's lever 2 is a test on the handle word alone: it reads no store
+and no memo, so its position relative to the fuel check changes nothing but
+the divergence — and with the two arms in the port's order
+`Refine2/Core/KnotRel.lean`'s two reduction fields carry **no** fuel side
+condition at all (they carried `lane = LANE_GATED → 2 ≤ f`, then
+`→ 1 ≤ f`). -/
 def coreKnotGated (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
   | 0 =>
-    { whnfCore := fun _ e =>
-        if whnfCoreStuckTag e then pure e
-        else fail (.internal "fuel exhausted: whnfCore")
-      whnf := fun _ e =>
-        if whnfStuckTag e then pure e
-        else fail (.internal "fuel exhausted: whnf")
+    { whnfCore := fun _ _ => fail (.internal "fuel exhausted: whnfCore")
+      whnf := fun _ _ => fail (.internal "fuel exhausted: whnf")
       infer := fun _ _ => fail (.internal "fuel exhausted: infer")
       defeq := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
       annotate := fun _ _ => fail (.internal "fuel exhausted: annotate")

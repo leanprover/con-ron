@@ -27,4 +27,14 @@ theorem promoteN_spec (n : NIdx) : True := by
 reads "unstated", and the self-check counts it. -/
 theorem PMemo.empty_ext : True := by trivial
 
+/-- The QUALIFIED spelling, which credits `Store.lean`'s `EStore.viewApp` and
+not `Monad.lean`'s `viewApp` — the unqualified `viewApp_spec` above credits
+the other one.  Round 1 gave both theorems to both twins. -/
+@[spec] theorem EStore.viewApp_spec (st : EStore) (i : EIdx) : True := by trivial
+
+/-- AMBIGUOUS by construction: `Store.lean` has two `dropScratch` and this
+name qualifies neither, so the census credits the first by module and line
+(`NStore.dropScratch`) and SAYS SO on the self-check line. -/
+theorem dropScratch_run {st st' : EStore} : True := by trivial
+
 end ConRon.Bridge

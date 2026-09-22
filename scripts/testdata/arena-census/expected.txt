@@ -3,11 +3,13 @@
 #     <twin> <T1 verdict> <T2 verdict>   # <file>  T1 <theorem>  T2 <theorem>
 #
 # The first three fields are compared; the rest of the line is the evidence,
-# for a human reading a mismatch.  Verdicts: `closed`, `sorry` (stated, not
+# for a human reading a mismatch.  The twin is named as the census keys it:
+# QUALIFIED by its enclosing namespaces (round 2), which is why `find?` and
+# `dropScratch` can appear twice.  Verdicts: `closed`, `sorry` (stated, not
 # proved), `part` (some of the citing Rust functions have a lemma, not all),
 # `.` (nothing stated), `-` (listed in this fixture's own skip file).
 #
-# Twenty rows and exactly twenty: `instantiate1ArmApp` and
+# Twenty-six rows and exactly twenty-six: `instantiate1ArmApp` and
 # `instantiate1ArmBVar` are ARMS and must NOT appear — they fold into
 # `instantiate1Go`, whose `closed` verdict counts `instantiate1ArmApp_spec`
 # as well as `instantiate1Go_spec`.
@@ -18,7 +20,7 @@ coreWalkFuel       -      -      # Core.lean                    T1 (skip)       
 isBoolTrue         closed .      # Core.lean                    T1 isBoolTrue_spec              T2 is_bool_true
 flushCaches        closed .      # Core.lean                    T1 flushCaches_run              T2 flush_caches
 iotaRec            sorry  part   # Core.lean                    T1 iotaRec_spec                 T2 iota_rec_at_refines [1/2]
-eidxCopyUpto       .      .      # ExprOps.lean                 T1 !                            T2 -
+eidxCopyUpto       closed .      # ExprOps.lean                 T1 eidxCopyUpto_toList (doc)    T2 -
 instantiate1Go     closed sorry  # ExprOps.lean                 T1 instantiate1Go_spec +1       T2 instantiate1_go_refines
 instantiateList    sorry  sorry  # ExprOps.lean                 T1 instantiateList_spec         T2 instantiate_list_refines
 exprPtrBEq         closed closed # ExprOps.lean                 T1 exprPtrBEq_exact             T2 expr_ptr_beq_refines
@@ -26,9 +28,36 @@ wscopedBFast       closed closed # ExprOps.lean                 T1 wscopedBFast_
 reboundError       .      closed # Frontend/ExportC.lean        T1 -                            T2 rebound_error_no_claim(N)
 P00                -      .      # Frontend/PreludeText.lean    T1 (skip)                       T2 -
 preludeText        -      sorry  # Frontend/PreludeText.lean    T1 (skip)                       T2 builtin_prelude_text_refines
-derivedE           closed .      # Monad.lean                   T1 derivedE_spec                T2 derived_e
-viewApp            closed .      # Monad.lean                   T1 viewApp_spec                 T2 view_app
+derivedE           closed closed # Monad.lean                   T1 derivedE_spec                T2 derived_e_run
+viewApp            closed .      # Monad.lean                   T1 viewApp_spec                 T2 view_app (no lemma)
 internE            closed .      # Monad.lean                   T1 internE_specV                T2 intern_e
 PMemo.empty        .      .      # Promote.lean                 T1 !                            T2 empty
 promoteN           sorry  sorry  # Promote.lean                 T1 promoteN_spec                T2 promote_n_refines
 fixture            -      -      # StoreTest.lean               T1 (skip)                       T2 (skip)
+Tbl.find?          .      closed # Store.lean                   T1 -                            T2 tbl_find_abs (Tbl::find)
+NStore.dropScratch closed .      # Store.lean                   T1 dropScratch_run (AMBIGUOUS)  T2 -
+EStore.viewApp     closed closed # Store.lean                   T1 EStore.viewApp_spec          T2 estore_view_app_abs
+EStore.dropScratch .      sorry  # Store.lean                   T1 - (the ambiguity went to NStore)  T2 estore_drop_scratch_refines
+EStore.find?       .      .      # Store.lean                   T1 -                            T2 EStore::find, no lemma
+EStore.derOfBVar   .      closed # Store.lean                   T1 -                            T2 estore_der_of_bvar_obs
+
+# The self-check line, pinned the same way: a verdict table alone would not
+# catch a regression in the parts of the census that are about the
+# CONVENTIONS rather than about one row.  `@ <key> <count>`.
+
+@ t1_blind 5          # nothing in Bridge/ names them
+@ t1_other 1          # `PMemo.empty_ext`, an unrecognised suffix
+@ t1_doc 1            # `eidxCopyUpto_toList` says "Theorem 1 for `eidxCopyUpto`"
+@ t1_ambiguous 1      # `dropScratch_run` could be either `dropScratch`
+@ t1_shared 0         # one theorem credits one twin, by construction
+@ t2_blind 7          # cited, and nothing in Refine2/ names the function
+@ t2_other 0          # nothing left under an unrecognised T2 shape
+@ t2_shape_refines 10
+@ t2_shape_no_claim 1
+@ t2_shape_abs 2      # `estore_view_app_abs`, `tbl_find_abs` (receiver-qualified)
+@ t2_shape_run 1      # `derived_e_run`
+@ t2_shape_obs 1      # `estore_der_of_bvar_obs`
+@ orphan_arms 0
+@ skip_bad 0
+@ skip_stale 0
+@ skip_redundant 0

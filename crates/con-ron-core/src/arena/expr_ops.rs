@@ -298,6 +298,8 @@ const M_FUEL_INST_LP: [u32; 38] = [
 /// con-leche: none — `List.take`/`List.append` over a `Vec<EIdx>`
 /// The first `k` entries of `xs` appended to `out`.  A handle is a `u32`, so
 /// the copy is a word each.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:204-210 eidxCopyUpto` — the
+/// same window copy, `Array.push` for `Vec::push`.
 pub fn eidx_copy_upto(xs: &Vec<EIdx>, k: usize, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     if i >= k || i >= xs.len() {
         out
@@ -310,6 +312,8 @@ pub fn eidx_copy_upto(xs: &Vec<EIdx>, k: usize, i: usize, out: Vec<EIdx>) -> Vec
 
 /// con-leche: none — `List.take` over a `Vec<EIdx>`
 /// `xs.take k`.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:220-221 takeEidx` — the same
+/// prefix of a push-order vector.
 pub fn take_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
     let n: usize = if k < xs.len() { k } else { xs.len() };
     eidx_copy_upto(xs, k, 0, Vec::with_capacity(n))
@@ -363,6 +367,8 @@ pub fn snoc_eidx_of(xs: &Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
 /// `vs.take k`, the first `k` of the list, is this SUFFIX of the vector.
 /// `take_eidx` is the same function on a vector that is in list order, and
 /// both are `eidx_copy_upto` over a window.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:223-226 lastEidx` — the same
+/// suffix of a push-order vector.
 pub fn last_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
     let n: usize = if k < xs.len() { xs.len() - k } else { 0 };
     eidx_copy_upto(xs, xs.len(), n, Vec::with_capacity(xs.len() - n))
