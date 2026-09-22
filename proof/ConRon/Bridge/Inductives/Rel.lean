@@ -1006,6 +1006,63 @@ theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv} {st₁ st₂ : EStore}
     · exact Or.inr (h''.mono hx)
   · exact Or.inr h'
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — every counter the
+index build hands out is BELOW the counter it stops at.  What `ProjOut.push`
+needs and the only `mkIFEnvGo` fact outside `Bridge/Promote/Exact.lean`;
+**it belongs there**, beside `IFEnvCoh.push`, and is proved here because this
+round's `ProjOut` is the first consumer. -/
+theorem mkIFEnvGo_counter_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
+    (c : Nat) (ci : IConstantInfo),
+    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < (mkIFEnvGo cs).1 := by
+  intro cs
+  induction cs with
+  | nil => intro n c ci h; simp [mkIFEnvGo] at h
+  | cons a as ih =>
+    intro n c ci h
+    simp only [mkIFEnvGo] at h ⊢
+    rw [Std.HashMap.getElem?_insert] at h
+    split at h
+    · rename_i hEq
+      obtain rfl := Prod.mk.inj (Option.some.inj h) |>.1
+      omega
+    · exact Nat.lt_succ_of_lt (ih n c ci h)
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push that is
+not a projection table owes nothing**.  Thirteen of this tier's fourteen
+install statements need exactly this; the fourteenth is
+`checkStructProjTable`, the one install of the arena that pushes a
+`.projInfo` row.
+
+The coherence hypothesis is not decoration: `IFEnv.find?` hides an entry whose
+counter is not below `visibleBelow`, and `push` raises the bound, so without
+`IFEnvCoh fe` a push could REVEAL a stale projection table the old index was
+hiding.  `mkIFEnvGo_counter_lt` is what rules that out. -/
+theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
+    {ci : IConstantInfo} (hci : ∀ t, ci ≠ .projInfo t) :
+    ProjOut fe st (fe.push ci) := by
+  intro n t hf
+  left
+  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx hcoh
+  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 :=
+    congrArg IFEnv.visibleBelow hcoh
+  simp only [IFEnv.find?, IFEnv.push, Std.HashMap.getElem?_insert] at hf
+  by_cases hEq : (ci.name == n) = true
+  · rw [if_pos hEq] at hf
+    simp only [Nat.lt_succ_self, if_true] at hf
+    exact absurd (Option.some.inj hf) (hci t)
+  · rw [if_neg hEq] at hf
+    cases hg : fe.idx[n]? with
+    | none => rw [hg] at hf; exact nomatch hf
+    | some p =>
+      obtain ⟨cnt, cinfo⟩ := p
+      rw [hg] at hf
+      have hlt : cnt < fe.visibleBelow := by
+        rw [hvb]
+        exact mkIFEnvGo_counter_lt fe.env.consts n cnt cinfo (hidx ▸ hg)
+      simp only [if_pos (Nat.lt_succ_of_lt hlt)] at hf
+      simp only [IFEnv.find?, hg, if_pos hlt]
+      exact hf
+
 /-- con-leche: none — **the absolute form**, which is what
 `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` asks for: the fold's invariant
 at the index the step started from, plus the step's own `ProjOut`, is the
