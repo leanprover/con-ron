@@ -8698,3 +8698,185 @@ theorem EStore.scratchOn_internLevelsPersistent (st : EStore) (w : LsNodeView) :
 
 
 end ConRon.Arena
+
+/-! ## The nested interns' persistence, with the scratch tier off
+(task #97-P3-Frontend-2, round 2)
+
+`EStore.intern_isPersistent_of_off` above says *the expression intern hands
+back a persistent handle when the scratch tier is closed*.  The three nested
+stores had no twin, and `Bridge/Frontend/Chunks.lean`'s `StateD_init_run`
+needs two of them: `StateD.init` interns `Name.anonymous` and `Level.zero`
+into the tables the whole parse then reads, and `PersStateD` — the clause
+`Bridge/Checker/Capstone.lean` consumes, without which the fold's first
+`dropScratch` makes the stream undecodable — is about exactly those handles.
+
+Each is `{N,L,Ls}Store.intern_view_spec`'s `else` branch and nothing else: the
+cons-table hit gives persistence from the `consP` clause it is characterised
+by, and the append gives it from the tier word `push` is called at
+(`Idx.tierP`).  Neither assumes `ViewOK`, for the reason the expression one
+records: persistence is a property of the HANDLE, not of the node.
+
+This section is append-only by construction (see the module note's convention
+for concurrent rounds).
+-/
+
+namespace ConRon.Arena
+
+/-- con-leche: none — arena infrastructure; with the scratch tier off the NAME
+intern hands back a persistent handle.  `EStore.intern_isPersistent_of_off`'s
+twin one level down. -/
+theorem NStore.intern_isPersistent_of_off {st : NStore} {w : NNodeView}
+    (h : NStoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
+    (st.intern w).2.isPersistent = true := by
+  obtain ⟨rk, hwf⟩ := h
+  have hoff' : ¬ (st.scratchOn = true) := by simp [hoff]
+  simp only [NStore.capOK] at hcap
+  rw [if_neg hoff'] at hcap
+  simp only [NStore.intern]
+  split
+  · rename_i i heq
+    exact ((hwf.consP w i).mp heq).2
+  · rw [if_neg hoff']
+    have hspec := NTables.push_spec st.pers w (st.derOfView w) Idx.tierP
+      (by decide) hcap
+    show (_ == 0) = true
+    rw [hspec.2]; decide
+
+/-- con-leche: none — arena infrastructure; the same for a LEVEL node. -/
+theorem LStore.intern_isPersistent_of_off {st : LStore} {w : LNodeView}
+    (h : LStoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
+    (st.intern w).2.isPersistent = true := by
+  obtain ⟨rk, hwf⟩ := h
+  have hoff' : ¬ (st.scratchOn = true) := by simp [hoff]
+  simp only [LStore.capOK] at hcap
+  rw [if_neg hoff'] at hcap
+  simp only [LStore.intern]
+  split
+  · rename_i i heq
+    exact ((hwf.consP w i).mp heq).2
+  · rw [if_neg hoff']
+    have hspec := LTables.push_spec st.pers w (st.derOfView w) Idx.tierP
+      (by decide) hcap
+    show (_ == 0) = true
+    rw [hspec.2]; decide
+
+/-- con-leche: none — arena infrastructure; the same for a universe-argument
+LIST node. -/
+theorem LsStore.intern_isPersistent_of_off {st : LsStore} {w : LsNodeView}
+    (h : LsStoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
+    (st.intern w).2.isPersistent = true := by
+  have hoff' : ¬ (st.scratchOn = true) := by simp [hoff]
+  simp only [LsStore.capOK] at hcap
+  rw [if_neg hoff'] at hcap
+  simp only [LsStore.intern]
+  split
+  · rename_i i heq
+    exact ((h.consP w i).mp heq).2
+  · rw [if_neg hoff']
+    have hspec := LsTables.push_spec st.pers w (st.derOfView w) Idx.tierP
+      (by decide) hcap
+    show (_ == 0) = true
+    rw [hspec.2]; decide
+
+end ConRon.Arena
+
+/-! ## The EMPTY arena is well formed (task #97-P3-Frontend-2, round 2)
+
+`Arena/Main.lean`'s `runPipeline` starts at `AState.init EStore.empty`, so the
+byte-level capstone at the SEAM (`Bridge/Frontend/Capstone.lean`'s
+`Arena.no_False_declaration_pipeline`) needs the invariant there and nowhere
+else.  Every clause is vacuous: no tier holds a node, so `view` is `none` at
+every handle and `find?` is `none` at every node view, and the counters, the
+capacities and the `Sized` clauses are about empty arrays.
+-/
+
+namespace ConRon.Arena
+
+@[simp] theorem NStore.pers_empty : (NStore.empty).pers = NTables.empty := rfl
+@[simp] theorem NStore.scr_empty : (NStore.empty).scr = NTables.empty := rfl
+@[simp] theorem NStore.scratchOn_empty : (NStore.empty).scratchOn = false := rfl
+
+@[simp] theorem NStore.view_empty (i : NIdx) : (NStore.empty).view i = none := by
+  simp only [NStore.view, NStore.pers_empty, NStore.scratchOn_empty,
+    NTables.get_empty]
+  split <;> simp
+
+theorem NStore.empty_wf : NStoreWF NStore.empty := by
+  refine ⟨fun _ => 0, ?_⟩
+  constructor <;> intros <;>
+    simp_all [NStore.find?, NTables.find?_empty, NTables.Sized_empty,
+      NTables.sizeOf_empty, Idx.idxCap]
+
+@[simp] theorem LStore.pers_empty : (LStore.empty).pers = LTables.empty := rfl
+@[simp] theorem LStore.scr_empty : (LStore.empty).scr = LTables.empty := rfl
+@[simp] theorem LStore.scratchOn_empty : (LStore.empty).scratchOn = false := rfl
+@[simp] theorem LStore.ns_empty : (LStore.empty).ns = NStore.empty := rfl
+
+@[simp] theorem LStore.view_empty (i : LIdx) : (LStore.empty).view i = none := by
+  simp only [LStore.view, LStore.pers_empty, LStore.scratchOn_empty,
+    LTables.get_empty]
+  split <;> simp
+
+theorem LStore.empty_wf : LStoreWF LStore.empty := by
+  refine ⟨fun _ => 0, ?_⟩
+  constructor <;> intros <;>
+    simp_all [LStore.find?, LTables.find?_empty, LTables.Sized_empty,
+      LTables.sizeOf_empty, Idx.idxCap, NStore.empty_wf]
+
+@[simp] theorem LsStore.pers_empty : (LsStore.empty).pers = LsTables.empty := rfl
+@[simp] theorem LsStore.scr_empty : (LsStore.empty).scr = LsTables.empty := rfl
+@[simp] theorem LsStore.scratchOn_empty : (LsStore.empty).scratchOn = false := rfl
+@[simp] theorem LsStore.ls_empty : (LsStore.empty).ls = LStore.empty := rfl
+
+@[simp] theorem LsStore.view_empty (i : LsIdx) : (LsStore.empty).view i = none := by
+  simp only [LsStore.view, LsStore.pers_empty, LsStore.scratchOn_empty,
+    LsTables.get_empty]
+  split <;> simp
+
+theorem LsStore.empty_wf : LsStoreWF LsStore.empty := by
+  constructor <;> intros <;>
+    simp_all [LsStore.find?, LsTables.find?_empty, LsTables.Sized_empty,
+      LsTables.sizeOf_empty, Idx.idxCap, LStore.empty_wf]
+
+@[simp] theorem EStore.pers_empty : (EStore.empty).pers = ETables.empty := rfl
+@[simp] theorem EStore.scr_empty : (EStore.empty).scr = ETables.empty := rfl
+@[simp] theorem EStore.scratchOn_empty : (EStore.empty).scratchOn = false := rfl
+@[simp] theorem EStore.lss_empty : (EStore.empty).lss = LsStore.empty := rfl
+
+@[simp] theorem EStore.viewBM_empty (i : BMIdx) : (EStore.empty).viewBM i = none := by
+  simp only [EStore.viewBM, EStore.persGetBM, EStore.pers_empty,
+    EStore.scr_empty, EStore.scratchOn_empty, ETables.getBM_empty]
+  split <;> simp
+
+@[simp] theorem EStore.viewBindI_empty (i : EIdx) :
+    (EStore.empty).viewBindI i = none := by
+  simp only [EStore.viewBindI, EStore.persGetBind, EStore.pers_empty,
+    EStore.scr_empty, EStore.scratchOn_empty, ETables.getBind_empty]
+  split <;> simp
+
+@[simp] theorem EStore.view_empty (i : EIdx) : (EStore.empty).view i = none := by
+  simp only [EStore.view, EStore.viewBind, EStore.viewBindI_empty,
+    EStore.pers_empty, EStore.scr_empty, EStore.scratchOn_empty,
+    ETables.get_empty]
+  split <;> simp
+
+/-- con-leche: none — arena infrastructure; **the empty arena is well
+formed**.  This is the invariant `Arena/Main.lean`'s `runPipeline` starts
+from, and the one `Bridge/Frontend/Capstone.lean`'s seam letter needs. -/
+@[simp] theorem EStore.persFind?_empty (v : ENodeView) :
+    (EStore.empty).persFind? v = none := by
+  simp only [EStore.persFind?, EStore.pers_empty]
+  split <;> simp [ETables.find?_empty]
+
+@[simp] theorem EStore.scrFind?_empty (v : ENodeView) :
+    (EStore.empty).scrFind? v = none := by
+  simp only [EStore.scrFind?, EStore.scr_empty]
+  split <;> simp [ETables.find?_empty]
+
+theorem EStore.empty_wf : StoreWF EStore.empty := by
+  refine ⟨fun _ => 0, ?_⟩
+  constructor <;> intros <;>
+    simp_all [ETables.findBM_empty, ETables.find?_empty, ETables.Sized_empty,
+      ETables.sizeOf_empty, ETables.bmSize_empty, Idx.idxCap, LsStore.empty_wf]
+
+end ConRon.Arena

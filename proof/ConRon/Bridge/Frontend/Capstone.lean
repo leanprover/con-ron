@@ -102,21 +102,31 @@ tables (`Bridge/Specs.lean`'s `CacheOK.of_empty`), and what the parse gives is
 that the tables did not MOVE (`ParseStep.caches`), not that they were empty.
 `AState.init` sets them empty (`Arena/Monad.lean:146`), so the driver has it;
 a statement about an arbitrary start state has to say so. -/
-theorem FoldOK_post_parse {μ : CheckMode} {s s' : AState}
-    (hpins : PinsOK s) (hpp : PersPins s) (hc : s.caches = Caches.empty)
-    (hstep : ParseStep s s') :
-    FoldOK μ Env.empty (mkIFEnv IEnv.empty) s' where
+theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
+    (hpins : PinsOK s) (hpp : PersPins s) (hc : s.caches = Caches.empty) :
+    FoldOK μ Env.empty (mkIFEnv IEnv.empty) s where
   check :=
-    { state := hstep.ok
-      caches := CacheOK.of_empty (by rw [hstep.caches, hc])
-      pins := hpins.mono hstep.ext hstep.pins
-      ienv := IFEnvOK_of_denote (μ := μ) hstep.ok rfl rfl }
+    { state := hok
+      caches := CacheOK.of_empty hc
+      pins := hpins
+      ienv := IFEnvOK_of_denote (μ := μ) hok rfl rfl }
   envWF := by intro c hc'; exact absurd hc' (by simp [Env.empty])
-  persPins := hpp.mono hstep.pins
+  persPins := hpp
   persEnv := { env := by intro c hc'; simp [mkIFEnv, IEnv.empty] at hc'
                idx := by intro n p hn; simp [mkIFEnv, mkIFEnvGo, IEnv.empty] at hn }
   coh := rfl
   denote := rfl
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
+`FoldOK_of_start` at the far end of a `ParseStep`: the parse only interns, so
+the pin table, the per-declaration caches and the persistence all stand
+still. -/
+theorem FoldOK_post_parse {μ : CheckMode} {s s' : AState}
+    (hpins : PinsOK s) (hpp : PersPins s) (hc : s.caches = Caches.empty)
+    (hstep : ParseStep s s') :
+    FoldOK μ Env.empty (mkIFEnv IEnv.empty) s' :=
+  FoldOK_of_start hstep.ok (hpins.mono hstep.ext hstep.pins)
+    (hpp.mono hstep.pins) (by rw [hstep.caches, hc])
 
 /-! ## 2. The pure fold's stream ingredient
 
@@ -396,42 +406,154 @@ of it — `runPipeline` fixes `Frontend.inProcessModeller`, which delegates to
 con-leche's own generator (`Bridge/Frontend/Modeller.lean`'s
 `inProcessModeller_wf` / `_refines`). -/
 
+/-- con-leche: none — **the one conjunct `Bridge/Checker/Pins.lean`'s
+`internAllPins_run` does not yet state**, named here so that the seam letter
+below can be assembled today and close by itself the day it lands.
+
+`internAllPins` is thirty-five pin READS and one `internPinSets`; none of them
+writes a per-declaration cache or a memo table, so this is the same frame
+`ParseStep` carries for the parse.  It is the Checker tier's item 13 to
+discharge (task #97-P3-Checker-2 has the ask); when `internAllPins_run` grows
+the two conjuncts, this definition and the hypothesis below are DELETED and the
+letter's hypotheses are again `hk`, `hind` and the prelude gate. -/
+def InternAllPinsFrame : Prop :=
+  ∀ (ps : List NatOpPinSet) (r : List INatOpPinSet) (s s' : AState),
+    internAllPins ps s = .ok (r, s') → s'.caches = s.caches ∧ s'.memos = s.memos
+
 /-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **THE
 BYTE-LEVEL CAPSTONE, AT THE SEAM**: a file whose chunks are one of the shapes
 `jsonWithTheoremFalse` describes makes the Lean arena checker's whole pipeline
 — the reserved pins, the built-in prelude, the streaming parse, the
 preparation and the two-phase fold — return an error.
 
-Two named hypotheses (`CoreSpec`, `IndSpec`) and one gate (`hbytes`, the
-prelude's committed bytes; `scripts/gen-prelude-lean.sh --check`, step 10 of
-`scripts/gates.sh`).
+Two named hypotheses (`CoreSpec`, `IndSpec`), one gate (`hbytes`, the
+prelude's committed bytes; `scripts/gen-prelude-lean.sh --check`, step 11 of
+`scripts/gates.sh`) and — temporarily — `hframe`, the conjunct
+`internAllPins_run` is being strengthened with (see `InternAllPinsFrame`).
+**The modeller's two promises are not hypotheses**: `runPipeline` fixes
+`Frontend.inProcessModeller`, and `inProcessModeller_wf` / `_refines` are
+theorems about it.
 
-`sorry`, and **the one thing it waits on is not in this tier** (task
-#97-P3-Frontend-2's finding 9).  The unfolding itself is routine —
-`runPipelineM` is `internReservedPins`, `builtinPreludeE`, `StateD.init`,
-`parseChunksGo`, `preparePrelude`, `internAllPins`, `installThenCheck`, and
-every one of those but the sixth has its `_run` theorem — and the assembly is
-`Arena.no_False_declaration_prelude`'s, verbatim, EXCEPT that the pipeline
-runs `internAllPins` BETWEEN `preparePrelude` and `installThenCheck` while the
-letter above runs them back to back.  So the fold's start invariant has to be
-re-established at the state `internAllPins` leaves, and
-`FoldOK_post_parse` asks for a `ParseStep` — whose `caches` conjunct
-`Bridge/Checker/Pins.lean`'s `internAllPins_run` does not state.
+`runPipelineM` unfolded into its stages — `internReservedPins`,
+`builtinPreludeE`, `StateD.init`, `parseChunksGo`, `preparePrelude`,
+`internAllPins`, `installThenCheck` — and then the four steps of §3's table.
+The one place it is NOT `Arena.no_False_declaration_prelude` applied is the
+`internAllPins` step, which the letter above does not have between the
+preparation and the fold; the fold's start invariant is re-established at the
+state that walk leaves, which is what `hframe` buys.
 
-**The ask, exactly**: `internAllPins_run` (the Checker tier's item 13) must
-carry `s'.caches = s.caches` and `s'.memos = s.memos` beside the six
-conjuncts it already has.  `internAllPins` is thirty-five pin READS and one
-`internPinSets`, none of which writes a per-declaration cache, so the
-conjunct costs nothing where it is proved and cannot be had at all from here.
-With it this letter is ten lines.
-
-Task #97-P3-Frontend's sorry list, item 26 — the tier's headline. -/
+The start state is `AState.init EStore.empty`, so `StateOK`, the closed
+scratch tier and the empty caches are all `Arena/WFProofs.lean`'s
+`EStore.empty_wf` and `rfl`: **this letter takes no hypothesis about
+well-formedness at all.** -/
 theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
+    (hframe : InternAllPinsFrame)
     (pins : List NatOpPinSet) (chunks : List ByteArray)
     (hfalse : ConLeche.jsonWithTheoremFalse chunks) :
     ∃ e, Arena.runPipeline chunks .verified pins = .error e := by
-  sorry
+  by_cases hex : ∃ e, Arena.runPipeline chunks .verified pins = .error e
+  · exact hex
+  exfalso
+  cases hres : Arena.runPipeline chunks .verified pins with
+  | error e => exact hex ⟨e, hres⟩
+  | ok n =>
+  rw [ConRon.Arena.runPipeline] at hres
+  cases hm : (ConRon.Arena.runPipelineM Frontend.inProcessModeller .verified pins
+      chunks).run (AState.init EStore.empty) with
+  | error e2 => rw [hm] at hres; exact absurd hres (by simp)
+  | ok q =>
+  obtain ⟨res, sF⟩ := q
+  rw [hm] at hres
+  simp only [] at hres
+  -- the start state
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
+  have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
+  -- the head: the reserved pins, the prelude, the initial parse state
+  rw [ConRon.Arena.runPipelineM] at hm
+  obtain ⟨hd, s1, hhead, hrest⟩ := AM.bind_ok hm
+  cases hd with
+  | error p2 =>
+    simp only [] at hrest
+    obtain ⟨hv, -⟩ := AM.pure_ok hrest
+    rw [hv] at hres; exact absurd hres (by simp)
+  | ok pr =>
+  obtain ⟨pre, st0⟩ := pr
+  simp only [] at hrest
+  obtain ⟨pd, s2, hgo, hrest2⟩ := AM.bind_ok hrest
+  cases pd with
+  | error p3 =>
+    simp only [] at hrest2
+    obtain ⟨hv, -⟩ := AM.pure_ok hrest2
+    rw [hv] at hres; exact absurd hres (by simp)
+  | ok r0 =>
+  simp only [] at hrest2
+  -- unfold the head
+  rw [ConRon.Arena.runPipelineHead] at hhead
+  obtain ⟨u, sA, hpinsrun0, hhead2⟩ := AM.bind_ok hhead
+  obtain ⟨hokA, hxA, hpinsA, hppA, hoffA, hmemosA, hcachesA⟩ :=
+    internReservedPins_run hok0 hoff0 hpinsrun0
+  obtain ⟨y, sB, hprel, hhead3⟩ := AM.bind_ok hhead2
+  cases y with
+  | error e3 =>
+    simp only [] at hhead3
+    exact absurd (AM.pure_ok hhead3).1 (by simp)
+  | ok preIx =>
+  simp only [] at hhead3
+  obtain ⟨st1, sC, hinit, hhead4⟩ := AM.bind_ok hhead3
+  obtain ⟨hv4, hs4⟩ := AM.pure_ok hhead4
+  simp only [Except.ok.injEq, Prod.mk.injEq] at hv4
+  obtain ⟨hpre', hst'⟩ := hv4
+  subst hpre'; subst hst'; subst hs4
+  -- the parse, reassembled from `StateD.init` and `parseChunksGo`
+  have hparse : parseChunks Frontend.inProcessModeller chunks true false sB
+      = .ok (.ok r0, s2) := by
+    rw [parseChunks, AM.bind_apply, hinit]
+    exact hgo
+  -- the tail: the preparation, the pins, the fold
+  rw [ConRon.Arena.runPipelineTail] at hrest2
+  obtain ⟨ds, s3, hprep, htail2⟩ := AM.bind_ok hrest2
+  obtain ⟨ipins, s3', hpinsrun, htail3⟩ := AM.bind_ok htail2
+  obtain ⟨z, s4, hcheck, htail4⟩ := AM.bind_ok htail3
+  cases z with
+  | error p5 =>
+    simp only [] at htail4
+    obtain ⟨hv, -⟩ := AM.pure_ok htail4
+    rw [hv] at hres; exact absurd hres (by simp)
+  | ok fe' =>
+  -- §3's four steps, with the pin walk in the middle
+  obtain ⟨hstep1, hpersPre, preC, -, hrelPre⟩ :=
+    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
+      hokA hoffA hprel
+  obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
+    parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
+      (by rw [hstep1.scratch, hoffA]) hparse
+  obtain ⟨hstep3, hpersDs, hclPrep⟩ :=
+    preparePrelude_run (preC := preC) hstep2.ok
+      (by rw [hstep2.scratch, hstep1.scratch, hoffA])
+      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre hrelR.decls hpersR hprep
+  have hoff3 : s3.store.scratchOn = false := by
+    rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoffA
+  obtain ⟨hokP, hxP, hpinsP, hppP, hipins, hpps, -⟩ :=
+    internAllPins_run hstep3.ok
+      (hpinsA.mono ((hstep1.ext.trans hstep2.ext).trans hstep3.ext)
+        (by rw [hstep3.pins, hstep2.pins, hstep1.pins]))
+      (hppA.mono (by rw [hstep3.pins, hstep2.pins, hstep1.pins])) hoff3 hpinsrun
+  obtain ⟨hcachesP, -⟩ := hframe pins ipins s3 s3' hpinsrun
+  obtain ⟨env', F', -, hfinal⟩ :=
+    Arena.installThenCheck_bridge rfl hk hind hpps
+      (FoldOK_of_start hokP hpinsP hppP
+        (by
+          rw [hcachesP, hstep3.caches, hstep2.caches, hstep1.caches, hcachesA]
+          exact hc0))
+      hipins (fun x hx => hpersDs x (by simpa using hx))
+      (denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)) hcheck
+  obtain ⟨cv, vl, hty, hmem⟩ :=
+    ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hclR
+  exact no_False_theorem_accepted_pure V rfl
+    (by simpa using ConLeche.Frontend.mem_preparePrelude (pre := preC) hmem)
+    hty hfinal
 
 end ConRon.Bridge.Frontend
