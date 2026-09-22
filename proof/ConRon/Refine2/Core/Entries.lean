@@ -29,6 +29,9 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine2.ExprOps (EResolves)
 
+/-- `LANE_FULL` is not `LANE_GATED` — kept because the tier's statements read
+the lane's identity in several places, though since task #97-P5-Core-2 no
+`KnotRel` field needs it to discharge a side condition. -/
 theorem laneFull_ne_gated : ¬ (arena.core.LANE_FULL = arena.core.LANE_GATED) := by
   rw [arena.core.LANE_FULL, arena.core.LANE_GATED]; decide
 
@@ -46,13 +49,13 @@ theorem whnf_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel per
       (Arena.whnfCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.whnf_core] at hrun
-  have h := hk.whnfCore hrel hinv hctx hwf hres
-    (fun hx => absurd hx laneFull_ne_gated) hf hrun
+  have h := hk.whnfCore hrel hinv hctx hwf hres hf hrun
   rw [laneKnot_full] at h
   exact h
 
-/-- `arena::core::whnf` against `Arena.whnf`.  **The gated side condition is
-vacuous here**: the entry is at `LANE_FULL`. -/
+/-- `arena::core::whnf` against `Arena.whnf`.  Since task #97-P5-Core-2 this
+carries no side condition at all — `KnotRel`'s two reduction fields lost the
+gated exclusion when `coreKnotGated 0` got its unconditional `fail` back. -/
 theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hwf : StoreWF lst.store) (hres : EResolves lst (absEIdx e))
@@ -62,8 +65,7 @@ theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel pers st 
       (Arena.whnf (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.whnf] at hrun
-  have h := hk.whnf hrel hinv hctx hwf hres
-    (fun hx => absurd hx laneFull_ne_gated) hf hrun
+  have h := hk.whnf hrel hinv hctx hwf hres hf hrun
   rw [laneKnot_full] at h
   exact h
 
