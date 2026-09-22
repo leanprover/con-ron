@@ -41848,7 +41848,7 @@ swap places rather than one being edited into the other.
 
 | gate | |
 |---|---|
-| `scripts/gates.sh` | all 13 OK, and the hook prints (below) |
+| `LAKE_JOBS=4 scripts/gates.sh` | **all 13 OK** — `cargo-build` 3 s, `cargo-test` 8 s, `twin-lines` 1 s, `extract-check` 100 s, `lake-build` 357 s, everything else 0–5 s — and the census line prints between `progress.py`'s block and `loc.py`'s, as intended |
 | `scripts/arena-census.py --selftest` | 20 fixture rows, every verdict as recorded (0.07 s) |
 | `scripts/arena-census.py --summary` | 1.7 s, no STALE / REDUNDANT / MALFORMED skip, no orphan arm |
 | the diff | `scripts/arena-census.py` (new), `scripts/arena-census-skip.txt` (new), `scripts/testdata/arena-census/**` (new), `scripts/gates.sh` (one hook line and its comment), this section.  **No file under `proof/` or `crates/`**, no generated model |
