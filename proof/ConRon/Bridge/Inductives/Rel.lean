@@ -409,6 +409,30 @@ def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
 abbrev RLLL (us : List (List Level)) : EStore → List (List LIdx) → Prop :=
   fun st r => denoteLLists st r = some us
 
+/-- con-leche: none — a three-tuple constructor list's denotation keeps its
+length; `nativeCounts?` compares `cs.length` against the recursor's claimed
+prefix. -/
+theorem denoteCtors3_length {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat × Nat)}
+      {csP : List (ConstantVal × Nat × Nat)},
+      denoteCtors3 st cs = some csP → cs.length = csP.length := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors3, Option.some.injEq] at h; simp [← h]
+  | cons a as ih =>
+    intro csP h
+    obtain ⟨cv, x, y⟩ := a
+    simp only [denoteCtors3] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some c =>
+      cases has : denoteCtors3 st as with
+      | none => rw [hcv, has] at h; simp at h
+      | some rest =>
+        rw [hcv, has] at h
+        obtain rfl := Option.some.inj h
+        simp only [List.length_cons, ih has]
+
 /-! ## The field kinds
 
 `RecFieldKind` is TWINNED, not imported (task #97d-2's deviation 7), so the

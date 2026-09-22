@@ -666,9 +666,67 @@ theorem nativeRulesOk_spec (recC : NIdx) (recCP : ConLeche.Name)
 /-! ## The recogniser -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:501-523 nativeCounts?
+— con-leche's `match` on the WHOLE pair re-read as a match on its second
+component, which is what the arena's `view` dispatch decides. -/
+theorem nativeCounts_eq (nPd : Nat) (cvTP : ConstantVal)
+    (csP : List (ConstantVal × Nat × Nat)) (mI rP : Nat) :
+    ConLeche.nativeCounts? nPd cvTP csP mI rP =
+      (match (cvTP.type.piBinders).2 with
+       | .sort _ =>
+         if nPd ≤ (cvTP.type.piBinders).1.length then
+           some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
+       | _ =>
+         if rP < csP.length + 1 || mI < rP then none
+         else if rP - (csP.length + 1) == nPd then some (nPd, mI - rP) else none) := by
+  simp only [ConLeche.nativeCounts?]
+  cases h : cvTP.type.piBinders with
+  | mk bs body => cases body <;> simp [h]
+
+/-- con-leche: none — `nativeCounts?`'s NON-sort tail, both sides: the
+recursor's claimed prefix against the constructor count.  Stated separately so
+the nine non-`sort` arms of the `view` dispatch close with one
+`all_goals`. -/
+theorem nativeCounts_tail {nPd : Nat} {cvTP : ConstantVal}
+    {csP : List (ConstantVal × Nat × Nat)} {mI rP : Nat}
+    {cs : List (IConstantVal × Nat × Nat)} {s s' : AState}
+    {r : Option (Nat × Nat)} (hcsl : cs.length = csP.length)
+    (hns : ∀ l, (cvTP.type.piBinders).2 ≠ .sort l)
+    (hz : (if rP < cs.length + 1 || mI < rP then (pure none : AM (Option (Nat × Nat)))
+           else if rP - (cs.length + 1) == nPd then pure (some (nPd, mI - rP))
+           else pure none) s = .ok (r, s')) :
+    s' = s ∧ r = ConLeche.nativeCounts? nPd cvTP csP mI rP := by
+  rw [nativeCounts_eq]
+  have hm : (match (cvTP.type.piBinders).2 with
+      | .sort _ =>
+        if nPd ≤ (cvTP.type.piBinders).1.length then
+          some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
+      | _ =>
+        if rP < csP.length + 1 || mI < rP then none
+        else if rP - (csP.length + 1) == nPd then some (nPd, mI - rP) else none)
+      = (if rP < csP.length + 1 || mI < rP then none
+         else if rP - (csP.length + 1) == nPd then some (nPd, mI - rP) else none) := by
+    cases hb : (cvTP.type.piBinders).2
+    case sort l => exact absurd hb (hns l)
+    all_goals rfl
+  rw [hm, ← hcsl]
+  split at hz
+  · obtain ⟨rfl, rfl⟩ := pureOk hz
+    exact ⟨rfl, by rw [if_pos ‹_›]⟩
+  · rw [if_neg ‹_›]
+    split at hz
+    · obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨rfl, by rw [if_pos ‹_›]⟩
+    · obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨rfl, by rw [if_neg ‹_›]⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:501-523 nativeCounts?
 The declared parameter and index counts, or `none`.
 
-`sorry`: `piSortTeleLen?`'s spec (`Bridge/ExprOps/TelescopeF.lean`). -/
+**CLOSED** (task #97-P3-Ind round 5): `piBinders_spec` (closed in round 2),
+the ten-way `view` dispatch at its residual, `denoteBinders_length` for the
+telescope's length and `denoteCtors3_length` for the constructor count.  Round
+1's note said `piSortTeleLen?`; the twin reads `piBinders`, whose spec was
+already in this file. -/
 theorem nativeCounts?_spec (nPd : Nat) (cvT : IConstantVal)
     (cvTP : ConstantVal) (cs : List (IConstantVal × Nat × Nat))
     (csP : List (ConstantVal × Nat × Nat)) (mI rP : Nat) :
@@ -676,7 +734,32 @@ theorem nativeCounts?_spec (nPd : Nat) (cvT : IConstantVal)
         denoteCtors3 st cs = some csP)
       (Arena.nativeCounts? nPd cvT cs mI rP)
       (RV (ConLeche.nativeCounts? nPd cvTP csP mI rP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcv, hcs⟩ := hpre
+  simp only [Arena.nativeCounts?] at hrun
+  obtain ⟨q, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨p1, hbs, hbody⟩ :=
+    piBinders_spec Arena.coreWalkFuel cvT.type cvTP.type s₀ s1 q hok
+      (denoteCV_type hcv) k1
+  obtain ⟨v, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨hs2, hview⟩ := view_run k2
+  rw [hs2] at hz2
+  have hlen : q.1.length = (cvTP.type.piBinders).1.length :=
+    denoteBinders_length hbs
+  have hcsl : cs.length = csP.length := denoteCtors3_length hcs
+  have hbv : denoteEView s1.store v = some (cvTP.type.piBinders).2 := by
+    rw [← denoteE_view_eq p1.ok.wf hview]; exact hbody
+  cases v
+  case sort u =>
+    obtain ⟨l, hEq, _⟩ := denote_sort_inv p1.ok.wf hview hbody
+    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    refine ⟨p1, ?_⟩
+    show _ = ConLeche.nativeCounts? nPd cvTP csP mI rP
+    rw [nativeCounts_eq, hEq, hlen]
+  all_goals
+    (obtain ⟨rfl, hr⟩ := nativeCounts_tail hcsl
+       (ExprOps.denoteEView_not_sort hbv (by simp)) hz2
+     exact ⟨p1, hr⟩)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
 The stream's recursor record passed the structural pin.  Pure on both sides.
