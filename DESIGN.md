@@ -35214,8 +35214,9 @@ the reason.  The Rust at `arena`'s tip is the source of truth; nothing under
 
 After it, **every function of `crates/arena-core` has a Lean twin with the
 same clause structure**, carrying the same con-leche citations the Rust
-carries.  `scripts/provenance.py check` counts **2 060 arena Lean items**
-against the tip's 1 753 — **307 new Lean declarations** — at 0 findings.
+carries.  `scripts/provenance.py check` counts **2 159 arena Lean items**
+against the tip's 1 753 — **406 new Lean declarations**, 99 of them the store
+proofs' own scaffolding (§3) — at 0 findings.
 
 #### 1. The monad: the reader layer is NOT taken, and why
 
@@ -35354,12 +35355,44 @@ construction (`pushBM` builds `Idx.mk 0 tier _`, and `Handle.lean`'s
 (con-leche's lesson 27) and already holds clauses with no Rust counterpart —
 `rankP`/`rankS`, `fresh`, `scrOff`, `sync` — and this is one more.
 
+**Finding 3 — `EWFAt` does not say that the cons tables' KEYS are real, and
+that is what the three open `sorry`s actually need.**  `consP`/`consS`
+constrain `ETables.find? v mj` only at `mj = st.findBMOfView v`.  For a
+binder view whose datum is FRESH — which is exactly the state `internBM`
+hands `internAt` — `findBMOfView v` answered `none` before the push, so the
+invariant says nothing at all about `st.pers.find? v mj` at the handle the
+push has just created, and nothing rules out a junk key `⟨ty, b, mj⟩`
+already sitting in `pers.lams` and answering the probe with a handle that
+decodes to something else.  `intern_view_spec` then cannot be proved, and
+`intern_wf_of_sync` cannot re-establish `consP` for the grown store.  It is a
+gap in the INVARIANT, not in the code: the Rust's table holds only keys its
+own pushes inserted, and so does the twin's — the invariant simply does not
+record it.  Findings 1 and 2 were each necessary; neither is sufficient.
+
+The fix is one more pair of clauses, and both pushes preserve them:
+
+    bmKeyP : ∀ v mj i, st.pers.find? v mj = some i →
+      v.bmOf = none ∨ ∃ m, st.findBM m = some mj
+    bmKeyS : ∀ v mj i, st.scr.find? v mj = some i →
+      v.bmOf = none ∨ ∃ m, st.findBM m = some mj
+
+`wf_push_scr`/`wf_push_pers` add one key, `⟨ty, b, mi⟩`, whose `mi` is in
+`findBM`'s range by `findBM_of_viewBM` at the `BMOK`/`tag = 0` hypotheses
+they already carry; `internBM`'s push adds no key and only GROWS `findBM`'s
+range; `wf_of_scr_empty` gets the scratch half from `find?_empty`.  With them
+the freshness argument closes: `bmConsP` plus `Tbl.lt_of_map` gives
+`findBM m = some j → j.idxNat < bms.size`, the pushed handle's index IS
+`bms.size`, so it is outside the range and the probe is `none`.  (A heavier
+alternative is to restate `consP`/`consS` over the node RECORD rather than
+over the view, which would say the cons table IS the array's inverse; the two
+clauses above are the minimal form that closes the three proofs.)
+
 #### 4. Gates
 
 | gate | |
 |---|---|
 | `cd proof && lake build` | **green, all 2 706 jobs**, 0 errors — the arena library, the executable, and the untouched `ConRon` refinement tower.  Every `#guard` in `StoreTest`, `ExprOpsTest`, `CoreTest`, `CheckerTest`, `InductivesTest` and `Frontend/ProjRecTest` elaborates `true` |
-| `scripts/provenance.py check` | **0 findings** — `7 041 item(s) (4 981 Rust, 2 060 arena Lean), 5 132 citation(s), all current at pin 78ded4b6` |
+| `scripts/provenance.py check` | **0 findings** — `7 140 item(s) (4 981 Rust, 2 159 arena Lean), 5 135 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 70 links, 36 files, OK |
 | `scripts/holes.sh --check` | 2 type(s), 21 fn(s), OK |
 | `scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean` | **383/383 agree at `--verified` and 383/383 at `--trusted`**; 0 differ, 0 timed out |
@@ -35390,8 +35423,13 @@ a small, mechanical follow-up in `crates/`, which this task may not touch.
 * `WFProofs.lean`'s three remaining `sorry`s (§3), the `intern` end of the
   file: `EStore.intern_view_spec`, `intern_wf_of_sync` and
   `intern_isPersistent_of_off`.  Thirty-one of the thirty-four are closed; the
-  three are what `internBM`'s push has to ESTABLISH rather than carry, and
-  finding 2's `tag = 0` clause is what they need.
+  three are what `internBM`'s push has to ESTABLISH rather than carry.
+  Finding 2's `tag = 0` clause is landed and is necessary for them; finding
+  3's `bmKeyP`/`bmKeyS` is what is still missing, and with it the remaining
+  work is a `wf_pushBM` in the shape of the two `wf_push_*` already closed
+  (the datum push leaves every node read, `find?`, `derAt` and `count`
+  untouched, so `view` is unchanged and only the seven `bm*` clauses move)
+  plus the three-branch case split of `internBM` on top.
 * Repointing the Rust's 156 `Lean twin: OWED` doc lines (above).
 * P3's own list is unchanged and is what the ledger's "the equation the bridge
   cites" column has been collecting since task #97-P6-9.
