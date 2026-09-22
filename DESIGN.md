@@ -40389,10 +40389,20 @@ walks, each cheap, none of them deep.
 | gate | |
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 532 jobs** (521 after P3-Checker); 205 `sorry` warnings, of which 120 are this tier's (§7) and 85 the earlier tiers' |
-| `scripts/gates.sh` | all OK |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 207 s, `lake-build` 390 s on the pre-merge run) |
 | `#print axioms` | `Bridge/Inductives/Axioms.lean`, **22 closed results listed, every one `[propext, Classical.choice, Quot.sound]`** (`recIdxOf_spec` and `nativeIsRec_spec` at `[propext, Quot.sound]`), and the two headline theorems at `[propext, sorryAx, Classical.choice, Quot.sound]` — **neither carrying `CoreSpec`**, which is a hypothesis of the statement and not an axiom of the environment.  No `bv_decide` axiom |
 | per-theorem elaboration | nothing above **1.2 s** in the whole tier; the 20 s flag is not approached by any module, let alone any theorem |
 | the diff | `proof/ConRon/Bridge/Inductives{,/*}.lean`, `proof/ConRon/Bridge.lean` (two blocks) and this section.  No Rust file, no generated model, no `Arena/` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
+`arena` moved twice under this branch while it ran — task **#97-P3-1** (the
+arm split of `Arena/ExprOps.lean`, merged before the work landed) and tasks
+**#97-P5-2 / #97-TWIN / #97-P5-Core / #97-P5-Checker / #97-P3-Frontend**
+(merged after it) — and both merges were textual only: this section against
+theirs at the end of the task log, and `proof/ConRon/Bridge.lean`'s two blocks
+(the module list and the imports), where both rounds added a tier.  Nothing
+either task changed is reachable from `ConRon.Bridge.Inductives`, which
+imports `ConRon.Bridge.Checker.Hyp` and its closure and nothing else.
+`lake build ConRonBridge` after the merge: **605 jobs, 0 errors**.
 
 **Is `IndSpec` discharged?**  **No, and §2 says why in two parts.**  The arm
 `checkIndDecl_bridge` is *proved* at the corrected conclusion `IndOut`,
