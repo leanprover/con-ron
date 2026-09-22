@@ -186,6 +186,7 @@ list node: what a `.const`'s universe arguments are. -/
     ⦃fun s => ⌜s = s₀⌝⦄ readNamesM hs
     ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
+        s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         Frontend.denoteNList s₀.store.ns hs = some xs ∧
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
   induction hs generalizing s₀ with
