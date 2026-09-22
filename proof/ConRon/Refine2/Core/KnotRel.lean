@@ -45,6 +45,7 @@ so that a phase-B worker copies no environment, and the twin never did, so
 the port's scalar has to be tied back to the field it was split from.
 -/
 import ConRon.Refine2.Core.Probes
+import ConRon.Refine2.ExprOps.Read
 import ConRon.Arena.CoreIO
 import ConRon.Arena.CoreGated
 
@@ -56,6 +57,7 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
+open ConRon.Refine2.ExprOps (EResolves)
 
 /-! ## The lane, as the twin knot it stands for -/
 
@@ -132,34 +134,44 @@ knot_infer` and `Core/Induction.lean`'s `KnotRel.inferAt` derives it. -/
 structure KnotRel (f : Nat) : Prop where
   whnfCore : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.knot_whnf_core pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnfCore
         (absU depth) (absEIdx e))
+  /-- **The one field with a fuel side condition, and it is a real
+  divergence.**  At `LANE_GATED` the port answers `Ok e` off the stuck tag
+  where the twin runs `whnfBody (coreKnotGated … (f - 1))`, whose first move is
+  `r.whnfCore` — so at `f = 1` the twin throws `internal` and the port
+  succeeds.  Above that the chain is `whnfCore`'s identity plus
+  `reduceNat = none` and `unfoldDefinition = none`.  One fuel level, named in
+  the task's report; the fix is a one-line TWIN change (hoist the tag test
+  into `coreKnotGated`'s two reduction slots, which is what the port does). -/
   whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) →
+    (lane = arena.core.LANE_GATED → 2 ≤ f) → absU fu = f →
     arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnf
         (absU depth) (absEIdx e))
   infer : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.knot_infer pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).infer
         (absU depth) (absEIdx e))
   inferIO : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.knot_infer_io pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).inferIO
         (absU depth) (absEIdx e))
   defeq : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    StoreWF lst.store → EResolves lst (absEIdx a) → EResolves lst (absEIdx b) →
     absU fu = f →
     arena.core.knot_defeq pers vis st mode lane fu fe depth a b = ok o →
     Sim id (fun _ => True) pers lst o
@@ -167,7 +179,7 @@ structure KnotRel (f : Nat) : Prop where
         (absU depth) (absEIdx a) (absEIdx b))
   annotate : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.knot_annotate pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).annotate
@@ -179,7 +191,8 @@ and `r.infer` without it — the two halves of `CoreFnsA.ioView` by iota. -/
 theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
     {pers vis st mode lane io fu fe lfe depth e lst o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
+    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
     (hrun : arena.core.knot_infer_at pers vis st mode lane io fu fe depth e
       = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -190,11 +203,11 @@ theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
   | true =>
     rw [if_pos rfl] at hrun
     rw [laneKnotAt_true]
-    exact h.inferIO hrel hinv hctx hf hrun
+    exact h.inferIO hrel hinv hctx hwf hres hf hrun
   | false =>
     rw [if_neg (by decide)] at hrun
     rw [laneKnotAt_false]
-    exact h.infer hrel hinv hctx hf hrun
+    exact h.infer hrel hinv hctx hwf hres hf hrun
 
 /-- **`BodyRel f`** — the six bodies at fuel `f`, against the twin's bodies
 tied to the lane's knot at `f`.  This is what `Core/Arms/*` owes and what
@@ -207,9 +220,30 @@ conclusion.
 a different body (`arena::core_gated::whnf_core_body_gated`); the other five
 slots of `coreKnotGated` are the same bodies at the gated knot. -/
 structure BodyRel (f : Nat) : Prop where
+  /-- **The gated lane has NO tag test in the twin, and the port tests the tag
+  at EVERY lane.**  `knot_whnf_core` answers `Ok(e.dup2())` off
+  `whnf_core_stuck_tag` *before* it looks at the lane, where
+  `coreKnotGated`'s `whnfCore` slot is `whnfCoreBodyGated … d e` with no such
+  test.  The two agree because the body's first clause is `pure e` at exactly
+  those six views — which is what `whnfCoreStuckTag`'s own doc comment states
+  as its obligation — and getting from the TAG to the VIEW is task #97-P5-0's
+  finding 3, hence the two `StoreWF` / `EResolves` hypotheses. -/
+  stuckGatedCore : ∀ {mode lfe h d lst},
+    StoreWF lst.store → EResolves lst h → whnfCoreStuckTag h = true →
+    ∀ (r : CoreFnsA), (whnfCoreBodyGated mode r lfe d h).run lst = .ok (h, lst)
+  /-- The same one rung up, and this one **needs the fuel**: the twin's
+  `whnfBody` runs `r.whnfCore` before it can return, so at `f = 0` — the
+  port's `fuel = 1` — the twin throws `internal` where the port answers
+  `Ok e`.  That is a REAL divergence, confined to one fuel level and named in
+  the task's report; above it the chain is `whnfCore`'s identity, then
+  `reduceNat = none` and `unfoldDefinition = none`, which are the two extra
+  obligations `whnfStuckTag`'s doc comment names. -/
+  stuckGatedWhnf : ∀ {mode lfe h d lst},
+    StoreWF lst.store → EResolves lst h → whnfStuckTag h = true → 1 ≤ f →
+    (whnfBody (coreKnotGated mode lfe f) lfe d h).run lst = .ok (h, lst)
   whnfCore : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.whnf_core_body pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
@@ -217,7 +251,7 @@ structure BodyRel (f : Nat) : Prop where
         (absU depth) (absEIdx e))
   whnfCoreGated : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e
       = ok o →
     Sim absEIdx (fun _ => True) pers lst o
@@ -226,14 +260,14 @@ structure BodyRel (f : Nat) : Prop where
         (absU depth) (absEIdx e))
   whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.whnf_body pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       (whnfBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
   infer : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.infer_body pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       (inferBody (ConRon.Refine.absMode mode)
@@ -241,7 +275,7 @@ structure BodyRel (f : Nat) : Prop where
         (absU depth) (absEIdx e))
   inferIO : ∀ {pers vis st mode lane io fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       (inferBodyIO (ConRon.Refine.absMode mode)
@@ -249,6 +283,7 @@ structure BodyRel (f : Nat) : Prop where
         (absU depth) (absEIdx e))
   defeq : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    StoreWF lst.store → EResolves lst (absEIdx a) → EResolves lst (absEIdx b) →
     absU fu = f →
     arena.core.defeq_body pers vis st mode lane fu fe depth a b = ok o →
     Sim id (fun _ => True) pers lst o
@@ -257,7 +292,7 @@ structure BodyRel (f : Nat) : Prop where
         (absU depth) (absEIdx a) (absEIdx b))
   annotate : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
+    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
     arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o →
     Sim absEIdx (fun _ => True) pers lst o
       (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
