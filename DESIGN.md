@@ -44170,7 +44170,10 @@ ten-way dispatcher, which is now a `cases` over `absENodeView` above eight
 wrappers that need nothing and two that carry §3's binder hypotheses).  Unchanged in kind from
 round 2; nothing in this round makes the readbacks cheaper.
 
-**`ExprOps/Mut.lean`, 44** — every one an interning walk, and §5's table is the
+**`ExprOps/Mut.lean`, 44** — **forty-three interning walks and one that is
+not**: `rec_rule_plain` reads only (`stripPis` then `getAppArgs`, both closed
+in `ExprOps/Read.lean`) and is therefore the one cheap close left in this file
+without findings 15 or 16.  For the other forty-three §5's table is the
 schedule: they are blocked on `AOut` carrying `StoreWF` (finding 16), and the
 three that reach `internRebuiltBindI` are blocked on the twin change as well
 (finding 15).  **No walk of this file is blocked on an idea; all 44 are blocked
