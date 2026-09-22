@@ -34,7 +34,8 @@ each is an ordinary argument and an ordinary result; putting either in
 `AState` would have made `AStateRel` false at every call that owns one.
 -/
 import ConRon.Refine2.Specs
-import ConRon.Arena.Promote
+import ConRon.Refine2.ExprOps.Read
+import ConRon.Arena
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -103,6 +104,31 @@ theorem Sim.toSimRel {α β : Type} {A : α → β} {pers : arena.store.PersTier
   | Ok r =>
     rintro ⟨lst', hx, h1, h2, h3, -⟩
     exact ⟨A r, lst', hx, rfl, h1, h2, h3⟩
+
+/-! ## `SimRE` — a reader that can FAIL
+
+`Refine2/Shape.lean`'s `SimR` is `Result`-valued but never `Err`, which is
+what `arena::monad`'s store readers are.  The fifty-eight readers of
+`arena::pins` are not: `pin_at` declines with `Internal` when the pin table is
+not the expected size, and its signature is `(st : &AState) -> Result<NIdx,
+CheckError>` with **no state in the return at all**.  So the shape is `SimR`'s
+success arm and `AOut`'s error arm, and it is a fourth shape rather than a
+special case of `Sim` because there is no post-state to relate. -/
+def SimRE {α β : Type} (A : α → β) (lst : AState)
+    (o : core.result.Result α kernel.core_types.CheckError) (x : AM β) : Prop :=
+  match o with
+  | .Ok r => x.run lst = .ok (A r, lst)
+  | .Err e => AErrSim e (x.run lst)
+
+theorem SimRE.ok {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
+    (h : x.run lst = .ok (A r, lst)) : SimRE A lst (.Ok r) x := h
+
+theorem SimRE.err {α β : Type} {A : α → β} {lst : AState}
+    {e : kernel.core_types.CheckError} {x : AM β} (h : AErrSim e (x.run lst)) :
+    SimRE A lst (.Err e) x := h
+
+theorem SimRE.apply {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
+    (h : SimRE A lst (.Ok r) x) : x.run lst = .ok (A r, lst) := h
 
 /-! ## The promotion memo (`arena::promote::PMemo`)
 
@@ -206,6 +232,38 @@ def SimEM {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AS
     (x : AM (Std.HashMap ConLeche.Expr EIdx × β)) : Prop :=
   EOut A pers lst o.1 o.2.1 o.2.2 (x.run lst)
 
+/-! ## `arena::checker_base`'s `Bool` memo, threaded two ways
+
+`consts_resolve_f_go` and `all_level_params_defined_go` thread a
+`HashMap2<EIdx, bool>` exactly as `expr_ops`' three memoised walks do, so the
+relation is `Refine2/ExprOps/Read.lean`'s **`LMemoRel`**, reused rather than
+re-declared.  What is new is that the Rust returns the memo OUTSIDE the
+`Result` (a moved value comes back whatever happened) where the twin returns
+it INSIDE, beside the answer — and that the second of the two does not thread
+the state at all.  Two shapes, three lines each. -/
+
+/-- A `Bool`-memo walk that threads the state: `(Result α) × AState × memo`
+against the twin's `AM (β × Std.HashMap EIdx Bool)`. -/
+def SimBM {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
+    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
+      ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (x : AM (β × Std.HashMap EIdx Bool)) : Prop :=
+  match o.1 with
+  | .Ok r => ∃ m' lst', x.run lst = .ok ((A r, m'), lst') ∧ ExprOps.LMemoRel o.2.2 m' ∧
+      AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧ Ext lst.store lst'.store
+  | .Err e => AErrSim e (x.run lst)
+
+/-- A `Bool`-memo walk that only READS the state: `(Result α) × memo`.
+`all_level_params_defined_go` is the one, and it is a reader because the
+level-parameter test interns nothing. -/
+def SimBR {α β : Type} (A : α → β) (lst : AState)
+    (o : core.result.Result α kernel.core_types.CheckError ×
+      ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (x : AM (β × Std.HashMap EIdx Bool)) : Prop :=
+  match o.1 with
+  | .Ok r => ∃ m', x.run lst = .ok ((A r, m'), lst) ∧ ExprOps.LMemoRel o.2 m'
+  | .Err e => AErrSim e (x.run lst)
+
 /-! ## The containers these two tiers abstract
 
 Every one is a `Vec` against the container `Arena/Promote.lean`,
@@ -240,6 +298,14 @@ def absIDeclL (v : alloc.vec.Vec arena.env.IDeclaration) : List IDeclaration :=
 def absIDeclLFrom (v : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize) :
     List IDeclaration := (v.val.drop i.val).map absIDeclaration
 
+/-- `Vec<(EIdx, BinderMeta)>` as the twin's `Array (EIdx × BinderMeta)` —
+`domsMatchAux`'s subject.  con-leche's `List` version is quadratic on a wide
+telescope and its `Array` twin is what the checker runs, so the twin is the
+array one. -/
+def absBinderArr (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    Array (EIdx × ConLeche.BinderMeta) :=
+  (v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray
+
 def absExprLFrom (v : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) :
     List ConLeche.Expr := (v.val.drop i.val).map ConRon.Refine.absExpr
 def absCIListFrom (v : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize) :
@@ -257,7 +323,7 @@ def absBasisKindLFrom (v : alloc.vec.Vec kernel.env.BasisKind) (i : Std.Usize) :
 
 attribute [simp] absNIdxL absEIdxL absLIdxL absNIdxLFrom absEIdxLFrom absLIdxLFrom
   absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absIDeclLFrom
-  absExprLFrom absCIListFrom absRecRuleLFrom absDeclLFrom absLevelLFrom
+  absBinderArr absExprLFrom absCIListFrom absRecRuleLFrom absDeclLFrom absLevelLFrom
   absNameLFrom absBasisKindLFrom
 
 /-! ## The environment index's own invariant
@@ -286,5 +352,58 @@ def absValueGroup (g : arena.checker_split.ValueGroup) : ValueGroup :=
   ⟨absValueKind g.kind, absIConstantVal g.cv_a, absEIdx g.jv⟩
 
 attribute [simp] absValueKind absValueGroup
+
+/-- `arena::checker::PendingCheck` — a phase-A record awaiting its phase-B
+check.  `vis` is the environment counter at the install; it is out of the
+INDEX and into the record (task #97-P6-6b), which is why it abstracts as a
+plain counter and not through `IFEnvRel`. -/
+def absPendingCheck (p : arena.checker.PendingCheck) : PendingCheck :=
+  ⟨absValueGroup p.vg, absU p.pos, absU p.vis⟩
+
+def absPendingCheckL (v : alloc.vec.Vec arena.checker.PendingCheck) :
+    List PendingCheck := v.val.map absPendingCheck
+def absPendingCheckLFrom (v : alloc.vec.Vec arena.checker.PendingCheck)
+    (i : Std.Usize) : List PendingCheck :=
+  (v.val.drop i.val).map absPendingCheck
+
+/-- `arena::nat_op_pin_set::INatOpPinSet` — one toolchain's `Nat`-operation
+pins over handles.  The `toolchain` string is `Vec<u32>` code points against
+the twin's `String` (DESIGN §3.3), which is `Refine/Abs.lean`'s `absString`
+and holds on valid code points only — `StrWF` is the caller's obligation,
+exactly as it is at `StrNode`. -/
+def absINatOpPinSet (p : arena.nat_op_pin_set.INatOpPinSet) : INatOpPinSet :=
+  ⟨ConRon.Refine.absString p.toolchain,
+    absEIdx p.div_pin, absEIdx p.mod_pin, absEIdx p.gcd_pin, absEIdx p.land_pin,
+    absEIdx p.lor_pin, absEIdx p.xor_pin, absEIdx p.shift_left_pin,
+    absEIdx p.shift_right_pin,
+    absEIdxL p.div_proofs, absEIdxL p.mod_proofs, absEIdxL p.gcd_proofs,
+    absEIdxL p.land_proofs, absEIdxL p.lor_proofs, absEIdxL p.xor_proofs,
+    absEIdxL p.shift_left_proofs, absEIdxL p.shift_right_proofs⟩
+
+def absINatOpPinSetL (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) :
+    List INatOpPinSet := v.val.map absINatOpPinSet
+def absINatOpPinSetLFrom (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (i : Std.Usize) : List INatOpPinSet :=
+  (v.val.drop i.val).map absINatOpPinSet
+
+/-- `kernel::nat_op_pins::NatOpPinSet`'s well-formedness, as
+`Refine/PinsAbs.lean`'s `absNatOpPinSet` needs it: every term and every
+toolchain code point.  The pins are con-leche's own data, so
+`Refine/Pins*.lean`'s decoder lemmas are where it is discharged. -/
+def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
+  ConRon.Refine.StrWF p.toolchain ∧
+    ConRon.Refine.ExprWF p.div_pin ∧ ConRon.Refine.ExprWF p.mod_pin ∧
+    ConRon.Refine.ExprWF p.gcd_pin ∧ ConRon.Refine.ExprWF p.land_pin ∧
+    ConRon.Refine.ExprWF p.lor_pin ∧ ConRon.Refine.ExprWF p.xor_pin ∧
+    ConRon.Refine.ExprWF p.shift_left_pin ∧
+    ConRon.Refine.ExprWF p.shift_right_pin ∧
+    ConRon.Refine.ExprsWF p.div_proofs ∧ ConRon.Refine.ExprsWF p.mod_proofs ∧
+    ConRon.Refine.ExprsWF p.gcd_proofs ∧ ConRon.Refine.ExprsWF p.land_proofs ∧
+    ConRon.Refine.ExprsWF p.lor_proofs ∧ ConRon.Refine.ExprsWF p.xor_proofs ∧
+    ConRon.Refine.ExprsWF p.shift_left_proofs ∧
+    ConRon.Refine.ExprsWF p.shift_right_proofs
+
+attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
+  absINatOpPinSet absINatOpPinSetL absINatOpPinSetLFrom
 
 end ConRon.Refine2
