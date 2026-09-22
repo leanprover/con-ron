@@ -44,6 +44,56 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
+/-! ## Two denotation facts the whole tier uses
+
+Both were written in `Bridge/Checker/Base.lean` (task #97-P3-Checker-2) and
+both are facts about the READBACK rather than about `CheckerBase`, so round 4
+moved them down here, where `Bridge/Checker/Canon.lean` — a sibling of
+`Base.lean`, not a consumer of it — can see them too.  Nothing about either
+statement changed. -/
+
+/-- con-leche: none — **a handle comparison is a name comparison**, at two
+handles that denote.  The `→` half is `denoteN`'s functionality and the `←`
+half is its injectivity (DESIGN §8.3's soundness obligation); every pinned-name
+test of the declaration checker cashes this. -/
+theorem beq_handle_iff {st : EStore} (hwf : StoreWF st) {n p : NIdx}
+    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
+    (hp : denoteN st.ns p = some x) : (n == p) = true ↔ nm = x := by
+  obtain ⟨rk, hrk⟩ := hwf
+  constructor
+  · intro h
+    obtain rfl := eq_of_beq h
+    rw [hn] at hp
+    exact Option.some.inj hp
+  · intro h
+    subst h
+    exact beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hp)
+
+/-! ## The constant header's denotation, inverted -/
+
+/-- con-leche: none — `Frontend.denoteCV`'s inversion: the three fields denote
+the three fields. -/
+theorem denoteCV_inv {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) :
+    denoteN st.ns cv.name = some c.name ∧
+      Frontend.denoteNList st.ns cv.levelParams = some c.levelParams ∧
+      denoteE st cv.type = some c.type := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; exact absurd h (by simp)
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; exact absurd h (by simp)
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; exact absurd h (by simp)
+      | some ty =>
+        rw [hn, hl, ht] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        exact ⟨rfl, rfl, rfl⟩
+
+
 /-! ## The four handle kinds across a `PExt` -/
 
 theorem denoteN_pext {st st' : EStore} (hx : PExt st st') {n : NIdx}
@@ -689,7 +739,30 @@ not carry what its consumers need) and one fix.
 `mkIFEnvGo`, with `denoteN_inj` where con-leche uses name equality and
 `hproj` at the `.projInfo` arm.  It is the one place `IFEnvCoh` is consumed
 rather than propagated, and the argument is con-leche's `mkFEnv_find?` at a
-denoted list.  Task #97-P3-Checker's sorry list, item 6. -/
+denoted list.  Task #97-P3-Checker's sorry list, item 6.
+
+**`hproj` IS TOO WEAK FOR `cover`** (task #97-P3-Checker round 4, found while
+taking this on).  As written it quantifies over what `fe.find?` ANSWERS, and
+`fe.find?` is `List.find?`: an entry shadowed by an EARLIER entry with the
+same name handle is not covered by it.  `hit` is fine — the entry `find?`
+returns is the entry `hproj` speaks about — but `cover` starts from
+`env.find? nm = some c`, picks the corresponding `ci` out of `fe.env.consts`
+at the same position, and must show that `ci` is the FIRST entry with its
+handle; that argument needs `denoteN ci.name = some c.name`, i.e.
+`denoteCI_name_of` AT `ci`, and `ci` is exactly the entry `fe.find?` might not
+return.  Concretely: two entries whose name handles are equal, the later one a
+`.projInfo` whose `tableName` is that handle and whose `IProjTableOK` is
+false, satisfy every hypothesis and refute `cover`.
+
+The fix is one word in the quantifier —
+
+    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t)
+
+— and it is still discharged by the same debtor (`projTableOK_of_install`: the
+install is the only place a `.projInfo` row is created, so every row of the
+list satisfies it).  NOT changed here: `Bridge/Frontend/Axioms.lean` and
+`Bridge/Frontend/Capstone.lean` consume this theorem, so the reshape is the
+coordinator's. -/
 theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
     (hproj : ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t)

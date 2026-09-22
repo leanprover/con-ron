@@ -97,17 +97,47 @@ theorem quotPinHit_run {k : QuotKind} {cv : IConstantVal} {c : ConstantVal}
 /-- con-leche: ConLeche/Kernel/Checker.lean:27-30 installBasisDecl — one
 pinned constant, duplicate-checked.
 
-`sorry`: `IFEnvOK`'s `hit`/`miss` pair at the duplicate test, then
-`IFEnv.push`.  Task #97-P3-Checker's sorry list, item 15. -/
-theorem installBasisDecl_bridge {μ : CheckMode} {F : Nat} {env : Env}
+**PROVED** (task #97-P3-Checker round 4), and **the statement gained
+`hproj`** — the `.projInfo` clause round 2 §8 item 5 and round 3 §3.1 both
+stopped at.  The duplicate test gives `fe.find? ci.name = none`; turning that
+into con-leche's `env.find? c.name = none` through `IFEnvOK.miss` needs
+
+    denoteN s.store.ns ci.name = some c.name
+
+and that is `Bridge/StateOK.lean`'s `denoteCI_name_of`, whose `.projInfo` arm
+takes `IProjTableOK` (`Frontend.denoteProjTable` drops `tableName`, so nothing
+in the denotation ties the index's key to the recomputed name).  Six of the
+seven constructors need nothing; `hproj` is what the seventh costs, and it is
+the SAME hypothesis `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` already
+takes at the same gap.  Free at the one call site: `checkBasisDecl` installs a
+pinned block, which contains no `.projInfo` (a table never occurs in parsed
+input, and the six basis blocks are `axiomInfo`/`defnInfo`/`indInfo`/
+`ctorInfo`/`recInfo` only). -/
+theorem installBasisDecl_bridge {μ : CheckMode} {_F : Nat} {env : Env}
     {fe fe' : IFEnv} {ci : IConstantInfo} {c : ConstantInfo} {s s' : AState}
     (hok : FoldOK μ env fe s) (hci : Frontend.denoteCI s.store ci = some c)
+    (hproj : ∀ t, ci = .projInfo t → IProjTableOK s.store t)
     (hrun : installBasisDecl fe ci s = .ok (fe', s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       IFEnvCoh fe' ∧ Pushed fe fe' ∧
       ∃ env', denoteFEnv s'.store fe' = some env' ∧
         ConLeche.installBasisDecl (m := CheckM) env c = .ok env' := by
-  sorry
+  simp only [Arena.installBasisDecl] at hrun
+  obtain ⟨hdup, r1⟩ := AM.dunless_ok
+    (AM.Never.bind fun _ => AM.Never.fail_any) hrun
+  replace r1 := AM.pure_bind_ok r1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok r1
+  have hfind : fe.find? ci.name = none := by
+    cases hf : fe.find? ci.name with
+    | none => rfl
+    | some d => rw [hf] at hdup; exact absurd hdup (by simp)
+  have hnm := denoteCI_name_of hproj hci
+  have hfindP : env.find? c.name = none :=
+    IFEnvOK.miss hok.check.state hok.check.ienv hnm hfind
+  refine ⟨hok.check.state, Ext.refl _, rfl, hok.coh.push ci, Pushed.push _ _,
+    ⟨c :: env.consts⟩, denoteFEnv_push hok.denote hci, ?_⟩
+  simp only [ConLeche.installBasisDecl, hfindP, Option.isNone_none, if_true,
+    bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:427-437 checkBasisDecl —
 **install the pinned basis block**, the three records that reach it sharing

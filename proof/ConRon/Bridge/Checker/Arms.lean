@@ -445,7 +445,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
       denoteN_ext hnm2 hx4
     have hie4 : StepOK env2 fe2 s4 := hst2.mono hx4
     obtain ⟨b5, s5, g5, r5⟩ := AM.bind_ok r4
-    obtain ⟨hst5, hx5, hc5, hp5, he5⟩ := natOpGuard_run hst4 hie4.ienv hnm4 g5
+    obtain ⟨hst5, hx5, hc5, hp5, he5⟩ := natOpGuard_run hst4 hok4.check.pins hie4.ienv hnm4 g5
     have hok5 : FoldOK μ env fe s5 :=
       hok4.step (hok4.check.mono hst5 hx5 hc5 hp5) hx5 hp5
     have hnm5 : denoteN s5.store.ns cvA.name = some cA.name :=
@@ -453,7 +453,8 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     have hie5 : StepOK env2 fe2 s5 := hie4.mono hx5
     obtain ⟨b6, s6, g6, r6⟩ := AM.bind_ok r5
     obtain ⟨hst6, hx6, hc6, hp6, he6⟩ :=
-      natOpStoredOkAll_run hst5 hie5.ienv (denoteNL_ext hx5 _ _ hdeps) g6
+      natOpStoredOkAll_run hst5 hok5.check.pins hie5.ienv
+        (denoteNL_ext hx5 _ _ hdeps) g6
     have hok6 : FoldOK μ env fe s6 :=
       hok5.step (hok5.check.mono hst6 hx6 hc6 hp6) hx6 hp6
     have hnm6 : denoteN s6.store.ns cvA.name = some cA.name :=
@@ -498,7 +499,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
               hok6.step (hok6.check.mono hst7 hx7 hc7 hp7) hx7 hp7
             obtain ⟨ps, s8, g8, r9⟩ := AM.bind_ok r8
             obtain ⟨hst8, hx8, hc8, hp8, hdps⟩ :=
-              substConst0Pairs_run hst7 (denoteN_ext hnm6 hx7)
+              substConst0Pairs_run hst7 hok7.check.pins (denoteN_ext hnm6 hx7)
                 (denote_ext hjv hx7) hdeq g8
             have hok8 : FoldOK μ env fe s8 :=
               hok7.step (hok7.check.mono hst8 hx8 hc8 hp8) hx8 hp8

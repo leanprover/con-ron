@@ -33,6 +33,24 @@ statement defects, not proof gaps: finding 15 (`projIotaLevel_run`'s frame was
 `.projInfo` without `IProjTableOK`) is reported and left open, because the
 repair adds a hypothesis and that is the maintainer's call.
 
+**Round five** repairs finding 16 and closes five more.  The repair is two
+things, and the census records both: the frame half is a CORRECTION (five
+statements said `s' = s` of a run that interns `Sort 1` at a `.projInfo`) and
+the name half is a STRENGTHENING of the seam's promise plus a new clause on
+`StateDRel`/`ParseResultRel` — `projNamed`, the move `Bridge/StateOK.lean`'s
+`IFEnvOK.proj` made one module over, for exactly the same reason.  What closes
+on top of it is `noteDecl_run`/`pushDecl_run` (item 6) and the prelude's front,
+`preludeKey_run`/`pick_denote`/`frontOf_run` (item 20), with the new
+vocabulary and its name equations below.
+
+It also states the two con-leche-tier facts `occursConstFast_run` needs and
+con-leche does not have (`Bridge/Frontend/ProjRec.lean`'s `clOccursConstB_eq`
+and `clOccursConstGo_eq`, §5's finding-6 shape).  Their corollary
+`clOccursConstFast_eq` is proved on top of them and therefore carries
+`sorryAx`, so it is NOT in the list below — which is the rule working as
+intended: the census lists what is proved, and that one is proved *modulo an
+ask of con-leche*.
+
 **Round three** adds the INTERN direction (item 2) and the seam (item 8).  Two
 of the four named hypotheses are therefore no longer only hypotheses:
 `ModellerWF` and `ModellerRefines` hold of the modeller the driver actually
@@ -53,6 +71,20 @@ namespace ConRon.Bridge.Frontend
 #print axioms IdTableRel.bound
 #print axioms IdTableRel.singleton
 #print axioms IdTableRel.insert
+
+#print axioms ciName_denote_proj
+#print axioms ciName_denote_of
+#print axioms ciNames_denote
+#print axioms declNames_denote
+#print axioms IProjNamed.mono
+#print axioms CIProjNamed.mono
+#print axioms CIProjNamed.of_ne
+#print axioms CIProjNamed.of_proj
+#print axioms DeclProjNamed.mono
+#print axioms DeclProjNamed.of_indDecl
+#print axioms DeclsProjNamed.mono
+#print axioms DeclsProjNamed.empty
+#print axioms DeclsProjNamed.push
 
 #print axioms ListRel.length_eq
 #print axioms ListRel.mono
@@ -336,6 +368,21 @@ can tell the two apart.
 #print axioms chunkFinish_run
 #print axioms parseBytes_run
 #print axioms parseChunksGo_run
+#print axioms toConstantVal_run
+#print axioms noteBlock_run
+#print axioms noteFold_rel
+#print axioms noteDecl_run
+#print axioms pushDecl_run
+#print axioms denoteNList_contains
+#print axioms declares_denote
+#print axioms denoteDecls_getElem?
+#print axioms denoteDecls_eraseIdx
+#print axioms denoteDecls_findIdx
+#print axioms mem_eraseIdxIfInBounds
+#print axioms preludeKey_run
+#print axioms pick_denote
+#print axioms frontOf_run
+
 #print axioms parseChunks_run
 #print axioms builtinPreludeE_run
 #print axioms preparePrelude_run

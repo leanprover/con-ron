@@ -1413,11 +1413,17 @@ theorem internLsNode_istep {s s' : AState} (hok : StateOK s)
   have hon' : s'.store.scratchOn = false := by rw [hon]; exact hoff
   exact ⟨⟨⟨hwf⟩, hx, hon', hm, hc, hp⟩, hden⟩
 
+/-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName — the reserved
+table name, interned.  **The denotation conjunct is round 5's addition**: it is
+the whole of what `Bridge/Frontend/Rel.lean`'s `IProjNamed` asks of an interned
+table, and therefore the whole of what the seam's new clause rests on
+(DESIGN #97-P3-Frontend round 5, the repair of finding 16). -/
 theorem projTableName_istep {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {T : NIdx} {Tn : ConLeche.Name}
     (hT : denoteN s.store.ns T = some Tn) {h : NIdx}
     (hrun : ConRon.Arena.projTableName T s = .ok (h, s')) :
-    IStep s s' ∧ PersN h := by
+    IStep s s' ∧ PersN h ∧
+      denoteN s'.store.ns h = some (ConLeche.projTableName Tn) := by
   rw [ConRon.Arena.projTableName] at hrun
   obtain ⟨a, s₁, h1, hrest⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, hpa, hda⟩ :=
@@ -1431,12 +1437,18 @@ theorem projTableName_istep {s s' : AState} (hok : StateOK s)
         rw [hda]; simp only [denoteNView, denoteN_ext hT hstep1.ext,
           Option.map_some])
     rw [hw]; rfl
-  obtain ⟨hstep2, hpb, -⟩ :=
+  obtain ⟨hstep2, hpb, hdb⟩ :=
     internNNode_istep hstep1.ok hstep1.off
       (by intro c hc
           simp only [NNodeView.children, List.mem_singleton] at hc
           subst hc; exact hda') hrest
-  exact ⟨hstep1.trans hstep2, hpb⟩
+  refine ⟨hstep1.trans hstep2, hpb, ?_⟩
+  rw [hdb]
+  simp only [denoteNView, denoteN_ext
+    (show denoteN s₁.store.ns a = some (Tn.str "projTable") by
+      rw [hda]; simp only [denoteNView, denoteN_ext hT hstep1.ext,
+        Option.map_some]) hstep2.ext, Option.map_some]
+  rfl
 
 /-! ## The record layers -/
 
@@ -1599,12 +1611,12 @@ theorem internProjTable_istep {s s' : AState} (hok : StateOK s)
     {t : ProjTable} {ti : IProjTable}
     (hrun : internProjTable m t s = .ok ((m', ti), s')) :
     IStep s s' ∧ PersProjTable ti ∧ denoteProjTable s'.store ti = some t ∧
-      EMemoOK s'.store m' := by
+      EMemoOK s'.store m' ∧ IProjNamed s'.store ti := by
   rw [ConRon.Arena.Frontend.internProjTable] at hrun
   obtain ⟨sn, s₁, h1, hrest⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, hpsn, hdsn⟩ := internName_istep hok hoff h1
   obtain ⟨tn, s₂, h2, hrest2⟩ := AM.bind_ok hrest
-  obtain ⟨hstep2, hptn⟩ := projTableName_istep hstep1.ok hstep1.off hdsn h2
+  obtain ⟨hstep2, hptn, hdtn⟩ := projTableName_istep hstep1.ok hstep1.off hdsn h2
   obtain ⟨lps, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
   obtain ⟨hstep3, hplps, hdlps⟩ :=
     internNameList_istep t.levelParams hstep2.ok hstep2.off h3
@@ -1642,7 +1654,10 @@ theorem internProjTable_istep {s s' : AState} (hok : StateOK s)
       hstep5).trans hstep6).trans hstep7),
     ⟨hpsn, hptn, hplps, hpcn, hpss, by
        simpa only [List.toList_toArray] using hpbs, hpgs⟩,
-    hd, hm6.mono hstep7.ext⟩
+    hd, hm6.mono hstep7.ext,
+    ⟨t.structName,
+      denoteN_ext hdsn ((hstep2.ext.trans hstep3.ext).trans hxs),
+      denoteN_ext hdtn (hstep3.ext.trans hxs)⟩⟩
 
 
 theorem internCI_istep {s s' : AState} (hok : StateOK s)
@@ -1650,7 +1665,7 @@ theorem internCI_istep {s s' : AState} (hok : StateOK s)
     {c : ConstantInfo} {ci : IConstantInfo}
     (hrun : internCI m c s = .ok ((m', ci), s')) :
     IStep s s' ∧ PersCI ci ∧ denoteCI s'.store ci = some c ∧
-      EMemoOK s'.store m' := by
+      EMemoOK s'.store m' ∧ CIProjNamed s'.store ci := by
   cases c with
   | axiomInfo v =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
@@ -1663,7 +1678,8 @@ theorem internCI_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1, hpcv, by simp only [denoteCI, hdcv, Option.map_some], hm1⟩
+    exact ⟨hstep1, hpcv, by simp only [denoteCI, hdcv, Option.map_some], hm1,
+      CIProjNamed.of_ne (by simp)⟩
   | ctorInfo v nP nF =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1675,7 +1691,8 @@ theorem internCI_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1, hpcv, by simp only [denoteCI, hdcv, Option.map_some], hm1⟩
+    exact ⟨hstep1, hpcv, by simp only [denoteCI, hdcv, Option.map_some], hm1,
+      CIProjNamed.of_ne (by simp)⟩
   | defnInfo v e hh =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1694,7 +1711,8 @@ theorem internCI_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2,
+      CIProjNamed.of_ne (by simp)⟩
   | thmInfo v e =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1713,7 +1731,8 @@ theorem internCI_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2,
+      CIProjNamed.of_ne (by simp)⟩
   | indInfo v cps =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1730,7 +1749,8 @@ theorem internCI_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpcaps⟩, hd, hm1.mono hstep2.ext⟩
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpcaps⟩, hd, hm1.mono hstep2.ext,
+      CIProjNamed.of_ne (by simp)⟩
   | recInfo v mI rP rs =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1750,26 +1770,28 @@ theorem internCI_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, ⟨hpcv, hprs⟩, hd, hm2⟩
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hprs⟩, hd, hm2,
+      CIProjNamed.of_ne (by simp)⟩
   | projInfo t =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     obtain ⟨m1, tbl⟩ := p1
-    obtain ⟨hstep1, hpt, hdt, hm1⟩ := internProjTable_istep hok hoff hm h1
+    obtain ⟨hstep1, hpt, hdt, hm1, hnt⟩ := internProjTable_istep hok hoff hm h1
     simp only [] at hrest
     obtain ⟨hv, hst⟩ := AM.pure_ok hrest
     subst hst
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1, hpt, by simp only [denoteCI, hdt, Option.map_some], hm1⟩
+    exact ⟨hstep1, hpt, by simp only [denoteCI, hdt, Option.map_some], hm1,
+      CIProjNamed.of_proj hnt⟩
 
 theorem internCIList_istep : ∀ (cs : List ConstantInfo) {s s' : AState}
     {m m' : EMemo} {cis : List IConstantInfo}, StateOK s →
     s.store.scratchOn = false → EMemoOK s.store m →
     internCIList m cs s = .ok ((m', cis), s') →
     IStep s s' ∧ PersCIList cis ∧ denoteCIList s'.store cis = some cs ∧
-      EMemoOK s'.store m' := by
+      EMemoOK s'.store m' ∧ (∀ ci ∈ cis, CIProjNamed s'.store ci) := by
   intro cs
   induction cs with
   | nil =>
@@ -1780,17 +1802,18 @@ theorem internCIList_istep : ∀ (cs : List ConstantInfo) {s s' : AState}
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm⟩
+    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm,
+      by intro x hx; simp at hx⟩
   | cons c cs ih =>
     intro s s' m m' cis hok hoff hm hrun
     rw [ConRon.Arena.Frontend.internCIList] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     obtain ⟨m1, x1⟩ := p1
-    obtain ⟨hstep1, hpc, hdc, hm1⟩ := internCI_istep hok hoff hm h1
+    obtain ⟨hstep1, hpc, hdc, hm1, hnc⟩ := internCI_istep hok hoff hm h1
     simp only [] at hrest
     obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨m2, xs⟩ := p2
-    obtain ⟨hstep2, hpcs, hdcs, hm2⟩ := ih hstep1.ok hstep1.off hm1 h2
+    obtain ⟨hstep2, hpcs, hdcs, hm2, hncs⟩ := ih hstep1.ok hstep1.off hm1 h2
     simp only [] at hrest2
     have hd : denoteCIList s₂.store (x1 :: xs) = some (c :: cs) := by
       simp only [denoteCIList, denoteCI_ext hdc hstep2.ext, hdcs]
@@ -1799,19 +1822,24 @@ theorem internCIList_istep : ∀ (cs : List ConstantInfo) {s s' : AState}
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    refine ⟨hstep1.trans hstep2, ?_, hd, hm2⟩
-    intro x hx
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · exact hpc
-    · exact hpcs x hx
+    refine ⟨hstep1.trans hstep2, ?_, hd, hm2, ?_⟩
+    · intro x hx
+      simp only [List.mem_cons] at hx
+      rcases hx with rfl | hx
+      · exact hpc
+      · exact hpcs x hx
+    · intro x hx
+      simp only [List.mem_cons] at hx
+      rcases hx with rfl | hx
+      · exact hnc.mono hstep2.ext
+      · exact hncs x hx
 
 theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {m m' : EMemo} (hm : EMemoOK s.store m)
     {d : Declaration} {di : IDeclaration}
     (hrun : internDecl m d s = .ok ((m', di), s')) :
     IStep s s' ∧ PersDecl di ∧ denoteDecl s'.store di = some d ∧
-      EMemoOK s'.store m' := by
+      EMemoOK s'.store m' ∧ DeclProjNamed s'.store di := by
   cases d with
   | basisDecl k =>
     rw [ConRon.Arena.Frontend.internDecl] at hrun
@@ -1820,7 +1848,7 @@ theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨IStep.refl hok hoff, trivial, rfl, hm⟩
+    exact ⟨IStep.refl hok hoff, trivial, rfl, hm, DeclProjNamed.of_basisDecl⟩
   | axiomDecl v =>
     rw [ConRon.Arena.Frontend.internDecl] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1832,7 +1860,8 @@ theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1, hpcv, by simp only [denoteDecl, hdcv, Option.map_some], hm1⟩
+    exact ⟨hstep1, hpcv, by simp only [denoteDecl, hdcv, Option.map_some], hm1,
+      DeclProjNamed.of_axiomDecl⟩
   | quotDecl k v =>
     rw [ConRon.Arena.Frontend.internDecl] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1844,7 +1873,8 @@ theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1, hpcv, by simp only [denoteDecl, hdcv, Option.map_some], hm1⟩
+    exact ⟨hstep1, hpcv, by simp only [denoteDecl, hdcv, Option.map_some], hm1,
+      DeclProjNamed.of_quotDecl⟩
   | defnDecl v e hh =>
     rw [ConRon.Arena.Frontend.internDecl] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1864,7 +1894,8 @@ theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2,
+      DeclProjNamed.of_defnDecl⟩
   | thmDecl v e =>
     rw [ConRon.Arena.Frontend.internDecl] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1883,7 +1914,8 @@ theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2,
+      DeclProjNamed.of_thmDecl⟩
   | opaqueDecl v e =>
     rw [ConRon.Arena.Frontend.internDecl] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
@@ -1903,26 +1935,29 @@ theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2⟩
+    exact ⟨hstep1.trans hstep2, ⟨hpcv, hpx⟩, hd, hm2,
+      DeclProjNamed.of_opaqueDecl⟩
   | indDecl block nP =>
     rw [ConRon.Arena.Frontend.internDecl] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     obtain ⟨m1, b⟩ := p1
-    obtain ⟨hstep1, hpb, hdb, hm1⟩ := internCIList_istep block hok hoff hm h1
+    obtain ⟨hstep1, hpb, hdb, hm1, hnb⟩ := internCIList_istep block hok hoff hm h1
     simp only [] at hrest
     obtain ⟨hv, hst⟩ := AM.pure_ok hrest
     subst hst
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1, hpb, by simp only [denoteDecl, hdb, Option.map_some], hm1⟩
+    exact ⟨hstep1, hpb, by simp only [denoteDecl, hdb, Option.map_some], hm1,
+      DeclProjNamed.of_indDecl hnb⟩
 
 theorem internDecls_istep : ∀ (ds : List Declaration) {s s' : AState}
     {m m' : EMemo} {dis : List IDeclaration}, StateOK s →
     s.store.scratchOn = false → EMemoOK s.store m →
     internDecls m ds s = .ok ((m', dis), s') →
     IStep s s' ∧ (∀ d ∈ dis, PersDecl d) ∧
-      ConRon.Bridge.denoteDecls s'.store dis = some ds ∧ EMemoOK s'.store m' := by
+      ConRon.Bridge.denoteDecls s'.store dis = some ds ∧ EMemoOK s'.store m' ∧
+      (∀ d ∈ dis, DeclProjNamed s'.store d) := by
   intro ds
   induction ds with
   | nil =>
@@ -1933,17 +1968,18 @@ theorem internDecls_istep : ∀ (ds : List Declaration) {s s' : AState}
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm⟩
+    exact ⟨IStep.refl hok hoff, by intro x hx; simp at hx, rfl, hm,
+      by intro x hx; simp at hx⟩
   | cons d ds ih =>
     intro s s' m m' dis hok hoff hm hrun
     rw [ConRon.Arena.Frontend.internDecls] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     obtain ⟨m1, x1⟩ := p1
-    obtain ⟨hstep1, hpd, hdd, hm1⟩ := internDecl_istep hok hoff hm h1
+    obtain ⟨hstep1, hpd, hdd, hm1, hnd⟩ := internDecl_istep hok hoff hm h1
     simp only [] at hrest
     obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨m2, xs⟩ := p2
-    obtain ⟨hstep2, hpds, hdds, hm2⟩ := ih hstep1.ok hstep1.off hm1 h2
+    obtain ⟨hstep2, hpds, hdds, hm2, hnds⟩ := ih hstep1.ok hstep1.off hm1 h2
     simp only [] at hrest2
     have hd : ConRon.Bridge.denoteDecls s₂.store (x1 :: xs) = some (d :: ds) := by
       simp only [ConRon.Bridge.denoteDecls, denoteDecl_ext hstep2.ext hdd, hdds]
@@ -1952,12 +1988,17 @@ theorem internDecls_istep : ∀ (ds : List Declaration) {s s' : AState}
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    refine ⟨hstep1.trans hstep2, ?_, hd, hm2⟩
-    intro x hx
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · exact hpd
-    · exact hpds x hx
+    refine ⟨hstep1.trans hstep2, ?_, hd, hm2, ?_⟩
+    · intro x hx
+      simp only [List.mem_cons] at hx
+      rcases hx with rfl | hx
+      · exact hpd
+      · exact hpds x hx
+    · intro x hx
+      simp only [List.mem_cons] at hx
+      rcases hx with rfl | hx
+      · exact hnd.mono hstep2.ext
+      · exact hnds x hx
 
 
 /-- con-leche: none — **the intern is the readback's inverse**: what

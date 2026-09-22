@@ -846,68 +846,507 @@ theorem parseCVD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   simp only [hcln, hclty, hcllps]
   rfl
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:137-153 noteDecl — the
-declaration table, updated.  con-leche's is PURE and the twin's is monadic
-only because `.basisDecl` fails loudly (`Arena/Frontend/ExportC.lean`'s own
-note: no frontend function produces one), so the theorem is an equation at the
-two maps.
+/-! ## The stored constant's common data
 
-**Round 4's finding 16 — this statement is false at a `.projInfo`, twice, and
-it is NOT the proof that is missing.**  The `.indDecl` arm runs
-`block.mapM fun ci => do let v ← ci.toConstantVal; …`, and
-`IConstantInfo.toConstantVal` (`Arena/Env.lean:224-230`) has a `.projInfo`
-arm that INTERNS — `internLNode .zero`, `internLNode (.succ z)`,
-`internE (.sort one)`, because con-leche's `ConstantInfo.toConstantVal` builds
-the closed dummy type `Sort 1` as a VALUE (`ConLeche/Kernel/Env.lean:642`).
-So
+`IConstantInfo.toConstantVal` (`Arena/Env.lean:224-230`) is the one projection
+of the environment vocabulary that is MONADIC, and round 4's finding 16 is
+about why: its `.projInfo` arm builds the closed dummy type `Sort 1`, which
+over handles means interning `.zero`, `.succ .zero` and `.sort one`.  Its
+NAME is the stored `tbl.tableName`, and `CIProjNamed` is what ties that to
+con-leche's recomputed `projTableName`. -/
 
-1. **the frame is wrong**: the store moves, and `s' = s` is not true of that
-   run.  `ParseStep s s'` is, with the relation read at `s'.store` — the same
-   repair round 4 made to `projIotaLevel_run` (finding 15);
-2. **the name is not determined**: the twin keys `constTypes` by
-   `v.name = tbl.tableName`, a STORED handle, where con-leche keys it by
-   `ConLeche.projTableName tbl.structName`; and `denoteProjTable`
-   (`Arena/Frontend/Readback.lean:159-168`) does not mention `tableName` at
-   all.  `Bridge/StateOK.lean:507-511`'s `IProjTableOK.named` is the only
-   thing that ties the two, so `denoteDecl st d = some dP` alone does not give
-   `denoteN st.ns (IConstantInfo.name ci) = some (ConstantInfo.name ciP)`.
+/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
+**the three fields of a stored constant's common data denote con-leche's**, in
+the `ParseStep` frame the `.projInfo` arm's three interns force. -/
+theorem toConstantVal_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {ci : IConstantInfo} {c : ConstantInfo}
+    (hn : CIProjNamed s.store ci)
+    (hd : ConRon.Arena.Frontend.denoteCI s.store ci = some c) {v : IConstantVal}
+    (hrun : IConstantInfo.toConstantVal ci s = .ok (v, s')) :
+    ParseStep s s' ∧ denoteN s'.store.ns v.name = some c.toConstantVal.name ∧
+      denoteNList s'.store.ns v.levelParams = some c.toConstantVal.levelParams ∧
+      denoteE s'.store v.type = some c.toConstantVal.type := by
+  have hcv : ∀ (w : IConstantVal) (cw : ConstantVal),
+      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
+      denoteN s.store.ns w.name = some cw.name ∧
+        denoteNList s.store.ns w.levelParams = some cw.levelParams ∧
+        denoteE s.store w.type = some cw.type := by
+    intro w cw hw
+    simp only [ConRon.Arena.Frontend.denoteCV] at hw
+    cases h1 : denoteN s.store.ns w.name with
+    | none => rw [h1] at hw; simp at hw
+    | some n =>
+      cases h2 : ConRon.Arena.Frontend.denoteNList s.store.ns w.levelParams with
+      | none => rw [h1, h2] at hw; simp at hw
+      | some lps =>
+        cases h3 : denoteE s.store w.type with
+        | none => rw [h1, h2, h3] at hw; simp at hw
+        | some ty =>
+          rw [h1, h2, h3] at hw
+          obtain rfl := Option.some.inj hw
+          exact ⟨rfl, rfl, rfl⟩
+  -- the six pure arms
+  have hpure : ∀ (w : IConstantVal) (cw : ConstantVal),
+      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
+      (pure w : AM IConstantVal) s = .ok (v, s') →
+      ParseStep s s' ∧ denoteN s'.store.ns v.name = some cw.name ∧
+        denoteNList s'.store.ns v.levelParams = some cw.levelParams ∧
+        denoteE s'.store v.type = some cw.type := by
+    intro w cw hw hr
+    obtain ⟨a, b, c⟩ := hcv w cw hw
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hr
+    subst hvv; subst hss
+    exact ⟨ParseStep.refl hok, a, b, c⟩
+  cases ci with
+  | axiomInfo w =>
+    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    exact hpure w cw hw hrun
+  | ctorInfo w nP nF =>
+    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    exact hpure w cw hw hrun
+  | defnInfo w e hh =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | thmInfo w e =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | indInfo w cps =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases hc : ConRon.Arena.Frontend.denoteCaps s.store cps with
+      | none => rw [hw, hc] at hd; simp at hd
+      | some x =>
+        rw [hw, hc] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | recInfo w mI rP rs =>
+    simp only [ConRon.Arena.Frontend.denoteCI] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases hr : ConRon.Arena.Frontend.denoteRules s.store rs with
+      | none => rw [hw, hr] at hd; simp at hd
+      | some x =>
+        rw [hw, hr] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | projInfo tbl =>
+    -- the one arm that moves the store
+    obtain ⟨sn, hsn, htn⟩ := hn tbl rfl
+    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨pt, hpt, rfl⟩ := hd
+    have hlps : ConRon.Arena.Frontend.denoteNList s.store.ns tbl.levelParams
+        = some pt.levelParams ∧ pt.structName = sn := by
+      simp only [ConRon.Arena.Frontend.denoteProjTable, hsn] at hpt
+      cases hl : ConRon.Arena.Frontend.denoteNList s.store.ns tbl.levelParams with
+      | none => rw [hl] at hpt; simp at hpt
+      | some lps =>
+        cases hc : denoteN s.store.ns tbl.ctor with
+        | none => rw [hl, hc] at hpt; simp at hpt
+        | some cn =>
+          cases hss : denoteL s.store.ls tbl.structSort with
+          | none => rw [hl, hc, hss] at hpt; simp at hpt
+          | some ss =>
+            cases hbs : ConRon.Arena.Frontend.denoteEArray s.store tbl.bodies with
+            | none => rw [hl, hc, hss, hbs] at hpt; simp at hpt
+            | some bs =>
+              cases hgs : denoteLList s.store.ls tbl.guards with
+              | none => rw [hl, hc, hss, hbs, hgs] at hpt; simp at hpt
+              | some gs =>
+                rw [hl, hc, hss, hbs, hgs] at hpt
+                obtain rfl := Option.some.inj hpt
+                exact ⟨rfl, rfl⟩
+    obtain ⟨hdlps, hstruct⟩ := hlps
+    rw [IConstantInfo.toConstantVal] at hrun
+    obtain ⟨z, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hpz, hdz⟩ :=
+      internLNode_istep hok hoff
+        ⟨by intro c hc; simp only [LNodeView.lchildren] at hc; exact absurd hc (by simp),
+         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h1
+    have hdz' : denoteL s₁.store.ls z = some .zero := by
+      rw [hdz]; rfl
+    obtain ⟨one, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hpo, hdo⟩ :=
+      internLNode_istep hstep1.ok hstep1.off
+        ⟨by intro c hc
+            simp only [LNodeView.lchildren, List.mem_singleton] at hc
+            subst hc; exact lview_isSome_of_denote hdz',
+         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h2
+    have hdo' : denoteL s₂.store.ls one = some (.succ .zero) := by
+      rw [hdo]
+      simp only [denoteLView, denoteL_ext hdz' hstep2.ext, Option.map_some]
+    obtain ⟨ty, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨hstep3, hpty, hdty⟩ :=
+      internE_istep hstep2.ok hstep2.off (viewOK_sort (lview_isSome_of_denote hdo')) h3
+    have hdty' : denoteE s₃.store ty = some (.sort (.succ .zero)) := by
+      rw [hdty]
+      simp only [denoteEView, denoteL_ext hdo' hstep3.ext, Option.map_some]
+    have hx : Ext s.store s₃.store :=
+      (hstep1.ext.trans hstep2.ext).trans hstep3.ext
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hrest3
+    subst hss; subst hvv
+    refine ⟨((hstep1.trans hstep2).trans hstep3).toParse hoff, ?_, ?_, ?_⟩
+    · simp only [ConstantInfo.toConstantVal, hstruct]
+      exact denoteN_ext htn hx
+    · exact denoteNListE_ext hx _ _ hdlps
+    · exact hdty'
 
-Neither is reachable from a PARSED record (a parsed `.indDecl` block holds
-`indInfo`/`ctorInfo`/`recInfo` only), but this theorem quantifies over every
-`IDeclaration` that denotes, and its caller `pushGenList` pushes what the
-MODELLER generated — which `ModellerWF`/`ModellerRefines`
-(`Bridge/Frontend/Modeller.lean`) constrain only by
-`(denoteDecls s'.store hs).isSome`.  So the missing hypothesis cannot be
-discharged at the call site either: **either this statement takes an
-`IProjTableOK` side condition for the projection tables of its block, or the
-seam's promise is strengthened to give one.**  That is a design decision, not
-a proof step, so round 4 left it open rather than weakening the statement.
+/-- con-leche: none — the relation `StateDRel.constTypes` carries, named once
+because `noteDecl`'s fold is stated at it three times. -/
+def CTRel (st : EStore) (p : List NIdx × EIdx)
+    (q : List ConLeche.Name × ConLeche.Expr) : Prop :=
+  denoteNList st.ns p.1 = some q.1 ∧ denoteE st p.2 = some q.2
 
-`sorry`: `MapRel.insert` at `constTypes` and `heights`, six arms — and
-finding 16 first.  Task #97-P3-Frontend's sorry list, item 6. -/
-theorem noteDecl_run {s s' : AState} (hok : StateOK s) {sd sd' : StateD}
+/-- con-leche: none — the relation one entry of `noteDecl`'s working list
+carries: the key denotes, the value is `StateDRel.constTypes`'s pair, and the
+optional height is the same number on both sides. -/
+def NoteRel (st : EStore) (p : NIdx × List NIdx × EIdx × Option Nat)
+    (q : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat) : Prop :=
+  denoteN st.ns p.1 = some q.1 ∧ CTRel st (p.2.1, p.2.2.1) (q.2.1, q.2.2.1) ∧
+    p.2.2.2 = q.2.2.2
+
+theorem NoteRel.ext {st st' : EStore} (hx : Ext st st')
+    {p : NIdx × List NIdx × EIdx × Option Nat}
+    {q : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat}
+    (h : NoteRel st p q) : NoteRel st' p q :=
+  ⟨denoteN_ext h.1 hx, ⟨denoteNListE_ext hx _ _ h.2.1.1, denote_ext h.2.1.2 hx⟩,
+    h.2.2⟩
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:146-147 noteDecl (the `.indDecl`
+arm) — **a block's working list**, and the one arm of `noteDecl` where the
+store moves: `toConstantVal` interns at a projection table. -/
+theorem noteBlock_run :
+    ∀ (block : List IConstantInfo) {s s' : AState} {blockP : List ConstantInfo}
+      {cvs : List (NIdx × List NIdx × EIdx × Option Nat)},
+      StateOK s → s.store.scratchOn = false →
+      (∀ ci ∈ block, CIProjNamed s.store ci) →
+      ConRon.Arena.Frontend.denoteCIList s.store block = some blockP →
+      (block.mapM (m := AM) fun ci => do
+        let v ← ci.toConstantVal
+        pure (v.name, v.levelParams, v.type, none)) s = .ok (cvs, s') →
+      ParseStep s s' ∧ ListRel (NoteRel s'.store) cvs
+        (blockP.map fun ci =>
+          (ci.toConstantVal.name, ci.toConstantVal.levelParams,
+            ci.toConstantVal.type, (none : Option Nat))) := by
+  intro block
+  induction block with
+  | nil =>
+    intro s s' blockP cvs hok hoff _ hb hrun
+    simp only [ConRon.Arena.Frontend.denoteCIList, Option.some.injEq] at hb
+    subst hb
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hv; subst hst
+    exact ⟨ParseStep.refl hok, .nil⟩
+  | cons ci cs ih =>
+    intro s s' blockP cvs hok hoff hn hb hrun
+    simp only [ConRon.Arena.Frontend.denoteCIList] at hb
+    cases hci : ConRon.Arena.Frontend.denoteCI s.store ci with
+    | none => rw [hci] at hb; simp at hb
+    | some c =>
+      cases hcs : ConRon.Arena.Frontend.denoteCIList s.store cs with
+      | none => rw [hci, hcs] at hb; simp at hb
+      | some csP =>
+        rw [hci, hcs] at hb
+        simp only [Option.some.injEq] at hb
+        subst hb
+        simp only [List.mapM_cons] at hrun
+        obtain ⟨x, s₁, hx, hrest⟩ := AM.bind_ok hrun
+        obtain ⟨v, s₂, hv, hxrest⟩ := AM.bind_ok hx
+        obtain ⟨hstep1, hn1, hl1, ht1⟩ :=
+          toConstantVal_run hok hoff (hn ci (by simp)) hci hv
+        obtain ⟨hxv, hxs⟩ := AM.pure_ok hxrest
+        subst hxs; subst hxv
+        obtain ⟨ys, s₃, hmany, hrest2⟩ := AM.bind_ok hrest
+        obtain ⟨hstep2, hl2⟩ :=
+          ih hstep1.ok (by rw [hstep1.scratch]; exact hoff)
+            (fun c' hc' => (hn c' (by simp [hc'])).mono hstep1.ext)
+            (denoteCIList_ext hstep1.ext _ _ hcs) hmany
+        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
+        subst hst2; subst hv2
+        refine ⟨hstep1.trans hstep2, ?_⟩
+        simp only [List.map_cons]
+        exact .cons (NoteRel.ext hstep2.ext ⟨hn1, ⟨hl1, ht1⟩, rfl⟩) hl2
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:150-152 noteDecl (the fold) —
+**the declaration table's two maps, written entry by entry.**  The whole
+content is `MapRel.insert` at each step, once for `constTypes` and once — only
+at a `.defnDecl`'s height — for `heights`. -/
+theorem noteFold_rel {st : EStore} (hwf : StoreWF st) :
+    ∀ (cvs : List (NIdx × List NIdx × EIdx × Option Nat))
+      (cvsP : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat)),
+      ListRel (fun (p : NIdx × List NIdx × EIdx × Option Nat)
+          (q : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat) =>
+        denoteN st.ns p.1 = some q.1 ∧
+          CTRel st (p.2.1, p.2.2.1) (q.2.1, q.2.2.1) ∧
+          p.2.2.2 = q.2.2.2) cvs cvsP →
+      ∀ (ct : Std.HashMap NIdx (List NIdx × EIdx)) (hs : Std.HashMap NIdx Nat)
+        (ctP : Std.HashMap ConLeche.Name (List ConLeche.Name × ConLeche.Expr))
+        (hsP : Std.HashMap ConLeche.Name Nat),
+        MapRel st (CTRel st) ct ctP → MapRel st (fun (x y : Nat) => x = y) hs hsP →
+        MapRel st (CTRel st)
+            (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs)) (ct, hs)).1
+            (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs)) (ctP, hsP)).1 ∧
+          MapRel st (fun (x y : Nat) => x = y)
+            (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs)) (ct, hs)).2
+            (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs)) (ctP, hsP)).2 := by
+  intro cvs
+  induction cvs with
+  | nil =>
+    intro cvsP hr ct hs ctP hsP h1 h2
+    cases hr
+    exact ⟨h1, h2⟩
+  | cons x xs ih =>
+    intro cvsP hr ct hs ctP hsP h1 h2
+    cases hr with
+    | cons hx hxs =>
+      obtain ⟨n, lps, ty, oh⟩ := x
+      rename_i y _
+      obtain ⟨nP, lpsP, tyP, ohP⟩ := y
+      obtain ⟨hdn, hct, hoh⟩ := hx
+      simp only [List.foldl_cons]
+      subst hoh
+      cases oh with
+      | none =>
+        exact ih _ hxs _ _ _ _ (MapRel.insert hwf h1 hdn hct) h2
+      | some hv =>
+        exact ih _ hxs _ _ _ _ (MapRel.insert hwf h1 hdn hct)
+          (MapRel.insert hwf h2 hdn rfl)
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:137-153 noteDecl — **the
+declaration table, updated.**  con-leche's is PURE and the twin's is monadic
+for two reasons: `.basisDecl` fails loudly (`Arena/Frontend/ExportC.lean`'s own
+note: no frontend function produces one), and — round 4's finding 16 —
+`IConstantInfo.toConstantVal`'s `.projInfo` arm INTERNS.
+
+**Round 5 repaired the statement, both halves.**
+
+1. **The frame.**  `Arena/Env.lean:224-230`'s `.projInfo` arm runs
+   `internLNode .zero`, `internLNode (.succ z)` and `internE (.sort one)`,
+   because con-leche's `ConstantInfo.toConstantVal` builds the closed dummy
+   type `Sort 1` as a VALUE (`ConLeche/Kernel/Env.lean:642`).  So the store
+   moves at a block that holds a projection table and round 1's `s' = s` was
+   not true of that run.  `ParseStep s s'` is, with the relation read at
+   `s'.store` — the repair round 4 made to `projIotaLevel_run` (finding 15),
+   one module over.
+2. **The name.**  The twin keys `constTypes` by `v.name = tbl.tableName`, a
+   STORED handle, where con-leche keys it by
+   `ConLeche.projTableName tbl.structName`; `denoteProjTable` does not mention
+   `tableName` at all.  `DeclProjNamed` (`Bridge/Frontend/Rel.lean`) is
+   exactly the fact that ties the two, it is a hypothesis here, and
+   `StateDRel.projNamed` is what carries it to this theorem's callers without
+   a side condition propagating to the capstone.
+
+`toConstantVal_run` at the block, `noteFold_rel` at the two maps. -/
+theorem noteDecl_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {d : IDeclaration} {dP : Declaration}
+    (hpn : DeclProjNamed s.store d)
     (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
+    (hp : PersStateD sd)
     (hrun : noteDecl sd d s = .ok (sd', s')) :
-    s' = s ∧ StateDRel s.store sd' (ConLeche.Frontend.noteDecl sc dP) := by
-  sorry
+    ParseStep s s' ∧ PersStateD sd' ∧
+      StateDRel s'.store sd' (ConLeche.Frontend.noteDecl sc dP) := by
+  have key : ∀ (t : AState) (cvs : List (NIdx × List NIdx × EIdx × Option Nat))
+      (cvsP : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat)),
+      ParseStep s t → ListRel (NoteRel t.store) cvs cvsP →
+      ConLeche.Frontend.noteDecl sc dP
+        = { sc with
+            constTypes := (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs))
+              (sc.constTypes, sc.heights)).1,
+            heights := (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs))
+              (sc.constTypes, sc.heights)).2 } →
+      sd' = { sd with
+            constTypes := (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs))
+              (sd.constTypes, sd.heights)).1,
+            heights := (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
+              (ct.insert n (lps, ty),
+                match h with | some h => hs.insert n h | none => hs))
+              (sd.constTypes, sd.heights)).2 } →
+      s' = t →
+      ParseStep s s' ∧ PersStateD sd' ∧
+        StateDRel s'.store sd' (ConLeche.Frontend.noteDecl sc dP) := by
+    intro t cvs cvsP hstep hl hclP hsd hss
+    subst hss; subst hsd
+    rw [hclP]
+    obtain ⟨hct, hhs⟩ := noteFold_rel hstep.ok.wf cvs cvsP hl _ _ _ _
+      (StateDRel.ext hstep.ext hrel).constTypes (StateDRel.ext hstep.ext hrel).heights
+    exact ⟨hstep, { hp with }, { StateDRel.ext hstep.ext hrel with
+      constTypes := hct, heights := hhs }⟩
+  -- the six arms whose list is a singleton, and the `.basisDecl` arm that fails
+  have hone : ∀ (w : IConstantVal) (cw : ConstantVal) (oh : Option Nat),
+      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
+      ListRel (NoteRel s.store) [(w.name, w.levelParams, w.type, oh)]
+        [(cw.name, cw.levelParams, cw.type, oh)] := by
+    intro w cw oh hw
+    simp only [ConRon.Arena.Frontend.denoteCV] at hw
+    cases h1 : denoteN s.store.ns w.name with
+    | none => rw [h1] at hw; simp at hw
+    | some n =>
+      cases h2 : ConRon.Arena.Frontend.denoteNList s.store.ns w.levelParams with
+      | none => rw [h1, h2] at hw; simp at hw
+      | some lps =>
+        cases h3 : denoteE s.store w.type with
+        | none => rw [h1, h2, h3] at hw; simp at hw
+        | some ty =>
+          rw [h1, h2, h3] at hw
+          obtain rfl := Option.some.inj hw
+          exact .cons ⟨h1, ⟨h2, h3⟩, rfl⟩ .nil
+  cases d with
+  | basisDecl k =>
+    rw [noteDecl] at hrun
+    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
+    exact AM.fail_ok hcvs |>.elim
+  | axiomDecl w =>
+    rw [noteDecl] at hrun
+    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
+    subst hv; subst hst
+    obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
+    exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
+  | quotDecl k w =>
+    rw [noteDecl] at hrun
+    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
+    subst hv; subst hst
+    obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
+    exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
+  | defnDecl w e hh =>
+    rw [noteDecl] at hrun
+    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
+        subst hv; subst hst
+        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
+        refine key _ _ _ (ParseStep.refl hok)
+          (hone w cw (some (hintHeight hh)) hw) ?_ hv2 hst2
+        cases hh <;> rfl
+  | thmDecl w e =>
+    rw [noteDecl] at hrun
+    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
+        subst hv; subst hst
+        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
+        exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
+  | opaqueDecl w e =>
+    rw [noteDecl] at hrun
+    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
+        subst hv; subst hst
+        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
+        exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
+  | indDecl block nP =>
+    rw [noteDecl] at hrun
+    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨blockP, hb, rfl⟩ := hd
+    obtain ⟨hstep, hl⟩ := noteBlock_run block hok hoff (hpn block nP rfl) hb hcvs
+    obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
+    exact key _ _ _ hstep hl rfl hv2 hst2
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:161 pushDecl — the record
-appended, then noted.
+/-- con-leche: ConLeche/Frontend/ExportC.lean:161 pushDecl — **the record
+appended, then noted.**  `pushDecl` IS `noteDecl` of the pushed record, so the
+frame is `ParseStep` for `noteDecl_run`'s reason (round 4's finding 16, round
+5's repair) and the `DeclProjNamed` hypothesis is the same one.
 
-`sorry`: `noteDecl_run` at the appended state — and round 4's finding 16
-(above) first: `pushDecl` IS `noteDecl` of the pushed record, so this
-statement's `s' = s` is false in exactly the same place and for exactly the
-same reason.  Task #97-P3-Frontend's sorry list, item 6. -/
-theorem pushDecl_run {s s' : AState} (hok : StateOK s) {sd sd' : StateD}
+**This is the first of `StateDRel.projNamed`'s two debtors**: the pushed
+record's clause is what keeps the relation's new conjunct true across the
+append, and `DeclsProjNamed.push` is the whole of it.
+
+`noteDecl_run` at the appended state. -/
+theorem pushDecl_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : IDeclaration} {dP : Declaration}
-    (hpd : PersDecl d) (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
+    (hpd : PersDecl d) (hpn : DeclProjNamed s.store d)
+    (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     (hrun : pushDecl sd d s = .ok (sd', s')) :
-    s' = s ∧ PersStateD sd' ∧
-      StateDRel s.store sd' (ConLeche.Frontend.pushDecl sc dP) := by
-  sorry
+    ParseStep s s' ∧ PersStateD sd' ∧
+      StateDRel s'.store sd' (ConLeche.Frontend.pushDecl sc dP) := by
+  rw [pushDecl] at hrun
+  rw [ConLeche.Frontend.pushDecl]
+  have hone : denoteDeclArray s.store #[d] = some #[dP] := by
+    rw [denoteDeclArray_iff]
+    simp only [denoteDecls, hd]
+  have hdecls : denoteDeclArray s.store (sd.decls.push d)
+      = some (sc.decls.push dP) := by
+    have h := denoteDeclArray_append hrel.decls hone
+    simpa only [Array.push_eq_append] using h
+  have hrel' : StateDRel s.store { sd with decls := sd.decls.push d }
+      { sc with decls := sc.decls.push dP } :=
+    { hrel with decls := hdecls, projNamed := hrel.projNamed.push hpn }
+  have hpers : PersStateD { sd with decls := sd.decls.push d } := by
+    refine { hp with decls := ?_ }
+    intro x hx
+    rcases Array.mem_push.mp hx with h | h
+    · exact hp.decls x h
+    · subst h; exact hpd
+  exact noteDecl_run hok hoff hrel' hpn hd hpers hrun
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:347 parseRuleD — one recursor
 rule.
@@ -1148,6 +1587,10 @@ modeller seam.  This is the one theorem of the tier that takes the modeller's
 two promises, and it takes them because `installIndD` is where the seam is
 called.
 
+Since round 5 `hmw` carries one clause more — a generated record's projection
+tables are rightly named (`DeclProjNamed`) — and that is what `pushGenList`
+hands `pushDecl_run` for the records the seam returned.
+
 `sorry`: `registerProjOwners_run` (`Bridge/Frontend/ProjRec.lean`),
 `blockRecOf_run`, then `hmw`/`hmr` at the seam and `pushGenList_run` for what
 it returns.  Task #97-P3-Frontend's sorry list, item 7. -/
@@ -1172,6 +1615,16 @@ record's own semantics**: six declaration kinds, the projection rewrite on two
 of them, and the inductive route.  `Arena/Frontend/ExportC.lean`'s own note
 says "every branch, guard and error string is con-leche's", and this is that
 sentence as a theorem.
+
+**What round 5's repair costs this arm**: `pushDecl_run` now asks
+`DeclProjNamed` of the record it pushes, and both sources have it.  A record
+this function builds itself is an `.axiomDecl`/`.defnDecl`/`.thmDecl`/
+`.opaqueDecl`/`.quotDecl` (`DeclProjNamed.of_…`, vacuous) or an `.indDecl`
+block of `.indInfo`/`.ctorInfo`/`.recInfo` (`DeclProjNamed.of_indDecl` at a
+block with no `.projInfo` in it); a record `pushGenList` pushes came from the
+modeller, and `ModellerWF`'s own clause is exactly this.  **Nothing propagates
+past here** — that is what putting the fact in `StateDRel.projNamed` and in
+the seam's promise bought.
 
 `sorry`: six arms over `parseCVD_run`, `getDeclD_run`, `projRewriteD_run`
 (`Bridge/Frontend/ProjRec.lean`) and `pushDecl_run`, plus the `ind` arm over
