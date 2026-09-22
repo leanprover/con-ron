@@ -10240,4 +10240,238 @@ theorem EStore.wf_push_pers' {st st' : EStore} {rk : EIdx → Nat} {w : ENodeVie
   case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
 
 
+
+/-! ### The three nested promote-interns, lifted
+
+`Arena/Promote.lean`'s `internPersistentN` / `internPersistentL` /
+`internPersistentLs` run through `EStore.internNamePersistent` /
+`internLevelPersistent` / `internLevelsPersistent`, which move ONE nested
+store and leave every level above it alone.  These are the
+`EStore.internName_wf` family with `intern` replaced by `internPersistent`,
+`StoreWF` by `StoreWF'`, and the extra `…ViewPers` precondition threaded
+through. -/
+
+theorem NStore.derived_internPersistent_eq' {st : NStore} (h : NStoreWF' st)
+    (w : NNodeView) {i : NIdx} {v : NNodeView} (hi : st.view i = some v) :
+    (st.internPersistent w).1.derived i = st.derived i := by
+  obtain ⟨rk, hwf⟩ := h
+  simp only [NStore.internPersistent]
+  split
+  · rfl
+  · exact NStore.derived_congr hi rfl
+      (fun j x hj => NTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
+
+theorem LStore.derived_internPersistent_eq' {st : LStore} (h : LStoreWF' st)
+    (w : LNodeView) {i : LIdx} {v : LNodeView} (hi : st.view i = some v) :
+    (st.internPersistent w).1.derived i = st.derived i := by
+  obtain ⟨rk, hwf⟩ := h
+  simp only [LStore.internPersistent]
+  split
+  · rfl
+  · exact LStore.derived_congr hi rfl
+      (fun j x hj => LTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
+
+theorem LsStore.derived_internPersistent_eq' {st : LsStore} (h : LsStoreWF' st)
+    (w : LsNodeView) {i : LsIdx} {v : LsNodeView} (hi : st.view i = some v) :
+    (st.internPersistent w).1.derived i = st.derived i := by
+  simp only [LsStore.internPersistent]
+  split
+  · rfl
+  · exact LsStore.derived_congr hi rfl
+      (fun j x hj => LsTables.derAt_push_of_get h.sizedP hj) (fun j x hj => rfl)
+
+/-! #### A name, promoted -/
+
+theorem LStore.internNamePersistent_wf' {st : LStore} (h : LStoreWF' st)
+    {v : NNodeView} (hv : st.ns.ViewOK v) (hp : NViewPers v)
+    (hcap : st.ns.capOKPersistent v) :
+    LStoreWF' (st.internNamePersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  refine ⟨rk, ?_⟩
+  have hns : (st.internNamePersistent v).1.ns = (st.ns.internPersistent v).1 := rfl
+  constructor
+  case ns => rw [hns]; exact NStore.internPersistent_wf' hwf.ns hv hp hcap
+  case childOK => exact hwf.childOK
+  case nchildOK =>
+    intro i u hi c hc
+    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
+    rw [hns]
+    have := (hwf.nchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp this
+    rw [NStore.view_internPersistent_mono _ _ hx]; rfl
+  case rankP => exact hwf.rankP
+  case rankS => exact hwf.rankS
+  case consP => exact hwf.consP
+  case consS => exact hwf.consS
+  case derExact =>
+    intro i u hi
+    have hcongr : (st.internNamePersistent v).1.derOfView u = st.derOfView u := by
+      refine LStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
+      have hs := (hwf.nchildOK i u hi c hc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
+      show (st.ns.internPersistent v).1.derived c = st.ns.derived c
+      exact NStore.derived_internPersistent_eq' hwf.ns v hx
+    show st.derived i = _
+    rw [hcongr]
+    exact hwf.derExact i u hi
+  case sizedP => exact hwf.sizedP
+  case sizedS => exact hwf.sizedS
+  case capP => exact hwf.capP
+  case capS => exact hwf.capS
+  case scrOff => exact hwf.scrOff
+  case sync => rw [hns, NStore.scratchOn_internPersistent]; exact hwf.sync
+
+theorem LsStore.internNamePersistent_wf' {st : LsStore} (h : LsStoreWF' st)
+    {v : NNodeView} (hv : st.ls.ns.ViewOK v) (hp : NViewPers v)
+    (hcap : st.ls.ns.capOKPersistent v) :
+    LsStoreWF' (st.internNamePersistent v).1 := by
+  refine { h with
+    ls := LStore.internNamePersistent_wf' h.ls hv hp hcap,
+    derExact := ?_ }
+  intro i u hi
+  have hc : (st.internNamePersistent v).1.derOfView u = st.derOfView u :=
+    LsStore.derOfView_congr (st' := (st.internNamePersistent v).1) u (fun c _ => rfl)
+  show st.derived i = _
+  rw [hc]
+  exact h.derExact i u hi
+
+theorem EStore.internNamePersistent_wf' {st : EStore} (h : StoreWF' st)
+    {v : NNodeView} (hv : st.ns.ViewOK v) (hp : NViewPers v)
+    (hcap : st.ns.capOKPersistent v) :
+    StoreWF' (st.internNamePersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  have hns : (st.internNamePersistent v).1.ns = (st.ns.internPersistent v).1 := rfl
+  refine ⟨rk, { hwf with lss := ?_, nchildOK := ?_, derExact := ?_ }⟩
+  · exact LsStore.internNamePersistent_wf' hwf.lss hv hp hcap
+  · intro i u hi c hc
+    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
+    rw [hns]
+    have hs := (hwf.nchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
+    rw [NStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hcongr : (st.internNamePersistent v).1.derOfView u = st.derOfView u := by
+      refine EStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
+        (fun c _ => rfl) (fun c _ => rfl)
+      have hs := (hwf.nchildOK i u hi c hc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
+      show (st.ns.internPersistent v).1.derived c = st.ns.derived c
+      obtain ⟨rkl, hl⟩ := hwf.lss.ls
+      exact NStore.derived_internPersistent_eq' hl.ns v hx
+    show st.derived i = _
+    rw [hcongr]
+    exact hwf.derExact i u hi
+
+/-! #### A level, promoted -/
+
+theorem LsStore.internLevelPersistent_wf' {st : LsStore} (h : LsStoreWF' st)
+    {v : LNodeView} (hv : st.ls.ViewOK v) (hp : LViewPers v)
+    (hcap : st.ls.capOKPersistent v) :
+    LsStoreWF' (st.internLevelPersistent v).1 := by
+  have hls : (st.internLevelPersistent v).1.ls = (st.ls.internPersistent v).1 := rfl
+  refine { h with ls := ?_, lchildOK := ?_, derExact := ?_, sync := ?_ }
+  · rw [hls]; exact LStore.internPersistent_wf' h.ls hv hp hcap
+  · intro i u hi c hc
+    refine ⟨?_, (h.lchildOK i u hi c hc).2⟩
+    rw [hls]
+    have hsm := (h.lchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+    rw [LStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hc : (st.internLevelPersistent v).1.derOfView u = st.derOfView u := by
+      refine LsStore.derOfView_congr (st' := (st.internLevelPersistent v).1) u
+        (fun c hcc => ?_)
+      have hsm := (h.lchildOK i u hi c hcc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+      show (st.ls.internPersistent v).1.derived c = st.ls.derived c
+      exact LStore.derived_internPersistent_eq' h.ls v hx
+    show st.derived i = _
+    rw [hc]
+    exact h.derExact i u hi
+  · rw [hls, LStore.scratchOn_internPersistent]; exact h.sync
+
+theorem EStore.internLevelPersistent_wf' {st : EStore} (h : StoreWF' st)
+    {v : LNodeView} (hv : st.ls.ViewOK v) (hp : LViewPers v)
+    (hcap : st.ls.capOKPersistent v) :
+    StoreWF' (st.internLevelPersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  have hls : (st.internLevelPersistent v).1.ls = (st.ls.internPersistent v).1 := rfl
+  have hnsE : (st.internLevelPersistent v).1.ns = st.ns :=
+    LStore.ns_internPersistent st.ls v
+  refine ⟨rk, { hwf with lss := ?_, lchildOK := ?_, nchildOK := ?_, derExact := ?_ }⟩
+  · exact LsStore.internLevelPersistent_wf' hwf.lss hv hp hcap
+  · intro i u hi c hc
+    rw [hnsE]
+    exact hwf.nchildOK i u hi c hc
+  · intro i u hi c hc
+    refine ⟨?_, (hwf.lchildOK i u hi c hc).2⟩
+    rw [hls]
+    have hsm := (hwf.lchildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+    rw [LStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hcg : (st.internLevelPersistent v).1.derOfView u = st.derOfView u := by
+      refine EStore.derOfView_congr (fun c _ => rfl)
+        (fun c _ => by
+          show (st.ls.internPersistent v).1.ns.derived c = st.ns.derived c
+          rw [LStore.ns_internPersistent]; rfl)
+        (fun c hcc => ?_) (fun c _ => rfl)
+      have hsm := (hwf.lchildOK i u hi c hcc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+      show (st.ls.internPersistent v).1.derived c = st.ls.derived c
+      obtain ⟨rkl, hl⟩ := hwf.lss.ls
+      exact LStore.derived_internPersistent_eq' ⟨rkl, hl⟩ v hx
+    show st.derived i = _
+    rw [hcg]
+    exact hwf.derExact i u hi
+
+/-! #### A level list, promoted -/
+
+theorem EStore.internLevelsPersistent_wf' {st : EStore} (h : StoreWF' st)
+    {v : LsNodeView} (hv : st.lss.ViewOK v) (hp : LsViewPers v)
+    (hcap : st.lss.capOKPersistent v) :
+    StoreWF' (st.internLevelsPersistent v).1 := by
+  obtain ⟨rk, hwf⟩ := h
+  have hlss : (st.internLevelsPersistent v).1.lss = (st.lss.internPersistent v).1 :=
+    rfl
+  have hlsE : (st.internLevelsPersistent v).1.ls = st.ls :=
+    LsStore.ls_internPersistent st.lss v
+  have hnsE : (st.internLevelsPersistent v).1.ns = st.ns := by
+    show (st.lss.internPersistent v).1.ls.ns = st.lss.ls.ns
+    rw [LsStore.ls_internPersistent]
+  refine ⟨rk, { hwf with
+    lss := ?_, nchildOK := ?_, lchildOK := ?_, lschildOK := ?_,
+    derExact := ?_, sync := ?_ }⟩
+  · exact LsStore.internPersistent_wf' hwf.lss hv hp hcap
+  · intro i u hi c hc
+    rw [hnsE]
+    exact hwf.nchildOK i u hi c hc
+  · intro i u hi c hc
+    rw [hlsE]
+    exact hwf.lchildOK i u hi c hc
+  · intro i u hi c hc
+    refine ⟨?_, (hwf.lschildOK i u hi c hc).2⟩
+    rw [hlss]
+    have hsm := (hwf.lschildOK i u hi c hc).1
+    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+    rw [LsStore.view_internPersistent_mono _ _ hx]; rfl
+  · intro i u hi
+    have hcg : (st.internLevelsPersistent v).1.derOfView u = st.derOfView u := by
+      refine EStore.derOfView_congr (fun c _ => rfl)
+        (fun c _ => by
+          show (st.lss.internPersistent v).1.ls.ns.derived c = st.ns.derived c
+          rw [LsStore.ls_internPersistent]; rfl)
+        (fun c _ => by
+          show (st.lss.internPersistent v).1.ls.derived c = st.ls.derived c
+          rw [LsStore.ls_internPersistent]; rfl)
+        (fun c hcc => ?_)
+      have hsm := (hwf.lschildOK i u hi c hcc).1
+      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
+      show (st.lss.internPersistent v).1.derived c = st.lss.derived c
+      exact LsStore.derived_internPersistent_eq' hwf.lss v hx
+    show st.derived i = _
+    rw [hcg]
+    exact hwf.derExact i u hi
+  · rw [hlss, LsStore.scratchOn_internPersistent]; exact hwf.sync
+
 end ConRon.Arena
