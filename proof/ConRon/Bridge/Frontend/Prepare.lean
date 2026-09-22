@@ -89,7 +89,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
     {pre : PreludeIx} (hrun : builtinPreludeE md s = .ok (.ok pre, s')) :
-    ParseStep s s' ∧ PersPreludeIx pre ∧
+    ParseStep s s' ∧ PersPreludeIx pre ∧ DeclsProjNamed s'.store pre.decls ∧
       ∃ preC, ConLeche.Frontend.builtinPreludeE = .ok preC ∧
         PreludeIxRel s'.store pre preC := by
   rw [builtinPreludeE] at hrun
@@ -105,7 +105,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     subst hv; subst hs
     rw [hbytes] at hpb
     obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpb
-    refine ⟨hstep, hpers, ⟨rc.decls⟩, ?_, hrel.decls⟩
+    refine ⟨hstep, hpers, hrel.projNamed, ⟨rc.decls⟩, ?_, hrel.decls⟩
     rw [ConLeche.Frontend.builtinPreludeE, ConLeche.Frontend.parseExportD, hcl]
     rfl
 
@@ -115,21 +115,20 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
 prelude record is looked up by.  The twin is monadic only for the
 `.anonymous` fall-through.
 
-**Round 4's finding 16 bites here**: `IDeclaration.names`
+**Round 4's finding 16, repaired (round 5).**  `IDeclaration.names`
 (`Arena/Env.lean:262-266`) reads `IConstantInfo.name`, which at a `.projInfo`
 is the STORED handle `tbl.tableName` — and `denoteProjTable` does not mention
-`tableName`, so `denoteDecl st d = some dP` does NOT give
-`denoteNList st.ns d.names = some dP.names`.  Only
-`Bridge/StateOK.lean:507-511`'s `IProjTableOK.named` ties the two.  The frame
-is already the honest one here (`preludeKey` interns `.anonymous` on the
-fall-through), but the ANSWER clause needs that side condition or a
-strengthened seam promise; see `Bridge/Frontend/Lines.lean`'s `noteDecl_run`
-for the finding in full.
+`tableName`, so `denoteDecl st d = some dP` alone does NOT give
+`denoteNList st.ns d.names = some dP.names`.  `DeclProjNamed`
+(`Bridge/Frontend/Rel.lean`) is exactly the missing fact and `declNames_denote`
+is the equation it buys; the records this is applied to carry it out of the
+parse in `ParseResultRel.projNamed`.
 
-`sorry`: finding 16 first, then `IDeclaration.names`'s exactness at the head
-and `internNNode_istep`.  Task #97-P3-Frontend's sorry list, item 20. -/
+`sorry`: `declNames_denote` at the head and `internNNode_istep` for the
+`.anonymous` fall-through.  Task #97-P3-Frontend's sorry list, item 20. -/
 theorem preludeKey_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {d : IDeclaration} {dP : Declaration}
+    (hpn : DeclProjNamed s.store d)
     (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP) {n : NIdx}
     (hrun : preludeKey d s = .ok (n, s')) :
     ParseStep s s' ∧ PersN n ∧
@@ -143,17 +142,18 @@ stream's own copy of a prelude record, pulled out.  PURE on both sides
 `d.names.contains n` is a handle test where con-leche's is a name test, and
 `denoteN_inj` makes the two the same test on a well-formed store.
 
-**Round 4's finding 16 bites here too**: `declares n d` is
-`d.names.contains n`, so this statement reads `IDeclaration.names` at every
-record of the stream and needs its exactness — which a `.projInfo` does not
-give without `IProjTableOK` (see `preludeKey_run` above).
+`declares n d` is `d.names.contains n`, so this statement reads
+`IDeclaration.names` at every record of the stream and needs its exactness —
+which round 4's finding 16 said a `.projInfo` does not give.  `DeclsProjNamed`
+is the hypothesis that supplies it (round 5).
 
-`sorry`: finding 16, then `denoteN_inj` at the `findIdx` predicate and
+`sorry`: `declNames_denote`, then `denoteN_inj` at the `findIdx` predicate and
 `Array.eraseIdxIfInBounds`'s own law.  Task #97-P3-Frontend's sorry list,
 item 20. -/
 theorem pick_denote {st : EStore} (hwf : StoreWF st) {n : NIdx}
     {nP : ConLeche.Name} (hn : denoteN st.ns n = some nP)
     {ds : Array IDeclaration} {dsP : Array Declaration}
+    (hpn : DeclsProjNamed st ds)
     (hds : denoteDeclArray st ds = some dsP) :
     (∀ d, (pick n ds).1 = some d →
       ∃ dP, ConRon.Arena.Frontend.denoteDecl st d = some dP ∧
@@ -170,20 +170,22 @@ of the preparation are PERMUTATIONS: no record is built, so every record out
 is a record in, and `Bridge/Checker/Capstone.lean`'s `hpd` at the fold's
 argument is the parse's and the prelude's, carried.
 
-`sorry`: a list induction over `preludeKey_run` and `pick_denote`, both of
-which wait on round 4's finding 16.  Task #97-P3-Frontend's sorry list,
-item 20. -/
+`sorry`: a list induction over `preludeKey_run` and `pick_denote`.  Task
+#97-P3-Frontend's sorry list, item 20. -/
 theorem frontOf_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {acc : Array IDeclaration}
     {accP : Array Declaration} (hacc : denoteDeclArray s.store acc = some accP)
-    (hpacc : PersDecls acc)
+    (hpacc : PersDecls acc) (hnacc : DeclsProjNamed s.store acc)
     {ps : List IDeclaration} {psP : List Declaration}
     (hps : denoteDecls s.store ps = some psP) (hpps : ∀ d ∈ ps, PersDecl d)
+    (hnps : ∀ d ∈ ps, DeclProjNamed s.store d)
     {ds : Array IDeclaration} {dsP : Array Declaration}
     (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
+    (hnds : DeclsProjNamed s.store ds)
     {front rest : Array IDeclaration}
     (hrun : frontOf acc ps ds s = .ok ((front, rest), s')) :
     ParseStep s s' ∧ PersDecls front ∧ PersDecls rest ∧
+      DeclsProjNamed s'.store front ∧ DeclsProjNamed s'.store rest ∧
       denoteDeclArray s'.store front
           = some (ConLeche.Frontend.frontOf accP psP dsP).1 ∧
         denoteDeclArray s'.store rest
@@ -196,19 +198,21 @@ theorem frontOf_run {s s' : AState} (hok : StateOK s)
 the constants a record mentions.  A walk over the record's terms with a `seen`
 set, so the GRAY-invariant shape again.
 
-**Round 4's finding 16 bites the FRAME here**: `usedConstsBlock`
-(`Arena/Frontend/NatOpGround.lean:85-95`) calls `ci.toConstantVal`, whose
-`.projInfo` arm interns `Sort 1`, so `s' = s` is false at a block that holds a
-projection table.  `ParseStep s s'` is the honest frame, with the answer read
-at `s'.store`; see `Bridge/Frontend/Lines.lean`'s `noteDecl_run`.
+**Round 4's finding 16 bit the FRAME here, and round 5 repaired it**:
+`usedConstsBlock` (`Arena/Frontend/NatOpGround.lean:85-95`) calls
+`ci.toConstantVal`, whose `.projInfo` arm INTERNS `Sort 1`
+(`Arena/Env.lean:224-230`, because con-leche's `ConstantInfo.toConstantVal`
+builds the closed dummy type as a VALUE), so `s' = s` is false at a block that
+holds a projection table.  `ParseStep s s'` is the honest frame and the answer
+is read at `s'.store` — round 4's own finding 15, one module over.
 
-`sorry`: finding 16, then the fuel induction with the `seen` set —
-`Bridge/ExprOps/Leaves.lean`'s open shape.  Task #97-P3-Frontend's sorry list,
-item 21. -/
-theorem usedConsts_run {s s' : AState} (hok : StateOK s) {d : IDeclaration}
+`sorry`: the fuel induction with the `seen` set — `Bridge/ExprOps/Leaves.lean`'s
+open shape.  Task #97-P3-Frontend's sorry list, item 21. -/
+theorem usedConsts_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {d : IDeclaration}
     {dP : Declaration} (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     {ns : Array NIdx} (hrun : IDeclaration.usedConsts d s = .ok (ns, s')) :
-    s' = s ∧ denoteNList s.store.ns ns.toList
+    ParseStep s s' ∧ denoteNList s'.store.ns ns.toList
       = some (ConLeche.Declaration.usedConsts dP).toList := by
   sorry
 
@@ -217,40 +221,47 @@ hoist's index, and where `denoteN_inj` is load-bearing**: the stream is
 indexed by declared name, and two handles denoting one name would make the
 twin move a record con-leche does not move.
 
-**Round 4's finding 16 bites both halves**: `nameIndex`
-(`Arena/Frontend/NatOpGround.lean:133-138`) indexes by `ds[k].names`, and
-`usedConsts` moves the store at a projection table.  The frame is `ParseStep`,
-and the name exactness wants `IProjTableOK`; see
-`Bridge/Frontend/Lines.lean`'s `noteDecl_run`.
+**Round 4's finding 16 bit both halves, and round 5 repaired both**:
+`nameIndex` (`Arena/Frontend/NatOpGround.lean:133-138`) indexes by
+`ds[k].names`, and `usedConsts` moves the store at a projection table.  The
+frame is `ParseStep` and the name exactness is `DeclsProjNamed`'s.
 
-`sorry`: finding 16, then `usedConsts_run` and `isNatOpRecord_run` at the
+`sorry`: `usedConsts_run` and `isNatOpRecord_run` at the
 fold, with `denoteN_inj` for the `Std.HashMap NIdx Nat` keyed by handle
 against con-leche's `Std.HashMap Nat Nat` keyed by stream position — the two
 maps are equal as functions of the position, which is what `applyHoist`
 reads.  Task #97-P3-Frontend's sorry list, item 21. -/
 theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false)
     {ds : Array IDeclaration} {dsP : Array Declaration}
-    (hwf : StoreWF s.store) (hds : denoteDeclArray s.store ds = some dsP)
+    (hwf : StoreWF s.store) (hnds : DeclsProjNamed s.store ds)
+    (hds : denoteDeclArray s.store ds = some dsP)
     {target : Std.HashMap Nat Nat} (hrun : hoistTargets ds s = .ok (target, s')) :
-    s' = s ∧ target = ConLeche.Frontend.hoistTargets dsP := by
+    ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets dsP := by
   sorry
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:167 hoistNatOpGround — the
 hoist.  Its answer is a PERMUTATION of its argument, so the denotation of the
 result is the permutation of the denotation, and the moved-name list denotes.
 
-`sorry`: `hoistTargets_run` (which waits on round 4's finding 16), then
+**The frame is `ParseStep` for round 4's finding 16's reason** (round 5):
+`hoistTargets` reads `usedConsts`, which interns at a projection table.
+
+`sorry`: `hoistTargets_run`, then
 `applyHoist`'s `reorder` as a `List.map` over a permutation of indices — the
 same list of indices on both sides.  Task #97-P3-Frontend's sorry list,
 item 21. -/
 theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}
     (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
+    (hnds : DeclsProjNamed s.store ds)
     {out : Array IDeclaration} {moved : Array NIdx}
     (hrun : hoistNatOpGround ds s = .ok ((out, moved), s')) :
-    s' = s ∧ PersDecls out ∧ denoteDeclArray s.store out
+    ParseStep s s' ∧ PersDecls out ∧ DeclsProjNamed s'.store out ∧
+      denoteDeclArray s'.store out
         = some (ConLeche.Frontend.hoistNatOpGround dsP).1 ∧
-      denoteNList s.store.ns moved.toList
+      denoteNList s'.store.ns moved.toList
         = some (ConLeche.Frontend.hoistNatOpGround dsP).2.toList := by
   sorry
 
@@ -266,11 +277,13 @@ fold's argument.
 theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
-    (hprep : PersPreludeIx pre) {ds : Array IDeclaration}
+    (hprep : PersPreludeIx pre) (hnpre : DeclsProjNamed s.store pre.decls)
+    {ds : Array IDeclaration}
     {dsP : Array Declaration} (hds : denoteDeclArray s.store ds = some dsP)
-    (hpds : PersDecls ds) {out : Array IDeclaration}
+    (hpds : PersDecls ds) (hnds : DeclsProjNamed s.store ds)
+    {out : Array IDeclaration}
     (hrun : preparePrelude pre ds s = .ok (out, s')) :
-    ParseStep s s' ∧ PersDecls out ∧
+    ParseStep s s' ∧ PersDecls out ∧ DeclsProjNamed s'.store out ∧
       denoteDeclArray s'.store out
         = some (ConLeche.Frontend.preparePrelude preC dsP) := by
   rw [preparePrelude] at hrun
@@ -286,25 +299,34 @@ theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
   simp only [] at hrest3
   obtain ⟨hv2, hs2⟩ := AM.pure_ok hrest3
   subst hs2
-  obtain ⟨hstep1, hpf, hpr, hclf, hclr⟩ :=
+  obtain ⟨hstep1, hpf, hpr, hnf, hnr, hclf, hclr⟩ :=
     frontOf_run hok hoff (denoteDeclArray_empty s.store) (by intro d hd; simp at hd)
+      (DeclsProjNamed.empty s.store)
       (denoteDeclArray_iff.mp hpre) (by
         intro d hd
         exact hprep d (by simpa using hd))
-      hds hpds hfront
-  obtain ⟨hs3, hpo, hclo, -⟩ :=
-    hoistNatOpGround_run hstep1.ok hstep1.ok.wf
+      (by
+        intro d hd
+        exact hnpre d (by simpa using hd))
+      hds hpds hnds hfront
+  obtain ⟨hstep2, hpo, hno, hclo, -⟩ :=
+    hoistNatOpGround_run hstep1.ok (by rw [hstep1.scratch]; exact hoff) hstep1.ok.wf
       (denoteDeclArray_append hclf hclr)
       (by
         intro d hd
         rcases Array.mem_append.mp hd with h | h
         · exact hpf d h
         · exact hpr d h)
+      (by
+        intro d hd
+        rcases Array.mem_append.mp hd with h | h
+        · exact hnf d h
+        · exact hnr d h)
       hhoist
-  subst hs3
   have hdecls : prep.decls = decls := by rw [hv2]
-  refine ⟨hstep1, ?_, ?_⟩
+  refine ⟨hstep1.trans hstep2, ?_, ?_, ?_⟩
   · rw [hdecls]; exact hpo
+  · rw [hdecls]; exact hno
   · rw [hdecls, hclo, ConLeche.Frontend.preparePrelude,
       ConLeche.Frontend.prepareD]
 
@@ -318,13 +340,16 @@ stating the pass as a denotation equation rather than as a permutation. -/
 theorem mem_preparePrelude_denote {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
-    (hprep : PersPreludeIx pre) {ds : Array IDeclaration}
+    (hprep : PersPreludeIx pre) (hnpre : DeclsProjNamed s.store pre.decls)
+    {ds : Array IDeclaration}
     {dsP : Array Declaration} (hds : denoteDeclArray s.store ds = some dsP)
-    (hpds : PersDecls ds) {out : Array IDeclaration}
+    (hpds : PersDecls ds) (hnds : DeclsProjNamed s.store ds)
+    {out : Array IDeclaration}
     (hrun : preparePrelude pre ds s = .ok (out, s'))
     {d : Declaration} (hmem : d ∈ dsP) :
     ∃ outP, denoteDeclArray s'.store out = some outP ∧ d ∈ outP := by
-  obtain ⟨-, -, hout⟩ := preparePrelude_run hok hoff hpre hprep hds hpds hrun
+  obtain ⟨-, -, -, hout⟩ :=
+    preparePrelude_run hok hoff hpre hprep hnpre hds hpds hnds hrun
   exact ⟨_, hout, ConLeche.Frontend.mem_preparePrelude hmem⟩
 
 end ConRon.Bridge.Frontend

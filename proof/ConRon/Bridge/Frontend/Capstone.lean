@@ -316,11 +316,12 @@ theorem Arena.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run hmw hmr hstep1.ok (by rw [hstep1.scratch, hoff0]) hparse
   -- 2. the preparation
-  obtain ⟨hstep3, hpersDs, hclPrep⟩ :=
+  obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (pre := ⟨preR.decls⟩) (preC := ⟨preC.decls⟩) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoff0])
-      (denoteDeclArray_ext hstep2.ext hrelPre.decls) hpersPre hrelR.decls
-      hpersR hprep
+      (denoteDeclArray_ext hstep2.ext hrelPre.decls) hpersPre
+      (hrelPre.projNamed.mono hstep2.ext) hrelR.decls
+      hpersR hrelR.projNamed hprep
   -- 3. the fold
   obtain ⟨env', F', -, hcheck⟩ :=
     Arena.installThenCheck_bridge rfl hk hind hpps
@@ -370,15 +371,16 @@ theorem Arena.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     (hprep : preparePrelude pre r.decls s2 = .ok (ds, s3))
     (hrun : Arena.installThenCheck .verified ipins ds s3 = .ok (.ok fe', s4)) :
     False := by
-  obtain ⟨hstep1, hpersPre, preC, -, hrelPre⟩ :=
+  obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run hmw hmr hbytes hok0 hoff0 hpre
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run hmw hmr hstep1.ok (by rw [hstep1.scratch, hoff0]) hparse
-  obtain ⟨hstep3, hpersDs, hclPrep⟩ :=
+  obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoff0])
-      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre hrelR.decls
-      hpersR hprep
+      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
+      (hnPre.mono hstep2.ext) hrelR.decls
+      hpersR hrelR.projNamed hprep
   obtain ⟨env', F', -, hcheck⟩ :=
     Arena.installThenCheck_bridge rfl hk hind hpps
       (FoldOK_post_parse hpins0 hpp0 hcache0
@@ -519,16 +521,17 @@ theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
     rw [hv] at hres; exact absurd hres (by simp)
   | ok fe' =>
   -- §3's four steps, with the pin walk in the middle
-  obtain ⟨hstep1, hpersPre, preC, -, hrelPre⟩ :=
+  obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
       hokA hoffA hprel
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
       (by rw [hstep1.scratch, hoffA]) hparse
-  obtain ⟨hstep3, hpersDs, hclPrep⟩ :=
+  obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])
-      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre hrelR.decls hpersR hprep
+      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
+      (hnPre.mono hstep2.ext) hrelR.decls hpersR hrelR.projNamed hprep
   have hoff3 : s3.store.scratchOn = false := by
     rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoffA
   obtain ⟨hokP, hxP, hpinsP, hppP, hipins, hpps, -, hcachesP, -⟩ :=
