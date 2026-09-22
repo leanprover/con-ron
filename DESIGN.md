@@ -40019,6 +40019,221 @@ and nothing in the round needed a raised heartbeat budget.
 | `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 61/242, closed 36** (round 3: 54/242 stated, 23 closed) |
 | the diff | `proof/ConRon/Bridge/Checker/**` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
 
+#### Round 5 — the three statement repairs, and the index retired (2026-09-22, Opus under Fable)
+
+Branch `p3-checker-5` off `arena`'s `ffe22843`.  The diff is
+`proof/ConRon/Bridge/Checker/**`, three lines of `proof/ConRon/Bridge/StateOK.lean`
+(a rename in prose), three lines of `proof/ConRon/Bridge/Frontend/Capstone.lean`
+(§2, reported) and this text: no Rust file, no generated model, no `Arena/`, no
+`Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml`.
+
+**31 open → 27**, and `Bridge/Checker/Canon.lean` joins `Base.lean` at **zero**.
+
+##### 1. The three statement repairs the coordinator authorised
+
+Round 4 found all three and correctly stopped at reporting them; round 5 was
+told to take them.  All three are in, and **all three of the repaired
+statements are now PROVED** — which is the round's own answer to "was the
+repair the right one".
+
+| # | theorem | the repair | now |
+|---|---|---|---|
+| 1 | `denoteFEnv_restrictTo` → **`IFEnvOK_restrictTo`** | the conclusion was FALSE; the arena twin of `mkFEnv_find?_visibleBelow` is a statement about the INDEX, `IFEnvOK (env.prefixTo k) (fe.restrictTo k) s` | **closed** (§4) |
+| 2 | `IFEnvOK_of_denote`'s `hproj` | `∀ n t, fe.find? n = some (.projInfo t) → …` quantified over what `find?` ANSWERS; `cover` needs the fact at an entry `find?` may never return.  Now `∀ t, .projInfo t ∈ fe.env.consts → …` | **closed** (§3) |
+| 3 | `IConstantInfo.canonEq_run`'s `.projInfo` arm | the fourth site of the `denoteProjTable`-drops-`tableName` family; provable with `IProjTableOK` on both sides | **closed** (§5) |
+
+Repair 2's reshape is a strict strengthening rather than a change of subject,
+and the round says so with a lemma rather than with prose:
+`mkIFEnvGo_mem` (every hash-map hit is a list member) and `IFEnv.find?_mem`
+(the same at a coherent index) turn the new membership-shaped hypothesis back
+into the `find?`-shaped `IFEnvOK.proj` field the conclusion still has.
+
+Repair 3 is stated at the WEAKEST shape the proof needs — both sides at once,
+
+    ∀ t t', ci = .projInfo t → ci' = .projInfo t' →
+      IProjTableOK s.store t ∧ IProjTableOK s.store t'
+
+— so its premise is unreachable unless BOTH constants are projection tables.
+That makes it free at every call site where either side has a known
+constructor, and `Bridge/Checker/Arms.lean`'s `.axiomDecl` arm (the tier's one
+consumer) discharges it on the left premise alone.
+
+##### 2. One edit outside the lane, and why
+
+Repair 2 changes an argument's binder count, and `Bridge/Frontend/Capstone.lean`'s
+`FoldOK_of_start` passes that argument as a three-line tactic block
+(`intro n t hn; simp …`).  The brief said to report rather than edit
+`Frontend/**`, because an agent was live there; but without the edit
+`ConRonBridge` does not build and the gates cannot run, so the three lines were
+re-introduced at the new binder count (`intro t hn; simp [mkIFEnv, IEnv.empty] at hn`)
+and the fact is recorded here.  Nothing else in `Frontend/**` was touched, and
+the frontend round landed on `arena` before this branch merged forward.
+
+##### 3. `IFEnvOK_of_denote`, and the index retired
+
+The tier's item 6, open since round 1 and the single biggest thing between
+`Bridge/Checker/Fold.lean` and its bracket.  Round 4 priced it at "a ~250-line
+`mkIFEnvGo`/`List.find?` induction".  It is a hundred lines, because the right
+first move is to **retire the index entirely**:
+
+| lemma | |
+|---|---|
+| `mkIFEnvGo_fst` | the counter the build ends at is the list's length |
+| `mkIFEnvGo_snd` | **the hash map answers what `List.find?` answers** — `mkIFEnvGo` inserts from the BACK, so the front entry is inserted last and wins, which is exactly `List.find?`'s rule |
+| `mkIFEnvGo_lt` | every counter it hands out is below the list's length, so `mkIFEnv`'s own visibility bound hides nothing |
+| `mkIFEnv_find?` / `IFEnvCoh.find?` | the three together: **`fe.find? n = fe.env.find? n`** at any coherent index |
+
+After that the theorem is a statement about two LISTS, and
+`denoteCIList_find?` is the whole of it: one induction, both directions,
+`denoteCI_name_of` at each entry and `denoteN_inj` in the two negative cases
+(a handle the arena's `find?` walked past cannot be the handle of the name
+con-leche's `find?` stopped at, because the two handles would then denote the
+same name and be equal).
+
+This is con-leche's `mkFEnv_find?` at a denoted list, exactly as round 2
+predicted, and it is the one place `IFEnvCoh` is consumed rather than
+propagated.
+
+##### 4. `IFEnvOK_restrictTo`, and where `Nodup` is spent
+
+Repair 1's restated theorem, proved in the same round on §3's machinery.
+
+* `proj` is immediate: lowering the bound only ever hides
+  (`IFEnv.restrictTo_find?_le`), so `FoldOK`'s own `IFEnvOK.proj` applies;
+* `hit` and `cover` are con-leche's `idxBelow_eq` at a denoted list.
+  `mkIFEnvGo_below` and `mkIFEnvGo_below_of` turn the bounded index read into
+  `List.find?` over `cs.drop (cs.length - k)` — **the counter an entry gets is
+  the length of the list BEHIND it, so `c < k` says exactly "within the last
+  `k`"** — and then §3's `denoteCIList_find?` applies to the two DROPPED lists,
+  because the readback is elementwise and so commutes with `List.drop`.
+
+**`hnd` is spent in exactly one place**, the shadowing case of
+`mkIFEnvGo_below_of`: without it an entry of the suffix could be shadowed by an
+earlier entry with the same handle, which the index would answer with instead.
+It arrives as con-leche's own NAME uniqueness, and `denoteCIList_nodup`
+transports it to HANDLE uniqueness through `denoteN_inj` — the same role
+DESIGN §8.3 lesson 13 gives injectivity, one tier up.
+
+The statement also takes the tier's standing `.projInfo` hypothesis, for
+`denoteCIList_find?`'s use of `denoteCI_name_of`; it is the same hypothesis
+`IFEnvOK_of_denote`, `installBasisDecl_bridge` and `IConstantInfo.canonEq_run`
+take at the same gap, and the same debtor (`projTableOK_of_install`) discharges
+all four.
+
+##### 5. `Canon.lean` at zero, on three injectivity lemmas
+
+`IConstantInfo.canonEq_run`'s last arm compares two `IProjTable`s by record
+equality where `Frontend.denoteProjTable` drops `tableName`.  With repair 3's
+hypothesis it is `denoteProjTable_inj`: `IProjTableOK.named` pins `tableName`
+to `projTableName` of the denoted `structName` and every other field is
+injective.  Two of the five injectivity facts were missing and are new —
+`denoteNList_inj` (`denoteEList_inj`'s twin at the name store) and
+`denoteEArray_inj` (`denoteEList_inj` under `Array.toList`).
+
+`canonEqList_run` and `canonEqList_run_aux` carry repair 3's hypothesis at the
+list, at the same both-sides-at-once shape, with `IProjTableOK.mono` along the
+fold.
+
+##### 6. `certifyNatEqs_bridge`, and what it does NOT need
+
+A list induction over `KnotSpec.defeq` at `Bridge/Checker/Base.lean`'s
+`checkDefEqList_bridge` shape — `EqPairsDenote.mono` transports the pairing
+along the fold, one `max` over the head's fuel and the tail's,
+`isDefEqCore_mono` and `certifyNatEqs_mono` to raise each.
+
+Round 4's note said it waits on "`substConst0Pairs` and `natOpEquations`'
+exactness".  **It does not**: the theorem takes the pairing as `hden` and the
+well-scopedness as `hws`, so it is independent of how the pinned terms were
+built, and the two exactness theorems are its SIBLINGS in the `defn` arm rather
+than its premises.  That is worth recording because the same is true of
+`checkDivModPin_bridge`'s certificate loop.
+
+##### 7. The seventh statement defect: `checkValueGroup_bridge` was under-hypothesised
+
+Found by taking the proof on.  `checkValueGroup`'s FIRST operation is
+`inferTypeCore … 0 g.cvA.type`, and the only route from an arena core run to
+con-leche's is `KnotSpec.infer`, whose precondition is `Expr.WScoped 0` of the
+DENOTED argument.  Nothing in the round-1 hypotheses delivers it: `FoldOK`
+speaks about the environment and the store, not about a pending record's
+header, and the statement does not say `gP.cvA` is a constant of `env`, so
+`EnvWF`'s `hasFvar = false` clause does not reach it either.  The same holds of
+`gP.jv` at the second inference, in the `defn` and `opaque` arms where the value
+reaches `inferTypeCore` unannotated.
+
+Two clauses added, `hwsty` and `hwsjv`.  At depth 0 `WScoped` IS
+`hasFvar = false` (`Expr.WScoped.of_not_hasFvar`), which phase A's
+`installConstantVal` and `installValue` both test, so they are free at the one
+call site (`Arena.checkPending_bridge`).  This is round 4's `PinsOK` precedent —
+an under-hypothesised statement repaired in place — not a conclusion change.
+
+##### 8. What the remaining 27 wait on
+
+| where | open | waits on |
+|---|---:|---|
+| `Basis.lean` | 8 | round 4 §6's import wall, for all eight |
+| `DeclVal.lean` | 10 | the three value checks (which want `EnvWF` PRESERVATION — see below), `natOpGuard_run` / `natOpStoredOkAll_run` (`natOpTyPinned`, an expression-handle comparison over `constE`), `natOpEquations_run` / `substConst0Pairs_run` (the wall), the two pin gates, `natOpEqs_wscoped` |
+| `Split.lean` | 4 | `checkValueGroup_bridge` (§7, now well posed), `annotStep_bridge`, `checkPending_bridge`, `installThenCheck_bridge` |
+| `Pins.lean` | 3 | the wall for two, `internName_spec`'s missing persistence clause for the third |
+| `Inv.lean` | 1 | `projTableOK_of_install` — the Inductives tier's |
+| `Fold.lean` | 1 | `checkDeclStep_bridge` — the promotion tier (`IFEnvOK_of_denote` is no longer part of it) |
+
+**A finding for the next round's scheduling: the three value checks are not
+three proofs, they are one missing theorem.**  `checkDefnVal_bridge`,
+`checkThmVal_bridge` and `checkOpaqueVal_bridge` each conclude `StepOK env' fe' s'`
+at the EXTENDED environment, and `StepOK` carries `EnvWF env'`.  con-leche does
+not prove that `checkDefnVal` preserves `EnvWF` — `Verify/BridgeWfImp.lean`'s
+`checkDefnVal_wfimp` is about the fuel family, not about the invariant, and the
+model tier takes `EnvWF` as a hypothesis (`EnvModelM.toEnvFacts.wf`) rather than
+re-establishing it.  So the arena tier owes `ConstWF ⟨c :: env.consts⟩ c` for a
+`defnInfo`: the header guards and the value guards, monotone from `env` to
+`env.consts`-extended, plus `annotateCore`'s preservation of `hasFvar = false`.
+It is one lemma, shared by all three arms and by `Arena.checkDeclStep_bridge`'s
+fold, and it should be scheduled as such rather than discovered three times.
+
+##### 9. The layer, and its size
+
+Per-module `instructions:u` for `lake env lean <module>` (the measure of
+record), and the net above the import baseline:
+
+| module | instructions | net | open |
+|---|---:|---:|---:|
+| `Inv.lean` | 13.7 G | 6.1 G | 1 |
+| `Hyp.lean` | 7.8 G | 0.2 G | 0 |
+| `Decl.lean` | 7.8 G | 0.2 G | 0 |
+| `Canon.lean` | **28.1 G** | 20.5 G | **0** |
+| `Base.lean` | **24.3 G** | 16.7 G | **0** |
+| `Basis.lean` | 7.9 G | 0.3 G | 8 |
+| `DeclVal.lean` | 14.2 G | 6.6 G | 10 |
+| `Arms.lean` | 35.2 G | 27.6 G | 0 |
+| `Mono.lean` | 7.6 G | 0.0 G | 0 |
+| `Fold.lean` | 9.7 G | 2.1 G | 1 |
+| `Pins.lean` | 7.6 G | 0.0 G | 3 |
+| `Split.lean` | 12.2 G | 4.6 G | 4 |
+| `Capstone.lean` | 7.9 G | 0.3 G | 0 |
+| `Axioms.lean` | 7.9 G | 0.3 G | — |
+| **the tier's net** | | **~85 G** | **27** |
+
+The import baseline is 7.58 G, which `Mono.lean` and `Pins.lean` measure
+exactly.  Round 4's net was ~81 G, so the round adds **4.5 G**, all of it new
+proof: 1.8 G in `Split.lean` (§4's seven lemmas), 1.0 G in `Canon.lean` (§5's
+three injectivity lemmas and the last arm), 1.0 G in `Inv.lean` (§3) and 0.8 G
+in `DeclVal.lean` (§6).  **No theorem is near the 20 s flag**; the slowest
+module is still `Arms.lean` at 27.6 G net (~3.6 s), and round 3's rule —
+*never accumulate a list-indexed invariant along a do-block chain* — was
+followed throughout: §3's and §4's inductions all carry per-step facts and
+assemble once.
+
+##### 10. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 110 s) |
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 162 `sorry` warnings, of which **27** are this tier's (round 4: 169 / 31) |
+| `#print axioms` | `Bridge/Checker/Axioms.lean` lists **217 results: 204 closed** and **13 with `sorryAx`** (round 4: 194 / 179 / 15).  The thirteen are `CoreSpec.of_knot`, the seven arms, the three headline theorems, `Arena.no_proof_of_False` and `Arena.installThenCheck_bridge` — `canonEqList_run` and `IConstantInfo.canonEq_run` have left the list (§5).  None carries `CoreSpec` or `IndSpec`; no `bv_decide` axiom anywhere |
+| `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 62/242, closed 39** (round 4: 61/242 stated, 36 closed) |
+| the diff | `proof/ConRon/Bridge/Checker/**`, three prose lines of `proof/ConRon/Bridge/StateOK.lean`, three lines of `proof/ConRon/Bridge/Frontend/Capstone.lean` (§2) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
