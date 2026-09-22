@@ -46692,6 +46692,242 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
 | the merge | `arena` at `0b79feae` merged in as a fast-forward (this branch had no commit at the time), so landing is a fast-forward of `arena` onto this tip |
 | the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,SumParts,NativeParts}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, no other `Refine2/` file — in particular **not** `Specs.lean`, `ExprOps/**`, `Checker/**` or `Promote/**`, which are other agents' lanes this round |
 
+#### Round 3 — the cursor recursion factored out, and the answer to "is it the same thirty lines fifty-two times" (2026-09-22, Opus under Fable)
+
+Branch `p5-ind-3` off `arena`'s `c80e9c34`, merged forward once (`aa4c7a76`,
+task #97-P3-Ind round 4 — `Bridge/**` only, textual for this tier).  The diff
+is nine files: `proof/ConRon/Refine2/Inductives/{Shape,Spec,SumParts,
+StructParts,SumInstall,NativeParts,NativeInstall,Modeled}.lean` and this
+section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no
+`Bridge/`, no other `Refine2/` file — in particular **not** `Specs.lean`,
+`ExprOps/**`, `Checker/**` or `Promote/**`.
+
+**The tier went from 312 open `sorry` to 270 — forty-two closed**, which is
+round 2's 25 plus this round's 42 against round 1's 337.  Round 2's brief for
+this round was the 52 state-free `_refines`; **42 of them are closed and the
+other six are §R3.5's finding**.
+
+##### R3.1 THE ANSWER: no, and the number is twenty
+
+Round 2 measured one state-free `_refines` at **thirty lines** (`kinds_copy`,
+written out, then `u64_vec_dup` copied verbatim) and asked whether the block
+was "the same thirty lines fifty-two times".  It is not, and the reason is
+worth the whole round: **thirty lines was the UN-FACTORED price.**  The
+measure induction inside it is the same in every one of them, and lifting it
+out once turns the block into four recipes and a wrapper.
+
+`Refine2/Inductives/Shape.lean` grew by 545 lines and thirteen declarations,
+and every one of them is used by more than one caller:
+
+* **`cursor_induction`** — *the* induction.  A property that holds past a
+  bound and is preserved backwards by one step of a cursor holds everywhere.
+  It is stated over an arbitrary index type with a `val : ι → Nat`, because
+  the tier's cursors are `Usize` in fourteen places and `U64` in two
+  (`all_negative`, `rules_pin_ok`), and the step's induction hypothesis is
+  quantified over **every** `j` with `val j = val i + 1` rather than one
+  chosen `j`, because the port's `i + 1#usize` is a `Result` and the successor
+  is only known through `absSz_add_one`.  15 lines, used by all three shapes
+  below and by six proofs directly.
+* **`vec_cursor_copy`** — the copier.  `F` reads `xs` at the cursor, pushes
+  one element, recurses; the answer READ THROUGH THE ABSTRACTION is the
+  accumulator followed by the image of the suffix.  Two abstractions `f : β → δ`
+  and `g : α → δ` rather than one, because the port's element type is often
+  narrower than the source's (`ctors_of` drops a field, `rhss_of` keeps one),
+  and the conclusion is at `List.map` because every `absXL` of the file is
+  exactly that.
+* **`vec_cursor_all` / `vec_cursor_any`** — the scan, in both polarities:
+  `true` past the end and `false` at the first failure, or `false` past the
+  end and `true` at the first hit.  Between them they are every `*_contains`,
+  `*_any`, `*_seen` and `*_pin_ok` of the tier.
+* **the eight `arena::env` copies and comparisons** the tier inherits and had
+  been restating: `i_constant_val_dup_abs`, `eidx_vec_dup_val`,
+  `i_rec_rule_fire_dup_abs`, `i_rec_rule_dup_abs`, `i_rec_rules_dup_abs`,
+  `i_ind_caps_dup_abs`, `i_proj_table_dup_abs`, `i_constant_info_dup_abs`,
+  `i_constant_info_name_abs`; plus `nidx_eq2_abs` / `eidx_eq2_abs` (*a handle
+  comparison IS the abstraction's, at both signs*), `nidx_vec_contains_abs`,
+  `nidx_vec_beq_abs`, `filter_range_filter_ge` and the `nidx_cons` pair.
+* **`is_rec_info_abs`** — a restatement, not a duplication by accident:
+  `Refine2/Checker/Base.lean`'s `is_rec_info_refines` is closed and true, but
+  `Checker/Top.lean` imports the inductives and not the other way round, so it
+  cannot be cited from here.  Three lines.
+
+**Measured, over the 42 proofs this round closed: 1 039 proof-body lines,
+mean 24.7, median 21.**  By family:
+
+| family | how many | lines each |
+|---|---:|---|
+| a `vec_cursor_copy` instance | 7 | **20–22** |
+| a `vec_cursor_any` instance | 7 | **26–36** |
+| a `vec_cursor_all` instance | 1 | 66 (`ctors_pin_ok`, three nested tests) |
+| the wrapper at cursor 0 / 1 (`ctors_copy`, `sum_split`, `nidx_cons`, `nidx_vec_tail`, `rename_by`, `native_is_rec`) | 8 | **1–4** |
+| a record copy or completion (`inductive_shape_dup`, `native_parts_dup`, `complete`, `with_kinds`, `native_rec_lps_ok`) | 5 | 3–11 |
+| a memo probe or insert | 5 | **18** / 18–28 |
+| a bespoke cursor induction (a filter, a zip, a `Nodup`, a `find?`) | 8 | 33–59 |
+| the one deep `_unfold` (§R3.4) | 1 | 74 |
+
+So the honest sentence for scheduling is: **the state-free block is one
+545-line investment and then twenty lines apiece**, and the investment is
+already made — the four shapes above are in `Shape.lean` and the next round
+pays only the per-instance price.  `nidx_cons_from_refines` and
+`nidx_cons_refines` are literally one line each, because their content had to
+move to `Shape.lean` anyway (§R3.3).
+
+##### R3.2 What closed, file by file
+
+| file | r2 | r3 | closed |
+|---|---:|---:|---:|
+| `SumParts.lean` | 6 | **1** | 5 — everything but the file's one `Sim` |
+| `NativeParts.lean` | 66 | **53** | 13 |
+| `NativeInstall.lean` | 40 | **31** | 9 |
+| `Modeled.lean` | 92 | **84** | 8 |
+| `StructParts.lean` | 50 | **45** | 5 |
+| `SumInstall.lean` | 24 | **23** | 1 |
+| `Spec.lean` | 5 | **4** | 1 (`nativeShape_unfold`, §R3.4) |
+| the tier | **312** | **270** | **42** |
+
+`SumParts.lean` is the file to look at: **`with_sort` is all that is left of
+it**, and `with_sort` is the module's one store read.  `sum_split_from` is the
+round's prettiest proof — the port's cursor against the twin's structural
+recursion on `List ConstantInfo`, whose `[.recInfo …]` singleton pattern is
+the port's `i + 1 = block.len()` test, 59 lines.
+
+`Modeled.lean`'s eight include **`rename_by_rel`, and that is finding 15
+cashed**: `arena::inductives::modeled::RenameBy` IS the twin's partial
+application `renameBy tbl`, so the `RenameRel` hypothesis that every
+`rename_consts` statement of `Refine2/ExprOps/Mut.lean` carries is now
+discharged at this tier's every call site by a two-line lemma.
+
+##### R3.3 Five notes the next round should not rediscover
+
+* **`rw [f]` is not `rw [f.eq_def]`.**  For a `def` whose body is a `match`
+  with a catch-all, `rw [f]` picks a *conditional* equation and leaves its
+  "no other pattern applies" side condition as an extra goal at the end of the
+  proof — which surfaces as a mystifying `case x_1 : ∀ …, block = … → False`.
+  `rw [f.eq_def]` gives the whole match.  This cost an hour on
+  `nativeShape_unfold`.
+* **`subst (Result.ok_injective h)` is a syntax error**; `obtain rfl :=
+  Result.ok_injective h` is the move.
+* **A hypothesis passed to `simp` is NOT normalised first.**  `simp
+  [hmem]` uses `hmem : a ∉ (l.drop n).map f` as the rewrite `(a ∈ (l.drop
+  n).map f) = False`, and if simp's own normal form of the goal is
+  `a ∈ (l.map f).drop n` the rule never fires and the linter says
+  "unused simp argument".  State such a helper in simp's normal form
+  (`ctor_names_nodup_refines` is where this bit).
+* **`split` reaches only one side of an equation between two `if`s** — it
+  splits the first it finds.  `by_cases hc : <the condition>` and then
+  `rw [if_pos hc, if_pos hc]` (twice, once per side) is the move.
+* **A `let (a, b, c) := q` pattern in a generated body does not zeta-reduce**
+  under `simp only []`, `dsimp only` or `split`.  `ConRon.Refine.bind_eq_ok_iff`
+  sees through it (it works up to defeq) but `rw [if_pos …]` does not; the fix
+  is one `have h : <the reduced body> = ok o := h`, which typechecks by defeq.
+  `ctors_pin_ok_refines` carries it.
+* **A lemma cannot move up the file to where its consumer is.**  DESIGN §3.4
+  keeps the `_refines` file in the port's own order, and
+  `native_rec_lps_ok` stands EARLIER in `native_parts.rs` than the
+  `nidx_cons` it calls.  The content goes to `Shape.lean`
+  (`nidx_cons_from_map`, `nidx_cons_abs`) and both `_refines` become
+  one-liners citing it.
+
+##### R3.4 The deep `_unfold`s: one of the eleven is closed, and the recipe is written down
+
+Round 2 left eleven `_unfold`s of the `let x ← match … ; <more do>` shape and
+recorded that a *generic* peel does not terminate.  **`nativeShape_unfold` is
+closed**, 74 lines, and it is the pattern for the other ten:
+
+1. `rw [f.eq_def]`, then `rcases`/`cases` the block and `simp only []` to
+   iota-reduce the cased discriminant on BOTH sides (the statement's own
+   `match` does not reduce by itself);
+2. `refine am_bind_congr _ ?_` and `intro` once per bind that is shared;
+3. **at the join point, a `have hK : ∀ x, <the twin's INLINED tail> =
+   <the spec's factored tail> x`, written out by hand.**  This is the bridge
+   rule 11's `twin_reduce` cannot build, and there is no way around writing
+   the twin's tail out: the continuation the `do` elaborator pushed into every
+   arm is not a named constant.  With `hK` in hand every arm of every cased
+   discriminant closes with `twin_reduce` and `exact hK _`, and the ten-way
+   `ENodeView` dispatch is one `cases v <;> twin_reduce <;> first | exact hK _
+   | (refine am_bind_congr _ ?_; intro lvl; exact hK lvl)`.
+4. a two-sided `if` wants `by_cases` (see §R3.3), not `split`.
+
+The cost is **74 lines for a three-level peel with one join point**.
+`structShape` has eight levels and two join points and will cost two to three
+times that; the six `SpecModeled.lean` ones are the tier's longest `do`
+blocks.  Nothing in them waits on another tier.
+
+##### R3.5 THE FINDING — six state-free statements are FALSE on a 32-bit target, and the cause is a `u64 as usize` index
+
+The six of round 2's 52 that did not close are not hard; **four of them are
+not provable as written**, and the other two wait on a lemma this tier does
+not own.
+
+`Refine/Scalars.lean` (task #57) already says why, in the general: Aeneas
+models `i as usize` as `i.val % 2 ^ System.Platform.numBits`, the platform
+width is abstract (`Usize.bounds_eq`), and *"the port's guards compare the
+CAST, so on a 32-bit target a wrapped index passes a guard the cited `v[i]?`
+answers `none` at, and the refinement is genuinely false"*.  DESIGN §(c)'s
+standing treatment is a hypothesis at the lemma, discharged at the call site —
+**except where the Rust was fixed instead**, which is what task #59 finding 1
+did to `modeled.rs`'s twenty-seven casts.
+
+Four functions of this tier still have the shape, and their `_refines` are
+stated with no bound:
+
+| statement | the cast | why the statement is false without a bound |
+|---|---|---|
+| `native_parts::kind_get_d` | `ks[j as usize]` | the `else` arm is fine (`j < len` forces no wrap); the `then` arm answers `ks[j mod 2^32]` where the twin's `getD j .ordinary` answers `.ordinary` |
+| `struct_parts::used_get_d` | `used[j as usize]` | the same |
+| `struct_parts::sort_get_d` | `sorts[j as usize]` | the same |
+| `native_parts::rules_pin_ok` | `rules[j as usize]`, `cs[j as usize]` (six casts) | `j` is universally quantified and only bounded by `n`, which is also universally quantified |
+
+**Nothing was weakened and nothing was closed vacuously**: the four are left
+`sorry` and the decision is Fable's, because it is the same decision task #59
+took and there are two answers.  The bound each needs is exactly
+`absU j ≤ Std.Usize.max`, and **every call site can discharge it** — in
+particular `native_rec_pin_ok`'s call `rules_pin_ok v2 v1 n 0` has
+`n = p.ctors.len() as u64`, so `j ≤ n ≤ Usize.max` by `Vec.property` — which
+is why the fifth of the six, **`native_parts::native_rec_pin_ok`, waits on
+`rules_pin_ok` and on nothing else**.  If the Rust is the thing to fix
+(`kind_get_d(ks, j : u64)` narrowing to a `usize` cursor the way
+`core_k::take_exprs_n` did), that is a Rust change and outside this lane.
+
+The sixth is different and is an obligation, not a defect:
+**`sum_install::cons_sum_ctors` and `sum_install_f::cons_sum_ctors_f` wait on
+an `ifenv_push` lemma that does not exist anywhere in `Refine2/`** — *`IFEnvRel
+rf lf → IFEnvInv rf → ifenv_push rf ci = ok rf' → IFEnvRel rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf'`*.
+`IFEnvRel` and `IFEnvInv` are `Refine2/Checker/Shape.lean`'s, the index insert
+is `HashMap2`'s, and `Refine2/Promote/Promote.lean` is where the environment's
+other structural lemmas live.  **It belongs to whoever owns `Checker/**` or
+`Promote/**`; it is not this tier's to re-derive**, and it unblocks every
+`cons_*` fold of the install routes, not just these two.
+
+##### R3.6 What the next round needs, and from whom (unchanged where round 2 said it)
+
+* **`Refine2/Specs.lean`'s `intern_*` / `read_*` `_run` family** is still the
+  number to schedule by: 248 of the tier's 306 `_refines` wait on it, and this
+  round did not change that — the 42 closed here are exactly the ones that did
+  not.  What is left of the state-free block is §R3.5's six.
+* **`ifenv_push`** (§R3.5) — `Checker/**` or `Promote/**`.
+* **`openPisAtFvarsF_length`** — round 2's R2.7 obligation, unchanged:
+  `nativeOpenedOk_unfold` is still not a pure regrouping and is still left
+  `sorry` rather than weakened.  (This round re-read the twin and confirms
+  round 2's reading: `Arena/Inductives/NativeInstall.lean:136-174` dispatches
+  on two scrutinees and answers `false` off the end of `xFvs`, where
+  `Spec.lean`'s `nativeFieldsAtSpec` reads the variable totally.)
+* **The ten remaining deep `_unfold`s** need nobody: §R3.4 is the recipe and
+  the only cost is lines.
+* **A decision on §R3.5's four casts** — a hypothesis at the lemma, or a
+  narrowing in the Rust.
+
+##### R3.7 The gates, at the tip
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK** |
+| `cd proof && lake build ConRonRefine2` | green, **2 221 jobs**, 0 errors — run explicitly, it is not a default target |
+| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 11** (was 2); the tier's `sorry` count 312 → **270** |
+| the merge | `arena` at `aa4c7a76` merged in cleanly (`Bridge/**` and `DESIGN.md` only, textual for this tier), so landing is a fast-forward |
+| the diff | the eight `Refine2/Inductives/*.lean` above and this section |
+
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
 
 #### Round 4 — the installs read back, FOUR more statement defects, and the three name lemmas moved down (2026-09-22, Opus under Fable)
