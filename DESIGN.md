@@ -39448,13 +39448,13 @@ import.  **No Rust file, no generated model, no `Arena/`, no `Refine/`, no
 | `Bridge/Frontend/ProjRec.lean` — the projection rewrite and the owner census | 234 | 203 | 10 | 10 | 0.9 s |
 | `Bridge/Frontend/Shared.lean` — `denoteEShared = denoteE`, and the intern | 237 | 192 | 16 | 10 | 0.8 s |
 | `Bridge/Frontend/Modeller.lean` — the seam's two promises | 147 | 122 | 5 | 2 | 0.8 s |
-| `Bridge/Frontend/Lines.lean` — one scanned line, applied | 378 | 332 | 20 | 13 | 0.9 s |
+| `Bridge/Frontend/Lines.lean` — one scanned line, applied | 406 | 357 | 23 | 13 | 0.9 s |
 | `Bridge/Frontend/Chunks.lean` — **the parser's exactness** | 289 | 249 | 12 | 8 | 0.9 s |
 | `Bridge/Frontend/Prepare.lean` — the two permuting passes, and the prelude | 247 | 209 | 11 | 8 | 0.8 s |
 | `Bridge/Frontend/Capstone.lean` — **`Arena.no_False_declaration`** | 279 | 233 | 7 | 5 | 0.8 s |
-| `Bridge/Frontend/Axioms.lean` — the trust census | 116 | 87 | — | 0 | 0.8 s |
+| `Bridge/Frontend/Axioms.lean` — the trust census | 122 | 91 | — | 0 | 0.8 s |
 | the index module | 73 | 63 | — | 0 | 0.8 s |
-| **the tier** | **2 669** | **2 285** | **127** | **56** | **~9 s** |
+| **the tier** | **2 703** | **2 314** | **130** | **56** | **~9 s** |
 
 **No theorem is near the 20 s flag**, and no module is: the slowest is
 `Rel.lean` at 1.2 s against an import baseline of ~0.8 s, so the tier's own
