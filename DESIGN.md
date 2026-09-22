@@ -39476,7 +39476,7 @@ function, on con-leche's own `ByteArray`, returning con-leche's own
 `LineRec`.  There is no twin, so there is nothing to prove.  The original
 campaign needed
 `RefineOld/Frontend/Scan{WF,Kit,Str,Obj,Expr,Ind,Line}.lean` — **seven files,
-~16 000 lines**, with two standing obligations (`Utf8DecodeSpec`,
+17 479 lines**, with two standing obligations (`Utf8DecodeSpec`,
 `UnescapeSpec`, `ScanStr.lean:1371/1379`) discharged as theorems at
 `ScanStr.lean:2548/3084` — for exactly this.  A Lean twin may CALL con-leche
 where a Rust port must re-implement.

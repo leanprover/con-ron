@@ -35,7 +35,7 @@ Nine modules, in dependency order:
 function, on con-leche's own `ByteArray`, returning con-leche's own `LineRec`.
 There is no twin, so there is nothing to prove.  The original campaign needed
 `RefineOld/Frontend/Scan{WF,Kit,Str,Obj,Expr,Ind,Line}.lean` — seven files,
-~16 000 lines, and two standing obligations (`Utf8DecodeSpec`,
+17 479 lines, and two standing obligations (`Utf8DecodeSpec`,
 `UnescapeSpec`) — for exactly this.  **That is the largest single saving of
 the arena rewrite's proof**, and it is a consequence of (B) being written in
 Lean: a Lean twin may CALL con-leche where a Rust port must re-implement.

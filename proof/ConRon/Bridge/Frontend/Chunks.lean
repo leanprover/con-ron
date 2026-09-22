@@ -16,7 +16,7 @@ by `parseBytes` and not by `parseChunks`.
 `ConLeche.Frontend.Scan.Fast` and calls `scanLineFwd` — con-leche's own
 function on con-leche's own `ByteArray`, returning con-leche's own `LineRec`.
 There is no twin, so there is nothing to relate: where the original campaign
-needed five files and ~15 000 lines (`RefineOld/Frontend/Scan{Kit,Str,Obj,
+needed seven files and 17 479 lines (`RefineOld/Frontend/Scan{WF,Kit,Str,Obj,
 Expr,Ind,Line}.lean`, plus `Utf8DecodeSpec` and `UnescapeSpec` as named
 obligations), this tier needs **zero**.  That is the single largest saving of
 the arena rewrite's proof, and it is a consequence of (B) being Lean: a Lean

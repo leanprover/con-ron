@@ -39,8 +39,8 @@ does con-leche's, so the hypothesis is literally
 `ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks)`.
 
 **No scanner tier.**  The twin CALLS `scanLineFwd`; the port had to
-re-implement it, and proving the re-implementation right was five files and
-~15 000 lines with two standing obligations (`Utf8DecodeSpec`,
+re-implement it, and proving the re-implementation right was seven files and
+17 479 lines with two standing obligations (`Utf8DecodeSpec`,
 `UnescapeSpec`).  Neither obligation exists here.
 
 ## The named hypotheses
