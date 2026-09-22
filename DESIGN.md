@@ -35358,7 +35358,7 @@ construction (`pushBM` builds `Idx.mk 0 tier _`, and `Handle.lean`'s
 
 | gate | |
 |---|---|
-| `cd proof && lake build ConRonArena con-ron-lean` (`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`) | green, 194 jobs; every `#guard` in `StoreTest`, `ExprOpsTest`, `CoreTest`, `CheckerTest`, `InductivesTest` and `Frontend/ProjRecTest` elaborates `true` |
+| `cd proof && lake build` | **green, all 2 706 jobs**, 0 errors — the arena library, the executable, and the untouched `ConRon` refinement tower.  Every `#guard` in `StoreTest`, `ExprOpsTest`, `CoreTest`, `CheckerTest`, `InductivesTest` and `Frontend/ProjRecTest` elaborates `true` |
 | `scripts/provenance.py check` | **0 findings** — `7 041 item(s) (4 981 Rust, 2 060 arena Lean), 5 132 citation(s), all current at pin 78ded4b6` |
 | `scripts/overview-links.sh` | 70 links, 36 files, OK |
 | `scripts/holes.sh --check` | 2 type(s), 21 fn(s), OK |
