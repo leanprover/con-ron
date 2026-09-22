@@ -48,6 +48,13 @@ theorem viewN_run {s s' : AState} {h : NIdx} {v : NNodeView}
     (hrun : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v :=
   AM.of_run (P := fun t => t = s) rfl hrun (viewN_spec s h)
 
+/-- con-leche: none — `view_run`: the store's own decoding, off
+`Bridge/Specs.lean`'s triple.  `Bridge/Inductives/Rel.lean` has the same
+four-line bridge; the frontend cone does not import it. -/
+theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
+    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
+
 /-- con-leche: none — `viewLs` in run form, off `Bridge/Specs.lean`'s
 triple. -/
 theorem viewLs_run {s s' : AState} {h : LsIdx} {v : LsNodeView}
@@ -232,27 +239,179 @@ theorem isProjIotaName_run {s s' : AState} (hok : StateOK s) {n : NIdx}
     obtain ⟨p, rfl, -⟩ := view_str_of_denoteN hw hview1 hn
     exact hne p rfl
 
+/-- con-leche: none — the length of a level-handle list is the length of its
+denotation, which is all `projIotaLevel`'s singleton guard reads of it. -/
+theorem denoteLList_length {st : LStore} :
+    ∀ {vs : List LIdx} {xs : List Level},
+      denoteLList st vs = some xs → vs.length = xs.length := by
+  intro vs
+  induction vs with
+  | nil =>
+    intro xs h
+    obtain rfl : xs = [] := (Option.some.inj h).symm
+    rfl
+  | cons a as ih =>
+    intro xs h
+    rw [denoteLList, opt2_eq_some_iff] at h
+    obtain ⟨u, us, -, hus, rfl⟩ := h
+    simp only [List.length_cons, ih hus]
+
+/-- con-leche: none — a SINGLETON level-handle list denotes a singleton, which
+is what `projIotaLevel`'s universe-argument guard asks. -/
+theorem denoteLList_singleton {st : LStore} {l : LIdx} {xs : List Level}
+    (h : denoteLList st [l] = some xs) :
+    ∃ u, denoteL st l = some u ∧ xs = [u] := by
+  rw [denoteLList, denoteLList, opt2_eq_some_iff] at h
+  obtain ⟨x, y, hx, hy, hxy⟩ := h
+  exact ⟨x, hx, by rw [← hxy, ← Option.some.inj hy]⟩
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:120-125 projIotaLevel — the
+definition as ONE match on the head of the result's application spine, so a
+proof that knows that head by an equation can rewrite it in and reduce.  `rfl`;
+it exists because `rw` at the recursor's own equations picks the fallback
+clause and leaves its side condition. -/
+theorem clProjIotaLevel_eq (e : Expr) :
+    ConLeche.Frontend.projIotaLevel e =
+      match e.piResult.getAppFn with
+      | .const n [l] => if n == ConLeche.eqName then some l else none
+      | _ => none := rfl
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:120-125 projIotaLevel — the
+walk's `none` arms, once: the state does not move and both sides answer
+`none`. -/
+theorem projIotaLevel_none {s s' : AState} (hok : StateOK s) {o : Option LIdx}
+    {e : Expr} (hrest : (pure none : AM (Option LIdx)) s = .ok (o, s'))
+    (hcl : ConLeche.Frontend.projIotaLevel e = none) :
+    ParseStep s s' ∧ (∀ l, o = some l → PersL l) ∧
+      OptRel (fun (l : LIdx) (u : Level) => denoteL s'.store.ls l = some u) o
+        (ConLeche.Frontend.projIotaLevel e) := by
+  obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+  subst hv; subst hs
+  exact ⟨ParseStep.refl hok, by intro l hl; exact absurd hl (by simp),
+    by rw [hcl]; exact OptRel.refl_none⟩
+
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:122 projIotaLevel — the field's
 sort, off the iota artifact's type.
 
-`sorry`: `stripPisAll_run` and one `viewE`; the level is a handle the walk
-returns, so the answer relation is `RelE` at `denoteL`.  Task
-#97-P3-Frontend's sorry list, item 10. -/
-theorem projIotaLevel_run {s s' : AState} (hok : StateOK s) {fuel : Nat}
+**Round 4's finding 15 — the frame was too strong to be true.**  Round 1 said
+`s' = s`, and the walk's last step is `internName ConLeche.eqName`: the twin
+SPEAKS the name `Eq` in order to compare the head constant against it, and
+speaking a name means interning it (`Arena/Frontend/ProjRec.lean`'s module
+note, third bullet).  On a store that does not already hold `Eq` the run
+extends the arena, so `s' = s` is not true of it.  The honest frame is
+`ParseStep`, which is what the one consumer (`noteProjIota`,
+`Arena/Frontend/ExportC.lean:325-334`) can carry: it inserts the answer into
+`StateD.projLevels`, whose relation is read at the state the step LEAVES.
+
+The answer is stated as an `OptRel` and **not** as the accept direction alone,
+because `projLevels` is a `MapRel` and `MapRel`'s `cover` clause reads the
+`none` case: a level con-leche registers and the twin does not would break it.
+That is the one place in this module where `denoteN_inj` (DESIGN §8.3's
+exactness obligation) is load-bearing — the twin compares HANDLES where
+con-leche compares names, and only injectivity rules out a twin miss at a
+con-leche hit.
+
+`piResult_run` and `getAppFn_run` are read-only (`Bridge/ExprOps/Spine.lean`),
+and the level is a handle the walk was already holding, so no level algorithm
+is related at all (DESIGN §8.3 lesson 4). -/
+theorem projIotaLevel_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {fuel : Nat}
     {ty : EIdx} {tyP : Expr} (hty : denoteE s.store ty = some tyP)
     {o : Option LIdx} (hrun : projIotaLevel fuel ty s = .ok (o, s')) :
-    s' = s ∧ ∀ l, o = some l → ∃ u, denoteL s.store.ls l = some u ∧
-      ConLeche.Frontend.projIotaLevel tyP = some u := by
-  sorry
+    ParseStep s s' ∧ (∀ l, o = some l → PersL l) ∧
+      OptRel (fun (l : LIdx) (u : Level) => denoteL s'.store.ls l = some u) o
+        (ConLeche.Frontend.projIotaLevel tyP) := by
+  have hwf : StoreWF s.store := hok.wf
+  rw [ConRon.Arena.Frontend.projIotaLevel] at hrun
+  obtain ⟨r, s₁, hpi, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, hdr⟩ := piResult_run hok hty hpi
+  obtain ⟨f, s₂, hgf, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨rfl, hdf⟩ := getAppFn_run hok hdr hgf
+  obtain ⟨v, s₃, hv, hrest3⟩ := AM.bind_ok hrest2
+  obtain ⟨rfl, hview⟩ := view_run hv
+  match v, hview with
+  | .const n us, hview =>
+    obtain ⟨nm, ls, hcl, hdn, hdls⟩ := denote_const_inv hwf hview hdf
+    obtain ⟨vs, s₄, hvls, hrest4⟩ := AM.bind_ok hrest3
+    obtain ⟨rfl, hviewls⟩ := viewLs_run hvls
+    have hdll := hdls
+    simp only [denoteLs, hviewls] at hdll
+    match vs, hdll with
+    | [l], hdll =>
+      -- the singleton: the twin compares HANDLES where con-leche compares names
+      obtain ⟨u, hdu, rfl⟩ := denoteLList_singleton hdll
+      obtain ⟨eqH, s₅, hin, hrest5⟩ := AM.bind_ok hrest4
+      obtain ⟨histep, -, hdeq⟩ := internName_istep hok hoff hin
+      obtain ⟨hvv, hss⟩ := AM.pure_ok hrest5
+      subst hss
+      by_cases hn : n = eqH
+      · -- the handles agree, so the names do
+        subst hn
+        have hnm : nm = ConLeche.eqName :=
+          Option.some.inj ((denoteN_ext hdn histep.ext).symm.trans hdeq)
+        subst hnm
+        simp only [beq_self_eq_true, if_true] at hvv
+        subst hvv
+        refine ⟨histep.toParse hoff, ?_, ?_⟩
+        · intro l' hl'
+          obtain rfl : l' = l := (Option.some.inj hl').symm
+          obtain ⟨w, hw⟩ := Arena.denoteL_view hdu
+          exact PersL_of_view hwf hoff hw
+        · rw [clProjIotaLevel_eq, hcl]
+          simp only [beq_self_eq_true, if_true]
+          exact denoteL_ext hdu histep.ext
+      · -- the handles differ, so the names do — **`denoteN_inj`**
+        have hnm : nm ≠ ConLeche.eqName := by
+          intro hcon
+          subst hcon
+          exact hn (Arena.denoteN_inj (nsWF_of_StateOK histep.ok)
+            (denoteN_ext hdn histep.ext) hdeq)
+        rw [if_neg (by simpa using hn)] at hvv
+        subst hvv
+        refine ⟨histep.toParse hoff,
+          by intro l' hl'; exact absurd hl' (by simp), ?_⟩
+        rw [clProjIotaLevel_eq, hcl]
+        simp only [beq_iff_eq, hnm, if_false]
+        exact OptRel.refl_none
+    | [], hdll =>
+      rw [denoteLList] at hdll
+      obtain rfl : ls = [] := (Option.some.inj hdll).symm
+      exact projIotaLevel_none hok hrest4 (by rw [clProjIotaLevel_eq, hcl])
+    | a :: b :: t, hdll =>
+      obtain ⟨x, y, z, rfl⟩ : ∃ x y z, ls = x :: y :: z := by
+        have hlen := denoteLList_length hdll
+        match ls, hlen with
+        | x :: y :: z, _ => exact ⟨x, y, z, rfl⟩
+      exact projIotaLevel_none hok hrest4 (by rw [clProjIotaLevel_eq, hcl])
+  | .bvar i, hview =>
+    exact projIotaLevel_none hok hrest3
+      (by rw [clProjIotaLevel_eq, denote_bvar_inv hwf hview hdf])
+  | .fvar k t, hview =>
+    obtain ⟨_, hs, -⟩ := denote_fvar_inv hwf hview hdf
+    exact projIotaLevel_none hok hrest3 (by rw [clProjIotaLevel_eq, hs])
+  | .sort u, hview =>
+    obtain ⟨_, hs, -⟩ := denote_sort_inv hwf hview hdf
+    exact projIotaLevel_none hok hrest3 (by rw [clProjIotaLevel_eq, hs])
+  | .lit l, hview =>
+    exact projIotaLevel_none hok hrest3
+      (by rw [clProjIotaLevel_eq, denote_lit_inv hwf hview hdf])
+  | .app g a, hview =>
+    obtain ⟨_, _, hs, -, -⟩ := denote_app_inv hwf hview hdf
+    exact projIotaLevel_none hok hrest3 (by rw [clProjIotaLevel_eq, hs])
+  | .lam t bd m, hview =>
+    obtain ⟨_, _, hs, -, -⟩ := denote_lam_inv hwf hview hdf
+    exact projIotaLevel_none hok hrest3 (by rw [clProjIotaLevel_eq, hs])
+  | .forallE t bd m, hview =>
+    obtain ⟨_, _, hs, -, -⟩ := denote_forallE_inv hwf hview hdf
+    exact projIotaLevel_none hok hrest3 (by rw [clProjIotaLevel_eq, hs])
+  | .letE t w bd, hview =>
+    obtain ⟨_, _, _, hs, -, -, -⟩ := denote_letE_inv hwf hview hdf
+    exact projIotaLevel_none hok hrest3 (by rw [clProjIotaLevel_eq, hs])
+  | .proj nn i sub, hview =>
+    obtain ⟨_, _, hs, -, -⟩ := denote_proj_inv hwf hview hdf
+    exact projIotaLevel_none hok hrest3 (by rw [clProjIotaLevel_eq, hs])
 
 /-! ## The term walks -/
-
-/-- con-leche: none — `view_run`: the store's own decoding, off
-`Bridge/Specs.lean`'s triple.  `Bridge/Inductives/Rel.lean` has the same
-four-line bridge; the frontend cone does not import it. -/
-theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
-    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
-  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
 
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:228 occursConstFast — the
