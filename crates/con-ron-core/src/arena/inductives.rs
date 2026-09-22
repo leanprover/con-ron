@@ -65,7 +65,7 @@ pub const M_NUM_PARAMS: [u32; 29] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Checker.lean:440-609 checkDecl
-/// Lean twin: `proof/ConRon/Arena/Inductives.lean:38-44 checkIndDecl` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives.lean:30-45 checkIndDecl` — the
 /// `.indDecl` arm: **the declared parameter count first, and for both routes**
 /// (con-leche's task #228; `indParamsOk` is official's own check, one-sided,
 /// so a `false` is official's reject), then ONE ROUTE (task #210) — the

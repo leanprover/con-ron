@@ -78,7 +78,7 @@ separately.  The STATEMENT is the deliverable, and it elaborates — which is
 what makes it worth anything.  The `Specs.lean` primitives each group waits on
 are named in its section note.
 -/
-import ConRon.Refine2.Shape
+import ConRon.Refine2.Specs
 import ConRon.Arena.ExprOps
 
 open Aeneas Aeneas.Std Result

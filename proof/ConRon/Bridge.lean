@@ -32,7 +32,11 @@ order.
   `Arena/Inductives/**`'s ~110 twins and `checkIndDecl_bridge`, which
   discharges the `Bridge/Checker/Hyp.lean` hypothesis `IndSpec`.  It imports
   `Bridge/Checker/Hyp.lean` and **not** `Bridge/Checker/Fold.lean`, because
-  the checker tier's `.indDecl` arm will import it back.
+  the checker tier's `.indDecl` arm will import it back;
+* `Bridge/Frontend.lean` — **the frontend tier and the BYTE-LEVEL capstone**
+  (task #97-P3-Frontend): the parse-state relation, DESIGN §8.2's parser
+  statement `denoteDecls (Arena.parse chunks) = parseChunks chunks`, and
+  `Arena.no_False_declaration` with its `_prelude` and `_pipeline` letters.
 It imports `ConRon.Arena` and con-leche and **nothing else**: no
 `ConRon.Refine`, no `ConRon.Generated`, no Aeneas, no Mathlib.  `mvcgen`
 comes from `Std.Tactic.Do`, which is in core.
@@ -71,4 +75,5 @@ import ConRon.Bridge.Core
 import ConRon.Bridge.Promote
 import ConRon.Bridge.Checker
 import ConRon.Bridge.Inductives
+import ConRon.Bridge.Frontend
 import ConRon.Bridge.Axioms
