@@ -45669,7 +45669,8 @@ large block with no external blocker, and it is what stands between
 | gate | result |
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 616 jobs** (605 at the end of round 1; the eleven are other tiers' new modules, not §R2.5's import, which adds none) |
-| `scripts/gates.sh` | **all 13 OK** |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 103 s, `lake-build` 405 s; the other eleven under 10 s each).  Note `lake build`'s default targets are `ConRon`/`ConRonSpike`/`ConRonArena` and `ConRon.lean` does not import `ConRon.Bridge`, so **the gate does not build this tier** — the row above is what does, and it is run explicitly |
+| `scripts/arena-census.py` (printed by the gates) | `Arena/Inductives`: 130 twins, **T1 stated 127/130, T1 closed 29** |
 | `#print axioms` | `Bridge/Inductives/Axioms.lean`: **72 closed results** (22 after round 1), every one `[propext, Classical.choice, Quot.sound]`; only `checkIndDecl_bridge` and `indSpec_of_bridge` carry `sorryAx`.  No `bv_decide` axiom |
 | per-theorem elaboration | nothing above **2.2 s** in the whole tier (`Rel.lean`, which is now 1 156 lines); the 20 s flag is not approached |
 | the diff | `proof/ConRon/Bridge/Inductives/{Rel,StructParts,SumParts,NativeParts,StructInstall,NativeInstall,Decl,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no other `Bridge/` module — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
