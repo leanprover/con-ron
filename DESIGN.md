@@ -43560,3 +43560,34 @@ The two that DO carry `sorryAx` and should: `whnfLoop_spec` and
    and whose merge (`iotaCertsFueled_mono`) is also in hand.
 4. The `SpecsL.lean` conjunct of §5.3, in a window where `Bridge/ExprOps/**`
    is quiet.
+
+#### 10. The two arena merges, and what task #97-P5-Core-2's twin edit does to this tier
+
+`arena` moved twice while this branch ran: to **`2fca3435`** (task #97-CENSUS's
+`scripts/arena-census.py`, the wf-ext follow-up's `Arena/{WFProofs,PromoteExt}.lean`,
+task #97-P3-Frontend-2's `Bridge/Frontend/**` and `Bridge/Store{Nested,Bind}.lean`)
+and then to **`d9f38ae8`** (task #97-P5-3's `Refine2/ExprOps/Read.lean` and task
+#97-P5-Core-2's §11(b) twin edit to `Arena/CoreGated.lean`).  Both merged with
+one conflict each, in DESIGN.md's task log, resolved append-both.
+
+**Neither broke anything here, and the second one is worth a sentence of its
+own** because the coordinator asked for it specifically.  §11(b) moves
+`coreKnotGated`'s stuck-tag test into the `| fuel + 1 =>` branch and makes
+`| 0 =>` the unconditional `fail` the port's `fuel = 0` arm is.  **No walk and
+no `…_mono` of this tier carries a fuel-positivity or stuck-tag side
+condition**, for three structural reasons:
+
+* `Bridge/Core/**` is stated at `coreKnot`, the UNGATED knot, and never
+  mentions `coreKnotGated`, `LANE_GATED` or a lane at all — `KnotSpec` has no
+  fuel side condition and `knotSpec_zero` covers `f = 0` vacuously, because a
+  `fail` returns nothing and `⇓?` claims nothing of it;
+* `Bridge/Core/Memo.lean`'s stuck-tag lemmas are about the ungated knot's own
+  INLINE probe (task #97c's deviation 6), which the twin edit does not touch;
+* `Bridge/Core/Walks/Mono.lean` mentions no arena state whatsoever — it is
+  pure con-leche over `Verify/PairM.lean`, so it cannot carry such a clause
+  even in principle.
+
+So there is nothing stale to unwind, nothing becomes unconditional, and
+**nothing got harder** — the edit needs no companion lemma at this tier.
+`lake build ConRonBridge` on the twice-merged tree is green at 615 jobs, with
+the `sorry` list of §6 unchanged.
