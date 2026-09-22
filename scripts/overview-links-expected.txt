@@ -35,7 +35,7 @@
    116        let ds := preparePrelude pre r.decls
    117        checkDecls .verified pins ds) = .error e := by
 
-== proof/ConRon/Refine/Installed.lean#L3289-L3305
+== proof/ConRon/RefineOld/Installed.lean#L3289-L3305
   3289  theorem check_decls_refines {mode : env.CheckMode}
   3290      (hk : Core.KnotSpec mode IndAbs.checkFuelU)
   3291      (hraw : CheckerDecl.BasisRawSpec)
@@ -62,7 +62,7 @@
     91      Native(Vec<u32>),
     92  }
 
-== proof/ConRon/Refine/Main.lean#L730-L746
+== proof/ConRon/RefineOld/Main.lean#L730-L746
    730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
    731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
    732      (hgen : Frontend.ModellerWF inst g)
@@ -103,140 +103,131 @@
     19  //! uniform block costs them nothing).
     20  //!
 
-== crates/con-ron/src/bin/con-ron.rs#L130-L254
-   130  const USAGE: &str = "\
-   131  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-   132                 [--progress[=<stride>]] [--pins FILE|--no-pins]
-   133                 FILE.ndjson
-   134         con-ron --help
-   135  
-   136    --verified        the default, and the mode the main theorem is about: every
-   137                      environment the fold accepts in this mode has a model in
-   138                      every set theory (ConLeche.model_exists,
-   139                      ConLeche/MainTheorem.lean), so a stream declaring a
-   140                      theorem of type False is never accepted
-   141                      (ConLeche.no_False_theorem_accepted).  What the port
-   142                      proves is that same statement about THIS program's
-   143                      pipeline, from the file's bytes to the fold
-   144                      (conron.no_False_declaration, OVERVIEW.md section 3).
-   145    --trusted         the unverified mode: the SAME checker bodies at the mode
-   146                      with the certification-only work switched off.  An accept
-   147                      in this mode is outside the theorem.
-   148    --jobs=<n>        the check phase's worker count: <n> workers claim records
-   149                      one at a time off a shared counter, and --jobs=1 runs the
-   150                      plain loop with no counter and no result table.  The
-   151                      verdict, and the declaration a rejection names, are the
-   152                      same at every <n>: the results are walked in RECORD order,
-   153                      so the first failing record in fold order is the one
-   154                      reported.  Each worker reserves 1 GiB of address space for
-   155                      its stack, so a run under `ulimit -v` needs 3x the
-   156                      checker's resident set plus a gigabyte per worker; the
-   157                      DEFAULT is one worker per hardware thread capped at 16 for
-   158                      that reason (con-leche's uncapped default aborts on a
-   159                      96-thread machine).  0 or a non-numeral is a usage error,
-   160                      as in con-leche.
-   161    --no-mark-persistent
-   162                      ACCEPTED AND A NO-OP: the mark it turns off is a
-   163                      Lean-runtime reference-counting device
-   164                      (Runtime.markPersistent), and this program's counts are
-   165                      std::sync::Arc counts -- atomic by type, in every lane,
-   166                      with no runtime mark to clear.  A run that passes it says
-   167                      so on stderr.
-   168    --progress[=<stride>]
-   169                      opt-in progress heartbeat on STDERR, one line shape per
-   170                      phase:
-   171                        con-ron: parse done: <N> fold records ... t=<s>s
-   172                        con-ron: install <i>/<N> <decl> t=<s>s
-   173                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
-   174                        con-ron: check <done>/<M> <kind> <name> t=<s>s
-   175                        con-ron: check done: <M>/<M> t=<s>s
-   176                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
-   177                      An install line is printed BEFORE every <stride>-th
-   178                      declaration is installed (<i> is its FOLD position, which
-   179                      the stream's record index sits near but not at a fixed
-   180                      offset above), so a run that dies in the install phase
-   181                      names the declaration it died in on its last line.  A
-   182                      check line is printed AFTER every <stride>-th COMPLETED
-   183                      check.  On a failure the phase's closing line says so
-   184                      ('install failed at', 'check failed at') and the summary
-   185                      still prints.  Bare --progress is stride 1; a stride that
-   186                      is not a decimal numeral, or 0, is a usage error.
-   187    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-   188                      `con-ron-pins/1` dump instead of the core's own embedded
-   189                      text (task #43), through the UNVERIFIED reader.
-   190    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
-   191                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
-   192                      declines.  Neither flag is needed for a normal run: the
-   193                      pins are con-leche's `natOpPinSets`, embedded in the
-   194                      verified core and decoded by it.
-   195    --help            print this text on STDOUT and exit 0, in any argument
-   196                      position; no input is read.  Its last line names the
-   197                      global allocator THIS binary was built with (below), so a
-   198                      measurement can be reproduced.
-   199  
-   200  build-time selection (cargo features, not command-line flags): the global
-   201  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
-   202  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
-   203  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
-   204  The mimalloc one is `con_ron_dump::MiMallocTight`, which enters mimalloc by
-   205  `mi_malloc` rather than `mi_malloc_aligned` for word-aligned requests: -4.5 %
-   206  instructions and -7.4 % wall against the `mimalloc` crate's own entry (task
-   207  #92), and one size class back for anything 42 to 48 bytes wide.
-   208  
-   209  Any other option is a usage error: the run reports it, prints this text and
-   210  exits 3 without reading its input.
-   211  
-   212  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
-   213  An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
-   214  runtime's own panic, and this program instead aborts the way Rust aborts on a
-   215  failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
-   216  shell reports as 134).  A panic is exit 3.
-   217  
-   218  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
-   219  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
-   220  built-in prelude's own records are not counted, and neither are the records
-   221  the in-process modeller generates; a stream record that declares a prelude
-   222  declaration IS counted -- the preparation moves it to the front rather than
-   223  dropping it, and it is what installs.  That count is a property of the INPUT.
-   224  The number of environment CONSTANTS is not: an inductive record installs
-   225  several constants (type former, constructors, recursor, projection table), so
-   226  it moves when the representation moves.
-   227  
-   228  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
-   229  checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
-   230  Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
-   231  time -- so the pin-certified Nat operations find their ground whatever order
-   232  the export chose.  The stream's OWN copy of a prelude declaration is moved to
-   233  the front in the prelude's order, and only the prelude records the stream does
-   234  not declare are synthesised; a pinned operation's stream-certified structural
-   235  ground (Nat.ble, Nat.sub, Nat.mul) is HOISTED ahead of the operation when the
-   236  stream declares it later.  All of that is one pure total function from the
-   237  file's records to the fold's input (con_ron::frontend::prepare); the parse
-   238  itself only decodes, and recognising a block as a pinned basis block or a
-   239  record as the quotient package's is the FOLD's.
-   240  
-   241  environment (con-leche's):
-   242    CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
-   243                                 nested block is then pushed bare and the FOLD
-   244                                 declines it, having found no route
-   245    CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
-   246                                 after the parse and stop (exit 2)
-   247    CON_LECHE_PROJREC_TRACE      name each rewritten projection function
-   248  These are the in-process modeller's debug switches and they go with it: no
-   249  environment variable this program reads can shape a verdict, which is
-   250  con-leche's own rule -- every such switch is a command-line flag.
-   251  
-   252  NOT PORTED: CON_LECHE_INMODEL_DUMP, the debug splice of the generated records
-   253  into a copy of the input -- it is written through con-leche's annotated-NDJSON
-   254  writer (`Frontend/ExportWrite.lean`), an output path this checker does not
+== crates/con-ron/src/bin/con-ron.rs#L87-L202
+    87  const USAGE: &str = "\
+    88  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+    89                 [--progress[=<stride>]] [--pins FILE|--no-pins]
+    90                 FILE.ndjson
+    91         con-ron --help
+    92  
+    93    (C), the Rust arena checker of con-ron's DESIGN.md section 8: con-leche's
+    94    pure checker over an append-only DAG of per-constructor handle arrays, with
+    95    con-leche's command line and con-leche's exit codes, so that
+    96    scripts/diff-e2e.sh can run the same 383 fixtures against this binary and
+    97    the Lean twin `con-ron-lean` alike.  A term is a u32 handle into a Vec: on
+    98    the checking path there is no Arc, no tagged pointer and no reference count
+    99    at all.  (The PINNED DATA the checker compares against is still
+   100    con-leche's own constants as Expr values, interned into the persistent tier
+   101    once at startup -- crates/con-ron-core/src/lib.rs says why.)
+   102  
+   103    --verified        the default, and the mode the main theorem is about: every
+   104                      environment the fold accepts in this mode has a model in
+   105                      every set theory (ConLeche.model_exists), so a stream
+   106                      declaring a theorem of type False is never accepted.  What
+   107                      the arena rewrite proves is that same statement about this
+   108                      program's pipeline; the proof itself is phases P3 and P5
+   109                      (DESIGN.md section 8.6) and is NOT done.
+   110    --trusted         the unverified mode: the SAME checker bodies at the mode
+   111                      with the certification-only work switched off.  An accept
+   112                      in this mode is outside the theorem.
+   113    --jobs=<n>        the check phase runs on <n> worker threads sharing the
+   114                      persistent tier and the installed index by reference
+   115                      (DESIGN.md section 8.3): each worker owns a scratch tier,
+   116                      its own caches and a copy of the pin handles, and the
+   117                      results are merged by record index and walked in record
+   118                      order, so the verdict and the record a rejection names are
+   119                      the same at every <n>.  Default: one per hardware thread,
+   120                      capped at 16.  A worker reserves 1 GiB of stack, which a
+   121                      `ulimit -v` must allow for.  0 or a non-numeral is a usage
+   122                      error, as in con-leche.
+   123    --no-mark-persistent
+   124                      ACCEPTED AND A NO-OP, for a stronger reason than the
+   125                      `con-ron` binary's: the mark it turns off is a
+   126                      Lean-runtime reference-counting device
+   127                      (Runtime.markPersistent), and this checker has no
+   128                      reference counts at all -- a term is a u32 handle into a
+   129                      Vec and the persistent tier is immutable in phase B.  A
+   130                      run that passes it says so on stderr.
+   131    --progress[=<stride>]
+   132                      opt-in progress heartbeat on STDERR, one line shape per
+   133                      phase:
+   134                        con-ron: parse done: <N> fold records ... t=<s>s
+   135                        con-ron: install <i>/<N> <decl> t=<s>s
+   136                        con-ron: install done: <N>/<N> ..., <M> pending
+   137                        con-ron: check <done>/<M> <kind> <name> t=<s>s
+   138                        con-ron: check done: <M>/<M> t=<s>s
+   139                        con-ron: done: parse <p>s, install <i>s, check <c>s
+   140                      An install line is printed BEFORE every <stride>-th
+   141                      declaration is installed, so a run that dies in the
+   142                      install phase names the declaration it died in on its last
+   143                      line; a check line is printed AFTER every <stride>-th
+   144                      COMPLETED check.  On a failure the phase's closing line
+   145                      says so and the summary still prints.  Bare --progress is
+   146                      stride 1; a stride that is not a decimal numeral, or 0, is
+   147                      a usage error.
+   148    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
+   149                      `con-ron-pins/1` dump instead of the core's own embedded
+   150                      text (task #43), through the UNVERIFIED reader.  The pins
+   151                      are interned into the persistent tier at startup, before
+   152                      the fold (DESIGN.md section 8.6 P2d).
+   153    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
+   154                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
+   155                      declines.  Neither flag is needed for a normal run: the
+   156                      pins are con-leche's `natOpPinSets`, embedded in the
+   157                      verified core and decoded by it.
+   158    --help            print this text on STDOUT and exit 0, in any argument
+   159                      position; no input is read.  Its last line names the
+   160                      global allocator THIS binary was built with (below), so a
+   161                      measurement can be reproduced.
+   162  
+   163  build-time selection (cargo features, not command-line flags): the global
+   164  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
+   165  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
+   166  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
+   167  It is the same edge `crates/con-ron` has, so the two checkers are measured on
+   168  the same allocator unless a build says otherwise.
+   169  
+   170  Any other option is a usage error: the run reports it, prints this text and
+   171  exits 3 without reading its input.
+   172  
+   173  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+   174  An out-of-memory condition is NEITHER: this program aborts the way Rust aborts
+   175  on a failed allocation ('memory allocation of <n> bytes failed', SIGABRT,
+   176  which a shell reports as 134).  A panic is exit 3.
+   177  
+   178  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
+   179  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
+   180  built-in prelude's own records are not counted, and neither are the records
+   181  the in-process modeller generates; a stream record that declares a prelude
+   182  declaration IS counted.  That count is a property of the INPUT; the number of
+   183  environment CONSTANTS is not.
+   184  
+   185  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
+   186  checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
+   187  Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
+   188  time -- so the pin-certified Nat operations find their ground whatever order
+   189  the export chose.  It is parsed into the SAME store as the stream, which is
+   190  what the persistent tier is for: the prelude's nodes and the stream's are
+   191  hash-consed together.
+   192  
+   193  environment (con-leche's):
+   194    CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
+   195                                 nested block is then pushed bare and the FOLD
+   196                                 declines it, having found no route
+   197    CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
+   198                                 after the parse and stop (exit 2)
+   199    CON_LECHE_PROJREC_TRACE      name each rewritten projection function
+   200  These are the in-process modeller's debug switches and they go with it: no
+   201  environment variable this program reads can shape a verdict, which is
+   202  con-leche's own rule -- every such switch is a command-line flag.";
 
-== crates/con-ron/src/driver.rs#L41-L46
-    41  //! | exit | verdict | meaning |
-    42  //! |---|---|---|
-    43  //! | 0 | `accepted N declarations` | every declaration checked; `N` counts the file's declaration records |
-    44  //! | 1 | `rejected` | a declaration is invalid |
-    45  //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
-    46  //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
+== crates/con-ron/src/driver.rs#L18-L23
+    18  //! | exit | verdict | meaning |
+    19  //! |---|---|---|
+    20  //! | 0 | `accepted N declarations` | every declaration checked; `N` counts the file's declaration records |
+    21  //! | 1 | `rejected` | a declaration is invalid |
+    22  //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
+    23  //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
 
 == flake.nix#L5-L29
      5      # Aeneas pins the Charon commit it needs (see `charon-pin` upstream) and
@@ -265,7 +256,7 @@
     28            packages = [
     29              charonPkgs.rustToolchain   # rustc/cargo nightly pinned by Charon
 
-== proof/ConRon/Refine/Main.lean#L730-L746
+== proof/ConRon/RefineOld/Main.lean#L730-L746
    730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
    731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
    732      (hgen : Frontend.ModellerWF inst g)
@@ -284,7 +275,7 @@
    745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
    746      False := by
 
-== proof/ConRon/Refine/Main.lean#L550-L564
+== proof/ConRon/RefineOld/Main.lean#L550-L564
    550  well-formedness. -/
    551  theorem conron.model_exists_parsed (V : Type w) [ConLeche.SetTheory V]
    552      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
@@ -301,14 +292,14 @@
    563      {e : env.Env}
    564      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
 
-== proof/ConRon/Refine/Main.lean#L328-L332
+== proof/ConRon/RefineOld/Main.lean#L328-L332
    328  
    329  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
    330  #guard_msgs in #print axioms conron.model_exists_decoded
    331  
    332  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 
-== proof/ConRon/Refine/Installed.lean#L3293-L3304
+== proof/ConRon/RefineOld/Installed.lean#L3293-L3304
   3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
   3294      (hvar : CheckerPins.PinsWF pins)
   3295      {ds : alloc.vec.Vec env.Declaration}
@@ -322,7 +313,7 @@
   3303      | .Err er =>
   3304        ErrSimPos er
 
-== proof/ConRon/Refine/Main.lean#L303-L310
+== proof/ConRon/RefineOld/Main.lean#L303-L310
    303  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
    304  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
    305      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
@@ -332,7 +323,7 @@
    309      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
    310      Nonempty (ConLeche.Model V (absEnv e)) :=
 
-== proof/ConRon/Refine/Main.lean#L391-L398
+== proof/ConRon/RefineOld/Main.lean#L391-L398
    391  decoder input. -/
    392  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
    393      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
@@ -342,8 +333,8 @@
    397      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
    398      Nonempty (ConLeche.Model V (absEnv e)) :=
 
-== Cargo.toml#L25
-    25  overflow-checks = true
+== Cargo.toml#L27
+    27  overflow-checks = true
 
 == crates/con-ron-core/src/ron/tagged.rs#L1-L20
      1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
@@ -434,81 +425,10 @@
      9  //! `vendor/aeneas/tests/src/hashmap.rs`, whose proofs live in
     10  //! `vendor/aeneas/tests/lean/Hashmap/Properties.lean`: chained buckets
 
-== crates/con-ron-core/src/cached/state_c.rs#L326-L360
-   326  pub struct CState {
-   327      pub ienv: HashMap<Name, CConstE>,
-   328      pub const_ty_at: HashMap<(Name, Vec<Level>), Expr>,
-   329      pub const_val_at: HashMap<(Name, Vec<Level>), Expr>,
-   330      pub rule_rhs_at: HashMap<(Name, Name, Vec<Level>), Expr>,
-   331      pub whnf_core_c: HashMap<Expr, Expr>,
-   332      pub whnf_c: HashMap<Expr, Expr>,
-   333      pub infer_c: HashMap<Expr, Expr>,
-   334      /// The io-grade inference memo, kept apart from `infer_c` per con-leche's
-   335      /// task-#170 memo ruling: an io entry witnesses fewer checks than the
-   336      /// full-infer claims consume.
-   337      pub infer_io_c: HashMap<Expr, Expr>,
-   338      pub defeq_c: HashMap<(Expr, Expr), bool>,
-   339      pub annot_c: HashMap<Expr, Expr>,
-   340      pub lsimp_c: HashMap<Level, Level>,
-   341      pub lnz_c: HashMap<Level, bool>,
-   342      pub eqv_c: HashMap<(Level, Level), bool>,
-   343      pub inst_c: HashMap<(Expr, Vec<Expr>, u64), Expr>,
-   344  }
-   345  
-   346  /// con-leche: ConLeche/Cached/StateC.lean:158 _
-   347  /// The cited `instance : Inhabited CState := ⟨{}⟩`: every field at its `{}`
-   348  /// default.  This is the state a declaration starts from.
-   349  pub fn cstate_new() -> CState {
-   350      CState {
-   351          ienv: HashMap::new(),
-   352          const_ty_at: HashMap::new(),
-   353          const_val_at: HashMap::new(),
-   354          rule_rhs_at: HashMap::new(),
-   355          whnf_core_c: HashMap::new(),
-   356          whnf_c: HashMap::new(),
-   357          infer_c: HashMap::new(),
-   358          infer_io_c: HashMap::new(),
-   359          defeq_c: HashMap::new(),
-   360          annot_c: HashMap::new(),
-
 == crates/con-ron-core/src/ron/node.rs#L437-L439
    437  pub fn is_exclusive(e: &Expr) -> bool {
    438      e.0.is_exclusive()
    439  }
-
-== crates/con-ron-core/src/cached/core_c.rs#L5086-L5117
-  5086  pub fn whnf_core(
-  5087      mode: &CheckMode,
-  5088      fuel: u64,
-  5089      st: &mut CState,
-  5090      fe: &FEnv,
-  5091      d: u64,
-  5092      e: &Expr,
-  5093  ) -> CheckM<Expr> {
-  5094      const M: [u32; 24] = [
-  5095          102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 119, 104,
-  5096          110, 102, 67, 111, 114, 101,
-  5097      ];
-  5098      if fuel == 0 {
-  5099          Err(core_types::internal(core_types::code_points(&M)))
-  5100      } else {
-  5101          match whnf_core_probe(st, e) {
-  5102              Some(r) => Ok(r),
-  5103              None => match whnf_core_body_i(mode, fuel - 1, st, fe, d, e) {
-  5104                  Err(err) => Err(err),
-  5105                  Ok(r) => {
-  5106                      st.whnf_core_c.insert(expr::dup(e), expr::dup(&r));
-  5107                      Ok(r)
-  5108                  }
-  5109              },
-  5110          }
-  5111      }
-  5112  }
-  5113  
-  5114  /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-  5115  /// con-leche: ConLeche/Kernel/Core.lean:1919-1958 coreKnot
-  5116  /// `(coreKnotI mode fe fuel).whnf d e`, memoized in `whnfC`.
-  5117  pub fn whnf(
 
 == crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
     40  pub const PINS_TEXT: &str = "\
@@ -545,59 +465,46 @@
     91      Native(Vec<u32>),
     92  }
 
-== crates/con-ron-core/src/cached/checker_c.rs#L123-L132
-   123  pub fn or_else_step(attempt: CheckM<bool>) -> OrElseStep {
-   124      match attempt {
-   125          Ok(true) => OrElseStep::Matched,
-   126          Ok(false) => OrElseStep::Continue,
-   127          Err(e) => match e {
-   128              CheckError::Native(m) => OrElseStep::Failed(CheckError::Native(m)),
-   129              _ => OrElseStep::Recovered(e),
-   130          },
-   131      }
-   132  }
+== crates/con-ron-core/src/frontend/mod.rs#L19-L31
+    19  //! | Rust | Lean twin | con-leche |
+    20  //! |---|---|---|
+    21  //! | `text` | none | none — the port's message rendering (`String` is `Vec<u32>`) |
+    22  //! | `nat_decimal` | none | none — `String.toNat?` on a `natVal` literal (`ron::nat` has no decimal codec) |
+    23  //! | `scan_types` | imported, not twinned | `ConLeche/Frontend/Scan/Types.lean` |
+    24  //! | `scan_fast` | imported, not twinned | `ConLeche/Frontend/Scan/Fast.lean` (the `@[csimp]` twin the compiler *runs*; `Scan/Naive.lean` is the specification and is not ported) |
+    25  //! | `prelude_text` | `include_str` | `ConLeche/Frontend/Prelude.lean:57-62`'s `include_str` — **generated**, `scripts/gen-prelude.sh` |
+    26  //! | `types` | `Arena/Frontend/Types.lean` | `Frontend/Export.lean`'s verdicts, `Frontend/ProjRec.lean`'s owner, `Frontend/InModel/Mutual.lean`'s block records, `InModel.lean`'s `wants` and the `Modeller` seam |
+    27  //! | `export_c` | `Arena/Frontend/ExportC.lean` | `Frontend/ExportC.lean` |
+    28  //! | `proj_rec` | `Arena/Frontend/ProjRec.lean` | `Frontend/ProjRec.lean` |
+    29  //! | `nat_op_ground` | `Arena/Frontend/NatOpGround.lean` | `Frontend/NatOpGround.lean` |
+    30  //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
+    31  //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 
-== crates/con-ron-core/src/frontend/mod.rs#L13-L27
-    13  //!
-    14  //! | Rust | Lean |
-    15  //! |---|---|
-    16  //! | `text` | none — the port's message rendering (`String` is `Vec<u32>`) |
-    17  //! | `nat_decimal` | none — `String.toNat?` on a `natVal` literal (`ron::nat` has no decimal codec) |
-    18  //! | `scan_types` | `ConLeche/Frontend/Scan/Types.lean` |
-    19  //! | `scan_fast` | `ConLeche/Frontend/Scan/Fast.lean` (the `@[csimp]` twin the compiler *runs*; `Scan/Naive.lean` is the specification and is not ported) |
-    20  //! | `export` | `ConLeche/Frontend/Export.lean` |
-    21  //! | `in_model_rec` | `ConLeche/Frontend/InModel/Mutual.lean`'s block records and `InModel.lean`'s `wants`, plus the `Modeller` seam |
-    22  //! | `proj_rec` | `ConLeche/Frontend/ProjRec.lean` |
-    23  //! | `export_c` | `ConLeche/Frontend/ExportC.lean` |
-    24  //! | `nat_op_ground` | `ConLeche/Frontend/NatOpGround.lean` |
-    25  //! | `prepare` | `ConLeche/Frontend/Prepare.lean` |
-    26  //! | `prelude_text` | `ConLeche/Frontend/Prelude.lean:57-62`'s `include_str` — **generated**, `scripts/gen-prelude.sh` |
-    27  //! | `prelude` | `ConLeche/Frontend/Prelude.lean` |
+== crates/con-ron-core/src/frontend/types.rs#L261-L271
+   261  pub trait Modeller {
+   262      /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+   263      /// The one method: the block's model records, or the decline's text.
+   264      fn generate(
+   265          &self,
+   266      pers: &PersTier,
+   267          ar: &mut EStore,
+   268          ctx: &ModelCtx,
+   269          b: &BlockRec,
+   270      ) -> Result<Vec<IDeclaration>, Vec<u32>>;
+   271  }
 
-== crates/con-ron-core/src/frontend/in_model_rec.rs#L258-L269
-   258  /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
-   259  /// **The modeller seam.**  Generate the model records of a block, in stream
-   260  /// order, or the reason the block is declined.
-   261  ///
-   262  /// The implementation is `crates/con-ron/src/in_model/`, outside the core and
-   263  /// outside the extraction: this trait is all the parse knows of it.  On a type
-   264  /// parameter it extracts as a typeclass field — an opaque function — so the
-   265  /// extracted parse is quantified over an arbitrary modeller.
-   266  pub trait Modeller {
-   267      /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
-   268      /// The one method: the block's model records, or the decline's text.
-   269      fn generate(&self, ctx: &ModelCtx, b: &BlockRec) -> Result<Vec<Declaration>, Vec<u32>>;
-
-== crates/con-ron/src/pool.rs#L1-L9
-     1  //! `pool` — con-leche's `Main.lean:193-316`: **phase B on a pool of worker
-     2  //! threads** (task #48).
-     3  //!
-     4  //! The recorded checks are independent by construction — each reads the
-     5  //! installed index at its own prefix view, its own record, and a *fresh* memo
-     6  //! state — so phase B is `n` workers over one shared claim counter.  This
-     7  //! module is that pool, `checkPool` with its three helpers ported one to one:
-     8  //! `check_one` (`Main.lean:240-260`), `check_worker` (`:262-278`),
-     9  //! `merge_results` (`:280-287`) and `check_pool` (`:289-316`), plus the walk
+== crates/con-ron/src/pool.rs#L1-L11
+     1  //! `pool` — con-leche's `Main.lean:193-316` over the ARENA: **phase B on a
+     2  //! pool of worker threads** (DESIGN.md §8.3, §8.6's P6 item 6, task
+     3  //! #97-P6-6b).
+     4  //!
+     5  //! The four functions are the cited ones one to one: `check_one`
+     6  //! (`Main.lean:240-260`), `check_worker` (`:262-278`), `merge_results`
+     7  //! (`:280-287`) and `check_pool` (`:289-316`), plus the walk that turns the
+     8  //! merged table into a verdict (`collect_checks`,
+     9  //! `ConLeche/Cached/Installed.lean:392-416 collectChecks`).  Task #97-SWAP put
+    10  //! it here, replacing the `Expr`-tree pool of task #48 that it was written
+    11  //! beside.
 
 == crates/con-ron-dump/src/lib.rs#L155-L203
    155  pub struct MiMallocTight;
@@ -680,7 +587,7 @@
     44  @[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
     45  def alloc.sync.Arc.Insts.CoreCloneClone.clone
 
-== proof/ConRon/Refine/State.lean#L640-L671
+== proof/ConRon/RefineOld/State.lean#L640-L671
    640  structure StateRel (st : cached.state_c.CState)
    641      (lst : ConLeche.Cached.CState) : Prop where
    642    ienv : HashMap.RelOn NameWF st.ienv lst.ienv absName absCConstE
@@ -742,7 +649,7 @@
    528      absLevel (.mk (.mk h k)) = absLevelKind k := by rw [absLevel, absLevelNode]
    529  
 
-== proof/ConRon/Refine/Core/Arms/Shape.lean#L102-L119
+== proof/ConRon/RefineOld/Core/Arms/Shape.lean#L102-L119
    102  def SimS {α β : Type} (A : α → β) (WF : α → Prop)
    103      (f : cached.state_c.CState →
    104        Result ((core.result.Result α core_types.CheckError) × cached.state_c.CState))
@@ -773,13 +680,13 @@
    945  /-! ## Axiom census (DESIGN.md §5, the P3 gate)
    946  
 
-== proof/ConRon/Refine/Core/Statements.lean#L191-L194
+== proof/ConRon/RefineOld/Core/Statements.lean#L191-L194
    191  def KnotSpec (mode : env.CheckMode) (fuel : Std.U64) : Prop :=
    192    Wrappers mode fuel ∧ Bodies mode fuel
    193  
    194  end ConRon.Refine.Core
 
-== proof/ConRon/Refine/Core/Knot.lean#L895-L910
+== proof/ConRon/RefineOld/Core/Knot.lean#L895-L910
    895  theorem knot_induction {mode : env.CheckMode}
    896      (harms : ∀ fuel, Wrappers mode fuel → Bodies mode fuel) (fuel : Std.U64) :
    897      KnotSpec mode fuel := by
@@ -797,7 +704,7 @@
    909          omega
    910        have hg : (Std.UScalar.ofNatCore n hlt : Std.U64).val = n :=
 
-== proof/ConRon/Refine/IndSpec.lean#L80-L100
+== proof/ConRon/RefineOld/IndSpec.lean#L80-L100
     80  structure IndRoutesSpec (mode : env.CheckMode) : Prop where
     81    /-- **Route A, the fixpoint install** (`inductives_c::check_native_s`
     82    against `ConLeche.Cached.checkNativeS`, `Cached/CheckerC.lean:213-226`):
@@ -974,37 +881,41 @@
    286      modeled: PhantomData<M>,
    287  }
 
-== Cargo.toml#L21-L25
-    21  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
-    22  # a `fail`), so the shipped binary must check too, or the model would not
-    23  # describe it (task #7).
-    24  [profile.release]
-    25  overflow-checks = true
+== Cargo.toml#L23-L27
+    23  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
+    24  # a `fail`), so the shipped binary must check too, or the model would not
+    25  # describe it (task #7).
+    26  [profile.release]
+    27  overflow-checks = true
 
-== crates/con-ron/src/in_model/mod.rs#L12-L16
-    12  //! Soundness needs nothing from this module: a wrong record is rejected or
-    13  //! declined by the fold, never accepted.  Its correctness decides only
-    14  //! *coverage* — which blocks accept — and every decline names its class, so
-    15  //! the residual is exact and positive.  Nothing here is verified, and nothing
-    16  //! here is in §3.4's Aeneas subset.
+== crates/con-ron/src/in_model.rs#L28-L32
+    28  //! **Nothing here is verified and nothing here needs to be** (DESIGN.md §8.2,
+    29  //! and con-leche's own module note): a wrong generated record is rejected or
+    30  //! declined by the fold, never accepted, so this layer decides *coverage* and
+    31  //! not soundness.  It is outside `scripts/lint-rust-style.sh` and outside the
+    32  //! extraction, exactly as `crate::in_model` is.
 
-== crates/con-ron/src/driver.rs#L21-L27
-    21  //! `check_decls_driver` is `installed::check_decls`' body with the phase
-    22  //! boundary visible (`Main.lean:318-421 checkDeclsIO`): phase A installs every
-    23  //! record with `annot_decl_step`, phase B checks every recorded declaration
-    24  //! from a fresh `CState` with `check_pending`.  It is step for step the fold
-    25  //! `ConLeche/Cached/Installed.lean:438-455 checkDecls` — which is why an
-    26  //! observer that prints between the steps changes no verdict, and why ONE
-    27  //! loop serves the plain run and the `--progress` heartbeat alike.
+== crates/con-ron/src/driver.rs#L5-L14
+     5  //! The module is con-leche's `Main.lean` in `Main.lean`'s order: the reads,
+     6  //! the two phases with the boundary visible, the `--progress` heartbeat behind
+     7  //! one observer trait, the verdict lines, the exit-code mapping, and the flag
+     8  //! parsers.  Task #97-SWAP put it here, under the name the shipping driver
+     9  //! always had: it was `crates/con-ron-arena/src/driver.rs` through the arena
+    10  //! campaign, beside the `Expr`-tree driver it has now replaced, and the
+    11  //! eleven representation-free items it used to import across the crate line
+    12  //! ([`exit_code`], `verdict_word`, `message`, `ms_secs`, `progress_stride`,
+    13  //! `jobs_count`, `default_jobs`, [`workers_for`], `mark_persistent_note`,
+    14  //! `read_up_to`, `STACK_BYTES`) are back in it, unchanged.
 
-== crates/con-ron/src/pool.rs#L15-L21
-    15  //! **The verdict, and the record a rejection names, are the same at every
-    16  //! `--jobs`.**  A worker's result is the record's index with its outcome; the
-    17  //! workers' arrays are merged *by record index* into one table and the table is
-    18  //! walked in **record order**, stopping at the first failing record in fold
-    19  //! order.  That walk is `check_pending_list`'s, whatever the workers' timing,
-    20  //! so the pool cannot report the second failure of a stream that has two —
-    21  //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
+== crates/con-ron/src/pool.rs#L49-L56
+    49  //! **The verdict, and the record a rejection names, are the same at every
+    50  //! `--jobs`.**  A worker's result is the record's index with its outcome; the
+    51  //! workers' arrays are merged *by record index* into one table and the table
+    52  //! is walked in **record order**, stopping at the first failing record in
+    53  //! fold order.  That walk is `check_pending_list`'s, whatever the workers'
+    54  //! timing, so the pool cannot report the second failure of a stream that has
+    55  //! two — `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2,
+    56  //! 3, 4 and 8 workers on a list whose records 2 and 4 both fail.
 
 == proof/ConRon/Refine/Abs.lean#L170
    170    cases k <;> simp [ron.node.ExprView.ofKind]
@@ -1014,10 +925,9 @@
     25  weak.backward.isDefEq.respectTransparency = false
     26  weak.backward.do.legacy = true
 
-== scripts/gates.sh#L56-L66
-    56  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+== scripts/gates.sh#L57-L67
     57  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    58  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src" "$root/crates/arena-core/src"
+    58  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
     59  run provenance    python3 "$root/scripts/provenance.py" check
     60  run provenance-self python3 "$root/scripts/provenance-selftest.py"
     61  run overview-links "$root/scripts/overview-links.sh"
@@ -1026,4 +936,5 @@
     64  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
     65  run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
     66  run extract-check "$root/scripts/extract.sh" --check
+    67  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 

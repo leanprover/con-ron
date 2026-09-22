@@ -2,14 +2,15 @@
 //! pool of worker threads** (DESIGN.md §8.3, §8.6's P6 item 6, task
 //! #97-P6-6b).
 //!
-//! It is `crate::pool` with the handles in place of the trees, and the four
-//! functions are the cited ones one to one: `check_one`
+//! The four functions are the cited ones one to one: `check_one`
 //! (`Main.lean:240-260`), `check_worker` (`:262-278`), `merge_results`
 //! (`:280-287`) and `check_pool` (`:289-316`), plus the walk that turns the
 //! merged table into a verdict (`collect_checks`,
-//! `ConLeche/Cached/Installed.lean:392-416 collectChecks`).
+//! `ConLeche/Cached/Installed.lean:392-416 collectChecks`).  Task #97-SWAP put
+//! it here, replacing the `Expr`-tree pool of task #48 that it was written
+//! beside.
 //!
-//! **Threads live here and never in `arena-core`** (DESIGN.md §8.5): the
+//! **Threads live here and never in `con-ron-core`** (DESIGN.md §8.5): the
 //! verified crate is a pure state-threading computation and knows nothing of
 //! this module.  What it had to grow for the pool is one shared parameter —
 //! `pers: &PersTier` — and one scalar, and both are task #97-P6-6b's.

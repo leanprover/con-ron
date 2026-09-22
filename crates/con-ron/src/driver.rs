@@ -1,25 +1,36 @@
-//! `driver` — con-leche's `Main.lean` over the ARENA (task #97 P4f), the
-//! Lean twin's `proof/ConRon/Arena/Main.lean` one representation down.
+//! `driver` — con-leche's `Main.lean`, over the ARENA (tasks #37, #48 and
+//! #97-P4f), and the Rust side of the Lean twin's
+//! `proof/ConRon/Arena/Main.lean`.
 //!
-//! It is `crate::driver` with the handles in place of the trees, and it is
-//! deliberately the same module in the same order: the reads, the two phases
-//! with the boundary visible, the `--progress` heartbeat behind one observer
-//! trait, the verdict lines, the exit-code mapping.  What is *not* copied is
-//! copied: everything that does not mention a term —
-//! [`exit_code`], `verdict_word`, `message`, `ms_secs`,
-//! `progress_stride`, `jobs_count`, `default_jobs`, `workers_for`,
-//! `mark_persistent_note`, `read_up_to` — is called across the crate line, so
-//! the two binaries' flags and exit codes cannot drift.
+//! The module is con-leche's `Main.lean` in `Main.lean`'s order: the reads,
+//! the two phases with the boundary visible, the `--progress` heartbeat behind
+//! one observer trait, the verdict lines, the exit-code mapping, and the flag
+//! parsers.  Task #97-SWAP put it here, under the name the shipping driver
+//! always had: it was `crates/con-ron-arena/src/driver.rs` through the arena
+//! campaign, beside the `Expr`-tree driver it has now replaced, and the
+//! eleven representation-free items it used to import across the crate line
+//! ([`exit_code`], `verdict_word`, `message`, `ms_secs`, `progress_stride`,
+//! `jobs_count`, `default_jobs`, [`workers_for`], `mark_persistent_note`,
+//! `read_up_to`, `STACK_BYTES`) are back in it, unchanged.
 //!
-//! ## What differs from `crate::driver`, and why
+//! ## THE EXIT CODES
+//!
+//! | exit | verdict | meaning |
+//! |---|---|---|
+//! | 0 | `accepted N declarations` | every declaration checked; `N` counts the file's declaration records |
+//! | 1 | `rejected` | a declaration is invalid |
+//! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
+//! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
+//!
+//! ## What the arena changed about the driver
 //!
 //! 1. **The state is one `AState`** (`con_ron_core::arena::monad::AState`: the
 //!    store, the per-call memos, the per-declaration caches), threaded as a
 //!    `&mut` through the parse, the preparation, the pin walk and both phases.
-//!    con-ron's driver threads a `CState` and the declarations carry their own
-//!    terms; here the terms are in the state and the records are handles into
-//!    it, so nothing may be run against a state that is not the one they were
-//!    interned into.
+//!    The `Expr`-tree driver threaded a `CState` and the declarations carried
+//!    their own terms; here the terms are in the state and the records are
+//!    handles into it, so nothing may be run against a state that is not the
+//!    one they were interned into.
 //! 2. **`intern_all_pins` runs once, before the fold, with the scratch tier
 //!    off** (DESIGN.md §8.6 P2d, task #97-P4d's "for P4f"): every pinned datum
 //!    is in the PERSISTENT cons table before any declaration's check can
@@ -29,19 +40,17 @@
 //!    on and drops it.  A driver that checked records itself without it would
 //!    grow the scratch tier without bound; the loop below calls it once per
 //!    record and nothing else opens a tier.
-//! 4. **`--jobs=<n>` is accepted, validated and today single-lane.**  con-ron's
-//!    pool (`crate::pool`) is phase B at every count above 1; the arena's is
-//!    P6's, and DESIGN.md §8.3 already says what it will be — the persistent
-//!    tier is immutable in phase B and each worker owns a scratch tier and its
-//!    own caches, so there are no atomics to add.  The loop below is shaped
-//!    for it: phase B reads `fe` and the pending list and writes only the
-//!    per-record state, so a pool slots in where the `while` is, exactly as
-//!    `check_decls_driver`'s does.  A run that asks for more than one worker
-//!    says on stderr that it got one.
-//! 5. **No `--no-mark-persistent` note about `Arc`.**  The arena has no
-//!    reference counts at all (DESIGN.md §8.5: no `Arc`, no `ron::ptr`), so
-//!    the flag is accepted and ignored for a *stronger* reason than con-ron's,
-//!    and [`mark_persistent_note`] says which.
+//! 4. **`--jobs=<n>` runs [`crate::pool`]** (task #97-P6-6b), which is
+//!    DESIGN.md §8.3's arrangement and needs no atomics: the persistent tier
+//!    is immutable in phase B, so it is shared by reference, and each worker
+//!    owns a scratch tier, its own caches and a copy of the pin handles.
+//!    Phase B reads `fe` and the pending list and writes only the per-record
+//!    state, which is what lets the pool slot in where the `while` is.
+//! 5. **`--no-mark-persistent` has a stronger reason to be a no-op here.**
+//!    The mark it turns off is a Lean-runtime reference-counting device, and
+//!    the checking path has no reference counts at all — a term is a `u32`
+//!    handle into a `Vec` (DESIGN.md §8.5) — so [`mark_persistent_note`] says
+//!    so rather than letting a log read as an A/B lane that was never run.
 //!
 //! ## The read loop
 //!

@@ -11,18 +11,19 @@
 # their wall is indicative only), and every checker runs under `timeout` AND
 # `ulimit -v` so a runaway dies instead of taking the machine down.
 #
-# The lane is single-threaded for all three binaries.  For con-ron and
-# con-ron-arena that is `--jobs=1 --progress=1000000`: a bare `--jobs=1`
+# The lane is single-threaded for both binaries.  For `con-ron` that is
+# `--jobs=1 --progress=1000000`: a bare `--jobs=1`
 # bypasses the driver, and the campaign is measured through the driver, so the
 # heartbeat flag stays on (at a stride large enough that the printing is
 # noise).  For nanoda it is `num_threads: 0` in the config file, which is
-# nanoda's own serial default.
+# nanoda's own serial default.  (Task #97-SWAP retired `con-ron-arena`: the
+# arena IS `con-ron` now, so there are two binaries here and not three.)
 #
 # Usage:
 #   scripts/bench-baselines.sh [--bin NAME]... [--export NAME]... [--runs N]
 #                              [--out DIR] [--list] [--dry-run]
 #
-#   --bin      con-ron | con-ron-arena | nanoda   (default: all three)
+#   --bin      con-ron | nanoda                   (default: both)
 #   --export   init | core | mathlib              (default: all three)
 #   --runs N   runs per (bin, export) pair; default is the per-export default
 #              (init 3, core 1, mathlib 1)
@@ -76,7 +77,7 @@ while [[ $# -gt 0 ]]; do
     *) echo "bench-baselines.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
-[[ ${#BINS[@]}    -eq 0 ]] && BINS=(con-ron con-ron-arena nanoda)
+[[ ${#BINS[@]}    -eq 0 ]] && BINS=(con-ron nanoda)
 [[ ${#EXPORTS[@]} -eq 0 ]] && EXPORTS=(init core mathlib)
 
 # Per-export address-space cap (KB) and timeout (s).  The caps are CLAUDE.md's
@@ -113,7 +114,7 @@ build_cmd() {
   local bin="$1" exp="$2" file="$CORPUS/$exp.ndjson"
   [[ -f $file ]] || { echo "bench-baselines.sh: missing export $file" >&2; exit 2; }
   case "$bin" in
-    con-ron|con-ron-arena)
+    con-ron)
       local b="$ROOT/target/release/$bin"
       [[ -x $b ]] || { echo "bench-baselines.sh: $b not built (cargo build --release)" >&2; exit 2; }
       CMD=("$b" --verified --jobs=1 --progress=1000000 "$file") ;;

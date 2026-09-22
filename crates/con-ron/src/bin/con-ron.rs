@@ -219,8 +219,9 @@ struct Args {
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
-/// The two flag VALUES are `con_ron::driver`'s own functions, called across
-/// the crate line so that the two binaries cannot drift.
+/// The two flag VALUES are `crate::driver`'s own functions (task #97-SWAP
+/// folded that module back into this crate, and con-leche's command line is
+/// still what they parse).
 fn parse_args(argv: &[String]) -> Args {
     let mut a = Args {
         files: Vec::new(),

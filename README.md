@@ -10,7 +10,7 @@ The point of this exercise is that with `con-leche` having a [formal consistency
 
 ## Method
 
-This translation sticks to the lean code so closely that we can use [Aeneas](https://github.com/AeneasVerif/aeneas) to [prove the Rust implementation of the checker's core to be equivalent to the one in Lean](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Installed.lean#L3289-L3305) (partial correctness, the Rust code has [additional failure conditions](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/core_types.rs#L87-L92)), and thus [inherits the consistency properties of `con-leche`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L730-L746).
+This translation sticks to the lean code so closely that we can use [Aeneas](https://github.com/AeneasVerif/aeneas) to [prove the Rust implementation of the checker's core to be equivalent to the one in Lean](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/RefineOld/Installed.lean#L3289-L3305) (partial correctness, the Rust code has [additional failure conditions](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/core_types.rs#L87-L92)), and thus [inherits the consistency properties of `con-leche`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/RefineOld/Main.lean#L730-L746).
 
 This is not a high assurance verification effort, given the reliance on Aeneas as a Rust-to-Lean translator. The goal is to make it very plausible that the Rust implementation follows the Lean implementation very closely.
 
