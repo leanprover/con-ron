@@ -38,10 +38,12 @@ namespace ConRon.Bridge.Frontend
 #print axioms ListRel.mono
 #print axioms IdTableRel.mono
 #print axioms MapRel.mono
+#print axioms MapRel.empty
 
 /-! ## The declaration stream -/
 
 #print axioms denoteDecls_length
+#print axioms denoteDeclArray_empty
 #print axioms denoteCIList_ext
 #print axioms denoteDecl_ext
 #print axioms denoteDecls_ext

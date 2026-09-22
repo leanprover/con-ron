@@ -39444,7 +39444,7 @@ import.  **No Rust file, no generated model, no `Arena/`, no `Refine/`, no
 
 | module | raw | non-blank | decls | open | elab |
 |---|---:|---:|---:|---:|---:|
-| `Bridge/Frontend/Rel.lean` — the parse-state relation and its four shapes | 669 | 595 | 46 | 0 | 1.2 s |
+| `Bridge/Frontend/Rel.lean` — the parse-state relation and its four shapes | 683 | 607 | 48 | 0 | 1.2 s |
 | `Bridge/Frontend/ProjRec.lean` — the projection rewrite and the owner census | 234 | 203 | 10 | 10 | 0.9 s |
 | `Bridge/Frontend/Shared.lean` — `denoteEShared = denoteE`, and the intern | 237 | 192 | 16 | 10 | 0.8 s |
 | `Bridge/Frontend/Modeller.lean` — the seam's two promises | 147 | 122 | 5 | 2 | 0.8 s |
@@ -39452,9 +39452,9 @@ import.  **No Rust file, no generated model, no `Arena/`, no `Refine/`, no
 | `Bridge/Frontend/Chunks.lean` — **the parser's exactness** | 289 | 249 | 12 | 8 | 0.9 s |
 | `Bridge/Frontend/Prepare.lean` — the two permuting passes, and the prelude | 247 | 209 | 11 | 8 | 0.8 s |
 | `Bridge/Frontend/Capstone.lean` — **`Arena.no_False_declaration`** | 279 | 233 | 7 | 5 | 0.8 s |
-| `Bridge/Frontend/Axioms.lean` — the trust census | 122 | 91 | — | 0 | 0.8 s |
+| `Bridge/Frontend/Axioms.lean` — the trust census | 124 | 93 | — | 0 | 0.8 s |
 | the index module | 73 | 63 | — | 0 | 0.8 s |
-| **the tier** | **2 703** | **2 314** | **130** | **56** | **~9 s** |
+| **the tier** | **2 719** | **2 328** | **132** | **56** | **~9 s** |
 
 **No theorem is near the 20 s flag**, and no module is: the slowest is
 `Rel.lean` at 1.2 s against an import baseline of ~0.8 s, so the tier's own
@@ -39553,16 +39553,16 @@ transport only and never `Bridge/Promote/Pers.lean`'s `PExt`.
 
 #### 4. What is closed
 
-**40 results**, printed in `Bridge/Frontend/Axioms.lean`, every one within
+**42 results**, printed in `Bridge/Frontend/Axioms.lean`, every one within
 `[propext, Classical.choice, Quot.sound]` and four of them (`OptRel`'s
 eliminators, `ListRel.length_eq`) at `[propext]` alone; `ListRel.mono`
 depends on no axiom at all.  No `sorryAx`, no `bv_decide` axiom.
 
-* **the four generic shapes** and their eleven lemmas — `OptRel`'s four
+* **the four generic shapes** and their twelve lemmas — `OptRel`'s four
   eliminators, `ListRel.{length_eq,mono}`, `IdTableRel.{bound,singleton,
-  insert,mono}`, `MapRel.mono`;
-* **`denoteDecls_length`** — the stream's denotation is record for record, so
-  it has the record list's own length.  `Arena/Main.lean`'s verdict number is
+  insert,mono}`, `MapRel.{mono,empty}`;
+* **`denoteDecls_length`** and `denoteDeclArray_empty` — the stream's
+  denotation is record for record, so it has the record list's own length.  `Arena/Main.lean`'s verdict number is
   a LENGTH (`r.decls.size - r.genRecords`), so the frontend owes this beside
   the denotation itself;
 * **four `Bridge/Rel.lean` lemmas that had a `…_pext` twin and no `…_ext`
@@ -39800,7 +39800,7 @@ parse half.
 |---|---|
 | `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 138 `sorry` warnings, of which 56 are this tier's (§7) and 82 the `ExprOps`, Core, Promote and Checker tiers' |
 | `cd proof && lake build` (the default targets) | **not reachable from this diff** — `proof/ConRon.lean` does not import `ConRon.Bridge` and `ConRonBridge` is not a default target, so no module the default build elaborates changed |
-| `#print axioms` | `Bridge/Frontend/Axioms.lean`: **40 closed results**, every one within `[propext, Classical.choice, Quot.sound]` (`OptRel`'s four eliminators and `ListRel.length_eq` at `[propext]`, `IdTableRel.mono` at `[propext, Quot.sound]`, `ListRel.mono` at none); the five headlines carry `sorryAx` and **neither `CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** |
+| `#print axioms` | `Bridge/Frontend/Axioms.lean`: **42 closed results**, every one within `[propext, Classical.choice, Quot.sound]` (`OptRel`'s four eliminators and `ListRel.length_eq` at `[propext]`, `IdTableRel.mono` at `[propext, Quot.sound]`, `ListRel.mono` at none); the five headlines carry `sorryAx` and **neither `CoreSpec` nor `IndSpec` nor `ModellerWF` nor `ModellerRefines`** |
 | the diff | `proof/ConRon/Bridge/Frontend{,/*}.lean`, `proof/ConRon/Bridge.lean` (the module list and one import) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`lint-rust-style`/`twin-lines`/`holes`/`gen-pins`/`gen-prelude`/`extract.sh --check` cannot be affected |
 
 `arena` moved twice under this branch while it ran — tasks **#97-P3-1**

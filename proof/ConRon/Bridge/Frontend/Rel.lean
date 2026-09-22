@@ -213,6 +213,14 @@ structure MapRel {α : Type} {β : Type} (st : EStore) (R : α → β → Prop)
   cover : ∀ n b, mc[n]? = some b →
     ∃ h a, denoteN st.ns h = some n ∧ m[h]? = some a ∧ R a b
 
+/-- con-leche: none — two EMPTY maps relate, whatever the relation is.  Five
+of `StateD.init`'s eighteen fields are this (`Bridge/Frontend/Chunks.lean`'s
+`StateD_init_run`). -/
+theorem MapRel.empty {α β : Type} (st : EStore) (R : α → β → Prop) :
+    MapRel st R (∅ : Std.HashMap NIdx α) (∅ : Std.HashMap ConLeche.Name β) where
+  hit := by intro h a hk; simp at hk
+  cover := by intro n b hn; simp at hn
+
 /-! ## The declaration array -/
 
 /-- con-leche: none — `Bridge/Checker/Inv.lean`'s `denoteDecls` at an `Array`,
@@ -220,6 +228,12 @@ which is the shape `StateD.decls` and `ParseResultD.decls` are in. -/
 def denoteDeclArray (st : EStore) (ds : Array IDeclaration) :
     Option (Array ConLeche.Declaration) :=
   (denoteDecls st ds.toList).map List.toArray
+
+/-- con-leche: none — the EMPTY declaration array denotes the empty one: the
+`decls` clause of `StateD.init`, and the base case of every list induction of
+the tier. -/
+theorem denoteDeclArray_empty (st : EStore) :
+    denoteDeclArray st (#[] : Array IDeclaration) = some #[] := rfl
 
 /-- con-leche: none — the stream's denotation is record for record, so it has
 the record's own length.  `Arena/Main.lean`'s verdict number is a LENGTH
