@@ -56,14 +56,12 @@ denotation is an ordinary hypothesis), `RelV` for `piArity` and
 
 ## The axiom check, and what it inherits
 
-**Nothing in this file is `sorry`ed.**  `#print axioms` at the end reports
-`[propext, Classical.choice, Quot.sound]` for thirteen of the seventeen
-twins.  The four that also report `sorryAx` — `instPis`, `instPisAt`,
-`instLamsAt`, `instSpine` — are exactly the four that CONSUME
-`ExprOps/Inst1`'s `instantiate1Fast_spec`, whose fuel induction still carries
-that file's six open verification conditions (the binder arm's
-`viewBM`-monotonicity conjunct and the `bvar` arm's three branches).  Close
-those and these four close with them; no statement changes.
+**Nothing in this file is unproved.**  `#print axioms` at the end reports
+`[propext, Classical.choice, Quot.sound]` for all seventeen twins.  Four of
+them — `instPis`, `instPisAt`, `instLamsAt`, `instSpine` — CONSUME
+`ExprOps/Inst1`'s `instantiate1Fast_spec` and inherited its open goals until
+task #97-P3-1's arm split closed them; as that section predicted, they closed
+with it and no statement changed.
 
 ## What this module does not claim
 

@@ -19,6 +19,8 @@ import ConRon.Bridge.Specs
 import ConRon.Bridge.SpecsL
 import ConRon.Bridge.StoreBM
 import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.ExprOps.Leaves
+import ConRon.Bridge.ExprOps.Guards
 
 namespace ConRon.Bridge
 
@@ -160,5 +162,36 @@ under it are what every rebuilding walk's binder arm now leans on. -/
 #print axioms ExprOps.Inst1At.letE_step'
 #print axioms ExprOps.Inst1At.proj_step
 #print axioms ExprOps.Inst1At.proj_step'
+
+/-! ## The `fvar`-leaf group — **closed** (task #97-P3-2)
+
+Task #97-P3-1's open list called `fvarLeavesGo_spec` "the one entry that is a
+mathematical gap and not a plumbing gap": con-leche's GRAY invariant
+(`Verify/Cached/GuardsC.lean`'s `SeenInv`), whose "is being processed by an
+ancestor of the current call" needs the store's acyclicity.  It is closed with
+`StoreWF`'s rank as a second PARAMETER of the invariant rather than as a
+second induction — `SeenOK.of_grow` is the whole argument — and with it the
+two theorems that inherited its `sorryAx`, `fvarLeavesFast_spec` and
+`ExprOps/Guards.lean`'s `leafGuard_spec`.
+
+These three modules share one import closure, which is why they are printed
+here and the rest of the tier prints in its own files (lakefile's note: two
+modules of the tier that both make `grind` generate the same `match`-auxiliary
+for an `Arena/ExprOps.lean` definition cannot). -/
+
+#print axioms ExprOps.SeenOK.of_grow
+#print axioms ExprOps.SeenGrow.trans
+#print axioms ExprOps.SeenGrow.drop_insert
+#print axioms ExprOps.AccGrow.trans
+#print axioms ExprOps.LeavesEq.app_step
+#print axioms ExprOps.LeavesEq.letE_step
+#print axioms ExprOps.fvarLeaves_spec
+#print axioms ExprOps.fvarLeavesGo_spec
+#print axioms ExprOps.fvarLeavesFast_spec
+#print axioms ExprOps.leafMem_spec
+#print axioms ExprOps.wscopedBGo_spec
+#print axioms ExprOps.wscopedBFast_spec
+#print axioms ExprOps.leavesSubGo_spec
+#print axioms ExprOps.leafGuard_spec
 
 end ConRon.Bridge
