@@ -443,21 +443,81 @@ theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Boo
 theorem intern_rebuilt_lam_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hwf : same = false → StoreWF lst.store)
+    (hbmcap : same = false → lst.store.capOKBM)
+    (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
+    (hchild : same = false →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.lams.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hcap : same = false → ECapAt lst.store
+      (.lam (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
     (hrun : arena.expr_ops.intern_rebuilt_lam pers st h same ty body m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absBinderMeta m)) := by
-  sorry
+  rw [arena.expr_ops.intern_rebuilt_lam] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx body)
+      (ConRon.Refine.absBinderMeta m)).run lst)
+  rw [internRebuiltLam]
+  by_cases hs : same = true
+  · subst hs
+    rw [if_pos rfl] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    simp only [if_true]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · simp only [Bool.not_eq_true] at hs
+    subst hs
+    simp only [Bool.false_eq_true, if_false]
+    exact intern_e_lam_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+      (hpw rfl) (hchild rfl) (hcap rfl) hrun
 
 /-- `Arena/ExprOps.lean:163 internRebuiltForallE`. -/
 theorem intern_rebuilt_forall_e_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hwf : same = false → StoreWF lst.store)
+    (hbmcap : same = false → lst.store.capOKBM)
+    (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
+    (hchild : same = false →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.foralls.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hcap : same = false → ECapAt lst.store
+      (.forallE (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
     (hrun : arena.expr_ops.intern_rebuilt_forall_e pers st h same ty body m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absBinderMeta m)) := by
-  sorry
+  rw [arena.expr_ops.intern_rebuilt_forall_e] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx body)
+      (ConRon.Refine.absBinderMeta m)).run lst)
+  rw [internRebuiltForallE]
+  by_cases hs : same = true
+  · subst hs
+    rw [if_pos rfl] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    simp only [if_true]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · simp only [Bool.not_eq_true] at hs
+    subst hs
+    simp only [Bool.false_eq_true, if_false]
+    exact intern_e_forall_e_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+      (hpw rfl) (hchild rfl) (hcap rfl) hrun
 
 
 
@@ -467,11 +527,62 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {tag : Std.U32} {ty body : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hwf : same = false → StoreWF lst.store)
+    (hbmcap : same = false → lst.store.capOKBM)
+    (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
+    (hchildL : same = false → absU32 tag = ETag.lam →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.lams.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hchildF : same = false → absU32 tag ≠ ETag.lam →
+      ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.foralls.find?
+        ⟨absEIdx ty, absEIdx body,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none)
+    (hcapL : same = false → absU32 tag = ETag.lam → ECapAt lst.store
+      (.lam (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
+    (hcapF : same = false → absU32 tag ≠ ETag.lam → ECapAt lst.store
+      (.forallE (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
     (hrun : arena.expr_ops.intern_rebuilt_bind pers st h same tag ty body m = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absBinderMeta m)) := by
-  sorry
+  rw [arena.expr_ops.intern_rebuilt_bind] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx body)
+      (ConRon.Refine.absBinderMeta m)).run lst)
+  rw [internRebuiltBind]
+  by_cases hs : same = true
+  · subst hs
+    rw [if_pos rfl] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    simp only [if_true]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · simp only [Bool.not_eq_true] at hs
+    subst hs
+    simp only [Bool.false_eq_true, if_false]
+    by_cases hc : tag = arena.handle.ETAG_LAM
+    · subst hc
+      rw [if_pos rfl] at hrun
+      rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
+        rw [etag_lam_abs]; simp)]
+      exact intern_e_lam_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+        (hpw rfl) (hchildL rfl (by rw [etag_lam_abs])) (hcapL rfl (by rw [etag_lam_abs]))
+        hrun
+    · rw [if_neg hc] at hrun
+      have hne : absU32 tag ≠ ETag.lam := by
+        rw [← etag_lam_abs]
+        intro hcc; exact hc (absU32_inj hcc)
+      rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
+      exact intern_e_forall_e_run hrel hinv hfrozen (hwf rfl) (hbmcap rfl) ty body m
+        (hpw rfl) (hchildF rfl hne) (hcapF rfl hne) hrun
 
 
 /-! ## `instantiate1` — the memoised single substitution
