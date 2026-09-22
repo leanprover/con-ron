@@ -40308,6 +40308,375 @@ it is free (if the twin's test fails then the port's `full` is true as well
 and the port raises `Native`, which claims nothing) — so those statements can
 drop it when task #97-P5-2 next touches them.  That is the one follow-up this
 round leaves in someone else's file.
+### Task #97-P5-Ind — Theorem 2: the inductives tier, and `IndRel` (2026-09-22, Opus under Fable)
+
+Phase **P5** of DESIGN §8.6, fourth round: DESIGN §8.2's **Theorem 2** at
+`arena::inductives` — the eleven modules the `.indDecl` dispatch routes
+between, **306 `pub fn`s against 152 twin `def`s**, the largest
+Rust-to-twin ratio in the crate (task #97-P4d-2 measured the port at 3.8× the
+twin's lines and called the cursor recursions *"the densest use of the rule in
+the port"*).  Branch `p5-ind` off `arena`'s tip `6ed09d15`, merged forward twice (§8).
+**Nothing outside `proof/ConRon/Refine2/Inductives/**` is written** except one
+import line and one table row in `proof/ConRon/Refine2.lean`.
+
+**The deliverable is `IndRel`, and it is discharged.**
+`Refine2/Inductives/Top.lean`'s
+
+    theorem ind_rel : IndRel
+
+is the seam task #97-P5-Checker §9 asked for (*"land the proof, delete the
+hypothesis"*), met at the calling convention rather than by editing that file:
+`Refine2/Checker/Top.lean`'s thirteen `IndRel`-carrying statements — nine of
+them the capstones' route down — take `ind_rel` **with no argument and with no
+change to any statement of that tier**.  It is unconditional because task
+#97-P5-Arms (§8) made `knotRel_checkFuel'` a theorem; `ind_rel_of_knot`, which
+takes `KnotRel checkFuel`, is the conditional form beneath it and is what the
+seam really says.
+
+`ind_rel` is closed — its `#print axioms` row is recorded rather than dropped,
+and reads `[propext, sorryAx, Classical.choice, Quot.sound]`, which is the
+honest form of *"the SEAM is closed and the tier's own obligations are not"*.
+What it rests on is `inductives_check_ind_decl_refines` (the module qualifier
+because
+`Refine2/Checker/Top.lean` already has a `check_ind_decl_refines`, about
+`arena::checker::check_ind_decl` — the basis-pin wrapper one level above this
+one, and the very statement whose `hind` this supplies), and through that the
+305 below.
+
+**Every one of the 306 statements exists and elaborates.**  Two are closed;
+the rest are `sorry`, and §6 says what each waits on.
+
+#### 1. `IndRel` needs four hypotheses, not five
+
+`check_ind_decl` takes **no `vis` argument**.  It passes `fe.visible_below` to
+`checker_base::ind_params_ok` itself and MOVES `fe` into the two routes, so
+task #97-P5-Checker's finding 10 — the visibility counter as a threaded
+hypothesis at seventy-one sites — stops at this door.  That is why
+`IndRel.checkIndDecl` is `AStateRel`, `AStateInv`, `IFEnvRel`, `IFEnvInv` and
+the `= ok` and nothing else, and it is what makes the seam consumable without
+a sixth argument at the nine capstone sites.
+
+Inside the tier the clause travels as usual: **70 statements carry `hvis`**
+and **74 carry `KnotRel checkFuel`** (75 occurrences, one of which is
+`ind_rel`'s own binder — the seam's supplier rather than a consumer).
+
+#### 2. The tier, module by module
+
+| Rust module | `pub fn` | its twin file's `def`s | `Refine2/Inductives/` | lines | statements | closed |
+|---|---:|---:|---|---:|---:|---:|
+| — (the shapes) | — | — | `Shape.lean` | 221 | — | — |
+| — (the transcriptions) | — | — | `Spec.lean` + `SpecModeled.lean` | 2 122 | 32 `_unfold` (+ 123 `…Spec`) | 0 |
+| `struct_parts` | 50 | 30 | `StructParts.lean` | 622 | 50 | 0 |
+| `sum_parts` | 8 | 3 | `SumParts.lean` | 115 | 8 | 0 |
+| `struct_install` | 5 | 2 | `StructInstall.lean` | 117 | 5 | 0 |
+| `struct_install_f` | 3 | 3 | `StructInstallF.lean` | 78 | 3 | 0 |
+| `sum_install` | 24 | 17 | `SumInstall.lean` | 422 | 24 | 0 |
+| `sum_install_f` | 9 | 8 | `SumInstallF.lean` | 164 | 9 | 0 |
+| `native_parts` | 70 | 34 | `NativeParts.lean` | 941 | 70 | **2** |
+| `native_install` | 40 | 17 | `NativeInstall.lean` | 585 | 40 | 0 |
+| `native_install_f` | 5 | 5 | `NativeInstallF.lean` | 110 | 5 | 0 |
+| `modeled` | 91 | 32 | `Modeled.lean` | 1 487 | 91 (+ `rename_by_rel`) | 0 |
+| `inductives` | 1 | 1 | `Top.lean` | 96 | 1 `_refines` + `ind_rel` | **1** (`ind_rel`) |
+| **the tier** | **306** | **152** | twelve modules | **7 080** | **306 `_refines` + 32 `_unfold` + `ind_rel` + `rename_by_rel` = 340** | **3** |
+
+#### 3. The census, compressed: which Rust function belongs to which twin
+
+Every `pub fn` of `arena::inductives` carries a `/// Lean twin:` doc line, so
+the mapping is data and not judgement.  **155 distinct twins for 306
+functions**: 98 twins have exactly one Rust function (a rename,
+camelCase ↔ snake_case), and **57 twins have 208 functions between them** —
+that is DESIGN §3.4's three rules (no closure, no `let`-bound handle
+outliving a `match` arm, every `List` operation a named cursor recursion) and
+nothing else.  The families that split three ways or more:
+
+| twin | Rust fns | twin | Rust fns |
+|---|---:|---|---:|
+| `checkIotaThm` | 12 | `structMinorTyR` | 4 |
+| `checkIotaThmN` | 11 | `nativeRulePrefixOk` | 4 |
+| `structPartsCore?` | 8 | `checkNativeRec` | 4 |
+| `checkModeled` | 8 | `checkNativeTail` | 4 |
+| `nativeShape?` | 8 | `hasLooseBVarBGo` | 3 |
+| `checkEtaThm` | 7 | `structProjGuards` | 3 |
+| `nativeOpenedOk` | 7 | `mentionsConstGo` | 3 |
+| `nestedRuleShape` | 6 | `blockRenameTable` | 3 |
+| `checkSumCtor` | 6 | `checkStructFieldSortsI` | 3 |
+| `structShape` | 5 | `structMinorsPisR` | 3 |
+| `checkProjIota` | 5 | `structRecTyR` | 3 |
+| `checkUnitThm` | 5 | `structRecRhsR` | 3 |
+| `checkIotaRule` | 4 | `nativeRulesOk` | 3 |
+| `checkStructProjTable` | 4 | `mentionsFvarGo` | 3 |
+| `recCtorKinds` | 4 | `classifyFixKinds` | 3 |
+
+`Refine2/Inductives/{Spec,SpecModeled}.lean` give each of those fragments a
+SUBJECT — a `…Spec` transcription of the twin's own text at the split's
+boundary — and the `…_unfold` equations tie them back to the named twins.
+It is task #97-P5-Checker §9's arrangement (*"one collected transcription file
+per tier, with `_unfold` equations, and no edit to the twin"*), split in two
+files only because the two halves were written concurrently.
+
+**The inner recursions are transcribed too, and deliberately.**  Lean lifts a
+`let rec go` inside a `def` to a real top-level name, so `structPsAt.go`,
+`structProjGuards.col`, `paramLevels.go` and `projBack.go` could be named
+directly.  They are not: the lifted signature's leading parameters are
+*whatever the elaborator captured, in whatever order it captured them*, and a
+statement keyed on that is keyed on an implementation detail of the twin's
+ELABORATION — it would move under a whitespace change to a `let` above it.  A
+transcription with explicit arguments is stable and the `_unfold` equation is
+what carries it back.  (`checkSumTele.checkSumTeleSlow` is the exception and
+is named directly: it is a `where` clause with an explicit signature.)
+
+#### 4. Eight findings
+
+**Finding 15 — the last higher-order argument of the crate is not one.**
+Task #97-P5-0's finding 6 gave `arena::expr_ops::rename_consts` a RELATION
+(`RenameRel`) because the Rust's one-method `NIdxToNIdx` trait stands against
+a twin that takes a total function `NIdx → NIdx`.  At the modeled route the
+twin does not take a function either: `Arena/Inductives/Modeled.lean`'s module
+note says the renaming maps are precomputed TABLES and `renameBy tbl` is their
+lookup, because building a name over handles means INTERNING one.  So
+`modeled::RenameBy` and the twin's `List (NIdx × NIdx)` relate as CONTAINERS,
+`absRenameBy` is an ordinary abstraction function, and the `RenameRel`
+hypothesis the `expr_ops` statements carry is discharged at this tier's call
+sites rather than threaded.  The prediction task #97b's closure audit made —
+*"the only call site is the modeled-block contract, whose map is a lookup in a
+table, so a concrete map type is likely and no closure need survive"* — is
+confirmed, and `arena::inductives::modeled::doms_match_renamed` is the ONE
+function of the tier that still takes the dictionary.
+
+**Finding 16 — `structMinorsPisR` and `structMinorsLamsR` are one Rust
+function, and the parameter is a node CONSTRUCTOR.**  The two twins differ in
+exactly one node (`.forallE` against `.lam`), and task #97-P4d-2's
+**extraction rule 7** forbids the port an `if` whose two arms move a node's
+fields; so `struct_minors_pis_r` takes `is_lam : bool` and `intern_binder`
+builds AND interns inside each branch.  `structMinorsRSpec` is the two twins
+as one recursion at that flag, `intern_binder` is the node, and
+`struct_minors_lams_r` is stated as the delegation.  This is the first place
+in the campaign where a *constructor* rather than a *value* is the thing the
+port parameterises over, and it is why the transcription is one definition
+and not two.
+
+**Finding 17 — a narrowing at `nativeCounts?`.**  The twin takes the
+constructor LIST; the port takes its LENGTH (`n_ctors : u64`), because
+`cs.length + 1` is the only thing the twin reads it for.  P4b's standing
+"narrowing" rule covers it and the statement supplies `(absCtors3L cs).length`
+as a hypothesis.
+
+**Finding 18 — `pi_binders` is the tier's one `SimRE` in `native_parts` and
+`zip_fvar_doms` the one in `sum_install`.**  Both take `&AState`, return
+`Result<…, CheckError>` with **no state in the return at all**, and can
+decline; task #97-P5-Checker's §1 added that shape for `arena::pins`' readers
+and this is where it is reused.
+
+**Finding 19 — the port does not COPY the environment where the twin does,
+and three BRACKETS stand in for the copies.**  Task #97-P6-5's lever 5
+replaced `ifenv_dup` — `O(environment)`, once per inductive block — and each
+replacement is a refinement obligation of `native_install` rather than a
+divergence:
+
+* `check_native_rec_rules` pushes the rule-less recursor with
+  `ifenv_push_temp` and pops it with `ifenv_pop_temp`, so the `&mut IFEnv`
+  Aeneas hands back as a THIRD output component is the pre-call environment.
+  That — `IFEnvRel o.2.2 lf` — is what the four `check_native_rec*`
+  statements claim about it, and it is the only thing claimed;
+* `check_native_tail_kinds` **lowers `env1.visible_below` by one** instead of
+  passing the pre-block environment: `env1` is that environment plus the type
+  former at counter `vis - 1`, so hiding one row makes `find?` answer what the
+  twin's `fe` answers at every name.  The three `check_native_tail*`
+  statements carry that as an explicit hypothesis
+  (`∀ n, lf.find? n = if n = lq.p.cvT.name then none else lq.env₁.find? n`),
+  which is the honest form: it is a fact about the port's own bookkeeping and
+  its proof is `arena::env`'s, not this tier's;
+* `check_native` brackets the whole first pass with `ifenv_row` /
+  `ifenv_pop_temp` so the rare second pass starts at the twin's own `fe`.
+
+Finding 19 is the tier's one place where the two sides' ENVIRONMENTS differ
+and the difference is load-bearing; everywhere else the port's `IFEnv` and the
+twin's are related by `IFEnvRel` at the same value.
+
+**Finding 20 — the port hoists `eqHeadLevel` into the statement prologue.**
+The twin calls it at the very END of `checkIotaThm` / `checkIotaThmN`, as the
+last argument of `checkIotaSidesTy`; the port's `iota_stmt_open_at` computes it
+with the rest of the opening.  It is sound on the arm the success statement
+claims anything about — on the path `isEqHead` accepts, `eqHeadLevel` is
+`viewLs`' single level and interns nothing — and off shape it falls back to
+`zeroLevel`, which `isEqHead` has already rejected.  A hoisted read whose only
+observable is the value it returns is the cheapest kind of divergence there
+is, and this is the tier's only one.
+
+**Finding 21 — the twin READS the recursor's name and the port does not, and
+that is a real asymmetry.**  `checkIotaThm`, `checkIotaThmN` and
+`checkIotaRule` open with `let nm ← readName cvName` purely to interpolate it
+into their `s!` declines; the port's messages are `[u32; N]` constants
+(DESIGN §3.1).  `readName` THROWS `.internal` on a dangling handle, so the
+twin can fail where the port succeeds — §8.2's success arm is false without a
+side condition.  **Seven statements of `Modeled.lean` therefore carry
+`(denoteN lst.store.ns (absNIdx cv_name)).isSome = true`**, and like task
+#97-P5-0's finding 3 (the same fact at an EXPRESSION handle) it is Theorem 1's
+clause to supply: every call site reaches these through a name the environment
+already STORES.  Finding 21 is that finding met at a name handle, and P3
+should carry the two together.
+
+**Finding 22 — `check_iota_sides_ty` drops the name argument entirely.**  The
+twin's `checkIotaSidesTy` takes `cvName` and reads it in its three failure
+arms only; the port passes no name at all.  A failure arm claims only the
+KIND, so the statement quantifies over the twin's `cvName` with no side
+condition — finding 21 does not reach here, and the contrast is what shows
+that finding 21's hypothesis is about the SUCCESS path and nothing else.
+
+#### 5. What is closed, and the axiom census
+
+**Two lemmas**, both in `Refine2/Inductives/NativeParts.lean`:
+`rec_field_kind_dup_refines` (the five-constructor copy is the identity on the
+abstraction) and `rec_field_kind_beq_refines` (the five-by-five equality table
+DESIGN §3.4 forbids `#[derive]` for).  Both are
+`cases … <;> (have h2 := Result.ok_injective hrun; subst h2; rfl)` — task
+#97-P5-0's **rule 6** verbatim, and the reason it is worth naming again is
+that `simp_all` leaves the goal in both and `subst` closes it in both.
+
+**Three `#print axioms` rows under `#guard_msgs`.**  The two above read
+**`[propext, Classical.choice, Quot.sound]` and nothing else** — no `sorryAx`
+on a closed lemma, and still no `bv_decide` axiom anywhere in `Refine2/`.  The
+third is `ind_rel`'s, and it is recorded rather than dropped precisely because
+it does read `sorryAx`: `ind_rel` is closed AS A SEAM (the Checker tier has no
+unsupplied hypothesis left) and open as a PROOF (its one callee and the 305
+under it).  Writing the row out is what keeps the difference visible.
+
+**Closing was not this round's deliverable and the round did not chase it.**
+The brief is the STATEMENT for every function plus `IndRel`, and the reason is
+structural: every `Sim` of this tier sits on `Refine2/Specs.lean`'s open
+`intern_*` family and on `Refine2/ExprOps/**`, which is statements only — a
+closed lemma here would have to wait on those anyway.  `rule_prefix_refines`
+was attempted and set down: it is `p.nP + 1 + |ctors|` against a checked `u64`
+`+` and a `Vec::len` cast, and closing it needs `Refine/Nat.lean`'s forward
+readings threaded through a `Result` bind that `scalar_tac` does not open —
+twenty minutes of plumbing that belongs with the rest of the tier's proofs.
+
+#### 6. The `sorry` list, by what it waits on
+
+**337 `sorry`s** — 304 of the 306 `_refines` (two are closed), the 32
+`_unfold` equations and `inductives_check_ind_decl_refines` — and not one of
+them waits on an idea.
+
+| file | open | what is under it |
+|---|---:|---|
+| `Spec.lean` | 17 | nothing — the `_unfold`s are the only obligations of this round about the TWIN rather than the port, and they are `rfl`-shaped under task #97-P5-Checker's rule 10 |
+| `SpecModeled.lean` | 15 | the same, at `modeled`; the file is apart from `Spec.lean` only because the two halves were written concurrently |
+| `StructParts.lean` | 50 | `Specs.lean`'s `intern_e`/`intern_l_node`/`intern_n_node` family (the generators intern at every step) and `ExprOps/**`'s `strip_pis`/`strip_lams`/`mk_app_n`/`instantiate1_lift_fast`; **no `KnotRel`** |
+| `SumParts.lean` | 8 | `Specs.lean`'s level readers; `with_sort` wants `lvl_eq` |
+| `StructInstall(F).lean` | 8 | `ExprOps/**`, `Checker/Base.lean`'s `consts_resolve_f_fast` / `all_level_params_defined`, and `KnotRel` at 3 |
+| `SumInstall(F).lean` | 33 | the same, and `KnotRel` at 17 |
+| `NativeParts.lean` | 68 | `ExprOps/**` and `StructParts.lean`'s generators; **no `KnotRel`** — the classification walks the store and never the knot |
+| `NativeInstall(F).lean` | 45 | the same, `KnotRel` at 8, and finding 19's three brackets |
+| `Modeled.lean` | 92 | `ExprOps/**`'s `rename_consts` under finding 15, `Checker/Base.lean`'s four list checks, `KnotRel` at 39, and finding 21's name-resolution clause at 7 |
+| `Top.lean` | 1 | the four callees above it — `ind_params_ok`, `native_parts`, `check_native`, `check_modeled` — and the `do`-block reduction that puts them together |
+
+Across the tier: **74 statements carry `KnotRel checkFuel`**, **70 carry
+finding 10's `hvis`**, **7 carry finding 21's name-resolution clause**, and
+**0 carry `IndRel`** — this tier IS it.
+
+#### 7. Elaboration
+
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, two runs, spread 0 s at the
+1-second resolution the measurement has.  The import baseline measured the
+same way — a file whose only content is `import ConRon.Refine2.Inductives.Spec`
+— is **2 s**, and **every one of the tier's twelve files is 2–3 s raw**, i.e.
+**0–1 s net**; the two that reach 3 s are `Spec.lean` and `SpecModeled.lean`,
+and `Modeled.lean`'s 1 487 lines and 92 statements cost 2–3 s like the rest.
+
+**No lemma is anywhere near the 20-second flag, and the tier has no outlier at
+all.**  The reason is task #97-P5-1 §6's and it has not changed: a `sorry`ed
+statement costs its own elaboration and nothing else, the two closed ones are
+a `cases` and a `subst`, and there is no `grind` call anywhere in the tier.
+What this round adds to the cost model is that the **transcriptions** are the
+expensive half — `Spec.lean` and `SpecModeled.lean` are the files that reach
+3 s, and they are 2 122 lines of twin-side `do` blocks with 123 `…Spec` bodies
+and no claim in them, exactly as
+`Refine2/Checker/Spec.lean`'s 1 005 lines were the declaration checker's one
+real cost.  At **7 080 lines and 340 declarations for ≈ 30 s of elaboration
+across the tier**, the inductives tier is the cheapest of the four P5 rounds
+per statement, and the reason is that it is almost entirely statement.
+
+#### 8. The two merges, and the `KnotRel` collision this round found
+
+`arena` moved twice under this branch and both merges are in it.
+
+**Merge 1, `e0616fdf`** (tasks #97-P3-Ind, #97-P5-Frontend, #97-P3-CoreWalks):
+two textual conflicts, both resolved by keeping BOTH sides —
+`proof/ConRon/Refine2.lean`'s import list and index table (this tier's
+`Inductives.Top` beside the Frontend tier's ten `Frontend.*`) and DESIGN.md's
+task log.  No `.lean` conflict: #97-P3-Ind and #97-P3-CoreWalks are `Bridge/**`
+(Theorem 1), #97-P5-Frontend is `Refine2/Frontend/**`, and the one twin change
+— `Arena/CoreGated.lean`'s stuck-tag hoist — is in a knot this tier never
+names.  `ConRon/Generated/` was unmoved.
+
+**This round found the `KnotRel` collision, and merge 2 is its fix.**  At
+`arena`'s tip `6ed09d15` — before this branch touched anything —
+`lake build ConRonRefine2` did not import at all:
+
+    error: ConRon/Refine2.lean:31: import ConRon.Refine2.Checker.KnotHyp failed,
+      environment already contains 'ConRon.Refine2.KnotRel.whnfCore'
+      from ConRon.Refine2.Core.KnotRel
+
+Tasks **#97-P5-Core** and **#97-P5-Checker** had each declared a
+`ConRon.Refine2.KnotRel` — the first at `arena::core`'s six LANE DISPATCHERS
+(`knot_whnf_core … lane fuel`, six fields over `laneKnot`), the second at the
+six fuelled ENTRY POINTS (`annotate_core`, `infer_type_core`, …, six `Sim`s).
+Both branches were green in isolation, `scripts/gates.sh` does not build
+`ConRonRefine2` (it is deliberately not a default target), and so the clash
+survived two merges unnoticed.  **Merge 2, `b9d800f8`** (task #97-P5-Arms) is
+the reconciliation `Refine2/Checker/KnotHyp.lean`'s own module note had
+predicted: the Checker structure goes, `Refine2/Core/KnotRel.lean`'s stays,
+and that file now maps the old six clauses onto `Core/Entries.lean`'s six
+theorems plus `Core/Arms/Sort.lean`'s `ensure_sort_core_refines`.
+
+**Nothing of this tier had to change for it, and that is worth recording.**
+`hknot` is a pure binder at all 74 sites — no proof here projects a field — so
+the seventy-four statements kept their text verbatim while the relation under
+them was replaced.  The adaptation was ONE theorem:
+
+    theorem ind_rel_of_knot (hknot : KnotRel checkFuel) : IndRel        -- was `ind_rel`
+    theorem ind_rel : IndRel := ind_rel_of_knot knotRel_checkFuel'      -- NEW
+
+because `knotRel_checkFuel'` is a THEOREM after #97-P5-Arms
+(`Core/Arms.lean`'s `knotRel` at `Arena.checkFuel`), so **`IndRel` is now
+unconditional** and `Refine2/Checker/Top.lean`'s thirteen `hind : IndRel`
+sites take `ind_rel` with no argument.  The seven front doors this tier calls
+are exactly the seven that file lists, and no field is missing.
+
+#### 8a. The gates, at the tip
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green, 2 217 jobs**, 0 errors, 968 `sorry` warnings — the library root imports again for the first time since the collision landed |
+| `cd proof && lake build ConRon.Refine2.Inductives.Top` | green; the tier's twelve modules build and `ind_rel`'s `#guard_msgs`'d axiom row passes |
+| `cd proof && lake build` | green — the default targets are untouched |
+| `scripts/provenance.py check` | 0 findings — `6 465 item(s) (4 099 Rust, 2 366 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| the diff | `proof/ConRon/Refine2/Inductives/**`, two lines of `proof/ConRon/Refine2.lean` and this section, plus the two merges.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Specs.lean`, no `ExprOps/`, and of `Core/` and `Checker/` only what the merges brought — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected by this branch's own work and are not re-run |
+
+#### 9. What the Frontend tier and P3 need
+
+* **`IndRel` is gone as a hypothesis, already**: `ind_rel : IndRel` is
+  unconditional at this tip (§8), so the thirteen `hind` sites of
+  `Refine2/Checker/Top.lean` can drop the argument whenever their owner next
+  touches them — no statement of that tier has to change for it.
+* **Finding 19's visibility-bound clause is `arena::env`'s to prove**, not
+  P3's and not this tier's: *lowering `visible_below` by one hides exactly the
+  row the type former's push added, because a redeclaration cannot make an
+  older row visible — `check_constant_val_guards` rejects a name the
+  environment already shows before the push happens.*  Three statements of
+  `NativeInstall.lean` carry it; one lemma about `ifenv_find` retires all
+  three.
+* **`arena::frontend` is the one tier left.**  Its parser threads a memo
+  exactly as `arena::intern` does, so `SimEM` is already the right shape for
+  it (task #97-P5-Checker §9), and its splits will want the same collected
+  transcription file this round wrote — the pattern is now used at three tiers
+  and is the tier's standing arrangement.
+* **The `…_unfold` equations are the tier's only twin obligations** and they
+  are a natural first batch of closures: 17 + 15 `rfl`-shaped `do`-block
+  equations, all of them in two files, all of them under rule 10's reduction
+  discipline.
 
 ### Task #97-P3-Frontend — Theorem 1: the parser's exactness and the byte-level capstone (2026-09-22, Opus under Fable)
 
@@ -40697,6 +41066,256 @@ one import went in beside the Checker tier's.  The one adjustment the second
 merge forced was editorial: `scripts/gates.sh` grew two gates, so
 `gen-prelude-lean.sh --check` is step **11** and the two module notes that
 cite it were corrected.
+
+#### Follow-up — P3-Frontend-2: the critical path, taken (2026-09-22, Opus under Fable)
+
+Phase **P3-Frontend-2**, off `arena`'s tip `df189416`, on the same nine
+modules and nothing else.  The brief was §7's critical path in §7's order —
+items 5-7 → 9 → 16 → 18, then everything the capstones consume — plus §5's
+finding 6 (`checkDeclsPure_thmDecl_const`) as an upstream ask.
+
+**Seventeen of the fifty-six closed, and the two that mattered most are
+sorry-FREE.**  The round went at what SITS ON the record-assembly steps
+first — so that the whole streaming fold and both assembled capstone letters
+rest on named leaves rather than on a sorry each — and then took the three
+steps of items 5-6 that read the tables and nothing else.
+
+##### 1. What closed
+
+| item | declarations | |
+|---|---|---|
+| 5 (part) | `parsePwD_run`, `parseCVD_run` | the two record headers that only READ; `StateD_names_run` is the table read at a list, `readNames_mapM_run` the readback at one |
+| 6 (part) | `parseRuleD_run` | one recursor rule; the install-computed fields carry con-leche's own parse placeholders on both sides |
+| 9 (half) | `applyLine_run` | six arms over the three entry parsers and `applyDeclD_run`; the `header`/`blank` arms are `rfl` on both sides |
+| 16 | `applyFinalLine_run`, `feedChunk_run` (+ `feedChunk_run_le`) | the loop's strong induction, at the twin's own measure |
+| 17 | `chunkStep_run`, `chunkFinish_run` | |
+| 18 | `parseBytes_run`, `parseChunksGo_run`, `parseChunks_run` | **so `parseChunks_exact` — DESIGN §8.2's parser statement — is now a theorem whose only open premises are `applyLine_run`'s and `StateD_init_run`** |
+| 19 | `builtinPreludeE_run` | `parseBytes_run` under the prelude gate |
+| 22 | `preparePrelude_run` | `frontOf_run` and `hoistNatOpGround_run` composed |
+| 23 | `FoldOK_post_parse` | rests on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` and nothing else |
+| 24 | `checkDeclsPure_thmDecl_const`, `no_False_theorem_accepted_pure` | **`[propext, Classical.choice, Quot.sound]`** — no `sorryAx` |
+| 25 | `Arena.no_False_declaration`, `Arena.no_False_declaration_prelude` | the four steps of §6's table, composed |
+
+Twelve new library results beside them, every one closed: `MapRel.insert`,
+`IdTableRel.empty`, `AM.{pure_ok,fail_ok}`, `denoteDeclArray_iff`,
+`denoteDecls_append`, `denoteDeclArray_append`, `annotateCore_const`,
+`checkDeclsPure_prefix`, `readName_run`, `readNames_mapM_run`,
+`StateD_names_run`.  The tier is **146 declarations in 3 604 lines**
+(was 132 in 2 792), **39 open** (was 56).
+
+**`AM.of_run` is the bridge nobody had used yet.**  `Bridge/Rel.lean:59`
+turns a `@[spec]` Hoare triple into the `f … s = .ok (x, s')` shape every
+theorem of this tier is stated in, in one line — `readName_run` is
+`AM.of_run rfl hrun (readName_spec s h)` and nothing else.  That is what makes
+the twenty-odd `@[spec]` theorems of `Bridge/Specs.lean` (`internNNode_spec`,
+`internLNode_spec`, `internE_spec`, the ten per-constructor faces, the three
+memoised readbacks) reachable from a tier that uses no `mvcgen`, and it is the
+route items 5, 10 and 11 should take.
+
+##### 2. Finding 7 — the pure fold's PREFIX is a run, and that is the whole of §5's finding 6
+
+con-leche proves its stream ingredient at the Cached tier in three parts (the
+annotation of a bare constant, the `thmDecl` step's push, and `PushChain` —
+"pushed constants persist to the end of the run").  Transposed onto
+`checkDeclsPure`, **the third part is not needed at all**:
+
+    checkDeclsPure μ ops pins ds = ds.foldlM (checkDecl μ ops pins) Env.empty
+
+is a plain `foldlM`, so `List.foldlM_append` says every PREFIX of an accepted
+run is an accepted run at the same mode, ops and fuel
+(`checkDeclsPure_prefix`).  The record's own step is therefore the END of an
+accepted run, and `ConLeche.Model.no_proof_of_False_pure` applies there — the
+constant never has to be carried past it.  The CACHED fold is not of that
+shape (`Cached.checkDecls` runs two phases over the whole array and phase B
+pends every value phase A installed), which is exactly why con-leche needs
+`installRun_trace`'s `PushChain` and this tier does not.
+
+What survives of con-leche's proof is its first two parts, and both are
+cheaper here too: `annotateCore_const` is `rfl` at every non-zero fuel (the
+pure knot has no annotation memo, so there is no hit branch to rule out —
+`annotate_const_of_miss` spends its argument on exactly that), and the step's
+push is `ConLeche.Semantics.declThmRun_of`, which con-leche already has.
+
+**The upstream ask shrinks accordingly.**  What belongs beside
+`Cached.checkDecls_thmDecl_const` in `ConLeche/Verify/Cached/StreamThm.lean`
+is not a proof this repository owes con-leche but a RE-STATEMENT: the pure
+tier's lemma has the prefix conclusion, not the whole run's, and its proof is
+twenty lines.  `Bridge/Frontend/Capstone.lean` §2 carries it, closed, in the
+meantime; the whole statement is about con-leche's own functions and mentions
+no handle.
+
+##### 3. Finding 8 — the import rule widens by one more, and it is the scanner's
+
+DESIGN §2's "no scanner tier" claim is intact and the saving is intact, but
+the bridge does need ONE line from `ConLeche/Frontend/Scan/Equiv.lean`:
+con-leche's `feedChunk` and `applyFinalLine` call **`scanLineSpec`** (the
+naive reference, with `@[csimp]` substituting the fast one in compiled code)
+and the twin calls **`scanLineFwd`** directly, because *"that is what both
+binaries execute"* (`Arena/Frontend/ExportC.lean`).  So
+`Bridge/Frontend/Chunks.lean` imports `ConLeche.Frontend.Scan.Equiv` for
+`scanLineFwd_eq` (`:932`).
+
+This is a citation, not a tier: the 1 800 lines behind that equation are
+con-leche's, already proved and already built, and what the arena avoids is
+re-implementing the recogniser (the original campaign's seven files and
+17 479 lines of `RefineOld/Frontend/Scan*`), not citing con-leche's own
+equality between its two spellings.  §8's import list reads: `Rel.lean` adds
+`ConLeche.Frontend.ExportC`, **`Chunks.lean` adds
+`ConLeche.Frontend.Scan.Equiv`**, `Prepare.lean` adds
+`ConLeche.Frontend.{Prelude,NatOpGround}` and `ConLeche.Verify.Frontend.Prepare`,
+`Capstone.lean` adds `ConRon.Arena.Main` and `ConLeche.MainTheorem`.
+
+##### 4. Finding 9 — three obligations that are NOT this tier's, named exactly
+
+Each of these stopped a proof that was otherwise finished, and each is one or
+three lines where it belongs:
+
+1. **`StateD_init_run` (item 15)** needs *the handle a name/level intern
+   returns on a closed scratch tier is persistent*.  `Arena/WFProofs.lean` has
+   it for the EXPRESSION store (`EStore.intern_isPersistent_of_off`,
+   `internAt_isPersistent_of_off` — `Bridge/StoreBind.lean` already cites
+   them) and has **no `NStore`/`LStore`/`LsStore` twin**.  Until it does, the
+   `names` and `levels` clauses of `PersStateD` cannot be discharged at all
+   from the frontend tier.  Owner: the arena's WF layer.
+2. **`Arena.no_False_declaration_pipeline` (item 26)** is
+   `Arena.no_False_declaration_prelude`'s assembly verbatim except that
+   `runPipelineM` runs `internAllPins` BETWEEN `preparePrelude` and
+   `installThenCheck`, so the fold's start invariant has to be re-established
+   at the state that walk leaves — and `FoldOK_post_parse` asks for a
+   `ParseStep`, whose `caches` conjunct `Bridge/Checker/Pins.lean`'s
+   `internAllPins_run` does not state.  The ask: **`internAllPins_run` should
+   carry `s'.caches = s.caches` and `s'.memos = s.memos`** beside its six
+   existing conjuncts.  `internAllPins` is thirty-five pin reads and one
+   `internPinSets`, none of which writes a per-declaration cache, so the
+   conjunct costs nothing where it is proved and cannot be had from here.
+   Owner: the Checker tier (its own item 13).  With it, the letter is ten
+   lines.
+3. **`FoldOK_post_parse` grew a hypothesis** and the two capstone letters grew
+   it with them: `hcache0 : s0.caches = Caches.empty`.  `CacheOK` is vacuous
+   at EMPTY per-declaration tables (`Bridge/Specs.lean`'s `CacheOK.of_empty`)
+   and what the parse gives is that the tables did not MOVE
+   (`ParseStep.caches`), not that they were empty.  `AState.init` sets them
+   empty (`Arena/Monad.lean:146`), so the driver has it; a letter about an
+   arbitrary start state has to say so.  It joins §6's "the driver's startup"
+   row and changes nothing else about the letters.
+
+##### 5. Finding 10 — `MapRel`'s insert is where `denoteN_inj` earns its keep
+
+§3's finding 1 recorded that `MapRel`'s `cover` clause transports across an
+append for free — no injectivity needed.  The INSERT is the other half of that
+story and it needs injectivity twice: `hit` at a handle the insert missed has
+to land on a KEY the insert missed (two distinct handles denoting one name
+would break it), and `cover` at a name the insert missed has to land on a
+handle it missed.  `MapRel.insert` is the only thing in `Rel.lean` that puts
+anything IN a map — `mono` and `empty` only carry and start one — and it is
+what the six `noteDecl` arms, `registerProjOwners` and `noteProjIota` will all
+read.
+
+##### 6. Elaboration
+
+Measured at `LEAN_NUM_THREADS=1 LAKE_JOBS=1` on a loaded machine, after
+deleting the tier's `.olean`s; the index module (imports only, no declaration
+of its own) is the baseline.
+
+| module | wall | net | raw | decls | open |
+|---|---:|---:|---:|---:|---:|
+| `Rel.lean` | 1.2 s | 0.46 s | 816 | 55 | 0 |
+| `Modeller.lean` | 0.81 s | 0.07 s | 147 | 5 | 2 |
+| `Shared.lean` | 0.84 s | 0.10 s | 237 | 16 | 10 |
+| `ProjRec.lean` | 0.87 s | 0.13 s | 234 | 10 | 10 |
+| `Lines.lean` | 1.0 s | 0.26 s | 578 | 26 | 9 |
+| `Chunks.lean` | 1.1 s | 0.36 s | 586 | 14 | 1 |
+| `Prepare.lean` | 0.89 s | 0.15 s | 299 | 11 | 6 |
+| `Capstone.lean` | 0.92 s | 0.18 s | 437 | 9 | 1 |
+| `Axioms.lean` | 0.79 s | 0.05 s | 195 | — | — |
+| the index module (baseline) | 0.74 s | — | 75 | — | — |
+| **the tier** | **~9 s** | **~1.8 s** | **3 604** | **146** | **39** |
+
+**No theorem is anywhere near the 20 s flag, and none is within two orders of
+magnitude of it.**  `-Dprofiler=true -Dprofiler.threshold=20` over the two
+heaviest modules reports exactly four entries in `Chunks.lean` — the slowest a
+**66 ms** `rewriteSeq`, then a 35 ms `simp` and two type-checking entries of
+32 ms and 23 ms — and two in `Rel.lean`, a 29 ms `simp` and a 52 ms
+elaboration.  The round's own additions did not move the tier's cost: it grew
+by 679 lines and the net elaboration is still about two seconds, for §1's
+reason (**no `grind`, no `mvcgen`**) and one more the round confirmed: the
+chunk tier is `AM.bind_ok` / `AM.pure_ok` and `simp only` with a named branch
+fact, never a search.  (Wall times are from a loaded machine and move by
+±0.1 s between runs; the ordering and the conclusion do not.)
+
+##### 7. The sorry list, exactly — thirty-nine declarations, nineteen items
+
+Unchanged in shape from §7; the closed rows are struck from it.  What is left,
+by module:
+
+| module | open | |
+|---|---:|---|
+| `Shared.lean` | 10 | items 1-3: `denoteEGo_spec`, `denoteEShared_isSome`, `denoteCVGo_spec`, `denoteCIListGo_spec`, `readExpr_run`, `readCIList_run`, `internExpr_run`, `internDecls_run`, `denoteBlockRec_eq_of_rel`, `ctxOf_eq_of_rel` |
+| `ProjRec.lean` | 10 | items 10-13: `projIotaName_run`, `isProjIotaName_run`, `projIotaLevel_run`, `occursConstFast_run`, `stripPisAll_run`, `mkLams_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run` |
+| `Lines.lean` | 9 | items 5-7, 9: `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run`, `noteDecl_run`, `pushDecl_run`, `blockRecOf_run`, `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Prepare.lean` | 6 | items 20-21: `preludeKey_run`, `pick_denote`, `frontOf_run`, `usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run` |
+| `Modeller.lean` | 2 | item 8: `inProcessModeller_wf`, `inProcessModeller_refines` |
+| `Chunks.lean` | 1 | item 15: `StateD_init_run` (finding 9.1) |
+| `Capstone.lean` | 1 | item 26: `Arena.no_False_declaration_pipeline` (finding 9.2) |
+
+**The critical path is now one node.**  Items 16-18 are closed, item 9's
+`applyLine_run` is closed, so the whole streaming fold and both assembled
+capstone letters wait on **`processLineCoreD_run`** (item 9) and
+`StateD_init_run` (item 15) — and `processLineCoreD_run` waits on items 5-7
+and 12, which wait on items 10-11 and 13, of which item 13's second half is
+the Inductives tier's and item 11's `occursConstFast_run` has
+`Bridge/ExprOps/Leaves.lean`'s open GRAY shape.  Nothing on that path is
+blocked on a statement that does not exist; every one of them is a proof
+someone has to write.
+
+##### 8. The axiom census, re-read
+
+`Bridge/Frontend/Axioms.lean` now has three sections instead of two, because
+the round made the distinction visible:
+
+* **the closed census** — 61 results, every one within
+  `[propext, Classical.choice, Quot.sound]` and several at `[propext]` alone.
+  It gained `MapRel.insert`, `IdTableRel.empty`, `AM.{pure_ok,fail_ok}`, the
+  three `denoteDeclArray` lemmas, and — the headline —
+  `annotateCore_const`, `checkDeclsPure_prefix`,
+  `checkDeclsPure_thmDecl_const` and `no_False_theorem_accepted_pure`, plus
+  `readName_run`, `readNames_mapM_run`, `StateD_names_run`, `parsePwD_run`,
+  `parseCVD_run` and `parseRuleD_run`;
+* **PROVED, but resting on an open leaf** — thirteen results whose own proof
+  is complete and which carry `sorryAx` only through a lemma of the sorry list
+  they cite (`applyLine_run`, the seven chunk-tier theorems,
+  `builtinPreludeE_run`, `preparePrelude_run`, `mem_preparePrelude_denote`,
+  `FoldOK_post_parse`).  The campaign's rule keeps them out of the census
+  proper; the distance between "proved" and "closed" is what the tier's
+  remaining work is, and this is the only place a reader can read it off;
+* **the headlines** — `parseChunks_exact` and the three capstone letters,
+  still carrying `sorryAx`, still naming **neither `CoreSpec` nor `IndSpec`
+  nor `ModellerWF` nor `ModellerRefines`**.  That claim is the one §6 makes
+  and it is unchanged: the four are hypotheses of the statements, not axioms
+  of the environment.
+
+##### 9. Gates
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 612 jobs**; 260 `sorry` warnings, of which **39 are this tier's** (the rest are the `ExprOps`, Core, Promote, Checker and — since the merge below — Inductives tiers') |
+| `scripts/gates.sh` | **all 13 OK**, three times: on the branch before the merge (`extract-check` 95 s, `lake-build` 361 s), after the record-header round, and after the merge (`extract-check` 92 s, `lake-build` 59 s incremental) |
+| the diff | `proof/ConRon/Bridge/Frontend/{Rel,Lines,Chunks,Prepare,Capstone,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
+
+**`arena` moved once under this branch** — tasks **#97-P3-Ind** (the
+inductive tier, `Bridge/Inductives/**`), **#97-P3-CoreWalks** and
+**#97-P5-Frontend** (`Refine2/Frontend/**`) — and the merge was clean
+everywhere but DESIGN.md's append point: **nothing under
+`proof/ConRon/Bridge/Frontend/**` is touched by any of them**, and the two
+files of the Bridge library they do move (`Bridge.lean`'s module list,
+`Bridge/Specs.lean`) merged without a conflict.  The gates were re-run after
+the merge and are green.
+
+**What the merge hands item 13.**  `Bridge/Inductives/{StructParts,NativeParts}.lean`
+now state the two recognisers as `@[spec]` triples — which is exactly the
+missing half `projRecOwners_run`'s note named as "the Inductives tier's", and
+which `AM.of_run` converts into this tier's shape in one line (see §1's note).
+The `filterMap` induction and the reordering argument are still this tier's.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
