@@ -41422,20 +41422,37 @@ i.e. by writing the fix badly in someone else's lane.
 
 #### 4. What closed, by group
 
-| group | file | closed |
-|---|---|---:|
-| `ScratchClosed` at the four stores, `.of_wf`, `.off`, `.pers`, `.ext` | `Core/Bracket.lean` | **16** |
-| `ext_dropScratch`, **`ext_bracket`** | `Core/Bracket.lean` | **2** |
-| `tbl_reset_rel` / `tbl_reset_inv` and the four tiers' resets | `Core/Bracket.lean` | **6** |
-| the four stores opened and closed (`{n,l,ls,e}store_{enable,drop}`) | `Core/Bracket.lean` | **8** |
-| `reset_map_{rel,inv,nil}`, `caches_reset`, `memos_reset` | `Core/Bracket.lean` | **5** |
-| **`flush_caches_refines`**, `flush_caches_sim`, **`enter_scratch_refines`**, **`drop_scratch_refines`** | `Core/Bracket.lean` | **4** |
-| `BrOK`, `bracket_open`, `bracket_close` | `Core/Bracket.lean` | **3** |
-| **the round** | | **44** |
+| group | closed |
+|---|---:|
+| `ScratchClosed` at the four stores and `.lss`/`.ls`/`.ns` | **7** |
+| `.of_wf` (§1's *"`StoreWF` and one bit"*), `.off`, `.pers`, `.ext`, four times each | **16** |
+| `ext_dropScratch` and **`ext_bracket`** | **2** |
+| `tbl_reset_{rel,inv}` and the four tiers' resets | **6** |
+| the four stores opened and closed (`{n,l,ls,e}store_{enable,drop}`) | **8** |
+| `reset_map_{rel,inv,nil}`, `caches_reset`, `memos_reset` | **5** |
+| **`flush_caches_refines`** (and `flush_caches_sim`), **`enter_scratch_refines`**, **`drop_scratch_refines`** | **4** |
+| `BrOK`, `TwinWF`, `brEntered`/`brLeft`, `bracket_open`, `bracket_close` | **8** |
+| **the round** | **56** |
 
-`Refine2/Core/Bracket.lean` is imported by `Refine2/Core.lean` and carries no
-`sorry`.  `TwinWF` is a definition, not a theorem: nothing in the file assumes
-it, and the three leaves that will consume it still read `sorry`.
+All of it is in one new file, `proof/ConRon/Refine2/Core/Bracket.lean` (888
+lines), imported by `Refine2/Core.lean`.  **It carries no `sorry`**, and five
+`#print axioms` rows under `#guard_msgs` at the foot of it —
+`ext_bracket`, `bracket_open`, `bracket_close`, `enter_scratch_refines`,
+`drop_scratch_refines` — all read
+`[propext, Classical.choice, Quot.sound]`.  `TwinWF` is a DEFINITION, not an
+assumption: nothing in the file uses it, and the three leaves that will
+consume it still read `sorry`.
+
+**One trap worth naming, because it cost half an hour and would cost it
+again.**  `Refine2/Specs.lean` does not transitively import
+`ConRon.Arena.Core`, so `flushCaches` / `enterScratch` / `dropScratch` are out
+of scope in a file that imports only it — and with `autoImplicit` on (which
+every file of the tier has) Lean SILENTLY binds them as implicit variables of
+type `AM Unit` instead of reporting an unknown identifier.  Every statement
+about them then elaborates, and every `rfl` about them fails with a
+defeq error that names the right constants.  The fix is one import line; the
+lesson is that in this tier an unexplained `rfl` failure on a twin constant is
+a missing import until proved otherwise.
 
 #### 5. What the capstones read, and the next round
 
@@ -41457,6 +41474,35 @@ round's order is forced:
    `annot_step` in about eighty each, all three resting on the body lemmas
    (`check_decl_refines`, `annot_step_go_refines`, `annot_step_promote_refines`,
    `check_value_group_refines`, `promote_new_refines`) that are already stated.
+   `check_decl_step` and `annot_step` need only (1); `check_pending` needs (2)
+   as well, because it is the one call site where the split scalar is split.
+
+**Two doc notes that are now wrong and are not this round's to edit.**
+`Refine2/Shape.lean`'s `SimS` note lists *"`enter_scratch`/`drop_scratch`/
+`flush_caches`"* among the total state-threading primitives; only
+`flush_caches` is one (§1's table).  And `arena::monad::Memos::reset`'s claim
+to reach `Memos::empty` was false until this round (§2) — that one is fixed in
+the port, in the same commit as the regenerated model.
+
+#### 6. The merge, and the gates
+
+`arena` moved once under this branch (`fa8b956c`, task #97-P5-Ind round 2's
+`Refine2/Inductives/**`) and is merged; **no conflict**, the only shared file
+being DESIGN.md's task log, which is append-both.
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **13 of 13 OK** — `cargo-build` 3 s, `cargo-test` 8 s, `lint-rust`, `provenance`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 104 s**, `lake-build` 135 s |
+| `cd proof && lake build ConRonRefine2` | **green, 2 220 jobs**, 0 errors, **875 `sorry`** (was 898 at `0b79feae`; the difference is the merge's, not this round's — this round adds a file with none) |
+| `#print axioms install_then_check_refines` | `[propext, sorryAx, Classical.choice, Quot.sound]` — unchanged, §5 |
+| `#print axioms check_decls_pure_refines` | `[propext, sorryAx, Classical.choice, Quot.sound]` — unchanged, §5 |
+| the diff | `crates/con-ron-core/src/arena/monad.rs` (§2, +4 lines of code), `proof/ConRon/Generated/{Funs,Types}.lean` (regenerated, line-number churn plus §2's two binds), `proof/ConRon/Refine2/Core.lean` (one import and one table row), `proof/ConRon/Refine2/Core/Bracket.lean` (new, 888 lines) and this section |
+
+**`extract-check` is the gate that matters for §2** and it passed: the
+committed model is byte-identical to a fresh extraction of the fixed crate.
+`Core/Eqns.lean` paid its re-derivation once, **1 034 s**, exactly as
+CLAUDE.md's warning prices it; `Core/Bracket.lean` itself builds in **1.6 s**,
+which is the whole cost of the round to the tower.
 
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, and `IndRel` (2026-09-22, Opus under Fable)
 
