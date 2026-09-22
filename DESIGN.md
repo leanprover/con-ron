@@ -40598,7 +40598,7 @@ same note task #97-P5-Arms §9 makes about `EStore_view_tagOf`.
 | the capstone spine (§5) plus `mk_ifenv_empty_refines` and four cursor helpers | `Checker/Top.lean` | **12** |
 | **the round** | | **39** |
 
-`ConRonRefine2` stands at **905 `sorry`** and 2 219 jobs, green.  The two
+`ConRonRefine2` stands at **904 `sorry`** and 2 219 jobs, green.  The two
 tiers' own open count is **342** (was 360): `Promote/Intern.lean` 24,
 `Promote/Promote.lean` 29, `Checker/Axioms.lean` 59, `Checker/Canon.lean` 30,
 `Checker/Pins.lean` 6, `Checker/Spec.lean` 1, `Checker/Base.lean` 61,
@@ -40696,12 +40696,12 @@ which is append-both.
 
 | gate | result |
 |---|---|
-| `cd proof && lake build ConRonRefine2` | **green, 2 219 jobs**, 0 errors, **905 `sorry`** |
-| `cd proof && lake build` | green — the default targets are untouched |
-| `scripts/provenance.py check` | 0 findings |
-| `scripts/overview-links.sh` | OK |
-| `scripts/twin-lines.py check` | OK |
-| `scripts/holes.sh --check` | OK |
+| `cd proof && lake build ConRonRefine2` | **green, 2 219 jobs**, 0 errors, **904 `sorry`** |
+| `cd proof && lake build` | **green, 2 209 jobs** — the default targets are untouched (`ConRonRefine2` is deliberately not one) |
+| `scripts/provenance.py check` | 0 findings — `6 650 item(s) (4 099 Rust, 2 551 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/twin-lines.py check` | 1 983 `Lean twin:` citations in 42 files, every one current |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
 | the diff | `proof/ConRon/Refine2/{Checker,Promote}/**`, one import line of `proof/ConRon/Refine2/Inductives/Top.lean` (§1) and this section.  **No Rust file, no generated model, nothing under `Arena/`, `Refine/`, `RefineOld/`, `Bridge/`, `Specs.lean`, `ExprOps/` or `Core/` of this branch's own work** — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected by it and are not re-run |
 
 #### 11. What the next round needs

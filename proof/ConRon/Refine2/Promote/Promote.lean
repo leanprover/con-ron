@@ -395,8 +395,6 @@ them — so `Arena/PromoteExt.lean`'s `promoteN_ext` is not needed here; it is
 needed where a walk's `Ext` has to be produced WITHOUT decomposing it, which
 is `Bridge/Promote/Exact.lean`'s business. -/
 
-/-- The name walk, by the fuel's measure; `promote_n_node` derived inside the
-successor step. -/
 /-- `promote_n_node` at the fuel `promote_n` calls it with, from that call's
 own induction hypothesis — the mutual block's second half, which needs no
 induction of its own. -/
@@ -509,6 +507,8 @@ private theorem promote_n_node_aux (n : Nat)
             by simp only [except_ok_bind]; rw [hy]; rfl, rfl, hm', hrel2,
             hinv2, Ext.trans hext1 hext2⟩
 
+/-- The name walk, by the fuel's measure; `promote_n_node_aux` is fed this
+step's own induction hypothesis. -/
 private theorem promote_n_aux (n : Nat) :
     ∀ {pers st lst rm lm} {fuel : Std.U64} {h : arena.handle.NIdx} {o},
       absU fuel = n → AStateRel pers st lst → AStateInv pers st →
@@ -531,7 +531,13 @@ private theorem promote_n_aux (n : Nat) :
     subst ho
     exact POut.err (AErrSim.internal (by rw [promoteN]; rfl))
   | succ n ih =>
-    have hnode := promote_n_node_aux n ih
+    have hnode : ∀ {pers st lst rm lm} {fu : Std.U64}
+        {v : arena.store.NNodeView} {o},
+        absU fu = n → AStateRel pers st lst → AStateInv pers st →
+        PMemoRel rm lm →
+        arena.promote.promote_n_node pers st rm fu v = ok o →
+        SimPMF absNIdx pers lst o (promoteNNodeSpec lm n (absNNodeView v)) :=
+      fun hk hrel hinv hm hq => promote_n_node_aux n ih hk hrel hinv hm hq
     intro pers st lst rm lm fuel h o hn hrel hinv hm hrun
     rw [arena.promote.promote_n] at hrun
     have hnz : ¬ (fuel = 0#u64) := by
