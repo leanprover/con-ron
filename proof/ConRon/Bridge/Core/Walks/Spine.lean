@@ -29,10 +29,19 @@ match is generated in `EnsureSort.lean` and in the `ExprOps` closure, and the
 two oleans both carry it.
 
 The rule the round takes from it: **`Bridge/Core/**`'s knot-facing chain
-(`Knot → Memo → Arms/* → Induction`) stays free of the `ExprOps` tier, and
-the walks that need that tier live in SIBLING modules off it.**  A body walk
-that eventually needs one of these four will import this module beside
-`Owed.lean`; nothing on the chain has to.
+(`Knot → Memo → Arms/* → Induction`) stays free of the `ExprOps` tier and of
+`mvcgen` over `ensureSort`, and the walks that need either live in SIBLING
+modules off it.**  A body walk that eventually needs one of these five will
+import this module beside `Owed.lean`; nothing on the chain has to.
+
+**And this module is a workaround, not a fix.**  `Arena/Core.lean` calls
+`ensureSort` from `inferBodyIO`'s `.forallE` arm, from `annotateBody` and
+from `inferLamsLeafCheck`, so `Arms/{InferIO,Annotate,Infer}.lean` meet the
+same wall the day those arms are written — and all three are ON the chain.
+The auxiliary is *derived on demand*, so the real repair is to give it one
+owner (force its derivation in `Bridge/Specs.lean`, which every module of
+this library imports); DESIGN §8's `### Task #97-P3-Core-2` round 3
+finding 18 books it.
 
 ## What is in here besides the four walks
 
