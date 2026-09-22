@@ -32,6 +32,7 @@ there is no level algorithm to relate at all.  That is lesson 4's ~1 800
 saved proof lines, collected here.
 -/
 import ConRon.Bridge.Frontend.Shared
+import ConRon.Bridge.ExprOps.Spine
 import ConRon.Arena.Frontend.ProjRec
 
 namespace ConRon.Bridge.Frontend
@@ -46,6 +47,39 @@ open ConLeche ConRon.Arena ConRon.Arena.Frontend
 theorem viewN_run {s s' : AState} {h : NIdx} {v : NNodeView}
     (hrun : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v :=
   AM.of_run (P := fun t => t = s) rfl hrun (viewN_spec s h)
+
+/-- con-leche: none — `viewLs` in run form, off `Bridge/Specs.lean`'s
+triple. -/
+theorem viewLs_run {s s' : AState} {h : LsIdx} {v : LsNodeView}
+    (hrun : viewLs h s = .ok (v, s')) : s' = s ∧ s.store.lss.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (viewLs_spec s h)
+
+/-- con-leche: none — `readLevel` in run form: the readback IS `denoteL`
+(DESIGN §8.3 lesson 4). -/
+theorem readLevel_run {s s' : AState} {h : LIdx} {u : Level}
+    (hrun : readLevel h s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls h = some u :=
+  AM.of_run (P := fun t => t = s) rfl hrun (readLevel_spec s h)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the run form
+of `Bridge/ExprOps/Spine.lean`'s closed `piResult_spec`. -/
+theorem piResult_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
+    (hok : StateOK s) (hd : denoteE s.store h = some e)
+    (hrun : ConRon.Arena.piResult fuel h s = .ok (r, s')) :
+    s' = s ∧ denoteE s.store r = some e.piResult := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s) rfl hrun
+    (ExprOps.piResult_spec fuel s h hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 e hd⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:915-918 getAppFn — the run form of
+`Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
+theorem getAppFn_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
+    (hok : StateOK s) (hd : denoteE s.store h = some e)
+    (hrun : ConRon.Arena.getAppFn fuel h s = .ok (r, s')) :
+    s' = s ∧ denoteE s.store r = some e.getAppFn := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s) rfl hrun
+    (ExprOps.getAppFn_spec fuel s h hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 e hd⟩
 
 /-- con-leche: none — the name store's own well-formedness, dug out of the
 arena's: `StoreWF`'s nesting carries it down three levels. -/
@@ -96,16 +130,107 @@ theorem projIotaName_run {s s' : AState} (hok : StateOK s)
   simp only [denoteNView, denoteN_ext hdb' hstep3.ext, Option.map_some]
   rfl
 
+/-- con-leche: none — the name-side counterpart of `Bridge/Rel.lean`'s
+denote-inversion layer, at the one constructor this module reads: a handle
+whose view is `.str p t` denotes `.str q t` with `p` denoting `q`.  `Arena/
+WFProofs.lean` has the two halves (`denoteN_unfold`, `denoteNView_str`); this
+is the composition every `viewN` branch of the recogniser wants. -/
+theorem denoteN_str_inv {st : NStore} {rk : NIdx → Nat} (hw : Arena.NWFAt st rk)
+    {i p : NIdx} {t : String} (hv : st.view i = some (.str p t))
+    {x : ConLeche.Name} (hd : denoteN st i = some x) :
+    ∃ q, x = .str q t ∧ denoteN st p = some q := by
+  rw [denoteN_unfold hw hv, denoteNView, Option.map_eq_some_iff] at hd
+  obtain ⟨q, hq, hx⟩ := hd
+  exact ⟨q, hx.symm, hq⟩
+
+/-- con-leche: none — the same inversion the other way round: the DENOTED name
+is a `.str`, so the handle's view is, whatever the view was known to be.
+`Arena/WFProofs.lean`'s `denoteNView_str` under `denoteN_unfold`. -/
+theorem view_str_of_denoteN {st : NStore} {rk : NIdx → Nat}
+    (hw : Arena.NWFAt st rk) {i : NIdx} {v : NNodeView}
+    (hv : st.view i = some v) {q : ConLeche.Name} {t : String}
+    (hd : denoteN st i = some (.str q t)) :
+    ∃ p, v = .str p t ∧ denoteN st p = some q := by
+  rw [denoteN_unfold hw hv] at hd
+  exact denoteNView_str hd
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:116 isProjIotaName — the
+recogniser's `false` half, on con-leche's side alone: a name that is not
+`X._model.s.iota` is not recognised.  The twin descends tail component first
+and bails at three different places, so the three negative branches all land
+here. -/
+theorem clIsProjIotaName_false {nP : ConLeche.Name}
+    (h : ∀ (q : ConLeche.Name) (t : String),
+      nP ≠ ((q.str "_model").str t).str "iota") :
+    ConLeche.Frontend.isProjIotaName nP = false := by
+  rw [ConLeche.Frontend.isProjIotaName]
+  intro q t he
+  exact h q t he
+
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:116 isProjIotaName — the
 recogniser, which reads the name back and runs con-leche's own test.
 
-`sorry`: `readName`'s exactness (`Bridge/Specs.lean`).  Task
-#97-P3-Frontend's sorry list, item 10. -/
+Three `viewN`s against con-leche's one nested pattern.  The twin descends
+tail-component first (the last component decides, which is the module note's
+"cheap pre-filter"), so the theorem is three `denoteN_str_inv`s and then
+`cases` on the denoted parent: the shapes con-leche's pattern does **not**
+match are exactly the views the twin answers `false` at. -/
 theorem isProjIotaName_run {s s' : AState} (hok : StateOK s) {n : NIdx}
     {nP : ConLeche.Name} (hn : denoteN s.store.ns n = some nP) {b : Bool}
     (hrun : isProjIotaName n s = .ok (b, s')) :
     s' = s ∧ b = ConLeche.Frontend.isProjIotaName nP := by
-  sorry
+  obtain ⟨rk, hw⟩ := nsWF_of_StateOK hok
+  rw [ConRon.Arena.Frontend.isProjIotaName] at hrun
+  obtain ⟨v, s₁, hv1, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, hview1⟩ := viewN_run hv1
+  split at hrest
+  · -- the tail component IS `"iota"`
+    rename_i p1
+    obtain ⟨v2, s₂, hv2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨rfl, hview2⟩ := viewN_run hv2
+    obtain ⟨q1, rfl, hq1⟩ := denoteN_str_inv hw hview1 hn
+    split at hrest2
+    · -- the middle component is a `.str`
+      rename_i p2 t2
+      obtain ⟨v3, s₃, hv3, hrest3⟩ := AM.bind_ok hrest2
+      obtain ⟨rfl, hview3⟩ := viewN_run hv3
+      obtain ⟨q2, rfl, hq2⟩ := denoteN_str_inv hw hview2 hq1
+      split at hrest3
+      · -- and the head component IS `"_model"`: both sides answer the prefix test
+        rename_i p3
+        obtain ⟨q3, rfl, -⟩ := denoteN_str_inv hw hview3 hq2
+        obtain ⟨hb, hs⟩ := AM.pure_ok hrest3
+        subst hb; subst hs
+        exact ⟨rfl, rfl⟩
+      · rename_i hne
+        obtain ⟨hb, hs⟩ := AM.pure_ok hrest3
+        subst hb; subst hs
+        refine ⟨rfl, (clIsProjIotaName_false ?_).symm⟩
+        rintro q t he
+        have hq : q2 = q.str "_model" := by
+          injection he with h1 h2
+          injection h1 with h3 h4
+        subst hq
+        obtain ⟨p, rfl, -⟩ := view_str_of_denoteN hw hview3 hq2
+        exact hne p rfl
+    · rename_i hne
+      obtain ⟨hb, hs⟩ := AM.pure_ok hrest2
+      subst hb; subst hs
+      refine ⟨rfl, (clIsProjIotaName_false ?_).symm⟩
+      rintro q t he
+      have hq : q1 = (q.str "_model").str t := by
+        injection he with h1 h2
+      subst hq
+      obtain ⟨p, rfl, -⟩ := view_str_of_denoteN hw hview2 hq1
+      exact hne p t rfl
+  · rename_i hne
+    obtain ⟨hb, hs⟩ := AM.pure_ok hrest
+    subst hb; subst hs
+    refine ⟨rfl, (clIsProjIotaName_false ?_).symm⟩
+    rintro q t he
+    subst he
+    obtain ⟨p, rfl, -⟩ := view_str_of_denoteN hw hview1 hn
+    exact hne p rfl
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:122 projIotaLevel — the field's
 sort, off the iota artifact's type.
@@ -121,6 +246,14 @@ theorem projIotaLevel_run {s s' : AState} (hok : StateOK s) {fuel : Nat}
   sorry
 
 /-! ## The term walks -/
+
+/-- con-leche: none — `view_run`: the store's own decoding, off
+`Bridge/Specs.lean`'s triple.  `Bridge/Inductives/Rel.lean` has the same
+four-line bridge; the frontend cone does not import it. -/
+theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
+    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
+
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:228 occursConstFast — the
 memoised occurrence test.  A `Bool` answer names no handle, so task
@@ -138,36 +271,139 @@ theorem occursConstFast_run {s s' : AState} (hok : StateOK s) {fuel : Nat}
     s' = s ∧ b = ConLeche.Frontend.occursConstFast nP e := by
   sorry
 
-/-- con-leche: ConLeche/Frontend/ProjRec.lean:235 lamBody / :241 stripPisAll —
-the two peels.  Read-only walks: no intern, so the state does not move.
-
-`sorry`: two fuel inductions in `Bridge/ExprOps/Spine.lean`'s shape.  Task
-#97-P3-Frontend's sorry list, item 11. -/
-theorem stripPisAll_run {s s' : AState} (hok : StateOK s) {fuel : Nat}
-    {h : EIdx} {e : Expr} (he : denoteE s.store h = some e)
-    {bs : List (EIdx × BinderMeta)} {b : EIdx}
-    (hrun : stripPisAll fuel h s = .ok ((bs, b), s')) :
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:241 stripPisAll — the walk's
+STOP arm, once for the nine non-`forallE` constructors: the twin answers
+`([], h)` and con-leche's catch-all answers `([], e)`. -/
+theorem stripPisAll_stop {s s' : AState} {h b : EIdx} {e : Expr}
+    {bs : List (EIdx × BinderMeta)}
+    (hrest : (pure ([], h) : AM (List (EIdx × BinderMeta) × EIdx)) s
+      = .ok ((bs, b), s'))
+    (he : denoteE s.store h = some e)
+    (hcl : ConLeche.Frontend.stripPisAll e = ([], e)) :
     s' = s ∧ ∃ bsP bP, ConLeche.Frontend.stripPisAll e = (bsP, bP) ∧
       ListRel (fun (p : EIdx × BinderMeta) (q : Expr × BinderMeta) =>
         denoteE s.store p.1 = some q.1 ∧ p.2 = q.2) bs bsP ∧
       denoteE s.store b = some bP := by
-  sorry
+  obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+  subst hs
+  obtain ⟨rfl, rfl⟩ : bs = [] ∧ b = h := by
+    injection hv with e1 e2
+    exact ⟨e1, e2⟩
+  exact ⟨rfl, [], e, hcl, ListRel.nil, he⟩
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:235 lamBody / :241 stripPisAll —
+the two peels.  Read-only walks: no intern, so the state does not move.
+
+A fuel induction in `Bridge/ExprOps/Spine.lean`'s shape.  The `forallE` arm is
+the induction hypothesis at the body; the other nine arms are the ten-lemma
+inversion layer of `Bridge/Rel.lean` read once each, and on each of them
+con-leche's own `stripPisAll` is its catch-all clause — the two sides stop at
+the same node because the view's constructor IS the denoted term's. -/
+theorem stripPisAll_run {s : AState} (hok : StateOK s) :
+    ∀ (fuel : Nat) {h : EIdx} {e : Expr} (_ : denoteE s.store h = some e)
+      {bs : List (EIdx × BinderMeta)} {b : EIdx} {s' : AState}
+      (_ : stripPisAll fuel h s = .ok ((bs, b), s')),
+      s' = s ∧ ∃ bsP bP, ConLeche.Frontend.stripPisAll e = (bsP, bP) ∧
+        ListRel (fun (p : EIdx × BinderMeta) (q : Expr × BinderMeta) =>
+          denoteE s.store p.1 = some q.1 ∧ p.2 = q.2) bs bsP ∧
+        denoteE s.store b = some bP := by
+  have hwf : StoreWF s.store := hok.wf
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h e he bs b s' hrun
+    rw [ConRon.Arena.Frontend.stripPisAll] at hrun
+    exact absurd (AM.fail_ok hrun) (by simp)
+  | succ fuel ih =>
+    intro h e he bs b s' hrun
+    rw [ConRon.Arena.Frontend.stripPisAll] at hrun
+    obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hview⟩ := view_run hv
+    match v, hview with
+    | .forallE ty body m, hview =>
+      obtain ⟨et, eb, rfl, hty, hb⟩ := denote_forallE_inv hwf hview he
+      simp only [] at hrest
+      obtain ⟨pr, s₂, hgo, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨tl, tb⟩ := pr
+      obtain ⟨rfl, bsP, bP, hcl, hrel, hdb⟩ := ih hb hgo
+      obtain ⟨hvv, hss⟩ := AM.pure_ok hrest2
+      subst hss
+      obtain ⟨rfl, rfl⟩ : bs = (ty, m) :: tl ∧ b = tb := by
+        injection hvv with e1 e2
+        exact ⟨e1, e2⟩
+      exact ⟨rfl, (et, m) :: bsP, bP, by
+        rw [ConLeche.Frontend.stripPisAll, hcl], ListRel.cons ⟨hty, rfl⟩ hrel, hdb⟩
+    | .bvar i, hview =>
+      obtain rfl := denote_bvar_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .fvar k ty, hview =>
+      obtain ⟨t, rfl, -⟩ := denote_fvar_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .sort u, hview =>
+      obtain ⟨l, rfl, -⟩ := denote_sort_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .const n us, hview =>
+      obtain ⟨nm, ls, rfl, -, -⟩ := denote_const_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .lit l, hview =>
+      obtain rfl := denote_lit_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .app f a, hview =>
+      obtain ⟨ef, ea, rfl, -, -⟩ := denote_app_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .lam ty body m, hview =>
+      obtain ⟨et, eb, rfl, -, -⟩ := denote_lam_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .letE ty w body, hview =>
+      obtain ⟨et, ew, eb, rfl, -, -, -⟩ := denote_letE_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
+    | .proj n i sub, hview =>
+      obtain ⟨nm, es, rfl, -, -⟩ := denote_proj_inv hwf hview he
+      exact stripPisAll_stop hrest he rfl
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:248 mkLams — the rebuild, which
 interns.
 
-`sorry`: `Bridge/StoreBind.lean`'s `internBindIE_spec'` at each binder, right
-to left.  Task #97-P3-Frontend's sorry list, item 11. -/
-theorem mkLams_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {bs : List (EIdx × BinderMeta)}
-    {bsP : List (Expr × BinderMeta)}
-    (hbs : ListRel (fun (p : EIdx × BinderMeta) (q : Expr × BinderMeta) =>
-      denoteE s.store p.1 = some q.1 ∧ p.2 = q.2) bs bsP)
-    {body : EIdx} {bodyP : Expr} (hb : denoteE s.store body = some bodyP)
-    {h : EIdx} (hrun : mkLams bs body s = .ok (h, s')) :
-    ParseStep s s' ∧ PersE h ∧
-      denoteE s'.store h = some (ConLeche.Frontend.mkLams bsP bodyP) := by
-  sorry
+Structural on the binder list, right to left: con-leche's `foldr` builds the
+same `.lam` spine, and each of the twin's `internE`s is one
+`Bridge/Frontend/Shared.lean` `IStep` at the state the inner call left. -/
+theorem mkLams_run {s : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {body : EIdx} {bodyP : Expr}
+    (hb : denoteE s.store body = some bodyP) :
+    ∀ {bs : List (EIdx × BinderMeta)} {bsP : List (Expr × BinderMeta)},
+      ListRel (fun (p : EIdx × BinderMeta) (q : Expr × BinderMeta) =>
+        denoteE s.store p.1 = some q.1 ∧ p.2 = q.2) bs bsP →
+      ∀ {h : EIdx} {s' : AState}, mkLams bs body s = .ok (h, s') →
+        ParseStep s s' ∧ PersE h ∧
+          denoteE s'.store h = some (ConLeche.Frontend.mkLams bsP bodyP) := by
+  intro bs bsP hbs
+  induction hbs with
+  | nil =>
+    intro h s' hrun
+    rw [ConRon.Arena.Frontend.mkLams] at hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrun
+    subst hv; subst hs
+    obtain ⟨w, hw⟩ := Arena.denoteE_view hb
+    exact ⟨ParseStep.refl hok, PersE_of_view hok.wf hoff hw, hb⟩
+  | @cons a q as bsq hab hrest ih =>
+    obtain ⟨ty, m⟩ := a
+    obtain ⟨et, m'⟩ := q
+    obtain ⟨hty, rfl⟩ := hab
+    intro h s' hrun
+    rw [ConRon.Arena.Frontend.mkLams] at hrun
+    obtain ⟨acc, s₁, hgo, hrest2⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, -, hdacc⟩ := ih hgo
+    have hoff1 : s₁.store.scratchOn = false := by rw [hstep1.scratch, hoff]
+    obtain ⟨histep, hpe, hden⟩ :=
+      internE_istep hstep1.ok hoff1
+        (viewOK_lam (by rw [denote_ext hty hstep1.ext]; rfl)
+          (by rw [hdacc]; rfl)) hrest2
+    refine ⟨hstep1.trans (histep.toParse hoff1), hpe, ?_⟩
+    rw [hden]
+    simp only [denoteEView, opt2_eq_some_iff]
+    exact ⟨et, ConLeche.Frontend.mkLams bsq bodyP,
+      denote_ext (denote_ext hty hstep1.ext) histep.ext,
+      denote_ext hdacc histep.ext, rfl⟩
 
 /-! ## The rewrite -/
 
