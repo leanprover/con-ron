@@ -201,7 +201,15 @@ The projection table at a structure-like block, at the tagged tower's offset
 
 `sorry`: `structProjGuards_spec` and `checkStructProjTable_spec`
 (`Bridge/Inductives/StructInstall.lean`); the non-structure branch is the
-identity on the index, so `InstRel` is `Pushed.refl`. -/
+identity on the index, so `InstRel` is `Pushed.refl` and `ProjOut.refl`.
+
+**This is where the projection table's `guards` clause is discharged** (task
+#97-P3-Ind round 2).  `checkStructProjTable_spec` takes `guards.length = nF`
+as a hypothesis because `guards` is an argument to the install and the install
+cannot test it; the caller that BUILDS it is this one, and
+`structProjGuards_spec` + `denoteLList_length` + `structProjGuards_length`
+(all three in place, the middle two closed) are the three steps that give it
+at `nF := cA.2`. -/
 theorem checkNativeTable_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (p : Arena.NativeParts) (q : ConLeche.NativeParts)
     (ctorsA : List (IConstantVal × Nat)) (ctorsAP : List (ConstantVal × Nat))

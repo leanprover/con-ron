@@ -45656,3 +45656,263 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
 | `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 2** (was 0); the tier's `sorry` count 337 → **312** |
 | the merge | `arena` at `0b79feae` merged in as a fast-forward (this branch had no commit at the time), so landing is a fast-forward of `arena` onto this tip |
 | the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,SumParts,NativeParts}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Bridge/`, no other `Refine2/` file — in particular **not** `Specs.lean`, `ExprOps/**`, `Checker/**` or `Promote/**`, which are other agents' lanes this round |
+
+### Task #97-P3-Ind — Theorem 1: the inductive tier
+
+#### Round 2 — the `guards` clause, a fifth statement defect, and two files at zero (2026-09-22, Opus under Fable)
+
+Branch `p3-ind-2` off `arena`'s tip `4137393b`, merged forward once
+(`ff4af5f8`, textual: `DESIGN.md`'s task log, `CLAUDE.md`, and
+`proof/ConRon/Refine2/**`, none of it reachable from `ConRon.Bridge`).  The
+diff is `proof/ConRon/Bridge/Inductives/**` and this section: **no Rust file,
+no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no
+`lakefile.toml`, and no other `Bridge/` module** — the one debt with a named
+creditor was dischargeable entirely inside this tier, and §R2.1 says how.
+
+**The tier went from 119 open `sorry` to 98**, `SumParts.lean` and `Decl.lean`
+are at **zero**, and the trust census grew from 22 closed results to **72**.
+
+| module | raw | non-blank | decls | open (r1 → r2) | elab |
+|---|---:|---:|---:|---:|---:|
+| `Rel.lean` — the vocabulary, now with the RUN-form layer | 1 156 | 1 029 | 83 | 0 → **0** | 2.2 s |
+| `StructParts.lean` | 773 | 690 | 35 | 26 → **14** | 1.5 s |
+| `SumParts.lean` | 225 | 207 | 3 | 2 → **0** | 1.0 s |
+| `NativeParts.lean` | 657 | 575 | 32 | 29 → **23** | 1.2 s |
+| `StructInstall.lean` | 104 | 89 | 2 | 2 → **2** | 0.73 s |
+| `SumInstall.lean` | 364 | 316 | 17 | 14 → **14** | 0.89 s |
+| `NativeInstall.lean` | 334 | 286 | 17 | 14 → **14** | 0.93 s |
+| `Modeled.lean` | 623 | 542 | 33 | 31 → **31** | 1.1 s |
+| `Decl.lean` — **the arm** | 368 | 335 | 5 | 1 → **0** | 1.2 s |
+| `Axioms.lean` — the trust census | 150 | 126 | — | — | 0.84 s |
+| **the tier** | **4 754** | **4 195** | **227** | **119 → 98** | ~11.6 s gross |
+
+The import baseline is 0.73 s, so the tier's NET elaboration is about **4 s**;
+the slowest module is `Rel.lean` at 2.2 s and **nothing is within an order of
+magnitude of the 20 s flag**.
+
+##### R2.1 THE NAMED DEBT — `IProjTableOK.guards`, discharged at its site
+
+`Bridge/Checker/Inv.lean`'s `projTableOK_of_install` names this tier by file
+and theorem: `IFEnvOK` gained a `proj` field (`IProjTableOK`, three clauses),
+the install `checkStructProjTable` tests two of them (`unless bodies.size =
+nF`, `let tn ← projTableName T`) and cannot test the third, because `guards`
+is an ARGUMENT.  **Done**, in three pieces:
+
+1. **`InstRel` gained a `proj` field** — `ProjOut fe st fe'`, *"every
+   projection table the new index holds was already in the old one, or is well
+   shaped at the new store"*.  Relative, not absolute, because a route chains
+   a dozen installs and only the structure route's stage 4 pushes a
+   `.projInfo` row — the ONLY such push in the whole arena.  Five lemmas, all
+   closed: `refl`, `mono`, `trans` (which is why `InstRel.trans` now takes an
+   `Ext`; every caller has it as the `ext` field of the two `PStep`s it is
+   already holding), `absolute` (the fold's incoming `IFEnvOK` plus the step's
+   `ProjOut` is `IFEnvOK_of_denote`'s `hproj` at the outgoing index) and
+   `push`.
+2. **`checkStructProjTable_spec` takes `hg : guards.length = nF`**, and its
+   caller discharges it: `checkNativeTable` builds `structProjGuards
+   cA.1.type p.nP cA.2 sorts` and passes it beside `cA.2`.  The three steps of
+   that discharge are `structProjGuards_spec` (open, this tier's),
+   `denoteLList_length` (**closed**) and `structProjGuards_length` (**closed**
+   — con-leche's function is a `List.range nF` map, so `simp` is the proof).
+3. **`IndOut` gained the same clause**, so `checkIndDecl_bridge` — which is
+   *proved* — now delivers it, and `Bridge/Checker/Hyp.lean`'s `IndSpec` plus
+   `Bridge/Checker/Decl.lean`'s `DeclOut` can take it whenever the checker
+   tier wants it.  `indSpec_of_bridge` drops it until they do.
+
+**`ProjOut.push` is the lemma thirteen of the fourteen installs need**, and
+its hypothesis is not decoration: `IFEnv.find?` hides an entry whose counter is
+not below `visibleBelow` and `IFEnv.push` RAISES that bound, so without
+`IFEnvCoh fe` a push could *reveal* a stale projection table the old index was
+hiding.  `mkIFEnvGo_counter_lt` (every counter the index build hands out is
+below the counter it stops at) is what rules that out; it is proved here and
+**belongs in `Bridge/Promote/Exact.lean`** beside `IFEnvCoh.push`, which is
+this round's one piece of another tier's furniture.
+
+##### R2.2 THE FINDING — `lvlEq?` is a CORE-grade call, and four statements were false
+
+The campaign's **fifth** statement defect, and the first one that was
+*load-bearing under a proved theorem*.
+
+`Arena/Core.lean`'s `lvlEq?` is a CACHED verdict walk: it probes
+`caches.lvlEqC`, and on a miss it reads both handles back through
+`readLevelM` (which writes `caches.readLC`) and records the verdict (which
+writes `caches.lvlEqC`).  So a twin that calls it moves **two of the fourteen
+per-declaration cache tables**, and `PStep`'s `caches : s'.caches = s.caches`
+is not hard to prove of it — it is **false** of it.
+
+Three twins of this tier call `lvlEq?`, all of them to compute `isProp` off
+the block's result sort:
+
+| twin | site | its statement |
+|---|---|---|
+| `InductiveShape.withSort` | `Arena/Inductives/SumParts.lean:62` | `withSort_spec` |
+| `structPartsCore?` | `Arena/Inductives/StructParts.lean:289` | `structPartsCore?_spec` |
+| `nativeShape?` | `Arena/Inductives/NativeParts.lean:505` | `nativeShape?_spec`, and through it `nativeParts?_spec` |
+
+Round 1 stated all four at `PSpec`.  **They are `CSpec` now**, which is the
+frame `lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`, CLOSED) actually
+delivers: `CheckOK` in, `CheckOK` out, the store and the pins untouched.
+
+Three things make this a cheap correction *here* and an expensive one
+elsewhere.
+
+* **`CSpec` is the WEAKER statement** — `PSpec.toCSpec` derives it — so if the
+  twins are ever changed to compute `isProp` the way con-leche writes it
+  (`Level.isEquiv (← readLevel s) .zero`, no cache at all: `readLevel` is the
+  UNMEMOISED reader and writes nothing) the `PSpec` form becomes provable
+  again and these four go back to it with no consumer change.  **That is the
+  fix we would recommend**, three lines in `Arena/Inductives/**`, and it is
+  outside this task's diff.
+* **Every consumer inside this tier has `CheckOK`** where it needs them:
+  `checkIndDecl_bridge` through `FoldOK.check`, `checkSumInd_spec` by its own
+  grade.  `checkIndDecl_bridge` was rewired and is still proved — and it had
+  been resting on the false `PSpec` form of `nativeParts?_spec`, which is what
+  makes this finding different from the previous four.
+* **It is not free outside this tier.**  `Bridge/Frontend/ProjRec.lean`'s
+  `projRecOwners_run` calls `structPartsCore?` AND `nativeParts?`
+  (`Arena/Frontend/ProjRec.lean:510-515`) and concludes `ParseStep`, whose
+  `caches` clause is the same false one, at a hypothesis (`StateOK`) far too
+  weak to reach `CheckOK`.  **`projRecOwners_run` and everything above it —
+  `registerProjOwners_run`, and the parse capstones through it — are false as
+  stated.**  The Frontend tier cannot fix this by moving to `CSpec`; either
+  the Arena-side fix above lands, or `ParseStep` has to name the two tables
+  it lets move and carry their invariants.  **OWNER: whoever holds
+  `Bridge/Frontend/**`; this tier cannot decide it for them.**
+
+##### R2.3 What made the leaves cheap: the primitives in RUN form
+
+Round 1's §7 called the tier "the `ExprOps` tier's work at a different
+subject — 120 walks, each cheap, none of them deep".  What it did not have was
+the layer that makes a walk cheap.  `Bridge/Specs.lean` states one `@[spec]`
+TRIPLE per `Monad.lean` primitive and this tier is written in RUN form (round
+1 §3 says why), so every leaf proof was going to open with the same
+`AM.of_run` and the same seven-way `obtain` over the frame equations, at some
+two hundred call sites.
+
+`Bridge/Inductives/Rel.lean` now does it once: **`internE_run`** and its six
+faces (`bvar`, `sort`, `const`, `proj`, `forallE`, `lam`), **`internLNode_run`
+/ `internLsNode_run` / `internNNode_run`** with their three faces,
+**`mkAppN_run`**, **`view_run`**, and **`pureOk`** and **`failOk`** beside
+`bindOk`.  Each packages the frame as a `PStep` and keeps only the conjunct
+its callers read.  Two small facts pay for the nested interners:
+`bmExt_of_nested` (`EStore.viewBM` reads only `pers`, `scr` and `scratchOn`,
+so an interner that leaves those alone preserves the binder-datum store) and
+the list readers `denoteEList_append`, `denoteLList_mem`,
+`lsview_isSome_of_denote`, `denoteBinders_length`, `denoteLList_length`,
+`denoteCV_name`, `denoteCV_type`.
+
+**`mkAppN_run` is proved here rather than lifted from
+`Bridge/ExprOps/Spine.lean`'s closed `mkAppN_spec`**, because that spec's
+frame has no `BMExt` conjunct and `PStep` needs one.  The twin is `internE
+(.app f a)` folded over the list, so each step's `BMExt` is `internE_run`'s
+own and the induction is four lines.  Adding the conjunct to `mkAppN_spec`
+would be the better fix and belongs to whoever owns `Bridge/ExprOps/**`.
+
+**The ten-way `view` dispatch has one shape now.**  The `.forallE` arm goes
+through `Bridge/Rel.lean`'s `denote_forallE_inv`; the other nine go through
+`denoteEView` and a four-way `first` (`opt3` / `opt2` / `Option.map` /
+`Option.some.inj`), which is what says *a handle's view and its denotation
+have the same constructor* — the two-sidedness `ROp` asks for.  That pattern
+closed `piSortTeleLen?_spec`, `piBinders_spec`, `replacePisPw_spec` and
+`pisToLamsPw_spec` at four lines each instead of forty.
+
+##### R2.4 What closed — twenty-one statements
+
+**`SumParts.lean`, whole (2).**  `sumSplit_spec` — the block's member split,
+`ROp`-two-sided, a structural induction with the seven-way case split on the
+head's constructor and one more split on the tail (a recursor closes the block
+only when nothing follows it).  `withSort_spec` — on `lvlEq?_spec` read as an
+EQUATION between `Option Bool`s rather than at its `some true` half, which is
+task #97-P3-Core-2's strengthening and exactly what this module's round-1 note
+asked for in the words "read at both signs".
+
+**`Decl.lean`, whole (1).**  `indParamsOk_spec`, the arm's own parameter-count
+gate: a list induction over `piSortTeleLen?_spec` and `Frontend.denoteCI`'s
+case split.  `indParamsOk_tail` is the shared continuation — the twin's `do`
+block pushes the `if` INTO each match arm, so there is no outer `bind` to
+invert.  **`checkIndDecl_bridge` now carries `sorryAx` through exactly three
+sub-statements** — `nativeParts?_spec`, `checkNative_spec`,
+`checkModeled_spec` — and through nothing of its own.
+
+**`StructParts.lean`, 26 → 14 (12).**  `paramLevels_spec`, `structPsAt_spec`,
+`bvarsDesc_spec`, `structFam_spec`, `structCtorSpine_spec`,
+`structRuleBody_spec`, `structElimLevel_spec`, `structCtorSpineAt_spec`,
+`structFamI_spec`, `structProjPs_spec`, `structProjArgP_spec`,
+`replacePisPw_spec`, `pisToLamsPw_spec`, `structMotiveTyI_spec`.
+`bvarRange_congr` is the one new idea: con-leche spells the same spine at a
+different offset (`structPsAt (nF + 1) nP` against `fun i => bvar (nF + nP -
+i)`, `structPsAt 0 nF` against `fun j => bvar (nF - 1 - j)`) and the whole
+difference is `omega`.  (Fourteen names, twelve `sorry` sites: `bvarsDesc_spec`
+and `structProjPs_spec` never had one of their own — they are
+`structPsAt_spec` at `0` and at `1` through `structProjPs_eq` — and closing
+`structPsAt_spec` is what made them axiom-clean, which round 1 §9 predicted in
+so many words.)
+
+**`NativeParts.lean`, 29 → 23 (6).**  `piBinders_spec`,
+`structRecPrefixAt_spec`, `structTeleVars_spec`, `mkPisOf_spec`,
+`mkLamsOf_spec`, `nativeCtors4_spec`.
+
+**`Bridge/Inductives/Rel.lean`, +50 closed declarations** (§R2.1, §R2.3), and
+`piSortTeleLen?_spec`, which is a reader of `Arena/Env.lean` and **belongs in
+`Bridge/ExprOps/TelescopeF.lean`** beside `stripPis`' — proved here because
+two statements of this tier (`indParamsOk_spec` and `nativeCounts?_spec`) need
+it and that tier has not stated it.
+
+##### R2.5 One import was added, deliberately
+
+`Bridge/Inductives/Rel.lean` now imports `ConRon.Bridge.Core.Walks.Cached`.
+`lvlEq?_spec` lives there and nothing in `Bridge/Checker/Hyp.lean`'s closure
+reaches it — `Core/Walks/{Cached,Proj}.lean` are SIBLINGS of the main chain,
+built by the `globs` and imported by NOBODY.  So the import costs no jobs at
+all (the glob was building those modules either way) and it risks only the
+`match`-auxiliary clash the `lakefile.toml` note warns about, which does not
+happen: `lake build ConRonBridge` is **616 jobs, 0 errors** with it.  The tier
+cannot state §R2.2's correction without it, and **the Checker tier is in the
+same position and does not know it yet** — `lvlEq?_spec` and `lvlsEq?_spec`
+are closed and unreachable from everything above `Bridge/Core/Induction.lean`.
+
+##### R2.6 What is left, and what each item waits on
+
+98 open, in six groups.
+
+| # | where | count | blocker |
+|---|---|---:|---|
+| 1 | `StructParts.lean`'s three memoised walks (`hasLooseBVarBGo/Fast`, the four `structUsedLater*`, `structProjGuards`, `mentionsConstGo/Fast`) | 9 | a fuel induction with the memo threaded AND the `bvarB` cutoff's own fact (`Expr.bvarB e ≤ i → ¬ e.hasLooseBVarB i`, con-leche's).  Nothing outside this tier: **the largest single piece of work it still owns** |
+| 2 | `StructParts.lean`'s two recognisers (`structShape`, `structPartsCore?`) and `NativeParts.lean`'s (`nativeShape?`, `nativeParts?`, `nativeCounts?`, `recFamOk`, `recPositivity`, `recFieldKind`, `recCtorKinds`, `nativeRecPinOk`, `nativeRecLpsOk`, `nativeRulePrefixOk`, `nativeRulesOk`, `structFieldTeleOf`, `structFieldIdxOf`) | 15 | `stripPis`/`stripLams`/`getAppFn`/`getAppArgs` (all CLOSED in `Bridge/ExprOps/`) plus **`denoteE_inj`/`denoteN_inj`** at every handle comparison — DESIGN §8.3's soundness obligation, which this tier cashes twenty-odd times |
+| 3 | the recursor generators (`structIdxAt`, `structTeleAt`, `structIhApp`, `structRuleBodyR`, `structIhPis`, `structMinorTyR`, `structMinorsPisR`, `structMinorsLamsR`, `structRecTyR`, `structRecRhsR`) | 10 | group 2 plus **`Bridge/ExprOps/Subst.lean`'s `liftLooseBVarsFast_spec`** |
+| 4 | `structProjResidP`, `structProjBodiesGo`, `structProjBodies`, `closeTelescope`, `zipFvarDoms` and their siblings | 5 | **`Bridge/ExprOps/Owed.lean`'s `instPisAtLift_spec`**, still open on that tier's own list since task #97-P3-0 §6, plus `instantiate1LiftFast_spec` |
+| 5 | the `CoreSpec` consumers (`checkStructDomsAt`, `whnfTelescope`, `checkSumTele`, `checkStructFieldSortsI`, `normPosDom`, `normFieldDoms`, `normCtorVal`, `checkSumCtor(s)`, `checkNativeRules`, `checkNativeRec`, `nativeOpenedOk`, `nativeFieldsOk`, `classifyFixKinds`) | 14 | one or two slots of `Bridge/Core/Knot.lean`'s `KnotSpec` plus `CoreSpec.sort`'s **`EnsureSortSpec`**, which `Bridge/Checker/Hyp.lean` still says is the Core tier's to move down |
+| 6 | the INSTALLS — everything in `SumInstall.lean`, `NativeInstall.lean`, `Modeled.lean` and `StructInstall.lean`'s `checkStructProjTable_spec` | 45 | **`Bridge/Checker/Base.lean`'s `checkConstantVal_bridge`** (task #97-P3-Checker's item 11, the campaign's bottleneck) at the bottom of every one of them.  The `IFEnv.push` pair round 1 asked for has LANDED (`IFEnvCoh.push`, `Pushed.push`, `Bridge/Promote/Exact.lean`), and `ProjOut.push` joins them here, so the plumbing of an install is now three named lemmas |
+
+**What the next round should take first**: group 1, because it is the only
+large block with no external blocker, and it is what stands between
+`StructParts.lean` and zero (that file's other five items are groups 2 and 4).
+
+##### R2.7 What this tier needs from whom
+
+* **`Bridge/Frontend/**`** — §R2.2's `projRecOwners_run`.  Not a request; a
+  defect report.
+* **`Arena/Inductives/**`** (whoever owns the twins) — three lines that would
+  make §R2.2's four statements `PSpec` again and fix the Frontend tier at the
+  same time: compute `isProp` as `Level.isEquiv (← readLevel s) .zero`, which
+  is con-leche's own spelling, instead of `lvlEq? s z`.
+* **`Bridge/ExprOps/**`** — `instPisAtLift_spec` (group 4, 5 items, and it
+  gates the Core tier's `.app` carry too); `liftLooseBVarsFast_spec` (group 3,
+  10 items); a `BMExt` conjunct on `mkAppN_spec`, which would retire this
+  tier's `mkAppN_run`; and a home for `piSortTeleLen?_spec`.
+* **`Bridge/Checker/**`** — `checkConstantVal_bridge` (group 6, 45 items);
+  `EnsureSortSpec` moved down into `Bridge/Core` (group 5, 14 items); and,
+  when they want it, the `proj` clause in `IndSpec`/`DeclOut`, which
+  `IndOut` already carries.
+* **`Bridge/Promote/Exact.lean`** — a home for `mkIFEnvGo_counter_lt`.
+
+##### R2.8 Gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors, 616 jobs** (605 at the end of round 1; the eleven are other tiers' new modules, not §R2.5's import, which adds none) |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 103 s, `lake-build` 405 s; the other eleven under 10 s each).  Note `lake build`'s default targets are `ConRon`/`ConRonSpike`/`ConRonArena` and `ConRon.lean` does not import `ConRon.Bridge`, so **the gate does not build this tier** — the row above is what does, and it is run explicitly |
+| `scripts/arena-census.py` (printed by the gates) | `Arena/Inductives`: 130 twins, **T1 stated 127/130, T1 closed 29** |
+| `#print axioms` | `Bridge/Inductives/Axioms.lean`: **72 closed results** (22 after round 1), every one `[propext, Classical.choice, Quot.sound]`; only `checkIndDecl_bridge` and `indSpec_of_bridge` carry `sorryAx`.  No `bv_decide` axiom |
+| per-theorem elaboration | nothing above **2.2 s** in the whole tier (`Rel.lean`, which is now 1 156 lines); the 20 s flag is not approached |
+| the diff | `proof/ConRon/Bridge/Inductives/{Rel,StructParts,SumParts,NativeParts,StructInstall,NativeInstall,Decl,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no other `Bridge/` module — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |

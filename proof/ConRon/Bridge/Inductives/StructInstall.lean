@@ -61,16 +61,33 @@ con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjT
 (task #175 S1), carrying the fields' bodies off the annotated constructor type
 and the guard levels the constructors' stage measured.
 
+**The `guards` hypothesis, and what it buys** (task #97-P3-Ind round 2).
+`InstRel`'s `proj` field is `ProjOut` — "every projection table the new index
+holds was already in the old one, or is well shaped at the new store" — and
+this is the ONE install of the whole arena that pushes a `.projInfo` row, so
+this is the one theorem where that field has content.  `IProjTableOK`'s three
+clauses are `bodies.size = numFields` (the twin's own `unless bodies.size =
+nF`), `guards.length = numFields` and the table's two names (the twin's
+`let tn ← projTableName T`).  The middle one is about an ARGUMENT, so the
+install cannot test it and does not: `hg` is it, and
+`checkNativeTable_spec` — the caller that builds `structProjGuards cA.1.type
+p.nP cA.2 sorts` and passes it beside `cA.2` — discharges it from
+`structProjGuards_length`.  `Bridge/Checker/Inv.lean`'s
+`projTableOK_of_install` is the same statement at the same hypothesis, stated
+there so that `IFEnvOK`'s new field has one named debtor; this is its site.
+
 `sorry`: `structProjBodies_spec` (`Bridge/Inductives/StructParts.lean`), the
 `IProjTable` record's denotation (`Bridge/Rel.lean`'s `denoteProjTable`), and
 `IFEnv.push`'s own two lemmas — `IFEnvCoh` is preserved by `push` and `Pushed`
 is `⟨[ci], rfl⟩`.  The `denoteFEnv` clause is the push's `denoteCI` at the new
-`.projInfo` row. -/
+`.projInfo` row; the `proj` clause is `hg`, the `bodies.size` test read off
+the `unless`, and `projTableName_spec` at `tn`. -/
 theorem checkStructProjTable_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF : Nat) (resSort : LIdx)
     (resSortP : Level) (guards : List LIdx) (guardsP : List Level) (off : Nat)
-    (cvCa : IConstantVal) (cvCaP : ConstantVal) :
+    (cvCa : IConstantVal) (cvCaP : ConstantVal)
+    (hg : guards.length = nF) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧ denoteN st.ns C = some CP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧

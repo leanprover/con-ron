@@ -27,6 +27,35 @@ already stated there for exactly this reason, and its statements take
 
 `PStep.toCore` is the one-line bridge between them.
 
+**FINDING (task #97-P3-Ind round 2): `lvlEq?` is a CORE-grade call, and four
+statements of this tier had it at the pure grade.**  `Arena/Core.lean`'s
+`lvlEq?` is a CACHED verdict walk: it probes `caches.lvlEqC`, and on a miss it
+reads both handles back through `readLevelM` (which writes `caches.readLC`)
+and records the verdict (which writes `caches.lvlEqC`).  So a twin that calls
+it moves TWO of the fourteen per-declaration cache tables, and `PStep`'s
+`caches : s'.caches = s.caches` is **false of it** — not hard to prove, false.
+
+Three twins of this tier call `lvlEq?` — `InductiveShape.withSort`
+(`SumParts.lean:62`), `structPartsCore?` (`StructParts.lean:289`) and
+`nativeShape?` (`NativeParts.lean:505`), the last of which `nativeParts?`
+calls — and round 1 stated all four at `PSpec`.  They are now `CSpec`, which
+is the frame `lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`, CLOSED) actually
+delivers: `CheckOK` in, `CheckOK` out, the store and the pins untouched.  Note
+that `CSpec` is the WEAKER statement — `PSpec.toCSpec` derives it — so if the
+twins are ever changed to compute `isProp` the way con-leche writes it
+(`Level.isEquiv (← readLevel s) .zero`, no cache at all) the `PSpec` form
+becomes provable again and these four go back to it with no consumer change.
+
+Every consumer inside this tier has `CheckOK` where it needs them
+(`checkIndDecl_bridge` through `FoldOK.check`, `checkSumInd_spec` by its own
+grade), so the correction costs the tier nothing.  **It is not free outside
+it**: `Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls
+`structPartsCore?` AND `nativeParts?` (`Arena/Frontend/ProjRec.lean:510-515`)
+and concludes `ParseStep`, whose `caches` clause is the same false one, at a
+hypothesis (`StateOK`) too weak to reach `CheckOK`.  That is the Frontend
+tier's to decide and this tier cannot decide it for them; see the task
+section.
+
 ## The two statement shapes
 
 Rather than write the statement out at ~110 declarations, the tier has
@@ -60,6 +89,7 @@ declaration-layer transports and they are what the install routes' statements
 name.
 -/
 import ConRon.Bridge.Checker.Hyp
+import ConRon.Bridge.Core.Walks.Cached
 
 namespace ConRon.Bridge.Inductives
 
@@ -442,6 +472,414 @@ theorem bindOk {α β : Type} {x : AM α} {f : α → AM β} {s s' : AState}
     intro h
     exact ⟨a, s₁, rfl, h⟩
 
+/-- con-leche: none — the `AM` `pure`'s inversion, the other half of
+`bindOk`: an accepting `pure` moved nothing and answered what it was given.
+Every `do` block of the tier ends in one. -/
+theorem pureOk {α : Type} {a r : α} {s s' : AState}
+    (h : (pure a : AM α) s = .ok (r, s')) : r = a ∧ s' = s := by
+  have h' : Except.ok ((a, s) : α × AState) = .ok (r, s') := h
+  injection h' with h''
+  injection h'' with h1 h2
+  exact ⟨h1.symm, h2.symm⟩
+
+/-! ## The primitives, in RUN form
+
+`Bridge/Specs.lean` states one `@[spec]` triple per `Monad.lean` primitive,
+and this tier is written in RUN form (the module note above says why: its work
+is composition and `bind` inversion, not verification conditions).  So every
+leaf proof here would otherwise begin with the same `AM.of_run` and the same
+seven-way `obtain` over the frame equations — at some two hundred call sites.
+
+The primitives the generators actually use get their run form ONCE, here,
+each packaging the frame as a `PStep` and keeping only the conjunct its
+callers read.  A proof downstream is then `bindOk` plus one of these plus the
+answer's own algebra, which is what task #97-P3-0 §4's rule 3 asks of a
+statement layer. -/
+
+/-- con-leche: none — a FAILING primitive cannot have accepted.  The other
+half of `pureOk`, for the fuel-exhaustion clause every walk of the tier
+opens with. -/
+theorem failOk {α : Type} {e : Arena.CheckError} {r : α} {s s' : AState}
+    (h : (fail e : AM α) s = .ok (r, s')) : False := by
+  simp only [Arena.fail, throwThe, MonadExceptOf.throw] at h
+  exact nomatch h
+
+/-- con-leche: none — **`view`, as a run**: it moves nothing and answers the
+store's own decoding.  The first line of every walk of this tier. -/
+theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
+    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
+
+/-- con-leche: none — a level-handle list that denotes denotes at each
+element. -/
+theorem denoteLList_mem {st : LStore} :
+    ∀ {us : List LIdx} {xs : List Level}, denoteLList st us = some xs →
+      ∀ {c : LIdx}, c ∈ us → ∃ u, denoteL st c = some u := by
+  intro us
+  induction us with
+  | nil => intro xs _ c hc; exact absurd hc (by simp)
+  | cons u us ih =>
+    intro xs h c hc
+    simp only [denoteLList, opt2] at h
+    cases hu : denoteL st u with
+    | none => rw [hu] at h; simp at h
+    | some y =>
+      cases hus : denoteLList st us with
+      | none => rw [hu, hus] at h; simp at h
+      | some ys =>
+        rcases List.mem_cons.mp hc with rfl | hc'
+        · exact ⟨y, hu⟩
+        · exact ih hus hc'
+
+/-- con-leche: none — a universe-argument list handle that denotes has a
+view. -/
+theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List Level}
+    (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
+  obtain ⟨v, hv, _⟩ := denoteLs_view hd
+  rw [hv]; rfl
+
+/-- con-leche: none — `EStore.viewBM` reads only `pers`, `scr` and
+`scratchOn`, so a primitive that leaves those three alone leaves the whole
+binder-datum store alone.  The three NESTED interners (name, level, level
+list) are exactly that. -/
+theorem bmExt_of_nested {st st' : EStore} (hp : st'.pers = st.pers)
+    (hs : st'.scr = st.scr) (hon : st'.scratchOn = st.scratchOn) :
+    BMExt st st' := by
+  intro mi m h
+  simp only [EStore.viewBM, EStore.persGetBM, hp, hs, hon]
+  exact h
+
+/-- con-leche: none — **`internE`, as a run**: the arena grew, nothing else
+moved, and the new handle denotes what the node view says. -/
+theorem internE_run {s s' : AState} {w : ENodeView} {h : EIdx}
+    (hok : StateOK s) (hv : s.store.ViewOK w)
+    (hrun : internE w s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = denoteEView s'.store w := by
+  obtain ⟨h1, h2, h3, _h4, _h5, h6, h7, _h8, h9⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s w hok.wf hv)
+  exact ⟨⟨⟨h1⟩, h2, h3, h6, h7⟩, h9⟩
+
+/-- con-leche: none — `internE` at a `.bvar`: no precondition at all. -/
+theorem internBVarE_run {s s' : AState} {i : Nat} {h : EIdx} (hok : StateOK s)
+    (hrun : internE (.bvar i) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.bvar i) :=
+  internE_run hok viewOK_bvar hrun
+
+/-- con-leche: none — `internE` at a `.sort`. -/
+theorem internSortE_run {s s' : AState} {u : LIdx} {uP : Level} {h : EIdx}
+    (hok : StateOK s) (hu : denoteL s.store.ls u = some uP)
+    (hrun : internE (.sort u) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.sort uP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_sort (lview_isSome_of_denote hu)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteL_ext hu hstep.ext, Option.map_some]
+
+/-- con-leche: none — `internE` at a `.const`: the head of every family and
+every spine this tier builds. -/
+theorem internConstE_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
+    {us : LsIdx} {usP : List Level} {h : EIdx} (hok : StateOK s)
+    (hn : denoteN s.store.ns n = some nm)
+    (hus : denoteLs s.store.lss us = some usP)
+    (hrun : internE (.const n us) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.const nm usP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_const (nview_isSome_of_denote hn)
+      (lsview_isSome_of_denote hus)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteN_ext hn hstep.ext, denoteLs_ext hus hstep.ext,
+    opt2]
+
+/-- con-leche: none — `internE` at a `.proj`: `structProjArgP`'s node. -/
+theorem internProjE_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
+    {i : Nat} {e : EIdx} {eP : Expr} {h : EIdx} (hok : StateOK s)
+    (hn : denoteN s.store.ns n = some nm) (he : denoteE s.store e = some eP)
+    (hrun : internE (.proj n i e) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.proj nm i eP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_proj (nview_isSome_of_denote hn)
+      (by rw [he]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteN_ext hn hstep.ext, denote_ext he hstep.ext,
+    opt2]
+
+/-- con-leche: none — `internE` at a binder whose datum is a VALUE
+(`replacePisPw`, `pisToLamsPw` and the recursor generators build their binders
+this way, not through the datum-handle face). -/
+theorem internForallEE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
+    {m : BinderMeta} {h : EIdx} (hok : StateOK s)
+    (hty : denoteE s.store ty = some tyP) (hb : denoteE s.store b = some bP)
+    (hrun : internE (.forallE ty b m) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.forallE tyP bP m) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_forallE (by rw [hty]; rfl) (by rw [hb]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hty hstep.ext, denote_ext hb hstep.ext,
+    opt2]
+
+/-- con-leche: none — the same at a `.lam`. -/
+theorem internLamE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
+    {m : BinderMeta} {h : EIdx} (hok : StateOK s)
+    (hty : denoteE s.store ty = some tyP) (hb : denoteE s.store b = some bP)
+    (hrun : internE (.lam ty b m) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.lam tyP bP m) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_lam (by rw [hty]; rfl) (by rw [hb]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hty hstep.ext, denote_ext hb hstep.ext,
+    opt2]
+
+/-- con-leche: none — **`internLNode`, as a run**.  The nested stores keep
+`pers`/`scr`/`scratchOn`, so `BMExt` is `bmExt_of_nested`. -/
+theorem internLNode_run {s s' : AState} {v : LNodeView} {h : LIdx}
+    (hok : StateOK s) (hv : s.store.ls.ViewOK v)
+    (hrun : internLNode v s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = denoteLView s'.store.ls v := by
+  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLNode_spec s v hok.wf hv)
+  exact ⟨⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩, h10⟩
+
+/-- con-leche: none — `internLNode` at `.zero`: `structElimLevel`'s small
+arm. -/
+theorem internZeroL_run {s s' : AState} {h : LIdx} (hok : StateOK s)
+    (hrun : internLNode .zero s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = some .zero :=
+  internLNode_run hok ⟨by simp [LNodeView.lchildren],
+    by simp [LNodeView.nchildren]⟩ hrun
+
+/-- con-leche: none — `internLNode` at a `.param`: `paramLevels`' element and
+`structElimLevel`'s large arm. -/
+theorem internParamL_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
+    {h : LIdx} (hok : StateOK s) (hn : denoteN s.store.ns n = some nm)
+    (hrun : internLNode (.param n) s = .ok (h, s')) :
+    PStep s s' ∧ denoteL s'.store.ls h = some (.param nm) := by
+  obtain ⟨hstep, hd⟩ :=
+    internLNode_run hok ⟨by simp [LNodeView.lchildren],
+      by intro c hc
+         simp only [LNodeView.nchildren] at hc
+         rcases List.mem_singleton.mp hc with rfl
+         exact nview_isSome_of_denote hn⟩ hrun
+  refine ⟨hstep, ?_⟩
+  have hx : denoteN s'.store.ls.ns n = some nm := denoteN_ext hn hstep.ext
+  rw [hd]
+  show Option.map Level.param (denoteN s'.store.ls.ns n) = some (Level.param nm)
+  rw [hx]
+  rfl
+
+/-- con-leche: none — **`internLsNode`, as a run**: a universe-argument list
+node, which is what `paramLevels` answers. -/
+theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
+    {h : LsIdx} (hok : StateOK s) (hv : denoteLList s.store.ls v = some vP)
+    (hrun : internLsNode v s = .ok (h, s')) :
+    PStep s s' ∧ denoteLs s'.store.lss h = some vP := by
+  have hvok : s.store.lss.ViewOK v := by
+    intro c hc
+    obtain ⟨u, hu⟩ := denoteLList_mem hv hc
+    exact lview_isSome_of_denote hu
+  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internLsNode_spec s v hok.wf hvok)
+  have hstep : PStep s s' := ⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩
+  refine ⟨hstep, ?_⟩
+  rw [h10]
+  exact denoteLList_ext hstep.ext.lss.ls _ _ hv
+
+/-- con-leche: none — **`internNNode`, as a run**. -/
+theorem internNNode_run {s s' : AState} {v : NNodeView} {h : NIdx}
+    (hok : StateOK s) (hv : s.store.ns.ViewOK v)
+    (hrun : internNNode v s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = denoteNView s'.store.ns v := by
+  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
+  exact ⟨⟨⟨h1⟩, h2, bmExt_of_nested h3 h4 h5, h7, h8⟩, h10⟩
+
+/-- con-leche: none — a handle list's denotation splits over an append, which
+is what the two-spine generators (`structCtorSpine`, `structFamI`) need before
+`mkAppN`.  Belongs in `Bridge/Rel.lean` beside `denoteEList_snoc`. -/
+theorem denoteEList_append {st : EStore} :
+    ∀ {a : List EIdx} {as : List Expr} {b : List EIdx} {bs : List Expr},
+      Frontend.denoteEList st a = some as →
+      Frontend.denoteEList st b = some bs →
+      Frontend.denoteEList st (a ++ b) = some (as ++ bs) := by
+  intro a
+  induction a with
+  | nil =>
+    intro as b bs ha hb
+    simp only [Frontend.denoteEList, Option.some.injEq] at ha
+    subst ha
+    simpa using hb
+  | cons x xs ih =>
+    intro as b bs ha hb
+    simp only [Frontend.denoteEList] at ha
+    cases hx : denoteE st x with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : Frontend.denoteEList st xs with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        obtain rfl := Option.some.inj ha
+        simp only [List.cons_append, Frontend.denoteEList, hx, ih hxs hb]
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN — **`mkAppN`, as a
+run**.  `Bridge/ExprOps/Spine.lean`'s `mkAppN_spec` is closed and says the
+same thing, but its frame has no `BMExt` conjunct and `PStep` needs one, so
+the four-line induction is done here rather than re-stated there (the twin is
+`internE (.app f a)` folded over the list, so each step's `BMExt` is
+`internE_run`'s own). -/
+theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
+    {f : EIdx} {fP : Expr} {r : EIdx}, StateOK s →
+    denoteE s.store f = some fP →
+    Frontend.denoteEList s.store args = some argsP →
+    ConRon.Arena.mkAppN f args s = .ok (r, s') →
+    PStep s s' ∧ denoteE s'.store r = some (Expr.mkAppN fP argsP) := by
+  intro args
+  induction args with
+  | nil =>
+    intro argsP s s' f fP r hok hf hargs hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at hargs
+    subst hargs
+    simp only [ConRon.Arena.mkAppN, pure, StateT.pure, Except.pure] at hrun
+    obtain ⟨rfl, rfl⟩ := Prod.mk.injEq .. ▸ (Except.ok.inj hrun)
+    exact ⟨PStep.refl hok, hf⟩
+  | cons a as ih =>
+    intro argsP s s' f fP r hok hf hargs hrun
+    simp only [Frontend.denoteEList] at hargs
+    cases ha : denoteE s.store a with
+    | none => rw [ha] at hargs; simp at hargs
+    | some x =>
+      cases has : Frontend.denoteEList s.store as with
+      | none => rw [ha, has] at hargs; simp at hargs
+      | some xs =>
+        rw [ha, has] at hargs
+        obtain rfl := Option.some.inj hargs
+        simp only [ConRon.Arena.mkAppN] at hrun
+        obtain ⟨g, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨hstep1, hg⟩ :=
+          internE_run hok (viewOK_app (by rw [hf]; rfl) (by rw [ha]; rfl)) h1
+        have hg' : denoteE s₁.store g = some (.app fP x) := by
+          rw [hg]
+          simp only [denoteEView, denote_ext hf hstep1.ext,
+            denote_ext ha hstep1.ext, opt2]
+        obtain ⟨hstep2, hr⟩ :=
+          ih xs hstep1.ok hg' (denoteEList_ext hstep1.ext _ _ has) h2
+        exact ⟨hstep1.trans hstep2, hr⟩
+
+/-- con-leche: none — a denoting `IConstantVal`'s TYPE denotes: the one
+projection of `Frontend.denoteCV` this tier reads directly. -/
+theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) : denoteE st cv.type = some c.type := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-- con-leche: none — a denoting `IConstantVal`'s NAME denotes. -/
+theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) :
+    denoteN st.ns cv.name = some c.name := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns cv.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns cv.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st cv.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-- con-leche: none — a binder telescope's denotation keeps its length. -/
+theorem denoteBinders_length {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
+      denoteBinders st bs = some xs → bs.length = xs.length := by
+  intro bs
+  induction bs with
+  | nil => intro xs h; simp only [denoteBinders, Option.some.injEq] at h; simp [← h]
+  | cons a as ih =>
+    intro xs h
+    obtain ⟨t, m⟩ := a
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some y =>
+      cases has : denoteBinders st as with
+      | none => rw [ht, has] at h; simp at h
+      | some ys =>
+        rw [ht, has] at h
+        obtain rfl := Option.some.inj h
+        simp only [List.length_cons, ih has]
+
+/-! ## One reader on loan from the `ExprOps` tier
+
+`Arena/Env.lean`'s `piSortTeleLen?` is the syntactic Π-telescope's length, and
+its Theorem 1 **belongs in `Bridge/ExprOps/TelescopeF.lean`** beside
+`stripPis`' — but that tier has not stated it and two statements here need it
+(`Bridge/Inductives/Decl.lean`'s `indParamsOk_spec`, which is the arm's own
+gate, and `Bridge/Inductives/NativeParts.lean`'s `nativeCounts?_spec`).  It is
+proved here, at this tier's frame, with the citation that says where it should
+move. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:583-586 Expr.piSortTeleLen? —
+**THEOREM 1 for `piSortTeleLen?`**: the number of `∀`-binders before a `Sort`
+residual, or `none`.  A fuel induction whose ten-way arm is the `view`
+dispatch; the eight arms that are neither a binder nor a sort answer `none` on
+both sides, which is the dispatch's own soundness (a handle's view and its
+denotation have the same constructor). -/
+theorem piSortTeleLen?_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
+    PSpec (fun st => denoteE st h = some hP) (Arena.piSortTeleLen? fuel h)
+      (RV hP.piSortTeleLen?) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h hP s₀ s' r hok hd hrun
+    simp only [Arena.piSortTeleLen?] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro h hP s₀ s' r hok hd hrun
+    simp only [Arena.piSortTeleLen?] at hrun
+    obtain ⟨v, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨hs1, hw⟩ := view_run h1
+    rw [hs1] at h2
+    have hde : denoteEView s₀.store v = some hP := by
+      rw [denoteE_view_eq hok.wf hw] at hd; exact hd
+    cases v
+    case forallE ty body m =>
+      obtain ⟨et, eb, rfl, hty, hb⟩ := denote_forallE_inv hok.wf hw hd
+      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨hstep, ho⟩ := ih body eb s₀ s₂ o hok hb h3
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      exact ⟨hstep, by rw [ho]; rfl⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨uP, _, rfl⟩ := Option.map_eq_some_iff.mp hde
+      exact ⟨PStep.refl hok, rfl⟩
+    all_goals
+      (obtain ⟨rfl, rfl⟩ := pureOk h2
+       refine ⟨PStep.refl hok, ?_⟩
+       simp only [denoteEView] at hde
+       first
+       | (obtain ⟨x, y, z, _, _, _, rfl⟩ := opt3_eq_some_iff.mp hde; rfl)
+       | (obtain ⟨x, y, _, _, rfl⟩ := opt2_eq_some_iff.mp hde; rfl)
+       | (obtain ⟨x, _, rfl⟩ := Option.map_eq_some_iff.mp hde; rfl)
+       | (obtain rfl := Option.some.inj hde; rfl))
+
 /-! ## Two transports the spec layer does not have
 
 `Bridge/Rel.lean` stops at `denoteCI_ext`; `Bridge/Checker/Inv.lean` has the
@@ -479,6 +917,165 @@ theorem denoteFEnv_ext {st st' : EStore} (hx : Ext st st') {fe : IFEnv}
   obtain ⟨xs, hxs, he⟩ := h
   exact ⟨xs, denoteCIList_ext hx _ xs hxs, he⟩
 
+/-! ## The projection table's obligation
+
+`Bridge/StateOK.lean`'s `IProjTableOK` is a field of `IFEnvOK`, and
+`Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` takes it as the hypothesis
+`hproj`.  Its ONE debtor is `Arena.checkStructProjTable` — the only function
+of the whole arena that pushes a `.projInfo` row — and this tier owns it;
+`Bridge/Checker/Inv.lean`'s `projTableOK_of_install` names it by file and
+theorem.
+
+Two of the record's three clauses the install itself tests (`unless
+bodies.size = nF` is `bodies` verbatim, `let tn ← projTableName T` is
+`named`'s second half).  The third, `guards.length = numFields`, is about an
+ARGUMENT, so it cannot be tested there and its site is the CALLER:
+`Arena.checkNativeTable` builds `structProjGuards cA.1.type p.nP cA.2 sorts`
+and passes it beside `cA.2`, and `structProjGuards`' own answer has length
+`nF` by construction (`structProjGuards_length`).  So
+`checkStructProjTable_spec` takes `guards.length = nF` as a HYPOTHESIS and
+`checkNativeTable_spec` discharges it.
+
+The clause an install can actually CONCLUDE is RELATIVE — "every projection
+table the new index holds was already in the old one, or is well shaped at the
+new store" — because a route chains a dozen installs and only the structure
+route's stage 4 pushes one.  `ProjOut` is that clause; it composes
+(`ProjOut.trans`, transporting the older tables over the store the chain
+grew), and it is a FIELD of `InstRel` so that every install of the tier
+carries it rather than each caller restating it.
+
+`ProjOut.absolute` turns it back into the absolute statement
+`IFEnvOK_of_denote` wants, against the fold's own `IFEnvOK env fe s` at the
+index the step started from. -/
+
+/-- con-leche: none — a level-handle list's denotation has its own length.
+What `checkNativeTable_spec` reads `guards.length = nF` off, against
+`structProjGuards_length`.  Belongs in `Bridge/Rel.lean` beside
+`denoteLList_ext`. -/
+theorem denoteLList_length {st : LStore} :
+    ∀ (us : List LIdx) (xs : List Level), denoteLList st us = some xs →
+      us.length = xs.length := by
+  intro us
+  induction us with
+  | nil => intro xs h; simp only [denoteLList, Option.some.injEq] at h; simp [← h]
+  | cons u us ih =>
+    intro xs h
+    simp only [denoteLList, opt2] at h
+    cases hu : denoteL st u with
+    | none => rw [hu] at h; simp at h
+    | some y =>
+      cases hus : denoteLList st us with
+      | none => rw [hu, hus] at h; simp at h
+      | some ys =>
+        rw [hu, hus] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        simp only [List.length_cons, ih _ hus]
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
+clause) — **what an install owes about projection tables**: every table the
+new index holds is either one the old index already held, or one that is well
+shaped and rightly named at the new store. -/
+def ProjOut (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
+  ∀ n t, fe'.find? n = some (.projInfo t) →
+    fe.find? n = some (.projInfo t) ∨ IProjTableOK st t
+
+/-- con-leche: none — an install that changes nothing owes nothing. -/
+theorem ProjOut.refl (fe : IFEnv) (st : EStore) : ProjOut fe st fe :=
+  fun _ _ h => Or.inl h
+
+/-- con-leche: none — the obligation survives the arena's growth, by
+`IProjTableOK.mono`. -/
+theorem ProjOut.mono {fe fe' : IFEnv} {st st' : EStore}
+    (h : ProjOut fe st fe') (hx : Ext st st') : ProjOut fe st' fe' := by
+  intro n t hf
+  rcases h n t hf with h' | h'
+  · exact Or.inl h'
+  · exact Or.inr (h'.mono hx)
+
+/-- con-leche: none — **the obligation chains**, which is what a route's
+dozen stages need of it.  The older half's tables are transported over the
+store the later stages grew. -/
+theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv} {st₁ st₂ : EStore}
+    (h₁ : ProjOut fe₀ st₁ fe₁) (h₂ : ProjOut fe₁ st₂ fe₂) (hx : Ext st₁ st₂) :
+    ProjOut fe₀ st₂ fe₂ := by
+  intro n t hf
+  rcases h₂ n t hf with h' | h'
+  · rcases h₁ n t h' with h'' | h''
+    · exact Or.inl h''
+    · exact Or.inr (h''.mono hx)
+  · exact Or.inr h'
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — every counter the
+index build hands out is BELOW the counter it stops at.  What `ProjOut.push`
+needs and the only `mkIFEnvGo` fact outside `Bridge/Promote/Exact.lean`;
+**it belongs there**, beside `IFEnvCoh.push`, and is proved here because this
+round's `ProjOut` is the first consumer. -/
+theorem mkIFEnvGo_counter_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
+    (c : Nat) (ci : IConstantInfo),
+    (mkIFEnvGo cs).2[n]? = some (c, ci) → c < (mkIFEnvGo cs).1 := by
+  intro cs
+  induction cs with
+  | nil => intro n c ci h; simp [mkIFEnvGo] at h
+  | cons a as ih =>
+    intro n c ci h
+    simp only [mkIFEnvGo] at h ⊢
+    rw [Std.HashMap.getElem?_insert] at h
+    split at h
+    · rename_i hEq
+      obtain rfl := Prod.mk.inj (Option.some.inj h) |>.1
+      omega
+    · exact Nat.lt_succ_of_lt (ih n c ci h)
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push that is
+not a projection table owes nothing**.  Thirteen of this tier's fourteen
+install statements need exactly this; the fourteenth is
+`checkStructProjTable`, the one install of the arena that pushes a
+`.projInfo` row.
+
+The coherence hypothesis is not decoration: `IFEnv.find?` hides an entry whose
+counter is not below `visibleBelow`, and `push` raises the bound, so without
+`IFEnvCoh fe` a push could REVEAL a stale projection table the old index was
+hiding.  `mkIFEnvGo_counter_lt` is what rules that out. -/
+theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
+    {ci : IConstantInfo} (hci : ∀ t, ci ≠ .projInfo t) :
+    ProjOut fe st (fe.push ci) := by
+  intro n t hf
+  left
+  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx hcoh
+  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 :=
+    congrArg IFEnv.visibleBelow hcoh
+  simp only [IFEnv.find?, IFEnv.push, Std.HashMap.getElem?_insert] at hf
+  by_cases hEq : (ci.name == n) = true
+  · rw [if_pos hEq] at hf
+    simp only [Nat.lt_succ_self, if_true] at hf
+    exact absurd (Option.some.inj hf) (hci t)
+  · rw [if_neg hEq] at hf
+    cases hg : fe.idx[n]? with
+    | none => rw [hg] at hf; exact nomatch hf
+    | some p =>
+      obtain ⟨cnt, cinfo⟩ := p
+      rw [hg] at hf
+      have hlt : cnt < fe.visibleBelow := by
+        rw [hvb]
+        exact mkIFEnvGo_counter_lt fe.env.consts n cnt cinfo (hidx ▸ hg)
+      simp only [if_pos (Nat.lt_succ_of_lt hlt)] at hf
+      simp only [IFEnv.find?, hg, if_pos hlt]
+      exact hf
+
+/-- con-leche: none — **the absolute form**, which is what
+`Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` asks for: the fold's invariant
+at the index the step started from, plus the step's own `ProjOut`, is the
+invariant at the index it produced. -/
+theorem ProjOut.absolute {env : Env} {fe fe' : IFEnv} {s : AState}
+    {st' : EStore} (hfe : IFEnvOK env fe s) (hx : Ext s.store st')
+    (h : ProjOut fe st' fe') :
+    ∀ n t, fe'.find? n = some (.projInfo t) → IProjTableOK st' t := by
+  intro n t hf
+  rcases h n t hf with h' | h'
+  · exact (hfe.proj n t h').mono hx
+  · exact h'
+
 /-! ## The environment's own relation
 
 An install route's argument and answer are `IFEnv`s, and the pure side's are
@@ -504,17 +1101,28 @@ structure InstRel (fe : IFEnv) (P : Env → Prop) (st : EStore) (fe' : IFEnv) :
   pushed : Pushed fe fe'
   visible : fe.visibleBelow ≤ fe'.visibleBelow
   denote : ∃ env', denoteFEnv st fe' = some env' ∧ P env'
+  /-- **the projection tables this install left behind are well shaped** —
+  the section above says why the clause is relative and why it lives here
+  rather than at the one install that can discharge it. -/
+  proj : ProjOut fe st fe'
 
 /-- con-leche: none — `InstRel` composes along a chain of installs: the
-environment relations chain by `Pushed.trans`, and the pure side's runs are
-chained by the caller (each install's `P` names its own con-leche function). -/
+environment relations chain by `Pushed.trans`, the projection obligation by
+`ProjOut.trans`, and the pure side's runs are chained by the caller (each
+install's `P` names its own con-leche function).
+
+**The `Ext` argument is what `proj` costs**: an earlier stage's tables are
+well shaped at the store THAT stage left, and the chain's conclusion is at the
+store the last stage left.  Every caller has it — it is the `ext` field of the
+`PStep`/`CoreStep` the same two stages produced. -/
 theorem InstRel.trans {fe₀ fe₁ fe₂ : IFEnv} {P₁ P₂ : Env → Prop}
-    {st₁ st₂ : EStore} (h₁ : InstRel fe₀ P₁ st₁ fe₁)
+    {st₁ st₂ : EStore} (hx : Ext st₁ st₂) (h₁ : InstRel fe₀ P₁ st₁ fe₁)
     (h₂ : InstRel fe₁ P₂ st₂ fe₂) : InstRel fe₀ P₂ st₂ fe₂ where
   coh := h₂.coh
   pushed := h₁.pushed.trans h₂.pushed
   visible := Nat.le_trans h₁.visible h₂.visible
   denote := h₂.denote
+  proj := h₁.proj.trans h₂.proj hx
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what an inductive install route leaves behind**.  Seven clauses, and the
@@ -535,5 +1143,14 @@ structure IndOut (fe fe' : IFEnv) (s s' : AState) (run : Env → Prop) : Prop wh
   pushed : Pushed fe fe'
   visible : fe.visibleBelow ≤ fe'.visibleBelow
   denote : ∃ env', denoteFEnv s'.store fe' = some env' ∧ run env'
+  /-- **the eighth clause** (task #97-P3-Ind round 2): the arm's own
+  `ProjOut`.  `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` needs
+  `IProjTableOK` at every stored table of the index the step produced, and
+  `ProjOut.absolute` is what turns this clause plus the fold's incoming
+  `IFEnvOK` into that.  `Bridge/Checker/Hyp.lean`'s `IndSpec` and
+  `Bridge/Checker/Decl.lean`'s `DeclOut` do not carry it yet — that is the
+  checker tier's two-line follow-on, and `indSpec_of_bridge` simply drops it
+  until then. -/
+  proj : ProjOut fe s'.store fe'
 
 end ConRon.Bridge.Inductives
