@@ -45960,8 +45960,10 @@ is `proof/ConRon/Bridge/Inductives/**` plus the two lifts round 2 named
 no Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no
 `lakefile.toml`.
 
-**The tier went from 98 open `sorry` to 89** — ten statements closed and one
-new pair stated (§R3.5) — and `StructParts.lean` from 14 to 6.
+**The tier went from 98 open `sorry` to 91** — nine statements closed and one
+new pair stated (§R3.5) — and `StructParts.lean` from 14 to 6.  `lake build
+ConRonBridge` is **616 jobs, 0 errors**, the same job count as round 2: the
+two imports §R3.3 adds cost nothing.
 
 | module | open (r2 → r3) |
 |---|---:|
@@ -45974,12 +45976,15 @@ new pair stated (§R3.5) — and `StructParts.lean` from 14 to 6.
 | `NativeInstall.lean` | 14 → **14** |
 | `Modeled.lean` | 31 → **31** |
 | `Decl.lean` — the arm | 0 → **0** |
-| **the tier** | **98 → 89** |
+| **the tier** | **98 → 91** |
 
 ##### R3.1 Group 1 is CLOSED — the three memoised walks
 
 Round 2's list put group 1 first because it was "the only large block with no
-external blocker".  All nine are closed.
+external blocker".  All of it is closed: `hasLooseBVarBGo`,
+`hasLooseBVarBFast`, `structUsedLater`, `structUsedLaterGo`,
+`structUsedLaterList`, `structProjGuards`, `mentionsConstGo` and
+`mentionsConst`.
 
 `hasLooseBVarBGo_spec` is the shape the other two copy.  A fuel induction
 generalising the memo, the cursor AND the handle, whose arm is the ten-way
@@ -46160,12 +46165,15 @@ creates a `.projInfo` row because the table was just built there.
 
 ##### R3.7 What is left, and what each item waits on
 
-89 open.  Round 2's six groups, revised.
+91 open.  Round 2's six groups, revised; `StructParts.lean`'s six are
+`structShape_spec`, `structPartsCore?_spec`, `structPartsCore?_isSome` (group
+2) and `structProjResidP_spec`, `structProjBodiesGo_spec`,
+`structProjBodies_spec` (group 4).
 
 | # | where | count | blocker |
 |---|---|---:|---|
 | 1 | the three memoised walks | 0 | **CLOSED** (§R3.1) |
-| 2 | the two recognisers and the classification | 16 | `structShape_spec` is the gateway: three `stripPis`, a two-deep `view` dispatch, an indexed read of the binder telescope (`denoteBL` at `getD`, not yet stated) and six comparisons — handles, a LEVEL handle (`denoteL_inj`, not yet stated) and a name.  The `denoteE_inj`/`denoteN_inj` layer §R3.3 built is what it will use |
+| 2 | the two recognisers, the classification, and §R3.5's two `isSome` halves | 17 | `structShape_spec` is the gateway: three `stripPis`, a two-deep `view` dispatch, an indexed read of the binder telescope (`denoteBL` at `getD`, not yet stated) and six comparisons — handles, a LEVEL handle (`denoteL_inj`, not yet stated) and a name.  The `denoteE_inj`/`denoteN_inj` layer §R3.3 built is what it will use |
 | 3 | the recursor generators | 10 | group 2 plus `Bridge/ExprOps/Subst.lean`'s `liftLooseBVarsFast_spec` (CLOSED) |
 | 4 | `structProjResidP`, `structProjBodiesGo`, `structProjBodies`, `closeTelescope`, `zipFvarDoms` | 5 | **`hbb : ∀ f, BvarBSpec (bvarB f)`** — see §R3.8.  `instPisAtLift_spec` and `instantiate1LiftFast_spec` are CLOSED but take it as a hypothesis, and it is not dischargeable from anything proved |
 | 5 | the `CoreSpec` consumers | 14 | `Bridge/Core/Knot.lean`'s `KnotSpec` plus `CoreSpec.sort`'s `EnsureSortSpec` |
