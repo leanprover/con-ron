@@ -2554,7 +2554,7 @@ theorem NStore.derOfView_congr {st st' : NStore} {v : NNodeView}
   | num p n => simp only [NStore.derOfView, hd p (by simp [NNodeView.children])]
 
 /-- Emptying the scratch tier keeps the invariant, at the same rank. -/
-theorem NStore.wf_of_scr_empty {st st' : NStore} {rk : NIdx → Nat} (h : NWFAt st rk)
+theorem NStore.wf_of_scr_empty {st st' : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = NTables.empty) :
     NWFAt st' rk := by
   have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
@@ -2637,10 +2637,10 @@ theorem NStore.view_enableScratch_pers (st : NStore) {i : NIdx}
   simp [NStore.view, NStore.enableScratch, hp]
 
 theorem NStore.dropScratch_wfAt {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk) :
-    NWFAt st.dropScratch rk := NStore.wf_of_scr_empty h rfl rfl
+    NWFAt st.dropScratch rk := NStore.wf_of_scr_empty (NWFAt'.of_wf h) rfl rfl
 
 theorem NStore.enableScratch_wfAt {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk) :
-    NWFAt st.enableScratch rk := NStore.wf_of_scr_empty h rfl rfl
+    NWFAt st.enableScratch rk := NStore.wf_of_scr_empty (NWFAt'.of_wf h) rfl rfl
 
 /-- A persistent name keeps its readback across `dropScratch`: the recursion
 never leaves the persistent tier, because a persistent node's children are
@@ -2735,7 +2735,7 @@ theorem LStore.derOfView_congr {st st' : LStore} {v : LNodeView}
       hl w (by simp [LNodeView.lchildren])]
   | param n => simp only [LStore.derOfView, hn n (by simp [LNodeView.nchildren])]
 
-theorem LStore.wf_of_scr_empty {st st' : LStore} {rk : LIdx → Nat} (h : LWFAt st rk)
+theorem LStore.wf_of_scr_empty {st st' : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = LTables.empty)
     (hnsWF : NStoreWF st'.ns)
     (hnsv : ∀ c : NIdx, c.isPersistent = true → st'.ns.view c = st.ns.view c)
@@ -2835,14 +2835,14 @@ theorem LStore.derived_enableScratch_pers (st : LStore) {i : LIdx}
 theorem LStore.dropScratch_wfAt {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     LWFAt st.dropScratch rk := by
   obtain ⟨rkn, hn⟩ := h.ns
-  exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.dropScratch_wfAt hn⟩
+  exact LStore.wf_of_scr_empty (LWFAt'.of_wf h) rfl rfl ⟨rkn, NStore.dropScratch_wfAt hn⟩
     (fun c hp => NStore.view_dropScratch_pers st.ns hp)
     (fun c hp => NStore.derived_dropScratch_pers st.ns hp) rfl
 
 theorem LStore.enableScratch_wfAt {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     LWFAt st.enableScratch rk := by
   obtain ⟨rkn, hn⟩ := h.ns
-  exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.enableScratch_wfAt hn⟩
+  exact LStore.wf_of_scr_empty (LWFAt'.of_wf h) rfl rfl ⟨rkn, NStore.enableScratch_wfAt hn⟩
     (fun c hp => NStore.view_enableScratch_pers st.ns hp)
     (fun c hp => NStore.derived_enableScratch_pers st.ns hp) rfl
 
@@ -2936,7 +2936,7 @@ theorem LsStore.derOfView_congr {st st' : LsStore} :
     intro hd
     simp only [LsStore.derOfView, hd u (by simp), ih (fun c hc => hd c (by simp [hc]))]
 
-theorem LsStore.wf_of_scr_empty {st st' : LsStore} (h : LsWF st)
+theorem LsStore.wf_of_scr_empty {st st' : LsStore} (h : LsWF' st)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = LsTables.empty)
     (hlsWF : LStoreWF st'.ls)
     (hlv : ∀ c : LIdx, c.isPersistent = true → st'.ls.view c = st.ls.view c)
@@ -3011,14 +3011,14 @@ theorem LsStore.view_enableScratch_pers (st : LsStore) {i : LsIdx}
 
 theorem LsStore.dropScratch_wf {st : LsStore} (h : LsWF st) : LsWF st.dropScratch := by
   obtain ⟨rkl, hl⟩ := h.ls
-  exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.dropScratch_wfAt hl⟩
+  exact LsStore.wf_of_scr_empty (LsWF'.of_wf h) rfl rfl ⟨rkl, LStore.dropScratch_wfAt hl⟩
     (fun c hp => LStore.view_dropScratch_pers st.ls hp)
     (fun c hp => LStore.derived_dropScratch_pers st.ls hp) rfl
 
 theorem LsStore.enableScratch_wf {st : LsStore} (h : LsWF st) :
     LsWF st.enableScratch := by
   obtain ⟨rkl, hl⟩ := h.ls
-  exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.enableScratch_wfAt hl⟩
+  exact LsStore.wf_of_scr_empty (LsWF'.of_wf h) rfl rfl ⟨rkl, LStore.enableScratch_wfAt hl⟩
     (fun c hp => LStore.view_enableScratch_pers st.ls hp)
     (fun c hp => LStore.derived_enableScratch_pers st.ls hp) rfl
 
@@ -3128,8 +3128,31 @@ theorem EWFAt.viewBM_of_findBM {st : EStore} {rk : EIdx → Nat} (h : EWFAt st r
     · exact ((h.bmConsS m mi).mp hf).1
     · exact absurd hf (by simp)
 
-theorem EWFAt.persFindBM_of_view_pers {st : EStore} {rk : EIdx → Nat}
-    (h : EWFAt st rk) {i : EIdx} {v : ENodeView} {m : ConLeche.BinderMeta}
+/-! ### Forgetting the freshness clauses at the expression store
+
+`Arena/WF.lean` has the other three `of_wf`; this one is here because the
+weakened `bmKeyS` needs `EWFAt.viewBM_of_findBM`. -/
+
+theorem EWFAt'.of_wf {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
+    EWFAt' st rk :=
+  { lss := LsStoreWF'.of_wf h.lss, childOK := h.childOK, nchildOK := h.nchildOK,
+    lchildOK := h.lchildOK, lschildOK := h.lschildOK, rankP := h.rankP,
+    rankS := h.rankS, bmChildOK := h.bmChildOK, consP := h.consP,
+    consSof := fun v i hf => (h.consS v i).mp hf,
+    bmConsP := h.bmConsP, bmConsS := h.bmConsS,
+    bmKeyP := h.bmKeyP,
+    bmKeyS := fun v mj i hf => (h.bmKeyS v mj i hf).imp id
+      (fun hm => by obtain ⟨m, hm⟩ := hm; rw [h.viewBM_of_findBM hm]; rfl),
+    derExact := h.derExact,
+    bmDerExact := h.bmDerExact, sizedP := h.sizedP, sizedS := h.sizedS,
+    capP := h.capP, capS := h.capS, bmCapP := h.bmCapP, bmCapS := h.bmCapS,
+    scrOff := h.scrOff, sync := h.sync }
+
+theorem StoreWF'.of_wf {st : EStore} (h : StoreWF st) : StoreWF' st :=
+  let ⟨rk, h⟩ := h; ⟨rk, EWFAt'.of_wf h⟩
+
+theorem EWFAt'.persFindBM_of_view_pers {st : EStore} {rk : EIdx → Nat}
+    (h : EWFAt' st rk) {i : EIdx} {v : ENodeView} {m : ConLeche.BinderMeta}
     (hp : i.isPersistent = true) (hv : st.view i = some v) (hm : v.bmOf = some m) :
     ∃ mp, mp.isPersistent = true ∧ st.viewBM mp = some m ∧
       st.pers.findBM m = some mp := by
@@ -3223,7 +3246,7 @@ theorem EWFAt.findBM_of_view {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
         rw [EStore.viewBindI_scr hp' hc]; exact hg
       exact ⟨mj, h.findBM_of_viewBM (h.bmChildOK i ty b mj hvb).2.2 hbm⟩
 
-theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
+theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = ETables.empty)
     (hlssWF : LsStoreWF st'.lss)
     (hnsv : ∀ c : NIdx, c.isPersistent = true → st'.ns.view c = st.ns.view c)
@@ -3439,7 +3462,7 @@ theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt 
 theorem EStore.dropScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
     EWFAt st.dropScratch rk := by
   have hlsw : LsWF st.lss := h.lss
-  refine EStore.wf_of_scr_empty h rfl rfl (LsStore.dropScratch_wf hlsw)
+  refine EStore.wf_of_scr_empty (EWFAt'.of_wf h) rfl rfl (LsStore.dropScratch_wf hlsw)
     (fun c hp => NStore.view_dropScratch_pers st.ns hp)
     (fun c hp => LStore.view_dropScratch_pers st.ls hp)
     (fun c hp => LsStore.view_dropScratch_pers st.lss hp)
@@ -3453,7 +3476,7 @@ theorem EStore.dropScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st 
 theorem EStore.enableScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
     EWFAt st.enableScratch rk := by
   have hlsw : LsWF st.lss := h.lss
-  refine EStore.wf_of_scr_empty h rfl rfl (LsStore.enableScratch_wf hlsw)
+  refine EStore.wf_of_scr_empty (EWFAt'.of_wf h) rfl rfl (LsStore.enableScratch_wf hlsw)
     (fun c hp => NStore.view_enableScratch_pers st.ns hp)
     (fun c hp => LStore.view_enableScratch_pers st.ls hp)
     (fun c hp => LsStore.view_enableScratch_pers st.lss hp)
@@ -9779,29 +9802,6 @@ theorem LsStore.internPersistent_wf' {st : LsStore} {w : LsNodeView}
     exact LsStore.wf_push_pers' h hv hp rfl rfl rfl rfl rfl hcap hfp
 
 
-/-! ### Forgetting the freshness clauses at the expression store
-
-`Arena/WF.lean` has the other three `of_wf`; this one is here because the
-weakened `bmKeyS` needs `EWFAt.viewBM_of_findBM`. -/
-
-theorem EWFAt'.of_wf {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
-    EWFAt' st rk :=
-  { lss := LsStoreWF'.of_wf h.lss, childOK := h.childOK, nchildOK := h.nchildOK,
-    lchildOK := h.lchildOK, lschildOK := h.lschildOK, rankP := h.rankP,
-    rankS := h.rankS, bmChildOK := h.bmChildOK, consP := h.consP,
-    consSof := fun v i hf => (h.consS v i).mp hf,
-    bmConsP := h.bmConsP, bmConsS := h.bmConsS,
-    bmKeyP := h.bmKeyP,
-    bmKeyS := fun v mj i hf => (h.bmKeyS v mj i hf).imp id
-      (fun hm => by obtain ⟨m, hm⟩ := hm; rw [h.viewBM_of_findBM hm]; rfl),
-    derExact := h.derExact,
-    bmDerExact := h.bmDerExact, sizedP := h.sizedP, sizedS := h.sizedS,
-    capP := h.capP, capS := h.capS, bmCapP := h.bmCapP, bmCapS := h.bmCapS,
-    scrOff := h.scrOff, sync := h.sync }
-
-theorem StoreWF'.of_wf {st : EStore} (h : StoreWF st) : StoreWF' st :=
-  let ⟨rk, h⟩ := h; ⟨rk, EWFAt'.of_wf h⟩
-
 /-! ### The two `EWFAt` helpers the weak invariant still has
 
 `findBM_of_viewBM` needs `bmFresh` at a SCRATCH datum handle, so the weak
@@ -10586,5 +10586,67 @@ theorem StoreWF'.lsWF {st : EStore} (h : StoreWF' st) : LStoreWF' st.ls := by
 
 theorem StoreWF'.nsWF {st : EStore} (h : StoreWF' st) : NStoreWF' st.ns := by
   obtain ⟨rk, h⟩ := h; exact h.nsWF
+
+
+/-! ### THE BRACKET CLOSES — `dropScratch` restores `fresh` vacuously
+
+`Arena/Store.lean`'s `internPersistent` note: *"the obligation P3 owes is
+stated for the BRACKET: `StoreWF` minus `fresh` is preserved by each
+`internPersistent`, and `promote … dropScratch` as a whole takes `StoreWF` to
+`StoreWF`"*.  The first half is `wf_push_pers'` above; this is the second, and
+it cost **four lines**, because `wf_of_scr_empty` never read a freshness
+clause of its INPUT in the first place — it establishes the output's
+`fresh`/`bmFresh`/`consS` from `scr = empty`.  So the four `wf_of_scr_empty`
+now take the WEAK invariant (one word each, and not a line of their proofs
+moved), and the bracket's closing step is their instance at `dropScratch`.
+
+This is `Bridge/Promote/StoreP.lean`'s `StoreWFP.dropScratch_wf`, discharged
+one tier down where it belongs. -/
+
+theorem NStore.dropScratch_wfAt' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
+    NWFAt st.dropScratch rk := NStore.wf_of_scr_empty h rfl rfl
+
+theorem NStoreWF'.dropScratch_wf {st : NStore} (h : NStoreWF' st) :
+    NStoreWF st.dropScratch := by
+  obtain ⟨rk, h⟩ := h; exact ⟨rk, NStore.dropScratch_wfAt' h⟩
+
+theorem LStore.dropScratch_wfAt' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
+    LWFAt st.dropScratch rk := by
+  obtain ⟨rkn, hn⟩ := h.ns
+  exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.dropScratch_wfAt' hn⟩
+    (fun c hp => NStore.view_dropScratch_pers st.ns hp)
+    (fun c hp => NStore.derived_dropScratch_pers st.ns hp) rfl
+
+theorem LStoreWF'.dropScratch_wf {st : LStore} (h : LStoreWF' st) :
+    LStoreWF st.dropScratch := by
+  obtain ⟨rk, h⟩ := h; exact ⟨rk, LStore.dropScratch_wfAt' h⟩
+
+theorem LsStoreWF'.dropScratch_wf {st : LsStore} (h : LsStoreWF' st) :
+    LsStoreWF st.dropScratch := by
+  obtain ⟨rkl, hl⟩ := h.ls
+  exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.dropScratch_wfAt' hl⟩
+    (fun c hp => LStore.view_dropScratch_pers st.ls hp)
+    (fun c hp => LStore.derived_dropScratch_pers st.ls hp) rfl
+
+theorem EStore.dropScratch_wfAt' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    EWFAt st.dropScratch rk := by
+  have hlsw : LsWF' st.lss := h.lss
+  refine EStore.wf_of_scr_empty h rfl rfl (LsStoreWF'.dropScratch_wf hlsw)
+    (fun c hp => NStore.view_dropScratch_pers st.ns hp)
+    (fun c hp => LStore.view_dropScratch_pers st.ls hp)
+    (fun c hp => LsStore.view_dropScratch_pers st.lss hp)
+    (fun c hp => NStore.derived_dropScratch_pers st.ns hp)
+    (fun c hp => LStore.derived_dropScratch_pers st.ls hp)
+    ?_ rfl
+  intro c hp
+  show (st.lss.dropScratch).derived c = st.lss.derived c
+  rw [LsStore.derived_pers hp, LsStore.derived_pers hp]; rfl
+
+/-- con-leche: none — arena infrastructure; **the promotion bracket's closing
+step**: dropping the scratch tier turns the promote-window invariant back into
+the store invariant, `fresh` and all. -/
+theorem StoreWF'.dropScratch_wf {st : EStore} (h : StoreWF' st) :
+    StoreWF st.dropScratch := by
+  obtain ⟨rk, h⟩ := h; exact ⟨rk, EStore.dropScratch_wfAt' h⟩
 
 end ConRon.Arena
