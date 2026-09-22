@@ -242,81 +242,163 @@ state the checker never builds and `StoreWF` excludes.
 
 **The memo probe before the node read**: two reads of the state commute. -/
 
+/-! ### The arms, split (DESIGN §8.6's ruling of 2026-09-22)
+
+The coordinator's ruling after task #97-P3-0: the Lean twin splits every
+multi-arm body into one `def` per constructor arm inside a `mutual` block,
+the dispatcher calling the arms by name (no closures — DESIGN §3.4).  The
+Rust keeps its inline arms; the refinement maps one Rust function onto the
+twin's dispatcher-plus-arms, the same denotation, a twin-ledger row of the
+"shape" kind.  The measured reason is Theorem 1's elaboration: 72 s on this
+one inline body (task #97-P3-0's §4) against a few seconds per arm.
+
+**Where the cut goes**: at the memo probe (task #97b).  Each arm owns its
+probe, its projection, its recursion, its rebuild and its insert; the
+dispatcher is the cutoff, the tag chain and nothing else.  The measure is the
+lexicographic `(fuel, tag)` task #97b predicted — the dispatcher at tag `0`
+calls an arm at `fuel - 1`, and an arm at tag `1` calls the dispatcher at its
+own fuel.  A leaf arm whose whole body is `pure h` has nothing to split and
+stays in the dispatcher. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+`bvar` arm.  It does not recurse, so it sits outside the `mutual` block:
+`i = d` answers the substituted handle, `i > d` interns the lowered index,
+`i < d` answers the handle itself. -/
+def instantiate1ArmBVar (v : EIdx) (h : EIdx) (d : Nat) : AM EIdx := do
+  match ← viewBVar h with
+  | none => failDanglingE
+  | some i =>
+    if i = d then pure v
+    else if i > d then internBVarE (i - 1)
+    else pure h
+
+mutual
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:29-45 instantiate1
 con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go
 Replace `bvar d` by `v`, lowering loose `bvar`s above `d` by one.  The
 derived-word cutoff comes first (`bvarB ≤ d`, read off the packed word in
 `O(1)`); the five leaf kinds answer without touching the memo; everything
-else probes the memo, runs the body one level down and inserts.
+else hands off to its arm, which probes the memo, runs the body one level
+down and inserts.
 
 `else .bvar i` is `pure h`: the node is already interned and `denoteE` is
 injective, so rebuilding it yields the same handle. -/
-def instantiate1Go (v : EIdx) : Nat → EIdx → Nat → AM EIdx
-  | 0, _, _ => fail (.internal "fuel exhausted: instantiate1")
-  | fuel + 1, h, d => do
+def instantiate1Go (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) : AM EIdx :=
+  match fuel with
+  | 0 => fail (.internal "fuel exhausted: instantiate1")
+  | fuel + 1 => do
     let der ← derivedE h
     let b := (bvarOfData der).toNat
     if b < satRange && b ≤ d then
       pure h
     else
       let tg := h.tag
-      if tg == ETag.app then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewApp h with
-          | none => failDanglingE
-          | some (f, a) => do
-            let f' ← instantiate1Go v fuel f d
-            let a' ← instantiate1Go v fuel a d
-            let r ← internAppE f' a'
-            inst1Set (h, d) r
-            pure r
-      else if ETag.isBind tg then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewBindI h with
-          | none => failDanglingE
-          | some (ty, body, m) => do
-            let t ← instantiate1Go v fuel ty d
-            let b' ← instantiate1Go v fuel body (d + 1)
-            let r ← internBindIE tg t b' m
-            inst1Set (h, d) r
-            pure r
-      else if tg == ETag.bvar then
-        match ← viewBVar h with
-        | none => failDanglingE
-        | some i =>
-          if i = d then pure v
-          else if i > d then internBVarE (i - 1)
-          else pure h
-      else if tg == ETag.letE then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewLet h with
-          | none => failDanglingE
-          | some (ty, val, body) => do
-            let t ← instantiate1Go v fuel ty d
-            let w ← instantiate1Go v fuel val d
-            let b' ← instantiate1Go v fuel body (d + 1)
-            let r ← internLetEE t w b'
-            inst1Set (h, d) r
-            pure r
-      else if tg == ETag.proj then
-        match ← inst1Get (h, d) with
-        | some r => pure r
-        | none =>
-          match ← viewProj h with
-          | none => failDanglingE
-          | some (n, i, sub) => do
-            let u ← instantiate1Go v fuel sub d
-            let r ← internProjE n i u
-            inst1Set (h, d) r
-            pure r
-      else
+      if tg == ETag.app then instantiate1ArmApp v fuel h d
+      else if ETag.isBind tg then instantiate1ArmBind v fuel h d
+      else if tg == ETag.bvar then instantiate1ArmBVar v h d
+      else if tg == ETag.letE then instantiate1ArmLet v fuel h d
+      else if tg == ETag.proj then instantiate1ArmProj v fuel h d
+      else pure h
+termination_by (fuel, 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `app`
+arm: probe, project, recurse into both children, rebuild, insert. -/
+def instantiate1ArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewApp h with
+    | none => failDanglingE
+    | some (f, a) => do
+      let f' ← instantiate1Go v fuel f d
+      let a' ← instantiate1Go v fuel a d
+      let r ← internAppE f' a'
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+binder arm, `lam` and `forallE` in one exactly as the tag dispatch tests them
+(`ETag.isBind`); the datum travels as a HANDLE (task #97-P6-16). -/
+def instantiate1ArmBind (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewBindI h with
+    | none => failDanglingE
+    | some (ty, body, m) => do
+      let t ← instantiate1Go v fuel ty d
+      let b' ← instantiate1Go v fuel body (d + 1)
+      let r ← internBindIE h.tag t b' m
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+`letE` arm; the body descends at `d + 1`. -/
+def instantiate1ArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewLet h with
+    | none => failDanglingE
+    | some (ty, val, body) => do
+      let t ← instantiate1Go v fuel ty d
+      let w ← instantiate1Go v fuel val d
+      let b' ← instantiate1Go v fuel body (d + 1)
+      let r ← internLetEE t w b'
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+`proj` arm. -/
+def instantiate1ArmProj (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    AM EIdx := do
+  match ← inst1Get (h, d) with
+  | some r => pure r
+  | none =>
+    match ← viewProj h with
+    | none => failDanglingE
+    | some (n, i, sub) => do
+      let u ← instantiate1Go v fuel sub d
+      let r ← internProjE n i u
+      inst1Set (h, d) r
+      pure r
+termination_by (fuel, 1)
+
+end
+
+/-- con-leche: none — `instantiate1Go`'s clause at fuel `0`, as an equation
+lemma.  Template rule 9 (DESIGN, task #97-P3-0 §4): a walk whose measure is
+`termination_by` rather than a constructor pattern needs its clauses as
+lemmas, or `mvcgen [f]` rewrites the recursive call forever. -/
+theorem instantiate1Go_zero (v h : EIdx) (d : Nat) :
+    instantiate1Go v 0 h d =
+      fail (.internal "fuel exhausted: instantiate1") := by
+  rw [instantiate1Go]
+
+/-- con-leche: none — `instantiate1Go`'s clause at `fuel + 1` (template rule
+9): the cutoff, then the tag chain, then the arms by name. -/
+theorem instantiate1Go_succ (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
+    instantiate1Go v (fuel + 1) h d = (do
+      let der ← derivedE h
+      let b := (bvarOfData der).toNat
+      if b < satRange && b ≤ d then
         pure h
+      else
+        let tg := h.tag
+        if tg == ETag.app then instantiate1ArmApp v fuel h d
+        else if ETag.isBind tg then instantiate1ArmBind v fuel h d
+        else if tg == ETag.bvar then instantiate1ArmBVar v h d
+        else if tg == ETag.letE then instantiate1ArmLet v fuel h d
+        else if tg == ETag.proj then instantiate1ArmProj v fuel h d
+        else pure h) := by
+  rw [instantiate1Go]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast — the
 top-level entry: `(instantiate1Go v {} e d).1`, i.e. the memo is fresh before

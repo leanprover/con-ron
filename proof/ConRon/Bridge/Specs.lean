@@ -144,6 +144,7 @@ for exactly this reason. -/
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
     ⦃fun s => ⌜s = s₀⌝⦄ internE w
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some w ∧
@@ -161,7 +162,8 @@ for exactly this reason. -/
     · rw [hbm] at hh; exact absurd hh (by simp)
     · exact hh
   obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec hwf hv hcap'
-  exact ⟨h1, h2, EStore.lss_intern _ _, rfl, rfl, rfl, h3, h4⟩
+  exact ⟨h1, h2, BMExt.intern _ _, EStore.lss_intern _ _, rfl, rfl, rfl, h3,
+    h4⟩
 
 /-! ### The ten per-constructor faces of `internE`
 
@@ -173,6 +175,7 @@ for exactly this reason. -/
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internBVarE i
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.bvar i) ∧
@@ -183,6 +186,7 @@ for exactly this reason. -/
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLitE l
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.lit l) ∧
@@ -193,6 +197,7 @@ for exactly this reason. -/
     (hwf : StoreWF s₀.store) (hty : (denoteE s₀.store ty).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internFVarE idx ty
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.fvar idx ty) ∧
@@ -203,6 +208,7 @@ for exactly this reason. -/
     (hwf : StoreWF s₀.store) (hu : (s₀.store.ls.view u).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internSortE u
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.sort u) ∧
@@ -214,6 +220,7 @@ for exactly this reason. -/
     (hus : (s₀.store.lss.view us).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internConstE n us
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.const n us) ∧
@@ -225,6 +232,7 @@ for exactly this reason. -/
     (ha : (denoteE s₀.store a).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internAppE f a
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.app f a) ∧
@@ -236,6 +244,7 @@ for exactly this reason. -/
     (hb : (denoteE s₀.store b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLamE ty b m
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.lam ty b m) ∧
@@ -248,6 +257,7 @@ for exactly this reason. -/
     (hb : (denoteE s₀.store b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internForallEE ty b m
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.forallE ty b m) ∧
@@ -260,6 +270,7 @@ for exactly this reason. -/
     (hb : (denoteE s₀.store b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLetEE ty val b
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.letE ty val b) ∧
@@ -271,6 +282,7 @@ for exactly this reason. -/
     (he : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internProjE n i e
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.proj n i e) ∧
@@ -292,6 +304,7 @@ under the monadic wrapper's own capacity branch. -/
     (hb : (s₀.store.view b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLamIE ty b mi
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.lam ty b m) ∧
@@ -306,12 +319,12 @@ under the monadic wrapper's own capacity branch. -/
     · rw [if_pos hon]; exact hcap.1
     · simp only [Bool.not_eq_true] at hon
       rw [hon]; simp only [Bool.false_eq_true, if_false]; exact hcap.2
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
+  obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb hcap'
   have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
     simp [eBindView]
   rw [heb] at h5 h6
-  exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
+  exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl, h5, h6⟩
 
 @[spec] theorem internForallEIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
@@ -320,6 +333,7 @@ under the monadic wrapper's own capacity branch. -/
     (hb : (s₀.store.view b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internForallEIE ty b mi
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.forallE ty b m) ∧
@@ -334,12 +348,12 @@ under the monadic wrapper's own capacity branch. -/
     · rw [if_pos hon]; exact hcap.1
     · simp only [Bool.not_eq_true] at hon
       rw [hon]; simp only [Bool.false_eq_true, if_false]; exact hcap.2
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
+  obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty hb hcap'
   have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
     simp [eBindView, ETag.lam, ETag.forallE]
   rw [heb] at h5 h6
-  exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
+  exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl, h5, h6⟩
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two binder
 arms at a tag the caller carries.  One spec, stated at `eBindView`, so that a
@@ -352,6 +366,7 @@ theorem internBindIE_spec (s₀ : AState) (tag : UInt32) (ty b : EIdx)
     (hb : (s₀.store.view b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internBindIE tag ty b mi
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (eBindView tag ty b m) ∧
@@ -1049,6 +1064,7 @@ branches.  `denoteEView_ext` (`Bridge/Rel.lean` group 6b) is what makes the
     (hsame : same = true → s₀.store.view h = some v) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuilt h same v
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store v⌝⦄ := by
@@ -1056,13 +1072,13 @@ branches.  `denoteEView_ext` (`Bridge/Rel.lean` group 6b) is what makes the
   case vc1.isTrue =>
     rename_i hc s hs
     subst hs
-    exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl,
+    exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl,
       denoteE_view_eq hwf (hsame hc)⟩
   case vc2.isFalse.post.success =>
     rename_i _hc s hs _r _s2
     subst hs
-    intro a bb c d e f _g hh
-    exact ⟨a, bb, c, d, e, f, hh⟩
+    intro a bb bm c d e f _g hh
+    exact ⟨a, bb, bm, c, d, e, f, hh⟩
   all_goals (intro s hs; subst hs; first | exact hwf | exact hv)
 
 /-! ### The eleven per-constructor faces of `internRebuilt` (task #97-P6-15)
@@ -1079,6 +1095,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.bvar i)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBVar h same i
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.bvar i)⌝⦄ :=
@@ -1089,6 +1106,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.lit l)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLit h same l
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.lit l)⌝⦄ :=
@@ -1100,6 +1118,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.fvar idx ty)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltFVar h same idx ty
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
@@ -1111,6 +1130,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.sort u)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltSort h same u
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.sort u)⌝⦄ :=
@@ -1123,6 +1143,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.const n us)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltConst h same n us
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.const n us)⌝⦄ :=
@@ -1135,6 +1156,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.app f a)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltApp h same f a
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.app f a)⌝⦄ :=
@@ -1147,6 +1169,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.lam ty b m)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLam h same ty b m
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.lam ty b m)⌝⦄ :=
@@ -1159,6 +1182,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.forallE ty b m)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltForallE h same ty b m
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.forallE ty b m)⌝⦄ :=
@@ -1173,6 +1197,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.letE ty val b)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLetE h same ty val b
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.letE ty val b)⌝⦄ :=
@@ -1186,6 +1211,7 @@ proof is a two-case split. -/
     (hsame : same = true → s₀.store.view h = some (.proj n i e)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltProj h same n i e
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.proj n i e)⌝⦄ :=
@@ -1203,6 +1229,7 @@ unfolding. -/
     (hsame : same = true → s₀.store.view h = some (eBindView tag ty b m)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBind h same tag ty b m
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (eBindView tag ty b m)⌝⦄ := by
@@ -1231,6 +1258,7 @@ theorem internRebuiltBindI_spec (s₀ : AState) (h : EIdx) (same : Bool)
     (hsame : same = true → s₀.store.view h = some (eBindView tag ty b m)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBindI h same tag ty b mi
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view r = some (eBindView tag ty b m) ∧
@@ -1242,7 +1270,7 @@ theorem internRebuiltBindI_spec (s₀ : AState) (h : EIdx) (same : Bool)
     mvcgen
     rename_i s hs
     subst hs
-    exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, rfl, hsame hc,
+    exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hsame hc,
       denoteE_view_eq hwf (hsame hc)⟩
   · have hprog :
         internRebuiltBindI h same tag ty b mi = internBindIE tag ty b mi := by
@@ -1269,6 +1297,7 @@ discharges their two side conditions from the `viewBindI` read. -/
     (hb : (s₀.store.view b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internBindIE tag ty b mi
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         ∀ m, s₀.store.viewBM mi = some m →
@@ -1280,8 +1309,8 @@ discharges their two side conditions from the `viewBindI` read. -/
   refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post h ?_)
   refine ⟨fun _a => ?_, Std.Do.ExceptConds.entails.refl _⟩
   intro s' hp
-  obtain ⟨p1, p2, p3, p4, p5, p6, p7, p8, p9⟩ := hp
-  refine ⟨p1, p2, p3, p4, p5, p6, p7, fun m' hm' => ?_⟩
+  obtain ⟨p1, p2, pbe, p3, p4, p5, p6, p7, p8, p9⟩ := hp
+  refine ⟨p1, p2, pbe, p3, p4, p5, p6, p7, fun m' hm' => ?_⟩
   rw [hm] at hm'
   obtain rfl := Option.some.inj hm'
   exact ⟨p8, p9⟩
@@ -1296,6 +1325,7 @@ discharges their two side conditions from the `viewBindI` read. -/
       s₀.store.view h = some (eBindView tag ty b m)) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBindI h same tag ty b mi
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         ∀ m, s₀.store.viewBM mi = some m →
@@ -1308,8 +1338,8 @@ discharges their two side conditions from the `viewBindI` read. -/
   refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post hh0 ?_)
   refine ⟨fun _a => ?_, Std.Do.ExceptConds.entails.refl _⟩
   intro s' hp
-  obtain ⟨p1, p2, p3, p4, p5, p6, p7, p8, p9⟩ := hp
-  refine ⟨p1, p2, p3, p4, p5, p6, p7, fun m' hm' => ?_⟩
+  obtain ⟨p1, p2, pbe, p3, p4, p5, p6, p7, p8, p9⟩ := hp
+  refine ⟨p1, p2, pbe, p3, p4, p5, p6, p7, fun m' hm' => ?_⟩
   rw [hm] at hm'
   obtain rfl := Option.some.inj hm'
   exact ⟨p8, p9⟩
@@ -1532,7 +1562,8 @@ macro_rules
          grind (instances := 1000) [$ts,*, StateOK, MemoOK.mono, MemoOK.insert, MemoOK.of_empty,
            MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
            MemoVOK.mono, MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
-           Ext.trans, Ext.refl, viewOK_bvar, viewOK_lit, viewOK_fvar,
+           Ext.trans, Ext.refl, BMExt.trans, BMExt.refl,
+           viewOK_bvar, viewOK_lit, viewOK_fvar,
            viewOK_sort, viewOK_const, viewOK_app, viewOK_lam, viewOK_forallE,
            viewOK_letE, viewOK_proj, viewOK_eBindView, denoteEView,
            opt2_eq_some_iff, opt3_eq_some_iff, Option.isSome_iff_exists,
@@ -1542,7 +1573,8 @@ macro_rules
          grind (instances := 4000) [$ts,*, StateOK, MemoOK.mono, MemoOK.insert, MemoOK.of_empty,
            MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
            MemoVOK.mono, MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
-           Ext.trans, Ext.refl, RelE.ext, RelE.of_ext, RelV.of_ext,
+           Ext.trans, Ext.refl, BMExt.trans, BMExt.refl,
+           RelE.ext, RelE.of_ext, RelV.of_ext,
            viewOK_bvar, viewOK_lit, viewOK_fvar, viewOK_sort, viewOK_const,
            viewOK_app, viewOK_lam, viewOK_forallE, viewOK_letE, viewOK_proj,
            viewOK_eBindView, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
