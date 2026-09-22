@@ -330,8 +330,13 @@ without a single level lemma.
 
 **The frame is not `s'.caches = s₀.caches`**: the memoised readback writes
 `caches.readLC` / `caches.readLsC`.  What the caller gets instead is the two
-readback clauses preserved, which is what `instLPGo` needs to call them
-again. -/
+readback clauses preserved — which is what `instLPGo` needs to call them
+again — and, since round 4, the RECORD equation
+`s'.caches = { s₀.caches with readLC := … }`, which frames the *other thirteen*
+cache tables in one line.  That is what carries `ReadNCacheOK` across
+`instLPGo` and so lets `instLPFast_spec` state a cache frame at all; the
+individual `readLC`/`readLsC` sibling equations these two used to carry are
+its projections. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 **THEOREM 1 for `substLMemoAt`**: the memoised level substitution answers
@@ -350,7 +355,7 @@ theorem substLMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
         s'.memos.instLPLsC = s₀.memos.instLPLsC ∧
         InstLPLMemoA ks us s' ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
-        s'.caches.readLsC = s₀.caches.readLsC ∧
+        s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
         RelL (Level.subst ks us) s₀.store u s'.store r⌝⦄ := by
   mvcgen [substLMemoAt]
   all_goals bridge_vcs [MemoLOK.insert, MemoLOK.get, RelL.of_ext, RelL.ext,
@@ -374,7 +379,7 @@ theorem substLsMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
         s'.memos.instLPLC = s₀.memos.instLPLC ∧
         InstLPLsMemoA ks us s' ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
-        s'.caches.readLC = s₀.caches.readLC ∧
+        s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
         RelLs (fun ws => ws.map (Level.subst ks us)) s₀.store vs s'.store r⌝⦄ := by
   mvcgen [substLsMemoAt]
   all_goals bridge_vcs [MemoLsOK.insert, MemoLsOK.get, MemoLsOK.mono,
