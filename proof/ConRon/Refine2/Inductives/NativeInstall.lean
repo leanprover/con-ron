@@ -178,7 +178,24 @@ theorem mf_probe_refines {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     (hm : LMemoRel rm lm)
     (hrun : arena.inductives.native_install.mf_probe rm k = ok o) :
     o = lm[absEIdx k]? := by
-  sorry
+  rw [arena.inductives.native_install.mf_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hmr, hminv⟩ := hm
+  have hto := ConRon.Refine.HashMap2.get_refines_wf eidx_eq2 hminv
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hmr k trivial
+  rw [← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option Bool) = o := Result.ok_injective hrun
+    subst h2
+    rfl
+  | some v =>
+    rw [hrc] at hrun
+    have h2 : some v = o := Result.ok_injective hrun
+    subst h2
+    rfl
 
 /-- `mentions_fvar_ins` ⊑ `mentionsFvarIns` — one answer recorded. -/
 theorem mentions_fvar_ins_refines {e : arena.handle.EIdx}
@@ -188,7 +205,24 @@ theorem mentions_fvar_ins_refines {e : arena.handle.EIdx}
     (hrun : arena.inductives.native_install.mentions_fvar_ins e r = ok o) :
     o.1 = (mentionsFvarIns (absEIdx e) (r.1, lm)).1 ∧
       LMemoRel o.2 (mentionsFvarIns (absEIdx e) (r.1, lm)).2 := by
-  sorry
+  obtain ⟨b, memo⟩ := r
+  rw [arena.inductives.native_install.mentions_fvar_ins] at hrun
+  obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨old, memo1⟩ := q
+  have ho : (b, memo1) = o := Result.ok_injective hrun
+  obtain ⟨hrel, hinv⟩ := hm
+  have hee : e1 = e := dupId_eidx e e1 he1
+  subst hee
+  have hinj : ∀ a b : arena.handle.EIdx, True → True → absEIdx a = absEIdx b → a = b :=
+    fun a b _ _ hab => absEIdx_inj hab
+  obtain ⟨hrel', hkeys'⟩ :=
+    ConRon.Refine.HashMap2.Rel_insert_wf eidx_eq2 hinj hinv
+      ConRon.Refine.HashMap2.KeysOk_true hrel trivial hq
+  have hinv' := (ConRon.Refine.HashMap2.insert_refines_wf eidx_eq2 hinv
+    ConRon.Refine.HashMap2.KeysOk_true trivial hq).1
+  rw [← ho]
+  exact ⟨rfl, ⟨hrel', hinv'⟩⟩
 
 /-- `mentions_fvar_node` ⊑ `mentionsFvarGo`'s arm dispatch. -/
 theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
