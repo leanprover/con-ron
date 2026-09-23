@@ -326,6 +326,11 @@ of the store, `bms`' `TblInv`). -/
 
 /-! ## The bodies -/
 
+-- region A2's `ifenv_find_proj_ls` answers in `PA2.absIProjEntry`, region
+-- A1's `proj_entry_type_at_ls` reads `PA1.absIProjEntry`: the same record, by
+-- unfolding (three copies of the definition exist; the coordinator merges them)
+attribute [lockstep_simp] PA2.absIProjEntry
+
 attribute [lockstep_inline] arena.core.infer_sort arena.core.infer_fvar arena.core.infer_const
   arena.core.infer_lit_nat arena.core.infer_lit_str arena.core.infer_proj
   arena.core.infer_proj_at arena.core.infer_proj_prop
