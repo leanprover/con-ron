@@ -138,38 +138,190 @@ def nameIndex (ds : Array IDeclaration) (idx : Std.HashMap NIdx Nat) (k : Nat) :
   termination_by ds.size - k
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
+worklist's `continue` test: record `k` already precedes `i`. -/
+def hoistDone (target : Std.HashMap Nat Nat) (k i : Nat) : Bool :=
+  match target[k]? with
+  | some t => decide (t ≤ i)
+  | none => false
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
+worklist's pops that `continue`: the entries on top of the stack whose record
+already precedes `i`, dropped.  Structural on the stack, so they cost no
+fuel. -/
+def hoistDropDone (target : Std.HashMap Nat Nat) (i : Nat) : List Nat → List Nat
+  | [] => []
+  | k :: stack => if hoistDone target k i then hoistDropDone target i stack else k :: stack
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
 worklist: the closure of `j` within the records after `i`, each reached
 record marked as having to precede `i`.  con-leche's `while h : stack.size >
-0` is a fuelled recursion over an explicit stack here; the fuel is
-`ds.size + 1` per pushed record, which is above any reachable depth because a
-record is inserted into `target` at a strictly smaller `i` each time it is
-revisited. -/
+0` is a fuelled recursion over an explicit stack here.
+
+**The fuel counts PROCESSED records, not pops** (task #97-P3-Frontend round
+8).  A pop whose record already precedes `i` is `hoistDropDone`'s, structural
+on the stack; only a pop that marks a record spends fuel.  A marked record is
+done for the rest of the call (its target becomes `i`, and a target only ever
+moves to the current `i`), so with every stack entry and every name-index value
+below `ds.size` a call processes at most `ds.size` records, and the fuel
+`ds.size` the caller passes is never exhausted: `hoistClosure_fuel_succ` below.
+Fuel 0 on a record still to process is a `fail`, never a truncated answer
+(round 7's finding 2: the fuel used to count pops, and one record pushes one
+entry per reference, duplicates included, so pops are not bounded by the
+number of records and `pure target` at fuel 0 cut the closure short). -/
 def hoistClosure (ds : Array IDeclaration) (idx : Std.HashMap NIdx Nat) (i : Nat) :
     Nat → Std.HashMap Nat Nat → List Nat → AM (Std.HashMap Nat Nat)
-  | 0, target, _ => pure target
-  | _ + 1, target, [] => pure target
-  | fuel + 1, target, k :: stack => do
-    match target[k]? with
-    | some t =>
-      if t ≤ i then hoistClosure ds idx i fuel target stack
-      else hoistClosure ds idx i fuel (target.insert k i) (← pushDeps k stack)
-    | none => hoistClosure ds idx i fuel (target.insert k i) (← pushDeps k stack)
+  | fuel, target, stack =>
+    match hoistDropDone target i stack with
+    | [] => pure target
+    | k :: stack =>
+      match fuel with
+      | 0 => fail (.internal "fuel exhausted: hoistClosure")
+      | fuel + 1 => do
+        hoistClosure ds idx i fuel (target.insert k i) (← pushDeps k stack)
 where
   /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets —
   push record `k`'s own dependencies that lie after `i`. -/
   pushDeps (k : Nat) (stack : List Nat) : AM (List Nat) := do
     if h : k < ds.size then do
       let ns ← IDeclaration.usedConsts ds[k]
-      pure (pushOne ns.toList stack)
+      pure (pushOne k ns.toList stack)
     else pure stack
   /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets —
-  the inner `for n in ds[k]!.usedConsts` loop. -/
-  pushOne : List NIdx → List Nat → List Nat
+  the inner `for n in ds[k]!.usedConsts` loop, with con-leche's (and the
+  port's) `m != k`. -/
+  pushOne (k : Nat) : List NIdx → List Nat → List Nat
     | [], stack => stack
     | n :: ns, stack =>
       match idx[n]? with
-      | some m => pushOne ns (if m > i then m :: stack else stack)
-      | none => pushOne ns stack
+      | some m => pushOne k ns (if m > i && m != k then m :: stack else stack)
+      | none => pushOne k ns stack
+
+/-! ## The worklist's fuel is sufficient
+
+The twin's fuel is a proof device, and the unfuelled port (`hoist_close`) and
+con-leche's `while` must not be able to tell it is there.  The measure is the
+number of records below `ds.size` not yet at `i` (`hoistPending`): every
+fuelled step marks one of them, so a fuel at least that large is never
+exhausted, and one more unit of fuel changes nothing.  The caller passes
+`ds.size`, which bounds `hoistPending` outright. -/
+
+/-- con-leche: none — the records below `n` not yet marked as preceding `i`:
+the worklist's measure. -/
+def hoistPending (n : Nat) (target : Std.HashMap Nat Nat) (i : Nat) : Nat :=
+  (List.range n).countP (fun k => !hoistDone target k i)
+
+/-- con-leche: none — a strictly smaller predicate, lower somewhere on the
+list, counts strictly less. -/
+theorem countP_lt_of_le {α : Type} {p q : α → Bool} {k : α} :
+    ∀ {l : List α}, (∀ x ∈ l, q x = true → p x = true) → k ∈ l → p k = true →
+      q k = false → l.countP q < l.countP p
+  | [], _, hk, _, _ => by simp at hk
+  | a :: l, hle, hk, hp, hq => by
+    simp only [List.countP_cons]
+    have hmono : l.countP q ≤ l.countP p :=
+      List.countP_mono_left (fun x hx => hle x (List.mem_cons_of_mem a hx))
+    rcases List.mem_cons.mp hk with rfl | hk'
+    · simp [hp, hq]; omega
+    · have := countP_lt_of_le (fun x hx => hle x (List.mem_cons_of_mem a hx)) hk' hp hq
+      have ha := hle a List.mem_cons_self
+      cases hqa : q a <;> cases hpa : p a <;> simp_all <;> omega
+
+/-- con-leche: none — `hoistDropDone` drops a prefix. -/
+theorem hoistDropDone_sub (target : Std.HashMap Nat Nat) (i : Nat) :
+    ∀ {stack : List Nat} {x : Nat}, x ∈ hoistDropDone target i stack → x ∈ stack
+  | [], _, h => by simp [hoistDropDone] at h
+  | k :: stack, x, h => by
+    unfold hoistDropDone at h
+    split at h
+    · exact List.mem_cons_of_mem k (hoistDropDone_sub target i h)
+    · exact h
+
+/-- con-leche: none — what `hoistDropDone` leaves on top is still to do. -/
+theorem hoistDropDone_head (target : Std.HashMap Nat Nat) (i : Nat) :
+    ∀ {stack rest : List Nat} {k : Nat}, hoistDropDone target i stack = k :: rest →
+      hoistDone target k i = false
+  | [], _, _, h => by simp [hoistDropDone] at h
+  | k' :: stack, rest, k, h => by
+    unfold hoistDropDone at h
+    split at h
+    · exact hoistDropDone_head target i h
+    · rename_i hn
+      obtain ⟨rfl, -⟩ := List.cons.inj h
+      simpa using hn
+
+/-- con-leche: none — marking a pending record below `n` lowers the measure. -/
+theorem hoistPending_insert {n : Nat} {target : Std.HashMap Nat Nat} {i k : Nat}
+    (hk : k < n) (hnd : hoistDone target k i = false) :
+    hoistPending n (target.insert k i) i < hoistPending n target i := by
+  unfold hoistPending
+  refine countP_lt_of_le (k := k) ?_ (List.mem_range.mpr hk) (by simp [hnd]) ?_
+  · intro x _ hx
+    by_cases hxk : k = x
+    · subst hxk; simp [hnd]
+    · simpa [hoistDone, Std.HashMap.getElem?_insert, hxk] using hx
+  · simp [hoistDone]
+
+/-- con-leche: none — `pushOne` pushes name-index values only. -/
+theorem hoistClosure_pushOne_lt {ds : Array IDeclaration} {idx : Std.HashMap NIdx Nat}
+    {i : Nat} (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size) (k : Nat) :
+    ∀ (ns : List NIdx) (stack : List Nat), (∀ x ∈ stack, x < ds.size) →
+      ∀ x ∈ hoistClosure.pushOne idx i k ns stack, x < ds.size
+  | [], stack, hs => by simpa [hoistClosure.pushOne] using hs
+  | n :: ns, stack, hs => by
+    unfold hoistClosure.pushOne
+    split
+    · rename_i m hm
+      refine hoistClosure_pushOne_lt hidx k ns _ ?_
+      split
+      · intro x hx
+        rcases List.mem_cons.mp hx with rfl | hx
+        · exact hidx n x hm
+        · exact hs x hx
+      · exact hs
+    · exact hoistClosure_pushOne_lt hidx k ns stack hs
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets —
+**the twin's fuel is sufficient**: with every stack entry and every name-index
+value below `ds.size`, a fuel at least the pending count answers exactly what
+one more unit of fuel answers.  So the fuel-0 `fail` is unreachable from the
+caller's `ds.size`, and the fuelled worklist is the unfuelled loop. -/
+theorem hoistClosure_fuel_succ {ds : Array IDeclaration} {idx : Std.HashMap NIdx Nat}
+    {i : Nat} (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size) :
+    ∀ (fuel : Nat) (target : Std.HashMap Nat Nat) (stack : List Nat),
+      (∀ x ∈ stack, x < ds.size) → hoistPending ds.size target i ≤ fuel →
+      hoistClosure ds idx i (fuel + 1) target stack
+        = hoistClosure ds idx i fuel target stack := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro target stack hs hp
+    conv => lhs; rw [hoistClosure]
+    conv => rhs; rw [hoistClosure]
+    split
+    · rfl
+    · rename_i k rest hdrop
+      have hk := hs k (hoistDropDone_sub target i (by rw [hdrop]; exact List.mem_cons_self))
+      have := hoistPending_insert hk (hoistDropDone_head target i hdrop)
+      omega
+  | succ f ih =>
+    intro target stack hs hp
+    conv => lhs; rw [hoistClosure]
+    conv => rhs; rw [hoistClosure]
+    split
+    · rfl
+    · rename_i k rest hdrop
+      have hk := hs k (hoistDropDone_sub target i (by rw [hdrop]; exact List.mem_cons_self))
+      have hlt := hoistPending_insert hk (hoistDropDone_head target i hdrop)
+      have hrest : ∀ x ∈ rest, x < ds.size := fun x hx =>
+        hs x (hoistDropDone_sub target i (by rw [hdrop]; exact List.mem_cons_of_mem k hx))
+      simp only []
+      unfold hoistClosure.pushDeps
+      by_cases hkd : k < ds.size
+      · simp only [dif_pos hkd, bind_assoc, pure_bind]
+        congr 1; funext ns
+        exact ih _ _ (hoistClosure_pushOne_lt hidx k _ rest hrest) (by omega)
+      · simp only [dif_neg hkd, pure_bind]
+        exact ih _ _ hrest (by omega)
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
 outer `for i in [0:ds.size]` loop: for every pinned-operation record, every
@@ -196,7 +348,7 @@ where
       match idx[g]? with
       | some j =>
         if j > i then do
-          let target ← hoistClosure ds idx i (ds.size * ds.size + 1) target [j]
+          let target ← hoistClosure ds idx i ds.size target [j]
           hoistDeps ds idx target i gs
         else hoistDeps ds idx target i gs
       | none => hoistDeps ds idx target i gs

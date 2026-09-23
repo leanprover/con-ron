@@ -46323,6 +46323,146 @@ finding 18) is also not so — the port's loop is unfuelled.  Not this lane;
 `ConRon/Capstone.lean` (three call sites: the flags and `PinsOK`) and this
 section; no Rust file, no generated model, no `Refine2/`, no `lakefile.toml`.
 
+#### Round 8 — the two rulings executed; the tier is down to the two upstream asks
+
+Branch `fe-r8` off `arena` `e7d42d01`, merged forward to `arena` `43958f6c`.
+Brief: execute the two rulings on round 7's findings, then close
+`projRecValue_run`, `projRecOwners_run` and `hoistTargets_run`.  **Done: the
+lane's open list is exactly the two con-leche-tier asks** (`clOccursConstB_eq`,
+`clOccursConstGo_eq`, both in `ProjRec.lean`), and they are the only
+`Bridge/Frontend` items on the capstones' frontier.
+
+**Open: 2 (was 5)** — `ProjRec.lean` 2 (the upstream asks).  `Scratch`,
+`ProjRecValue`, `ProjRecOwners`, `Prepare`, `Lines`, `Chunks`, `Rel`, `Shared`,
+`Modeller`, `Capstone`: **0**.
+
+##### 1. Ruling 1 — the `ParseStep` frame repair
+
+* **`ParseStep.memos` is gone.**  Nothing read it (the capstones consume
+  `ok/ext/scratch/cframe/pins`), and every `…Fast` walk clears its table on
+  exit, so it was false from any non-empty start.  `ParseStep.of_caches` lost
+  its memo argument; four call sites moved.
+* **`CacheFrame` is a four-table frame** (`Bridge/StateOK.lean`): the record
+  equation names `readLC`, `lvlEqC`, `readNC`, `readLsC`, and `readN`/`readLs`
+  join `readL`/`lvlEq` as implications.  The existing structure was extended,
+  not duplicated: `refl`/`trans`/`of_eq`/`CacheOK.monoF` updated (`monoF`'s
+  statement unchanged), `Bridge/Core/Walks/Cached.lean`'s two constructions
+  (`CacheFrame.ofReadLevelM`, `lvlEq?_frame`) supply the two new
+  implications, and two new constructors: `CacheFrame.ofReadbacks` (the shape
+  of `instLPFast_spec`) and `CacheFrame.ofReadbackFrame`.  The Inductives
+  tier's `PStep` carries the same `CacheFrame` and compiled unchanged.
+* **`ReadCachesOK s`** (`Rel.lean`, three fields) is `projRecValue_run`'s new
+  precondition, carried by `projRewriteD_run`, `processLineCoreD_run`,
+  `applyDeclD_run`, `applyLine_run`, every `Chunks` theorem,
+  `builtinPreludeE_run`, and started at the capstones from `hcache0`
+  (`ReadCachesOK.ofEmpty`); it survives each parse step by `ReadCachesOK.step`
+  (the frame's implications).
+* **The scratch clause without touching `PStep`**: `Bridge/Frontend/
+  Scratch.lean` proves `projRecValue_scratch` and `projRecOwners_scratch` — a
+  run-level predicate `SPb` with bind/pure/get/set/modify/fail closure lemmas,
+  one lemma per function of the 129-function call tree (the recognisers
+  `structPartsCore?`/`nativeParts?` with all their helpers, the `…Fast` walks
+  and their memo helpers, the readbacks, `lvlEq?`), the four mutual walk
+  families by fuel induction.  **No function in either tree writes
+  `scratchOn`** (the only writers are `enterScratch`/`dropScratch`).  So
+  **`PStep` needs nothing** — the Inductives lane was not touched.  Round 7's
+  upper proofs used only `ParseStep.trans`/`.refl` and carried over unchanged;
+  both new closures compose at `PStep` internally and convert once
+  (`ParseStep.ofPStep`).
+
+##### 2. Ruling 2 — the twin's `hoistClosure`, with provably sufficient fuel
+
+`Arena/Frontend/NatOpGround.lean` (out of lane, authorised):
+
+* **Restructured so the fuel counts MARKING pops only.**  `hoistDropDone`
+  drops the entries whose record already precedes `i` (structural on the
+  stack, no fuel); only a pop that marks a record spends fuel, and fuel 0 on
+  such a pop is a `fail`, never a truncated answer.  The caller passes
+  `ds.size`.
+* **Sufficiency is a theorem**, `hoistClosure_fuel_succ`: with every stack
+  entry and every name-index value below `ds.size`, a fuel at least
+  `hoistPending` (the records below `ds.size` not yet at `i`) answers what one
+  more unit answers — each marking pop lowers `hoistPending` by one
+  (`hoistPending_insert`).  `ds.size ≥ hoistPending`, so the `fail` is
+  unreachable from the caller and Theorem 2's "Rust `Ok` ⇒ twin `ok`" keeps
+  its measure.
+* **`pushOne` takes `k` and tests `m != k`**, which both con-leche and the
+  port (`hoist_push_deps`) do — the old twin omitted it, which made
+  `Refine2/Frontend/NatOpGround.lean`'s `hoist_push_deps_refines` false as
+  stated.
+* Fallout, all repaired: `Refine2/Frontend/NatOpGround.lean` —
+  `hoist_push_deps_refines` (the `k`), `hoist_close_refines` (fuel
+  `ds.size`), the module note's item 3 and the worklist note rewritten (the
+  port's loop is UNFUELLED and does not share the twin's measure; the
+  refinement is an induction on the port's loop carrying
+  `hoistPending ≤ fuel`), twin line references relocated.  Those two stay
+  `sorry` (Refine2 lane).  `crates/con-ron-core/src/frontend/nat_op_ground.rs`:
+  **doc comments only** — `scripts/twin-lines.py update` relocated 13
+  `Lean twin:` citations, and `hoist_close`'s comment, which claimed the
+  twin's fuel `ds.size * ds.size + 1` was the loop's termination, is
+  corrected in the same number of lines (Aeneas records source line ranges in
+  `Generated/Funs.lean`; `extract-check` is OK, `Generated/` unchanged).  No
+  Rust code change.
+
+##### 3. What closed
+
+* `hoistTargets_run` (`Prepare.lean`) — and with it `hoistNatOpGround_run`.
+  con-leche's `for` loops are folds (`clHoistTargets_eq`) and its `while` a
+  `Lean.Loop.forIn` unfolded one turn at a time by
+  `Lean.Loop.forIn_eq_of_monadTail` (`Id` has `MonadTail`), so con-leche's
+  termination is never needed — the twin's accepting run supplies the turns.
+  Four simulations (`hoistClosure_sim`, `hoistDeps_sim`, `hoistTargetsGo_sim`,
+  `nameIndex_sim`); the target maps are EQUAL at every step (same inserts in
+  the same order), the name indices related by `IdxRel` through `denoteN_inj`.
+  `Prepare.lean` imports `Bridge/Checker/DeclVal.lean` (for the pin-name
+  reads) and `Init.Internal.Order.While`.
+* `projRecValue_run` — new module `Bridge/Frontend/ProjRecValue.lean`
+  (`projRewriteD_run` moved there with it).  Composed at `PStep` over the
+  Inductives tier's run-form lemmas; new pieces `instPisOpen_run`,
+  `headIs_run`, `mkLams_pstep`, `mkProjMotive_run`/`mkProjMinor_run` against
+  `clMkMotive`/`clMkMinor` (con-leche's two closures, named),
+  `buildBinders_run` (+ `buildMotives_run`/`buildMinors_run`, run argument
+  first so a structure literal fixes `pb` before unification — the generic
+  form timed out at `whnf`), `internParamLevels_run`, `instLPFast_pstep`, and
+  `clProjRecValue_eq` (con-leche's `Option` block as a `match` chain).
+  Two-sided throughout.
+* `projRecOwners_run` — new module `Bridge/Frontend/ProjRecOwners.lean`:
+  `projRecCandidates_run` against `clProjCand` (con-leche's `filterMap`
+  closure, written under `backward.do.legacy false` to match con-leche's
+  elaborator), `ctorsMentionBlock_run`, the reordering, and the two recognisers'
+  `isSome` lemmas under `PinsOK`.  Closed modulo `occursConstFast_run`'s two
+  upstream asks and nothing else.
+* Census: `Axioms.lean` gains three "Round eight" sections; `hoistTargets_run`,
+  `hoistNatOpGround_run`, `projRecValue_run`, `projRewriteD_run` and every
+  helper at `[propext, Classical.choice, Quot.sound]`.
+
+##### 4. Frontier
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+* before (`e7d42d01`): 15 items in 9 modules, 51 tainted, dead weight 920;
+  this lane's items `projRecOwners_run`, `hoistTargets_run`,
+  `projRecValue_run`.
+* after (`fe-r8` merged with `arena` `43958f6c`): 32 items in 13 modules, 98
+  tainted, dead weight 803.  **This lane's items are exactly
+  `clOccursConstB_eq` and `clOccursConstGo_eq`** (fan-in 0, reach 27 each).
+  The growth in the total is `arena`'s delta (Refine2/Checker and
+  Refine2/Frontend skeletons), not this lane.
+
+##### 5. Gates
+
+`scripts/gates.sh` at the merge with `arena` `43958f6c`: **all 16 OK**.  The
+diff: `proof/ConRon/Bridge/Frontend/**` (new `Scratch.lean`,
+`ProjRecValue.lean`, `ProjRecOwners.lean`); out of lane — `Arena/Frontend/
+NatOpGround.lean` (ruling 2), `Refine2/Frontend/NatOpGround.lean` (its
+fallout, statements and notes only), `Bridge/StateOK.lean`,
+`Bridge/Core/Walks/{Cached,Frame}.lean` (ruling 1's `CacheFrame`),
+`ConRon/Capstone.lean` (`ReadCachesOK` at two call sites) and
+`crates/con-ron-core/src/frontend/nat_op_ground.rs` (doc comments only).  No
+Rust code, no generated model, no `lakefile.toml`, no `Bridge/Inductives/**`.
+
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at

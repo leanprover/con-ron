@@ -800,23 +800,38 @@ not at fault and the frame is.
 The second implication takes BOTH invariants, and that is not slack: on a
 miss the verdict inserted into `lvlEqC` is `Level.isEquiv` of whatever
 `readLevelM` answered, so a poisoned `readLC` poisons `lvlEqC`.  `LvlEqCacheOK`
-alone does not survive the call; the pair does. -/
+alone does not survive the call; the pair does.
+
+**Four tables since task #97-P3-Frontend round 8.**  The parse's projection
+rewrite (`Arena/Frontend/ProjRec.lean`'s `projRecValue`) instantiates the
+recursor's level parameters with `instLPFast`, whose readbacks write
+`readNC` and `readLsC` as well (`Bridge/ExprOps/Owed.lean`'s
+`instLPFast_spec`), so the frame names the two other readback tables too,
+with their invariants carried as implications in the same way.  A call that
+compares levels only is the special case, and every consumer reads the frame
+through `CacheOK.monoF`, which is unchanged in statement. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
-**the frame of a call that may compare LEVELS**: it moved `readLC` and
-`lvlEqC` and no other per-declaration table, and it kept their invariants. -/
+**the frame of a call that may compare LEVELS or read handles back**: it moved
+`readLC`, `lvlEqC`, `readNC` and `readLsC` and no other per-declaration table,
+and it kept their invariants. -/
 structure CacheFrame (s s' : AState) : Prop where
   caches : s'.caches = { s.caches with
-    readLC := s'.caches.readLC, lvlEqC := s'.caches.lvlEqC }
+    readLC := s'.caches.readLC, lvlEqC := s'.caches.lvlEqC,
+    readNC := s'.caches.readNC, readLsC := s'.caches.readLsC }
   readL : ReadLCacheOK s.caches.readLC s.store →
     ReadLCacheOK s'.caches.readLC s'.store
   lvlEq : ReadLCacheOK s.caches.readLC s.store →
     LvlEqCacheOK s.caches.lvlEqC s.store →
     LvlEqCacheOK s'.caches.lvlEqC s'.store
+  readN : ReadNCacheOK s.caches.readNC s.store →
+    ReadNCacheOK s'.caches.readNC s'.store
+  readLs : ReadLsCacheOK s.caches.readLsC s.store →
+    ReadLsCacheOK s'.caches.readLsC s'.store
 
 /-- con-leche: none — the identity frame. -/
 theorem CacheFrame.refl (s : AState) : CacheFrame s s :=
-  ⟨rfl, id, fun _ h => h⟩
+  ⟨rfl, id, fun _ h => h, id, id⟩
 
 /-- con-leche: none — frames compose. -/
 theorem CacheFrame.trans {a b c : AState} (h : CacheFrame a b)
@@ -824,16 +839,41 @@ theorem CacheFrame.trans {a b c : AState} (h : CacheFrame a b)
   caches := by rw [h'.caches, h.caches]
   readL := fun x => h'.readL (h.readL x)
   lvlEq := fun hr hl => h'.lvlEq (h.readL hr) (h.lvlEq hr hl)
+  readN := fun x => h'.readN (h.readN x)
+  readLs := fun x => h'.readLs (h.readLs x)
 
 /-- con-leche: none — **the frame of a call that writes NO per-declaration
 table at all**, which is what the other ~110 twins of the inductive tier and
-every step of the parse but one deliver.  The two implications are the two
+every step of the parse but one deliver.  The four implications are the
 invariants' own `mono` past the arena extension. -/
 theorem CacheFrame.of_eq {s s' : AState} (hc : s'.caches = s.caches)
     (hx : Ext s.store s'.store) : CacheFrame s s' where
   caches := by rw [hc]
   readL := fun h => by rw [hc]; exact h.mono hx
   lvlEq := fun _ h => by rw [hc]; exact h.mono hx
+  readN := fun h => by rw [hc]; exact h.mono hx
+  readLs := fun h => by rw [hc]; exact h.mono hx
+
+/-- con-leche: none — **the frame of a call that reads handles back** (and
+compares no level): the three readback tables moved, `lvlEqC` did not, and
+the call re-established the three invariants outright — the shape of
+`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec`. -/
+theorem CacheFrame.ofReadbacks {s s' : AState} (hx : Ext s.store s'.store)
+    (hc : s'.caches = { s.caches with
+      readLC := s'.caches.readLC, readNC := s'.caches.readNC,
+      readLsC := s'.caches.readLsC })
+    (hL : ReadLCacheOK s'.caches.readLC s'.store)
+    (hN : ReadNCacheOK s'.caches.readNC s'.store)
+    (hLs : ReadLsCacheOK s'.caches.readLsC s'.store) : CacheFrame s s' where
+  caches := by
+    have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [hc]
+    rw [hle]; exact hc
+  readL := fun _ => hL
+  lvlEq := fun _ h => by
+    have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [hc]
+    rw [hle]; exact h.mono hx
+  readN := fun _ => hN
+  readLs := fun _ => hLs
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`CacheOK` past a level
 comparison**: twelve clauses that did not move, recovered from the one
@@ -853,8 +893,8 @@ theorem CacheOK.monoF {mode : CheckMode} {env : Env} {s s' : AState}
   constVal := by rw [hf.caches]; exact h.constVal.mono hx
   ruleRhs := by rw [hf.caches]; exact h.ruleRhs.mono hx
   readL := hf.readL h.readL
-  readN := by rw [hf.caches]; exact h.readN.mono hx
-  readLs := by rw [hf.caches]; exact h.readLs.mono hx
+  readN := hf.readN h.readN
+  readLs := hf.readLs h.readLs
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`CheckOK` past a call
 that grows the arena and may compare levels**: `CheckOK.mono` with the cache
