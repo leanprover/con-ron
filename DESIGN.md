@@ -56324,6 +56324,10 @@ the startup walk moving down to one Rust function per item.
 each a twin edit that turns a stopped item into glue; and the promotion
 branch, once the audit's migration removes the promote window.
 
+**Gates:** `scripts/gates.sh` after the `arena` merge: **all 16 OK**
+(`extract-check` 175 s, `lake-build` 36 s).  `ConRonRefine2`,
+`ConRonCapstone` green.
+
 ### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
 
 Lane: `proof/ConRon/Bridge/Promote/**`, untouched since task #97-P3-Checker
