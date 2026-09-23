@@ -56574,4 +56574,13 @@ table-entry writers (`IdTable` insert, `id_table_set` from `RefineOld`), then
 `hoistClosure_fuel_succ`), `hoist_order` (task #87 §5's bucket-sort lemma),
 and the `used_consts_*` walk.
 
-Gates: see the landing note below.
+**Gates.**  `scripts/gates.sh` on the branch merged with `arena` `aa1dc3e2`:
+**all 16 OK** (`extract-check` 403 s, `lake-build` 55 s, `lake-refine2` 2 s,
+`lake-bridge` 1 s, `lake-capstone` 1 s — the Lean targets had been built just
+before).  `arena` then moved to `6cfd995d` (Theorem 1's Inductives tier,
+`Bridge/**` only, plus `CLAUDE.md`/`DESIGN.md`); merged, and the delta
+re-gated with `lake build ConRonBridge ConRonCapstone ConRonRefine2` (2 790
+jobs, green).  No Rust, generated-model, lakefile or `Bridge/**` change on
+this branch; out of lane: `Refine2/Checker/Shape.lean` (one import),
+`Core/Arms/Delta.lean`, `Inductives/{Shape,NativeParts}.lean` (the §2 move),
+`Refine2.lean` (the index).
