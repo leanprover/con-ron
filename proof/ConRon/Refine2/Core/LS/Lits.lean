@@ -289,8 +289,6 @@ attribute [local simp] ConRon.Refine.LiteralWF
   obtain ⟨hwf, rfl⟩ := hR
   dsimp only
   lockstep_b
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem lit_to_ctor_if_nat_ls {pers vis st fe lfe h lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
@@ -298,7 +296,18 @@ attribute [local simp] ConRon.Refine.LiteralWF
       (litToCtorIfNat lfe (absEIdx h)) := by
   rw [arena.core.lit_to_ctor_if_nat, litToCtorIfNat]
   lockstep_b
-  all_goals trace_state
-  all_goals sorry
+
+/-! ## `natOpResult` -/
+
+attribute [lockstep_inline] arena.core.lit_nat arena.core.bool_const
+
+set_option maxHeartbeats 4000000 in
+@[lockstep] theorem nat_op_result_ls {pers st c a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (ha : ConRon.Refine.Nat.NatWF a) (hb : ConRon.Refine.Nat.NatWF b) :
+    LS pers (fun x y => y = absOptE x) (arena.core.nat_op_result pers st c a b) lst
+      (natOpResult (absNIdx c) (ConRon.Refine.Nat.toNat a) (ConRon.Refine.Nat.toNat b)) := by
+  rw [arena.core.nat_op_result, natOpResult]
+  lockstep_b
 
 end ConRon.Refine2.Lockstep
