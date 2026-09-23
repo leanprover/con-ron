@@ -111,27 +111,41 @@ inductive OrElseStep where
   | failed (e : CheckError)
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — what a
-variant attempt must put back when it is abandoned: the per-call memo tables
-and the per-declaration caches, and NOT the store (task #97-P6-2's ledger
-entry).  The store is append-only, so the nodes a failed attempt interned are
-unreachable and every `denote` of a pre-attempt handle is unchanged; keeping
-them is what makes the two tiers agree on the handle NUMBERING as well as on
-the denotation. -/
+variant attempt must put back when it is abandoned: the per-call memo tables,
+the per-declaration caches, and the SCRATCH tiers of the four stores
+(expression, level-list, level, name).  The persistent tiers are not in it:
+the attempt runs inside a declaration's bracket, where every append is a
+scratch append.  Here the snapshot is free (a read of six fields); the port
+copies them (`attempt_snapshot`), which is the only reason the record exists. -/
 structure AttemptSnapshot where
   memos : Memos
   caches : Caches
+  eScr : ETables
+  lsScr : LsTables
+  lScr : LTables
+  nScr : NTables
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — take the
-snapshot, which in Lean is a read of two fields (the port's `memos_dup` /
-`caches_dup`). -/
+snapshot, which in Lean is a read of six fields (the port's `memos_dup`,
+`caches_dup` and four `ETables`/`LsTables`/`LTables`/`NTables` `dup`s). -/
 @[inline] def attemptSnapshot (st : AState) : AttemptSnapshot :=
-  ⟨st.memos, st.caches⟩
+  ⟨st.memos, st.caches, st.store.scr, st.store.lss.scr, st.store.lss.ls.scr,
+    st.store.lss.ls.ns.scr⟩
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — the restore
-of `OrElseStep.recovered`: the attempt's cache rows and memo rows go, its
-interned nodes stay. -/
+of `OrElseStep.recovered`: the attempt's cache rows, memo rows and scratch
+nodes all go. -/
 @[inline] def attemptRestore (st : AState) (snap : AttemptSnapshot) : AState :=
-  { st with memos := snap.memos, caches := snap.caches }
+  { st with
+    memos := snap.memos
+    caches := snap.caches
+    store := { st.store with
+      scr := snap.eScr
+      lss := { st.store.lss with
+        scr := snap.lsScr
+        ls := { st.store.lss.ls with
+          scr := snap.lScr
+          ns := { st.store.lss.ls.ns with scr := snap.nScr } } } } }
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — **the
 four-way step itself**, as a PURE function of the attempt's outcome, which is
@@ -154,19 +168,19 @@ Written as a state function rather than with `try`/`catch`: `AM = StateT AState
 (Except CheckError)`, so the PRE-attempt state `s` is what the error arm has
 in hand, and `attemptRestore s (attemptSnapshot s)` is `s` itself.
 
-**The one place (B) and (C) are not the same state** (task #97-P6-2's ledger
-entry, and it is not expressible in this monad).  The port keeps its `&mut
-AState` across a failing attempt, so it restores the memos and the caches and
-KEEPS the store — the attempt's appended nodes stay, unreachable.  A throw in
-`StateT σ (Except ε)` carries no state at all, so the twin's error arm can
-only resume at `s`, whose store is the pre-attempt one.  The two therefore
-differ on the handle NUMBERING after a recovered variant attempt, never on a
-denotation and never on a verdict: discarding an append is sound and
-invisible (the tiers are append-only, every pre-attempt handle still decodes
-at the restored sizes, and no handle the attempt made survives the arm).  What
-the refinement owes at this seam is `Ext` rather than store equality, and the
-attempt runs **eight times on the whole of `Init`** (task #97-P6-4a §4), so
-nothing downstream is sensitive to it.
+**The port and the twin now resume at the same state** (task
+#97-T2-LOCKSTEP D4).  A throw in `StateT σ (Except ε)` carries no state, so
+the twin's error arm can only resume at `s`.  The port keeps its `&mut
+AState` across the failing attempt and restores, from its snapshot, the
+memos, the caches and the four stores' scratch tiers
+(`arena::decl_check::check_div_mod_pin_attempt`).  The attempt runs inside a
+declaration's bracket, so the scratch flag is on and every append it makes is
+a scratch append; with the scratch tiers put back, the two stores agree on
+the handle NUMBERING as well as on every denotation.  (Until D4 the port kept
+the attempt's appended nodes, and the two scratch tiers then differed in
+length for the rest of the declaration — a difference no lockstep relation
+absorbs.)  The attempt runs **eight times on the whole of `Init`** (task
+#97-P6-4a §4), so the copies cost nothing measurable.
 
 The continuation is the caller's own tail call (`checkDivModPinLoop`), so it
 does not appear here — DESIGN §3.4 forbids the closure con-leche passes. -/

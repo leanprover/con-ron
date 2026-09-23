@@ -58799,6 +58799,115 @@ Scratch (binaries, patches, profiles) was in `_tmp/perf-fresh/`, deleted
 after this section.  All the patches are local to the task worktree and none
 was committed.  No gates were run: the change is to DESIGN.md only.
 
+### Task #97-T2-LOCKSTEP D4 — the port restores its scratch tiers; the `orElseAttempt` seam is lockstep (2026-09-23, Opus under Fable)
+
+Task #97-T2-AUDIT's D4: the twin's `orElseAttempt` resumes a recovered
+attempt at the whole pre-attempt state (a throw in `StateT AState (Except ε)`
+carries no state), while `attempt_restore` put back only the memos and the
+caches.  The attempt's scratch appends stayed, the two scratch tiers differed
+in LENGTH, and every later scratch handle had a different word.  The
+maintainer ruled that the Rust changes.  Worktree `_tmp/wt-t2-d4` off `arena`
+`5108218b`.
+
+#### 1. The Rust
+
+* `AttemptSnapshot` gains `e_scr`/`ls_scr`/`l_scr`/`n_scr`, the four stores'
+  scratch tiers; `attempt_snapshot` copies them and `attempt_restore` moves
+  them back.  The copy is new: `Tbl::dup` (row column by a halved recursion,
+  `dup_rows`, `log2 n` deep for `vec_dup_range`'s reason; cons table by
+  `HashMap2::dup`) and `{E,Ls,L,N}Tables::dup`.  A `Vec::truncate` to the
+  snapshot's length would be cheaper; Aeneas models neither it nor `clear`,
+  so the restore is a whole value moved back.
+* **A second, smaller divergence of the same kind, found on the way:**
+  `caches_dup` restored the three readback memos (`read_l_c`/`read_n_c`/
+  `read_ls_c`, task #97-P6-13) EMPTY.  The twin's `readLC`/`readNC`/`readLsC`
+  come back pre-attempt, and `CachesRel` compares key by key, so
+  `caches_dup_refines` (a `sorry`) was false as stated.  They are now copied
+  (`HashMap2::dup`, with new `Dup` impls for `Level`, `Name`, `Vec<Level>` in
+  `arena::monad`).
+* The seam is one function now: `decl_check::check_div_mod_pin_attempt` =
+  snapshot, `check_div_mod_pin_at`, `or_else_attempt`, restore on
+  `Recovered`, and `Failed` returned as its `Native` error.  It is the Rust
+  of `orElseAttempt (checkDivModPinAt …)`; `check_div_mod_pin_try` matches on
+  its step, as the twin's loop matches on `orElseAttempt`'s.
+* The scratch flag at the call site: `check_div_mod_pin` is reached only
+  from `check_decl`'s bracket (`enter_scratch` … `drop_scratch`), so every
+  append inside the attempt is a scratch append; the persistent tiers are
+  not copied (that was the 12.3 M-node overflow of task #97-P6-2).
+* Re-extracted (`Types.lean`, `Funs.lean`) in the same commit;
+  `twin-lines.py update` relocated 49 citations (the twin edit moved
+  `CheckerBase.lean`'s lines).
+
+#### 2. The twin
+
+`AttemptSnapshot` gains `eScr`/`lsScr`/`lScr`/`nScr` and `attemptRestore`
+writes them back, so the twin's snapshot/restore pair mirrors the port's
+field for field; `attemptRestore s (attemptSnapshot s) = s` is still `rfl`
+(`attemptRestore_self`).  `orElseAttempt`'s doc comment now says the two
+resume at the same state.  Theorem 1 (`Bridge/Checker/Base.lean`'s
+`orElseAttempt_run`) went through unchanged; its note was updated.
+
+#### 3. Theorem 2
+
+`Refine2/Checker/Base.lean`:
+* `SnapRel` gains the four tier relations and their `*TablesInv`.
+* `attempt_snapshot_refines₀` — **proved** from six copy lemmas, which stay
+  `sorry` (`memos_dup_refines`, `caches_dup_refines`, and the new
+  `{e,ls,l,n}tables_dup_refines`: "a `dup` is the identity on the
+  abstraction"; `Refine/HashMap2.lean`'s `dup` identity plus `DupId` per
+  node type is the route).
+* `attempt_restore_refines₀` — lockstep, **proved, axiom-clean**.
+* `ScratchFrame st st₁` — the port's frame: pins, each store's persistent
+  tier and both flags unchanged by the attempt.  A fact about the Rust
+  attempt alone, taken as a hypothesis (owed by `check_div_mod_pin_at`'s
+  lane).  `attempt_restore_frame` (restore into `st₁` = restore into `st`)
+  and `attempt_recover_refines₀` (the port's restored state is
+  `AStateRel₀`-related to the twin's PRE-attempt state) — **proved,
+  axiom-clean**.
+* The old `Ext`-only `attempt_snapshot_refines`/`attempt_restore_refines`
+  (no consumers) are replaced by the ₀ forms.
+
+`Refine2/Checker/DeclCheck.lean`: `OrElseRel` (matched/continued; a
+recovered error related by its kind) and
+**`check_div_mod_pin_attempt_refines₀`** — `SimRel₀ OrElseRel` against
+`orElseAttempt (checkDivModPinAt …)`, from `hrel₀ hinv`, the attempt's own
+`Sim₀` (`hat`, another lane's) and `hframe`.  **Proved**; its axioms show
+`sorryAx` only through the six copy lemmas.  The `lockstep` tactic does not
+apply here: the seam is the one place the programs are not a zip (the twin
+throws the state away, the port restores it), which is what this lemma
+proves once.  `check_div_mod_pin_try_refines` (still `sorry`, old shape)
+had its doc updated; restating it lockstep is the checker lane's.
+
+Docs only: `Refine2/Shape.lean` (D4 fixed in the Rust), `Refine2/ExprOps/Mut.lean`.
+
+**Theorem-1 repairs forced by the regeneration: none.**  `lake build ConRon
+ConRonBridge ConRonRefine2 ConRonCapstone` green (2 821 jobs) before the
+`arena` merge.
+
+#### 4. `Init`
+
+`perf stat -e instructions:u` of `--verified` on `_tmp/corpus/init.ndjson`,
+before (`5108218b`) / after interleaved, `timeout 900`, `ulimit -v 8388608`
+at `--jobs=1` and `27000000` at the default; every run accepts 57 977.
+
+| binary | `--jobs=1` | default jobs |
+|---|---|---|
+| before | 211 955 784 523 / 211 954 336 658 | 214.60 G / 214.29 G |
+| after | 211 962 732 629 / 211 963 399 193 (**+8.0 M, +0.004 %**) | 214.33 G / 214.68 G (within the spread) |
+
+The eight attempts' copies are noise, as the audit expected.
+
+#### 5. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `crates/con-ron-core/src/arena/{store,monad}.rs` | the copies (`Tbl::dup` & co.; `Dup` for the readback values) |
+| `Bridge/Checker/Base.lean` | docs |
+| `Refine2/Shape.lean`, `Refine2/ExprOps/Mut.lean` | docs |
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`f216c474`...`4f6f3961`): **all 16 OK** (`extract-check` 125 s, `lake-bridge` 536 s).  The shared Lake cache was seeded from this state (`ConRonRefine2 ConRonBridge ConRonCapstone`).
+**Second merge**, `arena` at `5453ac2e` (T2-LOCKSTEP step 1's slice: `arena::monad`/`Arena/Monad.lean`, `Refine2/Specs.lean`, `Bridge/Specs.lean`): `DESIGN.md` conflict only.  `scripts/gates.sh`: the first 14 OK (`extract-check` 115 s, `lake-refine2` 180 s); `lake-bridge` failed on `con-leche` `.olean`s reported missing / "incompatible header" in the shared packages directory, which a concurrent write had touched.  Re-running `lake build ConRonBridge ConRonCapstone` was green (2 805 jobs).  The cache was re-seeded from this state.
+**Third merge**, `arena` at `9308f410` (task #97-P5-POOL): clean; `scripts/gates.sh` **all 16 OK** (`extract-check` 128 s); cache re-seeded.  **Fourth**, `cc726e46` (the shared `lockstep` tactic, `Refine2/Tactic/**` only): clean; `lake build ConRonRefine2 ConRonCapstone` green (2 805 jobs); landed.
+
 ### Task #97-T2-LOCKSTEP step 1 — the foundation: lockstep shapes, twin fixes D2/D3/D5/D6, `Specs.lean`, the bracket (2026-09-23, Opus under Fable)
 
 The maintainer's ruling on #97-T2-AUDIT: *"the lockstep is clearly the right
@@ -58950,3 +59059,145 @@ when its last consumer below has moved:
 54 items / 151 tainted / 694 dead at the start (`4ce7df20`); per slice, the
 movement is other lanes' landings except slice 2 (59/162/650 → 58/161/649:
 two sorries closed by D5).  At this landing: 65 / 174 / 642 (arena before it: 65 / 174 / 647; the five dead-weight sorries are `Tactic/Prims.lean`'s closed `intern_e_*_ls`).  Gates: all 16 OK at every slice.
+
+### Task #97-P5-POOL — the pool's claim made structural; stage 6 is the pool (2026-09-23, Opus under Fable)
+
+**The brief** was to prove the pool claim's clause (2), task #97-P5-Driver
+§3: *a record's outcome does not depend on which records its worker checked
+before*.  With it proved, the pool row would be master's
+merge-by-record-index argument alone.  Worktree `_tmp/wt-p5-pool` off `arena`
+`5108218b`.
+
+#### 1. Why clause (2) was not proved (reported first, then ruled)
+
+* **Theorem 2 cannot give the literal claim.**  `Sim₀`/`AErrSim` claim
+  nothing about a Rust `Native` and compare an error's KIND, not its message.
+  Two Rust runs related to the same twin run can therefore still differ:
+  `Ok` against `Native`, or `Invalid m₁` against `Invalid m₂`.  "The pool
+  returns what `check_pending_worker` returns" can come out of Theorem 2 only
+  up to `Native` and messages.
+* **Even that weaker form needs a frame lemma over the whole checker.**  To
+  relate a worker state after k accepted records to `lst.worker` (up to
+  memos), most parts come free: scratch tables, `scratchOn` and caches from
+  the relation to the twin's `dropScratch`, which sets them to the empty
+  literals; memos from `enter_scratch`; `AStateInv` from `Sim`.  Two parts do
+  not: the persistent arm (`rPersE (tierOf …)`) and the pins.  They need
+  either the Rust keeping its four `shared_on` flags and its pins, or the twin
+  keeping its four persistent tables and its pins, across `check_value_group`.
+  `AStateRel₀` relates `w_k` to the lockstep twin state `T_k`, not to
+  `lst.worker`.  No such frame exists: `Refine2` has `shared_on` frames only
+  on intern wrappers and `ExprOps/Mut.lean`'s walks, and `Bridge` has
+  `pins` only under Theorem 1's invariants (`CoreStep.pins`) and only
+  `Ext`/`PExt`, which are denotational, for the store.  The Rust closure of
+  `check_pending` is ≈1 200 definitions of `Generated/Funs.lean`, the twin
+  closure of `checkValueGroup` ≈580.  Either frame is a one-state induction
+  the size of `KnotRel`'s, and `lockstep` is two-state, so it does not apply.
+
+Three options went to the coordinator: (a) that frame; (b) a per-record reset
+in the Rust (flags and `pins_dup`), which makes (2)-up-to-the-twin a page;
+(c) no clause (2) at all.  **Ruling: (c)**, including changing stage 6 of the
+root theorems.
+
+#### 2. What (c) is, and what was proved
+
+A worker IS the verified walk: one `worker_state`, then `check_pending` on
+the records it claims, in claim order, on that one state.  That is
+`check_pending_worker` on its own records.  So nothing about a worker's
+history is needed once each worker is related to the twin on its own and the
+per-record conclusions are gathered at con-leche's level, where each
+record's pure check is at its own prefix environment.
+
+* **`Arena/Pooled.lean`** (new, twin): `PooledAccepts mode pins ds s fe s'`.
+  `annotFold` accepted from `s` ending in `s'`, and record lists `parts`, each
+  drawn from the pending array, together covering it, each accepted by
+  `checkPendingList` from `s'.worker`.  It is a module of its own so that the
+  `ConRon.Arena` aggregator, which half the proof imports, does not rebuild.
+* **`Refine2/Checker/Phased.lean`** (Theorem 2):
+  * `PoolAccepts inst pers st mode pins ds h fe st'` is stage 6 as the driver
+    runs it, spelled with verified calls only: `fold_start`,
+    `annot_fold_hooked` accepting with `(n, fe, pend)` and `st'`,
+    `freeze_tier st'.store` accepting with `tier`, and `parts` (lists of
+    `PendingCheck`, each drawn from `pend`, together covering it), each
+    accepted by `check_pending_worker tier mode fe st'.pins`.  `thaw_tier`
+    then restores `st'.store` exactly (`freeze_tier_ok`), so `st'` is what the
+    fold hands back.
+  * `poolAccepts_of_check_decls_phased`: an accepting `check_decls_phased` is
+    a `PoolAccepts` with one worker.  This is the non-vacuity check: the
+    hypothesis is met by the verified sequential walk.
+  * `pool_accepts_refines`: `check_decls_phased_refines`' hypotheses
+    verbatim; it concludes the twin's `PooledAccepts` from the related state,
+    `IFEnvRel`, and `AStateRel` at `st'`.  Each worker is `worker_state_rel`
+    plus `check_pending_list_refines` on its own list.
+* **`Bridge/Checker/Phased.lean`** (Theorem 1): `Arena.pooledAccepts_bridge`,
+  with `installThenCheckPhased_bridge`'s hypotheses verbatim, concludes that
+  con-leche's `checkDeclsPure` accepts the denoted stream at the environment
+  `fe'` denotes in `s'`.  Per record `p ∈ pendP`, it finds `p`'s handle record
+  (`ListRel`), a list that covers the record, and a related pure list through
+  `p`.  `checkPendingList_worker` moves the list's run to the phase-A state,
+  and `Arena.checkPendingList_bridge`, which is stated for ANY related list,
+  gives `p`'s pure accept.  `PhaseA.foldlM` assembles the fold.  Four small
+  `ListRel` helpers are private to the file.
+* **`Capstone.lean`**:
+  * `rust_stages`, `model_exists` and `no_False_declaration` take
+    `(h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6)` in
+    place of the `check_decls_phased` run.
+  * `stages_model` takes the twin's `PooledAccepts` and goes through
+    `Arena.pooledAccepts_bridge`.
+  * **`no_False_declaration` now goes through the pure fold**, the open
+    question of the ruling.  It went through: the pooled phase B is several
+    worker walks, so there is no `Arena.runPipeline` run to refute.  The
+    route is `Arena.no_False_declaration_pipeline`'s own last steps:
+    * new `stages_false_mem` is `stages_frame`'s steps keeping the pure parse
+      (`parseChunks_run`'s fourth conjunct), then
+      `parseChunks_jsonWithTheoremFalse` and `mem_preparePrelude`: the file's
+      `False` theorem is in the denoted stream;
+    * new `stages_no_False` puts that next to `Arena.pooledAccepts_bridge`'s
+      pure accept of the same stream (`denoteDecls` is a function), and
+      `no_False_theorem_accepted_pure` refutes it.
+
+    Neither statement is weakened.
+  * `runPipeline_ok_of_stages` and `stages_installThenCheck` had no other
+    user and are deleted.  `check_decls_phased_refines` and
+    `installThenCheckPhased_bridge` stay, and `poolAccepts_of_check_decls_phased`
+    ties them to the new stage.
+
+No `sorry` added, no Rust code changed, and no semantic invariant added to
+Theorem 2.  The `hwork` obligation on `declResolves_of_stages` is untouched:
+every worker is still related from `lst.worker`, so this does not make it moot.
+It goes with `ResolveInv` in the Checker lockstep lane.  Frontier
+(`scripts/frontier.sh --summary` of the two roots): **65 items in 16 modules,
+173 tainted declarations** here, against 65 / 174 on the branch point.  The
+one declaration fewer is the `runPipeline` route.
+
+#### 3. The trust surface
+
+The pool row (OVERVIEW §8.2, `pool.rs`'s note "THE TRUSTED CLAIM") now reads:
+**when `check_pool` accepts, every record was checked, and each worker's
+records, in the order it checked them, are accepted by the verified
+`check_pending_worker`** — which is `PoolAccepts`.  It rests on `pool.rs`'s
+control flow and on master's argument only:
+* a worker is `worker_state` then `check_pending` on its claims, threading
+  one state;
+* results are merged by record index and walked in record order;
+* an accept means every slot is `Ok`, and the limit never moves on an
+  accepting run.
+
+Nothing is claimed about the checker.  The unverified crate's three rows are
+master's three: the modeller, the driver's call sequence (its row now says
+the capstone's last stage is the driver's line pool included), and the pool's
+control flow.  The per-worker state reuse (task #97-P6-6b, +16.4 % without it)
+stays and no longer costs a trusted clause.  The failure side (first failure
+in fold order) is kept and tested but is not part of what the capstone uses.
+Edits outside the proof: the module note and `check_pool`'s doc comment in
+`crates/con-ron/src/pool.rs`, the driver's doc comment in
+`crates/con-ron/src/driver.rs` (comments only), OVERVIEW §8.2's driver and
+pool rows, and `scripts/overview-links-expected.txt` (the pool anchor is now
+`#L46-L100`).
+
+#### 4. Gates
+
+`arena` merged at `4f6f3961` (task #97-PERF-FRESH, DESIGN only; a `DESIGN.md`
+conflict, both appends kept).  `scripts/gates.sh` on the merge: **all 16 OK**
+(`extract-check` 142 s).  `arena` then moved to `5453ac2e` (T2-LOCKSTEP step 1:
+the foundation, Rust and twin included); merged (`DESIGN.md` conflict only)
+and re-gated: **all 16 OK** (`extract-check` 113 s, `lake-bridge` 550 s).
