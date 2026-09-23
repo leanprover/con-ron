@@ -329,12 +329,22 @@ theorem structRecPrefixAt_spec (nP n nF e : Nat) :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:237-244 structIdxAt
 A recursive field's index expression relocated to the rule frame.
 
-`sorry`: `Bridge/ExprOps/Subst.lean`'s `liftLooseBVarsFast_spec`, twice. -/
+**CLOSED** (task #97-P3-Ind round 5), on the conjunct round 4 §R4.4 asked the
+`ExprOps` tier for: `LiftSpec` now states `BMExt`, so a `PSpec`-grade twin
+that lifts can produce a `PStep`.  Two `liftFast_pstep`s.  **This is group 3's
+gateway** — `structTeleAt`, `structIhApp`, `structRuleBodyR`, `structIhPis`,
+`structMinorTyR`, `structMinorsPisR`, `structMinorsLamsR`, `structRecTyR` and
+`structRecRhsR` all wait on it and on nothing else of another tier. -/
 theorem structIdxAt_spec (nF o i l m : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
       (Arena.structIdxAt nF o i l m e)
       (RE (ConLeche.structIdxAt nF o i l m eP)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.structIdxAt] at hrun
+  obtain ⟨a, s1, k1, hz⟩ := bindOk hrun
+  obtain ⟨p1, ha⟩ := liftFast_pstep hok hd k1
+  obtain ⟨p2, hr⟩ := liftFast_pstep p1.ok ha hz
+  exact ⟨p1.trans p2, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:246-252 structTeleAt
 A field's telescope relocated, with a fresh `PropWhen` on each binder.

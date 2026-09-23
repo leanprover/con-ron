@@ -111,6 +111,7 @@ import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.Subst
 
 namespace ConRon.Bridge.Inductives
 
@@ -1664,6 +1665,21 @@ theorem readLevel_run {s s' : AState} {h : LIdx} {u : Level}
     (hrun : readLevel h s = .ok (u, s')) :
     s' = s ∧ denoteL s.store.ls h = some u :=
   AM.of_run (P := fun t => t = s) rfl hrun (readLevel_spec s h)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 liftLooseBVarsFast —
+**the lift in run form at this tier's frame**.  Round 4 §R4.4 recorded that
+`Bridge/ExprOps/Subst.lean`'s `LiftSpec` did not state `BMExt` and that this
+blocked the whole of group 3; task #97-P3-ExprOps round 4 stated it, and this
+is the lemma that cashes it.  `Bridge/Inductives/Rel.lean` gains the
+`ExprOps.Subst` import for it — nothing else in the Bridge imported that
+module. -/
+theorem liftFast_pstep {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
+    {eP : Expr} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.liftLooseBVarsFast fuel amount c e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ denoteE s'.store r = some (eP.liftLooseBVars amount c) := by
+  obtain ⟨h1, h2, h3, h4, h5, _, _, h8⟩ :=
+    ExprOps.liftLooseBVarsFast_run hok (by rw [hd]; rfl) hrun
+  exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h8 eP hd⟩
 
 /-! ## One reader on loan from the `ExprOps` tier
 
