@@ -53202,3 +53202,147 @@ three blocked specs want.
    `internName_spec`'s missing persistence clause, which is unchanged.
 3. **`Checker/Basis.lean`'s eight** need §2's restatement first, and then the
    one-line import.  They are a frontend-tier ask, not a checker-tier one.
+
+### Task #97-COMPOSE — the two theorems compose; the campaign has a root (2026-09-23, Opus under Fable)
+
+**Deliverable.**  `proof/ConRon/Capstone.lean` (its own library,
+`ConRonCapstone`; new gates step 16 `lake-capstone`) is the first module that
+imports both `ConRon.Bridge` (Theorem 1) and `ConRon.Refine2` (Theorem 2), and
+it states the binary's two headline theorems in the old campaign's shape:
+
+* **`ConRon.Capstone.model_exists`** — six accepting Rust runs of the
+  pipeline (`intern_reserved_pins → builtin_prelude_e → parse_chunks →
+  prepare_prelude → intern_all_pins → install_then_check`, on
+  `AState::init(EStore::empty())` and `PersTier::empty()`, exactly the
+  binary's order) give a twin state related to the Rust's final state, a twin
+  environment related to the Rust's `IFEnv`, its denotation `env`, and
+  `Nonempty (EnvModelM V .verified env)`;
+* **`ConRon.Capstone.no_False_declaration`** — with
+  `jsonWithTheoremFalse (absChunks chunks)`, the same six runs give `False`.
+
+**Both are composition only.**  `rust_stages` threads the six Rust runs through
+Refine2's six stage lemmas (`intern_reserved_pins_refines`,
+`builtin_prelude_e_refines`, `parse_chunks_refines`, `prepare_prelude_refines`,
+`intern_all_pins_refines`, `install_then_check_refines`) into six twin runs
+from `AState.init EStore.empty`; `runPipeline_ok_of_stages` reassembles those
+into an accepting `Arena.runPipeline`, which
+`Arena.no_False_declaration_pipeline` refutes; `stages_model` feeds the same
+stages to `Arena.installThenCheck_bridge` and con-leche's
+`checkDeclsPure_sound_of`.  The glue is ~60 lines; every fact is an existing
+theorem.  Census (pinned by `#guard_msgs`): both at `[propext, sorryAx,
+Classical.choice, Quot.sound]`.
+
+**The sorry frontier at landing** (dependency closure of the two roots,
+declarations whose own value mentions `sorryAx`; scratch script, not
+committed — the frontier tool is another agent's): **12**.
+`Bridge/Checker/Split` `Arena.installThenCheck_bridge`; `Bridge/Checker/Pins`
+`internAllPins_run`, `internReservedPins_run`; `Bridge/Frontend/Prepare`
+`hoistNatOpGround_run`; `Bridge/Frontend/Lines` `processLineCoreD_run`;
+`Refine2/Checker/Base` `check_value_group_refines`; `Refine2/Checker/Top`
+`annot_step_refines`, `intern_all_pins_refines`; `Refine2/Checker/Pins`
+`intern_reserved_pins_refines`; `Refine2/Frontend/Prepare`
+`prepare_prelude_refines`; `Refine2/Frontend/Top` `parse_chunks_refines`,
+`builtin_prelude_e_refines`.  Each of these is a single `sorry` that will pull
+in its tier's subtree when it is proved (`installThenCheck_bridge` the whole
+Theorem-1 fold, `parse_chunks_refines` the fifteen frontend leaves), so the
+number grows as it is worked top-down; `check_decl_step_refines` and the pure
+fold (`check_decls_pure_*`, `Arena.checkDeclsPure_bridge`) are NOT reachable —
+the binary runs the two-phase fold.
+
+#### The mismatches, and the named hypotheses
+
+Tag: owning lane; **P** = precondition (cheap, the tier may repair),
+**C** = conclusion or statement change (maintainer's ruling).
+
+1. **Import collision (FIXED here).**  `Arena/Main.lean` and
+   `Dump/Pins.lean` both declared a top-level `main`, so no module could
+   import Theorem 1's byte-level capstone (which imports `Arena.Main` for
+   `runPipeline`) and Theorem 2's tier (which reaches `Dump.Pins` through
+   `Refine.Pins`).  The forwarding `main` moved to the new
+   `ConRon/Arena/Exe.lean`, now the `con-ron-lean` executable's root.
+   Lane `Arena/`; done, nothing else touched.
+2. **`InitRel` — named hypothesis.**  Every Theorem-2 lemma takes
+   `AStateRel pers st lst ∧ AStateInv pers st` and concludes it for the
+   post-state; **nothing concludes it for the start state**: the Rust
+   `AState::init(EStore::empty())` under `PersTier::empty()` against the
+   twin's `AState.init EStore.empty`.  Checked satisfiable by reading both
+   sides: neither `EStore.empty` pre-seeds a table, both `Pins.empty` are
+   three word-0 handles and empty vectors, `scratch_on`/`shared_on` are
+   false, and `StoreWF EStore.empty` is `EStore.empty_wf`.  A new lemma
+   (18 empty `TblRel`s + `MemosRel`/`CachesRel`/`PinsRel` at empty + the
+   `HashMap2` invariants of `with_capacity`/`new`).  Lane `Refine2/Checker`
+   (or wherever `AStateRel` lives); **P**.
+3. **`BrOK` at `install_then_check` — discharged, through Theorem 1.**
+   `install_then_check_refines` needs the twin's scratch tier closed at its
+   entry; no Theorem-2 stage lemma concludes `scratch_on = false` (they carry
+   only `AStateRel`/`AStateInv`, whose `StoreRel.scratchOn` would transfer it
+   from a Rust fact nobody states).  The composition reads it off the TWIN
+   runs instead, with Theorem 1's frame lemmas (`internReservedPins_run`,
+   `builtinPreludeE_run`, `parseChunks_run`, `preparePrelude_run`,
+   `internAllPins_run`; glue `stages_frame`).  Legitimate — they are facts
+   about the twin alone — but it means Theorem 2's capstone depends on four
+   Theorem-1 stage lemmas at the seam.  No action unless the maintainer wants
+   Theorem 2 self-contained (then: Refine2 stage lemmas conclude
+   `rs.store.scratch_on = false`; lane `Refine2/{Checker,Frontend}`, **C**).
+4. **The flags are fixed.**  `Arena.runPipeline` hard-codes
+   `in_model = true`, `census = false`, and so does the only T1 capstone that
+   includes `internAllPins` (`_pipeline`); the composed theorems therefore
+   take `parse_chunks … true false`.  The binary reads
+   `CON_LECHE_INMODEL`/`CON_LECHE_INMODEL_CENSUS`, so a run with a
+   non-default flag is outside both theorems.  Fix: a flag-parametric
+   pipeline letter at (B) (`parseChunks_run` already is).  Lane
+   `Bridge/Frontend` (+ `Arena/` if `runPipeline` grows the parameters); **P**.
+5. **T1's parametric capstones skip a stage.**
+   `Arena.no_False_declaration` / `_prelude` run `installThenCheck` straight
+   after `preparePrelude`; the binary and `runPipeline` run `internAllPins`
+   between them.  They are therefore unusable for the composition (only
+   `_pipeline` is) and state a pipeline nobody runs.  Either restate them with
+   the pin walk or retire them in favour of `_pipeline`.  Lane
+   `Bridge/Frontend`; **P** (their hypotheses change, not their conclusion).
+6. **`hmr : Refine2.Frontend.ModellerRefines inst m inProcessModeller` —
+   named hypothesis, by design.**  The composition fixes the twin modeller to
+   `inProcessModeller`, because `_pipeline` does and because at it Theorem 1's
+   own `ModellerWF`/`ModellerRefines` are theorems.  The Rust side's modeller
+   (`crates/con-ron`'s `InProcess`) is not extracted, so Theorem 2's promise
+   stays open.  Lane: the modeller seam (DESIGN §8.2); no action.
+7. **`hsc : ScanSpec` — named hypothesis.**  Theorem 2's scanner seam;
+   its three clauses are theorems only in the out-of-build
+   `RefineOld/Frontend/`.  Lane `Refine2/Frontend`; **P** (port or re-point).
+8. **`hwf : ∀ p ∈ pins.val, NatOpPinSetWF p` — named hypothesis.**
+   `intern_all_pins_refines` asks for it; the decoder lemma
+   (`PinsWF.decode_wf`) is out-of-build `RefineOld/PinsWF.lean`, and the
+   binary's `pins_for_run` is driver code.  With the lemma ported the
+   hypothesis becomes `kernel.pins_decode.decode text = ok (.Ok pins)`, as in
+   the old campaign.  Lane `Refine2/Checker`; **P**.
+9. **`hk : CoreSpec .verified checkFuel`, `hind : IndSpec .verified`,
+   `hbytes` — named hypotheses, inherited unchanged** from
+   `Arena.no_False_declaration_pipeline`.  Lanes `Bridge/Core`,
+   `Bridge/Inductives`; `hbytes` is the prelude gate.  No mismatch.
+10. **The model's type (C, ruling).**  There is no Rust-level abstraction
+    FUNCTION from the Rust `IFEnv` to con-leche's `Env` — the store is
+    abstracted by a relation (`StoreRel`) — so `model_exists` can only say
+    "∃ twin state related to the Rust's, ∃ twin environment related to the
+    Rust's, whose denotation has a model".  The old campaign's
+    `Nonempty (Model V (absEnv e))` has no counterpart.  The Rust-to-twin
+    `IFEnvRel.env` IS functional (`absIEnv`), so the gap is exactly the
+    store; if a Rust-level letter is wanted, a `denote` through `StoreRel`
+    (uniqueness of the related twin store's denotation) is the lemma.
+    Lane `Refine2/` + ruling.
+11. **Trusted driver lines, now three (C, ruling).**  (a) the calling order
+    (as before); (b) the binary parses with `driver::parse_export_stream_d`
+    (the read loop), whose pure specification is `parse_chunks`; (c) **the
+    binary does not call `install_then_check`**: it calls
+    `driver::check_decls_driver`, the pool that freezes the store into a
+    fresh `PersTier` at the phase boundary and runs phase B on `jobs`
+    workers.  The composed theorems are about `install_then_check` at the
+    single `PersTier::empty()`.  (c) is new with task #97-P6-6b and is the
+    widest of the three.  `prepare_d` + `.decls` (the binary) vs
+    `prepare_prelude` (the theorem) is definitional, not a gap.
+12. **What lined up with no work** — the reason the composition is ~60
+    lines: every Theorem-2 stage lemma's abstraction is literally the next
+    stage's argument (`absPreludeIx`, `ParseResultDRel.decls = absIDeclArr`,
+    `absIDeclArr = (absIDeclL ·).toArray` by `rfl`, `absINatOpPinSetL`,
+    `absPins`, `absMode .Verified = .verified`), one `pers` threads all six
+    Rust stages as the binary does, and T1's `_pipeline` needs nothing about
+    the start state (it is `AState.init EStore.empty`, which is exactly what
+    `InitRel` relates the Rust start to).
