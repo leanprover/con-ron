@@ -157,7 +157,9 @@ theorem intern_ls_refines {pers st lst} {us : alloc.vec.Vec arena.handle.LIdx} {
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.modeled.intern_ls pers st us = ok o) :
     Sim₀ absLsIdx pers lst o (internLsNode (absLIdxL us)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.intern_ls]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem intern_ls_ls
@@ -659,7 +661,17 @@ theorem iota_stmt_open_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       pers lst o
       (iotaStmtOpenSpec lf2 (absNIdx cv_name) (absNIdxL lps) (absU depth) (absU j)
        ) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.iota_stmt_open, iotaStmtOpenSpec]
+  lockstep_mod
+  -- `unwrap_or`: the twin's message is free in the spec, which `specCore`
+  -- cannot leave for the twin match, so the step is taken by hand
+  all_goals
+    refine Lockstep.LSR.bind (IndModeledPrims.unwrap_or_cv_ni ‹_› ‹_›) rfl
+      (fun _ => Lockstep.errArm_ok) ?_
+    intro a b lst1 hR hrel hinv
+    subst hR
+    lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem iota_stmt_open_ls

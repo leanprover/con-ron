@@ -473,6 +473,42 @@ theorem LS_of_twin_map {α β γ : Type} {pers : arena.store.PersTier} {R : α �
       cases hx
       exact ⟨p.1, p.2, rfl, hR, hr, hi⟩
 
+/-- `arena::env::lidx_vec_dup` copies the list. -/
+@[lockstep] theorem env_lidx_vec_dup_spec (us : alloc.vec.Vec arena.handle.LIdx) :
+    LSP (arena.env.lidx_vec_dup us) (fun r => r.val = us.val) := by
+  intro r h
+  rw [arena.env.lidx_vec_dup] at h
+  exact lidx_vec_dup_eq h
+
+/-- `checker_base::unwrap_or` ⊑ `unwrapOr` in `LSR` form
+(`Checker/Base.lean`'s `unwrap_or_refines`) at a found constant, one lemma
+per error kind.  Specialised: the tactic applies a spec before it matches the
+twin, so neither the element abstraction nor a premise relating the two
+errors may be left for unification (the twin's message is free instead). -/
+@[lockstep] theorem unwrap_or_cv_ni {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option arena.env.IConstantVal} {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.NotImplemented m)) st lst
+      (unwrapOr (o.map absIConstantVal) (.notImplemented s)) :=
+  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_refines rfl h
+
+@[lockstep] theorem unwrap_or_cv_inv {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option arena.env.IConstantVal} {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Invalid m)) st lst
+      (unwrapOr (o.map absIConstantVal) (.invalid s)) :=
+  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_refines rfl h
+
+@[lockstep] theorem unwrap_or_cv_int {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option arena.env.IConstantVal} {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
+      (unwrapOr (o.map absIConstantVal) (.internal s)) :=
+  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_refines rfl h
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
