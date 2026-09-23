@@ -56311,14 +56311,14 @@ frontier.  No change.
 `intern_pin_sets`, `erase_installed` (this lane), and
 `Bridge.{divModEnvGuard_run,divModPinGuard_run,Arena.checkDecl_wfProj}`
 (the merged Checker round 10).  **Entered:** the leaves the startup-walk glue
-now reaches: the nineteen pin constants of `Checker/Axioms.lean` (`iff_raw` …
+now reaches: the eighteen pin constants of `Checker/Axioms.lean` (`iff_raw` …
 `trust_compiler_a`, `reduce_*`, `of_reduce_*_a`), `basis_kind_decls{,_a}`
 and `intern_expr{,_list}`; and `Bridge.IndSpec.wf` (merged).  The growth is
 the startup walk moving down to one Rust function per item.
 `intern_all_names`, `check_value_group_value`, `promote_cv`, `promote_e` and
 `index_promoted` stay on the frontier (§2).  No non-standard axiom.
 
-**Next in this lane:** the nineteen pin constants and `basis_kind_decls{,_a}`
+**Next in this lane:** the eighteen pin constants and `basis_kind_decls{,_a}`
 (one-function leaves, no invariants needed); the three rulings of §2
 (`reservedBasisNames`, the decline-message name reads, D3's capacity test),
 each a twin edit that turns a stopped item into glue; and the promotion
