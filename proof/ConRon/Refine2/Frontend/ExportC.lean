@@ -390,7 +390,7 @@ length of any path through it because a child is interned before its parent.
 The port reads the same counter. -/
 
 theorem store_fuel_refines {pers rst lst v}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (_hinv : AStateInv pers rst)
     (h : frontend.export_c.store_fuel pers rst.store = ok v) :
     SimR absU lst v storeFuel := by
   rw [frontend.export_c.store_fuel] at h
@@ -2397,11 +2397,115 @@ theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
 
 /-! ## Two spine walks -/
 
+/-- `env::view_e` — the store's expression view. -/
+theorem env_view_e_run {pers rst lst} (hrel : AStateRel₀ pers rst lst)
+    {h : arena.handle.EIdx} {o}
+    (hrun : arena.env.view_e pers rst.store h = ok o) :
+    SimRE absENodeView lst o (view (absEIdx h)) := by
+  rw [arena.env.view_e] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hqa := estore_view_abs hrel.store hq
+  have hrunL : (view (absEIdx h)).run lst
+      = (match lst.store.view (absEIdx h) with
+         | some v => Except.ok (v, lst)
+         | none => Except.error (Arena.CheckError.internal
+             "arena: dangling expression handle")) := by
+    show (match lst.store.view (absEIdx h) with
+          | some v => (pure v : AM _)
+          | none => Arena.fail (.internal "arena: dangling expression handle")).run lst = _
+    cases lst.store.view (absEIdx h) <;> rfl
+  cases q with
+  | none =>
+    obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [kernel.core_types.internal] at hce
+    cases Result.ok_injective hce
+    cases Result.ok_injective hrun
+    show AErrSim _ _
+    rw [hrunL, hqa]
+    exact AErrSim.internal rfl
+  | some w =>
+    cases Result.ok_injective hrun
+    show _ = _
+    rw [hrunL, hqa]
+    rfl
+
+/-- A twin `view` step at a known answer. -/
+theorem view_bind_run {β : Type} {lst : AState} {h : EIdx} {v : ENodeView}
+    (hv : (view h).run lst = .ok (v, lst)) (f : ENodeView → AM β) :
+    (view h >>= f).run lst = (f v).run lst := by
+  rw [am_run_bind', hv]; rfl
+
 /-- **`ind_pi_tele_len` refines `indPiTeleLen`** (`ExportC.lean:358-364`). -/
 theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (_hinv : AStateInv pers rst)
     (h : frontend.export_c.ind_pi_tele_len pers rst.store fuel h' = ok o) :
-    SimLR absU lst o (indPiTeleLen (absU fuel) (absEIdx h')) := by sorry
+    SimLR absU lst o (indPiTeleLen (absU fuel) (absEIdx h')) := by
+  rw [frontend.export_c.ind_pi_tele_len] at h
+  obtain ⟨cur, hcur, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hcv : cur = h' := dupId_eidx _ _ hcur
+  rw [hcv] at h
+  have H : ∀ (k : Nat) (left n : Std.U64) (cur : arena.handle.EIdx) o, left.val = k →
+      frontend.export_c.ind_pi_tele_len_loop pers rst.store n cur left = ok o →
+      SimLR absU lst o (do let t ← indPiTeleLen k (absEIdx cur); pure (n.val + t)) := by
+    intro k
+    induction k with
+    | zero =>
+      intro left n cur o hk h
+      rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at h
+      rw [if_neg (by scalar_tac)] at h
+      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨m, rfl⟩ := merr_refines h
+      show AErrSim _ _
+      rw [am_run_bind']
+      exact AErrSim.bind (AErrSim.internal rfl) _
+    | succ k ih =>
+      intro left n cur o hk h
+      rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at h
+      rw [if_pos (by scalar_tac)] at h
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hV := env_view_e_run hrel hr
+      simp only [indPiTeleLen, bind_assoc]
+      cases r with
+      | Err e =>
+        obtain ⟨e', rfl, hk'⟩ := fail_refines h
+        show AErrSim _ _
+        rw [am_run_bind']
+        exact AErrSim.bind (fun k hk2 => hV k (by rw [← hk', hk2])) _
+      | Ok ev =>
+        have hV' : (view (absEIdx cur)).run lst = .ok (absENodeView ev, lst) := hV
+        unfold SimLR
+        cases ev with
+        | ForallE ty b m =>
+          obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨left1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hn1v := ConRon.Refine.Nat.uadd_val hn1
+          have hl1v := (ConRon.Refine.Nat.usub_val hl1).2
+          have hR := ih left1 n1 b o (by simp at hl1v; omega) h
+          have e : ((view (absEIdx cur) >>= fun v => (match v with
+              | .forallE _ b _ => do let t ← indPiTeleLen k b; pure (t + 1)
+              | _ => pure 0) >>= fun t => pure (n.val + t)) : AM Nat).run lst =
+              ((do let t ← indPiTeleLen k (absEIdx b); pure (n1.val + t)) : AM Nat).run lst := by
+            rw [view_bind_run hV']
+            simp only [absENodeView, bind_assoc, pure_bind]
+            rw [show n1.val = n.val + 1 by simp at hn1v; omega]
+            congr 1
+            exact bind_congr fun t => by congr 1; omega
+          cases o with
+          | Ok w =>
+            have h2 : ((do let t ← indPiTeleLen k (absEIdx b); pure (n1.val + t)) : AM Nat).run lst = .ok (absU w, lst) := hR
+            rw [← e] at h2
+            exact h2
+          | Err er =>
+            have h2 : ALineErrSim er (((do let t ← indPiTeleLen k (absEIdx b); pure (n1.val + t)) : AM Nat).run lst) := hR
+            rw [← e] at h2
+            exact h2
+        | _ =>
+          all_goals (cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl)
+  have := H _ fuel 0#u64 h' o rfl h
+  simpa using this
 
 /-- **`pi_result` refines `piResultD`** — three lines of spine walk, spelled
 locally in its one frontend caller (`k_expected_of`).  Its twin is the
@@ -2411,9 +2515,52 @@ dangling datum the port's `env::view_e` fails where that one walks on — a
 twin/Rust divergence, fixed in the twin by task #97-T2-LOCKSTEP lane
 Frontend. -/
 theorem pi_result_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (_hinv : AStateInv pers rst)
     (h : frontend.export_c.pi_result pers rst.store fuel h' = ok o) :
-    SimLR absEIdx lst o (piResultD (absU fuel) (absEIdx h')) := by sorry
+    SimLR absEIdx lst o (piResultD (absU fuel) (absEIdx h')) := by
+  rw [frontend.export_c.pi_result] at h
+  obtain ⟨cur, hcur, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hcv : cur = h' := dupId_eidx _ _ hcur
+  rw [hcv] at h
+  have H : ∀ (k : Nat) (left : Std.U64) (cur : arena.handle.EIdx) o, left.val = k →
+      frontend.export_c.pi_result_loop pers rst.store cur left = ok o →
+      SimLR absEIdx lst o (piResultD k (absEIdx cur)) := by
+    intro k
+    induction k with
+    | zero =>
+      intro left cur o hk h
+      rw [frontend.export_c.pi_result_loop.eq_def] at h
+      rw [if_neg (by scalar_tac)] at h
+      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨m, rfl⟩ := merr_refines h
+      exact AErrSim.internal rfl
+    | succ k ih =>
+      intro left cur o hk h
+      rw [frontend.export_c.pi_result_loop.eq_def] at h
+      rw [if_pos (by scalar_tac)] at h
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hV := env_view_e_run hrel hr
+      simp only [piResultD]
+      cases r with
+      | Err e =>
+        obtain ⟨e', rfl, hk'⟩ := fail_refines h
+        show AErrSim _ _
+        rw [am_run_bind']
+        exact AErrSim.bind (fun k hk2 => hV k (by rw [← hk', hk2])) _
+      | Ok ev =>
+        have hV' : (view (absEIdx cur)).run lst = .ok (absENodeView ev, lst) := hV
+        unfold SimLR
+        cases ev with
+        | ForallE ty b m =>
+          obtain ⟨left1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hl1v := (ConRon.Refine.Nat.usub_val hl1).2
+          have hR := ih left1 b o (by simp at hl1v; omega) h
+          rw [view_bind_run hV']
+          exact hR
+        | _ =>
+          all_goals (cases Result.ok_injective h; show _ = _; rw [view_bind_run hV']; rfl)
+  exact H _ fuel h' o rfl h
 
 /-! ## The recursor rules and the block record -/
 
