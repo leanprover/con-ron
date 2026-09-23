@@ -333,10 +333,10 @@ theorem Arena.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     False := by
   -- 1. the prelude's parse and the stream's parse
   obtain ⟨hstep1, hpersPre, preC, -, hrelPre⟩ :=
-    parseBytes_run hmw hmr hok0 hoff0 hpins0 hpre
+    parseBytes_run hmw hmr hok0 hoff0 hpins0 (ReadCachesOK.ofEmpty hcache0) hpre
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run hmw hmr hstep1.ok (by rw [hstep1.scratch, hoff0])
-      (hpins0.mono hstep1.ext hstep1.pins) hparse
+      (hpins0.mono hstep1.ext hstep1.pins) ((ReadCachesOK.ofEmpty hcache0).step hstep1) hparse
   -- 2. the preparation
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (pre := ⟨preR.decls⟩) (preC := ⟨preC.decls⟩) hstep2.ok
@@ -403,10 +403,10 @@ theorem Arena.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     (hrun : Arena.installThenCheck .verified ipins ds s3' = .ok (.ok fe', s4)) :
     False := by
   obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
-    builtinPreludeE_run hmw hmr hbytes hok0 hoff0 hpins0 hpre
+    builtinPreludeE_run hmw hmr hbytes hok0 hoff0 hpins0 (ReadCachesOK.ofEmpty hcache0) hpre
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run hmw hmr hstep1.ok (by rw [hstep1.scratch, hoff0])
-      (hpins0.mono hstep1.ext hstep1.pins) hparse
+      (hpins0.mono hstep1.ext hstep1.pins) ((ReadCachesOK.ofEmpty hcache0).step hstep1) hparse
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoff0])
@@ -563,12 +563,14 @@ theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
     rw [hv] at hres; exact absurd hres (by simp)
   | ok fe' =>
   -- §3's four steps, with the pin walk in the middle
+  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
   obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
-      hokA hoffA hpinsA hprel
+      hokA hoffA hpinsA hrbA hprel
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins) hparse
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
+      (hrbA.step hstep1) hparse
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])

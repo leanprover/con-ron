@@ -128,6 +128,20 @@ theorem CheckOK.ofReadbackFrame {mode : CheckMode} {env : Env} {fe : IFEnv}
     CheckOK mode env fe s' :=
   CheckOK.ofCache h (CacheOK.ofReadbackFrame h.caches hf) hf.store hf.pins
 
+/-- con-leche: none — a readback frame is a cache frame: `lvlEqC` did not
+move, and the three tables that did carry their implications across. -/
+theorem CacheFrame.ofReadbackFrame {s s' : AState} (h : ReadbackFrame s s') :
+    CacheFrame s s' where
+  caches := by
+    have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [h.caches]
+    rw [hle]; exact h.caches
+  readL := h.readL
+  lvlEq := fun _ hl => by
+    have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [h.caches]
+    rw [hle, h.store]; exact hl
+  readN := h.readN
+  readLs := h.readLs
+
 /-! ## 3. The frame from `Bridge/Specs.lean`'s three readback specs
 
 One constructor per readback.  Each takes the spec's four frame conjuncts and
