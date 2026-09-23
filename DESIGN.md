@@ -59515,6 +59515,12 @@ merges are sequenced by construction and the merge logic lives in one context.
   commit) are skipped.  The queue's processed position is recorded in
   `_tmp/merge-queue.done` (one line per entry: status, branch, commit,
   landed-at).
+* After each landing (or batch) the queue seeds the Lake cache from `wt-mq`:
+  `cd proof && LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build
+  ConRonCapstone ConRonRefine2 ConRonBridge` and a plain `lake build` for the
+  default targets (the three named targets leave 15 default-target modules
+  uncached).  Nothing re-elaborates; seconds.  Fresh lane worktrees off
+  `arena` then restore every module instead of rebuilding ~230.
 
 **Re-gate table** (the steps a merge's delta can touch; "cheap" = the eleven
 steps before `extract-check`, ~20 s together, always run):
