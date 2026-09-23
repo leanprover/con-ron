@@ -38,7 +38,7 @@ the ζ reduct (con-leche's task #217).
    `@[spec]` theorem is `Bridge/Specs.lean`'s `internRebuiltApp_spec` and
    which claims exactly `RelE`'s `.self` when the children did not move.
 -/
-import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Arms.Infer
 
 namespace ConRon.Bridge.Core
 
@@ -255,6 +255,32 @@ theorem annotateBody_binders_batched {fe : IFEnv} {fuel : Nat}
 the twin's `view` dispatch, each a triple at the same body under its tag
 hypothesis; the batched binder clause above is one of them. -/
 
+/-- con-leche: none — DESIGN §8.3 at an application node: a handle that
+denotes `.app ef ea` VIEWS as the application of any two handles denoting
+`ef` and `ea` (index equality is structural equality).  `internRebuiltApp`'s
+upward cutoff needs the view at the subject when neither child moved, and a
+knot slot's postcondition carries the denotation, not the view. -/
+theorem view_app_of_denote {st : EStore} (hwf : StoreWF st) {i f a : EIdx}
+    {ef ea : Expr} (hi : denoteE st i = some (.app ef ea))
+    (hf : denoteE st f = some ef) (ha : denoteE st a = some ea) :
+    st.view i = some (.app f a) := by
+  obtain ⟨w, hw⟩ := denoteE_view hi
+  cases w with
+  | app x y =>
+    obtain ⟨ef', ea', he, hx, hy⟩ := denote_app_inv hwf hw hi
+    cases he
+    rw [hw, denoteE_inj hwf hx hf, denoteE_inj hwf hy ha]
+  | bvar k => cases denote_bvar_inv hwf hw hi
+  | fvar k t => obtain ⟨_, h, _⟩ := denote_fvar_inv hwf hw hi; cases h
+  | sort u => obtain ⟨_, h, _⟩ := denote_sort_inv hwf hw hi; cases h
+  | const n us => obtain ⟨_, _, h, _⟩ := denote_const_inv hwf hw hi; cases h
+  | lit l => cases denote_lit_inv hwf hw hi
+  | lam ty b m => obtain ⟨_, _, h, _⟩ := denote_lam_inv hwf hw hi; cases h
+  | forallE ty b m =>
+    obtain ⟨_, _, h, _⟩ := denote_forallE_inv hwf hw hi; cases h
+  | letE ty v b => obtain ⟨_, _, _, h, _⟩ := denote_letE_inv hwf hw hi; cases h
+  | proj n k sub => obtain ⟨_, _, h, _⟩ := denote_proj_inv hwf hw hi; cases h
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1828-1834 annotateBody — **the
 `.app` clause**: two `KnotSpec.annotate` calls and the rebuilt node
 (`internRebuiltApp`, task #97-P6-7's upward cutoff); pure side `annot_app`. -/
@@ -270,7 +296,51 @@ theorem annotateBody_app {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case app f a =>
+    obtain ⟨ef, ea, rfl, hdf, hda⟩ := denote_app_inv hwf hv hden
+    have hwf' : Expr.WScoped d ef := by unfold Expr.WScoped at hw; exact hw.1
+    have hwa : Expr.WScoped d ea := by unfold Expr.WScoped at hw; exact hw.2
+    have h1 := hsim.annotate s₀ d f ef hok hdf hwf'
+    have h2 := fun (s : AState) (hck : CheckOK mode env fe s)
+        (hd : denoteE s.store a = some ea) => hsim.annotate s d a ea hck hd hwa
+    mvcgen [h1, h2]
+    all_goals (bridge_peel; subst_vars)
+    case vc2.hck => rename_i _ _ _ hck1 _ _ _; exact hck1
+    case vc3.hd => rename_i _ _ _ _ _ hx1 _; exact denote_ext hda hx1
+    case vc4.post.success.post.success.post.success =>
+      rename_i _ r1 _ r2 _ _ _ hck1 hck2 hx12 hs1 hp21 hs2 hx01 hp10
+      intro hwf3 hx3 _ _ hc3 hp3 _ _ hd3
+      obtain ⟨v1, hd1, hw1, F1, hF1⟩ := hs1
+      obtain ⟨v2, hd2, hw2, F2, hF2⟩ := hs2
+      refine ⟨hck2.mono ⟨hwf3⟩ hx3 hc3 hp3, hx01.trans (hx12.trans hx3),
+        hp3.trans (hp21.trans hp10), .app v1 v2, ?_,
+        by unfold Expr.WScoped; exact ⟨hw1, hw2⟩, max F1 F2 + 1,
+        annot_app (ConLeche.annotateCore_mono (Nat.le_max_left _ _) hF1)
+          (ConLeche.annotateCore_mono (Nat.le_max_right _ _) hF2)⟩
+      rw [hd3]
+      simp [denoteEView, opt2, denote_ext (denote_ext hd1 hx12) hx3,
+        denote_ext hd2 hx3]
+    case vc5 => intro s hck _ _ _; exact hck.state.wf
+    case vc6 =>
+      rename_i _ _ _ _ _ hs1 _ _
+      intro s _ hx _ _
+      obtain ⟨v1, hd1, _⟩ := hs1
+      rw [denote_ext hd1 hx]; rfl
+    case vc7 => intro s _ _ _ hs2; exact hs2.denote
+    case vc8 =>
+      rename_i _ _ _ _ _ _ hx01 _
+      intro s hck hx _ _ hsame
+      simp only [Bool.and_eq_true, beq_iff_eq] at hsame
+      obtain ⟨rfl, rfl⟩ := hsame
+      have hx' := hx01.trans hx
+      exact view_app_of_denote hck.state.wf (denote_ext hden hx')
+        (denote_ext hdf hx') (denote_ext hda hx')
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1817-1827 annotateBody — **the two
 literal clauses**: `natLitSupported_spec` (CLOSED) and `strLitSupported`
