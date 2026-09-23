@@ -232,10 +232,11 @@ parse appends to.
 
 Both arms (task #97-P5-Front restated it from a success-only statement, which
 left `parse_bytes`/`parse_chunks` nothing to say about their `(e, 0)` arm).
-**Open on the `M_FROZEN` ruling**, like `prepare::prelude_key`: at a frozen
-tier the port's intern answers `Internal` where the twin appends, so the error
-arm holds only once the frozen guard is `Native`; with
-`estore_intern_name_abs`/`estore_intern_level_abs`'s `hfrozen` it closes. -/
+The two interns are `Specs.lean`'s `estore_intern_name_abs` /
+`estore_intern_level_abs` (no frozen hypothesis since task #97-P5-Unfreeze);
+what is left is the nineteen-field `StateDRel` at the fresh record —
+`IdTableRel` at a singleton and at `id_table_empty`, `RelOn` at six
+`HashMap2::new`s (`Refine/HashMap2.lean`'s `new_refines`), and `StateDInv`. -/
 theorem state_d_init_refines {pers rst lst in_model census o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.state_d_init pers rst.store in_model census = ok o) :

@@ -15,22 +15,28 @@ materialises both in one pass (`prepare.rs`'s own deviation, inherited from
 — `pick_idx`, `no_picks`, `front_of`, `prepared_front`, `prepared_rest`,
 `prepared_stream` — are that machinery and have no twin at all.
 
-The answer is `Refine2/Checker/Spec.lean`'s pattern at this tier's scale: a
-twin-side transcription of what the plan MEANS (`pickIdx`, `preparedFront`,
-`preparedRest`, `preparedStream`) with one `_unfold` equation tying the
-composite back to the twin's `frontOf`, so that a reader checks the
-transcription against `Arena/Frontend/Prepare.lean` clause for clause rather
-than reading it out of a proof.  The equation is `preparedStream_eq_frontOf`
-and it is this file's one real obligation; everything else above it follows.
+The answer is a twin-side transcription of what the plan MEANS — `pickL`,
+`restL`, `frontL` (list recursions) and `pickIdx`/`preparedFront`/
+`preparedRest`/`preparedStream` over them — and ONE fact tying it to the twin's
+erase-and-recurse: **`pick_preparedRest`**, *erasing the first hit from the
+unmasked records is masking it* (`restL_pick`, by induction on the stream).
+With it `front_of_loop_refines` runs the port's loop and the twin's `frontOf`
+in lockstep: the twin's accumulator is `preparedFront` of the plan so far and
+the twin's remaining array is `preparedRest` of the mask so far.
 
-**That equation is the port's own correctness argument, not a representation
-one**, which is why it is stated and not assumed: the port is right only
-because a masked record is exactly an erased one, and `RefineOld/Frontend/
-PrepareR.lean` is where the `Expr`-tree port's version of it was proved
-(1 904 lines, `front_of_refines`).  Over handles the argument is the same; the
-proof is not transcribed here, for the reason DESIGN.md's section gives.
+Task #97-P5-Front replaced the previous `preparedStream_eq_frontOf`, which was
+**false as stated** (its `picks`/`picked` were universally quantified and tied
+to nothing, and it prepended the accumulator twice), and restated
+`front_of_refines` from a success-only claim to a full `Sim` whose value is
+the front and rest the plan stands for (`absPlan`) and whose `WF` is the plan's
+shape (`PlanWF`) — which `prepared_front_refines` needs as `hlen`: over a plan
+longer than the prelude the port reads `ps.len()` slots where the
+transcription reads all of them.
 
-## `sorry` count in this file: 2
+`prepare_d`/`prepare_prelude` moved to `Top.lean`: they run the hoist and
+`export_c::sat_sub`, both above this file.
+
+## `sorry` count in this file: 1
 -/
 import ConRon.Refine2.Frontend.Types
 
@@ -192,9 +198,11 @@ theorem prelude_ix_empty_refines {p : frontend.prepare.PreludeIx}
   rfl
 
 /-- **`arena::env::i_declaration_dup` is the identity under the abstraction.**
-`Refine2/Inductives/Shape.lean`'s `i_constant_info_dup_abs` family is the
-proof's substance; that file is above this tier (it imports the Core knot), so
-the lemma is restated here until the family moves down. -/
+`Refine2/Inductives/Shape.lean`'s `i_constant_val_dup_abs` /
+`i_constant_info_dup_abs` family is the proof's substance; that file is above
+this tier (it imports the Core knot through `Checker/KnotHyp.lean`), so the
+lemma stays open here until the family moves down to a shared base (a
+cut-and-paste of ~120 lines, plus the three enum `_dup`s). -/
 theorem i_declaration_dup_abs {d o : arena.env.IDeclaration}
     (h : arena.env.i_declaration_dup d = ok o) :
     absIDeclaration o = absIDeclaration d := by sorry
@@ -251,19 +259,42 @@ theorem i_declaration_names_abs {d : arena.env.IDeclaration} {v}
 
 /-- **`prepare::prelude_key` refines `preludeKey`**
 (`Arena/Frontend/Prepare.lean:56-59`).  The one reason this takes the store is
-con-leche's `.anonymous` fall-through, which over handles is an intern.
-
-**Open on the `M_FROZEN` ruling** (task #97-P5-Front): at a frozen name tier
-(`shared_on` and not `scratch_on`) the port's intern answers
-`Internal (M_FROZEN)` where the twin appends, so the error arm is false there
-until the frozen guard turns `Native` (the pending Rust commit).  Under
-`estore_intern_name_abs`'s `hfrozen` the arm closes; the success arm holds
-either way. -/
+con-leche's `.anonymous` fall-through, which over handles is an intern — and
+the intern is `Specs.lean`'s `intern_n_node_run` at the lifted state. -/
 theorem prelude_key_refines {pers rst lst d o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.prepare.prelude_key pers rst.store d = ok o) :
     Sim absNIdx (fun _ => True) pers lst (o.1, withStore rst o.2)
-      (preludeKey (absIDeclaration d)) := by sorry
+      (preludeKey (absIDeclaration d)) := by
+  rw [frontend.prepare.prelude_key] at h
+  obtain ⟨ns, hns, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hn := i_declaration_names_abs hns
+  simp only at h
+  split_ifs at h with h0
+  · have hnil : (absIDeclaration d).names = [] := by
+      rw [← hn]; have : ns.val.length = 0 := by scalar_tac
+      simp [List.length_eq_zero_iff.mp this]
+    have hrun : arena.monad.intern_n_node pers rst .Anonymous =
+        ok (o.1, withStore rst o.2) := by
+      rw [arena.monad.intern_n_node, h]; cases o; simp
+    have H := intern_n_node_run hrel hinv .Anonymous trivial
+      (by intro c hc; simp [absNNodeView, NNodeView.children] at hc) hrun
+    simp only [preludeKey, hnil, List.head?_nil]
+    exact H
+  · obtain ⟨n, hnn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have e1 := dupId_nidx _ _ hn1
+    obtain ⟨hlt, hx⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hnn)
+    have hhead : (absIDeclaration d).names.head? = some (absNIdx n) := by
+      rw [← hn]
+      rcases hns' : ns.val with _ | ⟨x, xs⟩
+      · simp [hns'] at hlt
+      · have h0' : (0#usize : Std.Usize).val = 0 := rfl
+        simp only [hns', h0', List.getElem_cons_zero] at hx
+        simp [hns', hx]
+    simp only [preludeKey, hhead]
+    exact ⟨lst, by rw [e1]; rfl, hrel, hinv, Ext.refl _, trivial⟩
 
 /-- **`prepare::declares` refines `declares`**
 (`Arena/Frontend/Prepare.lean:74-75`).  Pure on both sides: over handles
