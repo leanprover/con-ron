@@ -25,6 +25,8 @@ bridge back).  Four companion judgements carry the other Rust callee shapes:
 | `LSV` | `Result α` — reads, total | `lift_get`, `inst_list_cutoff` |
 | `LSW` | `Result AState` — writes, total | `lift_set` |
 | `LSP` | `Result α`, **Rust only** — no twin counterpart | `fuel - 1#u64`, `dup2`, `eidx_nat_key`, `fail` |
+| `LSM` | `Result (Result α × AState × M)` — a memoised walk, memo beside the result | `consts_resolve_f_go`, `intern_expr_go` |
+| `LSRM` | `Result (Result α × M)` — a memoised reader walk | `all_level_params_defined_go` |
 
 ## The tactic — modelled on Aeneas's `progress`, not on `mvcgen`
 
