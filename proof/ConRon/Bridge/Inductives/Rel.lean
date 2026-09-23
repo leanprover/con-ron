@@ -2349,14 +2349,18 @@ theorem NestProg.internName (nm : ConLeche.Name) :
   exact ⟨h1, h3, h4, h5⟩
 
 /-- con-leche: none — `reservedBasisNames` touches no expression table:
-six pin reads and thirteen name interns. -/
+it is the pin-table read `pinReserved` (twin fix D5). -/
 theorem reservedBasisNames_nest : NestProg Arena.reservedBasisNames := by
-  simp only [Arena.reservedBasisNames]
-  repeat
-    first
-    | exact NestProg.pure _
-    | refine NestProg.bind (NestProg.pinAt _) (fun _ => ?_)
-    | refine NestProg.bind (NestProg.internName _) (fun _ => ?_)
+  intro s s' n h
+  simp only [Arena.reservedBasisNames, Arena.pinReserved] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  have e1 : t = s ∧ s₁ = s := by
+    injection h1 with h1'; injection h1' with a b; exact ⟨a.symm, b.symm⟩
+  obtain ⟨rfl, rfl⟩ := e1
+  split at h2
+  · obtain ⟨-, rfl⟩ := pureOk h2
+    exact fun hw => ⟨hw, rfl, rfl, rfl⟩
+  · exact absurd h2 (fun hc => failOk hc)
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the reserved list at this tier's frame**: `Bridge/Checker/Names.lean`'s

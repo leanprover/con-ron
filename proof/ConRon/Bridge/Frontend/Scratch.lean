@@ -315,7 +315,7 @@ macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinQuotSound _)
 /-- con-leche: none — `reservedBasisNames` keeps the scratch flag. -/
 theorem sp_reservedBasisNames (b : Bool) : SPb b (ConRon.Arena.reservedBasisNames) := by
   first
-  | (unfold ConRon.Arena.reservedBasisNames; sp_auto; done)
+  | (unfold ConRon.Arena.reservedBasisNames ConRon.Arena.pinReserved; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_reservedBasisNames _)
 
 /-- con-leche: none — `stripLams` keeps the scratch flag. -/

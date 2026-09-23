@@ -600,6 +600,16 @@ theorem pin_reserved_refines {pers st lst} {o}
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
     rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
+/-- `arena::core::reserved_basis_names` ⊑ `reservedBasisNames` — both are the
+pin-table read, `pin_reserved` against `pinReserved` (twin fix D5 of task
+#97-T2-LOCKSTEP: the twin used to re-intern thirteen of the nineteen). -/
+theorem reserved_basis_names_refines {pers st lst} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.reserved_basis_names st = ok o) :
+    SimRE absNIdxL lst o reservedBasisNames := by
+  rw [arena.core.reserved_basis_names] at hrun
+  exact pin_reserved_refines hrel hinv hrun
+
 /-- `pin_empty_levels` ⊑ `pinEmptyLevels`. -/
 theorem pin_empty_levels_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
