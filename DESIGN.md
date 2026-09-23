@@ -61245,7 +61245,8 @@ two missing tag constants) are `lockstep_simp` in `Tactic/Prims.lean`.  And the
 Core lane's `p5-core-5` carries (89019910), so the two branches meet on one
 condition line.
 
-`lake build ConRonRefine2` green (all of it re-elaborated).
+`lake build ConRonRefine2` green (all of it re-elaborated); `scripts/gates.sh`
+after merging `arena` `4cd871a8`: all 16 OK.
 
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
 
