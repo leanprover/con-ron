@@ -1129,10 +1129,13 @@ def specCore (g : MVarId) : TacticM Unit := g.withContext do
       | none => false
     if ok then cands := cands.push d.toExpr
   -- lemmas from an `open`ed namespace first: a file that opens its own set
-  -- of pairs (`open …Lockstep.PB`) gets those before any other module's
+  -- of pairs (`open …Lockstep.PB`) gets those before any other module's.
+  -- Only a region namespace BELOW `Lockstep` counts: `open Lockstep in`, which
+  -- every tier writes, must not reorder the shared pairs
   let opens ← getOpenDecls
   let isOpen (n : Name) : Bool := opens.any fun
-    | .simple ns _ => ns == n.getPrefix
+    | .simple ns _ => ns == n.getPrefix && ns != `ConRon.Refine2.Lockstep &&
+        (`ConRon.Refine2.Lockstep).isPrefixOf ns
     | _ => false
   let ls ← lockstepLemmas k
   let ls := ls.filter isOpen ++ ls.filter (!isOpen ·)
