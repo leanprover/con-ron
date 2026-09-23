@@ -64,8 +64,20 @@ six more.
   `find? := env.find?`, in published and answer shape; then `propIrrel_spec`,
   `annotPwPi_spec` and `annotPwLam_spec` (moved from `Walks/Owed.lean`) and
   their answer-shape forms.  All CLOSED.
-* `Walks/Owed.lean` — **the statements not yet reached** (three after round
-  5: `iotaRec`, `projLitToCtor`, `stuckIrrel`),
+* `Walks/StrLit.lean` — **the `String`-literal guard** (round 5):
+  `strLitSupported_spec` and its seven stored-shape tests. CLOSED.
+* `Walks/StrCtor.lean` — **a string literal's constructor form** (round 5):
+  `strLitToConstructor_spec` over the `strLitConsSpine` recursion, and
+  `strLitToConstructor_WScoped`. CLOSED.
+* `Walks/ProjLit.lean` — `projLitToCtor_spec` (round 5, moved from
+  `Walks/Owed.lean`). CLOSED.
+* `Walks/Stuck.lean` — **the stuck fallback** (round 5): `stuckIrrel_spec`
+  PROVED from `structEtaCert_spec` (proved, over `etaCtorShape_spec` and the
+  OPEN `structEtaCertWith_spec`), `structUnitCert_spec` and `proofIrrel_spec`
+  (both CLOSED, over the new `isUnitLikeTy_spec` and
+  `reservedBasisNames_spec`).
+* `Walks/Owed.lean` — **the statements not yet reached** (one after round
+  5: `iotaRec`),
   each with what it is waiting on written at the site.  `defEqList_spec` is
   the nearest and its fuel merge is now IN HAND (`Walks/Mono.lean`'s
   `defEqListFueled_mono`); `reduceNat_spec` and `unfoldDefinition_spec` were
