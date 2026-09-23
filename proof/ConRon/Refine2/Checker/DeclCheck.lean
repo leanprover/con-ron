@@ -99,7 +99,10 @@ theorem matches_pin_of_ci_refines {pers st lst} {cv : arena.env.IConstantVal}
       (do
         let pcv ← (absIConstantInfo pin_ci).toConstantVal
         (absIConstantVal cv).matchesPin pcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.matches_pin_of_ci]
+  skip
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem matches_pin_of_ci_ls {pers st lst}
@@ -2034,41 +2037,6 @@ theorem div_mod_certs_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
   try unfold divModCertsGuard
   lockstep
 
-/-- `div_mod_slot` / `_1` / `_2` — the operation's index in the pin record's
-eight-slot family, which the twin spells as a chain of handle comparisons
-inside `divModDeclPin` and `divModCertProofs`. -/
-theorem div_mod_slot_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.div_mod_slot st c = ok o) :
-    Sim₀ absU pers lst o (divModSlotSpec (absNIdx c)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem div_mod_slot_ls {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absU a)
-      (arena.decl_check.div_mod_slot st c) lst
-      (divModSlotSpec (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => div_mod_slot_refines hrel hinv h
-
-theorem div_mod_slot_1_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.div_mod_slot_1 st c = ok o) :
-    Sim₀ absU pers lst o (divModSlot1Spec (absNIdx c)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem div_mod_slot_1_ls {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absU a)
-      (arena.decl_check.div_mod_slot_1 st c) lst
-      (divModSlot1Spec (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => div_mod_slot_1_refines hrel hinv h
-
 theorem div_mod_slot_2_refines {pers st lst} {c : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_slot_2 st c = ok o) :
@@ -2084,6 +2052,44 @@ open Lockstep in
       (arena.decl_check.div_mod_slot_2 st c) lst
       (divModSlot2Spec (absNIdx c)) :=
   LS.ofSim₀ fun _ h => div_mod_slot_2_refines hrel hinv h
+theorem div_mod_slot_1_refines {pers st lst} {c : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.decl_check.div_mod_slot_1 st c = ok o) :
+    Sim₀ absU pers lst o (divModSlot1Spec (absNIdx c)) := by
+  sorry
+
+open Lockstep in
+@[lockstep] theorem div_mod_slot_1_ls {pers st lst}
+    {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absU a)
+      (arena.decl_check.div_mod_slot_1 st c) lst
+      (divModSlot1Spec (absNIdx c)) :=
+  LS.ofSim₀ fun _ h => div_mod_slot_1_refines hrel hinv h
+/-- `div_mod_slot` / `_1` / `_2` — the operation's index in the pin record's
+eight-slot family, which the twin spells as a chain of handle comparisons
+inside `divModDeclPin` and `divModCertProofs`. -/
+theorem div_mod_slot_refines {pers st lst} {c : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.decl_check.div_mod_slot st c = ok o) :
+    Sim₀ absU pers lst o (divModSlotSpec (absNIdx c)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.div_mod_slot]
+  try unfold divModSlotSpec
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem div_mod_slot_ls {pers st lst}
+    {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absU a)
+      (arena.decl_check.div_mod_slot st c) lst
+      (divModSlotSpec (absNIdx c)) :=
+  LS.ofSim₀ fun _ h => div_mod_slot_refines hrel hinv h
+
+
 
 
 /-- `div_mod_decl_pin` ⊑ `divModDeclPin`. -/
@@ -2566,7 +2572,16 @@ theorem bool_ctor_typed_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.decl_check.bool_ctor_typed pers vis st rf2 n = ok o) :
     Sim₀ id pers lst o (boolCtorTypedSpec lf2 (absNIdx n)) := by
-  sorry
+  have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.bool_ctor_typed]
+  unfold boolCtorTypedSpec boolCtorTyped
+  lockstep
+  all_goals
+    refine Lockstep.LSS.bind (Lockstep.i_constant_info_to_constant_val_lss ‹_› ‹_› _) ?_
+      (fun e s' => Lockstep.errArm_ok) (fun a b s' lst1 hR hrel hinv => ?_)
+    · rw [i_constant_info_dup_abs ‹arena.env.i_constant_info_dup _ = ok _›]; rfl
+    · lockstep
 
 open Lockstep in
 @[lockstep] theorem bool_ctor_typed_ls {pers st lst}

@@ -1641,7 +1641,18 @@ theorem ifenv_find_cv_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.checker_base.ifenv_find_cv pers vis st rf n = ok o) :
     Sim₀ (Option.map absIConstantVal) pers lst o
       (lf.findCV? (absNIdx n)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.ifenv_find_cv]
+  unfold IFEnv.findCV?
+  lockstep
+  -- the store-level `to_constant_val` after the Rust-only `i_constant_info_dup`:
+  -- the twin reads the constant the index handed back, the Rust its copy
+  all_goals
+    refine Lockstep.LSS.bind (Lockstep.i_constant_info_to_constant_val_lss ‹_› ‹_› _) ?_
+      (fun e s' => Lockstep.errArm_ok) (fun a b s' lst1 hR hrel hinv => ?_)
+    · rw [i_constant_info_dup_abs ‹arena.env.i_constant_info_dup _ = ok _›]; rfl
+    · lockstep
 
 open Lockstep in
 @[lockstep] theorem ifenv_find_cv_ls {pers st lst}
