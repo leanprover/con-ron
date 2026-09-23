@@ -127,6 +127,18 @@ example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : b = true)
         else unresolvedConstsError "type" (absEIdx e)) >>= fun r => pure r) := by
   lockstep
 
+/-- The twin's next step is an `if` the last Rust test decided, the Rust's is
+a state bind whose partner is inside the branch (the Checker Base/Top lane's
+`unresolved_consts_error` and axiom-arm gates): the `if` is decided from the
+context, not taken whole as the partner (`twin_bind_pure` skips an `if`). -/
+example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : ¬ b = true)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (if b then (pure (.invalid "a") : AM Arena.CheckError)
+        else unresolvedConstsError "type" (absEIdx e)) := by
+  lockstep
+
 /-- The twin tests `c` where the Rust does not test at all (both branches are
 the same operation): the twin `if` is split and each branch zips. -/
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool}

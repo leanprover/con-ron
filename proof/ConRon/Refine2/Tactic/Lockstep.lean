@@ -1526,7 +1526,12 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
         -- rewrite is undone — a bare `x >>= pure` goal would be normalised back
         -- to `x` and `lockstep` would loop on it (task #97-T2-LOCKSTEP lane
         -- ExprOps: `inst_lp_fast_ls` never terminated).
-        if !(x.isAppOfArity ``Bind.bind 6) then
+        -- Not at a twin `if`: its partner is inside a branch, and the `if` is
+        -- decided (or split) by `stepCore` once the Rust cannot move — taking
+        -- it whole as the partner would bury it under the `>>= pure` (task
+        -- #97-T2-TACTIC round 2, the Checker Base/Top lane's `chk_lockstep`).
+        if !(x.isAppOfArity ``Bind.bind 6) && !(x.isAppOfArity ``ite 5) &&
+            !(x.isAppOfArity ``dite 5) then
           try
             let gs ← applyRule g ``LS.twin_bind_pure
             let g' ← pick gs `h
