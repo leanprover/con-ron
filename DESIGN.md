@@ -41639,7 +41639,12 @@ proved over its pieces.  `projTableOK_of_install` (`Inv.lean`) and
 `Arena.checkDeclStep_bridge` (`Fold.lean`) are NOT on the capstone frontier
 (the capstone path is the two-phase fold and reaches neither); they are left.
 
-GATES_LINE
+`scripts/gates.sh`: **all 16 OK** on the merge onto `arena`'s `43958f6c`
+(`extract-check` 146 s, `lake-build` 47 s); `Arena/Checker` T1 **stated
+83/242, closed 78** (round 8: 77/242, 74).  `Bridge/Checker/Axioms.lean`'s
+round-9 group: `checkDecl_nodup`, `Arena.checkPending_prefix`,
+`denoteN_default_of_pinNames`, `internPinSets_run`, `bracketClose_foldOK`,
+`FoldOK.projMem` print the three standard axioms only.
 
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
