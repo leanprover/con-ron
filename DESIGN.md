@@ -48810,18 +48810,20 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 Branch `p3-ind-5` off `arena`'s tip `aa4c7a76`, merged forward twice
 (`43f97b23`, task #97-P3-Frontend round 5, and `b0d3fb18`, task #97-P3-ExprOps
 round 4 — the second one matters: it is what unblocked §R5.6's last item).
-The diff is twelve files: `Bridge/Inductives/{Rel,StructParts,NativeParts,
-SumInstall,NativeInstall,Modeled}.lean`, `Bridge/StateOK.lean`,
+The diff is twelve Lean files — `Bridge/Inductives/{Rel,StructParts,
+NativeParts,SumInstall,NativeInstall,Modeled}.lean`, `Bridge/StateOK.lean`,
 `Bridge/Checker/{Inv,Pins,Basis}.lean`, `Bridge/Core/Memo.lean`,
-`Bridge/Frontend/Rel.lean` and this section.  **No Rust file, no generated
+`Bridge/Frontend/Rel.lean` — plus `scripts/gates.sh`,
+`scripts/overview-links-expected.txt`, OVERVIEW §12 (§R5.5's second finding)
+and this section.  **No Rust file, no generated
 model, no `Arena/`, no `Refine/`, no `Refine2/`, no `lakefile.toml`.**  The
 five files outside `Bridge/Inductives/**` are the two rulings the maintainer
 handed down (§R5.2 and §R5.3) and their transport sites; `Bridge/Core/Memo.lean`
 is one `refine ⟨…⟩` that gained a field.
 
 **The tier went from 83 open `sorry` to 74** — nine statements closed, the
-most of any round of this tier — and `lake build ConRonBridge` is **617 jobs,
-0 errors**.
+most of any round of this tier — and `lake build ConRonBridge` is **0
+errors**, which as of this round the gate itself checks (§R5.5).
 
 | module | open (r4 → r5) |
 |---|---:|
@@ -48981,11 +48983,12 @@ Six more, each at `[propext, Classical.choice, Quot.sound]`:
   **nothing else in the whole Bridge imported that module**, and there is no
   other way to reach the lift's spec.
 
-##### R5.5 THE TWO BLOCKERS THIS ROUND FOUND, both of them import walls
+##### R5.5 THE TWO FINDINGS — an import wall, and a hole in the GATE
 
 Round 4 found four statement defects by trying to prove things.  Round 5 found
-no false statement — it found two facts that exist in the repository and
-cannot be REACHED from here, which is the same kind of debt §R4.4 was.
+no false statement.  It found one fact that exists in the repository and
+cannot be REACHED from here — the same kind of debt §R4.4 was — and one thing
+rather worse: a step the gate was never running.
 
 **1. `reservedBasisNames_run` is not in this tier's closure, and that is three
 statements.**  `structPartsCore?` tests `reserved.contains T`, `reserved.contains C`
@@ -49009,20 +49012,33 @@ round did not do it because the file is another lane's and the move is not
 mechanical — `reservedBasisNames_run`'s proof may reach for things that are
 themselves above `StateOK.lean`.
 
-**2. `renameConstsFast_spec` still does not state `BMExt`, and that is
-`domsMatchRenamed_spec`.**  §R4.4's finding, at a FOURTH function.  Task
-#97-P3-ExprOps round 4 added `BMExt` to `LiftSpec`, `LowerSpec` and
-`Inst1LSpec` — which is what closed `structIdxAt_spec` above — but
-`renameConstsGo_spec` / `renameConstsFast_spec` (`Bridge/ExprOps/Owed.lean`)
-state `StateOK`, `Ext`, the two frame equations and `s'.memos.renameC = ∅`,
-and no `BMExt`.  `domsMatchRenamed_spec` is `PSpec` grade, `PStep` has a `bm`
-conjunct, so the statement cannot be proved from what the lift tier says.  The
-fact is TRUE — `renameConsts` rebuilds by interning and `BMExt.intern` is the
-step — it is simply not stated.  **OWNER: task #97-P3-0's tier.**  Its own
-round-4 note says the three it did cost "one `BMExt.refl _` or one
-`by grind only [BMExt.trans, BMExt.refl]` per verification condition and
-nothing else"; this is the fourth, and through `domsMatchRenamed` it is
-`checkProjIota_spec`.
+**2. THE GATE DOES NOT BUILD `ConRonBridge`.**  Found the way it deserved to
+be found: a green `scripts/gates.sh` run — all fourteen steps OK, the
+`lake-refine2` one included — followed immediately by a `lake build
+ConRonBridge` that FAILED, on a semantic conflict the textual merge of task
+#97-P3-Checker round 5 had not seen (its new `ienvOK_of_denote` passes
+`IProjTableOK` where §R5.3 had just weakened `denoteCI_name_of` to
+`IProjNamed`; the fix is one `.toNamed`).
+
+`proof/lakefile.toml`'s `defaultTargets` are `ConRon`, `ConRonSpike` and
+`ConRonArena`.  `ConRonBridge` is a fourth library root and is NOT among
+them — for the same reason `ConRonRefine2` is not, and with the same
+consequence task #97-P5-Mut recorded for Theorem 2: **step 13's `lake build`
+has never elaborated a single module of `proof/ConRon/Bridge/**`.**  That is
+why every P3 brief of this campaign has had to say "gates once, PLUS `lake
+build ConRonBridge`" — the instruction was carrying a hole in the gate.
+
+`c87b3ee6` had just fixed this for `ConRonRefine2`.  This round added the
+identical step one tier over — `run lake-bridge … lake build ConRonBridge`,
+step 15 — and OVERVIEW §12's list with it.  A green gate run now means
+Theorem 1's spec layer elaborates.
+
+**(The `BMExt` half of this item resolved while the round ran.)**  §R4.4's
+debt was still open at `renameConstsGo_spec` / `renameConstsFast_spec`
+(`Bridge/ExprOps/Owed.lean`) when this round began, which blocked
+`domsMatchRenamed_spec` and through it `checkProjIota_spec`.  Task
+#97-P3-ExprOps round 5 (`4b28bf9d`, "the 26 `BMExt` frames stated") states it,
+so that one is closed without anybody having to be told.
 
 ##### R5.6 What the next round should do
 
@@ -49037,8 +49053,12 @@ nothing else"; this is the fourth, and through `domsMatchRenamed` it is
    `arena` and `ctorResidualOk_spec` showed the `IFEnvOK` shape the member
    checks all want; `eqBasisStored_spec` is the one that needs something new
    (injectivity of `denoteCI` at a whole record, which nothing states).
-3. **Chase §R5.5's two walls** before starting either recogniser: three
-   statements and one tier's `sorry`-list item sit behind the first.
+3. **Chase §R5.5's wall** before starting either recogniser: three statements
+   and one tier's `sorry`-list item sit behind `reservedBasisNames_run`'s
+   position in the import graph.
+4. **`domsMatchRenamed_spec`** is reachable now that
+   `renameConstsFast_spec` states `BMExt` (§R5.5), and it is
+   `checkProjIota_spec`'s gate.
 
 #### Round 4 — the installs read back, FOUR more statement defects, and the three name lemmas moved down (2026-09-22, Opus under Fable)
 
