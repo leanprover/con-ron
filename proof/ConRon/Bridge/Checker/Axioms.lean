@@ -333,6 +333,39 @@ namespace ConRon.Bridge
 -- the check half of the install/check seam, on the same machinery
 #print axioms checkValueGroup_bridge
 
+-- **ROUND 7.**  `Bridge/Checker/Basis.lean`, behind the frontend round's
+-- scratch-agnostic intern family: the two interned blocks, the two
+-- recognisers and the block install.
+
+-- `Arena/Intern.lean`'s fresh-memo wrappers, and `toConstantVal` without a
+-- scratch flag (the tier's fifth `.projInfo` site)
+#print axioms internCI_fresh
+#print axioms internCV_fresh
+#print axioms toConstantVal_sstep
+
+-- the pinned blocks, interned
+#print axioms BasisKind.decls_run
+#print axioms BasisKind.declsA_run
+#print axioms BasisKind.decls_proj
+
+-- no pinned block declares a projection table, so the tier's standing
+-- `.projInfo` hypothesis is DISCHARGED at the basis route rather than carried
+#print axioms basis_declsA_no_proj
+#print axioms basis_decls_no_proj
+#print axioms basis_decls_name_not_num
+#print axioms canon_isTowerEntry
+#print axioms ci_ne_proj_of_denote
+#print axioms noTable_of_names
+#print axioms noTable_of_canon
+
+-- the two recognisers and the block install
+#print axioms denoteCIList_names
+#print axioms basisPinHitGo_run
+#print axioms basisPinHit_run
+#print axioms quotPinHit_run
+#print axioms installBasisDecls_bridge
+#print axioms checkBasisDecl_bridge
+
 /-! ## Group 2 — the three headline theorems
 
 Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`

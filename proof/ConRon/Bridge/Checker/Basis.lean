@@ -40,8 +40,11 @@ set_option autoImplicit false
 /-- con-leche: ConLeche/Kernel/Basis.lean:41-66 BasisKind.decls — the raw
 pinned block denotes con-leche's.
 
-`sorry`: `internCIList` over the frontend tier's intern exactness.  Task
-#97-P3-Checker's sorry list, item 15. -/
+**PROVED** (task #97-P3-Checker round 7): `Frontend.internCIList_sstep` at a
+fresh memo.  One line of import and three of proof — the frontend round's
+`IStepS` family is stated without a scratch flag and without the `Pers…`
+conjuncts, which is exactly what a caller inside the per-declaration bracket
+can use and all this statement asks for. -/
 theorem BasisKind.decls_run {k : BasisKind} {r : List IConstantInfo}
     {s s' : AState} (hok : StateOK s) (hrun : BasisKind.decls k s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
@@ -61,8 +64,7 @@ theorem BasisKind.decls_run {k : BasisKind} {r : List IConstantInfo}
 ANNOTATED pinned block denotes con-leche's.  This is the one the install
 puts in the environment.
 
-`sorry`: as `BasisKind.decls_run`.  Task #97-P3-Checker's sorry list,
-item 15. -/
+**PROVED** (task #97-P3-Checker round 7): as `BasisKind.decls_run`. -/
 theorem BasisKind.declsA_run {k : BasisKind} {r : List IConstantInfo}
     {s s' : AState} (hok : StateOK s)
     (hrun : BasisKind.declsA k s = .ok (r, s')) :
@@ -674,9 +676,11 @@ theorem installBasisDecls_bridge :
 one body.  `Pushed` here is the block's length, which is the one place outside
 the inductive route where a step installs more than one constant.
 
-`sorry`: `BasisKind.declsA_run` and a list induction over
-`installBasisDecl_bridge`, plus the `.quotK` precondition (`fe.find? eqName =
-some eqA`) through `IFEnvOK`.  Task #97-P3-Checker's sorry list, item 15. -/
+**PROVED** (task #97-P3-Checker round 7): `BasisKind.declsA_run`, then
+`installBasisDecls_bridge`, with the `.quotK` precondition (`fe.find? eqName =
+some eqA`) read through `IFEnvOK.hit` at the freshly interned `ConLeche.eqA`
+— `internCI_fresh` plus `pinAt_run`, and `denoteN`/`denoteCI` being functions
+is what identifies the two sides. -/
 theorem checkBasisDecl_bridge {μ : CheckMode} {F : Nat} {env : Env}
     {fe fe' : IFEnv} {kind : BasisKind} {s s' : AState}
     (hok : FoldOK μ env fe s)
