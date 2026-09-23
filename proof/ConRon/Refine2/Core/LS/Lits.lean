@@ -344,6 +344,8 @@ attribute [local lockstep_simp] absString_toList List.drop_zero
 
 /-! ## The `String` literal guards -/
 
+private theorem usize_zero_val_lits : (0#usize : Std.Usize).val = 0 := rfl
+
 set_option hygiene false in
 /-- Glue for `listTyOk`/`listNilTyOk`/`listConsTyOk`: the twin matches
 `cv.levelParams` against `[p]`, the port tests the length and reads slot 0.
@@ -358,8 +360,9 @@ local macro "level_params_single" : tactic => `(tactic| (
       Nat.reduceEqDiff, Bool.false_eq_true, not_true_eq_false, not_false_eq_true] at hc <;>
     first
     | (obtain ⟨x, l1, hlx, hx, -⟩ := List.map_eq_cons_iff.mp hm
-       simp only [hlx, List.getElem_cons_zero] at *
+       simp only [hlx, usize_zero_val_lits, List.getElem_cons_zero] at *
        subst hx
+       try simp only [bind_pure]
        lockstep)
     | lockstep))
 
