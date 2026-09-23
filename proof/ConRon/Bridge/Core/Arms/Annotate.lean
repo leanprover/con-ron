@@ -389,6 +389,15 @@ theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
              annot_strLit hsup.symm⟩)
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1103-1107 ensureSort — at the pure
+knot, `ensureSort` answers the level of a `whnf` that reached a sort. -/
+theorem ensureSortCore_of_whnf {F d : Nat} {t : Expr} {u : Level}
+    (h : ConLeche.whnf mode env F d t = .ok (.sort u)) :
+    ConLeche.ensureSortCore mode env F d t = .ok u := by
+  rw [← ConLeche.ensureSort_def]
+  simp only [ConLeche.ensureSort, ConLeche.whnf_def, h, bind, Except.bind,
+    pure, Except.pure]
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1852-1881 annotateBody — **the `.letE`
 clause** (con-leche's task #217): `KnotSpec.annotate`, `ensureSort`,
 `KnotSpec.infer`, `KnotSpec.defeq'`, `instantiate1Fast`; pure side
@@ -405,7 +414,129 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case letE ty w b =>
+    obtain ⟨et, ew, eb, rfl, hdt, hdw, hdb⟩ := denote_letE_inv hwf hv hden
+    have hwt : Expr.WScoped d et := by unfold Expr.WScoped at hw; exact hw.1
+    have hww : Expr.WScoped d ew := by unfold Expr.WScoped at hw; exact hw.2.1
+    have hwb : Expr.WScoped d eb := by unfold Expr.WScoped at hw; exact hw.2.2
+    have h1 := hsim.annotate s₀ d ty et hok hdt hwt
+    have hi := hsim.infer'
+    have hn := hsim.whnf'
+    have h4 := fun (s : AState) (hck : CheckOK mode env fe s)
+        (hd : denoteE s.store w = some ew) => hsim.annotate s d w ew hck hd hww
+    have hdq := hsim.defeq'
+    have hin := fun (s : AState) (hs : StateOK s)
+        (hvs : (denoteE s.store w).isSome = true)
+        (hbs : (denoteE s.store b).isSome = true) =>
+      instantiate1Fast_specE coreWalkFuel s b w 0 hs hvs hbs
+    have h7 := hsim.annotate'
+    mvcgen [ConRon.Arena.ensureSort, h1, hi, hn, h4, hdq, hin, h7]
+    all_goals (bridge_peel; subst_vars)
+    case vc2.hdw => exact ⟨et, hdt, hwt⟩
+    case vc4.hdw =>
+      rename_i s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 hse
+      exact SimE.exists_denote (hse et hdt)
+    case vc6.hdw =>
+      rename_i s2 r1 s1 r0 s0 ck_s1 ck_s0 x_s2_s1 x_s1_s0 p_s1_s2 hse p_s0_s1 hse_2
+      obtain ⟨v1, hv1, _⟩ := hse et hdt
+      exact SimE.exists_denote (hse_2 v1 hv1)
+    case vc8.hdw =>
+      rename_i s3 r2 s2 r1 s1 r0 u0 s0 ck_s2 ck_s1 x_s3_s2 x_s2_s1 p_s2_s3 hse
+        p_s1_s2 hse_2 ck_s0 v_r0_s0 x_s1_s0 p_s0_s1 hse_3
+      exact ⟨ew, denote_ext hdw (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)), hww⟩
+    case vc10.hdw =>
+      rename_i s4 r3 s3 r2 s2 r1 u0 s1 r0 s0 ck_s3 ck_s2 ck_s0 x_s4_s3 x_s3_s2
+        x_s1_s0 p_s3_s4 hse p_s2_s3 hse_2 p_s0_s1 hse_3 ck_s1 v_r1_s1 x_s2_s1
+        p_s1_s2 hse_4
+      exact SimE.exists_denote
+        (hse_3 ew (denote_ext hdw (x_s4_s3.trans (x_s3_s2.trans x_s2_s1))))
+    case vc12.hda =>
+      rename_i s5 r4 s4 r3 s3 r2 u0 s2 r1 s1 r0 s0 ck_s4 ck_s3 ck_s1 ck_s0 x_s5_s4
+        x_s4_s3 x_s2_s1 x_s1_s0 p_s4_s5 hse p_s3_s4 hse_2 p_s1_s2 hse_3 p_s0_s1
+        hse_4 ck_s2 v_r2_s2 x_s3_s2 p_s2_s3 hse_5
+      obtain ⟨v4, hv4, _⟩ := hse_3 ew (denote_ext hdw
+        (x_s5_s4.trans (x_s4_s3.trans x_s3_s2)))
+      exact SimE.exists_denote (hse_4 v4 hv4)
+    case vc13.hdb =>
+      rename_i s5 r4 s4 r3 s3 r2 u0 s2 r1 s1 r0 s0 ck_s4 ck_s3 ck_s1 ck_s0 x_s5_s4
+        x_s4_s3 x_s2_s1 x_s1_s0 p_s4_s5 hse p_s3_s4 hse_2 p_s1_s2 hse_3 p_s0_s1
+        hse_4 ck_s2 v_r2_s2 x_s3_s2 p_s2_s3 hse_5
+      obtain ⟨v1, hv1, hw1, _⟩ := hse et hdt
+      exact ⟨v1, denote_ext hv1
+        (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))), hw1⟩
+    case vc16.hvs =>
+      rename_i s6 r5 s5 r4 s4 r3 u0 s3 r2 s2 r1 s1 _ hneg0 s0 ck_s5 ck_s4 ck_s2 ck_s1
+        ck_s0 x_s6_s5 x_s5_s4 x_s3_s2 x_s2_s1 x_s1_s0 p_s5_s6 hse p_s4_s5 hse_2
+        p_s2_s3 hse_3 p_s1_s2 hse_4 p_s0_s1 hsv ck_s3 v_r3_s3 x_s4_s3 p_s3_s4 hse_5
+      rw [denote_ext hdw (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+        (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))]; rfl
+    case vc17.hbs =>
+      rename_i s6 r5 s5 r4 s4 r3 u0 s3 r2 s2 r1 s1 _ hneg0 s0 ck_s5 ck_s4 ck_s2 ck_s1
+        ck_s0 x_s6_s5 x_s5_s4 x_s3_s2 x_s2_s1 x_s1_s0 p_s5_s6 hse p_s4_s5 hse_2
+        p_s2_s3 hse_3 p_s1_s2 hse_4 p_s0_s1 hsv ck_s3 v_r3_s3 x_s4_s3 p_s3_s4 hse_5
+      rw [denote_ext hdb (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+        (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))]; rfl
+    case vc18.post.success.post.success.post.success.post.success.h_1.post.success.post.success.post.success.isFalse.post.success.post.success =>
+      rename_i s8 r7 s7 r6 s6 r5 u0 s5 r4 s4 r3 s3 bq hneg0 s2 r1 s1 r0 s0 ck_s7
+        ck_s6 ck_s4 ck_s3 ck_s2 sok x_s8_s7 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2
+        x_s2_s1 p_s7_s8 hse p_s6_s7 hse_2 p_s4_s5 hse_3 p_s3_s4 hse_4 p_s2_s3 hsv
+        c_s1_s2 p_s1_s2 _ hia ck_s5 v_r5_s5 x_s6_s5 p_s5_s6 hse_5
+      intro ck_s0 x_s1_s0 p_s0_s1 hfin
+      have x82 := x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans
+        (x_s4_s3.trans x_s3_s2))))
+      obtain ⟨v1, hv1, _, F1, hF1⟩ := hse et hdt
+      obtain ⟨v2, hv2, _, F2, hF2⟩ := hse_2 v1 hv1
+      obtain ⟨v3, hv3, _, F3, hF3⟩ := hse_5 v2 hv2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv ck_s5.state.wf v_r5_s5 hv3
+      obtain ⟨v4, hv4, _, F4, hF4⟩ := hse_3 ew
+        (denote_ext hdw (x_s8_s7.trans (x_s7_s6.trans x_s6_s5)))
+      obtain ⟨v5, hv5, _, F5, hF5⟩ := hse_4 v4 hv4
+      obtain ⟨F6, hF6⟩ := hsv v5 v1 hv5 (denote_ext hv1
+        (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans x_s4_s3))))
+      have hbq : bq = true := by simpa using hneg0
+      subst hbq
+      have hbz := hia ew (denote_ext hdw x82) eb (denote_ext hdb x82)
+      obtain ⟨v7, hv7, hwv7, F7, hF7⟩ := hfin _ hbz
+      refine ⟨ck_s0, x82.trans (x_s2_s1.trans x_s1_s0),
+        p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
+          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans p_s7_s8)))))),
+        v7, hv7, hwv7,
+        max F1 (max F2 (max F3 (max F4 (max F5 (max F6 F7))))) + 1, ?_⟩
+      exact annot_letE
+        (ConLeche.annotateCore_mono (by omega) hF1)
+        (ConLeche.inferTypeCore_mono (by omega) hF2)
+        (ensureSortCore_of_whnf (ConLeche.whnf_mono (by omega) hF3))
+        (ConLeche.annotateCore_mono (by omega) hF4)
+        (ConLeche.inferTypeCore_mono (by omega) hF5)
+        (ConLeche.isDefEqCore_mono (by omega) hF6)
+        (ConLeche.annotateCore_mono (by omega) hF7)
+    case vc19 =>
+      rename_i s6 r6 s5 r5 s4 r4 u0 s3 r3 s2 r2 s1 _ hneg0 s0 r0 ck_s5 ck_s4 ck_s2
+        ck_s1 ck_s0 x_s6_s5 x_s5_s4 x_s3_s2 x_s2_s1 x_s1_s0 p_s5_s6 hse p_s4_s5
+        hse_2 p_s2_s3 hse_3 p_s1_s2 hse_4 p_s0_s1 hsv ck_s3 v_r4_s3 x_s4_s3
+        p_s3_s4 hse_5
+      intro s hs hx hc hp _ _
+      exact ck_s0.mono hs hx hc hp
+    case vc20 =>
+      rename_i s6 r6 s5 r5 s4 r4 u0 s3 r3 s2 r2 s1 _ hneg0 s0 r0 ck_s5 ck_s4 ck_s2
+        ck_s1 ck_s0 x_s6_s5 x_s5_s4 x_s3_s2 x_s2_s1 x_s1_s0 p_s5_s6 hse p_s4_s5
+        hse_2 p_s2_s3 hse_3 p_s1_s2 hse_4 p_s0_s1 hsv ck_s3 v_r4_s3 x_s4_s3
+        p_s3_s4 hse_5
+      intro s hs hx hc hp _ hia
+      have x60 := x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
+        (x_s2_s1.trans x_s1_s0))))
+      exact ⟨_, hia ew (denote_ext hdw x60) eb (denote_ext hdb x60),
+        Expr.WScoped.instantiate1_gen hww 0 hwb⟩
+    all_goals first
+      | assumption
+      | exact fun h => h.elim
+      | (apply CheckOK.state; assumption)
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1882-1900 annotateBody — **the `.proj`
 clause**: `KnotSpec.annotate`, `KnotSpec.inferIO'`, `KnotSpec.whnf'`,
