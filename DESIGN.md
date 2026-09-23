@@ -54010,6 +54010,167 @@ nothing about this lane.
    take their argument.  That is finding 19's VALUE half, and unlike the state
    half it fits in the existing `α → Prop` slot.
 
+#### Round 2 — finding 19 paid locally, and the walks closed (2026-09-23, Opus under Fable)
+
+Branch `p5-mut-2` off `arena` `7f4b4a86`; three forks of this agent worked in
+parallel worktrees (`-tele`, `-bvb`, `-lp`) and were merged back into it;
+`arena` merged three times — `b57cc1c6` (the P5-Usize Rust change; the shared
+Lake cache restored `Core/Eqns.lean`, nothing re-derived), `fe77a367`
+(P5-Unfreeze, §5) and `61313dfd`+ (checker/frontend rounds; no conflict).  **`Refine2/ExprOps/Mut.lean`
+41 → 0**; `Specs.lean` stays at 0.
+
+##### 1. Items 1–2 of round 1's list: `hcap` and `hchild` at the binder arms are CONCLUSIONS
+
+Twin round 2 §4's route, and it did NOT need the Arena-side lemma it priced.
+
+* `estore_intern_{lam,forall_e}_i_abs` conclude `EBindCapAt ls tag ty b mi` in
+  the `Ok` arm — the port's `Tbl::full` on the binder array; four arms each:
+  `of_find_ne` on the two probe hits, `of_{scr,pers}_size` via
+  `tbl_not_full_size` on the two appends.
+* `estore_intern_{lam,forall_e}_abs` take `hwf : StoreWF ls` (which every
+  caller has as `hrel.storeWF`) and conclude `ECapAt ls (.lam …)` and the two
+  flags.  The conversion is `ECapAt_bind_of`: when the datum probe HIT, the
+  two guards are the same probe (`findAt_lam_eq_findBindI`); when it MISSED,
+  the appended handle decodes nowhere (`viewBM_internBM_fresh` —
+  `ETables.getBM_eq_none_of_size` at `pushBM_idxNat`, both already in
+  `Arena/`), and `bmKeyP`/`bmKeyS` against `bmConsP`/`viewBM_of_findBM` say no
+  cons key names such a handle (`findBindI_none_of_viewBM_none`).  **No
+  `Arena/` edit, so no `ConRonBridge` cascade.**
+* `hchild` is derived inside, at the shifted store:
+  `persFind_bind_none_of_child` (a scratch child: `persFind?_none_of_echild`;
+  a scratch datum: a persistent binder names a persistent datum,
+  `EWFAt'.persFindBM_of_view_pers`, and `findBM` answers it first).
+* Deleted hypotheses: `hchild`+`hcap` from `intern_e_{lam,forall_e}_run`,
+  `hcap` from `intern_e_{lam,forall_e}_i_run`, `hcapL`/`hcapF` from
+  `intern_e_bind_i_run`, `hchildL`/`hchildF`/`hcapB` from `intern_e_run`, and
+  the same from the five `intern_rebuilt_{refines, lam, forall_e, bind,
+  bind_i}_refines` in `Mut.lean`.  ≈ 190 lines in `Specs.lean`.
+
+##### 2. Item 3, finding 19: the scaffolding, and the MEMO clause kept LOCAL
+
+`WOutE` is now `WOutE Q` over a run RESULT (`WOutR`), with a side invariant
+`Q` of the post-state; `QStable Q` = "survives a step that grows the store and
+leaves the memos alone".  `EViewExt` carries `view`, `viewBM` (a binder arm
+puts back a datum HANDLE read before its recursive calls) and `ns.view`
+(the `proj`/`const` name children).  The intern steps at `WOutE`
+(`intern_e_{app,bvar,fvar,const,let_e,proj,lam,forall_e,bind_i}_res`, and the
+six `intern_rebuilt_*_res`) all go through one tail, `wout_intern_tail`.
+
+**The memo clause.**  The brief asked for the exact `MemosRel` clause before
+changing it.  It was NOT changed: the walks carry
+
+    MemoRes sel lst := ∀ k r, (sel lst.memos)[k]? = some r → EResolves lst r
+
+as a HYPOTHESIS of each `_go` statement and re-establish it in their
+conclusion (`WOutE (MemoRes sel)`); every `_fast` entry clears the memo first,
+so its public statement needs nothing (`MemoRes.of_empty`).  That makes the
+nine memoised walks true as corrected without touching `MemosRel`.  **The
+tier-wide alternative**, if the coordinator wants it, is a clause on
+`AStateRel` (not `MemosRel`, which does not see the store):
+
+    memoRes : ∀ sel ∈ [inst1C, instLC, liftC, resetC, renameC, abs1C, lowerC,
+      inst1LC, instLPC], MemoRes sel ls
+
+paid at every producer: intern wrappers (store grows: `EViewExt.res`), the
+nine `*_set` (the value resolves — needs the walk's own `EResolves`, i.e.
+this file's `WOutE`), the clears (vacuous), and — the expensive part — every
+scratch DROP (`Core/Bracket.lean`), where a scratch handle cached in a memo
+stops resolving, so the drop would have to clear the nine memos (the port does
+not) or the clause would need the persistent-only restriction.  Local is
+cheaper and loses nothing at the `_fast` boundary every caller uses.
+
+##### 3. What closed, and what each cost
+
+| walk (proof body, lines) | lines | public statements closed |
+|---|---:|---|
+| `instantiate1_go_aux` | 510 | `instantiate1_{go,fast}` |
+| `instantiate_list_aux` / `_go_aux` | 426 / 467 | `instantiate_list{,_go,_fast}` |
+| `lift_loose_bvars_go_aux` | 494 | `lift_loose_bvars_{go,fast}` |
+| `reset_meta_go_aux` | 604 | `reset_meta_{go,fast}` |
+| `rename_consts_go_aux` | 546 | `rename_consts_{go,fast}` |
+| `abstract_range_aux` (the SPEC descent) | 302 | `abstract_range` |
+| `abstract1_go_aux` / `abstract_range_go_aux` (fork `-bvb`) | 537 / 561 | `abstract1_{go,fast}`, `abstract_range_{go,fast}` |
+| `lower_bvars_go_aux` / `instantiate1_lift_go_aux` (fork `-bvb`) | 498 / 505 | `lower_bvars_{go,fast}`, `instantiate1_lift_{go,fast}` |
+| `inst_lp_go_aux` (fork `-lp`) | 665 | `inst_lp_{go,fast}`, `subst_l{,s}_memo_at` |
+| the telescopes (fork `-tele`): `inst_pis_from` 74, `inst_{pis,lams}_at_from` 99 each, `inst_{pis,lams}_at_f_go` 118 each, `inst_spine_from` 58, `inst_pis_at_lift_from` 115 | 681 | the fourteen `inst_pis*`/`inst_lams_at*`/`inst_spine*`/`inst_pis_at_lift*` |
+| `pis_to_lams_aux` / `replace_pi_body_aux` | 108 / 112 | `pis_to_lams`, `replace_pi_body` |
+| `rec_rule_plain_refines` (+ `stripPis_res` 50, `bvarRange_length` 30) | 141 | `rec_rule_plain` |
+
+**Round 1's price** was 600–800 lines per memoised fuel walk and ≈ 90 for a
+non-fuel one; measured it is **300–665** per fuel walk (the ten-arm
+view-dispatched ones at the top) and **60–140** per telescope.  The per-arm
+text is one recipe repeated — memo probe, projection, recurse, `WOutE.bind`,
+intern `_res`, memo write — and three forks produced the last twenty-two
+statements from the first walks' text in parallel.  The shared machinery
+(`WOutE`/`WOutR`/`WOutX`/`WOutO`, the intern `_res` family, the generic memo
+steps, the frame lemmas, the level-side readback/substitution/intern steps)
+is ≈ 4 000 lines.  `Mut.lean` is **14 658 lines** (from 2 791); 45 new
+`#print axioms` rows, all `[propext, Classical.choice, Quot.sound]`.
+
+**Statement corrections.**  Every closed statement gained only hypotheses, and
+only these kinds: `hfrozen`; `EResolves` of the handles walked or substituted
+in (arguments, accumulator entries — cursor forms only from the cursor on);
+`MemoRes` for the eight `_go` walks; `RenameRes` (the renaming dictionary maps
+to LIVE names — without it the `const` arm interns over a dangling name and
+`StoreWF` fails) for `rename_consts_*`; for `instLP*`: the substitution's names and levels well formed (`Level.subst`'s refinement needs them) and `LPInv` (the `instLPC` memo clause plus "the `instLPLC`/`instLPLsC` values resolve in `ls`/`lss`"); `inst_lp_fast` discharges both from its readbacks and its clear.  None was found false as
+corrected; the uncorrected ones were all false for the finding-19 reasons
+(dangling answer, dangling memo value, dangling input the twin `view`s where
+the port tests a tag).
+
+##### 4. Findings and tactics worth keeping
+
+* **A walk that re-interns unconditionally against a twin that cuts off**
+  (`renameConstsGo`'s `internRebuilt*`, the port's plain `intern_e_*`) agree
+  because the cons tables answer exactly the handle a view came from:
+  `find?_of_view` (`consP`/`consS`/`fresh`), `wout_same_of_intern`.
+* **The Rust duplicates `instantiate1_go`'s tag chain** under `b < satRange`;
+  `ite_ite_same` merges `if p then (if q then x else y) else y` at `hrun`
+  (the two copies elaborate to the same matchers, so `rw` matches).
+* **A view's binder datum is well formed** (`view_bind_wf`): `bms`' `TblInv`
+  through `view`, and the non-binder branch is excluded on the TWIN side
+  (`ETables.bmOf_get`) instead of walking the port's ten-way `ETables.get`.
+* **bvarB/fvarB cutoff walks** need both frames: the port's store is unchanged
+  by `bvar_b`/`fvar_b` (`bvar_bound_go_store`, fuel induction), and the
+  twin's run changes only `bvarBC`/`fvarBC` (`Frames P x` with bind/pure/
+  reader lemmas; `bvarB_frames`, `fvarB_frames`); `instantiate1_lift_go`'s
+  inner `liftLooseBVarsFast` carries `inst1LC` across via
+  `liftLooseBVarsFast_frames`.
+* `obtain ⟨rfl, …⟩` / `subst` REORDERS the context, so a later `hrun` can
+  resolve to an older hypothesis — use an equation and `rw … at hp` instead.
+  Inside anonymous-constructor tuples write `(by intro x hx; cases hx)`:
+  `cases hx, e` parses as two targets.
+* Name clash: `eidx_eq2_abs` already existed in `Inductives/Shape.lean`
+  (renamed here to `eidx_eq2_beq`) — only a whole-tier build catches it.
+
+##### 5. The `hfrozen` retirement (P5-Usize §3) — done
+
+`p5-unfreeze` landed on `arena` mid-round (`fe77a367`); merging it conflicted
+in `Specs.lean` (the binder `_abs` lemmas this round edited) and `Mut.lean`
+(its 17 call sites), resolved as this branch's statements minus the argument.
+Then **every** frozen-tier hypothesis in `Mut.lean` went — the 17 routed
+binders AND the ≈ 240 this round's walks carried (`hfrozen`, the `hfroz*`
+step lemmas, the `-lp` fork's `NFrz` nested-flag clause and its `WOutN`
+conjunct): **0** binders of the shape `… shared_on = true → … scratch_on =
+true` remain.  `WOutE`'s two flag conjuncts stay as true frame facts.
+
+The `-lp` fork also added `rs'.lss = rs.lss` to the flag conjunct of the nine
+`estore_intern_*_abs` (a strengthening; it carried the nested flags across an
+expression intern) — still in, harmless, now unused by `NFrz`.
+
+##### 6. Gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` (`LAKE_JOBS=4`) | **all 16 OK** after the last `arena` merge — `provenance` 6 743 items / 4 202 citations current at pin 78ded4b6, `twin-lines` 1 988 citations, `extract-check` ≈ 90 s OK (no Rust diff in this round), `lake-build` 2 212 jobs, `lake-refine2` 2 238 jobs, `lake-bridge` 619 jobs (≈ 450 s; the merge moved `Specs.lean`), `lake-capstone` 2 726 jobs |
+| `sorry` | `Refine2/ExprOps/Mut.lean` **41 → 0**, `Refine2/Specs.lean` **0 → 0**; `git diff 7f4b4a86 -- '*.lean'` removes 41 `sorry` lines in `Mut.lean` and adds none anywhere |
+| axioms | 45 new `#print axioms` rows under `#guard_msgs`, every one `[propext, Classical.choice, Quot.sound]` |
+| elaboration | `ConRon.Refine2.ExprOps.Mut` rebuilds in ≈ 15 s (`LEAN_NUM_THREADS=1`) at 14 658 lines |
+
+**Out of lane, and why**: `Refine2/Specs.lean` (§1's `_abs` edits, the brief's
+allowance; the `-lp` fork's `lss` frame conjunct; the P5-Unfreeze conflict
+resolution).  No `Arena/` file was touched — the one Arena lemma the brief
+allowed was not needed.
+
 ### Task #97-P3-Layout — the two import-graph moves the campaign had been queuing (2026-09-23, Opus under Fable)
 
 Branch `p3-layout` off `arena` `8c92c196`.  A **layout** round: two structural
