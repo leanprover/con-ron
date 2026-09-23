@@ -345,6 +345,7 @@ theorem peelNeverPis_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
     obtain ⟨x₀, hx₀⟩ := hpre
     mvcgen [ConRon.Arena.peelNeverPis, ih]
     all_goals (bridge_peel; subst_vars)
+    all_goals clear_tag_hyps
     case vc2 => intro s hs _; subst hs; exact hok
     case vc3 =>
       intro s hs hview; subst hs
@@ -396,12 +397,14 @@ theorem numArgs_spec' (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
     intro s₀ h _ _
     mvcgen [ConRon.Arena.numArgs]
     all_goals (bridge_peel; subst_vars)
+    all_goals clear_tag_hyps
     intro hf; exact hf.elim
   | succ fuel ih =>
     intro s₀ h hok hpre
     obtain ⟨x₀, hx₀⟩ := hpre
     mvcgen [ConRon.Arena.numArgs, ih]
     all_goals (bridge_peel; subst_vars)
+    all_goals clear_tag_hyps
     case vc1.a => exact hok
     case vc2.a =>
       rename_i f a s0 hview
@@ -429,6 +432,7 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
         pw = ConLeche.residualPW ox⌝⦄ := by
   mvcgen [ConRon.Arena.residualPW]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   case vc1 =>
     rename_i h u l s0 hl hview
     refine ⟨rfl, fun ox hox => ?_⟩
@@ -487,6 +491,7 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
   have htcv := toConstantVal_nt_spec
   mvcgen [ConRon.Arena.headTypePW, hpeel, hres, htcv]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   -- the callees' preconditions
   case vc2.ht => rename_i I us ci hfd htow s0 hview; simpa using htow
   case vc3 => intro hf; exact hf.elim
@@ -630,6 +635,7 @@ theorem typeSortPW_spec' (fuel : Nat) (s₀ : AState) (T : EIdx)
     headTypePW_spec' (mode := mode) (env := env) (fe := fe) s e n
   mvcgen [ConRon.Arena.typeSortPW, hfn, hna, hht]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   case vc3.a => exact hok.state
   case vc4.a => rw [hx₀]; rfl
   case vc5.a => exact hok
@@ -684,6 +690,7 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
   have htcv := toConstantVal_nt_spec
   mvcgen [ConRon.Arena.headProofPW, hts, htcv]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   -- the callees' preconditions
   case vc2.ht => rename_i c us ci hfd htow s0 hview; simpa using htow
   case vc3 => intro hf; exact hf.elim
@@ -848,6 +855,7 @@ theorem proofPW_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     headProofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s e
   mvcgen [ConRon.Arena.proofPW, hfn, hhp]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   case vc2.a => exact hok.state
   case vc3.a => rw [hx₀]; rfl
   case vc5 => intro s hs _; subst hs; exact hok
@@ -899,6 +907,7 @@ theorem notProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     hok hpre
   mvcgen [ConRon.Arena.notProofFast, hb]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   all_goals
     (rename_i hr
      refine ⟨‹_›, ‹_›, ‹_›, fun x hx => ?_⟩
@@ -930,6 +939,7 @@ theorem isProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     hok hpre
   mvcgen [ConRon.Arena.isProofFast, hb]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   all_goals
     (rename_i hr
      refine ⟨‹_›, ‹_›, ‹_›, fun x hx => ?_⟩
@@ -1023,6 +1033,7 @@ theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hn := hsim.whnf'
   mvcgen [ConRon.Arena.annotPwPi, ConRon.Arena.ensureSort, hts, hi, hn]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   -- the reader answers
   case vc2 =>
     rename_i s1 pw s0 hck hst hp hts'
@@ -1079,6 +1090,7 @@ theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hn := hsim.whnf'
   mvcgen [ConRon.Arena.annotPwLam, ConRon.Arena.ensureSort, hpp, hi, hn]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   -- the reader answers
   case vc2 =>
     rename_i s1 pw s0 hck hst hp hpp'
@@ -1257,6 +1269,7 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   mvcgen [ConRon.Arena.propIrrel, ConRon.Arena.zeroLevel,
     ConRon.Arena.liftFueled, hnp, hip, hi, hn, lvlEq?_spec]
   all_goals (bridge_peel; subst_vars)
+  all_goals clear_tag_hyps
   -- the callees' `CheckOK` and pin preconditions
   case vc1.hok | vc3.hok | vc6.hok | vc8.hok | vc11.hok | vc13.hok | vc15.hok
     | vc21.hok | vc22.hok | vc24.hok | vc26.hok | vc31.hok => assumption
@@ -1460,7 +1473,53 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.inferTypeIO_mono (by omega) hF5)
       (ConLeche.whnf_mono (by omega) hF6) hns⟩
   -- the first side's type's type is not a sort
-  case vc48 =>
+  -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
+  -- the `sort` TAG; its view comes back from its denotation)
+  case vc35 =>
+    rename_i s11 r10 s10 r9 hg1 s9 r8 s8 r7 hg0 s7 r6 s6 r5 s5 r4 u0 r3 s4 s3
+      a0 r2 s2 r1 s1 r0 htag s0 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5
+      hck_s3 hck_s2 hck_s1 hck_s0 hst_s10_s11 hst_s9_s10 hst_s8_s9 hst_s7_s8
+      hx_s7_s6 hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hx_s1_s0 hp_s10_s11 hnp_a
+      hp_s9_s10 hnp_b hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6
+      hio_r6 hp_s3_s4 hp_s2_s3 hio_b hp_s1_s2 hio_r2 hp_s0_s1 hwh_r1 hz_r3
+      hck_s4 hvs_r4 hx_s5_s4 hp_s4_s5 hwh_r5 heq_u0
+    have hx117 : Ext s11.store s7.store :=
+      (((ext_of_store_eq hst_s10_s11).trans (ext_of_store_eq hst_s9_s10)).trans
+        (ext_of_store_eq hst_s8_s9)).trans (ext_of_store_eq hst_s7_s8)
+    have hx73 : Ext s7.store s3.store :=
+      ((hx_s7_s6.trans hx_s6_s5).trans hx_s5_s4).trans
+        (ext_of_store_eq hst_s3_s4)
+    have hx30 : Ext s3.store s0.store :=
+      (hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0
+    refine ⟨hck_s0, (hx117.trans hx73).trans hx30,
+      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
+        (hp_s4_s5.trans (hp_s5_s6.trans (hp_s6_s7.trans (hp_s7_s8.trans
+        (hp_s8_s9.trans (hp_s9_s10.trans hp_s10_s11))))))))), ?_⟩
+    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx117)
+    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r6 ta hta
+    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r5 tta htta
+    obtain ⟨uT, rfl, huT⟩ := denote_sort_inv hck_s4.state.wf hvs_r4 hw
+    obtain ⟨lu, lv, hlu, hlv, hA⟩ := heq_u0
+    rw [huT] at hlu; rw [hz_r3] at hlv
+    cases hlu; cases hlv
+    obtain ⟨tb, htb, _, F4, hF4⟩ := hio_b y (denote_ext hdb (hx117.trans hx73))
+    obtain ⟨ttb, httb, _, F5, hF5⟩ := hio_r2 tb htb
+    obtain ⟨w2, hw2, _, F6, hF6⟩ := hwh_r1 ttb httb
+    obtain ⟨vv, hvv⟩ := denoteE_view hw2
+    have hns := denote_not_sort hck_s0.state.wf hvv hw2 (fun u hh => view_tagOf_ne hvv (t := ETag.sort) htag (by rw [hh]; rfl))
+    rw [hnp_a x hda, hnp_b y (by rw [hst_s10_s11]; exact hdb)] at hg1
+    rw [hip_a x (by rw [hst_s9_s10, hst_s10_s11]; exact hda),
+      hip_b y (by rw [hst_s8_s9, hst_s9_s10, hst_s10_s11]; exact hdb)] at hg0
+    exact ⟨F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow_b (by simpa using hg1)
+      (by simpa using hg0)
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.inferTypeIO_mono (by omega) hF2)
+      (ConLeche.whnf_mono (by omega) hF3) hA.symm
+      (ConLeche.inferTypeIO_mono (by omega) hF4)
+      (ConLeche.inferTypeIO_mono (by omega) hF5)
+      (ConLeche.whnf_mono (by omega) hF6) hns⟩
+  -- the first side's type's type is not a sort
+  case vc50 =>
     rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 x1 hnv0 s0
       hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5
       hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a
@@ -1476,6 +1535,33 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r2 ta hta
     obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r1 tta htta
     have hns := denote_not_sort hck_s0.state.wf hv_r0 hw hnv0
+    rw [hnp_a x hda, hnp_b y (by rw [hst_s6_s7]; exact hdb)] at hg1
+    rw [hip_a x (by rw [hst_s5_s6, hst_s6_s7]; exact hda),
+      hip_b y (by rw [hst_s4_s5, hst_s5_s6, hst_s6_s7]; exact hdb)] at hg0
+    exact ⟨F1 + F2 + F3, propIrrel_slow_a (by simpa using hg1)
+      (by simpa using hg0)
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.inferTypeIO_mono (by omega) hF2)
+      (ConLeche.whnf_mono (by omega) hF3) hns⟩
+  -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
+  -- the `sort` TAG; its view comes back from its denotation)
+  case vc51 =>
+    rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 htag s0
+      hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hck_s0 hst_s6_s7 hst_s5_s6
+      hst_s4_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hx_s1_s0 hp_s6_s7 hnp_a hp_s5_s6
+      hnp_b hp_s4_s5 hip_a hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2 hio_r2
+      hp_s0_s1 hwh_r1
+    have hx73 : Ext s7.store s3.store :=
+      (((ext_of_store_eq hst_s6_s7).trans (ext_of_store_eq hst_s5_s6)).trans
+        (ext_of_store_eq hst_s4_s5)).trans (ext_of_store_eq hst_s3_s4)
+    refine ⟨hck_s0, hx73.trans ((hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0),
+      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
+        (hp_s4_s5.trans (hp_s5_s6.trans hp_s6_s7))))), ?_⟩
+    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx73)
+    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r2 ta hta
+    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r1 tta htta
+    obtain ⟨vv, hvv⟩ := denoteE_view hw
+    have hns := denote_not_sort hck_s0.state.wf hvv hw (fun u hh => view_tagOf_ne hvv (t := ETag.sort) htag (by rw [hh]; rfl))
     rw [hnp_a x hda, hnp_b y (by rw [hst_s6_s7]; exact hdb)] at hg1
     rw [hip_a x (by rw [hst_s5_s6, hst_s6_s7]; exact hda),
       hip_b y (by rw [hst_s4_s5, hst_s5_s6, hst_s6_s7]; exact hdb)] at hg0

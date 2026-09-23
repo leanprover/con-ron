@@ -235,4 +235,18 @@ elab "clear_tag_hyps" : tactic => do
     pure g
   replaceMainGoal [g']
 
+
+open Lean Elab Tactic Meta in
+/-- con-leche: none — DEBUG: log every goal's tag and its inaccessible
+hypotheses (task #97-P5-Core round 4's repair tool; not used by any proof). -/
+elab "trace_goal_tags" : tactic => do
+  for g in (← getGoals) do
+    g.withContext do
+      let mut hs : Array MessageData := #[]
+      for d in (← getLCtx) do
+        if d.isImplementationDetail then continue
+        if d.userName.hasMacroScopes then
+          hs := hs.push m!"{d.userName.eraseMacroScopes} : {d.type}"
+      logInfo m!"TAG {← g.getTag}\n{MessageData.joinSep hs.toList "\n"}"
+
 end ConRon.Bridge.Core
