@@ -63,6 +63,61 @@ without them is at least as strong for the consumer. -/
         (ConRon.Refine.absPropWhen pv)) := by
   sorry
 
+/-- Region A1: `const_e` against `constE`. -/
+@[lockstep] theorem stub_const_e_ls {pers st n lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.const_e pers st n) lst
+      (constE (absNIdx n)) := by
+  sorry
+
+/-- Region A1: `zero_level` against `zeroLevel`. -/
+@[lockstep] theorem stub_zero_level_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
+  sorry
+
+/-- Region A1: `unknown_const_error` against `unknownConstError`. -/
+@[lockstep] theorem stub_unknown_const_error_ls {pers st n lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => absAErrKind a = lAErrKind b) (arena.core.unknown_const_error st n) lst
+      (unknownConstError (absNIdx n)) := by
+  sorry
+
+/-- Region A1: `lvl_eq` against `lvlEq?`. -/
+@[lockstep] theorem stub_lvl_eq_ls {pers st u v lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lvl_eq pers st u v) lst
+      (lvlEq? (absLIdx u) (absLIdx v)) := by
+  sorry
+
+/-- Region A1: `const_ty_at` against `constTyAt`. -/
+@[lockstep] theorem stub_const_ty_at_ls {pers st cv us lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.const_ty_at pers st cv us) lst
+      (constTyAt (absIConstantVal cv) (absLsIdx us)) := by
+  sorry
+
+/-- Region A1: `proj_entry_type_at` against `IProjEntry.typeAt`. -/
+@[lockstep] theorem stub_proj_entry_type_at_ls {pers st entry us targs pe lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.proj_entry_type_at pers st entry us targs pe)
+      lst ((absIProjEntry entry).typeAt (absLsIdx us) (absEIdxList targs) (absEIdx pe)) := by
+  sorry
+
+/-- Region B: `nat_lit_supported` against `natLitSupported`. -/
+@[lockstep] theorem stub_nat_lit_supported_ls {pers vis st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers vis st fe) lst
+      (natLitSupported lfe) := by
+  sorry
+
+/-- Region B: `str_lit_supported` against `strLitSupported`. -/
+@[lockstep] theorem stub_str_lit_supported_ls {pers vis st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
+      (strLitSupported lfe) := by
+  sorry
+
 
 /-! ## The application spine -/
 
@@ -335,11 +390,6 @@ of the store, `bms`' `TblInv`). -/
         (absEIdx body) (ConRon.Refine.absBinderMeta mb)) := by
   rw [arena.core.infer_lam, inferLam]
   lockstep_e
-  -- glue: the one-entry stack's well-formedness
-  all_goals
-    refine LS.tail (infer_lams_ls hk hx (lam_stk_push_wf (by assumption) (by simp) (by simp_all))
-      hrel hinv hctx hf) ?_ (fun _ _ h => h)
-    lockstep_congr
 
 /-- The `.forallE` clause. -/
 @[lockstep] theorem infer_forall_ls {f : Nat} (hk : KnotRel f)
@@ -354,10 +404,30 @@ of the store, `bms`' `TblInv`). -/
         (absEIdx body) (ConRon.Refine.absBinderMeta mb)) := by
   rw [arena.core.infer_forall, inferForall]
   lockstep_e
-  -- glue: the one-entry stack's well-formedness
-  all_goals
-    refine LS.tail (infer_pis_ls hk hx (pi_stk_push_wf (by assumption) (by simp) (by simp_all))
-      hrel hinv hctx hf) ?_ (fun _ _ h => h)
-    lockstep_congr
+
+/-! ## The bodies -/
+
+attribute [lockstep_inline] arena.core.infer_sort arena.core.infer_fvar arena.core.infer_const
+  arena.core.infer_lit_nat arena.core.infer_lit_str arena.core.infer_proj
+  arena.core.infer_proj_at arena.core.infer_proj_prop
+
+set_option maxHeartbeats 4000000 in
+/-- **`BodyRel.infer`**, in lockstep. -/
+@[lockstep] theorem infer_body_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_body pers vis st mode lane fu fe depth e) lst
+      (inferBody (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absEIdx e)) := by
+  have hv := @view_wf_ls
+  rw [arena.core.infer_body, inferBody]
+  refine LSR.bind (hv hrel hinv e) rfl ?_ ?_
+  · intro e1; exact errArm_ok
+  intro a b lst1 hR hrel hinv
+  obtain ⟨hwf, rfl⟩ := hR
+  cases a <;> dsimp only <;> lockstep_e
 
 end ConRon.Refine2.Lockstep

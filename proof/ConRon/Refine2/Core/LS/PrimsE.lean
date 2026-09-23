@@ -341,6 +341,167 @@ theorem absLamStk_last_pw (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.B
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun e he => dupId_lidx _ _ he
 
+/-! ## The environment -/
+
+/-- A projection-table entry, field for field (regions A2 and G spell the
+same function). -/
+def absIProjEntry (e : arena.env.IProjEntry) : IProjEntry :=
+  ⟨absNIdx e.struct_name, absU e.idx, e.level_params.val.map absNIdx, absU e.num_params,
+    absNIdx e.ctor, absU e.num_fields, absEIdx e.body, absLIdx e.field_sort,
+    absLIdx e.struct_sort, absU e.off⟩
+
+@[lockstep] theorem i_constant_info_is_tower_entry_ls (ci : arena.env.IConstantInfo) :
+    LSP (arena.env.i_constant_info_is_tower_entry ci)
+      (fun b => b = (absIConstantInfo ci).isTowerEntry) := by
+  intro b h
+  cases ci <;> simp only [arena.env.i_constant_info_is_tower_entry, Result.ok.injEq] at h <;>
+    subst h <;> rfl
+
+/-- `i_constant_info_to_constant_val` against `IConstantInfo.toConstantVal`, a
+store-level step.  The `ProjInfo` arm interns `Sort 1`. -/
+@[lockstep] theorem i_constant_info_to_constant_val_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (ci : arena.env.IConstantInfo) :
+    LSS pers (fun a b => b = absIConstantVal a)
+      (arena.env.i_constant_info_to_constant_val pers st.store ci) st lst
+      (absIConstantInfo ci).toConstantVal := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+/-- `ifenv_find_proj` against `IFEnv.findProj?`, a store-level step: it
+interns the reserved table name. -/
+@[lockstep] theorem ifenv_find_proj_ls {pers vis st lst fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+    (t : arena.handle.NIdx) (i : Std.U64) :
+    LSS pers (fun a b => b = Option.map absIProjEntry a)
+      (arena.env.ifenv_find_proj pers vis st.store fe t i) st lst
+      (lfe.findProj? (absNIdx t) (absU i)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+/-! ## The two pins -/
+
+@[lockstep] theorem pin_nat_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat st) st lst pinNat := by
+  sorry
+
+@[lockstep] theorem pin_string_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_string st) st lst pinString := by
+  sorry
+
+/-! ## Levels (the propositional-structure check of the `.proj` clause) -/
+
+@[lockstep] theorem level_zero_ls :
+    LSP kernel.level.zero (fun u => ConRon.Refine.LevelWF u ∧
+      ConRon.Refine.absLevel u = ConLeche.Level.zero) :=
+  fun _ h => ⟨ConRon.Refine.Level.zero_wf h, ConRon.Refine.Level.zero_refines h⟩
+
+@[lockstep] theorem level_subst_ls {ks : alloc.vec.Vec kernel.name.Name}
+    {vs : alloc.vec.Vec kernel.level.Level} {u : kernel.level.Level}
+    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs)
+    (hu : ConRon.Refine.LevelWF u) :
+    LSP (kernel.level.subst ks vs u) (fun u' => ConRon.Refine.LevelWF u' ∧
+      ConRon.Refine.absLevel u' = ConLeche.Level.subst (ConRon.Refine.absNames ks)
+        (ConRon.Refine.absLevels vs) (ConRon.Refine.absLevel u)) := by
+  intro u' h
+  have := ConRon.Refine.Level.subst_refines hu hks hvs h
+  exact ⟨this.2, this.1⟩
+
+@[lockstep] theorem level_is_equiv_ls {l r : kernel.level.Level}
+    (hl : ConRon.Refine.LevelWF l) (hr : ConRon.Refine.LevelWF r) :
+    LSP (kernel.level.is_equiv l r) (fun o =>
+      ConLeche.Level.isEquiv (ConRon.Refine.absLevel l) (ConRon.Refine.absLevel r) = o) :=
+  fun _ h => ConRon.Refine.Level.is_equiv_refines hl hr h
+
+/-! ## Handles and scalars -/
+
+@[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun c => c = decide (absNIdx a = absNIdx b)) := by
+  intro c h
+  rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
+  cases Result.ok_injective h
+  by_cases hab : a.word = b.word
+  · have : absNIdx a = absNIdx b := by simp [absNIdx, hab]
+    simp [hab, this]
+  · have : absNIdx a ≠ absNIdx b := fun he => hab (by
+      have := absNIdx_inj he; rw [this])
+    simp [hab, this]
+
+@[lockstep] theorem usize_cast_u64_ls (x : Std.Usize) :
+    LSP (lift (Std.UScalar.cast .U64 x)) (fun r : Std.U64 => r.val = x.val) := by
+  intro r h
+  cases Result.ok_injective h
+  exact usize_cast_u64_val' x
+
+@[lockstep] theorem fail_dangling_ls_ls (T : Type) :
+    LSP (arena.monad.fail_dangling_ls T) (fun r => ∃ v, r = .Err (.Internal v)) := by
+  intro r h
+  rw [arena.monad.fail_dangling_ls] at h
+  obtain ⟨s, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  exact ⟨v, fail_run h⟩
+
+@[lockstep_simp] theorem failDanglingLs_eq {α : Type} :
+    (failDanglingLs : AM α) = Arena.fail (.internal "arena: dangling level-list handle") := rfl
+
+@[lockstep_simp] theorem usize_bne_true (a b : Std.Usize) : ((a != b) = true) = ¬ a.val = b.val := by
+  by_cases h : a = b
+  · simp [h]
+  · have : a.val ≠ b.val := fun hv => h (Std.UScalar.eq_of_val_eq hv)
+    simp [h, this]
+@[lockstep_simp] theorem usize_not_bne_true (a b : Std.Usize) :
+    (¬ (a != b) = true) = (a.val = b.val) := by
+  rw [usize_bne_true]; simp
+
+attribute [lockstep_simp] absIProjEntry absIConstantVal List.length_map ExprOps.absEIdxList
+
+@[lockstep_simp] theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v).val = v.val.length := by
+  simp [alloc.vec.Vec.len_val]
+
+@[lockstep_simp] theorem opt_beq_some_true (o : Option Bool) :
+    ((o == some true) = true) = (o = some true) := by
+  cases o with
+  | none => simp
+  | some b => cases b <;> simp
+@[lockstep_simp] theorem opt_beq_some_false (o : Option Bool) :
+    ((o == some true) = false) = ¬ (o = some true) := by
+  cases o with
+  | none => simp
+  | some b => cases b <;> simp
+
+attribute [lockstep_simp] Option.some.injEq reduceCtorEq
+
+@[lockstep_simp] theorem nat_beq_false (a b : Nat) : ((a == b) = false) = ¬ a = b := by
+  by_cases h : a = b <;> simp [h]
+
+/-- `viewLs` read only for its length is the length projection (the twin's
+`inferBody` `.const` clause reads the whole list, the port and `inferBodyIO`
+read `view_ls_len`; `Core/Arms/Delta.lean`'s `LsStore_viewLen_eq`). -/
+def danglingLsOr {δ : Type} (k : Nat → AM δ) : Option Nat → AM δ
+  | none => failDanglingLs
+  | some n => k n
+
+@[lockstep_simp] theorem danglingLsOr_none {δ : Type} (k : Nat → AM δ) :
+    danglingLsOr k none = failDanglingLs := rfl
+@[lockstep_simp] theorem danglingLsOr_some {δ : Type} (k : Nat → AM δ) (n : Nat) :
+    danglingLsOr k (some n) = k n := rfl
+
+@[lockstep_simp] theorem viewLs_length_bind {δ : Type} (h : LsIdx) (L : Nat) (A B : AM δ) :
+    (viewLs h >>= fun usl => if ¬ List.length usl = L then A else B) =
+      (viewLsLen h >>= danglingLsOr fun n => if ¬ n = L then A else B) := by
+  funext lst
+  show (viewLs h >>= _).run lst = (viewLsLen h >>= _).run lst
+  rw [StateT.run_bind, StateT.run_bind]
+  show (match lst.store.lss.view h with
+      | some v => (pure v : AM LsNodeView)
+      | none => Arena.fail (.internal "arena: dangling level-list handle")).run lst >>= _ =
+    (pure (lst.store.lss.viewLen h) : AM (Option Nat)).run lst >>= _
+  rw [LsStore_viewLen_eq]
+  cases lst.store.lss.view h <;> rfl
+
 /-! ## Interns — PENDING foundation intern slice (T2-LOCKSTEP slice 3) -/
 
 @[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -421,6 +582,11 @@ elab "ls_state_bind" : tactic => withMainContext do
 
 /-- `lockstep_core` with the two local moves. -/
 macro "lockstep_e" : tactic =>
-  `(tactic| repeat' (first | ls_ok_bind | lockstep_core_step | ls_state_bind))
+  `(tactic| repeat' (first
+      | ls_ok_bind
+      | lockstep_core_step
+      | ls_state_bind
+      | (apply LS.err; exact errSim_fail (by assumption))
+      | (apply LS.err; exact errSim_throw (by assumption))))
 
 end ConRon.Refine2.Lockstep.PE
