@@ -7,17 +7,17 @@ shape `Tactic/Lockstep.lean` steps with.  Each is the existing `Specs.lean` /
 where the existing proof only reads `hrel.store` / `hrel.memos` the proof
 below is that proof with `AStateRel₀`.
 
-**Five of the seven interns are the `₀` lemmas** (`LS.ofSim₀` over
-`intern_e_{bvar,app,let_e,proj,bind_i}_run₀`): D2 made the twin mirror the
-Rust's `sk` skip, slice 3 stated the non-binder wrappers lockstep, and D6
-(task #97-T2-LOCKSTEP) made `internE`'s binder arm the Rust's `intern_bm`
-then `intern_lam_i`.  **`intern_e_lam_ls` / `intern_e_forall_e_ls` stay
-`sorry`**, and only because of their statement: `intern_e_{lam,forall_e}_run₀`
-need `PropWhenWF m.pw` of the Rust INPUT datum (the `bms` cons key is a
-`PropWhen`, so `TblRel` is `RelOn PropWhenWF`), which a lockstep context does
-not carry and which these two statements do not ask for.  Nothing outside the
-`Tactic/Sample*.lean` measurements may use them; `#print axioms` on each
-sample shows `sorryAx` exactly through these.
+**The interns.**  Task #97-T2-TACTIC left the seven expression interns
+`sorry`: they were false until the D2 twin fix (task #97-T2-AUDIT §4).  Since
+the foundation's intern slice (task #97-T2-LOCKSTEP slice 3) they are the
+`Refine2/Specs.lean` `intern_*_run₀` lemmas in `LS` form (task #97-P5-Core
+round 5, which also added `fvar`, `sort`, `const`, `lit`, the level node, the
+level list and `intern_level`).  **`intern_e_lam_ls` / `intern_e_forall_e_ls`
+stay `sorry`**, and only because of their statement (task #97-T2-LOCKSTEP D6):
+`intern_e_{lam,forall_e}_run₀` need `PropWhenWF m.pw` of the Rust INPUT datum
+(the `bms` cons key is a `PropWhen`, so `TblRel` is `RelOn PropWhenWF`), which
+these two statements do not ask for; `intern_e_{lam,forall_e}_wf_ls` are the
+same pairs with that premise, proved, and registered first.
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.Specs
@@ -938,12 +938,6 @@ theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   intro r h
   exact ⟨subst_level_list_wf hks hus hvs h, ExprOps.subst_level_list_refines hks hus hvs h⟩
 
-@[lockstep] theorem intern_level_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (l : kernel.level.Level) (hwf : ConRon.Refine.LevelWF l) :
-    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_level pers st l) lst
-      (Arena.internLevel (ConRon.Refine.absLevel l)) :=
-  LS.ofSim₀ fun _ h => intern_level_run₀ hrel hinv hwf h
-
 @[lockstep] theorem intern_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (l : alloc.vec.Vec kernel.level.Level)
     (hwf : ConRon.Refine.LevelsWF l) :
@@ -1030,32 +1024,6 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
     LSP (arena.expr_ops.expr_ptr_beq a b) (fun r => r = exprPtrBEq (absEIdx a) (absEIdx b)) :=
   fun _ h => (ExprOps.expr_ptr_beq_refines h).symm
 
-/-! ## The four expression interns `Prims.lean` does not pair yet -/
-
-@[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (idx : Std.U64) (ty : arena.handle.EIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st idx ty) lst
-      (Arena.internFVarE (absU idx) (absEIdx ty)) :=
-  LS.ofSim₀ fun _ h => intern_e_fvar_run₀ hrel hinv idx ty h
-
-@[lockstep] theorem intern_e_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (u : arena.handle.LIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_sort pers st u) lst
-      (Arena.internSortE (absLIdx u)) :=
-  LS.ofSim₀ fun _ h => intern_e_sort_run₀ hrel hinv u h
-
-@[lockstep] theorem intern_e_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_const pers st n us) lst
-      (Arena.internConstE (absNIdx n) (absLsIdx us)) :=
-  LS.ofSim₀ fun _ h => intern_e_const_run₀ hrel hinv n us h
-
-@[lockstep] theorem intern_e_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (l : kernel.expr.Literal) (hwf : ConRon.Refine.LiteralWF l) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lit pers st l) lst
-      (Arena.internLitE (ConRon.Refine.absLiteral l)) :=
-  LS.ofSim₀ fun _ h => intern_e_lit_run₀ hrel hinv l hwf h
-
 @[lockstep] theorem inst1_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
     LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.inst1_get st k) st lst
@@ -1101,48 +1069,107 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
   exact ⟨(), _, rfl, trivial, { hrel with memos := { hrel.memos with inst1C := h1 } },
     { hinv with memos := { hinv.memos with inst1C := h2 } }⟩
 
-/-! ## Interns (see the module note: `lam` / `forall_e` still `sorry`) -/
+/-! ## Interns (see the module note) -/
 
 @[lockstep] theorem intern_e_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (i : Std.U64) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bvar pers st i) lst
-      (Arena.internBVarE (absU i)) := by
-  exact LS.ofSim₀ (fun _ hm => intern_e_bvar_run₀ hrel hinv i hm)
+      (Arena.internBVarE (absU i)) :=
+  LS.ofSim₀ fun _ h => intern_e_bvar_run₀ hrel hinv i h
 
 @[lockstep] theorem intern_e_app_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (f a : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_app pers st f a) lst
-      (Arena.internAppE (absEIdx f) (absEIdx a)) := by
-  exact LS.ofSim₀ (fun _ hm => intern_e_app_run₀ hrel hinv f a hm)
+      (Arena.internAppE (absEIdx f) (absEIdx a)) :=
+  LS.ofSim₀ fun _ h => intern_e_app_run₀ hrel hinv f a h
+
+/-- `intern_e_lam` with its datum's `PropWhenWF` in context: the `₀` lemma.
+Registered BEFORE the `sorry` statement below, so `lockstep` tries it first. -/
+@[lockstep] theorem intern_e_lam_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
+      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
+  LS.ofSim₀ fun _ h => intern_e_lam_run₀ hrel hinv t b m hpw h
+
+/-- `intern_e_forall_e` with its datum's `PropWhenWF` in context. -/
+@[lockstep] theorem intern_e_forall_e_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
+      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
+  LS.ofSim₀ fun _ h => intern_e_forall_e_run₀ hrel hinv t b m hpw h
 
 @[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
-      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) := by
+      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   sorry
 
 @[lockstep] theorem intern_e_forall_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
-      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) := by
+      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   sorry
 
 @[lockstep] theorem intern_e_let_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t v b : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_let_e pers st t v b) lst
-      (Arena.internLetEE (absEIdx t) (absEIdx v) (absEIdx b)) := by
-  exact LS.ofSim₀ (fun _ hm => intern_e_let_e_run₀ hrel hinv t v b hm)
+      (Arena.internLetEE (absEIdx t) (absEIdx v) (absEIdx b)) :=
+  LS.ofSim₀ fun _ h => intern_e_let_e_run₀ hrel hinv t v b h
 
 @[lockstep] theorem intern_e_bind_i_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bind_i pers st t ty b m) lst
-      (Arena.internBindIE (absU32 t) (absEIdx ty) (absEIdx b) (absBMIdx m)) := by
-  exact LS.ofSim₀ (fun _ hm => intern_e_bind_i_run₀ hrel hinv t ty b m hm)
+      (Arena.internBindIE (absU32 t) (absEIdx ty) (absEIdx b) (absBMIdx m)) :=
+  LS.ofSim₀ fun _ h => intern_e_bind_i_run₀ hrel hinv t ty b m h
 
 @[lockstep] theorem intern_e_proj_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (n : arena.handle.NIdx) (i : Std.U64) (s : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_proj pers st n i s) lst
-      (Arena.internProjE (absNIdx n) (absU i) (absEIdx s)) := by
-  exact LS.ofSim₀ (fun _ hm => intern_e_proj_run₀ hrel hinv n i s hm)
+      (Arena.internProjE (absNIdx n) (absU i) (absEIdx s)) :=
+  LS.ofSim₀ fun _ h => intern_e_proj_run₀ hrel hinv n i s h
+
+@[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (idx : Std.U64) (ty : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st idx ty) lst
+      (Arena.internFVarE (absU idx) (absEIdx ty)) :=
+  LS.ofSim₀ fun _ h => intern_e_fvar_run₀ hrel hinv idx ty h
+
+@[lockstep] theorem intern_e_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (u : arena.handle.LIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_sort pers st u) lst
+      (Arena.internSortE (absLIdx u)) :=
+  LS.ofSim₀ fun _ h => intern_e_sort_run₀ hrel hinv u h
+
+@[lockstep] theorem intern_e_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_const pers st n us) lst
+      (Arena.internConstE (absNIdx n) (absLsIdx us)) :=
+  LS.ofSim₀ fun _ h => intern_e_const_run₀ hrel hinv n us h
+
+@[lockstep] theorem intern_e_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (l : kernel.expr.Literal) (hwf : ConRon.Refine.LiteralWF l) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lit pers st l) lst
+      (Arena.internLitE (ConRon.Refine.absLiteral l)) :=
+  LS.ofSim₀ fun _ h => intern_e_lit_run₀ hrel hinv l hwf h
+
+@[lockstep] theorem intern_l_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : arena.store.LNodeView) :
+    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_l_node pers st v) lst
+      (Arena.internLNode (absLNodeView v)) :=
+  LS.ofSim₀ fun _ h => intern_l_node_run₀ hrel hinv v h
+
+@[lockstep] theorem intern_ls_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : alloc.vec.Vec arena.handle.LIdx) :
+    LS pers (fun a b => b = absLsIdx a) (arena.monad.intern_ls_node pers st v) lst
+      (Arena.internLsNode (absLsNodeView v)) :=
+  LS.ofSim₀ fun _ h => intern_ls_node_run₀ hrel hinv v h
+
+@[lockstep] theorem intern_level_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (l : kernel.level.Level) (hwf : ConRon.Refine.LevelWF l) :
+    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_level pers st l) lst
+      (Arena.internLevel (ConRon.Refine.absLevel l)) :=
+  LS.ofSim₀ fun _ h => intern_level_run₀ hrel hinv hwf h
 
 end ConRon.Refine2.Lockstep

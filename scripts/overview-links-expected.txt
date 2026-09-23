@@ -723,72 +723,68 @@
    483  ///
    484  /// Everything else here is the observer, which only ever holds `&` the state
    485  /// (the hook of phase A by the trait's own signature, the other lines through
-   486  /// `&st.store`), so it cannot change an outcome.  So the capstone, which is
-   487  /// stated about `check_decls_phased`, is about this function modulo the
-   488  /// pool's one claim: its merged table, walked in record order, is what the
-   489  /// verified one-worker walk `checker::check_pending_worker` returns
-   490  /// (`pool.rs`'s note states it and what it rests on).
+   486  /// `&st.store`), so it cannot change an outcome.  So the capstone, whose
+   487  /// stage 6 is `PoolAccepts` (phase A, the freeze, and one accepting
+   488  /// `checker::check_pending_worker` per worker over the records it checked,
+   489  /// together covering the pending list; task #97-P5-POOL), is about this
+   490  /// function modulo the pool's one claim: that its accept has that shape
 
-== crates/con-ron/src/pool.rs#L47-L105
-    47  //! ## THE TRUSTED CLAIM, and the whole of it
-    48  //!
-    49  //! **`check_pool(pers, mode, fe, pend, pins, n, _)` returns what
-    50  //! `checker::check_pending_worker(pers, mode, fe, pins, pend)` returns, at
-    51  //! every worker count `n`** — the same verdict, and on a failure the same fold
-    52  //! position.  `pool_is_check_pending_worker_at_every_jobs` is its test.  It
-    53  //! rests on two arguments, and the second is the one master's pool did not
-    54  //! need.
-    55  //!
-    56  //! **(1) Merge by record index — master's argument.**  A worker's result is
-    57  //! the record's index with its outcome; the workers' arrays are merged *by
-    58  //! record index* into one table and the table is walked in **record order**,
-    59  //! stopping at the first failing record in fold order.  That walk is
-    60  //! `check_pending_list`'s, whatever the workers' timing, so the pool cannot
-    61  //! report the second failure of a stream that has two —
-    62  //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
-    63  //! and 8 workers on a list whose records 2 and 4 both fail.
-    64  //!
-    65  //! **The table is complete below the first failure**, which is what makes the
-    66  //! walk total.  con-leche's argument, and the port's: a worker that fails
-    67  //! record `f` lowers the shared `limit` to `f`, and a worker skips a claimed
-    68  //! record at or above the limit.  Every value the limit ever holds is `m` or
-    69  //! a *failing* index, hence at least the first failing index `f`; so a record
-    70  //! below `f` is never skipped, and — the counter being monotone — it was
-    71  //! claimed before `f` was and is finished by the worker that claimed it.
-    72  //! Records above `f` may be missing from the table, and the walk never
-    73  //! reaches them.  (A worker also never checks a record after its own first
-    74  //! failure: every later claim is above it, hence at or above the limit.)
-    75  //!
-    76  //! Every access is `Relaxed`: a stale read of `limit` can only be *larger*
-    77  //! than the current value, i.e. can only make a worker do work it could have
-    78  //! skipped, and the results themselves travel through the `join` at the end
-    79  //! of the scope, which is the release/acquire pair.
-    80  //!
-    81  //! **(2) A record's outcome does not depend on which records its worker
-    82  //! checked before it — the deliberate difference from master.**  Master's
-    83  //! pool checked every record from a fresh `cstate_new()`, so (1) was the
-    84  //! whole argument.  Here a worker keeps ONE `AState` for the whole run, so
-    85  //! record `k` is checked on a state its worker's earlier records have used —
-    86  //! records `0..k` in the one-worker walk, some subsequence of them in a pool.
-    87  //! The claim is that this history is invisible to the outcome, and the
-    88  //! argument is the bracket: `check_pending` opens with `enter_scratch`, which
-    89  //! resets the per-call memos and turns on an EMPTY scratch tier, and closes
-    90  //! with `drop_scratch`, which resets the per-declaration caches and truncates
-    91  //! the scratch tier; the persistent tier is `&PersTier`, immutable, and the
-    92  //! store's own persistent tables are frozen (a persistent append is
-    93  //! `M_FROZEN`'s decline); the pins are never written.  So what one record
-    94  //! hands the next is CAPACITY — slot-vector lengths, `clear_fit`'s high-water
-    95  //! mark, `Vec` capacities — and no lookup's answer depends on a capacity
-    96  //! (`ron::hashmap2`'s refinement lemmas, `clear_fit_refines` included, are
-    97  //! stated on contents).  **Why it is taken**: task #97-P5-Driver built the
-    98  //! master-shaped alternative — a fresh `worker_state` per record, in the pool
-    99  //! and in the verified walk alike, which makes (2) true by construction — and
-   100  //! measured it on `Init` at **+16.4 % instructions** (246.7 G against
-   101  //! 211.9 G, `--jobs=1`), all of it re-growing the tables every record that
-   102  //! the high-water mark of task #97-P6-7 exists to keep.  (2) is a statement
-   103  //! about the verified crate's `check_pending` and nothing else, so it could
-   104  //! be proved; DESIGN.md's task #97-P5-Driver section says what that would
-   105  //! take.
+== crates/con-ron/src/pool.rs#L46-L100
+    46  //! ## THE TRUSTED CLAIM, and the whole of it
+    47  //!
+    48  //! **If `check_pool(pers, mode, fe, pend, pins, n, _)` accepts, then the
+    49  //! records of `pend` are covered by lists `w_1 … w_n`, one per worker (the
+    50  //! records that worker checked, in the order it checked them), and
+    51  //! `checker::check_pending_worker(pers, mode, fe, pins, w_j)` accepts every
+    52  //! one of them** — at every worker count `n`.  That is the capstone's stage
+    53  //! 6 (`Refine2/Checker/Phased.lean`'s `PoolAccepts`, task #97-P5-POOL), and it
+    54  //! is a statement about this module's control flow only: which worker
+    55  //! checked which record, and what a worker checked before, is not asked,
+    56  //! because the capstone relates every worker's walk to the twin on its own
+    57  //! and assembles con-leche's pure fold from the per-record accepts, each at
+    58  //! its record's own prefix environment.  The argument:
+    59  //!
+    60  //! * **A worker is the verified walk.**  `check_worker` builds ONE
+    61  //!   `checker::worker_state(pins)` and calls `checker::check_pending` on the
+    62  //!   records it claims, in claim order, threading that state: exactly
+    63  //!   `check_pending_list` over its records — `check_pending_worker` on them.
+    64  //!   The observer line between two records holds `&st.store` only.  A record
+    65  //!   at or above `limit` is skipped without a call, and on an accepting run
+    66  //!   the limit never moves, so no claimed record is skipped.
+    67  //! * **Merge by record index — master's argument.**  A worker's result is
+    68  //!   the record's index with its outcome; the workers' arrays are merged *by
+    69  //!   record index* into one table and `collect_checks` walks it in record
+    70  //!   order, answering `Ok` only if every slot holds `Ok`.  So an accept means
+    71  //!   every record was checked and accepted by the worker that claimed it,
+    72  //!   whatever the timing.
+    73  //!
+    74  //! The failure side is not part of the claim the capstone uses, but the pool
+    75  //! keeps master's behaviour there: the walk stops at the first failing record
+    76  //! in fold order, and the table is complete below it.  con-leche's argument:
+    77  //! a worker that fails record `f` lowers the shared `limit` to `f`, and a
+    78  //! worker skips a claimed record at or above the limit.  Every value the limit
+    79  //! ever holds is `m` or a *failing* index, hence at least the first failing
+    80  //! index `f`; so a record below `f` is never skipped, and — the counter being
+    81  //! monotone — it was claimed before `f` was and is finished by the worker that
+    82  //! claimed it.  `pool_reports_the_first_failure_at_every_jobs` is the test, at
+    83  //! 1, 2, 3, 4 and 8 workers on a list whose records 2 and 4 both fail;
+    84  //! `pool_is_check_pending_worker_at_every_jobs` checks that the pool's result
+    85  //! is the one-worker walk's.
+    86  //!
+    87  //! Every access is `Relaxed`: a stale read of `limit` can only be *larger*
+    88  //! than the current value, i.e. can only make a worker do work it could have
+    89  //! skipped, and the results themselves travel through the `join` at the end
+    90  //! of the scope, which is the release/acquire pair.
+    91  //!
+    92  //! **A worker keeps one `AState` across its records** (task #97-P6-6b), where
+    93  //! master's pool checked each record from a fresh state: the bracket
+    94  //! (`enter_scratch`, `drop_scratch`) resets everything but capacity, and a
+    95  //! fresh state per record measured **+16.4 % instructions on `Init`** (task
+    96  //! #97-P5-Driver).  Until task #97-P5-POOL the claim was that the pool returns
+    97  //! what one worker walking every record returns, which needed a second,
+    98  //! untrusted-by-proof argument — that a record's outcome does not depend on
+    99  //! what its worker checked before.  The claim above does not need it.
+   100  //!
 
 == proof/ConRon/Refine/Abs.lean#L285-L291
    285  /-- The closing call, one fixed configuration for every lemma: `ematch := 12`
