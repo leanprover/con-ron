@@ -599,7 +599,7 @@ theorem installBasisDecl_bridge {μ : CheckMode} {_F : Nat} {env : Env}
         ConLeche.installBasisDecl (m := CheckM) env c = .ok env' := by
   simp only [Arena.installBasisDecl] at hrun
   obtain ⟨hdup, r1⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.fail_any) hrun
+    AM.Never.fail_any hrun
   replace r1 := AM.pure_bind_ok r1
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r1
   have hfind : fe.find? ci.name = none := by
@@ -652,7 +652,7 @@ theorem installBasisDecls_bridge :
     obtain ⟨fe1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     simp only [ConRon.Arena.installBasisDecl] at h1
     obtain ⟨hdup, r1⟩ := AM.dunless_ok
-      (AM.Never.bind fun _ => AM.Never.fail_any) h1
+      AM.Never.fail_any h1
     replace r1 := AM.pure_bind_ok r1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok r1
     have hne := ci_ne_proj_of_denote hx (hnpx x (by simp))

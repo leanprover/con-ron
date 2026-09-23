@@ -64,21 +64,21 @@ pieces. -/
 `Arena/CheckerBase.lean:checkConstantVal` clauses 3-6. -/
 def checkConstantValGuardsRestSpec (cv : IConstantVal) : AM Unit := do
   if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid s!"reserved projection name {← readName cv.name}")
+    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
-    fail (.invalid s!"duplicate universe parameters in {← readName cv.name}")
+    fail (.invalid "duplicate universe parameters")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do
-    fail (.invalid s!"loose bound variable in type of {← readName cv.name}")
+    fail (.invalid "loose bound variable in type")
   if ← hasFvarFast coreWalkFuel cv.type then
-    fail (.invalid s!"unexpected free variable in type of {← readName cv.name}")
+    fail (.invalid "unexpected free variable in type")
 
 /-- The six SYNTACTIC guards, in the twin's order:
 `checkConstantVal` clauses 1-6. -/
 def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
   if (fe.find? cv.name).isSome then
-    fail (.invalid s!"duplicate declaration {← readName cv.name}")
+    fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
-    fail (.invalid s!"reserved basis name {← readName cv.name}")
+    fail (.invalid "reserved basis name")
   checkConstantValGuardsRestSpec cv
 
 /-- The two guards on the ANNOTATED type and the header they produce —
@@ -87,9 +87,9 @@ def installConstantValTailSpec (fe : IFEnv) (cv : IConstantVal) (ty : EIdx) :
     AM IConstantVal := do
   unless ← allLevelParamsDefined cv.levelParams ty do
     fail (.invalid
-      s!"undeclared universe parameter in type of {← readName cv.name}")
+      "undeclared universe parameter in type")
   unless ← constsResolveFFast fe ty do
-    fail (← unresolvedConstsError s!"type of {← readName cv.name}" ty)
+    fail (← unresolvedConstsError "type" ty)
   pure { cv with type := ty }
 
 /-- `checkConstantVal`'s tail past the annotation: the install-side tail, then
@@ -106,9 +106,9 @@ def installValueTailSpec (fe : IFEnv) (cv : IConstantVal) (valueA : EIdx) :
     AM EIdx := do
   unless ← allLevelParamsDefined cv.levelParams valueA do
     fail (.invalid
-      s!"undeclared universe parameter in value of {← readName cv.name}")
+      "undeclared universe parameter in value")
   unless ← constsResolveFFast fe valueA do
-    fail (← unresolvedConstsError s!"value of {← readName cv.name}" valueA)
+    fail (← unresolvedConstsError "value" valueA)
   pure valueA
 
 /-! ## `checkValueGroup`, in three -/
@@ -270,10 +270,10 @@ theorem installValue_unfold (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) :
     installValue mode fe cv value = (do
       unless ← looseBVarsBoundedFast coreWalkFuel 0 value do
-        fail (.invalid s!"loose bound variable in value of {← readName cv.name}")
+        fail (.invalid "loose bound variable in value")
       if ← hasFvarFast coreWalkFuel value then
         fail (.invalid
-          s!"unexpected free variable in value of {← readName cv.name}")
+          "unexpected free variable in value")
       let valueA ← annotateCore mode fe checkFuel 0 value
       installValueTailSpec fe cv valueA) := by
   twin_reduce [installValue, installValueTailSpec]
@@ -470,7 +470,7 @@ def checkReduceIdentitySpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   let ok ← isDefEqCore mode fe checkFuel 1 ax x
   if ok then pure ()
   else fail (.internal
-    s!"pinned compiler-trust opaque is not the identity ({← readName c})")
+    "pinned compiler-trust opaque is not the identity")
 
 /-- `checkReducePin`'s value half: the witness against the build-time pin, and
 then the identity certificate. -/
@@ -481,14 +481,14 @@ def checkReducePinValueSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   let okPin ← isDefEqCore mode fe checkFuel 0 valA pinA
   if okPin then checkReduceIdentitySpec mode fe c valA
   else fail (.notImplemented
-    s!"unsupported compiler-trust opaque spelling ({← readName c})")
+    "unsupported compiler-trust opaque spelling")
 
 /-- `checkReducePin`'s guard prefix. -/
 def checkReducePinPreSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value : EIdx) : AM Unit := do
   if ← reducePinGuard fe c then checkReducePinValueSpec mode fe c value
   else fail (.notImplemented
-    s!"unsupported compiler-trust opaque spelling ({← readName c}: pin ground constants absent)")
+    "unsupported compiler-trust opaque spelling (pin ground constants absent)")
 
 /-! ### The three value kinds' tails -/
 
@@ -498,7 +498,7 @@ def checkThmValWitnessSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let jv ← installValue mode fe cv value
   let vtype ← inferTypeCore mode fe checkFuel 0 jv
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
-    fail (.invalid s!"type mismatch in theorem {← readName cv.name}")
+    fail (.invalid "type mismatch in theorem")
   pure (fe.push (.thmInfo cv value))
 
 /-! ### The `Nat`-operation pin gate's splits -/
@@ -537,6 +537,22 @@ def checkDivModCertTailSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
       checkDivModCerts mode fe c annVal srest prest
     else pure false
   | _, _ => pure false
+
+/-- `checkDivModPinLoop`'s step at a variant whose two guards passed — the
+Rust's `check_div_mod_pin_try`: the `orElseAttempt` seam, then the twin's
+`match` on the step (task #97-T2-LOCKSTEP lane Checker: the old statement
+named the whole loop, guards included, where the Rust function starts past
+them). -/
+def checkDivModPinTrySpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
+    (value' : EIdx) (ps : INatOpPinSet) (rest : List INatOpPinSet)
+    (tried : List String) : AM Unit := do
+  match ← orElseAttempt (checkDivModPinAt mode fe c value' ps) with
+  | .matched => pure ()
+  | .continued =>
+    checkDivModPinLoop mode fe c value' rest (tried ++ [divModAttemptReason ps none])
+  | .recovered e =>
+    checkDivModPinLoop mode fe c value' rest (tried ++ [divModAttemptReason ps (some e)])
+  | .failed e => fail e
 
 /-- `checkDivModPinAt`'s certificate half, past the pin comparison. -/
 def checkDivModPinCertsSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
@@ -869,16 +885,16 @@ declined. -/
 def checkAxiomDeclRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
   if cvA.name == (← propextName) || cvA.name == (← choiceName) then
     fail (.notImplemented
-      s!"standard axiom shape mismatch ({← readName cvA.name})")
+      "standard axiom shape mismatch")
   else if cvA.name == (← pinSorryAx) then pure fe
-  else fail (.notImplemented s!"non-standard axiom ({← readName cvA.name})")
+  else fail (.notImplemented "non-standard axiom")
 
 /-- `checkDecl`'s axiom arm at the `ofReduce*` names. -/
 def checkAxiomDeclOfReduceSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
   if cvA.name == (← ofReduceNatName) || cvA.name == (← ofReduceBoolName) then
     if ← ofReduceAxOk fe cvA then pure (fe.push (.axiomInfo cvA))
     else fail (.notImplemented
-      s!"unsupported compiler-trust axiom environment ({← readName cvA.name})")
+      "unsupported compiler-trust axiom environment")
   else checkAxiomDeclRestSpec fe cvA
 
 /-- `checkDecl`'s axiom arm at `Lean.trustCompiler`. -/
@@ -886,7 +902,7 @@ def checkAxiomDeclTrustSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
   if cvA.name == (← trustCompilerName) then
     if ← trustCompilerOk fe cvA then pure (fe.push (.axiomInfo cvA))
     else fail (.notImplemented
-      s!"unsupported Lean.trustCompiler shape ({← readName cvA.name})")
+      "unsupported Lean.trustCompiler shape")
   else checkAxiomDeclOfReduceSpec fe cvA
 
 /-- `checkDecl`'s axiom arm past `Quot.sound`: the common constant check, then
@@ -937,7 +953,7 @@ def checkStructuralNatPinEqsSpec (mode : CheckMode) (fe fe2 : IFEnv) (n : NIdx) 
   | some (.defnInfo _ value' _) => do
     let eqs ← natOpEquations 0 n
     checkStructuralNatPinCertifySpec mode fe fe2 (← substConst0Pairs n value' eqs)
-  | _ => fail (.internal s!"structural Nat operation not stored ({← readName n})")
+  | _ => fail (.internal "structural Nat operation not stored")
 
 /-- … behind the environment guard: the fast-path ops must be the standard
 structural recursions. -/
@@ -946,7 +962,7 @@ def checkStructuralNatPinSpec (mode : CheckMode) (fe fe2 : IFEnv) (n : NIdx) :
   let deps ← natOpDeps n
   unless (← natOpGuard fe2 n) && (← natOpStoredOkAll fe2 deps) do
     fail (.notImplemented
-      s!"nonstandard structural Nat operation environment ({← readName n})")
+      "nonstandard structural Nat operation environment")
   checkStructuralNatPinEqsSpec mode fe fe2 n
 
 /-- The `Nat.div`/`Nat.mod` gate at a definition. -/
@@ -1094,20 +1110,11 @@ Task #97-P5-Checker round 3 §10 item 2 named `checkDecl_unfold` as the one
 thing between `check_decl_refines` and a seven-way `cases`: the twin writes
 the seven arms inline and the tier's statements are against the
 transcriptions above.  **Six of the seven are equations and are closed here.
-The seventh is not an equation, and cannot be one.**
-
-`checkDefnDeclSpec` reaches `checkStructuralNatPinCertifySpec`, whose decline
-is the RUST's — `"nonstandard structural Nat operation"`, no name — where the
-twin's `.defnDecl` arm (`Arena/Checker.lean:117-119`) declines with
-`s!"… ({← readName cv.name})"`.  That is not a difference of text alone:
-`readName` THROWS `internal` at a dangling handle, so at a state where
-`cv.name` does not decode the twin's decline is `.internal` and the
-transcription's `.notImplemented`.  So the transcription is not the twin's,
-and `check_defn_decl_refines` (stated against it) does not compose into
-`check_decl_refines` by an equation.  The repair is the transcription's —
-take the name and decline as the twin does — and it moves the obligation to
-`check_structural_nat_pin_certify_refines`, which then needs *"the name
-decodes"*: DESIGN.md, task #97-P5-Checker round 4 §4. -/
+The seventh was not an equation** while the twin's `.defnDecl` arm read the
+constant's name back (`readName`, which throws `internal` at a dangling
+handle) for its decline messages.  Task #97-T2-LOCKSTEP lane Checker gave the
+twin the Rust's constant messages, and `checkDecl_defnDecl` below closes the
+seventh too.-/
 
 theorem checkDecl_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) :
@@ -1128,6 +1135,32 @@ theorem checkDecl_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
     twin_reduce [checkAxiomDeclStdSpec, checkAxiomDeclTrustSpec,
       checkAxiomDeclOfReduceSpec, checkAxiomDeclRestSpec, checkConstantVal_unfold,
       checkConstantValAfterAnnotSpec, installConstantValTailSpec]
+
+/-- **The seventh arm is an equation too** (task #97-T2-LOCKSTEP lane
+Checker): the twin's `.defnDecl` declines carry the Rust's constant messages
+now, with no `readName`, so the arm IS its transcription. -/
+theorem checkDecl_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
+    checkDecl mode pins fe (.defnDecl cv value hint) =
+      checkDefnDeclSpec mode pins fe cv value hint := by
+  twin_reduce [checkDecl, checkDefnDeclSpec, checkDefnPinsSpec,
+    checkDefnDivModPinSpec, checkStructuralNatPinSpec, checkStructuralNatPinEqsSpec,
+    checkStructuralNatPinCertifySpec]
+  refine congrArg _ (funext fun cvA => congrArg _ (funext fun fe2 =>
+    congrArg _ (funext fun ns => ?_)))
+  split
+  · refine congrArg _ (funext fun deps => congrArg _ (funext fun a =>
+      congrArg _ (funext fun b => ?_)))
+    split
+    · cases fe2.find? cvA.name with
+      | none => simp only [ConRon.Refine2.am_fail_bind]
+      | some ci =>
+        cases ci <;> simp only [ConRon.Refine2.am_fail_bind, bind_assoc]
+        refine congrArg _ (funext fun eqs => congrArg _ (funext fun q =>
+          congrArg _ (funext fun ok => ?_)))
+        split <;> simp only [pure_bind, ConRon.Refine2.am_fail_bind]
+    · rfl
+  · rfl
 
 theorem checkDecl_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :

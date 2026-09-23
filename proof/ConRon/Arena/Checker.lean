@@ -108,17 +108,16 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       let deps ← natOpDeps cv.name
       unless (← natOpGuard fe2 cv.name) && (← natOpStoredOkAll fe2 deps) do
         fail (.notImplemented
-          s!"nonstandard structural Nat operation environment \
-            ({← readName cv.name})")
+          "nonstandard structural Nat operation environment")
       match fe2.find? cv.name with
       | some (.defnInfo _ value' _) => do
         let eqs ← natOpEquations 0 cv.name
         let ok ← certifyNatEqs mode fe (← substConst0Pairs cv.name value' eqs)
         unless ok do
           fail (.notImplemented
-            s!"nonstandard structural Nat operation ({← readName cv.name})")
+            "nonstandard structural Nat operation")
       | _ => fail (.internal
-          s!"structural Nat operation not stored ({← readName cv.name})")
+          "structural Nat operation not stored")
     -- WF-recursive `Nat` pins (`Nat.div`/`Nat.mod`): the stored value must be
     -- definitionally equal to some committed pin variant, and that variant's
     -- certificates must check.  No variant matching is a decline.
@@ -161,7 +160,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
         if ← trustCompilerOk fe cvA then
           pure (fe.push (.axiomInfo cvA))
         else fail (.notImplemented
-          s!"unsupported Lean.trustCompiler shape ({← readName cv.name})")
+          "unsupported Lean.trustCompiler shape")
       else if cvA.name == (← ofReduceNatName) || cvA.name == (← ofReduceBoolName) then
         -- The pinned `ofReduce*` axioms: over the pinned `Eq` basis, the
         -- element inductive and the identity-certified reduce opaque,
@@ -170,17 +169,17 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
         if ← ofReduceAxOk fe cvA then
           pure (fe.push (.axiomInfo cvA))
         else fail (.notImplemented
-          s!"unsupported compiler-trust axiom environment ({← readName cv.name})")
+          "unsupported compiler-trust axiom environment")
       else if cvA.name == (← propextName) || cvA.name == (← choiceName) then
         fail (.notImplemented
-          s!"standard axiom shape mismatch ({← readName cv.name})")
+          "standard axiom shape mismatch")
       else if cvA.name == (← pinSorryAx) then
         -- `sorryAx` is the one axiom the checker tolerates as a DECLARATION:
         -- the record is skipped and the run continues, and any USE of the
         -- name declines at the record that uses it.
         pure fe
       else
-        fail (.notImplemented s!"non-standard axiom ({← readName cv.name})")
+        fail (.notImplemented "non-standard axiom")
   | .basisDecl kind => checkBasisDecl fe kind
   | .indDecl block nP => do
     -- **THE PINNED BASIS BLOCKS**: a stream's `Nat` block arrives as an

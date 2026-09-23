@@ -370,7 +370,14 @@ open Lockstep in
 
 /-- `check_opaque_reduce_pin` — the compiler-trust opaques' install gate,
 after the ordinary opaque check.  `k_pre` is the visibility counter the check
-ran at, which the twin carries as a second environment. -/
+ran at, which the twin carries as a second environment.
+
+**Restated by task #97-T2-LOCKSTEP lane Checker**: the old twin side ran
+`checkReducePin` unconditionally, where the Rust first tests
+`reduce_op_names` (`Ok fe2` for an ordinary opaque) — false as stated; the
+twin side is now `checkOpaqueDeclSpec`'s own tail.  Still open on `hkpre`
+(the Rust runs the gate at `restrict(fe2, k_pre)`, the twin at `fe`; see
+DESIGN's lane Checker section). -/
 theorem check_opaque_reduce_pin_refines {pers st lst} {rf2 lf2 lf}
     {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx}
     {value : arena.handle.EIdx} {o}
@@ -380,8 +387,9 @@ theorem check_opaque_reduce_pin_refines {pers st lst} {rf2 lf2 lf}
     (hrun : arena.checker.check_opaque_reduce_pin pers st mode rf2 k_pre n value
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
-      (do checkReducePin (ConRon.Refine.absMode mode) lf lf2 (absNIdx n)
-            (absEIdx value)
+      (do if (← reduceOpNames).contains (absNIdx n) then
+            checkReducePin (ConRon.Refine.absMode mode) lf lf2 (absNIdx n)
+              (absEIdx value)
           pure lf2) := by
   sorry
 
@@ -568,14 +576,10 @@ theorem check_decl_refines {pers st lst} {rf lf}
     rw [absIDeclaration, checkDecl_axiomDecl]
     exact check_axiom_decl_refines hrel hinv hfe hfinv hrun
   | DefnDecl cv value hint =>
-    -- **the one arm that is not an equation** (`Refine2/Checker/Spec.lean`,
-    -- `checkDecl`'s section note): `checkStructuralNatPinCertifySpec` declines
-    -- with the RUST's message, the twin with `readName cv.name`, which THROWS
-    -- `internal` at a dangling name — so `check_defn_decl_refines` is against a
-    -- transcription that is not the twin's, and closing this arm needs the
-    -- transcription corrected and "the declaration's name decodes" carried
-    -- (DESIGN.md, task #97-P5-Checker round 4 §4).
-    sorry
+    -- an equation since task #97-T2-LOCKSTEP lane Checker (the twin's
+    -- declines no longer read the name back)
+    rw [absIDeclaration, checkDecl_defnDecl]
+    exact check_defn_decl_refines hrel hinv hfe hfinv hrun
   | ThmDecl cv value =>
     rw [absIDeclaration, checkDecl_thmDecl]
     exact check_thm_decl_refines hrel hinv hfe hfinv hrun

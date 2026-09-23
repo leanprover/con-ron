@@ -123,13 +123,15 @@ private def iCI : ConstantInfo → AM IConstantInfo
 `.verified` (DESIGN §8.2). -/
 private def MU : CheckMode := .verified
 
-/-- con-leche: none — an arena error against a con-leche error, by kind AND
-message.  The arena's `CheckError` has a fourth constructor (`.native`, the
-store's capacity limit), which no con-leche error can meet. -/
+/-- con-leche: none — an arena error against a con-leche error, by kind (the
+message is not compared, DESIGN §3.1: the twin's declines carry the Rust
+port's constant messages, task #97-T2-LOCKSTEP lane Checker).  The arena's
+`CheckError` has a fourth constructor (`.native`, the store's capacity
+limit), which no con-leche error can meet. -/
 private def errEq : CheckError → ConLeche.CheckError → Bool
-  | .notImplemented a, .notImplemented b => a == b
-  | .invalid a, .invalid b => a == b
-  | .internal a, .internal b => a == b
+  | .notImplemented _, .notImplemented _ => true
+  | .invalid _, .invalid _ => true
+  | .internal _, .internal _ => true
   | _, _ => false
 
 /-- con-leche: none — **the differential**: con-leche's `checkDecl` on
