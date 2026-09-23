@@ -1065,6 +1065,24 @@ attribute [lockstep_simp] id_eq
         (absEIdx ty, ConRon.Refine.absBinderMeta m) :: ExprOps.absBinderL xs) :=
   fun _ h => ExprOps.cons_binder_refines h
 
+@[lockstep] theorem binder_copy_from_spec
+    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize)
+    (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    LSP (arena.expr_ops.binder_copy_from xs i out)
+      (fun r => ExprOps.absBinderL r = ExprOps.absBinderL out ++ (ExprOps.absBinderL xs).drop i.val) :=
+  fun _ h => ExprOps.binder_copy_from_refines h
+
+/-- `take_eidx_n` (the prefix at a `u64` count) against `takeEidx` at that count. -/
+@[lockstep] theorem take_eidx_n_spec (xs : alloc.vec.Vec arena.handle.EIdx) (c : Std.U64) :
+    LSP (arena.expr_ops.take_eidx_n xs c)
+      (fun r => absEIdxArr r = takeEidx (absEIdxArr xs) c.val) := by
+  intro r h
+  have := ExprOps.take_eidx_n_refines h
+  apply Array.ext'
+  rw [takeEidx, ExprOps.eidxCopyUpto_toList (absEIdxArr xs) c.val c.val 0 #[] (by omega)]
+  simp only [absEIdxArr, List.toList_toArray] at this ⊢
+  simpa [ExprOps.absEIdxL] using this
+
 @[lockstep] theorem fvl_copy_from_spec (xs : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
     (i : Std.Usize) (out : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
     LSP (arena.expr_ops.fvl_copy_from xs i out)

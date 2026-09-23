@@ -2467,6 +2467,8 @@ namespace Lockstep
       (fun o => o = (absNIdx a == absNIdx b)) :=
   fun _ h => nidx_eq2_abs h
 
+-- `eidx_eq2_spec` lives in `Tactic/Prims.lean` (the ExprOps lane's copy).
+
 @[lockstep] theorem i_constant_val_dup_spec (cv : arena.env.IConstantVal) :
     LSP (arena.env.i_constant_val_dup cv)
       (fun o => absIConstantVal o = absIConstantVal cv) :=

@@ -93,7 +93,8 @@ attribute [lockstep_simp] absEIdxList absLeaves absLIdxOpt absPwOpt absBinders a
 
 No statement of this file takes it any more: the D1 twins now test the tag
 first, as the port does, so a dangling handle behaves the same on both sides.
-The definition stays for the Core and Checker statements that still name it.
+The definition stays for the Core statements that still name it
+(`Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore`).
 
 Finding 1's hypothesis.  `EResolves` is task #97s's template rule 4 at the
 arena's `view`: an `isSome`, not a named view, so that a side goal is
@@ -104,60 +105,6 @@ assumed here that Theorem 1 does not already establish. -/
 /-- The handle decodes in the twin's store: the state the Rust's tag-first
 dispatch and the twin's view-first dispatch agree on. -/
 def EResolves (lst : AState) (h : EIdx) : Prop := (lst.store.view h).isSome = true
-
-/-! ## The three memo-threading outcome shapes of the pre-lockstep statements
-
-**Deprecated** (task #97-T2-LOCKSTEP): this file's walks are stated in the
-`LS` judgement now, with the memo relation inside the answer relation (`∃ m',
-WMemoRel a.2 m' ∧ b = (a.1, m')`).  `WOut`/`LOut`/`FOut` stay only for the
-Inductives and Checker statements that still name them. -/
-
-/-- The outcome of a `(Bool × memo)`-returning walk keyed on `(handle, depth)`. -/
-def WOut (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result (Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
-      kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError ((Bool × Std.HashMap (EIdx × Nat) Bool) × AState)) :
-    Prop :=
-  match o with
-  | .Ok r => ∃ m' lst', x = .ok ((r.1, m'), lst') ∧ WMemoRel r.2 m' ∧
-      AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
-  | .Err e => AErrSim e x
-
-/-- The outcome of a `(Bool × memo)`-returning walk keyed on the handle. -/
-def LOut (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result (Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-      kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError ((Bool × Std.HashMap EIdx Bool) × AState)) :
-    Prop :=
-  match o with
-  | .Ok r => ∃ m' lst', x = .ok ((r.1, m'), lst') ∧ LMemoRel r.2 m' ∧
-      AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
-  | .Err e => AErrSim e x
-
-/-- The outcome of `fvar_leaves_go`'s accumulator-and-`seen` pair.
-
-**Finding 12 (this round): the port's accumulator is the twin's list
-REVERSED, and the statement has to say so.**  `fvar_leaves_go` pushes where
-the twin conses — the port's own doc comment says "the two lists are each
-other's reverse" and explains why (a `Vec` has no cons, and `leaf_mem`, the
-only reader, is order blind).  P5-0 stated this group at `absLeaves r.1`,
-which is false; it is `(absLeaves r.1).reverse`.  The same correction goes to
-`fvar_leaves_fast_refines`, which P5-0 had "closed" against the wrong
-statement (vacuously, off the `sorry` below it). -/
-def FOut (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result ((alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) ×
-      ron.hashmap2.HashMap2 arena.handle.EIdx Bool) kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError
-      ((List (Nat × EIdx) × Std.HashMap EIdx Unit) × AState)) : Prop :=
-  match o with
-  | .Ok r => ∃ s' lst', x = .ok (((absLeaves r.1).reverse, s'), lst') ∧
-      SeenRel r.2 s' ∧
-      AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
-  | .Err e => AErrSim e x
-
 
 section size_b
 attribute [local lockstep_simp] sizeBArmApp sizeBArmBind sizeBArmLet sizeBArmProj
@@ -553,7 +500,7 @@ theorem forall_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : ASt
   rw [arena.expr_ops.forall_pw, forallPw]
   lockstep
 
-theorem fvar_type_d_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+@[lockstep] theorem fvar_type_d_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.fvar_type_d pers st h) st lst
       (fvarTypeD (absEIdx h)) := by

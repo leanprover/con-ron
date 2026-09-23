@@ -60763,6 +60763,35 @@ first `lockstep`; with the atomic `twin_bind_pure` fallback (§7) that first
 `lockstep` closes the goal, so the hand tail is deleted (one `lockstep` call
 now).
 
+#### 9. Slice 3 — the Inductives' ExprOps companions; the last deprecated shapes
+
+Every `arena::expr_ops` function the inductives Rust calls (25, counted off
+`Generated/Funs.lean`) now has an `@[lockstep]` companion.  Already there:
+`strip_pis_ls`, `mk_app_n_ls`, `get_app_args_ls`, `get_app_fn_ls`,
+`rename_consts_fast_ls`, `lift_loose_bvars_fast_ls`, `strip_lams_ls`,
+`loose_bvars_bounded_fast_ls`, `inst_pis_at_lift_ls`, `inst_pis_at_f_ls`,
+`inst_lams_at_f_ls`, `has_fvar_fast_ls`, `reset_meta_fast_ls`,
+`instantiate1_fast_ls`, `instantiate1_lift_fast_ls`, `abstract1_fast_ls`,
+`lower_bvars_fast_ls`, `inst_spine_ls`, `inst_lp_fast_ls`,
+`rec_rule_plain_ls`, `bvar_b_ls`, `eidx_take_beq_spec` (all in
+`ExprOps/{Mut,Read}.lean` or `Tactic/Prims.lean`; the Inductives modules reach
+them by importing `ConRon.Refine2.ExprOps.Mut`, which `Modeled.lean` already
+does).  Added: `take_eidx_n_spec` (`take_eidx_n` against `takeEidx` at the
+`u64` count, over a new `take_eidx_n_from_aux`/`take_eidx_n_refines` in
+`ExprOps/Pure.lean`), `binder_copy_from_spec`, and the missing
+`@[lockstep]` on `fvar_type_d_ls`.
+
+Deleted: `Read.lean`'s `WOut`/`LOut`/`FOut` (no consumer; `Inductives/Shape`
+and `StructParts` still name `WOut` in doc comments only); `Specs.lean`'s last
+18 deprecated `AStateRel` shims — `view_run`, `inst1_get_run`,
+`inst1_set_run`, `read_level_m_run`, `intern_n_node_run`, and the
+`intern_e_run` chain (`intern_e_{bvar,fvar,sort,const,app,let_e,proj,lit,
+bind_i,lam,forall_e}_run`, `intern_e_bvar_flags`) — with the three helpers only
+they used (`internNodeE_run_wf`, `internLamE_run_wf`, `internForallEE_run_wf`)
+and their census entries; the `₀` statements stay.  `EResolves` stays:
+`Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore` takes it as a premise
+(Core lane), and five Core files `open` it.
+
 ### Task #97-T2-LOCKSTEP lane Checker Base/Top — the `Top` arms, the name/cursor leaves, the constant check's blocked tails as `_of` lemmas (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-chk-base` off `arena` `70ea5a33`.  Lane: `Refine2/Checker/
