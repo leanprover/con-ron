@@ -58960,3 +58960,297 @@ shared machine, so it is not reported.
 Scratch (binaries, patches, profiles) was in `_tmp/perf-fresh/`, deleted
 after this section.  All the patches are local to the task worktree and none
 was committed.  No gates were run: the change is to DESIGN.md only.
+
+### Task #97-T2-LOCKSTEP step 1 — the foundation: lockstep shapes, twin fixes D2/D3/D5/D6, `Specs.lean`, the bracket (2026-09-23, Opus under Fable)
+
+The maintainer's ruling on #97-T2-AUDIT: *"the lockstep is clearly the right
+design"*.  Theorem 2 relates two programs that do the same operations from
+related states; the relation says only that the two sides hold the same data
+in different representations.  `StoreWF`, `Ext` and every "handles resolve"
+clause are Theorem 1's.  This step lays the foundation the lanes migrate onto.
+Coordinator worktrees under `_tmp/wt-t2-*`, helper lanes for D2, D3, D5,
+slice 3 and D6; landed in five gated slices, each all 16 gates OK.
+
+#### Landings
+
+| slice | commit on `arena` | what |
+|---|---|---|
+| 1 | `12fd2d46` | definitions + deprecated shims |
+| 4 | `b7c84da1` | the bracket (landed early: needs only slice 1) |
+| 2 | `98b2ba68` | twin fixes D2, D3, D5, the `check_value_group` messages |
+| 3 | `f216c474` | `Refine2/Specs.lean` on the lockstep shapes |
+| 5 | this landing | twin fix D6 (found by slice 3), the three binder `₀` interns |
+
+#### 1. The shapes (slice 1)
+
+`AStateRel₀` (store/memos/caches/pins), `AOut₀`/`Sim₀`/`SimS₀` were taken
+byte for byte from the core lane's p5-core-4 so the two merged cleanly; so
+`AOut₀` has **no `WF` slot** (a result that wants one states it through the
+relation of the new `SimRel₀`/`AOutRel₀`, `Refine2/Checker/Shape.lean`, as
+`SimRel` already did).  Kit: `AOut₀.native/.dest/.destErr`, `Sim₀.mk/.dest`,
+`Sim.to₀`, `Sim₀.toSim`, `SimS.to₀`, `SimS₀.toSimS`, `Sim₀.toSimRel₀`,
+`SimRel.to₀`, `SimRel₀.mono`.  The old `AStateRel` (= `AStateRel₀ ∧ StoreWF`),
+`AOut`, `Sim`, `SimS`, `AOutRel`, `SimRel` are **deprecated shims** in their
+doc comments (not `@[deprecated]`: that would flood every build).
+
+#### 2. The twin fixes (slices 2 and 5) — no Rust changed
+
+* **D2** — `EStore.persFindMaybe`/`persFindBindMaybe` (`Arena/Store.lean`)
+  skip the persistent probe exactly where the Rust's `sk` prologue does:
+  `eViewHasScratchChild` (the Rust function 1:1) at the eight non-binder
+  records, `bindHasScratchChild ty b mi` (datum handle included) at the
+  binder records.  **`findAt` uses the record test**, not the view-only test
+  of the Rust `EStore::find`: that one is `mod tests`-only, and `findAt`'s one
+  real use is `internE`'s probe, whose Rust is `intern_e` → `intern_lam_i`
+  (coordinator's ruling; noted in the doc comment).  Theorem 1:
+  `Arena/WFSkip.lean` — `persFindMaybe_eq`/`persFindBindMaybe_eq` under
+  `StoreWF`, and the six `hchild_*` (+ `persFind?_none_of_*child`,
+  `persFind_bind_none_of_child`) moved there unchanged; 5 Bridge/Arena
+  lemmas took a one-line rewrite.  The N/L/Ls stores skip nothing in the Rust.
+* **D3** — `internPersistentE` follows `EStore::intern_persistent`: datum
+  persistent-intern (capacity tested on its miss only), node probe at that
+  handle, node capacity on a miss, push.  `EStore.internPersistentAt` +
+  `rfl` back to `internPersistent`; `Arena/PersistentRun.lean`;
+  `Bridge.internPersistentE_run` is two lines.  Resolves the promote tier's
+  `promote_e` false-at-full-table corner (`intern_persistent_e_run_nocap` on
+  the unmerged `p5-top-3-promote` becomes one line from `intern_persistent_e_run₀`).
+* **D5** — `reservedBasisNames := pinReserved`, the Rust wrapper; all seven
+  call sites incl. the startup walk read the table.  Theorem 1 shrank
+  (`reservedBasisNames_run` is one `pinReserved_spec` read); Theorem 2 gained
+  `reserved_basis_names_refines` and closed `intern_all_names_refines`.
+* **Messages** — `checkValueGroup`'s two declines are the Rust constants
+  (`M_THM_NOT_PROP`, `value_kind_word`); no `readName`.
+  `check_value_group_tail_refines` closed.  `Arena/CheckerTest.lean`'s
+  `chkInstall` now compares error KINDS only (`errKindEq`; ruled OK).
+* **D6 (new, found by slice 3)** — `internE` at a binder view tested the
+  node array on a datum miss before the probe, and recomputed the derived
+  word from the datum VALUE; the Rust interns the datum (`intern_bm`) and
+  runs `intern_lam_i` at the HANDLE.  Counterexamples: a stale key
+  `⟨ty, b, mi⟩` with `mi` = the datum array's length at a full `lams` (Rust
+  `Ok`, twin `native`); a datum row whose stored derived pair is not the
+  datum's.  Fix: `internBME` (mirrors `intern_bm`) then `internLamIE`/
+  `internForallEIE`; `internNodeE` for the eight other views.  Theorem 1:
+  `internE_spec`/`_specV`/`_sp`/`internE_scratchOn` case-split.
+* **D4 is not here**: `AM = StateT AState (Except CheckError)` cannot keep
+  a failed attempt's store.  Ruled: the Rust restores the scratch tiers
+  (separate agent).  The scratch tier is on at every `check_div_mod_pin`
+  call (`check_decl` is reached only from `check_decl_step` and
+  `annot_step`, both after `enter_scratch`).
+* The Rust side changed in comments only: `twin-lines.py update`
+  (line-neutral, so `Generated/` did not move) and D2's two stale notes.
+
+#### 3. `Specs.lean` (slices 3 and 5)
+
+110 lockstep `₀` statements (hypotheses `AStateRel₀`, `AStateInv`,
+Rust-side representation facts, `hrun`; no `StoreWF`/`Ext`/`hview`/
+`hchild`/`hbmcap`/`EBindWFAt`/`EViewPers`): the 25 `SimR` readers, 15
+`AOut`/`Sim` readers, 24 memo gets/sets/clears, the `estore_intern_*_abs₀`,
+all ten expression interns + the dispatcher `intern_e_run₀`, the `_i`
+binders, node interns, the level/name walks, and the four
+`intern_persistent_{e,n,l,ls}_run₀` (the promote window is not special under
+`AStateRel₀`).  39 old statements deleted (no consumer), with
+`intern_storeWF_of_cap`, the `internPersistent*_storeWF'` and `ECapPAt`.
+Proofs shrank (`intern_e_app_run` 30 → 25 lines, `intern_level_run'` 294 →
+205); the file grew net because the shims coexist.  `Refine2/Tactic/Prims.lean`:
+five `intern_e_*_ls` closed from the `₀` lemmas; `intern_e_{lam,forall_e}_ls`
+stay `sorry` — their statements lack the input datum's `PropWhenWF`, a
+statement gap, not a divergence.  No lockstep proof needed a deleted clause
+once D2/D3/D6 were in.
+
+#### 4. The bracket (slice 4)
+
+`flush_caches_sim₀`, `enter_scratch_sim₀`, `drop_scratch_sim₀` in
+`Refine2/Core/Bracket.lean`: three plain `SimS₀` lemmas.
+
+#### 5. The shims that remain, and who deletes them
+
+**`Specs.lean`** — 80 deprecated shims, each "use `<name>₀`", each a 2–4 line
+proof from its `₀` lemma plus the twin's own `StoreWF`/`Ext` (except
+`intern_persistent_n_run`, which concludes `SimW`).  A lane deletes a shim
+when its last consumer below has moved:
+
+| consumer (lane) | # | shims |
+|---|---:|---|
+| `Refine2/Checker/Base.lean` | 1 | `read_level_m_run` |
+| `Refine2/Checker/Pins.lean` | 3 | `intern_e_sort_run`, `intern_l_node_run`, `intern_ls_node_run` |
+| `Refine2/Core/Arms/Sort.lean` | 1 | `view_run` |
+| `Refine2/Core/Probes.lean` | 2 | `inst1_get_run`, `inst1_set_run` |
+| `Refine2/ExprOps/Mut.lean` | 72 | `abs1_clear_run`, `abs1_get_run`, `abs1_set_run`, `bvar_b_clear_run`, `bvar_b_get_run`, `bvar_b_set_run`, `estore_intern_app_abs`, `estore_intern_const_abs`, `estore_intern_forall_e_i_abs`, `estore_intern_fvar_abs`, `estore_intern_lam_i_abs`, `estore_intern_let_e_abs`, `estore_intern_proj_abs`, `estore_intern_sort_abs`, `fvar_b_clear_run`, `fvar_b_get_run`, `fvar_b_set_run`, `inst1_clear_run`, `inst1_get_run`, `inst1_l_clear_run`, `inst1_l_get_run`, `inst1_l_set_run`, `inst1_set_run`, `inst_l_clear_run`, `inst_l_get_run`, `inst_l_set_run`, `inst_lp_clear_run`, `inst_lp_get_run`, `inst_lp_l_get_run`, `inst_lp_l_set_run`, `inst_lp_ls_get_run`, `inst_lp_ls_set_run`, `inst_lp_set_run`, `intern_e_app_run`, `intern_e_bind_i_run`, `intern_e_bvar_flags`, `intern_e_bvar_run`, `intern_e_const_run`, `intern_e_forall_e_run`, `intern_e_fvar_run`, `intern_e_lam_run`, `intern_e_let_e_run`, `intern_e_lit_run`, `intern_e_proj_run`, `intern_e_run`, `intern_e_sort_run`, `intern_level_run'`, `intern_levels_run'`, `lift_clear_run`, `lift_get_run`, `lift_set_run`, `lower_clear_run`, `lower_get_run`, `lower_set_run`, `read_level_m_run`, `read_levels_m_run`, `read_name_m_run`, `read_names_m_run`, `rename_clear_run`, `rename_get_run`, `rename_set_run`, `reset_clear_run`, `reset_get_run`, `reset_set_run`, `view_app_run`, `view_bind_i_run`, `view_bind_run`, `view_bvar_run`, `view_fvar_idx_run`, `view_let_run`, `view_proj_run`, `view_run` |
+| `Refine2/ExprOps/Read.lean` | 6 | `derived_l_run`, `view_app_run`, `view_bind_i_run`, `view_bind_run`, `view_fvar_ty_run`, `view_run` |
+| `Refine2/Frontend/ExportC.lean` | 3 | `intern_e_run`, `intern_l_node_run`, `view_run` |
+| `Refine2/Frontend/Prepare.lean` | 1 | `intern_n_node_run` |
+| `Refine2/Inductives/StructParts.lean` | 1 | `intern_e_bvar_run` |
+| `Refine2/Promote/Intern.lean` | 1 | `intern_name_run'` |
+| `Refine2/Promote/Promote.lean` | 2 | `intern_persistent_n_run`, `view_n_run` |
+| `Refine2/Tactic/Prims.lean` | 1 | `view_run` |
+
+**Shape-level shims** (delete in the audit's step 11, when no file names them):
+
+| shim | still used in |
+|---|---|
+| `AStateRel`, `AOut`, `Sim` | every Refine2 lane + `Capstone.lean` |
+| `SimS` | Checker, Core, ExprOps |
+| `AOutRel`, `SimRel` | Checker, Core, Frontend, Inductives |
+| `BrOK`, `TwinWF`, `bracket_open`, `bracket_close`, `ext_bracket`, `ScratchClosed` | Checker (`Checker/Top.lean`), Core, `Capstone.lean` |
+| `AStateRelW`, `AOutW`, `SimW` | Promote (`Promote/Promote.lean`), Checker |
+| `WOutE`/`WOutR`, `EBindWFAt`, `intern_storeWF`, the `viewOK_*` builders | ExprOps (`ExprOps/Mut.lean`) |
+
+#### 6. Findings beyond D1–D5
+
+* **D6** (above, fixed).
+* **`readName` inside decline messages**, same pattern as the fixed
+  `checkValueGroup` pair (the twin can fail `.internal` where the Rust raises
+  a constant `Invalid`/`NotImplemented`): `CheckerSplit.lean`
+  `installConstantVal`/`installValue`, `CheckerBase.lean:373-389`,
+  `DeclCheck.lean:535-641`, `Checker.lean:119-183`, possibly
+  `Frontend/ExportC.lean:476-585`.  Ruled: the checker and frontend lanes fix
+  them as twin divergences.
+
+#### 7. Frontier
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`:
+54 items / 151 tainted / 694 dead at the start (`4ce7df20`); per slice, the
+movement is other lanes' landings except slice 2 (59/162/650 → 58/161/649:
+two sorries closed by D5).  At this landing: 65 / 174 / 642 (arena before it: 65 / 174 / 647; the five dead-weight sorries are `Tactic/Prims.lean`'s closed `intern_e_*_ls`).  Gates: all 16 OK at every slice.
+
+### Task #97-P5-POOL — the pool's claim made structural; stage 6 is the pool (2026-09-23, Opus under Fable)
+
+**The brief** was to prove the pool claim's clause (2), task #97-P5-Driver
+§3: *a record's outcome does not depend on which records its worker checked
+before*.  With it proved, the pool row would be master's
+merge-by-record-index argument alone.  Worktree `_tmp/wt-p5-pool` off `arena`
+`5108218b`.
+
+#### 1. Why clause (2) was not proved (reported first, then ruled)
+
+* **Theorem 2 cannot give the literal claim.**  `Sim₀`/`AErrSim` claim
+  nothing about a Rust `Native` and compare an error's KIND, not its message.
+  Two Rust runs related to the same twin run can therefore still differ:
+  `Ok` against `Native`, or `Invalid m₁` against `Invalid m₂`.  "The pool
+  returns what `check_pending_worker` returns" can come out of Theorem 2 only
+  up to `Native` and messages.
+* **Even that weaker form needs a frame lemma over the whole checker.**  To
+  relate a worker state after k accepted records to `lst.worker` (up to
+  memos), most parts come free: scratch tables, `scratchOn` and caches from
+  the relation to the twin's `dropScratch`, which sets them to the empty
+  literals; memos from `enter_scratch`; `AStateInv` from `Sim`.  Two parts do
+  not: the persistent arm (`rPersE (tierOf …)`) and the pins.  They need
+  either the Rust keeping its four `shared_on` flags and its pins, or the twin
+  keeping its four persistent tables and its pins, across `check_value_group`.
+  `AStateRel₀` relates `w_k` to the lockstep twin state `T_k`, not to
+  `lst.worker`.  No such frame exists: `Refine2` has `shared_on` frames only
+  on intern wrappers and `ExprOps/Mut.lean`'s walks, and `Bridge` has
+  `pins` only under Theorem 1's invariants (`CoreStep.pins`) and only
+  `Ext`/`PExt`, which are denotational, for the store.  The Rust closure of
+  `check_pending` is ≈1 200 definitions of `Generated/Funs.lean`, the twin
+  closure of `checkValueGroup` ≈580.  Either frame is a one-state induction
+  the size of `KnotRel`'s, and `lockstep` is two-state, so it does not apply.
+
+Three options went to the coordinator: (a) that frame; (b) a per-record reset
+in the Rust (flags and `pins_dup`), which makes (2)-up-to-the-twin a page;
+(c) no clause (2) at all.  **Ruling: (c)**, including changing stage 6 of the
+root theorems.
+
+#### 2. What (c) is, and what was proved
+
+A worker IS the verified walk: one `worker_state`, then `check_pending` on
+the records it claims, in claim order, on that one state.  That is
+`check_pending_worker` on its own records.  So nothing about a worker's
+history is needed once each worker is related to the twin on its own and the
+per-record conclusions are gathered at con-leche's level, where each
+record's pure check is at its own prefix environment.
+
+* **`Arena/Pooled.lean`** (new, twin): `PooledAccepts mode pins ds s fe s'`.
+  `annotFold` accepted from `s` ending in `s'`, and record lists `parts`, each
+  drawn from the pending array, together covering it, each accepted by
+  `checkPendingList` from `s'.worker`.  It is a module of its own so that the
+  `ConRon.Arena` aggregator, which half the proof imports, does not rebuild.
+* **`Refine2/Checker/Phased.lean`** (Theorem 2):
+  * `PoolAccepts inst pers st mode pins ds h fe st'` is stage 6 as the driver
+    runs it, spelled with verified calls only: `fold_start`,
+    `annot_fold_hooked` accepting with `(n, fe, pend)` and `st'`,
+    `freeze_tier st'.store` accepting with `tier`, and `parts` (lists of
+    `PendingCheck`, each drawn from `pend`, together covering it), each
+    accepted by `check_pending_worker tier mode fe st'.pins`.  `thaw_tier`
+    then restores `st'.store` exactly (`freeze_tier_ok`), so `st'` is what the
+    fold hands back.
+  * `poolAccepts_of_check_decls_phased`: an accepting `check_decls_phased` is
+    a `PoolAccepts` with one worker.  This is the non-vacuity check: the
+    hypothesis is met by the verified sequential walk.
+  * `pool_accepts_refines`: `check_decls_phased_refines`' hypotheses
+    verbatim; it concludes the twin's `PooledAccepts` from the related state,
+    `IFEnvRel`, and `AStateRel` at `st'`.  Each worker is `worker_state_rel`
+    plus `check_pending_list_refines` on its own list.
+* **`Bridge/Checker/Phased.lean`** (Theorem 1): `Arena.pooledAccepts_bridge`,
+  with `installThenCheckPhased_bridge`'s hypotheses verbatim, concludes that
+  con-leche's `checkDeclsPure` accepts the denoted stream at the environment
+  `fe'` denotes in `s'`.  Per record `p ∈ pendP`, it finds `p`'s handle record
+  (`ListRel`), a list that covers the record, and a related pure list through
+  `p`.  `checkPendingList_worker` moves the list's run to the phase-A state,
+  and `Arena.checkPendingList_bridge`, which is stated for ANY related list,
+  gives `p`'s pure accept.  `PhaseA.foldlM` assembles the fold.  Four small
+  `ListRel` helpers are private to the file.
+* **`Capstone.lean`**:
+  * `rust_stages`, `model_exists` and `no_False_declaration` take
+    `(h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6)` in
+    place of the `check_decls_phased` run.
+  * `stages_model` takes the twin's `PooledAccepts` and goes through
+    `Arena.pooledAccepts_bridge`.
+  * **`no_False_declaration` now goes through the pure fold**, the open
+    question of the ruling.  It went through: the pooled phase B is several
+    worker walks, so there is no `Arena.runPipeline` run to refute.  The
+    route is `Arena.no_False_declaration_pipeline`'s own last steps:
+    * new `stages_false_mem` is `stages_frame`'s steps keeping the pure parse
+      (`parseChunks_run`'s fourth conjunct), then
+      `parseChunks_jsonWithTheoremFalse` and `mem_preparePrelude`: the file's
+      `False` theorem is in the denoted stream;
+    * new `stages_no_False` puts that next to `Arena.pooledAccepts_bridge`'s
+      pure accept of the same stream (`denoteDecls` is a function), and
+      `no_False_theorem_accepted_pure` refutes it.
+
+    Neither statement is weakened.
+  * `runPipeline_ok_of_stages` and `stages_installThenCheck` had no other
+    user and are deleted.  `check_decls_phased_refines` and
+    `installThenCheckPhased_bridge` stay, and `poolAccepts_of_check_decls_phased`
+    ties them to the new stage.
+
+No `sorry` added, no Rust code changed, and no semantic invariant added to
+Theorem 2.  The `hwork` obligation on `declResolves_of_stages` is untouched:
+every worker is still related from `lst.worker`, so this does not make it moot.
+It goes with `ResolveInv` in the Checker lockstep lane.  Frontier
+(`scripts/frontier.sh --summary` of the two roots): **65 items in 16 modules,
+173 tainted declarations** here, against 65 / 174 on the branch point.  The
+one declaration fewer is the `runPipeline` route.
+
+#### 3. The trust surface
+
+The pool row (OVERVIEW §8.2, `pool.rs`'s note "THE TRUSTED CLAIM") now reads:
+**when `check_pool` accepts, every record was checked, and each worker's
+records, in the order it checked them, are accepted by the verified
+`check_pending_worker`** — which is `PoolAccepts`.  It rests on `pool.rs`'s
+control flow and on master's argument only:
+* a worker is `worker_state` then `check_pending` on its claims, threading
+  one state;
+* results are merged by record index and walked in record order;
+* an accept means every slot is `Ok`, and the limit never moves on an
+  accepting run.
+
+Nothing is claimed about the checker.  The unverified crate's three rows are
+master's three: the modeller, the driver's call sequence (its row now says
+the capstone's last stage is the driver's line pool included), and the pool's
+control flow.  The per-worker state reuse (task #97-P6-6b, +16.4 % without it)
+stays and no longer costs a trusted clause.  The failure side (first failure
+in fold order) is kept and tested but is not part of what the capstone uses.
+Edits outside the proof: the module note and `check_pool`'s doc comment in
+`crates/con-ron/src/pool.rs`, the driver's doc comment in
+`crates/con-ron/src/driver.rs` (comments only), OVERVIEW §8.2's driver and
+pool rows, and `scripts/overview-links-expected.txt` (the pool anchor is now
+`#L46-L100`).
+
+#### 4. Gates
+
+`arena` merged at `4f6f3961` (task #97-PERF-FRESH, DESIGN only; a `DESIGN.md`
+conflict, both appends kept).  `scripts/gates.sh` on the merge: **all 16 OK**
+(`extract-check` 142 s).  `arena` then moved to `5453ac2e` (T2-LOCKSTEP step 1:
+the foundation, Rust and twin included); merged (`DESIGN.md` conflict only)
+and re-gated: **all 16 OK** (`extract-check` 113 s, `lake-bridge` 550 s).
