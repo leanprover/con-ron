@@ -2800,12 +2800,41 @@ theorem block_rec_of_refines {rsd lsd lst tys cts rcs o} (hd : StateDRel rsd lsd
 
 /-- **`cv_rec_dup` is the identity**, the house `foo_dup`. -/
 theorem cv_rec_dup_refines {cv cv'} (h : frontend.export_c.cv_rec_dup cv = ok cv') :
-    absCVRec cv' = absCVRec cv := by sorry
+    absCVRec cv' = absCVRec cv := by
+  rw [frontend.export_c.cv_rec_dup] at h
+  obtain ⟨lps1, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  have H := vec_cursor_copy cv.level_params absU64 absU64
+    (fun k out => frontend.export_c.cv_rec_dup_loop cv.level_params out
+      (alloc.vec.Vec.len cv.level_params) k)
+    (fun k out o hn h => by
+      rw [frontend.export_c.cv_rec_dup_loop.eq_def] at h
+      rw [if_neg (show ¬ k < alloc.vec.Vec.len cv.level_params by scalar_tac)] at h
+      rw [← Result.ok_injective h])
+    (fun k x out o hx h => by
+      rw [frontend.export_c.cv_rec_dup_loop.eq_def] at h
+      rw [if_pos (show k < alloc.vec.Vec.len cv.level_params by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+      obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have htx : t = x := Option.some_injective _ ((vec_index_some ht).symm.trans hx)
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e1, e2⟩ := cursor_push hout1 hk1
+      exact ⟨k1, t, out1, e2, e1, by rw [htx], h⟩)
+    0#usize _ lps1 hl
+  simp only [show (alloc.vec.Vec.with_capacity Std.U64 (alloc.vec.Vec.len cv.level_params)).val
+      = [] from rfl, List.map_nil, List.nil_append,
+    show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at H
+  simp only [absCVRec, absU64s, H]
 
 /-- **`ind_ctor_rec_dup` is the identity.** -/
 theorem ind_ctor_rec_dup_refines {c c'}
     (h : frontend.export_c.ind_ctor_rec_dup c = ok c') :
-    absIndCtorRec c' = absIndCtorRec c := by sorry
+    absIndCtorRec c' = absIndCtorRec c := by
+  rw [frontend.export_c.ind_ctor_rec_dup] at h
+  obtain ⟨cv1, hcv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  simp only [absIndCtorRec, cv_rec_dup_refines hcv]
 
 /-- **`m_ind_type_recs_dup` is the identity from the cursor on.** -/
 theorem m_ind_type_recs_dup_refines {ts i out v}
