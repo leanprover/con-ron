@@ -27,6 +27,7 @@ branch and `defeqPeel_chain`'s two equality short-circuits).
 -/
 import ConRon.Bridge.Inductives.ProjRule
 import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Checker.DeclVal
 import ConRon.Bridge.Frontend.Shared
 import ConLeche.Verify.Extend.Iota
 import ConLeche.Verify.Extend.Modeled
@@ -1281,6 +1282,40 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
         = .ok ()) := by
   sorry
 
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:241-247 Env.findCV? — the
+stored constant's common data under a name, read through the index spec at
+`fe` (the caches may serve another index): present exactly when con-leche's
+is, and denoting it.  The frame is `toConstantVal`'s (a projection table's
+pseudo-type is interned). -/
+theorem findCV?_run {μ : CheckMode} {envC env : Env} {feC fe : IFEnv} {s s' : AState}
+    {n : NIdx} {nm : ConLeche.Name} {r : Option IConstantVal}
+    (hck : CheckOK μ envC feC s) (hi : IFEnvOK env fe s)
+    (hn : denoteN s.store.ns n = some nm)
+    (hrun : Arena.IFEnv.findCV? fe n s = .ok (r, s')) :
+    CoreStep μ envC feC s s' ∧ r.isSome = (env.findCV? nm).isSome ∧
+      ∀ cv, r = some cv → ∃ cvP, env.findCV? nm = some cvP ∧
+        Frontend.denoteCV s'.store cv = some cvP := by
+  simp only [Arena.IFEnv.findCV?] at hrun
+  cases hf : fe.find? n with
+  | none =>
+    rw [hf] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨CoreStep.refl hck, ?_, fun cv h => nomatch h⟩
+    simp [ConLeche.Env.findCV?, IFEnvOK.miss hck.state hi hn hf]
+  | some ci =>
+    rw [hf] at hrun
+    obtain ⟨nm', c, hnm', hci, henvc⟩ := hi.hit n ci hf
+    obtain rfl := Option.some.inj (hnm'.symm.trans hn)
+    obtain ⟨v, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨hstep, hv⟩ := toConstantVal_sstep hck.state (CIProjNamed_of_find hi hf) hci k1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨⟨hck.monoF hstep.ok hstep.ext (CacheFrame.of_eq hstep.caches hstep.ext)
+      hstep.pins, hstep.ext, hstep.pins⟩, ?_, ?_⟩
+    · simp [ConLeche.Env.findCV?, henvc]
+    · intro cv hcv
+      obtain rfl := Option.some.inj hcv
+      exact ⟨c.toConstantVal, by simp [ConLeche.Env.findCV?, henvc], hv⟩
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
 The nested rule's levels and pinned arguments, read off the stored recursor
 type.  PURE on both sides (con-leche's is not even in `m`), and the answer is
@@ -1302,7 +1337,200 @@ theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (ROp (fun q st r => denoteLList st.ls r.1 = some q.1 ∧
           Frontend.denoteEList st r.2 = some q.2)
         (ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j)) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hcn, hlps, hty, hfe', hfeS, hok'⟩ := hpre
+  simp only [Arena.nestedRuleShape] at hrun
+  -- the model theorem's presence
+  obtain ⟨thm, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hthm⟩ := iotaThmName_spec cvName cvNameP j s₀ s₁ thm hck.state hcn k1
+  have c1 := p1.toCore hck
+  obtain ⟨o, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, hsome, -⟩ := findCV?_run c1.ok (hok'.mono c1.ext s₁ rfl) hthm k2
+  have c02 := c1.trans c2
+  have hname : (cvNameP.str "_model").str s!"iota_{j}" =
+      (cvNameP.str "_model").str ("iota_" ++ toString j) := by
+    simp; rfl
+  have hsome' : (env'.findCV? ((cvNameP.str "_model").str s!"iota_{j}")).isSome = o.isSome := by
+    rw [hname, hsome]
+  split at z2
+  · rename_i hno
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape]
+    rw [if_neg]
+    rintro ⟨h1, h2⟩
+    have h3 := hsome'.symm.trans h1
+    cases o <;> simp_all
+  rename_i hyes
+  have hcond : (env'.findCV? ((cvNameP.str "_model").str s!"iota_{j}")).isSome = true ∧
+      rP ≤ mI := by
+    rw [hsome']
+    refine ⟨?_, (by simpa using hyes : _ ∧ _).2⟩
+    cases o <;> simp_all
+  -- the major premise's domain
+  have hty2 := denote_ext hty c02.ext
+  obtain ⟨sp, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, hsp⟩ := stripPis_pstep c02.ok.state hty2 k3
+  subst s₃
+  have hwf := c02.ok.state.wf
+  rcases sp with _ | ⟨bs, rest⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, stripPis_none hsp]
+  obtain ⟨bsP, restP, hspP, -, hrest⟩ := denoteBP_someB' hsp
+  dsimp only at z3
+  obtain ⟨v1, s₄, k4, z4⟩ := bindOk z3
+  obtain ⟨hs4, hv1⟩ := view_run k4
+  subst s₄
+  by_cases hfa : ¬ ∃ dom b m, v1 = .forallE dom b m
+  · have hne : ∀ a b m, restP ≠ .forallE a b m :=
+      denote_not_forallE hwf hv1 hrest (fun a b m h => hfa ⟨a, b, m, h⟩)
+    have z4' : (pure none : AM (Option (List LIdx × List EIdx))) s₂ = .ok (r, s') := by
+      cases v1 <;> first | exact z4 | exact absurd ⟨_, _, _, rfl⟩ hfa
+    obtain ⟨rfl, rfl⟩ := pureOk z4'
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP] <;> split <;> simp_all
+  obtain ⟨dom, b, m, rfl⟩ := Classical.not_not.mp hfa
+  obtain ⟨domP, bP, rfl, hdom, -⟩ := denote_forallE_inv hwf hv1 hrest
+  dsimp only at z4
+  -- its head
+  obtain ⟨hd, s₅, k5, z5⟩ := bindOk z4
+  obtain ⟨hs5, hhd⟩ := getAppFn_run c02.ok.state hdom k5
+  subst s₅
+  obtain ⟨v2, s₆, k6, z6⟩ := bindOk z5
+  obtain ⟨hs6, hv2⟩ := view_run k6
+  subst s₆
+  by_cases hco : ¬ ∃ D us, v2 = .const D us
+  · have hne : ∀ n ls, domP.getAppFn ≠ .const n ls :=
+      denote_not_const hwf hv2 hhd (fun a b h => hco ⟨a, b, h⟩)
+    have z6' : (pure none : AM (Option (List LIdx × List EIdx))) s₂ = .ok (r, s') := by
+      cases v2 <;> first | exact z6 | exact absurd ⟨_, _, rfl⟩ hco
+    obtain ⟨rfl, rfl⟩ := pureOk z6'
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP] <;> split <;> simp_all
+  obtain ⟨D, lvlsIdx, rfl⟩ := Classical.not_not.mp hco
+  obtain ⟨DP, lvlsP, hfnP, -, hlvlsP⟩ := denote_const_inv hwf hv2 hhd
+  dsimp only at z6
+  -- the arguments, split
+  obtain ⟨args, s₇, k7, z7⟩ := bindOk z6
+  obtain ⟨hs7, hargs⟩ := getAppArgs_run c02.ok.state hdom k7
+  subst s₇
+  obtain ⟨pins, s₈, k8, z8⟩ := bindOk z7
+  obtain ⟨q8, hpins⟩ := mapM_E_pstep (F := Expr.lowerBVars (mI - rP) 0)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.lowerBVarsFast_run hok
+        (by rw [he]; rfl) hrun
+      exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h7 eP he⟩)
+    _ _ s₂ s₈ pins c02.ok.state (ExprOps.denoteEList_take cnP _ _ hargs) k8
+  obtain ⟨lifted, s₉, k9, z9⟩ := bindOk z8
+  obtain ⟨q9, hlifted⟩ := mapM_E_pstep (F := Expr.liftLooseBVars (mI - rP) 0)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨h1, h2, h3, h4, h5, -, -, h7⟩ := ExprOps.liftLooseBVarsFast_run hok
+        (by rw [he]; rfl) hrun
+      exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h7 eP he⟩)
+    _ _ s₈ s₉ lifted q8.ok hpins k9
+  obtain ⟨idx, s₁₀, k10, z10⟩ := bindOk z9
+  obtain ⟨q10, hidx⟩ := bvarsDesc_spec (mI - rP) s₉ s₁₀ idx q9.ok trivial k10
+  have c10 := c02.trans ((q8.trans (q9.trans q10)).toCore c02.ok)
+  obtain ⟨ks, s₁₁, k11, z11⟩ := bindOk z10
+  obtain ⟨hs11, hks⟩ := readNames_run k11
+  subst s₁₁
+  have x2_10 : Ext s₂.store s₁₀.store := q8.ext.trans (q9.ext.trans q10.ext)
+  have hksP : ks = lpsP := Option.some.inj
+    (hks.symm.trans (denoteNListE_ext (c02.ext.trans x2_10) _ _ hlps))
+  obtain ⟨lvls, s₁₂, k12, z12⟩ := bindOk z11
+  obtain ⟨hs12, hlvls⟩ := viewLs_run k12
+  subst s₁₂
+  obtain ⟨lvlVals, s₁₃, k13, z13⟩ := bindOk z12
+  obtain ⟨hs13, hlvlVals⟩ := readLevels_run k13
+  subst s₁₃
+  have hlvls10 := denoteLs_ext hlvlsP x2_10
+  have hvalsP : lvlVals = lvlsP := Option.some.inj (hlvlVals.symm.trans hlvls10)
+  have hlvlsL := denoteLs_of_view hlvls hlvls10
+  -- the pins' guards
+  obtain ⟨pok, s₁₄, k14, z14⟩ := bindOk z13
+  obtain ⟨c14, hpok⟩ := allM_E_cstep (μ := μ) (env := envSelf) (fe := feSelf)
+    (g := fun p => !p.hasFvar && p.looseBVarsBounded rP && p.constsResolve envSelf &&
+      p.allLevelParamsDefined lpsP)
+    (fun st => Frontend.denoteNList st.ns lps = some lpsP)
+    (fun hx h => denoteNListE_ext hx _ _ h)
+    (fun a aP s₀ s' b hok hQ ha hrun => by
+      obtain ⟨b1, t1, g1, y1⟩ := bindOk hrun
+      obtain ⟨h11, h12, h13, hb1⟩ := AM.of_run (P := fun u => u = s₀) rfl g1
+        (ExprOps.hasFvarFast_spec Arena.coreWalkFuel s₀ a hok.state (by rw [ha]; rfl))
+      have d1 := CoreStep.of_readonly hok h11 h12 h13
+      have ha1 : denoteE t1.store a = some aP := by rw [h11]; exact ha
+      obtain ⟨b2, t2, g2, y2⟩ := bindOk y1
+      obtain ⟨h21, h22, h23, hb2⟩ := AM.of_run (P := fun u => u = t1) rfl g2
+        (ExprOps.looseBVarsBoundedFast_spec Arena.coreWalkFuel rP t1 a d1.ok.state
+          (by rw [ha1]; rfl))
+      have d2 := d1.trans (CoreStep.of_readonly d1.ok h21 h22 h23)
+      have ha2 : denoteE t2.store a = some aP := by rw [h21]; exact ha1
+      obtain ⟨b3, t3, g3, y3⟩ := bindOk y2
+      obtain ⟨h31, h32, h33, hb3⟩ := constsResolveFFast_run d2.ok ha2 g3
+      have d3 := d2.trans (CoreStep.of_readonly d2.ok h31 h32 h33)
+      have ha3 : denoteE t3.store a = some aP := by rw [h31]; exact ha2
+      obtain ⟨b4, t4, g4, y4⟩ := bindOk y3
+      obtain ⟨h41, h42, h43, hb4⟩ := allLevelParamsDefined_run d3.ok.state
+        (denoteNListE_ext d3.ext _ _ hQ) ha3 g4
+      have d4 := d3.trans (CoreStep.of_readonly d3.ok h41 h42 h43)
+      obtain ⟨rfl, rfl⟩ := pureOk y4
+      refine ⟨d4, ?_⟩
+      rw [hb1 aP ha, hb2 aP ha1, hb3, hb4])
+    pins _ s₁₀ s₁₄ pok c10.ok (denoteNListE_ext (c02.ext.trans x2_10) _ _ hlps)
+    (denoteEList_ext (q9.ext.trans q10.ext) _ _ hpins) k14
+  -- the decision, read on the pure side
+  have c014 := c10.trans c14
+  have x10_14 := c14.ext
+  have hwf14 := c14.ok.state.wf
+  have hlenE : args.length = domP.getAppArgs.length :=
+    (ExprOps.denoteEList_length _ _ hargs).symm
+  have htakeB : (args.take cnP == lifted) =
+      (domP.getAppArgs.take cnP ==
+        ((domP.getAppArgs.take cnP).map (Expr.lowerBVars (mI - rP) 0)).map
+          (Expr.liftLooseBVars (mI - rP) 0)) :=
+    beq_ehandleList_eq hwf14
+      (denoteEList_ext (x2_10.trans x10_14) _ _ (ExprOps.denoteEList_take cnP _ _ hargs))
+      (denoteEList_ext (q10.ext.trans x10_14) _ _ hlifted)
+  have hidxP : ConLeche.structPsAt 0 (mI - rP) =
+      (List.range (mI - rP)).map (fun i => Expr.bvar (mI - rP - 1 - i)) := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  have hdropB : (args.drop cnP == idx) =
+      (domP.getAppArgs.drop cnP ==
+        (List.range (mI - rP)).map (fun i => Expr.bvar (mI - rP - 1 - i))) := by
+    rw [← hidxP]
+    exact beq_ehandleList_eq hwf14
+      (denoteEList_ext (x2_10.trans x10_14) _ _ (ExprOps.denoteEList_drop cnP _ _ hargs))
+      (denoteEList_ext x10_14 _ _ hidx)
+  subst ks lvlVals
+  split at z14
+  · rename_i hyes2
+    obtain ⟨rfl, rfl⟩ := pureOk z14
+    refine ⟨c014, (lvlsP, (domP.getAppArgs.take cnP).map (Expr.lowerBVars (mI - rP) 0)),
+      ?_, ?_, ?_⟩
+    · obtain ⟨e1, e2, e3, e4, e5⟩ := hyes2
+      rw [htakeB] at e2
+      rw [hdropB] at e3
+      rw [hpok] at e4
+      simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP, hfnP]
+      rw [if_pos ⟨by rw [← hlenE]; exact e1, e2, e3, e4, e5⟩]
+    · exact denoteLList_ext x10_14.lss.ls _ _ hlvlsL
+    · exact denoteEList_ext (q9.ext.trans (q10.ext.trans x10_14)) _ _ hpins
+  · rename_i hno2
+    obtain ⟨rfl, rfl⟩ := pureOk z14
+    refine ⟨c014, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP, hfnP]
+    rw [if_neg]
+    rintro ⟨e1, e2, e3, e4, e5⟩
+    apply hno2
+    rw [htakeB, hdropB, hpok]
+    exact ⟨by rw [hlenE]; exact e1, e2, e3, e4, e5⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
 **The nested iota certificate**, which also decides the rule's firing mode.

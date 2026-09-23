@@ -565,4 +565,53 @@ theorem denoteEList_getD_fb {st : EStore} {b : EIdx} {bP : Expr}
     | zero => simpa using hx
     | succ k => simpa using ih hxs' k
 
+/-! ## Two shape tests, and a guard fold -/
+
+/-- con-leche: none — a handle whose view is not a `.forallE` does not denote
+one.  The pure matcher's catch-all arm, read off the arena's. -/
+theorem denote_not_forallE {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {v : ENodeView} {e : Expr} (hw : st.view h = some v) (he : denoteE st h = some e)
+    (hv : ∀ ty b m, v ≠ .forallE ty b m) : ∀ a b m, e ≠ .forallE a b m := by
+  intro a b m hae
+  subst hae
+  rw [denoteE_view_eq hwf hw] at he
+  cases v <;> simp_all [denoteEView, opt2_eq_some_iff, opt3_eq_some_iff]
+
+/-- con-leche: none — **`List.allM` of a core-grade Boolean test over a
+denoting handle list**: the answer is the pure `all` over the denotations. -/
+theorem allM_E_cstep {μ : CheckMode} {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
+    {g : Expr → Bool} (Q : EStore → Prop)
+    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (a : EIdx) (aP : Expr) (s₀ s' : AState) (b : Bool), CheckOK μ env fe s₀ →
+      Q s₀.store → denoteE s₀.store a = some aP → f a s₀ = .ok (b, s') →
+      CoreStep μ env fe s₀ s' ∧ b = g aP) :
+    ∀ (ps : List EIdx) (psP : List Expr) (s₀ s' : AState) (b : Bool),
+      CheckOK μ env fe s₀ → Q s₀.store → Frontend.denoteEList s₀.store ps = some psP →
+      ps.allM f s₀ = .ok (b, s') → CoreStep μ env fe s₀ s' ∧ b = psP.all g := by
+  intro ps
+  induction ps with
+  | nil =>
+    intro psP s₀ s' b hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, rfl⟩
+  | cons a as ih =>
+    intro psP s₀ s' b hok hQ h hrun
+    obtain ⟨x, xs, hx, hxs, rfl⟩ := denoteEList_cons h
+    simp only [List.allM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf a x s₀ s1 c hok hQ hx k1
+    cases c with
+    | false =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      simp only [List.all_cons, ← hc, Bool.false_and]
+    | true =>
+      obtain ⟨p2, hb⟩ := ih xs s1 s' b p1.ok (hQx p1.ext hQ)
+        (denoteEList_ext p1.ext _ _ hxs) z1
+      refine ⟨p1.trans p2, ?_⟩
+      simp only [List.all_cons, ← hc, Bool.true_and, hb]
+
 end ConRon.Bridge.Inductives
