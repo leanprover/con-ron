@@ -57,11 +57,14 @@ theorem scanSpec : ScanSpec where
   scanLineStr h := by
     refine ⟨?_, ?_⟩
     · have := scan_line_fwd_str_wf h
-      revert this
+      have hwf := scan_line_fwd_wf h
+      revert this hwf
       rename_i r _
-      cases r <;> simp [LineStrWF, LineRecStrWF]
-      rename_i d
-      cases d <;> simp [DeclStrWF, DeclRecStrWF]
+      cases r <;> simp [LineStrWF, LineRecStrWF, LineRecWF]
+      · rename_i n; cases n <;> simp [NameRecWF, NameRecStrWF]
+      · rename_i x; cases x <;> simp [ExprRecWF, ExprRecStrWF]
+      · rename_i d
+        cases d <;> simp [DeclStrWF, DeclRecStrWF]
     · have := scan_line_fwd_digits h
       revert this
       rename_i r _
