@@ -3439,4 +3439,33 @@ still a `sorry`: see the module note. -/
 /-- info: 'ConRon.Refine2.intern_rebuilt_bind_i_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_rebuilt_bind_i_refines
 
+/-! ### Task #97-P5-Mut's rows -/
+
+/-- info: 'ConRon.Refine2.intern_resolves' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_resolves
+
+/-- info: 'ConRon.Refine2.WOutE.bind' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms WOutE.bind
+
+/-- info: 'ConRon.Refine2.intern_e_app_res' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_app_res
+
+/-- info: 'ConRon.Refine2.intern_app_flags' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_app_flags
+
+/-- info: 'ConRon.Refine2.intern_e_bind_i_flags' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_e_bind_i_flags
+
+/-- info: 'ConRon.Refine2.mkAppNFrom_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms mkAppNFrom_eq
+
+/-- info: 'ConRon.Refine2.mk_app_n_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms mk_app_n_from_refines
+
+/-- info: 'ConRon.Refine2.mk_app_n_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms mk_app_n_refines
+
+/-- info: 'ConRon.Refine2.intern_rebuilt_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_rebuilt_refines
+
 end ConRon.Refine2
