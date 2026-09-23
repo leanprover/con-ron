@@ -88,8 +88,6 @@ The answer is a `CheckError` on both sides; messages are never compared
       (unknownConstError (absNIdx n)) := by
   rw [arena.core.unknown_const_error, unknownConstError]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
 
 /-! ## The bodies' small helpers -/
 
@@ -164,8 +162,6 @@ the twin's `what` is free (messages are never compared). -/
       (isBoolTrue (absEIdx h)) := by
   rw [arena.core.is_bool_true, isBoolTrue]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem head_hint_ls {pers vis st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -174,8 +170,6 @@ the twin's `what` is free (messages are never compared). -/
       (headHint lfe (absEIdx e)) := by
   rw [arena.core.head_hint, headHint]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem unfoldable_head_ls {pers vis st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -184,8 +178,6 @@ the twin's `what` is free (messages are never compared). -/
       (unfoldableHead lfe (absEIdx e)) := by
   rw [arena.core.unfoldable_head, unfoldableHead]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem same_const_heads_ls {pers st a b lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -193,8 +185,6 @@ the twin's `what` is free (messages are never compared). -/
       (sameConstHeads (absEIdx a) (absEIdx b)) := by
   rw [arena.core.same_const_heads, sameConstHeads]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem is_unit_like_ty_ls {pers vis st fe lfe h lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -223,5 +213,21 @@ the twin's `what` is free (messages are never compared). -/
          obtain ⟨y, hy⟩ := List.length_eq_one_iff.mp hl
          exact heq _ _ _ _ ⟨rfl, rfl, rfl, y, hy, rfl⟩)
 
+
+/-! ## The level verdicts, cached -/
+
+@[lockstep] theorem lvl_eq_ls {pers st u v lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lvl_eq pers st u v) lst
+      (lvlEq? (absLIdx u) (absLIdx v)) := by
+  rw [arena.core.lvl_eq, lvlEq?]
+  lockstep_core
+
+@[lockstep] theorem lvls_eq_ls {pers st us vs lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lvls_eq pers st us vs) lst
+      (lvlsEq? (absLsIdx us) (absLsIdx vs)) := by
+  rw [arena.core.lvls_eq, lvlsEq?]
+  lockstep_core
 
 end ConRon.Refine2.Lockstep
