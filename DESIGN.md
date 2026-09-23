@@ -57440,3 +57440,18 @@ failing citation is `README.md:13`'s
 whose cited lines moved under it.  This section adds no link, so I landed on
 the rule that the gate is unchanged by the diff.  The README anchor needs
 someone to re-read the paragraph that cites it and then run `--update`.
+
+#### Rulings on round 3's questions (coordinator, 2026-09-23)
+
+For the lane's restart after the lockstep foundation lands:
+
+* **F10** — `proj_rewrite_at_refines` is false as stated (wrong key, no
+  level-param comparison) and has no callers: **delete it**, do not restate.
+* **F12** — **authorised**: `check_one_ctor_refines`, `order_type_ctors`,
+  `order_block_ctors`, `check_one_rec`, `check_rec_records` gain real
+  conclusions, each against a twin-side transcription of its loop body in
+  `Spec.lean`; `check_one_ctor_refines`' twin side must return the `invalid`
+  verdict where the Rust does, not `fail` (if the *twin* is what fails there,
+  that is a twin/Rust divergence to fix in the twin, per the lockstep rule).
+* **F11** needs nothing: it disappears when `storeWF` leaves `AStateRel`.
+* **D1 `lam_body`** joins the audit's tag-first list (ExprOps lane).
