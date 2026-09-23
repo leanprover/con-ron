@@ -24,7 +24,7 @@ each is a `do`-block equation in `StateT AState (Except CheckError)`, which
 needs that section's rule-10 reduction discipline.  They are open here for the
 same reason they were open there.
 
-## `sorry` count in this file: 10
+## `sorry` count in this file: 8
 -/
 import ConRon.Refine2.Frontend.NatOpGround
 
@@ -294,7 +294,8 @@ def noteEntries (st : StateD) (es : List (NIdx × List NIdx × EIdx × Option Na
   { st with constTypes := ct, heights := hs }
 
 theorem noteDecl_unfold (st : StateD) (d : IDeclaration) :
-    noteDecl st d = (do pure (noteEntries st (← noteDeclEntries d))) := by sorry
+    noteDecl st d = (do pure (noteEntries st (← noteDeclEntries d))) := by
+  cases d <;> rfl
 
 /-- The value half of `parseLevelEntryD`, which the twin writes inline. -/
 def parseLevelRecD (st : StateD) : ConLeche.Frontend.LevelRec → AM LNodeView
@@ -391,6 +392,8 @@ theorem installIndD_unfold (md : Modeller) (st : StateD) (tys : List IndTypeRec)
       let b ← blockRecOf st tys cts rcs
       let st := noteIndBlocks st b
       if st.inModel && wants b then installGen md st block nPd T0 b
-      else return .inl (← pushDecl st (.indDecl block nPd))) := by sorry
+      else return .inl (← pushDecl st (.indDecl block nPd))) := by
+  simp only [installIndD, indBlockOf, bind_assoc, pure_bind]
+  rfl
 
 end ConRon.Refine2.Frontend
