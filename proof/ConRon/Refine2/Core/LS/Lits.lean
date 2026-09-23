@@ -271,12 +271,8 @@ attribute [local simp] ConRon.Refine.LiteralWF
   rcases hk : ConRon.Refine.Nat.toNat n with _ | k
   · rw [natLitToConstructor]
     lockstep
-    all_goals trace_state
-    all_goals sorry
   · rw [natLitToConstructor]
     lockstep
-    all_goals trace_state
-    all_goals sorry
 
 @[lockstep] theorem raw_nat_lit_ls {pers st h lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -354,8 +350,6 @@ theorem str_lit_cons_spine_aux (n : Nat) :
     rw [arena.core.str_lit_cons_spine, List.drop_eq_nil_of_le (by simp; omega),
       strLitConsSpine]
     lockstep
-    all_goals trace_state
-    all_goals sorry
   | succ k ih =>
     intro pers st lst cons of_nat nil_e s i hn hs hrel hinv
     have hi : i.val < s.val.length := by omega
@@ -363,8 +357,6 @@ theorem str_lit_cons_spine_aux (n : Nat) :
     rw [arena.core.str_lit_cons_spine, List.drop_eq_getElem_cons (by simpa using hi),
       strLitConsSpine]
     lockstep
-    all_goals trace_state
-    all_goals sorry
 
 @[lockstep] theorem str_lit_cons_spine_ls {pers st cons of_nat nil_e s i lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -386,10 +378,27 @@ attribute [local lockstep_simp] absString_toList List.drop_zero
       (strLitToConstructor (ConRon.Refine.absString s)) := by
   rw [arena.core.str_lit_to_constructor, strLitToConstructor]
   lockstep
-  all_goals trace_state
-  all_goals sorry
 
 /-! ## The `String` literal guards -/
+
+set_option hygiene false in
+/-- Glue for `listTyOk`/`listNilTyOk`/`listConsTyOk`: the twin matches
+`cv.levelParams` against `[p]`, the port tests the length and reads slot 0.
+Case on the twin's list; the length decides the port's test, and slot 0 is
+`p`. -/
+local macro "level_params_single" : tactic => `(tactic| (
+  rcases hm : List.map absNIdx a.level_params.val with _ | ⟨p, _ | ⟨q, m⟩⟩ <;>
+    have hlen := congrArg List.length hm <;>
+    simp (config := {failIfUnchanged := false}) only [List.length_map, List.length_cons,
+      List.length_nil, Nat.zero_add, Nat.reduceAdd] at hlen <;>
+    simp (config := {failIfUnchanged := false}) only [PB.vec_len_bne_one, hlen, decide_true, decide_false, Bool.not_true, Bool.not_false,
+      Nat.reduceEqDiff, Bool.false_eq_true, not_true_eq_false, not_false_eq_true] at hc <;>
+    first
+    | (obtain ⟨x, l1, hlx, hx, -⟩ := List.map_eq_cons_iff.mp hm
+       simp only [hlx, List.getElem_cons_zero] at *
+       subst hx
+       lockstep)
+    | lockstep))
 
 @[lockstep] theorem string_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -397,8 +406,6 @@ attribute [local lockstep_simp] absString_toList List.drop_zero
       (stringTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.string_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, stringTyOk] <;> lockstep
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem char_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -406,8 +413,6 @@ attribute [local lockstep_simp] absString_toList List.drop_zero
       (charTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.char_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, charTyOk] <;> lockstep
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem char_of_nat_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -415,8 +420,6 @@ attribute [local lockstep_simp] absString_toList List.drop_zero
       (charOfNatTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.char_of_nat_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, charOfNatTyOk] <;> lockstep
-  all_goals trace_state
-  all_goals sorry
 
 attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_nil_ty_body
   arena.core.list_cons_ty_body arena.core.list_cons_ty_at arena.core.str_lit_supported_rest
@@ -427,8 +430,6 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
       (stringOfListTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.string_of_list_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, stringOfListTyOk] <;> lockstep
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem list_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -436,8 +437,9 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
       (listTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.list_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, listTyOk] <;> lockstep
-  all_goals trace_state
-  all_goals sorry
+  -- glue: the twin's `match cv.levelParams with | [p]`, against the port's
+  -- length test, needs the Rust list's shape
+  all_goals level_params_single
 
 @[lockstep] theorem list_nil_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -445,8 +447,16 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
       (listNilTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.list_nil_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, listNilTyOk] <;> lockstep
-  all_goals trace_state
-  all_goals sorry
+  -- glue: the twin's `match cv.levelParams with | [p]`, against the port's
+  -- length test, needs the Rust list's shape
+  all_goals level_params_single
+  -- glue: the port's `Some(0)` pattern on the `u64` de Bruijn index against the
+  -- twin's `.bvar 0` pattern (a `match` on a `Nat` the tactic cannot decide)
+  all_goals (split <;> first
+    | (lockstep; done)
+    | (exfalso; simp_all; done)
+    | (exfalso; rename_i hne _ heq; apply hne; apply Std.UScalar.eq_of_val_eq
+       simp only [ENodeView.bvar.injEq] at heq; rw [heq]; rfl))
 
 @[lockstep] theorem list_cons_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -454,8 +464,9 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
       (listConsTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.list_cons_ty_ok.eq_def] <;>
     simp only [Option.map_none, Option.map_some, listConsTyOk] <;> lockstep
-  all_goals trace_state
-  all_goals sorry
+  -- glue: the twin's `match cv.levelParams with | [p]`, against the port's
+  -- length test, needs the Rust list's shape
+  all_goals level_params_single
 
 @[lockstep] theorem str_lit_supported_ls {pers vis st fe lfe lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
@@ -463,8 +474,6 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
       (strLitSupported lfe) := by
   rw [arena.core.str_lit_supported, strLitSupported]
   lockstep
-  all_goals trace_state
-  all_goals sorry
 
 /-! ## `reduceNat` -/
 
@@ -557,8 +566,6 @@ discharging `Core/Arms/Loops.lean`'s `reduce_nat_refines` through
         (absU depth) (absEIdx e)) := by
   rw [arena.core.reduce_nat, reduceNat]
   lockstep
-  all_goals trace_state
-  all_goals sorry
 
 end
 

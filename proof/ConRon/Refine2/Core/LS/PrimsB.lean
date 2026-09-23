@@ -189,6 +189,10 @@ pin_slot arena.pins.pin_nat_shift_right pinNatShiftRight arena.pins.PIN_NAT_SHIF
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun e he => dupId_nidx _ _ he
 
+@[lockstep] theorem dup2_lidx (h : arena.handle.LIdx) :
+    LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
+  fun e he => dupId_lidx _ _ he
+
 @[lockstep] theorem dup2_lsidx (h : arena.handle.LsIdx) :
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun e he => dupId_lsidx _ _ he
@@ -593,6 +597,15 @@ attribute [lockstep_simp] absLNodeView absLsNodeView absIConstantVal ConRon.Refi
   rw [bne] at h
   have := congrArg (fun b => !b) h
   simpa using this
+
+@[lockstep_simp] theorem vec_len_bne_one {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v != 1#usize) = !(decide (v.val.length = 1)) := by
+  have hv : (alloc.vec.Vec.len v).val = v.val.length := alloc.vec.Vec.len_val v
+  by_cases h : v.val.length = 1
+  · have : alloc.vec.Vec.len v = 1#usize := Std.UScalar.eq_of_val_eq (by rw [hv, h]; rfl)
+    rw [this]; simp [h]
+  · have : alloc.vec.Vec.len v ≠ 1#usize := fun hc => h (by rw [← hv, hc]; rfl)
+    simp [this, h]
 
 attribute [lockstep_simp] List.isEmpty_map List.isEmpty_iff
 
