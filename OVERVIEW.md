@@ -594,7 +594,7 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 ## 12. Gates
 
 `scripts/gates.sh` runs, in order, and stops at the first failure
-([the thirteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L59-L75)):
+([the fourteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L60-L82)):
 
 1. `cargo build` with warnings denied;
 2. `cargo test`;
@@ -608,7 +608,8 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 10. `scripts/gen-prelude.sh --check`: the embedded prelude text is con-leche's own;
 11. `scripts/gen-prelude-lean.sh --check`: so are the arena checker's own committed prelude bytes (`proof/ConRon/Arena/Frontend/PreludeText.lean`, task #97e);
 12. `scripts/extract.sh --check`: the committed model is what Charon and Aeneas produce, and every hole it declares is modelled by hand;
-13. `lake build` of the model and the proofs.
+13. `lake build` of the model and the proofs;
+14. `lake build ConRonRefine2`: Theorem 2's tier, which is deliberately not a default target — so step 13 elaborates not one module of `ConRon/Refine2/**` and a green run said nothing about a Theorem-2 lane until task #97-P5-Mut found it.
 
 It ends with the summary lines of `progress.py` and `loc.py`.  The
 differential tests of §6.4 are not in the gates, since they need the
