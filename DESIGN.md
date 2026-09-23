@@ -47756,6 +47756,241 @@ will build on.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
 
+#### Round 5 — `structShape_spec`, the `PinsOK` ruling executed, and TWO new blockers named (2026-09-23, Opus under Fable)
+
+Branch `p3-ind-5` off `arena`'s tip `aa4c7a76`, merged forward twice
+(`43f97b23`, task #97-P3-Frontend round 5, and `b0d3fb18`, task #97-P3-ExprOps
+round 4 — the second one matters: it is what unblocked §R5.6's last item).
+The diff is twelve files: `Bridge/Inductives/{Rel,StructParts,NativeParts,
+SumInstall,NativeInstall,Modeled}.lean`, `Bridge/StateOK.lean`,
+`Bridge/Checker/{Inv,Pins,Basis}.lean`, `Bridge/Core/Memo.lean`,
+`Bridge/Frontend/Rel.lean` and this section.  **No Rust file, no generated
+model, no `Arena/`, no `Refine/`, no `Refine2/`, no `lakefile.toml`.**  The
+five files outside `Bridge/Inductives/**` are the two rulings the maintainer
+handed down (§R5.2 and §R5.3) and their transport sites; `Bridge/Core/Memo.lean`
+is one `refine ⟨…⟩` that gained a field.
+
+**The tier went from 83 open `sorry` to 74** — nine statements closed, the
+most of any round of this tier — and `lake build ConRonBridge` is **617 jobs,
+0 errors**.
+
+| module | open (r4 → r5) |
+|---|---:|
+| `Rel.lean` — the vocabulary | 0 → **0** |
+| `StructParts.lean` | 6 → **5** |
+| `SumParts.lean` | 0 → **0** |
+| `NativeParts.lean` | 21 → **18** |
+| `StructInstall.lean` | 2 → **2** |
+| `SumInstall.lean` | 13 → **12** |
+| `NativeInstall.lean` | 14 → **13** |
+| `Modeled.lean` | 27 → **24** |
+| `Decl.lean` — the arm | 0 → **0** |
+| **the tier** | **83 → 74** |
+
+##### R5.1 `structShape_spec` — the group-2 gateway, PROVED
+
+Round 4 §R4.6 called it "the single highest-leverage remaining proof of this
+tier": seventeen statements wait on it.  It is closed, at
+`[propext, Classical.choice, Quot.sound]`.
+
+The proof is the arena's run inverted against con-leche's `match`, and its
+shape is worth recording because the next three recognisers copy it.
+
+* **One unfolding, six failure lemmas.**  `structShape_unfold` states
+  con-leche's body with the three `stripPis` answers already selected, and it
+  is the ONLY place the recogniser is unfolded.  Beside it are six
+  `structShape_false_*` lemmas, one per place the arena answers `false`
+  without computing the rest — the three telescopes, the type former's
+  residual, the motive's domain, the minor premise's domain and the major's.
+  That is what lets each of the three ten-way `view` dispatches close with a
+  single `all_goals`, on `Bridge/ExprOps/Spine.lean`'s
+  `denoteEView_not_sort` / `denoteEView_not_forallE`.
+
+* **`am_if_bind`, and why it exists.**  The twin writes `let want ← if large
+  then internLNode (.param elim) else internLNode .zero`, and the
+  do-elaborator answers by DUPLICATING everything after it into both arms —
+  the minor premise and the major domain included.  `am_if_bind`
+  (`Rel.lean`) is `(if c then x >>= k else y >>= k) = (if c then x else y) >>= k`,
+  proved by `split <;> rfl`, and it puts the `if` back where the source wrote
+  it so the continuation is inverted ONCE.  Without it the proof is half as
+  long again and says the same thing twice.  Any twin whose `do` block has a
+  conditional in a `let ←` value wants this.
+
+* **New vocabulary in `Rel.lean`**: `denoteBinders_getElem?` — round 4's
+  `denoteBinders_getD` with the `Option` CARRIED, both ways, because
+  `structShape` DISPATCHES on `rbs[nP]?` rather than reading through a
+  fallback; `beq_lhandle_eq` — a LEVEL-handle comparison is a structural one
+  at both signs (`denoteL_inj`), which round 4 recorded as not stated and
+  which the motive's codomain needs; `internAppE_run`, missing from the intern
+  run forms; and `stripPis_pstep`/`stripPis_none`/`stripPis_some`, MOVED here
+  from `StructParts.lean` because `structShape_spec` sits above their old
+  position in con-leche's source order.
+
+##### R5.2 THE `nativeCapsAt` RULING, EXECUTED — `PinsOK` gains a seventh clause
+
+Round 4's fourth finding was that `nativeCapsAt_spec` is false and that the
+repair is a level up.  The maintainer ruled for the `PinsOK` route over the
+forgetful one, on the ground that it is EXACT, and that is what this round
+did.
+
+`Bridge/StateOK.lean`'s `PinsOK` gains
+
+    anon : denoteN s.store.ns (default : NIdx) = some ConLeche.Name.anonymous
+
+beside `zeroLevel` / `sortOne` / `emptyLevels`.  The argument the ruling gave
+checks out and is written at the field: `.anonymous` is NULLARY, so the
+persistent name store's `anons` table holds at most one element and it is at
+slot 0; `Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0.  So as
+soon as `.anonymous` is interned at all, the zero handle IS its handle,
+exactly and permanently — and it is interned, because every pin name is a
+`.str`/`.num` chain that bottoms out there.  False of `EStore.empty`, true
+after the pin phase: exactly what `PinsOK` is for.
+
+**It cost three transport sites and nothing else.**  `PinsOK.mono` is one
+`denoteN_ext`; `PinsOK.pmono` is one `denoteN_pext` whose persistence side
+goal is `by decide` (the zero word's tier bit is `tierP`); `CheckOK.ofCache`
+(`Bridge/Core/Memo.lean`) is one more `?_` in a `refine`.  The single DEBTOR
+is `Bridge/Checker/Pins.lean`'s `internReservedPins_run`, which is `sorry`
+today; its note now carries the obligation and the argument for it.
+
+With the clause in hand, `nativeCapsAt_spec` and `nativeCaps_spec` are both
+CLOSED, at **`PSpecP`** — and the grade IS the finding, discharged.  Neither
+twin reads a pin; it is the ANSWER that needs the pin phase to have run,
+because the `_` arm of both sides is the DEFAULT capability record and
+`Frontend.denoteCaps` reads `etaCtor` unconditionally.  The consequence round
+4 flagged is gone with it: `Frontend.denoteCI` of the row `checkSumInd`
+pushes is no longer `none` at a multi-constructor block, and `denoteFEnv`,
+`InstRel.denote` and `FoldOK.denote` above it are unblocked.
+
+##### R5.3 `IProjNamed` moves DOWN, and `denoteCI_name_proj` takes it
+
+The maintainer's second ruling, from task #97-P3-Frontend round 5's finding:
+the projection table's three clauses have DIFFERENT debtors.  The two size
+clauses are the install's (`checkStructProjTable`, through
+`Bridge/Checker/Inv.lean`'s `projTableOK_of_install`); the NAME clause is also
+true by CONSTRUCTION of the modeller's readback, because
+`Arena/Frontend/Readback.lean`'s `internProjTable` interns `projTableName sn`
+itself — and it is the only one of the three the modeller seam can discharge.
+So the name clause is the one that travels.
+
+`IProjNamed`, `IProjNamed.mono` and `IProjTableOK.toNamed` are now in
+`Bridge/StateOK.lean` beside `IProjTableOK` (they were in
+`Bridge/Frontend/Rel.lean`, which is ABOVE the site that needs them), and
+`denoteCI_name_proj` and `denoteCI_name_of` take `IProjNamed` instead of
+`IProjTableOK`.  Their proofs did not change by a character: both used
+`hok.named` and nothing else.  `installBasisDecl_bridge` keeps its own
+`IProjTableOK` hypothesis and passes `.toNamed`.  The Frontend tier can now
+drop `ciName_denote_proj` and `ciName_denote_of`; that edit is theirs.
+
+##### R5.4 What else closed
+
+Six more, each at `[propext, Classical.choice, Quot.sound]`:
+
+* **`projBack_spec` and `projFwd_spec`** (`Modeled.lean`), round 4 §R4.7's
+  "next two by cheapness".  The arena builds the rename as a TABLE of interned
+  pairs (task #97d-2's deviation 3) where con-leche writes a `Name → Name`
+  whose tail is a `List.find?` over `List.range nF`.  `projBackTail` /
+  `projFwdTail` are that tail as the RECURSION `projBack.go` actually runs —
+  one field at a time, from `j` upwards — and `projBackTail_eq` identifies the
+  two, generalised over the starting index (`List.range n` is
+  `List.range' 0 n`).  `renameBy_cons` turns the table's `find?` into one `if`
+  per entry, and `beq_handle_eq'` — `beq_handle_eq` with the pure side
+  FLIPPED, because `renameBy` compares `tbl.1 == n` where the rename compares
+  `n` against the name the entry stands for — makes each `if` a name
+  comparison.  `internStrN_run`, `internNumN_run`, `projModelName_run` and
+  `projFnName_run` are the run forms they needed and `checkProjIota` /
+  `checkProjFn` will want again.
+
+* **`ctorResidualOk_spec`** (`Modeled.lean`), task #136's conjunct on the
+  modeled path.  `IFEnvOK.hit` names the denoted constant and `denoteN_inj`
+  identifies the two handles; `IFEnvOK.miss` is the `none` arm.  The six
+  non-constructor kinds close on a new `Rel.lean` lemma `denoteCI_not_ctor`:
+  `denoteCI` preserves the constant's KIND, so the arena's fallthrough arm and
+  con-leche's are the same arm.  `denoteCI_not_ind` is its sibling.
+
+* **`nativeCounts?_spec`** (`NativeParts.lean`).  Round 1's note priced it on
+  `piSortTeleLen?`; the twin reads `piBinders`, whose spec has been closed in
+  that file since round 2, so the proof is that plus the ten-way `view`
+  dispatch at the residual, `denoteBinders_length` and a new
+  `denoteCtors3_length`.
+
+* **`nativeRecPinOk_spec`** (`NativeParts.lean`), at round 4's corrected
+  statement — the one that gained `StoreWF`.  `sumSplit_spec` for the members
+  after the type former, the two length lemmas for the counts, and
+  `denoteRules_getElem?` / `denoteCtors3_getElem?` (the `Option`-carrying
+  index reads, in `denoteBinders_getElem?`'s shape) with `beq_handle_eq` at
+  each rule's constructor name.  `denoteCtors_length` MOVED from
+  `SumInstall.lean` to `Rel.lean`: `NativeParts.lean` is BELOW it in the
+  import chain.
+
+* **`structIdxAt_spec`** (`NativeParts.lean`) — **group 3's gateway**, and
+  round 4 §R4.4's blocker cashed.  `Bridge/ExprOps/Subst.lean`'s `LiftSpec`
+  states `BMExt` since task #97-P3-ExprOps round 4, so a `PSpec`-grade twin
+  that lifts can produce a `PStep` at last; `liftFast_pstep` (`Rel.lean`) is
+  the run form and `structIdxAt_spec` is two of them.
+  `Bridge/Inductives/Rel.lean` gains `import ConRon.Bridge.ExprOps.Subst` —
+  **nothing else in the whole Bridge imported that module**, and there is no
+  other way to reach the lift's spec.
+
+##### R5.5 THE TWO BLOCKERS THIS ROUND FOUND, both of them import walls
+
+Round 4 found four statement defects by trying to prove things.  Round 5 found
+no false statement — it found two facts that exist in the repository and
+cannot be REACHED from here, which is the same kind of debt §R4.4 was.
+
+**1. `reservedBasisNames_run` is not in this tier's closure, and that is three
+statements.**  `structPartsCore?` tests `reserved.contains T`, `reserved.contains C`
+and `reserved.contains cvR.name`; `nativeShape?` tests two of the same.  The
+reader's run form is `Bridge/Checker/Base.lean`'s `reservedBasisNames_run`,
+and that module is NOT imported by `Bridge/Inductives/**` (round 3 recorded
+the same about its `beq_handle_iff` and restated the lemma instead — which is
+not an option here: `reservedBasisNames_run` is a 63-second theorem by its own
+note).  So `structPartsCore?_spec`, `structPartsCore?_isSome` and
+`nativeShape?_spec` are blocked on an import wall, NOT on any missing proof —
+and `structPartsCore?_isSome` is the one `Bridge/Frontend/ProjRec.lean`'s
+`projRecOwners_run` asked for by name (task #97-P3-Frontend's sorry list,
+item 13), so the wall reaches another tier.
+
+**The fix is the one round 4 §R4.1 already used once**: move the reader BELOW
+the Checker tier, to `Bridge/StateOK.lean` or `Bridge/Checker/Pins.lean`,
+exactly as `denoteCV_type` / `denoteCI_name` / `denoteCI_name_of` moved in
+round 4 and `IProjNamed` moved in §R5.3.  **OWNER: the Checker tier**
+(`Bridge/Checker/Base.lean` is its file, and an agent is live in it).  This
+round did not do it because the file is another lane's and the move is not
+mechanical — `reservedBasisNames_run`'s proof may reach for things that are
+themselves above `StateOK.lean`.
+
+**2. `renameConstsFast_spec` still does not state `BMExt`, and that is
+`domsMatchRenamed_spec`.**  §R4.4's finding, at a FOURTH function.  Task
+#97-P3-ExprOps round 4 added `BMExt` to `LiftSpec`, `LowerSpec` and
+`Inst1LSpec` — which is what closed `structIdxAt_spec` above — but
+`renameConstsGo_spec` / `renameConstsFast_spec` (`Bridge/ExprOps/Owed.lean`)
+state `StateOK`, `Ext`, the two frame equations and `s'.memos.renameC = ∅`,
+and no `BMExt`.  `domsMatchRenamed_spec` is `PSpec` grade, `PStep` has a `bm`
+conjunct, so the statement cannot be proved from what the lift tier says.  The
+fact is TRUE — `renameConsts` rebuilds by interning and `BMExt.intern` is the
+step — it is simply not stated.  **OWNER: task #97-P3-0's tier.**  Its own
+round-4 note says the three it did cost "one `BMExt.refl _` or one
+`by grind only [BMExt.trans, BMExt.refl]` per verification condition and
+nothing else"; this is the fourth, and through `domsMatchRenamed` it is
+`checkProjIota_spec`.
+
+##### R5.6 What the next round should do
+
+1. **The rest of group 3** — nine statements (`structTeleAt`, `structIhApp`,
+   `structRuleBodyR`, `structIhPis`, `structMinorTyR`, `structMinorsPisR`,
+   `structMinorsLamsR`, `structRecTyR`, `structRecRhsR`) that now wait on
+   nothing of another tier, `structIdxAt_spec` being closed.  The first of
+   them, `structTeleAt_spec`, wants a `List.mapM` induction over
+   `List.range tele.length`; round 4's `denoteBinders_getD` is the indexed
+   read and the bound is free (`List.range`'s own).
+2. **`Modeled.lean`'s remaining 24.**  `checkConstantVal_bridge` is closed on
+   `arena` and `ctorResidualOk_spec` showed the `IFEnvOK` shape the member
+   checks all want; `eqBasisStored_spec` is the one that needs something new
+   (injectivity of `denoteCI` at a whole record, which nothing states).
+3. **Chase §R5.5's two walls** before starting either recogniser: three
+   statements and one tier's `sorry`-list item sit behind the first.
+
 #### Round 4 — the installs read back, FOUR more statement defects, and the three name lemmas moved down (2026-09-22, Opus under Fable)
 
 Branch `p3-ind-4` off `arena`'s tip `c80e9c34`, merged forward twice
