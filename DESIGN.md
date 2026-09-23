@@ -60041,3 +60041,94 @@ itself a frontier `sorry` and does not route through this tier yet.
 
 `scripts/gates.sh` on the tip after the one `arena` merge: **all 16 OK**.
 Slice 1 was gated separately before it landed (all 16 OK).
+
+### Task #97-T2-LOCKSTEP lane Frontend round 3 — the modeller seam; the lane's frontier (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-front3` off `65b6f721` (round 2's tip, which already
+contains `arena` `5901271c`).
+
+#### Item 1 — `ModellerRefines` against the concrete modeller
+
+`ModellerRefines inst m inProcessModeller` (`Refine2/Frontend/Shape.lean`) is
+a named hypothesis `hmr` of the capstone.  It quantifies over EVERY related
+state and fixes the modeller value `m`; the concrete modeller the binary
+passes (`crates/con-ron/src/in_model.rs`, `InProcess`) carried state across
+calls.  Findings:
+
+**Who consumes `hmr`.**  Both headline theorems.  `rust_stages` uses it at
+stage 2 (`builtin_prelude_e_refines`) and stage 3 (`parse_chunks_refines`),
+and `model_exists` and **`no_False_declaration` both call `rust_stages`**, so
+soundness rests on `hmr` as much as `model_exists` does.  (It is a hypothesis,
+not an axiom, so `#print axioms` does not list it; the dependency is the
+term.)  Removing it from `no_False_declaration` would need Theorem 1 and the
+capstone to be modeller-agnostic — con-leche's `no_False_theorem_accepted`
+is (any stream holding the `False` theorem is rejected), but the arena's
+`stages_no_False` goes through the parse's exactness against con-leche's
+parse at `inProcessModeller`, so that is a Theorem-1 restructure, not a seam
+fix.  Not proposed.
+
+**(a) the `blocks` cache — FIXED (authorised), `9fa4d24f`.**  The tree
+blocks `Ctx::blocks` returns were `Box::leak`ed into a per-RUN map keyed by
+the member type's name handle; `export_c::note_ind_blocks` overwrites that
+key when a later inductive record declares a type of the same name, so the
+port served the first block where the twin's `ctxOf` (`ctx.blocks h`, read
+afresh per call) reads the second.  Now per call: a `Vec<OnceCell<Box<BlockRec>>>`
+of `ctx.blocks.len()` cells, allocated at the call's first ask, and a
+per-call handle-word map; within one call the context and the store are
+fixed, so it cannot disagree with the twin.  No leak any more.  The driver
+crate is not extracted; `cargo test -p con-ron` 32/32, outputs of
+`tower_nested`/`nested_struct_proj` byte-identical.
+
+**(b) the readback `memo`** (`HashMap<u32, Expr>`, per run).  Sound along a
+run (append-only persistent tier, scratch off during the parse, so every
+entry is the readback in the current store), false for an arbitrary related
+state — so `hmr` as stated is false of `InProcess`.  Options:
+
+| option | what changes | cost |
+|---|---|---|
+| **A. per-call memo** (Rust: the memo becomes a local of `generate`, `InProcess` a unit struct) | `InProcess` is then a pure function of `(pers, store, ctx, b)`, exactly the twin's shape (`denoteBlockRec` at `∅`, `denoteEShared` fresh); `hmr` keeps its statement | measured below: nothing |
+| B. coherence parameter (`ModellerRefines` over a predicate `Coh m pers store`) | not expressible: the memo is interior mutability behind `&self`, invisible in the Aeneas model, where `inst.generate m` is a function of its arguments | — |
+| C. narrow the quantifier to states reachable along the run | a reachability predicate in a trusted hypothesis, threaded through `parse_chunks_refines`/`builtin_prelude_e_refines`; the trusted text grows an argument (append-only + scratch off) instead of shrinking | proof work in the lane, no runtime cost |
+
+Measured (`perf stat -e instructions:u`, `CON_LECHE_INMODEL_CENSUS=1`, which
+stops after the parse, so the modeller's share is not diluted by the check;
+`--verified --jobs=1`; release, mimalloc):
+
+| export (modelled blocks) | base (per-run memo + blocks) | (a) only | A: (a) + per-call memo |
+|---|---:|---:|---:|
+| `init` (1) | 15 979 254 517 – 15 979 321 879 (4 runs) | 15 979 169 290 | 15 979 171 771 |
+| `core` (45) | 37 805 109 415 – 37 805 180 374 (4 runs) | 37 899 105 882 – 37 899 309 391 (4 runs, **+0.25 %**) | 37 805 671 204, 37 805 851 394 (**+0.002 %**) |
+| `mathlib` (49) | 274 390 707 674, 274 390 839 840 | 274 390 854 175 | 274 386 940 108 |
+| `tower_struct` (0) | 145 128 796 | — | 145 129 182 |
+| `tower_nested` (1) | 186 100 078 | — | 186 099 080 |
+
+`tower_struct` — the fixture that motivated the memo — has **no** modelled
+block in the port (`census: 0 modelled`); the DAG argument is about the
+readback *within* one call, which a per-call memo keeps.  The memo across
+calls saves nothing measurable on any export.  With the modeller off
+(`CON_LECHE_INMODEL=0`) base and (a) are equal on `core`, so (a)'s +0.25 % is
+in the modeller path; A, which also drops the memo, does not pay it (not
+diagnosed further — A is the one proposed).
+
+**(c) two more divergences at the seam, found on the way** (not authorised;
+rulings needed):
+
+1. **dangling readback**: the port DECLINES (`Err("arena: dangling handle in a
+   modelled block")`), the twin THROWS (`fail (.internal …)`).  `SimGen`'s
+   decline arm needs the twin to answer `.ok (.error _)`, so `hmr` is false at
+   a block that does not read back.  Fix in the TWIN: `none => pure (.error
+   "arena: dangling handle in a modelled block")`; Theorem 1 repair is
+   `inProcessModeller_wf`'s `none` case (a decline frame, as the other decline)
+   — `inProcessModeller_refines` never reaches it (`BlockRecRel` gives `some`).
+2. **intern failure**: `intern_decls` erroring (a capacity `Native`) makes the
+   port DECLINE with the partially-interned store kept (`*ar = ast.store`);
+   the twin's `internDecls` throws.  A decline is not expressible on the twin
+   without restoring the store the Rust keeps, and the trait's error is a
+   `Vec<u32>`, so the port cannot say `Native`.  Proposed: the port **panics**
+   there (the process aborts with the message: no verdict, the model's `fail`),
+   which is what the twin's throw means.
+
+**Recommendation: A + (c1) twin + (c2) panic.**  Then `hmr`'s statement is
+unchanged and true of `InProcess` up to the one trust it is meant to carry —
+that `crate::in_model::generate` (the task-#37 port) is con-leche's
+`InModel.generate`.
