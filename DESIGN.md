@@ -48628,7 +48628,7 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 |---|---|
 | `scripts/gates.sh` | **all 13 OK** (`cargo-build` / `cargo-test` / `lint-rust` / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` / `lake-build`) |
 | `cd proof && lake build ConRonRefine2` | green, **2 222 jobs** (was 2 221 — §R4.7), 0 errors |
-| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 15** (was 11); the tier's `sorry` count 270 → **260** |
+| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 14** (was 11); the tier's `sorry` count 270 → **260** |
 | the merges | `arena` at `a80ea04d` and at `8f96148b`, both clean (no file of this lane touched by either), so landing is a fast-forward |
 | the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,SumInstall,SumInstallF,Top}.lean` and this section |
 
