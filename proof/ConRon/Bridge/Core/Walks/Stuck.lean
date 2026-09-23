@@ -11,10 +11,14 @@ statement over a tower; this module skeletonises the tower top-down:
 |---|---|---|---|
 | `stuckIrrel_spec` | `Arena/Core.lean:1564` | `Kernel/Core.lean:532-542` | **proved** from the three below |
 | `structEtaCert_spec` | `:1502` (over `structEtaCertWith`, `:1416`) | `:450-473` (`:376-448`) | OPEN |
-| `structUnitCert_spec` | `:1513` | `:475-503` | OPEN |
+| `structUnitCert_spec` | `:1513` | `:475-503` | **CLOSED** |
 | `proofIrrel_spec` | `:1265` | `:284-305` | **CLOSED**, over `isUnitLikeTy_spec` (new) |
 
-**One precondition added, and why.**  The twin gates the type-former
+**Two preconditions added, and why.**  (2) `EnvWF env`, on
+`structUnitCert_spec`/`structEtaCert_spec` and so on `stuckIrrel_spec`: the
+family certificate runs `iotaCerts` on an instantiated STORED type, and
+`iotaCerts_spec` needs it well-scoped — con-leche's `const_ty_hasFvar`,
+whose hypothesis is `EnvWF`.  (1)  The twin gates the type-former
 telescope certificate of `structUnitCert` (and the two certificate families
 of `structEtaCertWith`) on `mode.certs` — the EXECUTED core's
 `Cached/CoreC.lean:437/440/508` — where con-leche's spec body runs it
@@ -25,6 +29,7 @@ is what every body theorem of this tier already has in hand
 (`certs_of_verifiedChecks`, con-leche's `Verify/BetaGate.lean:126`).
 -/
 import ConRon.Bridge.Core.Walks.PropRead
+import ConRon.Bridge.Checker.Names
 
 namespace ConRon.Bridge.Core
 
@@ -328,6 +333,135 @@ theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
   | some a =>
     mvcgen [ConRon.Arena.liftFueled]
 
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
+the reserved list in triple form: `Bridge/Checker/Names.lean`'s
+`reservedBasisNames_run` (six pin reads, thirteen name interns) read through
+`triple_of_run`. -/
+theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.reservedBasisNames
+    ⦃⇓? hs s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        Frontend.denoteNList s'.store.ns hs =
+          some ConLeche.reservedBasisNames⌝⦄ :=
+  triple_of_run fun hs s' hr => by
+    obtain ⟨hps, hd⟩ := reservedBasisNames_run hok.state.wf hok.pins hr
+    refine ⟨hok.mono ⟨hps.wf⟩ hps.ext hps.caches hps.pins, hps.ext, hps.pins, ?_⟩
+    rw [← reservedBasisNameValues_eq]
+    exact denoteNL_toList _ _ hd
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at
+an inductive. -/
+theorem env_ind_of_index {s : AState} (hok : CheckOK mode env fe s)
+    {T : NIdx} {Tn : ConLeche.Name} {icv : IConstantVal} {icaps : IIndCaps}
+    (hn : denoteN s.store.ns T = some Tn)
+    (hfd : fe.find? T = some (.indInfo icv icaps)) :
+    ∃ dcv dcaps, Frontend.denoteCV s.store icv = some dcv ∧
+      Frontend.denoteCaps s.store icaps = some dcaps ∧
+      env.find? Tn = some (.indInfo dcv dcaps) := by
+  obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit T _ hfd
+  obtain rfl := Option.some.inj (hn'.symm.trans hn)
+  simp only [Frontend.denoteCI] at hci
+  split at hci
+  · rename_i dcv dcaps hdcv hdcaps
+    cases hci
+    exact ⟨dcv, dcaps, hdcv, hdcaps, hfind⟩
+  · simp at hci
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the MISS half at an
+inductive. -/
+theorem env_not_ind_of_index {s : AState} (hok : CheckOK mode env fe s)
+    {T : NIdx} {Tn : ConLeche.Name} (hn : denoteN s.store.ns T = some Tn)
+    (hnd : ∀ v caps, fe.find? T ≠ some (.indInfo v caps)) :
+    ∀ cv caps, env.find? Tn ≠ some (.indInfo cv caps) :=
+  optCI_ind_none (optCI_find hok hn) hnd
+
+/-! ### `structUnitCert`'s pure side at its exits -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the type's
+head is not a constant. -/
+theorem structUnitCert_nohead {F d : Nat} {x y ta wta : Expr}
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
+    (hh : ∀ c us, wta.getAppFn ≠ .const c us) :
+    ConLeche.structUnitCertFueled mode env F d x y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
+    bind, Except.bind]
+  first
+    | rfl
+    | (split
+       · rename_i c us heq; exact absurd heq (hh c us)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the head is
+not a stored inductive. -/
+theorem structUnitCert_noind {F d : Nat} {x y ta wta : Expr} {T : Name}
+    {us : List Level}
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
+    (hh : wta.getAppFn = .const T us)
+    (hf : ∀ cv caps, env.find? T ≠ some (.indInfo cv caps)) :
+    ConLeche.structUnitCertFueled mode env F d x y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
+    hh, bind, Except.bind]
+  first
+    | rfl
+    | (split
+       · rename_i cv caps heq; exact absurd heq (hf cv caps)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the family
+is not unit-like at this application. -/
+theorem structUnitCert_guard {F d : Nat} {x y ta wta : Expr} {T : Name}
+    {us : List Level} {cvT : ConstantVal} {caps : IndCaps}
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
+    (hh : wta.getAppFn = .const T us)
+    (hf : env.find? T = some (.indInfo cvT caps))
+    (hg : ¬ (caps.unitlike = true ∧ ConLeche.reservedBasisNames.contains T = false ∧
+      wta.getAppArgs.length = caps.unitParams ∧
+      us.length = cvT.levelParams.length)) :
+    ConLeche.structUnitCertFueled mode env F d x y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
+    hh, hf, bind, Except.bind]
+  rw [if_neg hg]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the two
+types are compared, and the verdict is the family certificate's (or `false`
+when they differ). -/
+theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
+    {us : List Level} {cvT : ConstantVal} {caps : IndCaps} {r : Bool}
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
+    (hh : wta.getAppFn = .const T us)
+    (hf : env.find? T = some (.indInfo cvT caps))
+    (hg : caps.unitlike = true ∧ ConLeche.reservedBasisNames.contains T = false ∧
+      wta.getAppArgs.length = caps.unitParams ∧
+      us.length = cvT.levelParams.length)
+    (h3 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h4 : ConLeche.whnf mode env F d tb = .ok wtb)
+    (h5 : (do
+      if ← ConLeche.isDefEqCore mode env F d wta wtb then
+        ConLeche.iotaCertsFueled mode env F d false
+          (cvT.type.instantiateLevelParams cvT.levelParams us) wta.getAppArgs
+      else pure false : CheckM Bool) = .ok r) :
+    ConLeche.structUnitCertFueled mode env F d x y = .ok r := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
+  have e3 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h3
+  have e4 : (ConLeche.pureFns mode env F).whnf d tb = .ok wtb := h4
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
+    hh, hf, bind, Except.bind]
+  rw [if_pos hg]
+  simp only [e3, e4, bind, Except.bind]
+  exact h5
+
 /-! ## 2. The three children -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:450-473 structEtaCert — **THEOREM 1
@@ -341,7 +475,7 @@ slots (`inferIO`, `whnf`), then `structEtaCertWith` — seventy lines over
 recursion over `projFnName`, `stripPis`, `constTyAt`, `iotaCerts`),
 `etaProjs` (`projNodesGo`/`projAppsGo`, `mkAppN`) and `defEqList_spec`. -/
 theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
@@ -356,11 +490,17 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — **THEOREM 1
 for `structUnitCert`**: `a` and `b` inhabit the same stored unit-like family.
 
-**OPEN**: two `inferIO`/`whnf` pairs, `getAppFn`/`getAppArgs`, the index,
-`reservedBasisNames`, `viewLsLen`, `KnotSpec.defeq`, `constTyAt_spec`,
-`iotaCerts_spec`; the `mode.certs` gate is where `hμ` is spent. -/
+**CLOSED** (round 5), staged: two `inferIO`/`whnf` pairs, `getAppFn` and
+the head's `view`, the index (`env_ind_of_index`), `getAppArgs`,
+`reservedBasisNames_spec` (the Checker tier's run lemma, read as a triple),
+`viewLsLen`, the guard (`denoteNList_contains` for the reserved test),
+`KnotSpec.defeq`, `constTyAt_spec` and `iotaCerts_spec`.  The `mode.certs`
+gate is where `hμ` is spent, and **`EnvWF env` is a second added
+precondition**: `iotaCerts_spec` needs the instantiated stored type
+well-scoped, which is con-leche's `const_ty_hasFvar` — whose hypothesis is
+`EnvWF` (the same repair round 4 made to `projCert_spec`). -/
 theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
@@ -370,7 +510,153 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structUnitCertFueled mode env F d x y) r⌝⦄ := by
-  sorry
+  unfold ConRon.Arena.structUnitCert
+  -- stage 1: `a`'s io-grade type, head-normalised
+  refine triple_seq (hsim.inferIO s₀ d a x hok hda hwa) ?_
+  rintro ta s1 ⟨hok1, hx1, hp1, vta, hvta, hwvta, F1, hF1⟩
+  refine triple_seq (hsim.whnf s1 d ta vta hok1 hvta hwvta) ?_
+  rintro wta s2 ⟨hok2, hx2, hp2, vwta, hvwta, hwvwta, F2, hF2⟩
+  have hx02 : Ext s₀.store s2.store := hx1.trans hx2
+  have hp02 : s2.pins = s₀.pins := hp2.trans hp1
+  have hwf2 := hok2.state.wf
+  have hA : ∀ G, max F1 F2 ≤ G →
+      ConLeche.inferTypeIO mode env G d x = .ok vta := fun G hle =>
+    ConLeche.inferTypeIO_mono (Nat.le_trans (Nat.le_max_left _ _) hle) hF1
+  have hB : ∀ G, max F1 F2 ≤ G → ConLeche.whnf mode env G d vta = .ok vwta :=
+    fun G hle => ConLeche.whnf_mono (Nat.le_trans (Nat.le_max_right _ _) hle) hF2
+  -- stage 2: its head
+  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s2 wta hok2.state
+    (by rw [hvwta]; rfl)) ?_
+  rintro hd s3 ⟨hs3, hrelF⟩
+  subst s3
+  have hdd : denoteE s2.store hd = some vwta.getAppFn := hrelF vwta hvwta
+  obtain ⟨vh, hvh⟩ := denoteE_view hdd
+  refine view_bind_triple hvh ?_
+  cases vh
+  case const T us =>
+    obtain ⟨Tn, ls, hgf, hTn, hus⟩ := denote_const_inv hwf2 hvh hdd
+    dsimp only
+    split
+    next icv icaps hfd =>
+      obtain ⟨dcv, dcaps, hdcv, hdcaps, hfind⟩ := env_ind_of_index hok2 hTn hfd
+      -- stage 3: the type's arguments, the reserved names, the level count
+      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s2 wta hok2.state
+        (by rw [hvwta]; rfl)) ?_
+      rintro targs s4 ⟨hs4, hrelA⟩
+      subst s4
+      have hargs : Frontend.denoteEList s2.store targs = some vwta.getAppArgs :=
+        hrelA vwta hvwta
+      refine triple_seq (reservedBasisNames_spec s2 hok2) ?_
+      rintro res s5 ⟨hok5, hx5, hp5, hres⟩
+      have hwf5 := hok5.state.wf
+      refine triple_seq (viewLsLen_spec s5 us) ?_
+      rintro ol s6 ⟨hs6, hol⟩
+      subst s6
+      rw [viewLen_of_denoteLs (denoteLs_ext hus hx5)] at hol
+      subst hol
+      dsimp only
+      obtain ⟨_hnm, hlps, _hty⟩ := denoteCV_inv hdcv
+      have hcaps : dcaps.unitlike = icaps.unitlike ∧
+          dcaps.unitParams = icaps.unitParams := by
+        simp only [Frontend.denoteCaps] at hdcaps
+        split at hdcaps
+        · cases hdcaps; exact ⟨rfl, rfl⟩
+        · simp at hdcaps
+      have hguard : (icaps.unitlike = true ∧ res.contains T = false ∧
+          targs.length = icaps.unitParams ∧
+          ls.length = icv.levelParams.length) ↔
+          (dcaps.unitlike = true ∧
+            ConLeche.reservedBasisNames.contains Tn = false ∧
+            vwta.getAppArgs.length = dcaps.unitParams ∧
+            ls.length = dcv.levelParams.length) := by
+        rw [denoteNList_contains hwf5 res _ hres T Tn (denoteN_ext hTn hx5),
+          hcaps.1, hcaps.2, ← denoteEList_len hargs, denoteNList_len hlps]
+      split
+      next hg =>
+        have hgP := hguard.mp hg
+        have hx05 : Ext s₀.store s5.store := hx02.trans hx5
+        have hp05 : s5.pins = s₀.pins := hp5.trans hp02
+        -- stage 4: `b`'s io-grade type, head-normalised
+        refine triple_seq (hsim.inferIO s5 d b y hok5 (denote_ext hdb hx05)
+          hwb) ?_
+        rintro tb s7 ⟨hok7, hx7, hp7, vtb, hvtb, hwvtb, F3, hF3⟩
+        refine triple_seq (hsim.whnf s7 d tb vtb hok7 hvtb hwvtb) ?_
+        rintro wtb s8 ⟨hok8, hx8, hp8, vwtb, hvwtb, hwvwtb, F4, hF4⟩
+        have hx58 : Ext s5.store s8.store := hx7.trans hx8
+        -- stage 5: the two types compared
+        refine triple_seq (hsim.defeq s8 d wta wtb vwta vwtb hok8
+          (denote_ext hvwta (hx5.trans hx58)) hvwtb hwvwta hwvwtb) ?_
+        rintro dq s9 ⟨hok9, hx9, hp9, F5, hF5⟩
+        have hx09 : Ext s₀.store s9.store := hx05.trans (hx58.trans hx9)
+        have hp09 : s9.pins = s₀.pins := hp9.trans (hp8.trans (hp7.trans hp05))
+        have hmax : ∀ G, max (max F1 F2) (max (max F3 F4) F5) ≤ G →
+            ConLeche.inferTypeIO mode env G d y = .ok vtb ∧
+            ConLeche.whnf mode env G d vtb = .ok vwtb ∧
+            ConLeche.isDefEqCore mode env G d vwta vwtb = .ok dq := by
+          intro G hle
+          refine ⟨ConLeche.inferTypeIO_mono ?_ hF3, ConLeche.whnf_mono ?_ hF4,
+            ConLeche.isDefEqCore_mono ?_ hF5⟩ <;> omega
+        cases dq
+        · -- the types differ
+          obtain ⟨m1, m2, m3⟩ := hmax _ (Nat.le_refl _)
+          have hres : ∃ F, ConLeche.structUnitCertFueled mode env F d x y =
+              .ok false := ⟨_, structUnitCert_cmp
+            (hA _ (Nat.le_max_left _ _)) (hB _ (Nat.le_max_left _ _)) hgf hfind
+            hgP m1 m2 (by
+              simp only [m3, bind, Except.bind, Bool.false_eq_true, if_false]
+              rfl)⟩
+          mvcgen
+          bridge_peel; subst_vars
+          exact ⟨hok9, hx09, hp09, hres⟩
+        · -- the types agree: the family certificate, at the verified mode
+          simp only [ConLeche.certs_of_verifiedChecks hμ, if_true]
+          have hx59 : Ext s5.store s9.store := hx58.trans hx9
+          have hx29 : Ext s2.store s9.store := hx5.trans hx59
+          have hname : dcv.name = Tn := env_find_name hfind
+          have hcv9 := denoteCV_ext hdcv hx29
+          refine triple_seq (constTyAt_spec s9 icv us Tn ls (.indInfo dcv dcaps)
+            hok9 (by rw [denoteCV_name hcv9, hname]) (denoteLs_ext hus hx29)
+            hfind hcv9) ?_
+          rintro ty s10 ⟨hok10, hx10, hp10, hty⟩
+          have hwty : Expr.WScoped d
+              (dcv.type.instantiateLevelParams dcv.levelParams ls) :=
+            Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls)
+          have hwargs : ∀ z ∈ vwta.getAppArgs, Expr.WScoped d z :=
+            Expr.WScoped.getAppArgs hwvwta
+          have hargs10 := denoteEList_ext (hx29.trans hx10) _ _ hargs
+          refine triple_mono (iotaCerts_spec hsim d false ty targs s10 hok10
+            ⟨_, _, hty, hwty, hargs10, hwargs⟩) ?_
+          rintro r s11 ⟨hok11, hx11, hp11, hr⟩
+          obtain ⟨F6, hF6⟩ := hr _ _ hty hargs10
+          obtain ⟨m1, m2, m3⟩ := hmax (max (max (max F1 F2) (max (max F3 F4) F5)) F6)
+            (Nat.le_max_left _ _)
+          refine ⟨hok11, hx09.trans (hx10.trans hx11),
+            hp11.trans (hp10.trans hp09), _, structUnitCert_cmp
+            (hA _ (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)))
+            (hB _ (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)))
+            hgf hfind hgP m1 m2 ?_⟩
+          simp only [m3, bind, Except.bind, if_true]
+          exact iotaCertsFueled_mono (Nat.le_max_right _ _) hF6
+      next hg =>
+        mvcgen
+        bridge_peel; subst_vars
+        exact ⟨hok5, hx02.trans hx5, hp5.trans hp02, max F1 F2,
+          structUnitCert_guard (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
+            hgf hfind (fun h => hg (hguard.mpr h))⟩
+    next hnd =>
+      have hnf := env_not_ind_of_index hok2 hTn (fun v c h => hnd v c h)
+      mvcgen
+      bridge_peel; subst_vars
+      exact ⟨hok2, hx02, hp02, max F1 F2,
+        structUnitCert_noind (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _)) hgf
+          hnf⟩
+  all_goals
+    dsimp only
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok2, hx02, hp02, max F1 F2,
+      structUnitCert_nohead (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
+        (denote_not_const hwf2 hvh hdd (by intro c us h; cases h))⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:284-305 proofIrrel — **THEOREM 1 for
 `proofIrrel`**: the stuck fallback's proof irrelevance — both unit-like, or
@@ -609,7 +895,7 @@ directions, then the unit certificate, then proof irrelevance.
 children above, staged by `triple_seq`, with the fuel merge at each exit.
 **Statement change: the precondition `hμ` is new** (module note). -/
 theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
@@ -620,21 +906,21 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r⌝⦄ := by
   unfold ConRon.Arena.stuckIrrel
-  refine triple_seq (structEtaCert_spec hμ hsim s₀ d a b x y hok hda hdb hwa
+  refine triple_seq (structEtaCert_spec hμ henv hsim s₀ d a b x y hok hda hdb hwa
     hwb) ?_
   rintro r1 s1 ⟨hok1, hx1, hp1, F1, hF1⟩
   cases r1
   · try dsimp only
     have hda1 := denote_ext hda hx1
     have hdb1 := denote_ext hdb hx1
-    refine triple_seq (structEtaCert_spec hμ hsim s1 d b a y x hok1 hdb1 hda1
+    refine triple_seq (structEtaCert_spec hμ henv hsim s1 d b a y x hok1 hdb1 hda1
       hwb hwa) ?_
     rintro r2 s2 ⟨hok2, hx2, hp2, F2, hF2⟩
     cases r2
     · try dsimp only
       have hda2 := denote_ext hda1 hx2
       have hdb2 := denote_ext hdb1 hx2
-      refine triple_seq (structUnitCert_spec hμ hsim s2 d a b x y hok2 hda2 hdb2
+      refine triple_seq (structUnitCert_spec hμ henv hsim s2 d a b x y hok2 hda2 hdb2
         hwa hwb) ?_
       rintro r3 s3 ⟨hok3, hx3, hp3, F3, hF3⟩
       cases r3
@@ -688,6 +974,10 @@ section Census
 #print axioms proofIrrel_unit
 #print axioms proofIrrel_sorts
 #print axioms proofIrrel_spec
+#print axioms reservedBasisNames_spec
+#print axioms env_ind_of_index
+#print axioms structUnitCert_cmp
+#print axioms structUnitCert_spec
 #print axioms stuckIrrelFueled_eta1
 #print axioms stuckIrrelFueled_eta2
 #print axioms stuckIrrelFueled_unit

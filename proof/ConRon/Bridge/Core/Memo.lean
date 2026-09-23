@@ -876,4 +876,22 @@ theorem triple_failDanglingE {α : Type} {s₀ : AState}
     ⦃fun s => ⌜s = s₀⌝⦄ (failDanglingE : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
   triple_fail (Q := Q)
 
+
+/-- con-leche: none — **a run lemma is a triple**: the converse of
+`Bridge/Rel.lean`'s `AM.of_run`, for the callees whose closed rule is stated
+on a RUN (`Bridge/Checker/Names.lean`'s `reservedBasisNames_run`). -/
+theorem triple_of_run {α : Type} {x : AM α} {s₀ : AState}
+    {Q : α → AState → Prop}
+    (h : ∀ r s', x.run s₀ = .ok (r, s') → Q r s') :
+    ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+  intro s hs
+  have hs' : s = s₀ := hs
+  subst hs'
+  simp only [WP.wp, PredTrans.apply_pushArg]
+  cases hx : StateT.run x s with
+  | error e => exact trivial
+  | ok p =>
+    obtain ⟨r, s'⟩ := p
+    exact h r s' hx
+
 end ConRon.Bridge.Core
