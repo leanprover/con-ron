@@ -39,7 +39,7 @@ the code after a loop into every exit of it.
    well-founded argument of task #87 §18, with the twin's lemma as its
    measure.
 
-## `sorry` count in this file: 11
+## `sorry` count in this file: 10
 -/
 import ConRon.Refine2.Frontend.Prepare
 import ConRon.Refine2.Checker.Base
@@ -795,6 +795,308 @@ theorem hoist_moved_idxs_refines {n rm lm v} (hr : TargetRel rm lm)
   have := key 0#usize _ v h
   simpa [alloc.vec.Vec.new, List.range_eq_range'] using this
 
+/-! ## `hoist_order`: the bucket pass is the sort (ported from
+`RefineOld/Frontend/PrepareR.lean`, task #87 §5) -/
+
+/-- The port's bucket pass, as a list: at each position `t`, the moved records
+targeted at `t` in index order, then `t` itself unless it moved. -/
+def hoistBucketAt (s : Std.HashMap Nat Nat) (moved : List Nat) (t : Nat) : List Nat :=
+  (moved.filter (fun k => s[k]? == some t)) ++ (if s.contains t then [] else [t])
+
+def hoistBuckets (s : Std.HashMap Nat Nat) (moved : List Nat) (n : Nat) : List Nat :=
+  (List.range n).flatMap (hoistBucketAt s moved)
+
+/-- The key's strict order, as a `Prop`. -/
+def hoistKeyLt (p q : Nat × Nat × Nat) : Prop :=
+  p.1 < q.1 ∨ (p.1 = q.1 ∧ (p.2.1 < q.2.1 ∨ (p.2.1 = q.2.1 ∧ p.2.2 < q.2.2)))
+
+theorem hoistLt_iff (s : Std.HashMap Nat Nat) (a b : Nat) :
+    hoistLt s a b = true ↔ hoistKeyLt (hoistKey s a) (hoistKey s b) := by
+  rcases ha : s[a]? with _ | ta <;> rcases hb : s[b]? with _ | tb <;>
+    simp [hoistLt, hoistKey, ha, hb, hoistKeyLt]
+
+theorem hoistKey_some {s : Std.HashMap Nat Nat} {k t : Nat}
+    (h : s[k]? = some t) : hoistKey s k = (t, 0, k) := by simp [hoistKey, h]
+
+theorem hoistKey_none {s : Std.HashMap Nat Nat} {k : Nat}
+    (h : s[k]? = none) : hoistKey s k = (k, 1, k) := by simp [hoistKey, h]
+
+theorem hoistKey_third (s : Std.HashMap Nat Nat) (k : Nat) :
+    (hoistKey s k).2.2 = k := by
+  rw [hoistKey]; rcases s[k]? with _ | t <;> rfl
+
+theorem hoistKeyLt_irrefl {p : Nat × Nat × Nat} : ¬ hoistKeyLt p p := by
+  rw [hoistKeyLt]; omega
+
+theorem hoistKeyLt_trans {p q r : Nat × Nat × Nat} (h1 : hoistKeyLt p q)
+    (h2 : hoistKeyLt q r) : hoistKeyLt p r := by
+  rw [hoistKeyLt] at h1 h2 ⊢; omega
+
+theorem hoistKeyLt_total (s : Std.HashMap Nat Nat) {a b : Nat} (h : a ≠ b) :
+    hoistKeyLt (hoistKey s a) (hoistKey s b) ∨ hoistKeyLt (hoistKey s b) (hoistKey s a) := by
+  have ha := hoistKey_third s a
+  have hb := hoistKey_third s b
+  rw [hoistKeyLt, hoistKeyLt]
+  omega
+
+theorem hoist_le_iff (s : Std.HashMap Nat Nat) (a b : Nat) :
+    (!hoistLt s b a) = true ↔ ¬ hoistKeyLt (hoistKey s b) (hoistKey s a) := by
+  rw [Bool.not_eq_true', ← hoistLt_iff, Bool.not_eq_true]
+
+theorem hoist_le_trans (s : Std.HashMap Nat Nat) (a b c : Nat)
+    (h1 : (!hoistLt s b a) = true) (h2 : (!hoistLt s c b) = true) :
+    (!hoistLt s c a) = true := by
+  rw [hoist_le_iff] at h1 h2 ⊢
+  intro hc
+  rcases (by rw [hoistKeyLt] at *; omega : hoistKeyLt (hoistKey s c) (hoistKey s b)
+      ∨ hoistKeyLt (hoistKey s b) (hoistKey s a)) with h | h
+  · exact h2 h
+  · exact h1 h
+
+theorem hoist_le_total (s : Std.HashMap Nat Nat) (a b : Nat) :
+    ((!hoistLt s b a) || (!hoistLt s a b)) = true := by
+  by_cases h : hoistLt s b a = true
+  · have hy : hoistLt s a b = false := by
+      by_contra hc
+      simp only [Bool.not_eq_false] at hc
+      rw [hoistLt_iff] at h hc
+      exact hoistKeyLt_irrefl (hoistKeyLt_trans h hc)
+    simp [hy]
+  · simp only [Bool.not_eq_true] at h
+    simp [h]
+
+theorem hoist_le_antisymm (s : Std.HashMap Nat Nat) (a b : Nat)
+    (h1 : (!hoistLt s b a) = true) (h2 : (!hoistLt s a b) = true) : a = b := by
+  rw [hoist_le_iff] at h1 h2
+  by_contra hne
+  rcases hoistKeyLt_total s hne with h | h
+  · exact h2 h
+  · exact h1 h
+
+theorem hoistBucketAt_key_fst {s : Std.HashMap Nat Nat} {moved : List Nat}
+    {t x : Nat} (h : x ∈ hoistBucketAt s moved t) : (hoistKey s x).1 = t := by
+  rw [hoistBucketAt] at h
+  rcases List.mem_append.mp h with h | h
+  · have := (List.mem_filter.mp h).2
+    simp only [beq_iff_eq] at this
+    rw [hoistKey_some this]
+  · by_cases hc : s.contains t
+    · rw [if_pos hc] at h; simp at h
+    · rw [if_neg hc] at h
+      rw [List.mem_singleton.mp h, hoistKey_none
+        (show s[t]? = none from by
+          rw [Std.HashMap.contains_eq_isSome_getElem?] at hc
+          simpa using hc)]
+
+theorem hoistBucketAt_pairwise {s : Std.HashMap Nat Nat} {moved : List Nat}
+    (hmoved : moved.Pairwise (· < ·)) (t : Nat) :
+    (hoistBucketAt s moved t).Pairwise
+      (fun a b => hoistKeyLt (hoistKey s a) (hoistKey s b)) := by
+  rw [hoistBucketAt]
+  refine List.pairwise_append.mpr ⟨?_, ?_, ?_⟩
+  · refine List.Pairwise.imp_of_mem ?_ (hmoved.filter _)
+    intro a b hma hmb hab
+    have ha : s[a]? = some t := by
+      have := (List.mem_filter.mp hma).2; simpa using this
+    have hb : s[b]? = some t := by
+      have := (List.mem_filter.mp hmb).2; simpa using this
+    rw [hoistKey_some ha, hoistKey_some hb]
+    exact Or.inr ⟨rfl, Or.inr ⟨rfl, hab⟩⟩
+  · split <;> simp
+  · intro a ha b hb
+    have hat : s[a]? = some t := by
+      have := (List.mem_filter.mp ha).2; simpa using this
+    by_cases hc : s.contains t
+    · rw [if_pos hc] at hb; simp at hb
+    · rw [if_neg hc] at hb
+      have hbt : b = t := List.mem_singleton.mp hb
+      have hnone : s[t]? = none := by
+        rw [Std.HashMap.contains_eq_isSome_getElem?] at hc; simpa using hc
+      rw [hoistKey_some hat, hbt, hoistKey_none hnone]
+      exact Or.inr ⟨rfl, Or.inl Nat.zero_lt_one⟩
+
+theorem hoistBuckets_pairwise {s : Std.HashMap Nat Nat}
+    {moved : List Nat} (hmoved : moved.Pairwise (· < ·)) :
+    ∀ n : Nat, (hoistBuckets s moved n).Pairwise
+      (fun a b => hoistKeyLt (hoistKey s a) (hoistKey s b))
+  | 0 => by rw [hoistBuckets]; simp
+  | n + 1 => by
+    rw [hoistBuckets, List.range_succ, List.flatMap_append]
+    refine List.pairwise_append.mpr ⟨hoistBuckets_pairwise hmoved n,
+      by simpa using hoistBucketAt_pairwise hmoved n, ?_⟩
+    intro a ha b hb
+    obtain ⟨t, ht, hat⟩ := List.mem_flatMap.mp ha
+    rw [List.mem_range] at ht
+    have h1 : (hoistKey s a).1 = t := hoistBucketAt_key_fst hat
+    have h2 : (hoistKey s b).1 = n := hoistBucketAt_key_fst (by simpa using hb)
+    rw [hoistKeyLt]; omega
+
+theorem mem_hoistBuckets {s : Std.HashMap Nat Nat} {n x : Nat}
+    (hb : ∀ k t, s[k]? = some t → k < n → t < n) :
+    x ∈ hoistBuckets s ((List.range n).filter (fun k => s.contains k)) n ↔ x < n := by
+  rw [hoistBuckets]
+  constructor
+  · intro h
+    obtain ⟨t, ht, hxt⟩ := List.mem_flatMap.mp h
+    rw [List.mem_range] at ht
+    rw [hoistBucketAt] at hxt
+    rcases List.mem_append.mp hxt with h | h
+    · have := (List.mem_filter.mp (List.mem_filter.mp h).1).1
+      rwa [List.mem_range] at this
+    · by_cases hc : s.contains t
+      · rw [if_pos hc] at h; simp at h
+      · rw [if_neg hc] at h; rw [List.mem_singleton.mp h]; exact ht
+  · intro hx
+    by_cases hc : s.contains x
+    · obtain ⟨t, ht⟩ : ∃ t, s[x]? = some t := by
+        rw [Std.HashMap.contains_eq_isSome_getElem?] at hc
+        rcases hx2 : s[x]? with _ | t
+        · rw [hx2] at hc; simp at hc
+        · exact ⟨t, rfl⟩
+      refine List.mem_flatMap.mpr ⟨t, List.mem_range.mpr (hb x t ht hx), ?_⟩
+      rw [hoistBucketAt]
+      refine List.mem_append.mpr (Or.inl (List.mem_filter.mpr ⟨?_, by simp [ht]⟩))
+      exact List.mem_filter.mpr ⟨List.mem_range.mpr hx, by simpa using hc⟩
+    · refine List.mem_flatMap.mpr ⟨x, List.mem_range.mpr hx, ?_⟩
+      rw [hoistBucketAt]
+      exact List.mem_append.mpr (Or.inr (by rw [if_neg hc]; simp))
+
+theorem hoistBuckets_nodup {s : Std.HashMap Nat Nat} {moved : List Nat}
+    (hmoved : moved.Pairwise (· < ·)) (n : Nat) :
+    (hoistBuckets s moved n).Nodup := by
+  refine List.Pairwise.imp ?_ (hoistBuckets_pairwise hmoved n)
+  intro a b hab hc
+  rw [hc] at hab
+  exact hoistKeyLt_irrefl hab
+
+theorem hoistBuckets_perm {s : Std.HashMap Nat Nat} {n : Nat}
+    (hb : ∀ k t, s[k]? = some t → k < n → t < n) :
+    (hoistBuckets s ((List.range n).filter (fun k => s.contains k)) n).Perm
+      (List.range n) := by
+  refine (List.perm_ext_iff_of_nodup
+    (hoistBuckets_nodup (List.pairwise_lt_range.filter _) n) (List.nodup_range)).mpr ?_
+  intro x
+  rw [mem_hoistBuckets hb, List.mem_range]
+
+/-- **The bucket pass is the sort.** -/
+theorem hoistBuckets_eq_mergeSort (s : Std.HashMap Nat Nat) (n : Nat)
+    (hb : ∀ k t, s[k]? = some t → k < n → t < n) :
+    hoistBuckets s ((List.range n).filter (fun k => s.contains k)) n
+      = (List.range n).mergeSort (fun a b => !hoistLt s b a) := by
+  refine List.Perm.eq_of_pairwise (le := fun a b => (!hoistLt s b a) = true)
+    (fun a b _ _ h1 h2 => hoist_le_antisymm s a b h1 h2) ?_ ?_ ?_
+  · refine List.Pairwise.imp ?_
+      (hoistBuckets_pairwise (s := s) (List.pairwise_lt_range.filter _) n)
+    intro a b hab
+    rw [hoist_le_iff]
+    intro hc
+    exact hoistKeyLt_irrefl (hoistKeyLt_trans hab hc)
+  · exact List.pairwise_mergeSort (hoist_le_trans s) (hoist_le_total s) _
+  · exact (hoistBuckets_perm hb).trans (List.mergeSort_perm _ _).symm
+
+/-- `hoist_order`'s inner loop: one bucket's moved records. -/
+theorem hoist_order_inner_refines {rm lm} (hr : TargetRel rm lm)
+    {moved : alloc.vec.Vec Std.U64} {t : Std.Usize} :
+    ∀ (a : Std.Usize) (order : alloc.vec.Vec Std.U64) v,
+      frontend.nat_op_ground.hoist_order_loop0_loop0 rm moved order t
+        (alloc.vec.Vec.len moved) a = ok v →
+      v.val.map absU = order.val.map absU ++
+        ((moved.val.drop a.val).map absU).filter (fun k => lm[k]? == some t.val) := by
+  refine cursor_induction (fun a : Std.Usize => a.val) moved.val.length
+    (fun a (order : alloc.vec.Vec Std.U64) => ∀ v,
+      frontend.nat_op_ground.hoist_order_loop0_loop0 rm moved order t
+        (alloc.vec.Vec.len moved) a = ok v →
+      v.val.map absU = order.val.map absU ++
+        ((moved.val.drop a.val).map absU).filter (fun k => lm[k]? == some t.val)) ?_ ?_
+  · intro a order hn v h
+    rw [frontend.nat_op_ground.hoist_order_loop0_loop0.eq_def] at h
+    rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac)] at h
+    cases Result.ok_injective h
+    simp [List.drop_eq_nil_of_le hn]
+  · intro a order hlt ih v h
+    rw [frontend.nat_op_ground.hoist_order_loop0_loop0.eq_def] at h
+    rw [if_pos (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
+    obtain ⟨kk, hkk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨order1, horder1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨a1, ha1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ha1v : a1.val = a.val + 1 := usize_add_one_inv ha1
+    have hkx : moved.val[a.val]'hlt = kk := by
+      have h1 := vec_index_some hkk
+      rw [List.getElem?_eq_getElem hlt] at h1
+      exact Option.some_injective _ h1
+    have hi1v : i1.val = t.val := by
+      simp only [lift, Result.ok.injEq] at hi1; subst hi1; exact usize_cast_u64_val' t
+    have hbv := target_is_refines hr hb
+    rw [ih a1 order1 ha1v v h, ha1v, List.drop_eq_getElem_cons hlt, hkx]
+    simp only [List.map_cons, List.filter_cons]
+    rw [hbv] at horder1
+    simp only [absU, hi1v] at horder1 ⊢
+    split at horder1
+    · rename_i hbt
+      rw [ConRon.Refine.vec_push_val horder1, if_pos hbt]
+      simp [absU]
+    · rename_i hbf
+      cases Result.ok_injective horder1
+      rw [if_neg hbf]
+
+/-- `hoist_order`'s outer loop: the buckets from `t` on. -/
+theorem hoist_order_outer_refines {rm lm} (hr : TargetRel rm lm)
+    {moved : alloc.vec.Vec Std.U64} {n : Std.Usize} :
+    ∀ (t : Std.Usize) (order : alloc.vec.Vec Std.U64) v,
+      frontend.nat_op_ground.hoist_order_loop0 n rm moved order t = ok v →
+      v.val.map absU = order.val.map absU ++
+        (List.range' t.val (n.val - t.val)).flatMap
+          (hoistBucketAt lm (moved.val.map absU)) := by
+  refine cursor_induction (fun t : Std.Usize => t.val) n.val
+    (fun t (order : alloc.vec.Vec Std.U64) => ∀ v,
+      frontend.nat_op_ground.hoist_order_loop0 n rm moved order t = ok v →
+      v.val.map absU = order.val.map absU ++
+        (List.range' t.val (n.val - t.val)).flatMap
+          (hoistBucketAt lm (moved.val.map absU))) ?_ ?_
+  · intro t order hn v h
+    rw [frontend.nat_op_ground.hoist_order_loop0.eq_def] at h
+    rw [if_neg (show ¬ t < n by scalar_tac)] at h
+    cases Result.ok_injective h
+    simp [show n.val - t.val = 0 by omega]
+  · intro t order hlt ih v h
+    rw [frontend.nat_op_ground.hoist_order_loop0.eq_def] at h
+    rw [if_pos (show t < n by scalar_tac)] at h
+    obtain ⟨order1, horder1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨order2, horder2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨t1, ht1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ht1v : t1.val = t.val + 1 := usize_add_one_inv ht1
+    have hiv : i.val = t.val := by
+      simp only [lift, Result.ok.injEq] at hi; subst hi; exact usize_cast_u64_val' t
+    have hbv : b = lm.contains t.val := by
+      rw [ConRon.Refine.HashMap2.contains_key_refines_wf (P := fun _ => True) u64Eq2Fwd
+        hr.2 (fun _ _ => trivial) trivial hb]
+      have := hr.1 i trivial
+      rw [Std.HashMap.contains_eq_isSome_getElem?, ← hiv]
+      simp only [absU] at this
+      rw [← this]; cases toFun rm i <;> rfl
+    have h1 := hoist_order_inner_refines hr 0#usize order order1 horder1
+    rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at h1
+    rw [ih t1 order2 ht1v v h, ht1v,
+      show n.val - t.val = (n.val - (t.val + 1)) + 1 by omega, List.range'_succ,
+      List.flatMap_cons, hoistBucketAt]
+    split at horder2
+    · rename_i hbt
+      cases Result.ok_injective horder2
+      rw [h1, if_pos (by rw [← hbv]; exact hbt)]
+      simp
+    · rename_i hbf
+      obtain ⟨t4, ht4, hpush⟩ := ConRon.Refine.bind_eq_ok_iff.mp horder2
+      have ht4v : t4.val = t.val := by
+        simp only [lift, Result.ok.injEq] at ht4; subst ht4; exact usize_cast_u64_val' t
+      rw [ConRon.Refine.vec_push_val hpush]
+      simp only [List.map_append, List.map_cons, List.map_nil]
+      rw [h1, if_neg (by rw [← hbv]; simpa using hbf)]
+      simp [ht4v, absU]
+
 /-- **`hoist_order`** — the sorted order `applyHoist` sorts by.  The port's
 bucket pass against the twin's `List.mergeSort` (task #87 §5).  Two
 hypotheses, both the call site's (task #97-P5-Front round 2, finding F7: the
@@ -807,7 +1109,11 @@ theorem hoist_order_refines {n rm lm moved v} (hr : TargetRel rm lm)
     (hb : ∀ k t, lm[k]? = some t → k < n.val → t < n.val)
     (h : frontend.nat_op_ground.hoist_order n rm moved = ok v) :
     v.val.map absU =
-      (List.range n.val).mergeSort (fun a b => !hoistLt lm b a) := by sorry
+      (List.range n.val).mergeSort (fun a b => !hoistLt lm b a) := by
+  rw [frontend.nat_op_ground.hoist_order] at h
+  have := hoist_order_outer_refines hr 0#usize _ v h
+  rw [← hoistBuckets_eq_mergeSort lm n.val hb, ← hm]
+  simpa [hoistBuckets, List.range_eq_range', alloc.vec.Vec.with_capacity] using this
 
 /-- **`hoist_reorder` refines `reorder`** (`NatOpGround.lean:399-400`).  Task
 #87 §5's precondition is the port's own: an out-of-range `order` entry makes

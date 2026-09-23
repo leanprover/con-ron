@@ -22,14 +22,15 @@ paid or recorded.
 | entry | proof irrelevance (hoisted, D3/D4) | `defeqLoop_propIrrel` |
 | literals | `reduceNat` fires on the left / on the right | `defeqLoop_reduceNat_left`, `_right` |
 | lazy delta | one-sided, hint-ordered, same-head congruence, both | `defeqLoop_tail` + `dqTail_*` (§6) |
-| congruence | `∀`/`∀` and `λ`/`λ` — the **peeled** arms | `defeqPeel_chain` (§5, OPEN) + `isDefEqCore_binder` |
+| congruence | `∀`/`∀` and `λ`/`λ` — the **peeled** arms | `defeqPeel_chain` (§5, closed round 6 in `Arms/DefeqPeel.lean`) + `isDefEqCore_binder` |
 | congruence | sort, lit, fvar, const, app, proj, the literal/ctor pairs, η, stuck | `dqCongr` (§6) + the `dqArm_*` (§7) |
 | the loop | `defeqBody` at `defeqLoopFuel` | `defeq_of_loop` |
 
 **Round 5 (DefeqStep sub-lane):** `defeqStep_spec` is PROVED, staged
 (`defeqStep_at`, §8), over the entry and literal groups inline and the tail
 as `dqTailA_spec` / `dqCongrA_spec`.  After the round's merge its `sorryAx`
-comes from two named children only: `defeqPeel_chain` (§5) and
+comes from two named children only: `defeqPeel_chain` (§5; closed in round
+6, see `Arms/DefeqPeel.lean`) and
 `stuckIrrel_spec` (`Walks/Stuck.lean`, through `dq_stuck_exit`, itself proved
 there over `structEtaCertWith_spec`); the three string-literal rules are the
 closed `Walks/StrLit.lean` / `Walks/StrCtor.lean` ones.  §4's `defeqLoop_forallE` /
@@ -59,6 +60,7 @@ import ConRon.Bridge.Core.Walks.Stuck
 import ConRon.Bridge.Core.Walks.ProjLit
 import ConRon.Bridge.Core.Walks.Guards
 import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.Core.Arms.DefeqPeel
 
 namespace ConRon.Bridge.Core
 
@@ -308,7 +310,8 @@ theorem defeqLoop_lam {F d n : Nat} {pi : Bool} {a b : Expr}
 
 /-! ## 5. The peel's identification — the campaign's one port-side debt -/
 
-/-- con-leche: none — **OPEN** (task #97-P3-Core), and it is the one
+/-- con-leche: none — **CLOSED** (task #97-P3-Core round 6, by
+`Arms/DefeqPeel.lean`'s `defeqBinders_spec`), and it is the one
 obligation in this tier that con-leche has NO lemma for: task #97-P6-14's
 batched defeq binder descent is the arena's own algorithm
 (`Arena/Core.lean`'s `defeqPeel` / `defeqPeelLeaf` / `defeqPeelDone`),
@@ -324,8 +327,8 @@ by the bridge (P3)".
    same term by `Expr.instantiateList_cons` (`ConLeche/Verify/InstList.lean`),
    which is the equation the `instantiate1` ruling already made the bridge
    owe once (task #97-P6-9) and which `Bridge/ExprOps/Inst1.lean` states as
-   `instantiateList_spec` — still `sorry` there, so this lemma inherits that
-   gap as well as its own.
+   `instantiateList_spec` (closed since; round 6's proof uses con-leche's
+   equation directly on the `InstLAt` answers).
 2. **The chain REACHES this arm at every peeled level.**  §4's five facts,
    each one clause of `defeqStep`'s earlier arms: `whnfCore` is the identity
    on a binder, `isBoolTrue` is `false`, `quickPair` is `true`, `reduceNat`
@@ -346,8 +349,13 @@ by the bridge (P3)".
    so every row the peel writes the chain would also have written; and
    Theorem 1's pure side is `∃ F`, so the chain's larger fuel is free.
 
-What is missing to CLOSE it is part 1's callee rule and a `Nat` induction on
-the peel's `k`; nothing in the argument is open.
+*(Round 6: closed exactly as argued — `Arms/DefeqPeel.lean` proves the
+peel's invariant `PeelOK` by induction on the budget, part 1 by
+`Expr.instantiateList_cons` at the push-order vector, part 2 by unfolding
+con-leche's `defeqStep` at two distinct binders (`isDefEqCore_bnd`), part 3
+because a pending mismatch only turns an `ok true` into a throw, part 4 by
+`isDefEqCore_mono`.  `instantiateList_spec` is closed in
+`Bridge/ExprOps/Subst.lean`, so nothing is inherited.)*
 
 *(Round 5, DefeqStep sub-lane: the postcondition gained `s'.pins = s₀.pins`,
 the frame conjunct every knot slot carries and the step's `DqPost` needs; the
@@ -374,7 +382,8 @@ theorem defeqPeel_chain {fe : IFEnv} {fuel : Nat}
         SimV (ConLeche.isDefEqCore mode env) d
           (if isLam then .lam t1 b1 m1 else .forallE t1 b1 m1)
           (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2) x⌝⦄ := by
-  sorry
+  exact defeqBinders_spec henv hsim s₀ d ty1 body1 ty2 body2 m1 m2 isLam t1 b1 t2 b2
+    hok ht1 hb1 ht2 hb2 hwa hwb
 
 /-! ## 6. The step's pure side, staged (task #97-P3-Core round 5)
 
@@ -2026,7 +2035,7 @@ theorem isDefEqCore_binder {F d : Nat} {t₁ c₁ t₂ c₂ : Expr}
     exact dqTail_ff rfl rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1636-1662 defeqStep — **the two
-binder arms**, batched, over `defeqPeel_chain` (§5, OPEN) and
+binder arms**, batched, over `defeqPeel_chain` (§5, closed round 6) and
 `isDefEqCore_binder`. -/
 theorem dqArm_binder (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel) (ty₁ bd₁ ty₂ bd₂ : EIdx)
@@ -2679,8 +2688,7 @@ loop one budget down.
 
 **PROVED** (round 5, DefeqStep sub-lane) from `defeqStep_at`.  Its
 `sorryAx` is inherited from named children, none in this proof:
-`defeqPeel_chain` (the batched binder descent's identification, §5) and,
-through `stuckIrrel_spec` (`Walks/Stuck.lean`, reached through
+since round 6 only through `stuckIrrel_spec` (`Walks/Stuck.lean`, reached through
 `dq_stuck_exit`), `structEtaCertWith_spec`. -/
 theorem defeqStep_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
@@ -2769,6 +2777,8 @@ section Census
 #print axioms dq_both_exit
 #print axioms dqArm_sort
 #print axioms dqArm_litlit
+#print axioms defeqPeel_chain
+#print axioms dqArm_binder
 #print axioms defeqStep_spec
 #print axioms defeqBody_spec
 

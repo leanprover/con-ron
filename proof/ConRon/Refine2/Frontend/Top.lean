@@ -96,56 +96,6 @@ The record's seven arms, each composed from the readers and writers of
 `ExportC.lean` / `ExportCInd.lean`.  `SimDV.of_run_eq` moves a claim between
 two twin actions with the same run. -/
 
-theorem SimDV.of_run_eq {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result Unit frontend.export_c.LineErr ×
-      arena.monad.AState × frontend.export_c.StateD}
-    {x y : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)}
-    (h : SimDV pers lst o x) (hxy : y.run lst = x.run lst) : SimDV pers lst o y := by
-  rcases o with ⟨r, rst', rsd'⟩
-  unfold SimDV at h ⊢
-  rw [hxy]; exact h
-
-/-- **A table-entry writer inside the line layer**: the twin's
-`do pure (.inl (← x))` over a `SimD` step. -/
-theorem SimD.toSimDV_inl {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result Unit frontend.export_c.LineErr ×
-      arena.monad.AState × frontend.export_c.StateD}
-    {x : AM Arena.Frontend.StateD} (h : SimD pers lst o x) :
-    SimDV pers lst o (do pure (Sum.inl (← x))) := by
-  rcases o with ⟨r, rst', rsd'⟩
-  simp only [SimD] at h
-  cases r with
-  | Ok u =>
-    obtain ⟨lsd', lst', hx, hd, hi, hrel, hinv, hext⟩ := h
-    refine SimDV.mk (lsd' := lsd') ?_ hd hi hrel hinv hext
-    simp only [am_run_bind', hx, except_ok_bind]; rfl
-  | Err e =>
-    exact SimDV.of_bind (f := fun p => (pure (Sum.inl p.1) : AM _).run p.2) h
-      (by simp only [am_run_bind'])
-
-/-- A twin prefix that answers `a` at a state the store only grew to. -/
-theorem SimDV.bind_ok {α : Type} {pers : arena.store.PersTier} {lst lst1 : AState}
-    {o : core.result.Result Unit frontend.export_c.LineErr ×
-      arena.monad.AState × frontend.export_c.StateD}
-    {x : AM α} {f : α → AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)} {a : α}
-    (hx : x.run lst = .ok (a, lst1)) (hext : Ext lst.store lst1.store)
-    (h : SimDV pers lst1 o (f a)) : SimDV pers lst o (x >>= f) := by
-  rcases o with ⟨r, rst', rsd'⟩
-  have hrun : (x >>= f).run lst = (f a).run lst1 := by
-    simp only [am_run_bind', hx, except_ok_bind]
-  unfold SimDV at h ⊢
-  rw [hrun]
-  cases r with
-  | Ok u =>
-    obtain ⟨lsd', lst', hx', hd, hi, hrel, hinv, hext'⟩ := h
-    exact ⟨lsd', lst', hx', hd, hi, hrel, hinv, Ext.trans hext hext'⟩
-  | Err e =>
-    cases e with
-    | Err ce => exact h
-    | Verdict v =>
-      obtain ⟨lv, lst', hx', hk, hext'⟩ := h
-      exact ⟨lv, lst', hx', hk, Ext.trans hext hext'⟩
-
 /-- The port's `declined` at a message built from a constant: a `DECLINE`
 verdict, whatever the twin's message. -/
 theorem plc_declined {n : Std.Usize} {M : Std.Array Std.U32 n} {pers lst rst rsd msg o}
