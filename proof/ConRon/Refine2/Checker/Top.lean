@@ -63,15 +63,14 @@ and the `sorry`s under them are now TWO, `annot_step_refines` and
 `check_decl_step_refines`.  The axiom census at the foot of this file prints
 that, rather than hiding it.
 
-**Since task #97-P5-Checker round 4 both leaves are COMPOSED**
-(`check_decl_step_of_keeps`, `annot_step_of_keeps`): the promote window is
-entered at `AStateRelW.of_rel` and closed by `Refine2/Checker/Shape.lean`'s
-`bracket_close_w`, the one bridge between the weak and the strong relation.
-What keeps the public leaves open is one PORT fact no refinement statement
-concludes — `KeepsUnfrozen`, *"the body does not freeze the persistent
-tier"*, which `promote_new`/`promote_vg` need after the body ran — and
-DESIGN.md's round-4 section puts the shape of its discharge to the
-coordinator.
+**Since task #97-P5-Checker round 4 both leaves are COMPOSED**, and since
+task #97-P5-Top they ARE the public leaves: the promote window is entered at
+`AStateRelW.of_rel` and closed by `Refine2/Checker/Shape.lean`'s
+`bracket_close_w`.  The one port fact round 4 could not discharge — that the
+persistent tier is not frozen when `promote_new`/`promote_vg` run
+(`KeepsUnfrozen`) — is gone with task #97-P5-Usize's `M_FROZEN` → `Native`
+flip: a `Native` decline claims nothing, so the promotion lemmas no longer
+carry `PersUnfrozen` and neither does anything above them.
 
 ## The third binder, and why it is real (task #97-P5-Checker round 3)
 
@@ -624,75 +623,32 @@ theorem check_decl_refines {pers st lst} {rf lf}
     rw [absIDeclaration, checkDecl_quotDecl]
     exact check_quot_decl_refines hrel hinv hfe hfinv hrun
 
-/-! ### The bracketed step, composed (task #97-P5-Checker round 4)
+/-! ### The bracketed step, composed (task #97-P5-Checker round 4, task #97-P5-Top)
 
 `flush_caches_refines ; enter_scratch_refines ; check_decl_refines ;
-promote_new_refines ; bracket_close_w` — the promote window entered at
+promote_new ; bracket_close_w` — the promote window entered at
 `AStateRelW.of_rel` and left at `bracket_close_w`, the one bridge
 (`Refine2/Checker/Shape.lean`).
 
-**What is still between this and `check_decl_step_refines` is ONE port fact,
-and it is not a relation fact.**  `promote_new_refines` takes
-`PersUnfrozen st.store` — the port's four `shared_on` flags down, finding
-17's first half, because at a frozen tier the port answers `Internal` where
-the twin appends.  The step is entered with the flags down (the driver thaws
-before phase A), `flush_caches` and `enter_scratch` do not move them
-(`flush_caches_store`, `enter_scratch_unfrozen` below), but whether
-`check_decl` moves them is a fact about the PORT's body that no statement of
-Theorem 2 concludes: `SimRel`'s success arm relates the post-state to the
-twin's, and the twin has no flag.  It is carried here as `KeepsUnfrozen`, a
-hypothesis in `TwinWF`'s shape (universally quantified over the state, so it
-threads through a fold), and the public leaf stays open until the round's
-report is ruled on — see DESIGN.md, task #97-P5-Checker round 4 §1. -/
+**No frozen-tier fact is needed.**  Round 4 composed both bracketed steps
+under `KeepsUnfrozen` of their bodies and `PersUnfrozen` at their entry — port
+facts no refinement statement concludes.  Task #97-P5-Usize made the
+`M_FROZEN` guard `Native` (a `Native` decline claims nothing), task #97-P5-Top
+dropped `hfr` from the promotion lemmas, and the steps are plain
+compositions. -/
 
-/-- **NAMED OBLIGATION** — the port action does not freeze the persistent
-tier.  True of every function of `arena-core` (only the driver's
-`freeze_tier` / `thaw_tier` write `shared_on`), and concluded by no
-refinement statement. -/
-def KeepsUnfrozen {α : Type}
-    (f : arena.monad.AState → Result (α × arena.monad.AState)) : Prop :=
-  ∀ st o, PersUnfrozen st.store → f st = ok o → PersUnfrozen o.2.store
-
-theorem flush_caches_store {st st' : arena.monad.AState}
-    (h : arena.core.flush_caches st = ok st') : st'.store = st.store := by
-  rw [arena.core.flush_caches] at h
-  obtain ⟨c, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h]
-
-theorem enter_scratch_unfrozen {st st' : arena.monad.AState}
-    (hfr : PersUnfrozen st.store) (h : arena.core.enter_scratch st = ok st') :
-    PersUnfrozen st'.store := by
-  rw [arena.core.enter_scratch] at h
-  obtain ⟨m, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h]
-  rw [arena.store.EStore.enable_scratch] at he
-  obtain ⟨ls, hls, he⟩ := ConRon.Refine.bind_eq_ok_iff.mp he
-  obtain ⟨t, -, he⟩ := ConRon.Refine.bind_eq_ok_iff.mp he
-  rw [← Result.ok_injective he]
-  rw [arena.store.LsStore.enable_scratch] at hls
-  obtain ⟨l, hl, hls⟩ := ConRon.Refine.bind_eq_ok_iff.mp hls
-  obtain ⟨t2, -, hls⟩ := ConRon.Refine.bind_eq_ok_iff.mp hls
-  rw [← Result.ok_injective hls]
-  rw [arena.store.LStore.enable_scratch] at hl
-  obtain ⟨n, hn, hl⟩ := ConRon.Refine.bind_eq_ok_iff.mp hl
-  obtain ⟨t3, -, hl⟩ := ConRon.Refine.bind_eq_ok_iff.mp hl
-  rw [← Result.ok_injective hl]
-  rw [arena.store.NStore.enable_scratch] at hn
-  obtain ⟨t4, -, hn⟩ := ConRon.Refine.bind_eq_ok_iff.mp hn
-  rw [← Result.ok_injective hn]
-  exact ⟨hfr.e, hfr.lss, hfr.ls, hfr.ns⟩
-
-/-- `check_decl_step_refines` under `KeepsUnfrozen` of its body — the whole
-composition, and the one place the promote window's bridge is consumed. -/
-theorem check_decl_step_of_keeps {pers st lst} {rf lf}
+/-- **`check_decl_step` ⊑ `checkDeclStep`** — one step of the pure fold,
+BRACKETED: `checkDecl` inside the per-declaration scratch tier, with the
+constants it installed promoted before the tier goes.  This is where
+`Refine2/Promote/Promote.lean`'s `promote_new_refines` is consumed, and where
+its finding C (`k ≤ n`) is discharged: `k` is `fe.visibleBelow - vis` for the
+counter read before the step. -/
+theorem check_decl_step_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {d : arena.env.IDeclaration} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hfr : PersUnfrozen st.store)
-    (hkeep : KeepsUnfrozen (fun s => arena.checker.check_decl pers s mode pins rf d))
     (hrun : arena.checker.check_decl_step pers st mode pins rf d = ok o) :
     SimRel IFEnvRelI pers lst o
       (checkDeclStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
@@ -705,9 +661,6 @@ theorem check_decl_step_of_keeps {pers st lst} {rf lf}
   -- the bracket opened
   obtain ⟨hF, hrel1, hinv1⟩ := flush_caches_refines hrel hinv h1
   obtain ⟨hE, hrel2, hinv2⟩ := enter_scratch_refines hrel1 hinv1 h2
-  have hfr2 : PersUnfrozen st2.store :=
-    enter_scratch_unfrozen (by rw [flush_caches_store h1]; exact hfr) h2
-  have hfr3 : PersUnfrozen st3.store := hkeep st2 (r, st3) hfr2 hq
   -- the body
   have hB := check_decl_refines (lf := lf) hrel2 hinv2 hfe hfinv hq
   simp only [SimRel, AOutRel] at hB
@@ -744,7 +697,7 @@ theorem check_decl_step_of_keeps {pers st lst} {rf lf}
         omega
       exact le_trans h1 hv.inv.visBound
     have hP := promote_new_refines (lm := PMemo.empty) (lf := v)
-      (AStateRelW.of_rel hrel3) hinv3 hfr3 (pmemo_empty_refines hpm) hv.rel hv.inv
+      (AStateRelW.of_rel hrel3) hinv3 (pmemo_empty_refines hpm) hv.rel hv.inv
       hkle hq4
     simp only [SimPMW, POutW] at hP
     rw [am_run_bind', hx]
@@ -768,24 +721,6 @@ theorem check_decl_step_of_keeps {pers st lst} {rf lf}
       refine ⟨v', brLeft lst4, ?_, hv4, hrel5, hinv5, hext5⟩
       rw [except_ok_bind, am_run_bind', hx4, except_ok_bind, am_run_bind', hD]
       rfl
-
-/-- **`check_decl_step` ⊑ `checkDeclStep`** — one step of the pure fold,
-BRACKETED: `checkDecl` inside the per-declaration scratch tier, with the
-constants it installed promoted before the tier goes.  This is where
-`Refine2/Promote/Promote.lean`'s `promote_new_refines` is consumed, and where
-its finding C (`k ≤ n`) is discharged: `k` is `fe.visibleBelow - vis` for the
-counter read before the step. -/
-theorem check_decl_step_refines {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {d : arena.env.IDeclaration} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker.check_decl_step pers st mode pins rf d = ok o) :
-    SimRel IFEnvRelI pers lst o
-      (checkDeclStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
-        (absIDeclaration d)) := by
-  sorry
 
 /-- The cursor's measure induction — task #97-P5-0's finding 7 shape step, at
 a `Vec` rather than at a fuel: `ds.length - i` decreases and the arm's own
@@ -907,7 +842,24 @@ theorem annot_step_other_refines {pers st lst} {rf lf}
     SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = r.2.map absValueGroup) pers lst o
       (do pure (← checkDecl (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIDeclaration pd), none)) := by
-  sorry
+  rw [arena.checker.annot_step_other] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hC := check_decl_refines (lf := lf) hrel hinv hfe hfinv hq
+  simp only [SimRel, AOutRel] at hC ⊢
+  rw [am_run_bind']
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact AErrSim.bind hC _
+  | Ok fe2 =>
+    have hrun' : (ok (core.result.Result.Ok (fe2, none), st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    obtain ⟨v, lst1, hx, hv, hrel1, hinv1, hext1⟩ := hC
+    exact ⟨(v, none), lst1, by rw [hx]; rfl, ⟨hv, rfl⟩, hrel1, hinv1, hext1⟩
 
 /-- `annot_step_opaque_install` — the opaque's install half. -/
 theorem annot_step_opaque_install_refines {pers st lst} {rf lf}
@@ -919,7 +871,41 @@ theorem annot_step_opaque_install_refines {pers st lst} {rf lf}
     SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = r.2.map absValueGroup) pers lst o
       (annotStepOpaqueInstallSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx value)) := by
-  sorry
+  rw [arena.checker.annot_step_opaque_install] at hrun
+  rw [annotStepOpaqueInstallSpec]
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hC := install_constant_val_refines (lf := lf) hrel hinv hfe hfinv
+    hfe.visibleBelow.symm hq
+  have hlf : lf.restrictTo (absU rf.visible_below) = lf := by
+    rw [IFEnv.restrictTo, ← hfe.visibleBelow]
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact SimRel.of_sim_err hC
+  | Ok cv_a =>
+    obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r2, st2⟩ := q2
+    refine SimRel.of_sim_bind hC fun lst1 hrel1 hinv1 => ?_
+    have hV := install_value_refines (lf := lf) hrel1 hinv1 hfe hfinv hq2
+    rw [hlf] at hV
+    cases r2 with
+    | Err e =>
+      have hrun' : (ok (core.result.Result.Err e, st2) : Result _) = ok o := hrun
+      have ho := Result.ok_injective hrun'
+      subst ho
+      exact SimRel.of_sim_err hV
+    | Ok jv =>
+      obtain ⟨iv, hiv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨fe2, hfe2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      obtain ⟨hR2, hI2⟩ := ifenv_push_refines hfe hfinv hfe2
+      refine SimRel.of_sim_bind hV fun lst2 hrel2 hinv2 => ?_
+      refine AOutRel.ok rfl ⟨⟨?_, hI2⟩, rfl⟩ hrel2 hinv2 (Ext.refl _)
+      simpa only [absIConstantInfo, i_constant_val_dup_abs hiv] using hR2
 
 /-- `annot_step_opaque` — `annotStepGo`'s `.opaqueDecl` arm. -/
 theorem annot_step_opaque_refines {pers st lst} {rf lf}
@@ -933,7 +919,31 @@ theorem annot_step_opaque_refines {pers st lst} {rf lf}
     SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = r.2.map absValueGroup) pers lst o
       (annotStepOpaqueSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIDeclaration pd) (absIConstantVal cv) (absEIdx value)) := by
-  sorry
+  rw [arena.checker.annot_step_opaque] at hrun
+  rw [annotStepOpaqueSpec]
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hN := reduce_op_names_refines hrel hinv hq
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact SimRel.of_sim_err hN
+  | Ok ns =>
+    obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hb2 : (absNIdxL ns).contains (absIConstantVal cv).name = b := by
+      rw [nidx_contains_from_refines hb]
+      simp [absNIdxLFrom, absNIdxL, absIConstantVal]
+    refine SimRel.of_sim_bind hN fun lst1 hrel1 hinv1 => ?_
+    rw [hb2]
+    cases b with
+    | true =>
+      rw [if_pos rfl]
+      exact annot_step_other_refines hrel1 hinv1 hfe hfinv hrun
+    | false =>
+      rw [if_neg (by decide)]
+      exact annot_step_opaque_install_refines hrel1 hinv1 hfe hfinv hrun
 
 /-- `annot_step_thm` — `annotStepGo`'s `.thmDecl` arm: **a theorem installs BY
 STATEMENT**, so phase A never enters a theorem's body. -/
@@ -946,7 +956,38 @@ theorem annot_step_thm_refines {pers st lst} {rf lf}
     SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = r.2.map absValueGroup) pers lst o
       (annotStepThmSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
-  sorry
+  rw [arena.checker.annot_step_thm] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hC := install_constant_val_refines (lf := lf) hrel hinv hfe hfinv
+    hfe.visibleBelow.symm hq
+  rw [annotStepThmSpec]
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact SimRel.of_sim_err hC
+  | Ok cv_a =>
+    obtain ⟨iv, hiv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨fe2, hfe2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho := Result.ok_injective hrun
+    subst ho
+    have he' := dupId_eidx _ _ he
+    subst he'
+    obtain ⟨hR2, hI2⟩ := ifenv_push_refines hfe hfinv hfe2
+    refine SimRel.of_sim_bind hC fun lst1 hrel1 hinv1 => ?_
+    refine AOutRel.ok rfl ⟨⟨?_, hI2⟩, rfl⟩ hrel1 hinv1 (Ext.refl _)
+    simpa only [absIConstantInfo, i_constant_val_dup_abs hiv] using hR2
+
+/-- `kernel::env::reducibility_hint_dup` is the identity in the model
+(`Refine/CoreKGuards.lean`'s `reducibility_hint_dup_eq`, which this file does
+not import). -/
+private theorem reducibility_hint_dup_eq' {h1 r : kernel.env.ReducibilityHint}
+    (h : kernel.env.reducibility_hint_dup h1 = ok r) : r = h1 := by
+  cases h1 <;> simp only [kernel.env.reducibility_hint_dup, Result.ok.injEq] at h <;>
+    exact h.symm
 
 /-- `annot_step_defn_install` — the definition's install half. -/
 theorem annot_step_defn_install_refines {pers st lst} {rf lf}
@@ -959,7 +1000,47 @@ theorem annot_step_defn_install_refines {pers st lst} {rf lf}
     SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = r.2.map absValueGroup) pers lst o
       (annotStepDefnInstallSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx value) (ConRon.Refine.absHint hint)) := by
-  sorry
+  rw [arena.checker.annot_step_defn_install] at hrun
+  rw [annotStepDefnInstallSpec]
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hC := install_constant_val_refines (lf := lf) hrel hinv hfe hfinv
+    hfe.visibleBelow.symm hq
+  have hlf : lf.restrictTo (absU rf.visible_below) = lf := by
+    rw [IFEnv.restrictTo, ← hfe.visibleBelow]
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact SimRel.of_sim_err hC
+  | Ok cv_a =>
+    obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r2, st2⟩ := q2
+    refine SimRel.of_sim_bind hC fun lst1 hrel1 hinv1 => ?_
+    have hV := install_value_refines (lf := lf) hrel1 hinv1 hfe hfinv hq2
+    rw [hlf] at hV
+    cases r2 with
+    | Err e =>
+      have hrun' : (ok (core.result.Result.Err e, st2) : Result _) = ok o := hrun
+      have ho := Result.ok_injective hrun'
+      subst ho
+      exact SimRel.of_sim_err hV
+    | Ok jv =>
+      obtain ⟨iv, hiv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨rh, hrh, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨fe2, hfe2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      have he' := dupId_eidx _ _ he
+      subst he'
+      have hrh' := reducibility_hint_dup_eq' hrh
+      subst hrh'
+      obtain ⟨hR2, hI2⟩ := ifenv_push_refines hfe hfinv hfe2
+      refine SimRel.of_sim_bind hV fun lst2 hrel2 hinv2 => ?_
+      refine AOutRel.ok rfl ⟨⟨?_, hI2⟩, rfl⟩ hrel2 hinv2 (Ext.refl _)
+      simpa only [absIConstantInfo, i_constant_val_dup_abs hiv] using hR2
 
 /-- `annot_step_defn` — `annotStepGo`'s `.defnDecl` arm. -/
 theorem annot_step_defn_refines {pers st lst} {rf lf}
@@ -975,7 +1056,52 @@ theorem annot_step_defn_refines {pers st lst} {rf lf}
       (annotStepDefnSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIDeclaration pd) (absIConstantVal cv) (absEIdx value)
         (ConRon.Refine.absHint hint)) := by
-  sorry
+  rw [arena.checker.annot_step_defn] at hrun
+  rw [annotStepDefnSpec]
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hN := nat_op_names_refines hrel hinv hq
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact SimRel.of_sim_err hN
+  | Ok ns =>
+    obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r2, st2⟩ := q2
+    refine SimRel.of_sim_bind hN fun lst1 hrel1 hinv1 => ?_
+    have hD := nat_div_mod_names_refines hrel1 hinv1 hq2
+    cases r2 with
+    | Err e =>
+      have hrun' : (ok (core.result.Result.Err e, st2) : Result _) = ok o := hrun
+      have ho := Result.ok_injective hrun'
+      subst ho
+      exact SimRel.of_sim_err hD
+    | Ok ds =>
+      refine SimRel.of_sim_bind hD fun lst2 hrel2 hinv2 => ?_
+      obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hb2 : (absNIdxL ns).contains (absIConstantVal cv).name = b := by
+        rw [nidx_contains_from_refines hb]
+        simp [absNIdxLFrom, absNIdxL, absIConstantVal]
+      rw [hb2]
+      cases b with
+      | true =>
+        rw [if_pos (by simp)]
+        exact annot_step_other_refines hrel2 hinv2 hfe hfinv hrun
+      | false =>
+        obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hb3 : (absNIdxL ds).contains (absIConstantVal cv).name = b1 := by
+          rw [nidx_contains_from_refines hb1]
+          simp [absNIdxLFrom, absNIdxL, absIConstantVal]
+        rw [hb3]
+        cases b1 with
+        | true =>
+          rw [if_pos (by simp)]
+          exact annot_step_other_refines hrel2 hinv2 hfe hfinv hrun
+        | false =>
+          rw [if_neg (by simp)]
+          exact annot_step_defn_install_refines hrel2 hinv2 hfe hfinv hrun
 
 /-- **`annot_step_go` ⊑ `annotStepGo`** — phase A's step BODY: what a step
 LEAVES BEHIND. -/
@@ -989,7 +1115,48 @@ theorem annot_step_go_refines {pers st lst} {rf lf}
     SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = r.2.map absValueGroup) pers lst o
       (annotStepGo (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIDeclaration pd)) := by
-  sorry
+  -- the port's four-way `match` is the twin's, arm for arm; the twin's
+  -- catch-all is the port's `annot_step_other` at the four other kinds
+  cases pd with
+  | DefnDecl cv value hint =>
+    have h := annot_step_defn_refines (pd := .DefnDecl cv value hint) hrel hinv hfe hfinv
+      (by rw [arena.checker.annot_step_go.eq_def] at hrun; exact hrun)
+    rw [show absIDeclaration (.DefnDecl cv value hint)
+        = .defnDecl (absIConstantVal cv) (absEIdx value) (ConRon.Refine.absHint hint)
+        from rfl, annotStepGo_defnDecl]
+    exact h
+  | ThmDecl cv value =>
+    have h := annot_step_thm_refines hrel hinv hfe hfinv
+      (by rw [arena.checker.annot_step_go.eq_def] at hrun; exact hrun)
+    rw [show absIDeclaration (.ThmDecl cv value)
+        = .thmDecl (absIConstantVal cv) (absEIdx value) from rfl, annotStepGo_thmDecl]
+    exact h
+  | OpaqueDecl cv value =>
+    have h := annot_step_opaque_refines (pd := .OpaqueDecl cv value) hrel hinv hfe hfinv
+      (by rw [arena.checker.annot_step_go.eq_def] at hrun; exact hrun)
+    rw [show absIDeclaration (.OpaqueDecl cv value)
+        = .opaqueDecl (absIConstantVal cv) (absEIdx value) from rfl, annotStepGo_opaqueDecl]
+    exact h
+  | AxiomDecl cv =>
+    rw [annotStepGo_other _ _ _ _ (by simp [absIDeclaration]) (by simp [absIDeclaration])
+      (by simp [absIDeclaration])]
+    exact annot_step_other_refines hrel hinv hfe hfinv
+      (by rw [arena.checker.annot_step_go.eq_def] at hrun; exact hrun)
+  | BasisDecl k =>
+    rw [annotStepGo_other _ _ _ _ (by simp [absIDeclaration]) (by simp [absIDeclaration])
+      (by simp [absIDeclaration])]
+    exact annot_step_other_refines hrel hinv hfe hfinv
+      (by rw [arena.checker.annot_step_go.eq_def] at hrun; exact hrun)
+  | IndDecl block n_p =>
+    rw [annotStepGo_other _ _ _ _ (by simp [absIDeclaration]) (by simp [absIDeclaration])
+      (by simp [absIDeclaration])]
+    exact annot_step_other_refines hrel hinv hfe hfinv
+      (by rw [arena.checker.annot_step_go.eq_def] at hrun; exact hrun)
+  | QuotDecl k cv =>
+    rw [annotStepGo_other _ _ _ _ (by simp [absIDeclaration]) (by simp [absIDeclaration])
+      (by simp [absIDeclaration])]
+    exact annot_step_other_refines hrel hinv hfe hfinv
+      (by rw [arena.checker.annot_step_go.eq_def] at hrun; exact hrun)
 
 /-- `annot_step_promote` — the bracket's promotion half at a step that
 produced a `ValueGroup`: the seam promoted beside the environment and at the
@@ -1004,39 +1171,14 @@ the twin makes the post-states agree, and then `Ext` is only true from the
 BOUNDARY the bracket was entered at (`ext_bracket`), not from the state this
 function is called at — so the statement is `AOutRel` at that boundary `lst0`,
 with `BrOK lst0` and the body's `Ext lst0.store.enableScratch lst.store` as
-hypotheses, exactly `bracket_close`'s.  `hfr` is `promote_vg_refines`' side
-condition. -/
+hypotheses, exactly `bracket_close`'s.  Task #97-P5-Top: with `M_FROZEN`
+`Native` the round-4 `hfr` / `KeepsUnfrozen` binders are gone and the proof is
+the composition `promote_vg ; promote_new ; bracket_close_w`. -/
 theorem annot_step_promote_refines {pers st lst lst0} {rf lf}
     {i vis k : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {vg : arena.checker_split.ValueGroup} {o}
     (hbr : BrOK lst0) (hext0 : Ext lst0.store.enableScratch lst.store)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfr : PersUnfrozen st.store)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hk : absU k ≤ rf.env.consts.val.length)
-    (hrun : arena.checker.annot_step_promote pers st i vis k rf pend vg = ok o) :
-    AOutRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = (absPendingCheckL r.2).toArray)
-      pers lst0 o.1 o.2
-      ((do
-        let (m, vg) ← promoteVG PMemo.empty coreWalkFuel (absValueGroup vg)
-        let (_, fe) ← promoteNew m coreWalkFuel (absU k) lf
-        dropScratch
-        pure (fe, (absPendingCheckL pend).toArray.push ⟨vg, absU i, absU vis⟩)
-        : AM (IFEnv × Array PendingCheck)).run lst) := by
-  sorry
-
-/-- `annot_step_promote_refines` under `KeepsUnfrozen` of `promote_vg` — the
-whole composition; `promote_new` needs the flags down AFTER `promote_vg`, and
-that is the same port fact as `check_decl_step_of_keeps`' (DESIGN.md, task
-#97-P5-Checker round 4 §1). -/
-theorem annot_step_promote_of_keeps {pers st lst lst0} {rf lf}
-    {i vis k : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
-    {vg : arena.checker_split.ValueGroup} {o}
-    (hbr : BrOK lst0) (hext0 : Ext lst0.store.enableScratch lst.store)
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfr : PersUnfrozen st.store)
-    (hkeep : ∀ pm, KeepsUnfrozen
-      (fun s => arena.promote.promote_vg pers s pm arena.core.CORE_WALK_FUEL vg))
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hk : absU k ≤ rf.env.consts.val.length)
     (hrun : arena.checker.annot_step_promote pers st i vis k rf pend vg = ok o) :
@@ -1052,7 +1194,7 @@ theorem annot_step_promote_of_keeps {pers st lst lst0} {rf lf}
   obtain ⟨pm, hpm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r, st1⟩ := q1
-  have hV := promote_vg_refines (lm := PMemo.empty) (AStateRelW.of_rel hrel) hinv hfr
+  have hV := promote_vg_refines (lm := PMemo.empty) (AStateRelW.of_rel hrel) hinv
     (pmemo_empty_refines hpm) hq1
   simp only [SimPMW, POutW] at hV
   rw [core_walk_fuel_abs] at hV
@@ -1066,7 +1208,6 @@ theorem annot_step_promote_of_keeps {pers st lst lst0} {rf lf}
   | Ok p1 =>
     obtain ⟨m1, v1, lst1, hx1, hv1, hm1, hrel1, hinv1, hext1⟩ := hV
     obtain ⟨pm1, vg2⟩ := p1
-    have hfr1 : PersUnfrozen st1.store := hkeep pm st (core.result.Result.Ok (pm1, vg2), st1) hfr hq1
     have hrun1 : (do
         let (r1, st2) ← arena.promote.promote_new pers st1 pm1 arena.core.CORE_WALK_FUEL k rf
         match r1 with
@@ -1080,7 +1221,7 @@ theorem annot_step_promote_of_keeps {pers st lst lst0} {rf lf}
         | core.result.Result.Err e => ok (core.result.Result.Err e, st2)) = ok o := hrun
     obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun1
     obtain ⟨r2, st2⟩ := q2
-    have hP := promote_new_refines (lf := lf) hrel1 hinv1 hfr1 hm1 hfe hfinv hk hq2
+    have hP := promote_new_refines (lf := lf) hrel1 hinv1 hm1 hfe hfinv hk hq2
     simp only [SimPMW, POutW] at hP
     rw [core_walk_fuel_abs] at hP
     rw [hx1, except_ok_bind, am_run_bind']
@@ -1112,19 +1253,17 @@ theorem annot_step_promote_of_keeps {pers st lst lst0} {rf lf}
           List.map_cons, List.map_nil, absPendingCheck, hv1]
         exact List.push_toArray _ _
 
-/-- `annot_step_refines` under `KeepsUnfrozen` of its body and of
-`promote_vg` — the whole composition, both arms. -/
-theorem annot_step_of_keeps {pers st lst} {rf lf}
+/-- **`annot_step` ⊑ `annotStep`** — phase A's step, bracketed:
+`flushCaches; enterScratch; <the step>; promote; dropScratch`.  The twin's
+`pend` is an `Array` and the port's a `Vec`, and both PUSH, so the abstraction
+appends. -/
+theorem annot_step_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.U64}
     {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {pd : arena.env.IDeclaration} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hfr : PersUnfrozen st.store)
-    (hkeep : KeepsUnfrozen (fun s => arena.checker.annot_step_go pers s mode pins rf pd))
-    (hkeepV : ∀ pm vg, KeepsUnfrozen
-      (fun s => arena.promote.promote_vg pers s pm arena.core.CORE_WALK_FUEL vg))
     (hrun : arena.checker.annot_step pers st mode pins i rf pend pd = ok o) :
     SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = (absPendingCheckL r.2).toArray)
       pers lst o
@@ -1137,9 +1276,6 @@ theorem annot_step_of_keeps {pers st lst} {rf lf}
   obtain ⟨r, st3⟩ := q
   obtain ⟨hF, hrel1, hinv1⟩ := flush_caches_refines hrel hinv h1
   obtain ⟨hE, hrel2, hinv2⟩ := enter_scratch_refines hrel1 hinv1 h2
-  have hfr2 : PersUnfrozen st2.store :=
-    enter_scratch_unfrozen (by rw [flush_caches_store h1]; exact hfr) h2
-  have hfr3 : PersUnfrozen st3.store := hkeep st2 (r, st3) hfr2 hq
   have hB := annot_step_go_refines (lf := lf) hrel2 hinv2 hfe hfinv hq
   simp only [SimRel, AOutRel] at hB
   have hrun0 : ∀ (k : IFEnv × Option ValueGroup → AM (IFEnv × Array PendingCheck)),
@@ -1182,8 +1318,8 @@ theorem annot_step_of_keeps {pers st lst} {rf lf}
           show k.val ≤ _
           omega
         exact le_trans h1 hv1.inv.visBound
-      have hA := annot_step_promote_of_keeps (lf := v1) hbr hext3 hrel3 hinv3 hfr3
-        (hkeepV · vg) hv1.rel hv1.inv hkle hrun
+      have hA := annot_step_promote_refines (lf := v1) hbr hext3 hrel3 hinv3
+        hv1.rel hv1.inv hkle hrun
       rw [hkv, ← hfe.visibleBelow] at hA
       dsimp only [Option.map]
       exact hA
@@ -1214,7 +1350,7 @@ theorem annot_step_of_keeps {pers st lst} {rf lf}
       obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r1, st4⟩ := q4
       have hP := promote_new_refines (lm := PMemo.empty) (lf := v1)
-        (AStateRelW.of_rel hrel3) hinv3 hfr3 (pmemo_empty_refines hpm) hv1.rel hv1.inv
+        (AStateRelW.of_rel hrel3) hinv3 (pmemo_empty_refines hpm) hv1.rel hv1.inv
         hkle hq4
       simp only [SimPMW, POutW] at hP
       rw [core_walk_fuel_abs, hkv] at hP
@@ -1240,24 +1376,6 @@ theorem annot_step_of_keeps {pers st lst} {rf lf}
           hrel5, hinv5, hext5⟩
         rw [hx4, except_ok_bind, am_run_bind', hD]
         rfl
-
-/-- **`annot_step` ⊑ `annotStep`** — phase A's step, bracketed:
-`flushCaches; enterScratch; <the step>; promote; dropScratch`.  The twin's
-`pend` is an `Array` and the port's a `Vec`, and both PUSH, so the abstraction
-appends. -/
-theorem annot_step_refines {pers st lst} {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.U64}
-    {pend : alloc.vec.Vec arena.checker.PendingCheck}
-    {pd : arena.env.IDeclaration} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker.annot_step pers st mode pins i rf pend pd = ok o) :
-    SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = (absPendingCheckL r.2).toArray)
-      pers lst o
-      (annotStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absU i) lf
-        (absPendingCheckL pend).toArray (absIDeclaration pd)) := by
-  sorry
 
 /-- **`annot_decl_step` ⊑ `annotDeclStep`** — phase A's step with the position
 carried and the error tagged (finding 13's `SimFold`). -/
@@ -1725,11 +1843,85 @@ theorem intern_all_basis_refines {pers st lst} {i : Std.Usize} {o}
           .quotK].drop i.val)) := by
   sorry
 
-/-- **`intern_all_pins` ⊑ `internAllPins`** — DESIGN §8.6 P2d's one-time tree
-walk: every datum the checker compares a stream record against, interned into
-the tier that is live at the call — which, at the driver's call, is the
-PERSISTENT one, and that is what makes every pin handle survive every
-`dropScratch` (`Arena/Intern.lean`'s module note). -/
+/-- **`intern_all_pins` ⊑ the port's startup walk** — DESIGN §8.6 P2d's
+one-time tree walk, as the port runs it (task #97-P5-Top): the basis blocks,
+the axiom pins, the reserved names and the pin sets, four children in
+sequence.  Glue: `intern_all_basis_refines`, `intern_all_axiom_pins_refines`,
+`intern_all_names_refines` and `intern_pin_sets_refines`.
+
+`internAllPinsPortSpec` is `internAllPins` with eight pins interned RAW where
+the twin interns them annotated; `intern_all_pins_refines` below — the
+statement the capstone consumes — is therefore false as stated, and this is
+what is true. -/
+theorem intern_all_pins_port_refines {pers st lst}
+    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
+    (hrun : arena.checker.intern_all_pins pers st pins = ok o) :
+    Sim absINatOpPinSetL (fun _ => True) pers lst o
+      (internAllPinsPortSpec (ConRon.Refine.absPins pins)) := by
+  rw [arena.checker.intern_all_pins] at hrun
+  unfold Sim
+  rw [internAllPinsPortSpec]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := intern_all_basis_refines (i := 0#usize) hrel hinv hq1
+  simp only [List.drop_zero, show (0#usize : Std.Usize).val = 0 from rfl] at hS1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := intern_all_axiom_pins_refines hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := intern_all_names_refines hrel2 hinv2 hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  have hS4 := intern_pin_sets_refines (i := 0#usize) hrel3 hinv3 hwf hrun
+  have h0 : absINatOpPinSetL (alloc.vec.Vec.new arena.nat_op_pin_set.INatOpPinSet)
+      = [] := rfl
+  have h1 : (pins.val.drop (0#usize : Std.Usize).val).map ConRon.Refine.absNatOpPinSet
+      = ConRon.Refine.absPins pins := by
+    simp [ConRon.Refine.absPins]
+  simp only [h0, h1, List.nil_append] at hS4
+  unfold Sim at hS4
+  rw [show (do pure (← internPinSets (ConRon.Refine.absPins pins)) : AM _)
+      = internPinSets (ConRon.Refine.absPins pins) from bind_pure _] at hS4
+  exact hS4
+
+/-- **`intern_all_pins` ⊑ `internAllPins`** — what the capstone consumes.
+
+**FALSE AS STATED (task #97-P5-Top), kept for the ruling.**  The port interns
+eight pins RAW where the twin's `internAllPins` interns them annotated
+(`iffIntro`, `iff.rec`, `Nonempty.intro`, `Nonempty.rec`, `propext`,
+`Classical.choice`, `ofReduceNat`, `ofReduceBool`; `Refine2/Checker/Spec.lean`'s
+startup-walk note), so the two post-stores hold different `BMNode`s and
+`StoreRel` fails at the first of them.  `intern_all_pins_port_refines` above is
+the true statement; closing this one needs the twin and the port to intern the
+SAME eight values — DESIGN.md, task #97-P5-Top, prices the two ways. -/
 theorem intern_all_pins_refines {pers st lst}
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
@@ -1757,17 +1949,16 @@ keeps *"the spine is closed and its leaves are not"* visible. -/
 /-- info: 'ConRon.Refine2.check_decls_pure_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_decls_pure_refines
 
-/-! **Task #97-P5-Checker round 4.**  The two bracketed leaves' compositions
-are complete and read `sorryAx` through their BODIES (`check_decl_refines`,
-`annot_step_go_refines`, `promote_new_refines`, `promote_vg_refines`) and
-nothing else; the public leaves stay `sorry` for the `KeepsUnfrozen` port fact
-alone. -/
+/-! **Task #97-P5-Checker round 4, task #97-P5-Top.**  The two bracketed
+leaves are compositions and read `sorryAx` through their
+BODIES (`check_decl_refines`, `annot_step_go_refines`'s arms) and nothing
+else. -/
 
-/-- info: 'ConRon.Refine2.check_decl_step_of_keeps' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms check_decl_step_of_keeps
+/-- info: 'ConRon.Refine2.check_decl_step_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_decl_step_refines
 
-/-- info: 'ConRon.Refine2.annot_step_of_keeps' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms annot_step_of_keeps
+/-- info: 'ConRon.Refine2.annot_step_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms annot_step_refines
 
 /-- info: 'ConRon.Refine2.at_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms at_decl_refines

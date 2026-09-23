@@ -604,7 +604,7 @@ theorem canon_names_go_refines {pers st lst} {i n : Std.U64}
     {out : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_names_go pers st i n out = ok o) :
-    Sim (fun v => absNIdxL out ++ absNIdxL v) (fun _ => True) pers lst o
+    Sim absNIdxL (fun _ => True) pers lst o
       (do pure (absNIdxL out ++ (← canonNamesGo (absU i) (absU n)))) := by
   sorry
 
