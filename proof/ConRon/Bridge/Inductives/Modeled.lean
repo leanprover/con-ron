@@ -1354,6 +1354,120 @@ theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 
 /-! ## The capability theorems -/
 
+/-- con-leche: none — the constructor tag of a stored constant, on each side. -/
+def iciKind : IConstantInfo → Nat
+  | .axiomInfo .. => 0 | .defnInfo .. => 1 | .thmInfo .. => 2 | .indInfo .. => 3
+  | .ctorInfo .. => 4 | .recInfo .. => 5 | .projInfo .. => 6
+
+/-- con-leche: none — the same on con-leche's side. -/
+def ciKind : ConstantInfo → Nat
+  | .axiomInfo .. => 0 | .defnInfo .. => 1 | .thmInfo .. => 2 | .indInfo .. => 3
+  | .ctorInfo .. => 4 | .recInfo .. => 5 | .projInfo .. => 6
+
+/-- con-leche: none — **`Frontend.denoteCI` keeps the constructor**: the
+fallthrough arm of a `match` on a stored constant's kind is the same arm on
+both sides. -/
+theorem denoteCI_kind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some c) : iciKind ci = ciKind c := by
+  cases ci
+  case axiomInfo v => obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv h; rfl
+  case defnInfo v _ _ => obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv h; rfl
+  case thmInfo v _ => obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv h; rfl
+  case indInfo v _ => obtain ⟨_, _, rfl, _⟩ := denoteCI_ind_inv h; rfl
+  case ctorInfo v _ _ => obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv h; rfl
+  case recInfo v _ _ _ => obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv h; rfl
+  case projInfo t => obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv h; rfl
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux — **the
+arena's binder comparison IS con-leche's at `g := fun _ e => e`**: the handle
+arrays are the lists' `toArray`, and each handle comparison is
+`beq_ehandle_eq`. -/
+theorem domsMatchAux_eq {st : EStore} (hwf : StoreWF st)
+    {bs₁ bs₂ : List (EIdx × BinderMeta)} {xs₁ xs₂ : List (Expr × BinderMeta)}
+    (h1 : denoteBinders st bs₁ = some xs₁) (h2 : denoteBinders st bs₂ = some xs₂)
+    (o₁ o₂ : Nat) : ∀ n, Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ n =
+      ConLeche.domsMatchAux (fun _ e => e) xs₁ xs₂ o₁ o₂ n := by
+  intro n
+  induction n with
+  | zero => rfl
+  | succ k ih =>
+    rw [domsMatchAux_succ]
+    have hA : Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ (k + 1) =
+        (Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ k &&
+          (match bs₁[o₁ + k]?, bs₂[o₂ + k]? with
+           | some b₁, some b₂ => b₁.1 == b₂.1
+           | _, _ => false)) := by
+      simp only [Arena.domsMatchAux, List.range_succ, List.all_append, List.all_cons,
+        List.all_nil, Bool.and_true, List.getElem?_toArray]
+      rfl
+    rw [hA, ih]
+    congr 1
+    obtain ⟨hA1, hB1⟩ := denoteBinders_getElem? h1 (o₁ + k)
+    obtain ⟨hA2, hB2⟩ := denoteBinders_getElem? h2 (o₂ + k)
+    cases hb1 : bs₁[o₁ + k]? with
+    | none => simp [hB1 hb1]
+    | some p1 =>
+    obtain ⟨t1, m1⟩ := p1
+    obtain ⟨t1P, hp1, hd1⟩ := hA1 t1 m1 hb1
+    cases hb2 : bs₂[o₂ + k]? with
+    | none => simp [hp1, hB2 hb2]
+    | some p2 =>
+    obtain ⟨t2, m2⟩ := p2
+    obtain ⟨t2P, hp2, hd2⟩ := hA2 t2 m2 hb2
+    simp only [hp1, hp2]
+    exact beq_ehandle_eq hwf hd1 hd2
+
+/-- con-leche: none — **a stored theorem, read back through the index**:
+`IFEnvOK`'s `cover` at a theorem, with the handle it is stored under pinned by
+`denoteN_inj`. -/
+theorem IFEnvOK.find_thm {env : Env} {fe : IFEnv} {s : AState} (hok : StateOK s)
+    (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) {cvP : ConstantVal} {xP : Expr}
+    (he : env.find? nm = some (.thmInfo cvP xP)) :
+    ∃ cv x, fe.find? n = some (.thmInfo cv x) ∧
+      Frontend.denoteCV s.store cv = some cvP ∧ denoteE s.store x = some xP := by
+  obtain ⟨n', ci, hn', hf, hci⟩ := h.cover _ _ he
+  have hwf := hok.wf
+  obtain ⟨rk, hrk⟩ := hwf
+  obtain rfl := denoteN_inj hrk.nsWF hn' hd
+  cases ci
+  case thmInfo v x =>
+    obtain ⟨cv', x', he', hv, hx⟩ := denoteCI_thm_inv hci
+    simp only [ConstantInfo.thmInfo.injEq] at he'
+    obtain ⟨rfl, rfl⟩ := he'
+    exact ⟨v, x, hf, hv, hx⟩
+  case axiomInfo v => obtain ⟨_, he', _⟩ := denoteCI_axiom_inv hci; cases he'
+  case ctorInfo v _ _ => obtain ⟨_, he', _⟩ := denoteCI_ctor_inv hci; cases he'
+  case defnInfo v _ _ => obtain ⟨_, _, he', _⟩ := denoteCI_defn_inv hci; cases he'
+  case indInfo v _ => obtain ⟨_, _, he', _⟩ := denoteCI_ind_inv hci; cases he'
+  case recInfo v _ _ _ => obtain ⟨_, _, he', _⟩ := denoteCI_rec_inv hci; cases he'
+  case projInfo t => obtain ⟨_, he', _⟩ := denoteCI_proj_inv hci; cases he'
+
+/-- con-leche: none — the same at a stored definition. -/
+theorem IFEnvOK.find_defn {env : Env} {fe : IFEnv} {s : AState} (hok : StateOK s)
+    (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) {cvP : ConstantVal} {xP : Expr}
+    {hint : ReducibilityHint}
+    (he : env.find? nm = some (.defnInfo cvP xP hint)) :
+    ∃ cv x, fe.find? n = some (.defnInfo cv x hint) ∧
+      Frontend.denoteCV s.store cv = some cvP ∧ denoteE s.store x = some xP := by
+  obtain ⟨n', ci, hn', hf, hci⟩ := h.cover _ _ he
+  have hwf := hok.wf
+  obtain ⟨rk, hrk⟩ := hwf
+  obtain rfl := denoteN_inj hrk.nsWF hn' hd
+  cases ci
+  case defnInfo v x h =>
+    obtain ⟨cv', x', he', hv, hx⟩ := denoteCI_defn_inv hci
+    simp only [ConstantInfo.defnInfo.injEq] at he'
+    obtain ⟨rfl, rfl, rfl⟩ := he'
+    exact ⟨v, x, hf, hv, hx⟩
+  case axiomInfo v => obtain ⟨_, he', _⟩ := denoteCI_axiom_inv hci; cases he'
+  case ctorInfo v _ _ => obtain ⟨_, he', _⟩ := denoteCI_ctor_inv hci; cases he'
+  case thmInfo v _ => obtain ⟨_, _, he', _⟩ := denoteCI_thm_inv hci; cases he'
+  case indInfo v _ => obtain ⟨_, _, he', _⟩ := denoteCI_ind_inv hci; cases he'
+  case recInfo v _ _ _ => obtain ⟨_, _, he', _⟩ := denoteCI_rec_inv hci; cases he'
+  case projInfo t => obtain ⟨_, he', _⟩ := denoteCI_proj_inv hci; cases he'
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
 Is the block's eta theorem stored with the pinned statement?  PURE on
 con-leche's side (a `Bool`), monadic here because the comparison reads the
@@ -1376,7 +1490,13 @@ theorem checkEtaThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:644-680 checkUnitThm
 The unit-likeness theorem, the same way.
 
-`sorry`: as `checkEtaThm_spec`. -/
+**CLOSED** (task #97-P3-Ind round 7): `IFEnvOK.find_thm`/`find_defn` and
+`denoteCI_kind` for the two lookups (the fallthrough arm is the same arm on
+both sides), `eqBasisStored_spec`, `beq_nhandleList_eq` for the level lists,
+`stripPis_pstep` twice, `domsMatchAux_eq`, `paramLevels_spec`,
+`structPsAt_spec` and `mkAppN_run` for the three families, and
+`eqApp3?_spec`/`eqApp3?_none` for the equation — every handle comparison one
+`beq_ehandle_eq`. -/
 theorem checkUnitThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP : Nat) :
@@ -1386,7 +1506,320 @@ theorem checkUnitThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         denoteFEnv st fe' = some env)
       (Arena.checkUnitThm μ fe' T lps nP)
       (RV (ConLeche.checkUnitThm μ env TP lpsP nP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps, hfe⟩ := hpre
+  simp only [Arena.checkUnitThm] at hrun
+  obtain ⟨tm, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, htm⟩ := internStrN_run hok.state hT k1
+  obtain ⟨utn, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hutn⟩ := internStrN_run p1.ok htm k2
+  have c2 : CoreStep μ env fe' s₀ s2 := (p1.trans p2).toCore hok
+  have htm2 := denoteN_ext htm p2.ext
+  have hlps2 := denoteNListE_ext c2.ext _ _ hlps
+  -- the two lookups
+  cases hf1 : fe'.find? utn with
+  | none =>
+    rw [hf1] at z2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c2, ?_⟩
+    show false = _
+    simp only [ConLeche.checkUnitThm, IFEnvOK.miss c2.ok.state c2.ok.ienv hutn hf1]
+  | some ci1 =>
+  obtain ⟨nm1, c1, hnm1, hci1, henv1⟩ := c2.ok.ienv.hit utn ci1 hf1
+  obtain rfl := Option.some.inj (hnm1.symm.trans hutn)
+  have hk1 := denoteCI_kind hci1
+  cases ci1
+  case thmInfo tcv tv =>
+    obtain ⟨tcvP, tvP, rfl, htcv, -⟩ := denoteCI_thm_inv hci1
+    cases hf2 : fe'.find? tm with
+    | none =>
+      rw [hf1, hf2] at z2
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨c2, ?_⟩
+      show false = _
+      simp only [ConLeche.checkUnitThm, henv1, IFEnvOK.miss c2.ok.state c2.ok.ienv htm2 hf2]
+    | some ci2 =>
+    obtain ⟨nm2, c2P, hnm2, hci2, henv2⟩ := c2.ok.ienv.hit tm ci2 hf2
+    obtain rfl := Option.some.inj (hnm2.symm.trans htm2)
+    have hk2 := denoteCI_kind hci2
+    cases ci2
+    case defnInfo cvmT mv mh =>
+      obtain ⟨cvmTP, mvP, rfl, hcvmT, -⟩ := denoteCI_defn_inv hci2
+      rw [hf1, hf2] at z2
+      dsimp only at z2
+      obtain ⟨b, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨c3, hb⟩ := eqBasisStored_spec fe' s2 s3 b c2.ok (denoteFEnv_ext c2.ext hfe) k3
+      have hb' : b = decide (env.find? ConLeche.eqName = some ConLeche.eqA) := hb
+      have c03 := c2.trans c3
+      -- the pure side, its lookups done
+      have hpure : ConLeche.checkUnitThm μ env TP lpsP nP =
+          (match env.find? ConLeche.eqName with
+           | some eqS => (eqS == ConLeche.eqA && tcvP.levelParams == lpsP &&
+               cvmTP.levelParams == lpsP &&
+               (match tcvP.type.stripPis (nP + 2), cvmTP.type.stripPis nP with
+                | some (sbinders, sbody), some (tbindersM, tbodyM) =>
+                  domsMatchAux (fun _ e => e) sbinders tbindersM 0 0 nP &&
+                  (match sbinders[nP]? with
+                   | some (xdom, _) =>
+                     xdom == Expr.mkAppN (.const (TP.str "_model") (lpsP.map .param))
+                       ((List.range nP).map fun k => Expr.bvar (nP - 1 - k))
+                   | none => false) &&
+                  (match sbinders[nP + 1]? with
+                   | some (ydom, _) =>
+                     ydom == Expr.mkAppN (.const (TP.str "_model") (lpsP.map .param))
+                       ((List.range nP).map fun k => Expr.bvar (nP - k))
+                   | none => false) &&
+                  (match sbody with
+                   | .app (.app (.app (.const c [ℓA]) tySlot) lhsC) rhsC =>
+                     c == ConLeche.eqName && lhsC == Expr.bvar 1 && rhsC == Expr.bvar 0 &&
+                     tySlot == Expr.mkAppN (.const (TP.str "_model") (lpsP.map .param))
+                       ((List.range nP).map fun k => Expr.bvar (nP + 1 - k)) &&
+                     (!μ.ttChecks || tbodyM == Expr.sort ℓA)
+                   | _ => false)
+                | _, _ => false))
+           | none => false) := by
+        cases heq : env.find? ConLeche.eqName <;>
+          simp only [ConLeche.checkUnitThm, henv1, henv2, heq] <;> rfl
+      rw [hpure]
+      cases b with
+      | false =>
+        simp only [Bool.not_false, if_true] at z3
+        obtain ⟨rfl, rfl⟩ := pureOk z3
+        refine ⟨c03, ?_⟩
+        show false = _
+        cases heq : env.find? ConLeche.eqName with
+        | none => rfl
+        | some eqS =>
+          rw [heq] at hb'
+          have hne : eqS ≠ ConLeche.eqA := by
+            intro h; subst h; simp at hb'
+          simp [hne]
+      | true =>
+      have heqA : env.find? ConLeche.eqName = some ConLeche.eqA := by
+        simpa using hb'.symm
+      simp only [heqA, beq_self_eq_true, Bool.true_and]
+      simp only [Bool.not_true, Bool.false_eq_true, if_false] at z3
+      have hwf3 := c03.ok.state.wf
+      have hlpsE : (tcv.levelParams == lps && cvmT.levelParams == lps) =
+          (tcvP.levelParams == lpsP && cvmTP.levelParams == lpsP) := by
+        rw [beq_nhandleList_eq hwf3 (denoteNListE_ext c3.ext _ _ (denoteCV_lps htcv))
+            (denoteNListE_ext c3.ext _ _ hlps2),
+          beq_nhandleList_eq hwf3 (denoteNListE_ext c3.ext _ _ (denoteCV_lps hcvmT))
+            (denoteNListE_ext c3.ext _ _ hlps2)]
+      rw [hlpsE] at z3
+      cases hlp : (tcvP.levelParams == lpsP && cvmTP.levelParams == lpsP) with
+      | false =>
+        rw [hlp] at z3
+        simp only [Bool.not_false, if_true] at z3
+        obtain ⟨rfl, rfl⟩ := pureOk z3
+        refine ⟨c03, ?_⟩
+        show false = _
+        rw [Bool.false_and]
+      | true =>
+      rw [hlp] at z3
+      simp only [Bool.not_true, Bool.false_eq_true, if_false] at z3
+      rw [Bool.true_and]
+      have htcv3 := denoteCV_ext htcv c3.ext
+      have hcvmT3 := denoteCV_ext hcvmT c3.ext
+      obtain ⟨sq1, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨hs4, hsq1⟩ := stripPis_pstep c03.ok.state (denoteCV_type htcv3) k4
+      rw [hs4] at z4
+      obtain ⟨sq2, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hsq2⟩ := stripPis_pstep c03.ok.state (denoteCV_type hcvmT3) k5
+      rw [hs5] at z5
+      rcases sq1 with _ | ⟨sbs, sbody⟩
+      · obtain ⟨rfl, rfl⟩ := pureOk z5
+        refine ⟨c03, ?_⟩
+        show false = _
+        rw [stripPis_none hsq1]
+      obtain ⟨sxs, sbodyP, hsps, hsbs, hsbody⟩ := denoteBP_someB hsq1
+      rcases sq2 with _ | ⟨tbs, tbody⟩
+      · obtain ⟨rfl, rfl⟩ := pureOk z5
+        refine ⟨c03, ?_⟩
+        show false = _
+        rw [hsps, stripPis_none hsq2]
+      obtain ⟨txs, tbodyP, htps, htbs, htbody⟩ := denoteBP_someB hsq2
+      rw [hsps, htps]
+      dsimp only
+      dsimp only at z5
+      rw [domsMatchAux_eq hwf3 hsbs htbs] at z5
+      cases hdm : ConLeche.domsMatchAux (fun _ e => e) sxs txs 0 0 nP with
+      | false =>
+        rw [hdm] at z5
+        simp only [Bool.not_false, if_true] at z5
+        obtain ⟨rfl, rfl⟩ := pureOk z5
+        refine ⟨c03, ?_⟩
+        show false = _
+        simp
+      | true =>
+      rw [hdm] at z5
+      simp only [Bool.not_true, Bool.false_eq_true, if_false] at z5
+      rw [Bool.true_and]
+      -- the three families
+      obtain ⟨us, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨q6, hus⟩ := paramLevels_spec lps lpsP s3 s6 us c03.ok.state
+        (denoteNListE_ext c3.ext _ _ hlps2) k6
+      obtain ⟨tHd, s7, k7, z7⟩ := bindOk z6
+      obtain ⟨q7, htHd⟩ := internConstE_run q6.ok
+        (denoteN_ext htm2 (c3.ext.trans q6.ext)) hus k7
+      obtain ⟨ps0, s8, k8, z8⟩ := bindOk z7
+      obtain ⟨q8, hps0⟩ := structPsAt_spec 0 nP s7 s8 ps0 q7.ok trivial k8
+      obtain ⟨fam0, s9, k9, z9⟩ := bindOk z8
+      obtain ⟨q9, hfam0⟩ := mkAppN_run ps0 _ q8.ok (denote_ext htHd q8.ext) hps0 k9
+      obtain ⟨ps1, s10, k10, z10⟩ := bindOk z9
+      obtain ⟨q10, hps1⟩ := structPsAt_spec 1 nP s9 s10 ps1 q9.ok trivial k10
+      obtain ⟨fam1, s11, k11, z11⟩ := bindOk z10
+      obtain ⟨q11, hfam1⟩ := mkAppN_run ps1 _ q10.ok
+        (denote_ext htHd (q8.ext.trans (q9.ext.trans q10.ext))) hps1 k11
+      obtain ⟨ps2, s12, k12, z12⟩ := bindOk z11
+      obtain ⟨q12, hps2⟩ := structPsAt_spec 2 nP s11 s12 ps2 q11.ok trivial k12
+      obtain ⟨fam2, s13, k13, z13⟩ := bindOk z12
+      obtain ⟨q13, hfam2⟩ := mkAppN_run ps2 _ q12.ok
+        (denote_ext htHd (q8.ext.trans (q9.ext.trans (q10.ext.trans (q11.ext.trans
+          q12.ext))))) hps2 k13
+      have q3_13 : PStep s3 s13 := q6.trans (q7.trans (q8.trans (q9.trans (q10.trans
+        (q11.trans (q12.trans q13))))))
+      have hwf13 := q13.ok.wf
+      have e0 : ConLeche.structPsAt 0 nP = (List.range nP).map fun k => Expr.bvar (nP - 1 - k) :=
+        bvarRange_congr (fun j => by omega)
+      have e1 : ConLeche.structPsAt 1 nP = (List.range nP).map fun k => Expr.bvar (nP - k) :=
+        bvarRange_congr (fun j => by omega)
+      have e2 : ConLeche.structPsAt 2 nP = (List.range nP).map fun k => Expr.bvar (nP + 1 - k) :=
+        bvarRange_congr (fun j => by omega)
+      rw [e0] at hfam0; rw [e1] at hfam1; rw [e2] at hfam2
+      have hfam0' := denote_ext hfam0 (q10.ext.trans (q11.ext.trans (q12.ext.trans q13.ext)))
+      have hfam1' := denote_ext hfam1 (q12.ext.trans q13.ext)
+      have hsbs13 := denoteBinders_ext q3_13.ext _ _ hsbs
+      obtain ⟨hX1, hX2⟩ := denoteBinders_getElem? hsbs13 nP
+      obtain ⟨hY1, hY2⟩ := denoteBinders_getElem? hsbs13 (nP + 1)
+      -- the two binder checks, four ways
+      have hfalse : ∀ {s₁ : AState}, CoreStep μ env fe' s₀ s₁ →
+          (pure false : AM Bool) s₁ = .ok (r, s') →
+          CoreStep μ env fe' s₀ s' ∧ r = false := by
+        intro s₁ c h
+        obtain ⟨rfl, rfl⟩ := pureOk h
+        exact ⟨c, rfl⟩
+      have c13 : CoreStep μ env fe' s₀ s13 := c03.trans (q3_13.toCore c03.ok)
+      cases hx : sbs[nP]? with
+      | none =>
+        rw [hX2 hx]
+        rw [hx] at z13
+        cases hy : sbs[nP + 1]? with
+        | none =>
+          rw [hy] at z13
+          obtain ⟨c, rfl⟩ := hfalse c13 (by simpa using z13)
+          exact ⟨c, by simp⟩
+        | some yb =>
+          rw [hy] at z13
+          obtain ⟨c, rfl⟩ := hfalse c13 (by simpa using z13)
+          exact ⟨c, by simp⟩
+      | some xb =>
+      obtain ⟨xdom, xm⟩ := xb
+      obtain ⟨xdomP, hxP, hxd⟩ := hX1 xdom xm hx
+      rw [hxP]
+      rw [hx] at z13
+      dsimp only at z13
+      have ex : (xdom == fam0) = (xdomP == Expr.mkAppN (.const (TP.str "_model")
+          (lpsP.map .param)) ((List.range nP).map fun k => Expr.bvar (nP - 1 - k))) :=
+        beq_ehandle_eq hwf13 hxd hfam0'
+      cases hy : sbs[nP + 1]? with
+      | none =>
+        rw [hY2 hy]
+        rw [hy] at z13
+        obtain ⟨c, rfl⟩ := hfalse c13 (by simpa using z13)
+        exact ⟨c, by simp⟩
+      | some yb =>
+      obtain ⟨ydom, ym⟩ := yb
+      obtain ⟨ydomP, hyP, hyd⟩ := hY1 ydom ym hy
+      rw [hyP]
+      rw [hy] at z13
+      dsimp only at z13
+      have ey : (ydom == fam1) = (ydomP == Expr.mkAppN (.const (TP.str "_model")
+          (lpsP.map .param)) ((List.range nP).map fun k => Expr.bvar (nP - k))) :=
+        beq_ehandle_eq hwf13 hyd hfam1'
+      rw [ex, ey] at z13
+      replace z13 := AM.pure_bind_ok z13
+      replace z13 := AM.pure_bind_ok z13
+      dsimp only
+      cases hxy : (xdomP == Expr.mkAppN (.const (TP.str "_model")
+          (lpsP.map .param)) ((List.range nP).map fun k => Expr.bvar (nP - 1 - k)) &&
+          ydomP == Expr.mkAppN (.const (TP.str "_model")
+          (lpsP.map .param)) ((List.range nP).map fun k => Expr.bvar (nP - k))) with
+      | false =>
+        rw [hxy] at z13
+        obtain ⟨c, rfl⟩ := hfalse c13 (by simpa using z13)
+        refine ⟨c, ?_⟩
+        show false = _
+        simp
+      | true =>
+      rw [hxy] at z13
+      simp only [Bool.not_true, Bool.false_eq_true, if_false] at z13
+      rw [Bool.true_and]
+      -- the equation
+      have hsbody13 := denote_ext hsbody q3_13.ext
+      obtain ⟨o, s14, k14, z14⟩ := bindOk z13
+      obtain ⟨q14, ho⟩ := eqApp3?_spec sbody sbodyP s13 s14 o q13.ok hsbody13 k14
+      obtain ⟨q14', hon⟩ := eqApp3?_none sbody sbodyP s13 s14 o q13.ok hsbody13 k14
+      cases o with
+      | none =>
+        obtain ⟨c, rfl⟩ := hfalse (c13.trans (q14.toCore c13.ok)) (by simpa using z14)
+        refine ⟨c, ?_⟩
+        show false = _
+        have hn := hon rfl
+        split
+        · exact absurd rfl (hn _ _ _ _ _)
+        · rfl
+      | some q =>
+      obtain ⟨cc, lA, tySlot, lhsC, rhsC⟩ := q
+      obtain ⟨ccP, lAP, tySlotP, lhsCP, rhsCP, hcc, hlA, htyS, hlhs, hrhs, hsb⟩ :=
+        ho cc lA tySlot lhsC rhsC rfl
+      dsimp only at z14
+      obtain ⟨b0, s15, k15, z15⟩ := bindOk z14
+      obtain ⟨q15, hb0⟩ := internBVarE_run q14.ok k15
+      obtain ⟨b1, s16, k16, z16⟩ := bindOk z15
+      obtain ⟨q16, hb1⟩ := internBVarE_run q15.ok k16
+      obtain ⟨sortA, s17, k17, z17⟩ := bindOk z16
+      obtain ⟨q17, hsortA⟩ := internSortE_run q16.ok
+        (denoteL_ext hlA (q15.ext.trans q16.ext)) k17
+      obtain ⟨pe, s18, k18, z18⟩ := bindOk z17
+      obtain ⟨hs18, hpe⟩ := pinAt_run (x := ConLeche.eqName)
+        (((c13.trans (q14.toCore c13.ok)).trans
+          ((q15.trans (q16.trans q17)).toCore (c13.trans (q14.toCore c13.ok)).ok)).ok.pins)
+        rfl k18
+      rw [hs18] at z18
+      obtain ⟨rfl, rfl⟩ := pureOk z18
+      have q14_17 : PStep s14 s' := q15.trans (q16.trans q17)
+      have c17 : CoreStep μ env fe' s₀ s' :=
+        (c13.trans (q14.toCore c13.ok)).trans (q14_17.toCore (c13.trans (q14.toCore c13.ok)).ok)
+      refine ⟨c17, ?_⟩
+      have hwf17 := c17.ok.state.wf
+      have x14 : Ext s14.store s'.store := q14_17.ext
+      have x1317 : Ext s13.store s'.store := q14.ext.trans x14
+      subst hsb
+      show (cc == pe && lhsC == b1 && rhsC == b0 && tySlot == fam2 &&
+        (!μ.ttChecks || tbody == sortA)) = _
+      rw [beq_handle_eq hwf17 (denoteN_ext hcc x14) hpe,
+        beq_ehandle_eq hwf17 (denote_ext hlhs x14)
+          (denote_ext hb1 q17.ext),
+        beq_ehandle_eq hwf17 (denote_ext hrhs x14)
+          (denote_ext hb0 (q16.ext.trans q17.ext)),
+        beq_ehandle_eq hwf17 (denote_ext htyS x14) (denote_ext hfam2 x1317),
+        beq_ehandle_eq hwf17 (denote_ext htbody (q3_13.ext.trans x1317))
+          hsortA]
+    all_goals
+      (rw [hf1, hf2] at z2
+       obtain ⟨rfl, rfl⟩ := pureOk z2
+       refine ⟨c2, ?_⟩
+       show false = _
+       simp only [ConLeche.checkUnitThm, henv1, henv2]
+       cases c2P <;> simp [iciKind, ciKind] at hk2 ⊢)
+  all_goals
+    (rw [hf1] at z2
+     obtain ⟨rfl, rfl⟩ := pureOk z2
+     refine ⟨c2, ?_⟩
+     show false = _
+     simp only [ConLeche.checkUnitThm, henv1]
+     cases c1 <;> simp [iciKind, ciKind] at hk1 ⊢)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:682-710 ctorTargetsFam
 Does the constructor return the family?  The structure-like test the
