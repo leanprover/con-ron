@@ -20,6 +20,8 @@
 #  12. scripts/extract.sh --check           committed generated Lean == crate
 #  13. cd proof && lake build               the default targets elaborate
 #  14. cd proof && lake build ConRonRefine2  Theorem 2's tier (not a default target)
+#  15. cd proof && lake build ConRonBridge   Theorem 1's tier (ditto)
+#  16. cd proof && lake build ConRonCapstone the composition, the two root theorems
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag: on a many-core machine the first build of the
 #      vendored con-leche can exhaust memory, task #74)
@@ -86,6 +88,12 @@ run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS
 # target by hand for exactly this reason; now the gate does it, so a green run
 # means Theorem 1's spec layer elaborates too.
 run lake-bridge   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonBridge
+# **The composition** (task #97-COMPOSE): `ConRon/Capstone.lean`, the one
+# module importing both theorems, states `ConRon.Capstone.model_exists` and
+# `ConRon.Capstone.no_False_declaration` for the Rust pipeline.  Its own
+# library, not a default target, for the reason the two above are not; its
+# `#guard_msgs` census is what fails if a seam moves.
+run lake-capstone env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonCapstone
 
 echo "gates: all $n OK"
 
@@ -100,4 +108,14 @@ python3 "$root/scripts/progress.py" --summary
 # (`Refine2/**`).  A REPORT, never a FAIL: it runs after the gates and its
 # exit code is ignored on purpose.
 python3 "$root/scripts/arena-census.py" --summary || true
+# The `sorry` FRONTIER of the capstone (task #97-FRONTIER): the declarations
+# of `ConRon.Capstone.{model_exists,no_False_declaration}`'s dependency
+# closure whose own proof says `sorry`, i.e. what the capstone is actually
+# waiting on, and the direct `sorry`s of `Bridge/**`/`Refine2/**` nothing on
+# that path needs (dead weight).  Also a REPORT: the full list is
+# `scripts/frontier.sh ConRon.Capstone.model_exists
+# ConRon.Capstone.no_False_declaration`, and every run appends a row to
+# `_tmp/frontier-history.tsv` (`scripts/frontier.sh --history`).
+"$root/scripts/frontier.sh" --summary --tag capstone \
+  ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration || true
 python3 "$root/scripts/loc.py" --summary

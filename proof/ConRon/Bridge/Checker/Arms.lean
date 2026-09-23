@@ -633,7 +633,8 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
   · -- the gate runs
     obtain ⟨u4, s4, g4, r4⟩ := AM.bind_ok hgood
     obtain ⟨hst4, hx4, hp4, F4, hpure4⟩ :=
-      checkReducePin_bridge hμ hk hok2 hstepOK2 hnm2 hv2 g4
+      checkReducePin_bridge hμ hk hok2 hstepOK2 hnm2 hv2
+        (ConLeche.Expr.WScoped.of_not_hasFvar (checkOpaqueVal_noFvar hpure2)) g4
     obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
     have hle1' : F1 ≤ max (max F1 F2) F4 :=
       Nat.le_trans hle1 (Nat.le_max_left _ F4)

@@ -861,7 +861,7 @@ theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
 /-- `index_promoted` ⊑ `promoteCIList` followed by `indexPromoted`, on the
 slice `start..j` (finding B).  The promoted records are written back into
 their own slots, so the environment's shape is unchanged and only the middle
-segment moves. -/
+segment moves.  Concludes `IFEnvRelI` for `promote_new_refines`' sake. -/
 theorem index_promoted_refines {pers st lst rm lm rf lf} {fuel : Std.U64}
     {start j : Std.Usize} {c : Std.U64} {o}
     (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
@@ -869,7 +869,7 @@ theorem index_promoted_refines {pers st lst rm lm rf lf} {fuel : Std.U64}
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hle : start.val ≤ j.val) (hj : j.val ≤ rf.env.consts.val.length)
     (hrun : arena.promote.index_promoted pers st rm fuel rf start j c = ok o) :
-    SimPMW (fun r v => IFEnvRel r v) pers lst o
+    SimPMW IFEnvRelI pers lst o
       (do
         let n := rf.env.consts.val.length
         let cs := (absIEnv rf.env).consts
@@ -881,14 +881,22 @@ theorem index_promoted_refines {pers st lst rm lm rf lf} {fuel : Std.U64}
 
 /-- **`promote_new` ⊑ `promoteNew`** — the phase-A bracket's promotion half:
 the `k` constants the step just installed, copied into the persistent tier and
-re-indexed, everything below them untouched.  `hk` is finding C. -/
+re-indexed, everything below them untouched.  `hk` is finding C.
+
+**The result relation is `IFEnvRelI`, not `IFEnvRel`** (task #97-P5-Checker
+round 4): both bracketed steps of `Refine2/Checker/Top.lean` hand
+`promote_new`'s environment to the NEXT step of their fold, which takes
+`IFEnvInv` beside `IFEnvRel` (task #97-P5-Checker-2 §3's `IFEnvRelI`).  It is
+true — `index_promoted` stores `j - 1` for a cursor `j ≤ n`, `erase_installed`
+only removes rows, the environment's length and counter do not move, and the
+decline arm returns `fe` itself — and without it neither leaf closes. -/
 theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
     (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
     (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hk : absU k ≤ rf.env.consts.val.length)
     (hrun : arena.promote.promote_new pers st rm fuel k rf = ok o) :
-    SimPMW (fun r v => IFEnvRel r v) pers lst o
+    SimPMW IFEnvRelI pers lst o
       (promoteNew lm (absU fuel) (absU k) lf) := by
   sorry
 
