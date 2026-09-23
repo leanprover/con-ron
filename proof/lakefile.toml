@@ -57,14 +57,22 @@ roots = ["ConRon.Arena"]
 name = "ConRonBridge"
 roots = ["ConRon.Bridge"]
 # Every module under `ConRon/Bridge/` is built, not only what the root
-# imports.  Two modules of the `ExprOps` tier cannot sit in ONE import
-# closure — `grind` generates the same `match`-auxiliary for an
-# `Arena/ExprOps.lean` definition in each, and Lean refuses the second
-# ("environment already contains
-# 'ConRon.Arena.forallPw.match_1.congr_eq_1._sparseCasesOn_2'").  The tier's
-# theorems are independent of one another, so building them as siblings is
-# the right shape anyway; `ConRon/Bridge/ExprOps.lean` is the index that says
-# what they are.
+# imports: the tier's theorems are independent of one another, so building
+# them as siblings is the right shape, and `ConRon.Bridge`'s fifteen imports
+# reach only a part of the eighty-three modules.
+# `ConRon/Bridge/ExprOps.lean` is the index that says what the `ExprOps` ones
+# are.
+#
+# This used to be FORCED as well, and the note here said so: two modules of
+# the `ExprOps` tier could not sit in ONE import closure, because `grind`
+# derived the same `match`-auxiliary for an `Arena/ExprOps.lean` definition
+# in each and Lean refused the second ("environment already contains
+# 'ConRon.Arena.forallPw.match_1.congr_eq_1._sparseCasesOn_2'").  Task
+# #97-P3-ExprOps round 4 removed the wall: `ConRon/Bridge/Specs.lean` now
+# OWNS all fourteen contested auxiliaries — twelve matchers of eleven
+# `Arena` functions — and every other module re-uses them, so
+# `Arms/{InferIO,Annotate,Infer}` no longer meet it either.  The `globs` line
+# stays for the sibling shape, not because an import would fail.
 globs = ["ConRon.Bridge.+"]
 
 # (The P2s spike of task #97s was a fourth root here, `ConRonArenaSpike` over
