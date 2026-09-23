@@ -509,6 +509,12 @@ errors may be left for unification (the twin's message is free instead). -/
       (unwrapOr (o.map absIConstantVal) (.internal s)) :=
   LSR.ofSimRE hrel hinv fun _ h => unwrap_or_refines rfl h
 
+/-- The restriction to the environment's own counter is the environment (the
+checker tier's readers are stated at `lf.restrictTo (absU vis)`, the modeled
+route's twins at `lf`, with `hvis : absU vis = lf.visibleBelow`). -/
+@[lockstep_simp] theorem IFEnv_restrictTo_self (fe : IFEnv) :
+    fe.restrictTo fe.visibleBelow = fe := rfl
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
