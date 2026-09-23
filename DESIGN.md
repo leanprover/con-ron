@@ -55237,3 +55237,172 @@ a `DESIGN.md`-only conflict of two appended sections); `scripts/gates.sh`
 `lake-refine2` 147 s, `lake-bridge` 30 s).  The gate's frontier line on the
 merged tip: **15 items, 51 tainted, dead weight 898** — the moves against the
 numbers above are the other lanes' landings in `arena`, not this lane's.
+
+### Task #97-P5-Front — Theorem 2's parser and prelude, skeletonised top-down; the scanner tier moves back (2026-09-23, Opus under Fable)
+
+Branch `p5-front` off `arena` `00ab9e63`, merged forward once.  Lane
+`proof/ConRon/Refine2/Frontend/**` (plus the move out of `RefineOld/`, §3).
+Three of the capstone's twelve frontier items were this lane's —
+`builtin_prelude_e_refines`, `parse_chunks_refines`, `prepare_prelude_refines`.
+
+#### 1. The three are proved, by composition, down to FIVE leaves
+
+`scripts/frontier.sh` on the three roots together: **5 items in 4 modules**
+(20 tainted declarations), all sorry-free above them:
+
+| leaf | fan-in | what it is | price |
+|---|---:|---|---|
+| `apply_line_refines` (`Top.lean`) | 7 | the line layer: `process_line_core_d`, the index tables, the intern family — the whole `ExportC`/`ExportCInd`/`ProjRec` subtree | several rounds (it is the tier) |
+| `i_declaration_dup_abs` (`Prepare.lean`) | 3 | `i_declaration_dup` is the identity under `absIDeclaration` | cheap: `Inductives/Shape.lean`'s `i_constant_info_dup_abs` family moved down to a shared base (~120 lines, out of lane) |
+| `state_d_init_refines` (`ExportC.lean`) | 0 | the fresh `StateD`'s nineteen-field `StateDRel` + `StateDInv` | small: two interns (`estore_intern_{name,level}_abs`) + `HashMap2.new_refines`/`HashMap.new_refines` six times; ~80 lines; the same work as COMPOSE's `InitRel` |
+| `hoist_nat_op_ground_refines` (`NatOpGround.lean`) | 0 | the ground hoist | `NatOpGround.lean`'s 26 own statements (finding 18's fuel induction) |
+| `builtin_prelude_text_refines` (`Top.lean`) | 0 | the 67 generated `P00..P66` chunks are `preludeText` | one round: 67 `rfl`/`decide` chunk lemmas + the `push_chunk` fold; no `native_decide` |
+
+The composition map (also in `Top.lean`'s module note):
+
+    builtin_prelude_e  = builtin_prelude_text ; parse_bytes
+    parse_chunks       = state_d_init ; parse_chunks_loop
+    parse_chunks_loop  = induction on the chunks left: chunk_step ; … ; chunk_finish      (new)
+    parse_bytes        = size guard ; state_d_init ; feed_chunk ; parse_bytes_final
+    chunk_step         = size guard ; byte vectors ; feed_chunk_loop ; tail cut
+    chunk_finish, parse_bytes_final = apply_final_line ; parse_result_of_state
+    feed_chunk_loop    = induction on the bytes left: ScanSpec ; apply_line ; …           (new)
+    apply_final_line   = ScanSpec ; apply_line ; line_err_to_check / scan_err_to_check
+    prepare_prelude    = prepare_d                        (both moved Prepare → Top)
+    prepare_d          = front_of ; prepared_stream ; hoist_nat_op_ground ; sat_sub
+    front_of           = no_picks ; front_of_loop                                         (new)
+    front_of_loop      = induction: prelude_key ; pick_idx ; pick_preparedRest            (new)
+
+**Per-lemma cost** (lines of proof, all closed this round, each built at the
+module in 2-4 s): `parse_chunks` 34, `parse_chunks_loop` 84, `builtin_prelude_e`
+27, `parse_bytes` 63, `parse_bytes_final` 53, `chunk_finish` 63, `chunk_step`
+98, `feed_chunk_loop` 157, `feed_chunk` 16, `apply_final_line` 77,
+`prepare_prelude` 21, `prepare_d` 50, `front_of` 22, `front_of_loop` 99,
+`restL_pick` 24, `pick_preparedRest` 18, `pick_idx` 69, `no_picks` 28,
+`prepared_front` 61, `prepared_rest` 55, `prepared_stream` 11, `declares` 44,
+`i_declaration_names_abs` 47, `prelude_key` 35, `line_err_to_check` 18,
+`scan_err_to_check` 11, `parse_result_of_state` 8, `chunk_size` 12 (the
+"silly" one of task #97-P5-Frontend §7.2), plus ~150 lines of stream plumbing
+(`StreamErrSim`, `wrap_map`, `stream_unwrap_{ok,err}`, `SimStreamD.of_wrap_id`,
+`usize_size_val`, `cast_u{64,128}_*`, the byte-vector facts).  The four
+loop inductions were the only lemmas that took more than two or three build
+iterations.
+
+**One idiom worth keeping**: every `match ← x with | .error e => pure (.error
+e) | .ok … => pure (.ok …)` elaborates to its OWN auxiliary matcher, so no
+rewrite lemma keys on it; `stream_unwrap_ok hx f (fun _ => rfl) (fun _ => rfl)`
+(the hypothesis first, so it fixes the matcher before the `rfl`s are checked)
+and `refine SimStreamD.of_wrap_id ?_ (fun _ => rfl) (fun _ => rfl)` (the goal
+first) are the two orders that work.  Aeneas's `let (a, b) := p` in a
+generated body is not reduced by `simp only`/`dsimp only`/`split` after `p`
+is destructured; `replace h : ite (c) _ _ = ok o := h` is.
+
+#### 2. Four statement defects, all in this lane, all fixed
+
+* **F1 — `SimStreamRel`/`SimStreamD`'s error arm was false.**  It claimed a
+  port error pair `(e, n)` is the twin's `.ok (.error (le, n))`.  The port
+  folds EVERY failure of a line into the pair (`line_err_to_check` sends
+  `LineErr::Err e` to `(e, line)`; `parse_bytes`/`parse_chunks` send a
+  `state_d_init` failure to `(e, 0)`), but the twin's `fail`s inside
+  `applyLine` (an unknown index, a dangling handle, an unknown quotient kind)
+  and inside `StateD.init` are `AM` throws no `match ←` catches.  The arm is
+  now `StreamErrSim`: the twin fails at the same kind, *as a value at the same
+  position OR as a throw*.  The success arm — the only one the capstone reads —
+  is unchanged; the capstone built unchanged.  `Refine2/Checker/Top.lean`'s
+  `SimFold` has the same error arm and should be checked the same way (not this
+  lane).
+* **F2 — `SimD`/`SimDV`/`SimStreamD`'s success arm lacked `StateDInv`.**  No
+  loop over lines could hand the next line the invariant its probes need;
+  added beside `StateDRel`.  No closed lemma constructed these shapes.
+* **F3 — `preparedStream_eq_frontOf` was false as stated**: `picks`/`picked`
+  universally quantified and tied to nothing, and the accumulator prepended
+  twice (`acc ++ out.1 ++ out.2` where `out.1` already starts with `acc`).
+  Replaced by `pick_preparedRest` (true, proved) and the transcriptions
+  re-cut as list recursions.  `front_of_refines` was success-only and is now a
+  full `Sim` (value `absPlan`, WF `PlanWF`); `state_d_init_refines` likewise
+  (now `SimRel`).
+* **F4 — `prepared_front_refines` was false for a plan longer than the
+  prelude** (the port reads `ps.len()` slots, the transcription all of them);
+  it takes `hlen : picks.len = ps.len`, which `front_of`'s `PlanWF` supplies.
+
+The coordinator's "accumulator counted twice" pattern (`fun v => absXL out ++
+absXL v`) was grepped for across `Refine2/Frontend/**`: no statement has it;
+the `absX v = absX out ++ new` statements (`note_block`, `ind_block_*`,
+`order_type_ctors`, `append_eidx`, `prepared_{front,rest}`) are the correct
+shape.
+
+The frozen-tier corner (`M_FROZEN` answering `Internal` where the twin
+appends) made `prelude_key_refines`/`state_d_init_refines`' error arms false
+at branch time; task #97-P5-Usize/Unfreeze made the guard `Native` while this
+branch ran, and after the forward merge `prelude_key_refines` closed with no
+hypothesis.
+
+#### 3. `ScanSpec` is a theorem: the scanner tier moved back (mismatch 7 closed)
+
+`crates/con-ron-core/src/frontend/{scan_fast,scan_types,nat_decimal,text}.rs`
+are untouched since task #86 (`git log` on the four paths), and the arena twin
+calls con-leche's `scanLineFwd` by name, so `RefineOld/Frontend/Scan*.lean`'s
+SUBJECT survived the swap.  Moved (`git mv`) to
+`Refine2/Frontend/Scan/{Kit,Str,Obj,Expr,Ind,WF,Line}.lean`, plus
+`Scan/WFBase.lean` (the scanner half of `RefineOld/Frontend/Base.lean`; its
+`StateDWF`/`ModellerWF` half is `Expr`-tree and stays).  The edits: namespace
+`ConRon.Refine2.Frontend`, three `open ConRon.Refine (…)` lines (a bare `open`
+makes `vec_push_val` ambiguous in `Ind`), one `import ConRon.Refine.ExprOps`
+in `Str`, the `#guard_msgs` census strings re-spelled.  **Nothing else — all
+~17 500 lines elaborate `sorry`-free against the swapped model** (`Kit`,
+`Obj`, `Expr`, `WF`, `Line` with no proof edit at all; `Str`/`Ind`/`Line` only
+the import/`open` fixes above).  `Scan/Spec.lean` then proves
+
+    theorem scanSpec : ScanSpec      -- axioms: propext, Classical.choice, Quot.sound
+
+from `scan_line_fwd_refines` (at `Str`'s `utf8_decode_spec`/`unescape_spec`),
+`scan_line_fwd_str_wf`, `scan_line_fwd_digits` + `natValSpec_of_digits` (moved
+from `RefineOld/Frontend/StateDR.lean`, 12 lines) and `newline_from_refines`,
+and `scanLineFwd_ok_newline` (con-leche's scanner: a nonzero continue position
+means a newline at or after the start — `feed_chunk`'s "scan error, no newline
+ahead" arm needs it whatever the twin's scanner answers, `IndexOverflow`
+included) from `Scan/Line.lean`'s `scanLineFwd_tail_of_no_newline`.
+`Top.lean` imports `Scan/Spec.lean` (build cost: the scanner tier is ~3 min
+cold at `LEAN_NUM_THREADS=1`; it brings ~250 linter warnings, unused `simp`
+args mostly, left as found).
+
+**`hsc` stays a parameter of the tier's statements**, so the capstone's call
+sites are unchanged; the capstone's `hsc : ScanSpec` named hypothesis can now
+be discharged by `ConRon.Refine2.Frontend.scanSpec` (a one-line change in
+`Capstone.lean`, not this lane).
+
+#### 4. The reader loop (mismatch 11b), priced, not done
+
+`crates/con-ron/src/driver.rs`'s `parse_export_handle_d` is `parse_chunks`'
+loop with `read_up_to` interleaved: the same `state_d_init`, `chunk_step`,
+`chunk_finish`, stopping at the first EMPTY read (where `parse_chunks` folds an
+empty chunk as a no-op).  It is outside the extracted crate because `Read` has
+no Aeneas model.  The cheapest honest refinement mirrors the modeller seam:
+move the loop into `con-ron-core` generic over a `ChunkSource` trait
+(`next_chunk(&mut self, buf) -> usize`, a typeclass field under Charon exactly
+as `Modeller::generate` is), keep the file handle's impl in the driver, and
+state `parse_export_source_d_refines` under a hypothesis "the source's reads
+are the list `cs` of nonempty chunks then `0`" — the proof is
+`parse_chunks_loop_refines`' induction again (84 lines here) plus a
+`parseChunks` lemma that dropping empty chunks changes nothing.  Price: one
+round — ~40 Rust lines, a regeneration (the `Generated/Funs.lean` move costs
+`Core/Eqns.lean`'s re-derivation unless the cache holds it), ~150 Lean lines.
+Until then the driver's `the_reader_is_parse_chunks_with_the_reads` test is the
+agreement.
+
+#### 5. Gates
+
+`arena` merged forward twice (the second at `5facde4c`, P5-Top/P5-Unfreeze in);
+**all 16 OK** on the merged branch (`extract-check` 115 s, `lake-build` 120 s,
+`lake-refine2` 21 s, `lake-bridge` 402 s, `lake-capstone` 3 s).  The capstone
+builds unchanged: its `hsc` is still passed through, and can now be
+`scanSpec`.  The shared Lake cache was not seeded from this worktree.
+
+**Landing** (coordinator's instruction): `arena` merged a third time at
+`b8e3003a` (the Promote round, P5-Top, `land.sh`), and `Capstone.lean`'s `hsc`
+hypothesis retired, as authorised — `rust_stages`, `model_exists` and
+`no_False_declaration` lose the `(hsc : ScanSpec)` binder, the two stage calls
+pass `scanSpec`, the hypothesis list's entry is struck through.  Axiom census
+unchanged.  Re-gated what the delta touches: `lake build ConRonRefine2
+ConRonCapstone ConRonBridge` green (2 766 jobs); no Rust, generated-model or
+gate-script change came with the merge.
