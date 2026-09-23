@@ -90,6 +90,138 @@ macro "spec_fails" : tactic =>
 /-- con-leche: none — the whole proof of a state-reading primitive. -/
 macro "spec_ro" : tactic => `(tactic| (spec_fails; all_goals grind))
 
+/-! ## The derived `match` auxiliaries, given an owner (task #97-P3-ExprOps
+round 4)
+
+**The clash `lakefile.toml` and `Bridge/Core/Walks/Spine.lean` both record.**
+`grind` derives a congruence auxiliary for the `match` of an
+`Arena/**` definition *on demand*, into whatever module first needs it, under
+a deterministic PUBLIC name — `<f>.match_1.congr_eq_1._sparseCasesOn_2`.  Two
+modules that each derive the same one cannot then sit in one import closure:
+
+    import ConRon.Bridge.Core.EnsureSort failed, environment already contains
+    'ConRon.Arena.piResultIsProp.match_1.congr_eq_1._sparseCasesOn_2'
+    from ConRon.Bridge.Core.Walks.Owed
+
+That is what forced `Bridge/Core/Walks/Spine.lean` into a sibling module off
+the knot-facing chain, and what `Arms/{InferIO,Annotate,Infer}` — all three ON
+the chain and all three calling `ensureSort` — would hit next.
+
+**The repair is to give the auxiliary ONE owner, and this file is it**: every
+module of `ConRon/Bridge/**` imports it, and a derivation finds an imported
+one and reuses it rather than adding a second.  That was measured, not
+assumed: a module carrying `mvcgen [forallPw]` and importing a module
+carrying only the two lines below re-uses the owner's auxiliary
+(`getModuleIdxFor?` names the owner) and adds nothing.
+
+**The spelling matters** (the `Refine2/Core/Eqns.lean` precedent).  What
+forces the derivation is a `grind` on a goal whose head IS the matcher and
+which cannot be closed without splitting it; a `grind` on `f x = f x`, or one
+whose goal is `True`, closes first and derives nothing.  Hence the shape
+below: the matcher at `motive := fun _ => Nat`, one branch `1`, the catch-all
+`0`, and `≤ 1` as the claim.  It costs this file under a second per matcher
+and it names no fact anyone has to maintain.
+
+Add a line here when a new clash appears; the auxiliary's name in the error
+message says which matcher to force. -/
+
+/-- con-leche: none — the owner of `ConRon.Arena.piResultIsProp`'s
+`ENodeView` match auxiliary (`Bridge/Core/EnsureSort.lean` and
+`Bridge/Core/Walks/Owed.lean` both derived it). -/
+theorem matchOwner_piResultIsProp (x : ENodeView) :
+    ConRon.Arena.piResultIsProp.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — the owner of `ConRon.Arena.forallPw`'s `ENodeView`
+match auxiliary (the clash `lakefile.toml`'s `ConRonBridge` note records,
+between two modules of the `ExprOps` tier). -/
+theorem matchOwner_forallPw (x : ENodeView) :
+    ConRon.Arena.forallPw.match_1 (motive := fun _ => Nat) x
+      (fun _ _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — `ConRon.Arena.isLam`'s (`ExprOps/Spine.lean` against
+`ExprOps/Walks.lean`). -/
+theorem matchOwner_isLam (x : ENodeView) :
+    ConRon.Arena.isLam.match_1 (motive := fun _ => Nat) x
+      (fun _ _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — `ConRon.Arena.isCtorApp`'s (`Core/Walks/Guards.lean`
+against `Core/Walks/Spine.lean`). -/
+theorem matchOwner_isCtorApp (x : ENodeView) :
+    ConRon.Arena.isCtorApp.match_5 (motive := fun _ => Nat) x
+      (fun _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — `ConRon.Arena.denoteLs`' (`Frontend` against
+`Inductives`). -/
+theorem matchOwner_denoteLs (x : Option LsNodeView) :
+    ConRon.Arena.denoteLs.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — the five `instantiate1Arm*` probe matches, shared by
+`ExprOps/{Abs,Inst1,Reset,Subst}.lean`.  They are the `Option` shape of a
+memo probe and of a `viewApp`/`viewBindI` projection, so every rebuilding
+walk of the tier grinds over one. -/
+theorem matchOwner_instantiate1ArmApp (x : Option (EIdx × EIdx)) :
+    ConRon.Arena.instantiate1ArmApp.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmApp3 (x : Option EIdx) :
+    ConRon.Arena.instantiate1ArmApp.match_3 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmBVar (x : Option Nat) :
+    ConRon.Arena.instantiate1ArmBVar.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmBind (x : Option (EIdx × EIdx × BMIdx)) :
+    ConRon.Arena.instantiate1ArmBind.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmLet (x : Option (EIdx × EIdx × EIdx)) :
+    ConRon.Arena.instantiate1ArmLet.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_instantiate1ArmProj (x : Option (NIdx × Nat × EIdx)) :
+    ConRon.Arena.instantiate1ArmProj.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — the three TEN-way `ENodeView` dispatch matches:
+`fvarLeaves` (`ExprOps/{Leaves,Walks}.lean`), `liftLooseBVarsGo`
+(`ExprOps/{Abs,Ranges,Walks}.lean`) and `resetMetaGo`
+(`ExprOps/{Leaves,Reset,Walks}.lean`).  Ten `congr_eq`s each, and one `grind`
+derives all ten. -/
+theorem matchOwner_fvarLeaves (x : ENodeView) :
+    ConRon.Arena.fvarLeaves.match_1 (motive := fun _ => Nat) x
+      (fun _ _ => 1) (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
+      (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ => 1) (fun _ => 1)
+      (fun _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
+    ConRon.Arena.liftLooseBVarsGo.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1)
+      (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
+      (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
+theorem matchOwner_resetMetaGo (x : ENodeView) :
+    ConRon.Arena.resetMetaGo.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1)
+      (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
+      (fun _ _ _ => 0) ≤ 1 := by
+  grind
+
 /-! ## The failure primitives (template rule 7) -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — **the failure
@@ -130,6 +262,21 @@ word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
   mvcgen [derivedE]
   spec_ro
 
+/-- con-leche: none — `EStore.intern` does not change the TIER the store is
+appending to: it is `internAt` at the datum `internBMOfView` chose, and
+`Bridge/StoreBind.lean`'s `EStore.scratchOn_internAt` is that fact at
+`internAt`.
+
+Declared HERE rather than in `Bridge/Frontend/Shared.lean` (where task
+#97-P4 first proved it) because `internE_spec`'s own frame needs it: a
+persistence proof reaches `PersE_of_view` only at a state it knows is still
+off the scratch tier, and it cannot know that unless the intern spec says
+so. -/
+theorem EStore.scratchOn_intern (st : EStore) (w : ENodeView) :
+    (st.intern w).1.scratchOn = st.scratchOn := by
+  rw [EStore.intern, EStore.scratchOn_internAt]
+  rcases EStore.internBMOfView_cases st w with he | ⟨m, he⟩ | ⟨m, he⟩ <;> rw [he]
+
 /-- con-leche: none — **the one spec that carries the arena**: a handle for
 the node, the store still well formed, the arena only grown, the three other
 state fields untouched, and the three nested stores literally unchanged (so a
@@ -145,7 +292,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internE w
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some w ∧
         denoteE s'.store h = denoteEView s'.store w⌝⦄ := by
@@ -161,7 +308,7 @@ for exactly this reason. -/
     subst hs
     have hview := EStore.view_of_find hwf hfind
     obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, hview,
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
   rename_i s hs _hfind _n _nbm hcap _st _s'
   subst hs
@@ -174,8 +321,8 @@ for exactly this reason. -/
     · rw [hbm] at hh; exact absurd hh (by simp)
     · exact hh
   obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec hwf hv hcap'
-  exact ⟨h1, h2, BMExt.intern _ _, EStore.lss_intern _ _, rfl, rfl, rfl, h3,
-    h4⟩
+  exact ⟨h1, h2, BMExt.intern _ _, EStore.lss_intern _ _,
+    EStore.scratchOn_intern _ _, rfl, rfl, rfl, h3, h4⟩
 
 /-! ### The ten per-constructor faces of `internE`
 
@@ -188,7 +335,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internBVarE i
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.bvar i) ∧
         denoteE s'.store h = denoteEView s'.store (.bvar i)⌝⦄ :=
@@ -199,7 +346,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internLitE l
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.lit l) ∧
         denoteE s'.store h = denoteEView s'.store (.lit l)⌝⦄ :=
@@ -210,7 +357,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internFVarE idx ty
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.fvar idx ty) ∧
         denoteE s'.store h = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
@@ -221,7 +368,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internSortE u
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.sort u) ∧
         denoteE s'.store h = denoteEView s'.store (.sort u)⌝⦄ :=
@@ -233,7 +380,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internConstE n us
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.const n us) ∧
         denoteE s'.store h = denoteEView s'.store (.const n us)⌝⦄ :=
@@ -245,7 +392,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internAppE f a
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.app f a) ∧
         denoteE s'.store h = denoteEView s'.store (.app f a)⌝⦄ :=
@@ -257,7 +404,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internLamE ty b m
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.lam ty b m) ∧
         denoteE s'.store h = denoteEView s'.store (.lam ty b m)⌝⦄ :=
@@ -270,7 +417,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internForallEE ty b m
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.forallE ty b m) ∧
         denoteE s'.store h = denoteEView s'.store (.forallE ty b m)⌝⦄ :=
@@ -283,7 +430,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internLetEE ty val b
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.letE ty val b) ∧
         denoteE s'.store h = denoteEView s'.store (.letE ty val b)⌝⦄ :=
@@ -295,7 +442,7 @@ for exactly this reason. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internProjE n i e
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.proj n i e) ∧
         denoteE s'.store h = denoteEView s'.store (.proj n i e)⌝⦄ :=
@@ -1139,20 +1286,20 @@ branches.  `denoteEView_ext` (`Bridge/Rel.lean` group 6b) is what makes the
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuilt h same v
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store v⌝⦄ := by
   mvcgen [internRebuilt, internE_spec]
   case vc1.isTrue =>
     rename_i hc s hs
     subst hs
-    exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl,
+    exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
       denoteE_view_eq hwf (hsame hc)⟩
   case vc2.isFalse.post.success =>
     rename_i _hc s hs _r _s2
     subst hs
-    intro a bb bm c d e f _g hh
-    exact ⟨a, bb, bm, c, d, e, f, hh⟩
+    intro a bb bm c sc d e f _g hh
+    exact ⟨a, bb, bm, c, sc, d, e, f, hh⟩
   all_goals (intro s hs; subst hs; first | exact hwf | exact hv)
 
 /-! ### The eleven per-constructor faces of `internRebuilt` (task #97-P6-15)
@@ -1170,7 +1317,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBVar h same i
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.bvar i)⌝⦄ :=
   internRebuilt_spec s₀ h same (.bvar i) hwf viewOK_bvar hsame
@@ -1181,7 +1328,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLit h same l
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.lit l)⌝⦄ :=
   internRebuilt_spec s₀ h same (.lit l) hwf viewOK_lit hsame
@@ -1193,7 +1340,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltFVar h same idx ty
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
   internRebuilt_spec s₀ h same (.fvar idx ty) hwf (viewOK_fvar hty) hsame
@@ -1205,7 +1352,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltSort h same u
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.sort u)⌝⦄ :=
   internRebuilt_spec s₀ h same (.sort u) hwf (viewOK_sort hu) hsame
@@ -1218,7 +1365,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltConst h same n us
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.const n us)⌝⦄ :=
   internRebuilt_spec s₀ h same (.const n us) hwf (viewOK_const hn hus) hsame
@@ -1231,7 +1378,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltApp h same f a
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.app f a)⌝⦄ :=
   internRebuilt_spec s₀ h same (.app f a) hwf (viewOK_app hf ha) hsame
@@ -1244,7 +1391,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLam h same ty b m
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.lam ty b m)⌝⦄ :=
   internRebuilt_spec s₀ h same (.lam ty b m) hwf (viewOK_lam hty hb) hsame
@@ -1257,7 +1404,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltForallE h same ty b m
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.forallE ty b m)⌝⦄ :=
   internRebuilt_spec s₀ h same (.forallE ty b m) hwf (viewOK_forallE hty hb)
@@ -1272,7 +1419,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLetE h same ty val b
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.letE ty val b)⌝⦄ :=
   internRebuilt_spec s₀ h same (.letE ty val b) hwf
@@ -1286,7 +1433,7 @@ proof is a two-case split. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltProj h same n i e
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (.proj n i e)⌝⦄ :=
   internRebuilt_spec s₀ h same (.proj n i e) hwf (viewOK_proj hn he) hsame
@@ -1304,7 +1451,7 @@ unfolding. -/
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBind h same tag ty b m
     ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store r = denoteEView s'.store (eBindView tag ty b m)⌝⦄ := by
   rcases (show tag = ETag.lam ∨ tag = ETag.forallE by

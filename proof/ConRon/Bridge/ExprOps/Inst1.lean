@@ -378,7 +378,7 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
   -- verification condition arrives as an implication chain.
   next =>
     rename_i i hne hgt s1 r st hvb
-    intro hwf' hx hbx _hlss _hmemos hcaches hpins _hview' hden'
+    intro hwf' hx hbx _hlss _hscr _hmemos hcaches hpins _hview' hden'
     refine ⟨⟨hwf'⟩, hm.mono hx (by grind), hx, hbx, hcaches, hpins, ?_⟩
     intro e he
     have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he

@@ -58,15 +58,31 @@ worth keeping:
    `k = 0` (task #97-P6-11) and `instLPFast` at `hasLP = false` (the cutoff
    hoisted over the readbacks, task #97-P6-10).  The second disjunct is the
    stronger of the two for a caller: nothing moved at all.
-3. **`instLPGo_spec` and `instLPFast_spec` do NOT frame `s'.caches`.**
-   `ExprOps/InstLP.lean`'s header says why: the two LEVEL arms read a level
-   back and the memoised readback WRITES `caches.readLC` / `caches.readLsC`.
-   What is carried instead is the readback CLAUSES `ReadLCacheOK` and
-   `ReadLsCacheOK`, as hypotheses and as conjuncts.  The third clause
-   (`ReadNCacheOK`, which `readNamesM` needs) is a hypothesis of
-   `instLPFast_spec` and NOT a conjunct: `ExprOps/InstLP.lean`'s
-   `substLMemoAt_spec` does not frame `caches.readNC`, and adding that one
-   conjunct there would give it back.
+3. **`instLPGo_spec` and `instLPFast_spec` frame `s'.caches` as a RECORD
+   EQUATION** (round 4; the earlier rounds did not frame it at all).
+   `ExprOps/InstLP.lean`'s header says why it cannot be `s'.caches =
+   s₀.caches`: the two LEVEL arms read a level back and the memoised readback
+   WRITES `caches.readLC` / `caches.readLsC`, and `instLPFast`'s entry writes
+   `caches.readNC` as well.  What both carry is
+
+       s'.caches = { s₀.caches with readLC := …, readNC := …, readLsC := … }
+
+   — `readLevelM_spec`'s own spelling (`Bridge/Specs.lean`: *"a record
+   EQUATION and not a table equation"*), naming only the tables the call
+   actually moves and framing the other eleven in one line.  With it
+   `ReadNCacheOK s'.caches.readNC s'.store` is a conjunct too, because the
+   name-readback cache is framed across `instLPGo` and `ReadNCacheOK.mono`
+   carries the clause along the walk's `Ext`.
+
+   **What it cost**: the same record equation stated one level down at each
+   of `readNameM_specF`, `readNamesM_specF` (this file),
+   `readLevelM_specF`, `readLevelsM_specF` (`ExprOps/MemoSpecs.lean`) and
+   `substLMemoAt_spec`, `substLsMemoAt_spec` (`ExprOps/InstLP.lean`) — each
+   replacing the two sibling-table equations it used to carry, which are its
+   projections — and **one lemma in `instLPFast_spec`'s closer list**
+   (`ReadNCacheOK.mono`).  Every other proof of the chain closed unchanged.
+   `instLPGo_specS`'s fourteen structural blocks each gained one `by grind` /
+   one `rfl`.
 -/
 import ConRon.Bridge.ExprOps.Abs
 import ConRon.Bridge.ExprOps.Reset
@@ -834,6 +850,9 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
+        s'.caches =
+          { s₁.caches with
+            readLC := s'.caches.readLC, readLsC := s'.caches.readLsC } ∧
         s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         InstLPAt ks us s₁.store h s'.store r⌝⦄
@@ -870,18 +889,18 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, fun _ _ hi => hi,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl, fun _ _ hi => hi,
         InstLPAt.cutoff hok.wf (by grind)⟩
     -- `bvar`, `lit`
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, fun _ _ hi => hi,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl, fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, fun _ _ hi => hi,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl, fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     -- `sort`: the LEVEL arm, `ExprOps/InstLP.lean`'s `substLMemoAt_spec`
     next =>
@@ -891,8 +910,8 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind [view_eq_of_tables],
-        ?_⟩
+        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [view_eq_of_tables], ?_⟩
       exact InstLPAt.sort_step hok.wf (by lp_hyp)
         (RelL.ext (by lp_hyp) hx) hr
     -- `const`: the universe-argument LIST arm
@@ -904,8 +923,8 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind [view_eq_of_tables],
-        ?_⟩
+        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [view_eq_of_tables], ?_⟩
       exact InstLPAt.const_step hok.wf (by lp_hyp) hn0
         (by grind only [Ext.trans]) (RelLs.ext (by lp_hyp) hx) hr
     -- `const`'s `ViewOK` at the substituted universe-argument list
@@ -926,7 +945,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `app`
     next =>
@@ -938,7 +957,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `lam` and `forallE`: the binder DATUM is substituted too
     next =>
@@ -950,7 +969,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     next =>
       bridge_peel
@@ -961,7 +980,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `letE`
     next =>
@@ -973,7 +992,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `proj`
     next =>
@@ -987,7 +1006,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
+        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the walk
@@ -1002,6 +1021,9 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     ⦃⇓? r s' => ⌜StateOK s' ∧ InstLPMemoA ks us s' ∧ Ext s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
+        s'.caches =
+          { s₀.caches with
+            readLC := s'.caches.readLC, readLsC := s'.caches.readLsC } ∧
         s'.pins = s₀.pins ∧
         RelE (fun x => x.instantiateLevelParams ks us) s₀.store c
           s'.store r⌝⦄ := by
@@ -1017,7 +1039,13 @@ reads more than one kind of handle back must carry the OTHER kind's cache
 clause across.  `instLPFast` reads NAMES back and then LEVELS, so it needs
 the third face of the same lemma, and `Bridge/SpecsL.lean`'s
 `readNamesM_spec` does not frame `caches.readLC` / `caches.readLsC`.  These
-two belong in `Bridge/SpecsL.lean` beside the specs they strengthen. -/
+two belong in `Bridge/SpecsL.lean` beside the specs they strengthen.
+
+Round 4 made all four `_specF` faces carry the RECORD equation
+`s'.caches = { s₀.caches with readNC := … }` instead of the two sibling-table
+equations: the sibling equations are its projections, and the other eleven
+cache tables come with it, which is what lets `instLPFast_spec` state a cache
+frame at all. -/
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `readNameM` with the
 sibling readback tables framed. -/
@@ -1026,15 +1054,14 @@ sibling readback tables framed. -/
     ⦃fun s => ⌜s = s₀⌝⦄ readNameM h
     ⦃⇓? x s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
-        s'.caches.readLC = s₀.caches.readLC ∧
-        s'.caches.readLsC = s₀.caches.readLsC ∧
+        s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         denoteN s₀.store.ns h = some x ∧
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
   unfold readNameM
   mvcgen
   all_goals (bridge_peel; subst_vars) <;>
     first
-    | (refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
+    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadNCacheOK]
 
@@ -1045,8 +1072,7 @@ recursion is on the list as `readNames`' is. -/
     ⦃fun s => ⌜s = s₀⌝⦄ readNamesM hs
     ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
-        s'.caches.readLC = s₀.caches.readLC ∧
-        s'.caches.readLsC = s₀.caches.readLsC ∧
+        s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         Frontend.denoteNList s₀.store.ns hs = some xs ∧
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
   induction hs generalizing s₀ with
@@ -1068,16 +1094,14 @@ recursion is on the list as `readNames`' is. -/
           ⦃fun s => ⌜s = s₁⌝⦄ p
           ⦃⇓? xs s' => ⌜s'.store = s₁.store ∧ s'.memos = s₁.memos ∧
               s'.pins = s₁.pins ∧
-              s'.caches.readLC = s₁.caches.readLC ∧
-              s'.caches.readLsC = s₁.caches.readLsC ∧
+              s'.caches = { s₁.caches with readNC := s'.caches.readNC } ∧
               Frontend.denoteNList s₁.store.ns as = some xs ∧
               ReadNCacheOK s'.caches.readNC s'.store⌝⦄) →
         ⦃fun s => ⌜s = s₀⌝⦄
           (do let x ← readNameM a; let xs ← p; pure (x :: xs))
         ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
             s'.pins = s₀.pins ∧
-            s'.caches.readLC = s₀.caches.readLC ∧
-            s'.caches.readLsC = s₀.caches.readLsC ∧
+            s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
             Frontend.denoteNList s₀.store.ns (a :: as) = some xs ∧
             ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
       intro p hp
@@ -1117,6 +1141,11 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
+        ReadNCacheOK s'.caches.readNC s'.store ∧
+        s'.caches =
+          { s₀.caches with
+            readLC := s'.caches.readLC, readNC := s'.caches.readNC,
+            readLsC := s'.caches.readLsC } ∧
         s'.pins = s₀.pins ∧
         (s'.memos.instLPC = ∅ ∨ s' = s₀) ∧
         RelE (fun x => x.instantiateLevelParams ksv usv) s₀.store e
@@ -1124,13 +1153,13 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
   have hr := fun (kk : List ConLeche.Name) (uu : List Level) (s₁ : AState)
       (c : EIdx) => instLPGo_spec kk uu fuel s₁ c
   mvcgen [instLPFast, hr]
-  all_goals try bridge_vcs [Expr.instantiateLevelParams]
+  all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono]
   -- The HOISTED `hasLP` cutoff (task #97-P6-10), which returns the subject
   -- without reading `ks`/`us` back and without clearing the memo.
   next =>
     bridge_peel
     subst_vars
-    exact ⟨hok, Ext.refl _, hcl, hcls, rfl, Or.inr rfl,
+    exact ⟨hok, Ext.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
       InstLPAt.cutoff hok.wf (by grind)⟩
 
 /-! ## The axiom check -/
