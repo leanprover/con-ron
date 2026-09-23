@@ -341,7 +341,37 @@ theorem annotateBody_leaf {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v with
+  | app f a => exact absurd htg hna
+  | lit l => exact absurd htg hnl
+  | letE ty w b => exact absurd htg hne
+  | proj n k sub => exact absurd htg hnp
+  | lam ty b m =>
+    rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
+  | forallE ty b m =>
+    rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
+  | bvar k =>
+    obtain rfl := denote_bvar_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_bvar⟩
+  | fvar k t =>
+    obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hden
+    have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_fvar hk⟩
+  | sort u =>
+    obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_sort⟩
+  | const n us =>
+    obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_const⟩
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC6.lean annotateBodyC_sim —
 **THEOREM 1 for `annotateBody`**.

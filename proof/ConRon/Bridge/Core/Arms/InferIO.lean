@@ -139,6 +139,60 @@ theorem inferIO_app_cert {F d : Nat} {f a tf ty body ta : Expr}
 /-! ## 3. The body theorem -/
 
 
+/-! ### The leaf clauses at the io grade (task #97-P3-Core round 5)
+
+`inferBodyIO`'s `.sort`/`.fvar`/`.const`/literal clauses are `inferBody`'s
+verbatim, so at either value of the gate bit the io entry answers what
+`Infer.lean`'s `infer_*` lemmas say.  Stated once here, at any mode. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1295 inferBodyIO — a sort's type is
+the next sort, at the io grade. -/
+theorem inferIO_sort {F d : Nat} {u : Level} :
+    ConLeche.inferTypeIO mode env (F + 1) d (.sort u) =
+      .ok (.sort (.succ u)) := by
+  rw [ConLeche.inferTypeIO_succ]; split <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1296-1298 inferBodyIO — the scope
+check, at the io grade. -/
+theorem inferIO_fvar {F d idx : Nat} {ty : Expr} (h : idx < d) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.fvar idx ty) = .ok ty := by
+  rw [ConLeche.inferTypeIO_succ]
+  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, if_pos h,
+    pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1299-1310 inferBodyIO — a stored
+constant's type at its universe instantiation, at the io grade. -/
+theorem inferIO_const {F d : Nat} {n : Name} {us : List Level}
+    {ci : ConstantInfo} (hf : env.find? n = some ci)
+    (ht : ci.isTowerEntry = false)
+    (hl : us.length = ci.toConstantVal.levelParams.length) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.const n us) =
+      .ok (ci.toConstantVal.type.instantiateLevelParams
+        ci.toConstantVal.levelParams us) := by
+  rw [ConLeche.inferTypeIO_succ]
+  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, hf, ht, hl,
+    bind, Except.bind, pure, Except.pure] <;> simp
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1311-1313 inferBodyIO — a `Nat`
+literal types as `Nat`, at the io grade. -/
+theorem inferIO_natLit {F d n : Nat}
+    (h : ConLeche.natLitSupported env = true) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.lit (.natVal n)) =
+      .ok (.const ConLeche.natName []) := by
+  rw [ConLeche.inferTypeIO_succ]
+  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, h, if_true,
+    pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1314-1317 inferBodyIO — a string
+literal types as `String`, at the io grade. -/
+theorem inferIO_strLit {F d : Nat} {s : String}
+    (h : ConLeche.strLitSupported env = true) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.lit (.strVal s)) =
+      .ok (.const ConLeche.stringName []) := by
+  rw [ConLeche.inferTypeIO_succ]
+  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, h, if_true,
+    pure, Except.pure]
+
 /-! ### The dispatch's children (task #97-P3-Core round 5)
 
 `inferBodyIO_spec` below is a case split on the tag: one child per group of
@@ -263,7 +317,50 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v with
+  | app f a => exact absurd htg hna
+  | lit l => exact absurd htg hnl
+  | const n us => exact absurd htg hnc
+  | proj n k sub => exact absurd htg hnp
+  | lam ty b m => exact absurd htg hnm
+  | forallE ty b m => exact absurd htg hnf
+  | letE ty w b => mvcgen; exact fun h => h.elim
+  | bvar k => mvcgen; exact fun h => h.elim
+  | fvar k t =>
+    obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
+    have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
+    have hwt : Expr.WScoped d t' := by
+      unfold Expr.WScoped at hw; exact Expr.WScoped.mono (Nat.le_of_lt hk) hw.2
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, _, ht, hwt, 1, inferIO_fvar hk⟩
+  | sort u =>
+    obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
+    mvcgen [internLNode_spec, internE_spec]
+    all_goals (bridge_peel; subst_vars)
+    case vc1.hwf => exact hwf
+    case vc2.hv =>
+      exact ⟨fun c hc => by
+        simp [LNodeView.lchildren] at hc; subst hc
+        exact lview_isSome_of_denote hl,
+        fun c hc => by simp [LNodeView.nchildren] at hc⟩
+    case vc3.sort.post.success.post.success =>
+      rename_i s₁ r₁ s₂ r₂ s₃ _ hx1 _ _ _ _ hc1 hp1 _ hd1
+      intro hwf2 hx2 _ _ _ _ hc2 hp2 _ hd2
+      refine ⟨hok.mono ⟨hwf2⟩ (hx1.trans hx2) (hc2.trans hc1) (hp2.trans hp1),
+        hx1.trans hx2, hp2.trans hp1, .sort (.succ l), ?_,
+        by unfold Expr.WScoped; trivial, 1, inferIO_sort⟩
+      have hs1 : denoteL s₂.store.ls r₁ = some (Level.succ l) := by
+        rw [hd1]; simp [denoteLView, denoteL_ext hl hx1]
+      rw [hd2]; simp [denoteEView, denoteL_ext hs1 hx2]
+    case vc4 => intro s h _ _ _ _ _ _ _ _ _; exact h
+    case vc5 =>
+      intro s _ _ _ _ _ _ _ _ hview _
+      exact viewOK_sort (by rw [hview]; rfl)
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyIOC_sim —
 **THEOREM 1 for `inferBodyIO`**.

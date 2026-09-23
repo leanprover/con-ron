@@ -304,7 +304,13 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case app f a =>
+    exact inferBody_app_batched henv hsim s₀ d i e hok hden hw (by simp [htag])
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — **the `.const`
 clause**: the index lookup, the tower-entry and level-arity guards, and the
@@ -378,7 +384,52 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v with
+  | app f a => exact absurd htg hna
+  | lit l => exact absurd htg hnl
+  | const n us => exact absurd htg hnc
+  | proj n k sub => exact absurd htg hnp
+  | lam ty b m =>
+    rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
+  | forallE ty b m =>
+    rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
+  | letE ty w b => mvcgen; exact fun h => h.elim
+  | bvar k => mvcgen; exact fun h => h.elim
+  | fvar k t =>
+    obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
+    have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
+    have hwt : Expr.WScoped d t' := by
+      unfold Expr.WScoped at hw; exact Expr.WScoped.mono (Nat.le_of_lt hk) hw.2
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, _, ht, hwt, 1, infer_fvar hk⟩
+  | sort u =>
+    obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
+    mvcgen [internLNode_spec, internE_spec]
+    all_goals (bridge_peel; subst_vars)
+    case vc1.hwf => exact hwf
+    case vc2.hv =>
+      exact ⟨fun c hc => by
+        simp [LNodeView.lchildren] at hc; subst hc
+        exact lview_isSome_of_denote hl,
+        fun c hc => by simp [LNodeView.nchildren] at hc⟩
+    case vc3.sort.post.success.post.success =>
+      rename_i s₁ r₁ s₂ r₂ s₃ _ hx1 _ _ _ _ hc1 hp1 _ hd1
+      intro hwf2 hx2 _ _ _ _ hc2 hp2 _ hd2
+      refine ⟨hok.mono ⟨hwf2⟩ (hx1.trans hx2) (hc2.trans hc1) (hp2.trans hp1),
+        hx1.trans hx2, hp2.trans hp1, .sort (.succ l), ?_,
+        by unfold Expr.WScoped; trivial, 1, infer_sort⟩
+      have hs1 : denoteL s₂.store.ls r₁ = some (Level.succ l) := by
+        rw [hd1]; simp [denoteLView, denoteL_ext hl hx1]
+      rw [hd2]; simp [denoteEView, denoteL_ext hs1 hx2]
+    case vc4 => intro s h _ _ _ _ _ _ _ _ _; exact h
+    case vc5 =>
+      intro s _ _ _ _ _ _ _ _ hview _
+      exact viewOK_sort (by rw [hview]; rfl)
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyC_sim — **THEOREM 1
 for `inferBody`**.
