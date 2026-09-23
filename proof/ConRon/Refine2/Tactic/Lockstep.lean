@@ -48,7 +48,7 @@ Side goals (relation, invariant, argument correspondence, conditions) go to
 `lockstep_side`, which is `assumption`/`rfl`/`simp`/`scalar_tac`, in that
 order.  **No `grind`** anywhere in the tactic.
 -/
-import ConRon.Refine2.Tactic.Tmp0
+import ConRon.Refine2.Shape
 import ConRon.Refine2.Tactic.Attr
 
 open Aeneas Aeneas.Std Result
