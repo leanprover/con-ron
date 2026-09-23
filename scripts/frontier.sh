@@ -175,7 +175,7 @@ hist="$root/_tmp/frontier-history.tsv"
 rev=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo -)
 br=$(git -C "$root" symbolic-ref --quiet --short HEAD 2>/dev/null || echo -)
 dirty=$(git -C "$root" status --porcelain --untracked-files=no -- proof 2>/dev/null | grep -q . && echo dirty || echo clean)
-printf '%s\t%s\t%s\t%s\t%s\t%s' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rev" "$br" "$dirty" "$tag" \
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rev" "$br" "$dirty" "$tag" \
   "$(cat "$out/$tag.stats.tsv")" >> "$hist"
 if [ $summary = 1 ]; then
   echo "$(cat "$out/$tag.line.txt") [${wall}]"
