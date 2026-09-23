@@ -39,6 +39,7 @@ import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.InferSpine
 
 namespace ConRon.Bridge.Core
 
@@ -246,10 +247,12 @@ theorem infer_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
 /-! ## 5. The two batched clauses' identification, and the body theorem -/
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:1288-1373 inferSpine_* —
-**OPEN** (task #97-P3-Core): the twin's `.app` clause is `inferSpine`/
-`inferApp`, con-leche's own cached-tier clause (task #97-P6-9), against the
-chained `infer_app` above.  The `Expr`-level identification is con-leche's;
-what is owed is the denotation carry. -/
+**CLOSED** (task #97-P3-Core round 6): the twin's `.app` clause is
+`inferSpine`/`inferApp`, con-leche's own cached-tier clause (task #97-P6-9),
+against the chained `infer_app` above.  Staged: `headAndArgs_app_spec`, the
+knot's `infer` at the head, the carry `inferSpine_go`
+(`Walks/InferSpine.lean`), then con-leche's own identification
+`inferSpine_sound` and `Expr.mkAppN_getApp`. -/
 theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel)
@@ -260,7 +263,31 @@ theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  unfold ConRon.Arena.inferApp
+  -- stage 1: the spine's head and argument vector
+  refine triple_seq (headAndArgs_app_spec s₀ i e hok.state hden htag) ?_
+  rintro ⟨hd, args⟩ s1 ⟨hs1, hhd, hargs⟩
+  subst s1
+  dsimp only at hhd hargs ⊢
+  -- stage 2: the head's type, once
+  refine triple_seq (hsim.infer s₀ d hd e.getAppFn hok hhd
+    (Expr.WScoped.getAppFn hw)) ?_
+  rintro tf s2 ⟨hok2, hx2, hp2, th, hth, hwth, F1, hF1⟩
+  -- stage 3: the batched spine, then con-leche's identification
+  refine triple_mono (inferSpine_go hsim d args _ tf #[] 0 s2 th []
+    e.getAppArgs rfl hok2 hth (InstLVec.empty _)
+    (by rw [ConLeche.Expr.instantiateList_nil]; exact hwth)
+    (by rw [List.drop_zero]; exact denoteEList_ext hx2 _ _ hargs)
+    (Expr.WScoped.getAppArgs hw)) ?_
+  rintro r s3 ⟨hok3, hx3, hp3, v, hv, hwv, F2, hF2⟩
+  refine ⟨hok3, hx2.trans hx3, hp3.trans hp2, v, hv, hwv, ?_⟩
+  obtain ⟨F', hF'⟩ := ConLeche.inferSpine_sound e.getAppArgs e.getAppFn th v
+    F1 F2 hF1 hF2
+  rw [ConLeche.Expr.mkAppN_getApp] at hF'
+  exact ⟨F', hF'⟩
+
+/-! `inferBody_app_batched`: sorry-free (task #97-P3-Core round 6). -/
+#print axioms inferBody_app_batched
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean — **OPEN** (task
 #97-P3-Core): the twin's `.lam`/`.forallE` clauses are `inferLams`/`inferPis`
