@@ -50995,7 +50995,7 @@ and no `bv_decide` axiom.
 
 | file | lines | `sorry` | note |
 |---|---:|---:|---|
-| `Refine2/ExprOps/Mut.lean` | **3 443** (from 2 427) | **41** (from 44) | +1 016, of which 654 are §3's flags and §1's `WOutE` |
+| `Refine2/ExprOps/Mut.lean` | **3 471** (from 2 427) | **41** (from 44) | +1 044, of which **661** are §3's eight store flag lemmas plus nine monad wrappers (544 + 117) and **152** are §1's `WOutE` scaffolding |
 
 `ConRon.Refine2.ExprOps.Mut` rebuilds in **7 s** on top of a warm `Read.lean`.
 
