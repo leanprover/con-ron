@@ -687,11 +687,7 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
   have hd := hok.denote
   simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
   obtain ⟨zs, hzs, rfl⟩ := hd
-  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx hok.coh
-  have hvb : fe.visibleBelow = fe.env.consts.length := by
-    rw [show fe.visibleBelow = (mkIFEnv fe.env).visibleBelow from
-      congrArg IFEnv.visibleBelow hok.coh]
-    exact mkIFEnvGo_fst fe.env.consts
+  have hvb : fe.visibleBelow = fe.env.consts.length := hok.coh.1
   have hk' : k ≤ fe.env.consts.length := hvb ▸ hk
   have hlen : fe.env.consts.length = zs.length := denoteCIList_length _ _ hzs
   have hndH : (fe.env.consts.map (·.name)).Nodup :=
@@ -705,7 +701,7 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
       (fe.env.consts.drop (fe.env.consts.length - k)).find?
         (fun d => d.name == n) = some ci := by
     intro n ci hf
-    simp only [IFEnv.find?, IFEnv.restrictTo, hidx] at hf
+    simp only [IFEnv.find?, IFEnv.restrictTo, hok.coh.2 n] at hf
     cases hg : (mkIFEnvGo fe.env.consts).2[n]? with
     | none => rw [hg] at hf; simp at hf
     | some p =>
@@ -723,7 +719,7 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
       (fe.restrictTo k).find? n = some ci := by
     intro n ci hf
     obtain ⟨c, hc, hck⟩ := mkIFEnvGo_below_of _ n k ci hk' hndH hf
-    simp only [IFEnv.find?, IFEnv.restrictTo, hidx, hc]
+    simp only [IFEnv.find?, IFEnv.restrictTo, hok.coh.2 n, hc]
     rw [if_pos hck]
   refine ⟨?_, ?_, ?_⟩
   · intro n ci hf
