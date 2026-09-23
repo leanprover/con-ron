@@ -594,7 +594,7 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 ## 12. Gates
 
 `scripts/gates.sh` runs, in order, and stops at the first failure
-([the sixteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L62-L96)):
+([the sixteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L62-L100)):
 
 1. `cargo build` with warnings denied;
 2. `cargo test`;

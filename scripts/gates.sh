@@ -74,7 +74,11 @@ run holes         "$root/scripts/holes.sh" --check
 run gen-pins      "$root/scripts/gen-pins.sh" --check
 run gen-prelude   "$root/scripts/gen-prelude.sh" --check
 run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
-run extract-check "$root/scripts/extract.sh" --check
+# Charon + Aeneas peak at several GB each; several agents gating at once pushed
+# the shared 50 GB cgroup over its cap (peak 53.9 GB, 2026-09-23) and the
+# kernel OOM-killed aeneas (exit 137).  Serialise this one step machine-wide
+# through a lock in the shared `_tmp/` (every worktree sees the same one).
+run extract-check flock "$root/_tmp/.extract-check.lock" "$root/scripts/extract.sh" --check
 run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 # `ConRonRefine2` is deliberately NOT a default target (a half-built P5 tier
 # must not block `lake build`), which means the line above never elaborates a
