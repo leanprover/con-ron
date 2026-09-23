@@ -2983,6 +2983,25 @@ denotation; a twin-ledger row of the "shape" kind.
     lake package); only term-touching algorithms get handle twins.
     Accepted by the maintainer 2026-09-20.
 
+### 8.x Deferred cleanups (after the campaign closes)
+
+Things deliberately left for the end, recorded here so they are not lost.
+
+* **Prove the `Native` guards unreachable (completeness).**  Theorem 2
+  claims nothing when the port raises `CheckError::Native`, which is what
+  makes it a *partial*-correctness statement: sound, but silent about a run
+  that declines where it should accept.  On 2026-09-22 the maintainer ruled
+  the ~20 `M_FROZEN` sites in `arena::store` (`shared_on` set during a
+  persistent intern) from `Internal` to `Native` — "fine for now, it gives
+  partial correctness; but if there is an invariant why we do not hit this
+  code path we should be able to prove this."  So, once every `sorry` is
+  gone: for each `Native` site, either prove it unreachable from the
+  checker's entry (the frozen guard should follow from the phase discipline:
+  nothing interns persistently while the tier is shared), or document why it
+  is a genuine resource limit (the capacity guards are: `u32` handles).  The
+  same pass covers the `as usize` casts task #97-P5-Usize left in class (a)
+  "bounded by an invariant" — each such citation should become a lemma.
+
 ## Task log
 
 `spikes/` was removed at publication (task #76); its contents are in the
@@ -43317,6 +43336,195 @@ the same 817 `sorry`.
    `Refine2/Inductives/Shape.lean`, because neither file can see the other.
    `Refine2/Checker/Shape.lean` is where both can reach them.
 
+#### Round 4 — the promote window's bridge, and the port fact behind it (2026-09-23, Opus under Fable)
+
+Branch `p5-checker-4` off `arena` `7f4b4a86`; `arena` did not move under it.
+Nothing outside `proof/ConRon/Refine2/{Checker,Promote}/**` is written except
+`Refine2/Inductives/Shape.lean` (§3, the duplicates, with the Inductives T2
+lane idle as the brief allowed).
+
+##### 1. The seam between `AStateRelW` and `AStateRel` is ONE lemma — and it is not what stops the leaves
+
+**The bridge.**  `Refine2/Checker/Shape.lean`'s **`bracket_close_w`** is
+`Refine2/Core/Bracket.lean`'s `bracket_close` with `AStateRelW` in and
+`AStateRel` out: a bracket whose promotion left the WEAK relation closes to the
+STRONG one, `Ext` from the boundary, and the next `BrOK`.  `bracket_close`
+needed the strong relation for exactly two things and neither reads `fresh`:
+
+| what `bracket_close` used | what the weak invariant gives |
+|---|---|
+| `drop_scratch_refines`' post-state `storeWF` | `StoreWF'.dropScratch_wf` (task #97-P5-Fresh §4) — `drop_scratch_refines_w` |
+| `ext_bracket`'s `StoreWF b` | `ext_bracket'` — the four `denote*Aux_dropScratch` inductions re-run at `NWFAt'`/`LWFAt'`/`LsWF'`/`EWFAt'`: they read `childOK`'s persistence conjunct, the ranks and `bmChildOK`, all of which the weak invariant keeps, and **not a step of the strong proofs changed** |
+
+So the relation is weak exactly across the promote window, entered at
+`AStateRelW.of_rel` (free) and left at `bracket_close_w`, and **no statement
+above the bracket weakens**.  The four inductions (≈ 190 lines) belong beside
+their strong siblings in `Arena/WFProofs.lean`; they are in `Checker/Shape.lean`
+because that file is this lane's.
+
+**The two leaves, composed.**  With the bridge, `check_decl_step` and
+`annot_step` are complete compositions —
+`check_decl_step_of_keeps`, `annot_step_promote_of_keeps`, `annot_step_of_keeps`
+(`Refine2/Checker/Top.lean`, both arms of `annot_step`'s `vg?` included) — and
+their `#print axioms` reads `sorryAx` through the BODIES
+(`check_decl_refines`, `annot_step_go_refines`, `promote_new_refines`,
+`promote_vg_refines`) and nothing else.  **What keeps the public
+`check_decl_step_refines` / `annot_step_refines` open is not the relation.  It
+is one PORT fact:**
+
+> `promote_new_refines` / `promote_vg_refines` take `PersUnfrozen st.store`
+> (the port's four `shared_on` flags down — finding 17's first half: at a
+> frozen tier the port answers `Internal` where the twin appends).  The step is
+> entered with the flags down and `flush_caches` / `enter_scratch` keep them
+> (`flush_caches_store`, `enter_scratch_unfrozen`, closed), but whether the
+> BODY (`check_decl`, `annot_step_go`, and `promote_vg` before `promote_new`)
+> keeps them is a fact about the port that **no statement of Theorem 2
+> concludes**: `SimRel`'s success arm relates the post-state to the twin's, and
+> the twin has no flag.
+
+The compositions carry it as **`KeepsUnfrozen f`** — *"`f` does not freeze the
+persistent tier"*, universally quantified over the state, `TwinWF`'s shape — so
+the only open step is its discharge.  **That is the shape question for the
+coordinator**, and there are three answers:
+
+| | what | cost | what it retires |
+|---|---|---|---|
+| **(A)** | **make the frozen-tier guard `Native`**: `arena::store`'s 20 `Err(CheckError::Internal(code_points(&M_FROZEN)))` become `Native` | one Rust edit per site, regenerate (`Generated/Funs.lean` moves: the ≈ 1 000 s `Core/Eqns.lean` re-derivation), and the proofs that read the `Internal` arm | **every** frozen hypothesis in `Refine2/`: ≈ 75 `hfrozen`, ≈ 35 `PersUnfrozen`, 13 `hshared` binders, `KeepsUnfrozen`, and task #97-P5-Ind round 4 §R4.1's bundle question.  Both leaves then close with their statements unchanged |
+| (B) | a flags conjunct on the success arm of every shape (`AOut`/`AOutRel`/`POut`/…), or a flags clause in `AStateInv` | tier-wide, every producer; and an `AStateInv` clause would make Theorem 2 inapplicable to phase B's frozen workers | the same, by carrying rather than retiring |
+| (C) | the capstones take `PersUnfrozen st.store` and the folds `KeepsUnfrozen` of each body as named obligations | three binders on the capstones; the obligation is a port frame over the whole checker, i.e. the size of Theorem 2 again | nothing |
+
+**This round recommends (A)**, and argues it is not a weakening but the
+ruling's own reading: `kernel/core_types.rs`' `Native` note says a `Native`
+site is *"a documented accept-direction deviation: it declines a stream
+con-leche might accept, and never accepts one con-leche declines"* — which is
+exactly the frozen guard (the twin has no frozen tier and cannot throw there;
+the guard only ever DECLINES).  The capacity guard beside it (`M_*_CAP`) is
+already `Native` for the same reason (DESIGN §3's `Native` ruling of 2026-09-13).  It is a Rust
+edit in someone else's lane and a campaign decision, so it is brought, not
+made.
+
+##### 2. `annot_step_promote_refines` was false, and is restated
+
+The Rust `annot_step_promote` ENDS in `drop_scratch` (`checker.rs:963`); the
+statement's twin side stopped at the promotion, so the two post-states
+disagreed on `scratchOn` and `AStateRel` failed at every success.  With
+`dropScratch` in the twin, `Ext` holds only from the bracket's BOUNDARY, so the
+restated lemma is `AOutRel` at that boundary `lst0`, with `BrOK lst0` and the
+body's `Ext lst0.store.enableScratch lst.store` as hypotheses (exactly
+`bracket_close`'s), `hfr` for `promote_vg`, and the pending record as the
+twin's `Array.push`.  Its one consumer (`annot_step_refines`) was `sorry`, so
+nothing moved.  **`promote_new_refines` and `index_promoted_refines` now
+conclude `IFEnvRelI`** (was `IFEnvRel`): both bracketed steps hand the promoted
+environment to the next fold step, which takes `IFEnvInv`; it is true (the
+decline arm returns `fe`, `index_promoted` stores `j - 1 < n`, `erase_installed`
+only removes rows).
+
+##### 3. The duplicates, merged
+
+`i_constant_info_name_abs`, `nidx_eq2_abs`, `eidx_eq2_abs` move from
+`Refine2/Inductives/Shape.lean` down to `Refine2/Checker/Shape.lean`;
+`Checker/Shape.lean`'s private `ci_name_abs` and `Checker/Canon.lean`'s two
+private `decide`-form copies are gone, the latter now
+`nidx_eq2_abs_decide` / `eidx_eq2_abs_decide`, one line each from the `==`
+form.  `lake build ConRon.Refine2.Inductives.Top` green — no Inductives
+statement moved.
+
+##### 4. The walk below `check_decl_step`: measured, and four statement defects
+
+**`checkDecl_unfold`, six of seven.**  `checkDecl_{axiom,thm,opaque,basis,ind,quot}Decl`
+(`Checker/Spec.lean`) are closed; `check_decl_refines` is the seven-way `cases`
+over them.  The axiom arm needed the `Quot.sound` matcher peeled with
+`am_bind_congr` (two matchers, same text) and `checkConstantVal_unfold` to
+expose `pure { cv with type := _ }`, because the transcription names `cvA.name`
+where the twin names `cv.name`.  **Two arms are composed**: `check_thm_decl`
+(`check_constant_val ; check_thm_val`) and `check_axiom_decl`
+(`pin_quot_sound ; nidx_eq2_abs ; <one of two sub-arms>`), through a new
+`SimRel.of_sim_bind` / `SimRel.of_sim_err` (`Checker/Shape.lean`) — the
+`let x ← <Sim>; <SimRel> x` composition every arm has.
+
+**What the rest actually need — measured, not assumed.**  Of the arms' call
+closure OUTSIDE the six knot entries (which `knotRel_checkFuel'` covers), every
+arm but `check_thm_decl` reaches an `intern_*`: `check_axiom_decl`,
+`check_basis_decl`, `check_quot_decl` 10 intern entries each,
+`check_opaque_decl` 12, `check_defn_decl` 16, `check_ind_decl` 19 — and
+`check_defn_decl`, `check_ind_decl` and `annot_step_go` reach the BINDER interns
+(`intern_e_lam`/`forall_e`/`bind_i`), which task #97-P5-Mut §2 found blocked on
+the twin's `hbmcap` debt.  Across the files: 72 of 95 `decl_check` functions,
+35 of 48 `checker`, 13 of 25 `std_axioms`, 17 of 27 `trust_axioms`.  No
+statement of this tier carries an intern side condition (the census is
+`hrel`/`hinv`/`hfe`/`hfinv`/`hvis` and nothing else), so **`Specs.lean` at zero
+does not unblock them, exactly as ExprOps/Inductives found**: they need
+finding 19's *"the input handles decode"* (a `DeclResolves` precondition on
+the capstones, and an environment-resolves clause in `IFEnvRelI`), `hfrozen`
+(free under (A); `scratch_on = true` inside the bracket otherwise), and the
+`hbmcap` fix for the binder walks.
+
+**Four statement defects**, all in `Checker/Top.lean`, all `sorry` today:
+
+1. **The `.defnDecl` arm is not an equation** (`checkDecl_defnDecl` is not
+   written).  `checkStructuralNatPinCertifySpec` declines with the RUST's
+   message; the twin reads `readName cv.name` there, and `readName` THROWS
+   `internal` at a dangling handle — so the transcription is not the twin's.
+   `check_decl_refines`' defn arm is the one `sorry` left in it.
+2. **The twin reads a name in a decline message where the port does not** —
+   42 `readName` sites in `Arena/{Checker,CheckerBase,CheckerSplit,DeclCheck}.lean`,
+   and the port reads a name at almost none.  At each, a port `NotImplemented`
+   claims a twin `notImplemented`, and the twin throws `internal` instead if the
+   name dangles.  So `check_axiom_decl_{trust,of_reduce,rest}_refines` and
+   `check_structural_nat_pin_refines` are **false without "the name
+   decodes"**.  It is recoverable at the call site — the twin's
+   `checkConstantVal` succeeded, so its `viewN cv.name` did, and `StoreWF`
+   turns a view into a decode — but it has to be a hypothesis of those four.
+3. **`check_opaque_reduce_pin_refines` omits the Rust's `reduce_op_names`
+   gate**: the port answers `Ok fe2` for an ordinary opaque, the stated twin
+   runs `checkReducePin`, which declines it.  False as stated.
+4. **The six `hkpre : lf = lf2.restrictTo (absU k_pre)` statements** (the
+   structural-`Nat`, `div`/`mod` and reduce pin gates) **are unsatisfiable at
+   every call site**: `lf2` is `lf.push ci`, whose `consts` has one more
+   element, and `restrictTo` moves only the counter.  Closing them would be
+   vacuous.  The port runs the gate at `restrict(fe2, k_pre)` where the twin
+   runs it at `fe`; the honest statement is at `lf2.restrictTo (absU k_pre)`,
+   and the caller then owes the twin-side fact that the gate reads its
+   environment only through `find?` — which agrees on `fe` and
+   `(fe.push ci).restrictTo fe.visibleBelow` when `ci.name` is fresh
+   (`checkConstantVal`'s duplicate test).  That is a design question of the
+   same kind as round 3 §2's split scalar, and it is reported rather than
+   restated.
+
+##### 5. The count
+
+| file | `sorry` (was) | note |
+|---|---:|---|
+| `Checker/Top.lean` | **37** (39) | `check_thm_decl`, `check_axiom_decl` composed; `check_decl_refines` down to its defn arm; `annot_step_promote_refines` restated; three `_of_keeps` compositions closed |
+| `Checker/Spec.lean` | 1 (1) | six `checkDecl_*` equations closed |
+| `Checker/Shape.lean` | 0 (0) | +bridge (§1), +`SimRel.of_sim_bind`/`_err`, +the moved duplicates |
+| `Checker/DeclCheck.lean` | 92 (92) | `check_thm_val_refines` concludes `IFEnvRelI` |
+| `Checker/Base.lean` | 61 (61) | |
+| `Checker/Axioms.lean` | 59 (59) | |
+| `Checker/Canon.lean` | 22 (22) | private duplicates gone |
+| `Checker/Pins.lean` | 6 (6) | |
+| `Promote/Promote.lean` | 31 (31) | `promote_new`/`index_promoted` conclude `IFEnvRelI` |
+| `Promote/Intern.lean` | 24 (24) | |
+| **the lane** | **333** (335) | counted as `sorry` tactic lines, the same way at both ends |
+
+**Axiom census**: four new rows under `#guard_msgs` — `ext_bracket'`,
+`bracket_close_w`, `checkDecl_axiomDecl`, `checkDecl_quotDecl` at
+`[propext, Classical.choice, Quot.sound]` — and two recorded BECAUSE they read
+`sorryAx`: `check_decl_step_of_keeps`, `annot_step_of_keeps` (through their
+bodies, §1).  The capstones still print `sorryAx`.
+
+##### 6. What the next round needs
+
+1. **The ruling on §1** — (A), (B) or (C).  Under (A) both public leaves close
+   with no statement change (the `_of_keeps` proofs lose their two hypotheses
+   and nothing else), and the capstones' last two `sorryAx` leaves are their
+   bodies.
+2. **`DeclResolves`** — finding 19 at this tier (§4): the capstones' input
+   precondition and the `IFEnvRelI` clause that threads it.  It is what the
+   §4.2 `readName` repairs discharge from, too.
+3. **§4's defects 1, 3 and 4**, which are this lane's to restate once (2) and
+   the `restrictTo` question are decided.
+
 ### Task #97-P5-Bracket — Theorem 2: the per-declaration bracket (2026-09-22, Opus under Fable)
 
 Branch `p5-bracket` off `arena`'s tip `0b79feae`.  The brief: close
@@ -53202,3 +53410,147 @@ three blocked specs want.
    `internName_spec`'s missing persistence clause, which is unchanged.
 3. **`Checker/Basis.lean`'s eight** need §2's restatement first, and then the
    one-line import.  They are a frontend-tier ask, not a checker-tier one.
+
+### Task #97-COMPOSE — the two theorems compose; the campaign has a root (2026-09-23, Opus under Fable)
+
+**Deliverable.**  `proof/ConRon/Capstone.lean` (its own library,
+`ConRonCapstone`; new gates step 16 `lake-capstone`) is the first module that
+imports both `ConRon.Bridge` (Theorem 1) and `ConRon.Refine2` (Theorem 2), and
+it states the binary's two headline theorems in the old campaign's shape:
+
+* **`ConRon.Capstone.model_exists`** — six accepting Rust runs of the
+  pipeline (`intern_reserved_pins → builtin_prelude_e → parse_chunks →
+  prepare_prelude → intern_all_pins → install_then_check`, on
+  `AState::init(EStore::empty())` and `PersTier::empty()`, exactly the
+  binary's order) give a twin state related to the Rust's final state, a twin
+  environment related to the Rust's `IFEnv`, its denotation `env`, and
+  `Nonempty (EnvModelM V .verified env)`;
+* **`ConRon.Capstone.no_False_declaration`** — with
+  `jsonWithTheoremFalse (absChunks chunks)`, the same six runs give `False`.
+
+**Both are composition only.**  `rust_stages` threads the six Rust runs through
+Refine2's six stage lemmas (`intern_reserved_pins_refines`,
+`builtin_prelude_e_refines`, `parse_chunks_refines`, `prepare_prelude_refines`,
+`intern_all_pins_refines`, `install_then_check_refines`) into six twin runs
+from `AState.init EStore.empty`; `runPipeline_ok_of_stages` reassembles those
+into an accepting `Arena.runPipeline`, which
+`Arena.no_False_declaration_pipeline` refutes; `stages_model` feeds the same
+stages to `Arena.installThenCheck_bridge` and con-leche's
+`checkDeclsPure_sound_of`.  The glue is ~60 lines; every fact is an existing
+theorem.  Census (pinned by `#guard_msgs`): both at `[propext, sorryAx,
+Classical.choice, Quot.sound]`.
+
+**The sorry frontier at landing** (dependency closure of the two roots,
+declarations whose own value mentions `sorryAx`; scratch script, not
+committed — the frontier tool is another agent's): **12**.
+`Bridge/Checker/Split` `Arena.installThenCheck_bridge`; `Bridge/Checker/Pins`
+`internAllPins_run`, `internReservedPins_run`; `Bridge/Frontend/Prepare`
+`hoistNatOpGround_run`; `Bridge/Frontend/Lines` `processLineCoreD_run`;
+`Refine2/Checker/Base` `check_value_group_refines`; `Refine2/Checker/Top`
+`annot_step_refines`, `intern_all_pins_refines`; `Refine2/Checker/Pins`
+`intern_reserved_pins_refines`; `Refine2/Frontend/Prepare`
+`prepare_prelude_refines`; `Refine2/Frontend/Top` `parse_chunks_refines`,
+`builtin_prelude_e_refines`.  Each of these is a single `sorry` that will pull
+in its tier's subtree when it is proved (`installThenCheck_bridge` the whole
+Theorem-1 fold, `parse_chunks_refines` the fifteen frontend leaves), so the
+number grows as it is worked top-down; `check_decl_step_refines` and the pure
+fold (`check_decls_pure_*`, `Arena.checkDeclsPure_bridge`) are NOT reachable —
+the binary runs the two-phase fold.
+
+#### The mismatches, and the named hypotheses
+
+Tag: owning lane; **P** = precondition (cheap, the tier may repair),
+**C** = conclusion or statement change (maintainer's ruling).
+
+1. **Import collision (FIXED here).**  `Arena/Main.lean` and
+   `Dump/Pins.lean` both declared a top-level `main`, so no module could
+   import Theorem 1's byte-level capstone (which imports `Arena.Main` for
+   `runPipeline`) and Theorem 2's tier (which reaches `Dump.Pins` through
+   `Refine.Pins`).  The forwarding `main` moved to the new
+   `ConRon/Arena/Exe.lean`, now the `con-ron-lean` executable's root.
+   Lane `Arena/`; done, nothing else touched.
+2. **`InitRel` — named hypothesis.**  Every Theorem-2 lemma takes
+   `AStateRel pers st lst ∧ AStateInv pers st` and concludes it for the
+   post-state; **nothing concludes it for the start state**: the Rust
+   `AState::init(EStore::empty())` under `PersTier::empty()` against the
+   twin's `AState.init EStore.empty`.  Checked satisfiable by reading both
+   sides: neither `EStore.empty` pre-seeds a table, both `Pins.empty` are
+   three word-0 handles and empty vectors, `scratch_on`/`shared_on` are
+   false, and `StoreWF EStore.empty` is `EStore.empty_wf`.  A new lemma
+   (18 empty `TblRel`s + `MemosRel`/`CachesRel`/`PinsRel` at empty + the
+   `HashMap2` invariants of `with_capacity`/`new`).  Lane `Refine2/Checker`
+   (or wherever `AStateRel` lives); **P**.
+3. **`BrOK` at `install_then_check` — discharged, through Theorem 1.**
+   `install_then_check_refines` needs the twin's scratch tier closed at its
+   entry; no Theorem-2 stage lemma concludes `scratch_on = false` (they carry
+   only `AStateRel`/`AStateInv`, whose `StoreRel.scratchOn` would transfer it
+   from a Rust fact nobody states).  The composition reads it off the TWIN
+   runs instead, with Theorem 1's frame lemmas (`internReservedPins_run`,
+   `builtinPreludeE_run`, `parseChunks_run`, `preparePrelude_run`,
+   `internAllPins_run`; glue `stages_frame`).  Legitimate — they are facts
+   about the twin alone — but it means Theorem 2's capstone depends on four
+   Theorem-1 stage lemmas at the seam.  No action unless the maintainer wants
+   Theorem 2 self-contained (then: Refine2 stage lemmas conclude
+   `rs.store.scratch_on = false`; lane `Refine2/{Checker,Frontend}`, **C**).
+4. **The flags are fixed.**  `Arena.runPipeline` hard-codes
+   `in_model = true`, `census = false`, and so does the only T1 capstone that
+   includes `internAllPins` (`_pipeline`); the composed theorems therefore
+   take `parse_chunks … true false`.  The binary reads
+   `CON_LECHE_INMODEL`/`CON_LECHE_INMODEL_CENSUS`, so a run with a
+   non-default flag is outside both theorems.  Fix: a flag-parametric
+   pipeline letter at (B) (`parseChunks_run` already is).  Lane
+   `Bridge/Frontend` (+ `Arena/` if `runPipeline` grows the parameters); **P**.
+5. **T1's parametric capstones skip a stage.**
+   `Arena.no_False_declaration` / `_prelude` run `installThenCheck` straight
+   after `preparePrelude`; the binary and `runPipeline` run `internAllPins`
+   between them.  They are therefore unusable for the composition (only
+   `_pipeline` is) and state a pipeline nobody runs.  Either restate them with
+   the pin walk or retire them in favour of `_pipeline`.  Lane
+   `Bridge/Frontend`; **P** (their hypotheses change, not their conclusion).
+6. **`hmr : Refine2.Frontend.ModellerRefines inst m inProcessModeller` —
+   named hypothesis, by design.**  The composition fixes the twin modeller to
+   `inProcessModeller`, because `_pipeline` does and because at it Theorem 1's
+   own `ModellerWF`/`ModellerRefines` are theorems.  The Rust side's modeller
+   (`crates/con-ron`'s `InProcess`) is not extracted, so Theorem 2's promise
+   stays open.  Lane: the modeller seam (DESIGN §8.2); no action.
+7. **`hsc : ScanSpec` — named hypothesis.**  Theorem 2's scanner seam;
+   its three clauses are theorems only in the out-of-build
+   `RefineOld/Frontend/`.  Lane `Refine2/Frontend`; **P** (port or re-point).
+8. **`hwf : ∀ p ∈ pins.val, NatOpPinSetWF p` — named hypothesis.**
+   `intern_all_pins_refines` asks for it; the decoder lemma
+   (`PinsWF.decode_wf`) is out-of-build `RefineOld/PinsWF.lean`, and the
+   binary's `pins_for_run` is driver code.  With the lemma ported the
+   hypothesis becomes `kernel.pins_decode.decode text = ok (.Ok pins)`, as in
+   the old campaign.  Lane `Refine2/Checker`; **P**.
+9. **`hk : CoreSpec .verified checkFuel`, `hind : IndSpec .verified`,
+   `hbytes` — named hypotheses, inherited unchanged** from
+   `Arena.no_False_declaration_pipeline`.  Lanes `Bridge/Core`,
+   `Bridge/Inductives`; `hbytes` is the prelude gate.  No mismatch.
+10. **The model's type (C, ruling).**  There is no Rust-level abstraction
+    FUNCTION from the Rust `IFEnv` to con-leche's `Env` — the store is
+    abstracted by a relation (`StoreRel`) — so `model_exists` can only say
+    "∃ twin state related to the Rust's, ∃ twin environment related to the
+    Rust's, whose denotation has a model".  The old campaign's
+    `Nonempty (Model V (absEnv e))` has no counterpart.  The Rust-to-twin
+    `IFEnvRel.env` IS functional (`absIEnv`), so the gap is exactly the
+    store; if a Rust-level letter is wanted, a `denote` through `StoreRel`
+    (uniqueness of the related twin store's denotation) is the lemma.
+    Lane `Refine2/` + ruling.
+11. **Trusted driver lines, now three (C, ruling).**  (a) the calling order
+    (as before); (b) the binary parses with `driver::parse_export_stream_d`
+    (the read loop), whose pure specification is `parse_chunks`; (c) **the
+    binary does not call `install_then_check`**: it calls
+    `driver::check_decls_driver`, the pool that freezes the store into a
+    fresh `PersTier` at the phase boundary and runs phase B on `jobs`
+    workers.  The composed theorems are about `install_then_check` at the
+    single `PersTier::empty()`.  (c) is new with task #97-P6-6b and is the
+    widest of the three.  `prepare_d` + `.decls` (the binary) vs
+    `prepare_prelude` (the theorem) is definitional, not a gap.
+12. **What lined up with no work** — the reason the composition is ~60
+    lines: every Theorem-2 stage lemma's abstraction is literally the next
+    stage's argument (`absPreludeIx`, `ParseResultDRel.decls = absIDeclArr`,
+    `absIDeclArr = (absIDeclL ·).toArray` by `rfl`, `absINatOpPinSetL`,
+    `absPins`, `absMode .Verified = .verified`), one `pers` threads all six
+    Rust stages as the binary does, and T1's `_pipeline` needs nothing about
+    the start state (it is `AState.init EStore.empty`, which is exactly what
+    `InitRel` relates the Rust start to).

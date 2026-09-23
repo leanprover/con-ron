@@ -99,24 +99,10 @@ comparison into the twin's `DecidableEq` at the abstraction: `Eq2Fwd` one way
 and injectivity the other, which is task #97-P5-0's rule 4 met at a handle
 rather than at a cons key.
 
-The three `*_eq2_abs` are PRIVATE because `Refine2/Inductives/Shape.lean`
-declares `nidx_eq2_abs` and `eidx_eq2_abs` of its own, and that file is ABOVE
-this one — neither can see the other, and `Refine2/Checker/Top.lean` imports
-both.  They should become one pair the next time the two tiers are touched
-together, in `Refine2/Checker/Shape.lean` where both can reach them. -/
-
-private theorem eidx_eq2_abs {e e1 : arena.handle.EIdx} {b1 : Bool}
-    (h : arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e e1 = ok b1) :
-    b1 = decide (absEIdx e = absEIdx e1) := by
-  rw [arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
-  rw [← Result.ok_injective h]
-  obtain ⟨w⟩ := e; obtain ⟨w'⟩ := e1
-  by_cases hw : w = w'
-  · subst hw; simp
-  · simp only [hw, decide_false]
-    refine (decide_eq_false ?_).symm
-    intro hc
-    exact hw (arena.handle.EIdx.mk.injEq .. ▸ absEIdx_inj hc)
+`nidx_eq2_abs_decide` / `eidx_eq2_abs_decide` are `Refine2/Checker/Shape.lean`'s
+(task #97-P5-Checker round 4 merged this file's private copies with
+`Refine2/Inductives/Shape.lean`'s public ones there); `lidx_eq2_abs` is this
+file's own, having no twin elsewhere. -/
 
 private theorem eidx_vec_beq_aux (n : Nat) :
     ∀ {a b : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o : Bool},
@@ -160,7 +146,7 @@ private theorem eidx_vec_beq_aux (n : Nat) :
         obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨hlt, hev⟩ := ConRon.Refine.ExprOps.vec_index_val he
         obtain ⟨hlt1, hev1⟩ := ConRon.Refine.ExprOps.vec_index_val he1
-        have hb1v := eidx_eq2_abs hb1
+        have hb1v := eidx_eq2_abs_decide hb1
         by_cases hc : b1 = true
         · rw [if_pos hc] at hrun
           obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -261,19 +247,6 @@ private theorem lidx_vec_beq_aux (n : Nat) :
             List.drop_eq_getElem_cons hbl, List.map_cons, List.cons.injEq]
           simp [hne]
 
-private theorem nidx_eq2_abs {e e1 : arena.handle.NIdx} {b1 : Bool}
-    (h : arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e e1 = ok b1) :
-    b1 = decide (absNIdx e = absNIdx e1) := by
-  rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
-  rw [← Result.ok_injective h]
-  obtain ⟨w⟩ := e; obtain ⟨w'⟩ := e1
-  by_cases hw : w = w'
-  · subst hw; simp
-  · simp only [hw, decide_false]
-    refine (decide_eq_false ?_).symm
-    intro hc
-    exact hw (arena.handle.NIdx.mk.injEq .. ▸ absNIdx_inj hc)
-
 private theorem nidx_vec_beq_aux (n : Nat) :
     ∀ {a b : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize} {o : Bool},
       a.val.length - i.val = n →
@@ -316,7 +289,7 @@ private theorem nidx_vec_beq_aux (n : Nat) :
         obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨hlt, hev⟩ := ConRon.Refine.ExprOps.vec_index_val he
         obtain ⟨hlt1, hev1⟩ := ConRon.Refine.ExprOps.vec_index_val he1
-        have hb1v := nidx_eq2_abs hb1
+        have hb1v := nidx_eq2_abs_decide hb1
         by_cases hc : b1 = true
         · rw [if_pos hc] at hrun
           obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -453,14 +426,14 @@ theorem i_constant_val_beq_refines {a b : arena.env.IConstantVal} {o : Bool}
   rw [arena.canon.i_constant_val_beq] at hrun
   obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   simp only [absIConstantVal, IConstantVal.mk.injEq]
-  refine beq_chain (nidx_eq2_abs hb1) hrun ?_
+  refine beq_chain (nidx_eq2_abs_decide hb1) hrun ?_
   intro o1 h
   obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have h2 := nidx_vec_beq_refines hb2
   simp only [absNIdxLFrom] at h2
   refine beq_chain (by simpa using h2) h ?_
   intro o2 h'
-  exact eidx_eq2_abs h'
+  exact eidx_eq2_abs_decide h'
 
 /-- `i_rec_rule_eq_but_rhs_refines`, stated HERE because `i_rec_rule_beq`
 consumes it and the file keeps the port's declaration order for its public
@@ -472,7 +445,7 @@ private theorem i_rec_rule_eq_but_rhs_aux {r r2 : arena.env.IRecRule} {o : Bool}
   rw [arena.canon.i_rec_rule_eq_but_rhs] at hrun
   obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   simp only [absIRecRule, IRecRule.mk.injEq, true_and]
-  refine beq_chain (nidx_eq2_abs hb) hrun ?_
+  refine beq_chain (nidx_eq2_abs_decide hb) hrun ?_
   intro o1 h
   refine beq_chain' absU_iff h ?_
   intro o2 h
@@ -496,7 +469,7 @@ theorem i_rec_rule_beq_refines {a b : arena.env.IRecRule} {o : Bool}
   have key : o = decide (({ absIRecRule a with rhs := default } =
       { absIRecRule b with rhs := default }) ∧ absEIdx a.rhs = absEIdx b.rhs) :=
     beq_chain (i_rec_rule_eq_but_rhs_aux hb1) hrun
-      (fun _ h => eidx_eq2_abs h)
+      (fun _ h => eidx_eq2_abs_decide h)
   -- the port compares `rhs` LAST and the twin's record has it fifth, so the
   -- two conjunctions are the same set in a different order
   rw [key, decide_eq_decide]

@@ -594,7 +594,7 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 ## 12. Gates
 
 `scripts/gates.sh` runs, in order, and stops at the first failure
-([the fifteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L60-L88)):
+([the sixteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L62-L96)):
 
 1. `cargo build` with warnings denied;
 2. `cargo test`;
@@ -617,6 +617,11 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
     a module of `proof/ConRon/Bridge/**`.  Task #97-P3-Ind round 5 found this
     the way it deserved to be found — a green gate run followed by a broken
     `lake build ConRonBridge`.
+16. `lake build ConRonCapstone` — **the composition** (task #97-COMPOSE):
+    `proof/ConRon/Capstone.lean`, the one module that imports both theorems,
+    and the binary's two root theorems `ConRon.Capstone.model_exists` and
+    `ConRon.Capstone.no_False_declaration` (Theorem 2 ∘ Theorem 1 ∘
+    con-leche), with their axiom census pinned.
 
 It ends with the summary lines of `progress.py` and `loc.py`.  The
 differential tests of §6.4 are not in the gates, since they need the
