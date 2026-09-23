@@ -1325,6 +1325,27 @@ theorem pin_of_reduce_bool_run₀ {pers st lst} {o}
     have h2 : absLsIdx a ≠ absLsIdx b := fun hc => hab (absLsIdx_inj hc)
     simp [h1, h2]
 
+/-! ## The projection-table entry -/
+
+/-- `arena::env::IProjEntry` as the twin's `IProjEntry`, field for field. -/
+def absIProjEntry (e : arena.env.IProjEntry) : IProjEntry :=
+  ⟨absNIdx e.struct_name, absU e.idx, e.level_params.val.map absNIdx, absU e.num_params,
+    absNIdx e.ctor, absU e.num_fields, absEIdx e.body, absLIdx e.field_sort,
+    absLIdx e.struct_sort, absU e.off⟩
+
+attribute [lockstep_simp] absIProjEntry
+
+@[lockstep] theorem snoc_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx)
+    (y : arena.handle.EIdx) :
+    LSP (arena.expr_ops.snoc_eidx_of xs y)
+      (fun r => TwinEq ((absEIdxList xs).toArray.push (absEIdx y)) (absEIdxArr r)) := by
+  intro r h
+  have h1 := ConRon.Refine2.ExprOps.snoc_eidx_of_refines h
+  simp only [ConRon.Refine2.ExprOps.absEIdxL] at h1
+  show _ = (r.val.map absEIdx).toArray
+  rw [h1]
+  simp [absEIdxList]
+
 /-! ## Store readers the leaves need -/
 
 attribute [lockstep_simp] absConstT
@@ -1852,7 +1873,13 @@ theorem ls_ofSim₀WF {α β : Type} {A : α → β} {W : α → Prop} {pers lst
   ls_ofSim₀WF (fun _ hm => read_names_m_run₀ hrel hinv hm)
     (fun _ hm => (read_names_m_wf₀ hrel hinv hm).1)
 
-/-! ## The pure `kernel::level` operations against the twin's `Level` functions -/
+/-! ## The pure `kernel::level` operations against the twin's `Level` functions
+
+A constructed tree's fact is `WF u ∧ TwinEq <twin expr> (abs u)`: the twin
+side is rewritten to the port's value, and the well-formedness stays in the
+context for the next operation.  `lockstep`'s tidy step does not split a
+conjunction whose second half is not an equation between a variable and a
+term, so `Leaves.lean`'s `lockstep_a1` splits it. -/
 
 @[lockstep] theorem is_equiv_ls (l r : kernel.level.Level) (hl : ConRon.Refine.LevelWF l)
     (hr : ConRon.Refine.LevelWF r) :
@@ -1952,35 +1979,35 @@ theorem is_equiv_list_from_refines (ls rs : alloc.vec.Vec kernel.level.Level)
     (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs)
     (hl : ConRon.Refine.LevelWF l) :
     LSP (kernel.level.subst ks vs l)
-      (fun u => ConRon.Refine.LevelWF u ∧ ConRon.Refine.absLevel u =
-        ConLeche.Level.subst (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
-          (ConRon.Refine.absLevel l)) := by
+      (fun u => ConRon.Refine.LevelWF u ∧ TwinEq
+        (ConLeche.Level.subst (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
+          (ConRon.Refine.absLevel l)) (ConRon.Refine.absLevel u)) := by
   intro u h
   obtain ⟨h1, h2⟩ := ConRon.Refine.Level.subst_refines hl hks hvs h
-  exact ⟨h2, h1⟩
+  exact ⟨h2, h1.symm⟩
 
 @[lockstep] theorem level_param_ls (n : kernel.name.Name) (hn : ConRon.Refine.NameWF n) :
     LSP (kernel.level.param n)
       (fun u => ConRon.Refine.LevelWF u ∧
-        ConRon.Refine.absLevel u = .param (ConRon.Refine.absName n)) :=
-  fun _ h => ⟨ConRon.Refine.Level.param_wf' h hn, ConRon.Refine.Level.param_refines h⟩
+        TwinEq (.param (ConRon.Refine.absName n)) (ConRon.Refine.absLevel u)) :=
+  fun _ h => ⟨ConRon.Refine.Level.param_wf' h hn, (ConRon.Refine.Level.param_refines h).symm⟩
 
 @[lockstep] theorem level_zero_ls :
     LSP kernel.level.zero
-      (fun u => ConRon.Refine.LevelWF u ∧ ConRon.Refine.absLevel u = .zero) :=
-  fun _ h => ⟨ConRon.Refine.Level.zero_wf' h, ConRon.Refine.Level.zero_refines h⟩
+      (fun u => ConRon.Refine.LevelWF u ∧ TwinEq .zero (ConRon.Refine.absLevel u)) :=
+  fun _ h => ⟨ConRon.Refine.Level.zero_wf' h, (ConRon.Refine.Level.zero_refines h).symm⟩
 
 @[lockstep] theorem level_subst_pw_ls (ks : alloc.vec.Vec kernel.name.Name)
     (vs : alloc.vec.Vec kernel.level.Level) (pw : kernel.prop_when.PropWhen)
     (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs)
     (hpw : ConRon.Refine.PropWhenWF pw) :
     LSP (kernel.level.subst_pw ks vs pw)
-      (fun r => ConRon.Refine.PropWhenWF r ∧ ConRon.Refine.absPropWhen r =
-        ConLeche.Level.substPW (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
-          (ConRon.Refine.absPropWhen pw)) := by
+      (fun r => ConRon.Refine.PropWhenWF r ∧ TwinEq
+        (ConLeche.Level.substPW (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
+          (ConRon.Refine.absPropWhen pw)) (ConRon.Refine.absPropWhen r)) := by
   intro r h
   obtain ⟨h1, h2⟩ := ConRon.Refine.ExprOps.subst_pw_refines hks hvs hpw h
-  exact ⟨h2, h1⟩
+  exact ⟨h2, h1.symm⟩
 
 @[lockstep] theorem prop_when_is_never_ls (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.is_never pw)

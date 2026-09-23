@@ -53,6 +53,27 @@ theorem nat_beq_eq_decide (a b : Nat) : (a == b) = decide (a = b) := by
 
 attribute [local lockstep_simp] decide_usize_eq_len absIConstantVal_levelParams_length
 
+attribute [local lockstep_simp] absIConstantVal absIIndCaps
+
+open Lean Elab Tactic in
+/-- Rewrite the twin side with the context's `TwinEq` facts; fails when
+nothing changes. -/
+elab "a1_twin_eqs" : tactic => do
+  let g ← getMainGoal
+  let g' ← simpTwinEqs g
+  if g' == g then throwError "a1_twin_eqs: no progress"
+  replaceMainGoal [g']
+
+/-- `lockstep_core`, and a conjunction in the context split whenever it
+stops: a constructed level's fact is `WF u ∧ TwinEq …` (`PrimsA1.lean`), which
+the tidy step leaves whole. -/
+macro "lockstep_a1" : tactic =>
+  `(tactic| repeat' (first | lockstep_core_step | (casesm* _ ∧ _) | a1_twin_eqs))
+
+theorem some_beq_some_true (b : Bool) : (some b == some true) = b := by cases b <;> rfl
+
+attribute [local lockstep_simp] some_beq_some_true Bool.not_eq_true
+
 /-! ## The pinned constants -/
 
 @[lockstep] theorem empty_levels_ls {pers st lst}
@@ -229,5 +250,49 @@ the twin's `what` is free (messages are never compared). -/
       (lvlsEq? (absLsIdx us) (absLsIdx vs)) := by
   rw [arena.core.lvls_eq, lvlsEq?]
   lockstep_core
+
+/-! ## The instantiated-constant caches -/
+
+@[lockstep] theorem const_ty_at_ls {pers st cv us lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.const_ty_at pers st cv us) lst
+      (constTyAt (absIConstantVal cv) (absLsIdx us)) := by
+  rw [arena.core.const_ty_at, constTyAt]
+  lockstep_a1
+
+@[lockstep] theorem rule_rhs_at_ls {pers st rec_name ctor lps rhs us lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.rule_rhs_at pers st rec_name ctor lps rhs us) lst
+      (ruleRhsAt (absNIdx rec_name) (absNIdx ctor) (lps.val.map absNIdx) (absEIdx rhs)
+        (absLsIdx us)) := by
+  rw [arena.core.rule_rhs_at, ruleRhsAt]
+  lockstep_a1
+
+/-! ## The level predicates -/
+
+@[lockstep] theorem proj_entry_fire_ok_ls {pers st entry us lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.proj_entry_fire_ok pers st entry us) lst
+      ((absIProjEntry entry).fireOk (absLsIdx us)) := by
+  rw [arena.core.proj_entry_fire_ok, IProjEntry.fireOk]
+  lockstep_a1
+
+/-- `hcaps`: the stored zero-ness datum is a well-formed `PropWhen` (a
+representation fact about the Rust input `caps`; `level::subst_pw`'s
+refinement needs it). -/
+@[lockstep] theorem caps_never_zero_ls {pers st lps us caps lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hcaps : ConRon.Refine.PropWhenWF caps.sort_z) :
+    LS pers (fun a b => b = a) (arena.core.caps_never_zero pers st lps us caps) lst
+      (capsNeverZero (lps.val.map absNIdx) (absLsIdx us) (absIIndCaps caps)) := by
+  rw [arena.core.caps_never_zero, capsNeverZero]
+  lockstep_a1
+
+@[lockstep] theorem proj_entry_type_at_ls {pers st entry us targs pe lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.proj_entry_type_at pers st entry us targs pe) lst
+      ((absIProjEntry entry).typeAt (absLsIdx us) (absEIdxList targs) (absEIdx pe)) := by
+  rw [arena.core.proj_entry_type_at, IProjEntry.typeAt]
+  lockstep_a1
 
 end ConRon.Refine2.Lockstep
