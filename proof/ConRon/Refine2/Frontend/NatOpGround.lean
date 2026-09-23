@@ -342,7 +342,125 @@ loop — the port fuses the two, which is sound because the twin's inner loop
 writes only `idx`. -/
 theorem hoist_name_index_refines {ds m}
     (h : frontend.nat_op_ground.hoist_name_index ds = ok m) :
-    NameIdxRel m (nameIndex (absIDeclArr ds) ∅ 0) := by sorry
+    NameIdxRel m (nameIndex (absIDeclArr ds) ∅ 0) := by
+  rw [frontend.nat_op_ground.hoist_name_index] at h
+  obtain ⟨m0, hm0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i0, -, n0⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hm0
+  have hrel0 : NameIdxRel m0 ∅ := ⟨ConRon.Refine.HashMap2.RelOn_empty n0, i0⟩
+  have hsz : ds.val.length < 2 ^ UScalarTy.U64.numBits := by
+    have h2 := ds.property
+    have h3 : Std.Usize.max < 2 ^ UScalarTy.Usize.numBits := by
+      rw [Std.Usize.max_def, Std.Usize.numBits_def]
+      have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+      omega
+    have h4 : 2 ^ UScalarTy.Usize.numBits ≤ 2 ^ UScalarTy.U64.numBits := by
+      apply Nat.pow_le_pow_right (by decide)
+      rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
+      cases System.Platform.numBits_eq with
+      | inl h => rw [h]; decide
+      | inr h => rw [h]
+    omega
+  -- the inner loop: one record's names
+  have hin : ∀ (i : Std.Usize) (ns : alloc.vec.Vec arena.handle.NIdx), i.val < ds.val.length →
+      ∀ (j : Std.Usize) (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) lidx o,
+      NameIdxRel idx lidx →
+      frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx i ns (alloc.vec.Vec.len ns) j
+        = ok o →
+      NameIdxRel o (insertNames lidx i.val ((ns.val.drop j.val).map absNIdx)) := by
+    intro i ns hi
+    refine cursor_induction (fun j : Std.Usize => j.val) ns.val.length
+      (fun j (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) => ∀ lidx o,
+        NameIdxRel idx lidx →
+        frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx i ns (alloc.vec.Vec.len ns) j
+          = ok o →
+        NameIdxRel o (insertNames lidx i.val ((ns.val.drop j.val).map absNIdx))) ?_ ?_
+    · intro j idx hn lidx o hr h
+      rw [frontend.nat_op_ground.hoist_name_index_loop0_loop0.eq_def] at h
+      rw [if_neg (show ¬ j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le hn]; exact hr
+    · intro j idx hj ih lidx o hr h
+      rw [frontend.nat_op_ground.hoist_name_index_loop0_loop0.eq_def] at h
+      rw [if_pos (show j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨idx1, hidx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hj1v : j1.val = j.val + 1 := by
+        have := ConRon.Refine.Nat.uadd_val hj1; simpa using this
+      have hnv : ns.val[j.val]'hj = n := by
+        have h1 := vec_index_some hn
+        rw [List.getElem?_eq_getElem hj] at h1
+        exact Option.some_injective _ h1
+      have hbv : b = lidx.contains (absNIdx n) := by
+        rw [ConRon.Refine.HashMap2.contains_key_refines_wf nidx_eq2 hr.2 (anyNKeysOk _)
+          trivial hb, Std.HashMap.contains_eq_isSome_getElem?, ← hr.1 n trivial]
+        cases toFun idx n <;> rfl
+      rw [List.drop_eq_getElem_cons hj, hnv, List.map_cons, insertNames]
+      have hrec : NameIdxRel idx1 (if lidx.contains (absNIdx n) then lidx
+          else lidx.insert (absNIdx n) i.val) := by
+        split at hidx1
+        · rename_i hbt
+          cases Result.ok_injective hidx1
+          rw [← hbv, hbt, if_pos rfl]; exact hr
+        · rename_i hbf
+          obtain ⟨n1, hn1, hidx1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hidx1
+          obtain ⟨i1, hi1, hidx1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hidx1
+          obtain ⟨⟨old, idx2⟩, hins, hidx1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hidx1
+          cases Result.ok_injective hidx1
+          have hn1v : n1 = n := dupId_nidx _ _ hn1
+          subst hn1v
+          have hi1v : i1.val = i.val := by
+            simp only [lift, Result.ok.injEq] at hi1; subst hi1; exact usize_cast_u64_val' i
+          have hbf' : lidx.contains (absNIdx n1) = false := by rw [← hbv]; simpa using hbf
+          rw [hbf', if_neg (by simp)]
+          obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+            (fun a b _ _ e => absNIdx_inj e) hr.2 (anyNKeysOk _) hr.1 trivial hins
+          obtain ⟨hI, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hr.2
+            (anyNKeysOk _) trivial hins
+          refine ⟨?_, hI⟩
+          have : absU i1 = i.val := hi1v
+          rw [← this]; exact hR
+      have := ih j1 idx1 hj1v _ o hrec h
+      rwa [hj1v] at this
+  -- the outer loop: record by record
+  have hout : ∀ (i : Std.Usize) (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) lidx o,
+      NameIdxRel idx lidx →
+      frontend.nat_op_ground.hoist_name_index_loop0 ds idx (alloc.vec.Vec.len ds) i = ok o →
+      NameIdxRel o (nameIndex (absIDeclArr ds) lidx i.val) := by
+    refine cursor_induction (fun i : Std.Usize => i.val) ds.val.length
+      (fun i (idx : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64) => ∀ lidx o,
+        NameIdxRel idx lidx →
+        frontend.nat_op_ground.hoist_name_index_loop0 ds idx (alloc.vec.Vec.len ds) i = ok o →
+        NameIdxRel o (nameIndex (absIDeclArr ds) lidx i.val)) ?_ ?_
+    · intro i idx hn lidx o hr h
+      rw [frontend.nat_op_ground.hoist_name_index_loop0.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len ds by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [nameIndex, dif_neg (by simp [absIDeclArr]; omega)]; exact hr
+    · intro i idx hi ih lidx o hr h
+      rw [frontend.nat_op_ground.hoist_name_index_loop0.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len ds by scalar_tac)] at h
+      obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨ns, hns, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨idx1, hidx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := by
+        have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+      have hdv : ds.val[i.val]'hi = d := by
+        have h1 := vec_index_some hd
+        rw [List.getElem?_eq_getElem hi] at h1
+        exact Option.some_injective _ h1
+      have hI := hin i ns hi 0#usize idx lidx idx1 hr hidx1
+      have hlt : i.val < (absIDeclArr ds).size := by simpa [absIDeclArr] using hi
+      rw [nameIndex, dif_pos hlt]
+      have hnames : (absIDeclArr ds)[i.val].names = ns.val.map absNIdx := by
+        rw [i_declaration_names_abs hns, ← hdv]; simp [absIDeclArr]
+      rw [hnames]
+      have := ih i2 idx1 hi2v _ o (by simpa using hI) h
+      rwa [hi2v] at this
+  exact hout 0#usize m0 ∅ m hrel0 h
 
 /-- **`idx_get`** — the name index probe. -/
 theorem idx_get_refines {rm lm n o} (hr : NameIdxRel rm lm)
