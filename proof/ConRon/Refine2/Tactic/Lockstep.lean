@@ -1430,7 +1430,10 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
       match kind with
       | .state | .write =>
         -- the twin ends in the partner action where the Rust still binds
-        if !(x.isAppOfArity ``Bind.bind 6) then
+        -- (not when the twin's head is a test still to decide: the zip then
+        -- decides it first, `stepCore`'s twin `ite`/`dite` moves)
+        if !(x.isAppOfArity ``Bind.bind 6) && !(x.isAppOfArity ``ite 5) &&
+            !(x.isAppOfArity ``dite 5) then
           let gs ← applyRule g ``LS.twin_bind_pure
           return [← pick gs `h]
         throw e
