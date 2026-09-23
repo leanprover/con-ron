@@ -72,6 +72,7 @@ theorem absEIdxArr_push (v w : alloc.vec.Vec arena.handle.EIdx) (x)
     absPiStk (alloc.vec.Vec.new (arena.handle.LIdx × kernel.prop_when.PropWhen)) = #[] := rfl
 
 attribute [lockstep_simp] ConRon.Refine.absBinderMeta absConstT
+attribute [simp] absLamStk absPiStk
 
 
 /-! ## The io view of the lane knot
@@ -94,6 +95,23 @@ rebound to `inferIO`; every other slot is the lane knot's own, by iota. -/
 @[lockstep_simp] theorem ensureSort_laneKnotAt (m fe l io f lfe d e) :
     ensureSort (laneKnotAt m fe l io f) lfe d e = ensureSort (laneKnot m fe l f) lfe d e := by
   cases io <;> rfl
+
+/-- `!=` is `!(==)`, so the tag tests `t.tag != ETag.lam` reduce with the
+`absU32_beq_*` equations. -/
+@[lockstep_simp] theorem bne_eq_not_beq' {α : Type} [BEq α] (a b : α) : (a != b) = !(a == b) := rfl
+
+attribute [lockstep_simp] Bool.not_eq_true' decide_eq_false_iff_not not_not
+
+/-- The port's `if t != ETAG_LAM` as a proposition, both polarities. -/
+@[lockstep_simp] theorem u32_bne_true (a b : Std.U32) : ((a != b) = true) = ¬ a = b := by
+  by_cases h : a = b <;> simp [h]
+@[lockstep_simp] theorem u32_not_bne_true (a b : Std.U32) : (¬ (a != b) = true) = (a = b) := by
+  by_cases h : a = b <;> simp [h]
+
+/-- The port's `u32` `==` is `decide`, the shape the `absU32_beq_*` equations
+leave on the twin side. -/
+@[lockstep_simp] theorem u32_beq_decide (a b : Std.U32) : (a == b) = decide (a = b) := by
+  by_cases h : a = b <;> simp [h]
 
 /-! ## Rust-only value steps -/
 
@@ -169,6 +187,26 @@ theorem lam_pw_wf_ls {pers} (hx : ExprOpsHyp pers) {st lst}
     LSR pers (fun a b => optPwWF a ∧ b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h)
       st lst (lamPw (absEIdx h)) := by
   sorry
+
+theorem lam_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {x : arena.handle.EIdx × kernel.expr.BinderMeta} (h : stk1.val = stk.val ++ [x])
+    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw) (hx : ConRon.Refine.PropWhenWF x.2.pw) :
+    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [h, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact hs p hp
+  · exact hx
+
+theorem pi_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)}
+    {x : arena.handle.LIdx × kernel.prop_when.PropWhen} (h : stk1.val = stk.val ++ [x])
+    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2) (hx : ConRon.Refine.PropWhenWF x.2) :
+    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2 := by
+  intro p hp
+  rw [h, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact hs p hp
+  · exact hx
 
 /-! ## Reads -/
 

@@ -219,4 +219,34 @@ end spineIO
       simp only [vec_len_abs]
       rw [if_neg hne, absLamStk_last_pw stk _ (by assumption) (by scalar_tac), heq]
 
+
+theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers vis st mode lane fu fe lfe d peel t k fvs stk lst},
+      ExprOpsHyp pers → (peel : Std.U64).val = n →
+      (∀ p ∈ (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)).val,
+        ConRon.Refine.PropWhenWF p.2.pw) →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.infer_lams pers vis st mode lane fu fe d peel t k fvs stk) lst
+        (inferLams (ConRon.Refine.absMode mode)
+          (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absU peel)
+          (absEIdx t) (absU k) (absEIdxArr fvs) (absLamStk stk)) := by
+  have hvb := @view_bind_wf_ls
+  induction n with
+  | zero =>
+    intro pers vis st mode lane fu fe lfe d peel t k fvs stk lst hx hn hstk hrel hinv hctx hf
+    rw [show absU peel = 0 from hn, inferLams, arena.core.infer_lams]
+    lockstep_e
+  | succ m ih =>
+    intro pers vis st mode lane fu fe lfe d peel t k fvs stk lst hx hn hstk hrel hinv hctx hf
+    rw [show absU peel = m + 1 from hn, inferLams, arena.core.infer_lams]
+    lockstep_e
+    all_goals
+      -- glue: the pushed stack's well-formedness (the datum is `view_bind`'s)
+      simp only [optBindWF] at *
+      refine LS.tail (ih hx ?_ (lam_stk_push_wf (by assumption) hstk (by assumption))
+        hrel hinv hctx hf) ?_ (fun _ _ h => h)
+      · lockstep_side
+      · lockstep_congr
+
 end ConRon.Refine2.Lockstep
