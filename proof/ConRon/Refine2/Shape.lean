@@ -22,7 +22,22 @@ measured and round 3 said the task-#70 idiom does not mind.
 | `.Err (.Native _)` | **nothing** (§8.2: "the port's `Native` error claims nothing") |
 | an Aeneas `fail`/`div` | nothing: every lemma's hypothesis is `f … = ok …` |
 
-## Why `Ext`, and why an existential state
+## The lockstep ruling (task #97-T2-LOCKSTEP): `AOut₀`/`Sim₀`/`SimS₀`
+
+Theorem 2 is a lockstep refinement: the Rust and the twin do the same
+operations from related states, and the relation says only that the two sides
+hold the same data in different representations (`AStateRel₀`).  **No
+semantic invariant lives in Theorem 2**: `StoreWF` and `Ext` are Theorem 1's
+(which proves `StoreWF` along its own run).  The statements are therefore
+`AOut₀`/`Sim₀`/`SimS₀`, at the end of this file.  `AOut`/`Sim`/`SimS` below,
+with their `AStateRel` (= `AStateRel₀ ∧ StoreWF`) and `Ext`, are
+**deprecated shims** kept until every lane has moved (`Sim.to₀`,
+`SimS.to₀` project a proved old statement onto the new one).  The next
+paragraph is the old shapes' rationale, kept for the record: its premise,
+that `orElseAttempt` resumes at the pre-attempt store where the port keeps the
+appends, is divergence D4, which step 1 of the lockstep task fixes in the twin.
+
+## Why `Ext` (historical), and why an existential state
 
 **`Ext`** (`Arena/Denote.lean`'s, the conjunct con-leche's own `SimAt`
 carries) is in the success arm because `orElseAttempt` needs it and nothing
@@ -165,7 +180,8 @@ theorem AErrSim.of_eq {γ : Type} {e : kernel.core_types.CheckError}
 
 /-! ## The whole outcome -/
 
-/-- The obligation a Rust outcome puts on the twin's run.  `lst` is the
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `AOut₀`.
+The obligation a Rust outcome puts on the twin's run.  `lst` is the
 twin state the call STARTED in (the one `Ext` is measured from and the one
 `AStateRel pers st lst` relates to the Rust's pre-state). -/
 def AOut {α β : Type} (A : α → β) (WF : α → Prop)
@@ -235,7 +251,8 @@ One definition for the whole tier, over the Rust outcome PAIR the arena's
 functions return (`(Result R CheckError) × AState`), so that a lemma's
 conclusion is one application and the `@[grind →]` rules key on it. -/
 
-/-- The simulation statement for a state-threading Rust function. -/
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `Sim₀`.
+The simulation statement for a state-threading Rust function. -/
 def Sim {α β : Type} (A : α → β) (WF : α → Prop)
     (pers : arena.store.PersTier) (lst : AState)
     (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
@@ -310,7 +327,8 @@ theorem SimR.toSimRO {α β γ : Type} {A : α → β} {obs : β → γ} {lst : 
     {r : α} {x : AM β} (h : SimR A lst r x) : SimRO A obs lst r x :=
   ⟨A r, h, rfl⟩
 
-/-- **The total state-threading simulation**, for the Rust functions whose
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `SimS₀`.
+**The total state-threading simulation**, for the Rust functions whose
 signature is `Result AState` with no inner `Result` at all — the thirteen memo
 inserts, the thirteen memo clears, `enter_scratch`/`drop_scratch`/
 `flush_caches`.  They cannot fail, so there is no error arm and the twin's
@@ -331,6 +349,111 @@ theorem SimS.apply {pers : arena.store.PersTier} {lst : AState}
     ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel pers st' lst' ∧
       AStateInv pers st' ∧ Ext lst.store lst'.store := h
 
+/-! ## The lockstep outcome (task #97-P5-Core round 4)
+
+`AOut` over `AStateRel₀` and without `Ext` or a `WF` slot: what a Theorem-2
+statement concludes once the twin's own invariants (`StoreWF`, and `Ext`,
+which is a statement about denotation) are Theorem 1's.  The Core tier's
+`KnotRel`/`BodyRel` are stated with it; `Sim₀.toSim` is the projection back
+for a consumer that still wants `Sim`, given the twin's two facts from
+elsewhere. -/
+
+/-- The lockstep obligation a Rust outcome puts on the twin's run. -/
+def AOut₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier)
+    (o : core.result.Result α kernel.core_types.CheckError)
+    (st' : arena.monad.AState)
+    (x : Except Arena.CheckError (β × AState)) : Prop :=
+  match o with
+  | .Ok r => ∃ lst', x = .ok (A r, lst') ∧ AStateRel₀ pers st' lst' ∧
+      AStateInv pers st'
+  | .Err e => AErrSim e x
+
+theorem AOut₀.ok {α β : Type} {A : α → β} {r : α}
+    {pers : arena.store.PersTier} {lst' : AState} {st' : arena.monad.AState}
+    {x : Except Arena.CheckError (β × AState)}
+    (hx : x = .ok (A r, lst')) (hrel : AStateRel₀ pers st' lst')
+    (hinv : AStateInv pers st') : AOut₀ A pers (.Ok r) st' x :=
+  ⟨lst', hx, hrel, hinv⟩
+
+theorem AOut₀.err {α β : Type} {A : α → β} {e : kernel.core_types.CheckError}
+    {pers : arena.store.PersTier} {st' : arena.monad.AState}
+    {x : Except Arena.CheckError (β × AState)} (h : AErrSim e x) :
+    AOut₀ A pers (.Err e) st' x := h
+
+theorem AOut₀.of_eq {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {o : core.result.Result α kernel.core_types.CheckError}
+    {st' : arena.monad.AState} {x y : Except Arena.CheckError (β × AState)}
+    (h : AOut₀ A pers o st' x) (hxy : y = x) : AOut₀ A pers o st' y := by
+  rw [hxy]; exact h
+
+/-- Every `AOut` is a lockstep outcome. -/
+theorem AOut.to₀ {α β : Type} {A : α → β} {WF : α → Prop}
+    {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError}
+    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
+    (h : AOut A WF pers lst o st' x) : AOut₀ A pers o st' x := by
+  cases o with
+  | Err e => exact h
+  | Ok r =>
+    obtain ⟨lst', hx, h1, h2, -⟩ := h
+    exact ⟨lst', hx, h1.to₀, h2⟩
+
+/-- The lockstep simulation statement for a state-threading Rust function. -/
+def Sim₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
+    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
+    (x : AM β) : Prop :=
+  AOut₀ A pers o.1 o.2 (x.run lst)
+
+theorem Sim₀.apply {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {lst : AState} {r : α} {st' : arena.monad.AState} {x : AM β}
+    (h : Sim₀ A pers lst (.Ok r, st') x) :
+    ∃ lst', x.run lst = .ok (A r, lst') ∧ AStateRel₀ pers st' lst' ∧
+      AStateInv pers st' := h
+
+theorem Sim₀.apply_err {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {lst : AState} {e : kernel.core_types.CheckError} {st' : arena.monad.AState}
+    {x : AM β} (h : Sim₀ A pers lst (.Err e, st') x) : AErrSim e (x.run lst) := h
+
+theorem Sim.to₀ {α β : Type} {A : α → β} {WF : α → Prop}
+    {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : Sim A WF pers lst o x) : Sim₀ A pers lst o x := AOut.to₀ h
+
+/-- **The projection back to `Sim`**, for a consumer that still wants
+`AStateRel` and `Ext`: the twin's two facts about its own run — the store it
+ends at is well formed and extends the one it started at — are supplied from
+outside (Theorem 1), not threaded through the lockstep statement. -/
+theorem Sim₀.toSim {α β : Type} {A : α → β} {WF : α → Prop}
+    {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : Sim₀ A pers lst o x)
+    (htw : ∀ b lst', x.run lst = .ok (b, lst') →
+      StoreWF lst'.store ∧ Ext lst.store lst'.store)
+    (hwf : ∀ r, o.1 = .Ok r → WF r) : Sim A WF pers lst o x := by
+  obtain ⟨o1, o2⟩ := o
+  cases o1 with
+  | Err e => exact h
+  | Ok r =>
+    obtain ⟨lst', hx, h1, h2⟩ := h
+    obtain ⟨hw, he⟩ := htw _ _ hx
+    exact ⟨lst', hx, h1.of₀ hw, h2, he, hwf r rfl⟩
+
+/-- The lockstep outcome of a twin action that cannot fail and answers `()`. -/
+def SimS₀ (pers : arena.store.PersTier) (lst : AState)
+    (st' : arena.monad.AState) (x : AM Unit) : Prop :=
+  ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel₀ pers st' lst' ∧
+    AStateInv pers st'
+
+theorem SimS₀.mk {pers : arena.store.PersTier} {lst lst' : AState}
+    {st' : arena.monad.AState} {x : AM Unit}
+    (hx : x.run lst = .ok ((), lst')) (hrel : AStateRel₀ pers st' lst')
+    (hinv : AStateInv pers st') : SimS₀ pers lst st' x := ⟨lst', hx, hrel, hinv⟩
+
+theorem SimS₀.apply {pers : arena.store.PersTier} {lst : AState}
+    {st' : arena.monad.AState} {x : AM Unit} (h : SimS₀ pers lst st' x) :
+    ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel₀ pers st' lst' ∧
+      AStateInv pers st' := h
+
 /-! ## `Ext` at a function that appends nothing
 
 The two lemmas every reader's `Sim` conclusion needs, and the one every bind
@@ -338,5 +461,58 @@ needs.  `Arena/Denote.lean` proves `Ext.refl` and `Ext.trans`; these name
 them in the shape the closer wants. -/
 
 theorem ext_of_eq {a b : EStore} (h : b = a) : Ext a b := by rw [h]; exact Ext.refl a
+
+/-! ## The lockstep shapes, completed (task #97-T2-LOCKSTEP step 1)
+
+Task #97-T2-AUDIT's ruling: Theorem 2 is a lockstep refinement, so its
+statements are `AOut₀`/`Sim₀`/`SimS₀` (above) over `AStateRel₀`, and nothing
+about the twin's store (`StoreWF`, `Ext`) is carried.  `AOut`, `Sim`, `SimS`
+and `AStateRel` stay as **deprecated shims** until every lane has moved; the
+lemmas here are the rest of the kit a lane needs to move: the error arms, the
+destructors, and the projections from the old shapes.  A result that wants a
+well-formedness predicate states it through `SimRel₀`'s relation
+(`Refine2/Checker/Shape.lean`), as `SimRel` already does. -/
+
+theorem AOut₀.native {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)} (m) :
+    AOut₀ A pers (.Err (.Native m)) st' x := AErrSim.native m
+
+theorem AOut₀.dest {α β : Type} {A : α → β} {r : α}
+    {pers : arena.store.PersTier} {st' : arena.monad.AState}
+    {x : Except Arena.CheckError (β × AState)} (h : AOut₀ A pers (.Ok r) st' x) :
+    ∃ lst', x = .ok (A r, lst') ∧ AStateRel₀ pers st' lst' ∧
+      AStateInv pers st' := h
+
+theorem AOut₀.destErr {α β : Type} {A : α → β}
+    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
+    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
+    (h : AOut₀ A pers (.Err e) st' x) : AErrSim e x := h
+
+theorem Sim₀.mk {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : AOut₀ A pers o.1 o.2 (x.run lst)) : Sim₀ A pers lst o x := h
+
+theorem Sim₀.dest {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : Sim₀ A pers lst o x) : AOut₀ A pers o.1 o.2 (x.run lst) := h
+
+/-- The old total simulation is a lockstep one. -/
+theorem SimS.to₀ {pers : arena.store.PersTier} {lst : AState}
+    {st' : arena.monad.AState} {x : AM Unit} (h : SimS pers lst st' x) :
+    SimS₀ pers lst st' x := by
+  obtain ⟨lst', hx, h1, h2, -⟩ := h
+  exact ⟨lst', hx, h1.to₀, h2⟩
+
+/-- Back to the old total simulation, given the twin's two facts about its own
+run from Theorem 1. -/
+theorem SimS₀.toSimS {pers : arena.store.PersTier} {lst : AState}
+    {st' : arena.monad.AState} {x : AM Unit} (h : SimS₀ pers lst st' x)
+    (htw : ∀ lst', x.run lst = .ok ((), lst') →
+      StoreWF lst'.store ∧ Ext lst.store lst'.store) : SimS pers lst st' x := by
+  obtain ⟨lst', hx, h1, h2⟩ := h
+  obtain ⟨hw, he⟩ := htw _ hx
+  exact ⟨lst', hx, h1.of₀ hw, h2, he⟩
 
 end ConRon.Refine2
