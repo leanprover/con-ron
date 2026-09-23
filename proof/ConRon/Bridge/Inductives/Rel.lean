@@ -2485,6 +2485,76 @@ theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | proj n i sub =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; intro _ _ h; cases h
 
+/-- con-leche: none — a denoting telescope's suffix denotes the suffix. -/
+theorem denoteBinders_drop {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
+      denoteBinders st bs = some xs → ∀ (n : Nat),
+        denoteBinders st (bs.drop n) = some (xs.drop n) := by
+  intro bs
+  induction bs with
+  | nil => intro xs h n; simp only [denoteBinders, Option.some.injEq] at h; subst h; simp [denoteBinders]
+  | cons b bs ih =>
+    intro xs h n
+    obtain ⟨t, m⟩ := b
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some tP =>
+      cases hbs : denoteBinders st bs with
+      | none => rw [ht, hbs] at h; simp at h
+      | some rest =>
+        rw [ht, hbs] at h
+        obtain rfl := (Option.some.inj h).symm
+        cases n with
+        | zero => simp only [List.drop_zero, denoteBinders, ht, hbs]
+        | succ n => simp only [List.drop_succ_cons]; exact ih hbs n
+
+/-- con-leche: none — `List.anyM` of a pure-grade test over a denoting
+binder telescope, with a store invariant `Q`: the verdict is the pure
+`List.any`. -/
+theorem anyM_B_pstep {f : EIdx × BinderMeta → AM Bool} {F : Expr × BinderMeta → Bool}
+    (Q : EStore → Prop) (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (b : EIdx × BinderMeta) (bP : Expr × BinderMeta) (s₀ s' : AState) (x : Bool),
+      StateOK s₀ → Q s₀.store → denoteE s₀.store b.1 = some bP.1 → b.2 = bP.2 →
+      f b s₀ = .ok (x, s') → PStep s₀ s' ∧ x = F bP) :
+    ∀ (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)) (s₀ s' : AState)
+      (x : Bool), StateOK s₀ → Q s₀.store → denoteBinders s₀.store bs = some bsP →
+      bs.anyM f s₀ = .ok (x, s') → PStep s₀ s' ∧ x = bsP.any F := by
+  intro bs
+  induction bs with
+  | nil =>
+    intro bsP s₀ s' x hok _ h hrun
+    simp only [denoteBinders, Option.some.injEq] at h
+    subst h
+    simp only [List.anyM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons b bs ih =>
+    intro bsP s₀ s' x hok hq h hrun
+    obtain ⟨t, m⟩ := b
+    simp only [denoteBinders] at h
+    cases ht : denoteE s₀.store t with
+    | none => rw [ht] at h; simp at h
+    | some tP =>
+      cases hbs : denoteBinders s₀.store bs with
+      | none => rw [ht, hbs] at h; simp at h
+      | some rest =>
+        rw [ht, hbs] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.anyM] at hrun
+        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hc⟩ := hf (t, m) (tP, m) s₀ s1 c hok hq ht rfl k1
+        cases c with
+        | true =>
+          obtain ⟨rfl, rfl⟩ := pureOk z1
+          refine ⟨p1, ?_⟩
+          simp only [List.any_cons, ← hc, Bool.true_or]
+        | false =>
+          obtain ⟨p2, hx⟩ := ih rest s1 s' x p1.ok (hQx p1.ext hq)
+            (denoteBinders_ext p1.ext _ _ hbs) z1
+          refine ⟨p1.trans p2, ?_⟩
+          simp only [List.any_cons, ← hc, Bool.false_or, hx]
+
 /-- con-leche: none — `ListRel` at a handle denotation is `denoteEList`. -/
 theorem ListRel.toEList {st : EStore} :
     ∀ {bs : List EIdx} {cs : List Expr},

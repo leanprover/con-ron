@@ -76,7 +76,73 @@ anything is normalised (task #268's first pass runs at this verdict).
 theorem nativeRawRec_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts) :
     PSpec (fun st => PartsRel st p q)
       (Arena.nativeRawRec p) (RV (ConLeche.nativeRawRec q)) := by
-  sorry
+  intro s₀ s' r hok hrel hrun
+  have hT := denoteCV_name hrel.shape.cvT
+  have hcs := hrel.shape.ctors
+  have hnP := hrel.shape.nP
+  simp only [Arena.nativeRawRec] at hrun
+  show PStep s₀ s' ∧ r = ConLeche.nativeRawRec q
+  simp only [ConLeche.nativeRawRec]
+  cases hc : p.ctors with
+  | nil =>
+    rw [hc] at hrun hcs
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    rw [← hcs]
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons c cs =>
+  obtain ⟨cv, n⟩ := c
+  rw [hc] at hcs
+  simp only [denoteCtors] at hcs
+  cases hcv : Frontend.denoteCV s₀.store cv with
+  | none => rw [hcv] at hcs; simp at hcs
+  | some cP =>
+  cases hrest : denoteCtors s₀.store cs with
+  | none => rw [hcv, hrest] at hcs; simp at hcs
+  | some restP =>
+  rw [hcv, hrest] at hcs
+  rw [← (Option.some.inj hcs)]
+  cases cs with
+  | cons c2 cs2 =>
+    rw [hc] at hrun
+    simp only [denoteCtors] at hrest
+    cases h2 : Frontend.denoteCV s₀.store c2.1 with
+    | none =>
+      obtain ⟨c2v, c2n⟩ := c2
+      simp only at h2
+      rw [h2] at hrest; simp at hrest
+    | some c2P =>
+      obtain ⟨c2v, c2n⟩ := c2
+      simp only at h2
+      cases h3 : denoteCtors s₀.store cs2 with
+      | none => rw [h2, h3] at hrest; simp at hrest
+      | some r3 =>
+        rw [h2, h3] at hrest
+        rw [← (Option.some.inj hrest)]
+        obtain ⟨rfl, rfl⟩ := pureOk hrun
+        exact ⟨PStep.refl hok, rfl⟩
+  | nil =>
+  simp only [denoteCtors, Option.some.injEq] at hrest
+  subst hrest
+  rw [hc] at hrun
+  dsimp only at hrun ⊢
+  obtain ⟨q1, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hq1⟩ := stripPis_pstep hok (denoteCV_type hcv) k1
+  rw [hs1] at z1
+  rw [← hnP]
+  rcases q1 with _ | ⟨cbs, cb⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨PStep.refl hok, ?_⟩
+    rw [stripPis_none hq1]
+  obtain ⟨cxs, cbP, hsp, hcbs, -⟩ := denoteBP_someB hq1
+  rw [hsp]
+  dsimp only
+  exact anyM_B_pstep (F := fun b => b.1.mentionsConst q.cvT.name)
+    (fun st => denoteN st.ns p.cvT.name = some q.cvT.name) (fun hx h => denoteN_ext h hx)
+    (by
+      intro b bP t0 t1 x hok0 hq0 hb _ hrun0
+      exact mentionsConst_spec _ _ b.1 bP.1 t0 t1 x hok0 ⟨hq0, hb⟩ hrun0)
+    _ _ s₀ s' r hok hT (denoteBinders_drop hcbs p.nP) z1
 
 /-! ## `mentionsFvar`, memoised
 
