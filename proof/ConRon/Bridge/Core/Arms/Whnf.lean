@@ -24,7 +24,7 @@ runs.
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Mono
-import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Nat
 
 namespace ConRon.Bridge.Core
 
@@ -113,15 +113,12 @@ exist before this round:
   con-leche's number verbatim, but con-leche SEALS it, so the equation needs
   one `unseal`.
 
-`whnfLoop_spec` still stands on two walk theorems of
-`Bridge/Core/Walks/Owed.lean` that are `sorry` — `reduceNat_spec` (which
-waits on five state-only walks and nothing else) and `unfoldDefinition_spec`
-(which waits on the `ExprOps` tier through `constValAt_spec`) — so
-`whnfBody_spec` inherits `sorryAx` from exactly those two and from nothing
-else.  **That is the whole of what is left of this body**: DESIGN §8's
-`### Task #97-P3-CoreWalks` §9 said *"`whnfBody_spec` closes the day
-`instLPFast_spec` does"*, and after this round that sentence is literally
-true — no induction, no merge and no arm of it is outstanding. -/
+`whnfLoop_spec` stands on two walk theorems, both CLOSED in task
+#97-P3-Core round 4: `reduceNat_spec` (`Bridge/Core/Walks/Nat.lean`) and
+`unfoldDefinition_spec` (`Bridge/Core/Walks/Spine.lean`, over
+`Walks/Cached.lean`'s `constValAt_spec'`).  The second needed `EnvWF env`
+(the unfolding's scope is `unfoldDefinition_WScoped`'s, whose hypothesis it
+is), so the loop takes it too; `whnfBody_spec` always did. -/
 
 unseal ConLeche.whnfLoopFuel in
 /-- con-leche: ConLeche/Kernel/Core.lean:1064-1071 whnfLoopFuel — the two
@@ -253,13 +250,11 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean whnfBodyC_sim — **THEOREM 1
 for `whnfBody`**.
 
-**PROVED** (task #97-P3-Core-2), and it is the first of the six bodies with
-no proof obligation of its own left: `whnfLoop_spec` above is the `Nat`
-induction, `whnfLoopFuel_eq` is the entry, and `whnf_of_loop` is the bracket.
-What it still INHERITS is `sorryAx` from exactly two walk theorems of
-`Bridge/Core/Walks/Owed.lean` — `reduceNat_spec` and `unfoldDefinition_spec`
-— and from nothing else, which is DESIGN §8's `### Task #97-P3-CoreWalks` §9
-made literal: *"`whnfBody_spec` closes the day `instLPFast_spec` does"*. -/
+**PROVED** (task #97-P3-Core-2) and **SORRY-FREE** since task #97-P3-Core
+round 4: `whnfLoop_spec` above is the `Nat` induction, `whnfLoopFuel_eq` is
+the entry, and `whnf_of_loop` is the bracket; the two walks it stood on
+(`reduceNat_spec`, `unfoldDefinition_spec`) are closed.  The first of the six
+bodies at `[propext, Classical.choice, Quot.sound]`. -/
 theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) :
@@ -286,8 +281,7 @@ section Census
 #print axioms whnfLoop_done
 #print axioms whnf_of_loop
 #print axioms whnfLoopFuel_eq
-/-! `whnfLoop_spec` and `whnfBody_spec` carry `sorryAx`, and it comes from
-`reduceNat_spec` and `unfoldDefinition_spec` and from nothing else. -/
+/-! `whnfLoop_spec` and `whnfBody_spec`: no `sorryAx` since round 4. -/
 #print axioms whnfLoop_spec
 #print axioms whnfBody_spec
 

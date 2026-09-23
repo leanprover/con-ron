@@ -600,4 +600,676 @@ theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
       cases h2 : ConLeche.natZeroOk (env.find? ConLeche.natZeroName) <;>
       simp_all [ConLeche.natLitSupported]
 
+/-! ### The five in ANSWER shape
+
+`reduceNat` reaches every one of them through another call — the reduct of a
+`whnf`, or a name read off a `view` — so, by round 3's rule, the subjects'
+denotations go in as an existential and come out as a universal.  Four lines
+each over the published statements. -/
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — answer
+shape. -/
+theorem rawNatLit?_spec' (s₀ : AState) (h : EIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hpre : ∃ x, denoteE s₀.store h = some x) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.rawNatLit? h
+    ⦃⇓? r s' => ⌜s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
+        r = ConLeche.rawNatLit? x⌝⦄ := by
+  obtain ⟨x, hx⟩ := hpre
+  have hb := rawNatLit?_spec s₀ h x hok hx
+  mvcgen [hb]
+  intro h1 h2
+  exact ⟨h1, fun y hy => by rw [hx] at hy; cases hy; exact h2⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `natBinOpName`
+in answer shape. -/
+theorem natBinOpName_spec' (s₀ : AState) (c : NIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natBinOpName c
+    ⦃⇓? b s' => ⌜s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
+        (b = true ↔ (nm = ConLeche.natAddName ∨
+          nm = ConLeche.natSubName ∨
+          nm = ConLeche.natMulName ∨
+          nm = ConLeche.natPowName ∨
+          nm = ConLeche.natBeqName ∨
+          nm = ConLeche.natBleName ∨
+          nm = ConLeche.natDivName ∨
+          nm = ConLeche.natModName ∨
+          nm = ConLeche.natGcdName ∨
+          nm = ConLeche.natLandName ∨
+          nm = ConLeche.natLorName ∨
+          nm = ConLeche.natXorName ∨
+          nm = ConLeche.natShiftLeftName ∨
+          nm = ConLeche.natShiftRightName))⌝⦄ := by
+  obtain ⟨nm, hn⟩ := hpre
+  have hb := natBinOpName_spec s₀ c nm hok hn
+  mvcgen [hb]
+  intro h1 h2
+  exact ⟨h1, fun y hy => by rw [hn] at hy; cases hy; exact h2⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — answer
+shape. -/
+theorem natOpStored_spec' (s₀ : AState) (c : NIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpStored fe c
+    ⦃⇓? b s' => ⌜s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
+        b = ConLeche.natOpStored env nm⌝⦄ := by
+  obtain ⟨nm, hn⟩ := hpre
+  have hb := natOpStored_spec s₀ c nm hok hn
+  mvcgen [hb]
+  intro h1 h2
+  exact ⟨h1, fun y hy => by rw [hn] at hy; cases hy; exact h2⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — answer
+shape. -/
+theorem natOpResult_spec' (s₀ : AState) (c : NIdx) (a b : Nat)
+    (hok : CheckOK mode env fe s₀)
+    (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpResult c a b
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
+        denoteEO s'.store r = some (ConLeche.natOpResult nm a b)⌝⦄ := by
+  obtain ⟨nm, hn⟩ := hpre
+  have hb := natOpResult_spec s₀ c nm a b hok hn
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  exact ⟨h1, h2, h3, fun y hy => by rw [hn] at hy; cases hy; exact h4⟩
+
+/-! ### `reduceNat`'s pure side at its exits
+
+con-leche's `reduceNat` at `pureFns F`, one equation per exit; the knot's
+`whnf` slot is `ConLeche.whnf mode env F`. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the binary
+test, named. -/
+abbrev NatBinOp (c : ConLeche.Name) : Prop :=
+  c = ConLeche.natAddName ∨
+      c = ConLeche.natSubName ∨
+      c = ConLeche.natMulName ∨
+      c = ConLeche.natPowName ∨
+      c = ConLeche.natBeqName ∨
+      c = ConLeche.natBleName ∨
+      c = ConLeche.natDivName ∨
+      c = ConLeche.natModName ∨
+      c = ConLeche.natGcdName ∨
+      c = ConLeche.natLandName ∨
+      c = ConLeche.natLorName ∨
+      c = ConLeche.natXorName ∨
+      c = ConLeche.natShiftLeftName ∨
+      c = ConLeche.natShiftRightName
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ` on a
+literal-supported environment: the argument's head normal form, read. -/
+theorem reduceNatFueled_succ {F d : Nat} {c : ConLeche.Name} {a w : Expr}
+    (hg : c = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)
+    (hw : ConLeche.whnf mode env F d a = .ok w) :
+    ConLeche.reduceNatFueled mode env F d (.app (.const c []) a) =
+      .ok ((ConLeche.rawNatLit? w).map (fun n => .lit (.natVal (n + 1)))) := by
+  have e1 : (ConLeche.pureFns mode env F).whnf d a = .ok w := hw
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, if_pos hg, e1, bind,
+    Except.bind]
+  cases ConLeche.rawNatLit? w <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the unary guard
+declines. -/
+theorem reduceNatFueled_succ_no {F d : Nat} {c : ConLeche.Name} {a : Expr}
+    (hg : ¬ (c = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)) :
+    ConLeche.reduceNatFueled mode env F d (.app (.const c []) a) = .ok none := by
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, if_neg hg]; rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the certified
+binary operation: the FIRST argument is head-normalised and read; only on a
+literal is the second. -/
+theorem reduceNatFueled_bin {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
+    (hg : NatBinOp c ∧ ConLeche.natOpStored env c = true)
+    (h1 : ConLeche.whnf mode env F d a = .ok w₁) :
+    ConLeche.reduceNatFueled mode env F d (.app (.app (.const c []) a) b) =
+      (match ConLeche.rawNatLit? w₁ with
+        | some n₁ => do
+          match ConLeche.rawNatLit? (← ConLeche.whnf mode env F d b) with
+          | some n₂ => pure (ConLeche.natOpResult c n₁ n₂)
+          | none => pure none
+        | none => pure none) := by
+  have e1 : (ConLeche.pureFns mode env F).whnf d a = .ok w₁ := h1
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, NatBinOp] at hg ⊢
+  rw [if_pos hg]
+  simp only [e1, bind, Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the WF-pinned
+safety net. -/
+theorem reduceNatFueled_wf {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
+    (hg : ¬ (NatBinOp c ∧ ConLeche.natOpStored env c = true))
+    (hw : ConLeche.natOpWfNames.contains c ∧ ConLeche.natLitSupported env = true)
+    (h1 : ConLeche.whnf mode env F d a = .ok w₁) :
+    ConLeche.reduceNatFueled mode env F d (.app (.app (.const c []) a) b) =
+      (match ConLeche.rawNatLit? w₁ with
+        | some _ => do
+          match ConLeche.rawNatLit? (← ConLeche.whnf mode env F d b) with
+          | some _ => throw (.notImplemented
+              s!"native Nat computation on literals ({c})")
+          | none => pure none
+        | none => pure none) := by
+  have e1 : (ConLeche.pureFns mode env F).whnf d a = .ok w₁ := h1
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, NatBinOp] at hg ⊢
+  rw [if_neg hg, if_pos hw]
+  simp only [e1, bind, Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — neither guard. -/
+theorem reduceNatFueled_bin_no {F d : Nat} {c : ConLeche.Name} {a b : Expr}
+    (hg : ¬ (NatBinOp c ∧ ConLeche.natOpStored env c = true))
+    (hw : ¬ (ConLeche.natOpWfNames.contains c ∧ ConLeche.natLitSupported env = true)) :
+    ConLeche.reduceNatFueled mode env F d (.app (.app (.const c []) a) b) =
+      .ok none := by
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, NatBinOp] at hg ⊢
+  rw [if_neg hg, if_neg hw]; rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a subject of
+neither shape declines. -/
+theorem reduceNatFueled_none_of {F d : Nat} {x : Expr}
+    (h1 : ∀ c a, x ≠ .app (.const c []) a)
+    (h2 : ∀ c a b, x ≠ .app (.app (.const c []) a) b) :
+    ConLeche.reduceNatFueled mode env F d x = .ok none := by
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — every
+reduct is a literal or a `Bool` constant, hence closed. -/
+theorem natOpResult_wscoped {c : ConLeche.Name} {a b d : Nat} {y : Expr}
+    (h : ConLeche.natOpResult c a b = some y) : Expr.WScoped d y := by
+  unfold ConLeche.natOpResult at h
+  by_cases h0 : c = ConLeche.natPredName
+  · rw [if_pos h0] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h0] at h
+  by_cases h1 : c = ConLeche.natAddName
+  · rw [if_pos h1] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h1] at h
+  by_cases h2 : c = ConLeche.natSubName
+  · rw [if_pos h2] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h2] at h
+  by_cases h3 : c = ConLeche.natMulName
+  · rw [if_pos h3] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h3] at h
+  by_cases h4 : c = ConLeche.natPowName
+  · rw [if_pos h4] at h
+    by_cases hb : b > 16777216
+    · rw [if_pos hb] at h; cases h
+    · rw [if_neg hb] at h; cases h; simp [Expr.WScoped]
+  rw [if_neg h4] at h
+  by_cases h5 : c = ConLeche.natDivName
+  · rw [if_pos h5] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h5] at h
+  by_cases h6 : c = ConLeche.natModName
+  · rw [if_pos h6] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h6] at h
+  by_cases h7 : c = ConLeche.natGcdName
+  · rw [if_pos h7] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h7] at h
+  by_cases h8 : c = ConLeche.natLandName
+  · rw [if_pos h8] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h8] at h
+  by_cases h9 : c = ConLeche.natLorName
+  · rw [if_pos h9] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h9] at h
+  by_cases h10 : c = ConLeche.natXorName
+  · rw [if_pos h10] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h10] at h
+  by_cases h11 : c = ConLeche.natShiftLeftName
+  · rw [if_pos h11] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h11] at h
+  by_cases h12 : c = ConLeche.natShiftRightName
+  · rw [if_pos h12] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h12] at h
+  by_cases h13 : c = ConLeche.natBeqName
+  · rw [if_pos h13] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h13] at h
+  by_cases h14 : c = ConLeche.natBleName
+  · rw [if_pos h14] at h
+    cases h; simp [Expr.WScoped]
+  rw [if_neg h14] at h
+  cases h
+
+/-- con-leche: none — `CheckOK`'s two projections the precondition goals
+of `reduceNat` ask for. -/
+theorem CheckOK.wf' {s : AState} (h : CheckOK mode env fe s) : StoreWF s.store :=
+  h.state.wf
+
+theorem CheckOK.readN' {s : AState} (h : CheckOK mode env fe s) :
+    ReadNCacheOK s.caches.readNC s.store := h.caches.readN
+
+/-- con-leche: none — the unary shape: an application of a level-free
+constant, read off two views. -/
+theorem unary_shape {st : EStore} (hwf : StoreWF st) {e f a : EIdx}
+    {c : NIdx} {us el : LsIdx} {x : Expr}
+    (hve : st.view e = some (.app f a)) (hvc : st.view f = some (.const c us))
+    (hden : denoteE st e = some x) (hel : denoteLs st.lss el = some []) :
+    ∃ nm ls ax, x = .app (.const nm ls) ax ∧ denoteN st.ns c = some nm ∧
+      denoteE st a = some ax ∧ ((us != el) = (ls != [])) := by
+  obtain ⟨fx, ax, rfl, hf, ha⟩ := denote_app_inv hwf hve hden
+  obtain ⟨nm, ls, rfl, hn, hls⟩ := denote_const_inv hwf hvc hf
+  obtain ⟨rk, hrk⟩ := hwf
+  exact ⟨nm, ls, ax, rfl, hn, ha, by simp only [bne, beq_of_denoteLs hrk.lss hls hel]⟩
+
+/-- con-leche: none — the binary shape. -/
+theorem binary_shape {st : EStore} (hwf : StoreWF st) {e f₂ f a b : EIdx}
+    {c : NIdx} {us el : LsIdx} {x : Expr}
+    (hve : st.view e = some (.app f₂ b)) (hvf2 : st.view f₂ = some (.app f a))
+    (hvc : st.view f = some (.const c us))
+    (hden : denoteE st e = some x) (hel : denoteLs st.lss el = some []) :
+    ∃ nm ls ax bx, x = .app (.app (.const nm ls) ax) bx ∧
+      denoteN st.ns c = some nm ∧ denoteE st a = some ax ∧
+      denoteE st b = some bx ∧ ((us != el) = (ls != [])) := by
+  obtain ⟨fx, bx, rfl, hf, hb⟩ := denote_app_inv hwf hve hden
+  obtain ⟨gx, ax, rfl, hg, ha⟩ := denote_app_inv hwf hvf2 hf
+  obtain ⟨nm, ls, rfl, hn, hls⟩ := denote_const_inv hwf hvc hg
+  obtain ⟨rk, hrk⟩ := hwf
+  exact ⟨nm, ls, ax, bx, rfl, hn, ha, hb,
+    by simp only [bne, beq_of_denoteLs hrk.lss hls hel]⟩
+
+/-! ## 6. `reduceNat` -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
+`reduceNat`**: the literal acceleration, run in the `whnf` loop before
+delta-unfolding.  **CLOSED** (round 4; moved here from `Walks/Owed.lean`,
+statement unchanged).  The divergence audit's D15 is preserved by the twin —
+the FIRST argument is head-normalised and, unless it is a literal, the step
+declines without touching the second — so the two call sequences agree and
+the proof is a straight walk: fifty verification conditions, one per exit
+and per callee precondition. -/
+theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ x, denoteE s₀.store e = some x →
+          SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
+            s'.store r⌝⦄ := by
+  obtain ⟨x, hden, hwx⟩ := hdw
+  have hp := hok.pins
+  have hwf := hok.state.wf
+  have hwh := hsim.whnf'
+  have hraw := rawNatLit?_spec' (mode := mode) (env := env) (fe := fe)
+  have hlit := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
+  have hbin := natBinOpName_spec' (mode := mode) (env := env) (fe := fe)
+  have hsto := natOpStored_spec' (mode := mode) (env := env) (fe := fe)
+  have hwfn := natOpWfNames_spec (mode := mode) (env := env) (fe := fe)
+  have hres := natOpResult_spec' (mode := mode) (env := env) (fe := fe)
+  mvcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels,
+    ConRon.Arena.pinNatSucc, hwh, hraw, hlit, hbin, hsto, hwfn, hres]
+  all_goals (bridge_peel; subst_vars)
+  -- the plain preconditions
+  all_goals first
+    | exact hp
+    | assumption
+    | exact viewOK_lit
+    | (apply CheckOK.wf'; assumption)
+    | (apply CheckOK.readN'; assumption)
+    | (intro h; exact h.elim)
+    | (intro s hs _; subst hs; assumption)
+    | (apply CheckOK.mono (by assumption) ⟨by assumption⟩ <;> assumption)
+    | skip
+  -- `Nat.succ`: the level list is not empty
+  case vc2 =>
+    rename_i _ _ _ _ _ hus s0 hel hvc hve
+    obtain ⟨nm, ls, ax, rfl, _, _, hle⟩ := unary_shape hwf hve hvc hden hel
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩
+    · intro c' a' h'
+      simp only [Expr.app.injEq, Expr.const.injEq] at h'
+      obtain ⟨⟨rfl, rfl⟩, rfl⟩ := h'
+      rw [hle] at hus; simp at hus
+    · intro c' a' b' h'; simp at h'
+  case vc6 =>
+    rename_i _ _ _ _ _ hus _ s0 s1 hck1 hx01 hp10 hsucc hel hvc hve hg
+    obtain ⟨nm, ls, ax, rfl, _, ha, _⟩ := unary_shape hwf hve hvc hden hel
+    simp only [Expr.WScoped, true_and] at hwx
+    exact ⟨ax, denote_ext ha hx01, hwx⟩
+  case vc8 =>
+    rename_i _ _ _ _ _ hus _ s0 s1 _ s2 hck1 hck2 hx01 hx12 hp10 hp21 hwa hsucc hel hvc hve hg
+    obtain ⟨nm, ls, ax, rfl, _, ha, _⟩ := unary_shape hwf hve hvc hden hel
+    obtain ⟨w, hw, _, _⟩ := hwa ax (denote_ext ha hx01)
+    exact ⟨w, hw⟩
+  -- `Nat.succ` FIRES
+  case vc11 =>
+    rename_i _ _ _ _ _ hus _ s0 s1 _ n s2 _ s3 hck1 hwf3 hx01 hx23 hp10 _ _ hc32 hp32 _ _ _ hlit hsucc hel hvc hve hg hck2 hr hx12 hp21 hwa
+    obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    rw [pinBeq hwf hn (hsucc _ rfl)] at hg
+    simp only [Bool.and_eq_true, beq_iff_eq] at hg
+    obtain ⟨w, hw, _, F, hF⟩ := hwa ax (denote_ext ha hx01)
+    have hraw := hr w hw
+    refine ⟨hck2.mono ⟨hwf3⟩ hx23 hc32 hp32, (hx01.trans hx12).trans hx23,
+      by rw [hp32, hp21, hp10], fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨some (.lit (.natVal (n + 1))), ?_, ?_, F, ?_⟩
+    · simp only [denoteEO, hlit, denoteEView, Option.map_some]
+    · intro y hy; cases hy; simp [Expr.WScoped]
+    · dsimp only; rw [reduceNatFueled_succ hg hF, ← hraw]; rfl
+  -- `Nat.succ` on a non-literal
+  case vc12 =>
+    rename_i _ _ _ _ _ hus _ s0 s1 _ s2 hck1 hx01 hp10 hsucc hel hvc hve hg hck2 hr hx12 hp21 hwa
+    obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    rw [pinBeq hwf hn (hsucc _ rfl)] at hg
+    simp only [Bool.and_eq_true, beq_iff_eq] at hg
+    obtain ⟨w, hw, _, F, hF⟩ := hwa ax (denote_ext ha hx01)
+    have hraw := hr w hw
+    refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    exact ⟨none, rfl, by simp, F, by dsimp only; rw [reduceNatFueled_succ hg hF, ← hraw]; rfl⟩
+  -- the unary guard declines
+  case vc13 =>
+    rename_i _ _ _ _ _ hus _ s0 s1 hck1 hx01 hp10 hsucc hel hvc hve hng
+    obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    rw [pinBeq hwf hn (hsucc _ rfl)] at hng
+    have hng' : ¬ (nm = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true) := by
+      simpa using hng
+    refine ⟨hck1, hx01, hp10, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    exact ⟨none, rfl, by simp, 0, reduceNatFueled_succ_no hng'⟩
+  -- the binary shape at a level-carrying constant
+  case vc15 =>
+    rename_i _ _ _ _ _ _ _ hus s0 hel hvc hvf2 hve
+    obtain ⟨nm, ls, ax, bx, rfl, _, _, _, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩
+    · intro c' a' h'; simp at h'
+    · intro c' a' b' h'
+      simp only [Expr.app.injEq, Expr.const.injEq] at h'
+      obtain ⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩ := h'
+      rw [hle] at hus; simp at hus
+  case vc17 =>
+    rename_i _ _ _ _ _ _ _ hus s0 hel hvc hvf2 hve
+    obtain ⟨nm, _, _, _, _, hn, _⟩ := binary_shape hwf hve hvf2 hvc hden hel
+    exact ⟨nm, hn⟩
+  case vc19 =>
+    rename_i _ _ _ _ _ _ _ hus rb s0 hbin hel hvc hvf2 hve
+    obtain ⟨nm, _, _, _, _, hn, _⟩ := binary_shape hwf hve hvf2 hvc hden hel
+    exact ⟨nm, hn⟩
+  case vc21 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 hsto hbin hel hvc hvf2 hve
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    exact ⟨ax, ha, hwx.1⟩
+  case vc23 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ s1 hck1 hx01 hp10 hwa hsto hbin hel hvc hvf2 hve
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    obtain ⟨w, hw, _, _⟩ := hwa ax ha
+    exact ⟨w, hw⟩
+  case vc25 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    exact ⟨bx, denote_ext hb hx01, hwx.2⟩
+  case vc27 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ s2 hck2 hx12 hp21 hwb hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    obtain ⟨w, hw, _, _⟩ := hwb bx (denote_ext hb hx01)
+    exact ⟨w, hw⟩
+  -- the certified binary operation FIRES
+  case vc28 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ n2 s2 _ s3 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa hck2 hr2 hx12 hp21 hwb
+    intro hck3 hx23 hp32 hres
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    have hcond : NatBinOp nm ∧ ConLeche.natOpStored env nm = true := by
+      have h1 := hbin nm hn
+      have h2 := hsto nm hn
+      simp only [Bool.and_eq_true] at hbg
+      exact ⟨h1.mp hbg.1, h2 ▸ hbg.2⟩
+    obtain ⟨w₁, hw₁, _, F₁, hF₁⟩ := hwa ax ha
+    have hr₁ := hr w₁ hw₁
+    obtain ⟨w₂, hw₂, _, F₂, hF₂⟩ := hwb bx (denote_ext hb hx01)
+    have hr₂ := hr2 w₂ hw₂
+    refine ⟨hck3, ((hx01.trans hx12).trans hx23), by rw [hp32, hp21, hp10],
+      fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨_, hres nm (denoteN_ext hn (hx01.trans hx12)),
+      fun y hy => natOpResult_wscoped hy, F₁ + F₂, ?_⟩
+    dsimp only
+    rw [reduceNatFueled_bin hcond (ConLeche.whnf_mono (by omega) hF₁), ← hr₁]
+    simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hF₂,
+      ← hr₂]
+    rfl
+  case vc30 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ s2 n2 hck2 hx12 hp21 hwb hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
+    intro s hs _; subst hs
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    exact ⟨nm, denoteN_ext hn (hx01.trans hx12)⟩
+  -- the second argument is not a literal
+  case vc31 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ s2 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa hck2 hr2 hx12 hp21 hwb
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    have hcond : NatBinOp nm ∧ ConLeche.natOpStored env nm = true := by
+      have h1 := hbin nm hn
+      have h2 := hsto nm hn
+      simp only [Bool.and_eq_true] at hbg
+      exact ⟨h1.mp hbg.1, h2 ▸ hbg.2⟩
+    obtain ⟨w₁, hw₁, _, F₁, hF₁⟩ := hwa ax ha
+    have hr₁ := hr w₁ hw₁
+    obtain ⟨w₂, hw₂, _, F₂, hF₂⟩ := hwb bx (denote_ext hb hx01)
+    have hr₂ := hr2 w₂ hw₂
+    refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, F₁ + F₂, ?_⟩
+    dsimp only
+    rw [reduceNatFueled_bin hcond (ConLeche.whnf_mono (by omega) hF₁), ← hr₁]
+    simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hF₂,
+      ← hr₂]
+    rfl
+  -- the first argument is not a literal
+  case vc32 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ s1 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    have hcond : NatBinOp nm ∧ ConLeche.natOpStored env nm = true := by
+      have h1 := hbin nm hn
+      have h2 := hsto nm hn
+      simp only [Bool.and_eq_true] at hbg
+      exact ⟨h1.mp hbg.1, h2 ▸ hbg.2⟩
+    obtain ⟨w₁, hw₁, _, F₁, hF₁⟩ := hwa ax ha
+    have hr₁ := hr w₁ hw₁
+    refine ⟨hck1, hx01, hp10, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, F₁, ?_⟩
+    dsimp only
+    rw [reduceNatFueled_bin hcond hF₁, ← hr₁]
+    rfl
+  -- the WF-pinned safety net: its preconditions
+  case vc36 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    exact ⟨ax, denote_ext ha hx01, hwx.1⟩
+  case vc38 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ s2 hck1 hck2 hx01 hx12 hp10 hp21 hwa hwfn hsto hbin hel hvc hvf2 hve hwg
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    obtain ⟨w, hw, _, _⟩ := hwa ax (denote_ext ha hx01)
+    exact ⟨w, hw⟩
+  case vc40 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ n s2 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    exact ⟨bx, denote_ext hb (hx01.trans hx12), hwx.2⟩
+  case vc42 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ n s2 _ s3 hck1 hck3 hx01 hx23 hp10 hp32 hwb hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    obtain ⟨w, hw, _, _⟩ := hwb bx (denote_ext hb (hx01.trans hx12))
+    exact ⟨w, hw⟩
+  -- the safety net: the second argument is not a literal
+  case vc45 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ n s2 _ s3 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa hck3 hr2 hx23 hp32 hwb
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    have hncond : ¬ (NatBinOp nm ∧ ConLeche.natOpStored env nm = true) := by
+      have h1 := hbin nm hn
+      have h2 := hsto nm hn
+      intro ⟨c1, c2⟩
+      exact hnbg (by rw [h1.mpr c1, h2, c2]; rfl)
+    have hwcond : ConLeche.natOpWfNames.contains nm ∧
+        ConLeche.natLitSupported env = true := by
+      rw [hwfn _ _ hn] at hwg; simpa using hwg
+    obtain ⟨w₁, hw₁, _, F₁, hF₁⟩ := hwa ax (denote_ext ha hx01)
+    have hr₁ := hr w₁ hw₁
+    obtain ⟨w₂, hw₂, _, F₂, hF₂⟩ := hwb bx (denote_ext hb (hx01.trans hx12))
+    have hr₂ := hr2 w₂ hw₂
+    refine ⟨hck3, (hx01.trans hx12).trans hx23, by rw [hp32, hp21, hp10],
+      fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, F₁ + F₂, ?_⟩
+    dsimp only
+    rw [reduceNatFueled_wf hncond hwcond (ConLeche.whnf_mono (by omega) hF₁), ← hr₁]
+    simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hF₂,
+      ← hr₂]
+    rfl
+  -- the safety net: the first argument is not a literal
+  case vc46 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ s2 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    have hncond : ¬ (NatBinOp nm ∧ ConLeche.natOpStored env nm = true) := by
+      have h1 := hbin nm hn
+      have h2 := hsto nm hn
+      intro ⟨c1, c2⟩
+      exact hnbg (by rw [h1.mpr c1, h2, c2]; rfl)
+    have hwcond : ConLeche.natOpWfNames.contains nm ∧
+        ConLeche.natLitSupported env = true := by
+      rw [hwfn _ _ hn] at hwg; simpa using hwg
+    obtain ⟨w₁, hw₁, _, F₁, hF₁⟩ := hwa ax (denote_ext ha hx01)
+    have hr₁ := hr w₁ hw₁
+    refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, F₁, ?_⟩
+    dsimp only
+    rw [reduceNatFueled_wf hncond hwcond hF₁, ← hr₁]
+    rfl
+  -- neither guard
+  case vc47 =>
+    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hnwg
+    obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
+      binary_shape hwf hve hvf2 hvc hden hel
+    obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
+    simp only [Expr.WScoped, true_and] at hwx
+    have hncond : ¬ (NatBinOp nm ∧ ConLeche.natOpStored env nm = true) := by
+      have h1 := hbin nm hn
+      have h2 := hsto nm hn
+      intro ⟨c1, c2⟩
+      exact hnbg (by rw [h1.mpr c1, h2, c2]; rfl)
+    have hnw : ¬ (ConLeche.natOpWfNames.contains nm ∧
+        ConLeche.natLitSupported env = true) := by
+      rw [hwfn _ _ hn] at hnwg; simpa using hnwg
+    refine ⟨hck1, hx01, hp10, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    exact ⟨none, rfl, by simp, 0, reduceNatFueled_bin_no hncond hnw⟩
+  -- the three shapes that are not an operation at all
+  case vc48 =>
+    rename_i _ _ _ _ _ hnc s0 hvx hvf2 hve
+    obtain ⟨fx, bx, rfl, hf, _⟩ := denote_app_inv hwf hve hden
+    obtain ⟨gx, ax, rfl, hg, _⟩ := denote_app_inv hwf hvf2 hf
+    have hnc' := denote_not_const hwf hvx hg (fun c us h => hnc c us h)
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩
+    · intro c' a' h'; simp at h'
+    · intro c' a' b' h'
+      simp only [Expr.app.injEq] at h'
+      exact hnc' c' [] h'.1.1
+  case vc49 =>
+    rename_i _ _ _ hnc hna s0 hvx hve
+    obtain ⟨fx, ax, rfl, hf, _⟩ := denote_app_inv hwf hve hden
+    have hnc' := denote_not_const hwf hvx hf (fun c us h => hnc c us h)
+    have hna' := denote_not_app hwf hvx hf (fun f a h => hna f a h)
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩
+    · intro c' a' h'
+      simp only [Expr.app.injEq] at h'
+      exact hnc' c' [] h'.1
+    · intro c' a' b' h'
+      simp only [Expr.app.injEq] at h'
+      exact hna' _ _ h'.1
+  case vc50 =>
+    rename_i _ hna s0 hve
+    have hna' := denote_not_app hwf hve hden (fun f a h => hna f a h)
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩
+    · intro c' a' h'; exact hna' _ _ h'
+    · intro c' a' b' h'; exact hna' _ _ h'
+
+/-! ## 7. The axiom census -/
+
+section Census
+
+#print axioms rawNatLit?_spec
+#print axioms natBinOpName_spec
+#print axioms natOpStored_spec
+#print axioms natOpWfNames_spec
+#print axioms natOpResult_spec
+#print axioms constE_spec
+#print axioms natIndOk_spec
+#print axioms natZeroOk_spec
+#print axioms natSuccOk_spec
+#print axioms natLitSupported_spec
+#print axioms natOpResult_wscoped
+#print axioms reduceNat_spec
+
+end Census
+
 end ConRon.Bridge.Core

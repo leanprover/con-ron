@@ -164,29 +164,8 @@ round 4 and is CLOSED there: it needs `getAppFn`/`getAppArgs`/`mkAppN` from
 the `ExprOps` tier and the index facts that module owns, and the reason it
 could not import them from here (finding 18) is gone. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
-`reduceNat`**: the literal acceleration, run in the `whnf` loop before
-delta-unfolding.  The divergence audit's D15 is preserved by the twin (the
-FIRST argument is head-normalised and, unless it is a literal, the step fails
-without touching the second), so the two sides' CALL SEQUENCES agree and the
-proof is a straight walk.
-
-**OPEN**: `KnotSpec.whnf` at the two arguments (available), plus callee rules
-for `rawNatLit?`, `natLitSupported`, `natOpStored`, `natBinOpName` and
-`natOpResult` — five `Arena/Core.lean` walks of the state-only group that
-this round did not reach either.  Nothing in it needs the `ExprOps`
-tier. -/
-theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ x, denoteE s₀.store e = some x →
-          SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
-            s'.store r⌝⦄ := by
-  sorry
+/-! `reduceNat_spec` **moved to `Bridge/Core/Walks/Nat.lean`** in round 4
+and is CLOSED there, over the six state-only walks under it. -/
 
 /-! ## 3. The ι step and the projection rule
 
