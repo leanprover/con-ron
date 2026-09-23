@@ -164,7 +164,32 @@ theorem kind_get_d_refines
     {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} {i : Std.U64}
     {o} (hrun : arena.inductives.native_parts.kind_get_d ks i = ok o) :
     absRecFieldKind o = (absKindL ks).getD (absU i) .ordinary := by
-  sorry
+  -- task #97-P5-Usize: the bound is compared in `u64`, so the cast under it
+  -- is exact on every platform (round 3 §R3.5's finding, fixed in the Rust).
+  rw [arena.inductives.native_parts.kind_get_d] at hrun
+  obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  simp only [lift, Result.ok.injEq] at hi2
+  have hi2v : i2.val = ks.val.length := by
+    rw [← hi2, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+  by_cases hlt : i < i2
+  · rw [if_pos hlt] at hrun
+    have hlt' : i.val < ks.val.length := by scalar_tac
+    obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    simp only [lift, Result.ok.injEq] at hi3
+    have hi3v : i3.val = i.val := by
+      rw [← hi3]
+      exact ConRon.Refine.ExprOps.u64_cast_usize_val
+        (le_trans (Nat.le_of_lt hlt') ks.property)
+    obtain ⟨rfk, hrfk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hx := vec_index_some hrfk
+    rw [hi3v] at hx
+    rw [rec_field_kind_dup_refines hrun]
+    simp [absKindL, absU, List.getD_eq_getElem?_getD, hx]
+  · rw [if_neg hlt] at hrun
+    obtain rfl := Result.ok_injective hrun
+    have hge : ks.val.length ≤ i.val := by scalar_tac
+    simp [absKindL, absU, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_none (by simpa using hge), absRecFieldKind]
 
 /-! ## The field kinds -/
 
@@ -1012,6 +1037,23 @@ theorem native_counts_refines {pers st lst} {n_pd : Std.U64}
         (absU r_p)) := by
   sorry
 
+/-- `rulesPinOkSpec` is `nativeRecPinOk`'s `(List.range …).all` from rule `j`
+on, read over `List.range'`: a fact about the spec alone. -/
+theorem rulesPinOkSpec_eq_all (rules : List IRecRule)
+    (cs : List (IConstantVal × Nat × Nat)) :
+    ∀ m j, rulesPinOkSpec rules cs m j = (List.range' j m).all fun j =>
+      match rules[j]?, cs[j]? with
+      | some rule, some (cvC, _, nF) => rule.ctor == cvC.name && rule.nfields == nF
+      | _, _ => false := by
+  intro m
+  induction m with
+  | zero => intro j; simp [rulesPinOkSpec]
+  | succ m ih =>
+    intro j
+    simp only [rulesPinOkSpec, List.range'_succ, List.all_cons, ih (j + 1)]
+    rcases rules[j]? with _ | rule <;> rcases cs[j]? with _ | ⟨cvC, a, nF⟩ <;>
+      simp [Bool.and_assoc]
+
 /-- `rules_pin_ok` ⊑ `nativeRecPinOk`'s `(List.range …).all` from rule `j`
 on. -/
 theorem rules_pin_ok_refines {rules : alloc.vec.Vec arena.env.IRecRule}
@@ -1020,7 +1062,134 @@ theorem rules_pin_ok_refines {rules : alloc.vec.Vec arena.env.IRecRule}
     (hrun : arena.inductives.native_parts.rules_pin_ok rules cs n j = ok o) :
     o = rulesPinOkSpec (rules.val.map absIRecRule) (absCtors3L cs)
       (absU n - absU j) (absU j) := by
-  sorry
+  -- task #97-P5-Usize: the three bounds are compared in `u64`, so every
+  -- `j as usize` under them is exact (round 3 §R3.5's finding, fixed in the
+  -- Rust rather than carried as a hypothesis).
+  suffices H : ∀ (m : Nat) (j : Std.U64) (o : Bool), n.val - j.val = m →
+      arena.inductives.native_parts.rules_pin_ok rules cs n j = ok o →
+      o = rulesPinOkSpec (rules.val.map absIRecRule) (absCtors3L cs) m j.val from
+    H _ j o rfl hrun
+  intro m
+  induction m with
+  | zero =>
+    intro j o hm h
+    rw [arena.inductives.native_parts.rules_pin_ok.eq_def] at h
+    rw [if_pos (show j ≥ n by scalar_tac)] at h
+    obtain rfl := Result.ok_injective h
+    simp [rulesPinOkSpec]
+  | succ m ih =>
+    intro j o hm h
+    rw [arena.inductives.native_parts.rules_pin_ok.eq_def] at h
+    rw [if_neg (show ¬ j ≥ n by scalar_tac)] at h
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp only [lift, Result.ok.injEq] at hi1
+    have hi1v : i1.val = rules.val.length := by
+      rw [← hi1, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+    by_cases hr : j ≥ i1
+    · rw [if_pos hr] at h
+      obtain rfl := Result.ok_injective h
+      have hge : rules.val.length ≤ j.val := by scalar_tac
+      simp [rulesPinOkSpec, List.getElem?_eq_none (by simpa using hge)]
+    rw [if_neg hr] at h
+    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp only [lift, Result.ok.injEq] at hi3
+    have hi3v : i3.val = cs.val.length := by
+      rw [← hi3, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+    by_cases hc : j ≥ i3
+    · rw [if_pos hc] at h
+      obtain rfl := Result.ok_injective h
+      have hge : cs.val.length ≤ j.val := by scalar_tac
+      simp only [rulesPinOkSpec, absCtors3L]
+      rcases (rules.val.map absIRecRule)[j.val]? with _ | _ <;>
+        simp [List.getElem?_eq_none (by simpa using hge)]
+    rw [if_neg hc] at h
+    have hjr : j.val < rules.val.length := by scalar_tac
+    have hjc : j.val < cs.val.length := by scalar_tac
+    have hcast : ∀ i4 : Std.Usize, lift (UScalar.cast .Usize j) = ok i4 →
+        i4.val = j.val := by
+      intro i4 hi4
+      simp only [lift, Result.ok.injEq] at hi4
+      rw [← hi4]
+      exact ConRon.Refine.ExprOps.u64_cast_usize_val
+        (le_trans (Nat.le_of_lt hjr) rules.property)
+    obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ir, hir, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i5, hi5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨iv, a, b⟩, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hxr := vec_index_some hir
+    have hxc := vec_index_some hiv
+    rw [hcast i4 hi4] at hxr
+    rw [hcast i5 hi5] at hxc
+    obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbbv := nidx_eq2_abs hbb
+    have hsr : (rules.val.map absIRecRule)[j.val]? = some (absIRecRule ir) := by
+      simp [hxr]
+    have hsc : (absCtors3L cs)[j.val]? = some (absIConstantVal iv, absU a, absU b) := by
+      simp [absCtors3L, hxc]
+    simp only [rulesPinOkSpec, hsr, hsc]
+    cases hbbt : bb
+    · rw [hbbt] at hbbv h
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain rfl := Result.ok_injective h
+      simp [absIRecRule, absIConstantVal, ← hbbv]
+    rw [hbbt] at hbbv h
+    simp only [if_true] at h
+    obtain ⟨i6, hi6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ir1, hir1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i7, hi7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨iv', a', b'⟩, hiv', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hxr1 := vec_index_some hir1
+    have hxc1 := vec_index_some hiv'
+    rw [hcast i6 hi6, hxr] at hxr1
+    rw [hcast i7 hi7, hxc] at hxc1
+    obtain rfl := (Option.some_inj.mp hxr1)
+    obtain ⟨rfl, rfl, rfl⟩ : iv = iv' ∧ a = a' ∧ b = b' := by
+      have := Option.some_inj.mp hxc1; simp_all
+    have hctor : (absIRecRule ir).ctor = (absIConstantVal iv).name := by
+      simpa [absIRecRule, absIConstantVal] using hbbv.symm
+    replace h : (if ir.nfields = b then (do
+        let i9 ← j + 1#u64
+        arena.inductives.native_parts.rules_pin_ok rules cs n i9) else ok false) = ok o := h
+    by_cases hnf : ir.nfields = b
+    · rw [if_pos hnf] at h
+      obtain ⟨i9, hi9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi9v : i9.val = j.val + 1 := ConRon.Refine.Nat.uadd_val hi9
+      have hrec := ih i9 o (by omega) h
+      rw [hi9v] at hrec
+      have hctor2 : absNIdx ir.ctor = (absIConstantVal iv).name := by
+        simpa [absIRecRule] using hctor
+      simp [absIRecRule, absU, hnf, hrec, hctor2]
+    · rw [if_neg hnf] at h
+      obtain rfl := Result.ok_injective h
+      have hnf' : ir.nfields.val ≠ b.val := fun e => hnf (by scalar_tac)
+      simp [absIRecRule, absU, hnf']
+
+/-- `i_constant_infos_dup_from` copies `cs` from the cursor on onto `out`
+(`native_rec_pin_ok`'s `rest`). -/
+theorem i_constant_infos_dup_from_abs {cs : alloc.vec.Vec arena.env.IConstantInfo}
+    {i : Std.Usize} {out o : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrun : arena.env.i_constant_infos_dup_from cs i out = ok o) :
+    o.val.map absIConstantInfo
+      = out.val.map absIConstantInfo ++ (cs.val.drop i.val).map absIConstantInfo := by
+  refine vec_cursor_copy cs absIConstantInfo absIConstantInfo
+    (arena.env.i_constant_infos_dup_from cs) ?_ ?_ i out o hrun
+  · intro i out o hn h
+    rw [arena.env.i_constant_infos_dup_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < cs.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.env.i_constant_infos_dup_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hvx : v = x := by
+      have h1 := vec_index_some hv; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hvx
+    exact ⟨i2, v1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      i_constant_info_dup_abs hv1, h⟩
 
 /-- `native_rec_pin_ok` ⊑ `nativeRecPinOk` — **the recursor record's structural
 pin** (con-leche's task #220).  Pure on both sides: tags, names and counts
@@ -1030,7 +1199,97 @@ theorem native_rec_pin_ok_refines
     {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrun : arena.inductives.native_parts.native_rec_pin_ok p block = ok o) :
     o = nativeRecPinOk (absInductiveShape p) (absICIL block) := by
-  sorry
+  rw [arena.inductives.native_parts.native_rec_pin_ok] at hrun
+  by_cases h0 : alloc.vec.Vec.len block = 0#usize
+  · rw [if_pos h0] at hrun
+    obtain rfl := Result.ok_injective hrun
+    have hnil : block.val = [] := List.eq_nil_of_length_eq_zero (by scalar_tac)
+    simp [nativeRecPinOk, absICIL, hnil]
+  rw [if_neg h0] at hrun
+  obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hx := vec_index_some hii
+  have habs : absICIL block
+      = absIConstantInfo ii :: (block.val.drop 1).map absIConstantInfo := by
+    simp only [absICIL]
+    rcases hb : block.val with _ | ⟨y, ys⟩
+    · simp [hb] at hx
+    · simp only [hb, show ((0#usize : Std.Usize)).val = 0 by scalar_tac,
+        List.getElem?_cons_zero, Option.some.injEq] at hx
+      simp [hx]
+  rw [habs]
+  cases ii with
+  | IndInfo a b =>
+    simp only [] at hrun
+    obtain ⟨rest, hrest, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hr := i_constant_infos_dup_from_abs hrest
+    obtain ⟨os, hos, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hs := sum_split_refines hos
+    have hrest' : absICIL rest = (block.val.drop 1).map absIConstantInfo := by
+      simpa [absICIL, alloc.vec.Vec.with_capacity, alloc.vec.Vec.new,
+        show ((1#usize : Std.Usize)).val = 1 by scalar_tac] using hr
+    rw [hrest'] at hs
+    simp only [nativeRecPinOk, absIConstantInfo, ← hs]
+    cases os with
+    | none =>
+      obtain rfl := Result.ok_injective hrun
+      simp
+    | some q =>
+      obtain ⟨v1, x, i3, i4, v2⟩ := q
+      simp only [Option.map_some]
+      obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      simp only [lift, Result.ok.injEq] at hn
+      have hnv : n.val = p.ctors.val.length := by
+        rw [← hn, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+      obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi5v : i5.val = p.n_p.val + 1 := ConRon.Refine.Nat.uadd_val hi5
+      obtain ⟨i6, hi6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi6v : i6.val = i5.val + n.val := ConRon.Refine.Nat.uadd_val hi6
+      have hlen : (absInductiveShape p).ctors.length = p.ctors.val.length := by
+        simp [absInductiveShape, absCtorsL]
+      simp only [hlen]
+      by_cases hc1 : i4 = i6
+      · rw [if_pos hc1] at hrun
+        have hc1' : absU i4 = absU p.n_p + 1 + p.ctors.val.length := by
+          simp only [absU]; rw [hc1]; omega
+        obtain ⟨i7, hi7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi7v : i7.val = i5.val + n.val := ConRon.Refine.Nat.uadd_val hi7
+        obtain ⟨i8, hi8, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi8v : i8.val = i7.val + p.n_idx.val := ConRon.Refine.Nat.uadd_val hi8
+        by_cases hc2 : i3 = i8
+        · rw [if_pos hc2] at hrun
+          have hc2' : absU i3 = absU p.n_p + 1 + p.ctors.val.length + absU p.n_idx := by
+            simp only [absU]; rw [hc2]; omega
+          obtain ⟨i10, hi10, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          simp only [lift, Result.ok.injEq] at hi10
+          have hi10v : i10.val = v2.val.length := by
+            rw [← hi10, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+          by_cases hc3 : i10 = n
+          · rw [if_pos hc3] at hrun
+            have hc3' : v2.val.length = p.ctors.val.length := by
+              rw [← hi10v, ← hnv, hc3]
+            have hpin := rules_pin_ok_refines hrun
+            rw [hpin, rulesPinOkSpec_eq_all]
+            simp [absInductiveShape, hc1', hc2', hc3', absU, hnv,
+              List.range_eq_range']
+            congr 1
+          · rw [if_neg hc3] at hrun
+            obtain rfl := Result.ok_injective hrun
+            have : v2.val.length ≠ p.ctors.val.length := by
+              intro e; apply hc3; scalar_tac
+            simp [absInductiveShape, hc1', hc2', this]
+        · rw [if_neg hc2] at hrun
+          obtain rfl := Result.ok_injective hrun
+          have : absU i3 ≠ absU p.n_p + 1 + p.ctors.val.length + absU p.n_idx := by
+            simp only [absU]; intro e; apply hc2; scalar_tac
+          simp [absInductiveShape, hc1', this]
+      · rw [if_neg hc1] at hrun
+        obtain rfl := Result.ok_injective hrun
+        have : absU i4 ≠ absU p.n_p + 1 + p.ctors.val.length := by
+          simp only [absU]; intro e; apply hc1; scalar_tac
+        simp [absInductiveShape, this]
+  | _ =>
+    obtain rfl := Result.ok_injective hrun
+    simp [nativeRecPinOk, absIConstantInfo]
 
 /-- `native_rec_lps_ok` ⊑ `nativeRecLpsOk` — the recursor record's
 level-parameter pin. -/
@@ -1289,6 +1548,15 @@ equality table §3.4 forbids `#[derive]` for. -/
 
 /-- info: 'ConRon.Refine2.ctors_pin_ok_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ctors_pin_ok_refines
+
+/-- info: 'ConRon.Refine2.kind_get_d_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms kind_get_d_refines
+
+/-- info: 'ConRon.Refine2.rules_pin_ok_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rules_pin_ok_refines
+
+/-- info: 'ConRon.Refine2.native_rec_pin_ok_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms native_rec_pin_ok_refines
 
 
 end ConRon.Refine2
