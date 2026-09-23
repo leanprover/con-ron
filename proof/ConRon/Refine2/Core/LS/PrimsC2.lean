@@ -77,23 +77,89 @@ attribute [lockstep_simp] absConstT
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _ he => dupId_lsidx _ _ he
 
+theorem vec_eq_of_val {α : Type} {a b : alloc.vec.Vec α} (h : a.val = b.val) : a = b :=
+  alloc.vec.Vec.ext _ _ h
+
+/-- `i_constant_val_dup` is the identity (three `dup2`s and `nidx_vec_dup`). -/
+theorem i_constant_val_dup_id {cv o : arena.env.IConstantVal}
+    (h : arena.env.i_constant_val_dup cv = ok o) : o = cv := by
+  rw [arena.env.i_constant_val_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h, dupId_nidx _ _ hn, dupId_eidx _ _ he,
+    vec_eq_of_val (nidx_vec_dup_val hv)]
+
 @[lockstep] theorem i_constant_val_dup_ls (cv : arena.env.IConstantVal) :
-    LSP (arena.env.i_constant_val_dup cv)
-      (fun o => TwinEq (absIConstantVal cv) (absIConstantVal o)) :=
-  fun _ h => (i_constant_val_dup_abs h).symm
+    LSP (arena.env.i_constant_val_dup cv) (fun o => o = cv) :=
+  fun _ h => i_constant_val_dup_id h
 
 @[lockstep] theorem i_ind_caps_dup_ls (c : arena.env.IIndCaps) :
-    LSP (arena.env.i_ind_caps_dup c) (fun o => TwinEq (absIIndCaps c) (absIIndCaps o)) :=
-  fun _ h => (i_ind_caps_dup_abs h).symm
+    LSP (arena.env.i_ind_caps_dup c) (fun o => o = c) := by
+  intro o h
+  rw [arena.env.i_ind_caps_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw]
+
+theorem i_rec_rule_fire_dup_id {f o : arena.env.IRecRuleFire}
+    (h : arena.env.i_rec_rule_fire_dup f = ok o) : o = f := by
+  rw [arena.env.i_rec_rule_fire_dup.eq_def] at h
+  cases f with
+  | Inert => rw [Result.ok_injective h]
+  | Plain => rw [Result.ok_injective h]
+  | Nested lvls pins =>
+    simp only [] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have e1 : v = lvls :=
+      vec_eq_of_val (lidx_vec_dup_eq (by rw [arena.env.lidx_vec_dup] at hv; exact hv))
+    have e2 : v1 = pins := vec_eq_of_val (eidx_vec_dup_val hv1)
+    rw [← Result.ok_injective h, e1, e2]
+
+theorem i_rec_rule_dup_id {r o : arena.env.IRecRule}
+    (h : arena.env.i_rec_rule_dup r = ok o) : o = r := by
+  rw [arena.env.i_rec_rule_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨irf, hirf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h, dupId_nidx _ _ hn, dupId_eidx _ _ he,
+    i_rec_rule_fire_dup_id hirf]
 
 @[lockstep] theorem i_rec_rule_dup_ls (r : arena.env.IRecRule) :
-    LSP (arena.env.i_rec_rule_dup r) (fun o => TwinEq (absIRecRule r) (absIRecRule o)) :=
-  fun _ h => (i_rec_rule_dup_abs h).symm
+    LSP (arena.env.i_rec_rule_dup r) (fun o => o = r) :=
+  fun _ h => i_rec_rule_dup_id h
+
+theorem i_rec_rules_dup_from_id {rs : alloc.vec.Vec arena.env.IRecRule} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.env.IRecRule),
+      arena.env.i_rec_rules_dup_from rs i out = ok o →
+      o.val.map id = out.val.map id ++ (rs.val.drop i.val).map id := by
+  refine vec_cursor_copy rs id id (arena.env.i_rec_rules_dup_from rs) ?_ ?_
+  · intro i out o hn h
+    rw [arena.env.i_rec_rules_dup_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    have hlt : i.val < rs.val.length := (List.getElem?_eq_some_iff.mp hx).1
+    rw [arena.env.i_rec_rules_dup_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+    obtain ⟨ir, hir, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ir1, hir1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hex : ir = x := by
+      have h1 := vec_index_some hir; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    exact ⟨i2, ir1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [← hex, i_rec_rule_dup_id hir1], h⟩
 
 @[lockstep] theorem i_rec_rules_dup_ls (rs : alloc.vec.Vec arena.env.IRecRule) :
-    LSP (arena.env.i_rec_rules_dup rs)
-      (fun o => TwinEq (rs.val.map absIRecRule) (o.val.map absIRecRule)) :=
-  fun _ h => (i_rec_rules_dup_abs h).symm
+    LSP (arena.env.i_rec_rules_dup rs) (fun o => o = rs) := by
+  intro r h
+  rw [arena.env.i_rec_rules_dup] at h
+  have h2 := i_rec_rules_dup_from_id 0#usize _ r h
+  apply vec_eq_of_val
+  simpa [alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
 
 @[lockstep] theorem arc_deref_ls {T : Type} (A : Type) (x : T) :
     LSP (alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x) (fun y => y = x) := by
@@ -335,19 +401,43 @@ theorem takeEidx_toList' (xs : Array EIdx) (k : Nat) :
   rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by omega)]
   simp
 
-/-- `take_eidx` at a `usize` count, read as the twin's own `takeEidx` of the
-push-order array (`iotaRecAt`'s spelling). -/
+@[lockstep_simp] theorem takeEidx_toList_eq (xs : alloc.vec.Vec arena.handle.EIdx) (k : Nat) :
+    (takeEidx (absEIdxArr xs) k).toList = (absEIdxList xs).take k := by
+  rw [takeEidx_toList']; simp [absEIdxArr, absEIdxList]
+
+/-- `take_eidx` at a `usize` count: the twin's `List.take` (its `takeEidx` of
+the push-order array is normalised to that by `takeEidx_toList_eq`). -/
 @[lockstep] theorem take_eidx_ls (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
     LSP (arena.expr_ops.take_eidx xs k)
-      (fun r => TwinEq (takeEidx (absEIdxArr xs) k.val).toList (absEIdxList r) ∧
-        TwinEq ((absEIdxList xs).take k.val) (absEIdxList r)) := by
+      (fun r => TwinEq ((absEIdxList xs).take k.val) (absEIdxList r)) := by
   intro r h
   have h1 := ExprOps.take_eidx_refines h
-  refine ⟨h1, ?_⟩
   show _ = _
-  have h2 : (takeEidx (absEIdxArr xs) k.val).toList = (absEIdxList xs).take k.val := by
-    rw [takeEidx_toList']; rfl
-  rw [← h2]; exact h1
+  rw [← takeEidx_toList_eq]; exact h1
+
+/-- The value of a `u64 as usize` cast, when the `u64` fits.  Irreducible, so
+that `apply` does not see the implication as more premises. -/
+@[irreducible] def CastFits (x : Std.U64) (r : Std.Usize) : Prop :=
+  x.val ≤ Usize.max → r.val = x.val
+
+theorem CastFits.val {x : Std.U64} {r : Std.Usize} (h : CastFits x r) (hx : x.val ≤ Usize.max) :
+    r.val = x.val := by
+  unfold CastFits at h; exact h hx
+
+/-- `x as usize` from a `u64`: the value, when it fits. -/
+@[lockstep] theorem cast_usize_u64_ls (x : Std.U64) :
+    LSP (lift (UScalar.cast .Usize x)) (fun r : Std.Usize => CastFits x r) := by
+  intro r h
+  unfold CastFits
+  intro hx
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have h2 : Usize.max = 2 ^ UScalarTy.Usize.numBits - 1 := by
+    simp [Usize.max, Usize.numBits]
+  have h3 : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+  omega
 
 /-- `args.getD i dflt`. -/
 @[lockstep] theorem get_d_eidx_ls (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
