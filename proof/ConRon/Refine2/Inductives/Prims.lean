@@ -11,6 +11,7 @@ conversion is needed, by `attribute [lockstep]` where not — and adds the
 Rust-only specs the tier's zips need.  Nothing here restates an owner's lemma.
 -/
 import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.ExprOps.Mut
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -84,6 +85,139 @@ open Lockstep in
     LSP (kernel.env.certs m) (fun b => TwinEq (ConRon.Refine.absMode m).certs b) := by
   intro b h
   cases m <;> (simp only [kernel.env.certs, Result.ok.injEq] at h; rw [← h]; rfl)
+
+/-! ## The port's message and name-part constants
+
+A name the port builds from a constant (`intern_n_node (Str n (code_points
+REC))`) is the twin's `.str n "rec"`: the literal is `lift (to_slice REC)` then
+`code_points`, two Rust-only steps whose specs carry the code points, and the
+side goals `absString v = "rec"` / `StrWF v` are then a computation on a
+three-element list. -/
+
+open Lockstep in
+@[lockstep] theorem lift_to_slice_spec {n : Std.Usize} (X : Array Std.U32 n) :
+    LSP (lift (Array.to_slice X)) (fun s => s.val = X.val) := by
+  intro s h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  simp
+
+open Lockstep in
+@[lockstep] theorem code_points_spec (s : Slice Std.U32) :
+    LSP (kernel.core_types.code_points s) (fun v => v.val = s.val) :=
+  fun _ h => ConRon.Refine.Env.code_points_val h
+
+open Lean Elab Tactic in
+/-- Fails unless the goal mentions a name-part string (`absString`, `StrWF`,
+`NNodeViewWF`): the string tier's `simp only [global_simps] at *` is not free. -/
+elab "ind_str_guard" : tactic => do
+  let t ← getMainTarget
+  unless t.containsConst (fun n => n == ``ConRon.Refine.absString ||
+      n == ``ConRon.Refine.StrWF || n == ``NNodeViewWF || n == ``absNNodeView) do
+    throwError "ind_str_guard: no string goal"
+
+/-- The string side goals of a constant name part. -/
+macro "ind_str_side" : tactic =>
+  `(tactic| (ind_str_guard
+             try simp only [global_simps] at *
+             simp_all [Array.make, ConRon.Refine.absString, ConRon.Refine.StrWF, NNodeViewWF, absNNodeView]
+             try decide))
+
+macro_rules
+  | `(tactic| lockstep_side_ext) => `(tactic| (ind_str_side; done))
+
+/-- The name part `"proj_" ++ toString i` the port builds from the literal
+`PROJ_` and `nat_to_dec i`. -/
+theorem proj_name_part {a v1 dig : alloc.vec.Vec Std.U32} {sl : Slice Std.U32} {n : Nat}
+    (hcat : a.val = v1.val ++ (alloc.vec.Vec.deref dig).val) (hv1 : v1.val = sl.val)
+    (hsl : sl.val = (arena.core.proj_model_name.PROJ_).val)
+    (hdig : ConRon.Refine.absCodes dig.val = toString n ∧ ConRon.Refine.StrWF dig) :
+    ConRon.Refine.absString a = "proj_" ++ toString n ∧ ConRon.Refine.StrWF a := by
+  have hl : a.val = [112#u32, 114#u32, 111#u32, 106#u32, 95#u32] ++ dig.val := by
+    rw [hcat, hv1, hsl]; simp [arena.core.proj_model_name.PROJ_, alloc.vec.Vec.deref]
+  refine ⟨?_, ?_⟩
+  · rw [ConRon.Refine.absString_eq, hl, ConRon.Refine.CoreK.absCodes_append, hdig.1]; rfl
+  · intro c hc
+    rw [hl, List.mem_append] at hc
+    rcases hc with hc | hc
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
+      rcases hc with rfl | rfl | rfl | rfl | rfl <;> decide
+    · exact hdig.2 c hc
+
+/-! ## Three Core readers the inductive routes call (task #97-T2-LOCKSTEP lane
+Inductives round 4): `proj_model_name`, `pi_result_is_prop`, `pi_result_z`.
+No lane owns them; both the Native/Struct/Sum tier and the Modeled lane use them. -/
+
+open Lockstep in
+@[lockstep] theorem nat_to_dec_spec (i : Std.U64) :
+    LSP (kernel.core_k.nat_to_dec i)
+      (fun r => ConRon.Refine.absCodes r.val = toString i.val ∧ ConRon.Refine.StrWF r) :=
+  fun _ h => ConRon.Refine.CoreK.nat_to_dec_refines h
+
+open Lockstep in
+@[lockstep] theorem code_points_from_zero_spec (s : Slice Std.U32) (out : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.code_points_from s 0#usize out)
+      (fun v => v.val = out.val ++ s.val) := by
+  intro v h
+  have := ConRon.Refine.Env.code_points_from_val s _ 0#usize out v (le_refl _) h
+  simpa using this
+
+/-- `proj_model_name` ⊑ `projModelName` — `(T.str "_model").str ("proj_" ++ toString i)`. -/
+theorem proj_model_name_refines {pers st lst} {t : arena.handle.NIdx} {i : Std.U64} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.proj_model_name pers st t i = ok o) :
+    Sim₀ absNIdx pers lst o (projModelName (absNIdx t) (absU i)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.core.proj_model_name, projModelName]
+  lockstep
+  -- the second part is a concatenation (`"proj_" ++ toString i`)
+  all_goals
+    rename_i dig hdig sl hsl v1 hv1
+    obtain ⟨hs, hwf⟩ := proj_name_part hP hv1 hsl hdig
+    have e : NNodeView.str (absNIdx ‹arena.handle.NIdx›) ("proj_" ++ toString i.val)
+        = absNNodeView (.Str ‹arena.handle.NIdx› a) := by
+      simp only [absNNodeView, hs]
+    rw [e]
+    exact intern_n_node_ls ‹_› ‹_› _ hwf
+
+open Lockstep in
+@[lockstep] theorem proj_model_name_ls {pers st lst} {t : arena.handle.NIdx} {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.proj_model_name pers st t i) lst
+      (projModelName (absNIdx t) (absU i)) :=
+  LS.ofSim₀ fun _ h => proj_model_name_refines hrel hinv h
+
+/-- `pi_result_is_prop` ⊑ `piResultIsProp`.  **Waits on `expr_ops::pi_result`'s
+lockstep lemma** (the ExprOps lane): past it, the zip is `tag`, `view_sort`,
+`zero_level`, `lvl_eq` — all filed here — and one `lockstep` call closes it. -/
+theorem pi_result_is_prop_refines {pers st lst} {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.pi_result_is_prop pers st e = ok o) :
+    Sim₀ id pers lst o (piResultIsProp (absEIdx e)) := by
+  sorry
+
+open Lockstep in
+@[lockstep] theorem pi_result_is_prop_ls {pers st lst} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.core.pi_result_is_prop pers st e) lst
+      (piResultIsProp (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => pi_result_is_prop_refines hrel hinv h
+
+/-- `pi_result_z` ⊑ `piResultZ`.  **Waits on `expr_ops::pi_result`'s lockstep
+lemma**, as above; past it `tag`, `view_sort`, `read_level_m` and the pure
+`zeroness_of`. -/
+theorem pi_result_z_refines {pers st lst} {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.pi_result_z pers st e = ok o) :
+    Sim₀ ConRon.Refine.absPropWhen pers lst o (piResultZ (absEIdx e)) := by
+  sorry
+
+open Lockstep in
+@[lockstep] theorem pi_result_z_ls {pers st lst} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = ConRon.Refine.absPropWhen a) (arena.core.pi_result_z pers st e) lst
+      (piResultZ (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => pi_result_z_refines hrel hinv h
 
 /-! ## The checker tier's statements in `LS` form
 
@@ -1865,6 +1999,16 @@ open Lockstep in
 
 
 end IndPrims
+
+theorem IFEnv.restrictTo_of_eq {lf : IFEnv} {k : Nat} (h : k = lf.visibleBelow) :
+    lf.restrictTo k = lf := by
+  subst h; rfl
+
+-- A checker-tier statement at a split counter reads `lf.restrictTo (absU vis)`;
+-- where the counter is the environment's own (`hvis`), that IS `lf`.
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (apply IFEnv.restrictTo_of_eq; assumption))
 
 attribute [lockstep] proj_table_name_lss
 

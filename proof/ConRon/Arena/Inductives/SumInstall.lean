@@ -111,7 +111,7 @@ other block.  Twinned here rather than in `Arena/Inductives/NativeInstall.lean`
 def nativeCapsAt (p : InductiveShape) (isRec : Bool) : AM IIndCaps := do
   match p.ctors with
   | [c] => do
-    let l ← readLevel p.resSort
+    let l ← readLevelM p.resSort
     pure { eta := p.nIdx == 0 && !p.isProp && !isRec
            etaCtor := c.1.name
            etaParams := p.nP
@@ -155,8 +155,8 @@ def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
     let ty ← inferTypeCore mode fe checkFuel (nP + j) (← fvarTypeD fv)
     let u ← ensureSortCore mode fe checkFuel (nP + j) ty
     if !isProp then do
-      let lu ← readLevel u
-      let ls ← readLevel s
+      let lu ← readLevelM u
+      let ls ← readLevelM s
       unless ← liftFueled "level comparison" (Level.leq lu ls) do
         fail (.invalid "direct sum: field universe too large")
     else if large then do

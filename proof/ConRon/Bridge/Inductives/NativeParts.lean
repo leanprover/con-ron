@@ -1254,24 +1254,28 @@ theorem structRecTyR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (ctors : List (NIdx × Nat × EIdx × List Nat))
     (ctorsP : List (ConLeche.Name × Nat × Expr × List Nat))
     (hcs : ∀ c ∈ ctorsP, ∀ i ∈ c.2.2.2, i < c.2.1) :
-    PSpec (fun st => denoteN st.ns T = some TP ∧
+    PSpecL (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteN st.ns elim = some elimP ∧ denoteE st tty = some ttyP ∧
         denoteCtors4 st ctors = some ctorsP)
       (Arena.structRecTyR T lps elim large nP nIdx tty ctors)
       (ROp RE (ConLeche.structRecTyR TP lpsP elimP large nP nIdx ttyP ctorsP)) := by
-  intro s₀ s' r hok hpre hrun
+  intro s₀ s' r hok hrlc hpre hrun
   obtain ⟨hT, hlps, helim, htty, hcs4⟩ := hpre
   have hn : ctors.length = ctorsP.length := denoteCtors4_length hcs4
   simp only [Arena.structRecTyR] at hrun
   obtain ⟨l, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨p1, hl⟩ := structElimLevel_spec elim elimP large s₀ s1 l hok helim k1
   obtain ⟨u, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨hs2, hu⟩ := readLevel_run k2
-  rw [hs2] at z2
+  have hu := readLevelM_denote_L hrlc p1 k2
+  have p2 := readLevelM_pstep p1.ok k2
+  have p1' := p1.trans p2
   have hu' : u = ConLeche.structElimLevel elimP large := by
     rw [hl] at hu; exact (Option.some.inj hu).symm
   subst hu'
+  have hl := denoteL_ext hl p2.ext
+  have p1 := p1'
+  clear p1'
   obtain ⟨q, s3, k3, z3⟩ := bindOk z2
   obtain ⟨hs3, hq⟩ := stripPis_pstep p1.ok (denote_ext htty p1.ext) k3
   rw [hs3] at z3
@@ -1282,7 +1286,7 @@ theorem structRecTyR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     simp only [ConLeche.structRecTyR, stripPis_none hq, Option.bind_none]
   obtain ⟨qxs, q2P, hq1, -, hq2⟩ := denoteBP_someB hq
   obtain ⟨mt, s4, k4, z4⟩ := bindOk z3
-  obtain ⟨p4, hmt⟩ := structMotiveTyI_spec T TP lps lpsP nP nIdx l _ q2 q2P s1 s4 mt p1.ok
+  obtain ⟨p4, hmt⟩ := structMotiveTyI_spec T TP lps lpsP nP nIdx l _ q2 q2P s2 s4 mt p1.ok
     ⟨denoteN_ext hT p1.ext, denoteNListE_ext p1.ext _ _ hlps, hl, hq2⟩ k4
   cases mt with
   | none =>
@@ -1314,7 +1318,7 @@ theorem structRecTyR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (denote_ext hfam (p6.ext.trans (p7.ext.trans (p8.ext.trans p9.ext)))) hcc k10
   have q10 : PStep s₀ s10 := q4.trans (p5.trans (p6.trans (p7.trans (p8.trans
     (p9.trans p10)))))
-  have x110 : Ext s1.store s10.store := p4.ext.trans (p5.ext.trans (p6.ext.trans
+  have x110 : Ext s2.store s10.store := p4.ext.trans (p5.ext.trans (p6.ext.trans
     (p7.ext.trans (p8.ext.trans (p9.ext.trans p10.ext)))))
   obtain ⟨lf, s11, k11, z11⟩ := bindOk z10
   obtain ⟨p11, hlf⟩ := liftFast_pstep p10.ok (denote_ext hq2 x110) k11
@@ -1368,7 +1372,7 @@ theorem structRecRhsR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (ctorsP : List (ConLeche.Name × Nat × Expr × List Nat)) (recC : NIdx)
     (recCP : ConLeche.Name) (rlvls : LsIdx) (rlvlsP : List Level) (j : Nat)
     (hcs : ∀ c ∈ ctorsP, ∀ i ∈ c.2.2.2, i < c.2.1) :
-    PSpec (fun st => denoteN st.ns T = some TP ∧
+    PSpecL (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteN st.ns elim = some elimP ∧ denoteE st tty = some ttyP ∧
         denoteCtors4 st ctors = some ctorsP ∧
@@ -1376,18 +1380,22 @@ theorem structRecRhsR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
       (Arena.structRecRhsR T lps elim large nP nIdx tty ctors recC rlvls j)
       (ROp RE (ConLeche.structRecRhsR TP lpsP elimP large nP nIdx ttyP ctorsP
         recCP rlvlsP j)) := by
-  intro s₀ s' r hok hpre hrun
+  intro s₀ s' r hok hrlc hpre hrun
   obtain ⟨hT, hlps, helim, htty, hcs4, hrc, hrl⟩ := hpre
   have hn : ctors.length = ctorsP.length := denoteCtors4_length hcs4
   simp only [Arena.structRecRhsR] at hrun
   obtain ⟨l, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨p1, hl⟩ := structElimLevel_spec elim elimP large s₀ s1 l hok helim k1
   obtain ⟨u, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨hs2, hu⟩ := readLevel_run k2
-  rw [hs2] at z2
+  have hu := readLevelM_denote_L hrlc p1 k2
+  have p2 := readLevelM_pstep p1.ok k2
+  have p1' := p1.trans p2
   have hu' : u = ConLeche.structElimLevel elimP large := by
     rw [hl] at hu; exact (Option.some.inj hu).symm
   subst hu'
+  have hl := denoteL_ext hl p2.ext
+  have p1 := p1'
+  clear p1'
   obtain ⟨hgn, hgs⟩ := denoteCtors4_getElem? hcs4 j
   cases hcj : ctors[j]? with
   | none =>
@@ -1413,7 +1421,7 @@ theorem structRecRhsR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     simp only [ConLeche.structRecRhsR, hcjP, stripPis_none hq, Option.bind_none]
   obtain ⟨qxs, q2P, hq1, -, hq2⟩ := denoteBP_someB hq
   obtain ⟨mt, s4, k4, z4⟩ := bindOk z3
-  obtain ⟨p4, hmt⟩ := structMotiveTyI_spec T TP lps lpsP nP nIdx l _ q2 q2P s1 s4 mt p1.ok
+  obtain ⟨p4, hmt⟩ := structMotiveTyI_spec T TP lps lpsP nP nIdx l _ q2 q2P s2 s4 mt p1.ok
     ⟨denoteN_ext hT p1.ext, denoteNListE_ext p1.ext _ _ hlps, hl, hq2⟩ k4
   cases mt with
   | none =>
