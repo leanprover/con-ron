@@ -54,6 +54,15 @@ open Lockstep in
       (Arena.internNNode (absNNodeView v)) :=
   LS.ofSim₀ fun _ h => intern_n_node_run₀ hrel hinv v hvwf h
 
+open Lockstep in
+/-- A `usize`-to-`u64` cast (`v.len() as u64`) is the identity on the value. -/
+@[lockstep] theorem lift_cast_usize_u64_spec (x : Std.Usize) :
+    LSP (lift (UScalar.cast .U64 x)) (fun a => a.val = x.val) := by
+  intro a h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  exact ConRon.Refine.ExprOps.usize_cast_u64_val x
+
 /-! ## The checker tier's statements in `LS` form
 
 Generated from `Refine2/Checker/{Base,Pins,Axioms,Canon}.lean` (every

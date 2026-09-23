@@ -1033,7 +1033,10 @@ theorem check_native_pass_refines {pers st lst} {mode : kernel.env.CheckMode}
     SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
       (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
         is_rec) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.native_install.check_native_pass, checkNativePass]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_pass_ls

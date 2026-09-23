@@ -452,6 +452,14 @@ theorem nidx_vec_contains_abs {ns : alloc.vec.Vec arena.handle.NIdx}
   rw [hcomm]
   simp only [List.contains_eq_any_beq, List.any_map, Function.comp_def]
 
+
+open Lockstep in
+@[lockstep] theorem nidx_vec_contains_twin (ns : alloc.vec.Vec arena.handle.NIdx)
+    (n : arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_contains ns n)
+      (fun o => TwinEq ((absNIdxL ns).contains (absNIdx n)) o) :=
+  fun _ h => (nidx_vec_contains_abs h).symm
+
 /-- **`arena::core::nidx_vec_beq` ⊑ `==` on the abstraction.** -/
 theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
     (h : arena.core.nidx_vec_beq a b = ok o) :
@@ -802,6 +810,19 @@ open Lockstep in
 @[lockstep] theorem core_types_internal_ls (m : alloc.vec.Vec Std.U32) :
     LSP (kernel.core_types.internal m) (fun e => e = .Internal m) := by
   intro e h; simp only [kernel.core_types.internal, Result.ok.injEq] at h; exact h.symm
+
+/-! ## The tier's side-goal extension
+
+A twin `if` over values the port computed in Rust-only steps is decided by
+their `TwinEq` facts; those are stated at the port's cursor forms
+(`absCtors3LFrom cs 0`, `absNIdxL v`), the twin's at its list forms, so the
+tier's extension unfolds `TwinEq` and the abstractions and asks `simp_all`. -/
+
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (simp only [Lockstep.TwinEq] at *; first
+      | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
+          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom]; done)))
 
 /-! ## The axiom census -/
 

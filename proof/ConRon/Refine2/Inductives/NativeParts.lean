@@ -1791,18 +1791,31 @@ open Lockstep in
 
 /-! ## Recognition -/
 
+/-- `nativeCounts?` at a constructor COUNT: the twin reads its list only
+through `cs.length` (finding 17), so the tier states the port's
+`native_counts` against this normal form, and `nativeCounts?_len` (a
+`lockstep_simp` rewrite of the twin side) brings every caller's twin to it —
+the count is then a side goal (`absU n = cs.length`) instead of a list the
+tactic would have to guess. -/
+def nativeCountsLen (nPd : Nat) (cvT : IConstantVal) (n : Nat) (mI rP : Nat) :
+    AM (Option (Nat × Nat)) :=
+  nativeCounts? nPd cvT (List.replicate n default) mI rP
+
+@[lockstep_simp] theorem nativeCounts?_len (nPd : Nat) (cvT : IConstantVal)
+    (cs : List (IConstantVal × Nat × Nat)) (mI rP : Nat) :
+    nativeCounts? nPd cvT cs mI rP = nativeCountsLen nPd cvT cs.length mI rP := by
+  simp only [nativeCountsLen, nativeCounts?, List.length_replicate]
+
 /-- `native_counts` ⊑ `nativeCounts?` — **finding 17**: the port takes the
-constructor count where the twin takes the list, so the statement supplies
-`cs.length`. -/
+constructor count where the twin takes the list; the statement is at the
+count (`nativeCountsLen`). -/
 theorem native_counts_refines {pers st lst} {n_pd : Std.U64}
     {cv_t : arena.env.IConstantVal} {n_ctors m_i r_p : Std.U64} {o}
-    {cs : List (IConstantVal × Nat × Nat)}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hlen : absU n_ctors = cs.length)
     (hrun : arena.inductives.native_parts.native_counts pers st n_pd cv_t n_ctors m_i
       r_p = ok o) :
     Sim₀ (Option.map fun p => (absU p.1, absU p.2)) pers lst o
-      (nativeCounts? (absU n_pd) (absIConstantVal cv_t) cs (absU m_i)
+      (nativeCountsLen (absU n_pd) (absIConstantVal cv_t) (absU n_ctors) (absU m_i)
         (absU r_p)) := by
   sorry
 
@@ -1812,14 +1825,12 @@ open Lockstep in
     {n_pd : Std.U64}
     {cv_t : arena.env.IConstantVal}
     {n_ctors m_i r_p : Std.U64}
-    {cs : List (IConstantVal × Nat × Nat)}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hlen : absU n_ctors = cs.length) :
+    (hinv : AStateInv pers st) :
     LS pers (fun a b => b = (Option.map fun p => (absU p.1, absU p.2)) a) (arena.inductives.native_parts.native_counts pers st n_pd cv_t n_ctors m_i r_p) lst
-      (nativeCounts? (absU n_pd) (absIConstantVal cv_t) cs (absU m_i)
+      (nativeCountsLen (absU n_pd) (absIConstantVal cv_t) (absU n_ctors) (absU m_i)
         (absU r_p)) :=
-  LS.ofSim₀ fun _ h => native_counts_refines hrel hinv hlen h
+  LS.ofSim₀ fun _ h => native_counts_refines hrel hinv h
 
 /-- `rulesPinOkSpec` is `nativeRecPinOk`'s `(List.range …).all` from rule `j`
 on, read over `List.range'`: a fact about the spec alone. -/
@@ -2378,7 +2389,10 @@ theorem native_shape_at_refines {pers st lst} {n_pd : Std.U64}
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeAtSpec (absU n_pd) (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absU m_i) (absU r_p) (absIRecRuleL rules)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_shape_at, nativeShapeAtSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_shape_at_ls
