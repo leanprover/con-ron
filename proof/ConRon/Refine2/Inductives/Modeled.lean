@@ -260,6 +260,21 @@ theorem rename_by_rel {r : arena.inductives.modeled.RenameBy} :
   intro n o hrun
   exact (rename_by_refines hrun).symm
 
+open Lockstep in
+/-- `rename_consts_fast` at the modeled route's one dictionary, `RenameBy`:
+`ExprOps/Mut.lean`'s `rename_consts_fast_ls` with its `RenameRel` discharged
+by `rename_by_rel`.  (The general lemma's twin function is not fixed by the
+Rust call, so the tactic cannot close its premise before it has matched the
+twin.) -/
+@[lockstep] theorem rename_consts_fast_by_ls {r : arena.inductives.modeled.RenameBy}
+    {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (fuel : Std.U64) (e : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.expr_ops.rename_consts_fast
+        arena.inductives.modeled.RenameBy.Insts.Con_ron_coreArenaExpr_opsNIdxToNIdx pers st fuel r e)
+      lst (renameConstsFast (absU fuel) (renameBy (absRenameBy r)) (absEIdx e)) :=
+  rename_consts_fast_ls rename_by_rel hrel hinv fuel e
+
 /-- `block_rename_table_from` in `LS` form, by induction on the names left. -/
 theorem block_rename_table_from_aux (n : Nat) :
     ∀ {pers st lst} {block_names : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize}
@@ -2001,7 +2016,9 @@ theorem check_member_model_refines {pers st lst} {vis : Std.U64}
     Sim₀ absIConstantVal pers lst o
       (checkMemberModelSpec (absRenameBy f) lf2 (absIConstantVal cv_a) lblock
         lan) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_member_model, checkMemberModelSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_member_model_ls
@@ -2449,7 +2466,9 @@ theorem check_proj_ty_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     Sim₀ absEIdx pers lst o
       (checkProjTy lf2 (absNIdx t) (absNIdx ctor_name) (absNIdxL lps)
         (absEIdx mty) (absU n_p) (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_ty, checkProjTy_unfold]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_proj_ty_ls
