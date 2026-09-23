@@ -15,9 +15,10 @@ constructor forms and `reduceNat`) needs and that no shared prims file has:
   literal one carrying the stored literal's `LiteralWF` (`StoreInv`'s
   `nodesP` at the `lits` table) — the representation fact every `ron::nat`
   operation on a literal needs;
-* the intern prims the region calls (`intern_e_lit`, `intern_e_const`,
-  `intern_e_sort`, `intern_l_node`, `intern_ls_node`,
-  `i_constant_info_to_constant_val`), PENDING the foundation's intern slice.
+* the store-level step `i_constant_info_to_constant_val` (`LSS`), from the
+  foundation's `intern_l_node_run₀` / `intern_e_sort_run₀`;
+* the `Vec` length tests the literal guards make (`vec_len_*`), as
+  `lockstep_simp` equations against the twin's `isEmpty` / `length` tests.
 -/
 import ConRon.Refine2.Core.LS.Prims
 
@@ -552,17 +553,103 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
 
 attribute [lockstep_simp] absConstT
 
-/-! ## A store-level intern step — PENDING foundation intern slice (T2-LOCKSTEP slice 3) -/
+/-! ## A store-level step: `i_constant_info_to_constant_val` -/
 
 /-- `i_constant_info_to_constant_val` against `IConstantInfo.toConstantVal`, a
-store-level step (its `projInfo` arm interns `Sort 1`). -/
+store-level step: six arms copy the record, the `projInfo` arm interns
+`Sort 1` in both, in the same order (the port at store level, the twin through
+the monad; `intern_l_node_run₀`/`intern_e_sort_run₀` are the two sides of one
+intern). -/
 @[lockstep] theorem i_constant_info_to_constant_val_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (c : arena.env.IConstantInfo) :
     LSS pers (fun a b => b = absIConstantVal a)
       (arena.env.i_constant_info_to_constant_val pers st.store c) st lst
       (absIConstantInfo c).toConstantVal := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
+  intro o s' hm
+  have plain : ∀ v iv, arena.env.i_constant_val_dup v = ok iv →
+      (o, s') = (.Ok iv, st.store) →
+      (absIConstantInfo c).toConstantVal = pure (absIConstantVal v) →
+      LOut pers (fun a b => b = absIConstantVal a) o { st with store := s' }
+        ((absIConstantInfo c).toConstantVal.run lst) := by
+    intro v iv hiv ho hx
+    simp only [Prod.mk.injEq] at ho
+    obtain ⟨rfl, rfl⟩ := ho
+    refine ⟨_, lst, ?_, (i_constant_val_dup_abs hiv).symm, hrel, hinv⟩
+    rw [hx]; rfl
+  cases c with
+  | AxiomInfo v =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | DefnInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ThmInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | IndInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | CtorInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | RecInfo v _ _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ProjInfo tbl =>
+    clear plain
+    simp only [arena.env.i_constant_info_to_constant_val] at hm
+    simp only [absIConstantInfo, IConstantInfo.toConstantVal]
+    -- 1. the level `0`
+    obtain ⟨⟨r1, ar1⟩, h1, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    have hS1 : Sim₀ absLIdx pers lst (r1, { st with store := ar1 })
+        (Arena.internLNode (absLNodeView arena.store.LNodeView.Zero)) :=
+      intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
+        (by rw [arena.monad.intern_l_node, h1]; simp only [Aeneas.Std.bind_tc_ok]; rfl)
+    rw [show Arena.internLNode LNodeView.zero
+        = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
+    cases r1 with
+    | Err e =>
+      cases Result.ok_injective hm
+      exact errSim_bind (Sim₀.apply_err hS1)
+    | Ok z =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+    rw [run_bind_ok hx1]
+    -- 2. the level `1`
+    obtain ⟨⟨r2, ar2⟩, h2, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    have hS2 : Sim₀ absLIdx pers lst1 (r2, { st with store := ar2 })
+        (Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z))) :=
+      intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
+        (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [Aeneas.Std.bind_tc_ok]; rfl)
+    rw [show Arena.internLNode (.succ (absLIdx z))
+        = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
+    cases r2 with
+    | Err e =>
+      cases Result.ok_injective hm
+      exact errSim_bind (Sim₀.apply_err hS2)
+    | Ok one =>
+    obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+    rw [run_bind_ok hx2]
+    -- 3. the expression `Sort 1`
+    obtain ⟨⟨r3, ar3⟩, h3, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    have h3' : arena.store.EStore.intern_sort ar2 pers one = ok (r3, ar3) := by
+      rw [arena.store.EStore.intern] at h3; exact h3
+    have hS3 : Sim₀ absEIdx pers lst2 (r3, { st with store := ar3 })
+        (Arena.internSortE (absLIdx one)) :=
+      intern_e_sort_run₀ hrel2 hinv2 one
+        (by rw [arena.monad.intern_e_sort]; rw [h3']; simp only [Aeneas.Std.bind_tc_ok]; rfl)
+    rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
+    cases r3 with
+    | Err e =>
+      cases Result.ok_injective hm
+      exact errSim_bind (Sim₀.apply_err hS3)
+    | Ok ty =>
+    obtain ⟨lst3, hx3, hrel3, hinv3⟩ := Sim₀.apply hS3
+    rw [run_bind_ok hx3]
+    obtain ⟨n, hn, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    obtain ⟨v, hv, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    cases Result.ok_injective hm
+    refine ⟨_, lst3, rfl, ?_, hrel3, hinv3⟩
+    simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
 
 attribute [lockstep_simp] absLNodeView absLsNodeView absIConstantVal ConRon.Refine.absLiteral
 

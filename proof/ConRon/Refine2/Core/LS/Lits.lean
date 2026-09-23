@@ -532,4 +532,18 @@ discharging `Core/Arms/Loops.lean`'s `reduce_nat_refines` through
 
 end
 
+/-! ## Axiom census -/
+
+/-- info: 'ConRon.Refine2.Lockstep.reduce_nat_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms reduce_nat_ls
+
+/-- info: 'ConRon.Refine2.Lockstep.str_lit_supported_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms str_lit_supported_ls
+
+/-- info: 'ConRon.Refine2.Lockstep.str_lit_to_constructor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms str_lit_to_constructor_ls
+
+/-- info: 'ConRon.Refine2.Lockstep.lit_to_ctor_if_nat_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lit_to_ctor_if_nat_ls
+
 end ConRon.Refine2.Lockstep
