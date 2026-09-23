@@ -1970,6 +1970,154 @@ theorem InstRel.trans {fe₀ fe₁ fe₂ : IFEnv} {P₁ P₂ : Env → Prop}
   denote := h₂.denote
   proj := h₁.proj.trans h₂.proj hx
 
+/-! ## The recognisers' readers (task #97-P3-Ind round 6)
+
+`structPartsCore?` and `nativeShape?` read the reserved-name list, peel a
+rule's right-hand side with `stripLams`, and ask `lvlEq?` for `isProp`.  The
+three run forms below put each of those at THIS tier's frame. -/
+
+/-- con-leche: none — the frame a name-only program leaves on the three
+fields `EStore.viewBM` reads: `bmExt_of_nested`'s hypotheses, as a relation
+between states that composes along a `do` block. -/
+def NestFrame (s s' : AState) : Prop :=
+  StoreWF s.store → StoreWF s'.store ∧ s'.store.pers = s.store.pers ∧
+    s'.store.scr = s.store.scr ∧ s'.store.scratchOn = s.store.scratchOn
+
+/-- con-leche: none — every accepting run of the program leaves `NestFrame`. -/
+def NestProg {α : Type} (c : AM α) : Prop :=
+  ∀ (s s' : AState) (a : α), c s = .ok (a, s') → NestFrame s s'
+
+theorem NestProg.pure {α : Type} (a : α) : NestProg (pure a : AM α) := by
+  intro s s' b h
+  obtain ⟨-, rfl⟩ := pureOk h
+  exact fun hw => ⟨hw, rfl, rfl, rfl⟩
+
+theorem NestProg.bind {α β : Type} {x : AM α} {f : α → AM β}
+    (hx : NestProg x) (hf : ∀ a, NestProg (f a)) : NestProg (x >>= f) := by
+  intro s s' b h
+  obtain ⟨a, s₁, h1, h2⟩ := bindOk h
+  intro hw
+  obtain ⟨w1, p1, c1, o1⟩ := hx s s₁ a h1 hw
+  obtain ⟨w2, p2, c2, o2⟩ := hf a s₁ s' b h2 w1
+  exact ⟨w2, p2.trans p1, c2.trans c1, o2.trans o1⟩
+
+theorem NestProg.pinAt (i : Nat) : NestProg (Arena.pinAt i) := by
+  intro s s' n h
+  simp only [Arena.pinAt] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  have e1 : t = s ∧ s₁ = s := by
+    injection h1 with h1'; injection h1' with a b; exact ⟨a.symm, b.symm⟩
+  obtain ⟨rfl, rfl⟩ := e1
+  split at h2
+  · obtain ⟨-, rfl⟩ := pureOk h2
+    exact fun hw => ⟨hw, rfl, rfl, rfl⟩
+  · exact absurd h2 (fun hc => failOk hc)
+
+theorem NestProg.internName (nm : ConLeche.Name) :
+    NestProg (Arena.internName nm) := by
+  intro s s' n h hw
+  obtain ⟨h1, -, h3, h4, h5, -⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => StoreWF t.store ∧ Ext s.store t.store ∧
+        t.store.pers = s.store.pers ∧ t.store.scr = s.store.scr ∧
+        t.store.scratchOn = s.store.scratchOn ∧
+        t.memos = s.memos ∧ t.caches = s.caches ∧ t.pins = s.pins ∧
+        denoteN t.store.ns r = some nm) rfl h (internName_spec s nm hw)
+  exact ⟨h1, h3, h4, h5⟩
+
+/-- con-leche: none — `reservedBasisNames` touches no expression table:
+six pin reads and thirteen name interns. -/
+theorem reservedBasisNames_nest : NestProg Arena.reservedBasisNames := by
+  simp only [Arena.reservedBasisNames]
+  repeat
+    first
+    | exact NestProg.pure _
+    | refine NestProg.bind (NestProg.pinAt _) (fun _ => ?_)
+    | refine NestProg.bind (NestProg.internName _) (fun _ => ?_)
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
+**the reserved list at this tier's frame**: `Bridge/Checker/Names.lean`'s
+`reservedBasisNames_run` gives `PinStep` and the list; `reservedBasisNames_nest`
+adds the three fields `BMExt` needs. -/
+theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
+    (hok : StateOK s) (hp : PinsOK s)
+    (hr : Arena.reservedBasisNames s = .ok (hs, s')) :
+    PStep s s' ∧
+      Frontend.denoteNList s'.store.ns hs = some ConLeche.reservedBasisNames := by
+  obtain ⟨hps, hd⟩ := reservedBasisNames_run hok.wf hp hr
+  obtain ⟨-, h1, h2, h3⟩ := reservedBasisNames_nest s s' hs hr hok.wf
+  refine ⟨PStep.of_caches ⟨hps.wf⟩ hps.ext (bmExt_of_nested h1 h2 h3)
+    hps.caches hps.pins, ?_⟩
+  rw [← reservedBasisNameValues_eq]
+  exact denoteNL_toList _ _ hd
+
+/-- con-leche: none — a `some` answer of a telescope peel names the pure
+residual, at ANY pure function (`stripPis_some` is this at `stripPis`). -/
+theorem denoteBP_some' {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
+    ∃ xs x, v = some (xs, x) ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the run form
+of `Bridge/ExprOps/Spine.lean`'s closed `stripLams_spec`, `stripPis_pstep`'s
+λ twin. -/
+theorem stripLams_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
+    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    (hd : denoteE s₀.store c = some cP)
+    (hrun : Arena.stripLams k c s₀ = .ok (r, s')) :
+    s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripLams k cP) := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.stripLams_spec k s₀ c hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 cP hd⟩
+
+/-- con-leche: none — a rule's right-hand side denotes. -/
+theorem denoteRule_rhs {st : EStore} {rl : IRecRule} {x : RecRule}
+    (h : Frontend.denoteRule st rl = some x) : denoteE st rl.rhs = some x.rhs := by
+  simp only [Frontend.denoteRule] at h
+  cases hc : denoteN st.ns rl.ctor with
+  | none => rw [hc] at h; simp at h
+  | some c =>
+    cases hf : Frontend.denoteFire st rl.fire with
+    | none => rw [hc, hf] at h; simp at h
+    | some f =>
+      cases he : denoteE st rl.rhs with
+      | none => rw [hc, hf, he] at h; simp at h
+      | some e =>
+        rw [hc, hf, he] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-- con-leche: none — **`lvlEq?` at the pure frame**: it moves only the two
+caches `CacheFrame` names (`Core.lvlEq?_frame`). -/
+theorem lvlEq?_pstep {s s' : AState} {u v : LIdx} {r : Option Bool}
+    (hok : StateOK s) (hrun : Arena.lvlEq? u v s = .ok (r, s')) : PStep s s' := by
+  obtain ⟨hst, -, hp, hcf⟩ := Core.lvlEq?_frame hrun
+  exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
+    by rw [hst]; exact BMExt.refl _, hcf, hp⟩
+
+/-- con-leche: none — `ROp` is monotone in its relation. -/
+theorem ROp.mono {α β : Type} {R R' : β → EStore → α → Prop} {x : Option β}
+    {st : EStore} {r : Option α} (h : ROp R x st r)
+    (hR : ∀ b a, R b st a → R' b st a) : ROp R' x st r := by
+  cases r with
+  | none => exact h
+  | some a => obtain ⟨b, hb, hr⟩ := h; exact ⟨b, hb, hR b a hr⟩
+
+/-- con-leche: none — and it is two-sided at `isSome`. -/
+theorem ROp.isSome {α β : Type} {R : β → EStore → α → Prop} {x : Option β}
+    {st : EStore} {r : Option α} (h : ROp R x st r) : r.isSome = x.isSome := by
+  cases r with
+  | none => simp only [ROp] at h; rw [h]; rfl
+  | some a => obtain ⟨b, hb, _⟩ := h; rw [hb]; rfl
+
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what an inductive install route leaves behind**.  Seven clauses, and the
 correspondence with `DeclOut` is one-for-one except that the `run` clause is
