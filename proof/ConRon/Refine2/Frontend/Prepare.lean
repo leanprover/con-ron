@@ -36,7 +36,7 @@ transcription reads all of them.
 `prepare_d`/`prepare_prelude` moved to `Top.lean`: they run the hoist and
 `export_c::sat_sub`, both above this file.
 
-## `sorry` count in this file: 1
+## `sorry` count in this file: 0
 -/
 import ConRon.Refine2.Frontend.Types
 
@@ -197,15 +197,9 @@ theorem prelude_ix_empty_refines {p : frontend.prepare.PreludeIx}
   cases Result.ok_injective h
   rfl
 
-/-- **`arena::env::i_declaration_dup` is the identity under the abstraction.**
-`Refine2/Inductives/Shape.lean`'s `i_constant_val_dup_abs` /
-`i_constant_info_dup_abs` family is the proof's substance; that file is above
-this tier (it imports the Core knot through `Checker/KnotHyp.lean`), so the
-lemma stays open here until the family moves down to a shared base (a
-cut-and-paste of ~120 lines, plus the three enum `_dup`s). -/
-theorem i_declaration_dup_abs {d o : arena.env.IDeclaration}
-    (h : arena.env.i_declaration_dup d = ok o) :
-    absIDeclaration o = absIDeclaration d := by sorry
+-- `i_declaration_dup_abs` is `Refine2/Dup.lean`'s (task #97-P5-Front round 2:
+-- the `arena::env` copies moved down from `Inductives/Shape.lean`).
+
 
 /-- **`arena::env::i_declaration_names` is `IDeclaration.names`.**  The
 `indDecl` arm is `Refine2/Checker/Axioms.lean`'s `block_names_refines`, above

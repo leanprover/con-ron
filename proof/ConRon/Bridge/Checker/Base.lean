@@ -218,7 +218,14 @@ then `KnotSpec.annotate`, `allLevelParamsDefined_run`,
 `constsResolveFFast_run`, `KnotSpec.infer` and
 `EnsureSortSpec.ensureSort`, in that order.  Task #97-P3-Checker's sorry list,
 item 11 — the single highest-value remaining proof of the tier, since all
-seven arms wait on it. -/
+seven arms wait on it. 
+
+**Restated in task #97-P3-Checker round 10** (the coordinator's ruling, for
+the Inductives tier): the hypotheses are `CheckOK` and `EnvWF`, not `FoldOK`.
+The inductive routes call it at an index that already holds a scratch
+constant, where `FoldOK`'s `PersIFEnv` is false; the proof never read
+`PersIFEnv` (the two sites that did computed an unused denotation).  The
+arms use `checkConstantVal_bridge_of_fold`. -/
 theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     {c : ConstantVal} {ty sty : Expr} {u : Level}
     (h1 : env.find? c.name = none)
@@ -241,14 +248,14 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
 theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
     (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
+    (hck0 : CheckOK μ env fe s) (henv : EnvWF env)
+    (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : checkConstantVal μ fe cv s = .ok (cvA, s')) :
     CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
       ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA := by
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
-  have hknot := hk.knot env fe hok.envWF
-  have hsortS := hk.sort env fe hok.envWF
-  have hck0 : CheckOK μ env fe s := hok.check
+  have hknot := hk.knot env fe henv
+  have hsortS := hk.sort env fe henv
   have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
       {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
     fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
@@ -336,9 +343,6 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
       = some c.levelParams := by rw [h6st]; exact hlps5
   have hws : Expr.WScoped 0 c.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
-  have hden6 : denoteFEnv s6.store fe = some env := by
-    rw [h6st, h5st]
-    exact denoteFEnv_pext (PExt.of_ext hp2.ext) hok.persEnv hok.denote
   -- 7. the annotation
   obtain ⟨type, s7, g7r, r11⟩ := AM.bind_ok r10
   obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
@@ -350,8 +354,6 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hnm7 : denoteN s7.store.ns cv.name = some c.name := denoteN_ext hnm6 hx7
   have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
-  have hden7 : denoteFEnv s7.store fe = some env :=
-    denoteFEnv_pext (PExt.of_ext hx7) hok.persEnv hden6
   -- 8. the undeclared-universe-parameter guard
   obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
@@ -367,7 +369,6 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hnm8 : denoteN s8.store.ns cv.name = some c.name := by rw [h8st]; exact hnm7
   have hlps8 : Frontend.denoteNList s8.store.ns cv.levelParams
       = some c.levelParams := by rw [h8st]; exact hlps7
-  have hden8 : denoteFEnv s8.store fe = some env := by rw [h8st]; exact hden7
   -- 9. the unresolved-constant guard
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
   have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p, hp2.pins]
@@ -434,6 +435,18 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       (ConLeche.inferTypeCore_mono hle10 hF10)
       (ConLeche.ensureSortCore_mono hle11 hF11)
 
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeCS1.lean:43 checkConstantValS_sim —
+`checkConstantVal_bridge` at the fold's invariant, which is what the seven
+arms hold. -/
+theorem checkConstantVal_bridge_of_fold {μ : CheckMode} {env : Env}
+    {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
+    (hrun : checkConstantVal μ fe cv s = .ok (cvA, s')) :
+    CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
+      ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA :=
+  checkConstantVal_bridge hμ hk hok.check hok.envWF hcv hrun
 
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean:279 checkConstantVal_datF —
 one fuel for the front door, through con-leche's own monotone family. -/

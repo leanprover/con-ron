@@ -692,15 +692,29 @@ def DeclRecStrWF : frontend.scan_types.DeclRec → Prop
   | .Quot _ k => ConRon.Refine.StrWF k
   | _ => True
 
-/-- `DeclRecStrWF` at a line. -/
-def LineRecStrWF : frontend.scan_types.LineRec → Prop
-  | .Decl d => DeclRecStrWF d
-  | _ => True
-
 /-- A `NameRec`'s string payload holds valid code points. -/
 def NameRecStrWF : frontend.scan_types.NameRec → Prop
   | .Str _ s => ConRon.Refine.StrWF s
   | .Num _ _ => True
+
+/-- An `ExprRec`'s string literal holds valid code points: the store's
+`ENodeViewWF` at a `Lit (StrVal s)` node, which the intern needs for the same
+reason `NameRecStrWF` is — `absString` is exact on valid code points only. -/
+def ExprRecStrWF : frontend.scan_types.ExprRec → Prop
+  | .StrVal s => ConRon.Refine.StrWF s
+  | _ => True
+
+/-- Every string payload of a line holds valid code points: the declaration
+record's two spellings (`DeclRecStrWF`), a name's component and a string
+literal.  **Task #97-P5-Front round 2 (finding F5)**: until then only the
+first was here, which left `apply_line`'s name and expression arms without
+the `NameRecStrWF` / `ExprRecStrWF` their writers need; the scanner owes all
+three (`Scan/Spec.lean`, from `scan_line_fwd_str_wf` and `scan_line_fwd_wf`). -/
+def LineRecStrWF : frontend.scan_types.LineRec → Prop
+  | .Decl d => DeclRecStrWF d
+  | .Name _ n => NameRecStrWF n
+  | .Expr _ r => ExprRecStrWF r
+  | _ => True
 
 /-- What `parse_expr_rec_d` needs of a `natVal` literal's digits (deviation 2):
 `nat_decimal::from_decimal` never declines them and its value is theirs. -/

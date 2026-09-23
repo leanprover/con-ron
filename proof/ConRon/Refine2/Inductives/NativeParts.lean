@@ -1164,32 +1164,8 @@ theorem rules_pin_ok_refines {rules : alloc.vec.Vec arena.env.IRecRule}
       have hnf' : ir.nfields.val ≠ b.val := fun e => hnf (by scalar_tac)
       simp [absIRecRule, absU, hnf']
 
-/-- `i_constant_infos_dup_from` copies `cs` from the cursor on onto `out`
-(`native_rec_pin_ok`'s `rest`). -/
-theorem i_constant_infos_dup_from_abs {cs : alloc.vec.Vec arena.env.IConstantInfo}
-    {i : Std.Usize} {out o : alloc.vec.Vec arena.env.IConstantInfo}
-    (hrun : arena.env.i_constant_infos_dup_from cs i out = ok o) :
-    o.val.map absIConstantInfo
-      = out.val.map absIConstantInfo ++ (cs.val.drop i.val).map absIConstantInfo := by
-  refine vec_cursor_copy cs absIConstantInfo absIConstantInfo
-    (arena.env.i_constant_infos_dup_from cs) ?_ ?_ i out o hrun
-  · intro i out o hn h
-    rw [arena.env.i_constant_infos_dup_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
-    rw [h]
-  · intro i x out o hx h
-    have hlt : i.val < cs.val.length := (List.getElem?_eq_some_iff.mp hx).1
-    rw [arena.env.i_constant_infos_dup_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
-    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hvx : v = x := by
-      have h1 := vec_index_some hv; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hvx
-    exact ⟨i2, v1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
-      i_constant_info_dup_abs hv1, h⟩
+-- `i_constant_infos_dup_from_abs` moved down to `Refine2/Dup.lean` (task
+-- #97-P5-Front round 2).
 
 /-- `native_rec_pin_ok` ⊑ `nativeRecPinOk` — **the recursor record's structural
 pin** (con-leche's task #220).  Pure on both sides: tags, names and counts
