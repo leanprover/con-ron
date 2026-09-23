@@ -13,9 +13,7 @@ an empty row vector and a fresh `HashMap2`), the thirteen per-call memos and
 the fourteen per-declaration caches (fresh `HashMap2`s, related to `∅`), the
 unfilled pin table (three word-0 handles and two empty vectors against the
 twin's `Pins.empty`), and `StoreWF EStore.empty` (`Arena/WFProofs.lean`'s
-`EStore.empty_wf`).  It also concludes `PersUnfrozen` — every `shared_on` is
-`false` at the start — which is what `intern_reserved_pins_refines` needs,
-and `scratch_on = false`.
+`EStore.empty_wf`), and it also concludes `scratch_on = false`.
 
 The `PersTier` argument is irrelevant here: with every `shared_on` down, the
 relation reads the store's OWN persistent tier (`rPersE` and its three
@@ -135,8 +133,7 @@ relation's persistent arm is the store's own tier when `shared_on` is
 `false`. -/
 theorem estore_empty (pers : arena.store.PersTier) {rs : arena.store.EStore}
     (h : arena.store.EStore.empty = ok rs) :
-    StoreRel pers rs EStore.empty ∧ StoreInv pers rs ∧ PersUnfrozen rs ∧
-      rs.scratch_on = false := by
+    StoreRel pers rs EStore.empty ∧ StoreInv pers rs ∧ rs.scratch_on = false := by
   rw [arena.store.EStore.empty] at h
   obtain ⟨lss, hlss, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -161,7 +158,7 @@ theorem estore_empty (pers : arena.store.PersTier) {rs : arena.store.EStore}
   obtain ⟨hLsR, hLsI⟩ := lstables_empty hlt
   obtain ⟨hER, hEI⟩ := etables_empty he
   refine ⟨⟨⟨⟨⟨hNR, hNR, rfl⟩, hLR, hLR, rfl⟩, hLsR, hLsR, rfl⟩, hER, hER, rfl⟩,
-    ⟨⟨⟨⟨hNI, hNI⟩, hLI, hLI⟩, hLsI, hLsI⟩, hEI, hEI⟩, ⟨rfl, rfl, rfl, rfl⟩, rfl⟩
+    ⟨⟨⟨⟨hNI, hNI⟩, hLI, hLI⟩, hLsI, hLsI⟩, hEI, hEI⟩, rfl⟩
 
 theorem memos_empty {rm : arena.monad.Memos} (h : arena.monad.Memos.empty = ok rm) :
     MemosRel rm Memos.empty ∧ MemosInv rm := by
@@ -236,15 +233,15 @@ theorem caches_empty {rc : arena.core_state.Caches}
 /-- **`InitRel`, discharged** (task #97-COMPOSE's mismatch 2): the binary's
 start state — `AState::init(EStore::empty())` read through
 `PersTier::empty()` — is related to the twin driver's
-`AState.init EStore.empty`, satisfies the Rust-side invariant, and has every
-tier flag down. -/
+`AState.init EStore.empty`, satisfies the Rust-side invariant, and has its
+scratch tier closed. -/
 theorem init_rel {pers : arena.store.PersTier} {est : arena.store.EStore}
     {st : arena.monad.AState}
     (hest : arena.store.EStore.empty = ok est)
     (hst : arena.monad.AState.init est = ok st) :
     AStateRel pers st (AState.init EStore.empty) ∧ AStateInv pers st ∧
-      PersUnfrozen st.store ∧ st.store.scratch_on = false := by
-  obtain ⟨hSR, hSI, hfr, hoff⟩ := estore_empty pers hest
+      st.store.scratch_on = false := by
+  obtain ⟨hSR, hSI, hoff⟩ := estore_empty pers hest
   rw [arena.monad.AState.init] at hst
   obtain ⟨m, hm, hst⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst
   obtain ⟨c, hc, hst⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst
@@ -259,7 +256,7 @@ theorem init_rel {pers : arena.store.PersTier} {est : arena.store.EStore}
   obtain ⟨hMR, hMI⟩ := memos_empty hm
   obtain ⟨hCR, hCI⟩ := caches_empty hc
   exact ⟨⟨hSR, hMR, hCR, ⟨rfl, rfl, rfl, rfl, rfl⟩, EStore.empty_wf⟩, ⟨hSI, hMI, hCI⟩,
-    hfr, hoff⟩
+    hoff⟩
 
 /-- info: 'ConRon.Refine2.init_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms init_rel

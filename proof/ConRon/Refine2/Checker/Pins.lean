@@ -82,27 +82,6 @@ theorem reservedBasisNameValues_eq :
     reservedBasisNameValues = ConLeche.reservedBasisNames := by
   rfl
 
-/-- `PersUnfrozen` survives a step that moves no flag. -/
-theorem PersUnfrozen.of_flags {a b : arena.store.EStore} (h : PersUnfrozen a)
-    (hf : FlagsEq a b) : PersUnfrozen b :=
-  ⟨hf.eSh.trans h.e, hf.lssSh.trans h.lss, hf.lsSh.trans h.ls, hf.nsSh.trans h.ns⟩
-
-theorem PersUnfrozen.frozenN {a : arena.store.EStore} (h : PersUnfrozen a) :
-    a.lss.ls.ns.shared_on = true → a.lss.ls.ns.scratch_on = true := by
-  intro hs; rw [h.ns] at hs; cases hs
-
-theorem PersUnfrozen.frozenL {a : arena.store.EStore} (h : PersUnfrozen a) :
-    a.lss.ls.shared_on = true → a.lss.ls.scratch_on = true := by
-  intro hs; rw [h.ls] at hs; cases hs
-
-theorem PersUnfrozen.frozenLs {a : arena.store.EStore} (h : PersUnfrozen a) :
-    a.lss.shared_on = true → a.lss.scratch_on = true := by
-  intro hs; rw [h.lss] at hs; cases hs
-
-theorem PersUnfrozen.frozenE {a : arena.store.EStore} (h : PersUnfrozen a) :
-    a.shared_on = true → a.scratch_on = true := by
-  intro hs; rw [h.e] at hs; cases hs
-
 /-- **`intern_reserved_pins` ⊑ `internReservedPins`** — the driver's startup:
 every reserved constant interned into the PERSISTENT tier once, and the table
 installed.  The scratch tier is closed when it runs (the module note says why
@@ -110,7 +89,6 @@ that matters), which is `rs.scratch_on = false` here and task #97-P5-1's
 finding 8 read from the other side. -/
 theorem intern_reserved_pins_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfr : PersUnfrozen st.store)
     (hrun : arena.pins.intern_reserved_pins pers st = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o internReservedPins := by
   rw [arena.pins.intern_reserved_pins] at hrun
@@ -121,8 +99,7 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
   obtain ⟨hvabs, hvwf⟩ := pin_names_refines hv
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := q1
-  have hS1 := intern_name_list_refines hrel hinv hfr.frozenN hvwf hq1
-  have hfr1 := hfr.of_flags (intern_name_list_flags hrel hinv hfr.frozenN hvwf hq1)
+  have hS1 := intern_name_list_refines hrel hinv hvwf hq1
   rw [← hvabs]
   cases r1 with
   | Err e =>
@@ -138,8 +115,7 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
   obtain ⟨hv1abs, hv1wf⟩ := ConRon.Refine.BasisNames.reserved_basis_names_refines hv1
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r2, st2⟩ := q2
-  have hS2 := intern_name_list_refines hrel1 hinv1 hfr1.frozenN hv1wf hq2
-  have hfr2 := hfr1.of_flags (intern_name_list_flags hrel1 hinv1 hfr1.frozenN hv1wf hq2)
+  have hS2 := intern_name_list_refines hrel1 hinv1 hv1wf hq2
   rw [reservedBasisNameValues_eq, ← hv1abs]
   cases r2 with
   | Err e =>
@@ -153,9 +129,8 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
   -- 3. the empty universe-argument list
   obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r3, st3⟩ := q3
-  have hS3 := intern_ls_node_run hrel2 hinv2 hfr2.frozenLs
+  have hS3 := intern_ls_node_run hrel2 hinv2
     (alloc.vec.Vec.new arena.handle.LIdx) (fun c hc => by simp [absLsNodeView] at hc) hq3
-  have hfr3 := hfr2.of_flags (intern_ls_node_flags hq3)
   have hnil : absLsNodeView (alloc.vec.Vec.new arena.handle.LIdx) = [] := rfl
   rw [hnil] at hS3
   cases r3 with
@@ -174,8 +149,7 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
     constructor
     · intro c hc; simp [absLNodeView, LNodeView.lchildren] at hc
     · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-  have hS4 := intern_l_node_run hrel3 hinv3 hfr3.frozenL arena.store.LNodeView.Zero hv0 hq4
-  have hfr4 := hfr3.of_flags (intern_l_node_flags hq4)
+  have hS4 := intern_l_node_run hrel3 hinv3 arena.store.LNodeView.Zero hv0 hq4
   cases r4 with
   | Err e =>
     have ho := Result.ok_injective hrun
@@ -203,7 +177,7 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
       simp only [absLNodeView, LNodeView.lchildren, List.mem_singleton] at hc
       subst hc; rw [hvz]; rfl
     · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-  have hS5 := intern_l_node_run hrel4 hinv4 hfr4.frozenL (arena.store.LNodeView.Succ z)
+  have hS5 := intern_l_node_run hrel4 hinv4 (arena.store.LNodeView.Succ z)
     hv1' hq5
   cases r5 with
   | Err e =>
@@ -234,8 +208,7 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
       simp only [ENodeView.lchildren, List.mem_singleton] at hc
       subst hc; rw [hvo]; rfl
     · intro c hc; simp [ENodeView.lschildren] at hc
-  have hfr5 := hfr4.of_flags (intern_l_node_flags hq5)
-  have hS6 := intern_e_sort_run hrel5 hinv5 hfr5.frozenE one
+  have hS6 := intern_e_sort_run hrel5 hinv5 one
     (fun h => hchild_sort hrel5.storeWF h) hv2 hq6
   cases r6 with
   | Err e =>

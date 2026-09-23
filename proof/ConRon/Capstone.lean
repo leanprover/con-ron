@@ -234,8 +234,7 @@ open ConRon.Refine2 ConRon.Refine2.Frontend
 until task #97-P5-Top).  The Rust driver's `AState::init(EStore::empty())`,
 read through `PersTier::empty()`, is related to the twin driver's
 `AState.init EStore.empty` and satisfies the Rust-side invariant —
-`Refine2/Checker/Init.lean`'s `init_rel`, which also gives the two flag facts
-the first stage needs (`PersUnfrozen`, scratch closed). -/
+`Refine2/Checker/Init.lean`'s `init_rel`. -/
 def InitRel : Prop :=
   ∀ (pers : arena.store.PersTier) (est : arena.store.EStore)
     (st : arena.monad.AState),
@@ -298,10 +297,10 @@ theorem rust_stages
       ConRon.Arena.installThenCheck .verified (absINatOpPinSetL ipins)
           (absIDeclL ds).toArray sE = .ok (.ok lfe, sF) ∧
       AStateRel pers st6 sF ∧ IFEnvRel fe lfe := by
-  obtain ⟨hrel0, hinv0, hfr0, -⟩ := init_rel (pers := pers) hest hst0
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hest hst0
   -- 1. the reserved pins
   obtain ⟨sA, hA, hrelA, hinvA, -, -⟩ :=
-    (intern_reserved_pins_refines hrel0 hinv0 hfr0 h1).dest
+    (intern_reserved_pins_refines hrel0 hinv0 h1).dest
   -- 2. the prelude
   obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB, -⟩ :=
     builtin_prelude_e_refines hsc hmr hrelA hinvA h2

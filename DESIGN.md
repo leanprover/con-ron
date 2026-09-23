@@ -54657,9 +54657,10 @@ invariant `fun _ => True` where it used to thread the frozen implication.
 
 ### Task #97-P5-Top — Theorem 2's four frontier items, skeletonised top-down (2026-09-23, Opus under Fable)
 
-Branch `p5-top` off `arena` `00ab9e63`, merged with `arena` twice: at
-`b57cc1c6` (task #97-P5-Usize's `M_FROZEN` → `Native`) mid-task, and at
-`61313dfd` (task #97-P3-Core round 4, `Bridge/**` only) before landing.  Lane
+Branch `p5-top` off `arena` `00ab9e63`, merged with `arena` three times: at
+`b57cc1c6` (task #97-P5-Usize's `M_FROZEN` → `Native`) mid-task, at
+`61313dfd` (task #97-P3-Core round 4, `Bridge/**` only) and at `fe77a367`
+(task #97-P5-Unfreeze, `Specs.lean`'s `hfrozen` retired) before landing.  Lane
 `proof/ConRon/Refine2/{Checker,Promote}/**`, plus `proof/ConRon/Capstone.lean`
 (the composition's Theorem-2 hypotheses) and `proof/ConRon/Refine2.lean` (two
 new modules).  `Refine2` still imports nothing of `Bridge`.
@@ -54681,7 +54682,7 @@ the skeleton under each is in place.
 | `annot_step_{other,thm,defn,defn_install,opaque,opaque_install}_refines` | glue, all six | **`check_decl`**, **`install_constant_val`**, **`install_value`**, `ifenv_push`, `i_constant_val_dup_abs`, **`reduce_op_names`**, **`nidx_contains_from`**, **`nat_op_names`**, **`nat_div_mod_names`** (the last two NEW statements, `Checker/Base.lean`: `arena::core`'s, which no tier had stated) |
 | `annot_step_promote_refines` | glue (was `sorry`) | **`promote_vg`**, **`promote_new`**, `bracket_close_w` |
 | `check_decl_step_refines` (the PURE fold's; off the capstone path) | glue | **`check_decl`**, **`promote_new`**, `bracket_close_w` |
-| `intern_reserved_pins_refines` | glue | **`pin_names`**, `reserved_basis_names_refines` (`Refine/`), `intern_name_list` (×2, closed here), `intern_ls_node_run`, `intern_l_node_run` (×2), `intern_e_sort_run` |
+| `intern_reserved_pins_refines` | glue (no extra hypothesis) | **`pin_names`**, `reserved_basis_names_refines` (`Refine/`), `intern_name_list` (×2, closed here), `intern_ls_node_run`, `intern_l_node_run` (×2), `intern_e_sort_run` |
 | `intern_name_list{,_go}_refines`, `intern_name_list_flags` | **closed**: a measure induction over `intern_name_run'` | — |
 | `intern_all_pins_port_refines` (NEW, the true statement; §3) | glue | **`intern_all_basis`**, **`intern_all_axiom_pins`**, **`intern_all_names`**, **`intern_pin_sets`** |
 | `check_value_group_of_resolves` (NEW; §4) | glue | `infer_type_core_refines`, `ensure_sort_core_refines` (closed, Core), **`check_value_group_value`** |
@@ -54695,11 +54696,13 @@ capstone (`FrozenNative`: the two promotion lemmas without `hfr`); after it —
 `hfr : PersUnfrozen st.store` binders of `Promote/Promote.lean` are dropped,
 `FrozenNative`, `KeepsUnfrozen`, `enter_scratch_unfrozen`, `flush_caches_store`
 and the three `_of_keeps` lemmas are deleted, and the bracketed steps call
-`promote_new_refines` / `promote_vg_refines` directly.  `PersUnfrozen`
-(`Promote/Intern.lean`) keeps ONE consumer: `intern_reserved_pins_refines`
-calls `Refine2/Specs.lean`'s closed `intern_*_run`, whose `hfrozen` binders are
-another lane's to retire — delete it with them.  It costs the capstone nothing,
-`init_rel` supplies it.
+`promote_new_refines` / `promote_vg_refines` directly.  After the third merge
+(task #97-P5-Unfreeze retired `Specs.lean`'s `hfrozen` binders) the last
+consumers went too: `intern_reserved_pins_refines` and
+`intern_name_list{,_go}_refines` lost the flag hypotheses they passed to
+`intern_*_run`, and the `PersUnfrozen` definition (`Promote/Intern.lean`) is
+deleted.  **No frozen-tier hypothesis is left in `Refine2/{Checker,Promote}/**`
+or in the capstone.**
 
 #### 2. Two named hypotheses of the composition retired
 
@@ -54709,7 +54712,7 @@ another lane's to retire — delete it with them.  It costs the capstone nothing
   is related to the twin's `AState.init EStore.empty` — thirty-seven empty cons
   tables through one `tbl_empty_rel` / `tbl_empty_inv`, thirteen memos,
   fourteen caches, the unfilled pin table, `EStore.empty_wf` — and the lemma
-  also gives `PersUnfrozen` and `scratch_on = false`.  The capstone's `hinit`
+  also gives `scratch_on = false`.  The capstone's `hinit`
   binder is gone (`InitRel` stays as a definition, with `initRel : InitRel`).
 * **`decode_wf` ported** (`Refine2/Checker/PinsWF.lean`): `RefineOld/PinsWF.lean`
   verbatim.  Its only dependency on the retired tier was the two predicate
@@ -54798,8 +54801,8 @@ all stated without them), which the `annot_step` glue of §1 consumes — round 
    should grep for the pattern** (`fun v => abs[A-Za-z]*L out ++`).
 2. The six startup-walk transcriptions (§3).
 3. `of_reduce_{nat,bool}_a_refines` against the annotated pin (§3).
-4. `intern_name_list_refines` lacked `intern_name_run`'s `hfrozen` (added; it
-   goes when `Specs.lean`'s does).
+4. `intern_name_list_refines` lacked `intern_name_run`'s `hfrozen` — added
+   mid-task, and gone again with task #97-P5-Unfreeze.
 
 #### 6. The driver: `check_decls_driver ⊑ install_then_check` — priced, not done
 
@@ -54896,8 +54899,7 @@ Read by lane:
   `builtin_prelude_e`, `prepare_prelude`, still whole statements.
 
 The capstone's named hypotheses after this task: `hk`, `hind`, `hbytes`,
-`hsc`, `hmr` (unchanged) and `hdec` (was `hwf`); `hinit` is gone, and no
-frozen-tier hypothesis was ever added to it at the landing tip.
+`hsc`, `hmr` (unchanged) and `hdec` (was `hwf`); `hinit` is gone.
 
 #### 8. The gates
 
@@ -54905,6 +54907,7 @@ frozen-tier hypothesis was ever added to it at the landing tip.
 |---|---|
 | `scripts/gates.sh` at `f79d56b2` (after the first merge) | **all 16 OK** — `extract-check` 104 s, `lake-build` 60 s |
 | second merge (`61313dfd`: `DESIGN.md`, `Arena/Main.lean`, `Bridge/**`, two `Capstone.lean` hunks disjoint from this task's; no Rust, no `Refine2/**`) | the Lean gates re-run: `lake build`, `ConRonRefine2` (2 238 jobs), `ConRonBridge` (619 jobs), `ConRonCapstone` (2 726 jobs) all green; the Rust, lint, provenance and extraction gates cannot be reached by it and were not re-run |
+| third merge (`fe77a367`: `Specs.lean`, `ExprOps/Mut.lean`, `Inductives/StructParts.lean`, `DESIGN.md` — the one conflict, both appends kept) | this task's four `hfrozen`/`PersUnfrozen` call sites follow (above); `ConRonRefine2`, `ConRonCapstone` and `lake build` green again, `ConRonBridge` cannot see `Refine2/**`; no Rust |
 | `lake build ConRonRefine2` | 831 `declaration uses sorry` warnings |
 | the diff | `Refine2/{Checker,Promote}/**` (two new modules, `Checker/Init.lean` and `Checker/PinsWF.lean`), `Refine2.lean` (their imports), `Capstone.lean`.  No Rust, no `Generated/**`, no `Arena/**`, no `Bridge/**`, no `Specs.lean`, nothing under `ExprOps/**` |
 

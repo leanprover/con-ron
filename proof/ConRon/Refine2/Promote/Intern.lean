@@ -153,7 +153,6 @@ private theorem intern_name_list_go_aux (n : Nat) :
       {out : alloc.vec.Vec arena.handle.NIdx} {o},
       ns.val.length - i.val = n →
       AStateRel pers st lst → AStateInv pers st →
-      (st.store.lss.ls.ns.shared_on = true → st.store.lss.ls.ns.scratch_on = true) →
       NamesWF ns →
       arena.intern.intern_name_list_go pers st ns i out = ok o →
       Sim absNIdxL (fun _ => True) pers lst o
@@ -161,7 +160,7 @@ private theorem intern_name_list_go_aux (n : Nat) :
       FlagsEq st.store o.2.store := by
   induction n using Nat.strong_induction_on with
   | _ n ih =>
-    intro pers st lst ns i out o hn hrel hinv hfr hwf hrun
+    intro pers st lst ns i out o hn hrel hinv hwf hrun
     rw [arena.intern.intern_name_list_go.eq_def] at hrun
     dsimp only at hrun
     split at hrun
@@ -184,7 +183,7 @@ private theorem intern_name_list_go_aux (n : Nat) :
       have hnwf : ConRon.Refine.NameWF nm := hwf nm (hnm ▸ List.getElem_mem hlt)
       obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r, st1⟩ := q
-      obtain ⟨hS, hF⟩ := intern_name_run' nm hnwf hrel hinv hfr hq
+      obtain ⟨hS, hF⟩ := intern_name_run' nm hnwf hrel hinv hq
       cases r with
       | Err e =>
         have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
@@ -200,7 +199,7 @@ private theorem intern_name_list_go_aux (n : Nat) :
         have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
         obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS
         obtain ⟨hS2, hF2⟩ := ih (ns.val.length - i2.val) (by omega) (out := out1)
-          rfl hrel1 hinv1 (hF.unfrozenN hfr) hwf hrun
+          rfl hrel1 hinv1 hwf hrun
         refine ⟨?_, hF.trans hF2⟩
         have hstep : (do pure (absNIdxL out ++
               (← Frontend.internNameList (absNameLFrom ns i))) : AM (List NIdx)).run lst
@@ -222,33 +221,27 @@ private theorem intern_name_list_go_aux (n : Nat) :
 walk ACCUMULATES — it returns `out` with the new handles pushed on — so its
 result abstracts by `absNIdxL` alone; the old `fun v => absNIdxL out ++
 absNIdxL v` counted `out` twice and failed at every call with a nonempty
-accumulator.  `hfrozen` is `Refine2/Specs.lean`'s `intern_name_run` side
-condition at the name store; the guard it ruled out is `Native` since task
-#97-P5-Usize, and it goes when that lemma drops it. -/
+accumulator. -/
 theorem intern_name_list_go_refines {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
     (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list_go pers st ns i out = ok o) :
     Sim absNIdxL (fun _ => True) pers lst o
       (do pure (absNIdxL out ++ (← Frontend.internNameList (absNameLFrom ns i)))) :=
-  (intern_name_list_go_aux _ rfl hrel hinv hfrozen hwf hrun).1
+  (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).1
 
 /-- `intern_name_list` ⊑ `Frontend.internNameList`. -/
 theorem intern_name_list_refines {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
     (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list pers st ns = ok o) :
     Sim absNIdxL (fun _ => True) pers lst o
       (Frontend.internNameList (ConRon.Refine.absNames ns)) := by
   rw [arena.intern.intern_name_list] at hrun
-  have h := (intern_name_list_go_aux _ rfl hrel hinv hfrozen hwf hrun).1
+  have h := (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).1
   have h0 : absNIdxL (alloc.vec.Vec.new arena.handle.NIdx) = [] := rfl
   have h1 : absNameLFrom ns 0#usize = ConRon.Refine.absNames ns := by
     simp [absNameLFrom, ConRon.Refine.absNames]
@@ -259,13 +252,11 @@ theorem intern_name_list_refines {pers st lst}
 theorem intern_name_list_flags {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
     (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list pers st ns = ok o) :
     FlagsEq st.store o.2.store := by
   rw [arena.intern.intern_name_list] at hrun
-  exact (intern_name_list_go_aux _ rfl hrel hinv hfrozen hwf hrun).2
+  exact (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).2
 
 /-- `intern_level_list_go` ⊑ `Arena.internLevelList` at the cursor.
 **Restated by task #97-P5-Top** (the result abstracts by `absLIdxL` alone:
@@ -448,23 +439,6 @@ promotion walk threads a memo beside the state, and `internPersistent` breaks
 lemma relates the twin's post-state by `AStateRelW` and not `AStateRel`.
 `dropScratch` turns the weak invariant back into `StoreWF`
 (`StoreWF'.dropScratch_wf`), which is why nothing ABOVE the bracket weakens. -/
-
-/-- **The persistent tier is this state's own, not a shared frozen one** —
-every tier's `shared_on` down.
-
-It was finding 17's first half as one hypothesis of every promote lemma: at a
-frozen tier the port answered `Internal(M_FROZEN)` where the twin appends.
-Task #97-P5-Usize made that guard `Native` (which claims nothing), and task
-#97-P5-Top dropped it from all thirty `Refine2/Promote/Promote.lean`
-statements.  **Its last consumers** are `Refine2/Checker/Pins.lean`'s
-`intern_reserved_pins_refines` (and `init_rel`, which supplies it at the
-driver's start): they call `Refine2/Specs.lean`'s closed `intern_*_run`, whose
-`hfrozen` binders another lane is retiring.  Delete this with them. -/
-structure PersUnfrozen (rs : arena.store.EStore) : Prop where
-  e : rs.shared_on = false
-  lss : rs.lss.shared_on = false
-  ls : rs.lss.ls.shared_on = false
-  ns : rs.lss.ls.ns.shared_on = false
 
 /-- `POut` at the promote window's relation. -/
 def POutW {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
