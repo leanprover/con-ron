@@ -59490,3 +59490,46 @@ failed with "incompatible header"; this worktree ran on a private copy of the
 con-leche package (restored from the Lake cache's 4.33 artifacts) until the
 shared one was repaired (it was, by 17:5x); `_tmp/aeneas-lean` was not
 touched from here.
+
+### Task #97-MQ — the merge queue: lanes submit, one queue agent lands (2026-09-23, Fable)
+
+**Why.**  With seven lanes landing on `arena`, a lane's gate run was often
+stale by the time it finished: `land.sh` refused the non-fast-forward, the
+lane merged again and re-gated.  P3-Ind round 9 merged four times and ran the
+full gates three times, ~30 min of a 2.3 h round.  The maintainer's proposal:
+one dedicated agent takes gated branches and is the only one that merges, so
+merges are sequenced by construction and the merge logic lives in one context.
+
+**Mechanics.**
+* `scripts/submit.sh <worktree> [note]` (new): a lane appends
+  `time branch commit worktree base touched note` (tab-separated) to
+  `_tmp/merge-queue` under `flock _tmp/.merge-queue.lock`.  The lane merged
+  `arena` once and ran the full gates before submitting; it does not re-merge.
+* `scripts/gates.sh --only a,b,c` (new): runs the named steps, prints `SKIP`
+  for the rest, ends `gates: N OK, M SKIPPED (--only)` and skips the reports.
+  The OVERVIEW anchor moved to `gates.sh#L71-L109`.
+* The queue agent works in `_tmp/wt-mq` on branch `mq`.  Per entry: `git
+  merge --ff-only` `mq` to `arena`'s tip, `git merge <commit>`, re-gate, `git
+  -C <main> merge --ff-only mq`, `scripts/drop-worktree.sh <lane worktree>`,
+  one line to the coordinator.  Superseded entries (same branch, older
+  commit) are skipped.  The queue's processed position is recorded in
+  `_tmp/merge-queue.done` (one line per entry: status, branch, commit,
+  landed-at).
+
+**Re-gate table** (the steps a merge's delta can touch; "cheap" = the eleven
+steps before `extract-check`, ~20 s together, always run):
+
+| the merge changes (relative to `mq` before it) | steps |
+|---|---|
+| anything | cheap |
+| `crates/**`, `proof/ConRon/Generated/**`, `scripts/extract*`, `aeneas`/`charon` config | + `extract-check` + all four `lake-*` |
+| `proof/lakefile.toml`, `proof/lake-manifest.json`, `lean-toolchain` | + all four `lake-*` |
+| `proof/ConRon/Arena/**` | + all four `lake-*` |
+| `proof/ConRon/Bridge/**` | + `lake-bridge`, `lake-capstone` (+ `lake-build` if a default target imports it) |
+| `proof/ConRon/Refine2/**` | + `lake-refine2`, `lake-capstone` |
+| `proof/ConRon/Capstone.lean` | + `lake-capstone` |
+| `*.md`, `scripts/*` not above | cheap only |
+
+When unsure, run the full gates.  A landing whose merge from the lane's view
+was clean but whose union with the other queued branches breaks a proof is
+bounced to that lane with the failing log, never patched in the queue.

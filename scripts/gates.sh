@@ -30,6 +30,11 @@
 # of every gate goes to `_tmp/gates/<n>-<name>.log`.
 set -uo pipefail
 
+# `--only a,b,c` runs just the named steps (the merge queue, task #97-MQ,
+# re-gates only what a merge's delta can touch); the rest print SKIP.
+only=""
+if [ "${1-}" = "--only" ]; then only=",${2-},"; shift 2; fi
+
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Per-checkout log dir: `_tmp` is shared between agent worktrees (a symlink),
 # and concurrent gate runs must not overwrite each other's logs.
@@ -37,10 +42,14 @@ logdir="$root/_tmp/gates-$(printf '%s' "$root" | sha256sum | cut -c1-12)"
 rm -rf "$logdir"
 mkdir -p "$logdir"
 n=0
+skipped=0
 
 run() { # run <name> <cmd...>
   n=$((n + 1))
   local name=$1; shift
+  if [ -n "$only" ] && [[ "$only" != *",$name,"* ]]; then
+    skipped=$((skipped + 1)); printf 'SKIP %-22s\n' "$name"; return 0
+  fi
   local log="$logdir/$n-$name.log"
   local start end
   start=$(date +%s)
@@ -99,6 +108,10 @@ run lake-bridge   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS
 # `#guard_msgs` census is what fails if a seam moves.
 run lake-capstone env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonCapstone
 
+if [ -n "$only" ]; then
+  echo "gates: $((n - skipped)) OK, $skipped SKIPPED (--only)"
+  exit 0   # a partial run is a re-gate, not a landing report
+fi
 echo "gates: all $n OK"
 
 # The standing progress report (DESIGN.md §7), printed after a green run so
