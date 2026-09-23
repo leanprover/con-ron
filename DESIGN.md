@@ -55071,4 +55071,8 @@ agreement.
 
 #### 5. Gates
 
-(below)
+`arena` merged forward twice (the second at `5facde4c`, P5-Top/P5-Unfreeze in);
+**all 16 OK** on the merged branch (`extract-check` 115 s, `lake-build` 120 s,
+`lake-refine2` 21 s, `lake-bridge` 402 s, `lake-capstone` 3 s).  The capstone
+builds unchanged: its `hsc` is still passed through, and can now be
+`scanSpec`.  The shared Lake cache was not seeded from this worktree.
