@@ -415,6 +415,33 @@ the name guard reads it. -/
     obtain ⟨lst', hx, h1, h2⟩ := hs
     exact ⟨_, lst', hx, ⟨hwf a rfl, rfl⟩, h1, h2⟩
 
+/-! ### The fields of an abstracted recursor rule
+
+The twin reads `r.ctor`, `r.nfields`, … of `absIRecRule r`; these are the
+port's fields, abstracted.  Not `lockstep_simp` here (a global registration
+would reach the other lanes' files through `Inductives/Top.lean`): the modeled
+route registers them locally. -/
+
+theorem absIRecRule_ctor (r : arena.env.IRecRule) : (absIRecRule r).ctor = absNIdx r.ctor := rfl
+theorem absIRecRule_nfields (r : arena.env.IRecRule) :
+    (absIRecRule r).nfields = absU r.nfields := rfl
+theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
+    (absIRecRule r).ctorParams = absU r.ctor_params := rfl
+theorem absIRecRule_fire (r : arena.env.IRecRule) :
+    (absIRecRule r).fire = absIRecRuleFire r.fire := rfl
+theorem absIRecRule_rhs (r : arena.env.IRecRule) : (absIRecRule r).rhs = absEIdx r.rhs := rfl
+theorem absIRecRule_k (r : arena.env.IRecRule) : (absIRecRule r).k = r.k := rfl
+theorem absIRecRule_eta (r : arena.env.IRecRule) : (absIRecRule r).eta = r.eta := rfl
+theorem absIRecRule_paramsBlind (r : arena.env.IRecRule) :
+    (absIRecRule r).paramsBlind = r.params_blind := rfl
+
+/-- The handle comparison at an `EIdx`, the twin's `==` (the `NIdx` one is
+`Checker/Base.lean`'s `nidx_eq2_spec`). -/
+@[lockstep] theorem eidx_eq2_spec (a b : arena.handle.EIdx) :
+    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun o => o = (absEIdx a == absEIdx b)) :=
+  fun _ h => eidx_eq2_abs h
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
@@ -459,5 +486,13 @@ macro_rules | `(tactic| lockstep_ite) => `(tactic| (lockstep; all_goals (try (
 
 /-- info: 'ConRon.Refine2.IndModeledPrims.proj_fn_name_lss' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IndModeledPrims.proj_fn_name_lss
+
+/-- `lockstep_ite`, then a leaf the zip stopped at because the twin still
+matches on a value the port's own match lumped into a wildcard arm (`_ =>
+false` against the twin's `| some (.thmInfo …), … | _, _ => pure false`): the
+twin's `match` is split, contradicted arms dropped, and the zip resumes. -/
+syntax "lockstep_mod" : tactic
+macro_rules | `(tactic| lockstep_mod) => `(tactic| (lockstep_ite; all_goals (try (
+  split <;> (try simp_all) <;> lockstep_mod))))
 
 end ConRon.Refine2
