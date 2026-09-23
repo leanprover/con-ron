@@ -53,6 +53,23 @@ theorem errArm_of_eq {γ : Type} {e : kernel.core_types.CheckError} {st : arena.
     (h : m = ok (.Err e, st)) : ErrArm m e := by
   subst h; exact errArm_ok
 
+/-- A Rust read in tail position: `f >>= fun o => ok (o, st)`. -/
+theorem LSR.tail_ls {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
+    {f : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x' x : AM β}
+    (hf : LSR pers R₁ f st lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
+    LS pers R (f >>= fun o => ok (o, st)) lst x := by
+  subst hx
+  intro o st' hm
+  obtain ⟨r, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h2)
+  have h := hf r h1
+  cases r with
+  | Err e => exact h
+  | Ok a =>
+    obtain ⟨b, lst', h1, h2, h3, h4⟩ := h
+    exact ⟨b, lst', h1, hR _ _ h2, h3, h4⟩
+
 open Lean Meta Elab Tactic in
 /-- The two moves above, tried before `lockstep_core_step`. -/
 elab "lockstep_a2_step" : tactic => do
@@ -88,6 +105,16 @@ elab "lockstep_a2_step" : tactic => do
   if rp == 4 then
     match ← classify (← inferType f).appArg! with
     | .read =>
+      let s ← saveState
+      try
+        let gs ← applyRule g ``LSR.tail_ls
+        specCore (← pick gs `hf)
+        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        runClosed (← pick gs `hR)
+          (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
+        setGoals others
+        return
+      catch _ => s.restore
       let gs ← applyRule g ``LSR.bind
       specCore (← pick gs `hf)
       runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
@@ -219,5 +246,65 @@ attribute [local lockstep_inline] arena.core.intern_app
   lockstep_a2
 
 end
+
+/-! ## Guards and small state-threading helpers -/
+
+@[lockstep] theorem defeq_no_fvars_ls {pers st a b lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.defeq_no_fvars pers st a b) lst
+      (defeqNoFvars (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.defeq_no_fvars, defeqNoFvars]
+  lockstep_a2
+
+@[lockstep] theorem fab_scope_ok_ls {pers st depth fab major lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.fab_scope_ok pers st depth fab major) lst
+      (fabScopeOk (absU depth) (absEIdx fab) (absEIdx major)) := by
+  rw [arena.core.fab_scope_ok, fabScopeOk]
+  lockstep_a2
+
+@[lockstep] theorem infer_lam_result_ls {pers st ty bt depth mb lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.infer_lam_result pers st ty bt depth mb) lst
+      (inferLamResult (absEIdx ty) (absEIdx bt) (absU depth) (ConRon.Refine.absBinderMeta mb)) := by
+  rw [arena.core.infer_lam_result, inferLamResult]
+  lockstep_a2
+
+theorem decide_u64_eq (a b : Std.U64) : decide (a = b) = (a.val == b.val) := by
+  by_cases h : a = b
+  · subst h; simp
+  · have : a.val ≠ b.val := fun hc => h (UScalar.eq_of_val_eq hc)
+    simp [h, this]
+
+section
+attribute [local lockstep_simp] decide_u64_eq ExprOps.absEIdxList List.length_map
+  alloc.vec.Vec.len_val
+
+@[lockstep] theorem eta_ctor_shape_ls {pers vis st fe lfe a lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.eta_ctor_shape pers vis st fe a) lst
+      (etaCtorShape lfe (absEIdx a)) := by
+  rw [arena.core.eta_ctor_shape, etaCtorShape]
+  lockstep_a2
+
+end
+
+theorem pi_residual_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize),
+      ExprOpsHyp pers →
+      args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = Option.map absEIdx a) (arena.core.pi_residual pers st e args i) lst
+        (piResidual (absEIdx e) (absEIdxListFrom args i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst e args i hx hn hrel hinv
+    rw [arena.core.pi_residual, listFrom_nil args i (by omega), piResidual]
+    lockstep_a2
+  | succ k ih =>
+    intro pers st lst e args i hx hn hrel hinv
+    rw [arena.core.pi_residual, listFrom_cons args i (by omega), piResidual]
+    lockstep_a2
 
 end ConRon.Refine2.Lockstep
