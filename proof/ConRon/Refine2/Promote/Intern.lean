@@ -80,7 +80,7 @@ repeat in `O(1)`) and six compounds that probe it. -/
 
 /-- `intern_expr_go` ⊑ `Frontend.internExprGo`. -/
 theorem intern_expr_go_refines {pers st lst rm lm} {e : kernel.expr.Expr} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ExprWF e)
     (hrun : arena.intern.intern_expr_go pers st rm e = ok o) :
     SimEM absEIdx pers lst o (Frontend.internExprGo lm (ConRon.Refine.absExpr e)) := by
@@ -91,7 +91,7 @@ six compound arms past the probe (extraction rule 5: the `view`'s loans are
 dead at the memo's join), so it is stated against the twin's own arm at a
 MISS — which is the clause `intern_expr_go_refines` peels. -/
 theorem intern_expr_node_refines {pers st lst rm lm} {e : kernel.expr.Expr} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ExprWF e)
     (hmiss : lm[ConRon.Refine.absExpr e]? = none)
     (hrun : arena.intern.intern_expr_node pers st rm e = ok o) :
@@ -100,9 +100,9 @@ theorem intern_expr_node_refines {pers st lst rm lm} {e : kernel.expr.Expr} {o}
 
 /-- `intern_expr` ⊑ `Arena.internExpr` — the fresh-memo entry. -/
 theorem intern_expr_refines {pers st lst} {e : kernel.expr.Expr} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hwf : ExprWF e)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hwf : ExprWF e)
     (hrun : arena.intern.intern_expr pers st e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (internExpr (ConRon.Refine.absExpr e)) := by
+    Sim₀ absEIdx pers lst o (internExpr (ConRon.Refine.absExpr e)) := by
   sorry
 
 /-- `intern_expr_list_go` ⊑ `Frontend.internExprList` at the cursor.
@@ -111,7 +111,7 @@ the walk accumulates into `out`; see `intern_name_list_go_refines`). -/
 theorem intern_expr_list_go_refines {pers st lst rm lm}
     {es : alloc.vec.Vec kernel.expr.Expr} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ExprsWF es)
     (hrun : arena.intern.intern_expr_list_go pers st rm es i out = ok o) :
     SimEM absEIdxL pers lst o
@@ -122,9 +122,9 @@ theorem intern_expr_list_go_refines {pers st lst rm lm}
 /-- `intern_expr_list` ⊑ `Arena.internExprList`. -/
 theorem intern_expr_list_refines {pers st lst}
     {es : alloc.vec.Vec kernel.expr.Expr} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hwf : ExprsWF es)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hwf : ExprsWF es)
     (hrun : arena.intern.intern_expr_list pers st es = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (internExprList (ConRon.Refine.absExprs es)) := by
   sorry
 
@@ -152,10 +152,10 @@ private theorem intern_name_list_go_aux (n : Nat) :
     ∀ {pers st lst} {ns : alloc.vec.Vec kernel.name.Name} {i : Std.Usize}
       {out : alloc.vec.Vec arena.handle.NIdx} {o},
       ns.val.length - i.val = n →
-      AStateRel pers st lst → AStateInv pers st →
+      AStateRel₀ pers st lst → AStateInv pers st →
       NamesWF ns →
       arena.intern.intern_name_list_go pers st ns i out = ok o →
-      Sim absNIdxL (fun _ => True) pers lst o
+      Sim₀ absNIdxL pers lst o
         (do pure (absNIdxL out ++ (← Frontend.internNameList (absNameLFrom ns i)))) ∧
       FlagsEq st.store o.2.store := by
   induction n using Nat.strong_induction_on with
@@ -170,7 +170,7 @@ private theorem intern_name_list_go_aux (n : Nat) :
       have ho := Result.ok_injective hrun
       subst ho
       refine ⟨?_, FlagsEq.refl _⟩
-      refine AOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _) trivial
+      refine AOut₀.ok (lst' := lst) ?_ hrel hinv
       simp [absNameLFrom, List.drop_eq_nil_of_le hlen, Frontend.internNameList]
       rfl
     · rename_i hge
@@ -183,21 +183,21 @@ private theorem intern_name_list_go_aux (n : Nat) :
       have hnwf : ConRon.Refine.NameWF nm := hwf nm (hnm ▸ List.getElem_mem hlt)
       obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r, st1⟩ := q
-      obtain ⟨hS, hF⟩ := intern_name_run' nm hnwf hrel hinv hq
+      obtain ⟨hS, hF⟩ := intern_name_run'₀ nm hnwf hrel hinv hq
       cases r with
       | Err e =>
         have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
         have ho := Result.ok_injective hrun'
         subst ho
-        refine ⟨AOut.err ?_, hF⟩
+        refine ⟨AOut₀.err ?_, hF⟩
         simp only [absNameLFrom, List.drop_eq_getElem_cons hlt, hnm, List.map_cons,
           Frontend.internNameList, am_run_bind']
-        exact AErrSim.bind (AErrSim.bind (Sim.apply_err hS) _) _
+        exact AErrSim.bind (AErrSim.bind (Sim₀.apply_err hS) _) _
       | Ok h =>
         obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
-        obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS
+        obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS
         obtain ⟨hS2, hF2⟩ := ih (ns.val.length - i2.val) (by omega) (out := out1)
           rfl hrel1 hinv1 hwf hrun
         refine ⟨?_, hF.trans hF2⟩
@@ -211,9 +211,9 @@ private theorem intern_name_list_go_aux (n : Nat) :
           simp only [absNIdxL, ConRon.Refine.vec_push_val hout1, List.map_append,
             List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
             List.nil_append]
-        show AOut _ _ _ _ _ _ _
+        show AOut₀ _ _ _ _ _
         rw [hstep]
-        exact AOut.rebase hext1 hS2
+        exact hS2
 
 /-- `intern_name_list_go` ⊑ `Frontend.internNameList` at the cursor.
 
@@ -225,20 +225,20 @@ accumulator. -/
 theorem intern_name_list_go_refines {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list_go pers st ns i out = ok o) :
-    Sim absNIdxL (fun _ => True) pers lst o
+    Sim₀ absNIdxL pers lst o
       (do pure (absNIdxL out ++ (← Frontend.internNameList (absNameLFrom ns i)))) :=
   (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).1
 
 /-- `intern_name_list` ⊑ `Frontend.internNameList`. -/
 theorem intern_name_list_refines {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list pers st ns = ok o) :
-    Sim absNIdxL (fun _ => True) pers lst o
+    Sim₀ absNIdxL pers lst o
       (Frontend.internNameList (ConRon.Refine.absNames ns)) := by
   rw [arena.intern.intern_name_list] at hrun
   have h := (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).1
@@ -251,7 +251,7 @@ theorem intern_name_list_refines {pers st lst}
 /-- The name-list walk moves no tier flag. -/
 theorem intern_name_list_flags {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list pers st ns = ok o) :
     FlagsEq st.store o.2.store := by
@@ -264,10 +264,10 @@ the walk accumulates into `out`; see `intern_name_list_go_refines`). -/
 theorem intern_level_list_go_refines {pers st lst}
     {us : alloc.vec.Vec kernel.level.Level} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : LevelsWF us)
     (hrun : arena.intern.intern_level_list_go pers st us i out = ok o) :
-    Sim absLIdxL (fun _ => True) pers lst o
+    Sim₀ absLIdxL pers lst o
       (do pure (absLIdxL out ++ (← internLevelList (absLevelLFrom us i)))) := by
   sorry
 
@@ -279,7 +279,7 @@ threaded through everything that can hold a term, and NOT through
 
 /-- `intern_cv_go` ⊑ `Frontend.internCV`. -/
 theorem intern_cv_go_refines {pers st lst rm lm} {cv : kernel.env.ConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ConstantValWF cv)
     (hrun : arena.intern.intern_cv_go pers st rm cv = ok o) :
     SimEM absIConstantVal pers lst o
@@ -288,16 +288,16 @@ theorem intern_cv_go_refines {pers st lst rm lm} {cv : kernel.env.ConstantVal} {
 
 /-- `intern_cv` ⊑ `Arena.internCV`. -/
 theorem intern_cv_refines {pers st lst} {cv : kernel.env.ConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : ConstantValWF cv)
     (hrun : arena.intern.intern_cv pers st cv = ok o) :
-    Sim absIConstantVal (fun _ => True) pers lst o
+    Sim₀ absIConstantVal pers lst o
       (internCV (ConRon.Refine.absConstantVal cv)) := by
   sorry
 
 /-- `intern_fire` ⊑ `Frontend.internFire`. -/
 theorem intern_fire_refines {pers st lst rm lm} {f : kernel.env.RecRuleFire} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : RecRuleFireWF f)
     (hrun : arena.intern.intern_fire pers st rm f = ok o) :
     SimEM absIRecRuleFire pers lst o
@@ -306,7 +306,7 @@ theorem intern_fire_refines {pers st lst rm lm} {f : kernel.env.RecRuleFire} {o}
 
 /-- `intern_rule` ⊑ `Frontend.internRule`. -/
 theorem intern_rule_refines {pers st lst rm lm} {rl : kernel.env.RecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : RecRuleWF rl)
     (hrun : arena.intern.intern_rule pers st rm rl = ok o) :
     SimEM absIRecRule pers lst o
@@ -317,7 +317,7 @@ theorem intern_rule_refines {pers st lst rm lm} {rl : kernel.env.RecRule} {o}
 theorem intern_rules_refines {pers st lst rm lm}
     {rs : alloc.vec.Vec kernel.env.RecRule} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : RecRulesWF rs)
     (hrun : arena.intern.intern_rules pers st rm rs i out = ok o) :
     SimEM absIRecRuleL pers lst o
@@ -328,16 +328,16 @@ theorem intern_rules_refines {pers st lst rm lm}
 /-- `intern_caps` ⊑ `Frontend.internCaps` — no memo: an `IndCaps` holds one
 name and no term. -/
 theorem intern_caps_refines {pers st lst} {c : kernel.env.IndCaps} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hwf : IndCapsWF c)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hwf : IndCapsWF c)
     (hrun : arena.intern.intern_caps pers st c = ok o) :
-    Sim absIIndCaps (fun _ => True) pers lst o
+    Sim₀ absIIndCaps pers lst o
       (Frontend.internCaps (ConRon.Refine.absIndCaps c)) := by
   sorry
 
 /-- `intern_proj_table` ⊑ `Frontend.internProjTable`. -/
 theorem intern_proj_table_refines {pers st lst rm lm}
     {t : kernel.env.ProjTable} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ProjTableWF t)
     (hrun : arena.intern.intern_proj_table pers st rm t = ok o) :
     SimEM absIProjTable pers lst o
@@ -349,7 +349,7 @@ its two name interns (extraction rule 5), so it is stated against the same
 twin with those two handles already in hand. -/
 theorem intern_proj_table_rest_refines {pers st lst rm lm}
     {t : kernel.env.ProjTable} {sn tn : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ProjTableWF t)
     (hrun : arena.intern.intern_proj_table_rest pers st rm t sn tn = ok o) :
     SimEM absIProjTable pers lst o
@@ -359,7 +359,7 @@ theorem intern_proj_table_rest_refines {pers st lst rm lm}
 /-- `intern_ci_go` ⊑ `Frontend.internCI` — the seven `ConstantInfo`
 constructors. -/
 theorem intern_ci_go_refines {pers st lst rm lm} {c : kernel.env.ConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ConstantInfoWF c)
     (hrun : arena.intern.intern_ci_go pers st rm c = ok o) :
     SimEM absIConstantInfo pers lst o
@@ -368,10 +368,10 @@ theorem intern_ci_go_refines {pers st lst rm lm} {c : kernel.env.ConstantInfo} {
 
 /-- `intern_ci` ⊑ `Arena.internCI`. -/
 theorem intern_ci_refines {pers st lst} {c : kernel.env.ConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : ConstantInfoWF c)
     (hrun : arena.intern.intern_ci pers st c = ok o) :
-    Sim absIConstantInfo (fun _ => True) pers lst o
+    Sim₀ absIConstantInfo pers lst o
       (internCI (ConRon.Refine.absConstantInfo c)) := by
   sorry
 
@@ -379,7 +379,7 @@ theorem intern_ci_refines {pers st lst} {c : kernel.env.ConstantInfo} {o}
 theorem intern_ci_list_go_refines {pers st lst rm lm}
     {cs : alloc.vec.Vec kernel.env.ConstantInfo} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ConstantInfosWF cs)
     (hrun : arena.intern.intern_ci_list_go pers st rm cs i out = ok o) :
     SimEM absICIL pers lst o
@@ -391,17 +391,17 @@ theorem intern_ci_list_go_refines {pers st lst rm lm}
 the sharing between a block's members survives. -/
 theorem intern_ci_list_refines {pers st lst}
     {cs : alloc.vec.Vec kernel.env.ConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : ConstantInfosWF cs)
     (hrun : arena.intern.intern_ci_list pers st cs = ok o) :
-    Sim absICIL (fun _ => True) pers lst o
+    Sim₀ absICIL pers lst o
       (internCIList (ConRon.Refine.absConstantInfos cs)) := by
   sorry
 
 /-- `intern_decl` ⊑ `Frontend.internDecl` — the seven `Declaration`
 constructors. -/
 theorem intern_decl_refines {pers st lst rm lm} {d : kernel.env.Declaration} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : DeclarationWF d)
     (hrun : arena.intern.intern_decl pers st rm d = ok o) :
     SimEM absIDeclaration pers lst o
@@ -412,7 +412,7 @@ theorem intern_decl_refines {pers st lst rm lm} {d : kernel.env.Declaration} {o}
 theorem intern_decls_go_refines {pers st lst rm lm}
     {ds : alloc.vec.Vec kernel.env.Declaration} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IDeclaration} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ∀ d ∈ ds.val, DeclarationWF d)
     (hrun : arena.intern.intern_decls_go pers st rm ds i out = ok o) :
     SimEM absIDeclL pers lst o
@@ -423,62 +423,13 @@ theorem intern_decls_go_refines {pers st lst rm lm}
 /-- `intern_decls` ⊑ `Frontend.internDecls` at a fresh memo. -/
 theorem intern_decls_refines {pers st lst}
     {ds : alloc.vec.Vec kernel.env.Declaration} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hwf : ∀ d ∈ ds.val, DeclarationWF d)
     (hrun : arena.intern.intern_decls pers st ds = ok o) :
-    Sim absIDeclL (fun _ => True) pers lst o
+    Sim₀ absIDeclL pers lst o
       (do pure (← Frontend.internDecls ∅ (ds.val.map ConRon.Refine.absDeclaration)).2) := by
   sorry
 
-
-/-! ## The promote window's shape (task #97-P5-Fresh)
-
-`Refine2/Specs.lean`'s `AStateRelW` / `AOutW` / `SimW` one tier up: the
-promotion walk threads a memo beside the state, and `internPersistent` breaks
-`fresh` (`Arena/WF.lean`'s section note has the ruling), so every promote
-lemma relates the twin's post-state by `AStateRelW` and not `AStateRel`.
-`dropScratch` turns the weak invariant back into `StoreWF`
-(`StoreWF'.dropScratch_wf`), which is why nothing ABOVE the bracket weakens. -/
-
-/-- `POut` at the promote window's relation. -/
-def POutW {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (lst : AState)
-    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError ((PMemo × β) × AState)) : Prop :=
-  match o with
-  | .Ok r => ∃ m' v lst', x = .ok ((m', v), lst') ∧ R r.2 v ∧ PMemoRel r.1 m' ∧
-      AStateRelW pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
-  | .Err e => AErrSim e x
-
-/-- `POutW` at the Rust's outcome pair. -/
-def SimPMW {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (lst : AState)
-    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
-      arena.monad.AState)
-    (x : AM (PMemo × β)) : Prop :=
-  POutW R pers lst o.1 o.2 (x.run lst)
-
-/-- The `SimPMW` of a promotion whose value abstracts by a FUNCTION. -/
-abbrev SimPMFW {α β : Type} (A : α → β) (pers : arena.store.PersTier)
-    (lst : AState)
-    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
-      arena.monad.AState)
-    (x : AM (PMemo × β)) : Prop :=
-  SimPMW (fun r v => v = A r) pers lst o x
-
-theorem POutW.ok {α β : Type} {R : α → β → Prop} {r : arena.promote.PMemo × α}
-    {v : β} {pers : arena.store.PersTier} {lst lst' : AState} {m' : PMemo}
-    {st' : arena.monad.AState} {x : Except Arena.CheckError ((PMemo × β) × AState)}
-    (hx : x = .ok ((m', v), lst')) (hv : R r.2 v) (hm : PMemoRel r.1 m')
-    (hrel : AStateRelW pers st' lst') (hinv : AStateInv pers st')
-    (hext : Ext lst.store lst'.store) : POutW R pers lst (.Ok r) st' x :=
-  ⟨m', v, lst', hx, hv, hm, hrel, hinv, hext⟩
-
-theorem POutW.err {α β : Type} {R : α → β → Prop} {e : kernel.core_types.CheckError}
-    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError ((PMemo × β) × AState)} (h : AErrSim e x) :
-    POutW R pers lst (.Err e) st' x := h
 
 /-! ## The axiom census -/
 
