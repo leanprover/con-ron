@@ -341,7 +341,7 @@ def checkNativeTail (mode : CheckMode) (fe : IFEnv) (q : NativePass) : AM IFEnv 
   let p := q.p
   -- a large eliminator on a block whose sort may be `Prop`: two or more
   -- constructors is `.invalid` (official's `elim_only_at_universe_zero`)
-  let neverZero := (← readLevel p.resSort).isNeverZero
+  let neverZero := (← readLevelM p.resSort).isNeverZero
   if p.large && !neverZero && decide (2 ≤ p.ctors.length) then
     fail (.invalid "direct rec: large eliminator on a multi-constructor inductive \
       whose sort may be Prop")
