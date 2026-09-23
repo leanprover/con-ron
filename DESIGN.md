@@ -51447,3 +51447,255 @@ have been the right home for `AStateRelW`/`AOutW`/`SimW` and
 lane, so the definitions sit in `Refine2/Specs.lean` and
 `Refine2/Promote/Intern.lean` instead, additively, with a note at each saying
 where they belong.
+
+### Task #97-P5-Mut — Theorem 2: the interning walks do not chain, and the statements say so now (2026-09-23, Opus under Fable)
+
+The lane was `Refine2/ExprOps/Mut.lean`'s 44 open, of which the brief said 43
+had been blocked on `Refine2/Specs.lean`'s intern family and were now free
+("`Specs.lean` is now at zero `sorry`.  Everything under you exists").  Branch
+`p5-mut` off `arena` `b0d3fb18`, merged `arena` once (`a80ea04d`).
+
+**They are not free, and the reason is one sentence: an interning wrapper asks
+its caller for `hview` — "the children of the node you are interning decode" —
+and a walk's children are its own recursive ANSWERS, about which no `Sim`
+conclusion in the tier says anything.**  That is **finding 19**, §1 below; §2
+is its second half, which is worse and which no statement change can fix from
+this lane.  **44 → 41**, and the three that closed are the ones the finding
+does not reach, plus 654 lines of the machinery the rest will need.
+
+#### 1. FINDING 19 — `AOut`'s `WF` slot cannot say what an interning caller needs
+
+`Refine2/Shape.lean`'s success arm is
+
+    ∃ lst', x.run lst = .ok (A r, lst') ∧ AStateRel pers st' lst' ∧
+      AStateInv pers st' ∧ Ext lst.store lst'.store ∧ WF r
+
+and `WF : α → Prop` — **it never sees `lst'`**.  Task #97-P5-Specs put
+`StoreWF ls.store` into `AStateRel` (finding 16) and paid for it with one new
+hypothesis at each of the ten `intern_e_*_run`:
+
+    hview : lst.store.ViewOK (.app (absEIdx f) (absEIdx a))
+
+*"a walk that interns `app f a` knows `f` and `a` decode because it just
+interned them, and nothing weaker proves it"* (that round's §2).  The half of
+the sentence that was not mechanised is **"it just interned them"**: the
+walk's `f'` and `a'` come back from recursive calls whose conclusion is a
+`Sim`, and a `Sim` says nothing about whether its answer decodes.  So the
+chain breaks at the first arm with a child.
+
+**The statements are not merely unprovable that way; the ones that intern a
+node built from a MEMO HIT are false.**  Take `instantiate1_go_refines`.
+Nothing in `AStateRel`, `AStateInv` or `MemosRel` constrains the VALUES in the
+twin's `inst1C` — `MemosRel.inst1C` is `RelOn (fun _ => True) …`, a key-wise
+agreement between two tables, and `MemosInv` is about the port's hash map.  So
+a state whose memo maps `(h, d)` to a handle that decodes nowhere satisfies
+every hypothesis of the lemma; the `app` arm answers that handle, the caller
+interns `app r a'`, and `EWFAt.childOK` — *"every child of a decoding node
+decodes"* — then fails at the twin's post-store for every rank function.
+`AStateRel`'s `storeWF` conjunct is false there, and with it the conclusion.
+(The step that is argued rather than mechanised is that the freshly pushed
+node decodes at the handle `intern` hands back, which is `EStore.intern_spec`'s
+`view` conjunct.)
+
+**The fix, and why it is local.**  The tier-wide shape is `Shape.lean`'s `WF`
+widened to `α → AState → Prop`; that is one `sed` over every `Sim` statement in
+`Refine2/**` and a coordinator's call, not a lane's.  What this round did
+instead is a local walk outcome, `WOutE`, which a walk proves by induction and
+projects at the boundary:
+
+| conjunct | why the walk needs it |
+|---|---|
+| the run equation, `AStateRel`, `AStateInv`, `Ext` | `AOut`'s own four |
+| `EResolves lst' (absEIdx r)` | **the answer decodes** — the next step's `hview` |
+| `EViewExt lst.store lst'.store` | **what decoded still decodes** — for handles the walk read BEFORE the intern (`Ext` is the `denoteE` half of the same monotonicity and does not give the `view` half) |
+| `o.2.store.shared_on = st.store.shared_on ∧ …scratch_on…` | carries `hfrozen` across the step |
+
+`WOutE.bind` composes it (26 lines), `WOutE.toSim` projects the public `Sim`
+(13), `wout_err_bind` is the error arm (10).  `EViewExt` and its three lemmas
+are 28.  The discharge at an intern is `intern_resolves` (17 lines): on the
+cons hit `EStore.view_of_find`, on the append `EStore.intern_view_spec`, and
+the capacity the append needs is `ECapAt`, which `estore_intern_*_abs`
+concludes since finding 14.
+
+**A `Sim`-shaped public statement survives.**  Only the hypotheses grow, and
+they grow by exactly what the port genuinely needs: `hfrozen`, and an
+`EResolves` for each handle the walk is handed.  `mk_app_n_from_refines` is
+the worked example below.
+
+#### 2. The second half, which this lane cannot fix: the two BINDER arms
+
+`hview` was answerable.  `intern_e_lam_run` / `intern_e_forall_e_run` ask for
+two more, and both are about the store the walk is AT:
+
+    hbmcap : lst.store.capOKBM
+    hcap   : ECapAt lst.store (.lam (absEIdx ty) (absEIdx b) …)
+
+and `intern_e_lam_i_run` / `intern_e_forall_e_i_run` / `intern_e_bind_i_run`
+ask for `EBindCapAt` and `EBindWFAt` in the same position.  A walk interns at a
+state it created k steps ago, so none of them can be a hypothesis of the public
+statement and none of them is a conclusion of anything.
+
+* **`hcap`** should be concludable exactly as the eight non-binder `ECapAt`
+  are: the port's `Tbl::full` tests the same array before it appends, which is
+  finding 14's whole argument.  `estore_intern_lam_abs` simply does not
+  conclude it yet.  **One conjunct, two lemmas** — the same "one-line addition"
+  shape as §3's flags.
+* **`hbmcap` is a TWIN debt and cannot be concluded**, because the twin is
+  stricter than the port there and `Arena/Monad.lean:198` already says so
+  (task #97-P3-1): `internE` tests `nbm < Idx.idxCap` at every binder view,
+  while the port's `intern_bm` tests `full` *only where it appends*, so a node
+  MISS whose datum is a cons HIT needs no room in `bms` at all.  The note
+  closes with *"the corner is unreachable, and it is recorded rather than
+  closed"*.  It is not unreachable any more: it is what blocks every
+  binder-interning walk in this file.
+
+**The count.**  **Fourteen of the 41 intern a `lam`, a `forallE` or a
+`bind_i` directly** — `instantiate1_go`, `instantiate_list{,_go}`,
+`lift_loose_bvars_go`, `reset_meta_go`, `abstract_range{,_go}`,
+`abstract1_go`, `lower_bvars_go`, `instantiate1_lift_go`, `rename_consts_go`,
+`inst_lp_go`, `pis_to_lams`, `replace_pi_body` — and **38 of the 41 reach one**: the ten
+`_fast` entry points call their `_go`, and all fourteen telescope entries
+(`inst_pis*`, `inst_lams_at*`, `inst_spine*`, `inst_pis_at_lift*`) go through
+`instantiate1_fast` or `instantiate_list_fast`.  **So §2, not §1, is the gate
+on the tier.**  Exactly **three** of the 41 do not reach a binder,
+and each is blocked by a different corner of finding 19:
+
+* **`rec_rule_plain`** interns `bvar`, `proj` and a level node only, and needs
+  no `WOutE` of its own — but it calls `strip_pis` and then `view`s the handle
+  that came back, and `strip_pis_refines`' `WF` is `fun _ => True`.  If that
+  handle dangles the twin's `view` THROWS where the port answers `Ok false`,
+  so the statement is false without it.  **Finding 19 bites the READ tier too**,
+  and there the companion is cheap and in this lane: "the handle `stripPis`
+  answers resolves" is `EResolves.child` up the same induction
+  (`ExprOps/Read.lean`'s `strip_pis_aux`), ≈ 80 lines, and it unblocks this one.
+* **`subst_l_memo_at` / `subst_ls_memo_at`** want `LevelWF` of a readback,
+  which is §8's item 5 — finding 19's VALUE half, and the only half that fits
+  the existing `α → Prop` slot.  The schedule that follows is: **fix the twin's datum-capacity test
+first** (one `if` in `Arena/Monad.lean`, plus `EStore.intern_spec`'s statement
+at a capacity that is the node array's alone), then conclude `ECapAt` at the
+two binder arms, and only then is §1's `WOutE` recipe enough to walk.
+
+#### 3. `hfrozen` had no carrier either: the eight flag lemmas
+
+Finding 14 took `hcap` and `hchild` off an interning walk.  `hfrozen` is the
+third side condition and **only `estore_intern_bvar_abs` concluded it** —
+task #97-P5-3 round 3 §4 made that addition at `bvar_range`'s leaf and wrote
+*"the other seven non-binder arrays want the same one-line addition"*.  Nobody
+made it, so this round wrote the eight from outside: `intern_{app, let_e, proj,
+lam_i, forall_e_i, fvar, sort, const}_flags`, **68 lines each**, plus nine
+`arena::monad` wrappers at 13 lines each.  Inside `estore_intern_*_abs`, where
+the tier select and the six leaves are already split, each is one conjunct and
+six `⟨rfl, rfl⟩`s.  **528 lines outside against ~16 inside** is the price of
+proving a thing in the wrong file, and it is the roundest number this round
+produced.  They belong in `Specs.lean`; the module note says so.
+
+**Four tactic rules for an Aeneas `do` chain**, measured here, because the same
+proof cost 100 s one way and 2 s the other:
+
+* peel every bind with `ConRon.Refine.bind_eq_ok_iff.mp`, which unifies **up to
+  `whnf`** and so sees through the tuple-pattern matcher that
+  `obtain ⟨e, b1, pers1, hit⟩ := q` leaves behind.  That matcher is opaque to
+  `dsimp only`, to `simp only []`, to `beta_reduce`, to `simp +zetaDelta` and
+  to `split`; it is transparent to anything that unifies.
+* **never `subst` and never `rw … at h`** on the body: both re-abstract the
+  whole 100-line term, and every later `Result.ok_injective` then re-does the
+  `whnf` through the residue.  Same proof, 100 s → 2 s.
+* case on the BOOLEANS (`cases b`) rather than `split at h`: `split` is
+  syntactic, the residual matcher hides the `if` from it, and it silently
+  splits a DIFFERENT `if` deeper in instead of failing.
+* **name every `obtain` witness.**  A `-` there cannot clear a variable the
+  peeled hypothesis still mentions, so the old hypothesis survives under the
+  new name, the new one shadows it, and the next `simp … at h` reports "no
+  progress" at a hypothesis that was never rewritten.  Two hours.
+
+#### 4. What closed, and what each cost
+
+| lemma | lines | note |
+|---|---:|---|
+| `intern_rebuilt_refines` | **48** (statement 36, proof 12) | finding 19's cheapest instance: a single node, so the seven side conditions `intern_e_run` wants can be HYPOTHESES, guarded by `same = false` exactly as the twelve per-constructor siblings guard theirs.  The proof is then their proof. |
+| `mk_app_n_from_refines` | **77** (`_aux`) **+ 12** | the first walk closed under `WOutE`; induction on `args.length - i` |
+| `mk_app_n_refines` | **24** | plus `mkAppNFrom_eq`, **22**, the twin-only lemma that the cursor form over an array is the list form over what the cursor has not consumed — `mkAppN` is the twin of `mk_app_n` and `mkAppNFrom` of `mk_app_n_from`, and this is the one place the two shapes meet |
+
+Both `mkAppN` statements were **corrected**: they carried `hrel`/`hinv` and
+nothing else, and the `app` each step interns has the previous step's answer as
+its function child.  What went in is `hfrozen` plus `EResolves` of the head and
+of every argument — the smallest hypotheses that make the statement true, and
+the ones `WOutE` re-establishes one step down.
+
+**The recipe, priced.**  A non-fuel interning walk over a `Vec` is **~90 lines**
+(`mk_app_n_from`: 77 + 12), of which about 25 are the `WOutE` bookkeeping that
+`WOutE.bind` already factors.  A fuel walk with a memo and ten arms will not be
+90: `bvar_bound_go_refines` in this same file is **386 lines** for a
+NON-interning, `view`-dispatched walk with three recursive arms, and
+`instantiate1_go`'s Rust duplicates its whole tag chain under the `satRange`
+cutoff, so **600–800 lines each** is the honest number for the eleven, once §2
+is unblocked.  **They are one recipe repeated** — memo probe, view, recurse,
+intern, memo set — and the per-arm cost is dominated by the four-way case
+analysis (`Err`/`Ok` × memo hit/miss), not by anything walk-specific.
+
+#### 5. `ExprOps/Read.lean` is imported by `ExprOps/Mut.lean` now
+
+Task #97-P5-0 §9's "first small merge, still owed": `Mut.lean` carried local
+copies of `Read.lean`'s `aout_err_bind` (twice, once under the name
+`aout_err_bind_v`) and `aout_rebase` because the file was not imported.  The
+interning walks need Read's `EResolves` and its eight tag-first readers
+(`strip_pis`, `pi_result`, `get_app_fn`/`get_app_args` are called by
+`rec_rule_plain`, `inst_pis_at_lift` and `lower_bvars_fast`), so the import
+goes in and the three copies come out.  `Read.lean` is `namespace
+ConRon.Refine2.ExprOps` and `Mut.lean` is `ConRon.Refine2`, so the three names
+arrive through one `open … (aout_err_bind aout_rebase EResolves)`.
+
+**The rest of that merge is still owed**, and the import makes it visible:
+`absEIdxArr` is DEFINED twice, once in each namespace (`ExprOps/Pure.lean:92`
+and `ExprOps/Mut.lean:113`), with `absEIdxArr_size` / `absEIdxArr_toList`
+duplicated on top of each.  The two namespaces keep them apart, so nothing
+breaks; one of the two should go when a round next owns both files.
+
+#### 6. The axiom census
+
+**Nine more `#print axioms` rows under `#guard_msgs`** in `ExprOps/Mut.lean`
+(`intern_resolves`, `WOutE.bind`, `intern_e_app_res`, `intern_app_flags`,
+`intern_e_bind_i_flags`, `mkAppNFrom_eq`, `mk_app_n_from_refines`,
+`mk_app_n_refines`, `intern_rebuilt_refines`), every one
+`[propext, Classical.choice, Quot.sound]`.  No `sorryAx` on a closed lemma,
+and no `bv_decide` axiom.
+
+#### 7. Elaboration and the gates
+
+`LEAN_NUM_THREADS=1`, one file.
+
+| file | lines | `sorry` | note |
+|---|---:|---:|---|
+| `Refine2/ExprOps/Mut.lean` | **3 471** (from 2 427) | **41** (from 44) | +1 044, of which **661** are §3's eight store flag lemmas plus nine monad wrappers (544 + 117) and **152** are §1's `WOutE` scaffolding |
+
+`ConRon.Refine2.ExprOps.Mut` rebuilds in **7 s** on top of a warm `Read.lean`.
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK**, twice — at the merge (`extract-check` 93 s, `lake-build` 109 s) and again after the census rows (`extract-check` 139 s under a load average of 86, `lake-build` 3 s) |
+| `cd proof && lake build ConRonRefine2` | **green, 2 221 jobs, 0 errors, 823 `sorry` warnings** across the tier, of which 41 are this file's |
+
+**`lake build`'s default targets do not cover this tier.**  `proof/lakefile.toml`
+makes `ConRonRefine2` a library root of its own *"so that a P5 agent's
+half-built tier never blocks `lake build`'s default targets"* (task #97-P5-0),
+so `gates.sh`'s `lake-build` step never elaborates `Refine2/**` and the
+explicit `lake build ConRonRefine2` is not optional — a green gate run says
+nothing about this lane.
+
+#### 8. What the next round should take, in order
+
+1. **The twin's datum-capacity test** (§2), which is one `if` and a frozen
+   theorem's statement.  Nothing else in this file moves until it does.
+2. **`ECapAt` at the two binder arms** of `estore_intern_*_abs`, and the eight
+   flag conjuncts of §3 moved inside where they are one line each.
+3. **`hchild` at the two binder arms**, which should fall to
+   `persFind?_none_of_echild` at `(ls.internBM m).1` the way the six non-binder
+   ones fall to it at `ls` — `internBM` moves neither `pers.lams` nor
+   `pers.foralls`, and `EStore.internBM_spec` already carries its `StoreWF`.
+4. Then the eleven fuel walks at 600–800 lines each, `instantiate1_go` first
+   because the other four memoised substituting walks are its shape exactly.
+5. `Refine2/Specs.lean`'s `read_level_m_run` / `read_levels_m_run` have
+   `WF = fun _ => True` and therefore hand back no `LevelWF`, which is what
+   `subst_l_memo_at` and `subst_ls_memo_at` need before `intern_level_run` will
+   take their argument.  That is finding 19's VALUE half, and unlike the state
+   half it fits in the existing `α → Prop` slot.

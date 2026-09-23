@@ -18,7 +18,8 @@
 #  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
 #  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
 #  12. scripts/extract.sh --check           committed generated Lean == crate
-#  13. cd proof && lake build               the whole proof library elaborates
+#  13. cd proof && lake build               the default targets elaborate
+#  14. cd proof && lake build ConRonRefine2  Theorem 2's tier (not a default target)
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag: on a many-core machine the first build of the
 #      vendored con-leche can exhaust memory, task #74)
@@ -73,6 +74,12 @@ run gen-prelude   "$root/scripts/gen-prelude.sh" --check
 run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
 run extract-check "$root/scripts/extract.sh" --check
 run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
+# `ConRonRefine2` is deliberately NOT a default target (a half-built P5 tier
+# must not block `lake build`), which means the line above never elaborates a
+# single module of `ConRon/Refine2/**`.  Until task #97-P5-Mut found this, a
+# green gate run said nothing whatsoever about a Theorem-2 lane.  It is its
+# own step so the OK/FAIL line names it.
+run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonRefine2
 
 echo "gates: all $n OK"
 
