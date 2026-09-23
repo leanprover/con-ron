@@ -51008,7 +51008,7 @@ and no `bv_decide` axiom.
 | gate | result |
 |---|---|
 | `scripts/gates.sh` | **all 13 OK**, twice — at the merge (`extract-check` 93 s, `lake-build` 109 s) and again after the census rows (`extract-check` 139 s under a load average of 86, `lake-build` 3 s) |
-| `cd proof && lake build ConRonRefine2` | **green, 2 221 jobs, 0 errors, 403 `sorry`** (the tier's, of which 41 are this file's) |
+| `cd proof && lake build ConRonRefine2` | **green, 2 221 jobs, 0 errors, 823 `sorry` warnings** across the tier, of which 41 are this file's |
 
 **`lake build`'s default targets do not cover this tier.**  `proof/lakefile.toml`
 makes `ConRonRefine2` a library root of its own *"so that a P5 agent's
