@@ -60161,5 +60161,5 @@ tactic additions, Promote, Inductives round 2).  One branch now carries both
   `dup2_{nidx,lidx,lsidx}` copies deleted (the `Tactic/Prims` ones kept);
   the Inductives lane's `nidx_dup2_spec` deleted likewise.
 
-`lake build ConRonRefine2` clean after the merge; `scripts/gates.sh`: see
-the submission note.
+`lake build ConRonRefine2` clean after the merge; `scripts/gates.sh` on the
+merged tip: **all 16 OK** (`extract-check` 129 s, `lake-bridge` 561 s).
