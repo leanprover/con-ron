@@ -61038,16 +61038,14 @@ landed its own) were dropped at the merge.
 
 #### 4. Tactic findings (for the tactic's owner; worked around, core untouched)
 
-1. **`specCore` closes a spec's premises BEFORE matching the twin**, and runs
-   `lockstep_side` on every unassigned data metavariable.  A spec with a
-   twin-only parameter is therefore never usable: the twin's message string
-   (`unwrap_or`, `unresolved_consts_error`), `RenameRel`'s twin function
-   (`rename_consts_fast_ls`), a higher-order abstraction, or a statement
-   general in the twin's message arguments (`check_member_model_ls`).
-   Worked around by specialised lemmas (`rename_consts_fast_by_ls` at
-   `RenameBy`, the `unwrap_or_cv_*`, `…_rule_ls`) or one hand step.  Fix
-   suggestion: skip non-`Prop` goals and the premises mentioning them until
-   after `hx`.
+1. **Twin-only spec arguments** (the twin's message string of `unwrap_or`/
+   `unresolved_consts_error`, `RenameRel`'s twin function of
+   `rename_consts_fast_ls`, `check_member_model_ls`'s message arguments):
+   met here independently of the Checker lane and worked around by
+   specialised lemmas (`rename_consts_fast_by_ls` at `RenameBy`, the
+   `unwrap_or_cv_*`, `unresolved_consts_error_rule_ls`) or one hand step.
+   Task #97-T2-TACTIC round 2 (landed while this slice ran, merged at the
+   end) fixes the cause; the workarounds are cleanup for the next slice.
 2. **The ExprOps landing's term-`match` fallback loops** when the
    discriminant is a constructor application (`some (absIConstantInfo v)`):
    `cases _hdisc : some v` gives `some v'` back, forever (`check_eta_thm`
@@ -61055,10 +61053,9 @@ landed its own) were dropped at the merge.
    leaf against such a twin `match`: `split`) ahead of `lockstep_step`.
 3. **A `.read` step's failure is reported as "no @[lockstep] lemma"**: the
    `LSR` attempt's error is swallowed and the `LSP` attempt's thrown.
-4. Before the merge, the `LS.twin_bind_pure` fallback wrapped an undecided
-   twin `if` in `>>= pure`, where the twin-`if` rule no longer saw it;
-   `lockstep_mod` keeps a `bind_pure` + `twin_ite_pos/neg` move for it (the
-   ExprOps lane's atomic version may have made it rare).
+4. The undecided twin `if` wrapped in `>>= pure` (before the atomic
+   fallback) — round 2's `twin_ite_bind`/`twin_ite_split` cover it;
+   `lockstep_mod` still carries its own `bind_pure` + `twin_ite_pos/neg` move.
 
 #### 5. What the rest waits on
 
