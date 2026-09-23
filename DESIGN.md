@@ -59491,6 +59491,65 @@ con-leche package (restored from the Lake cache's 4.33 artifacts) until the
 shared one was repaired (it was, by 17:5x); `_tmp/aeneas-lean` was not
 touched from here.
 
+#### Slice 3 — the twin's divergences in this lane, fixed (`9358cac4`)
+
+Each is a twin edit that brings `Arena/Frontend/**` to what the Rust does,
+with its Theorem 1 (`Bridge/Frontend/**`) repaired in the same commit:
+
+* **D1, twelve sites in `ProjRec`** (`isProjIotaName` ×3, `projIotaLevel`,
+  `lamBody`, `stripPisAll`, `instPisOpen`, `buildBinders`, `headIs`,
+  `mkProjMotive`, `projRecValue` ×3): the port tests the handle's TAG before
+  it views (`view_const`, `view_sort`, …, which do not decode the other
+  kinds' data), the twin viewed first — at a handle of another kind over a
+  dangling datum the twin failed where the port answers `None`.  Twin now
+  `if h.tag == ETag.C then match ← view h … else <catch-all>`; Bridge
+  `tagIf_view_runF`/`tagIfN_viewN_run` turn a tag-first run back into the
+  old `view >>= f` run at a known view.
+* **`projRecCandidates` read levels with `readLevel`**, the port with
+  `read_level_m` (memoised through `readLC`): twin → `readLevelM`; the
+  Bridge side now needs `ReadLCacheOK`, threaded from `processLineCoreD`.
+* **`validateIndD`'s `is_K_target` walk** read `piResult` (`viewBindI`,
+  never decodes a binder datum), the port `export_c::pi_result` over
+  `env::view_e` (decodes it): new twin `piResultD`, cited by `pi_result`.
+* **`blockRecOf` read a type record's constructor names after its CV**, the
+  port before: reordered (slice 4, `59131e1f`).
+* Checked and NOT a divergence: the `readName`s in `validateIndD`'s
+  messages — `show_name` reads through `env::read_name`, the same `denoteN`
+  at the same fuel, `Internal` where it is `none`.
+
+#### Slice 4 — F12 and `validate_ind_d`
+
+**F12** (`f78ea501`): new `Refine2/Frontend/SpecInd.lean` transcribes
+`validateIndD`'s two `for` loops keeping the twin's own `forIn`/`MProd`
+encoding (the loop bodies `orderCtorStepD`, `recStepD`, `recIndexStepD`,
+`orderBlockStepD` are the twin's bodies as they stand), so
+**`validateIndD_unfold` is `rfl`** up to one `kExpectedOfD_bind`;
+`orderCtorStepD_eq`/`recStepD_eq` split the bodies at `checkOneCtorD` /
+`checkOneRecD`.  The port's loop functions are stated with **`SimLV`** —
+`SimLR` plus a `LineErr::Verdict` arm that is a twin run answering, at the
+state it started in, with a value classified as a verdict of the same kind
+(`vOfOpt` on a loop state, `vOfSum` on `validateIndD`'s answer).  All five F12
+loop statements (`check_one_ctor`, `order_type_ctors`, `order_block_ctors`,
+`check_one_rec`, `check_rec_records`) plus `check_rec_indices`,
+`k_expected_of`, `show_name` are proved against them; so is
+**`validate_ind_d_refines`** (restated as `SimLV` — the old conjunction form
+said the same; `Top.plc_ind` reads it), on the helpers `any_ty_unsafe`,
+`any_ty_nested`, `all_num_params` (`any_loop_gen`), `flatten_listed`,
+`names_have_dup` (the hash-set pass against `Nodup`), `ctor_index_of`
+(last-wins fold; `ctorIx_lt` for its range) and the spine walks
+`ind_pi_tele_len`, `pi_result`, `env::pi_sort_tele_len`, `env::view_e`,
+`env::view_n`, `env::read_level(_at)` (with `LevelWF`).  `check_rec_indices`,
+`check_one_rec`, `check_rec_records` carry `ty_names.len = ty_types.len`
+(both are `tys.mapM`, `am_mapM_length` at the call site).
+
+Also: the `SimLR` cursor loops (`simLR_cursor`, `simLR_cursor0`,
+`SimLR.seq_append`) close `parse_rules_d`, `block_rec_*`, `ind_block_*`,
+`ind_block_of`, `ty_names_of`/`ty_types_of`/`listed_ctors_of`/
+`ctor_names_of`, the `*_dup` copies; `lam_body_refines`.
+
+Sorry counts: `ExportCInd` 25 → 2 (`note_ind_blocks`, `install_gen`),
+`ExportC` 26 → 12, `ProjRec` 55 → 54; `SpecInd` 0.
+
 ### Task #97-MQ — the merge queue: lanes submit, one queue agent lands (2026-09-23, Fable)
 
 **Why.**  With seven lanes landing on `arena`, a lane's gate run was often

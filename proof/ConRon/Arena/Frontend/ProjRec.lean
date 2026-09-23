@@ -83,15 +83,23 @@ def projIotaName (T : NIdx) (i : Nat) : AM NIdx := do
 of the shape `X._model.proj_i.iota`?  The cheap pre-filter for the theorem
 records; the last component decides before anything is compared. -/
 def isProjIotaName (n : NIdx) : AM Bool := do
-  match ← viewN n with
-  | .str p1 "iota" =>
-    match ← viewN p1 with
-    | .str p2 s =>
-      match ← viewN p2 with
-      | .str _ "_model" => pure (s.startsWith "proj_")
-      | _ => pure false
+  -- tag first, as the port does (`is_proj_iota_name` / `is_proj_iota_pre`:
+  -- `NTAG_STR` before each `view_n`; task #97-T2-LOCKSTEP lane Frontend)
+  if n.tag == NTag.str then
+    match ← viewN n with
+    | .str p1 "iota" =>
+      if p1.tag == NTag.str then
+        match ← viewN p1 with
+        | .str p2 s =>
+          if p2.tag == NTag.str then
+            match ← viewN p2 with
+            | .str _ "_model" => pure (s.startsWith "proj_")
+            | _ => pure false
+          else pure false
+        | _ => pure false
+      else pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:120-125 projIotaLevel — the `Eq`
 level of an artifact iota statement `∀ …, @Eq.{ℓ} α a b`: the field's sort.
@@ -100,14 +108,16 @@ level of an artifact iota statement `∀ …, @Eq.{ℓ} α a b`: the field's sor
 def projIotaLevel (fuel : Nat) (ty : EIdx) : AM (Option LIdx) := do
   let r ← piResult fuel ty
   let f ← getAppFn fuel r
-  match ← view f with
-  | .const n us =>
-    match ← viewLs us with
-    | [l] => do
-      let eqH ← internName ConLeche.eqName
-      pure (if n == eqH then some l else none)
+  if f.tag == ETag.const then
+    match ← view f with
+    | .const n us =>
+      match ← viewLs us with
+      | [l] => do
+        let eqH ← internName ConLeche.eqName
+        pure (if n == eqH then some l else none)
+      | _ => pure none
     | _ => pure none
-  | _ => pure none
+  else pure none
 
 /-! ## `occursConst`
 
@@ -200,20 +210,24 @@ value's binders). -/
 def lamBody : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: lamBody")
   | fuel + 1, h => do
-    match ← view h with
-    | .lam _ b _ => lamBody fuel b
-    | _ => pure h
+    if h.tag == ETag.lam then
+      match ← view h with
+      | .lam _ b _ => lamBody fuel b
+      | _ => pure h
+    else pure h
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:239-245 stripPisAll — strip every
 leading `∀`: the binder list (outermost first) and the body. -/
 def stripPisAll : Nat → EIdx → AM (List (EIdx × BinderMeta) × EIdx)
   | 0, _ => fail (.internal "fuel exhausted: stripPisAll")
   | fuel + 1, h => do
-    match ← view h with
-    | .forallE ty b m => do
-      let p ← stripPisAll fuel b
-      pure ((ty, m) :: p.1, p.2)
-    | _ => pure ([], h)
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE ty b m => do
+        let p ← stripPisAll fuel b
+        pure ((ty, m) :: p.1, p.2)
+      | _ => pure ([], h)
+    else pure ([], h)
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:247-249 mkLams — rebuild a
 `λ`-telescope over a binder list (outermost first).  Structural on the list,
@@ -232,11 +246,13 @@ telescope.  Structural on the argument list; `fuel` is the one
 def instPisOpen (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
   | e, [] => pure (some e)
   | h, a :: as => do
-    match ← view h with
-    | .forallE _ body _ => do
-      let b ← instantiate1LiftFast fuel body a 0
-      instPisOpen fuel b as
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE _ body _ => do
+        let b ← instantiate1LiftFast fuel body a 0
+        instPisOpen fuel b as
+      | _ => pure none
+    else pure none
 
 /-! ## The two binder bodies, and the peel that uses them -/
 
@@ -265,9 +281,12 @@ structure ProjBuild where
 of the owner's own carrier: the motive domain `∀ (t : T p⃗), Sort ℓ` (exactly
 one binder) or the major-premise domain. -/
 def headIs (fuel : Nat) (T : NIdx) (e : EIdx) : AM Bool := do
-  match ← view (← getAppFn fuel e) with
-  | .const n _ => pure (n == T)
-  | _ => pure false
+  let f ← getAppFn fuel e
+  if f.tag == ETag.const then
+    match ← view f with
+    | .const n _ => pure (n == T)
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue — the motive
 body (`mkMotive` inside `projRecValue`): the owner's motive is `fun (t : T p⃗)
@@ -276,17 +295,19 @@ IS the new binder — and every other one is the constant `PUnit.{ℓ}` over its
 telescope. -/
 def mkProjMotive (pb : ProjBuild) (fuel : Nat) (dom : EIdx) : AM (Option EIdx) := do
   let (bs, body) ← stripPisAll fuel dom
-  match ← view body with
-  | .sort _ =>
-    match bs with
-    | [(d, m)] =>
-      if ← headIs fuel pb.T d then do
-        let rl ← liftLooseBVarsFast fuel 1 1 pb.R
-        pure (some (← internE (.lam d rl m)))
-      else
-        pure (some (← internE (.lam d pb.punitC m)))
-    | bs => pure (some (← mkLams bs pb.punitC))
-  | _ => pure none
+  if body.tag == ETag.sort then
+    match ← view body with
+    | .sort _ =>
+      match bs with
+      | [(d, m)] =>
+        if ← headIs fuel pb.T d then do
+          let rl ← liftLooseBVarsFast fuel 1 1 pb.R
+          pure (some (← internE (.lam d rl m)))
+        else
+          pure (some (← internE (.lam d pb.punitC m)))
+      | bs => pure (some (← mkLams bs pb.punitC))
+    | _ => pure none
+  else pure none
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue — the minor
 body (`mkMinor` inside `projRecValue`): the owner constructor's minor returns
@@ -315,19 +336,21 @@ def buildBinders (kind : ProjBinderKind) (pb : ProjBuild) (fuel : Nat) :
     Nat → EIdx → AM (Option (List EIdx × EIdx))
   | 0, e => pure (some ([], e))
   | k + 1, h => do
-    match ← view h with
-    | .forallE dom body _ => do
-      let t? ← match kind with
-        | .motive => mkProjMotive pb fuel dom
-        | .minor => mkProjMinor pb fuel dom
-      match t? with
-      | none => pure none
-      | some t => do
-        let body' ← instantiate1LiftFast fuel body t 0
-        match ← buildBinders kind pb fuel k body' with
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body _ => do
+        let t? ← match kind with
+          | .motive => mkProjMotive pb fuel dom
+          | .minor => mkProjMinor pb fuel dom
+        match t? with
         | none => pure none
-        | some (ts, rest) => pure (some (t :: ts, rest))
-    | _ => pure none
+        | some t => do
+          let body' ← instantiate1LiftFast fuel body t 0
+          match ← buildBinders kind pb fuel k body' with
+          | none => pure none
+          | some (ts, rest) => pure (some (t :: ts, rest))
+      | _ => pure none
+    else pure none
 
 /-! ## The rewrite -/
 
@@ -345,49 +368,55 @@ def projRecValue (fuel : Nat) (o : ProjRecOwner) (l : LIdx) (ty val : EIdx)
   match ← stripLams (o.nP + 1) val with
   | none => pure none
   | some (lbs, body) => do
-    match ← view body with
-    | .proj tn bi sub =>
-      match ← view sub with
-      | .bvar 0 =>
-        if tn != o.T || bi != i || !(i < o.nF) then pure none else do
-          match ← stripPis (o.nP + 1) ty with
-          | none => pure none
-          | some (_, r) => do
-            -- the recursor's type at the chosen elimination level; the body
-            -- frame is the value's own `nP + 1` binders: parameter `k` is
-            -- `bvar (nP - k)`, the subject `bvar 0`
-            let ups ← internParamLevels o.lps
-            let us ← internLsNode (l :: ups)
-            let rty0 ← instLPFast fuel o.recLps us o.recType
-            let params ← bvarRange (o.nP + 1) o.nP 0
-            match ← instPisOpen fuel rty0 params with
-            | none => pure none
-            | some rty1 => do
-              let punitH ← internName ConLeche.punitName
-              let punitUH ← internName ConLeche.punitUnitName
-              let lsOne ← internLsNode [l]
-              let pb : ProjBuild :=
-                { T := o.T, ctor := o.ctor, R := r, i := i,
-                  punitC := ← internE (.const punitH lsOne),
-                  punitUnitC := ← internE (.const punitUH lsOne) }
-              match ← buildBinders .motive pb fuel o.numMotives rty1 with
+    if body.tag == ETag.proj then
+      match ← view body with
+      | .proj tn bi sub =>
+        if sub.tag == ETag.bvar then
+          match ← view sub with
+          | .bvar 0 =>
+            if tn != o.T || bi != i || !(i < o.nF) then pure none else do
+              match ← stripPis (o.nP + 1) ty with
               | none => pure none
-              | some (motives, rty2) => do
-                match ← buildBinders .minor pb fuel o.numMinors rty2 with
+              | some (_, r) => do
+                -- the recursor's type at the chosen elimination level; the body
+                -- frame is the value's own `nP + 1` binders: parameter `k` is
+                -- `bvar (nP - k)`, the subject `bvar 0`
+                let ups ← internParamLevels o.lps
+                let us ← internLsNode (l :: ups)
+                let rty0 ← instLPFast fuel o.recLps us o.recType
+                let params ← bvarRange (o.nP + 1) o.nP 0
+                match ← instPisOpen fuel rty0 params with
                 | none => pure none
-                | some (minors, rty3) => do
-                  -- the major premise: the owner has no indices, so the next
-                  -- binder is the subject itself
-                  match ← view rty3 with
-                  | .forallE majDom _ _ =>
-                    if !(← headIs fuel o.T majDom) then pure none else do
-                      let rc ← internE (.const o.recName us)
-                      let b0 ← internE (.bvar 0)
-                      let app ← mkAppN rc (params ++ motives ++ minors ++ [b0])
-                      pure (some (← mkLams lbs app))
-                  | _ => pure none
+                | some rty1 => do
+                  let punitH ← internName ConLeche.punitName
+                  let punitUH ← internName ConLeche.punitUnitName
+                  let lsOne ← internLsNode [l]
+                  let pb : ProjBuild :=
+                    { T := o.T, ctor := o.ctor, R := r, i := i,
+                      punitC := ← internE (.const punitH lsOne),
+                      punitUnitC := ← internE (.const punitUH lsOne) }
+                  match ← buildBinders .motive pb fuel o.numMotives rty1 with
+                  | none => pure none
+                  | some (motives, rty2) => do
+                    match ← buildBinders .minor pb fuel o.numMinors rty2 with
+                    | none => pure none
+                    | some (minors, rty3) => do
+                      -- the major premise: the owner has no indices, so the next
+                      -- binder is the subject itself
+                      if rty3.tag == ETag.forallE then
+                        match ← view rty3 with
+                        | .forallE majDom _ _ =>
+                          if !(← headIs fuel o.T majDom) then pure none else do
+                            let rc ← internE (.const o.recName us)
+                            let b0 ← internE (.bvar 0)
+                            let app ← mkAppN rc (params ++ motives ++ minors ++ [b0])
+                            pure (some (← mkLams lbs app))
+                        | _ => pure none
+                      else pure none
+          | _ => pure none
+        else pure none
       | _ => pure none
-    | _ => pure none
+    else pure none
 where
   /-- con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue — `o.lps.map
   Level.param`, interned: a `List.map` with a closure is DESIGN §3.4's
@@ -462,20 +491,25 @@ def projRecCandidates (fuel : Nat)
       if nI != 0 then pure tail else do
         match ← stripPis nP tty with
         | some (_, body) => do
-          match ← view body with
-          | .sort s => do
-            let sP ← readLevel s
-            if Level.isEquiv sP .zero == some true then pure tail else
-              match findCtorRec c ctors with
-              | none => pure tail
-              | some (_, nF, _) => do
-                let rn ← internNNode (.str t "rec")
-                match findRecRec rn recs with
+          -- tag first, and the MEMOISED readback, as the port's
+          -- `proj_rec_candidate_at` (`read_level_m`); task #97-T2-LOCKSTEP
+          -- lane Frontend
+          if body.tag == ETag.sort then
+            match ← view body with
+            | .sort s => do
+              let sP ← readLevelM s
+              if Level.isEquiv sP .zero == some true then pure tail else
+                match findCtorRec c ctors with
                 | none => pure tail
-                | some (rn, rlps, rty, nM, nm) =>
-                  if rlps.length != lps.length + 1 then pure tail
-                  else pure (⟨t, lps, nP, c, nF, rn, rlps, rty, nM, nm⟩ :: tail)
-          | _ => pure tail
+                | some (_, nF, _) => do
+                  let rn ← internNNode (.str t "rec")
+                  match findRecRec rn recs with
+                  | none => pure tail
+                  | some (rn, rlps, rty, nM, nm) =>
+                    if rlps.length != lps.length + 1 then pure tail
+                    else pure (⟨t, lps, nP, c, nF, rn, rlps, rty, nM, nm⟩ :: tail)
+            | _ => pure tail
+          else pure tail
         | none => pure tail
     | _ => pure tail
 

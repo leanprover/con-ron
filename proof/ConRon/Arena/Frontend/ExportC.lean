@@ -362,6 +362,21 @@ def indPiTeleLen : Nat → EIdx → AM Nat
     | .forallE _ b _ => pure ((← indPiTeleLen fuel b) + 1)
     | _ => pure 0
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the body of a
+syntactic `∀`-telescope, reading the WHOLE `view` at each step: the port's
+`export_c::pi_result`, `validate_ind_d`'s `is_K_target` walk, is written over
+`env::view_e` (which decodes a binder's datum), where `Arena/ExprOps.lean`'s
+`piResult` — the twin of `expr_ops::pi_result` — reads `viewBindI` and never
+decodes it (task #97-P5-Core round 4).  At a `∀` node over a dangling datum
+the two answer differently, so `validateIndD` calls this one (task
+#97-T2-LOCKSTEP lane Frontend). -/
+def piResultD : Nat → EIdx → AM EIdx
+  | 0, _ => fail (.internal "fuel exhausted: piResult")
+  | fuel + 1, h => do
+    match ← view h with
+    | .forallE _ b _ => piResultD fuel b
+    | _ => pure h
+
 /-- con-leche: ConLeche/Frontend/ExportC.lean:346-349 parseRuleD — one recursor
 rule of an inductive record, resolved.  The install-computed fields carry
 con-leche's own parse placeholders. -/
@@ -373,11 +388,15 @@ def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
 shape data of an inductive record, for the in-process modeller. -/
 def blockRecOf (st : StateD) (types : List IndTypeRec) (ctors : List IndCtorRec)
     (recs : List IndRecRec) : AM BlockRec := do
+  -- the listed constructors are read BEFORE the declaration's common data, in
+  -- the port's order (`export_c::block_rec_types`; task #97-T2-LOCKSTEP lane
+  -- Frontend): both are table reads, and the first failure is the one reported
   let types ← types.mapM fun t => do
+    let ctors ← t.ctors.mapM st.name
     pure { cv := ← parseCVD st t.cv
            nP := t.numParams
            nIdx := t.numIndices
-           ctors := ← t.ctors.mapM st.name
+           ctors := ctors
            isRec := t.isRec
            isReflexive := t.isReflexive
            numNested := t.numNested : MIndTypeRec }
@@ -502,7 +521,7 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
   -- official's `is_K_target`
   let kExpected? : Option Bool ← match tyTypes, listed, cts with
     | [ty], [[_]], [c] => do
-      let r ← piResult fuel ty
+      let r ← piResultD fuel ty
       match ← view r with
       | .sort s =>
         pure (some (c.numFields == 0 && Level.isEquiv (← readLevel s) .zero == some true))
