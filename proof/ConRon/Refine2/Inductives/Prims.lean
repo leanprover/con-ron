@@ -1199,62 +1199,6 @@ open Lockstep in
 
 
 open Lockstep in
-@[lockstep] theorem erase_pw_eq_ls
-    {pers st lst}
-    {fuel : Std.U64}
-    {a : arena.handle.EIdx}
-    {b : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.std_axioms.erase_pw_eq pers st fuel a b) st lst
-      (erasePwEq (absU fuel) (absEIdx a) (absEIdx b)) :=
-  LSR.ofSimRE hrel hinv fun _ h => erase_pw_eq_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem erase_pw_eq_at_ls
-    {pers st lst}
-    {fuel : Std.U64}
-    {va : arena.store.ENodeView}
-    {vb : arena.store.ENodeView}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.std_axioms.erase_pw_eq_at pers st fuel va vb) st lst
-      (erasePwEqAtSpec (absU fuel) (absENodeView va) (absENodeView vb)) :=
-  LSR.ofSimRE hrel hinv fun _ h => erase_pw_eq_at_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem erase_pw_eq_two_ls
-    {pers st lst}
-    {fuel : Std.U64}
-    {a : arena.handle.EIdx}
-    {a2 : arena.handle.EIdx}
-    {b : arena.handle.EIdx}
-    {b2 : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.std_axioms.erase_pw_eq_two pers st fuel a a2 b b2) st lst
-      ((do
-        if ← erasePwEq (absU fuel) (absEIdx a) (absEIdx b) then
-          erasePwEq (absU fuel) (absEIdx a2) (absEIdx b2)
-        else pure false)) :=
-  LSR.ofSimRE hrel hinv fun _ h => erase_pw_eq_two_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem i_constant_val_matches_pin_ls
-    {pers st lst}
-    {cv : arena.env.IConstantVal}
-    {pin : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.std_axioms.i_constant_val_matches_pin pers st cv pin) st lst
-      ((absIConstantVal cv).matchesPin (absIConstantVal pin)) :=
-  LSR.ofSimRE hrel hinv fun _ h => i_constant_val_matches_pin_refines hrel hinv h
-
-
-open Lockstep in
 @[lockstep] theorem iff_raw_ls
     {pers st lst}
     (hrel : AStateRel₀ pers st lst)
