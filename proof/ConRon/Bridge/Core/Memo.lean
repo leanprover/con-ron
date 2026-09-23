@@ -801,4 +801,97 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
             exact hF⟩) rfl rfl,
       hx, hpn, F, hF⟩
 
+
+/-! ## 6. The dispatch step (task #97-P3-Core round 5)
+
+Every body of the knot opens with `match ← view e with …`.  The body theorems
+are proved as a case split on the tag, with one child per group of that
+dispatch, and each child starts here: at a state whose store views the
+handle as `v`, the program `view i >>= f` is `f v`. -/
+
+/-- con-leche: none — **the `view` dispatch**: `view i` reads the store and
+touches nothing, so a triple for the arm the store selects is a triple for
+the whole dispatch. -/
+theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
+    (hv : s₀.store.view i = some v) {f : ENodeView → AM α}
+    {Q : α → AState → Prop}
+    (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (view i >>= f) ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+  mvcgen [h]
+  rename_i v'
+  intro s hs hv'
+  subst_vars
+  rw [hv] at hv'
+  obtain rfl := Option.some.inj hv'
+  exact h _ rfl
+
+
+/-- con-leche: none — **sequencing at a pinned state**: a triple for `x`
+whose postcondition names its facts, and one for the continuation at every
+state those facts hold of, make a triple for `x >>= f`.  This is what lets
+a long arm be proved stage by stage, each stage's facts introduced by NAME,
+instead of as one `mvcgen` whose verification conditions carry forty
+inaccessible hypotheses. -/
+theorem triple_seq {α β : Type} {x : AM α} {f : α → AM β} {s₀ : AState}
+    {Q : α → AState → Prop} {R : β → AState → Prop}
+    (hx : ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? a s => ⌜Q a s⌝⦄)
+    (hf : ∀ a s₁, Q a s₁ → ⦃fun s => ⌜s = s₁⌝⦄ f a ⦃⇓? b s => ⌜R b s⌝⦄) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (x >>= f) ⦃⇓? b s => ⌜R b s⌝⦄ := by
+  apply Std.Do.Triple.bind x f hx
+  intro a s hs
+  exact hf a s hs s rfl
+
+
+/-- con-leche: none — **the consequence rule at a pinned state**, for the
+same reason as `triple_seq`: a callee's published postcondition, read by
+name. -/
+theorem triple_mono {α : Type} {x : AM α} {s₀ : AState}
+    {Q Q' : α → AState → Prop}
+    (h : ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s => ⌜Q r s⌝⦄)
+    (hq : ∀ r s, Q r s → Q' r s) :
+    ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s => ⌜Q' r s⌝⦄ := by
+  refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post h ?_)
+  refine ⟨fun r => ?_, Std.Do.ExceptConds.entails.refl _⟩
+  intro s hp
+  exact hq r s hp
+
+
+/-- con-leche: none — **a failure claims nothing** (`⇓?`), at any pinned
+state and any postcondition: every throwing exit of a staged arm is this. -/
+theorem triple_fail {α : Type} {s₀ : AState} {e : ConRon.Arena.CheckError}
+    {Q : α → AState → Prop} :
+    ⦃fun s => ⌜s = s₀⌝⦄ (fail e : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
+  mvcgen [fail]
+  exact fun h => h.elim
+
+/-- con-leche: none — `triple_fail` at the dangling-handle exits. -/
+theorem triple_failDanglingLs {α : Type} {s₀ : AState}
+    {Q : α → AState → Prop} :
+    ⦃fun s => ⌜s = s₀⌝⦄ (failDanglingLs : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
+  triple_fail (Q := Q)
+
+/-- con-leche: none — the same at the expression store. -/
+theorem triple_failDanglingE {α : Type} {s₀ : AState}
+    {Q : α → AState → Prop} :
+    ⦃fun s => ⌜s = s₀⌝⦄ (failDanglingE : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
+  triple_fail (Q := Q)
+
+
+/-- con-leche: none — **a run lemma is a triple**: the converse of
+`Bridge/Rel.lean`'s `AM.of_run`, for the callees whose closed rule is stated
+on a RUN (`Bridge/Checker/Names.lean`'s `reservedBasisNames_run`). -/
+theorem triple_of_run {α : Type} {x : AM α} {s₀ : AState}
+    {Q : α → AState → Prop}
+    (h : ∀ r s', x.run s₀ = .ok (r, s') → Q r s') :
+    ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+  intro s hs
+  have hs' : s = s₀ := hs
+  subst hs'
+  simp only [WP.wp, PredTrans.apply_pushArg]
+  cases hx : StateT.run x s with
+  | error e => exact trivial
+  | ok p =>
+    obtain ⟨r, s'⟩ := p
+    exact h r s' hx
+
 end ConRon.Bridge.Core

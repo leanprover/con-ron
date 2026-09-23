@@ -1378,14 +1378,23 @@ theorem reduceOpCvA_run {cH : NIdx} {cn : ConLeche.Name} {v : IConstantVal}
     refine ⟨hs, ?_⟩
     rw [hv, ConLeche.reduceOpCvA, if_neg (fun h => hc (hiff.mpr h))]
 
+/-- The RAW pin an `ofReduce*` axiom is matched against — what the twin's
+`ofReducePinA` interns (`Arena/TrustAxioms.lean`: task #97-P5-Top round 2,
+ruling (a)).  con-leche's `ofReducePinA` is the annotated one. -/
+def ofReducePinRaw (n : ConLeche.Name) : ConstantVal :=
+  if n = ConLeche.ofReduceNatName then ConLeche.ofReduceRaw ConLeche.ofReduceNatName
+  else ConLeche.ofReduceRaw ConLeche.ofReduceBoolName
+
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:152-154 ofReducePinA — the
-annotated pin an `ofReduce*` axiom is matched against, interned. -/
+pin an `ofReduce*` axiom is matched against, interned: the RAW one
+(`ofReducePinRaw`), since task #97-P5-Top round 2's ruling (a);
+`ofReducePinA_matchesPin_raw` is why the verdict is con-leche's. -/
 theorem ofReducePinA_run {nH : NIdx} {nm : ConLeche.Name} {v : IConstantVal}
     {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
     (hd : denoteN s.store.ns nH = some nm)
     (hrun : Arena.ofReducePinA nH s = .ok (v, s')) :
     Frontend.IStepS s s' ∧
-      Frontend.denoteCV s'.store v = some (ConLeche.ofReducePinA nm) := by
+      Frontend.denoteCV s'.store v = some (ofReducePinRaw nm) := by
   simp only [Arena.ofReducePinA] at hrun
   obtain ⟨rn, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.ofReduceNatName) hp (by rfl) g1
@@ -1393,10 +1402,10 @@ theorem ofReducePinA_run {nH : NIdx} {nm : ConLeche.Name} {v : IConstantVal}
   rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ConLeche.ofReducePinA, if_pos (hiff.mp hc)]
+    rw [hv, ofReducePinRaw, if_pos (hiff.mp hc)]
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ConLeche.ofReducePinA, if_neg (fun h => hc (hiff.mpr h))]
+    rw [hv, ofReducePinRaw, if_neg (fun h => hc (hiff.mpr h))]
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk — the
 element inductive's shape test is con-leche's. -/
@@ -1582,6 +1591,68 @@ exactness; none of them calls the core — which is why each concludes
 `s'.caches = s.caches` (task #97-P3-Checker-2: the arm needs it to rebuild
 `CheckOK` after the test). -/
 
+/-! ### The raw pins are con-leche's annotated ones, to `matchesPin`
+
+Task #97-P5-Top round 2, ruling (a): the twin interns and compares the RAW
+standard-axiom and `ofReduce*` pins, as the port does, where con-leche compares
+against the annotated ones.  Annotation writes only the binders' `pw` datum,
+and `matchesPin` compares types up to `erasePw`, so each pair gives the same
+verdict — by `rfl` on the erased types (the old campaign's
+`Refine/StdAxioms.lean` / `Refine/TrustAxioms.lean` facts, restated here
+because `Bridge` does not import `Refine`). -/
+
+/-- Two pins that agree on name, level parameters and `erasePw` of the type are
+the same pin as far as `ConstantVal.matchesPin` can tell. -/
+theorem matchesPin_congr {p q : ConstantVal} (hn : p.name = q.name)
+    (hl : p.levelParams = q.levelParams) (ht : p.type.erasePw = q.type.erasePw)
+    (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv p = ConLeche.ConstantVal.matchesPin cv q := by
+  simp [ConLeche.ConstantVal.matchesPin, hn, hl, ht]
+
+theorem iffA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.iffA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+theorem iffIntroA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.iffIntroA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffIntroRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+theorem iffRecA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.iffRecA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffRecRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+theorem nonemptyA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+theorem nonemptyIntroA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyIntroA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyIntroRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+theorem nonemptyRecA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRecA.toConstantVal
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRecRaw.toConstantVal :=
+  matchesPin_congr rfl rfl rfl cv
+theorem propextA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.propextA
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.propextRaw :=
+  matchesPin_congr rfl rfl rfl cv
+theorem choiceA_matchesPin_raw (cv : ConstantVal) :
+    ConLeche.ConstantVal.matchesPin cv ConLeche.choiceA
+      = ConLeche.ConstantVal.matchesPin cv ConLeche.choiceRaw :=
+  matchesPin_congr rfl rfl rfl cv
+
+/-- `ofReducePinA` and its raw twin (`ConLeche/Kernel/TrustAxioms.lean:143-146`,
+the `#annotate_pins` command): the three binders' `pw` differ, `erasePw`
+erases exactly that. -/
+theorem ofReducePinA_matchesPin_raw (cv : ConstantVal) (n : ConLeche.Name) :
+    ConLeche.ConstantVal.matchesPin cv (ConLeche.ofReducePinA n)
+      = ConLeche.ConstantVal.matchesPin cv (ofReducePinRaw n) := by
+  rw [ConLeche.ofReducePinA, ofReducePinRaw]
+  split
+  · exact matchesPin_congr rfl rfl rfl cv
+  · exact matchesPin_congr rfl rfl rfl cv
+
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (stdAxiomOk) — the standard
 axioms' environment shape test is con-leche's.
 
@@ -1606,7 +1677,10 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     ⟨ht.ok, hok.check.pins.mono ht.ext ht.pins, hok.check.ienv.mono ht.ext,
       denoteCV_ext hcv ht.ext⟩
   have hnm := (denoteCV_inv hcv).1
-  simp only [ConLeche.stdAxiomOk, Bool.and_assoc]
+  simp only [ConLeche.stdAxiomOk, Bool.and_assoc, iffA_matchesPin_raw,
+    iffIntroA_matchesPin_raw, iffRecA_matchesPin_raw, nonemptyA_matchesPin_raw,
+    nonemptyIntroA_matchesPin_raw, nonemptyRecA_matchesPin_raw,
+    propextA_matchesPin_raw, choiceA_matchesPin_raw]
   unfold Arena.stdAxiomOk
   obtain ⟨hst0, hp0, hie0, -⟩ := tr (Frontend.IStepS.refl hst)
   refine RunsB.pin hst hp0 (x := ConLeche.propextName) (by rfl) fun pn dpn => ?_
@@ -1710,7 +1784,7 @@ theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     ⟨ht.ok, hok.check.pins.mono ht.ext ht.pins, hok.check.ienv.mono ht.ext,
       denoteCV_ext hcv ht.ext⟩
   have hnm := (denoteCV_inv hcv).1
-  simp only [ConLeche.ofReduceAxOk, Bool.and_assoc]
+  simp only [ConLeche.ofReduceAxOk, Bool.and_assoc, ofReducePinA_matchesPin_raw]
   unfold Arena.ofReduceAxOk
   obtain ⟨-, hp0, -, -⟩ := tr (Frontend.IStepS.refl hst)
   refine RunsB.bind fun {cH s0} g0 => ?_

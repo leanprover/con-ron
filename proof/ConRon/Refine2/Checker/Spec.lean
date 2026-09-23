@@ -362,38 +362,38 @@ def eqBasisPinnedSpec (fe : IFEnv) : AM Bool := do
 /-- `stdAxiomOk`'s `Iff` clause. -/
 def iffPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffName) with
-  | some (.indInfo cvI _) => cvI.matchesPin (← (← iffA).toConstantVal)
+  | some (.indInfo cvI _) => cvI.matchesPin (← (← iffRaw).toConstantVal)
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Iff.intro` clause. -/
 def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffIntroName) with
-  | some (.ctorInfo cvIi 2 2) => cvIi.matchesPin (← (← iffIntroA).toConstantVal)
+  | some (.ctorInfo cvIi 2 2) => cvIi.matchesPin (← (← iffIntroRaw).toConstantVal)
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Iff.rec` clause. -/
 def iffRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffRecName) with
-  | some (.recInfo cvIr 4 4 _) => cvIr.matchesPin (← (← iffRecA).toConstantVal)
+  | some (.recInfo cvIr 4 4 _) => cvIr.matchesPin (← (← iffRecRaw).toConstantVal)
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty` clause. -/
 def nonemptyPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyName) with
-  | some (.indInfo cvN _) => cvN.matchesPin (← (← nonemptyA).toConstantVal)
+  | some (.indInfo cvN _) => cvN.matchesPin (← (← nonemptyRaw).toConstantVal)
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty.intro` clause. -/
 def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyIntroName) with
   | some (.ctorInfo cvNi 1 1) =>
-    cvNi.matchesPin (← (← nonemptyIntroA).toConstantVal)
+    cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty.rec` clause. -/
 def nonemptyRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyRecName) with
-  | some (.recInfo cvNr 3 3 _) => cvNr.matchesPin (← (← nonemptyRecA).toConstantVal)
+  | some (.recInfo cvNr 3 3 _) => cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)
   | _ => pure false
 
 /-- `trustCompilerOk`'s `True` clause. -/
@@ -413,7 +413,7 @@ def stdAxiomOkPropextRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   if !(← iffPinnedSpec fe) then pure false
   else if !(← iffIntroPinnedSpec fe) then pure false
   else if !(← iffRecPinnedSpec fe) then pure false
-  else cvA.matchesPin (← propextA)
+  else cvA.matchesPin (← propextRaw)
 
 /-- `stdAxiomOk`'s `propext` arm. -/
 def stdAxiomOkPropextSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
@@ -424,7 +424,7 @@ def stdAxiomOkPropextSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
 def stdAxiomOkChoiceRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   if !(← nonemptyIntroPinnedSpec fe) then pure false
   else if !(← nonemptyRecPinnedSpec fe) then pure false
-  else cvA.matchesPin (← choiceA)
+  else cvA.matchesPin (← choiceRaw)
 
 /-- `stdAxiomOk`'s `Classical.choice` arm. -/
 def stdAxiomOkChoiceSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
@@ -1027,26 +1027,20 @@ runs `iff`, `iff.intro`, `iff.rec`, `Nonempty` and then `_rest`,
 sets in sequence.  Five of the six statements were therefore false (every one
 but `internAllNamesSpec`'s: its twin interned MORE than the port).
 
-**And they are the RAW pins, where the Rust interns raw ones.**
+**And they intern the RAW pins, as the Rust does.**
 `arena::std_axioms` interns `iff_raw` … `choice_raw` and `arena::trust_axioms`
 `of_reduce_pin_a` = the RAW `ofReduceRaw` (both modules' notes: `matchesPin`
-erases the `pw` datum, which is all annotation writes).  The twin's
-`internAllPins` interns the ANNOTATED `iffA` … `choiceA`, `ofReduceNatA`,
-`ofReduceBoolA` — and six of those eight are different values
-(`iffA = iffRaw` and `nonemptyA = nonemptyRaw`; the other six differ, checked
-by `decide`), so they intern different `BMNode`s and `StoreRel`, which is
-exact, fails.  The transcriptions below are the PORT's walk; `internAllPins`
-is not their composite, and `intern_all_pins_refines` is false as stated —
-DESIGN.md, task #97-P5-Top. -/
-
-/-- `ofReduceNatA`'s RAW twin: what `arena::trust_axioms::of_reduce_nat_a`
-interns. -/
-def ofReduceNatRawSpec : AM IConstantVal :=
-  internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)
-
-/-- `ofReduceBoolA`'s RAW twin. -/
-def ofReduceBoolRawSpec : AM IConstantVal :=
-  internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)
+erases the `pw` datum, which is all annotation writes).  Task #97-P5-Top found
+the twin's `internAllPins` interning the ANNOTATED `iffA` … `choiceA`,
+`ofReduceNatA`, `ofReduceBoolA` — six of them different values, so `StoreRel`,
+which is exact, failed.  Round 2 took ruling (a): the twin interns the raw
+pins too (`Arena/Checker.lean`'s `internAllPins`, `Arena/DeclCheck.lean`'s
+`stdAxiomOk`, and `Arena/TrustAxioms.lean`'s `ofReduceNatA`/`ofReduceBoolA`,
+whose slots now hold the raw pins), Theorem 1 carrying the `matchesPin`
+equalities (`Bridge/Checker/Basis.lean`).  So `internAllPinsPortSpec` below
+IS `internAllPins`, up to the monad laws (`internAllPinsPortSpec_eq`,
+`Checker/Top.lean`), and the check-time transcriptions above compare against
+the raw pins as well. -/
 
 /-- `internAllPins`' reserved-name half — `intern_all_names`. -/
 def internAllNamesSpec : AM Unit := do
@@ -1058,7 +1052,7 @@ def internAllNamesSpec : AM Unit := do
 the two pinned defining expressions. -/
 def internAllReducePinsSpec : AM Unit := do
   let _ ← reduceNatCvA; let _ ← reduceBoolCvA
-  let _ ← ofReduceNatRawSpec; let _ ← ofReduceBoolRawSpec
+  let _ ← ofReduceNatA; let _ ← ofReduceBoolA
   let _ ← reduceNatDeclPin; let _ ← reduceBoolDeclPin
 
 /-- `intern_all_trust_pins`: the compiler-trust shapes, then the reduce pins. -/
@@ -1088,8 +1082,8 @@ def internAllBasisSpec : List BasisKind → AM Unit
     internAllBasisSpec ks
 
 /-- **The port's startup walk**, as a twin action: `intern_all_pins`' four
-calls in order.  It is `internAllPins` with the eight pins of the note above
-interned RAW; with them annotated it would be `internAllPins` itself. -/
+calls in order — `internAllPins` itself, re-bracketed
+(`internAllPinsPortSpec_eq`, `Checker/Top.lean`). -/
 def internAllPinsPortSpec (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
   internAllBasisSpec [.eqK, .natK, .punitK, .emptyK, .falseK, .quotK]
   internAllAxiomPinsSpec
