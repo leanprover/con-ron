@@ -380,6 +380,43 @@ theorem SimLV.bind_check {β : Type} {A : α → β} {V : β → Option RecordVe
       refine ⟨b', lv, ?_, hV', hk⟩
       rw [am_run_bind', hb]; exact hb'
 
+/-- A verdict-carrying piece, then its continuation, at any result shape. -/
+theorem SimLV.bind_lv {α β γ δ : Type} {A : α → β} {V : β → Option RecordVerdict}
+    {A1 : δ → γ} {V1 : γ → Option RecordVerdict}
+    {lst : AState} {r : core.result.Result δ frontend.export_c.LineErr}
+    {x : AM γ} {f : γ → AM β} {o}
+    (hx : SimLV A1 V1 lst r x)
+    (hok : ∀ w, r = .Ok w → SimLV A V lst o (f (A1 w)))
+    (hv : ∀ b lv, V1 b = some lv → ∃ b', (f b).run lst = .ok (b', lst) ∧ V b' = some lv)
+    (herr : ∀ e, r = .Err e → o = .Err e) :
+    SimLV A V lst o (x >>= f) := by
+  cases r with
+  | Ok w =>
+    have h1 := hok w rfl
+    have hx' : x.run lst = .ok (A1 w, lst) := hx
+    have e : (x >>= f).run lst = (f (A1 w)).run lst := by rw [am_run_bind', hx']; rfl
+    unfold SimLV at h1 ⊢
+    rw [e]; exact h1
+  | Err e =>
+    obtain rfl := herr e rfl
+    cases e with
+    | Err ce =>
+      have hx' : AErrSim ce (x.run lst) := hx
+      show AErrSim ce _
+      rw [am_run_bind']; exact AErrSim.bind hx' _
+    | Verdict vd =>
+      obtain ⟨b, lv, hb, hV, hk⟩ := hx
+      obtain ⟨b', hb', hV'⟩ := hv b lv hV
+      refine ⟨b', lv, ?_, hV', hk⟩
+      rw [am_run_bind', hb]; exact hb'
+
+/-- A zipped cursor at a live position. -/
+theorem zip_drop_cons {X Y : Type} {l1 : List X} {l2 : List Y} {i : Nat}
+    (h1 : i < l1.length) (h2 : i < l2.length) :
+    (l1.zip l2).drop i = (l1[i], l2[i]) :: (l1.zip l2).drop (i + 1) := by
+  rw [List.drop_eq_getElem_cons (by simp; omega)]
+  simp [List.getElem_zip]
+
 /-- `(absNIdxL ns).drop i` at a live cursor. -/
 theorem absNIdxL_drop_cons {ns : alloc.vec.Vec arena.handle.NIdx} {i : Nat}
     (hi : i < ns.val.length) :
@@ -630,7 +667,57 @@ theorem order_block_ctors_refines
       listed cts ctor_ix n_pd = ok o) :
     SimLV (fun v => ⟨none, (absIndCtorRecs v).toArray⟩) (fun b => vOfOpt b.1) lst o
       (orderBlockCtorsD lsd (absU fuel) lm (absIndCtorRecs cts).toArray (absU n_pd)
-        ((absNIdxL ty_names).zip (listed.val.map absNIdxL)) #[]) := by sorry
+        ((absNIdxL ty_names).zip (listed.val.map absNIdxL)) #[]) := by
+  rw [frontend.export_c.order_block_ctors] at h
+  have H : ∀ (k : Nat) out (i : Std.Usize) o, ty_names.val.length - i.val = k →
+      frontend.export_c.order_block_ctors_loop pers rst.store fuel rsd ty_names listed cts
+        ctor_ix n_pd out (alloc.vec.Vec.len ty_names) i = ok o →
+      SimLV (fun v => ⟨none, (absIndCtorRecs v).toArray⟩) (fun b => vOfOpt b.1) lst o
+        (forIn (((absNIdxL ty_names).zip (listed.val.map absNIdxL)).drop i.val)
+          (⟨none, (absIndCtorRecs out).toArray⟩ : MProd (Option VRes) (Array IndCtorRec))
+          fun tn r => orderBlockStepD lsd (absU fuel) lm (absIndCtorRecs cts).toArray
+            (absU n_pd) tn r.2) := by
+    intro k
+    induction k using Nat.strong_induction_on with
+    | _ k ih =>
+      intro out i o hk h
+      rw [frontend.export_c.order_block_ctors_loop.eq_def] at h
+      by_cases hi : i < alloc.vec.Vec.len ty_names
+      · rw [if_pos hi] at h
+        have hi' : i.val < ty_names.val.length := by scalar_tac
+        obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn1' := vec_index_eq hi' hn1
+        obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hl' : i.val < listed.val.length := by
+          have := vec_index_some hv
+          by_contra hc
+          rw [List.getElem?_eq_none (by omega)] at this
+          cases this
+        have hv' := vec_index_eq hl' hv
+        rw [zip_drop_cons (by simp [absNIdxL]; omega) (by simp; omega), List.forIn_cons]
+        simp only [absNIdxL, List.getElem_map, hn1', hv', orderBlockStepD, bind_assoc]
+        obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        refine SimLV.bind_lv (order_type_ctors_refines hrel hinv hd hx hix hr)
+          (fun w hw => ?_) (fun b lv hb => ?_) (fun e he => by
+            subst he; exact (Result.ok_injective h).symm)
+        · subst hw
+          obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi1v := ConRon.Refine.Nat.uadd_val hi1
+          have hR := ih (ty_names.val.length - i1.val) (by simp at hi1v; omega) w i1 o rfl h
+          rw [show i1.val = i.val + 1 by simp at hi1v; omega] at hR
+          simp only [pure_bind]
+          exact hR
+        · obtain ⟨b1, j', ord⟩ := b
+          rcases b1 with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
+          subst hb
+          exact ⟨_, rfl, rfl⟩
+      · rw [if_neg hi] at h
+        cases Result.ok_injective h
+        rw [List.drop_eq_nil_of_le (by simp [absNIdxL]; scalar_tac), List.forIn_nil]
+        rfl
+  have := H _ (alloc.vec.Vec.new _) 0#usize o rfl h
+  rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at this
+  exact this
 
 /-! ## The K flag and the recursor records -/
 
