@@ -153,6 +153,12 @@ theorem frontL_append (ps ds : Array IDeclaration) :
     simp only [List.cons_append, frontL, List.length_cons, List.cons_inj_right]
     rw [frontL_append ps ds ks k (j + 1), show j + 1 + ks.length = j + (ks.length + 1) by omega]
 
+theorem preparedFront_push (ps ds : Array IDeclaration) (ks : List Nat) (k : Nat) :
+    preparedFront ps ds (ks ++ [k]) =
+      (preparedFront ps ds ks).push (ds[k]?.getD (ps.getD ks.length default)) := by
+  simp only [preparedFront, frontL_append, Nat.zero_add]
+  simp
+
 /-- **The twin's `pick` on the unmasked records is the port's masked pick.**
 The first hit among the unmasked records is the record `pickIdx` names, and
 erasing it is masking it. -/
@@ -245,6 +251,22 @@ def PlanWF (ps ds : alloc.vec.Vec arena.env.IDeclaration)
     (p : alloc.vec.Vec Std.Usize × alloc.vec.Vec Bool) : Prop :=
   p.1.val.length = ps.val.length ∧ p.2.val.length = ds.val.length
 
+theorem vec_index_mut_set {v w : alloc.vec.Vec Bool} {k : Std.Usize}
+    (h : (do
+      let (_, back) ← alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Bool) v k
+      ok (back true)) = ok w) :
+    w.val = v.val.set k.val true := by
+  obtain ⟨⟨x, back⟩, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [alloc.vec.Vec.index_mut,
+    core.slice.index.Usize.index_mut, Slice.index_mut_usize] at hb
+  obtain ⟨p, hp, hb⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb
+  obtain ⟨y, hy, hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp
+  cases Result.ok_injective hp
+  cases Result.ok_injective hb
+  cases Result.ok_injective h
+  show (Slice.from _ _).val = _
+  rw [Slice.from_val]; rfl
+
 /-- **`prepare::front_of`'s loop** against `frontOf`, from prelude slot `j`:
 the twin's accumulator is the front the plan so far stands for, and the
 twin's remaining stream is the records the mask does not carry. -/
@@ -253,12 +275,99 @@ theorem front_of_loop_refines {pers ps ds} :
       (rst : arena.monad.AState) (lst : AState) (o),
       AStateRel pers rst lst → AStateInv pers rst →
       picked.val.length = ds.val.length → picks.val.length = j.val →
+      j.val ≤ ps.val.length →
       frontend.prepare.front_of_loop pers rst.store ps ds (alloc.vec.Vec.len ds)
         picked (alloc.vec.Vec.len ps) picks j = ok o →
       Sim (absPlan ps ds) (PlanWF ps ds) pers lst (o.1, withStore rst o.2)
         (frontOf (preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks.val.map (·.val)))
           ((absIDeclArr ps).toList.drop j.val)
-          (preparedRest (absIDeclArr ds) picked.val)) := by sorry
+          (preparedRest (absIDeclArr ds) picked.val)) := by
+  suffices H : ∀ (k : Nat) (j : Std.Usize) (picked : alloc.vec.Vec Bool)
+      (picks : alloc.vec.Vec Std.Usize) (rst : arena.monad.AState) (lst : AState) (o),
+      ps.val.length - j.val = k →
+      AStateRel pers rst lst → AStateInv pers rst →
+      picked.val.length = ds.val.length → picks.val.length = j.val →
+      j.val ≤ ps.val.length →
+      frontend.prepare.front_of_loop pers rst.store ps ds (alloc.vec.Vec.len ds)
+        picked (alloc.vec.Vec.len ps) picks j = ok o →
+      Sim (absPlan ps ds) (PlanWF ps ds) pers lst (o.1, withStore rst o.2)
+        (frontOf (preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks.val.map (·.val)))
+          ((absIDeclArr ps).toList.drop j.val)
+          (preparedRest (absIDeclArr ds) picked.val)) from
+    fun j picked picks rst lst o => H _ j picked picks rst lst o rfl
+  intro k
+  induction k with
+  | zero =>
+    intro j picked picks rst lst o hk hrel hinv hpl hpk hj h
+    rw [frontend.prepare.front_of_loop] at h
+    rw [if_neg (by scalar_tac)] at h
+    cases Result.ok_injective h
+    have hnil : (absIDeclArr ps).toList.drop j.val = [] := by
+      simp only [absIDeclArr, List.toList_toArray, List.drop_eq_nil_iff, List.length_map]
+      omega
+    rw [hnil]
+    exact ⟨lst, rfl, hrel, hinv, Ext.refl _,
+      ⟨by show picks.val.length = ps.val.length; omega, hpl⟩⟩
+  | succ k ih =>
+    intro j picked picks rst lst o hk hrel hinv hpl hpk hj h
+    rw [frontend.prepare.front_of_loop] at h
+    rw [if_pos (by scalar_tac)] at h
+    obtain ⟨d, hdv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨r, ar1⟩, hkey, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hK := prelude_key_refines hrel hinv hkey
+    have hdi := vec_index_some hdv
+    have hcons : (absIDeclArr ps).toList.drop j.val =
+        absIDeclaration d :: (absIDeclArr ps).toList.drop (j.val + 1) := by
+      simp only [absIDeclArr, List.toList_toArray]
+      rw [List.drop_eq_getElem_cons (by simp only [List.length_map]; omega)]
+      simp only [List.getElem_map]
+      obtain ⟨_, hx⟩ := List.getElem?_eq_some_iff.mp hdi
+      rw [hx]
+    rw [hcons]
+    simp only [Sim] at hK ⊢
+    simp only [frontOf, am_run_bind']
+    cases r with
+    | Err e =>
+      have ho := Result.ok_injective h; subst ho
+      exact AErrSim.bind hK _
+    | Ok v =>
+      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hK
+      rw [hx1]
+      simp only [except_ok_bind]
+      obtain ⟨kk, hkk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hkv := pick_idx_refines hkk
+      obtain ⟨picked1, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hp1v : picked1.val = picked.val.set kk.val true := by
+        split at hp1
+        · exact vec_index_mut_set hp1
+        · cases Result.ok_injective hp1
+          rw [List.set_eq_of_length_le (by scalar_tac)]
+      obtain ⟨picks1, hpk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hpk1v := ConRon.Refine.vec_push_val hpk1
+      obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hj1v := usize_add_one_inv hj1
+      have hpick := pick_preparedRest (absNIdx v) (absIDeclArr ds) picked.val
+        (by simp [absIDeclArr, hpl])
+      rw [← hkv] at hpick
+      rw [hpick]
+      have hR := ih j1 picked1 picks1 (withStore rst ar1) lst1 o (by omega) hrel1 hinv1
+        (by rw [hp1v]; simp [hpl]) (by rw [hpk1v]; simp [hpk, hj1v]) (by omega) h
+      have hF : (preparedFront (absIDeclArr ps) (absIDeclArr ds)
+            (picks.val.map (·.val))).push
+            (((absIDeclArr ds)[kk.val]?).getD (absIDeclaration d)) =
+          preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks1.val.map (·.val)) := by
+        rw [hpk1v, List.map_append, List.map_cons, List.map_nil, preparedFront_push]
+        congr 2
+        simp only [List.length_map, hpk, absIDeclArr]
+        simp [hdi]
+      rw [hF, ← hp1v, show j.val + 1 = j1.val by omega]
+      simp only [Sim] at hR
+      rcases o with ⟨r2, e2⟩
+      cases r2 with
+      | Ok q =>
+        obtain ⟨l2, hx2, hr2, hi2, he2, hw2⟩ := hR
+        exact ⟨l2, hx2, hr2, hi2, Ext.trans hext1 he2, hw2⟩
+      | Err e => exact hR
 
 /-- **`prepare::front_of` refines `frontOf`** — the plan and the mask, which
 stand for the twin's front and rest (`absPlan`). -/
@@ -272,7 +381,7 @@ theorem front_of_refines {pers rst lst ps ds o}
   have hpv := no_picks_refines hp
   have H := front_of_loop_refines 0#usize picked
     (alloc.vec.Vec.with_capacity Std.Usize (alloc.vec.Vec.len ps)) rst lst o hrel hinv
-    (by rw [hpv]; simp) (by simp) h
+    (by rw [hpv]; simp) (by simp) (by simp) h
   have hfront : preparedFront (absIDeclArr ps) (absIDeclArr ds)
       ((alloc.vec.Vec.with_capacity Std.Usize (alloc.vec.Vec.len ps)).val.map (·.val))
       = #[] := by
