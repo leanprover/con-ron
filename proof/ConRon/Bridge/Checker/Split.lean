@@ -772,6 +772,17 @@ theorem Arena.annotStep_bridge {μ : CheckMode}
 /-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
 B's check of one record**, against the prefix view, inside its own bracket.
 
+**The statement gained four clauses** (task #97-P3-Checker round 7, on round
+6 §6's finding; the coordinator authorised the repair).  All four are about
+the PREFIX environment `envK = env.prefixTo pc.vis` or about the pending
+record's own header, and none of them is derivable from `FoldOK μ env fe s`:
+
+| clause | why `FoldOK μ env fe s` does not give it |
+|---|---|
+| `hckK : CacheOK μ (env.prefixTo pc.vis) s` | `checkPending` opens with `enterScratch`, which does NOT flush the caches — only `dropScratch` does — so the run enters `checkValueGroup` with whatever rows the state holds, and a cache row is **not monotone downward**: a `whnf` that delta-unfolded a constant above the bound is simply wrong at `envK`.  It is TRUE at the call site for a different reason — every `checkPending` follows a `dropScratch` (phase A's last step's, or the previous record's), so `s.caches` is empty — but the statement has to say so |
+| `henvK : EnvWF (env.prefixTo pc.vis)` | `ConstWF` asks for `constsResolve` at the environment the constant is stored in, and LOWERING the environment can only break that clause, so `EnvWF env` does not imply it.  It is the install fold's to carry |
+| `hwsty : Expr.WScoped 0 gP.cvA.type`, `hwsjv : Expr.WScoped 0 gP.jv` | round 5 §7's two clauses, which `checkValueGroup_bridge` takes and this theorem cannot conjure: phase A's `installConstantVal` / `installValue` tested exactly that guard (`hasFvar = false` at depth 0 IS `WScoped 0`), so they travel in the `PendingCheck`, not in the state |
+
 `sorry`: `IFEnvOK_restrictTo` and `checkValueGroup_bridge`, then the
 bracket with nothing to promote (`Arena/Checker.lean`: "Nothing crosses back,
 so there is nothing to promote").  Task #97-P3-Checker's sorry list,
@@ -781,8 +792,11 @@ theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpers : PersVG pc.vg)
     (hnd : (env.consts.map (·.name)).Nodup)
+    (hckK : CacheOK μ (env.prefixTo pc.vis) s)
+    (henvK : EnvWF (env.prefixTo pc.vis))
     (hcv : Frontend.denoteCV s.store pc.vg.cvA = some gP.cvA)
     (hjv : denoteE s.store pc.vg.jv = some gP.jv)
+    (hwsty : Expr.WScoped 0 gP.cvA.type) (hwsjv : Expr.WScoped 0 gP.jv)
     (hrun : Arena.checkPending μ fe pc s = .ok ((), s')) :
     ∃ envK F, FoldOK μ env fe s' ∧ PExt s.store s'.store ∧
       envK.find? = (env.prefixTo pc.vis).find? ∧
