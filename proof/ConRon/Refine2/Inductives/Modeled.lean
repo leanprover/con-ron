@@ -342,6 +342,26 @@ open Lockstep in
       (blockRenameTable (absNIdxL block_names)) :=
   LS.ofSim₀ fun _ h => block_rename_table_refines hrel hinv h
 
+/-- `proj_pairs_from` in `LS` form, by induction on the fields left. -/
+theorem proj_pairs_from_aux (n : Nat) :
+    ∀ {pers st lst} {t : arena.handle.NIdx} {n_f j : Std.U64} {back : Bool}
+      {out : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)},
+      n_f.val - j.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absRenameTbl a)
+        (arena.inductives.modeled.proj_pairs_from pers st t n_f j back out) lst
+        (do pure (absRenameTbl out ++
+          (← projPairsFromSpec (absNIdx t) back n (absU j)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst t n_f j back out hk hrel hinv
+    rw [arena.inductives.modeled.proj_pairs_from, if_pos (by scalar_tac), projPairsFromSpec]
+    lockstep
+  | succ m ih =>
+    intro pers st lst t n_f j back out hk hrel hinv
+    rw [arena.inductives.modeled.proj_pairs_from, if_neg (by scalar_tac), projPairsFromSpec]
+    cases back <;> simp only [Bool.false_eq_true, if_true, if_false, bind_assoc, pure_bind] <;>
+      lockstep
+
 /-- `proj_pairs_from` ⊑ `projBack.go` at `back := true` and `projFwd.go` at
 `back := false`, with the accumulated pairs in front. -/
 theorem proj_pairs_from_refines {pers st lst} {t : arena.handle.NIdx}
@@ -352,8 +372,8 @@ theorem proj_pairs_from_refines {pers st lst} {t : arena.handle.NIdx}
       = ok o) :
     Sim₀ absRenameTbl pers lst o
       (do pure (absRenameTbl out ++
-        (← projPairsFromSpec (absNIdx t) back (absU n_f - absU j) (absU j)))) := by
-  sorry
+        (← projPairsFromSpec (absNIdx t) back (absU n_f - absU j) (absU j)))) :=
+  Lockstep.LS.toSim₀ (proj_pairs_from_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem proj_pairs_from_ls
@@ -369,6 +389,24 @@ open Lockstep in
         (← projPairsFromSpec (absNIdx t) back (absU n_f - absU j) (absU j)))) :=
   LS.ofSim₀ fun _ h => proj_pairs_from_refines hrel hinv h
 
+open Lockstep in
+/-- `proj_pairs_from_ls` with the accumulator moved into the relation: the
+form `proj_back`/`proj_fwd` bind, whose twins cons the two model names in
+front of `projPairsFromSpec`'s answer. -/
+@[lockstep] theorem proj_pairs_from_lsR
+    {pers st lst}
+    {t : arena.handle.NIdx}
+    {n_f j : Std.U64}
+    {back : Bool}
+    {out : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => absRenameTbl out ++ b = absRenameTbl a)
+      (arena.inductives.modeled.proj_pairs_from pers st t n_f j back out) lst
+      (projPairsFromSpec (absNIdx t) back (absU n_f - absU j) (absU j)) :=
+  IndModeledPrims.LS_of_twin_map (R := fun a b => b = absRenameTbl a)
+    (proj_pairs_from_aux _ rfl hrel hinv)
+
 /-- `proj_back` ⊑ `projBack` — rename a model-side projection type back to
 public names, as a table. -/
 theorem proj_back_refines {pers st lst} {t ctor : arena.handle.NIdx}
@@ -377,7 +415,14 @@ theorem proj_back_refines {pers st lst} {t ctor : arena.handle.NIdx}
     (hrun : arena.inductives.modeled.proj_back pers st t ctor n_f = ok o) :
     Sim₀ absRenameBy pers lst o
       (projBack (absNIdx t) (absNIdx ctor) (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.proj_back, projBack_unfold]
+  lockstep_mod
+  -- the pairs' recursion, with the two model names the twin conses in front
+  all_goals
+    refine Lockstep.LS.bind (proj_pairs_from_lsR ‹_› ‹_›) (by simp) (fun _ _ => Lockstep.errArm_ok) ?_
+    intro a b st1 lst1 hR hrel hinv
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_back_ls
@@ -398,7 +443,14 @@ theorem proj_fwd_refines {pers st lst} {t ctor : arena.handle.NIdx}
     (hrun : arena.inductives.modeled.proj_fwd pers st t ctor n_f = ok o) :
     Sim₀ absRenameBy pers lst o
       (projFwd (absNIdx t) (absNIdx ctor) (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.proj_fwd, projFwd_unfold]
+  lockstep_mod
+  -- the pairs' recursion, with the two model names the twin conses in front
+  all_goals
+    refine Lockstep.LS.bind (proj_pairs_from_lsR ‹_› ‹_›) (by simp) (fun _ _ => Lockstep.errArm_ok) ?_
+    intro a b st1 lst1 hR hrel hinv
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_fwd_ls
@@ -2673,6 +2725,25 @@ open Lockstep in
 
 /-! ## The capabilities -/
 
+/-- `proj_models_ok` in `LS` form, by induction on the fields left. -/
+theorem proj_models_ok_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf2 lf2} {t : arena.handle.NIdx}
+      {lps : alloc.vec.Vec arena.handle.NIdx} {n_f j : Std.U64},
+      n_f.val - j.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf2 lf2 → absU vis = lf2.visibleBelow →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.inductives.modeled.proj_models_ok pers vis st rf2 t lps n_f j) lst
+        (projModelsOkSpec lf2 (absNIdx t) (absNIdxL lps) n (absU j)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf2 lf2 t lps n_f j hk hrel hinv hfe hvis
+    rw [arena.inductives.modeled.proj_models_ok, if_pos (by scalar_tac), projModelsOkSpec]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst vis rf2 lf2 t lps n_f j hk hrel hinv hfe hvis
+    rw [arena.inductives.modeled.proj_models_ok, if_neg (by scalar_tac), projModelsOkSpec]
+    lockstep_mod
+
 /-- `proj_models_ok` ⊑ `checkEtaThm`'s projection-model pin, from field `j`
 on. -/
 theorem proj_models_ok_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
@@ -2685,8 +2756,8 @@ theorem proj_models_ok_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       = ok o) :
     Sim₀ id pers lst o
       (projModelsOkSpec lf2 (absNIdx t) (absNIdxL lps) (absU n_f - absU j)
-        (absU j)) := by
-  sorry
+        (absU j)) :=
+  Lockstep.LS.toSim₀ (proj_models_ok_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem proj_models_ok_ls

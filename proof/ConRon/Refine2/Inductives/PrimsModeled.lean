@@ -442,6 +442,37 @@ theorem absIRecRule_paramsBlind (r : arena.env.IRecRule) :
       (fun o => o = (absEIdx a == absEIdx b)) :=
   fun _ h => eidx_eq2_abs h
 
+/-- A lockstep statement whose twin ends by mapping its answer (`do pure (pre
+++ (← x))`, a cursor recursion's accumulator in front) is a statement about
+`x` alone, with the map moved into the relation. -/
+theorem LS_of_twin_map {α β γ : Type} {pers : arena.store.PersTier} {R : α → γ → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {f : β → γ}
+    (h : LS pers R m lst (x >>= fun b => pure (f b))) :
+    LS pers (fun a b => R a (f b)) m lst x := by
+  intro o st' hm
+  have h1 := h o st' hm
+  cases o with
+  | Err e =>
+    intro k hk
+    obtain ⟨le, hle, hk'⟩ := h1 k hk
+    rw [am_run_bind'] at hle
+    cases hx : x.run lst with
+    | error le' =>
+      rw [hx] at hle
+      cases hle
+      exact ⟨_, rfl, hk'⟩
+    | ok p => rw [hx] at hle; cases hle
+  | Ok a =>
+    obtain ⟨b', lst', hx, hR, hr, hi⟩ := h1
+    rw [am_run_bind'] at hx
+    cases hx' : x.run lst with
+    | error le' => rw [hx'] at hx; cases hx
+    | ok p =>
+      rw [hx'] at hx
+      cases hx
+      exact ⟨p.1, p.2, rfl, hR, hr, hi⟩
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
