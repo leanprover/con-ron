@@ -269,7 +269,11 @@ batched one. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1350-1373 inferBodyIO — **the io
 `.app` clause**: the batched `inferAppIOAt`/`inferSpineIO` (task #97-P6-9)
-against the chained `inferIO_app_licensed`/`inferIO_app_cert`. -/
+against the chained `inferIO_app_licensed`/`inferIO_app_cert`.
+**CLOSED** (task #97-P3-Core round 6): `headAndArgs_app_spec`, the knot's
+io slot at the head, the carry `inferSpineIO_go` (`Walks/InferSpine.lean`;
+the licence test is the datum alone by `hμ`), then con-leche's
+`inferSpineIO_sound` (at `hg`) and `Expr.mkAppN_getApp`. -/
 theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
@@ -282,7 +286,39 @@ theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  sorry
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case app f a =>
+    dsimp only
+    unfold ConRon.Arena.inferAppIOAt
+    -- stage 1: the spine's head and argument vector
+    refine triple_seq (headAndArgs_app_spec s₀ i e hok.state hden
+      (by simp [htag])) ?_
+    rintro ⟨hd, args⟩ s1 ⟨hs1, hhd, hargs⟩
+    subst s1
+    dsimp only at hhd hargs ⊢
+    -- stage 2: the head's io-grade type, once
+    refine triple_seq (hsim.inferIO s₀ d hd e.getAppFn hok hhd
+      (Expr.WScoped.getAppFn hw)) ?_
+    rintro tf s2 ⟨hok2, hx2, hp2, th, hth, hwth, F1, hF1⟩
+    -- stage 3: the batched io spine, then con-leche's identification
+    refine triple_mono (inferSpineIO_go hμ hsim d args _ tf #[] 0 s2 th []
+      e.getAppArgs rfl hok2 hth (InstLVec.empty _)
+      (by rw [ConLeche.Expr.instantiateList_nil]; exact hwth)
+      (by rw [List.drop_zero]; exact denoteEList_ext hx2 _ _ hargs)
+      (Expr.WScoped.getAppArgs hw)) ?_
+    rintro r s3 ⟨hok3, hx3, hp3, v, hv, hwv, F2, hF2⟩
+    refine ⟨hok3, hx2.trans hx3, hp3.trans hp2, v, hv, hwv, ?_⟩
+    obtain ⟨F', hF'⟩ := ConLeche.inferSpineIO_sound hg e.getAppArgs e.getAppFn
+      th v F1 F2 hF1 hF2
+    rw [ConLeche.Expr.mkAppN_getApp] at hF'
+    exact ⟨F', hF'⟩
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
+
+/-! `inferBodyIO_app`: sorry-free (task #97-P3-Core round 6). -/
+#print axioms inferBodyIO_app
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the `.forallE`
 clause**, chained: `KnotSpec.infer`, `KnotSpec.whnf'`, `instantiate1Fast`,
