@@ -60791,3 +60791,128 @@ they used (`internNodeE_run_wf`, `internLamE_run_wf`, `internForallEE_run_wf`)
 and their census entries; the `₀` statements stay.  `EResolves` stays:
 `Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore` takes it as a premise
 (Core lane), and five Core files `open` it.
+
+### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind-mod`, branch `t2-ind-mod` off `arena` `70ea5a33`
+(merged with `b047603a`, the ExprOps landing, mid-slice).  The lane owns
+`Refine2/Inductives/{Modeled,SpecModeled}.lean` and the new
+`Refine2/Inductives/PrimsModeled.lean` (its `@[lockstep]` pairs, kept out of
+the other Inductives lane's `Prims.lean`).  No semantic premise was added to
+any statement.
+
+#### 1. What closed
+
+**Frontier items of the two files, 10 → 2** (`ctor_residual_ok`,
+`ctor_targets_fam`, `install_proj_fns`, `proj_fn_family_free_modeled`,
+`check_ind_members`, `check_ind_recs`, `checkModeled_unfold` and the items
+they uncovered on the way: `check_ind_member`, `check_member_val`,
+`check_member_model`, `check_iota_rules`, `check_iota_rule`,
+`check_iota_rule_fire`, `check_iota_rule_wf`, `provision_recs`,
+`install_ind_recs`, `block_rename_table(_from)`, `eq_basis_stored`,
+`check_proj_lookups_model`, `check_proj_ty(_wf)`, `install_proj_fn_step`,
+`model_name`, `iota_thm_name`).  Left on the frontier: `ind_block_caps`
+(`core::pi_result_is_prop`/`pi_result_z`, no lemma yet) and
+`check_proj_fn_rule` (`core::proj_fn_rule`, no lemma).  **Modeled's direct
+`sorry`s 75 → 39, SpecModeled's 3 → 2** (`checkModeled_unfold` closed: the
+"matcher issue" of round 4 is a rewrite of the twin's two filters through a
+pointwise-equality lemma, since the twin's own `match` auxiliaries cannot be
+named stably, then a case split of the two filtered lists).
+
+Every proof is the recipe (`refine LS.toSim₀/toSimRel₀ ?_ hrun; rw [rust,
+twin(_unfold)]; lockstep_mod`); the cursor recursions are the `_aux`
+induction (`induction n`, per case `rw [rust, if_pos/if_neg, absXLFrom,
+vecFrom_nil/cons, twin]; lockstep`), ~15 lines each.  Where the twin is a
+structural recursion that conses AFTER its recursive call and the port pushes
+onto an accumulator BEFORE it (`provision_recs`, `block_rename_table_from`,
+`check_iota_rules`, `proj_pairs_from`), the statement carries the accumulator
+in the twin (`do pure (absL out ++ (← twin …))`) and the zero-cursor variant
+(`…_ls0`) or `LS_of_twin_map` (the accumulator moved into the relation,
+`proj_pairs_from_lsR`) gives the caller's form.
+
+**`provision_recs_refines` was false** for a non-empty accumulator (its
+relation read `v.2 = absRecsL out ++ absRecsL r.2`, where the port answers
+`out ++ new` and the twin `new`); restated in the accumulator form above.
+
+#### 2. The divergence (fixed in the twin)
+
+**`checkMemberVal` read the member's name with `readName`** (uncached) where
+the port calls `read_name_m` (writes `caches.readNC`); under `AStateRel₀` the
+caches are related pointwise, so the post-states differed.  The twin now calls
+`readNameM` (`Arena/Inductives/Modeled.lean:455`, and the transcription
+`checkMemberVal_unfold`).  Theorem 1 repair in
+`Bridge/Inductives/Modeled.lean`'s `checkMemberVal_spec` (already core grade):
+`readNameM_spec` at `CheckOK.caches.readN`, a `ReadbackFrame.ofReadN`
+`CoreStep`, the member's denotation carried across the unchanged store.  The
+Rust did not change.
+
+#### 3. `PrimsModeled.lean`
+
+The name parts (`nat_to_dec`, `code_points_from` from `0`, and
+`intern_n_node_cat_ls` for `lit ++ toString n`, applied by hand after
+`lockstep`), `proj_model_name_ls`, `proj_fn_name_lss` (store level, the shape
+of `proj_table_name_lss`), `read_name_m_ls` (answer with its `NameWF`) and
+`name_is_model_suffix_spec` (the three lemmas restated from
+`RefineOld/IndModeled.lean`), `ifenv_dup` (the identity under `IFEnvRelI`),
+`i_constant_info_beq`, `nidx_vec_beq`, `i_rec_rules_dup`, `env::lidx_vec_dup`,
+`unwrap_or` at a found constant (one lemma per error kind),
+`unresolved_consts_error` at `"rule"`, `lockstep_simp` equations
+(`(o.map f).isSome/isNone` as the port's tests, `(absICIL v).isEmpty` as
+`len = 0`, `restrictTo` at the own counter; the `absIRecRule` field
+projections are registered LOCALLY in `Modeled.lean` so no other lane's file
+sees them), two `lockstep_side_ext` alternatives (an `Option` test decided by
+the port's opposite test; `restrictTo` at an `IFEnvRelI` counter), and the
+lane's driver `lockstep_mod` (below).  Handle-level prims are not here
+(maintainer's rule: `Tactic/Prims.lean` only); the one I had added,
+`eidx_eq2_spec`, and `i_constant_info_to_constant_val_lss` (the checker lane
+landed its own) were dropped at the merge.
+
+#### 4. Tactic findings (for the tactic's owner; worked around, core untouched)
+
+1. **`specCore` closes a spec's premises BEFORE matching the twin**, and runs
+   `lockstep_side` on every unassigned data metavariable.  A spec with a
+   twin-only parameter is therefore never usable: the twin's message string
+   (`unwrap_or`, `unresolved_consts_error`), `RenameRel`'s twin function
+   (`rename_consts_fast_ls`), a higher-order abstraction, or a statement
+   general in the twin's message arguments (`check_member_model_ls`).
+   Worked around by specialised lemmas (`rename_consts_fast_by_ls` at
+   `RenameBy`, the `unwrap_or_cv_*`, `…_rule_ls`) or one hand step.  Fix
+   suggestion: skip non-`Prop` goals and the premises mentioning them until
+   after `hx`.
+2. **The ExprOps landing's term-`match` fallback loops** when the
+   discriminant is a constructor application (`some (absIConstantInfo v)`):
+   `cases _hdisc : some v` gives `some v'` back, forever (`check_eta_thm`
+   hit the heartbeat limit).  `lockstep_mod` runs `ind_twin_split` (a Rust
+   leaf against such a twin `match`: `split`) ahead of `lockstep_step`.
+3. **A `.read` step's failure is reported as "no @[lockstep] lemma"**: the
+   `LSR` attempt's error is swallowed and the `LSP` attempt's thrown.
+4. Before the merge, the `LS.twin_bind_pure` fallback wrapped an undecided
+   twin `if` in `>>= pure`, where the twin-`if` rule no longer saw it;
+   `lockstep_mod` keeps a `bind_pure` + `twin_ite_pos/neg` move for it (the
+   ExprOps lane's atomic version may have made it rare).
+
+#### 5. What the rest waits on
+
+* **Core lane**: `core::proj_fn_rule` (`check_proj_fn_rule`, frontier),
+  `core::pi_result_is_prop`/`pi_result_z` (`ind_block_caps`, frontier),
+  `core::rec_rule_bits`.
+* **Checker lane**: `checker_base::fvar_type_ds` (no lemma); the tier uses
+  `i_constant_info_beq_refines`, `unwrap_or_refines` (both `sorry`).
+* **This lane, next slice**: twin-argument list forms the `congr` side goal
+  does not close (`mk_app_n`, `inst_pis_at_f`, `check_def_eq_list`,
+  `lower_bvars_list`, `inst_spine_list(_renamed)`, `doms_match_renamed`,
+  `check_iota_sides_ty`), `get_app_args`/`get_app_fn` (the `LSR` step fails),
+  the structural recursions still `sorry` (`doms_match_renamed`,
+  `nested_pins_ok`, `lower/lift_bvars_list`, `inst_spine_list(_renamed)`,
+  `eta_proj_args`, `iota_lhs_prefix_ok`), `eq_app3` (`SimRE`), and
+  `checkIotaThm(N)_unfold` (heartbeats).
+
+#### 6. Frontier and gates
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: at the start (`arena` `70ea5a33`)
+**48 items in 15 modules, 175 tainted, dead weight 465** (the two files: 7
+items + 1, dead weight 68 + 2); at `fd15f7ee` (with `b047603a` merged)
+**48 / 16 / 272 / 367** (the two files: 3 items, dead weight 37 + 2).  The
+tainted count going up is the tier reaching further into the capstone's
+closure through the closed bodies.
