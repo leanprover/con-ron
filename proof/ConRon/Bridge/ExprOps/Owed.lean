@@ -88,6 +88,7 @@ import ConRon.Bridge.ExprOps.Abs
 import ConRon.Bridge.ExprOps.Reset
 import ConRon.Bridge.ExprOps.InstLP
 import ConRon.Bridge.SpecsL
+import ConRon.Bridge.ExprOps.TagFirst
 
 namespace ConRon.Bridge.ExprOps
 
@@ -486,6 +487,91 @@ theorem ns_of_lss {st st' : EStore} (h : st'.lss = st.lss) :
     st'.ns = st.ns := by
   simp only [EStore.ns, h]
 
+/-- con-leche: none — `renameConstsGo`'s arms intern unconditionally, as the
+port does (task #97-T2-LOCKSTEP); these are `internRebuilt*_specV` at
+`same = false`, so the arm proofs read the same conjuncts they did. -/
+theorem internConstE_specR (s₀ : AState) (n : NIdx) (us : LsIdx) (hwf : StoreWF s₀.store)
+    (hn : (s₀.store.ns.view n).isSome = true) (hus : (s₀.store.lss.view us).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internConstE n us
+    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
+        denoteE s'.store r = denoteEView s'.store (.const n us)⌝⦄ :=
+  internRebuiltConst_specV s₀ ⟨0⟩ false n us hwf hn hus (fun h => nomatch h)
+
+theorem internFVarE_specR (s₀ : AState) (idx : Nat) (ty : EIdx) (hwf : StoreWF s₀.store)
+    (hty : (denoteE s₀.store ty).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internFVarE idx ty
+    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
+        denoteE s'.store r = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
+  internRebuiltFVar_specV s₀ ⟨0⟩ false idx ty hwf hty (fun h => nomatch h)
+
+theorem internAppE_specR (s₀ : AState) (f a : EIdx) (hwf : StoreWF s₀.store)
+    (hf : (denoteE s₀.store f).isSome = true) (ha : (denoteE s₀.store a).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internAppE f a
+    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
+        denoteE s'.store r = denoteEView s'.store (.app f a)⌝⦄ :=
+  internRebuiltApp_specV s₀ ⟨0⟩ false f a hwf hf ha (fun h => nomatch h)
+
+theorem internLamE_specR (s₀ : AState) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
+    (hty : (denoteE s₀.store ty).isSome = true) (hb : (denoteE s₀.store b).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internLamE ty b m
+    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
+        denoteE s'.store r = denoteEView s'.store (.lam ty b m)⌝⦄ :=
+  internRebuiltLam_specV s₀ ⟨0⟩ false ty b m hwf hty hb (fun h => nomatch h)
+
+theorem internForallEE_specR (s₀ : AState) (ty b : EIdx) (m : BinderMeta)
+    (hwf : StoreWF s₀.store)
+    (hty : (denoteE s₀.store ty).isSome = true) (hb : (denoteE s₀.store b).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internForallEE ty b m
+    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
+        denoteE s'.store r = denoteEView s'.store (.forallE ty b m)⌝⦄ :=
+  internRebuiltForallE_specV s₀ ⟨0⟩ false ty b m hwf hty hb (fun h => nomatch h)
+
+theorem internLetEE_specR (s₀ : AState) (ty val b : EIdx) (hwf : StoreWF s₀.store)
+    (hty : (denoteE s₀.store ty).isSome = true) (hval : (denoteE s₀.store val).isSome = true)
+    (hb : (denoteE s₀.store b).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internLetEE ty val b
+    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
+        denoteE s'.store r = denoteEView s'.store (.letE ty val b)⌝⦄ :=
+  internRebuiltLetE_specV s₀ ⟨0⟩ false ty val b hwf hty hval hb (fun h => nomatch h)
+
+theorem internProjE_specR (s₀ : AState) (n : NIdx) (i : Nat) (e : EIdx) (hwf : StoreWF s₀.store)
+    (hn : (s₀.store.ns.view n).isSome = true) (he : (denoteE s₀.store e).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internProjE n i e
+    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
+        denoteE s'.store r = denoteEView s'.store (.proj n i e)⌝⦄ :=
+  internRebuiltProj_specV s₀ ⟨0⟩ false n i e hwf hn he (fun h => nomatch h)
+
+attribute [local spec high] internConstE_specR internFVarE_specR internAppE_specR
+  internLamE_specR internForallEE_specR internLetEE_specR internProjE_specR
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo —
 Theorem 1's statement for one level of `renameConstsGo`'s recursion.
 
@@ -531,7 +617,9 @@ theorem renameConstsGo_specS (f : NIdx → NIdx)
     intro s₀ h hok hm hns hden
     have hrec := ih.run
     mvcgen [renameConstsGo_succ, renameArmFVar, renameArmApp, renameArmLam,
-      renameArmForallE, renameArmLet, renameArmProj, hrec]
+      renameArmForallE, renameArmLet, renameArmProj, hrec, internConstE_specR,
+      internFVarE_specR, internAppE_specR, internLamE_specR, internForallEE_specR,
+      internLetEE_specR, internProjE_specR]
     all_goals try bridge_vcs [Expr.renameConsts, EStore.ns]
     -- Eleven structural verification conditions remain, in goal order: the
     -- three LEAF views, the inline `const` arm (its postcondition and its

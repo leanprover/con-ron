@@ -996,7 +996,16 @@ def sideCheap : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| (simp only [lockstep_simp]; done)),
     ← `(tactic| (apply Eq.symm; assumption)),
     ← `(tactic| (simp only [lockstep_simp, *]; done)),
-    ← `(tactic| (simp (config := { decide := true }) only [lockstep_simp, *]; done))]
+    ← `(tactic| (simp (config := { decide := true }) only [lockstep_simp, *]; done)),
+    -- an existential answer relation (a walk-local memo): its witness is the
+    -- twin's memo, whose relation is in the context
+    ← `(tactic| (refine ⟨_, ?_, rfl⟩; assumption)),
+    -- two different tag constants (the twin tests its tags in another order)
+    ← `(tactic| (simp (config := { decide := true }) only [lockstep_simp, *,
+        arena.handle.ETAG_PROJ, arena.handle.ETAG_LIT,
+        arena.handle.ETAG_LET_E, arena.handle.ETAG_FORALL_E, arena.handle.ETAG_LAM,
+        arena.handle.ETAG_APP, arena.handle.ETAG_CONST, arena.handle.ETAG_SORT,
+        arena.handle.ETAG_FVAR, arena.handle.ETAG_BVAR]; done))]
 
 def sideDear : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| scalar_tac),
@@ -1020,7 +1029,16 @@ elab "lockstep_side" : tactic => do
       ← `(tactic| (simp_all only [lockstep_simp]; done)), ← `(tactic| (simp_all; done)),
       ← `(tactic| lockstep_side_ext)]
   else
-    firstTimed "side" ((← sideCheap) ++ (← sideDear))
+    try firstTimed "side" ((← sideCheap) ++ (← sideDear))
+    catch e =>
+      -- two reads of one vector at indices the context proves equal (a cursor
+      -- the Rust computes in machine words, the twin in `Nat`): tried only on
+      -- an equation that mentions a vector read
+      let isIdx := ty.isAppOfArity ``Eq 3 &&
+        ((ty.find? fun t => t.isAppOf ``GetElem.getElem || t.isAppOf `ConRon.Arena.lastEidx).isSome)
+      unless isIdx do throw e
+      firstTimed "sideX" [← `(tactic| (congr <;> scalar_tac)),
+        ← `(tactic| (simp only [lockstep_simp, *]; congr <;> scalar_tac))]
 
 elab "lockstep_side_cheap" : tactic => do
   firstTimed "side" (← sideCheap)
@@ -1049,7 +1067,7 @@ elab "lockstep_stats" : tactic => do
 syntax "lockstep_contra" : tactic
 elab_rules : tactic
   | `(tactic| lockstep_contra) => do
-    firstTimed "contra" [← `(tactic| (exfalso; scalar_tac))]
+    firstTimed "contra" [← `(tactic| (exfalso; scalar_tac)), ← `(tactic| (exfalso; simp_all))]
 
 /-- The twin-action correspondence `x' = x` a bind rule leaves. -/
 elab "lockstep_congr" : tactic => do
@@ -1112,7 +1130,7 @@ def evalT (stx : TacticM (TSyntax `tactic)) : TacticM Unit := do evalTactic (←
 
 /-- Close a spec goal (a judgement about one Rust callee) with a `@[lockstep]`
 lemma or a local hypothesis filed under the same head. -/
-def specCore (g : MVarId) : TacticM Unit := g.withContext do
+def specCore (g : MVarId) (after : TacticM Unit := pure ()) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let some m := judgementRustArg? ty
     | throwError "lockstep_spec: not a judgement{indentExpr ty}"
@@ -1143,6 +1161,9 @@ def specCore (g : MVarId) : TacticM Unit := g.withContext do
       for sg in gs do
         if ← sg.isAssigned then continue
         runClosed sg (evalT `(tactic| lockstep_side))
+      -- the caller's check on this candidate's twin action (`x' = x`): a
+      -- candidate whose twin action is not the goal's gives way to the next
+      after
       return
     catch e =>
       errs := errs.push m!"{c}: {e.toMessageData}"
@@ -1277,7 +1298,15 @@ def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
         else if t.isAppOfArity ``And 2 && (isTE (t.getArg! 1) || isTE (t.getArg! 0)) then
           evalT `(tactic| obtain ⟨_, _⟩ := $hi:ident)
         else
-          evalT `(tactic| first | subst $hi:ident | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident) | skip)
+          evalT `(tactic| first
+            | subst $hi:ident
+            | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident)
+            -- an existential answer relation (`∃ m', R a.2 m' ∧ b = (a.1, m')`)
+            | (obtain ⟨_, _, $hi:ident⟩ := $hi:ident; subst $hi:ident)
+            -- an equation between two terms (a memo key's abstraction): rewrite
+            -- the Rust side with it, so a probe on it meets the twin's
+            | rw [$hi:ident]
+            | skip)
       | none => pure ()
   rest.mapM fun g => do clearStale (← normGoal (← splitRels g))
 
@@ -1380,7 +1409,7 @@ def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
   return []
 
 /-- The Rust side moves: a bind, a leaf, or a tail call. -/
-def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
+partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
   if m.isAppOfArity ``Bind.bind 6 then
     let f := m.getArg! 4
     let kind ← classify (← inferType f).appArg!
@@ -1389,34 +1418,42 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
       match kind with
       | .state =>
         let gs ← applyRule g ``LS.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         errArm (← pick gs `he) [`e, `st1]
         return ← cont (← pick gs `hk) [`a, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
       | .read =>
         let gs ← applyRule g ``LSR.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         errArm (← pick gs `he) [`e]
         return ← cont (← pick gs `hk) [`a, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
       | .write =>
         let gs ← applyRule g ``LSW.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         return ← cont (← pick gs `hk) [`st1, `lst1, `hrel, `hinv] none
       | .value =>
         let gs ← applyRule g ``LSV.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         return ← cont (← pick gs `hk) [`a, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
     catch e =>
       s.restore
       match kind with
       | .state | .write =>
-        -- the twin ends in the partner action where the Rust still binds
+        -- the twin ends in the partner action where the Rust still binds.
+        -- Atomic: the bind is taken on the rewritten goal at once, or the
+        -- rewrite is undone — a bare `x >>= pure` goal would be normalised back
+        -- to `x` and `lockstep` would loop on it (task #97-T2-LOCKSTEP lane
+        -- ExprOps: `inst_lp_fast_ls` never terminated).
         if !(x.isAppOfArity ``Bind.bind 6) then
-          let gs ← applyRule g ``LS.twin_bind_pure
-          return [← pick gs `h]
+          try
+            let gs ← applyRule g ``LS.twin_bind_pure
+            let g' ← pick gs `h
+            let x' := (← instantiateMVars (← g'.getType)).getAppArgs.back!
+            return ← rustStep g' m x'
+          catch _ => s.restore
         throw e
       | _ => pure ()
     try
@@ -1452,8 +1489,8 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
     throwError "lockstep: a Rust leaf the twin does not match{indentExpr (← g.getType)}"
   -- a tail call
   let gs ← applyRule g ``LS.tail
-  specCore (← pick gs `hf)
-  runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+  let hx ← pick gs `hx
+  specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
   runClosed (← pick gs `hR) (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
   return []
 
@@ -1531,7 +1568,34 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
     if a.isAppOfArity ``MonadState.get 3 then
       let gs ← applyRule g ``LS.twin_get_bind
       return ← tidy (← pick gs `h) none
-  rustStep g m x
+  let s0 ← saveState
+  try rustStep g m x
+  catch e =>
+    s0.restore
+    -- a twin `if h : c` the cheap tier could not decide (`coreMove` tries only
+    -- the cheap tier while the Rust side is a bind)
+    if x.isAppOfArity ``dite 5 then
+      let dear ← `(tactic| lockstep_side_ite)
+      for rule in [``LS.twin_dite_pos, ``LS.twin_dite_neg] do
+        let s ← saveState
+        try
+          let gs ← applyRule g rule
+          runClosed (← pick gs `hc) (evalTactic dear)
+          return [← pick gs `h]
+        catch _ => s.restore
+    -- a twin `match` on a TERM (an inline memo probe) the Rust decided by a test
+    -- of its own: case on the term; the branch the Rust's test rules out closes
+    -- by `lockstep_contra`
+    if let some mapp ← matchMatcherApp? x then
+      if let some t := mapp.discrs[0]? then
+        if !t.isFVar then
+          let stx ← Lean.Elab.Term.exprToSyntax t
+          let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
+          let mut out := []
+          for sg in rest do
+            out := out ++ (← tidy sg none)
+          return ← contra out
+    throw e
 
 /-- Is `n` registered `@[lockstep_inline]`? -/
 def isInline (n : Name) : MetaM Bool := do
@@ -1673,6 +1737,30 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
           if (← whnfR (← fv.getType)).isAppOf ``Prod then
             let subs ← g.cases fv
             return some (← normAll (subs.toList.map (·.mvarId)))
+      -- a `match` on a TERM (a memo probe the twin makes inline): rewrite the
+      -- term with the context's key equations (`absEIdxNat k = (h, d)`) so it
+      -- is the twin's own, then case on it everywhere
+      if isLS then
+        if let some t0 := mapp.discrs[0]? then
+          let mut g := g
+          let mut t := t0
+          for d in (← getLCtx) do
+            if d.isImplementationDetail then continue
+            let dty ← instantiateMVars d.type
+            if dty.isAppOfArity ``Eq 3 then
+              let lhs := dty.getArg! 1
+              if !lhs.isFVar && (t.find? (· == lhs)).isSome then
+                let hi := mkIdent d.userName
+                let rest ← runOn g (evalT `(tactic| rw [$hi:ident]))
+                if let [g'] := rest then
+                  g := g'
+                  let ty' ← instantiateMVars (← g.getType)
+                  let m' := (ty'.getArg! 4).headBeta
+                  if let some mapp' ← matchMatcherApp? (m'.getArg! 4).headBeta then
+                    if let some t' := mapp'.discrs[0]? then t := t'
+          let stx ← Lean.Elab.Term.exprToSyntax t
+          let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
+          return some (← normAll rest)
     if let some n := f.getAppFn.constName? then
       if ← isInline n then
         return some (← normAll [← unfoldRust g n])
@@ -1682,8 +1770,8 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
         let s ← saveState
         try
           let gs ← applyRule g ``LSR.tail_ls
-          specCore (← pick gs `hf)
-          runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+          let hx ← pick gs `hx
+          specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
           runClosed (← pick gs `hR)
             (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
           return some []
@@ -1695,8 +1783,8 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
         let P ← whnfR T.appArg!
         if P.isAppOfArity ``Prod 2 && (P.getArg! 1).isConstOf ``arena.store.EStore then
           let gs ← applyRule g ``LSS.bind
-          specCore (← pick gs `hf)
-          runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+          let hx ← pick gs `hx
+          specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
           errArm (← pick gs `he) [`e, `s']
           return some (← normAll (← cont (← pick gs `hk) [`a, `b, `s', `lst1, `hR, `hrel, `hinv] (some `hR)))
   -- a tag-guarded projection on the Rust side against the twin's `view`
