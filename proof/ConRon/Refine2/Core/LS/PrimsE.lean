@@ -75,6 +75,10 @@ attribute [lockstep_simp] ConRon.Refine.absBinderMeta absConstT
 attribute [simp] absLamStk absPiStk
 
 
+@[lockstep_simp] theorem peel_fuel_abs : absU arena.core.PEEL_FUEL = peelFuel := by
+  rw [arena.core.PEEL_FUEL, Arena.peelFuel]
+  rfl
+
 /-! ## The io view of the lane knot
 
 `laneKnotAt … io f` is `laneKnot … f` with (under `io`) its `infer` slot

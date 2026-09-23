@@ -118,8 +118,6 @@ theorem infer_spine_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absEIdx e)) := by
   rw [arena.core.infer_app, inferApp]
   lockstep_e
-  all_goals trace_state
-  all_goals sorry
 
 section spineIO
 attribute [local lockstep_simp] twin_ite_bind
@@ -187,8 +185,6 @@ end spineIO
         (absLamStk stk) (absEIdx bt)) := by
   rw [arena.core.infer_lams_leaf_check, inferLamsLeafCheck]
   lockstep_e
-  all_goals trace_state
-  all_goals sorry
 
 @[lockstep] theorem infer_lams_leaf_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe d t k fvs stk lst}
@@ -248,5 +244,120 @@ theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
         hrel hinv hctx hf) ?_ (fun _ _ h => h)
       · lockstep_side
       · lockstep_congr
+
+@[lockstep] theorem infer_lams_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe d peel t k fvs stk lst}
+    (hx : ExprOpsHyp pers)
+    (hstk : ∀ p ∈ (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)).val,
+      ConRon.Refine.PropWhenWF p.2.pw)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_lams pers vis st mode lane fu fe d peel t k fvs stk) lst
+      (inferLams (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absU peel)
+        (absEIdx t) (absU k) (absEIdxArr fvs) (absLamStk stk)) :=
+  infer_lams_aux hk _ hx rfl hstk hrel hinv hctx hf
+
+/-! ## The ∀ telescope -/
+
+@[lockstep] theorem infer_pis_leaf_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe d t k fvs stk lst}
+    (hx : ExprOpsHyp pers)
+    (hstk : ∀ p ∈ (stk : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)).val,
+      ConRon.Refine.PropWhenWF p.2)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_pis_leaf pers vis st mode lane fu fe d t k fvs stk) lst
+      (inferPisLeaf (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absEIdx t) (absU k)
+        (absEIdxArr fvs) (absPiStk stk)) := by
+  rw [arena.core.infer_pis_leaf, inferPisLeaf]
+  lockstep_e
+
+theorem infer_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers vis st mode lane fu fe lfe d peel t k fvs stk lst},
+      ExprOpsHyp pers → (peel : Std.U64).val = n →
+      (∀ p ∈ (stk : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)).val,
+        ConRon.Refine.PropWhenWF p.2) →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.infer_pis pers vis st mode lane fu fe d peel t k fvs stk) lst
+        (inferPis (ConRon.Refine.absMode mode)
+          (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absU peel)
+          (absEIdx t) (absU k) (absEIdxArr fvs) (absPiStk stk)) := by
+  have hvb := @view_bind_wf_ls
+  induction n with
+  | zero =>
+    intro pers vis st mode lane fu fe lfe d peel t k fvs stk lst hx hn hstk hrel hinv hctx hf
+    rw [show absU peel = 0 from hn, inferPis, arena.core.infer_pis]
+    lockstep_e
+  | succ m ih =>
+    intro pers vis st mode lane fu fe lfe d peel t k fvs stk lst hx hn hstk hrel hinv hctx hf
+    rw [show absU peel = m + 1 from hn, inferPis, arena.core.infer_pis]
+    lockstep_e
+    all_goals
+      -- glue: the pushed stack's well-formedness (the datum is `view_bind`'s)
+      simp only [optBindWF] at *
+      refine LS.tail (ih hx ?_ (pi_stk_push_wf (by assumption) hstk (by simp_all))
+        hrel hinv hctx hf) ?_ (fun _ _ h => h)
+      · lockstep_side
+      · lockstep_congr
+
+@[lockstep] theorem infer_pis_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe d peel t k fvs stk lst}
+    (hx : ExprOpsHyp pers)
+    (hstk : ∀ p ∈ (stk : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)).val,
+      ConRon.Refine.PropWhenWF p.2)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_pis pers vis st mode lane fu fe d peel t k fvs stk) lst
+      (inferPis (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absU peel)
+        (absEIdx t) (absU k) (absEIdxArr fvs) (absPiStk stk)) :=
+  infer_pis_aux hk _ hx rfl hstk hrel hinv hctx hf
+
+/-! ## The binder clauses -/
+
+/-- The `.lam` clause.  `hmb`: the binder's datum is well formed (it comes out
+of the store, `bms`' `TblInv`). -/
+@[lockstep] theorem infer_lam_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth ty body mb lst}
+    (hx : ExprOpsHyp pers) (hmb : ConRon.Refine.PropWhenWF (mb : kernel.expr.BinderMeta).pw)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_lam pers vis st mode lane fu fe depth ty body mb) lst
+      (inferLam (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absEIdx ty)
+        (absEIdx body) (ConRon.Refine.absBinderMeta mb)) := by
+  rw [arena.core.infer_lam, inferLam]
+  lockstep_e
+  -- glue: the one-entry stack's well-formedness
+  all_goals
+    refine LS.tail (infer_lams_ls hk hx (lam_stk_push_wf (by assumption) (by simp) (by simp_all))
+      hrel hinv hctx hf) ?_ (fun _ _ h => h)
+    lockstep_congr
+
+/-- The `.forallE` clause. -/
+@[lockstep] theorem infer_forall_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth ty body mb lst}
+    (hx : ExprOpsHyp pers) (hmb : ConRon.Refine.PropWhenWF (mb : kernel.expr.BinderMeta).pw)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_forall pers vis st mode lane fu fe depth ty body mb) lst
+      (inferForall (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absEIdx ty)
+        (absEIdx body) (ConRon.Refine.absBinderMeta mb)) := by
+  rw [arena.core.infer_forall, inferForall]
+  lockstep_e
+  -- glue: the one-entry stack's well-formedness
+  all_goals
+    refine LS.tail (infer_pis_ls hk hx (pi_stk_push_wf (by assumption) (by simp) (by simp_all))
+      hrel hinv hctx hf) ?_ (fun _ _ h => h)
+    lockstep_congr
 
 end ConRon.Refine2.Lockstep
