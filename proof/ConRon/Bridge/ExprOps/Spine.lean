@@ -74,6 +74,7 @@ record is discharged at its `instantiateListFast_spec` and the four theorems
 become unconditional; nothing in their statements changes.
 -/
 import ConRon.Bridge.ExprOps.Inst1
+import ConRon.Bridge.ExprOps.TagFirst
 
 namespace ConRon.Bridge.ExprOps
 
@@ -929,7 +930,8 @@ absorbs the difference in one line so that the arm proofs below are the
 macro "arm_pre" : tactic =>
   `(tactic| (repeat intro _
              bridge_peel
-             subst_vars))
+             subst_vars
+             tf_views))
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — **THEOREM 1**
 for `piResult`: the body of a syntactic `∀`-telescope.  Read-only. -/

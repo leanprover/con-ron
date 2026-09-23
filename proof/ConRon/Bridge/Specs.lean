@@ -134,21 +134,6 @@ theorem matchOwner_piResultIsProp (x : ENodeView) :
       (fun _ => 1) (fun _ => 0) ≤ 1 := by
   grind
 
-/-- con-leche: none — the owner of `ConRon.Arena.forallPw`'s `ENodeView`
-match auxiliary (the clash `lakefile.toml`'s `ConRonBridge` note records,
-between two modules of the `ExprOps` tier). -/
-theorem matchOwner_forallPw (x : ENodeView) :
-    ConRon.Arena.forallPw.match_1 (motive := fun _ => Nat) x
-      (fun _ _ _ => 1) (fun _ => 0) ≤ 1 := by
-  grind
-
-/-- con-leche: none — `ConRon.Arena.isLam`'s (`ExprOps/Spine.lean` against
-`ExprOps/Walks.lean`). -/
-theorem matchOwner_isLam (x : ENodeView) :
-    ConRon.Arena.isLam.match_1 (motive := fun _ => Nat) x
-      (fun _ _ _ => 1) (fun _ => 0) ≤ 1 := by
-  grind
-
 /-- con-leche: none — `ConRon.Arena.isCtorApp`'s (`Core/Walks/Guards.lean`
 against `Core/Walks/Spine.lean`). -/
 theorem matchOwner_isCtorApp (x : ENodeView) :
