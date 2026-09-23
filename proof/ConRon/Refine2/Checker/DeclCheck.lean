@@ -971,18 +971,6 @@ theorem ite_bor {α : Sort _} (a b : Bool) (x y : α) :
     (if (a || b) = true then x else y) = if a = true then x else if b = true then x else y := by
   cases a <;> cases b <;> rfl
 
-/-- Local workaround for the shared tactic's known limit 2 (a Rust bind
-against a twin `if` leaves the twin as `(if …) >>= pure`): decide the twin
-`if` from the context and continue.  Sites: `bool_ctors_lp_empty_ls`,
-`nat_op_guard_aux`. -/
-local macro "lockstep_ite_bp" : tactic => `(tactic| (lockstep; all_goals (repeat' (first
-  | (rw [bind_pure]; refine Lockstep.LS.twin_ite_pos ?hc ?_
-     case hc => (simp only [Lockstep.TwinEq] at *; simp_all)
-     lockstep)
-  | (rw [bind_pure]; refine Lockstep.LS.twin_ite_neg ?hc ?_
-     case hc => (simp only [Lockstep.TwinEq] at *; simp_all)
-     lockstep)))))
-
 /-- The Rust's `cv.level_params.len() == 0` is the twin's `levelParams.isEmpty`. -/
 theorem absIConstantVal_levelParams_isEmpty (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).levelParams.isEmpty = decide (cv.level_params.len = 0#usize) := by
@@ -993,7 +981,17 @@ theorem absIConstantVal_levelParams_isEmpty (cv : arena.env.IConstantVal) :
   simp only [alloc.vec.Vec.length] at h1
   constructor <;> intro h <;> scalar_tac
 
-attribute [local lockstep_simp] absIConstantVal_levelParams_isEmpty
+/-- … and in the form the twin is in once `absIConstantVal` is unfolded. -/
+theorem map_absNIdx_isEmpty (l : alloc.vec.Vec arena.handle.NIdx) :
+    (l.val.map absNIdx).isEmpty = decide (l.len = 0#usize) := by
+  rw [Bool.eq_iff_iff]
+  simp only [List.isEmpty_map, List.isEmpty_iff, decide_eq_true_eq]
+  rw [← List.length_eq_zero_iff]
+  have h1 := alloc.vec.Vec.len_val l
+  simp only [alloc.vec.Vec.length] at h1
+  constructor <;> intro h <;> scalar_tac
+
+attribute [local lockstep_simp] absIConstantVal_levelParams_isEmpty map_absNIdx_isEmpty
 
 open Lockstep in
 /-- `arena::core::nat_ind_ok` ⊑ `natIndOk`. -/
@@ -1050,9 +1048,6 @@ twin's inline `match`). -/
   rw [arena.core.nat_op_cod, natOpCod]
   simp only [arena.core.bool_ty_ok]
   lockstep
-  -- tactic limit 2 (Rust bind vs twin `if`): the twin's `||` decided by hand
-  all_goals (rw [bind_pure, if_pos (by simp_all)]; lockstep)
-  all_goals (rw [bind_pure, if_neg (by simp_all)]; lockstep)
 
 open Lockstep in
 /-- `arena::core::nat_op_ty_pinned` ⊑ `natOpTyPinned`. -/
@@ -1212,7 +1207,7 @@ constructors stored at no level parameters), written inline in the twin. -/
           | none => pure false) := by
   rw [arena.core.bool_ctors_lp_empty]
   simp only [arena.core.lp_empty]
-  lockstep_ite_bp
+  lockstep
 
 open Lockstep in
 set_option maxHeartbeats 1000000 in
@@ -1225,7 +1220,7 @@ theorem nat_op_guard_aux {pers st lst} {vis : Std.U64} {rf lf}
       (natOpGuard lf (absNIdx c)) := by
   rw [arena.core.nat_op_guard, natOpGuard]
   simp only [ite_bor]
-  lockstep_ite_bp
+  lockstep
 
 open Lockstep in
 theorem nat_op_stored_ok_all_aux (n : Nat) :

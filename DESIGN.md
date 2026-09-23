@@ -61215,11 +61215,12 @@ and `i_constant_val_matches_pin` (identical to `Axioms.lean`'s, which are now
 the proved ones) removed.  `Refine2/Checker/Spec.lean`: `groundGuards*`
 split, `checkDivModCertTailSpec` deleted.
 
-**Tactic limit 2 (Rust bind vs twin `if`) met and worked around locally:**
-`nat_op_cod_ls` (two `rw [bind_pure, if_pos/if_neg …]` rounds),
-`bool_ctors_lp_empty_ls` and `nat_op_guard_aux` (a file-local
-`lockstep_ite_bp` macro deciding the wrapped twin `if` from the context).
-Tactic limit 1 not met.
+**Tactic limit 2 (Rust bind vs twin `if`)** was met at `nat_op_cod_ls`,
+`bool_ctors_lp_empty_ls` and `nat_op_guard_aux` and worked around locally
+during the slice; after merging `arena` (the tactic round that fixes it) the
+workarounds were dead and are removed — all three are a bare `lockstep`.
+`quot_pin_hit`'s manual `dite` decisions likewise went (the tactic decides the
+bound itself).  Tactic limit 1 not met.
 
 #### 3. Frontier, still open in the lane
 

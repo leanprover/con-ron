@@ -354,25 +354,25 @@ theorem quot_pin_hit_refines {pers st lst} {k : kernel.env.QuotKind} {cv : arena
     fun cv cv2 hrel hinv => Lockstep.LS.ofSim₀ fun _ h => i_constant_val_canon_eq_refines hrel hinv h
   rw [arena.basis.quot_pin_hit, quotPinHit_split]
   lockstep
-  · rw [dif_neg (by
-      have := alloc.vec.Vec.len_val ‹alloc.vec.Vec arena.env.IConstantInfo›
-      simp only [absICIL, List.length_map]; scalar_tac)]
-    exact Lockstep.LS.pure rfl ‹_› ‹_›
-  · generalize hblk : ‹alloc.vec.Vec arena.env.IConstantInfo› = blk at *
-    have hl := alloc.vec.Vec.len_val blk
-    have hia : a.val = (ConRon.Refine.absQuotKind k).slot := by
-      obtain h | h := ‹_ ∨ Usize.max < _› <;> scalar_tac
-    have hlt : (ConRon.Refine.absQuotKind k).slot < (absICIL blk).length := by
-      simp only [absICIL, List.length_map]; omega
-    rw [dif_pos hlt]
-    have e : (absICIL blk)[(ConRon.Refine.absQuotKind k).slot] =
-        absIConstantInfo (↑blk : List _)[a.val] := by
-      simp only [absICIL, List.getElem_map]; congr 1; simp [hia]
-    rw [e]
-    refine Lockstep.LSS.bind (Lockstep.i_constant_info_to_constant_val_lss ‹_› ‹_› _) ?_
-      (fun e s' => Lockstep.errArm_ok) (fun a b s' lst1 hR hrel hinv => ?_)
-    · rfl
-    · lockstep
+  -- the shared tactic decides the twin's bound `dite` itself (task #97-T2-TACTIC
+  -- round 2); what is left is the bounds contradiction and the index read
+  all_goals first
+    | (exfalso
+       have := alloc.vec.Vec.len_val ‹alloc.vec.Vec arena.env.IConstantInfo›
+       simp only [absICIL, List.length_map] at *; scalar_tac)
+    | (generalize hblk : ‹alloc.vec.Vec arena.env.IConstantInfo› = blk at *
+       have hl := alloc.vec.Vec.len_val blk
+       have hia : a.val = (ConRon.Refine.absQuotKind k).slot := by
+         obtain h | h := ‹_ ∨ Usize.max < _› <;> scalar_tac
+       have e : (absICIL blk)[(ConRon.Refine.absQuotKind k).slot]'(by
+           simp only [absICIL, List.length_map]; omega) =
+           absIConstantInfo (↑blk : List _)[a.val] := by
+         simp only [absICIL, List.getElem_map]; congr 1; simp [hia]
+       rw [e]
+       refine Lockstep.LSS.bind (Lockstep.i_constant_info_to_constant_val_lss ‹_› ‹_› _) ?_
+         (fun e s' => Lockstep.errArm_ok) (fun a b s' lst1 hR hrel hinv => ?_)
+       · rfl
+       · lockstep)
 
 open Lockstep in
 @[lockstep] theorem quot_pin_hit_ls {pers st lst}
