@@ -31,9 +31,10 @@ to neither side's refinement.
 ## Four hypotheses and no more
 
 `AStateRel` / `AStateInv` are the tier's own; `ScanSpec` is the byte
-recogniser's (three clauses, every one a theorem of `RefineOld/Frontend/`
-against the SAME Rust functions — see `Refine2/Frontend/Shape.lean`'s section
-note); `ModellerRefines` is the seam's, and DESIGN §8.2 puts the modeller
+recogniser's, and since task #97-P5-Front it is a THEOREM,
+`Scan/Spec.lean`'s `scanSpec` (the scanner tier moved back from
+`RefineOld/Frontend/`); it stays a parameter so the capstone's call sites are
+unchanged, and a caller passes `scanSpec`; `ModellerRefines` is the seam's, and DESIGN §8.2 puts the modeller
 outside the verified surface by design.  **`ModellerWF` is NOT among them**,
 and that is the arena's dividend: the original campaign's `hgen` said *"every
 declaration `Modeller::generate` returns is well formed"*, and over handles
@@ -41,6 +42,27 @@ declaration `Modeller::generate` returns is well formed"*, and over handles
 
 `DeclRecStrWF` does not appear either — it is inside `ScanSpec.scanLineStr`,
 which is where the scanner owes it.
+
+## How the three top statements are proved (task #97-P5-Front)
+
+Top-down, by composition only — every step below is a named lemma:
+
+    builtin_prelude_e  = builtin_prelude_text ; parse_bytes
+    parse_chunks       = state_d_init ; parse_chunks_loop
+    parse_chunks_loop  = induction on the chunks left: chunk_step ; … ; chunk_finish
+    parse_bytes        = size guard ; state_d_init ; feed_chunk ; parse_bytes_final
+    chunk_step         = size guard ; byte vectors ; feed_chunk_loop ; tail cut
+    chunk_finish, parse_bytes_final = apply_final_line ; parse_result_of_state
+    feed_chunk_loop    = induction on the bytes left: ScanSpec ; apply_line ; …
+    apply_final_line   = ScanSpec ; apply_line ; line_err_to_check / scan_err_to_check
+    prepare_prelude    = prepare_d
+    prepare_d          = front_of ; prepared_stream ; hoist_nat_op_ground ; sat_sub
+
+The open leaves under them: `apply_line_refines` (the line layer),
+`state_d_init_refines` (the fresh record's `StateDRel`),
+`builtin_prelude_text_refines` (16 922 committed bytes),
+`hoist_nat_op_ground_refines` (`NatOpGround.lean`'s tier) and
+`Prepare.lean`'s `i_declaration_dup_abs`.
 
 ## `sorry` count in this file: 6
 -/
