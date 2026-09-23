@@ -55814,7 +55814,11 @@ axiom.
 16 OK** — `extract-check` 99 s, `lake-build` 34 s.  `lake build ConRonCapstone`
 after the merge: 2 759 jobs, green (25 min, the merge re-elaborating
 `Bridge/**`).  Before the merge: `ConRonRefine2` 2 253 jobs, 807 `declaration
-uses sorry` warnings (was 831), `ConRonBridge` and `ConRonCapstone` green.
+uses sorry` warnings (was 831), `ConRonBridge` and `ConRonCapstone` green.  A second
+`arena` merge (`29ec471f`, `Bridge/**` and `DESIGN.md` only, no conflict)
+re-ran the Lean gates it can touch: `ConRonBridge` (634 jobs),
+`ConRonCapstone` (2 768) and `lake build` green; the Rust, lint, provenance and
+extraction gates cannot be reached by it.
 
 ### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
 
