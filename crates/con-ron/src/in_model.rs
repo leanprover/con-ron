@@ -132,14 +132,14 @@ use con_ron_core::kernel::{expr, level, name};
 use crate::in_model::mutual::{BlockRec, Ctx, IndCtorRec, IndRecRec, IndTypeRec};
 use con_ron_core::arena::store::PersTier;
 
-/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
+/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-213 inProcessModeller
 /// **The modeller the binary passes**: `crate::in_model`'s generator behind
 /// the arena's handle seam.  It carries NO state: the readback memo and the
 /// tree blocks `Ctx::blocks` must return a reference to live for one
 /// `generate` call (the module note).
 pub struct InProcess {}
 
-/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
+/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-213 inProcessModeller
 impl InProcess {
     /// con-leche: none — the seam's instantiation (task #97 P4f)
     /// The modeller (stateless).
