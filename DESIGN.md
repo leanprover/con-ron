@@ -45776,6 +45776,119 @@ round's diff is 2 035 insertions and 316 deletions across six of them.
 | the diff | `proof/ConRon/Bridge/Frontend/{Rel,Shared,Lines,ProjRec,Prepare,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, **and no other `Bridge/` module** — `Bridge/Checker/Basis.lean`'s one-line import is the checker tier's to make, and that tier was live all day |
 
 
+#### Round 7 — two statement defects found, the upper tier skeletonised, COMPOSE's 4 and 5
+
+Branch `fe-r7` off `arena` `7f4b4a86`, merged forward to `00ab9e63` (the
+COMPOSE landing) mid-round.  Brief: take the tier to 2 (the two con-leche
+asks).  **Not reached, and not reachable without a ruling**: §1 and §2 are
+two defects, one in a relation this tier owns and one in an `Arena/` twin.
+Mid-round the coordinator re-prioritised to COMPOSE's frontier
+(`processLineCoreD_run`, `hoistNatOpGround_run`) and mismatches 4-5; §3-§5.
+
+**Open: 5 (was 11)** — `ProjRec.lean` 4 (`clOccursConstB_eq`,
+`clOccursConstGo_eq` — the upstream asks — `projRecValue_run`,
+`projRecOwners_run`), `Prepare.lean` 1 (`hoistTargets_run`).  `Lines.lean`,
+`Chunks`, `Rel`, `Shared`, `Modeller`, `Capstone`: **0**.
+
+##### 1. FINDING — `ParseStep` is not the frame of the projection rewrite (ruling needed)
+
+`processLineCoreD`'s `defn`/`thm` arms call `projRewriteD` → `projRecValue`,
+and `installIndD` calls `registerProjOwners` → `projRecOwners` →
+`structPartsCore?`/`nativeParts?`.  `ParseStep` (`Rel.lean`) promises
+`memos` unchanged and `CacheFrame` (only `readLC`/`lvlEqC` may move).  Three
+ways that is false:
+
+* **caches**: `projRecValue` calls `instLPFast`, whose spec
+  (`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec`) writes `readNC` and
+  `readLsC` as well — and it does in the real pipeline (the recursor type has
+  level params; a readback miss records).  And its ANSWER needs
+  `ReadNCacheOK`/`ReadLCacheOK`/`ReadLsCacheOK` at the call, which no
+  statement of the parse carries.
+* **memos**: every `…Fast` walk (`liftLooseBVarsFast`, `instantiate1LiftFast`,
+  `resetMetaFast`, `instLPFast`) clears its table at exit, so
+  `s'.memos = s.memos` fails at any start with a non-empty table.  Nothing
+  consumes `ParseStep.memos` (the capstones read `ok/ext/scratch/cframe/pins`).
+* **scratch/memos at the recognisers**: `structPartsCore?_isSome` /
+  `nativeParts?_isSome` are at `PSpecP`, whose `PStep` has no `scratch` and no
+  `memos` clause, and `nativeParts?` runs `liftLooseBVarsFast`/`resetMetaFast`.
+
+So `projRecValue_run`, `projRecOwners_run` — and everything proved on them
+this round — state a frame their runs do not keep.  **Proposed repair** (a
+conclusion change, hence the ruling): `ParseStep` drops `memos` and its cache
+clause becomes a four-table `ReadbackFrame`-shaped frame (`readLC`, `lvlEqC`,
+`readNC`, `readLsC`, with their four invariants as implications);
+`FoldOK_post_parse`/`FoldOK_post_pins` get the matching `CacheOK.mono`;
+`projRecValue_run` gains the three readback invariants as preconditions,
+threaded from the capstones' `hcache0` through the new implications; and
+`PStep` gains `scratch` (Inductives lane) or the two recognisers get a
+scratch-frame lemma.  Every composition proof of this round goes through
+`ParseStep.trans`/`.refl` only and survives the change.
+
+##### 2. FINDING — `hoistClosure`'s fuel truncates, so `hoistTargets_run` is false (Arena lane)
+
+`Arena/Frontend/NatOpGround.lean`'s `hoistClosure` answers `pure target` at
+fuel 0 (`ds.size * ds.size + 1` per closure).  The fuel counts POPS, and one
+processed record pushes one entry per `usedConsts` occurrence after `i` —
+duplicates included (distinct level instantiations, several names of one
+block) — so pops are unbounded in `ds.size`.  Counterexample shape, `n = 4`:
+record 1 references record 2's name twenty times and record 3's once (3
+pushed first); fuel 17 is spent popping the duplicates of 2 and record 3 is
+never targeted, where con-leche's `while` (and the Rust `hoist_close`, which
+has no fuel) targets it.  The twin also lacks con-leche's `m != k` (harmless:
+a self-entry is skipped).  **Fix**: fuel 0 → `fail` (then the statement is
+true as stated, a failing run claims nothing); `Refine2/Frontend/
+NatOpGround.lean`'s note "the port and the twin agree on the measure" (its
+finding 18) is also not so — the port's loop is unfuelled.  Not this lane;
+`hoistTargets_run` is left open and unchanged.
+
+##### 3. What closed or moved down
+
+* `validateIndD_run'` — CLOSED, both answers (`VRes`: a verdict of the same
+  kind, or the same constructors and count); `validateIndD_run` its corollary.
+  The two `do` elaborators differ (legacy `MProd` states on the twin, new
+  `Prod` states on con-leche's), so the proof never compares loop terms:
+  `forIn_sim` relates the loops through an arbitrary state relation, and the
+  legacy elaborator's three inlined copies of the recursor loop share tactic
+  macros (`vind_rec_*`).  `denoteN_inj` carries the `Nodup` guard, the
+  constructor index and the `induct`/`T.rec` comparisons.
+* `installIndD_run`, `registerProjOwners_run` (moved to `Lines.lean`, it needs
+  `parseCVD_run`), `processLineCoreD_run`, `projRewriteD_run`,
+  `hoistNatOpGround_run` — PROVED from their callees; they rest on
+  `projRecValue_run`/`projRecOwners_run` (§1) and `hoistTargets_run` (§2).
+* `applyHoist_run` — new child of `hoistNatOpGround_run`, CLOSED.
+* ~50 closed helpers (census `Axioms.lean`, "Round seven").
+
+##### 4. Preconditions repaired (P), and two strengthened leaves
+
+* **`PinsOK s`** on `installIndD_run` (the default `IIndCaps.etaCtor` is the
+  zero name handle: `PinsOK.anon`), `registerProjOwners_run`/
+  `projRecOwners_run` (the recognisers), `hoistTargets_run` (pinned op
+  names), and threaded up through `processLineCoreD_run`, `applyLine_run`,
+  every `Chunks` theorem, `builtinPreludeE_run`, `preparePrelude_run` and the
+  three capstones (which have it: `hpins0`, or `internReservedPins_run`).
+* **`ModellerWF`** gains the DECLINE's frame (`installIndD` continues after a
+  decline); **`ModellerRefines`**' decline half names con-leche's reason
+  (the census books it, `StateDRel.inModelDeclined` compares strings).  Both
+  concrete modellers keep them at a line each.
+* `projRewriteD_run` and `projRecValue_run` are now two-sided (`OptRel`): the
+  one-directional form could not prove `processLineCoreD_run`, which pushes
+  the original value where the twin answers `none`.  Both sorry'd leaves;
+  flagged here because it is a conclusion change (a strengthening).
+
+##### 5. COMPOSE mismatches 4 and 5 — done
+
+* **4**: `runPipelineHead`/`runPipelineM`/`runPipeline` (`Arena/Main.lean`)
+  take `(im := true) (ce := false)`, the binary's two flags with its defaults;
+  `Arena.no_False_declaration_pipeline` is flag-parametric (optional args, so
+  `Capstone.lean` compiles unchanged but for three explicit call sites).
+* **5**: `Arena.no_False_declaration` and `_prelude` now run `internAllPins`
+  between the preparation and the fold (`hpinsrun`), exactly as
+  `runPipelineTail`; `FoldOK_post_pins` is the new step.
+
+##### 6. Gates
+
+GATES_PLACEHOLDER
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at
