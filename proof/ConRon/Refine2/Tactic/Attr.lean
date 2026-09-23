@@ -28,6 +28,7 @@ def judgementRustArg? (e : Expr) : Option Expr :=
   | some `ConRon.Refine2.Lockstep.LSV => args[4]?
   | some `ConRon.Refine2.Lockstep.LSW => args[1]?
   | some `ConRon.Refine2.Lockstep.LSP => args[1]?
+  | some `ConRon.Refine2.Lockstep.LSS => args[4]?
   | _ => none
 
 /-- The key a Rust computation is filed under: its head constant. -/
@@ -69,3 +70,8 @@ end ConRon.Refine2.Lockstep
 
 /-- The abstraction equations the twin side reduces with after a Rust split. -/
 register_simp_attr lockstep_simp
+
+/-- Rust helpers the core tactic (`Refine2/Core/LS/Tactic.lean`) unfolds in
+place instead of stepping over with a lemma: the port's fragments of one twin
+function (task #97-P5-Core round 5). -/
+register_simp_attr lockstep_inline
