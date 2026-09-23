@@ -56356,3 +56356,25 @@ two roots unchanged.  The shared Lake cache was seeded from this worktree
 ConRonRefine2 ConRonBridge ConRonCapstone`), `Refine2/Core/Eqns.lean` (1 036 s
 here) included.
 
+**Second merge**, `arena` at `aa1dc3e2` (task #97-P5-Top round 2: ruling 2's
+`DeclResolves`, threaded through `annot_fold_refines`,
+`check_pending_list_refines` and `install_then_check_refines` over an abstract
+invariant `Good`, discharged in the capstone by the new, `sorry`ed,
+`declResolves_of_stages`).  `check_decls_phased_refines` takes `DeclResolves`
+exactly as `install_then_check_refines` does, **plus one hypothesis about the
+same `Good`**: `hwork : Good fe s → Good fe s.worker`, because phase B now
+starts from the twin's `AState.worker` of the phase-A state rather than from
+the phase-A state itself.  The capstone takes it from
+`declResolves_of_stages`, whose conclusion gains that conjunct — **an added
+obligation on a lemma that is already Theorem 1's `sorry`**, not a new named
+hypothesis: the witness its doc comment names (`FoldOK` plus "the handles
+resolve") is about the persistent tier, which `AState.worker` keeps
+(`EStore.dropScratch_wf`, persistent denotation through the drop, `CacheOK` of
+empty caches).  Flagged for the Theorem-1 lane.  One conflict
+(`Capstone.lean`'s `rust_stages`, `model_exists`, `no_False_declaration`:
+theirs added `hk hind` and `DeclResolves`, mine `hreads` and the phased fold;
+both kept).  `scripts/gates.sh` on the second merge `ad2dd999`: **all 16 OK**
+(`extract-check` 98 s); frontier **34 items in 14 modules, 111 tainted
+declarations** (still none in this task's four modules).  `arena` then moved
+by a `CLAUDE.md` edit only, merged without re-gating.
+
