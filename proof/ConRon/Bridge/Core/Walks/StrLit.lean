@@ -873,13 +873,21 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin
         x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0
         v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
+          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
+          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
+          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
+          (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
+          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
+          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
       obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
       have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
       have hty0 := denote_ext d_r11_type_s10 x100
       have hwf0 := wf_s0
       obtain ⟨D, R, hT, hD, _⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
@@ -899,20 +907,31 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
         dls_r7_s6 v_body1_s0 wf_s0 v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _
         _ v_r0_s0 d_r0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
+          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
+          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
+          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
+          (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
+          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
+          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
       obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
       have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
       have hty0 := denote_ext d_r11_type_s10 x100
       have hwf0 := wf_s0
       have hpl := denoteL_view_param dl_r10_s9 hp9
-      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans x_s7_s6)))
-      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans
+          x_s7_s6)))
+      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
         (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
+      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
       have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
         (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
       have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
@@ -935,20 +954,31 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
         vls_r7_s6 dls_r7_s6 v_body1_s0 v_body2_s0 wf_s0 v_r11_type_s0 x_s1_s0
         _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
+          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
+          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
+          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
+          (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
+          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
+          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
       obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
       have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
       have hty0 := denote_ext d_r11_type_s10 x100
       have hwf0 := wf_s0
       have hpl := denoteL_view_param dl_r10_s9 hp9
-      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans x_s7_s6)))
-      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans
+          x_s7_s6)))
+      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
         (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
+      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
       have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
         (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
       have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
@@ -977,20 +1007,31 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
         vls_r7_s6 dls_r7_s6 v_body0_s0 v_body1_s0 wf_s0 v_r11_type_s0 x_s1_s0
         _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
+          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
+          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
+          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
+          (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
+          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
+          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
       obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
       have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
       have hty0 := denote_ext d_r11_type_s10 x100
       have hwf0 := wf_s0
       have hpl := denoteL_view_param dl_r10_s9 hp9
-      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans x_s7_s6)))
-      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans
+          x_s7_s6)))
+      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
         (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
+      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
       have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
         (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
       have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
@@ -1013,13 +1054,21 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6
         hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 v_body0_s0
         wf_s0 v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
+          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
+          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
+          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
+          (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
+          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
+          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
       obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
       have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
       have hty0 := denote_ext d_r11_type_s10 x100
       have hwf0 := wf_s0
       obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
@@ -1038,13 +1087,21 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _
         _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 v_r11_type_s0 x_s1_s0
         _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
+          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
+          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
+          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
+          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
+          (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
+          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
+          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
       obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
       have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
       have hty0 := denote_ext d_r11_type_s10 x100
       have hwf0 := wf_s0
       exact (listNilConsTyOk_not_forallE hP
@@ -1343,5 +1400,129 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals first
       | assumption
       | (apply CheckOK.wf'; assumption)
+
+/-! ## 6. `strLitSupported` -/
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-403 strLitSupported —
+**THEOREM 1 for `strLitSupported`**: the `Nat` literal guard, then the seven
+string-support declarations at exactly the expected types. -/
+theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.strLitSupported fe
+    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.strLitSupported env⌝⦄ := by
+  have hn := fun (s : AState) =>
+    natLitSupported_spec (mode := mode) (env := env) (fe := fe) s
+  have h1 := fun (s : AState) (oc : Option IConstantInfo) =>
+    stringTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
+      (env.find? ConLeche.stringName)
+  have h2 := fun (s : AState) (oc : Option IConstantInfo) =>
+    stringOfListTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
+      (env.find? ConLeche.stringOfListName)
+  have h3 := fun (s : AState) (oc : Option IConstantInfo) =>
+    listTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
+      (env.find? ConLeche.listName)
+  have h4 := fun (s : AState) (oc : Option IConstantInfo) =>
+    listNilTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
+      (env.find? ConLeche.listNilName)
+  have h5 := fun (s : AState) (oc : Option IConstantInfo) =>
+    listConsTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
+      (env.find? ConLeche.listConsName)
+  have h6 := fun (s : AState) (oc : Option IConstantInfo) =>
+    charTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
+      (env.find? ConLeche.charName)
+  have h7 := fun (s : AState) (oc : Option IConstantInfo) =>
+    charOfNatTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
+      (env.find? ConLeche.charOfNatName)
+  mvcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
+    ConRon.Arena.pinStringOfList, ConRon.Arena.pinList,
+    ConRon.Arena.pinListNil, ConRon.Arena.pinListCons, ConRon.Arena.pinChar,
+    ConRon.Arena.pinCharOfNat, hn, h1, h2, h3, h4, h5, h6, h7]
+  all_goals (bridge_peel; subst_vars)
+  case vc2.post.success.isTrue =>
+    rename_i s1 s0 ck_s0 x_s1_s0 p_s0_s1 _
+    refine ⟨ck_s0, x_s1_s0,
+      p_s0_s1, ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc6.post.success.isFalse.post.success.post.success.isTrue =>
+    rename_i s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s1 hpin x_s2_s1
+      p_s1_s2 _
+    refine ⟨ck_s0, x_s2_s1.trans (x_s1_s0),
+      p_s0_s1.trans (p_s1_s2), ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc10.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
+    rename_i s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s2 hpin x_s3_s2
+      p_s2_s3 hneg1 ck_s1 hpin_2 x_s2_s1 p_s1_s2 _
+    refine ⟨ck_s0, x_s3_s2.trans (x_s2_s1.trans (x_s1_s0)),
+      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3)), ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc14.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
+    rename_i s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s3 hpin
+      x_s4_s3 p_s3_s4 hneg1 ck_s2 hpin_2 x_s3_s2 p_s2_s3 hneg2 ck_s1 hpin_3
+      x_s2_s1 p_s1_s2 _
+    refine ⟨ck_s0, x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0))),
+      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4))), ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc18.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
+    rename_i s5 r3 s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s4
+      hpin x_s5_s4 p_s4_s5 hneg1 ck_s3 hpin_2 x_s4_s3 p_s3_s4 hneg2 ck_s2
+      hpin_3 x_s3_s2 p_s2_s3 hneg3 ck_s1 hpin_4 x_s2_s1 p_s1_s2 _
+    refine ⟨ck_s0, x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0)))),
+      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5)))), ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc22.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
+    rename_i s6 r4 s5 r3 s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0
+      ck_s5 hpin x_s6_s5 p_s5_s6 hneg1 ck_s4 hpin_2 x_s5_s4 p_s4_s5 hneg2
+      ck_s3 hpin_3 x_s4_s3 p_s3_s4 hneg3 ck_s2 hpin_4 x_s3_s2 p_s2_s3 hneg4
+      ck_s1 hpin_5 x_s2_s1 p_s1_s2 _
+    refine ⟨ck_s0, x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans
+        (x_s1_s0))))),
+      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6))))), ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc26.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
+    rename_i s7 r5 s6 r4 s5 r3 s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1
+      hneg0 ck_s6 hpin x_s7_s6 p_s6_s7 hneg1 ck_s5 hpin_2 x_s6_s5 p_s5_s6
+      hneg2 ck_s4 hpin_3 x_s5_s4 p_s4_s5 hneg3 ck_s3 hpin_4 x_s4_s3 p_s3_s4
+      hneg4 ck_s2 hpin_5 x_s3_s2 p_s2_s3 hneg5 ck_s1 hpin_6 x_s2_s1 p_s1_s2 _
+    refine ⟨ck_s0, x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
+        (x_s2_s1.trans (x_s1_s0)))))),
+      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans
+        (p_s6_s7)))))), ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc28.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success =>
+    rename_i s8 r7 s7 r6 s6 r5 s5 r4 s4 r3 s3 r2 s2 r1 s1 _ s0 hneg0 ck_s7
+      hpin x_s8_s7 p_s7_s8 hneg1 ck_s6 hpin_2 x_s7_s6 p_s6_s7 hneg2 ck_s5
+      hpin_3 x_s6_s5 p_s5_s6 hneg3 ck_s4 hpin_4 x_s5_s4 p_s4_s5 hneg4 ck_s3
+      hpin_5 x_s4_s3 p_s3_s4 hneg5 ck_s2 hpin_6 x_s3_s2 p_s2_s3 hneg6 ck_s1
+      hpin_7 x_s2_s1 p_s1_s2
+    intro ck_s0 x_s1_s0 p_s0_s1 hlast
+    subst hlast
+    refine ⟨ck_s0, x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+        (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0))))))),
+      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans
+        (p_s6_s7.trans (p_s7_s8))))))), ?_⟩
+    simp_all [ConLeche.strLitSupported]
+  case vc29 => intro s hs _; subst hs; assumption
+  case vc30 => intro s hs hp; subst hs; exact optCI_find (by assumption) (hp _ rfl)
+  all_goals first
+    | assumption
+    | (apply CheckOK.pins; assumption)
+    | (apply optCI_find (by assumption); apply_assumption; rfl)
+
+/-! ## 7. The axiom census -/
+
+section Census
+
+#print axioms denoteCI_nonTower
+#print axioms toConstantVal_spec
+#print axioms stringTyOk_spec
+#print axioms charTyOk_spec
+#print axioms listTyOk_spec
+#print axioms listNilTyOk_spec
+#print axioms listConsTyOk_spec
+#print axioms charOfNatTyOk_spec
+#print axioms stringOfListTyOk_spec
+#print axioms strLitSupported_spec
+
+end Census
 
 end ConRon.Bridge.Core
