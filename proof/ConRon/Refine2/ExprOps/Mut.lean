@@ -339,7 +339,7 @@ theorem intern_e_app_res {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store
       (fun h => hchild_app hrel.storeWF h) hp
   show WOutE pers st lst (r, ({ st with store := e } : arena.monad.AState)) _
   cases hr : r with
@@ -390,7 +390,7 @@ theorem intern_rebuilt_bvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_bvar_run hrel hinv hfrozen i hrun
+    exact intern_e_bvar_run hrel hinv i hrun
 
 /-- `arena::expr_ops::intern_rebuilt_fvar` against `Arena.internRebuiltFVar`. -/
 theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
@@ -420,7 +420,7 @@ theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_fvar_run hrel hinv hfrozen idx ty (hchild rfl) (hview rfl) hrun
+    exact intern_e_fvar_run hrel hinv idx ty (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_sort` against `Arena.internRebuiltSort`. -/
 theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
@@ -450,7 +450,7 @@ theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_sort_run hrel hinv hfrozen u (hchild rfl) (hview rfl) hrun
+    exact intern_e_sort_run hrel hinv u (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_const` against `Arena.internRebuiltConst`. -/
 theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
@@ -480,7 +480,7 @@ theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_const_run hrel hinv hfrozen n us (hchild rfl) (hview rfl) hrun
+    exact intern_e_const_run hrel hinv n us (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_app` against `Arena.internRebuiltApp`. -/
 theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
@@ -510,7 +510,7 @@ theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_app_run hrel hinv hfrozen f a (hchild rfl) (hview rfl) hrun
+    exact intern_e_app_run hrel hinv f a (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_let_e` against `Arena.internRebuiltLetE`. -/
 theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
@@ -542,7 +542,7 @@ theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_let_e_run hrel hinv hfrozen ty val body (hchild rfl) (hview rfl) hrun
+    exact intern_e_let_e_run hrel hinv ty val body (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_lit` against `Arena.internRebuiltLit`. -/
 theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
@@ -569,7 +569,7 @@ theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_lit_run hrel hinv hfrozen l hwf hrun
+    exact intern_e_lit_run hrel hinv l hwf hrun
 
 /-- `arena::expr_ops::intern_rebuilt_proj` against `Arena.internRebuiltProj`. -/
 theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
@@ -600,7 +600,7 @@ theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_proj_run hrel hinv hfrozen n i e (hchild rfl) (hview rfl) hrun
+    exact intern_e_proj_run hrel hinv n i e (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_bind_i` against `Arena.internRebuiltBindI`. -/
 theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
@@ -645,7 +645,7 @@ theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_bind_i_run hrel hinv hfrozen tag ty body m
+    exact intern_e_bind_i_run hrel hinv tag ty body m
       (hchildL rfl) (hchildF rfl) (hcapL rfl) (hcapF rfl) (hwfL rfl) (hwfF rfl) hrun
 
 /-- `Arena/ExprOps.lean:139 internRebuilt` — the view-taking cutoff, against
@@ -701,7 +701,7 @@ theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Boo
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_run hrel hinv hfrozen v (hview rfl) (hlit rfl)
+    exact intern_e_run hrel hinv v (hview rfl) (hlit rfl)
       (hpw rfl) (hchildL rfl) (hchildF rfl) (hcapB rfl) hrun
 
 
@@ -743,7 +743,7 @@ theorem intern_rebuilt_lam_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_lam_run hrel hinv hfrozen ty body m
+    exact intern_e_lam_run hrel hinv ty body m
       (hpw rfl) (hchild rfl) (hcap rfl) (hview rfl) hrun
 
 /-- `Arena/ExprOps.lean:163 internRebuiltForallE`. -/
@@ -783,7 +783,7 @@ theorem intern_rebuilt_forall_e_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_forall_e_run hrel hinv hfrozen ty body m
+    exact intern_e_forall_e_run hrel hinv ty body m
       (hpw rfl) (hchild rfl) (hcap rfl) (hview rfl) hrun
 
 
@@ -842,7 +842,7 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
       rw [if_pos rfl] at hrun
       rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
         rw [etag_lam_abs]; simp)]
-      exact intern_e_lam_run hrel hinv hfrozen ty body m
+      exact intern_e_lam_run hrel hinv ty body m
         (hpw rfl) (hchildL rfl (by rw [etag_lam_abs])) (hcapL rfl (by rw [etag_lam_abs]))
         (hviewL rfl (by rw [etag_lam_abs])) hrun
     · rw [if_neg hc] at hrun
@@ -850,7 +850,7 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
         rw [← etag_lam_abs]
         intro hcc; exact hc (absU32_inj hcc)
       rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
-      exact intern_e_forall_e_run hrel hinv hfrozen ty body m
+      exact intern_e_forall_e_run hrel hinv ty body m
         (hpw rfl) (hchildF rfl hne) (hcapF rfl hne) (hviewF rfl hne) hrun
 
 
@@ -1447,8 +1447,8 @@ private theorem bvar_range_aux (p : Nat) :
     obtain ⟨r, st1⟩ := p1
     have hidx : absU i1 = absU m_i - 1 - absU k := by
       rw [sub_nat_val hi1, sub_nat_val hi]; rfl
-    have hsim := intern_e_bvar_run hrel hinv hfrozen i1 hp1
-    have hflags := intern_e_bvar_flags hrel hinv hfrozen hp1
+    have hsim := intern_e_bvar_run hrel hinv i1 hp1
+    have hflags := intern_e_bvar_flags hrel hinv hp1
     show AOut absEIdxList (fun _ => True) pers lst o.1 o.2 _
     rw [show absU n = q + 1 from hn, bvarRange]
     rw [hidx] at hsim
