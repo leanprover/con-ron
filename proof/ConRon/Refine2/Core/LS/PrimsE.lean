@@ -506,68 +506,16 @@ def danglingLsOr {δ : Type} (k : Nat → AM δ) : Option Nat → AM δ
   rw [LsStore_viewLen_eq]
   cases lst.store.lss.view h <;> rfl
 
-/-! ## Interns — PENDING foundation intern slice (T2-LOCKSTEP slice 3) -/
-
-@[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (i : Std.U64) (ty : arena.handle.EIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st i ty) lst
-      (Arena.internFVarE (absU i) (absEIdx ty)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
-
-@[lockstep] theorem intern_e_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (u : arena.handle.LIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_sort pers st u) lst
-      (Arena.internSortE (absLIdx u)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
-
-@[lockstep] theorem intern_l_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (v : arena.store.LNodeView) :
-    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_l_node pers st v) lst
-      (Arena.internLNode (absLNodeView v)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
-
 /-! ## Local tactic moves (reported to the coordinator)
 
-1. **`ok v >>= k` is NOT definitionally `k v`** for Aeneas's `Result` (an
-   `ITree`; `bind_tc_ok` is proved by `simp`, not `rfl`).  `lockstep_core`'s
-   `coreMove` feeds an `ok` to the continuation with `replaceTargetDefEq`,
-   which does not check, and the kernel then rejects the proof ("application
-   type mismatch").  `LS.rust_ok_bind` is the propositional step.
-2. **An error arm through a pair-returning inner block**
-   (`let (st1, cert) ← (match r with … | Err e1 => ok (st2, Err e1)); match
-   cert with … | Err e1 => ok (Err e1, st1)`): `errArm` head-normalises only
-   and cannot see through the inner `ok … >>= k'`.  `ls_state_bind` is
-   `LS.bind` with the error arm closed by `simp`. -/
+`lockstep` plus two moves:
 
-theorem LS.rust_ok_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {v : γ} {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R (k v) lst x) :
-    LS pers R (ok v >>= k) lst x := by
-  rw [bind_tc_ok]; exact h
-
-theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α → Prop}
-    (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
-  rw [bind_tc_ok]; exact h
-
-open Lean Meta Elab Tactic in
-/-- Feed an `ok v` to the Rust continuation, propositionally. -/
-elab "ls_ok_bind" : tactic => withMainContext do
-  let g ← getMainGoal
-  let others := (← getGoals).tail
-  let ty ← instantiateMVars (← g.getType)
-  let some rp := rustPos ty | throwError "ls_ok_bind: not a judgement"
-  let m := (ty.getArg! rp).headBeta
-  unless m.isAppOfArity ``Bind.bind 6 do throwError "ls_ok_bind: not a bind"
-  let f ← headNorm (m.getArg! 4)
-  unless f.isAppOfArity ``Result.ok 2 do throwError "ls_ok_bind: not an ok"
-  let m' := mkAppN m.getAppFn (m.getAppArgs.set! 4 f)
-  let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! rp m'))
-  let gs ← applyRule g (if rp == 4 then ``LS.rust_ok_bind else ``LSP.rust_ok_bind)
-  let g' ← pick gs `h
-  setGoals ((← normAll [g']) ++ others)
+1. **An error arm through a pair-returning inner block that itself matches**
+   (`infer_forall_io_at`'s `let (st5, ok1) ← (do let (r4, st6) ← read_level_m …;
+   let r5 ← match r4 with …; ok (st6, r5))`): `ls_state_bind` is `LS.bind` with
+   the error arm closed by `simp`.
+2. an error leaf whose kind is a hypothesis (the `unknown_const_error` pair's
+   `absAErrKind a = lAErrKind b`). -/
 
 open Lean Meta Elab Tactic in
 /-- `LS.bind` with the error arm closed by `simp`. -/
@@ -584,11 +532,9 @@ elab "ls_state_bind" : tactic => withMainContext do
   let rest ← cont (← pick gs `hk) [`a, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
   setGoals ((← normAll rest) ++ others)
 
-/-- `lockstep_core` with the two local moves. -/
 macro "lockstep_e" : tactic =>
   `(tactic| repeat' (first
-      | ls_ok_bind
-      | lockstep_core_step
+      | lockstep_step
       | ls_state_bind
       | (apply LS.err; exact errSim_fail (by assumption))
       | (apply LS.err; exact errSim_throw (by assumption))))
