@@ -28,6 +28,7 @@ import ConRon.Bridge.Inductives.StructInstall
 import ConLeche.Verify.FastOps
 import ConRon.Bridge.Checker.Base
 import ConLeche.Verify.BridgeWfImp
+import ConLeche.Verify.Inductives.SumInv
 
 namespace ConRon.Bridge.Inductives
 
@@ -1611,6 +1612,31 @@ theorem normCtorVal_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-! ## The constructors' stage -/
 
+/-- con-leche: ConLeche/Verify/BridgeWfImp.lean:451-543 openPisAtFvars_index /
+openPisAtFvars_WScoped — **an opened variable's domain is scoped at its own
+position**: the `j`-th variable is `fvar (i + j)`, and the opening's scope
+conjunct says its domain is scoped there. -/
+theorem open_fvar_scope {n i : Nat} {e : Expr} {fvs : List Expr} {body : Expr}
+    (h : ConLeche.openPisAtFvars n e i = some (fvs, body)) (hw : Expr.WScoped i e) :
+    ∀ (j : Nat) (x : Expr), fvs[j]? = some x → Expr.WScoped (i + j) x.fvarTypeD := by
+  intro j x hx
+  obtain ⟨ty, rfl⟩ := ConLeche.openPisAtFvars_index _ _ _ h j x hx
+  have hw' := (ConLeche.openPisAtFvars_WScoped _ _ _ h hw).1 _ (List.mem_of_getElem? hx)
+  simp only [Expr.WScoped] at hw'
+  exact hw'.2
+
+theorem checkSumCtor_up {μ : CheckMode} {F G : Nat} {env₀ env : Env} {T : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nIdx : Nat} {rs : Level} {isProp large : Bool}
+    {cvC : ConstantVal} {nF : Nat} {cvTa : ConstantVal}
+    {v : ConstantVal × List Level} (hle : F ≤ G)
+    (h : ConLeche.checkSumCtor (ConLeche.fueledOps μ F) env₀ env T lps nP nIdx rs isProp
+      large cvC nF cvTa = .ok v) :
+    ConLeche.checkSumCtor (ConLeche.fueledOps μ G) env₀ env T lps nP nIdx rs isProp
+      large cvC nF cvTa = .ok v := by
+  rw [← ConLeche.checkSumCtor_datF] at h ⊢
+  exact (ConLeche.checkSumCtor (ConLeche.fueledOpsM μ) env₀ env T lps nP nIdx rs isProp
+    large cvC nF cvTa).property hle h
+
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:207-253 checkSumCtor
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:97-128 checkSumCtorF
 One constructor checked: its telescope, its parameter domains, its residual,
@@ -1633,14 +1659,201 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
         denoteL st.ls resSort = some resSortP ∧
         Frontend.denoteCV st cvC = some cvCP ∧
         Frontend.denoteCV st cvTa = some cvTaP ∧
-        denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env)
+        denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
+        IFEnvOKS env₀ fe₀ st)
       (Arena.checkSumCtor μ fe₀ fe T lps nP nIdx resSort isProp large cvC nF cvTa)
       (fun st r => ∃ F cvCaP sortsP,
         ConLeche.checkSumCtor (ConLeche.fueledOps μ F) env₀ env TP lpsP nP
           nIdx resSortP isProp large cvCP nF cvTaP = .ok (cvCaP, sortsP) ∧
         Frontend.denoteCV st r.1 = some cvCaP ∧
         denoteLList st.ls r.2 = some sortsP) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hlps, hrs, hcvC, hcvTa, hfe₀, hfe, hok₀⟩ := hpre
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  simp only [Arena.checkSumCtor] at hrun
+  -- the constructor's own check, and its normalisation
+  obtain ⟨cvCa₀, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨c1, cA₀, F₁, hcA₀, hF₁⟩ := checkConstantVal_bridge hμ hk hck henv hcvC k1
+  have hws₀ : Expr.WScoped 0 cA₀.type :=
+    Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hF₁).1
+  obtain ⟨cvCa, s₂, k2, z2⟩ := bindOk z1
+  have x1 := c1.ext
+  obtain ⟨c2, F₂, cAP, hF₂, hcA⟩ := normCtorVal_spec fe hμ hk henv T TP nP nF cvC cvCa₀ cvCP cA₀
+    hws₀ s₁ s₂ cvCa c1.ok ⟨denoteN_ext hT x1, denoteCV_ext hcvC x1, hcA₀,
+      denoteFEnv_ext x1 hfe⟩ k2
+  have c12 := c1.trans c2
+  -- the stored constructor is a checked constant: closed
+  have hwsA : Expr.WScoped 0 cAP.type := by
+    obtain ⟨ty', hty'⟩ := ConLeche.normCtorVal_inv
+      (checkConstantVal_mono (Nat.le_max_left F₁ F₂) hF₁)
+      (by rw [← ConLeche.normCtorVal_datF] at hF₂ ⊢
+          exact (ConLeche.normCtorVal (ConLeche.fueledOpsM μ) env TP nP nF cvCP cA₀).property
+            (Nat.le_max_right F₁ F₂) hF₂)
+    exact Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hty').1
+  -- the result shape
+  obtain ⟨o3, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, ho3⟩ := stripPis_pstep c12.ok.state (denoteCV_type hcA) k3
+  rw [hs3] at z3
+  obtain ⟨q3, s₄, k4, z4⟩ := bindOk z3
+  cases o3 with
+  | none => simp only [Arena.unwrapOr] at k4; exact absurd k4 (fun h => failOk h)
+  | some o3' =>
+  simp only [Arena.unwrapOr] at k4
+  obtain ⟨hq3, hs4⟩ := pureOk k4
+  subst hq3
+  rw [hs4] at z4
+  obtain ⟨cbs, cbody⟩ := q3
+  obtain ⟨cxs, cbodyP, hsp, hcb⟩ := stripPis_some ho3
+  dsimp only at z4
+  have x02 := c12.ext
+  obtain ⟨b5, s₅, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hb5⟩ := structCtorResidOk_spec T TP lps lpsP nP nF nIdx cbody cbodyP s₂ s₅ b5
+    c12.ok.state ⟨denoteN_ext hT x02, denoteNListE_ext x02 _ _ hlps, hcb⟩ k5
+  obtain ⟨hr5, z6⟩ := AM.dunless_ok hnever z5
+  replace z6 := AM.pure_bind_ok z6
+  rw [hb5] at hr5
+  have c5 := c12.trans (p5.toCore c12.ok)
+  -- the constructor's parameters, opened
+  obtain ⟨o6, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨p6, ho6⟩ := openPisAtFvarsF_run c5.ok.state
+    (denote_ext (denoteCV_type hcA) p5.ext) k6
+  obtain ⟨cq, s₇, k7, z8⟩ := bindOk z7
+  cases o6 with
+  | none => simp only [Arena.unwrapOr] at k7; exact absurd k7 (fun h => failOk h)
+  | some o6' =>
+  simp only [Arena.unwrapOr] at k7
+  obtain ⟨hq6, hs7⟩ := pureOk k7
+  subst hq6
+  rw [hs7] at z8
+  obtain ⟨cfvsP, crestP, hcq, hcfvs, hcrest⟩ := denoteOpen_some_inv ho6
+  -- the former's parameters, opened
+  have c6 := c5.trans (p6.toCore c5.ok)
+  obtain ⟨o8, s₈, k8, z9⟩ := bindOk z8
+  obtain ⟨p8, ho8⟩ := openPisAtFvarsF_run c6.ok.state
+    (denote_ext (denoteCV_type hcvTa) (x1.trans (c2.ext.trans (p5.ext.trans p6.ext)))) k8
+  obtain ⟨tq, s₉, k9, z10⟩ := bindOk z9
+  cases o8 with
+  | none => simp only [Arena.unwrapOr] at k9; exact absurd k9 (fun h => failOk h)
+  | some o8' =>
+  simp only [Arena.unwrapOr] at k9
+  obtain ⟨hq8, hs9⟩ := pureOk k9
+  subst hq8
+  rw [hs9] at z10
+  obtain ⟨tfvsP, trestP, htq, htfvs, htrest⟩ := denoteOpen_some_inv ho8
+  have c8 := c6.trans (p8.toCore c6.ok)
+  -- the domains the pins compare
+  obtain ⟨doms, s₁₀, k10, z11⟩ := bindOk z10
+  obtain ⟨p10, hdoms⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP t t' x hok he hrun => by
+      obtain ⟨rfl, hx⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, hx⟩) tq.1 tfvsP s₈ s₁₀ doms c8.ok.state htfvs k10
+  have c10 := c8.trans (p10.toCore c8.ok)
+  obtain ⟨u11, s₁₁, k11, z12⟩ := bindOk z11
+  have x6_10 : Ext s₆.store s₁₀.store := p8.ext.trans p10.ext
+  obtain ⟨c11, F₃, hF₃⟩ := checkStructDomsAt_spec fe hk henv 0 cq.1 doms cfvsP
+    (tfvsP.map Expr.fvarTypeD) nP (by
+      intro i _ a b ha hb
+      refine ⟨open_fvar_scope hcq hwsA i a ha, ?_⟩
+      rw [List.getElem?_map] at hb
+      cases hti : tfvsP[i]? with
+      | none => rw [hti] at hb; exact nomatch hb
+      | some t =>
+        rw [hti] at hb
+        obtain rfl := (Option.some.inj hb).symm
+        exact open_fvar_scope htq hws i t hti) s₁₀ s₁₁ u11 c10.ok
+    ⟨denoteEList_ext x6_10 _ _ hcfvs, hdoms, denoteFEnv_ext c10.ext hfe⟩ k11
+  have c11' := c10.trans c11
+  -- the fields, opened past the parameters
+  obtain ⟨o12, s₁₂, k12, z13⟩ := bindOk z12
+  obtain ⟨p12, ho12⟩ := openPisAtFvarsF_run c11'.ok.state
+    (denote_ext hcrest ((p8.ext.trans p10.ext).trans c11.ext)) k12
+  obtain ⟨xq, s₁₃, k13, z14⟩ := bindOk z13
+  cases o12 with
+  | none => simp only [Arena.unwrapOr] at k13; exact absurd k13 (fun h => failOk h)
+  | some o12' =>
+  simp only [Arena.unwrapOr] at k13
+  obtain ⟨hq12, hs13⟩ := pureOk k13
+  subst hq12
+  rw [hs13] at z14
+  obtain ⟨xfvsP, xrestP, hxq, hxfvs, hxrest⟩ := denoteOpen_some_inv ho12
+  have c12' := c11'.trans (p12.toCore c11'.ok)
+  -- the family head and the residual's spine
+  obtain ⟨us, s₁₄, k14, z15⟩ := bindOk z14
+  have x0_12 := c12'.ext
+  obtain ⟨p14, hus⟩ := paramLevels_spec lps lpsP s₁₂ s₁₄ us c12'.ok.state
+    (denoteNListE_ext x0_12 _ _ hlps) k14
+  obtain ⟨hd, s₁₅, k15, z16⟩ := bindOk z15
+  obtain ⟨p15, hhd⟩ := internConstE_run p14.ok (denoteN_ext hT (x0_12.trans p14.ext)) hus k15
+  have c15 := c12'.trans ((p14.trans p15).toCore c12'.ok)
+  have x12_15 : Ext s₁₂.store s₁₅.store := p14.ext.trans p15.ext
+  obtain ⟨xfn, s₁₆, k16, z17⟩ := bindOk z16
+  obtain ⟨hs16, hxfn⟩ := getAppFn_run c15.ok.state (denote_ext hxrest x12_15) k16
+  rw [hs16] at z17
+  obtain ⟨xargs, s₁₇, k17, z18⟩ := bindOk z17
+  obtain ⟨hs17, hxargs⟩ := getAppArgs_run c15.ok.state (denote_ext hxrest x12_15) k17
+  rw [hs17] at z18
+  have hwf15 := c15.ok.state.wf
+  have x7_15 : Ext s₆.store s₁₅.store :=
+    (p8.ext.trans p10.ext).trans (c11.ext.trans (p12.ext.trans x12_15))
+  have hg := AM.dunless_ok hnever z18
+  obtain ⟨hg1, z19⟩ := hg
+  replace z19 := AM.pure_bind_ok z19
+  rw [beq_ehandle_eq hwf15 hxfn hhd,
+    beq_ehandleList_eq hwf15 (denoteEList_take hxargs nP) (denoteEList_ext x7_15 _ _ hcfvs),
+    show xargs.length = xrestP.getAppArgs.length from
+      (ExprOps.denoteEList_length _ _ hxargs).symm] at hg1
+  -- the fields' domains resolve before the block
+  have hread₀ : ReadOK env₀ fe₀ s₁₅ :=
+    ⟨c15.ok.state, c15.ok.pins, hok₀.mono c15.ext s₁₅ rfl⟩
+  obtain ⟨b20, s₂₀, k20, z20⟩ := bindOk z19
+  obtain ⟨p20, hb20⟩ := allM_E_ck
+    (fun e eP t t' x hok he hrun => crFvarType_pstep e eP t t' x hok he hrun)
+    xq.1 xfvsP s₁₅ s₂₀ b20 hread₀ (denoteEList_ext x12_15 _ _ hxfvs) k20
+  obtain ⟨hg2, z21⟩ := AM.dunless_ok hnever z20
+  replace z21 := AM.pure_bind_ok z21
+  rw [hb20] at hg2
+  obtain ⟨b22, s₂₂, k22, z22⟩ := bindOk z21
+  obtain ⟨p22, hb22⟩ := allM_E_ck
+    (fun e eP t t' x hok he hrun => constsResolveFFast_pstep hok he hrun)
+    (xargs.drop nP) (xrestP.getAppArgs.drop nP) s₂₀ s₂₂ b22
+    (hread₀.mono p20.ok p20.ext p20.pins)
+    (denoteEList_drop (denoteEList_ext p20.ext _ _ hxargs) nP) k22
+  obtain ⟨hg3, z23⟩ := AM.dunless_ok hnever z22
+  replace z23 := AM.pure_bind_ok z23
+  rw [hb22] at hg3
+  -- the field sorts
+  have c22 := c15.trans ((p20.trans p22).toCore c15.ok)
+  have x15_22 : Ext s₁₅.store s₂₂.store := p20.ext.trans p22.ext
+  obtain ⟨sorts, s₂₃, k23, z24⟩ := bindOk z23
+  have hxpos : ∀ i, i < nF → ∀ a, xfvsP[i]? = some a → Expr.WScoped (nP + i) a.fvarTypeD := by
+    intro i _ a ha
+    have hwsc : Expr.WScoped nP crestP := by
+      have := (ConLeche.openPisAtFvars_WScoped _ _ _ hcq hwsA).2
+      simpa using this
+    exact open_fvar_scope hxq hwsc i a ha
+  obtain ⟨c23, F₄, sortsP, hF₄, hsorts⟩ := checkStructFieldSortsI_spec fe hk henv isProp large
+    resSort resSortP nP xq.1 (xargs.drop nP) xfvsP (xrestP.getAppArgs.drop nP) nF hxpos
+    s₂₂ s₂₃ sorts c22.ok
+    ⟨denoteL_ext hrs c22.ext, denoteEList_ext (x12_15.trans x15_22) _ _ hxfvs,
+      denoteEList_drop (denoteEList_ext x15_22 _ _ hxargs) nP, denoteFEnv_ext c22.ext hfe⟩ k23
+  obtain ⟨rfl, rfl⟩ := pureOk z24
+  refine ⟨c22.trans c23, max (max F₁ F₂) (max F₃ F₄), cAP, sortsP, ?_,
+    denoteCV_ext hcA ((p5.ext.trans p6.ext).trans (x7_15.trans (x15_22.trans c23.ext))),
+    hsorts⟩
+  have g₁ := checkConstantVal_mono (show F₁ ≤ max (max F₁ F₂) (max F₃ F₄) by omega) hF₁
+  have g₂ : ConLeche.normCtorVal (ConLeche.fueledOps μ (max (max F₁ F₂) (max F₃ F₄))) env TP
+      nP nF cvCP cA₀ = .ok cAP := by
+    rw [← ConLeche.normCtorVal_datF] at hF₂ ⊢
+    exact (ConLeche.normCtorVal (ConLeche.fueledOpsM μ) env TP nP nF cvCP cA₀).property
+      (show F₂ ≤ max (max F₁ F₂) (max F₃ F₄) by omega) hF₂
+  have g₃ := checkStructDomsAt_mono (show F₃ ≤ max (max F₁ F₂) (max F₃ F₄) by omega) hF₃
+  have g₄ := checkStructFieldSortsI_mono (show F₄ ≤ max (max F₁ F₂) (max F₃ F₄) by omega) hF₄
+  simp only [ConLeche.checkSumCtor, bind, Except.bind, g₁, g₂, hsp, ConLeche.unwrapOr, pure,
+    Except.pure, hr5, if_true, hcq, htq]
+  rw [g₃]
+  simp only [hxq]
+  rw [if_pos hg1, if_pos hg2, if_pos hg3, g₄]
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:255-267 checkSumCtors
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:130-140 checkSumCtorsF
@@ -1661,14 +1874,65 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
         denoteL st.ls resSort = some resSortP ∧
         Frontend.denoteCV st cvTa = some cvTaP ∧
         denoteCtors st cs = some csP ∧
-        denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env)
+        denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
+        IFEnvOKS env₀ fe₀ st)
       (Arena.checkSumCtors μ fe₀ fe T lps nP nIdx resSort isProp large cvTa cs)
       (fun st r => ∃ F ctorsAP sortssP,
         ConLeche.checkSumCtors (ConLeche.fueledOps μ F) env₀ env TP lpsP nP
           nIdx resSortP isProp large cvTaP csP = .ok (ctorsAP, sortssP) ∧
         denoteCtors st r.1 = some ctorsAP ∧
         denoteLLists st r.2 = some sortssP) := by
-  sorry
+  induction cs generalizing csP with
+  | nil =>
+    intro s₀ s' r hck hpre hrun
+    obtain ⟨-, -, -, -, hcs, -, -, -⟩ := hpre
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.checkSumCtors] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hck, 0, [], [], rfl, rfl, rfl⟩
+  | cons c cs ih =>
+    intro s₀ s' r hck hpre hrun
+    obtain ⟨hT, hlps, hrs, hcvTa, hcs, hfe₀, hfe, hok₀⟩ := hpre
+    obtain ⟨cv, n⟩ := c
+    simp only [denoteCtors] at hcs
+    cases hcv : Frontend.denoteCV s₀.store cv with
+    | none => rw [hcv] at hcs; simp at hcs
+    | some cP =>
+    cases hrest : denoteCtors s₀.store cs with
+    | none => rw [hcv, hrest] at hcs; simp at hcs
+    | some restP =>
+    rw [hcv, hrest] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    simp only [Arena.checkSumCtors] at hrun
+    obtain ⟨t1, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, F₁, cvCaP, sortsP, hF₁, hcA, hsorts⟩ := checkSumCtor_spec fe₀ fe hμ hk henv T TP
+      lps lpsP nP nIdx resSort resSortP isProp large cv cP n cvTa cvTaP env₀ hws s₀ s₁ t1 hck
+      ⟨hT, hlps, hrs, hcv, hcvTa, hfe₀, hfe, hok₀⟩ k1
+    obtain ⟨cvCa, sorts⟩ := t1
+    simp only at hcA hsorts z1
+    have x1 := c1.ext
+    obtain ⟨t2, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨c2, F₂, restAP, srestP, hF₂, hra, hsr⟩ := ih restP s₁ s₂ t2 c1.ok
+      ⟨denoteN_ext hT x1, denoteNListE_ext x1 _ _ hlps, denoteL_ext hrs x1,
+        denoteCV_ext hcvTa x1, denoteCtors_ext x1 _ _ hrest, denoteFEnv_ext x1 hfe₀,
+        denoteFEnv_ext x1 hfe, hok₀.mono x1⟩ k2
+    obtain ⟨rest, srest⟩ := t2
+    simp only at hra hsr z2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c1.trans c2, max F₁ F₂, (cvCaP, n) :: restAP, sortsP :: srestP, ?_, ?_, ?_⟩
+    · have g₁ := checkSumCtor_up (Nat.le_max_left F₁ F₂) hF₁
+      have g₂ : ConLeche.checkSumCtors (ConLeche.fueledOps μ (max F₁ F₂)) env₀ env TP lpsP nP
+          nIdx resSortP isProp large cvTaP restP = .ok (restAP, srestP) := by
+        rw [← ConLeche.checkSumCtors_datF] at hF₂ ⊢
+        exact (ConLeche.checkSumCtors (ConLeche.fueledOpsM μ) env₀ env TP lpsP nP nIdx resSortP
+          isProp large cvTaP restP).property (Nat.le_max_right F₁ F₂) hF₂
+      simp only [ConLeche.checkSumCtors, bind, Except.bind, g₁, g₂, pure, Except.pure]
+    · simp only [denoteCtors, denoteCV_ext hcA c2.ext, hra]
+    · have e1 : denoteLList s'.store.ls sorts = some sortsP :=
+        denoteLList_ext c2.ext.lss.ls _ _ hsorts
+      show denoteLLists _ _ = _
+      simp only [denoteLLists, e1, hsr]
 
 /-! ## The constructors consed, and the rules -/
 

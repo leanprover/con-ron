@@ -376,48 +376,6 @@ theorem mentionsFvar_spec (q : Nat) (e : EIdx) (eP : Expr) :
 
 /-! ## The opened re-check -/
 
-/-- con-leche: none — a pure-grade step carries `CheckOK` (`PStep.toCore`).
-The list lemmas below are `allM_pstep`'s, with the body allowed to read the
-index. -/
-theorem allM_E_ck {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
-    {F : Expr → Bool}
-    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (x : Bool), ReadOK env fe s₀ →
-      denoteE s₀.store e = some eP → f e s₀ = .ok (x, s') → PStep s₀ s' ∧ x = F eP) :
-    ∀ (es : List EIdx) (esP : List Expr) (s₀ s' : AState) (x : Bool),
-      ReadOK env fe s₀ → Frontend.denoteEList s₀.store es = some esP →
-      es.allM f s₀ = .ok (x, s') → PStep s₀ s' ∧ x = esP.all F := by
-  intro es
-  induction es with
-  | nil =>
-    intro esP s₀ s' x hok h hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h
-    simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok.state, rfl⟩
-  | cons e es ih =>
-    intro esP s₀ s' x hok h hrun
-    simp only [Frontend.denoteEList] at h
-    cases he : denoteE s₀.store e with
-    | none => rw [he] at h; simp at h
-    | some eP =>
-    cases hr : Frontend.denoteEList s₀.store es with
-    | none => rw [he, hr] at h; simp at h
-    | some rest =>
-    rw [he, hr] at h
-    obtain rfl := (Option.some.inj h).symm
-    simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok he k1
-    cases c with
-    | false =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
-      exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
-    | true =>
-      obtain ⟨p2, hx⟩ := ih rest s1 s' x (hok.mono p1.ok p1.ext p1.pins)
-        (denoteEList_ext p1.ext _ _ hr) z1
-      exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hx]⟩
-
 /-- con-leche: none — `anyM` over a denoting handle list, at the pure grade. -/
 theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool}
     (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (x : Bool), StateOK s₀ →
@@ -455,47 +413,6 @@ theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool}
     | false =>
       obtain ⟨p2, hx⟩ := ih rest s1 s' x p1.ok (denoteEList_ext p1.ext _ _ hr) z1
       exact ⟨p1.trans p2, by simp only [List.any_cons, ← hc, Bool.false_or, hx]⟩
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean constsResolveFFast — `Bridge/Checker/Names.lean`'s
-`constsResolveFFast_run` at `ReadOK`: the walk reads the store, the pins and
-the index, never the caches (task #97-P3-Ind round 8). -/
-theorem constsResolveFFast_runR {env : Env} {fe : IFEnv}
-    {e : EIdx} {x : Expr} {r : Bool} {s s' : AState}
-    (hck : ReadOK env fe s) (hd : denoteE s.store e = some x)
-    (hrun : Arena.constsResolveFFast fe e s = .ok (r, s')) :
-    s'.store = s.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
-      r = Expr.constsResolve env x := by
-  simp only [Arena.constsResolveFFast] at hrun
-  obtain ⟨p, s1, g1, k1⟩ :=
-    AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) hrun
-  obtain ⟨b, tb⟩ := p
-  obtain ⟨rfl, hb, -⟩ := constsResolveFGo_run coreWalkFuel hck.state
-    hck.pins hck.ienv CRMemoOK.empty hd g1
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
-  exact ⟨rfl, rfl, rfl, hb⟩
-
-/-- con-leche: none — `constsResolveFFast` at the pure-grade frame: it moves
-neither the store, the caches nor the pins. -/
-theorem constsResolveFFast_pstep {env : Env} {fe : IFEnv}
-    {s₀ s' : AState} {e : EIdx} {eP : Expr} {r : Bool} (hok : ReadOK env fe s₀)
-    (he : denoteE s₀.store e = some eP)
-    (hrun : Arena.constsResolveFFast fe e s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ r = eP.constsResolve env := by
-  obtain ⟨h1, h2, h3, h4⟩ := constsResolveFFast_runR hok he hrun
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.state.wf⟩ (by rw [h1]; exact Ext.refl _)
-    (by rw [h1]; exact BMExt.refl _) h2 h3, h4⟩
-
-/-- con-leche: none — a field type's resolution, the body of two of
-`nativeOpenedOk`'s walks. -/
-theorem crFvarType_pstep {env : Env} {fe : IFEnv} (e : EIdx) (eP : Expr)
-    (s₀ s' : AState) (x : Bool) (hok : ReadOK env fe s₀)
-    (he : denoteE s₀.store e = some eP)
-    (hrun : (do Arena.constsResolveFFast fe (← fvarTypeD e) : AM Bool) s₀ = .ok (x, s')) :
-    PStep s₀ s' ∧ x = eP.fvarTypeD.constsResolve env := by
-  obtain ⟨t, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨hs1, ht⟩ := fvarTypeD_run hok.state he k1
-  rw [hs1] at z1
-  exact constsResolveFFast_pstep hok ht z1
 
 /-- con-leche: none — a later field's mention test, the body of
 `nativeOpenedOk`'s occurrence walk. -/
@@ -1562,7 +1479,8 @@ theorem checkNativePass_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (p₀.complete p₁).large cvTa cvTaP envP' (p₀.complete p₁).ctors (q₀.complete qP₁).ctors
       hws s₂ s₃ t3 hck₂
       ⟨denoteCV_name hsh₁'.cvT, denoteCV_lps hsh₁'.cvT, hsh₁'.resSort,
-        by rw [hst₂]; exact denoteCV_ext hcv₁ (Ext.refl _), hsh₁'.ctors, hden₂, hden₂⟩ k3
+        by rw [hst₂]; exact denoteCV_ext hcv₁ (Ext.refl _), hsh₁'.ctors, hden₂, hden₂,
+        hck₂.ienv.toS⟩ k3
   obtain ⟨ctorsA, sortss⟩ := t3
   simp only at hct₃ hss₃ z3
   -- the kinds
