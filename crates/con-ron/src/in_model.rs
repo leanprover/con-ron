@@ -51,15 +51,27 @@
 //! 3. **Only a block `wants` routes here is read back at all** — mutual, or
 //!    nested.  The stream is never read back.
 //!
-//! ## `blocks` and the leak
+//! ## `blocks`: per call, one slot per block of the context
 //!
 //! `Ctx::blocks` is `&dyn Fn(&Name) -> Option<&BlockRec>`: it hands the
 //! generator a *reference* to a parsed block, because the core's own parse has
 //! one to hand.  Here the tree block does not exist until it is asked for, so
-//! the readback allocates it and `Box::leak`s it into a `&'static BlockRec`,
-//! remembering it by handle word.  Safe Rust, and bounded by the number of
-//! DISTINCT blocks the nested rung asks about across a run — a handful (the
-//! containers a nested block recurses through), each read back once.
+//! the readback builds it into a slot that lives as long as the call: a
+//! `Vec<OnceCell<Box<BlockRec>>>` with one cell per block of the context,
+//! allocated at the call's first ask (never resized, so a cell is never moved
+//! and `OnceCell::get_or_init` hands out a reference of the call's lifetime),
+//! and a per-call map from the handle word to the tree already built.
+//!
+//! **Why per call and not per run** (task #97-T2-LOCKSTEP lane Frontend
+//! round 3): until then the tree blocks were `Box::leak`ed into a cache that
+//! lived as long as the modeller, keyed by the member type's name handle and
+//! never invalidated.  `export_c::note_ind_blocks` OVERWRITES the context's
+//! entry at a name when a second inductive record declares a type of the same
+//! name, so the cache served the first block where the twin's `ctxOf`
+//! (`Arena/Frontend/InModel.lean`), which reads `ctx.blocks h` afresh at every
+//! call, reads the second — a divergence at the seam the capstone's
+//! `ModellerRefines` hypothesis states.  Within one call the context and the
+//! store are fixed, so a per-call slot cannot disagree with the twin.
 //!
 //! ## The generator itself lives under this file
 //!
@@ -88,7 +100,7 @@ pub mod kit;
 pub mod mutual;
 pub mod nested;
 
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 
 use con_ron_core::arena::env::{IConstantVal, IDeclaration, IRecRule, IRecRuleFire};
@@ -110,17 +122,14 @@ use con_ron_core::arena::store::PersTier;
 
 /// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
 /// **The modeller the binary passes**: `crate::in_model`'s generator behind
-/// the arena's handle seam.  The two caches are the module note's — the
-/// readback memo, and the leaked tree blocks `Ctx::blocks` must return a
-/// reference to.
+/// the arena's handle seam.  Its one cache is the module note's readback
+/// memo; the tree blocks `Ctx::blocks` must return a reference to live in
+/// per-call slots (`generate`).
 pub struct InProcess {
     /// The readback memo, keyed by the expression handle's word.  Handles are
     /// stable for the life of the parse (the persistent tier is append-only
     /// and the scratch tier is off), so an entry never goes stale.
     memo: RefCell<HashMap<u32, Expr>>,
-    /// The blocks already read back, by the handle word of the member type
-    /// name they are keyed on in the parse state.
-    blocks: RefCell<HashMap<u32, &'static BlockRec>>,
 }
 
 /// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
@@ -130,7 +139,6 @@ impl InProcess {
     pub fn new() -> InProcess {
         InProcess {
             memo: RefCell::new(HashMap::new()),
-            blocks: RefCell::new(HashMap::new()),
         }
     }
 }
@@ -435,6 +443,12 @@ impl Modeller for InProcess {
     ) -> Result<Vec<IDeclaration>, Vec<u32>> {
         let gen: Result<Vec<Declaration>, String> = {
             let store: &EStore = ar;
+            // The tree blocks of this call (module note, `blocks`): one cell
+            // per block of the context, allocated at the first ask (only the
+            // nested rung asks); `seen` maps a handle word to its tree, and
+            // its size is the next free cell.
+            let slots: OnceCell<Vec<OnceCell<Box<BlockRec>>>> = OnceCell::new();
+            let seen: RefCell<HashMap<u32, &BlockRec>> = RefCell::new(HashMap::new());
             let bp = match read_block(pers, &mut self.memo.borrow_mut(), store, b) {
                 Some(x) => x,
                 None => return Err(cps("arena: dangling handle in a modelled block")),
@@ -456,17 +470,19 @@ impl Modeller for InProcess {
             };
             let bl = |n: &Name| -> Option<&BlockRec> {
                 let h = name_handle(pers, store, n)?;
-                if let Some(r) = self.blocks.borrow().get(&h.word) {
+                if let Some(r) = seen.borrow().get(&h.word) {
                     return Some(*r);
                 }
                 let ib = con_ron_core::frontend::types::ctx_block(ctx, &h)?;
+                let cells = slots.get_or_init(|| (0..ctx.blocks.len()).map(|_| OnceCell::new()).collect());
+                // A handle is entered once, and only at a block of the
+                // context, so there are at most `ctx.blocks.len()` entries
+                // and `get` cannot miss.
+                let i: usize = seen.borrow().len();
+                let cell: &OnceCell<Box<BlockRec>> = cells.get(i)?;
                 let tree = read_block(pers, &mut self.memo.borrow_mut(), store, ib)?;
-                // `Ctx::blocks` hands back a REFERENCE (the core's own parse
-                // has one to hand); this one is built on demand, so it is
-                // leaked and remembered.  Bounded by the distinct blocks the
-                // nested rung asks about — see the module note.
-                let r: &'static BlockRec = Box::leak(Box::new(tree));
-                self.blocks.borrow_mut().insert(h.word, r);
+                let r: &BlockRec = cell.get_or_init(|| Box::new(tree));
+                seen.borrow_mut().insert(h.word, r);
                 Some(r)
             };
             let c = Ctx {
