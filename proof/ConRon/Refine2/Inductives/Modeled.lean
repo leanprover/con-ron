@@ -2396,7 +2396,10 @@ theorem check_proj_fn_refines {pers st lst} {mode : kernel.env.CheckMode}
     SimRel₀ IFEnvRelI pers lst o
       (checkProjFn (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_fn, checkProjFn]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_fn_ls
@@ -3232,7 +3235,10 @@ theorem check_modeled_struct_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdxL block_names) (absICIL nonrecs) (absICIL recs)
         (absIConstantVal cv_t) (absIConstantVal cv_c) (absU n_p)
         (absU n_f)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.check_modeled_struct, checkModeledStructSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_modeled_struct_ls

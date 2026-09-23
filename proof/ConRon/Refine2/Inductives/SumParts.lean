@@ -190,7 +190,10 @@ theorem with_sort_refines {pers st lst}
     (hrun : arena.inductives.sum_parts.with_sort pers st p s = ok o) :
     Sim₀ absInductiveShape pers lst o
       ((absInductiveShape p).withSort (absLIdx s)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_parts.with_sort, absInductiveShape]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem with_sort_ls
