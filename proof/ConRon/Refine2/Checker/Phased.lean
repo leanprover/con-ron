@@ -34,7 +34,7 @@ are read off the Rust's own guard in `freeze_tier`.
 -/
 import ConRon.Refine2.Checker.Top
 import ConRon.Refine2.Checker.Init
-import ConRon.Arena.Phased
+import ConRon.Arena.Pooled
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -439,5 +439,187 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
         simp only [except_ok_bind]
         rw [am_run_bind, hW]
         rfl
+
+/-! ## The pool (task #97-P5-POOL)
+
+The binary does not run `check_decls_phased`'s one-worker walk: its phase B
+is `pool::check_pool`, which shares the pending records among workers, each
+checking the records it claimed on ONE state it built with `worker_state`.
+`PoolAccepts` is that stage, accepted, stated with verified calls only: phase
+A, the freeze, and one `check_pending_worker` accept per worker over the
+records that worker checked, together covering the pending list.  The pool's
+trusted claim (`pool.rs`'s note, OVERVIEW §8.2) is exactly that its accept
+has this shape — control flow of `pool.rs`, nothing about the checker.
+
+`pool_accepts_refines` walks it into the twin's `PooledAccepts` with no
+argument about a worker's history: each worker's run IS
+`check_pending_worker` on its own list, which `check_pending_list_refines`
+relates from `worker_state` exactly as it does for the one-worker walk.
+`poolAccepts_of_check_decls_phased` shows the sequential walk is one such
+pool (a single worker), so the hypothesis is met by the verified crate. -/
+
+/-- con-leche: Main.lean:289-316 checkPool — **the driver's fold with the
+pool, accepted**: `fold_start`, phase A (`annot_fold_hooked`) accepting with
+environment `fe`, pending records `pend` and state `st'`; the tier frozen out
+of `st'.store`; and `parts`, the record lists the workers checked — each
+drawn from `pend`, together covering it — each accepted by
+`check_pending_worker` over the frozen tier.  The driver's `thaw_tier` then
+restores `st'.store` exactly (`freeze_tier_ok`), so `st'` is the state the
+fold hands back. -/
+def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
+    (pers : arena.store.PersTier) (st : arena.monad.AState)
+    (mode : kernel.env.CheckMode)
+    (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (h : H)
+    (fe : arena.env.IFEnv) (st' : arena.monad.AState) : Prop :=
+  ∃ (t : Std.U64 × arena.env.IFEnv × alloc.vec.Vec arena.checker.PendingCheck)
+    (n : Std.U64) (pend : alloc.vec.Vec arena.checker.PendingCheck)
+    (tier : arena.store.PersTier) (est : arena.store.EStore)
+    (parts : List (alloc.vec.Vec arena.checker.PendingCheck)),
+    arena.checker.fold_start = ok t ∧
+    arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
+      = ok (.Ok (n, fe, pend), st') ∧
+    arena.checker.freeze_tier st'.store = ok (.Ok tier, est) ∧
+    (∀ pc ∈ pend.val, ∃ w ∈ parts, pc ∈ w.val) ∧
+    (∀ w ∈ parts, ∀ pc ∈ w.val, pc ∈ pend.val) ∧
+    (∀ w ∈ parts,
+      arena.checker.check_pending_worker tier mode fe st'.pins w = ok (.Ok ()))
+
+/-- **The one-worker walk is a pool**: an accepting `check_decls_phased` —
+the verified sequential projection — is a `PoolAccepts` with one worker
+checking every record, ending in the state it returns.  So the pooled stage
+asks nothing the verified crate cannot deliver. -/
+theorem poolAccepts_of_check_decls_phased {H : Type}
+    {inst : arena.checker.InstallHook H} {h : H} {pers st mode pins ds fe st6}
+    (hrun : arena.checker.check_decls_phased inst pers st mode pins ds h
+      = ok (.Ok fe, st6)) :
+    PoolAccepts inst pers st mode pins ds h fe st6 := by
+  rw [arena.checker.check_decls_phased] at hrun
+  obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨qr, st1⟩ := q
+  try dsimp only at hrun
+  cases qr with
+  | Err e =>
+    have h' := Result.ok_injective hrun
+    simp at h'
+  | Ok p =>
+    try dsimp only at hrun
+    obtain ⟨fr, hfr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, est⟩ := fr
+    try dsimp only at hrun
+    cases r1 with
+    | Err e =>
+      have h' := Result.ok_injective hrun
+      simp at h'
+    | Ok tier =>
+      obtain ⟨n, i, v⟩ := p
+      try dsimp only at hrun
+      obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨-, -, hthaw⟩ := freeze_tier_ok hfr
+      rw [hthaw] at he1
+      have he1' := (Result.ok_injective he1).symm
+      subst he1'
+      cases r2 with
+      | Err e =>
+        have h' := Result.ok_injective hrun
+        simp at h'
+      | Ok u =>
+        have h' := Result.ok_injective hrun
+        simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h'
+        obtain ⟨rfl, rfl⟩ := h'
+        refine ⟨t, n, v, tier, est, [v], ht, hq, hfr,
+          fun pc hpc => ⟨v, List.mem_singleton_self _, hpc⟩,
+          fun w hw pc hpc => by rw [List.mem_singleton.mp hw] at hpc; exact hpc,
+          fun w hw => ?_⟩
+        rw [List.mem_singleton.mp hw]
+        exact hr2
+
+/-- **`pool_accepts_refines` — Theorem 2 at the fold the binary runs, pool
+and all** (task #97-P5-POOL).
+
+*A pooled accept of the Aeneas model — phase A, the freeze, and every
+worker's `check_pending_worker` over its records — implies the twin's
+`PooledAccepts` from the related state, with the related environment, ending
+in a related state.*
+
+`check_decls_phased_refines`' hypotheses verbatim (lockstep: `AStateRel₀`
+and `AStateInv`, nothing about the twin — task #97-T2-LOCKSTEP lane Checker).  Each worker is related on
+its own: `worker_state_rel` puts its fresh state against `lst'.worker`, and
+`check_pending_list_refines` walks that worker's list — whatever list the
+pool gave it. -/
+theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
+    {h : H} {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {fe st'}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpool : PoolAccepts inst pers st mode pins ds h fe st') :
+    ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+        (absIDeclL ds).toArray lst lfe lst' ∧
+      IFEnvRel fe lfe ∧ AStateRel₀ pers st' lst' := by
+  obtain ⟨t, n, pend, tier, est, parts, ht, hq, hfr, hcov, hsub, hw⟩ := hpool
+  rw [arena.checker.fold_start] at ht
+  obtain ⟨e, he, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht
+  obtain ⟨f, hf, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht
+  have ht' := (Result.ok_injective ht).symm
+  subst ht'
+  obtain ⟨hfe, hfinv⟩ := mk_ifenv_empty_refines' he hf
+  have hq' := annot_fold_hooked_eq hq
+  have hz1 : absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
+  have hA := annot_fold_refines
+    (p := (0#u64, f, alloc.vec.Vec.new arena.checker.PendingCheck))
+    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hfe hfinv hq'
+  have hz2 : (absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck)).toArray
+      = (#[] : Array PendingCheck) := rfl
+  have hz3 : absU (0#u64) = 0 := rfl
+  simp only [SimFold, hz1, hz2, hz3] at hA
+  obtain ⟨v, lst', hx, hR, hrel1, hinv1⟩ := hA
+  obtain ⟨n1, fe1, pend1⟩ := v
+  obtain ⟨-, hv2, hv3⟩ := hR
+  subst hv3
+  obtain ⟨hth, htier, -⟩ := freeze_tier_ok hfr
+  subst htier
+  have hx' : annotFold (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+      (0, mkIFEnv IEnv.empty, #[]) (absIDeclL ds) lst
+      = .ok (.ok (n1, fe1, (absPendingCheckL pend).toArray), lst') := hx
+  -- one worker: its own `worker_state`, its own list
+  have hwork1 : ∀ w ∈ parts, ∃ s'', checkPendingList (ConRon.Refine.absMode mode) fe1
+      (absPendingCheckL w) lst'.worker = .ok (.ok (), s'') := by
+    intro w hwm
+    have hr := hw w hwm
+    rw [arena.checker.check_pending_worker] at hr
+    obtain ⟨ws, hws, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    obtain ⟨wr, hwr, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    obtain ⟨wres, wst⟩ := wr
+    have hr' : wres = .Ok () := Result.ok_injective hr
+    subst hr'
+    obtain ⟨hrelW, hinvW⟩ := worker_state_rel hrel1 hinv1 hth hws
+    have hz4 : absPendingCheckLFrom w 0#usize = absPendingCheckL w := by simp
+    have hB := check_pending_list_refines (lf := fe1) (pend := w) (i := 0#usize)
+      hrelW hinvW hv2.rel hv2.inv hwr
+    simp only [SimFold, hz4] at hB
+    obtain ⟨_, lst2, hy, -⟩ := hB
+    exact ⟨lst2, hy⟩
+  refine ⟨fe1, lst', ⟨n1, (absPendingCheckL pend).toArray,
+    parts.map absPendingCheckL, ?_, ?_, ?_, ?_⟩, hv2.rel, hrel1⟩
+  · simpa only [toList_toArray''] using hx'
+  · intro pc hpc
+    simp only [toList_toArray'', absPendingCheckL, List.mem_map] at hpc
+    obtain ⟨x, hx, rfl⟩ := hpc
+    obtain ⟨w, hwm, hxw⟩ := hcov x hx
+    exact ⟨absPendingCheckL w, List.mem_map_of_mem hwm,
+      List.mem_map_of_mem hxw⟩
+  · intro lw hlw pc hpc
+    simp only [List.mem_map] at hlw
+    obtain ⟨w, hwm, rfl⟩ := hlw
+    simp only [toList_toArray'', absPendingCheckL, List.mem_map] at hpc ⊢
+    obtain ⟨x, hx, rfl⟩ := hpc
+    exact ⟨x, hsub w hwm x hx, rfl⟩
+  · intro lw hlw
+    simp only [List.mem_map] at hlw
+    obtain ⟨w, hwm, rfl⟩ := hlw
+    exact hwork1 w hwm
 
 end ConRon.Refine2

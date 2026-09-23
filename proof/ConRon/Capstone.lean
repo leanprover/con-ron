@@ -35,39 +35,47 @@ around six extracted core functions, in this order, on one `AState` made
 from `EStore::empty()` and one `PersTier::empty()`:
 
     intern_reserved_pins → builtin_prelude_e → parse_source
-      → prepare_prelude → intern_all_pins → check_decls_phased
+      → prepare_prelude → intern_all_pins → (the declaration fold)
 
 and the twin's `Arena.runPipeline` (`Arena/Main.lean`) is the same six
 stages with `installThenCheck` last.  **The sixth stage is the fold the
-binary's driver runs** (task #97-P5-Driver): `driver::check_decls_driver` is
-`arena::checker::check_decls_phased` — phase A with the heartbeat as its hook,
-the tier frozen, phase B on a worker over it, the tier thawed — with the
-worker pool in the place of the one-worker walk, and the pool's claim that it
-returns that walk's result is the one trusted line between this theorem and
-the binary's fold (DESIGN.md's task #97-P5-Driver section).  The theorems hold
-for EVERY install hook, so they cover the plain run and `--progress` alike.
-`Refine2/Checker/Phased.lean` relates the stage to the twin's
-`installThenCheckPhased`, and `Bridge/Checker/Phased.lean` carries that back
-to `installThenCheck` and the pure fold.  So the statement takes the six Rust RUNS as hypotheses (the driver's
-calling order is the one trusted line, exactly as it was for the original
-campaign), and the proof is:
+binary's driver runs, pool and all** (task #97-P5-POOL):
+`driver::check_decls_driver` runs phase A with the heartbeat as its hook,
+freezes the tier, runs phase B on `pool::check_pool`, and thaws the tier.
+The stage hypothesis is `Refine2/Checker/Phased.lean`'s `PoolAccepts`: phase
+A accepted, the freeze accepted, and one accepting `check_pending_worker`
+per worker over the records that worker checked, together covering the
+pending records — every call a verified one.  That the pool's accept has
+this shape is the pool's trusted claim (OVERVIEW §8.2): control flow of
+`pool.rs`, nothing about the checker.  The sequential walk
+`check_decls_phased` is one such pool (`poolAccepts_of_check_decls_phased`).
+The theorems hold for EVERY install hook, so they cover the plain run and
+`--progress` alike.  `pool_accepts_refines` relates the stage to the twin's
+`Arena.PooledAccepts`, and `Bridge/Checker/Phased.lean`'s
+`Arena.pooledAccepts_bridge` carries that to the pure fold.  So the
+statement takes the six Rust RUNS as hypotheses (the driver's calling order
+is the one trusted line, exactly as it was for the original campaign), and
+the proof is:
 
 1. **Theorem 2, per stage** — `Refine2`'s six `…_refines` lemmas walk the
    Rust runs into six TWIN runs from the twin's own start state
    `AState.init EStore.empty`, related at every step (`AStateRel`/
    `AStateInv`);
-2. **Theorem 1** — the twin runs are exactly `Arena.runPipeline`'s, so
-   `Arena.no_False_declaration_pipeline` refutes the accept; for the model,
-   the same stages feed `Arena.installThenCheck_bridge`;
+2. **Theorem 1** — the twin runs feed `Arena.pooledAccepts_bridge`, whose
+   pure fold accepts the denoted stream: con-leche's
+   `checkDeclsPure_sound_of` gives the model, and
+   `no_False_theorem_accepted_pure` refutes a `False` theorem in the stream
+   (`stages_no_False`, `Arena.no_False_declaration_pipeline`'s route through
+   the pure fold);
 3. **con-leche** — `checkDeclsPure_sound_of` turns the pure accept into a
    model.
 
 Every step is an existing theorem; what this file adds is glue: the Rust
-runs threaded through `Sim`/`SimStream`/`SimFold`, the twin runs reassembled
-into `runPipelineM`, and the two twin-store facts the composition needs from
-Theorem 1 (`StoreWF` where a not-yet-lockstep parser statement takes
-`AStateRel`, and at the headline's `AStateRel`), read off its stage lemmas.
-Theorem 2 itself carries no fact about the twin's store (task #97-T2-AUDIT).
+runs threaded through `Sim`/`SimStream`/`SimFold`, and the two twin-store
+facts the composition needs from Theorem 1 (`StoreWF` where a not-yet-lockstep
+parser statement takes `AStateRel`, and at the headline's `AStateRel`), read
+off its stage lemmas.  Theorem 2 itself carries no fact about the twin's store
+(task #97-T2-AUDIT).
 
 ## The named hypotheses
 
@@ -117,11 +125,11 @@ universe w
 
 `Bridge/Frontend/Capstone.lean`'s `Arena.no_False_declaration_pipeline` is
 stated about `Arena.runPipeline` as a whole; Theorem 2 hands us its stages
-one at a time.  Two glue lemmas bridge that: the stages reassemble into
-`runPipelineM` (§1a), and the stages carry the frame facts Theorem 2's
-`install_then_check_refines` needs at its entry and the fold's start
-invariant Theorem 1's `installThenCheck_bridge` needs (§1b).  Both are the
-`_pipeline` proof's own steps, re-used rather than re-proved. -/
+one at a time.  The glue lemmas below are that proof's own steps, re-used
+rather than re-proved: the stages carry the frame facts Theorem 2 needs at
+the fold's entry and the fold's start invariant Theorem 1 needs
+(`stages_frame`), and the file's `False` theorem into the denoted stream
+(`stages_false_mem`). -/
 
 section Twin
 
@@ -133,45 +141,6 @@ its second half at the first half's result. -/
 theorem AM.bind_of_ok {α β : Type} {x : AM α} {f : α → AM β} {s s₁ : AState}
     {a : α} (h : x s = .ok (a, s₁)) : (x >>= f) s = f a s₁ := by
   rw [ConRon.Bridge.AM.bind_apply, h]; rfl
-
-/-- con-leche: Main.lean:461-711 checkMain — **the six stages ARE the
-pipeline**: accepting twin runs of `internReservedPins`, `builtinPreludeE`,
-`parseChunks`, `preparePrelude`, `internAllPins` and `installThenCheck`, from
-`AState.init EStore.empty`, are an accepting `Arena.runPipeline`. -/
-theorem runPipeline_ok_of_stages {chunks : List ByteArray}
-    {pins : List NatOpPinSet}
-    {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
-    {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
-    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
-    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
-    (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
-    (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
-    (hE : internAllPins pins sD = .ok (ipins, sE))
-    (hF : installThenCheck .verified ipins ds sE = .ok (.ok fe', sF)) :
-    ∃ n, Arena.runPipeline chunks .verified pins = .ok n := by
-  rw [parseChunks] at hC
-  obtain ⟨st, sB', hinit, hgo⟩ := ConRon.Bridge.AM.bind_ok hC
-  have hhead : runPipelineHead inProcessModeller true false (AState.init EStore.empty)
-      = .ok (.ok (pre, st), sB') := by
-    rw [runPipelineHead, AM.bind_of_ok hA, AM.bind_of_ok hB]
-    show (StateD.init true false >>= fun x => pure (Except.ok (pre, x))) sB = _
-    rw [AM.bind_of_ok hinit]; rfl
-  have htail : runPipelineTail .verified pins pre r sC
-      = .ok (.ok (r.decls.size - r.genRecords), sF) := by
-    rw [runPipelineTail, AM.bind_of_ok hD, AM.bind_of_ok hE, AM.bind_of_ok hF]
-    rfl
-  have hm : (runPipelineM inProcessModeller .verified pins chunks true false).run
-      (AState.init EStore.empty) = .ok (.ok (r.decls.size - r.genRecords), sF) := by
-    show runPipelineM inProcessModeller .verified pins chunks true false
-      (AState.init EStore.empty) = _
-    rw [runPipelineM, AM.bind_of_ok hhead]
-    show (parseChunksGo inProcessModeller st .empty 0 0 chunks >>= fun x =>
-        match x with
-        | .error (e, n) => pure (.error (Frontend.atLine e n))
-        | .ok r => runPipelineTail .verified pins pre r) sB' = _
-    rw [AM.bind_of_ok hgo]
-    exact htail
-  exact ⟨r.decls.size - r.genRecords, by rw [Arena.runPipeline, hm]⟩
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **the stages' frame, up to the fold**: after the first five stages from the
@@ -230,11 +199,10 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
 /-- con-leche: ConLeche/Model/Fold.lean:254 checkDeclsPure_sound_of — **the
 model at (B), at the pipeline**: `Bridge/Checker/Capstone.lean`'s
 `Arena.model_exists` is stated at the PURE fold; the binary runs the
-two-phase one, after `internAllPins`, as its driver does
-(`installThenCheckPhased`).  `stages_frame`, then
-`Arena.installThenCheckPhased_bridge`, then con-leche.  The environment
-denotes in the state the driver's fold RETURNS — the phase-A state, which the
-Rust's thawed store is related to. -/
+two-phase one with a pool in phase B, after `internAllPins`, as its driver
+does (`Arena.PooledAccepts`, task #97-P5-POOL).  `stages_frame`, then
+`Arena.pooledAccepts_bridge`, then con-leche.  The environment denotes in the
+phase-A state, which the Rust's thawed store is related to. -/
 theorem stages_model (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
@@ -246,24 +214,78 @@ theorem stages_model (V : Type w) [ConLeche.SetTheory V]
     (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE))
-    (hF : installThenCheckPhased .verified ipins ds sE = .ok (.ok fe', sF)) :
+    (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
     ∃ env', denoteFEnv sF.store fe' = some env' ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env') := by
   obtain ⟨-, hfold, hipins, hpps, hpd, dsP, hden⟩ :=
     stages_frame hbytes hA hB hC hD hE
-  obtain ⟨-, env', F', hdenF, hpure⟩ :=
-    Arena.installThenCheckPhased_bridge rfl hk hind hpps hfold hipins hpd hden hF
+  obtain ⟨env', F', hdenF, hpure⟩ :=
+    Arena.pooledAccepts_bridge rfl hk hind hpps hfold hipins hpd hden hF
   exact ⟨env', hdenF,
     ConLeche.Model.checkDeclsPure_sound_of (V := V) (pins := pins) rfl hpure⟩
 
-/-- con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls — **the
-driver's fold accepts only where `installThenCheck` does**, after the first
-five stages: `stages_frame`, then `Arena.installThenCheckPhased_bridge`'s
-first half.  What lets `runPipeline_ok_of_stages` take the driver's fold. -/
-theorem stages_installThenCheck
+/-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **the
+stages' stream carries the file's `False` theorem**: after the first five
+stages, the prepared stream denotes, and a file that declares a theorem of
+type `False` puts one in the denoted stream.  `stages_frame`'s steps with the
+pure parse kept (`parseChunks_run`'s fourth conjunct), then con-leche's
+`parseChunks_jsonWithTheoremFalse` and `mem_preparePrelude` — the steps
+`Arena.no_False_declaration_pipeline` takes, stopped before the fold. -/
+theorem stages_false_mem {chunks : List ByteArray} {pins : List NatOpPinSet}
+    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
+    (hfalse : ConLeche.jsonWithTheoremFalse chunks)
+    {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD}
+    {ds : Array IDeclaration} {ipins : List INatOpPinSet}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
+    (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
+    (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
+    (hE : internAllPins pins sD = .ok (ipins, sE)) :
+    ∃ dsP cv vl, denoteDecls sE.store ds.toList = some dsP ∧
+      cv.type = .const ConLeche.falseName [] ∧ Declaration.thmDecl cv vl ∈ dsP := by
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
+  have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
+  obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, hcachesA⟩ :=
+    internReservedPins_run hok0 hoff0 hA
+  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
+  obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
+    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
+      hokA hoffA hpinsA hrbA hB
+  obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
+    parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
+      (hrbA.step hstep1) hC
+  obtain ⟨hstep3, -, -, hclPrep⟩ :=
+    preparePrelude_run (preC := preC) hstep2.ok
+      (by rw [hstep2.scratch, hstep1.scratch, hoffA])
+      (hpinsA.mono (hstep1.trans hstep2).ext (hstep1.trans hstep2).pins)
+      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
+      (hnPre.mono hstep2.ext) hrelR.decls hpersR hrelR.projNamed hD
+  have hoff3 : sD.store.scratchOn = false := by
+    rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoffA
+  obtain ⟨-, hxP, -⟩ :=
+    internAllPins_run hstep3.ok
+      (hpinsA.mono ((hstep1.ext.trans hstep2.ext).trans hstep3.ext)
+        (by rw [hstep3.pins, hstep2.pins, hstep1.pins]))
+      (hppA.mono (by rw [hstep3.pins, hstep2.pins, hstep1.pins])) hoff3 hE
+  obtain ⟨cv, vl, hty, hmem⟩ :=
+    ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hclR
+  exact ⟨_, cv, vl, denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep), hty,
+    by simpa using ConLeche.Frontend.mem_preparePrelude (pre := preC) hmem⟩
+
+/-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **a pooled
+accept of a file declaring a `False` theorem is impossible, at (B)**:
+`stages_frame` and `stages_false_mem`, then `Arena.pooledAccepts_bridge` (the
+pure fold accepts the stream), then `no_False_theorem_accepted_pure`.  The
+route `Arena.no_False_declaration_pipeline` takes, through the pure fold
+rather than through `Arena.runPipeline` — the pooled phase B is not one twin
+walk, so there is no `runPipeline` run to refute (task #97-P5-POOL). -/
+theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {chunks : List ByteArray} {pins : List NatOpPinSet}
+    (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
@@ -271,20 +293,25 @@ theorem stages_installThenCheck
     (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE))
-    (hF : installThenCheckPhased .verified ipins ds sE = .ok (.ok fe', sF)) :
-    ∃ sF', installThenCheck .verified ipins ds sE = .ok (.ok fe', sF') := by
+    (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
+    False := by
   obtain ⟨-, hfold, hipins, hpps, hpd, dsP, hden⟩ :=
     stages_frame hbytes hA hB hC hD hE
-  exact (Arena.installThenCheckPhased_bridge (pinsP := pins) rfl hk hind hpps hfold
-    hipins hpd hden hF).1
+  obtain ⟨dsP', cv, vl, hden', hty, hmem⟩ :=
+    stages_false_mem (pins := pins) hbytes hfalse hA hB hC hD hE
+  rw [hden] at hden'
+  cases hden'
+  obtain ⟨env', F', -, hpure⟩ :=
+    Arena.pooledAccepts_bridge rfl hk hind hpps hfold hipins hpd hden hF
+  exact ConRon.Bridge.Frontend.no_False_theorem_accepted_pure V rfl hmem hty hpure
 
 /-- con-leche: none — **the fold's end state is well formed** (Theorem 1).
 Theorem 2 is a lockstep refinement and its relation `AStateRel₀` carries no
 fact about the twin's store (task #97-T2-AUDIT); the headline states the full
 `AStateRel`, whose one extra clause, `StoreWF`, is Theorem 1's.  It is
-`Arena.installThenCheckPhased_bridge`'s own first half: phase A's
-`annotFold_bridge` ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and
-the worker's walk hands the phase-A state back. -/
+phase A's `annotFold_bridge` (the first step of `Arena.pooledAccepts_bridge`)
+ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and the pooled fold hands
+the phase-A state back. -/
 theorem stages_storeWF
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
@@ -296,38 +323,16 @@ theorem stages_storeWF
     (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE))
-    (hF : installThenCheckPhased .verified ipins ds sE = .ok (.ok fe', sF)) :
+    (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
     StoreWF sF.store := by
   obtain ⟨-, hfold, hipins, hpps, hpd, dsP, hden⟩ :=
     stages_frame hbytes hA hB hC hD hE
-  simp only [Arena.installThenCheckPhased] at hF
-  obtain ⟨r1, s₁, hA', hrest⟩ := ConRon.Bridge.AM.bind_ok hF
-  cases r1 with
-  | error e =>
-    obtain ⟨hbad, -⟩ := ConRon.Bridge.AM.pure_ok hrest
-    exact absurd hbad (by simp)
-  | ok p =>
-    obtain ⟨n, fe₁, pend⟩ := p
-    obtain ⟨env₁, pendP, hok₁, -⟩ :=
-      Arena.annotFold_bridge rfl hk hind hpps ds.toList dsP Env.empty 0 n
-        (mkIFEnv IEnv.empty) fe₁ #[] pend [] sE s₁ hfold List.nodup_nil hipins hpd hden
-        .nil hA'
-    obtain ⟨r2, s₂, hB', hrest2⟩ := ConRon.Bridge.AM.bind_ok hrest
-    cases r2 with
-    | error e =>
-      obtain ⟨hbad, -⟩ := ConRon.Bridge.AM.pure_ok hrest2
-      exact absurd hbad (by simp)
-    | ok u =>
-      obtain ⟨-, hs'⟩ := ConRon.Bridge.AM.pure_ok hrest2
-      have hs₂ : s₂ = s₁ := by
-        simp only [Arena.checkPendingWorker] at hB'
-        split at hB'
-        · simp only [Except.ok.injEq, Prod.mk.injEq] at hB'
-          exact hB'.2.symm
-        · exact absurd hB' (by simp)
-      have e2 : sF = s₁ := by rw [← hs₂]; first | exact hs' | exact hs'.symm
-      rw [e2]
-      exact hok₁.check.state.wf
+  obtain ⟨n, pend, -, hA', -⟩ := hF
+  obtain ⟨env₁, pendP, hok₁, -⟩ :=
+    Arena.annotFold_bridge rfl hk hind hpps ds.toList dsP Env.empty 0 n
+      (mkIFEnv IEnv.empty) fe' #[] pend [] sE sF hfold List.nodup_nil hipins hpd hden
+      .nil hA'
+  exact hok₁.check.state.wf
 
 end Twin
 
@@ -394,8 +399,7 @@ theorem rust_stages
     (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
     (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
     {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
-    (h6 : arena.checker.check_decls_phased hinst pers st5 .Verified ipins ds hook
-      = ok (.Ok fe, st6)) :
+    (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
     ∃ (sA sB sC sD sE sF : ConRon.Arena.AState)
       (rv : ConRon.Arena.Frontend.ParseResultD) (lfe : ConRon.Arena.IFEnv),
       ConRon.Arena.internReservedPins
@@ -408,8 +412,8 @@ theorem rust_stages
           = .ok ((absIDeclL ds).toArray, sD) ∧
       ConRon.Arena.internAllPins (ConRon.Refine.absPins pins) sD
           = .ok (absINatOpPinSetL ipins, sE) ∧
-      ConRon.Arena.installThenCheckPhased .verified (absINatOpPinSetL ipins)
-          (absIDeclL ds).toArray sE = .ok (.ok lfe, sF) ∧
+      ConRon.Arena.PooledAccepts .verified (absINatOpPinSetL ipins)
+          (absIDeclL ds).toArray sE lfe sF ∧
       AStateRel₀ pers st6 sF ∧ IFEnvRel fe lfe := by
   obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hest hst0
   -- 1. the reserved pins (lockstep)
@@ -438,10 +442,10 @@ theorem rust_stages
   have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
       = .ok ((absIDeclL ds).toArray, sD) := by
     rw [hdecls]; exact hD
-  -- 6. the fold, as the driver runs it (lockstep: no precondition on the twin)
-  have hF := check_decls_phased_refines (mode := .Verified) (ds := ds) (pins := ipins)
-    hrelE hinvE h6
-  obtain ⟨lfe, sF, hF, hfe, hrelF, -⟩ := hF
+  -- 6. the fold, as the binary runs it, pool and all (lockstep: no
+  -- precondition on the twin)
+  obtain ⟨lfe, sF, hF, hfe, hrelF⟩ := pool_accepts_refines (mode := .Verified) (ds := ds)
+    (pins := ipins) hrelE hinvE h6
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
 
 end Rust
@@ -495,8 +499,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
     (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
     (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
     {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
-    (h6 : arena.checker.check_decls_phased hinst pers st5 .Verified ipins ds hook
-      = ok (.Ok fe, st6)) :
+    (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
     ∃ (lst : ConRon.Arena.AState) (lfe : ConRon.Arena.IFEnv) (env : ConLeche.Env),
       AStateRel pers st6 lst ∧ IFEnvRel fe lfe ∧
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
@@ -520,11 +523,12 @@ the Aeneas model of the Rust pipeline does not accept it.  The same letter as
 (C).
 
 Composition only: `rust_stages` (Theorem 2) turns the six Rust runs into six
-twin runs, `stages_installThenCheck` turns the driver's fold into
-`installThenCheck`, `runPipeline_ok_of_stages` reassembles them into an accepting
-`Arena.runPipeline`, and Theorem 1's `Arena.no_False_declaration_pipeline`
-(which is con-leche's `no_proof_of_False_pure` through the bridge) refutes
-it. -/
+twin runs, the last the pooled fold; `stages_no_False` (Theorem 1) turns
+that into the pure fold's accept of a stream holding the file's `False`
+theorem, which con-leche's `no_proof_of_False_pure` refutes
+(`no_False_theorem_accepted_pure`).  Since task #97-P5-POOL this goes through
+the pure fold, not through `Arena.runPipeline`: the pooled phase B is several
+worker walks, not one twin run. -/
 theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
@@ -554,8 +558,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
     (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
     {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
-    (h6 : arena.checker.check_decls_phased hinst pers st5 .Verified ipins ds hook
-      = ok (.Ok fe, st6)) :
+    (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
     False := by
   -- Theorem 1's inductive tier, discharged (task #97-P3-Ind round 8)
   have hind : ConRon.Bridge.IndSpec .verified :=
@@ -563,13 +566,8 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
     rust_stages (ConRon.Bridge.CoreSpec.of_core rfl) hind hbytes hmr hdec hpers hest hst0
       h1 h2 hreads h3 h4 h5 h6
-  obtain ⟨sF', hF'⟩ := stages_installThenCheck (ConRon.Bridge.CoreSpec.of_core rfl) hind
-    hbytes hA hB hC hD hE hF
-  obtain ⟨n, hn⟩ := runPipeline_ok_of_stages hA hB hC hD hE hF'
-  obtain ⟨e, he⟩ := ConRon.Bridge.Frontend.Arena.no_False_declaration_pipeline V
-    (ConRon.Bridge.CoreSpec.of_core rfl) hind hbytes (ConRon.Refine.absPins pins) (absChunks chunks) hfalse
-  rw [hn] at he
-  exact nomatch he
+  exact stages_no_False V (ConRon.Bridge.CoreSpec.of_core rfl) hind hbytes
+    (pins := ConRon.Refine.absPins pins) hfalse hA hB hC hD hE hF
 
 end Headline
 
