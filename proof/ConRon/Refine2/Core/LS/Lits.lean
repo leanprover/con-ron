@@ -10,6 +10,7 @@ eleven helpers), the constructor forms of a literal, `rawNatLit?`,
 discharges `Core/Arms/Loops.lean`'s `reduce_nat_refines`.
 -/
 import ConRon.Refine2.Core.LS.PrimsB
+import ConRon.Refine2.Core.LS.Leaves
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -20,42 +21,6 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
 
-/-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-section stubs
-
-@[lockstep] theorem stub_empty_levels_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absLsIdx a) (arena.core.empty_levels st) st lst emptyLevels := by
-  sorry
-
-@[lockstep] theorem stub_zero_level_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
-  sorry
-
-@[lockstep] theorem stub_sort_one_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absEIdx a) (arena.core.sort_one st) st lst sortOne := by
-  sorry
-
-@[lockstep] theorem stub_const_e_ls {pers st n lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.const_e pers st n) lst
-      (constE (absNIdx n)) := by
-  sorry
-
-@[lockstep] theorem stub_bool_true_name_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.bool_true_name st) lst boolTrueName := by
-  sorry
-
-@[lockstep] theorem stub_bool_false_name_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.bool_false_name st) lst boolFalseName := by
-  sorry
-
-end stubs
 
 /-! ## The fifteen `Nat`-operation names -/
 
@@ -314,8 +279,6 @@ set_option maxHeartbeats 4000000 in
   simp only [ConRon.Refine.lift_eq, Result.ok.injEq] at h
   subst h
   simp
-
-theorem bne_eq_not_beq' {α : Type} [BEq α] (a b : α) : (a != b) = !(a == b) := rfl
 
 attribute [local lockstep_simp] bne_eq_not_beq' Bool.not_true Bool.not_false
 
