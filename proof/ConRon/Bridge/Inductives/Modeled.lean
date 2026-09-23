@@ -902,6 +902,51 @@ theorem eqBasisStored_spec {μ : CheckMode} {env : Env} (fe : IFEnv) :
       exact heq (denoteCI_inj_ind' hstep.ok.wf hci' hc)
     simp [heq, this]
 
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
+The pinned-`Eq` guard at `ReadOK` (task #97-P3-Ind round 8): it reads the
+index and the pins and interns, but touches no cache. -/
+theorem eqBasisStored_run {env : Env} (fe : IFEnv) :
+    ∀ (s₀ s' : AState) (r : Bool), ReadOK env fe s₀ →
+      Arena.eqBasisStored fe s₀ = .ok (r, s') →
+      InstStep s₀ s' ∧ r = decide (env.find? ConLeche.eqName = some ConLeche.eqA) := by
+  intro s₀ s' r hok hrun
+  simp only [Arena.eqBasisStored] at hrun
+  obtain ⟨n, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hn⟩ := pinAt_run (x := ConLeche.eqName) hok.pins rfl k1
+  rw [hs1] at z1
+  cases hf : fe.find? n with
+  | none =>
+    rw [hf] at z1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨InstStep.refl hok.state, ?_⟩
+    show false = _
+    simp [IFEnvOK.miss hok.state hok.ienv hn hf]
+  | some ci =>
+  rw [hf] at z1
+  obtain ⟨nm, cP, hnm, hci, henv⟩ := hok.ienv.hit n ci hf
+  obtain rfl : nm = ConLeche.eqName := Option.some.inj (hnm.symm.trans hn)
+  dsimp only at z1
+  obtain ⟨c, s2, k2, z2⟩ := bindOk z1
+  simp only [Arena.eqA, Arena.internCI] at k2
+  obtain ⟨mc, s3, k3, z3⟩ := bindOk k2
+  obtain ⟨rfl, rfl⟩ := pureOk z3
+  obtain ⟨hstep, hc, -, -⟩ := Frontend.internCI_sstep hok.state (Frontend.EMemoOK.empty _) k3
+  obtain ⟨rfl, rfl⟩ := pureOk z2
+  refine ⟨⟨hstep.ok, hstep.ext, hstep.pins⟩, ?_⟩
+  show (ci == mc.2) = _
+  rw [henv]
+  have hci' := denoteCI_ext hci hstep.ext
+  obtain ⟨cvE, dE, hE⟩ : ∃ cv d, ConLeche.eqA = .indInfo cv d := ⟨_, _, rfl⟩
+  rw [hE] at hc ⊢
+  by_cases heq : ci = mc.2
+  · subst heq
+    rw [hci'] at hc
+    simp [Option.some.inj hc]
+  · have : cP ≠ .indInfo cvE dE := by
+      rintro rfl
+      exact heq (denoteCI_inj_ind' hstep.ok.wf hci' hc)
+    simp [heq, this]
+
 /-! ## The iota certificates -/
 
 /-- con-leche: none — `.app (.app (.app (.const c [ℓ]) ty) l) r` spelled once
@@ -1810,6 +1855,41 @@ theorem iotaFold_up {μ : CheckMode} {F G : Nat} {env₂ envSelf : Env}
           pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env) :
             ConLeche.FueledM Env)) a).property hle h
 
+/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:140 envWF_cons_provRec — **a
+provisioned (rule-less) recursor keeps the environment well formed**: its
+header is `checkMemberVal`'s checked constant, closed and resolving, and fresh;
+a rule-less record has no rule clause to owe. -/
+theorem provRec_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name} {env : Env}
+    {cv cvA : ConstantVal} {mI rP : Nat} (henv : EnvWF env)
+    (h : ConLeche.checkMemberVal (ConLeche.fueledOps μ F) bn env cv = .ok cvA) :
+    EnvWF ⟨.recInfo cvA mI rP [] :: env.consts⟩ ∧ env.find? cvA.name = none := by
+  obtain ⟨hccv, -⟩ := ConLeche.checkMemberVal_inv h
+  obtain ⟨htf, htp, htr, htb⟩ := ConLeche.checkConstantVal_typeWF hccv
+  obtain ⟨hfresh, -, -, -, -, -, type, -, -, -, -, -, -, -, hcvA⟩ :=
+    ConLeche.checkConstantVal_inv hccv
+  refine ⟨ConLeche.EnvWF.cons henv ⟨htf, htp, Expr.constsResolve_mono htr, htb,
+    (fun _ _ _ heq => nomatch heq), ?_, (fun _ heq => nomatch heq),
+    (fun _ _ heq => nomatch heq)⟩, by rw [hcvA]; exact hfresh⟩
+  intro cv' mI' rP' rules heq r hr
+  injection heq with _ _ _ h4
+  subst h4
+  exact nomatch hr
+
+theorem checkMemberVal_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name} {env : Env}
+    {cv cvA : ConstantVal} (hle : F ≤ G)
+    (h : ConLeche.checkMemberVal (ConLeche.fueledOps μ F) bn env cv = .ok cvA) :
+    ConLeche.checkMemberVal (ConLeche.fueledOps μ G) bn env cv = .ok cvA := by
+  rw [← ConLeche.checkMemberVal_datF] at h ⊢
+  exact (ConLeche.checkMemberVal (ConLeche.fueledOpsM μ) bn env cv).property hle h
+
+theorem provisionRecs_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name} {env : Env}
+    {cis : List ConstantInfo} {v : Env × List (ConstantVal × Nat × Nat × List RecRule)}
+    (hle : F ≤ G)
+    (h : ConLeche.provisionRecs (ConLeche.fueledOps μ F) bn env cis = .ok v) :
+    ConLeche.provisionRecs (ConLeche.fueledOps μ G) bn env cis = .ok v := by
+  rw [← ConLeche.provisionRecs_datF] at h ⊢
+  exact (ConLeche.provisionRecs (ConLeche.fueledOpsM μ) bn env cis).property hle h
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
 The recursors' headers checked and PROVISIONALLY installed (their rules may
 mention each other, so they install as a group).
@@ -1831,7 +1911,72 @@ theorem provisionRecs_spec {μ : CheckMode} {env : Env} (feAcc : IFEnv)
           = .ok (envP, recsP) ∧
         InstRel feAcc (fun e => e = envP) s.store r.1 ∧
         denoteRecs s.store r.2 = some recsP ∧ ReadOK envP r.1 s) := by
-  sorry
+  induction cis generalizing feAcc env cisP with
+  | nil =>
+    intro s₀ s' r hpre hrun
+    obtain ⟨hread, hbn, hcis, hfe⟩ := hpre
+    simp only [Frontend.denoteCIList, Option.some.injEq] at hcis
+    subst hcis
+    simp only [Arena.provisionRecs] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨InstStep.refl hread.state, 0, env, [], rfl,
+      ⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩, ProjOut.refl _ _⟩, rfl, hread⟩
+  | cons ci rest ih =>
+    intro s₀ s' r hpre hrun
+    obtain ⟨hread, hbn, hcis, hfe⟩ := hpre
+    simp only [Frontend.denoteCIList] at hcis
+    cases hc : Frontend.denoteCI s₀.store ci with
+    | none => rw [hc] at hcis; simp at hcis
+    | some ciP =>
+    cases hr : Frontend.denoteCIList s₀.store rest with
+    | none => rw [hc, hr] at hcis; simp at hcis
+    | some restP =>
+    rw [hc, hr] at hcis
+    obtain rfl := (Option.some.inj hcis).symm
+    simp only [Arena.provisionRecs] at hrun
+    cases ci
+    case recInfo v mI rP rules =>
+      obtain ⟨vP, rulesP, rfl, hv, hrules⟩ := denoteCI_rec_inv hc
+      obtain ⟨u, s₁, k1, z1⟩ := bindOk hrun
+      obtain ⟨hck₁, hi₁, hst₁⟩ := hread.flush (μ := μ) k1
+      have hx₁ : Ext s₀.store s₁.store := hi₁.ext
+      obtain ⟨cv, s₂, k2, z2⟩ := bindOk z1
+      obtain ⟨hcv, hs₂⟩ := pureOk k2
+      subst hcv
+      rw [hs₂] at z2
+      obtain ⟨cvA, s₃, k3, z3⟩ := bindOk z2
+      obtain ⟨c3, F₁, cvAP, hF₁, hcvA⟩ := checkMemberVal_spec feAcc env hμ hk henv blockNames
+        blockNamesP cv vP s₁ s₃ cvA hck₁
+        ⟨denoteNListE_ext hx₁ _ _ hbn, denoteCV_ext hv hx₁, denoteFEnv_ext hx₁ hfe,
+          denoteFEnv_ext hx₁ hfe⟩ k3
+      obtain ⟨henv₁, hfresh⟩ := provRec_envWF (mI := mI) (rP := rP) henv hF₁
+      have hx₃ : Ext s₀.store s₃.store := hx₁.trans c3.ext
+      have hci : Frontend.denoteCI s₃.store (.recInfo cvA mI rP []) =
+          some (.recInfo cvAP mI rP []) := by
+        simp only [Frontend.denoteCI, hcvA, Frontend.denoteRules]
+      have hpush := denoteFEnv_push (denoteFEnv_ext hx₃ hfe) hci
+      have hread₃ := c3.ok.toR.push hcoh (fun t h => IConstantInfo.noConfusion h)
+        (denoteFEnv_ext hx₃ hfe) hpush
+      obtain ⟨t, s₄, k4, z4⟩ := bindOk z3
+      obtain ⟨i4, F₂, envP, recsP, hF₂, hinst, hrecs, hreadP⟩ :=
+        ih (feAcc := feAcc.push (.recInfo cvA mI rP [])) (env := ⟨.recInfo cvAP mI rP [] ::
+          env.consts⟩) (cisP := restP) henv₁ (hcoh.push _) s₃ s₄ t
+          ⟨hread₃, denoteNListE_ext hx₃ _ _ hbn, denoteCIList_ext hx₃ _ _ hr, hpush⟩ k4
+      obtain ⟨rfl, rfl⟩ := pureOk z4
+      have x4 := i4.ext
+      refine ⟨hi₁.trans (c3.toInst.trans i4), max F₁ F₂, envP,
+        (cvAP, mI, rP, rulesP) :: recsP, ?_, ?_, ?_, hreadP⟩
+      · have g₁ := checkMemberVal_up (Nat.le_max_left F₁ F₂) hF₁
+        have g₂ := provisionRecs_up (Nat.le_max_right F₁ F₂) hF₂
+        simp only [ConLeche.provisionRecs, ConstantInfo.toConstantVal, bind, Except.bind, g₁, g₂,
+          pure, Except.pure]
+      · have h1 : InstRel feAcc (fun _ => True) s₃.store (feAcc.push (.recInfo cvA mI rP [])) :=
+          ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hpush, trivial⟩,
+            ProjOut.push hcoh _ (fun t h => IConstantInfo.noConfusion h)⟩
+        exact InstRel.trans x4 h1 hinst
+      · simp only [denoteRecs, denoteCV_ext hcvA x4,
+          denoteRules_ext (hx₃.trans x4) _ _ hrules, hrecs]
+    all_goals exact absurd hrun (fun h => failOk h)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 `installIndRecs` is the twin's explicit recursion for con-leche's inner fold:
@@ -1921,6 +2066,31 @@ theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
     simp only [bind, Except.bind, g₁, pure, Except.pure]
     exact g₂
 
+/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:281 provisionRecsS_run (its
+`EnvWF` half, pure) — **the provisioned environment is well formed**:
+`provRec_envWF` at each rule-less cons. -/
+theorem provisionRecs_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name} :
+    ∀ {cis : List ConstantInfo} {env : Env}
+      {v : Env × List (ConstantVal × Nat × Nat × List RecRule)}, EnvWF env →
+      ConLeche.provisionRecs (ConLeche.fueledOps μ F) bn env cis = .ok v → EnvWF v.1
+  | [], env, v, henv, h => by
+    simp only [ConLeche.provisionRecs, pure, Except.pure, Except.ok.injEq] at h
+    subst h; exact henv
+  | ci :: rest, env, v, henv, h => by
+    cases ci
+    case recInfo cv mI rP rules =>
+      simp only [ConLeche.provisionRecs, bind, Except.bind] at h
+      split at h
+      · exact nomatch h
+      · rename_i cvA hcm
+        split at h
+        · exact nomatch h
+        · rename_i w hw
+          simp only [pure, Except.pure, Except.ok.injEq] at h
+          subst h
+          exact provisionRecs_envWF (v := w) (provRec_envWF (mI := mI) (rP := rP) henv hcm).1 hw
+    all_goals simp [ConLeche.provisionRecs, throw, throwThe, MonadExceptOf.throw] at h
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 The recursor group: the pinned `Eq` basis, the provisioning, the rename table
 and the certified installs.
@@ -1941,7 +2111,79 @@ theorem checkIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ : IFEnv)
       (fun s r => InstRel fe₂ (fun e => (∃ F, ConLeche.checkIndRecs
         μ (ConLeche.fueledOps μ F) blockNamesP env recsP = .ok e) ∧ ReadOK e r s)
         s.store r) := by
-  sorry
+  intro s₀ s' r hpre hrun
+  obtain ⟨hread, hbn, hrecs, hfe⟩ := hpre
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  have hlen : recs.length = recsP.length := by
+    clear hrun
+    induction recs generalizing recsP with
+    | nil => simp only [Frontend.denoteCIList, Option.some.injEq] at hrecs; subst hrecs; rfl
+    | cons x xs ih =>
+      simp only [Frontend.denoteCIList] at hrecs
+      split at hrecs
+      · rename_i a b ha hb
+        obtain rfl := (Option.some.inj hrecs).symm
+        simp only [List.length_cons, ih _ hb]
+      · exact nomatch hrecs
+  simp only [Arena.checkIndRecs] at hrun
+  by_cases hemp : recs.isEmpty = true
+  · rw [if_pos hemp] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    have hempP : recsP.isEmpty = true := by
+      rw [List.isEmpty_iff] at hemp ⊢
+      subst hemp
+      exact List.length_eq_zero_iff.mp hlen.symm
+    exact ⟨InstStep.refl hread.state, hcoh, Pushed.refl _, Nat.le_refl _,
+      ⟨env, hfe, ⟨0, by simp only [ConLeche.checkIndRecs, if_pos hempP]; rfl⟩, hread⟩,
+      ProjOut.refl _ _⟩
+  rw [if_neg hemp] at hrun
+  have hempP : ¬ recsP.isEmpty = true := by
+    intro h
+    rw [List.isEmpty_iff] at hemp h
+    subst h
+    exact hemp (List.length_eq_zero_iff.mp hlen)
+  -- the rename table
+  obtain ⟨tbl, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, htbl⟩ := blockRenameTable_specW blockNames blockNamesP s₀ s₁ tbl hread.state
+    hbn k1
+  -- the pinned `Eq`
+  have hread₁ : ReadOK env fe₂ s₁ := hread.mono p1.ok p1.ext p1.pins
+  obtain ⟨b2, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨i2, hb2⟩ := eqBasisStored_run fe₂ s₁ s₂ b2 hread₁ k2
+  obtain ⟨hg, z3⟩ := AM.dunless_ok hnever z2
+  replace z3 := AM.pure_bind_ok z3
+  rw [hb2] at hg
+  have heq : env.find? ConLeche.eqName = some ConLeche.eqA := by simpa using hg
+  -- the provisioning
+  have x02 : Ext s₀.store s₂.store := p1.ext.trans i2.ext
+  obtain ⟨t3, s₃, k3, z4⟩ := bindOk z3
+  obtain ⟨i3, F₁, envSelf, checkedP, hF₁, hinstS, hchecked, hreadS⟩ := provisionRecs_spec fe₂
+    hμ hk henv hcoh blockNames blockNamesP recs recsP s₂ s₃ t3
+    ⟨hread₁.ofInst i2, denoteNListE_ext x02 _ _ hbn, denoteCIList_ext x02 _ _ hrecs,
+      denoteFEnv_ext x02 hfe⟩ k3
+  obtain ⟨feSelf, checked⟩ := t3
+  simp only at hinstS hchecked hreadS z4
+  have henvS := provisionRecs_envWF (v := (envSelf, checkedP)) henv hF₁
+  -- the flush, then the certified installs at the provisioned index
+  obtain ⟨u4, s₄, k4, z5⟩ := bindOk z4
+  obtain ⟨hck₄, hi₄, hst₄⟩ := hreadS.flush (μ := μ) k4
+  have x14 : Ext s₁.store s₄.store := by rw [hst₄]; exact i2.ext.trans i3.ext
+  have x04 : Ext s₀.store s₄.store := p1.ext.trans x14
+  have hfe₄ := denoteFEnv_ext x04 hfe
+  have hok₂ : IFEnvOKS env fe₂ s₄.store := (hread.ienv.toS).mono x04
+  obtain ⟨c5, hinst⟩ := installIndRecs_spec fe₂ feSelf fe₂ env envSelf env hk henvS hcoh tbl
+    (fun n => if blockNamesP.contains n then n.str "_model" else n) checked checkedP s₄ s' r
+    hck₄ ⟨fun st' hx hwf => htbl st' (x14.trans hx) hwf, hfe₄,
+      by obtain ⟨e, he, rfl⟩ := hinstS.denote; rw [hst₄]; exact he,
+      hfe₄, hok₂, by rw [hst₄]; exact hchecked, hok₂⟩ z5
+  refine ⟨p1.toInst.trans (i2.trans (i3.trans (hi₄.trans c5.toInst))), hinst.imp ?_⟩
+  rintro e ⟨⟨F₂, hF₂⟩, hokE⟩
+  refine ⟨⟨max F₁ F₂, ?_⟩, ⟨c5.ok.state, c5.ok.pins, hokE s' rfl⟩⟩
+  have g₁ := provisionRecs_up (Nat.le_max_left F₁ F₂) hF₁
+  have g₂ := iotaFold_up (μ := μ) (Nat.le_max_right F₁ F₂) hF₂
+  simp only [ConLeche.checkIndRecs, if_neg hempP, heq, bind, Except.bind, g₁]
+  exact g₂
 
 /-! ## The projection functions -/
 
