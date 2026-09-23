@@ -378,17 +378,17 @@ ran at, which the twin carries as a second environment.
 twin side is now `checkOpaqueDeclSpec`'s own tail.  Still open on `hkpre`
 (the Rust runs the gate at `restrict(fe2, k_pre)`, the twin at `fe`; see
 DESIGN's lane Checker section). -/
-theorem check_opaque_reduce_pin_refines {pers st lst} {rf2 lf2 lf}
+theorem check_opaque_reduce_pin_refines {pers st lst} {rf2 lf2}
     {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
-    (hkpre : lf = lf2.restrictTo (absU k_pre))
+    (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.checker.check_opaque_reduce_pin pers st mode rf2 k_pre n value
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (do if (← reduceOpNames).contains (absNIdx n) then
-            checkReducePin (ConRon.Refine.absMode mode) lf lf2 (absNIdx n)
+            checkReducePin (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)
               (absEIdx value)
           pure lf2) := by
   sorry
@@ -457,72 +457,72 @@ open Lockstep in
 /-- `check_structural_nat_pin_certify` — the recurrence equations checked by
 definitional equality, in the PRE-insertion environment with the operation's
 self-references replaced by its stored value. -/
-theorem check_structural_nat_pin_certify_refines {pers st lst} {rf2 lf2 lf}
+theorem check_structural_nat_pin_certify_refines {pers st lst} {rf2 lf2}
     {mode : kernel.env.CheckMode} {k_pre : Std.U64}
     {seqs : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
-    (hkpre : lf = lf2.restrictTo (absU k_pre))
+    (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.checker.check_structural_nat_pin_certify pers st mode rf2 k_pre
       seqs = ok o) :
-    SimRel₀ IFEnvRelI pers lst o
-      (checkStructuralNatPinCertifySpec (ConRon.Refine.absMode mode) lf lf2
+    SimRel₀ (fun r _ => IFEnvRelI r lf2) pers lst o
+      (checkStructuralNatPinCertifySpec (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
         (absEqPairs seqs)) := by
   sorry
 
 /-- `check_structural_nat_pin_eqs` — the operation's own equations, built. -/
-theorem check_structural_nat_pin_eqs_refines {pers st lst} {rf2 lf2 lf}
+theorem check_structural_nat_pin_eqs_refines {pers st lst} {rf2 lf2}
     {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
-    (hkpre : lf = lf2.restrictTo (absU k_pre))
+    (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.checker.check_structural_nat_pin_eqs pers st mode rf2 k_pre n
       = ok o) :
-    SimRel₀ IFEnvRelI pers lst o
-      (checkStructuralNatPinEqsSpec (ConRon.Refine.absMode mode) lf lf2
+    SimRel₀ (fun r _ => IFEnvRelI r lf2) pers lst o
+      (checkStructuralNatPinEqsSpec (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
         (absNIdx n)) := by
   sorry
 
 /-- `check_structural_nat_pin` — the fast-path ops must be the standard
 structural recursions. -/
-theorem check_structural_nat_pin_refines {pers st lst} {rf2 lf2 lf}
+theorem check_structural_nat_pin_refines {pers st lst} {rf2 lf2}
     {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
-    (hkpre : lf = lf2.restrictTo (absU k_pre))
+    (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.checker.check_structural_nat_pin pers st mode rf2 k_pre n = ok o) :
-    SimRel₀ IFEnvRelI pers lst o
-      (checkStructuralNatPinSpec (ConRon.Refine.absMode mode) lf lf2
+    SimRel₀ (fun r _ => IFEnvRelI r lf2) pers lst o
+      (checkStructuralNatPinSpec (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
         (absNIdx n)) := by
   sorry
 
 /-- `check_defn_div_mod_pin` — the `Nat.div`/`Nat.mod` gate at a definition. -/
-theorem check_defn_div_mod_pin_refines {pers st lst} {rf2 lf2 lf}
+theorem check_defn_div_mod_pin_refines {pers st lst} {rf2 lf2}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {k_pre : Std.U64}
     {n : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
-    (hkpre : lf = lf2.restrictTo (absU k_pre))
+    (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.checker.check_defn_div_mod_pin pers st mode pins rf2 k_pre n
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkDefnDivModPinSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
-        lf lf2 (absNIdx n)) := by
+        (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) := by
   sorry
 
 /-- `check_defn_pins` — both pin gates, in the twin's order. -/
-theorem check_defn_pins_refines {pers st lst} {rf2 lf2 lf}
+theorem check_defn_pins_refines {pers st lst} {rf2 lf2}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {k_pre : Std.U64}
     {n : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
-    (hkpre : lf = lf2.restrictTo (absU k_pre))
+    (hk : k_pre.val ≤ rf2.visible_below.val)
     (hrun : arena.checker.check_defn_pins pers st mode pins rf2 k_pre n = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkDefnPinsSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
-        lf lf2 (absNIdx n)) := by
+        (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) := by
   sorry
 
 /-- **`check_defn_decl` ⊑ `checkDecl`'s `.defnDecl` arm**. -/

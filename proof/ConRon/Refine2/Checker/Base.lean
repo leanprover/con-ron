@@ -1838,6 +1838,37 @@ namespace Lockstep
       (fun o => o = (absNIdxLFrom ns i).contains (absNIdx n)) :=
   fun _ h => nidx_contains_from_refines h
 
+/-- **`ifenv_restrict_to` is a field update** (task #97-T2-LOCKSTEP lane
+Checker round 2), filed as a Rust-only step whose answer the tactic
+substitutes: the twin's partner is the pure `IFEnv.restrictTo` at the call
+site, and `IFEnvRelI.restrict` below relates the two. -/
+@[lockstep] theorem ifenv_restrict_to_spec (rf : arena.env.IFEnv) (k : Std.U64) :
+    LSP (arena.env.ifenv_restrict_to rf k)
+      (fun r => r = { rf with visible_below := k }) := by
+  intro r h
+  simp only [arena.env.ifenv_restrict_to, Result.ok.injEq] at h
+  exact h.symm
+
+/-- **The restricted index is related to the restricted twin index** — the
+invariant's counter bound is the one thing that needs the new counter to fit
+the constant list. -/
+theorem IFEnvRelI.restrict {rf : arena.env.IFEnv} {lf : IFEnv}
+    (h : IFEnvRelI rf lf) {k : Std.U64}
+    (hk : k.val ≤ rf.env.consts.val.length) :
+    IFEnvRelI { rf with visible_below := k } (lf.restrictTo (absU k)) :=
+  ⟨⟨h.rel.env, h.rel.idx, rfl⟩, ⟨h.inv.1, hk, h.inv.2.2⟩⟩
+
+/-- The side tier's extension for the pin gates' pre-insertion view: a
+restricted index against the restricted twin index, its bound by `omega` over
+the context's counters. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (apply IFEnvRelI.restrict (by assumption); (checker_env_facts; (try simp only at *); omega)))
+
+/-- `IFEnv.restrictTo` twice is the second one. -/
+@[lockstep_simp] theorem IFEnv.restrictTo_restrictTo (fe : IFEnv) (a b : Nat) :
+    (fe.restrictTo a).restrictTo b = fe.restrictTo b := rfl
+
 @[lockstep] theorem ifenv_push_spec {rf lf} (hfe : IFEnvRelI rf lf)
     (ci : arena.env.IConstantInfo) :
     LSP (arena.env.ifenv_push rf ci)
@@ -1915,6 +1946,12 @@ namespace Lockstep
 
 attribute [lockstep_simp] absIConstantInfo absValueGroup absValueKind Option.map_some
   Option.map_none
+
+@[lockstep_simp] theorem absINatOpPinSetLFrom_zero
+    (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) :
+    absINatOpPinSetLFrom v 0#usize = absINatOpPinSetL v := by
+  simp [absINatOpPinSetLFrom, absINatOpPinSetL]
+
 
 @[lockstep] theorem check_value_group_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
