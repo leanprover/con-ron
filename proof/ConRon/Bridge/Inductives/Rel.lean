@@ -108,6 +108,7 @@ declaration-layer transports and they are what the install routes' statements
 name.
 -/
 import ConRon.Bridge.Checker.Hyp
+import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Ranges

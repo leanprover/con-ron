@@ -52558,3 +52558,166 @@ nothing about this lane.
    `subst_l_memo_at` and `subst_ls_memo_at` need before `intern_level_run` will
    take their argument.  That is finding 19's VALUE half, and unlike the state
    half it fits in the existing `α → Prop` slot.
+
+### Task #97-P3-Layout — the two import-graph moves the campaign had been queuing (2026-09-23, Opus under Fable)
+
+Branch `p3-layout` off `arena` `8c92c196`.  A **layout** round: two structural
+changes that had been waiting on a clear Frontend lane, neither of which is
+allowed to change a proof.  Neither did.  `lake build ConRonBridge` is green
+before and after — 617 jobs at the branch point, 618 after (the one new
+module) — and the moved text is byte-identical, checked by locating each
+moved block as an exact line subsequence in its new file.
+
+#### 1. Item 1 — the Checker→Frontend import, narrowed.  THREE lines, not four
+
+`Bridge/Frontend/Rel.lean:60` read `import ConRon.Bridge.Checker` — the whole
+index — for three names (`FoldOK`, `denoteDecls`, `denoteDecl_pext`) that all
+live in `Bridge/Checker/Inv.lean`, the BOTTOM of that tier.  That inversion
+put `Bridge/Frontend/Shared.lean`'s intern exactness ABOVE every checker
+module that needs to read it, which is what blocked eleven statements of the
+checker tier (task #97-P3-Checker round 4 §6, round 6 §7).
+
+What landed:
+
+| file | |
+|---|---|
+| `Frontend/Rel.lean` | `ConRon.Bridge.Checker` → `ConRon.Bridge.Checker.Inv` |
+| `Frontend/Capstone.lean` | `+ import ConRon.Bridge.Checker` (the real theorems) |
+| `Checker/Pins.lean` | `+ import ConRon.Bridge.Frontend.Shared` |
+
+**Round 4's table had four lines and two of them are not needed.**  Both were
+disproved the same way — remove the line, rebuild the whole library, 617 jobs,
+zero errors:
+
+* **`Frontend/ProjRec.lean` does not need `Checker/Base.lean`.**  Round 4's
+  sweep was name-level and matched `viewN_run`; but `ProjRec.lean:47`
+  *declares its own* `viewN_run`, four lines off `viewN_spec`, with a doc
+  comment that says why (`"Bridge/Inductives/Rel.lean` has the same four-line
+  bridge; the frontend cone does not import it"`).  The sweep matched a
+  declaration, not a use.  **A name-level sweep across a tier boundary cannot
+  tell a use from a same-named declaration**, and a tier that keeps four-line
+  local copies of the readers it needs (this one does, deliberately) will
+  produce a phantom edge for every one of them.  Worth remembering the next
+  time such a sweep recommends an import.
+* **`Frontend/Axioms.lean` does not need `ConRon.Bridge.Checker`.**  It
+  imports `Frontend/Capstone.lean`, which now has it.
+
+`Frontend/Capstone.lean`'s line, by contrast, is real and was confirmed by
+removing it: `CoreSpec`, `IndSpec`, `PinsDenote` and
+`Arena.installThenCheck_bridge` all go unknown without it.
+
+**Verified in scope from `Checker/Pins.lean`** (temporary `#check`s, then
+reverted): `Frontend.internExpr_run`, `Frontend.internCI_istep`,
+`Frontend.internCIList_istep`, `Frontend.internCV_istep`, each with the
+statement the pin walks want.
+
+**And `Checker/Basis.lean` may now take the import too** — tested the same
+way (`+ import ConRon.Bridge.Frontend.Shared`, whole library green at 618
+jobs, then reverted).  It is NOT committed: the eight statements that will
+use it are a later round's, and an import with no use is exactly what this
+item removed.  The same holds for `DeclVal.lean` and `Base.lean`.
+
+#### 2. The complication round 6 found, answered: the scratch-agnostic half does NOT exist
+
+Round 6 §7 flagged that `Frontend/Shared.lean`'s `internCI_istep` /
+`internCIList_istep` require `s.store.scratchOn = false` and conclude
+`PersCI`, while `basisPinHit` runs INSIDE the per-declaration bracket where
+the scratch tier is open — so `Basis.lean`'s eight need a scratch-agnostic
+*denotation* half separate from the persistence half.  The brief asked whether
+that half exists.  **It does not, and here is its exact shape.**
+
+* Every one of `Shared.lean`'s twenty-one `intern*_istep` theorems takes
+  `hoff : s.store.scratchOn = false` and concludes `IStep`
+  (`Shared.lean:854`), whose fourth field is `off : s'.store.scratchOn =
+  false`.  There is no variant without it.
+* At the LEAF the hypothesis buys exactly two things.  `internE_istep`
+  (`Shared.lean:904`) uses `hoff` for `PersE_of_view hwf hon hview` and for
+  `IStep.off` — **the denotation conjunct comes straight out of
+  `internE_spec` and mentions the scratch flag nowhere**, and the `Ext` does
+  not either.  So the obstruction looks like frame bookkeeping, not content.
+* The frame that fits is already written: `Frontend/Rel.lean:212`'s
+  `ParseStep`, whose third field is `scratch : s'.store.scratchOn =
+  s.store.scratchOn` rather than `off`.  `IStep.toParse` converts one way
+  (given `hoff`); nothing converts the other.
+* What makes it a ROUND and not a corollary: the flag threads through the
+  whole chain — each step feeds `hstepN.off` to the next — so a `ParseStep`
+  family has to be carried through `internExprGo_istep`
+  (`Shared.lean:1005-1331`), `internCV_istep`, `internCI_istep`,
+  `internCIList_istep` and the twelve record layers between them.  That is a
+  parallel family of ~700 lines, stated without the `Pers*` conjuncts.
+* It is exactly what `Basis.lean` wants and no more: `BasisKind.decls_run`'s
+  hypothesis is `StateOK s` alone and its conclusion is
+  `Frontend.denoteCIList s'.store r = some k.decls` — a pure denotation, no
+  `Pers` anything.  The persistence half is dead weight there.
+
+So `Basis.lean`'s eight are no longer behind an import wall; they are behind
+one restatement in the frontend tier, and the frontend tier is the owner.
+
+#### 3. Item 2 — `reservedBasisNames_run` moves down, to `Bridge/Checker/Names.lean`
+
+It lived in `Bridge/Checker/Base.lean`, which `Bridge/Inductives/**` does not
+import and **must not** — the checker tier's `.indDecl` arm imports the
+inductive tier back.  Three statements were blocked on that wall with no
+missing proof (`structPartsCore?_spec`, `structPartsCore?_isSome`,
+`nativeShape?_spec`; task #97-P3-Ind round 5 §R5.5 item 1), and
+`structPartsCore?_isSome` is the one `Bridge/Frontend/ProjRec.lean`'s
+`projRecOwners_run` asks for by name.
+
+**Where it can live so both tiers see it.**  `Base.lean` imports
+`Checker/Hyp.lean`; `Inductives/Rel.lean` imports `Checker/Hyp.lean` too.  So
+anything at or below `Hyp` is visible to both.  The move went one level
+lower still, to the smallest closure that carries the theorem's own
+dependencies: `Bridge/Checker/Inv.lean` **plus `Bridge/Specs.lean`**.  (`Inv`
+alone is not enough — its closure is `{Peel, Rel, StateOK, Promote/*}` and
+does NOT contain `Specs.lean`, where `pinAt_spec` and `internName_spec` live.
+`Hyp` gets `Specs` via `Core/Induction`.)  Round 5's two guesses were
+`Bridge/StateOK.lean`, which is below `Specs` and so cannot hold it, and
+`Bridge/Checker/Pins.lean`, which is above `Hyp` and so is not visible to the
+inductive tier at all; neither works, and the new module is the answer.
+
+**The cone came with it, in full.**  Round 5 warned the move might not be
+mechanical.  It is mechanical, but it is not one theorem:
+
+| moved | why it had to |
+|---|---|
+| `pinAt_run` | six of the nineteen steps are pin reads |
+| `PinStep` + `refl` / `trans` / `pinsOK` | the frame all nineteen share |
+| `internName_run` | the other thirteen steps |
+| `denoteNL_snoc` | the shape the no-accumulator note forbids, kept beside the note |
+| `reservedBasisNames_run` | the theorem |
+| `denoteNL_toList`, `reservedBasisNameValues_eq` | what a CONSUMER needs to read the answer |
+| `denoteNList_contains` | and the third: a handle `List.contains` is a name `List.contains`, through `denoteN_inj` |
+
+The last three are the half that is easy to leave behind and must not be:
+without them the move reaches the inductive tier with an answer it cannot
+read.  `checkConstantVal_bridge`'s reserved-name guard
+(`Base.lean`) is the worked example of all four being used together, and it is
+the recipe `structPartsCore?_spec` will follow.
+
+Nothing else moved.  `Base.lean` imports the new module, so all of its old
+readers — `checkConstantVal_bridge`, `constsResolve_run`'s literal arms,
+`Arms.lean`, `Split.lean`, `DeclVal.lean` and `Checker/Axioms.lean`'s
+`#print axioms` lines — read the same theorems at the same names.
+
+**Verified from the other side** (temporary `#check`s in
+`Bridge/Inductives/StructParts.lean`, then reverted):
+`reservedBasisNames_run`, `denoteNL_toList`, `reservedBasisNameValues_eq`,
+`denoteNList_contains` and `PinStep` all resolve, with the statements the
+three blocked specs want.
+
+**Cost.**  `Names.lean` elaborates in 0.9 s and adds one job to the library;
+`Base.lean` loses 288 lines.  Neither tier pays a new import — `Inv` and
+`Specs` were already in both closures.
+
+#### 4. What this unblocks, for whoever takes it
+
+1. **The inductive tier's three** — `structPartsCore?_spec`,
+   `structPartsCore?_isSome`, `nativeShape?_spec` — now have every fact they
+   need in scope.  `structPartsCore?_isSome` is the one that reaches on into
+   `Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run`.
+2. **`Checker/Pins.lean`'s two** (`internAllPins_run`'s eighteen
+   `internCI`/`internCV`/`internExpr` reads) — the exactness is in scope
+   now; the third, `internReservedPins_run`, is still waiting on
+   `internName_spec`'s missing persistence clause, which is unchanged.
+3. **`Checker/Basis.lean`'s eight** need §2's restatement first, and then the
+   one-line import.  They are a frontend-tier ask, not a checker-tier one.

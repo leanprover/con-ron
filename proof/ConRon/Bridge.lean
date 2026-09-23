@@ -31,12 +31,23 @@ order.
 * `Bridge/Inductives.lean` — the inductive tier (task #97-P3-Ind):
   `Arena/Inductives/**`'s ~110 twins and `checkIndDecl_bridge`, which
   discharges the `Bridge/Checker/Hyp.lean` hypothesis `IndSpec`.  It imports
-  `Bridge/Checker/Hyp.lean` and **not** `Bridge/Checker/Fold.lean`, because
-  the checker tier's `.indDecl` arm will import it back;
+  `Bridge/Checker/Hyp.lean` and `Bridge/Checker/Names.lean` and **not**
+  `Bridge/Checker/Base.lean` or `Bridge/Checker/Fold.lean`, because the
+  checker tier's `.indDecl` arm will import it back — which is why
+  `reservedBasisNames_run` lives in `Names.lean` and not in `Base.lean`
+  (task #97-P3-Layout);
 * `Bridge/Frontend.lean` — **the frontend tier and the BYTE-LEVEL capstone**
   (task #97-P3-Frontend): the parse-state relation, DESIGN §8.2's parser
   statement `denoteDecls (Arena.parse chunks) = parseChunks chunks`, and
   `Arena.no_False_declaration` with its `_prelude` and `_pipeline` letters.
+  **Its bottom sits BELOW the checker tier and its top above it** (task
+  #97-P3-Layout): `Bridge/Frontend/Rel.lean` imports `Bridge/Checker/Inv.lean`
+  — `FoldOK`, `denoteDecls` and `denoteDecl_pext`, the only three names the
+  bottom of the tier uses — and only `Bridge/Frontend/Capstone.lean` imports
+  the whole of `Bridge/Checker.lean`.  That is what lets
+  `Bridge/Checker/Pins.lean` (and `Basis.lean`, `DeclVal.lean`, `Base.lean`
+  after it) import `Bridge/Frontend/Shared.lean` for the intern exactness the
+  pin walks read.
 It imports `ConRon.Arena` and con-leche and **nothing else**: no
 `ConRon.Refine`, no `ConRon.Generated`, no Aeneas, no Mathlib.  `mvcgen`
 comes from `Std.Tactic.Do`, which is in core.

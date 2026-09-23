@@ -28,8 +28,18 @@ parse, so `s.store.scratchOn = false` at the call; `intern`'s persistent
 branch is the only one reachable, and every handle it produces has the
 persistent tier bit.  The hypothesis below is therefore `s.store.scratchOn =
 false` and nothing else.
+
+**Why this module imports the frontend tier** (task #97-P3-Layout).
+`internAllPins` interns whole `ConstantInfo`s, and the exactness of
+`internCI` / `internCV` / `internExpr` is
+`Bridge/Frontend/Shared.lean`'s — eighteen reads of it in the walk below.
+That file used to sit ABOVE this one, because `Bridge/Frontend/Rel.lean`
+imported `Bridge/Checker.lean` whole for three names that live in
+`Bridge/Checker/Inv.lean`.  With that import narrowed, the frontend tier's
+bottom is below the checker tier and this import is the right way round.
 -/
 import ConRon.Bridge.Checker.Decl
+import ConRon.Bridge.Frontend.Shared
 
 open ConLeche ConRon.Arena
 
