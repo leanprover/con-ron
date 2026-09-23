@@ -452,7 +452,7 @@ def checkMemberVal (mode : CheckMode) (blockNames : List NIdx) (fe' : IFEnv)
     (cv : IConstantVal) : AM IConstantVal := do
   let f ← blockRenameTable blockNames
   let cvA ← checkConstantVal mode fe' cv
-  let an ← readName cvA.name
+  let an ← readNameM cvA.name
   -- a member may not itself be shaped like a model companion, so the block
   -- renaming can never map onto a member
   if Name.isModelSuffix an then
