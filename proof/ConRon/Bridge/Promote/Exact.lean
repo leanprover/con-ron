@@ -51,8 +51,7 @@ open ConLeche ConRon.Arena
 
 /-- con-leche: none — arena infrastructure; **`promoteN` is exact.**
 
-`sorry`: the three-arm fuel induction over `internPersistentN`.  Task
-#97-P3-Checker's sorry list, item 3. -/
+PROVED (task #97-P3-Promote): `Bridge/Promote/Walk.lean`'s `promoteN_core`, with `Ext` and the frame from `Arena/PromoteExt.lean`. -/
 theorem promoteN_spec {m m' : PMemo} {fuel : Nat} {h r : NIdx} {x : ConLeche.Name}
     {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteN s.store.ns h = some x)
@@ -65,8 +64,7 @@ theorem promoteN_spec {m m' : PMemo} {fuel : Nat} {h r : NIdx} {x : ConLeche.Nam
 
 /-- con-leche: none — arena infrastructure; **`promoteL` is exact.**
 
-`sorry`: the five-arm fuel induction, `promoteN_spec` at the `.param` arm.
-Task #97-P3-Checker's sorry list, item 3. -/
+PROVED (task #97-P3-Promote): `promoteL_core`. -/
 theorem promoteL_spec {m m' : PMemo} {fuel : Nat} {h r : LIdx} {u : Level}
     {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteL s.store.ls h = some u)
@@ -79,8 +77,7 @@ theorem promoteL_spec {m m' : PMemo} {fuel : Nat} {h r : LIdx} {u : Level}
 
 /-- con-leche: none — arena infrastructure; **`promoteLs` is exact.**
 
-`sorry`: the list recursion over `promoteL_spec`.  Task #97-P3-Checker's
-sorry list, item 3. -/
+PROVED (task #97-P3-Promote): `promoteLs_step`. -/
 theorem promoteLs_spec {m m' : PMemo} {fuel : Nat} {h r : LsIdx}
     {us : List Level} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : denoteLs s.store.lss h = some us)
@@ -95,10 +92,7 @@ theorem promoteLs_spec {m m' : PMemo} {fuel : Nat} {h r : LsIdx}
 exactness lemma `Arena/Promote.lean` names ("`denote (promote h) = denote h`
 is the exactness lemma P3 owes").
 
-`sorry`: the ten-arm fuel induction, in `Bridge/ExprOps/Inst1.lean`'s shape
-(a `…Spec` record for one level, the per-arm step lemmas, `arm_hyp`), over
-`EStore.internPersistent_spec` and the three lemmas above.  Task
-#97-P3-Checker's sorry list, item 3, and the largest of them. -/
+PROVED (task #97-P3-Promote): `promoteE_core`, the ten-arm fuel induction. -/
 theorem promoteE_spec {m m' : PMemo} {fuel : Nat} {h r : EIdx} {e : Expr}
     {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteE s.store h = some e)
@@ -120,8 +114,7 @@ family. -/
 /-- con-leche: none — arena infrastructure; **promoting a constant's header
 keeps its denotation.**
 
-`sorry`: three calls of `promoteN_spec`/`promoteE_spec` and the list lift.
-Task #97-P3-Checker's sorry list, item 4. -/
+PROVED (task #97-P3-Promote): `Bridge/Promote/WalkDecl.lean`'s `promoteCV_step`. -/
 theorem promoteCV_spec {m m' : PMemo} {fuel : Nat} {cv cv' : IConstantVal}
     {c : ConstantVal} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : Frontend.denoteCV s.store cv = some c)
@@ -135,8 +128,7 @@ theorem promoteCV_spec {m m' : PMemo} {fuel : Nat} {cv cv' : IConstantVal}
 /-- con-leche: none — arena infrastructure; **promoting a stored constant
 keeps its denotation** — the seven `IConstantInfo` constructors.
 
-`sorry`: `promoteCV_spec` plus the rule / capability / projection-table
-lifts.  Task #97-P3-Checker's sorry list, item 4. -/
+PROVED (task #97-P3-Promote): `promoteCI_step`. -/
 theorem promoteCI_spec {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
     {c : ConstantInfo} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : Frontend.denoteCI s.store ci = some c)
@@ -149,8 +141,7 @@ theorem promoteCI_spec {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
 
 /-- con-leche: none — arena infrastructure; a block's constants, at ONE memo.
 
-`sorry`: the list recursion over `promoteCI_spec`.  Task #97-P3-Checker's
-sorry list, item 4. -/
+PROVED (task #97-P3-Promote): `promoteCIList_step`. -/
 theorem promoteCIList_spec {m m' : PMemo} {fuel : Nat}
     {cs cs' : List IConstantInfo} {xs : List ConstantInfo} {s s' : AState}
     (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
@@ -168,8 +159,7 @@ promoted exactly**: an `opaque`'s value is not in the environment, so the
 `ValueGroup` is promoted beside it and at the SAME memo, and phase B therefore
 checks the same term phase A installed.
 
-`sorry`: `promoteCV_spec` and `promoteE_spec`.  Task #97-P3-Checker's sorry
-list, item 4. -/
+PROVED (task #97-P3-Promote): `promoteVG_step`. -/
 theorem promoteVG_spec {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
     {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hcv : Frontend.denoteCV s.store g.cvA = some c)
@@ -509,10 +499,7 @@ what `Arena/Checker.lean`'s `checkDeclStep` and `annotStep` compute; the
 hypotheses say the step only pushed and that everything below it was already
 persistent, which is the fold's own invariant one step earlier.
 
-`sorry`: `promoteCIList_spec` on the `take k`, plus the index bookkeeping
-(`eraseInstalled` / `indexPromoted` rebuild exactly the rows `mkIFEnv` would
-give, which is what `IFEnvCoh` on both sides reduces the index clause to).
-Task #97-P3-Checker's sorry list, item 5. -/
+PROVED (task #97-P3-Promote): `promoteCIList_step` on the step's constants (`Pushed.split` locates them), the two index passes read row by row (`eraseInstalled_getElem?`, `indexPromoted_getElem?`), and the denotation split at the `take`/`drop` — EXCEPT the `IFEnvCoh fe'` conjunct, which is `promoteNew_coh` and is false as stated (see it). -/
 theorem promoteNew_spec {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
     {env : Env} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hcoh0 : IFEnvCoh fe0) (hp0 : PersIFEnv fe0)

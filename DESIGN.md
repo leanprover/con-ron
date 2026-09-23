@@ -54588,3 +54588,156 @@ before §3's flip, which only renames the kind of a cold error.)
 (task #97-P3-Checker round 8, #97-FRONTIER — no Rust), merged as `cace9da8`,
 and **all 16 OK** there (the new `lake-capstone` step included).  The shared
 Lake cache was not seeded from this worktree.
+
+### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
+
+Lane: `proof/ConRon/Bridge/Promote/**`, untouched since task #97-P3-Checker
+round 2.  Branch `p3-promote` off `arena` `d31b1c00`.  Priority from the
+coordinator: `promoteVG_spec` and `promoteNew_spec`, which the Checker tier's
+`Arena.annotStep_split` bracket needs, plus "`IFEnvOK` at the pushed index".
+
+#### 1. `EWFAtP`/`StoreWFP` deleted; the promote window is `StoreWF'` (authorised)
+
+Task #97-P5-Fresh §6 found three statements in this lane false as written
+(the nested `internPersistent_spec`s concluded the full invariant; `EWFAtP`
+nested the strong `LsStoreWF`; `EWFAtP.consS` was an `↔` that
+`internBMPersistent` refutes).  The authorised fix is taken: `EWFAtP`,
+`StoreWFP`, `StoreWFP.of_wf` and `StoreWFP.dropScratch_wf` are **deleted**,
+and every statement of the lane is at `Arena/WF.lean`'s `StoreWF'` (the four
+nested `internPersistent_spec`s at `NStoreWF'`/`LStoreWF'`/`LsStoreWF'`).
+The four specs are then **closed** in one term each, from the store layer's
+`…internPersistent_wf'`/`_ext`/`_view`/`_pers` (tasks #97-P5-Fresh and
+#97-P5-Specs round 3).  One edit outside the lane: `Bridge/Checker/Axioms.lean`
+loses its `#print axioms StoreWFP.of_wf` line (the constant is gone).
+`Bridge/Checker/Fold.lean`'s docstring still names `StoreWFP` in prose (lines
+217–221); left for that lane.
+
+#### 2. The walks, run forwards — every `promote*` spec closed
+
+Three new modules, all `sorry`-free:
+
+| module | lines | what |
+|---|---:|---|
+| `Promote/Weak.lean` | 497 | `WFProofs.lean`'s "fuel disappears" and `dropScratch` layers at the weak invariant: `denote{N,L,E}_unfold'`, `denote*_dropScratch_pers'`, and **`PExt.dropScratch'`** (`Fold.lean`'s note's blocker 2: `PExt` across the closing drop from `StoreWF'`) |
+| `Promote/Memo.lean` | 113 | `PMemoOK`/`PFrame` moved down from `Exact.lean` unchanged, plus `PFrame.of_aext` |
+| `Promote/Walk.lean` | 1 231 | `promote{N,L,E}_core` (fuel inductions), `promoteLList_step`, `promoteLs_step`, the four `internPersistent*_run`, `denote*_of_view` (under `StoreWF'` every handle with a view denotes), `NameKept` |
+| `Promote/WalkDecl.lean` | 717 | the declaration layer: `promote{NList,EList,CV,Fire,Rule,Rules,Caps,ProjTable,CI,CIList,VG}_step`, `PromotedTable` / `IProjTableOK.promoted` |
+| `Promote/Coh.lean` | 304 | §3's repair, proved |
+
+**The core's shape is the finding worth keeping.**  Each walk is proved once,
+with the denotation as an IMPLICATION (`∀ x, denote h = some x → denote r =
+some x`) rather than a hypothesis.  A projection table's `tableName` is
+promoted by `promoteN` but not read back by `denoteProjTable`, so the
+declaration layer must promote a handle nobody asked to denote and still keep
+the invariant and the memo; the implication form costs nothing inside the
+induction because, under `StoreWF'`, a handle with a view denotes (a rank
+induction), so every memo row the walk records is a promoted pair whether or
+not the caller cared.  `Ext` and `PFrame` are never re-proved: `Arena/
+PromoteExt.lean`'s `AExtOf` gives them for every run.  **The do-blocks**:
+`promoteL`/`promoteE` elaborate with a `have __do_jp` join point and the
+memo-insert continuation copied into every arm (`promoteN`: copied without the
+`have`); `AM.bind_ok` / `AM.pure_bind_ok` / `AM.pure_ok` read either shape
+unchanged, one arm per constructor.  Nearly every lemma went through on the
+first build.
+
+`Exact.lean`: `promote{N,L,Ls,E,CV,CI,CIList,VG}_spec` **PROVED**, each three
+lines over its core; `promoteNew_spec` **PROVED except its `IFEnvCoh fe'`
+conjunct**, which is isolated as `promoteNew_coh` (§3).  Beside it, for the
+bracket, three new lemmas (no existing statement changed):
+
+* `promoteNew_pushed` — `Pushed fe0 fe'` (`annotStep_split` concludes `Pushed fe fe'`);
+* `promoteNew_projOK` — `IFEnvOK_of_denote`'s `hproj` carried across the
+  promotion (the `tableName` half needs `PromotedTable`);
+* `promoteBracket_close` — Theorem 1's `bracket_close_w`: from a `StoreWF`
+  boundary, `Ext` from the opened store to the promoted one, and `StoreWF'`,
+  the `dropScratch` gives `StoreWF` back and `PExt` from the boundary.
+
+#### 3. THE FINDING — `promoteNew` cannot keep `IFEnvCoh`, and the repair
+
+`IFEnvCoh fe` is `fe = mkIFEnv fe.env`: an equation between `Std.HashMap`
+**values**.  A `Std.HashMap` is a bucket array whose association lists record
+insertion order, and it resizes on insert but never shrinks on erase.
+`promoteNew` builds its index as `eraseInstalled` (erase the step's old keys)
+then `indexPromoted` (insert the promoted constants NEWEST FIRST), where
+`mkIFEnv` inserts OLDEST FIRST.  Two promoted names that share a bucket
+therefore come out in opposite orders — a different value — and
+`promoteNew_spec`'s hypotheses fix only denotations, so nothing rules it out.
+**`promoteNew_spec`'s `IFEnvCoh fe'` conjunct is false for `k ≠ 0`.**  It is
+isolated as `promoteNew_coh` (`sorry`, proved at `k = 0`, docstring says
+false); `promoteNew_spec` is otherwise closed over it.
+
+There is a second, semantic difference the structural statement hid: with
+two step constants of the SAME name, `indexPromoted`'s newest-first insertion
+lets the OLDEST win, where `mkIFEnv` (and con-leche's `List.find?`) lets the
+newest win.  The checker never installs a duplicate (`checkDecl_nodup`,
+`SplitInstall.nodup`), so the repair needs that as a precondition.
+
+**The repair, proved (`Promote/Coh.lean`, `sorry`-free):**
+
+```lean
+def IFEnvCohX (fe : IFEnv) : Prop :=
+  fe.visibleBelow = fe.env.consts.length ∧
+    ∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?
+
+theorem promoteNew_cohX … (hnd : NamesDistinct s.store (fe.env.consts.take k))
+    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) : IFEnvCohX fe'
+```
+
+with `IFEnvCoh.toX`, `IFEnvCohX.find?` (the lookup is `mkIFEnv`'s, which is
+what `IFEnvCoh.find?` gives every consumer today) and `IFEnvCohX.push`.  The
+proof needed one more fact from the walks — a persistent name handle promotes
+to ITSELF (`promoteN_pers_self`, threaded as `NameKept.pers`) — because an
+erased old key that is not a promoted key must be a scratch handle, and no
+row of the persistent tail carries one.
+
+**What it takes, and whose call it is.**  `IFEnvCoh` is defined in this lane
+but is a CONCLUSION of other lanes' statements (`StepOK.coh`, `FoldOK.coh`,
+`DeclOut.coh`, `InstRel.coh`, `IndOut.coh`, `Basis.lean`, `Hyp.lean`,
+`Inductives/Decl.lean`).  Redefining `IFEnvCoh := IFEnvCohX` touches five
+PROOFS outside the lane, each a three-line edit from `congrArg IFEnv.idx
+hcoh` to `hcoh.2 n`: `Checker/Inv.lean`'s `IFEnv.find?_mem` and
+`IFEnvCoh.find?`, `Inductives/Rel.lean`'s `ProjOut.push`, `Checker/Split.lean`
+line ~690, and `Frontend/Capstone.lean`'s `coh := rfl` (becomes
+`⟨rfl, fun _ => rfl⟩`).  And `promoteNew_spec` gains `hnd` (`NamesDistinct`
+of the step's constants), which the Checker's bracket discharges from
+`NodupNames` of the post-step environment plus the name-denotation clauses
+(`denoteCI_name_of`, `IProjTableOK.named` for tables).  **Not done: it needs
+the coordinator's authorisation** (a changed definition that is a conclusion
+elsewhere).  Until then the Checker tier can write its bracket against
+`promoteNew_spec` as it stands; the one false conjunct is a named `sorry`,
+not a hole in the bracket.
+
+"`IFEnvOK` at the pushed index" is thereby reduced to: `IFEnvOK_of_denote`
+(Checker lane, proved) fed with `promoteNew_spec`'s denotation,
+`promoteNew_projOK`, `StateOK` after the drop (`promoteBracket_close`'s
+`StoreWF`) — and `IFEnvCoh fe'`, i.e. §3's authorisation.
+
+#### 4. Counts
+
+| file | lines before → after | `sorry` decls before → after |
+|---|---:|---:|
+| `Promote/StoreP.lean` | 247 → 154 | 5 → **0** (four proved, `StoreWFP.dropScratch_wf` deleted) |
+| `Promote/Exact.lean` | 389 → 681 | 9 → **1** (`promoteNew_coh`, false as stated) |
+| `Promote/Pers.lean` | 557 | 0 |
+| `Promote/{Weak,Memo,Walk,WalkDecl,Coh}.lean` | new, 2 862 | 0 |
+
+Census: `#guard_msgs`-checked `#print axioms` at the end of `Walk.lean`
+(5 cores), `Exact.lean` (11 closed specs `[propext, Classical.choice,
+Quot.sound]`, `promoteNew_spec` with `sorryAx`) and `Coh.lean` (4).
+
+**Frontier** (`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): before (`d31b1c00`, run while this
+task's first edits compiled, so `StoreP.lean`'s five were already gone) **14
+items, 45 tainted, dead weight 960**; after **14 items, 45 tainted, dead
+weight 952**.  The frontier cannot move from this lane yet: every promote
+spec sits behind `Arena.annotStep_split`'s own `sorry`.  When the Checker tier
+writes that bracket, `promoteNew_coh` enters the closure as its one item from
+this lane.
+
+Build: `lake build ConRonBridge` and `ConRonCapstone` green after each
+file; the lane's modules elaborate in ≈ 2 s each (`Walk.lean` 1.9 s).
+Two name clashes surfaced only at the `ConRonBridge` build: `viewL_run` and
+`viewLs_run` exist in `Bridge/Checker/Canon.lean` (and `viewN_run` in
+`Base.lean`), so this lane's are `view{N,L,Ls,}_ok`.  **Rule**: a
+`ConRon.Bridge`-namespace helper in a low lane must be grepped against the
+whole of `Bridge/**`, not only its importers.
