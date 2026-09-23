@@ -4195,6 +4195,22 @@ cons HIT at a full array the port answers `Ok` and the twin throws `native`.
 after the probe, as the port does), and it belongs in the next twin
 catch-up. -/
 
+/-- The frozen-tier guard's arm (`M_FROZEN`, `Native` since task #97-P5-Usize
+§3): an error that claims nothing, and the store it hands back. -/
+theorem frozen_native_arm {α σ : Type} {st st' : σ}
+    {r : core.result.Result α kernel.core_types.CheckError}
+    (h : (do
+        let s ← lift (Array.to_slice arena.store.M_FROZEN)
+        let v ← kernel.core_types.code_points s
+        ok (core.result.Result.Err (kernel.core_types.CheckError.Native v), st))
+      = ok (r, st')) :
+    (∃ v, r = .Err (.Native v)) ∧ st' = st := by
+  obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have he := Result.ok_injective h
+  simp only [Prod.mk.injEq] at he
+  exact ⟨⟨v1, he.1.symm⟩, he.2.symm⟩
+
 /-! ## `der_of_*`, the `bvar` arm -/
 
 /-- `arena::store::EStore.der_of_bvar` against `EStore.derOfBVar`, UP TO the
@@ -4379,12 +4395,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -5394,12 +5405,7 @@ theorem estore_intern_fvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -5817,12 +5823,7 @@ theorem estore_intern_sort_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -6073,12 +6074,7 @@ theorem estore_intern_const_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -6329,12 +6325,7 @@ theorem estore_intern_app_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -6585,12 +6576,7 @@ theorem estore_intern_proj_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -6846,12 +6832,7 @@ theorem estore_intern_let_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -7064,12 +7045,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -7267,12 +7243,7 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -7646,12 +7617,7 @@ theorem estore_intern_lam_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -7910,12 +7876,7 @@ theorem estore_intern_forall_e_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
       have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
@@ -9153,12 +9114,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
       · -- the frozen tier: `Native`, which claims nothing
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
           by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
@@ -9343,12 +9299,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
       · -- the frozen tier: `Native`, which claims nothing
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
           by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
@@ -9478,12 +9429,7 @@ theorem nstore_intern_persistent_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
     simp only [hpn]
     split at h <;> rename_i hsh2
     · -- the frozen tier: `Native`, which claims nothing
-      obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have he := Result.ok_injective h
-      simp only [Prod.mk.injEq] at he
-      obtain ⟨hr, hs2⟩ := he
-      subst hr; subst hs2
+      obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
       exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
     · have hshared : rs.shared_on = false := by simpa using hsh2
       have hpersN : rPersN pers rs = rs.pers := by unfold rPersN; rw [hshared]; rfl
@@ -10095,12 +10041,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
       · -- the frozen tier: `Native`, which claims nothing
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
           by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
@@ -10518,12 +10459,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
       · -- the frozen tier: `Native`, which claims nothing
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs2⟩ := he
-        subst hr; subst hs2
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
           by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
@@ -10804,12 +10740,7 @@ theorem lstore_intern_persistent_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
     simp only [hpn]
     split at h <;> rename_i hsh2
     · -- the frozen tier: `Native`, which claims nothing
-      obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have he := Result.ok_injective h
-      simp only [Prod.mk.injEq] at he
-      obtain ⟨hr, hs2⟩ := he
-      subst hr; subst hs2
+      obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
       exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
     · have hshared : rs.shared_on = false := by simpa using hsh2
       have hpersL : rPersL pers rs = rs.pers := by unfold rPersL; rw [hshared]; rfl
@@ -10885,12 +10816,7 @@ theorem lsstore_intern_persistent_abs {pers rs ls} (hrel : LsStoreRel pers rs ls
     simp only [hpn]
     split at h <;> rename_i hsh2
     · -- the frozen tier: `Native`, which claims nothing
-      obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have he := Result.ok_injective h
-      simp only [Prod.mk.injEq] at he
-      obtain ⟨hr, hs2⟩ := he
-      subst hr; subst hs2
+      obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
       exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
     · have hshared : rs.shared_on = false := by simpa using hsh2
       have hpersLs : rPersLs pers rs = rs.pers := by unfold rPersLs; rw [hshared]; rfl
@@ -11652,12 +11578,7 @@ theorem estore_intern_bm_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls
     by_cases hfz : rs.shared_on = true
     · -- the frozen tier: `Native`, which claims nothing
       rw [hfz] at h
-      obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have he := Result.ok_injective h
-      simp only [Prod.mk.injEq] at he
-      obtain ⟨hr, hs2⟩ := he
-      subst hr; subst hs2
+      obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
       exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
         ⟨hfz.symm, rfl⟩⟩
     have hshared : rs.shared_on = false := by simpa using hfz
@@ -11855,12 +11776,7 @@ theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       by_cases hfz : rs1.shared_on = true
       · -- the frozen tier: `Native`, which claims nothing
         rw [if_pos hfz] at h
-        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have he := Result.ok_injective h
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨hr, hs⟩ := he
-        subst hr; subst hs
+        obtain ⟨⟨v1, rfl⟩, rfl⟩ := frozen_native_arm h
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, hfl1⟩
       have hshared1 : rs1.shared_on = false := by simpa using hfz
       have hpersE1 : rPersE pers rs1 = rs1.pers := by
