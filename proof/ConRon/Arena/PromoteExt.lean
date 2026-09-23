@@ -50,6 +50,7 @@ AFTER that walk is proved, and `first` skips an alternative naming a constant
 that does not exist yet.
 -/
 import ConRon.Arena.Promote
+import ConRon.Arena.PersistentRun
 
 namespace ConRon.Arena
 
@@ -216,24 +217,9 @@ theorem AExtOf.of_internPersistentLs (v : LsNodeView) :
 
 theorem internPersistentE_aext {v : ENodeView} {s : AState} {r : EIdx} {s' : AState}
     (h : internPersistentE v s = .ok (r, s')) : AExt s s' := by
-  cases hf : s.store.persFind? v with
-  | some hh =>
-    simp only [internPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
-      StateT.get, pure, StateT.pure, Except.bind, Except.pure, hf] at h
-    exact AExt.of_run_eq h (AExt.refl _)
-  | none =>
-    by_cases hc : (s.store.pers.sizeOf v < Idx.idxCap &&
-        (!EStore.eViewNeedsBM v || s.store.pers.bmSize < Idx.idxCap)) = true
-    · simp only [internPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
-        StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc] at h
-      exact AExt.of_run_eq h
-        ⟨EStore.internPersistent_ext s.store v, rfl, rfl, rfl,
-          EStore.scratchOn_internPersistent s.store v⟩
-    · simp only [internPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
-        StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, fail_apply] at h
-      exact absurd h (by simp)
+  obtain ⟨-, -, -, rfl⟩ := internPersistentE_ok h
+  exact ⟨EStore.internPersistent_ext s.store v, rfl, rfl, rfl,
+    EStore.scratchOn_internPersistent s.store v⟩
 
 theorem AExtOf.of_internPersistentE (v : ENodeView) :
     AExtOf (internPersistentE v) := fun _ _ _ h => internPersistentE_aext h

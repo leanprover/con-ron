@@ -146,8 +146,8 @@ theorem EStore.internPersistent_spec {st : EStore} {w : ENodeView}
       (st.internPersistent w).1.view (st.internPersistent w).2 = some w ∧
       PersE (st.internPersistent w).2 ∧
       (st.internPersistent w).1.scratchOn = st.scratchOn := by
-  obtain ⟨a, b, c⟩ := EStore.internPersistent_spec' h hv hp.toViewPers hcap.2
-    (fun _ => hcap.1)
+  obtain ⟨a, b, c⟩ := EStore.internPersistent_spec' h hv hp.toViewPers
+    (EStore.persCapBM.of_needs hcap.2) (EStore.persCapNode.of_size hcap.1)
   exact ⟨a, EStore.internPersistent_ext st w, b, c,
     EStore.scratchOn_internPersistent st w⟩
 

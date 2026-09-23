@@ -31,6 +31,7 @@ two `Array`s, a `ron::HashMap2` against a `Std.HashMap`); the two above it are
 #97-P4a's "Rust-shaped Lean" bought.
 -/
 import ConRon.Refine2.Shape
+import ConRon.Arena.PersistentRun
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -11320,13 +11321,13 @@ expression tier has ten entry points, so it wants the generic
 under them, plus the binder DATUM's own promote-intern.  Task #97-P5-Fresh §7
 priced exactly this; `Arena/WFProofs.lean`'s new section is the twin half.
 
-**The datum array's capacity is a HYPOTHESIS here, as it is at the
-non-persistent tier** (`intern_e_lam_run`'s `hbmcap`): `intern_bm_persistent`
-tests `Tbl::full` only where IT appends, so a node-cons MISS whose DATUM is a
-cons hit leaves the port with nothing to say about `bms`, while the twin's
-`internPersistentE` tests it anyway.  `Arena/Monad.lean`'s `internE` note
-records that as deliberate and unreachable; this is the same corner one tier
-over. -/
+**The datum array's capacity is no longer a hypothesis here** (task
+#97-T2-LOCKSTEP, audit D3).  `intern_bm_persistent` tests `Tbl::full` only
+where IT appends; the twin's `internPersistentE` used to test `bms` on every
+binder-node miss, so the corner was carried as `hbmcap`.  The twin now runs
+the datum step first with its own miss-path test, as the port does, and both
+capacity facts are CONCLUSIONS of `estore_intern_persistent_abs`.  The old
+`hbmcap` arguments stay in the signatures, unused, until slice 3. -/
 
 /-- An expression node view is well formed when its literal is: the other nine
 constructor records carry only handles and scalars, so their `*NodeWF` is
@@ -11765,7 +11766,8 @@ theorem estore_intern_bm_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls
     (∀ hh, r = .Ok hh →
         absBMIdx hh = (ls.internBMPersistent (ConRon.Refine.absBinderMeta m)).2 ∧
         StoreRel pers rs' (ls.internBMPersistent (ConRon.Refine.absBinderMeta m)).1 ∧
-        StoreInv pers rs') ∧
+        StoreInv pers rs' ∧
+        (ls.persFindBM (ConRon.Refine.absBinderMeta m) = none → ls.capOKBMPersistent)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
       (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.EStore.intern_bm_persistent] at h
@@ -11804,7 +11806,7 @@ theorem estore_intern_bm_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls
     intro hh hok
     simp only [core.result.Result.Ok.injEq] at hok
     subst hok
-    exact ⟨rfl, hrel, hinv⟩
+    exact ⟨rfl, hrel, hinv, by simp⟩
   | none =>
     rw [hitc] at h
     simp only [Option.map_none]
@@ -11823,7 +11825,7 @@ theorem estore_intern_bm_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls
     have hrelPerst : ETablesRel rs.pers ls.pers := by rw [← hpersE]; exact hrel.perst
     have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
     simp only [hshared] at h
-    obtain ⟨b1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     split at h <;> rename_i hfull
     · obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -11860,7 +11862,8 @@ theorem estore_intern_bm_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls
       subst hok
       exact ⟨hhandle, ⟨hrel.lss, { hrelPerst with bms := hrel1 }, hrel.scrt,
           hrel.scratchOn⟩,
-        ⟨hinv.lss, { hinvPerst with bms := hinv1 }, hinv.scrt⟩⟩
+        ⟨hinv.lss, { hinvPerst with bms := hinv1 }, hinv.scrt⟩,
+        fun _ => tbl_not_full_size hrelP hb1 hfull⟩
 
 
 /-- `arena::store::EStore.intern_bm_of_view_persistent` against
@@ -11873,7 +11876,7 @@ theorem estore_intern_bm_of_view_persistent_abs {pers rs ls}
     (∀ hh, r = .Ok hh →
         absBMIdx hh = (ls.internBMOfViewPersistent (absENodeView v)).2 ∧
         StoreRel pers rs' (ls.internBMOfViewPersistent (absENodeView v)).1 ∧
-        StoreInv pers rs') ∧
+        StoreInv pers rs' ∧ ls.persCapBM (absENodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
       (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
   have hzero : ∀ {b : arena.handle.BMIdx},
@@ -11903,46 +11906,34 @@ theorem estore_intern_bm_of_view_persistent_abs {pers rs ls}
      intro hh hok
      simp only [core.result.Result.Ok.injEq] at hok
      subst hok
-     exact ⟨hzero hb0, hrel, hinv⟩)
+     exact ⟨hzero hb0, hrel, hinv, trivial⟩)
 
 
-/-- `ECapAt` at the PERSISTENT tier: the node-array capacity test
-`EStore::intern_persistent` makes on its MISS path, so that it can be
-CONCLUDED from the port's own `Tbl::full` (finding 14 at the promote tier).
-The DATUM array's test is NOT here: `intern_bm_persistent` tests it only where
-IT appends, so a node miss whose datum is a cons hit gives the port no bound
-at all — which is the discrepancy `Arena/Monad.lean`'s `internE` note already
-records, and which is a HYPOTHESIS at the binder arms exactly as it is at the
-non-persistent tier (`intern_e_lam_run`'s `hbmcap`). -/
-def ECapPAt (st : EStore) (v : ENodeView) : Prop :=
-  st.persFind? v = none → st.pers.sizeOf v < Idx.idxCap
-
-theorem ECapPAt.of_find_ne {st : EStore} {v : ENodeView}
-    (h : st.persFind? v ≠ none) : ECapPAt st v := fun hn => absurd hn h
-
-theorem ECapPAt.of_size {st : EStore} {v : ENodeView}
-    (h : st.pers.sizeOf v < Idx.idxCap) : ECapPAt st v := fun _ => h
+/- `ECapPAt` (the node test stated at the ORIGINAL store's `persFind?`) was
+retired at audit D3: the twin now makes both of the Rust's capacity tests where
+the Rust makes them, and `EStore.persCapBM` / `EStore.persCapNode`
+(`Arena/Store.lean`) are those two tests, concluded below from the port's own
+`full` answers. -/
 
 /-- `arena::store::EStore.intern_persistent` against `EStore.internPersistent`
 — the whole control flow, view-generic: the datum's promote-intern, the
 persistent cons probe, the frozen check, the capacity check, the append. -/
-theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+theorem estore_intern_persistent_abs' {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hwfls : StoreWF' ls)
     {v : arena.store.ENodeView} (hvwf : ENodeViewWF v)
-    (hbmcap : EStore.eViewNeedsBM (absENodeView v) = true → ls.capOKBMPersistent)
     {r} {rs'}
     (h : arena.store.EStore.intern_persistent rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
         absEIdx hh = (ls.internPersistent (absENodeView v)).2 ∧
         StoreRel pers rs' (ls.internPersistent (absENodeView v)).1 ∧
-        StoreInv pers rs' ∧ ECapPAt ls (absENodeView v)) ∧
+        StoreInv pers rs' ∧ ls.persCapBM (absENodeView v) ∧
+        ls.persCapNode (absENodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
       (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
-  obtain ⟨rkl, hwfl⟩ := hwfls
-  obtain ⟨-, hlss1, -, -, -, hszP, -, -, -, -⟩ :=
-    EStore.internBMOfViewPersistent_spec' hwfl hbmcap
-  have hprobe := EStore.persFind?_internBMOfViewPersistent hwfl hbmcap
+  -- audit D3: the twin makes the Rust's two capacity tests where the Rust
+  -- makes them, so both are CONCLUDED below from the port's own `full`
+  -- answers, at the stores the port tests them on — no `StoreWF'`, no
+  -- `hbmcap`.
   rw [arena.store.EStore.intern_persistent] at h
   obtain ⟨p1, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨r1, rs1⟩ := p1
@@ -11961,8 +11952,10 @@ theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
            (st1.pers.push (absENodeView v) (st1.derOfView (absENodeView v)) mi1
              Idx.tierP).2)) := by
     rw [hst1, hmi1]; rfl
-  rw [← hst1] at hlss1 hszP hprobe
-  rw [← hmi1] at hprobe
+  have hcapN : ls.persCapNode (absENodeView v) ↔
+      (st1.pers.find? (absENodeView v) mi1 = none →
+        st1.pers.sizeOf (absENodeView v) < Idx.idxCap) := by
+    rw [hst1, hmi1]; rfl
   cases hr1 : r1 with
   | Err e =>
     simp only [hr1] at h
@@ -11974,7 +11967,7 @@ theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       hfl1⟩
   | Ok mi =>
     simp only [hr1] at h
-    obtain ⟨hmid, hrel1, hinv1⟩ := hok1 mi hr1
+    obtain ⟨hmid, hrel1, hinv1, hcapBM⟩ := hok1 mi hr1
     rw [← hmi1] at hmid
     rw [← hst1] at hrel1
     obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -11999,10 +11992,9 @@ theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
-      refine ⟨rfl, hrel1, hinv1, ECapPAt.of_find_ne ?_⟩
-      rw [← hprobe]
+      refine ⟨rfl, hrel1, hinv1, hcapBM, hcapN.mpr fun hn => ?_⟩
       simp only [hoc] at hfind
-      rw [hfind]; simp
+      rw [hfind] at hn; simp at hn
     | none =>
       simp only [Option.map_none]
       simp only [hoc] at h
@@ -12016,11 +12008,10 @@ theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         unfold rPersE; rw [hshared1]; rfl
       simp only [hshared1, Bool.false_eq_true, if_false] at h
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hnf : b1 = false → ls.pers.sizeOf (absENodeView v) < Idx.idxCap := by
+      have hnf : b1 = false → st1.pers.sizeOf (absENodeView v) < Idx.idxCap := by
         intro hbf
         rw [arena.store.EStore.pers_full_of] at hb1
         simp only [hshared1, Bool.false_eq_true, if_false] at hb1
-        rw [← hszP (absENodeView v)]
         exact etables_not_full_size (by rw [← hpersE1]; exact hrel1.perst) hb1
           (by rw [hbf]; simp)
       split at h <;> rename_i hfull
@@ -12038,7 +12029,7 @@ theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs⟩ := he
         subst hr; subst hs
-        have hcapn : ls.pers.sizeOf (absENodeView v) < Idx.idxCap :=
+        have hcapn : st1.pers.sizeOf (absENodeView v) < Idx.idxCap :=
           hnf (by simpa using hfull)
         have hder : derObsE (st1.derOfView (absENodeView v)) = derObsE (absU64 d) :=
           estore_der_of_view_obs (ls := st1) hrel1 hvwf hd
@@ -12051,56 +12042,55 @@ theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
-        refine ⟨hhandle, ?_, ?_, ECapPAt.of_size hcapn⟩
+        refine ⟨hhandle, ?_, ?_, hcapBM, hcapN.mpr fun _ => hcapn⟩
         · exact ⟨hrel1.lss, by unfold rPersE; simpa using hrelT, hrel1.scrt,
             hrel1.scratchOn⟩
         · exact ⟨hinv1.lss, by unfold rPersE; simpa using hinvT, hinv1.scrt⟩
 
 
+/-- `estore_intern_persistent_abs'` with the pre-D3 signature, kept for its
+callers. -/
+theorem estore_intern_persistent_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    (hinv : StoreInv pers rs)
+    (_hwfls : StoreWF' ls)  -- unused since D3; removed in slice 3
+    {v : arena.store.ENodeView} (hvwf : ENodeViewWF v)
+    -- unused since D3; removed in slice 3
+    (_hbmcap : EStore.eViewNeedsBM (absENodeView v) = true → ls.capOKBMPersistent)
+    {r} {rs'}
+    (h : arena.store.EStore.intern_persistent rs pers v = ok (r, rs')) :
+    (∀ hh, r = .Ok hh →
+        absEIdx hh = (ls.internPersistent (absENodeView v)).2 ∧
+        StoreRel pers rs' (ls.internPersistent (absENodeView v)).1 ∧
+        StoreInv pers rs' ∧ ls.persCapBM (absENodeView v) ∧
+        ls.persCapNode (absENodeView v)) ∧
+      (∀ e, r = .Err e → absAErrKind e = none) ∧
+      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) :=
+  estore_intern_persistent_abs' hrel hinv hvwf h
+
 /-- Finding 16's clause at the promote-intern of an expression node, and the
 handle's persistence with it. -/
 theorem internPersistentE_storeWF' {st : EStore} {v : ENodeView} (hwf : StoreWF' st)
     (hview : st.ViewOK v) (hpers : EViewPers v)
-    (hbmcap : EStore.eViewNeedsBM v = true → st.capOKBMPersistent)
-    (hcap : ECapPAt st v) :
+    (hbmcap : st.persCapBM v) (hcap : st.persCapNode v) :
     StoreWF' (st.internPersistent v).1 ∧
       (st.internPersistent v).2.isPersistent = true := by
   obtain ⟨a, -, c⟩ := EStore.internPersistent_spec' hwf hview hpers hbmcap hcap
   exact ⟨a, c⟩
 
-/-- `Arena.internPersistentE`'s run: probe the persistent tier first, then the
-two capacity tests. -/
+/-- `Arena.internPersistentE`'s run, in the Rust's order (audit D3): the
+datum's promote-intern with its miss-path test, the node probe, the node's
+miss-path test — `Arena.internPersistentE_run_eq`. -/
 theorem internPersistentE_run_of_cap {lst : AState} {v : ENodeView}
-    (hwf : StoreWF' lst.store)
-    (hbmcap : EStore.eViewNeedsBM v = true → lst.store.capOKBMPersistent)
-    (hcap : ECapPAt lst.store v) :
+    (hbmcap : lst.store.persCapBM v) (hcap : lst.store.persCapNode v) :
     (Arena.internPersistentE v).run lst
       = .ok ((lst.store.internPersistent v).2,
-             { lst with store := (lst.store.internPersistent v).1 }) := by
-  simp only [Arena.internPersistentE, run_get_bind]
-  obtain ⟨rk, h⟩ := hwf
-  cases hf : lst.store.persFind? v with
-  | some i => rw [EStore.internPersistent_of_persFind h hf]; rfl
-  | none =>
-    have hc : (decide (lst.store.pers.sizeOf v < Idx.idxCap) &&
-        (!EStore.eViewNeedsBM v || decide (lst.store.pers.bmSize < Idx.idxCap)))
-        = true := by
-      simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true,
-        Bool.not_eq_true']
-      refine ⟨hcap hf, ?_⟩
-      cases hb : EStore.eViewNeedsBM v with
-      | false => exact Or.inl rfl
-      | true => exact Or.inr (by simpa [EStore.capOKBMPersistent] using hbmcap hb)
-    rw [if_pos hc]
-    cases hi : lst.store.internPersistent v with
-    | mk st1 h1 => rfl
+             { lst with store := (lst.store.internPersistent v).1 }) :=
+  ConRon.Arena.internPersistentE_run_eq hbmcap hcap
 
 /-- `arena::monad::intern_persistent_e` against `Arena.internPersistentE`. -/
-theorem intern_persistent_e_run {pers st lst} (hrel : AStateRelW pers st lst)
+theorem intern_persistent_e_run' {pers st lst} (hrel : AStateRelW pers st lst)
     (hinv : AStateInv pers st)
     (v : arena.store.ENodeView) (hvwf : ENodeViewWF v)
-    (hbmcap : EStore.eViewNeedsBM (absENodeView v) = true →
-      lst.store.capOKBMPersistent)
     (hview : lst.store.ViewOK (absENodeView v))
     (hpers : EViewPers (absENodeView v)) {o}
     (hrun : arena.monad.intern_persistent_e pers st v = ok o) :
@@ -12113,12 +12103,11 @@ theorem intern_persistent_e_run {pers st lst} (hrel : AStateRelW pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_persistent_abs (ls := lst.store) hrel.store hinv.store
-      hrel.storeWF hvwf hbmcap hp
+    estore_intern_persistent_abs' (ls := lst.store) hrel.store hinv.store hvwf hp
   show AOutW absEIdx _ pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
-    obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
+    obtain ⟨hhd, hrel', hinv', hbmcap, hcap⟩ := hok hh hr
     obtain ⟨hwf', hpers'⟩ :=
       internPersistentE_storeWF' hrel.storeWF hview hpers hbmcap hcap
     refine AOutW.ok
@@ -12127,10 +12116,24 @@ theorem intern_persistent_e_run {pers st lst} (hrel : AStateRelW pers st lst)
       ⟨hrel', hrel.memos, hrel.caches, hrel.pins, hwf'⟩
       ⟨hinv', hinv.memos, hinv.caches⟩
       (EStore.internPersistent_ext _ _) ?_
-    · rw [internPersistentE_run_of_cap hrel.storeWF hbmcap hcap, hhd]
+    · rw [internPersistentE_run_of_cap hbmcap hcap, hhd]
     · rw [hhd]; exact hpers'
   | Err ee => exact AOutW.err (AErrSim.of_none (herr ee hr))
 
+/-- `intern_persistent_e_run'` with the pre-D3 signature, kept for its
+callers. -/
+theorem intern_persistent_e_run {pers st lst} (hrel : AStateRelW pers st lst)
+    (hinv : AStateInv pers st)
+    (v : arena.store.ENodeView) (hvwf : ENodeViewWF v)
+    -- unused since D3; removed in slice 3
+    (_hbmcap : EStore.eViewNeedsBM (absENodeView v) = true →
+      lst.store.capOKBMPersistent)
+    (hview : lst.store.ViewOK (absENodeView v))
+    (hpers : EViewPers (absENodeView v)) {o}
+    (hrun : arena.monad.intern_persistent_e pers st v = ok o) :
+    SimW absEIdx (fun r => (absEIdx r).isPersistent = true) pers lst o
+      (Arena.internPersistentE (absENodeView v)) :=
+  intern_persistent_e_run' hrel hinv v hvwf hview hpers hrun
 
 
 /-- `arena::monad::intern_persistent_n` against `Arena.internPersistentN`. -/

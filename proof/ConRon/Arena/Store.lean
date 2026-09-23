@@ -1881,6 +1881,44 @@ def EStore.internPersistent (st : EStore) (v : ENodeView) : EStore × EIdx :=
     let (tb, i) := tb.push v d mi Idx.tierP
     ({ st with pers := tb }, i)
 
+/-- con-leche: none — arena infrastructure; `internPersistent`'s NODE half, at
+a datum handle the caller has already made persistent: the persistent cons
+probe, then the append.  `Arena/Monad.lean`'s `internPersistentE` runs the
+datum half and this one as two steps, with the Rust's capacity test between
+them (task #97-T2-LOCKSTEP, audit D3); `internPersistent_eq_at` says the two
+halves compose to `internPersistent`, by `rfl`. -/
+def EStore.internPersistentAt (st : EStore) (v : ENodeView) (mi : BMIdx) :
+    EStore × EIdx :=
+  match st.pers.find? v mi with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := ETables.empty }
+    let (tb, i) := tb.push v d mi Idx.tierP
+    ({ st with pers := tb }, i)
+
+theorem EStore.internPersistent_eq_at (st : EStore) (v : ENodeView) :
+    st.internPersistent v =
+      (st.internBMOfViewPersistent v).1.internPersistentAt v
+        (st.internBMOfViewPersistent v).2 := rfl
+
+/-- con-leche: none — arena infrastructure; the DATUM capacity test the Rust's
+`intern_bm_persistent` makes, where it makes it: only on a persistent datum
+MISS, and only at the two binder arms (audit D3). -/
+def EStore.persCapBM (st : EStore) : ENodeView → Prop
+  | .lam _ _ m => st.persFindBM m = none → st.capOKBMPersistent
+  | .forallE _ _ m => st.persFindBM m = none → st.capOKBMPersistent
+  | _ => True
+
+/-- con-leche: none — arena infrastructure; the NODE capacity test the Rust's
+`intern_persistent` makes, where it makes it: on a node MISS, probed with the
+datum handle the datum step answered, at the store that step left (audit D3). -/
+def EStore.persCapNode (st : EStore) (v : ENodeView) : Prop :=
+  (st.internBMOfViewPersistent v).1.pers.find? v (st.internBMOfViewPersistent v).2
+      = none →
+    (st.internBMOfViewPersistent v).1.pers.sizeOf v < Idx.idxCap
+
 /-- con-leche: none — arena infrastructure; the expression store's capacity
 precondition for `internPersistent`, the datum store included for the reason
 `EStore.capOK` states. -/

@@ -834,34 +834,10 @@ theorem internPersistentE_run {v : ENodeView} {s : AState} {r : EIdx} {s' : ASta
     (hwf : StoreWF' s.store) (hv : s.store.ViewOK v) (hp : EViewPers v)
     (h : internPersistentE v s = .ok (r, s')) :
     StoreWF' s'.store ∧ s'.store.view r = some v ∧ PersE r := by
-  cases hf : s.store.persFind? v with
-  | some hh =>
-    simp only [internPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
-      StateT.get, pure, StateT.pure, Except.bind, Except.pure, hf, Except.ok.injEq,
-      Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    obtain ⟨rk, he⟩ := hwf
-    exact ⟨⟨rk, he⟩, ((he.consP v _).mp hf).1, ((he.consP v _).mp hf).2⟩
-  | none =>
-    by_cases hc : (s.store.pers.sizeOf v < Idx.idxCap &&
-        (!EStore.eViewNeedsBM v || s.store.pers.bmSize < Idx.idxCap)) = true
-    · simp only [internPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
-        StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
-      simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true,
-        Bool.not_eq_eq_eq_not, Bool.not_true] at hc
-      obtain ⟨hcN, hcBM⟩ := hc
-      exact EStore.internPersistent_spec' hwf hv hp
-        (fun hb => by
-          rcases hcBM with hb' | hb'
-          · rw [hb] at hb'; exact absurd hb' (by decide)
-          · exact hb')
-        (fun _ => hcN)
-    · simp only [internPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
-        StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, ConRon.Bridge.fail_apply] at h
-      exact absurd h (by simp)
+  -- audit D3: the wrapper runs in the Rust's order, and its success says the
+  -- Rust's two miss-path capacity tests held (`Arena.internPersistentE_ok`)
+  obtain ⟨hb, hn, rfl, rfl⟩ := Arena.internPersistentE_ok h
+  exact EStore.internPersistent_spec' hwf hv hp hb hn
 
 /-- con-leche: none — arena infrastructure; a node view that denotes has
 children that decode: `intern`'s `ViewOK` precondition, read off the
