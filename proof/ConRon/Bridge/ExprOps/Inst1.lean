@@ -631,6 +631,7 @@ theorem instantiate1Fast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx) (d : Nat
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instantiate1Fast fuel e v d
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1C = ∅ ∧
         Inst1At ve d s₀.store e s'.store r⌝⦄ := by
@@ -645,7 +646,7 @@ theorem instantiate1Fast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiate1Fast fuel e v d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
       s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.inst1C = ∅ ∧
       Inst1At ve d s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun

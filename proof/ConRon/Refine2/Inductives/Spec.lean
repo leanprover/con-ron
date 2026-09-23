@@ -158,7 +158,40 @@ theorem structShape_unfold (T C : NIdx) (lps : List NIdx) (elim : NIdx)
         | .sort _ => structShapeAtSpec T C lps elim large nP nF cbody rbs rbody
         | _ => pure false
       | _, _, _ => pure false) := by
-  sorry
+  rw [structShape]
+  refine am_bind_congr _ ?_; intro a
+  refine am_bind_congr _ ?_; intro b
+  refine am_bind_congr _ ?_; intro c
+  rcases a with _ | ⟨_, tbody⟩ <;> rcases b with _ | ⟨_, cbody⟩ <;>
+    rcases c with _ | ⟨rbs, rbody⟩ <;> simp only [] <;> (try rfl)
+  refine am_bind_congr _ ?_; intro v
+  cases v <;> simp only [] <;> (try rfl)
+  rw [structShapeAtSpec, structShapeMotiveSpec, structShapeMinorSpec,
+    structShapeMajorSpec, structElimLevel]
+  twin_reduce
+  refine am_bind_congr _ ?_; intro fam
+  refine am_bind_congr _ ?_; intro b2
+  refine am_bind_congr _ ?_; intro b0
+  refine am_bind_congr _ ?_; intro want
+  refine if_congr Iff.rfl rfl ?_
+  rcases rbs[nP]? with _ | ⟨mdom, mm⟩ <;> twin_reduce <;> try (simp; done)
+  refine am_bind_congr _ ?_; intro v1
+  cases v1 <;> twin_reduce <;> try (simp; done)
+  refine am_bind_congr _ ?_; intro v2
+  cases v2 <;> twin_reduce <;> try (simp; done)
+  refine if_congr Iff.rfl ?_ ?_ <;>
+    refine am_bind_congr _ ?_ <;> intro y <;>
+    refine am_bind_congr _ ?_ <;> intro fam0 <;>
+    refine if_congr Iff.rfl rfl ?_
+  all_goals (
+    rcases rbs[nP + 1]? with _ | ⟨mindom, mm2⟩ <;> twin_reduce <;> try (simp; done)
+    refine am_bind_congr _ ?_; intro sp1
+    rcases sp1 with _ | ⟨_, mbody⟩ <;> twin_reduce <;> try (simp; done)
+    refine am_bind_congr _ ?_; intro hd
+    refine am_bind_congr _ ?_; intro spn
+    refine am_bind_congr _ ?_; intro w2
+    try twin_reduce
+    try rfl)
 
 /-! ## `structPartsCore?`'s five pieces -/
 
@@ -236,7 +269,38 @@ theorem structPartsCore_unfold (block : List IConstantInfo) :
       | [.indInfo cvT _, .ctorInfo cvC nP nF, .recInfo cvR mI rP [rule]] =>
         structPartsCoreAtSpec cvT cvC nP nF cvR mI rP rule
       | _ => pure none) := by
-  sorry
+  rw [structPartsCore?.eq_def]
+  split
+  case h_2 hx =>
+    split
+    · exact (hx _ _ _ _ _ _ _ _ _ rfl).elim
+    · rfl
+  case h_1 cvT caps cvC nP nF cvR mI rP rule =>
+  show _ = structPartsCoreAtSpec cvT cvC nP nF cvR mI rP rule
+  rw [structPartsCoreAtSpec, structPartsRhsOkSpec]
+  twin_reduce
+  refine am_bind_congr _ ?_; intro recName
+  refine am_bind_congr _ ?_; intro reserved
+  refine am_bind_congr _ ?_; intro sl
+  rcases sl with _ | ⟨_, rbody⟩ <;> twin_reduce <;> try (simp; done)
+  refine am_bind_congr _ ?_; intro want
+  refine if_congr Iff.rfl ?_ rfl
+  rw [structPartsCoreSortSpec]
+  twin_reduce
+  refine am_bind_congr _ ?_; intro sp
+  rcases sp with _ | ⟨_, tbody⟩ <;> twin_reduce <;> try (simp; done)
+  refine am_bind_congr _ ?_; intro vw
+  cases vw <;> twin_reduce <;> try (simp; done)
+  refine am_bind_congr _ ?_; intro z
+  refine am_bind_congr _ ?_; intro le
+  rw [structPartsCoreElimSpec.eq_def]
+  rcases hlp : cvR.levelParams with _ | ⟨elim, relps⟩ <;> (try twin_reduce)
+  case nil => rw [structPartsCoreSmallSpec, hlp]; try twin_reduce
+  case cons =>
+    refine am_bind_congr _ ?_; intro b
+    refine if_congr Iff.rfl rfl ?_
+    rw [structPartsCoreSmallSpec, hlp]
+    try twin_reduce
 
 /-! ## The two memoised walks' arm dispatches -/
 
@@ -685,7 +749,28 @@ theorem recCtorKinds_unfold (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
         if resOk then pure (some ks)
         else pure (some (ks.map fun _ => .negative))
       | none => pure none) := by
-  sorry
+  rw [recCtorKinds]
+  refine am_bind_congr _ ?_; intro sp
+  rcases sp with _ | ⟨cbs, cbody⟩ <;> (try twin_reduce)
+  refine am_bind_congr₂ ?_ ?_
+  · rw [List.range_eq_range']
+    refine range_mapM_counted _
+      (fun m i => recCtorKindsFromSpec T lps nP nIdx c.1.type cbs m i)
+      (fun i => rfl) ?_ c.2 0
+    intro m i
+    rw [recCtorKindsFromSpec]
+    twin_reduce
+    refine am_bind_congr _ ?_; intro k0
+    cases k0 <;> rw [recCtorKindAtSpec.eq_def]
+  intro ks
+  refine am_bind_congr _ ?_; intro cargs
+  refine am_bind_congr₂ ?_ (fun _ => rfl)
+  refine list_allM_counted _ (idxFreeOfSpec T) rfl ?_ _
+  intro a l
+  rw [idxFreeOfSpec]
+  twin_reduce
+  refine am_bind_congr _ ?_; intro b
+  cases b <;> rfl
 
 /-- `structTeleAt`'s `mapM` and `structIhApp`'s `idx.mapM`, from the `k`-th
 element on: the field's index expressions moved to the rule frame. -/
@@ -1292,5 +1377,14 @@ dearest (a memoised walk under rule 11's peel). -/
 
 /-- info: 'ConRon.Refine2.nativeShape_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms nativeShape_unfold
+
+/-- info: 'ConRon.Refine2.structShape_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms structShape_unfold
+
+/-- info: 'ConRon.Refine2.structPartsCore_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms structPartsCore_unfold
+
+/-- info: 'ConRon.Refine2.recCtorKinds_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms recCtorKinds_unfold
 
 end ConRon.Refine2

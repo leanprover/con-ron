@@ -38677,6 +38677,169 @@ STATEMENTS and no closure count.
 | the diff | `proof/ConRon/Bridge/ExprOps/{Ranges,Subst,MemoSpecs,InstLP,Owed,Inst1}.lean`, `proof/ConRon/Bridge/Specs.lean`, three tokens in `proof/ConRon/Bridge/{Frontend/Shared,Inductives/Rel}.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/` |
 | `#print axioms` | every theorem this round touched: `[propext, Classical.choice, Quot.sound]` |
 
+
+#### Round 5 — the twenty-six frames stated, and the two spellings of `BMExt` (2026-09-23, Opus under Fable)
+
+Branch `p3-exprops-5` off `arena`'s tip `b0d3fb18`, merged forward once
+(`c87b3ee6`).  The subject is round 4 §7's own open item: **the twenty-six
+specs that stated `Ext` and no `BMExt`**, taken in one pass because three
+tiers have already hit this species from downstream and the coordinator asked
+before a fourth did.  Nothing outside `proof/ConRon/Bridge/ExprOps/**` is
+written except **one token** in `Bridge/Core/Walks/Spine.lean` (§4) and the
+`lakefile.toml` note of §5.
+
+#### 1. Twenty-six, twenty-eight, and why both numbers are right
+
+Round 4 §7's table lists **28 names** and its prose says **26**.  Both are
+correct and the difference is the finding: `AbsRangeGoSpec` and `RenameSpec`
+(`Owed.lean`) already carry
+
+    (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m)
+
+which is `BMExt`'s *definition* — the same spelling round 4 declared COMPLETE
+for `Abs.lean`'s `Abs1Spec` and its ten arms and hops.  They are complete and
+were left alone; the other **26 are now stated**, and the count reconciles.
+
+| file | specs widened | what it cost |
+|---|---|---|
+| `Abs.lean` | `AbsRangeSpec` | 5 × `BMExt.refl _`, 6 × `grind only [BMExt, BMExt.trans, BMExt.refl]` |
+| `Inst1.lean` | `instantiate1Fast_spec` (+ its `_run`) | **nothing** — `bridge_vcs` took it unchanged |
+| `Spine.lean` | `mkAppN_spec`, `mkAppNFrom_spec`, `bvarRange_spec`, `pisToLams_spec`, `replacePiBody_spec`, `instSpine_spec`, `instPis_spec`, `instPisAt_spec`, `instLamsAt_spec` | 15 × `BMExt.refl _`, 9 × `grind only [BMExt.trans, BMExt.refl]` |
+| `TelescopeF.lean` | `InstListSpec`, `instPisAtFGo_spec`, `instLamsAtFGo_spec`, `instPisAtF_spec`, `instLamsAtF_spec`, `recRulePlain_spec` | 5 × `BMExt.refl _`, 7 × `grind only [BMExt.trans, BMExt.refl]` |
+| `Owed.lean` | `abstract1Fast_spec`, `abstractRangeGo_spec`, `abstractRangeFast_spec`, `resetMetaFast_spec`, `renameConstsGo_spec`, `renameConstsFast_spec`, `InstLPSpec`, `instLPGo_spec`, `instLPFast_spec` | 9 `bridge_vcs` calls gained the `BMExt` unfolding hint, 5 × `BMExt.refl _`, 8 tuple slots, one new five-line lemma |
+
+31 statement lines in all: the 26 registered postconditions, the `_run` twin
+of `instantiate1Fast_spec`, and the four local `have hinst` restatements of
+`instantiate1Fast_spec` inside `Spine.lean`'s four folding walks (a `have`
+that repeats a spec's postcondition has to be widened with it, or its body no
+longer typechecks).
+
+`Bridge/ExprOps/**` stays at **0 `sorry` across all thirteen modules**, and
+no closure count moved: this round changed 26 statements and closed no new
+goal.
+
+#### 2. The finding: `grind` does not bridge `BMExt`'s two spellings
+
+Round 4 priced the edit at *"one `BMExt.refl _` or one `by grind only
+[BMExt.trans, BMExt.refl]` per verification condition"*.  That price is right
+in `Inst1`, `Spine` and `TelescopeF` and **wrong in `Abs` and `Owed`**, and
+the reason is an import:
+
+* `Bridge/Specs.lean`'s `internE_spec` states `BMExt s₀.store s'.store`
+  FOLDED;
+* `ExprOps/MemoSpecs.lean`'s `internE_specV` — `@[spec high]`, so it WINS
+  wherever it is imported — states the same fact UNFOLDED, as
+  `(∀ mi m, … viewBM … )`.
+
+`Abs`, `Reset`, `InstLP` and `Owed` import `MemoSpecs`; `Inst1`, `Spine` and
+`TelescopeF` do not.  So in half the tier the arm's context holds the
+unfolded form while the widened postcondition asks for the folded one, and
+`grind only [BMExt.trans, BMExt.refl]` **fails**: it treats `BMExt a b` as an
+atom and never connects it to the ∀-statement beside it.  (`BMExt.get` is
+`@[grind →]`, which is what makes the folded form work at all.)
+
+**The fix is one token**: put the *definition* `BMExt` in the `grind`
+parameter list — `grind only [BMExt, BMExt.trans, BMExt.refl]`, and
+`bridge_vcs [Expr.abstract1, BMExt]` for the closer, which already carries
+`BMExt.trans`/`BMExt.refl` but had nothing to unfold with.  Nine `bridge_vcs`
+calls in `Owed.lean` and six `grind`s in `Abs.lean` take it, and every one of
+them then closes.  **The closer in `Bridge/Specs.lean` was deliberately NOT
+changed**: adding `BMExt` to its standing list would unfold the relation in
+every `bridge_vcs` of all 83 modules of the tier, under four live agents, for
+a gain that is one token at each of the fifteen sites that actually need it.
+
+#### 3. `substL*MemoAt_spec` frames the nested stores and not `BMExt`
+
+`InstLPSpec`'s `sort` and `const` arms are the one place in the twenty-six
+where the conjunct is not already in the arm's context in either spelling.
+They run `substLMemoAt` / `substLsMemoAt`, whose Theorem 1 (`ExprOps/
+InstLP.lean`) frames `pers`, `scr` and `scratchOn` — round 4 §7's *"complete
+in substance"* — and the lemma that turns those three into a `BMExt` is
+`bmExt_of_nested`, which lives in `Bridge/Inductives/Rel.lean`, another
+tier's file and not in this one's import closure.
+
+`ExprOps/Owed.lean` therefore gains **`bmExt_of_tables`**, five lines beside
+its own `view_eq_of_tables` (the identical argument at `EStore.view`), and
+the two arms close as
+
+    BMExt.trans (bmExt_of_tables (by assumption) (by assumption) (by assumption)) _hbm
+
+`bmExt_of_nested` and `bmExt_of_tables` are the same three lines in two
+files.  The fact belongs beside `BMExt.intern` in `Bridge/StoreBM.lean`; a
+round that owns both `Bridge/StoreBM.lean` and `Bridge/Inductives/Rel.lean`
+should move it there under one name and delete the other two.  This round did
+not, because `Inductives` has a live agent and the name is used three times
+in the file it would be deleted from.
+
+#### 4. What moved outside the lane: one token
+
+| file | edit | why |
+|---|---|---|
+| `Bridge/Core/Walks/Spine.lean` | `intro h1 h2 h3 h4 h5 h6` → `intro h1 h2 _hbm h3 h4 h5 h6` | `instantiate1Fast_spec` gained a conjunct |
+
+Round 4's rule again, and for the last time in this tier: **a positionally
+destructured postcondition cannot be widened without touching its
+consumers.**  `instantiate1Fast_specE` is the only code consumer of any of
+the twenty-six outside `Bridge/ExprOps/**` — every other out-of-tier mention
+found by the sweep is a doc comment.  It has **no consumers of its own yet**,
+so it was left at its old strength rather than widened: the Core tier can add
+`BMExt s₀.store s'.store ∧` to its postcondition and pass `_hbm` through in
+three lines whenever `whnfBody`'s delta half wants it.
+
+#### 5. `lakefile.toml`'s `ConRonBridge` note, corrected
+
+Round 4 closed finding 18 and left the note that justified `globs` saying
+something false: *"Two modules of the `ExprOps` tier cannot sit in ONE import
+closure."*  They can, since `Bridge/Specs.lean` took ownership of all
+fourteen derived `match` auxiliaries.  The note now says what is still true
+(the tier's modules are siblings, and `ConRon.Bridge`'s fifteen imports reach
+only a part of its 83 modules, so `globs` is what builds them), records the
+wall and its removal as history, and says explicitly that `globs` stays for
+the sibling shape and not because an import would fail.
+
+#### 6. The sweep, re-run
+
+Round 4 §7's check — *for every `…Spec` record and every `_spec` of
+`Bridge/ExprOps/**`, does the postcondition state each component of the frame
+its grade promises?* — is now **complete for `BMExt`**: every spec of the
+tier states it, in one spelling or the other, and the two spellings are
+listed in §2 so the next reader knows which `grind` to write.  The other
+components were already complete after round 4 (no spec writes a cache table
+without framing it; every memoised walk frames its own table).
+
+#### 7. OVERVIEW §12 was one gate behind
+
+The first gate run of this round failed at `overview-links`, and not on
+anything of this round's: `c87b3ee6` (task #97-P5-Mut, on `arena`) added
+**step 14, `lake build ConRonRefine2`**, updated `gates.sh`'s own header
+comment, and left OVERVIEW §12 saying *"the thirteen steps"* over an anchor
+(`gates.sh#L59-L75`) that no longer spans the block.  Fixed here because it
+blocks every landing until someone does: §12's list gains item 14 (with the
+sentence that says WHY it is its own step — step 13 elaborates not one module
+of `ConRon/Refine2/**`), the anchor becomes `#L60-L82`, and
+`scripts/overview-links.sh --update` regenerates the committed expectation
+(48 links, 31 files; the `gates.sh` block is the only one that moved).
+
+#### 8. Gates
+
+`scripts/gates.sh` on the merged tip: **all 14 OK** (`cargo-build` 0 s,
+`cargo-test` 4 s, `lint-rust` 2 s, `provenance` 0 s, `provenance-self` 1 s,
+`twin-lines` 0 s, `overview-links` 0 s, `holes` 0 s, `gen-pins` 1 s,
+`gen-prelude` 0 s, `gen-prelude-lean` 0 s, `extract-check` 93 s, `lake-build`
+110 s, `lake-refine2` 104 s) — the first `all 14 OK` line in this log, §7
+being why.  `ConRonBridge` is not a default target, so it was built
+separately: **617 jobs, green**, with `Bridge/ExprOps/**` at **0 `sorry`
+across all thirteen modules**, as it was before the round.
+
+`scripts/arena-census.py`, in the gate's own progress block: `Arena/ExprOps`
+**92/92 T1 stated, 92 closed** — unchanged, which is again the point.
+
+| | |
+|---|---|
+| branch | `p3-exprops-5` off `arena` `b0d3fb18`, merged forward once (`c87b3ee6`) |
+| the diff | `proof/ConRon/Bridge/ExprOps/{Abs,Inst1,Spine,TelescopeF,Owed}.lean`, `proof/lakefile.toml`, one token in `proof/ConRon/Bridge/Core/Walks/Spine.lean`, `OVERVIEW.md` §12 with `scripts/overview-links-expected.txt` (§7), and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, and **no `Bridge/Specs.lean`** |
+| `#print axioms` | every theorem this round touched: `[propext, Classical.choice, Quot.sound]` |
+
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the Core round: DESIGN §8.2's **Theorem 1** at
@@ -48246,6 +48409,398 @@ will build on.
 | `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 11** (was 2); the tier's `sorry` count 312 → **270** |
 | the merge | `arena` at `aa4c7a76` merged in cleanly (`Bridge/**` and `DESIGN.md` only, textual for this tier), so landing is a fast-forward |
 | the diff | the eight `Refine2/Inductives/*.lean` above and this section |
+
+#### Round 4 — the stateful recursion factored out, and the REAL block behind the 250 (2026-09-23, Opus under Fable)
+
+Branch `p5-ind-4` off `arena`'s `b0d3fb18`, merged forward twice (`a80ea04d`,
+task #97-P3-Checker round 5, and `8f96148b`, task #97-P5-Checker round 3 —
+`Bridge/**`, `Refine2/Checker/**`, `Refine2/Core/**` and `DESIGN.md`; the
+second merge is the one that landed `ifenv_push_refines` and it cashed two of
+this round's ten, §R4.8).  The diff is seven files, all in this lane:
+`proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,SumInstall,SumInstallF,Top}.lean`
+and this section.  No Rust file, no generated model, no `Arena/`, no
+`Refine/`, no `Bridge/`, no other `Refine2/` file — in particular **not**
+`Specs.lean`, `ExprOps/**`, `Checker/**` or `Promote/**`.
+
+**The tier went from 270 open `sorry` to 260 — ten closed**: five of the ten
+remaining deep `_unfold`s, the tier's first three STATEFUL `_refines`, and the
+two `cons_*` folds `ifenv_push_refines` unblocked.  The round's brief was
+"the stateful `_refines` are unblocked now that `Specs.lean` is at zero; take
+them and report the per-lemma cost".  §R4.1 is the answer, and it is not the
+one the brief expected.
+
+##### R4.1 THE FINDING — `Specs.lean` reaching zero did NOT unblock the tier, and here is the number
+
+Round 2 measured that **248 of the tier's 306 `_refines` waited on
+`Refine2/Specs.lean`'s `intern_*` / `read_*` family**.  That family is closed.
+The statements are still not provable, and the reason is one line:
+
+> **every member of the intern family carries side conditions that
+> `AStateRel` and `AStateInv` do not imply, and not one statement of this
+> tier carries them.**
+
+The side conditions, read off `Refine2/Specs.lean` at the tip:
+
+| producer | side conditions beyond `hrel` / `hinv` |
+|---|---|
+| `intern_e_bvar_run` | `hfrozen` at the **E** store — and nothing else |
+| `intern_e_{fvar,sort,const,app,let_e,proj}_run` | `hfrozen` (E), `hchild` (the persistent table has no such node when a child is scratch), `hview` (every child handle decodes) |
+| `intern_e_{lam,forall_e,bind_i}_run` | the three above **plus** `hcapB` (`ECapAt` at the binder-meta node) |
+| `intern_n_node_run` | `hfrozen` at the **N** store, `NNodeViewWF v`, `hview` |
+| `intern_l_node_run` | `hfrozen` at the **L** store, `hview` (a `.param n` wants `n` to decode in the NAME store) |
+| `intern_ls_node_run` | `hfrozen` at the **Ls** store, `hview` |
+| `intern_{name,level,level_list,levels}_run` | one `hfrozen` per tier REACHED (one, two, two, three) plus the tree's own `WF` |
+
+None of these is derivable: `AStateInv` is `StoreInv` + `MemosInv` +
+`CachesInv` and says nothing about `shared_on`/`scratch_on`; `AStateRel`'s
+`storeWF` is about the TWIN store, not about which handles decode.  And they
+are not cosmetic — DESIGN §8's **finding 8** says why the frozen tier is *"a
+REAL divergence, not a modelling artefact"*: at `shared_on = true ∧
+scratch_on = false` the port answers `Internal("arena: append to a frozen
+persistent tier")` where the twin appends, and `Internal` abstracts to
+`some .internal`, so the refinement is genuinely FALSE without the hypothesis.
+
+**The census**, measured at the round's START (270 open, of which 257
+`_refines` with an `hrun` and 13 `_unfold`s).  Taking each open `_refines`'
+Rust function and closing its callee graph in `ConRon/Generated/Funs.lean`,
+then asking which `arena::monad::intern*` entry points it reaches:
+
+| what the statement reaches | how many of the 257 open `_refines` |
+|---|---:|
+| **no intern at all** — statable as it stands | **45** |
+| `intern_e_bvar` only (needs `hfrozen` at E, one line) | 4 |
+| the E tier's other constructors (`hfrozen` + `hchild` + `hview`) | 33 |
+| E + the LEVEL tier | 43 |
+| E + L + the NAME tier | 79 |
+| E + L + Ls + N (all four) | 12 |
+| the NAME tier alone | 17 |
+| other single/paired tiers | 24 |
+
+**212 of 257 need a hypothesis this tier does not carry.**  That is the same
+81 % round 2 measured, for a different reason, and it is the whole scheduling
+story for the rest of the campaign.
+
+**What round 4 did about it, and what it did not.**  Nothing was weakened and
+nothing was closed vacuously.  The three statements this round closed took the
+hypothesis in the shape `Refine2/ExprOps/Mut.lean` already uses at its 44
+interning walks — a literal
+
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+
+on the `_refines` — which is DESIGN §(c)'s standing treatment ("a hypothesis
+at the lemma, discharged at the call site") and is a PRECEDENT, not a new
+decision: `Refine2/ExprOps/Mut.lean` carries it on
+`intern_rebuilt_{bvar,fvar,sort,const,app,let_e,lit,proj,lam,forall_e,bind_i}`
+and their consumers already.  **The decision Fable owes this tier is the
+SHAPE, not the principle**, and there are two candidates:
+
+* **per-tier hypotheses**, one `hfrozen` per store the statement reaches (what
+  `Specs.lean` chose for its four walks, explicitly rejecting a bundle because
+  it would make the NAME walk ask about the level stores).  For this tier that
+  is up to four hypotheses on 91 statements, plus `hview`/`hchild`/`hcapB`.
+* **one bundle**, the shape `Refine2/Promote/Intern.lean` already has:
+  `PersUnfrozen` is four `shared_on = false` conjuncts in one structure, and
+  the inductives tier runs entirely INSIDE a declaration bracket where the
+  port has called `enter_scratch`, so the honest bundle here is
+  `scratch_on = true` at all four tiers — which implies every `hfrozen` for
+  free and is TRUE at the tier's one entry point (`check_ind_decl`).
+
+**This round recommends the bundle**, and says so as a recommendation rather
+than taking it: it is 212 statements, it is one edit across seven files, and
+it is the kind of tier-wide statement change the brief reserves to Fable.  A
+bundle also answers `hview` for the NAME tier in the same stroke only if it
+carries "the declaration's handles decode", which is a THIRD conjunct and
+belongs to `Bridge/**`'s `StateOK` vocabulary — §R4.6 states it as an
+obligation.
+
+##### R4.2 What that leaves: the state-free half, and the cost of the one stateful lemma that COULD be stated
+
+The 45 intern-free statements are the tier's real remaining state-free work
+(round 3's §R3.5 six are among them).  Of the rest, `struct_ps_at_from` is the
+only family whose only side condition is the cheapest one (`intern_e_bvar`,
+`hfrozen` at the E store alone), so it is what this round used to price the
+stateful family:
+
+| lemma | proof lines | what it is |
+|---|---:|---|
+| `struct_ps_at_from_refines` | **49** | the counted cursor, `intern_e_bvar` per step, at `sim_cursor_copy` |
+| `struct_ps_at_refines` | 5 | the wrapper at cursor 0 |
+| `bvars_desc_refines` | 5 | the wrapper at offset 0 |
+
+**So the stateful family's per-instance price, with the recursion factored
+out, is 49 lines for a recursion and 5 for a wrapper** — against round 3's
+20–22 for a state-free cursor copy.  The 2.4× is entirely the `Sim` bookkeeping:
+the error arm, the `Ext` re-basing and the side condition carried across the
+step.  **That is the number the campaign's estimate should use**, and it is a
+lower bound: `struct_ps_at_from`'s step is the cheapest intern there is (one
+hypothesis, no `hview`, no `hchild`), so a step at `intern_e_forall_e` will
+pay three more hypotheses' worth of threading on top.
+
+##### R4.3 What the round added to the idiom — the stateful cursor, once
+
+`Refine2/Inductives/Shape.lean` grew by 168 lines and four declarations.  They
+are round 3's `cursor_induction` / `vec_cursor_copy` with the store threaded:
+
+* **`sim_cursor_copy`** (27 + 34) — *the* stateful recursion.  `F` runs one
+  `Sim` step at the cursor, pushes its answer and recurses; the answer read
+  through the abstraction is the accumulator followed by the twin's remaining
+  list action.  Three things in its shape are load-bearing and were each
+  arrived at the hard way:
+  * the twin side is `step`/`rest` indexed by the cursor's **VALUE** (a
+    `Nat`), not by a `Vec` element, because half of this tier's stateful
+    cursors COUNT (`struct_ps_at_from` counts `k` up to `n_p`, interning
+    `bvar (o + nP - 1 - k)`) rather than index a container;
+  * `Q : arena.monad.AState → Prop` is the side condition carried across the
+    step — §R4.1's `hfrozen` at whichever tier the step appends to.  The step
+    receives `Q st` and must return `Q st1`, which `Specs.lean`'s
+    `intern_*_flags` lemmas give in **two lines** at each instance;
+  * the step's obligation is stated as an existential over the sub-call's
+    *Rust outcome pair* `(r, st1)` plus a `Sim` about it, with the `Ok` and
+    `Err` continuations as two implications — because the caller has the
+    outcome in hand from `bind_eq_ok_iff` and must not have to case on it
+    twice.
+* **`sim_vec_cursor_copy`** (27 + 17) — the `Vec` specialisation, derived from
+  the above; a `dflt : α` is the `getD` witness the `Nat`-indexed `step` needs
+  off the end and appears in no conclusion.
+* **`AOut.ext_left`** (6 + 5) — *the lemma that makes the induction compose*.
+  The recursive call's `Ext` is measured from the state the STEP left; the
+  conclusion wants it measured from the state the call STARTED in, and
+  `Ext.trans` at the `Ok` arm is the whole content.  Without it the step case
+  does not typecheck, and the mismatch reads as an `AOut ... lst1 ...` against
+  an `AOut ... lst ...` with nothing else different, which is easy to misread
+  as a naming slip.
+* **`am_bind_congr₂`** — the **two-sided** bind peel, `hxy : x = y` and the
+  pointwise tail.  See §R4.5: it is what makes the counted-fold `_unfold`s
+  cheap, and it is a strictly better answer than round 2's note about `conv`.
+
+Both cursor lemmas' `#print axioms` read `[propext, Classical.choice,
+Quot.sound]`; unlike round 3's state-free pair they are not choice-free,
+because `Sim` reaches `AStateRel` and the store's `DecidableEq` instances.
+
+##### R4.4 Five of the ten deep `_unfold`s are closed, and they are CHEAPER than round 3 priced them
+
+Round 3 closed `nativeShape_unfold` at 74 lines and predicted "two to three
+times that" for `structShape`.  Measured:
+
+| lemma | proof lines | what it needed |
+|---|---:|---|
+| `structShape_unfold` (`Spec.lean`) | **34** | the three-level peel, two `if_congr`, one ten-way `cases` |
+| `structPartsCore_unfold` (`Spec.lean`) | **32** | `split` at the block pattern, then the `large?` join point |
+| `recCtorKinds_unfold` (`Spec.lean`) | **22** | `am_bind_congr₂` at a `mapM` and at an `allM` |
+| `nestedRuleShape_unfold` (`SpecModeled.lean`) | **29** | `am_bind_congr₂` at two `mapM`s and an `allM` |
+| `checkUnitThm_unfold` (`SpecModeled.lean`) | **20** | the peel, and then `rfl` |
+
+**Mean 27.4, median 29 — a third of round 3's 74**, and the reason is §R4.5's
+two moves.  `Spec.lean` is at **one** open `sorry` (round 2's
+`nativeOpenedOk`, still blocked on `openPisAtFvarsF_length`) and
+`SpecModeled.lean` at four, all four of which are §R4.6's defects.
+
+##### R4.5 The two moves that made them cheap, and the trap that cost an hour
+
+1. **`if_congr Iff.rfl rfl ?_` replaces `by_cases`.**  Round 3's §R3.3 says
+   `split` reaches only one side of an equation between two `if`s and
+   prescribes `by_cases hc : <the condition>` plus two `if_pos`.  That is
+   right and it is twice the lines and it forces you to NAME the condition —
+   which is impossible when the condition mentions an inaccessible variable
+   from a preceding `cases`.  `refine if_congr Iff.rfl rfl ?_` reduces
+   `ite c A B = ite c A' B'` to `B = B'` in one line and never names anything.
+   Three of this round's five `_unfold`s use it four times each.
+2. **`am_bind_congr₂` at a library fold, and NEVER a restating `have`.**
+   Round 2 recorded that `range_mapM_counted` "will not `rw` into the reduced
+   matcher arm — a `conv` at the arm is the fix".  The real diagnosis is
+   sharper and the fix is easier: **a `have` that restates the twin's lambda
+   gets its own matcher constant, and neither `rw` nor `simp only` will fire
+   against the twin's** (Lean's matchers are per-declaration and simp matches
+   syntactically at reducible transparency).  Splitting the bind two-sidedly
+   keeps the fold's `F` determined BY THE GOAL, so the counted lemma is
+   applied with `F := _` and nothing has to be written out:
+
+       refine am_bind_congr₂ ?_ ?_
+       · rw [List.range_eq_range']
+         refine range_mapM_counted _ (fun m i => <the transcription> m i)
+           (fun i => rfl) ?_ c.2 0
+         …
+
+   `recCtorKinds_unfold` went from "needs a `conv`" to 22 lines on this.
+3. **The trap, and it is not a Lean trap — it is a `lake` one.**
+   `proof/lakefile.toml` sets `weak.backward.do.legacy = true` and
+   `weak.backward.isDefEq.respectTransparency = false` for the whole package.
+   **`lake env lean <file>` does not inherit them**, so a file iterated on
+   that way is elaborated by a DIFFERENT `do` elaborator: join points land in
+   different places and proofs that pass under `lake build` fail under
+   `lake env lean` and vice versa.  It shows up as a previously-green theorem
+   in an untouched file suddenly failing, which reads exactly like a
+   regression from your own edit; an hour went into bisecting one.  **Iterate
+   with `lake env lean -Dbackward.isDefEq.respectTransparency=false
+   -Dbackward.do.legacy=true`**, or with `lake build <module>`.
+
+##### R4.6 THREE more statement defects, all in `SpecModeled.lean`, all found by trying to prove them
+
+Round 2 found `nativeOpenedOk_unfold`; these are the fifth, sixth and seventh
+of the campaign's `_unfold` defects and the same rule applies — **nothing was
+weakened and nothing was closed vacuously, the four are left `sorry`**.
+
+* **`checkIotaThm_unfold` and `checkIotaThmN_unfold` merge three DISTINCT
+  failures into one.**  The twin (`Arena/Inductives/Modeled.lean:205-210` and
+  `:328-333`) declines the left-hand side with three `unless`es carrying three
+  different messages — `"iota statement head mismatch"`, `"… arity mismatch"`,
+  `"… prefix mismatch"`.  `SpecModeled.lean`'s `iotaLhsPrefixOkSpec` answers
+  ONE `Bool` and the statement fails with the *head* message in all three
+  cases.  The transcription's own doc comment says this is deliberate
+  ("the twin declines each of the three with its own message; the port merges
+  them, which is DESIGN §3.1's licence") — **and that licence is about the
+  PORT, where Theorem 2 compares error KINDS.  An `_unfold` is an EQUATION of
+  two `AM Unit` values, and the two differ**: one throws
+  `notImplemented "… arity mismatch …"` where the other throws
+  `notImplemented "… head mismatch …"`.  The repair is either three separate
+  `Bool` specs (three `unless`es, as the twin has) or a spec that answers
+  `Option CheckError`.  The merge is fine *below* the `_unfold`, in the
+  `_refines`; it is not fine *in* it.
+* **`checkEtaThm_unfold` recomputes an effect the twin binds once.**  The twin
+  binds `let us ← paramLevels lps` (`Modeled.lean:663`) and reuses `us` in
+  `cHd` and in every iteration of the projection `mapM`.
+  `SpecModeled.lean`'s `checkEtaThmEqSpec` calls `paramLevels lps` again, and
+  `etaProjArgsSpec` calls it once MORE per projection.  The two agree only if
+  interning is idempotent — true, but it is a fact about `EStore.intern` and
+  `find?` that needs `StoreWF`, it lives in `Arena/WFProofs.lean`, and the
+  `_unfold` statement has no hypothesis at all.  The repair is to thread `us`
+  into `checkEtaThmEqSpec`/`etaProjArgsSpec` as an argument, exactly as the
+  twin does; that is a transcription change in this lane and is left for
+  Fable's ruling because it changes five signatures.
+
+The tenth `_unfold`, **`checkModeled_unfold`, is workable and was not
+finished**: the twin filters the block with `fun ci => match ci with | .indInfo _ _ => true | _ => false`
+and `filterKindSpec` with the same match at `kind == 0`, and the two matcher
+constants differ, so the bridge wants a `List.filter_congr` that neither `rw`
+nor `simp only` can place (§R4.5's move 2 does not apply — there is no bind to
+split).  `kabstract`-based `generalize` on the filtered list is the shape to
+try next; everything below it is a plain peel.
+
+##### R4.7 A whole file of the tier was outside the landing gate
+
+`ConRon/Refine2/Inductives/StructParts.lean` — 772 lines, 50 declarations,
+42 of them open — **is imported by no other module**, and
+`proof/lakefile.toml`'s `ConRonRefine2` library has `roots = ["ConRon.Refine2"]`
+with no `globs`, so `lake build ConRonRefine2` never elaborated it.  Round 3's
+five closed proofs in that file were never checked by a gate run; nor were
+this round's three until they were.  `Refine2/Inductives/Top.lean` now imports
+it (one line, with a comment saying why), the build goes 2 221 → **2 222**
+jobs, and the tier's gate-visible `sorry` count goes 218 → **260**.  (Task
+#97-P5-Mut found the OTHER half of the same hole at the same time — the gate's
+`lake build` step never built `ConRonRefine2` at all, because it is not a
+default target — and `arena` `c87b3ee6` added a fourteenth gate step for it.
+The two are independent: that step now builds the library, and this import is
+what puts `StructParts.lean` INTO the library.)
+
+**The tier's numbers in this section are the whole-directory count, not the
+gate-visible one it used to be**; so
+are round 2's and round 3's (they counted the file by `grep`, which is why
+their totals were right and the gate's was not).  The general lesson is worth
+a line for the campaign: **a `roots`-only Lean library silently drops leaf
+modules**, and the arena census does not catch it because it reads sources.
+
+##### R4.8 What closed, file by file
+
+| file | r3 | r4 | closed |
+|---|---:|---:|---:|
+| `Spec.lean` | 4 | **1** | 3 (`structShape`, `structPartsCore`, `recCtorKinds`) |
+| `SpecModeled.lean` | 6 | **4** | 2 (`checkUnitThm`, `nestedRuleShape`) |
+| `StructParts.lean` | 45 | **42** | 3 (`struct_ps_at_from`, `struct_ps_at`, `bvars_desc`) |
+| `Modeled.lean` | 84 | 84 | — |
+| `NativeParts.lean` | 53 | 53 | — |
+| `NativeInstall.lean` | 31 | 31 | — |
+| `SumInstall.lean` | 23 | **22** | 1 (`cons_sum_ctors`, §R4.8b) |
+| `SumInstallF.lean` | 9 | **8** | 1 (`cons_sum_ctors_f`, two lines at the above) |
+| `StructInstall.lean` / `NativeInstallF.lean` | 5 / 5 | 5 / 5 | — |
+| `StructInstallF.lean` | 3 | 3 | — |
+| `SumParts.lean` / `Top.lean` | 1 / 1 | 1 / 1 | — |
+| the tier | **270** | **260** | **10** |
+
+##### R4.8b `ifenv_push_refines` landed mid-round, and it cost 34 lines to cash
+
+Round 3 §R3.5 stated `ifenv_push` as an obligation for
+`Checker/**`/`Promote/**` and carried on.  It landed in `arena` `8f96148b` as
+`Refine2/Checker/Shape.lean`'s `ifenv_push_refines`, with the signature round 3
+asked for and one repair: **`IFEnvInv`'s third clause is strengthened from
+"the stored position fits a `usize`" to `p.2.val < |consts|`**, because
+`IFEnvRel.idx` reads the index through `consts[p.2]?` and an out-of-range
+stored position answers `none` against a twin index with no entry — then one
+`push` puts that row in range and the relation breaks.  The new clause
+SUBSUMES the old through `Vec.property`, `IFEnvInv.idxPos` survives as a
+derived accessor, **and nothing in this tier moved**: the eleven statements of
+`SumInstall`/`SumInstallF`/`NativeInstall` that carry `hfinv : IFEnvInv rf`
+take it as a black box.
+
+`cons_sum_ctors_refines` is then round 3's `cursor_induction` with the
+environment as the accumulator — **34 lines**, and the only content beyond the
+induction is `ifenv_push_refines` plus `i_constant_val_dup_abs` for the copied
+record.  `cons_sum_ctors_f_refines` is two lines: the Rust is a re-export and
+`consSumCtorsF` is `abbrev … := @consSumCtors`.
+
+**This is also the shape §R4.1's ruling should take**: `IFEnvInv` grew a
+clause, every consumer carried on, and the tier's statements never mentioned
+it.  A `StoreUnfrozen`-style bundle on `AStateInv` would land the same way.
+
+**And one methodological note the Checker agent's repair earns.**  The 32-bit
+`as usize` species (round 3 §R3.5) now has a resolved instance:
+`ifenv_find`'s truncating `pos as usize` is sound **because an invariant
+bounds it**, not because the Rust was narrowed.  So the first question at a
+new one is whether some invariant already bounds the index — this round met
+**no new instance**, and round 3's four (`kind_get_d`, `used_get_d`,
+`sort_get_d`, `rules_pin_ok`) are unbounded by anything: `j` is universally
+quantified and the only bound in sight is another universally quantified `n`.
+
+**Two duplications the import graph forced**, flagged by the Checker agent and
+recorded here so they are not rediscovered: `i_constant_info_name_abs`, and
+`eidx_eq2_abs` / `nidx_eq2_abs`, exist privately in `Refine2/Checker/**` and
+publicly in `Refine2/Inductives/Shape.lean`.  Both belong in
+`Checker/Shape.lean`; the move is a two-tier edit and is **scheduled, not
+done** — neither round touched the other's copy.
+
+##### R4.9 What the next round needs, and from whom
+
+* **A ruling on §R4.1's hypothesis shape.**  212 of 252 open `_refines` are
+  behind it and no amount of effort in this lane shortens that list.  This
+  round recommends one bundle (`scratch_on = true` at all four tiers, plus the
+  handle-decoding conjunct) stated once in `Refine2/Inductives/Shape.lean` and
+  discharged at `check_ind_decl`.
+* **"the declaration's handles decode"**, the `hview` half — `∀ n ∈ lps,
+  (lst.store.ls.ns.view n).isSome`, and its E/Ls analogues.  It is
+  `Bridge/**`'s `StateOK` vocabulary, it is monotone along the tier's
+  `Ext` only via a `denote`-to-`view` lemma this tier does not own, and it is
+  what `param_levels_go_refines` (19 statements behind it) and every
+  `intern_e_const`/`intern_e_forall_e` cursor waits on.
+* ~~**`ifenv_push`**~~ — **landed** (§R4.8b), and cashed in this round.
+* **`openPisAtFvarsF_length`** (round 2 §R2.7) — unchanged.
+* **A decision on round 3 §R3.5's four 32-bit casts** — unchanged; `rules_pin_ok`,
+  `kind_get_d`, `used_get_d`, `sort_get_d` are still `sorry` and
+  `native_rec_pin_ok` still waits on the first.
+* **A ruling on §R4.6's three transcription defects** — two of them
+  (`checkIotaThm`, `checkIotaThmN`) are a three-way split of one `Bool` spec,
+  the third (`checkEtaThm`) is threading `us` through two signatures.  All
+  three are in this lane and all three change transcriptions other rounds have
+  already cited, which is why they are Fable's.
+
+##### R4.10 The axiom census
+
+Nine `#print axioms` rows were added: two in `Inductives/Shape.lean` (the two
+stateful cursor shapes), three in `Spec.lean`, two in `SpecModeled.lean`, one
+in `StructParts.lean` (the tier's first stateful `_refines`) and one in
+`SumInstall.lean` (the `ifenv_push` fold).  Every one reads
+`[propext, Classical.choice, Quot.sound]` — **no `sorryAx` on anything this
+round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
+
+##### R4.11 The gates, at the tip
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 14 OK** (`cargo-build` / `cargo-test` / `lint-rust` / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` / `lake-build` / `lake-refine2`) — the fourteenth step arrived in the third `arena` merge (`c87b3ee6`), which is task #97-P5-Mut's half of §R4.7's finding |
+| `cd proof && lake build ConRonRefine2` | green, **2 222 jobs** (was 2 221 — §R4.7), 0 errors |
+| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 14** (was 11); the tier's `sorry` count 270 → **260** |
+| the merges | `arena` at `a80ea04d`, `8f96148b` and `c87b3ee6`, all three clean (no file of this lane touched by any), so landing is a fast-forward |
+| the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,SumInstall,SumInstallF,Top}.lean`, this section, and the `overview-links` repair below |
+| one repair outside the lane | `c87b3ee6` moved `scripts/gates.sh`'s step list without regenerating `scripts/overview-links-expected.txt`, so the `overview-links` gate was RED on `arena` and no branch could land.  `OVERVIEW.md` §12 now says fourteen steps at `#L60-L82` and lists the new one; the expected file is regenerated.  Two files, no judgement call, and it is named here because it is not this lane's |
+
 
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier

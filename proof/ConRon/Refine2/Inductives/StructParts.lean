@@ -129,27 +129,86 @@ the `nP - k` in the statement. -/
 theorem struct_ps_at_from_refines {pers st lst} {ofs n_p k : Std.U64}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.inductives.struct_parts.struct_ps_at_from pers st ofs n_p k out
       = ok o) :
     Sim absEIdxL (fun _ => True) pers lst o
       (do pure (absEIdxL out ++
         (← structPsAtGoSpec (absU ofs) (absU n_p) (absU n_p - absU k) (absU k)))) := by
-  sorry
+  refine sim_cursor_copy (fun k : Std.U64 => k.val) (absU n_p) absEIdx
+    (fun s => s.store.shared_on = true → s.store.scratch_on = true)
+    (fun m => Arena.internBVarE (absU ofs + absU n_p - 1 - m))
+    (fun m => structPsAtGoSpec (absU ofs) (absU n_p) (absU n_p - m) m)
+    (fun s k out => arena.inductives.struct_parts.struct_ps_at_from pers s ofs n_p k out)
+    ?_ ?_ ?_ ?_
+    k out st lst o hrel hinv hfrozen hrun
+  · intro m hm
+    rw [show absU n_p - m = 0 by omega]
+    rfl
+  · intro m hm
+    obtain ⟨d, hd⟩ : ∃ d, absU n_p - m = d + 1 := ⟨absU n_p - m - 1, by omega⟩
+    rw [hd, show absU n_p - (m + 1) = d by omega]
+    rfl
+  · intro st i out o hn h
+    rw [arena.inductives.struct_parts.struct_ps_at_from.eq_def] at h
+    rw [if_pos (show i ≥ n_p by scalar_tac)] at h
+    exact (Result.ok_injective h).symm
+  · intro st lst i out o hi hrel hinv hfr h
+    rw [arena.inductives.struct_parts.struct_ps_at_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ n_p by scalar_tac)] at h
+    obtain ⟨a1, ha1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨a2, ha2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨a3, ha3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨r, st1⟩ := p
+    have hval : absU a3 = absU ofs + absU n_p - 1 - i.val := by
+      have e1 := ConRon.Refine.Nat.uadd_val ha1
+      have e2 := ConRon.Refine.Nat.usub_val ha2
+      have e3 := ConRon.Refine.Nat.usub_val ha3
+      have hone : (1#u64 : Std.U64).val = 1 := by scalar_tac
+      simp only [absU]
+      omega
+    have hf := intern_e_bvar_flags hrel hinv hfr hp
+    refine ⟨r, st1, by rw [← hval]; exact intern_e_bvar_run hrel hinv hfr a3 hp,
+      ?_, ?_⟩
+    · intro u hu
+      subst hu
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      refine ⟨i3, out1, ?_, ConRon.Refine.vec_push_val hout1, ?_, h⟩
+      · have := ConRon.Refine.Nat.uadd_val hi3
+        simpa using this
+      · intro hs
+        rw [hf.2]
+        exact hfr (by rw [← hf.1]; exact hs)
+    · intro e he
+      subst he
+      exact (Result.ok_injective h).symm
 
 /-- `struct_ps_at` ⊑ `structPsAt`. -/
 theorem struct_ps_at_refines {pers st lst} {ofs n_p : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.inductives.struct_parts.struct_ps_at pers st ofs n_p = ok o) :
     Sim absEIdxL (fun _ => True) pers lst o (structPsAt (absU ofs) (absU n_p)) := by
-  sorry
+  rw [arena.inductives.struct_parts.struct_ps_at] at hrun
+  have h := struct_ps_at_from_refines hrel hinv hfrozen hrun
+  rw [structPsAt_unfold]
+  have h0 : ((0#u64 : Std.U64)).val = 0 := by scalar_tac
+  simpa [absEIdxL, alloc.vec.Vec.new, h0, absU] using h
 
 /-- `bvars_desc` ⊑ `bvarsDesc` — `structPsAt 0 n`, named apart because
 con-leche writes the two inline at different frames. -/
 theorem bvars_desc_refines {pers st lst} {n : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.inductives.struct_parts.bvars_desc pers st n = ok o) :
     Sim absEIdxL (fun _ => True) pers lst o (bvarsDesc (absU n)) := by
-  sorry
+  rw [arena.inductives.struct_parts.bvars_desc] at hrun
+  have h := struct_ps_at_refines hrel hinv hfrozen hrun
+  have h0 : ((0#u64 : Std.U64)).val = 0 := by scalar_tac
+  rw [show absU (0#u64 : Std.U64) = 0 from h0] at h
+  rwa [bvarsDesc]
 
 /-- `struct_fam` ⊑ `structFam`. -/
 theorem struct_fam_refines {pers st lst} {t : arena.handle.NIdx}
@@ -701,5 +760,13 @@ theorem mentions_const_refines {pers st lst} {t : arena.handle.NIdx}
     Sim id (fun _ => True) pers lst o
       (mentionsConst (absNIdx t) (absEIdx e)) := by
   sorry
+
+/-! ## The axiom census
+
+The tier's first STATEFUL `_refines` (round 4), and the shape every other one
+of the family will be built from. -/
+
+/-- info: 'ConRon.Refine2.struct_ps_at_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms struct_ps_at_from_refines
 
 end ConRon.Refine2
