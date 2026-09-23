@@ -432,6 +432,23 @@ port's `Vec` is oldest-first, its index storing a position into it. -/
 def absIEnv (e : arena.env.IEnv) : IEnv :=
   ⟨(e.consts.val.map absIConstantInfo).reverse⟩
 
+/-- **The Rust-side representation predicate of a stored constant** (task
+#97-P5-Core round 5, coordinator's ruling (d)): the data a lockstep step reads
+out of the environment and hands to a function that is exact only on
+canonical data — the subtype invariants Charon erased from con-leche's
+types, and nothing else (the maintainer's ruling).  The Rust `PropWhen` is
+con-leche's sealed canonical datum
+with its proof fields erased (`two p q` needs `p < q`, `many ps` sorted and
+longer than two), so the Rust type admits values the twin's `ConLeche.PropWhen`
+cannot represent, on which `prop_when::beq`/`subst_pw` differ — the store side
+carries the same fact as `TblRel`'s `RelOn PropWhenWF` key predicate.  Only
+the clause a proof needs is here: an inductive's result-sort datum, read by
+`arena::core::caps_never_zero`: the erased subtype invariant of con-leche's
+`PropWhen`.  (Add a clause only with the proof that needs it.) -/
+def IConstantInfoWF : arena.env.IConstantInfo → Prop
+  | .IndInfo _ caps => ConRon.Refine.PropWhenWF caps.sort_z
+  | _ => True
+
 /-- **The one clause that is not a field map** (task #97-P6-5's lever 1): the
 Rust's index answers `(counter, position)` and `ifenv_find` reads the constant
 out of `env.consts` at that position, where the twin's index answers
@@ -444,5 +461,8 @@ structure IFEnvRel (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
       (rf.env.consts.val[p.2.val]?).map fun ci => (absU p.1, absIConstantInfo ci))
     = lf.idx[absNIdx n]?
   visibleBelow : lf.visibleBelow = absU rf.visible_below
+  /-- The stored constants are canonical Rust data (`IConstantInfoWF`): a
+  Rust environment represents a twin one only when it is. -/
+  envWF : ∀ ci ∈ rf.env.consts.val, IConstantInfoWF ci
 
 end ConRon.Refine2

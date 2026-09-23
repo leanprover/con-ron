@@ -83,6 +83,14 @@ second, and knows the length of both. -/
     (absEIdxList v).length = v.val.length := by
   simp [absEIdxList]
 
+/-! ## Well-formedness facts in context
+
+A read that carries the Rust datum's well-formedness states it as
+`∀ l, o = some l → WF l`; after the case split on `o` that is
+`∀ l, some x = some l → WF l`, which these reduce to `WF x`. -/
+
+attribute [lockstep_simp] Option.some.injEq forall_eq' ConRon.Refine.LiteralWF IConstantInfoWF
+
 /-! ## The environment -/
 
 /-- `arena::env::IProjEntry` as the twin's `IProjEntry`, field for field. -/
@@ -97,13 +105,40 @@ attribute [lockstep_simp] absIProjEntry
 
 attribute [lockstep_simp] absIConstantInfo
 
+/-- A constant `ifenv_find` answers is one of the environment's. -/
+theorem ifenv_find_mem {vis : Std.U64} {fe : arena.env.IFEnv} {n : arena.handle.NIdx}
+    {ci : arena.env.IConstantInfo} (h : arena.env.ifenv_find vis fe n = ok (some ci)) :
+    ci ∈ fe.env.consts.val := by
+  rw [arena.env.ifenv_find] at h
+  obtain ⟨r, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | none => cases Result.ok_injective h
+  | some p =>
+    obtain ⟨c, pos⟩ := p
+    dsimp only at h
+    split at h
+    · obtain ⟨i2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      split at h
+      · obtain ⟨i4, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases Result.ok_injective h
+        obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt hii
+        rw [← hx]
+        exact List.getElem_mem hb
+      · cases Result.ok_injective h
+    · cases Result.ok_injective h
+
 /-- `arena::env::ifenv_find` against `IFEnv.find?`: the twin's lookup is a
-pure expression, so the pair is a `TwinEq` the twin side is rewritten with. -/
+pure expression, so the pair is a `TwinEq` the twin side is rewritten with;
+and the constant found is canonical Rust data (`IFEnvRel.envWF`, the
+coordinator's ruling (d) of task #97-P5-Core round 5). -/
 @[lockstep] theorem ifenv_find_ls {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
     (hctx : CoreCtx vis fe lfe) (n : arena.handle.NIdx) :
     LSP (arena.env.ifenv_find vis fe n)
-      (fun o => TwinEq (lfe.find? (absNIdx n)) (o.map absIConstantInfo)) :=
-  fun _ h => (ifenv_find_abs hctx h).symm
+      (fun o => TwinEq (lfe.find? (absNIdx n)) (o.map absIConstantInfo) ∧
+        ∀ ci, o = some ci → IConstantInfoWF ci) :=
+  fun o h => ⟨(ifenv_find_abs hctx h).symm, fun ci hci => by
+    subst hci; exact hctx.fenv.envWF ci (ifenv_find_mem h)⟩
 
 @[lockstep] theorem reducibility_hint_dup_ls (h : kernel.env.ReducibilityHint) :
     LSP (kernel.env.reducibility_hint_dup h) (fun r => r = h) := by

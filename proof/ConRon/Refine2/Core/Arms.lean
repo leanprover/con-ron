@@ -63,6 +63,8 @@ import ConRon.Refine2.Core.Arms.Gated
 import ConRon.Refine2.Core.Arms.Delta
 import ConRon.Refine2.Core.Arms.Loops
 import ConRon.Refine2.Core.Arms.Batched
+import ConRon.Refine2.Core.LS.Infer
+import ConRon.Refine2.Core.LS.Annotate
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -94,8 +96,8 @@ theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
     Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) := by
-  sorry
+        (absU depth) (absEIdx e)) :=
+  Lockstep.LS.toSim₀ (Lockstep.whnf_core_body_ls hk hx hrel hinv hctx hf) hrun
 
 /-- `arena::core_gated::whnf_core_body_gated` against `Arena.whnfCoreBodyGated`
 — the gated lane's `whnfCore` body.  **Open.** -/
@@ -109,8 +111,8 @@ theorem whnf_core_body_gated_refines {f : Nat} (hk : KnotRel f)
     Sim₀ absEIdx pers lst o
       (whnfCoreBodyGated (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) := by
-  sorry
+        (absU depth) (absEIdx e)) :=
+  Lockstep.LS.toSim₀ (Lockstep.whnf_core_body_gated_ls hk hx hrel hinv hctx hf) hrun
 
 /-- `arena::core::infer_body` against `Arena.inferBody`.  **Open.** -/
 theorem infer_body_refines {f : Nat} (hk : KnotRel f)
@@ -122,8 +124,8 @@ theorem infer_body_refines {f : Nat} (hk : KnotRel f)
     Sim₀ absEIdx pers lst o
       (inferBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) := by
-  sorry
+        (absU depth) (absEIdx e)) :=
+  Lockstep.LS.toSim₀ (Lockstep.infer_body_ls hk hx hrel hinv hctx hf) hrun
 
 /-- `arena::core::infer_body_io` against `Arena.inferBodyIO`.  **Open.** -/
 theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
@@ -136,8 +138,8 @@ theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
     Sim₀ absEIdx pers lst o
       (inferBodyIO (ConRon.Refine.absMode mode)
         (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe
-        (absU depth) (absEIdx e)) := by
-  sorry
+        (absU depth) (absEIdx e)) :=
+  Lockstep.LS.toSim₀ (Lockstep.infer_body_io_ls hk hx hrel hinv hctx hf hio) hrun
 
 /-- `arena::core::annotate_body` against `Arena.annotateBody`.  **Open.** -/
 theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
@@ -148,8 +150,8 @@ theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
     (hrun : arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) := by
-  sorry
+        (absU depth) (absEIdx e)) :=
+  Lockstep.LS.toSim₀ (Lockstep.annotate_body_ls hk hx hrel hinv hctx hf) hrun
 
 /-- **The `ExprOps` tier's lockstep obligations, named once** — the two walks
 the delta leaf borrows (`Core/Arms/Delta.lean`'s `ExprOpsHyp`), which the
@@ -173,7 +175,7 @@ theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
     infer := fun h1 h2 h3 h4 h5 => infer_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
     inferIO := fun h1 h2 h3 h4 hio h5 =>
       infer_body_io_refines hk (exprOpsHyp _) h1 h2 h3 h4 hio h5
-    defeq := fun h1 h2 h3 h4 h5 => defeq_body_refines hk h1 h2 h3 h4 h5
+    defeq := fun h1 h2 h3 h4 h5 => defeq_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
     annotate := fun h1 h2 h3 h4 h5 =>
       annotate_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5 }
 

@@ -343,13 +343,19 @@ set_option maxHeartbeats 4000000 in
 attribute [lockstep_inline] arena.core.infer_forall_io arena.core.infer_forall_io_at
   arena.core.infer_proj_io arena.core.infer_lam_open arena.core.infer_lam_cod
 
+/-- `coreKnotIO`'s two infer slots are one function, at every fuel. -/
+theorem coreKnotIO_infer_eq_inferIO (mode : ConLeche.CheckMode) (fe : IFEnv) (f : Nat) :
+    (coreKnotIO mode fe f).infer = (coreKnotIO mode fe f).inferIO := by
+  cases f <;> rfl
+
 set_option maxHeartbeats 4000000 in
 /-- **`BodyRel.inferIO`**, in lockstep. -/
 @[lockstep] theorem infer_body_io_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane io fu fe lfe depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hio : io = true ∨ lane = arena.core.LANE_IO) :
     LS pers (fun a b => b = absEIdx a)
       (arena.core.infer_body_io pers vis st mode lane io fu fe depth e) lst
       (inferBodyIO (ConRon.Refine.absMode mode)
@@ -371,14 +377,13 @@ set_option maxHeartbeats 4000000 in
       simp only [laneKnotAt_true_infer]
       lockstep_e
     | false =>
-      -- DIVERGENCE (task #97-P5-Core round 5, region E): at `io = false` the
-      -- twin's `r.infer` is `(laneKnot … f).infer`, the port's
-      -- `infer_lam_cod` (crates/con-ron-core/src/arena/core.rs:8200) calls
-      -- `knot_infer_io`.  They agree at `lane = LANE_IO` (`coreKnotIO`'s two
-      -- slots are one function) but not at `LANE_FULL`/`LANE_GATED`, which
-      -- `BodyRel.inferIO` quantifies over although no port caller reaches it
-      -- (`knot_infer_io` passes `io = true` at `LANE_FULL`, `false` only at
-      -- `LANE_IO`).  Twin: `Arena/Core.lean:2969 inferBodyIO` `.lam` clause.
-      sorry
+      -- region E's finding, repaired as `BodyRel.inferIO`'s call-site premise
+      -- (the coordinator's ruling): at `io = false` the lane is `LANE_IO`, where
+      -- `coreKnotIO`'s two infer slots are one function, so the twin's
+      -- `r.infer` is the io slot the port's `infer_lam_cod` calls
+      have hl : lane = arena.core.LANE_IO := hio.resolve_left (by simp)
+      subst hl
+      simp only [laneKnotAt_false, laneKnot_io, coreKnotIO_infer_eq_inferIO]
+      lockstep_e
 
 end ConRon.Refine2.Lockstep

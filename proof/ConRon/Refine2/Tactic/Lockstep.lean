@@ -1120,6 +1120,9 @@ def specCore (g : MVarId) : TacticM Unit := g.withContext do
       let gs ← g.apply c
       for sg in gs do
         if ← sg.isAssigned then continue
+        -- a DATA argument the Rust does not determine (a twin-only message
+        -- string) is left to the twin-action congruence `x' = x` that follows
+        unless ← isProp (← sg.getType) do continue
         runClosed sg (evalT `(tactic| lockstep_side))
       return
     catch e =>
