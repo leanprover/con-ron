@@ -538,7 +538,7 @@ theorem nb_hok {pers : arena.store.PersTier} {ls : EStore} {w : ENodeView}
 /-- `arena::monad::intern_e_app` at `WOutE`. -/
 theorem intern_e_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (f a : arena.handle.EIdx)
     (hview : lst.store.ViewOK (.app (absEIdx f) (absEIdx a)))
     {o} (hrun : arena.monad.intern_e_app pers st f a = ok o) :
@@ -550,7 +550,7 @@ theorem intern_e_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store
       (fun h => hchild_app hrel.storeWF h) hp
   exact wout_intern_tail hQ hrel hinv hq hview
     (fun hcap _ => by rw [Arena.internAppE]; exact internE_run_of_cap rfl hcap)
@@ -559,7 +559,7 @@ theorem intern_e_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
 /-- `arena::monad::intern_e_bvar` at `WOutE`. -/
 theorem intern_e_bvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (i : Std.U64) {o} (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
     WOutE Q pers st lst o (Arena.internBVarE (absU i)) := by
   rw [arena.monad.intern_e_bvar] at hrun
@@ -569,7 +569,7 @@ theorem intern_e_bvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hp
+    estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp
   exact wout_intern_tail hQ hrel hinv hq (viewOK_bvar _)
     (fun hcap _ => by rw [Arena.internBVarE]; exact internE_run_of_cap rfl hcap)
     (nb_hok rfl hok hfl) herr
@@ -577,7 +577,7 @@ theorem intern_e_bvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
 /-- `arena::monad::intern_e_let_e` at `WOutE`. -/
 theorem intern_e_let_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (ty val b : arena.handle.EIdx)
     (hview : lst.store.ViewOK (.letE (absEIdx ty) (absEIdx val) (absEIdx b)))
     {o} (hrun : arena.monad.intern_e_let_e pers st ty val b = ok o) :
@@ -589,7 +589,7 @@ theorem intern_e_let_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store
       (fun h => hchild_let_e hrel.storeWF h) hp
   exact wout_intern_tail hQ hrel hinv hq hview
     (fun hcap _ => by rw [Arena.internLetEE]; exact internE_run_of_cap rfl hcap)
@@ -598,7 +598,7 @@ theorem intern_e_let_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
 /-- `arena::monad::intern_e_proj` at `WOutE`. -/
 theorem intern_e_proj_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (n : arena.handle.NIdx) (i : Std.U64) (e0 : arena.handle.EIdx)
     (hview : lst.store.ViewOK (.proj (absNIdx n) (absU i) (absEIdx e0)))
     {o} (hrun : arena.monad.intern_e_proj pers st n i e0 = ok o) :
@@ -610,7 +610,7 @@ theorem intern_e_proj_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store
       (fun h => hchild_proj hrel.storeWF h) hp
   exact wout_intern_tail hQ hrel hinv hq hview
     (fun hcap _ => by rw [Arena.internProjE]; exact internE_run_of_cap rfl hcap)
@@ -684,7 +684,7 @@ theorem EBindCapAt_of_ECapAt {st : EStore} {tag : UInt32} (htag : ETag.isBind ta
 decodes** — which is what a rebuilding walk's `viewBindI` hands it. -/
 theorem intern_e_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (tag : Std.U32) (htag : ETag.isBind (absU32 tag) = true)
     (ty b : arena.handle.EIdx) (mi : arena.handle.BMIdx) {mm : ConLeche.BinderMeta}
     (hmv : lst.store.viewBM (absBMIdx mi) = some mm) (hm0 : (absBMIdx mi).tag = 0)
@@ -715,7 +715,7 @@ theorem intern_e_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     subst ho
     have hfb' : lst.store.findBM mm = some (absBMIdx mi) := hfb
     obtain ⟨hok, herr, hfl⟩ :=
-      estore_intern_lam_i_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      estore_intern_lam_i_abs (ls := lst.store) hrel.store hinv.store
         (fun hc => persFind_bind_none_of_child
           (v := .lam (absEIdx ty) (absEIdx b) mm) hrel.storeWF rfl hfb'
           (bind_child_disj _ rfl hc)) hp
@@ -747,7 +747,7 @@ theorem intern_e_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
       Result.ok_injective hrun
     subst ho
     obtain ⟨hok, herr, hfl⟩ :=
-      estore_intern_forall_e_i_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      estore_intern_forall_e_i_abs (ls := lst.store) hrel.store hinv.store
         (fun hc => persFind_bind_none_of_child
           (v := .forallE (absEIdx ty) (absEIdx b) mm) hrel.storeWF rfl hfb
           (bind_child_disj _ rfl hc)) hp
@@ -776,7 +776,6 @@ per-constructor entries, which take the arm's own fields so that no
 theorem intern_rebuilt_bvar_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {i : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.expr_ops.intern_rebuilt_bvar pers st h same i = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuiltBVar (absEIdx h) same (absU i)) := by
@@ -796,13 +795,12 @@ theorem intern_rebuilt_bvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_bvar_run hrel hinv hfrozen i hrun
+    exact intern_e_bvar_run hrel hinv i hrun
 
 /-- `arena::expr_ops::intern_rebuilt_fvar` against `Arena.internRebuiltFVar`. -/
 theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {idx : Std.U64} {ty : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hchild : same = false →
       (absEIdx ty).isPersistent = false →
       lst.store.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
@@ -826,13 +824,12 @@ theorem intern_rebuilt_fvar_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_fvar_run hrel hinv hfrozen idx ty (hchild rfl) (hview rfl) hrun
+    exact intern_e_fvar_run hrel hinv idx ty (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_sort` against `Arena.internRebuiltSort`. -/
 theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {u : arena.handle.LIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hchild : same = false →
       (absLIdx u).isPersistent = false →
       lst.store.pers.sorts.find? ⟨absLIdx u⟩ = none)
@@ -856,13 +853,12 @@ theorem intern_rebuilt_sort_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_sort_run hrel hinv hfrozen u (hchild rfl) (hview rfl) hrun
+    exact intern_e_sort_run hrel hinv u (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_const` against `Arena.internRebuiltConst`. -/
 theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {n : arena.handle.NIdx} {us : arena.handle.LsIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hchild : same = false →
       ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
       lst.store.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
@@ -886,13 +882,12 @@ theorem intern_rebuilt_const_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_const_run hrel hinv hfrozen n us (hchild rfl) (hview rfl) hrun
+    exact intern_e_const_run hrel hinv n us (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_app` against `Arena.internRebuiltApp`. -/
 theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {f a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hchild : same = false →
       ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
       lst.store.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
@@ -916,13 +911,12 @@ theorem intern_rebuilt_app_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_app_run hrel hinv hfrozen f a (hchild rfl) (hview rfl) hrun
+    exact intern_e_app_run hrel hinv f a (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_let_e` against `Arena.internRebuiltLetE`. -/
 theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty val body : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hchild : same = false →
       ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨
         (absEIdx body).isPersistent = false) →
@@ -948,13 +942,12 @@ theorem intern_rebuilt_let_e_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_let_e_run hrel hinv hfrozen ty val body (hchild rfl) (hview rfl) hrun
+    exact intern_e_let_e_run hrel hinv ty val body (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_lit` against `Arena.internRebuiltLit`. -/
 theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {l : kernel.expr.Literal} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hwf : ConRon.Refine.LiteralWF l)
     (hrun : arena.expr_ops.intern_rebuilt_lit pers st h same l = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
@@ -975,13 +968,12 @@ theorem intern_rebuilt_lit_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_lit_run hrel hinv hfrozen l hwf hrun
+    exact intern_e_lit_run hrel hinv l hwf hrun
 
 /-- `arena::expr_ops::intern_rebuilt_proj` against `Arena.internRebuiltProj`. -/
 theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {n : arena.handle.NIdx} {i : Std.U64} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hchild : same = false →
       ((absNIdx n).isPersistent = false ∨ (absEIdx e).isPersistent = false) →
       lst.store.pers.projs.find? ⟨absNIdx n, absU i, absEIdx e⟩ = none)
@@ -1006,14 +998,13 @@ theorem intern_rebuilt_proj_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_proj_run hrel hinv hfrozen n i e (hchild rfl) (hview rfl) hrun
+    exact intern_e_proj_run hrel hinv n i e (hchild rfl) (hview rfl) hrun
 
 /-- `arena::expr_ops::intern_rebuilt_bind_i` against `Arena.internRebuiltBindI`. -/
 theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {tag : Std.U32} {ty body : arena.handle.EIdx}
     {m : arena.handle.BMIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hchildL : same = false → absU32 tag = ETag.lam →
       ((absEIdx ty).isPersistent = false ∨
         (absEIdx body).isPersistent = false ∨ (absBMIdx m).isPersistent = false) →
@@ -1047,7 +1038,7 @@ theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_bind_i_run hrel hinv hfrozen tag ty body m
+    exact intern_e_bind_i_run hrel hinv tag ty body m
       (hchildL rfl) (hchildF rfl) (hwfL rfl) (hwfF rfl) hrun
 
 /-- `Arena/ExprOps.lean:139 internRebuilt` — the view-taking cutoff, against
@@ -1064,7 +1055,6 @@ well-formedness and the `PropWhen` shape. -/
 theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Bool}
     {v : arena.store.ENodeView} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hview : same = false → lst.store.ViewOK (absENodeView v))
     (hlit : same = false → ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
     (hpw : same = false → ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
@@ -1088,7 +1078,7 @@ theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Boo
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_run hrel hinv hfrozen v (hview rfl) (hlit rfl)
+    exact intern_e_run hrel hinv v (hview rfl) (hlit rfl)
       (hpw rfl) hrun
 
 
@@ -1097,7 +1087,6 @@ theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Boo
 theorem intern_rebuilt_lam_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
     (hview : same = false → lst.store.ViewOK
       (.lam (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
@@ -1122,14 +1111,13 @@ theorem intern_rebuilt_lam_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_lam_run hrel hinv hfrozen ty body m
+    exact intern_e_lam_run hrel hinv ty body m
       (hpw rfl) (hview rfl) hrun
 
 /-- `Arena/ExprOps.lean:163 internRebuiltForallE`. -/
 theorem intern_rebuilt_forall_e_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
     (hview : same = false → lst.store.ViewOK
       (.forallE (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
@@ -1154,7 +1142,7 @@ theorem intern_rebuilt_forall_e_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_forall_e_run hrel hinv hfrozen ty body m
+    exact intern_e_forall_e_run hrel hinv ty body m
       (hpw rfl) (hview rfl) hrun
 
 
@@ -1165,7 +1153,6 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {tag : Std.U32} {ty body : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
     (hviewL : same = false → absU32 tag = ETag.lam → lst.store.ViewOK
       (.lam (absEIdx ty) (absEIdx body) (ConRon.Refine.absBinderMeta m)))
@@ -1197,14 +1184,14 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
       rw [if_pos rfl] at hrun
       rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
         rw [etag_lam_abs]; simp)]
-      exact intern_e_lam_run hrel hinv hfrozen ty body m
+      exact intern_e_lam_run hrel hinv ty body m
         (hpw rfl) (hviewL rfl (by rw [etag_lam_abs])) hrun
     · rw [if_neg hc] at hrun
       have hne : absU32 tag ≠ ETag.lam := by
         rw [← etag_lam_abs]
         intro hcc; exact hc (absU32_inj hcc)
       rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
-      exact intern_e_forall_e_run hrel hinv hfrozen ty body m
+      exact intern_e_forall_e_run hrel hinv ty body m
         (hpw rfl) (hviewF rfl hne) hrun
 
 
@@ -1395,7 +1382,7 @@ theorem viewOK_bind2 {st : EStore} {v : ENodeView} {ty b : EIdx}
 /-- `arena::monad::intern_e_lam` at `WOutE`. -/
 theorem intern_e_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hview : lst.store.ViewOK (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
@@ -1409,7 +1396,7 @@ theorem intern_e_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr⟩ :=
-    estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hfrozen hrel.storeWF hpw hp
+    estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hrel.storeWF hpw hp
   refine wout_intern_tail hQ hrel hinv hq hview
     (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
   intro hh hr
@@ -1421,7 +1408,7 @@ theorem intern_e_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
 /-- `arena::monad::intern_e_forall_e` at `WOutE`. -/
 theorem intern_e_forall_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hview : lst.store.ViewOK
@@ -1437,7 +1424,7 @@ theorem intern_e_forall_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st ls
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr⟩ :=
-    estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store
       hrel.storeWF hpw hp
   refine wout_intern_tail hQ hrel hinv hq hview
     (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
@@ -1716,7 +1703,7 @@ theorem inst_l_clear_store {st st' : arena.monad.AState}
 /-- `arena::monad::intern_e_fvar` at `WOutE`. -/
 theorem intern_e_fvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (idx : Std.U64) (ty : arena.handle.EIdx)
     (hview : lst.store.ViewOK (.fvar (absU idx) (absEIdx ty)))
     {o} (hrun : arena.monad.intern_e_fvar pers st idx ty = ok o) :
@@ -1728,7 +1715,7 @@ theorem intern_e_fvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store
       (fun h => hchild_fvar hrel.storeWF h) hp
   exact wout_intern_tail hQ hrel hinv hq hview
     (fun hcap _ => by rw [Arena.internFVarE]; exact internE_run_of_cap rfl hcap)
@@ -1754,7 +1741,7 @@ theorem eidx_eq2_beq {a b : arena.handle.EIdx} {c : Bool}
 
 theorem intern_rebuilt_fvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {idx : Std.U64} {ty : arena.handle.EIdx}
     (hh : EResolves lst (absEIdx h)) (hty : EResolves lst (absEIdx ty))
     {o} (hrun : arena.expr_ops.intern_rebuilt_fvar pers st h same idx ty = ok o) :
@@ -1767,11 +1754,11 @@ theorem intern_rebuilt_fvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st 
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_fvar_res hQ hrel hinv hfrozen hq idx ty (viewOK_fvar hty) hrun
+    exact intern_e_fvar_res hQ hrel hinv hq idx ty (viewOK_fvar hty) hrun
 
 theorem intern_rebuilt_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {f a : arena.handle.EIdx}
     (hh : EResolves lst (absEIdx h)) (hf : EResolves lst (absEIdx f))
     (ha : EResolves lst (absEIdx a))
@@ -1785,11 +1772,11 @@ theorem intern_rebuilt_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st l
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_app_res hQ hrel hinv hfrozen hq f a (viewOK_app hf ha) hrun
+    exact intern_e_app_res hQ hrel hinv hq f a (viewOK_app hf ha) hrun
 
 theorem intern_rebuilt_let_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {ty val b : arena.handle.EIdx}
     (hh : EResolves lst (absEIdx h)) (hty : EResolves lst (absEIdx ty))
     (hval : EResolves lst (absEIdx val)) (hb : EResolves lst (absEIdx b))
@@ -1804,11 +1791,11 @@ theorem intern_rebuilt_let_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_let_e_res hQ hrel hinv hfrozen hq ty val b (viewOK_letE hty hval hb) hrun
+    exact intern_e_let_e_res hQ hrel hinv hq ty val b (viewOK_letE hty hval hb) hrun
 
 theorem intern_rebuilt_proj_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx} {i : Std.U64}
     {e : arena.handle.EIdx}
     (hh : EResolves lst (absEIdx h)) (hn : (lst.store.ns.view (absNIdx n)).isSome = true)
@@ -1824,11 +1811,11 @@ theorem intern_rebuilt_proj_res {Q : AState → Prop} (hQ : QStable Q) {pers st 
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_proj_res hQ hrel hinv hfrozen hq n i e (viewOK_proj hn he) hrun
+    exact intern_e_proj_res hQ hrel hinv hq n i e (viewOK_proj hn he) hrun
 
 theorem intern_rebuilt_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {ty b : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hh : EResolves lst (absEIdx h)) (hty : EResolves lst (absEIdx ty))
@@ -1845,11 +1832,11 @@ theorem intern_rebuilt_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st l
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_lam_res hQ hrel hinv hfrozen hq ty b m hpw (viewOK_bind2 hty hb) hrun
+    exact intern_e_lam_res hQ hrel hinv hq ty b m hpw (viewOK_bind2 hty hb) hrun
 
 theorem intern_rebuilt_forall_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {ty b : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hh : EResolves lst (absEIdx h)) (hty : EResolves lst (absEIdx ty))
@@ -1866,7 +1853,7 @@ theorem intern_rebuilt_forall_e_res {Q : AState → Prop} (hQ : QStable Q) {pers
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_forall_e_res hQ hrel hinv hfrozen hq ty b m hpw (viewOK_bind2 hty hb) hrun
+    exact intern_e_forall_e_res hQ hrel hinv hq ty b m hpw (viewOK_bind2 hty hb) hrun
 
 /-! #### `resetC` -/
 
@@ -1970,7 +1957,7 @@ theorem wout_same_of_intern {Q : AState → Prop} {pers st lst o} {w : ENodeView
 /-- `arena::monad::intern_e_const` at `WOutE`. -/
 theorem intern_e_const_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (n : arena.handle.NIdx) (us : arena.handle.LsIdx)
     (hview : lst.store.ViewOK (.const (absNIdx n) (absLsIdx us)))
     {o} (hrun : arena.monad.intern_e_const pers st n us = ok o) :
@@ -1982,7 +1969,7 @@ theorem intern_e_const_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_const_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_const_abs (ls := lst.store) hrel.store hinv.store
       (fun h => hchild_const hrel.storeWF h) hp
   exact wout_intern_tail hQ hrel hinv hq hview
     (fun hcap _ => internE_run_of_cap rfl hcap) (nb_hok rfl hok hfl) herr
@@ -2047,7 +2034,6 @@ def I1GoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {v : arena.handle.EIdx} {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx v) → EResolves lst (absEIdx h) →
     MemoRes Memos.inst1C lst →
     arena.expr_ops.instantiate1_go pers st v fuel h d = ok o →
@@ -2057,7 +2043,7 @@ def I1GoAt (n : Nat) : Prop :=
 private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
   induction n with
   | zero =>
-    intro pers st lst v fuel h d o hn hrel hinv hfrozen hv hh hm hrun
+    intro pers st lst v fuel h d o hn hrel hinv hv hh hm hrun
     rw [arena.expr_ops.instantiate1_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -2070,7 +2056,7 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
     rw [show absU fuel = 0 from hn, instantiate1Go_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst v fuel h d o hn hrel hinv hfrozen hv hh hm hrun
+    intro pers st lst v fuel h d o hn hrel hinv hv hh hm hrun
     rw [arena.expr_ops.instantiate1_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -2176,7 +2162,7 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hv hfR hm hp1
+          have hrec1 := ih hi1v hrel hinv hv hfR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -2189,11 +2175,9 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hv) (hmono1.res haR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hv) (hmono1.res haR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -2206,11 +2190,9 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 f2 a2 (viewOK_app (hmono2.res hres1) hres2) hp3
               cases hr3 : r3 with
               | Err e =>
@@ -2275,7 +2257,7 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hv htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv hv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -2288,15 +2270,13 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU d + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hv) (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hv) (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -2309,11 +2289,9 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_bind_i_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_bind_i_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t hbind t2 b2 mi (hmono2.2.1 _ _ (hmono1.2.1 _ _ hmv)) hm0
                 (hmono2.res hres1) hres2 hp3
               rw [← htg] at hstep
@@ -2361,7 +2339,7 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
           obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi2v : absU i2 = absU i1 - 1 := (ConRon.Refine.Nat.usub_val hi2).2
           rw [← hi2v]
-          exact intern_e_bvar_res (MemoRes.stable _) hrel hinv hfrozen hm i2 hrun
+          exact intern_e_bvar_res (MemoRes.stable _) hrel hinv hm i2 hrun
         · rw [if_neg hgt] at hrun
           rw [if_neg (show ¬ (absU i1 > absU d) by scalar_tac)]
           exact wout_dup hrel hinv hh hm hrun
@@ -2417,7 +2395,7 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hv htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv hv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -2430,11 +2408,9 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hv) (hmono1.res hvalR)
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hv) (hmono1.res hvalR)
               hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
@@ -2448,15 +2424,13 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hi2v : absU i2 = absU d + 1 := by
                 have h1 := ConRon.Refine.Nat.uadd_val hi2
                 simpa using h1
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hi1v hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hv))
+              have hrec3 := ih hi1v hrel2 hinv2 (hmono2.res (hmono1.res hv))
                 (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i1 = m from hi1v, hi2v] at hrec3
               cases hr3 : r3 with
@@ -2470,11 +2444,9 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨r4, st4⟩ := p4
-                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3 hq3
+                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hq3
                   t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                     (hmono3.res hres2) hres3) hp4
                 cases hr4 : r4 with
@@ -2542,7 +2514,7 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
           have hi2v := hi1 i2 hi2'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi2v hrel hinv hfrozen hv hsR hm hp1
+          have hrec1 := ih hi2v hrel hinv hv hsR hm hp1
           rw [show absU i2 = m from hi2v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -2555,11 +2527,9 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               n i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hp2
             cases hr2 : r2 with
             | Err e =>
@@ -2584,20 +2554,18 @@ private theorem instantiate1_go_aux (n : Nat) : I1GoAt n := by
 theorem instantiate1_go_wout {pers st lst} {v : arena.handle.EIdx}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hv : EResolves lst (absEIdx v)) (hh : EResolves lst (absEIdx h))
     (hmemo : MemoRes Memos.inst1C lst)
     (hrun : arena.expr_ops.instantiate1_go pers st v fuel h d = ok o) :
     WOutE (MemoRes Memos.inst1C) pers st lst o
       (instantiate1Go (absEIdx v) (absU fuel) (absEIdx h) (absU d)) :=
-  instantiate1_go_aux _ rfl hrel hinv hfrozen hv hh hmemo hrun
+  instantiate1_go_aux _ rfl hrel hinv hv hh hmemo hrun
 
 /-- `instantiate1_fast` at `WOutE`: the memo fresh before and dropped after,
 so the memo clause is free on the way in and trivially true on the way out. -/
 theorem instantiate1_fast_wout {pers st lst} {fuel : Std.U64}
     {e v : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e)) (hv : EResolves lst (absEIdx v))
     (hrun : arena.expr_ops.instantiate1_fast pers st fuel e v d = ok o) :
     WOutE (MemoRes Memos.inst1C) pers st lst o
@@ -2609,10 +2577,8 @@ theorem instantiate1_fast_wout {pers st lst} {fuel : Std.U64}
   have hs1 := inst1_clear_store hst1
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with inst1C := v }) (twinClear := Arena.inst1Clear) (fun _ => rfl) (inst1_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := instantiate1_go_wout (lst := { lst with memos := { lst.memos with
-      inst1C := ∅ } }) hrel1 hinv1 hfroz1 hv he (MemoRes.of_empty rfl) hq
+      inst1C := ∅ } }) hrel1 hinv1 hv he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.inst1Clear
     let r ← instantiate1Go (absEIdx v) (absU fuel) (absEIdx e) (absU d)
@@ -2652,13 +2618,12 @@ and exactly what the walk re-establishes one step down. -/
 theorem instantiate1_go_refines {pers st lst} {v : arena.handle.EIdx}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hv : EResolves lst (absEIdx v)) (hh : EResolves lst (absEIdx h))
     (hmemo : MemoRes Memos.inst1C lst)
     (hrun : arena.expr_ops.instantiate1_go pers st v fuel h d = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instantiate1Go (absEIdx v) (absU fuel) (absEIdx h) (absU d)) :=
-  (instantiate1_go_wout hrel hinv hfrozen hv hh hmemo hrun).toSim
+  (instantiate1_go_wout hrel hinv hv hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:324 instantiate1Fast` — the memo fresh before and
 dropped after.  **Corrected** as `instantiate1_go_refines` was, minus the memo
@@ -2666,12 +2631,11 @@ clause, which the fresh memo pays for. -/
 theorem instantiate1_fast_refines {pers st lst} {fuel : Std.U64}
     {e v : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e)) (hv : EResolves lst (absEIdx v))
     (hrun : arena.expr_ops.instantiate1_fast pers st fuel e v d = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instantiate1Fast (absU fuel) (absEIdx e) (absEIdx v) (absU d)) :=
-  (instantiate1_fast_wout hrel hinv hfrozen he hv hrun).toSim
+  (instantiate1_fast_wout hrel hinv he hv hrun).toSim
 
 /-! ## `instantiateList` — the bulk substitution, two twins
 
@@ -2715,7 +2679,6 @@ def ILAt (n : Nat) : Prop :=
     {vs : alloc.vec.Vec arena.handle.EIdx} {fuel : Std.U64} {h : arena.handle.EIdx}
     {d : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     (∀ x ∈ vs.val, EResolves lst (absEIdx x)) → EResolves lst (absEIdx h) → Q lst →
     arena.expr_ops.instantiate_list pers st vs fuel h d = ok o →
     WOutE Q pers st lst o (instantiateList (absEIdxArr vs) (absU fuel) (absEIdx h) (absU d))
@@ -2723,7 +2686,7 @@ def ILAt (n : Nat) : Prop :=
 private theorem instantiate_list_aux (n : Nat) : ILAt n := by
   induction n with
   | zero =>
-    intro Q hQ pers st lst vs fuel h d o hn hrel hinv hfrozen hvs hh hq hrun
+    intro Q hQ pers st lst vs fuel h d o hn hrel hinv hvs hh hq hrun
     rw [arena.expr_ops.instantiate_list] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -2736,7 +2699,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
     rw [show absU fuel = 0 from hn, instantiateList_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro Q hQ pers st lst vs fuel h d o hn hrel hinv hfrozen hvs hh hq hrun
+    intro Q hQ pers st lst vs fuel h d o hn hrel hinv hvs hh hq hrun
     rw [arena.expr_ops.instantiate_list] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -2801,7 +2764,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
         have hi1v := hi1 i1 hi1'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi1v hrel hinv hfrozen hvs hfR hq hp1
+        have hrec1 := ih hQ hi1v hrel hinv hvs hfR hq hp1
         rw [show absU i1 = m from hi1v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -2814,11 +2777,9 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hrec2 := ih hQ hi1v hrel1 hinv1 hfroz1 (fun x hx => hmono1.res (hvs x hx))
+          have hrec2 := ih hQ hi1v hrel1 hinv1 (fun x hx => hmono1.res (hvs x hx))
             (hmono1.res haR) hq1 hp2
           rw [show absU i1 = m from hi1v] at hrec2
           cases hr2 : r2 with
@@ -2832,9 +2793,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
             obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
               hrec2.dest
             refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-            have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
-            exact intern_e_app_res hQ hrel2 hinv2 hfroz2 hq2
+            exact intern_e_app_res hQ hrel2 hinv2 hq2
               f2 a2 (viewOK_app (hmono2.res hres1) hres2) hrun
     rw [if_neg hA] at hrun
     rw [if_neg (show ¬ ((absU32 t == ETag.app) = true) by
@@ -2869,7 +2828,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
         have hi1v := hi1 i1 hi1'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi1v hrel hinv hfrozen hvs htyR hq hp1
+        have hrec1 := ih hQ hi1v hrel hinv hvs htyR hq hp1
         rw [show absU i1 = m from hi1v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -2882,15 +2841,13 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi2v : absU i2 = absU d + 1 := by
             have h1 := ConRon.Refine.Nat.uadd_val hi2
             simpa using h1
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hrec2 := ih hQ hi1v hrel1 hinv1 hfroz1 (fun x hx => hmono1.res (hvs x hx))
+          have hrec2 := ih hQ hi1v hrel1 hinv1 (fun x hx => hmono1.res (hvs x hx))
             (hmono1.res hbR) hq1 hp2
           rw [show absU i1 = m from hi1v, hi2v] at hrec2
           cases hr2 : r2 with
@@ -2904,9 +2861,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
             obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
               hrec2.dest
             refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-            have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
-            have hstep := intern_e_bind_i_res hQ hrel2 hinv2 hfroz2 hq2
+            have hstep := intern_e_bind_i_res hQ hrel2 hinv2 hq2
               t hbind t2 b2 mi (hmono2.2.1 _ _ (hmono1.2.1 _ _ hmv)) hm0
               (hmono2.res hres1) hres2 hrun
             rw [← htg] at hstep
@@ -2947,7 +2902,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
         have hi1v := hi1 i1 hi1'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi1v hrel hinv hfrozen hvs htyR hq hp1
+        have hrec1 := ih hQ hi1v hrel hinv hvs htyR hq hp1
         rw [show absU i1 = m from hi1v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -2960,11 +2915,9 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hrec2 := ih hQ hi1v hrel1 hinv1 hfroz1 (fun x hx => hmono1.res (hvs x hx))
+          have hrec2 := ih hQ hi1v hrel1 hinv1 (fun x hx => hmono1.res (hvs x hx))
             (hmono1.res hvalR) hq1 hp2
           rw [show absU i1 = m from hi1v] at hrec2
           cases hr2 : r2 with
@@ -2978,15 +2931,13 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
             obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
               hrec2.dest
             refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-            have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU d + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r3, st3⟩ := p3
-            have hrec3 := ih hQ hi1v hrel2 hinv2 hfroz2
+            have hrec3 := ih hQ hi1v hrel2 hinv2
               (fun x hx => hmono2.res (hmono1.res (hvs x hx)))
               (hmono2.res (hmono1.res hbR)) hq2 hp3
             rw [show absU i1 = m from hi1v, hi2v] at hrec3
@@ -3001,9 +2952,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
               obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                 hrec3.dest
               refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-              have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
-              exact intern_e_let_e_res hQ hrel3 hinv3 hfroz3 hq3
+              exact intern_e_let_e_res hQ hrel3 hinv3 hq3
                 t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                   (hmono3.res hres2) hres3) hrun
     rw [if_neg hL] at hrun
@@ -3041,7 +2990,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
         have hi2v := hi1 i2 hi2'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi2v hrel hinv hfrozen hvs hsR hq hp1
+        have hrec1 := ih hQ hi2v hrel hinv hvs hsR hq hp1
         rw [show absU i2 = m from hi2v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -3054,9 +3003,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
-          exact intern_e_proj_res hQ hrel1 hinv1 hfroz1 hq1
+          exact intern_e_proj_res hQ hrel1 hinv1 hq1
             nn i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hrun
     rw [if_neg hP] at hrun
     rw [if_neg (show ¬ ((absU32 t == ETag.proj) = true) by
@@ -3144,7 +3091,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
               simp only [absEIdxArr, List.toList_toArray, List.mem_map] at hx2
               obtain ⟨y, hy, hyx⟩ := hx2
               rw [← hyx]; exact hvs y hy
-            have hrec := ih hQ (hi1 i6 hi6) hrel hinv hfrozen hpreR hviR hq hrun
+            have hrec := ih hQ (hi1 i6 hi6) hrel hinv hpreR hviR hq hrun
             rw [show absU i6 = m from hi1 i6 hi6] at hrec
             rw [harr]
             exact hrec
@@ -3156,7 +3103,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
           have hi2v : absU i2 = absU j - (absEIdxArr vs).size := by
             rw [absEIdxArr_size, ← hnnv]; exact (ConRon.Refine.Nat.usub_val hi2).2
           rw [← hi2v]
-          exact intern_e_bvar_res hQ hrel hinv hfrozen hq i2 hrun
+          exact intern_e_bvar_res hQ hrel hinv hq i2 hrun
     rw [if_neg hBV] at hrun
     rw [if_neg (show ¬ ((absU32 t == ETag.bvar) = true) by
       rw [← etag_bvar_abs]; simp only [beq_iff_eq]; intro hcc; exact hBV (absU32_inj hcc))]
@@ -3169,12 +3116,11 @@ answers an entry, or walks into it. -/
 theorem instantiate_list_refines {pers st lst} {vs : alloc.vec.Vec arena.handle.EIdx}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hvs : ∀ x ∈ vs.val, EResolves lst (absEIdx x)) (hh : EResolves lst (absEIdx h))
     (hrun : arena.expr_ops.instantiate_list pers st vs fuel h d = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instantiateList (absEIdxArr vs) (absU fuel) (absEIdx h) (absU d)) :=
-  (instantiate_list_aux _ QStable.true rfl hrel hinv hfrozen hvs hh trivial hrun).toSim
+  (instantiate_list_aux _ QStable.true rfl hrel hinv hvs hh trivial hrun).toSim
 
 /-- The `instantiate_list_go` statement at one fuel value, with the memo
 clause at `instLC` as its side invariant. -/
@@ -3183,7 +3129,6 @@ def ILGoAt (n : Nat) : Prop :=
     {vs : alloc.vec.Vec arena.handle.EIdx} {fuel : Std.U64} {h : arena.handle.EIdx}
     {d : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     (∀ x ∈ vs.val, EResolves lst (absEIdx x)) → EResolves lst (absEIdx h) →
     MemoRes Memos.instLC lst →
     arena.expr_ops.instantiate_list_go pers st vs fuel h d = ok o →
@@ -3193,7 +3138,7 @@ def ILGoAt (n : Nat) : Prop :=
 private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst vs fuel h d o hn hrel hinv hfrozen hvs hh hm hrun
+    intro pers st lst vs fuel h d o hn hrel hinv hvs hh hm hrun
     rw [arena.expr_ops.instantiate_list_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -3206,7 +3151,7 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
     rw [show absU fuel = 0 from hn, instantiateListGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst vs fuel h d o hn hrel hinv hfrozen hvs hh hm hrun
+    intro pers st lst vs fuel h d o hn hrel hinv hvs hh hm hrun
     rw [arena.expr_ops.instantiate_list_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -3288,7 +3233,7 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hvs hfR hm hp1
+          have hrec1 := ih hi1v hrel hinv hvs hfR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -3301,11 +3246,9 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (fun x hx => hmono1.res (hvs x hx)) (hmono1.res haR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (fun x hx => hmono1.res (hvs x hx)) (hmono1.res haR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -3318,11 +3261,9 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 f2 a2 (viewOK_app (hmono2.res hres1) hres2) hp3
               cases hr3 : r3 with
               | Err e =>
@@ -3387,7 +3328,7 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hvs htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv hvs htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -3400,15 +3341,13 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU d + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (fun x hx => hmono1.res (hvs x hx)) (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (fun x hx => hmono1.res (hvs x hx)) (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -3421,11 +3360,9 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_bind_i_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_bind_i_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t hbind t2 b2 mi (hmono2.2.1 _ _ (hmono1.2.1 _ _ hmv)) hm0
                 (hmono2.res hres1) hres2 hp3
               rw [← htg] at hstep
@@ -3454,7 +3391,7 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
         rw [hBV, etag_bvar_abs]; decide)]
       rw [if_pos (show (absU32 t == ETag.bvar) = true by rw [hBV, etag_bvar_abs]; simp)]
       obtain ⟨i1, hi1', hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hrec := instantiate_list_aux m (MemoRes.stable _) (hi1 i1 hi1') hrel hinv hfrozen
+      have hrec := instantiate_list_aux m (MemoRes.stable _) (hi1 i1 hi1') hrel hinv
         hvs hh hm hrun
       rw [show absU i1 = m from hi1 i1 hi1'] at hrec
       exact hrec
@@ -3508,7 +3445,7 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hvs htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv hvs htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -3521,11 +3458,9 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (fun x hx => hmono1.res (hvs x hx)) (hmono1.res hvalR)
+            have hrec2 := ih hi1v hrel1 hinv1 (fun x hx => hmono1.res (hvs x hx)) (hmono1.res hvalR)
               hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
@@ -3539,15 +3474,13 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hi2v : absU i2 = absU d + 1 := by
                 have h1 := ConRon.Refine.Nat.uadd_val hi2
                 simpa using h1
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hi1v hrel2 hinv2 hfroz2 (fun x hx => hmono2.res (hmono1.res (hvs x hx)))
+              have hrec3 := ih hi1v hrel2 hinv2 (fun x hx => hmono2.res (hmono1.res (hvs x hx)))
                 (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i1 = m from hi1v, hi2v] at hrec3
               cases hr3 : r3 with
@@ -3561,11 +3494,9 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨r4, st4⟩ := p4
-                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3 hq3
+                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hq3
                   t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                     (hmono3.res hres2) hres3) hp4
                 cases hr4 : r4 with
@@ -3633,7 +3564,7 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
           have hi2v := hi1 i2 hi2'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi2v hrel hinv hfrozen hvs hsR hm hp1
+          have hrec1 := ih hi2v hrel hinv hvs hsR hm hp1
           rw [show absU i2 = m from hi2v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -3646,11 +3577,9 @@ private theorem instantiate_list_go_aux (n : Nat) : ILGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               n i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hp2
             cases hr2 : r2 with
             | Err e =>
@@ -3678,20 +3607,18 @@ theorem instantiate_list_go_wout {pers st lst}
     {vs : alloc.vec.Vec arena.handle.EIdx} {fuel : Std.U64}
     {h : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hvs : ∀ x ∈ vs.val, EResolves lst (absEIdx x)) (hh : EResolves lst (absEIdx h))
     (hmemo : MemoRes Memos.instLC lst)
     (hrun : arena.expr_ops.instantiate_list_go pers st vs fuel h d = ok o) :
     WOutE (MemoRes Memos.instLC) pers st lst o
       (instantiateListGo (absEIdxArr vs) (absU fuel) (absEIdx h) (absU d)) :=
-  instantiate_list_go_aux _ rfl hrel hinv hfrozen hvs hh hmemo hrun
+  instantiate_list_go_aux _ rfl hrel hinv hvs hh hmemo hrun
 
 /-- `instantiate_list_fast` at `WOutE`: the memo fresh before and dropped after. -/
 theorem instantiate_list_fast_wout {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {vs : alloc.vec.Vec arena.handle.EIdx}
     {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e)) (hvs : ∀ x ∈ vs.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.instantiate_list_fast pers st fuel e vs d = ok o) :
     WOutE (MemoRes Memos.instLC) pers st lst o
@@ -3704,10 +3631,8 @@ theorem instantiate_list_fast_wout {pers st lst} {fuel : Std.U64}
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with instLC := v }) (twinClear := Arena.instLClear)
     (fun _ => rfl) (inst_l_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := instantiate_list_go_wout (lst := { lst with memos := { lst.memos with
-      instLC := ∅ } }) hrel1 hinv1 hfroz1 hvs he (MemoRes.of_empty rfl) hq
+      instLC := ∅ } }) hrel1 hinv1 hvs he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.instLClear
     let r ← instantiateListGo (absEIdxArr vs) (absU fuel) (absEIdx e) (absU d)
@@ -3739,25 +3664,23 @@ theorem instantiate_list_go_refines {pers st lst}
     {vs : alloc.vec.Vec arena.handle.EIdx} {fuel : Std.U64}
     {h : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hvs : ∀ x ∈ vs.val, EResolves lst (absEIdx x)) (hh : EResolves lst (absEIdx h))
     (hmemo : MemoRes Memos.instLC lst)
     (hrun : arena.expr_ops.instantiate_list_go pers st vs fuel h d = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instantiateListGo (absEIdxArr vs) (absU fuel) (absEIdx h) (absU d)) :=
-  (instantiate_list_go_wout hrel hinv hfrozen hvs hh hmemo hrun).toSim
+  (instantiate_list_go_wout hrel hinv hvs hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:474 instantiateListFast`. -/
 theorem instantiate_list_fast_refines {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {vs : alloc.vec.Vec arena.handle.EIdx}
     {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e)) (hvs : ∀ x ∈ vs.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.instantiate_list_fast pers st fuel e vs d = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instantiateListFast (absU fuel) (absEIdx e) (absEIdxArr vs) (absU d)) :=
-  (instantiate_list_fast_wout hrel hinv hfrozen he hvs hrun).toSim
+  (instantiate_list_fast_wout hrel hinv he hvs hrun).toSim
 
 /-! ## `liftLooseBVars`, `resetMeta`, `abstract1`, `abstractRange`,
 `lowerBVars`, `instantiate1Lift` — the five remaining memoised walks
@@ -3840,7 +3763,6 @@ def LiftGoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {amount fuel : Std.U64} {h : arena.handle.EIdx} {c : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → MemoRes Memos.liftC lst →
     arena.expr_ops.lift_loose_bvars_go pers st amount fuel h c = ok o →
     WOutE (MemoRes Memos.liftC) pers st lst o
@@ -3849,7 +3771,7 @@ def LiftGoAt (n : Nat) : Prop :=
 private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst amount fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst amount fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.lift_loose_bvars_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -3862,7 +3784,7 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
     rw [show absU fuel = 0 from hn, liftLooseBVarsGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst amount fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst amount fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.lift_loose_bvars_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -3934,7 +3856,7 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
           have hi1v : absU i1 = absU i + absU amount := by
             have := ConRon.Refine.Nat.uadd_val hi1'; simpa using this
           rw [← hi1v]
-          exact intern_e_bvar_res (MemoRes.stable _) hrel hinv hfrozen hm i1 hrun
+          exact intern_e_bvar_res (MemoRes.stable _) hrel hinv hm i1 hrun
         · rw [if_neg hge] at hrun
           rw [if_neg (show ¬ (absU i ≥ absU c) by scalar_tac)]
           exact wout_dup hrel hinv hh hm hrun
@@ -3969,7 +3891,7 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen haR hm hp1
+          have hrec1 := ih hi1v hrel hinv haR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -3982,11 +3904,9 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -3999,11 +3919,9 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 a2 b2 (viewOK_app (hmono2.res hres1) hres2) hp3
               cases hr3 : r3 with
               | Err e =>
@@ -4047,7 +3965,7 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4060,15 +3978,13 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU c + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -4081,11 +3997,9 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw ⟨by
                   intro cc hcc; simp [ENodeView.echildren] at hcc
                   rcases hcc with rfl | rfl
@@ -4136,7 +4050,7 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4149,15 +4063,13 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU c + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -4170,11 +4082,9 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw ⟨by
                   intro cc hcc; simp [ENodeView.echildren] at hcc
                   rcases hcc with rfl | rfl
@@ -4226,7 +4136,7 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4239,11 +4149,9 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hvalR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -4256,15 +4164,13 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hi2v : absU i2 = absU c + 1 := by
                 have h1 := ConRon.Refine.Nat.uadd_val hi2
                 simpa using h1
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hi1v hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2 hp3
+              have hrec3 := ih hi1v hrel2 hinv2 (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i1 = m from hi1v, hi2v] at hrec3
               cases hr3 : r3 with
               | Err e =>
@@ -4277,11 +4183,9 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨r4, st4⟩ := p4
-                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3 hq3
+                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hq3
                   t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                     (hmono3.res hres2) hres3) hp4
                 cases hr4 : r4 with
@@ -4326,7 +4230,7 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
           have hi2v := hi1 i2 hi2'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi2v hrel hinv hfrozen hsR hm hp1
+          have hrec1 := ih hi2v hrel hinv hsR hm hp1
           rw [show absU i2 = m from hi2v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4339,11 +4243,9 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               nn i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hp2
             cases hr2 : r2 with
             | Err e =>
@@ -4364,18 +4266,16 @@ private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
 theorem lift_loose_bvars_go_wout {pers st lst} {amount fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.liftC lst)
     (hrun : arena.expr_ops.lift_loose_bvars_go pers st amount fuel h c = ok o) :
     WOutE (MemoRes Memos.liftC) pers st lst o
       (liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) :=
-  lift_loose_bvars_go_aux _ rfl hrel hinv hfrozen hh hmemo hrun
+  lift_loose_bvars_go_aux _ rfl hrel hinv hh hmemo hrun
 
 /-- `lift_loose_bvars_fast` at `WOutE`: the memo fresh before and dropped after. -/
 theorem lift_loose_bvars_fast_wout {pers st lst} {fuel amount c : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.lift_loose_bvars_fast pers st fuel amount c e = ok o) :
     WOutE (MemoRes Memos.liftC) pers st lst o
@@ -4388,10 +4288,8 @@ theorem lift_loose_bvars_fast_wout {pers st lst} {fuel amount c : Std.U64}
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with liftC := v }) (twinClear := Arena.liftClear)
     (fun _ => rfl) (lift_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := lift_loose_bvars_go_wout (lst := { lst with memos := { lst.memos with
-      liftC := ∅ } }) hrel1 hinv1 hfroz1 he (MemoRes.of_empty rfl) hq
+      liftC := ∅ } }) hrel1 hinv1 he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.liftClear
     let r ← liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx e) (absU c)
@@ -4424,24 +4322,22 @@ clause. -/
 theorem lift_loose_bvars_go_refines {pers st lst} {amount fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.liftC lst)
     (hrun : arena.expr_ops.lift_loose_bvars_go pers st amount fuel h c = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) :=
-  (lift_loose_bvars_go_wout hrel hinv hfrozen hh hmemo hrun).toSim
+  (lift_loose_bvars_go_wout hrel hinv hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:552 liftLooseBVarsFast`.  **Corrected** as the walk,
 minus the memo clause, which the fresh memo pays for. -/
 theorem lift_loose_bvars_fast_refines {pers st lst} {fuel amount c : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.lift_loose_bvars_fast pers st fuel amount c e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (liftLooseBVarsFast (absU fuel) (absU amount) (absU c) (absEIdx e)) :=
-  (lift_loose_bvars_fast_wout hrel hinv hfrozen he hrun).toSim
+  (lift_loose_bvars_fast_wout hrel hinv he hrun).toSim
 
 /-! ### `resetMetaGo` -/
 
@@ -4453,7 +4349,6 @@ def ResetGoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {fuel : Std.U64} {h : arena.handle.EIdx} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → MemoRes Memos.resetC lst →
     arena.expr_ops.reset_meta_go pers st fuel h = ok o →
     WOutE (MemoRes Memos.resetC) pers st lst o (resetMetaGo (absU fuel) (absEIdx h))
@@ -4461,7 +4356,7 @@ def ResetGoAt (n : Nat) : Prop :=
 private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst fuel h o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst fuel h o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.reset_meta_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -4474,7 +4369,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
     rw [show absU fuel = 0 from hn, resetMetaGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst fuel h o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst fuel h o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.reset_meta_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -4532,7 +4427,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4545,13 +4440,11 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_rebuilt_fvar_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_rebuilt_fvar_res (MemoRes.stable _) hrel1 hinv1 hq1
               (hmono1.res hh) hres1 hp2
             cases hrX : r2 with
             | Err e =>
@@ -4595,7 +4488,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hfR hm hp1
+          have hrec1 := ih hi1v hrel hinv hfR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4608,11 +4501,9 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res haR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res haR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -4625,8 +4516,6 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx f2 == absEIdx f && absEIdx a2 == absEIdx a) = same := by
@@ -4639,7 +4528,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               rw [hs]
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_rebuilt_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 (hmono2.res (hmono1.res hh)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
@@ -4684,7 +4573,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4697,11 +4586,9 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -4714,8 +4601,6 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨pw, hpwn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨m2, hm2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨hm2abs, hm2wf⟩ := never_meta hpwn hm2
@@ -4757,7 +4642,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               rw [hst] at hp3
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_lam_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_lam_res (MemoRes.stable _) hrel2 hinv2 hq2
                 hm2wf (hmono2.res (hmono1.res hh)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
@@ -4802,7 +4687,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4815,11 +4700,9 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -4832,8 +4715,6 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨pw, hpwn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨m2, hm2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨hm2abs, hm2wf⟩ := never_meta hpwn hm2
@@ -4875,7 +4756,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               rw [hst] at hp3
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_forall_e_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_forall_e_res (MemoRes.stable _) hrel2 hinv2 hq2
                 hm2wf (hmono2.res (hmono1.res hh)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
@@ -4921,7 +4802,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          have hrec1 := ih hi1v hrel hinv htyR hm hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -4934,11 +4815,9 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 (hmono1.res hvalR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -4951,11 +4830,9 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hi1v hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2 hp3
+              have hrec3 := ih hi1v hrel2 hinv2 (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i1 = m from hi1v] at hrec3
               cases hr3 : r3 with
               | Err e =>
@@ -4968,8 +4845,6 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨q, hqq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨st4, same⟩ := q
@@ -5002,7 +4877,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 rw [hst] at hp4
                 obtain ⟨r4, st5⟩ := p4
-                have hstep := intern_rebuilt_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3
+                have hstep := intern_rebuilt_let_e_res (MemoRes.stable _) hrel3 hinv3
                   hq3 (hmono3.res (hmono2.res (hmono1.res hh)))
                   (hmono3.res (hmono2.res hres1)) (hmono3.res hres2) hres3 hp4
                 cases hrX : r4 with
@@ -5048,7 +4923,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
           have hi2v := hi1 i2 hi2'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi2v hrel hinv hfrozen hsR hm hp1
+          have hrec1 := ih hi2v hrel hinv hsR hm hp1
           rw [show absU i2 = m from hi2v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -5061,13 +4936,11 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               (hmono1.res hh) (hmono1.nsres hnR) hres1 hp2
             cases hrX : r2 with
             | Err e =>
@@ -5086,17 +4959,15 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
 
 theorem reset_meta_go_wout {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.resetC lst)
     (hrun : arena.expr_ops.reset_meta_go pers st fuel h = ok o) :
     WOutE (MemoRes Memos.resetC) pers st lst o (resetMetaGo (absU fuel) (absEIdx h)) :=
-  reset_meta_go_aux _ rfl hrel hinv hfrozen hh hmemo hrun
+  reset_meta_go_aux _ rfl hrel hinv hh hmemo hrun
 
 
 /-- `reset_meta_fast` at `WOutE`: the memo fresh before and dropped after. -/
 theorem reset_meta_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.reset_meta_fast pers st fuel e = ok o) :
     WOutE (MemoRes Memos.resetC) pers st lst o
@@ -5109,10 +4980,8 @@ theorem reset_meta_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EI
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with resetC := v }) (twinClear := Arena.resetClear)
     (fun _ => rfl) (reset_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := reset_meta_go_wout (lst := { lst with memos := { lst.memos with
-      resetC := ∅ } }) hrel1 hinv1 hfroz1 he (MemoRes.of_empty rfl) hq
+      resetC := ∅ } }) hrel1 hinv1 he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.resetClear
     let r ← resetMetaGo (absU fuel) (absEIdx e)
@@ -5144,24 +5013,22 @@ theorem reset_meta_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EI
 theorem reset_meta_go_refines {pers st lst} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.resetC lst)
     (hrun : arena.expr_ops.reset_meta_go pers st fuel h = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (resetMetaGo (absU fuel) (absEIdx h)) :=
-  (reset_meta_go_wout hrel hinv hfrozen hh hmemo hrun).toSim
+  (reset_meta_go_wout hrel hinv hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:633 resetMetaFast`.  **Corrected** as the walk, minus
 the memo clause. -/
 theorem reset_meta_fast_refines {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.reset_meta_fast pers st fuel e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (resetMetaFast (absU fuel) (absEIdx e)) :=
-  (reset_meta_fast_wout hrel hinv hfrozen he hrun).toSim
+  (reset_meta_fast_wout hrel hinv he hrun).toSim
 
 /-! ### `abstractRange`, the SPEC descent: no memo, no cutoff -/
 
@@ -5170,7 +5037,6 @@ def AbsRangeAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d k c : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → Q lst →
     arena.expr_ops.abstract_range pers st fuel h d k c = ok o →
     WOutE Q pers st lst o
@@ -5179,7 +5045,7 @@ def AbsRangeAt (n : Nat) : Prop :=
 private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
   induction n with
   | zero =>
-    intro Q hQ pers st lst fuel h d k c o hn hrel hinv hfrozen hh hm hrun
+    intro Q hQ pers st lst fuel h d k c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.abstract_range] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -5192,7 +5058,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
     rw [show absU fuel = 0 from hn, abstractRange_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro Q hQ pers st lst fuel h d k c o hn hrel hinv hfrozen hh hm hrun
+    intro Q hQ pers st lst fuel h d k c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.abstract_range] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -5242,7 +5108,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
               have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
             rw [show absU c + (absU d + absU k - 1 - absU idx) = absU i3 by
               rw [hv3, hv2, hv1, hiv]]
-            exact intern_e_bvar_res hQ hrel hinv hfrozen hm i3 hrun
+            exact intern_e_bvar_res hQ hrel hinv hm i3 hrun
           · rw [if_neg h2] at hrun
             rw [if_neg (show ¬ (absU d ≤ absU idx ∧ absU idx < absU d + absU k) by
               intro ⟨_, hc⟩; exact h2 (by scalar_tac))]
@@ -5265,7 +5131,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
         have hi1v := hi1 i1 hi1'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi1v hrel hinv hfrozen haR hm hp1
+        have hrec1 := ih hQ hi1v hrel hinv haR hm hp1
         rw [show absU i1 = m from hi1v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -5278,11 +5144,9 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hrec2 := ih hQ hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+          have hrec2 := ih hQ hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
           rw [show absU i1 = m from hi1v] at hrec2
           cases hr2 : r2 with
           | Err e =>
@@ -5295,9 +5159,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
             obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
               hrec2.dest
             refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-            have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
-            exact intern_e_app_res hQ hrel2 hinv2 hfroz2 hq2
+            exact intern_e_app_res hQ hrel2 hinv2 hq2
               a2 b2 (viewOK_app (hmono2.res hres1) hres2) hrun
       | Lam ty body mb =>
         simp only [absENodeView]
@@ -5311,7 +5173,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
         have hi1v := hi1 i1 hi1'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi1v hrel hinv hfrozen htyR hm hp1
+        have hrec1 := ih hQ hi1v hrel hinv htyR hm hp1
         rw [show absU i1 = m from hi1v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -5324,15 +5186,13 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi2v : absU i2 = absU c + 1 := by
             have h1 := ConRon.Refine.Nat.uadd_val hi2
             simpa using h1
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hrec2 := ih hQ hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+          have hrec2 := ih hQ hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
           rw [show absU i1 = m from hi1v, hi2v] at hrec2
           cases hr2 : r2 with
           | Err e =>
@@ -5345,9 +5205,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
             obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
               hrec2.dest
             refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-            have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
-            exact intern_e_lam_res hQ hrel2 hinv2 hfroz2 hq2
+            exact intern_e_lam_res hQ hrel2 hinv2 hq2
               t2 b2 mb hpw (viewOK_bind2 (hmono2.res hres1) hres2) hrun
       | ForallE ty body mb =>
         simp only [absENodeView]
@@ -5361,7 +5219,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
         have hi1v := hi1 i1 hi1'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi1v hrel hinv hfrozen htyR hm hp1
+        have hrec1 := ih hQ hi1v hrel hinv htyR hm hp1
         rw [show absU i1 = m from hi1v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -5374,15 +5232,13 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi2v : absU i2 = absU c + 1 := by
             have h1 := ConRon.Refine.Nat.uadd_val hi2
             simpa using h1
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hrec2 := ih hQ hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+          have hrec2 := ih hQ hi1v hrel1 hinv1 (hmono1.res hbR) hq1 hp2
           rw [show absU i1 = m from hi1v, hi2v] at hrec2
           cases hr2 : r2 with
           | Err e =>
@@ -5395,9 +5251,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
             obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
               hrec2.dest
             refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-            have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
-            exact intern_e_forall_e_res hQ hrel2 hinv2 hfroz2 hq2
+            exact intern_e_forall_e_res hQ hrel2 hinv2 hq2
               t2 b2 mb hpw (viewOK_bind2 (hmono2.res hres1) hres2) hrun
       | LetE ty val body =>
         simp only [absENodeView]
@@ -5412,7 +5266,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
         have hi1v := hi1 i1 hi1'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi1v hrel hinv hfrozen htyR hm hp1
+        have hrec1 := ih hQ hi1v hrel hinv htyR hm hp1
         rw [show absU i1 = m from hi1v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -5425,11 +5279,9 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hrec2 := ih hQ hi1v hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1 hp2
+          have hrec2 := ih hQ hi1v hrel1 hinv1 (hmono1.res hvalR) hq1 hp2
           rw [show absU i1 = m from hi1v] at hrec2
           cases hr2 : r2 with
           | Err e =>
@@ -5442,15 +5294,13 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
             obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
               hrec2.dest
             refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-            have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU c + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r3, st3⟩ := p3
-            have hrec3 := ih hQ hi1v hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2 hp3
+            have hrec3 := ih hQ hi1v hrel2 hinv2 (hmono2.res (hmono1.res hbR)) hq2 hp3
             rw [show absU i1 = m from hi1v, hi2v] at hrec3
             cases hr3 : r3 with
             | Err e =>
@@ -5463,9 +5313,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
               obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                 hrec3.dest
               refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-              have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
-              exact intern_e_let_e_res hQ hrel3 hinv3 hfroz3 hq3
+              exact intern_e_let_e_res hQ hrel3 hinv3 hq3
                 t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                   (hmono3.res hres2) hres3) hrun
       | Proj nn i1 sub =>
@@ -5480,7 +5328,7 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
         have hi2v := hi1 i2 hi2'
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec1 := ih hQ hi2v hrel hinv hfrozen hsR hm hp1
+        have hrec1 := ih hQ hi2v hrel hinv hsR hm hp1
         rw [show absU i2 = m from hi2v] at hrec1
         cases hr1 : r1 with
         | Err e =>
@@ -5493,33 +5341,29 @@ private theorem abstract_range_aux (n : Nat) : AbsRangeAt n := by
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
             hrec1.dest
           refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
-          exact intern_e_proj_res hQ hrel1 hinv1 hfroz1 hq1
+          exact intern_e_proj_res hQ hrel1 hinv1 hq1
             nn i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hrun
 
 /-- `abstract_range` at `WOutE`, for any stable side invariant. -/
 theorem abstract_range_wout {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d k c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hq : Q lst)
     (hrun : arena.expr_ops.abstract_range pers st fuel h d k c = ok o) :
     WOutE Q pers st lst o
       (abstractRange (absU fuel) (absEIdx h) (absU d) (absU k) (absU c)) :=
-  abstract_range_aux _ hQ rfl hrel hinv hfrozen hh hq hrun
+  abstract_range_aux _ hQ rfl hrel hinv hh hq hrun
 
 /-- `Arena/ExprOps.lean:669 abstractRange` — the SPEC descent (task #97-P6-11
 keeps it as the statement subject beside the executed `abstractRangeGo`). -/
 theorem abstract_range_refines {pers st lst} {fuel : Std.U64}
     {h : arena.handle.EIdx} {d k c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h))
     (hrun : arena.expr_ops.abstract_range pers st fuel h d k c = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (abstractRange (absU fuel) (absEIdx h) (absU d) (absU k) (absU c)) :=
-  (abstract_range_wout QStable.true hrel hinv hfrozen hh trivial hrun).toSim
+  (abstract_range_wout QStable.true hrel hinv hh trivial hrun).toSim
 
 /-! ## `renameConsts` — the module's one higher-order argument
 
@@ -5535,7 +5379,6 @@ def RenameGoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {fuel : Std.U64} {h : arena.handle.EIdx} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → MemoRes Memos.renameC lst →
     RenameRes inst f lst.store →
     arena.expr_ops.rename_consts_go inst pers st f fuel h = ok o →
@@ -5544,7 +5387,7 @@ def RenameGoAt (n : Nat) : Prop :=
 private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
   induction n with
   | zero =>
-    intro F inst f g hg pers st lst fuel h o hn hrel hinv hfrozen hh hm hren hrun
+    intro F inst f g hg pers st lst fuel h o hn hrel hinv hh hm hren hrun
     rw [arena.expr_ops.rename_consts_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -5557,7 +5400,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
     rw [show absU fuel = 0 from hn, renameConstsGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro F inst f g hg pers st lst fuel h o hn hrel hinv hfrozen hh hm hren hrun
+    intro F inst f g hg pers st lst fuel h o hn hrel hinv hh hm hren hrun
     rw [arena.expr_ops.rename_consts_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -5595,7 +5438,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
         have husR : (lst.store.lss.view (absLsIdx us)).isSome = true := by
           obtain ⟨rk, hw⟩ := hrel.storeWF
           exact (hw.lschildOK _ _ hvv _ (by simp [ENodeView.lschildren])).1
-        have hstep := intern_e_const_res (MemoRes.stable _) hrel hinv hfrozen hm n2 us
+        have hstep := intern_e_const_res (MemoRes.stable _) hrel hinv hm n2 us
           (viewOK_const (hren nn n2 hn2) husR) hrun
         show WOutR _ pers st lst o ((internRebuiltConst (absEIdx h)
           (g (absNIdx nn) == absNIdx nn) (g (absNIdx nn)) (absLsIdx us)).run lst)
@@ -5628,7 +5471,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hg hi1v hrel hinv hfrozen htyR hm hren hp1
+          have hrec1 := ih hg hi1v hrel hinv htyR hm hren hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -5641,11 +5484,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep0 := intern_e_fvar_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep0 := intern_e_fvar_res (MemoRes.stable _) hrel1 hinv1 hq1
               idx t2 (viewOK_fvar hres1) hp2
             have hstep : WOutE (MemoRes Memos.renameC) pers st1 lst1 (r2, st2)
                 (internRebuiltFVar (absEIdx h) (absEIdx t2 == absEIdx ty) (absU idx)
@@ -5695,7 +5536,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hg hi1v hrel hinv hfrozen haR hm hren hp1
+          have hrec1 := ih hg hi1v hrel hinv haR hm hren hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -5708,11 +5549,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hg hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1
+            have hrec2 := ih hg hi1v hrel1 hinv1 (hmono1.res hbR) hq1
               (hren.mono hmono1) hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
@@ -5726,11 +5565,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep0 := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep0 := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 a2 b2 (viewOK_app (hmono2.res hres1) hres2) hp3
               have hstep : WOutE (MemoRes Memos.renameC) pers st2 lst2 (r3, st3)
                   (internRebuiltApp (absEIdx h) (absEIdx a2 == absEIdx a &&
@@ -5782,7 +5619,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hg hi1v hrel hinv hfrozen htyR hm hren hp1
+          have hrec1 := ih hg hi1v hrel hinv htyR hm hren hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -5795,11 +5632,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hg hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1
+            have hrec2 := ih hg hi1v hrel1 hinv1 (hmono1.res hbR) hq1
               (hren.mono hmono1) hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
@@ -5813,11 +5648,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep0 := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep0 := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw (viewOK_bind2 (hmono2.res hres1) hres2) hp3
               have hstep : WOutE (MemoRes Memos.renameC) pers st2 lst2 (r3, st3)
                   (internRebuiltLam (absEIdx h) (absEIdx t2 == absEIdx ty &&
@@ -5870,7 +5703,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hg hi1v hrel hinv hfrozen htyR hm hren hp1
+          have hrec1 := ih hg hi1v hrel hinv htyR hm hren hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -5883,11 +5716,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hg hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1
+            have hrec2 := ih hg hi1v hrel1 hinv1 (hmono1.res hbR) hq1
               (hren.mono hmono1) hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
@@ -5901,11 +5732,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep0 := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep0 := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw (viewOK_bind2 (hmono2.res hres1) hres2) hp3
               have hstep : WOutE (MemoRes Memos.renameC) pers st2 lst2 (r3, st3)
                   (internRebuiltForallE (absEIdx h) (absEIdx t2 == absEIdx ty &&
@@ -5959,7 +5788,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hg hi1v hrel hinv hfrozen htyR hm hren hp1
+          have hrec1 := ih hg hi1v hrel hinv htyR hm hren hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -5972,11 +5801,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hg hi1v hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1
+            have hrec2 := ih hg hi1v hrel1 hinv1 (hmono1.res hvalR) hq1
               (hren.mono hmono1) hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
@@ -5990,11 +5817,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hg hi1v hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2
+              have hrec3 := ih hg hi1v hrel2 hinv2 (hmono2.res (hmono1.res hbR)) hq2
                 ((hren.mono hmono1).mono hmono2) hp3
               rw [show absU i1 = m from hi1v] at hrec3
               cases hr3 : r3 with
@@ -6008,11 +5833,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨r4, st4⟩ := p4
-                have hstep0 := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3 hq3
+                have hstep0 := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hq3
                   t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                     (hmono3.res hres2) hres3) hp4
                 have hstep : WOutE (MemoRes Memos.renameC) pers st3 lst3 (r4, st4)
@@ -6067,7 +5890,7 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
           have hi2v := hi1 i2 hi2'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hg hi2v hrel hinv hfrozen hsR hm hren hp1
+          have hrec1 := ih hg hi2v hrel hinv hsR hm hren hp1
           rw [show absU i2 = m from hi2v] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -6080,11 +5903,9 @@ private theorem rename_consts_go_aux (n : Nat) : RenameGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep0 := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep0 := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               nn i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hp2
             have hstep : WOutE (MemoRes Memos.renameC) pers st1 lst1 (r2, st2)
                 (internRebuiltProj (absEIdx h) (absEIdx u == absEIdx sub) (absNIdx nn)
@@ -6113,17 +5934,15 @@ theorem rename_consts_go_wout {F : Type} {inst : arena.expr_ops.NIdxToNIdx F}
     {f : F} {g : NIdx → NIdx} (hg : RenameRel inst f g) {pers st lst}
     {fuel : Std.U64} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.renameC lst)
     (hren : RenameRes inst f lst.store)
     (hrun : arena.expr_ops.rename_consts_go inst pers st f fuel h = ok o) :
     WOutE (MemoRes Memos.renameC) pers st lst o (renameConstsGo g (absU fuel) (absEIdx h)) :=
-  rename_consts_go_aux _ hg rfl hrel hinv hfrozen hh hmemo hren hrun
+  rename_consts_go_aux _ hg rfl hrel hinv hh hmemo hren hrun
 
 /-- `rename_consts_fast` at `WOutE`: the memo fresh before and dropped after. -/
 theorem rename_consts_fast_wout {pers st lst} {F : Type} {inst : arena.expr_ops.NIdxToNIdx F} {fuel : Std.U64} {f : F} {g : NIdx → NIdx} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hg : RenameRel inst f g) (he : EResolves lst (absEIdx e))
     (hren : RenameRes inst f lst.store)
     (hrun : arena.expr_ops.rename_consts_fast inst pers st fuel f e = ok o) :
@@ -6137,10 +5956,8 @@ theorem rename_consts_fast_wout {pers st lst} {F : Type} {inst : arena.expr_ops.
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with renameC := v }) (twinClear := Arena.renameClear)
     (fun _ => rfl) (rename_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := rename_consts_go_wout hg (lst := { lst with memos := { lst.memos with
-      renameC := ∅ } }) hrel1 hinv1 hfroz1 he (MemoRes.of_empty rfl) hren hq
+      renameC := ∅ } }) hrel1 hinv1 he (MemoRes.of_empty rfl) hren hq
   show WOutR _ pers st lst o ((do
     Arena.renameClear
     let r ← renameConstsGo g (absU fuel) (absEIdx e)
@@ -6176,13 +5993,12 @@ theorem rename_consts_go_refines {F : Type}
     {g : NIdx → NIdx} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hf : RenameRel inst f g)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.renameC lst)
     (hren : RenameRes inst f lst.store)
     (hrun : arena.expr_ops.rename_consts_go inst pers st f fuel h = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (renameConstsGo g (absU fuel) (absEIdx h)) :=
-  (rename_consts_go_wout hf hrel hinv hfrozen hh hmemo hren hrun).toSim
+  (rename_consts_go_wout hf hrel hinv hh hmemo hren hrun).toSim
 
 /-- `Arena/ExprOps.lean:1168 renameConstsFast`.  **Corrected** as the walk,
 minus the memo clause. -/
@@ -6191,12 +6007,11 @@ theorem rename_consts_fast_refines {F : Type}
     {g : NIdx → NIdx} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hf : RenameRel inst f g)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e)) (hren : RenameRes inst f lst.store)
     (hrun : arena.expr_ops.rename_consts_fast inst pers st fuel f e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (renameConstsFast (absU fuel) g (absEIdx e)) :=
-  (rename_consts_fast_wout hrel hinv hfrozen hf he hren hrun).toSim
+  (rename_consts_fast_wout hrel hinv hf he hren hrun).toSim
 
 /-! ## `mkAppN` — the application spine, rebuilt
 
@@ -6251,7 +6066,6 @@ private theorem mk_app_n_from_aux (n : Nat) :
       {i : Std.Usize} {o},
       args.val.length - i.val = n →
       AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx f) →
       (∀ x ∈ args.val, EResolves lst (absEIdx x)) →
       arena.expr_ops.mk_app_n_from pers st f args i = ok o →
@@ -6259,7 +6073,7 @@ private theorem mk_app_n_from_aux (n : Nat) :
         (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i)) := by
   induction n with
   | zero =>
-    intro pers st lst f args i o hn hrel hinv hfrozen hf hargs hrun
+    intro pers st lst f args i o hn hrel hinv hf hargs hrun
     rw [arena.expr_ops.mk_app_n_from] at hrun
     have hge : i.val ≥ args.val.length := by omega
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
@@ -6273,7 +6087,7 @@ private theorem mk_app_n_from_aux (n : Nat) :
       rw [absEIdxArr_size]; show ¬ (i.val < args.val.length); omega)]
     exact WOutR.pure hrel hinv hf trivial
   | succ m ih =>
-    intro pers st lst f args i o hn hrel hinv hfrozen hf hargs hrun
+    intro pers st lst f args i o hn hrel hinv hf hargs hrun
     rw [arena.expr_ops.mk_app_n_from] at hrun
     have hlt : i.val < args.val.length := by omega
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -6290,7 +6104,7 @@ private theorem mk_app_n_from_aux (n : Nat) :
     have hres1 : EResolves lst (absEIdx e1) := hargs e1 (hval ▸ List.getElem_mem hb)
     have hview : lst.store.ViewOK (.app (absEIdx f) (absEIdx e1)) :=
       viewOK_app hf hres1
-    have hstep := intern_e_app_res QStable.true hrel hinv hfrozen trivial f e1 hview hp1
+    have hstep := intern_e_app_res QStable.true hrel hinv trivial f e1 hview hp1
     rw [mkAppNFrom, dif_pos (show absSz i < (absEIdxArr args).size from by
       rw [absEIdxArr_size]; exact hlt)]
     rw [show (absEIdxArr args)[absSz i]'(by rw [absEIdxArr_size]; exact hlt)
@@ -6308,8 +6122,6 @@ private theorem mk_app_n_from_aux (n : Nat) :
       rw [hr] at hrun
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi2v : absSz i2 = absSz i + 1 := absSz_add_one hi2
-      have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-        intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
       have hargs1 : ∀ x ∈ args.val, EResolves lst1 (absEIdx x) := by
         intro x hx
         exact hmono1.res (hargs x hx)
@@ -6317,7 +6129,7 @@ private theorem mk_app_n_from_aux (n : Nat) :
         have : i2.val = i.val + 1 := hi2v
         omega
       have hrec := ih (st := st1) (lst := lst1) (f := g) (i := i2)
-        hi2n hrel1 hinv1 hfroz1 hg hargs1 hrun
+        hi2n hrel1 hinv1 hg hargs1 hrun
       rw [hi2v] at hrec
       exact WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 hrec
 
@@ -6325,26 +6137,24 @@ private theorem mk_app_n_from_aux (n : Nat) :
 theorem mk_app_n_from_refines {pers st lst} {f : arena.handle.EIdx}
     {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hf : EResolves lst (absEIdx f))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.mk_app_n_from pers st f args i = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i)) :=
-  (mk_app_n_from_aux _ rfl hrel hinv hfrozen hf hargs hrun).toSim
+  (mk_app_n_from_aux _ rfl hrel hinv hf hargs hrun).toSim
 
 /-- `Arena/ExprOps.lean:1069 mkAppN`. -/
 theorem mk_app_n_refines {pers st lst} {f : arena.handle.EIdx}
     {args : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hf : EResolves lst (absEIdx f))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.mk_app_n pers st f args = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (mkAppN (absEIdx f) (absEIdxList args)) := by
   rw [arena.expr_ops.mk_app_n] at hrun
-  have h := (mk_app_n_from_aux _ rfl hrel hinv hfrozen hf hargs hrun).toSim
+  have h := (mk_app_n_from_aux _ rfl hrel hinv hf hargs hrun).toSim
   rw [show absSz (0#usize) = 0 from rfl,
     mkAppNFrom_eq (absEIdxArr args) ((absEIdxArr args).size - 0) 0 (absEIdx f) rfl,
     List.drop_zero, absEIdxArr_toList] at h
@@ -6522,7 +6332,6 @@ private theorem inst_pis_from_aux (n : Nat) :
       {fuel : Std.U64} {e : arena.handle.EIdx} {args : alloc.vec.Vec arena.handle.EIdx}
       {i : Std.Usize} {o},
       args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx e) →
       (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
       arena.expr_ops.inst_pis_from pers st fuel e args i = ok o →
@@ -6530,7 +6339,7 @@ private theorem inst_pis_from_aux (n : Nat) :
         ((instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)).run lst) := by
   induction n with
   | zero =>
-    intro pers st lst fuel e args i o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel e args i o hn hrel hinv he hargs hrun
     rw [arena.expr_ops.inst_pis_from] at hrun
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
       show args.val.length ≤ i.val; omega)] at hrun
@@ -6539,7 +6348,7 @@ private theorem inst_pis_from_aux (n : Nat) :
     rw [← Result.ok_injective hrun, listFrom_nil args i (by omega)]
     exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
   | succ k ih =>
-    intro pers st lst fuel e args i o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel e args i o hn hrel hinv he hargs hrun
     have hlt : i.val < args.val.length := by omega
     rw [arena.expr_ops.inst_pis_from] at hrun
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -6566,7 +6375,7 @@ private theorem inst_pis_from_aux (n : Nat) :
       obtain ⟨r1, st1⟩ := p1
       have haR : EResolves lst (absEIdx a) := by
         rw [hae]; exact hargs _ (mem_drop_here hlt)
-      have hstep := instantiate1_fast_wout hrel hinv hfrozen hbR haR hp1
+      have hstep := instantiate1_fast_wout hrel hinv hbR haR hp1
       rw [show absU (0#u64 : Std.U64) = 0 from rfl, hae] at hstep
       cases hr1 : r1 with
       | Err er =>
@@ -6578,12 +6387,10 @@ private theorem inst_pis_from_aux (n : Nat) :
         obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
           hstep.dest
         refine WOutX.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
         obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hi3v : i3.val = i.val + 1 := by
           have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
-        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hfroz1 hres1
+        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hres1
           (fun x hx => hmono1.res (hargs x (mem_drop_succ hlt (hi3v ▸ hx)))) hrun
         simp only [absEIdxListFrom, hi3v] at hrec
         exact hrec
@@ -6601,7 +6408,6 @@ private theorem inst_pis_at_from_aux (n : Nat) :
       {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {h : arena.handle.EIdx} {o},
       args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx h) →
       (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
       arena.expr_ops.inst_pis_at_from pers st fuel args i h = ok o →
@@ -6609,7 +6415,7 @@ private theorem inst_pis_at_from_aux (n : Nat) :
         ((instPisAt (absU fuel) (absEIdxListFrom args i) (absEIdx h)).run lst) := by
   induction n with
   | zero =>
-    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel args i h o hn hrel hinv he hargs hrun
     rw [arena.expr_ops.inst_pis_at_from] at hrun
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
       show args.val.length ≤ i.val; omega)] at hrun
@@ -6618,7 +6424,7 @@ private theorem inst_pis_at_from_aux (n : Nat) :
     rw [← Result.ok_injective hrun, listFrom_nil args i (by omega)]
     exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
   | succ k ih =>
-    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel args i h o hn hrel hinv he hargs hrun
     have hlt : i.val < args.val.length := by omega
     rw [arena.expr_ops.inst_pis_at_from] at hrun
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -6645,7 +6451,7 @@ private theorem inst_pis_at_from_aux (n : Nat) :
       obtain ⟨r1, st1⟩ := p1
       have haR : EResolves lst (absEIdx a) := by
         rw [hae]; exact hargs _ (mem_drop_here hlt)
-      have hstep := instantiate1_fast_wout hrel hinv hfrozen hbR haR hp1
+      have hstep := instantiate1_fast_wout hrel hinv hbR haR hp1
       rw [show absU (0#u64 : Std.U64) = 0 from rfl, hae] at hstep
       cases hr1 : r1 with
       | Err er =>
@@ -6657,14 +6463,12 @@ private theorem inst_pis_at_from_aux (n : Nat) :
         obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
           hstep.dest
         refine WOutX.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
         obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hi3v : i3.val = i.val + 1 := by
           have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
         obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r2, st2⟩ := p2
-        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hfroz1 hres1
+        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hres1
           (fun x hx => hmono1.res (hargs x (mem_drop_succ hlt (hi3v ▸ hx)))) hp2
         simp only [absEIdxListFrom, hi3v] at hrec
         cases hr2 : r2 with
@@ -6751,7 +6555,6 @@ private theorem inst_lams_at_from_aux (n : Nat) :
       {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {h : arena.handle.EIdx} {o},
       args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx h) →
       (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
       arena.expr_ops.inst_lams_at_from pers st fuel args i h = ok o →
@@ -6759,7 +6562,7 @@ private theorem inst_lams_at_from_aux (n : Nat) :
         ((instLamsAt (absU fuel) (absEIdxListFrom args i) (absEIdx h)).run lst) := by
   induction n with
   | zero =>
-    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel args i h o hn hrel hinv he hargs hrun
     rw [arena.expr_ops.inst_lams_at_from] at hrun
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
       show args.val.length ≤ i.val; omega)] at hrun
@@ -6768,7 +6571,7 @@ private theorem inst_lams_at_from_aux (n : Nat) :
     rw [← Result.ok_injective hrun, listFrom_nil args i (by omega)]
     exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
   | succ k ih =>
-    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel args i h o hn hrel hinv he hargs hrun
     have hlt : i.val < args.val.length := by omega
     rw [arena.expr_ops.inst_lams_at_from] at hrun
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -6795,7 +6598,7 @@ private theorem inst_lams_at_from_aux (n : Nat) :
       obtain ⟨r1, st1⟩ := p1
       have haR : EResolves lst (absEIdx a) := by
         rw [hae]; exact hargs _ (mem_drop_here hlt)
-      have hstep := instantiate1_fast_wout hrel hinv hfrozen hbR haR hp1
+      have hstep := instantiate1_fast_wout hrel hinv hbR haR hp1
       rw [show absU (0#u64 : Std.U64) = 0 from rfl, hae] at hstep
       cases hr1 : r1 with
       | Err er =>
@@ -6807,14 +6610,12 @@ private theorem inst_lams_at_from_aux (n : Nat) :
         obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
           hstep.dest
         refine WOutX.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
         obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hi3v : i3.val = i.val + 1 := by
           have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
         obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r2, st2⟩ := p2
-        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hfroz1 hres1
+        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hres1
           (fun x hx => hmono1.res (hargs x (mem_drop_succ hlt (hi3v ▸ hx)))) hp2
         simp only [absEIdxListFrom, hi3v] at hrec
         cases hr2 : r2 with
@@ -6877,7 +6678,6 @@ private theorem inst_pis_at_f_go_aux (n : Nat) :
       {fuel : Std.U64} {acc args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {h : arena.handle.EIdx} {o},
       args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx h) →
       (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
       (∀ x ∈ acc.val, EResolves lst (absEIdx x)) →
@@ -6887,7 +6687,7 @@ private theorem inst_pis_at_f_go_aux (n : Nat) :
           (absEIdx h)).run lst) := by
   induction n with
   | zero =>
-    intro pers st lst fuel acc args i h o hn hrel hinv hfrozen he hargs hacc hrun
+    intro pers st lst fuel acc args i h o hn hrel hinv he hargs hacc hrun
     rw [arena.expr_ops.inst_pis_at_f_go] at hrun
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
       show args.val.length ≤ i.val; omega)] at hrun
@@ -6895,7 +6695,7 @@ private theorem inst_pis_at_f_go_aux (n : Nat) :
     simp only [instPisAtFGo]
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
-    have hstep := instantiate_list_fast_wout hrel hinv hfrozen he hacc hp1
+    have hstep := instantiate_list_fast_wout hrel hinv he hacc hp1
     rw [show absU (0#u64 : Std.U64) = 0 from rfl] at hstep
     cases hr1 : r1 with
     | Err er =>
@@ -6908,7 +6708,7 @@ private theorem inst_pis_at_f_go_aux (n : Nat) :
       rw [← Result.ok_injective hrun, run_bind_of hx1]
       exact WOutX.ok rfl hrel1 hinv1 hext1 hmono1 hfl1 hfl2
   | succ k ih =>
-    intro pers st lst fuel acc args i h o hn hrel hinv hfrozen he hargs hacc hrun
+    intro pers st lst fuel acc args i h o hn hrel hinv he hargs hacc hrun
     have hlt : i.val < args.val.length := by omega
     rw [arena.expr_ops.inst_pis_at_f_go] at hrun
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -6937,7 +6737,7 @@ private theorem inst_pis_at_f_go_aux (n : Nat) :
       obtain ⟨r1, st1⟩ := p1
       have heR : EResolves lst (absEIdx e1) := by
         rw [← hval1]; exact hargs _ (mem_drop_here hlt)
-      have hrec := ih (i := i3) (by omega) hrel hinv hfrozen hbR
+      have hrec := ih (i := i3) (by omega) hrel hinv hbR
         (fun x hx => hargs x (mem_drop_succ hlt (hi3v ▸ hx)))
         (snoc_resolves hacc2 hacc heR) hp1
       simp only [absEIdxListFrom, hi3v] at hrec
@@ -6951,8 +6751,6 @@ private theorem inst_pis_at_f_go_aux (n : Nat) :
         rw [hr1] at hrun hrec
         obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hmono1, hfl1, hfl2⟩ := hrec.dest
         rw [run_bind_of hx1]
-        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
         cases ho1 : o1 with
         | none =>
           rw [ho1] at hrun
@@ -6963,7 +6761,7 @@ private theorem inst_pis_at_f_go_aux (n : Nat) :
           obtain ⟨vv, e2⟩ := pp
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hstep := instantiate_list_fast_wout hrel1 hinv1 hfroz1 (hmono1.res hdR)
+          have hstep := instantiate_list_fast_wout hrel1 hinv1 (hmono1.res hdR)
             (fun x hx => hmono1.res (hacc x hx)) hp2
           rw [show absU (0#u64 : Std.U64) = 0 from rfl] at hstep
           show WOutX _ pers st lst o
@@ -7000,7 +6798,6 @@ private theorem inst_lams_at_f_go_aux (n : Nat) :
       {fuel : Std.U64} {acc args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {h : arena.handle.EIdx} {o},
       args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx h) →
       (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
       (∀ x ∈ acc.val, EResolves lst (absEIdx x)) →
@@ -7010,7 +6807,7 @@ private theorem inst_lams_at_f_go_aux (n : Nat) :
           (absEIdx h)).run lst) := by
   induction n with
   | zero =>
-    intro pers st lst fuel acc args i h o hn hrel hinv hfrozen he hargs hacc hrun
+    intro pers st lst fuel acc args i h o hn hrel hinv he hargs hacc hrun
     rw [arena.expr_ops.inst_lams_at_f_go] at hrun
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
       show args.val.length ≤ i.val; omega)] at hrun
@@ -7018,7 +6815,7 @@ private theorem inst_lams_at_f_go_aux (n : Nat) :
     simp only [instLamsAtFGo]
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
-    have hstep := instantiate_list_fast_wout hrel hinv hfrozen he hacc hp1
+    have hstep := instantiate_list_fast_wout hrel hinv he hacc hp1
     rw [show absU (0#u64 : Std.U64) = 0 from rfl] at hstep
     cases hr1 : r1 with
     | Err er =>
@@ -7031,7 +6828,7 @@ private theorem inst_lams_at_f_go_aux (n : Nat) :
       rw [← Result.ok_injective hrun, run_bind_of hx1]
       exact WOutX.ok rfl hrel1 hinv1 hext1 hmono1 hfl1 hfl2
   | succ k ih =>
-    intro pers st lst fuel acc args i h o hn hrel hinv hfrozen he hargs hacc hrun
+    intro pers st lst fuel acc args i h o hn hrel hinv he hargs hacc hrun
     have hlt : i.val < args.val.length := by omega
     rw [arena.expr_ops.inst_lams_at_f_go] at hrun
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -7060,7 +6857,7 @@ private theorem inst_lams_at_f_go_aux (n : Nat) :
       obtain ⟨r1, st1⟩ := p1
       have heR : EResolves lst (absEIdx e1) := by
         rw [← hval1]; exact hargs _ (mem_drop_here hlt)
-      have hrec := ih (i := i3) (by omega) hrel hinv hfrozen hbR
+      have hrec := ih (i := i3) (by omega) hrel hinv hbR
         (fun x hx => hargs x (mem_drop_succ hlt (hi3v ▸ hx)))
         (snoc_resolves hacc2 hacc heR) hp1
       simp only [absEIdxListFrom, hi3v] at hrec
@@ -7074,8 +6871,6 @@ private theorem inst_lams_at_f_go_aux (n : Nat) :
         rw [hr1] at hrun hrec
         obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hmono1, hfl1, hfl2⟩ := hrec.dest
         rw [run_bind_of hx1]
-        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
         cases ho1 : o1 with
         | none =>
           rw [ho1] at hrun
@@ -7086,7 +6881,7 @@ private theorem inst_lams_at_f_go_aux (n : Nat) :
           obtain ⟨vv, e2⟩ := pp
           obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r2, st2⟩ := p2
-          have hstep := instantiate_list_fast_wout hrel1 hinv1 hfroz1 (hmono1.res hdR)
+          have hstep := instantiate_list_fast_wout hrel1 hinv1 (hmono1.res hdR)
             (fun x hx => hmono1.res (hacc x hx)) hp2
           rw [show absU (0#u64 : Std.U64) = 0 from rfl] at hstep
           show WOutX _ pers st lst o
@@ -7123,7 +6918,6 @@ private theorem inst_spine_from_aux (n : Nat) :
       {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {t : Std.U64} {e : arena.handle.EIdx} {o},
       args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx e) →
       (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
       arena.expr_ops.inst_spine_from pers st fuel args i t e = ok o →
@@ -7131,7 +6925,7 @@ private theorem inst_spine_from_aux (n : Nat) :
         ((instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)).run lst) := by
   induction n with
   | zero =>
-    intro pers st lst fuel args i t e o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel args i t e o hn hrel hinv he hargs hrun
     rw [arena.expr_ops.inst_spine_from] at hrun
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
       show args.val.length ≤ i.val; omega)] at hrun
@@ -7140,7 +6934,7 @@ private theorem inst_spine_from_aux (n : Nat) :
     rw [← Result.ok_injective hrun, listFrom_nil args i (by omega)]
     exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
   | succ k ih =>
-    intro pers st lst fuel args i t e o hn hrel hinv hfrozen he hargs hrun
+    intro pers st lst fuel args i t e o hn hrel hinv he hargs hrun
     have hlt : i.val < args.val.length := by omega
     rw [arena.expr_ops.inst_spine_from] at hrun
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -7155,7 +6949,7 @@ private theorem inst_spine_from_aux (n : Nat) :
     obtain ⟨r1, st1⟩ := p1
     have haR : EResolves lst (absEIdx a) := by
       rw [hae]; exact hargs _ (mem_drop_here hlt)
-    have hstep := instantiate1_fast_wout hrel hinv hfrozen he haR hp1
+    have hstep := instantiate1_fast_wout hrel hinv he haR hp1
     rw [hae] at hstep
     cases hr1 : r1 with
     | Err er =>
@@ -7167,14 +6961,12 @@ private theorem inst_spine_from_aux (n : Nat) :
       obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
         hstep.dest
       refine WOutX.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-      have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-        intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi2v : i2.val = i.val + 1 := by
         have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
       obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi3v : absU i3 = absU t - 1 := sub_nat_val hi3
-      have hrec := ih (i := i2) (by omega) hrel1 hinv1 hfroz1 hres1
+      have hrec := ih (i := i2) (by omega) hrel1 hinv1 hres1
         (fun x hx => hmono1.res (hargs x (mem_drop_succ hlt (hi2v ▸ hx)))) hrun
       simp only [absEIdxListFrom, hi2v, hi3v] at hrec
       exact hrec
@@ -7194,7 +6986,6 @@ standing deviation) and their five entry points.  `Specs.lean` primitives:
 theorem inst_pis_refines {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx}
     {args : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_pis pers st fuel e args = ok o) :
@@ -7202,7 +6993,7 @@ theorem inst_pis_refines {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx}
       (instPis (absU fuel) (absEIdx e) (absEIdxList args)) :=
   by
   rw [arena.expr_ops.inst_pis] at hrun
-  have h := inst_pis_from_aux _ rfl hrel hinv hfrozen he (by simpa using hargs) hrun
+  have h := inst_pis_from_aux _ rfl hrel hinv he (by simpa using hargs) hrun
   rw [listFrom_zero] at h
   exact h.toSim
 
@@ -7212,19 +7003,17 @@ theorem inst_pis_from_refines {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {args : alloc.vec.Vec arena.handle.EIdx}
     {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hargs : ∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_pis_from pers st fuel e args i = ok o) :
     Sim absOptE (fun _ => True) pers lst o
       (instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)) :=
-  (inst_pis_from_aux _ rfl hrel hinv hfrozen he hargs hrun).toSim
+  (inst_pis_from_aux _ rfl hrel hinv he hargs hrun).toSim
 
 /-- `Arena/ExprOps.lean:1225 instPisAt`. -/
 theorem inst_pis_at_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_pis_at pers st fuel args h = ok o) :
@@ -7232,7 +7021,7 @@ theorem inst_pis_at_refines {pers st lst} {fuel : Std.U64}
       (instPisAt (absU fuel) (absEIdxList args) (absEIdx h)) :=
   by
   rw [arena.expr_ops.inst_pis_at] at hrun
-  have h' := inst_pis_at_from_aux _ rfl hrel hinv hfrozen hh (by simpa using hargs) hrun
+  have h' := inst_pis_at_from_aux _ rfl hrel hinv hh (by simpa using hargs) hrun
   rw [listFrom_zero] at h'
   exact h'.toSim
 
@@ -7241,19 +7030,17 @@ theorem inst_pis_at_from_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h))
     (hargs : ∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_pis_at_from pers st fuel args i h = ok o) :
     Sim absOptArgsE (fun _ => True) pers lst o
       (instPisAt (absU fuel) (absEIdxListFrom args i) (absEIdx h)) :=
-  (inst_pis_at_from_aux _ rfl hrel hinv hfrozen hh hargs hrun).toSim
+  (inst_pis_at_from_aux _ rfl hrel hinv hh hargs hrun).toSim
 
 /-- `Arena/ExprOps.lean:1238 instLamsAt`. -/
 theorem inst_lams_at_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_lams_at pers st fuel args h = ok o) :
@@ -7261,7 +7048,7 @@ theorem inst_lams_at_refines {pers st lst} {fuel : Std.U64}
       (instLamsAt (absU fuel) (absEIdxList args) (absEIdx h)) :=
   by
   rw [arena.expr_ops.inst_lams_at] at hrun
-  have h' := inst_lams_at_from_aux _ rfl hrel hinv hfrozen hh (by simpa using hargs) hrun
+  have h' := inst_lams_at_from_aux _ rfl hrel hinv hh (by simpa using hargs) hrun
   rw [listFrom_zero] at h'
   exact h'.toSim
 
@@ -7270,13 +7057,12 @@ theorem inst_lams_at_from_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h))
     (hargs : ∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_lams_at_from pers st fuel args i h = ok o) :
     Sim absOptArgsE (fun _ => True) pers lst o
       (instLamsAt (absU fuel) (absEIdxListFrom args i) (absEIdx h)) :=
-  (inst_lams_at_from_aux _ rfl hrel hinv hfrozen hh hargs hrun).toSim
+  (inst_lams_at_from_aux _ rfl hrel hinv hh hargs hrun).toSim
 
 /-- `Arena/ExprOps.lean:1252 instPisAtFGo` — BOTH shapes at once: a
 push-order `Array` accumulator and a cursor into the argument list. -/
@@ -7284,7 +7070,6 @@ theorem inst_pis_at_f_go_refines {pers st lst} {fuel : Std.U64}
     {acc args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h))
     (hargs : ∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x))
     (hacc : ∀ x ∈ acc.val, EResolves lst (absEIdx x))
@@ -7292,13 +7077,12 @@ theorem inst_pis_at_f_go_refines {pers st lst} {fuel : Std.U64}
     Sim absOptArgsE (fun _ => True) pers lst o
       (instPisAtFGo (absU fuel) (absEIdxArr acc) (absEIdxListFrom args i)
         (absEIdx h)) :=
-  (inst_pis_at_f_go_aux _ rfl hrel hinv hfrozen hh hargs hacc hrun).toSim
+  (inst_pis_at_f_go_aux _ rfl hrel hinv hh hargs hacc hrun).toSim
 
 /-- `Arena/ExprOps.lean:1269 instPisAtF`. -/
 theorem inst_pis_at_f_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_pis_at_f pers st fuel args e = ok o) :
@@ -7308,7 +7092,7 @@ theorem inst_pis_at_f_refines {pers st lst} {fuel : Std.U64}
   rw [arena.expr_ops.inst_pis_at_f] at hrun
   obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := p1
-  have hgo := inst_pis_at_f_go_aux _ rfl hrel hinv hfrozen he (by simpa using hargs)
+  have hgo := inst_pis_at_f_go_aux _ rfl hrel hinv he (by simpa using hargs)
     (by intro x hx; simp at hx) hp1
   rw [listFrom_zero, show absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] from rfl]
     at hgo
@@ -7333,10 +7117,8 @@ theorem inst_pis_at_f_refines {pers st lst} {fuel : Std.U64}
       exact WOutX.ok rfl hrel1 hinv1 hext1 hmono1 hfl1 hfl2
     | none =>
       rw [ho1] at hrun
-      have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-        intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
       replace hrun : arena.expr_ops.inst_pis_at_from pers st1 fuel args 0#usize e = ok o := hrun
-      have hat := inst_pis_at_from_aux _ rfl hrel1 hinv1 hfroz1 (hmono1.res he)
+      have hat := inst_pis_at_from_aux _ rfl hrel1 hinv1 (hmono1.res he)
         (by simpa using fun x hx => hmono1.res (hargs x hx)) hrun
       rw [listFrom_zero] at hat
       simp only [WOutX] at hat ⊢
@@ -7353,7 +7135,6 @@ theorem inst_lams_at_f_go_refines {pers st lst} {fuel : Std.U64}
     {acc args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h))
     (hargs : ∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x))
     (hacc : ∀ x ∈ acc.val, EResolves lst (absEIdx x))
@@ -7361,13 +7142,12 @@ theorem inst_lams_at_f_go_refines {pers st lst} {fuel : Std.U64}
     Sim absOptArgsE (fun _ => True) pers lst o
       (instLamsAtFGo (absU fuel) (absEIdxArr acc) (absEIdxListFrom args i)
         (absEIdx h)) :=
-  (inst_lams_at_f_go_aux _ rfl hrel hinv hfrozen hh hargs hacc hrun).toSim
+  (inst_lams_at_f_go_aux _ rfl hrel hinv hh hargs hacc hrun).toSim
 
 /-- `Arena/ExprOps.lean:1294 instLamsAtF`. -/
 theorem inst_lams_at_f_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_lams_at_f pers st fuel args e = ok o) :
@@ -7377,7 +7157,7 @@ theorem inst_lams_at_f_refines {pers st lst} {fuel : Std.U64}
   rw [arena.expr_ops.inst_lams_at_f] at hrun
   obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := p1
-  have hgo := inst_lams_at_f_go_aux _ rfl hrel hinv hfrozen he (by simpa using hargs)
+  have hgo := inst_lams_at_f_go_aux _ rfl hrel hinv he (by simpa using hargs)
     (by intro x hx; simp at hx) hp1
   rw [listFrom_zero, show absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] from rfl]
     at hgo
@@ -7402,10 +7182,8 @@ theorem inst_lams_at_f_refines {pers st lst} {fuel : Std.U64}
       exact WOutX.ok rfl hrel1 hinv1 hext1 hmono1 hfl1 hfl2
     | none =>
       rw [ho1] at hrun
-      have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-        intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
       replace hrun : arena.expr_ops.inst_lams_at_from pers st1 fuel args 0#usize e = ok o := hrun
-      have hat := inst_lams_at_from_aux _ rfl hrel1 hinv1 hfroz1 (hmono1.res he)
+      have hat := inst_lams_at_from_aux _ rfl hrel1 hinv1 (hmono1.res he)
         (by simpa using fun x hx => hmono1.res (hargs x hx)) hrun
       rw [listFrom_zero] at hat
       simp only [WOutX] at hat ⊢
@@ -7422,7 +7200,6 @@ theorem inst_spine_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {t : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_spine pers st fuel args t e = ok o) :
@@ -7430,7 +7207,7 @@ theorem inst_spine_refines {pers st lst} {fuel : Std.U64}
       (instSpine (absU fuel) (absEIdxList args) (absU t) (absEIdx e)) :=
   by
   rw [arena.expr_ops.inst_spine] at hrun
-  have h := inst_spine_from_aux _ rfl hrel hinv hfrozen he (by simpa using hargs) hrun
+  have h := inst_spine_from_aux _ rfl hrel hinv he (by simpa using hargs) hrun
   rw [listFrom_zero] at h
   exact h.toSim
 
@@ -7439,13 +7216,12 @@ theorem inst_spine_from_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {t : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hargs : ∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_spine_from pers st fuel args i t e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)) :=
-  (inst_spine_from_aux _ rfl hrel hinv hfrozen he hargs hrun).toSim
+  (inst_spine_from_aux _ rfl hrel hinv he hargs hrun).toSim
 
 /-! ## The recursor-rule and binder-surgery helpers
 
@@ -7482,13 +7258,12 @@ private theorem bvar_range_aux (p : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       {m_i n k : Std.U64} {o},
       n.val = p → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       arena.expr_ops.bvar_range pers st m_i n k = ok o →
       Sim absEIdxList (fun _ => True) pers lst o
         (bvarRange (absU m_i) (absU n) (absU k)) := by
   induction p with
   | zero =>
-    intro pers st lst m_i n k o hn hrel hinv hfrozen hrun
+    intro pers st lst m_i n k o hn hrel hinv hrun
     rw [arena.expr_ops.bvar_range] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : n = 0#u64)] at hrun
     have ho := Result.ok_injective hrun
@@ -7501,7 +7276,7 @@ private theorem bvar_range_aux (p : Nat) :
     simp only [absEIdxList, alloc.vec.Vec.new, List.map_nil]
     rfl
   | succ q ih =>
-    intro pers st lst m_i n k o hn hrel hinv hfrozen hrun
+    intro pers st lst m_i n k o hn hrel hinv hrun
     rw [arena.expr_ops.bvar_range] at hrun
     have hne : ¬ (n = 0#u64) := by
       intro hc; rw [hc] at hn; simp at hn
@@ -7512,8 +7287,8 @@ private theorem bvar_range_aux (p : Nat) :
     obtain ⟨r, st1⟩ := p1
     have hidx : absU i1 = absU m_i - 1 - absU k := by
       rw [sub_nat_val hi1, sub_nat_val hi]; rfl
-    have hsim := intern_e_bvar_run hrel hinv hfrozen i1 hp1
-    have hflags := intern_e_bvar_flags hrel hinv hfrozen hp1
+    have hsim := intern_e_bvar_run hrel hinv i1 hp1
+    have hflags := intern_e_bvar_flags hrel hinv hp1
     show AOut absEIdxList (fun _ => True) pers lst o.1 o.2 _
     rw [show absU n = q + 1 from hn, bvarRange]
     rw [hidx] at hsim
@@ -7537,12 +7312,7 @@ private theorem bvar_range_aux (p : Nat) :
       have hi3v : absU i3 = absU k + 1 := by
         have h1 := ConRon.Refine.Nat.uadd_val hi3
         simpa using h1
-      have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-        intro hs
-        have h1 : st1.store.shared_on = st.store.shared_on := hflags.1
-        have h2 : st1.store.scratch_on = st.store.scratch_on := hflags.2
-        rw [h2]; exact hfrozen (h1 ▸ hs)
-      have hrec := ih (st := st1) (lst := lst1) hi2v hrel1 hinv1 hfroz1 hp2
+      have hrec := ih (st := st1) (lst := lst1) hi2v hrel1 hinv1 hp2
       rw [show absU i2 = q from hi2v, hi3v] at hrec
       show AOut absEIdxList (fun _ => True) pers lst o.1 o.2
         ((do let rest ← bvarRange (absU m_i) q (absU k + 1)
@@ -7568,11 +7338,10 @@ private theorem bvar_range_aux (p : Nat) :
 `absEIdxList` with no reversal. -/
 theorem bvar_range_refines {pers st lst} {m_i n k : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.expr_ops.bvar_range pers st m_i n k = ok o) :
     Sim absEIdxList (fun _ => True) pers lst o
       (bvarRange (absU m_i) (absU n) (absU k)) :=
-  bvar_range_aux n.val rfl hrel hinv hfrozen hrun
+  bvar_range_aux n.val rfl hrel hinv hrun
 
 /-! ### `pisToLams` / `replacePiBody`: structural on the count, answering an
 `Option` handle
@@ -7759,7 +7528,6 @@ which a resolving type guarantees (`stripPis_res`). -/
 theorem rec_rule_plain_refines {pers st lst} {fuel : Std.U64}
     {rec_ty : arena.handle.EIdx} {m_i r_p cn_p : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx rec_ty))
     (hrun : arena.expr_ops.rec_rule_plain pers st fuel rec_ty m_i r_p cn_p = ok o) :
     Sim id (fun _ => True) pers lst o
@@ -7842,7 +7610,7 @@ theorem rec_rule_plain_refines {pers st lst} {fuel : Std.U64}
               rw [run_bind_of hx2]
               obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r2, st1⟩ := p4
-              have hbr := bvar_range_refines hrel2 hinv2 hfrozen hp4
+              have hbr := bvar_range_refines hrel2 hinv2 hp4
               rw [show absU (0#u64 : Std.U64) = 0 from rfl] at hbr
               cases hr2c : r2 with
               | Err e1 =>
@@ -7901,7 +7669,6 @@ def P2LAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {k : Std.U64} {h body : arena.handle.EIdx} {o},
     k.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → EResolves lst (absEIdx body) →
     arena.expr_ops.pis_to_lams pers st k h body = ok o →
     WOutO pers st lst o ((pisToLams (absU k) (absEIdx h) (absEIdx body)).run lst)
@@ -7909,7 +7676,7 @@ def P2LAt (n : Nat) : Prop :=
 private theorem pis_to_lams_aux (n : Nat) : P2LAt n := by
   induction n with
   | zero =>
-    intro pers st lst k h body o hn hrel hinv hfrozen hh hb hrun
+    intro pers st lst k h body o hn hrel hinv hh hb hrun
     rw [arena.expr_ops.pis_to_lams] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : k = 0#u64)] at hrun
     obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -7919,7 +7686,7 @@ private theorem pis_to_lams_aux (n : Nat) : P2LAt n := by
     exact ⟨lst, rfl, hrel, hinv, Ext.refl _, (by intro x hx; cases hx; exact hb),
       EViewExt.refl _, rfl, rfl⟩
   | succ q ih =>
-    intro pers st lst k h body o hn hrel hinv hfrozen hh hb hrun
+    intro pers st lst k h body o hn hrel hinv hh hb hrun
     rw [arena.expr_ops.pis_to_lams] at hrun
     have hne : ¬ (k = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -7950,7 +7717,7 @@ private theorem pis_to_lams_aux (n : Nat) : P2LAt n := by
           rw [h1, hn]; rfl
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec := ih hi1v hrel hinv hfrozen hrR hb hp1
+        have hrec := ih hi1v hrel hinv hrR hb hp1
         rw [show absU i1 = q from hi1v] at hrec
         cases hr1 : r1 with
         | Err e =>
@@ -7964,8 +7731,6 @@ private theorem pis_to_lams_aux (n : Nat) : P2LAt n := by
           rw [hr1] at hrun hrec
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2⟩ := hrec
           rw [run_bind_of hx1]
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           cases hob : ob with
           | none =>
             rw [hob] at hrun
@@ -7980,7 +7745,7 @@ private theorem pis_to_lams_aux (n : Nat) : P2LAt n := by
             obtain ⟨hm2abs, hm2wf⟩ := never_meta hpwn hm2
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_e_lam_res QStable.true hrel1 hinv1 hfroz1 trivial ty b m2
+            have hstep := intern_e_lam_res QStable.true hrel1 hinv1 trivial ty b m2
               hm2wf (viewOK_bind2 (hmono1.res htyR) (hres1 b rfl)) hp2
             rw [hm2abs] at hstep
             simp only [Option.map_some, absOptE]
@@ -8022,18 +7787,16 @@ is interned under the rebuilt binders. -/
 theorem pis_to_lams_refines {pers st lst} {k : Std.U64}
     {h body : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hb : EResolves lst (absEIdx body))
     (hrun : arena.expr_ops.pis_to_lams pers st k h body = ok o) :
     Sim absOptE (fun _ => True) pers lst o
       (pisToLams (absU k) (absEIdx h) (absEIdx body)) :=
-  WOutO.toSim (pis_to_lams_aux _ rfl hrel hinv hfrozen hh hb hrun)
+  WOutO.toSim (pis_to_lams_aux _ rfl hrel hinv hh hb hrun)
 
 def RPBAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {k : Std.U64} {h body : arena.handle.EIdx} {o},
     k.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → EResolves lst (absEIdx body) →
     arena.expr_ops.replace_pi_body pers st k h body = ok o →
     WOutO pers st lst o ((replacePiBody (absU k) (absEIdx h) (absEIdx body)).run lst)
@@ -8041,7 +7804,7 @@ def RPBAt (n : Nat) : Prop :=
 private theorem replace_pi_body_aux (n : Nat) : RPBAt n := by
   induction n with
   | zero =>
-    intro pers st lst k h body o hn hrel hinv hfrozen hh hb hrun
+    intro pers st lst k h body o hn hrel hinv hh hb hrun
     rw [arena.expr_ops.replace_pi_body] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : k = 0#u64)] at hrun
     obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -8051,7 +7814,7 @@ private theorem replace_pi_body_aux (n : Nat) : RPBAt n := by
     exact ⟨lst, rfl, hrel, hinv, Ext.refl _, (by intro x hx; cases hx; exact hb),
       EViewExt.refl _, rfl, rfl⟩
   | succ q ih =>
-    intro pers st lst k h body o hn hrel hinv hfrozen hh hb hrun
+    intro pers st lst k h body o hn hrel hinv hh hb hrun
     rw [arena.expr_ops.replace_pi_body] at hrun
     have hne : ¬ (k = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -8082,7 +7845,7 @@ private theorem replace_pi_body_aux (n : Nat) : RPBAt n := by
           rw [h1, hn]; rfl
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hrec := ih hi1v hrel hinv hfrozen hrR hb hp1
+        have hrec := ih hi1v hrel hinv hrR hb hp1
         rw [show absU i1 = q from hi1v] at hrec
         cases hr1 : r1 with
         | Err e =>
@@ -8096,8 +7859,6 @@ private theorem replace_pi_body_aux (n : Nat) : RPBAt n := by
           rw [hr1] at hrun hrec
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2⟩ := hrec
           rw [run_bind_of hx1]
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
           cases hob : ob with
           | none =>
             rw [hob] at hrun
@@ -8115,7 +7876,7 @@ private theorem replace_pi_body_aux (n : Nat) : RPBAt n := by
               rw [hm2e]; exact view_bind_meta_wf hinv (by rw [← ho1c]; exact ho1)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_e_forall_e_res QStable.true hrel1 hinv1 hfroz1 trivial ty b m2
+            have hstep := intern_e_forall_e_res QStable.true hrel1 hinv1 trivial ty b m2
               hm2wf (viewOK_bind2 (hmono1.res htyR) (hres1 b rfl)) hp2
             rw [hm2e] at hstep
             simp only [Option.map_some, absOptE]
@@ -8158,12 +7919,11 @@ the body is interned under the rebuilt binders. -/
 theorem replace_pi_body_refines {pers st lst} {k : Std.U64}
     {h b : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hb : EResolves lst (absEIdx b))
     (hrun : arena.expr_ops.replace_pi_body pers st k h b = ok o) :
     Sim absOptE (fun _ => True) pers lst o
       (replacePiBody (absU k) (absEIdx h) (absEIdx b)) :=
-  WOutO.toSim (replace_pi_body_aux _ rfl hrel hinv hfrozen hh hb hrun)
+  WOutO.toSim (replace_pi_body_aux _ rfl hrel hinv hh hb hrun)
 
 /-! ## The packed range fields and their saturated-branch recomputations
 
@@ -9970,7 +9730,7 @@ theorem fvar_b_step {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx}
 
 theorem intern_rebuilt_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} (tag : Std.U32)
     (htag : ETag.isBind (absU32 tag) = true)
     {ty b : arena.handle.EIdx} {mi : arena.handle.BMIdx} {mm : ConLeche.BinderMeta}
@@ -9989,7 +9749,7 @@ theorem intern_rebuilt_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers s
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_bind_i_res hQ hrel hinv hfrozen hq tag htag ty b mi hmv hm0 hty hb hrun
+    exact intern_e_bind_i_res hQ hrel hinv hq tag htag ty b mi hmv hm0 hty hb hrun
 
 theorem abs1_get_val {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {op : Option arena.handle.EIdx}
@@ -10085,7 +9845,6 @@ def Abs1GoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {d fuel : Std.U64} {h : arena.handle.EIdx} {c : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → MemoRes Memos.abs1C lst →
     arena.expr_ops.abstract1_go pers st d fuel h c = ok o →
     WOutE (MemoRes Memos.abs1C) pers st lst o
@@ -10094,7 +9853,7 @@ def Abs1GoAt (n : Nat) : Prop :=
 private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
   induction n with
   | zero =>
-    intro pers st lst d fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst d fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.abstract1_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -10107,7 +9866,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
     rw [show absU fuel = 0 from hn, abstract1Go_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst d fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst d fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.abstract1_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -10131,15 +9890,13 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
     | Ok fb =>
     obtain ⟨X, hx1, hrelA, hinvA⟩ := hstep
     refine WOutE.bind_any hx1 (Ext.refl _) (EViewExt.refl _) (by rw [hs1]) (by rw [hs1]) ?_
-    have hfrozA : st1.store.shared_on = true → st1.store.scratch_on = true := by
-      rw [hs1]; exact hfrozen
     have hhA : EResolves { lst with memos := { lst.memos with fvarBC := X } }
         (absEIdx h) := hh
     have hmA : MemoRes Memos.abs1C { lst with memos := { lst.memos with fvarBC := X } } :=
       hm
     generalize ({ lst with memos := { lst.memos with fvarBC := X } } : AState) = lstA
       at hrelA hhA hmA ⊢
-    clear hrel hinv hfrozen hh hm
+    clear hrel hinv hh hm
     show WOutR (MemoRes Memos.abs1C) pers st1 lstA o
       ((if absU fb ≤ absU d then pure (absEIdx h)
         else
@@ -10206,7 +9963,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
           simp only [Option.map_some, absPairE]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hfR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hfR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -10219,11 +9976,9 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res haR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res haR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -10236,8 +9991,6 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx f2 == absEIdx f && absEIdx a2 == absEIdx a) = same := by
@@ -10250,7 +10003,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
               rw [hs]
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 (hmono2.res (hmono1.res hhA)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
@@ -10313,7 +10066,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
           simp only [Option.map_some, absBindI]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -10326,15 +10079,13 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU c + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -10347,8 +10098,6 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx t2 == absEIdx ty && absEIdx b2 == absEIdx body) = same := by
@@ -10361,7 +10110,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
               rw [hs, htg]
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_bind_i_res (MemoRes.stable _) hrel2 hinv2 hfroz2
+              have hstep := intern_rebuilt_bind_i_res (MemoRes.stable _) hrel2 hinv2
                 hq2 t hbind (hmono2.2.1 _ _ (hmono1.2.1 _ _ hmv)) hm0
                 (hmono2.res (hmono1.res hhA)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
@@ -10399,7 +10148,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
         by_cases hq : idx = d
         · rw [if_pos hq] at hrun
           rw [if_pos (by rw [hq])]
-          exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hfrozA hmA c hrun
+          exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hmA c hrun
         · rw [if_neg hq] at hrun
           rw [if_neg (fun h' => hq (Std.UScalar.eq_of_val_eq h'))]
           exact wout_dup hrelA hinvA hhA hmA hrun
@@ -10453,7 +10202,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
           simp only [Option.map_some, absLetT]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -10466,11 +10215,9 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hvalR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -10483,15 +10230,13 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hi2v : absU i2 = absU c + 1 := by
                 have h1 := ConRon.Refine.Nat.uadd_val hi2
                 simpa using h1
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st4⟩ := p3
-              have hrec3 := ih hiv hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2 hp3
+              have hrec3 := ih hiv hrel2 hinv2 (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i = m from hiv, hi2v] at hrec3
               cases hr3 : r3 with
               | Err e =>
@@ -10504,8 +10249,6 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st4.store.shared_on = true → st4.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨q, hqq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨st5, same⟩ := q
@@ -10538,7 +10281,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 rw [hst] at hp4
                 obtain ⟨r4, st6⟩ := p4
-                have hstep := intern_rebuilt_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3
+                have hstep := intern_rebuilt_let_e_res (MemoRes.stable _) hrel3 hinv3
                   hq3 (hmono3.res (hmono2.res (hmono1.res hhA)))
                   (hmono3.res (hmono2.res hres1)) (hmono3.res hres2) hres3 hp4
                 cases hrX : r4 with
@@ -10604,7 +10347,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
           simp only [Option.map_some, absProjT]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hsR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hsR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -10617,13 +10360,11 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               (hmono1.res hhA) (hmono1.nsres hnR) hres1 hp2
             cases hrX : r2 with
             | Err e =>
@@ -10649,17 +10390,15 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
 theorem abstract1_go_wout {pers st lst} {d fuel : Std.U64}
     {h : arena.handle.EIdx} {k : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.abs1C lst)
     (hrun : arena.expr_ops.abstract1_go pers st d fuel h k = ok o) :
     WOutE (MemoRes Memos.abs1C) pers st lst o
       (abstract1Go (absU d) (absU fuel) (absEIdx h) (absU k)) :=
-  abstract1_go_aux _ rfl hrel hinv hfrozen hh hmemo hrun
+  abstract1_go_aux _ rfl hrel hinv hh hmemo hrun
 
 /-- `abstract1_fast` at `WOutE`: the memo fresh before and dropped after. -/
 theorem abstract1_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {d k : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.abstract1_fast pers st fuel e d k = ok o) :
     WOutE (MemoRes Memos.abs1C) pers st lst o
@@ -10672,10 +10411,8 @@ theorem abstract1_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EId
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with abs1C := v }) (twinClear := Arena.abs1Clear)
     (fun _ => rfl) (abs1_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := abstract1_go_wout (lst := { lst with memos := { lst.memos with
-      abs1C := ∅ } }) hrel1 hinv1 hfroz1 he (MemoRes.of_empty rfl) hq
+      abs1C := ∅ } }) hrel1 hinv1 he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.abs1Clear
     let r ← abstract1Go (absU d) (absU fuel) (absEIdx e) (absU k)
@@ -10708,24 +10445,22 @@ clause at `abs1C`. -/
 theorem abstract1_go_refines {pers st lst} {d fuel : Std.U64}
     {h : arena.handle.EIdx} {k : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.abs1C lst)
     (hrun : arena.expr_ops.abstract1_go pers st d fuel h k = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (abstract1Go (absU d) (absU fuel) (absEIdx h) (absU k)) :=
-  (abstract1_go_wout hrel hinv hfrozen hh hmemo hrun).toSim
+  (abstract1_go_wout hrel hinv hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:1585 abstract1Fast`.  **Corrected** as the walk,
 minus the memo clause. -/
 theorem abstract1_fast_refines {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {d k : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.abstract1_fast pers st fuel e d k = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (abstract1Fast (absU fuel) (absEIdx e) (absU d) (absU k)) :=
-  (abstract1_fast_wout hrel hinv hfrozen he hrun).toSim
+  (abstract1_fast_wout hrel hinv he hrun).toSim
 
 /-! ### `abstractRangeGo` — the `fvarB` cutoff, tag dispatch, memo at `abs1C` -/
 
@@ -10733,7 +10468,6 @@ def AbsRangeGoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {d k fuel : Std.U64} {h : arena.handle.EIdx} {c : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → MemoRes Memos.abs1C lst →
     arena.expr_ops.abstract_range_go pers st d k fuel h c = ok o →
     WOutE (MemoRes Memos.abs1C) pers st lst o
@@ -10742,7 +10476,7 @@ def AbsRangeGoAt (n : Nat) : Prop :=
 private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst d k fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst d k fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.abstract_range_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -10755,7 +10489,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
     rw [show absU fuel = 0 from hn, abstractRangeGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst d k fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst d k fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.abstract_range_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -10779,15 +10513,13 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
     | Ok fb =>
     obtain ⟨X, hx1, hrelA, hinvA⟩ := hstep
     refine WOutE.bind_any hx1 (Ext.refl _) (EViewExt.refl _) (by rw [hs1]) (by rw [hs1]) ?_
-    have hfrozA : st1.store.shared_on = true → st1.store.scratch_on = true := by
-      rw [hs1]; exact hfrozen
     have hhA : EResolves { lst with memos := { lst.memos with fvarBC := X } }
         (absEIdx h) := hh
     have hmA : MemoRes Memos.abs1C { lst with memos := { lst.memos with fvarBC := X } } :=
       hm
     generalize ({ lst with memos := { lst.memos with fvarBC := X } } : AState) = lstA
       at hrelA hhA hmA ⊢
-    clear hrel hinv hfrozen hh hm
+    clear hrel hinv hh hm
     show WOutR (MemoRes Memos.abs1C) pers st1 lstA o
       ((if absU fb ≤ absU d then pure (absEIdx h)
         else
@@ -10854,7 +10586,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
           simp only [Option.map_some, absPairE]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hfR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hfR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -10867,11 +10599,9 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res haR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res haR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -10884,8 +10614,6 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx f2 == absEIdx f && absEIdx a2 == absEIdx a) = same := by
@@ -10898,7 +10626,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               rw [hs]
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 (hmono2.res (hmono1.res hhA)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
@@ -10961,7 +10689,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
           simp only [Option.map_some, absBindI]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -10974,15 +10702,13 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU c + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -10995,8 +10721,6 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx t2 == absEIdx ty && absEIdx b2 == absEIdx body) = same := by
@@ -11009,7 +10733,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               rw [hs, htg]
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_bind_i_res (MemoRes.stable _) hrel2 hinv2 hfroz2
+              have hstep := intern_rebuilt_bind_i_res (MemoRes.stable _) hrel2 hinv2
                 hq2 t hbind (hmono2.2.1 _ _ (hmono1.2.1 _ _ hmv)) hm0
                 (hmono2.res (hmono1.res hhA)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
@@ -11062,7 +10786,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               have := ConRon.Refine.Nat.uadd_val hi4; simpa using this
             rw [show absU c + (absU d + absU k - 1 - absU idx) = absU i4 by
               rw [hv4, hv3, hv2, hiv1]]
-            exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hfrozA hmA i4 hrun
+            exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hmA i4 hrun
           · rw [if_neg h2] at hrun
             rw [if_neg (show ¬ ((decide (absU d ≤ absU idx) &&
                 decide (absU idx < absU d + absU k)) = true) by
@@ -11125,7 +10849,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
           simp only [Option.map_some, absLetT]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -11138,11 +10862,9 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hvalR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -11155,15 +10877,13 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hi2v : absU i2 = absU c + 1 := by
                 have h1 := ConRon.Refine.Nat.uadd_val hi2
                 simpa using h1
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st4⟩ := p3
-              have hrec3 := ih hiv hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2 hp3
+              have hrec3 := ih hiv hrel2 hinv2 (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i = m from hiv, hi2v] at hrec3
               cases hr3 : r3 with
               | Err e =>
@@ -11176,8 +10896,6 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st4.store.shared_on = true → st4.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨q, hqq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨st5, same⟩ := q
@@ -11210,7 +10928,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 rw [hst] at hp4
                 obtain ⟨r4, st6⟩ := p4
-                have hstep := intern_rebuilt_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3
+                have hstep := intern_rebuilt_let_e_res (MemoRes.stable _) hrel3 hinv3
                   hq3 (hmono3.res (hmono2.res (hmono1.res hhA)))
                   (hmono3.res (hmono2.res hres1)) (hmono3.res hres2) hres3 hp4
                 cases hrX : r4 with
@@ -11276,7 +10994,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
           simp only [Option.map_some, absProjT]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st2⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hsR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hsR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -11289,13 +11007,11 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
-            have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               (hmono1.res hhA) (hmono1.nsres hnR) hres1 hp2
             cases hrX : r2 with
             | Err e =>
@@ -11321,18 +11037,16 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
 theorem abstract_range_go_wout {pers st lst} {d k fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.abs1C lst)
     (hrun : arena.expr_ops.abstract_range_go pers st d k fuel h c = ok o) :
     WOutE (MemoRes Memos.abs1C) pers st lst o
       (abstractRangeGo (absU d) (absU k) (absU fuel) (absEIdx h) (absU c)) :=
-  abstract_range_go_aux _ rfl hrel hinv hfrozen hh hmemo hrun
+  abstract_range_go_aux _ rfl hrel hinv hh hmemo hrun
 
 /-- `abstract_range_fast` at `WOutE` (no memo clause on the way out: at `k = 0` it answers
 without touching the memo). -/
 theorem abstract_range_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {d k c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.abstract_range_fast pers st fuel e d k c = ok o) :
     WOutE (fun _ => True) pers st lst o
@@ -11354,10 +11068,8 @@ theorem abstract_range_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handl
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with abs1C := v }) (twinClear := Arena.abs1Clear)
     (fun _ => rfl) (abs1_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := abstract_range_go_wout (lst := { lst with memos := { lst.memos with
-      abs1C := ∅ } }) hrel1 hinv1 hfroz1 he (MemoRes.of_empty rfl) hq
+      abs1C := ∅ } }) hrel1 hinv1 he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.abs1Clear
     let r ← abstractRangeGo (absU d) (absU k) (absU fuel) (absEIdx e) (absU c)
@@ -11389,24 +11101,22 @@ abstraction (task #97-P6-11).  **Corrected** as `abstract1_go_refines`. -/
 theorem abstract_range_go_refines {pers st lst} {d k fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.abs1C lst)
     (hrun : arena.expr_ops.abstract_range_go pers st d k fuel h c = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (abstractRangeGo (absU d) (absU k) (absU fuel) (absEIdx h) (absU c)) :=
-  (abstract_range_go_wout hrel hinv hfrozen hh hmemo hrun).toSim
+  (abstract_range_go_wout hrel hinv hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:1686 abstractRangeFast`.  **Corrected** as the walk,
 minus the memo clause. -/
 theorem abstract_range_fast_refines {pers st lst} {fuel : Std.U64}
     {e : arena.handle.EIdx} {d k c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.abstract_range_fast pers st fuel e d k c = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (abstractRangeFast (absU fuel) (absEIdx e) (absU d) (absU k) (absU c)) :=
-  (abstract_range_fast_wout hrel hinv hfrozen he hrun).toSim
+  (abstract_range_fast_wout hrel hinv he hrun).toSim
 
 /-! ### `lowerBVarsGo` — the `bvarB` cutoff, view dispatch, memo at `lowerC` -/
 
@@ -11414,7 +11124,6 @@ def LowerGoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {amount fuel : Std.U64} {h : arena.handle.EIdx} {c : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx h) → MemoRes Memos.lowerC lst →
     arena.expr_ops.lower_bvars_go pers st amount fuel h c = ok o →
     WOutE (MemoRes Memos.lowerC) pers st lst o
@@ -11423,7 +11132,7 @@ def LowerGoAt (n : Nat) : Prop :=
 private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst amount fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst amount fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.lower_bvars_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -11436,7 +11145,7 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
     rw [show absU fuel = 0 from hn, lowerBVarsGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst amount fuel h c o hn hrel hinv hfrozen hh hm hrun
+    intro pers st lst amount fuel h c o hn hrel hinv hh hm hrun
     rw [arena.expr_ops.lower_bvars_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -11460,15 +11169,13 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
     | Ok bb =>
     obtain ⟨X, hx1, hrelA, hinvA⟩ := hstep
     refine WOutE.bind_any hx1 (Ext.refl _) (EViewExt.refl _) (by rw [hs1]) (by rw [hs1]) ?_
-    have hfrozA : st1.store.shared_on = true → st1.store.scratch_on = true := by
-      rw [hs1]; exact hfrozen
     have hhA : EResolves { lst with memos := { lst.memos with bvarBC := X } }
         (absEIdx h) := hh
     have hmA : MemoRes Memos.lowerC { lst with memos := { lst.memos with bvarBC := X } } :=
       hm
     generalize ({ lst with memos := { lst.memos with bvarBC := X } } : AState) = lstA
       at hrelA hhA hmA ⊢
-    clear hrel hinv hfrozen hh hm
+    clear hrel hinv hh hm
     obtain ⟨ca, hca, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hcav : absU ca = absU c + absU amount := by
       have := ConRon.Refine.Nat.uadd_val hca; simpa using this
@@ -11522,7 +11229,7 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
           obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi3v : absU i3 = absU bi - absU amount := (ConRon.Refine.Nat.usub_val hi3).2
           rw [← hi3v]
-          exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hfrozA hmA i3 hrun
+          exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hmA i3 hrun
         · rw [if_neg hge] at hrun
           rw [if_neg (show ¬ (absU bi ≥ absU c + absU amount) by rw [← hcav]; scalar_tac)]
           exact wout_dup hrelA hinvA hhA hmA hrun
@@ -11555,7 +11262,7 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA haR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA haR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -11568,11 +11275,9 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -11585,11 +11290,9 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 a2 b2 (viewOK_app (hmono2.res hres1) hres2) hp3
               cases hr3 : r3 with
               | Err e =>
@@ -11631,7 +11334,7 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -11644,15 +11347,13 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU c + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -11665,11 +11366,9 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw ⟨by
                   intro cc hcc; simp [ENodeView.echildren] at hcc
                   rcases hcc with rfl | rfl
@@ -11718,7 +11417,7 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -11731,15 +11430,13 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU c + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -11752,11 +11449,9 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw ⟨by
                   intro cc hcc; simp [ENodeView.echildren] at hcc
                   rcases hcc with rfl | rfl
@@ -11806,7 +11501,7 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -11819,11 +11514,9 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hvalR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -11836,15 +11529,13 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hi2v : absU i2 = absU c + 1 := by
                 have h1 := ConRon.Refine.Nat.uadd_val hi2
                 simpa using h1
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hiv hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2 hp3
+              have hrec3 := ih hiv hrel2 hinv2 (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i = m from hiv, hi2v] at hrec3
               cases hr3 : r3 with
               | Err e =>
@@ -11857,11 +11548,9 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨r4, st4⟩ := p4
-                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3 hq3
+                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hq3
                   t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                     (hmono3.res hres2) hres3) hp4
                 cases hr4 : r4 with
@@ -11904,7 +11593,7 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hsR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hsR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -11917,11 +11606,9 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               nn i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hp2
             cases hr2 : r2 with
             | Err e =>
@@ -11943,17 +11630,15 @@ private theorem lower_bvars_go_aux (n : Nat) : LowerGoAt n := by
 theorem lower_bvars_go_wout {pers st lst} {amount fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.lowerC lst)
     (hrun : arena.expr_ops.lower_bvars_go pers st amount fuel h c = ok o) :
     WOutE (MemoRes Memos.lowerC) pers st lst o
       (lowerBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) :=
-  lower_bvars_go_aux _ rfl hrel hinv hfrozen hh hmemo hrun
+  lower_bvars_go_aux _ rfl hrel hinv hh hmemo hrun
 
 /-- `lower_bvars_fast` at `WOutE`: the memo fresh before and dropped after. -/
 theorem lower_bvars_fast_wout {pers st lst} {fuel amount c : Std.U64} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.lower_bvars_fast pers st fuel amount c e = ok o) :
     WOutE (MemoRes Memos.lowerC) pers st lst o
@@ -11966,10 +11651,8 @@ theorem lower_bvars_fast_wout {pers st lst} {fuel amount c : Std.U64} {e : arena
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with lowerC := v }) (twinClear := Arena.lowerClear)
     (fun _ => rfl) (lower_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := lower_bvars_go_wout (lst := { lst with memos := { lst.memos with
-      lowerC := ∅ } }) hrel1 hinv1 hfroz1 he (MemoRes.of_empty rfl) hq
+      lowerC := ∅ } }) hrel1 hinv1 he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.lowerClear
     let r ← lowerBVarsGo (absU amount) (absU fuel) (absEIdx e) (absU c)
@@ -12002,24 +11685,22 @@ clause at `lowerC`. -/
 theorem lower_bvars_go_refines {pers st lst} {amount fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.lowerC lst)
     (hrun : arena.expr_ops.lower_bvars_go pers st amount fuel h c = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (lowerBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) :=
-  (lower_bvars_go_wout hrel hinv hfrozen hh hmemo hrun).toSim
+  (lower_bvars_go_wout hrel hinv hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:1761 lowerBVarsFast`.  **Corrected** as the walk,
 minus the memo clause. -/
 theorem lower_bvars_fast_refines {pers st lst} {fuel amount c : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.lower_bvars_fast pers st fuel amount c e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (lowerBVarsFast (absU fuel) (absU amount) (absU c) (absEIdx e)) :=
-  (lower_bvars_fast_wout hrel hinv hfrozen he hrun).toSim
+  (lower_bvars_fast_wout hrel hinv he hrun).toSim
 
 /-- A walk outcome at another side invariant becomes one at a memo clause,
 when the action provably leaves that memo alone. -/
@@ -12044,7 +11725,6 @@ def I1LiftGoAt (n : Nat) : Prop :=
   ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     {v : arena.handle.EIdx} {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) →
     EResolves lst (absEIdx v) → EResolves lst (absEIdx h) → MemoRes Memos.inst1LC lst →
     arena.expr_ops.instantiate1_lift_go pers st v fuel h d = ok o →
     WOutE (MemoRes Memos.inst1LC) pers st lst o
@@ -12053,7 +11733,7 @@ def I1LiftGoAt (n : Nat) : Prop :=
 private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst v fuel h d o hn hrel hinv hfrozen hv hh hm hrun
+    intro pers st lst v fuel h d o hn hrel hinv hv hh hm hrun
     rw [arena.expr_ops.instantiate1_lift_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -12066,7 +11746,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
     rw [show absU fuel = 0 from hn, instantiate1LiftGo_zero, arena_fail_run]
     exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst v fuel h d o hn hrel hinv hfrozen hv hh hm hrun
+    intro pers st lst v fuel h d o hn hrel hinv hv hh hm hrun
     rw [arena.expr_ops.instantiate1_lift_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -12090,8 +11770,6 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
     | Ok bb =>
     obtain ⟨X, hx1, hrelA, hinvA⟩ := hstep
     refine WOutE.bind_any hx1 (Ext.refl _) (EViewExt.refl _) (by rw [hs1]) (by rw [hs1]) ?_
-    have hfrozA : st1.store.shared_on = true → st1.store.scratch_on = true := by
-      rw [hs1]; exact hfrozen
     have hhA : EResolves { lst with memos := { lst.memos with bvarBC := X } }
         (absEIdx h) := hh
     have hvA : EResolves { lst with memos := { lst.memos with bvarBC := X } }
@@ -12100,7 +11778,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
       hm
     generalize ({ lst with memos := { lst.memos with bvarBC := X } } : AState) = lstA
       at hrelA hhA hvA hmA ⊢
-    clear hrel hinv hfrozen hh hv hm
+    clear hrel hinv hh hv hm
     show WOutR (MemoRes Memos.inst1LC) pers st1 lstA o
       (((if absU bb ≤ absU d then pure (absEIdx h)
         else do
@@ -12148,7 +11826,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
         by_cases hq : bi = d
         · rw [if_pos hq] at hrun
           rw [if_pos (by rw [hq])]
-          have hl := lift_loose_bvars_fast_wout hrelA hinvA hfrozA hvA hrun
+          have hl := lift_loose_bvars_fast_wout hrelA hinvA hvA hrun
           rw [show absU i = m from hiv] at hl
           exact hl.memo_of_frames
             (liftLooseBVarsFast_frames Memos.inst1LC (fun _ _ => rfl) _ _ _ _) hmA
@@ -12160,7 +11838,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
           obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi3v : absU i3 = absU bi - 1 := (ConRon.Refine.Nat.usub_val hi3).2
           rw [← hi3v]
-          exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hfrozA hmA i3 hrun
+          exact intern_e_bvar_res (MemoRes.stable _) hrelA hinvA hmA i3 hrun
         · rw [if_neg hgt] at hrun
           rw [if_neg (show ¬ (absU bi > absU d) by scalar_tac)]
           exact wout_dup hrelA hinvA hhA hmA hrun
@@ -12193,7 +11871,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hvA haR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hvA haR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -12206,11 +11884,9 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hvA) (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hvA) (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -12223,11 +11899,9 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hq2
                 a2 b2 (viewOK_app (hmono2.res hres1) hres2) hp3
               cases hr3 : r3 with
               | Err e =>
@@ -12269,7 +11943,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hvA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -12282,15 +11956,13 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU d + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hvA) (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hvA) (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -12303,11 +11975,9 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw ⟨by
                   intro cc hcc; simp [ENodeView.echildren] at hcc
                   rcases hcc with rfl | rfl
@@ -12356,7 +12026,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hvA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -12369,15 +12039,13 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             have hi2v : absU i2 = absU d + 1 := by
               have h1 := ConRon.Refine.Nat.uadd_val hi2
               simpa using h1
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hvA) (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hvA) (hmono1.res hbR) hq1 hp2
             rw [show absU i = m from hiv, hi2v] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -12390,11 +12058,9 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hq2
                 t2 b2 mb hpw ⟨by
                   intro cc hcc; simp [ENodeView.echildren] at hcc
                   rcases hcc with rfl | rfl
@@ -12444,7 +12110,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hvA htyR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hvA htyR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -12457,11 +12123,9 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hiv hrel1 hinv1 hfroz1 (hmono1.res hvA) (hmono1.res hvalR) hq1 hp2
+            have hrec2 := ih hiv hrel1 hinv1 (hmono1.res hvA) (hmono1.res hvalR) hq1 hp2
             rw [show absU i = m from hiv] at hrec2
             cases hr2 : r2 with
             | Err e =>
@@ -12474,15 +12138,13 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
                 hrec2.dest
               refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hi2v : absU i2 = absU d + 1 := by
                 have h1 := ConRon.Refine.Nat.uadd_val hi2
                 simpa using h1
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hiv hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hvA)) (hmono2.res (hmono1.res hbR)) hq2 hp3
+              have hrec3 := ih hiv hrel2 hinv2 (hmono2.res (hmono1.res hvA)) (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i = m from hiv, hi2v] at hrec3
               cases hr3 : r3 with
               | Err e =>
@@ -12495,11 +12157,9 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
                   hrec3.dest
                 refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨r4, st4⟩ := p4
-                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3 hq3
+                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hq3
                   t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
                     (hmono3.res hres2) hres3) hp4
                 cases hr4 : r4 with
@@ -12542,7 +12202,7 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
           simp only [Option.map_none]
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hiv hrelA hinvA hfrozA hvA hsR hmA hp1
+          have hrec1 := ih hiv hrelA hinvA hvA hsR hmA hp1
           rw [show absU i = m from hiv] at hrec1
           cases hr1 : r1 with
           | Err e =>
@@ -12555,11 +12215,9 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
               hrec1.dest
             refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hq1
               nn i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hp2
             cases hr2 : r2 with
             | Err e =>
@@ -12580,18 +12238,16 @@ private theorem instantiate1_lift_go_aux (n : Nat) : I1LiftGoAt n := by
 theorem instantiate1_lift_go_wout {pers st lst} {v : arena.handle.EIdx}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hv : EResolves lst (absEIdx v)) (hh : EResolves lst (absEIdx h))
     (hmemo : MemoRes Memos.inst1LC lst)
     (hrun : arena.expr_ops.instantiate1_lift_go pers st v fuel h d = ok o) :
     WOutE (MemoRes Memos.inst1LC) pers st lst o
       (instantiate1LiftGo (absEIdx v) (absU fuel) (absEIdx h) (absU d)) :=
-  instantiate1_lift_go_aux _ rfl hrel hinv hfrozen hv hh hmemo hrun
+  instantiate1_lift_go_aux _ rfl hrel hinv hv hh hmemo hrun
 
 /-- `instantiate1_lift_fast` at `WOutE`: the memo fresh before and dropped after. -/
 theorem instantiate1_lift_fast_wout {pers st lst} {fuel : Std.U64} {e v : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e)) (hv : EResolves lst (absEIdx v))
     (hrun : arena.expr_ops.instantiate1_lift_fast pers st fuel e v d = ok o) :
     WOutE (MemoRes Memos.inst1LC) pers st lst o
@@ -12604,10 +12260,8 @@ theorem instantiate1_lift_fast_wout {pers st lst} {fuel : Std.U64} {e v : arena.
   obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
     (upd := fun m v => { m with inst1LC := v }) (twinClear := Arena.inst1LClear)
     (fun _ => rfl) (inst1_l_clear_run hrel hinv hst1)
-  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-    rw [hs1]; exact hfrozen
   have hgo := instantiate1_lift_go_wout (lst := { lst with memos := { lst.memos with
-      inst1LC := ∅ } }) hrel1 hinv1 hfroz1 hv he (MemoRes.of_empty rfl) hq
+      inst1LC := ∅ } }) hrel1 hinv1 hv he (MemoRes.of_empty rfl) hq
   show WOutR _ pers st lst o ((do
     Arena.inst1LClear
     let r ← instantiate1LiftGo (absEIdx v) (absU fuel) (absEIdx e) (absU d)
@@ -12640,25 +12294,23 @@ walked resolve, and the memo clause at `inst1LC`. -/
 theorem instantiate1_lift_go_refines {pers st lst} {v : arena.handle.EIdx}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hv : EResolves lst (absEIdx v)) (hh : EResolves lst (absEIdx h))
     (hmemo : MemoRes Memos.inst1LC lst)
     (hrun : arena.expr_ops.instantiate1_lift_go pers st v fuel h d = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instantiate1LiftGo (absEIdx v) (absU fuel) (absEIdx h) (absU d)) :=
-  (instantiate1_lift_go_wout hrel hinv hfrozen hv hh hmemo hrun).toSim
+  (instantiate1_lift_go_wout hrel hinv hv hh hmemo hrun).toSim
 
 /-- `Arena/ExprOps.lean:1843 instantiate1LiftFast`.  **Corrected** as the walk,
 minus the memo clause. -/
 theorem instantiate1_lift_fast_refines {pers st lst} {fuel : Std.U64}
     {e v : arena.handle.EIdx} {d : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (he : EResolves lst (absEIdx e)) (hv : EResolves lst (absEIdx v))
     (hrun : arena.expr_ops.instantiate1_lift_fast pers st fuel e v d = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instantiate1LiftFast (absU fuel) (absEIdx e) (absEIdx v) (absU d)) :=
-  (instantiate1_lift_fast_wout hrel hinv hfrozen he hv hrun).toSim
+  (instantiate1_lift_fast_wout hrel hinv he hv hrun).toSim
 
 /-! ### `instPisAtLift` — moved here from the telescope section because it
 calls `instantiate1_lift_fast`, which is proved above -/
@@ -12677,14 +12329,13 @@ private theorem inst_pis_at_lift_from_aux (n : Nat) :
       {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {h : arena.handle.EIdx} {o},
       args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
-      (st.store.shared_on = true → st.store.scratch_on = true) →
       EResolves lst (absEIdx h) → (∀ x ∈ args.val, EResolves lst (absEIdx x)) →
       arena.expr_ops.inst_pis_at_lift_from pers st fuel args i h = ok o →
       Sim absOptE (fun _ => True) pers lst o
         (instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)) := by
   induction n with
   | zero =>
-    intro pers st lst fuel args i h o hn hrel hinv hfrozen hh hargs hrun
+    intro pers st lst fuel args i h o hn hrel hinv hh hargs hrun
     rw [arena.expr_ops.inst_pis_at_lift_from] at hrun
     rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
       show args.val.length ≤ i.val; omega)] at hrun
@@ -12699,7 +12350,7 @@ private theorem inst_pis_at_lift_from_aux (n : Nat) :
     rw [hnil, instPisAtLift]
     exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
   | succ m ih =>
-    intro pers st lst fuel args i h o hn hrel hinv hfrozen hh hargs hrun
+    intro pers st lst fuel args i h o hn hrel hinv hh hargs hrun
     rw [arena.expr_ops.inst_pis_at_lift_from] at hrun
     have hlt : i.val < args.val.length := by omega
     rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
@@ -12752,7 +12403,7 @@ private theorem inst_pis_at_lift_from_aux (n : Nat) :
           rw [hae, ← hval]; exact hargs _ (List.getElem_mem hb)
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hstep := instantiate1_lift_fast_wout hrel hinv hfrozen hbR haR hp1
+        have hstep := instantiate1_lift_fast_wout hrel hinv hbR haR hp1
         rw [show absEIdx a = absEIdx (args.val[i.val]) by rw [hae, hval],
           show absU (0#u64 : Std.U64) = 0 from rfl] at hstep
         show AOut absOptE (fun _ => True) pers lst o.1 o.2
@@ -12773,9 +12424,7 @@ private theorem inst_pis_at_lift_from_aux (n : Nat) :
           obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi3v : i3.val = i.val + 1 := by
             have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
-          have hrec := ih (st := st1) (lst := lst1) (i := i3) (by omega) hrel1 hinv1 hfroz1
+          have hrec := ih (st := st1) (lst := lst1) (i := i3) (by omega) hrel1 hinv1
             hres1 (fun x hx => hmono1.res (hargs x hx)) hrun
           rw [show absEIdxListFrom args i3 = ((args.val.drop (i.val + 1)).map absEIdx) by
             simp only [absEIdxListFrom, hi3v]] at hrec
@@ -12798,25 +12447,23 @@ theorem inst_pis_at_lift_from_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_pis_at_lift_from pers st fuel args i h = ok o) :
     Sim absOptE (fun _ => True) pers lst o
       (instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)) :=
-  inst_pis_at_lift_from_aux _ rfl hrel hinv hfrozen hh hargs hrun
+  inst_pis_at_lift_from_aux _ rfl hrel hinv hh hargs hrun
 
 /-- `Arena/ExprOps.lean:1851 instPisAtLift`.  **Corrected** as the cursor
 companion. -/
 theorem inst_pis_at_lift_refines {pers st lst} {fuel : Std.U64}
     {args : alloc.vec.Vec arena.handle.EIdx} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hh : EResolves lst (absEIdx h)) (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.inst_pis_at_lift pers st fuel args h = ok o) :
     Sim absOptE (fun _ => True) pers lst o
       (instPisAtLift (absU fuel) (absEIdxList args) (absEIdx h)) := by
   rw [arena.expr_ops.inst_pis_at_lift] at hrun
-  have h1 := inst_pis_at_lift_from_refines hrel hinv hfrozen hh hargs hrun
+  have h1 := inst_pis_at_lift_from_refines hrel hinv hh hargs hrun
   rwa [show absEIdxListFrom args 0#usize = absEIdxList args by
     simp [absEIdxListFrom, absEIdxList]] at h1
 
@@ -13111,24 +12758,6 @@ theorem LPInv.of_clear {lst : AState}
   ⟨MemoRes.of_empty h.1, fun k r hk => by rw [h.2.1] at hk; simp at hk,
     fun k r hk => by rw [h.2.2] at hk; simp at hk⟩
 
-/-- The nested stores' frozen flags — what `intern_level_run'` asks. -/
-def NFrz (rs : arena.store.EStore) : Prop :=
-  (rs.lss.ls.ns.shared_on = true → rs.lss.ls.ns.scratch_on = true) ∧
-    (rs.lss.ls.shared_on = true → rs.lss.ls.scratch_on = true) ∧
-    (rs.lss.shared_on = true → rs.lss.scratch_on = true)
-
-theorem NFrz.of_flags {rs rs' : arena.store.EStore} (h : FlagsEq rs rs') (hf : NFrz rs) :
-    NFrz rs' := by
-  obtain ⟨h1, h2, h3⟩ := hf
-  refine ⟨?_, ?_, ?_⟩
-  · rw [h.nsSh, h.nsScr]; exact h1
-  · rw [h.lsSh, h.lsScr]; exact h2
-  · rw [h.lssSh, h.lssScr]; exact h3
-
-theorem NFrz.of_lss {rs rs' : arena.store.EStore} (h : rs'.lss = rs.lss) (hf : NFrz rs) :
-    NFrz rs' := by
-  unfold NFrz; rw [h]; exact hf
-
 /-- The outcome of a level-substitution step. -/
 def WOutLv {α β : Type} (A : α → β) (R : AState → β → Prop)
     (pers : arena.store.PersTier) (st : arena.monad.AState) (lst : AState)
@@ -13157,7 +12786,7 @@ theorem inst_lp_ls_set_store {st st' : arena.monad.AState} {k r}
 /-- `subst_l_memo_at` with everything `instLPGo`'s `sort` arm needs. -/
 theorem subst_l_memo_at_step {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
     {us : alloc.vec.Vec kernel.level.Level} {u : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hfz : NFrz st.store)
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
     (hus : ∀ v ∈ us.val, ConRon.Refine.LevelWF v)
     (hrun : arena.expr_ops.subst_l_memo_at pers st ks us u = ok o) :
@@ -13208,8 +12837,7 @@ theorem subst_l_memo_at_step {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
           (ConRon.Refine.absLevel l) = ConRon.Refine.absLevel l2 from habs2.symm]
       obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r2, st2⟩ := p2
-      have hfz1 : NFrz st1.store := by rw [hs1]; exact hfz
-      obtain ⟨hsim2, hfe2⟩ := intern_level_run' l2 hwf2 hrel1 hinv1 hfz1.1 hfz1.2.1 hp2
+      obtain ⟨hsim2, hfe2⟩ := intern_level_run' l2 hwf2 hrel1 hinv1 hp2
       cases hr2 : r2 with
       | Err e =>
         rw [hr2] at hrun hsim2
@@ -13318,7 +12946,7 @@ theorem subst_level_list_wf {ks : alloc.vec.Vec kernel.name.Name}
 /-- `subst_ls_memo_at` with everything `instLPGo`'s `const` arm needs. -/
 theorem subst_ls_memo_at_step {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
     {us : alloc.vec.Vec kernel.level.Level} {vs : arena.handle.LsIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hfz : NFrz st.store)
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
     (hus : ∀ v ∈ us.val, ConRon.Refine.LevelWF v)
     (hrun : arena.expr_ops.subst_ls_memo_at pers st ks us vs = ok o) :
@@ -13370,8 +12998,7 @@ theorem subst_ls_memo_at_step {pers st lst} {ks : alloc.vec.Vec kernel.name.Name
           (ConRon.Refine.absLevels ls) = ConRon.Refine.absLevels ls2 from habs2.symm]
       obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r2, st2⟩ := p2
-      have hfz1 : NFrz st1.store := by rw [hs1]; exact hfz
-      obtain ⟨hsim2, hfe2⟩ := intern_levels_run' hrel1 hinv1 hfz1.1 hfz1.2.1 hfz1.2.2
+      obtain ⟨hsim2, hfe2⟩ := intern_levels_run' hrel1 hinv1
         hwf2 hp2
       cases hr2 : r2 with
       | Err e =>
@@ -13450,7 +13077,7 @@ theorem lsidx_eq2_beq {a b : arena.handle.LsIdx} {c : Bool}
 /-- `arena::monad::intern_e_sort` at `WOutE`. -/
 theorem intern_e_sort_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     (u : arena.handle.LIdx) (hu : (lst.store.ls.view (absLIdx u)).isSome = true)
     {o} (hrun : arena.monad.intern_e_sort pers st u = ok o) :
     WOutE Q pers st lst o (Arena.internE (.sort (absLIdx u))) := by
@@ -13461,14 +13088,14 @@ theorem intern_e_sort_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
-    estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store
       (fun h => hchild_sort hrel.storeWF h) hp
   exact wout_intern_tail hQ hrel hinv hq (viewOK_sort hu)
     (fun hcap _ => internE_run_of_cap rfl hcap) (nb_hok rfl hok hfl) herr
 
 theorem intern_rebuilt_sort_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {u : arena.handle.LIdx}
     (hh : EResolves lst (absEIdx h)) (hu : (lst.store.ls.view (absLIdx u)).isSome = true)
     {o} (hrun : arena.expr_ops.intern_rebuilt_sort pers st h same u = ok o) :
@@ -13480,11 +13107,11 @@ theorem intern_rebuilt_sort_res {Q : AState → Prop} (hQ : QStable Q) {pers st 
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_sort_res hQ hrel hinv hfrozen hq u hu hrun
+    exact intern_e_sort_res hQ hrel hinv hq u hu hrun
 
 theorem intern_rebuilt_const_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (hq : Q lst)
     {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx} {us : arena.handle.LsIdx}
     (hh : EResolves lst (absEIdx h)) (hn : (lst.store.ns.view (absNIdx n)).isSome = true)
     (hus : (lst.store.lss.view (absLsIdx us)).isSome = true)
@@ -13498,7 +13125,7 @@ theorem intern_rebuilt_const_res {Q : AState → Prop} (hQ : QStable Q) {pers st
   | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
   | false =>
     rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
-    exact intern_e_const_res hQ hrel hinv hfrozen hq n us (viewOK_const hn hus) hrun
+    exact intern_e_const_res hQ hrel hinv hq n us (viewOK_const hn hus) hrun
 
 /-- A rebuilt node moves no nested store: the cutoff moves nothing, and the
 port's `intern_*` records `rs'.lss = rs.lss`. -/
@@ -13519,8 +13146,7 @@ theorem rebuilt_lss {same : Bool} {st : arena.monad.AState} {h : arena.handle.EI
 section rebuiltLss
 variable {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
   (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-  (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-include hrel hinv hfrozen
+include hrel hinv
 
 theorem rb_fvar_lss {h : arena.handle.EIdx} {same : Bool} {i : Std.U64}
     {t : arena.handle.EIdx} {o}
@@ -13531,7 +13157,7 @@ theorem rb_fvar_lss {h : arena.handle.EIdx} {same : Bool} {i : Std.U64}
   rw [arena.monad.intern_e_fvar] at hr
   obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
   rw [← Result.ok_injective hr]
-  exact (estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store hfrozen
+  exact (estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store
     (fun h => hchild_fvar hrel.storeWF h) hp).2.2.2.2
 
 theorem rb_sort_lss {h : arena.handle.EIdx} {same : Bool} {u : arena.handle.LIdx} {o}
@@ -13542,7 +13168,7 @@ theorem rb_sort_lss {h : arena.handle.EIdx} {same : Bool} {u : arena.handle.LIdx
   rw [arena.monad.intern_e_sort] at hr
   obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
   rw [← Result.ok_injective hr]
-  exact (estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store hfrozen
+  exact (estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store
     (fun h => hchild_sort hrel.storeWF h) hp).2.2.2.2
 
 theorem rb_const_lss {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx}
@@ -13554,7 +13180,7 @@ theorem rb_const_lss {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NId
   rw [arena.monad.intern_e_const] at hr
   obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
   rw [← Result.ok_injective hr]
-  exact (estore_intern_const_abs (ls := lst.store) hrel.store hinv.store hfrozen
+  exact (estore_intern_const_abs (ls := lst.store) hrel.store hinv.store
     (fun h => hchild_const hrel.storeWF h) hp).2.2.2.2
 
 theorem rb_app_lss {h : arena.handle.EIdx} {same : Bool} {f a : arena.handle.EIdx} {o}
@@ -13565,7 +13191,7 @@ theorem rb_app_lss {h : arena.handle.EIdx} {same : Bool} {f a : arena.handle.EId
   rw [arena.monad.intern_e_app] at hr
   obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
   rw [← Result.ok_injective hr]
-  exact (estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen
+  exact (estore_intern_app_abs (ls := lst.store) hrel.store hinv.store
     (fun h => hchild_app hrel.storeWF h) hp).2.2.2.2
 
 theorem rb_let_e_lss {h : arena.handle.EIdx} {same : Bool} {t v b : arena.handle.EIdx} {o}
@@ -13576,7 +13202,7 @@ theorem rb_let_e_lss {h : arena.handle.EIdx} {same : Bool} {t v b : arena.handle
   rw [arena.monad.intern_e_let_e] at hr
   obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
   rw [← Result.ok_injective hr]
-  exact (estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
+  exact (estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store
     (fun h => hchild_let_e hrel.storeWF h) hp).2.2.2.2
 
 theorem rb_proj_lss {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx}
@@ -13588,7 +13214,7 @@ theorem rb_proj_lss {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx
   rw [arena.monad.intern_e_proj] at hr
   obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
   rw [← Result.ok_injective hr]
-  exact (estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store hfrozen
+  exact (estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store
     (fun h => hchild_proj hrel.storeWF h) hp).2.2.2.2
 
 theorem rb_lam_lss {h : arena.handle.EIdx} {same : Bool} {t b : arena.handle.EIdx}
@@ -13607,7 +13233,7 @@ theorem rb_lam_lss {h : arena.handle.EIdx} {same : Bool} {t b : arena.handle.EId
     obtain ⟨r0, e⟩ := p
     rw [← Result.ok_injective hrun]
     intro r hr
-    exact ((estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    exact ((estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store
       hrel.storeWF hpw hp).1 r hr).2.2.2.2.2.2.2
 
 theorem rb_forall_e_lss {h : arena.handle.EIdx} {same : Bool} {t b : arena.handle.EIdx}
@@ -13626,7 +13252,7 @@ theorem rb_forall_e_lss {h : arena.handle.EIdx} {same : Bool} {t b : arena.handl
     obtain ⟨r0, e⟩ := p
     rw [← Result.ok_injective hrun]
     intro r hr
-    exact ((estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    exact ((estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store
       hrel.storeWF hpw hp).1 r hr).2.2.2.2.2.2.2
 
 end rebuiltLss
@@ -13695,7 +13321,7 @@ frozen-consistent (the next `subst_l_memo_at` asks it). -/
 def WOutN (pers : arena.store.PersTier) (st : arena.monad.AState) (lst : AState)
     (o : core.result.Result arena.handle.EIdx kernel.core_types.CheckError ×
       arena.monad.AState) (res : Except Arena.CheckError (EIdx × AState)) : Prop :=
-  WOutR LPInv pers st lst o res ∧ (∀ r, o.1 = .Ok r → NFrz o.2.store)
+  WOutR LPInv pers st lst o res
 
 theorem WOutN.bind {pers : arena.store.PersTier}
     {st st1 : arena.monad.AState} {lst lst1 : AState}
@@ -13709,7 +13335,7 @@ theorem WOutN.bind {pers : arena.store.PersTier}
     (hfl2 : st1.store.scratch_on = st.store.scratch_on)
     (h : WOutN pers st1 lst1 o ((k (absEIdx g)).run lst1)) :
     WOutN pers st lst o ((do let v ← x; k v).run lst) :=
-  ⟨WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 h.1, h.2⟩
+  WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 h
 
 /-- A level step in front: its extensions and flags composed with the rest. -/
 theorem WOutN.pre {pers : arena.store.PersTier}
@@ -13717,11 +13343,9 @@ theorem WOutN.pre {pers : arena.store.PersTier}
     {o : core.result.Result arena.handle.EIdx kernel.core_types.CheckError ×
       arena.monad.AState} {res : Except Arena.CheckError (EIdx × AState)}
     (hext1 : Ext lst.store lst1.store) (hmono1 : EViewExt lst.store lst1.store)
-    (hfe : FlagsEq st.store st1.store) (h : WOutR LPInv pers st1 lst1 o res)
-    (hn : ∀ r, o.1 = .Ok r → NFrz o.2.store) :
+    (hfe : FlagsEq st.store st1.store) (h : WOutR LPInv pers st1 lst1 o res) :
     WOutN pers st lst o res := by
-  refine ⟨?_, hn⟩
-  simp only [WOutR] at h ⊢
+  simp only [WOutN, WOutR] at h ⊢
   cases ho : o.1 with
   | Ok r =>
     rw [ho] at h
@@ -13733,14 +13357,12 @@ theorem WOutN.pre {pers : arena.store.PersTier}
 theorem wout_dup_n {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hr : EResolves lst (absEIdx h)) (hq : LPInv lst) (hnf : NFrz st.store)
+    (hr : EResolves lst (absEIdx h)) (hq : LPInv lst)
     (hrun : (do
         let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
         ok (core.result.Result.Ok e, st)) = ok o) :
-    WOutN pers st lst o (.ok (absEIdx h, lst)) := by
-  refine ⟨wout_dup hrel hinv hr hq hrun, fun _ _ => ?_⟩
-  obtain ⟨e, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [← Result.ok_injective hrun]; exact hnf
+    WOutN pers st lst o (.ok (absEIdx h, lst)) :=
+  wout_dup hrel hinv hr hq hrun
 
 /-- `level::subst_pw` then `binder_meta`: the datum `instLPGo` rebuilds. -/
 theorem subst_meta {ks : alloc.vec.Vec kernel.name.Name}
@@ -13962,13 +13584,13 @@ level stores are frozen-consistent (`intern_level` tests them). -/
 theorem subst_l_memo_at_refines {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
     {us : alloc.vec.Vec kernel.level.Level} {u : arena.handle.LIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfz : NFrz st.store) (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
     (hus : ∀ v ∈ us.val, ConRon.Refine.LevelWF v)
     (hrun : arena.expr_ops.subst_l_memo_at pers st ks us u = ok o) :
     Sim absLIdx (fun _ => True) pers lst o
       (substLMemoAt (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels us)
         (absLIdx u)) :=
-  WOutLv.toSim (subst_l_memo_at_step hrel hinv hfz hks hus hrun)
+  WOutLv.toSim (subst_l_memo_at_step hrel hinv hks hus hrun)
 
 /-- `Arena/ExprOps.lean:1925 substLsMemoAt`.  **Corrected** as
 `subst_l_memo_at_refines`. -/
@@ -13976,13 +13598,13 @@ theorem subst_ls_memo_at_refines {pers st lst}
     {ks : alloc.vec.Vec kernel.name.Name}
     {us : alloc.vec.Vec kernel.level.Level} {vs : arena.handle.LsIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfz : NFrz st.store) (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
     (hus : ∀ v ∈ us.val, ConRon.Refine.LevelWF v)
     (hrun : arena.expr_ops.subst_ls_memo_at pers st ks us vs = ok o) :
     Sim absLsIdx (fun _ => True) pers lst o
       (substLsMemoAt (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels us)
         (absLsIdx vs)) :=
-  WOutLv.toSim (subst_ls_memo_at_step hrel hinv hfz hks hus hrun)
+  WOutLv.toSim (subst_ls_memo_at_step hrel hinv hks hus hrun)
 
 /-! ### `instLPGo` -/
 
@@ -13991,7 +13613,6 @@ def LPGoAt (n : Nat) : Prop :=
     {ks : alloc.vec.Vec kernel.name.Name} {us : alloc.vec.Vec kernel.level.Level}
     {fuel : Std.U64} {h : arena.handle.EIdx} {o},
     fuel.val = n → AStateRel pers st lst → AStateInv pers st →
-    (st.store.shared_on = true → st.store.scratch_on = true) → NFrz st.store →
     (∀ k ∈ ks.val, ConRon.Refine.NameWF k) → (∀ v ∈ us.val, ConRon.Refine.LevelWF v) →
     EResolves lst (absEIdx h) → LPInv lst →
     arena.expr_ops.inst_lp_go pers st ks us fuel h = ok o →
@@ -14001,7 +13622,7 @@ def LPGoAt (n : Nat) : Prop :=
 private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
   induction n with
   | zero =>
-    intro pers st lst ks us fuel h o hn hrel hinv hfrozen hnf hks hus hh hq hrun
+    intro pers st lst ks us fuel h o hn hrel hinv hks hus hh hq hrun
     rw [arena.expr_ops.inst_lp_go] at hrun
     rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -14013,9 +13634,9 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
     show WOutN pers st lst _
       ((instLPGo (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels us) (absU fuel) (absEIdx h)).run lst)
     rw [show absU fuel = 0 from hn, instLPGo_zero, arena_fail_run]
-    exact ⟨AErrSim.internal rfl, fun _ hr => by cases hr⟩
+    exact AErrSim.internal rfl
   | succ m ih =>
-    intro pers st lst ks us fuel h o hn hrel hinv hfrozen hnf hks hus hh hq hrun
+    intro pers st lst ks us fuel h o hn hrel hinv hks hus hh hq hrun
     rw [arena.expr_ops.inst_lp_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
     rw [if_neg hne] at hrun
@@ -14036,7 +13657,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
     | false =>
       rw [if_neg (by simp)] at hrun
       rw [if_pos (show (!false) = true from rfl)]
-      exact wout_dup_n hrel hinv hh hq hnf hrun
+      exact wout_dup_n hrel hinv hh hq hrun
     | true =>
     rw [if_pos rfl] at hrun
     rw [if_neg (by simp)]
@@ -14047,7 +13668,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
       rw [hrvc] at hrun hview
       have ho := Result.ok_injective hrun
       rw [← ho]
-      exact ⟨wout_err_bind hview, fun _ hr => by cases hr⟩
+      exact wout_err_bind hview
     | Ok ev =>
       rw [hrvc] at hrun hview hrv
       obtain ⟨lst0, hx, -, -, -, -⟩ := hview
@@ -14056,33 +13677,29 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
       have hvv := store_view_of_run hx
       rw [run_bind_of hx]
       cases ev with
-      | BVar _ => exact wout_dup_n hrel hinv hh hq hnf hrun
-      | Lit _ => exact wout_dup_n hrel hinv hh hq hnf hrun
+      | BVar _ => exact wout_dup_n hrel hinv hh hq hrun
+      | Lit _ => exact wout_dup_n hrel hinv hh hq hrun
       | «Sort» u =>
         simp only [absENodeView]
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hs := subst_l_memo_at_step hrel hinv hnf hks hus hp1
+        have hs := subst_l_memo_at_step hrel hinv hks hus hp1
         cases hr1 : r1 with
         | Err e =>
           rw [hr1] at hrun hs
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨wout_err_bind hs, fun _ hr => by cases hr⟩
+          exact wout_err_bind hs
         | Ok hl =>
           rw [hr1] at hrun hs
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hmono1, hfe1, hlp⟩ := hs
           obtain ⟨hu1, hq1⟩ := hlp hq
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfe1.eScr]; exact hfrozen (hfe1.eSh ▸ hs)
           rw [run_bind_of hx1]
           obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           rw [lidx_eq2_beq hsame]
           exact WOutN.pre hext1 hmono1 hfe1
-            (intern_rebuilt_sort_res LPInv.stable hrel1 hinv1 hfroz1 hq1 (hmono1.res hh) hu1
+            (intern_rebuilt_sort_res LPInv.stable hrel1 hinv1 hq1 (hmono1.res hh) hu1
               hrun)
-            (fun _ _ => NFrz.of_lss (rb_sort_lss hrel1 hinv1 hfroz1 hrun)
-              (NFrz.of_flags hfe1 hnf))
       | Const nn vs =>
         simp only [absENodeView]
         have hnR : (lst.store.ns.view (absNIdx nn)).isSome = true := by
@@ -14090,27 +13707,23 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           exact (hw.nchildOK _ _ hvv _ (by simp [ENodeView.nchildren])).1
         obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r1, st1⟩ := p1
-        have hs := subst_ls_memo_at_step hrel hinv hnf hks hus hp1
+        have hs := subst_ls_memo_at_step hrel hinv hks hus hp1
         cases hr1 : r1 with
         | Err e =>
           rw [hr1] at hrun hs
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨wout_err_bind hs, fun _ hr => by cases hr⟩
+          exact wout_err_bind hs
         | Ok vs2 =>
           rw [hr1] at hrun hs
           obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hmono1, hfe1, hlp⟩ := hs
           obtain ⟨hu1, hq1⟩ := hlp hq
-          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-            intro hs; rw [hfe1.eScr]; exact hfrozen (hfe1.eSh ▸ hs)
           rw [run_bind_of hx1]
           obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           rw [lsidx_eq2_beq hsame]
           exact WOutN.pre hext1 hmono1 hfe1
-            (intern_rebuilt_const_res LPInv.stable hrel1 hinv1 hfroz1 hq1 (hmono1.res hh)
+            (intern_rebuilt_const_res LPInv.stable hrel1 hinv1 hq1 (hmono1.res hh)
               (hmono1.nsres hnR) hu1 hrun)
-            (fun _ _ => NFrz.of_lss (rb_const_lss hrel1 hinv1 hfroz1 hrun)
-              (NFrz.of_flags hfe1 hnf))
       | FVar idx ty =>
         simp only [absENodeView]
         have htyR : EResolves lst (absEIdx ty) :=
@@ -14129,7 +13742,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           rw [hopc] at hrun hgv
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨WOutR.pure hrel hinv (hq.1 _ _ hgv) hq, fun _ _ => hnf⟩
+          exact WOutR.pure hrel hinv (hq.1 _ _ hgv) hq
         | none =>
           rw [hopc] at hrun
           simp only [Option.map_none]
@@ -14137,34 +13750,31 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hnf hks hus htyR hq hp1
+          have hrec1 := ih hi1v hrel hinv hks hus htyR hq hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
             rw [hr1] at hrun hrec1
             have ho := Result.ok_injective hrun
             rw [← ho]
-            exact ⟨wout_err_bind (WOutE.err hrec1.1 rfl), fun _ hr => by cases hr⟩
+            exact wout_err_bind (WOutE.err hrec1 rfl)
           | Ok t2 =>
             rw [hr1] at hrun hrec1
-            have hnf1 : NFrz st1.store := hrec1.2 _ rfl
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
-              WOutE.dest hrec1.1
+              WOutE.dest hrec1
             refine WOutN.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_rebuilt_fvar_res LPInv.stable hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_rebuilt_fvar_res LPInv.stable hrel1 hinv1 hq1
               (hmono1.res hh) hres1 hp2
             cases hrX : r2 with
             | Err e =>
               rw [hrX] at hrun hstep
               have ho := Result.ok_injective hrun
               rw [← ho]
-              exact ⟨wout_err_bind (hstep.err rfl), fun _ hr => by cases hr⟩
+              exact wout_err_bind (hstep.err rfl)
             | Ok rX =>
               rw [hrX] at hrun hstep
               obtain ⟨stX, hstX, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -14172,10 +13782,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
               rw [← ho]
               have hset := wout_lp_set hstep hstX
               rw [hkabs] at hset
-              refine ⟨hset, fun _ _ => ?_⟩
-              have hl : stX.store.lss = st1.store.lss := by
-                rw [inst_lp_set_store hstX]; exact rb_fvar_lss hrel1 hinv1 hfroz1 hp2
-              exact NFrz.of_lss hl hnf1
+              exact hset
       | App f a =>
         simp only [absENodeView]
         have hfR : EResolves lst (absEIdx f) :=
@@ -14196,7 +13803,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           rw [hopc] at hrun hgv
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨WOutR.pure hrel hinv (hq.1 _ _ hgv) hq, fun _ _ => hnf⟩
+          exact WOutR.pure hrel hinv (hq.1 _ _ hgv) hq
         | none =>
           rw [hopc] at hrun
           simp only [Option.map_none]
@@ -14204,40 +13811,34 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hnf hks hus hfR hq hp1
+          have hrec1 := ih hi1v hrel hinv hks hus hfR hq hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
             rw [hr1] at hrun hrec1
             have ho := Result.ok_injective hrun
             rw [← ho]
-            exact ⟨wout_err_bind (WOutE.err hrec1.1 rfl), fun _ hr => by cases hr⟩
+            exact wout_err_bind (WOutE.err hrec1 rfl)
           | Ok f2 =>
             rw [hr1] at hrun hrec1
-            have hnf1 : NFrz st1.store := hrec1.2 _ rfl
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
-              WOutE.dest hrec1.1
+              WOutE.dest hrec1
             refine WOutN.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 hnf1 hks hus (hmono1.res haR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 hks hus (hmono1.res haR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
               rw [hr2] at hrun hrec2
               have ho := Result.ok_injective hrun
               rw [← ho]
-              exact ⟨wout_err_bind (WOutE.err hrec2.1 rfl), fun _ hr => by cases hr⟩
+              exact wout_err_bind (WOutE.err hrec2 rfl)
             | Ok a2 =>
               rw [hr2] at hrun hrec2
-              have hnf2 : NFrz st2.store := hrec2.2 _ rfl
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
-                WOutE.dest hrec2.1
+                WOutE.dest hrec2
               refine WOutN.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx f2 == absEIdx f && absEIdx a2 == absEIdx a) = same := by
@@ -14250,14 +13851,14 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
               rw [hs]
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hstep := intern_rebuilt_app_res LPInv.stable hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_app_res LPInv.stable hrel2 hinv2 hq2
                 (hmono2.res (hmono1.res hh)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
                 rw [hrX] at hrun hstep
                 have ho := Result.ok_injective hrun
                 rw [← ho]
-                exact ⟨wout_err_bind (hstep.err rfl), fun _ hr => by cases hr⟩
+                exact wout_err_bind (hstep.err rfl)
               | Ok rX =>
                 rw [hrX] at hrun hstep
                 obtain ⟨stX, hstX, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -14265,10 +13866,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
                 rw [← ho]
                 have hset := wout_lp_set hstep hstX
                 rw [hkabs] at hset
-                refine ⟨hset, fun _ _ => ?_⟩
-                have hl : stX.store.lss = st2.store.lss := by
-                  rw [inst_lp_set_store hstX]; exact rb_app_lss hrel2 hinv2 hfroz2 hp3
-                exact NFrz.of_lss hl hnf2
+                exact hset
       | Lam ty body m0 =>
         simp only [absENodeView]
         have hpw0 := view_bind_wf hrel hinv hrv (Or.inl rfl)
@@ -14290,7 +13888,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           rw [hopc] at hrun hgv
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨WOutR.pure hrel hinv (hq.1 _ _ hgv) hq, fun _ _ => hnf⟩
+          exact WOutR.pure hrel hinv (hq.1 _ _ hgv) hq
         | none =>
           rw [hopc] at hrun
           simp only [Option.map_none]
@@ -14298,40 +13896,34 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hnf hks hus htyR hq hp1
+          have hrec1 := ih hi1v hrel hinv hks hus htyR hq hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
             rw [hr1] at hrun hrec1
             have ho := Result.ok_injective hrun
             rw [← ho]
-            exact ⟨wout_err_bind (WOutE.err hrec1.1 rfl), fun _ hr => by cases hr⟩
+            exact wout_err_bind (WOutE.err hrec1 rfl)
           | Ok t2 =>
             rw [hr1] at hrun hrec1
-            have hnf1 : NFrz st1.store := hrec1.2 _ rfl
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
-              WOutE.dest hrec1.1
+              WOutE.dest hrec1
             refine WOutN.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 hnf1 hks hus (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 hks hus (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
               rw [hr2] at hrun hrec2
               have ho := Result.ok_injective hrun
               rw [← ho]
-              exact ⟨wout_err_bind (WOutE.err hrec2.1 rfl), fun _ hr => by cases hr⟩
+              exact wout_err_bind (WOutE.err hrec2 rfl)
             | Ok b2 =>
               rw [hr2] at hrun hrec2
-              have hnf2 : NFrz st2.store := hrec2.2 _ rfl
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
-                WOutE.dest hrec2.1
+                WOutE.dest hrec2
               refine WOutN.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨pw, hpwn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨m2, hm2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨hm2abs, hm2wf⟩ := subst_meta hks hus hpw0 hpwn hm2
@@ -14375,14 +13967,14 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               rw [hst] at hp3
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_lam_res LPInv.stable hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_lam_res LPInv.stable hrel2 hinv2 hq2
                 hm2wf (hmono2.res (hmono1.res hh)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
                 rw [hrX] at hrun hstep
                 have ho := Result.ok_injective hrun
                 rw [← ho]
-                exact ⟨wout_err_bind (hstep.err rfl), fun _ hr => by cases hr⟩
+                exact wout_err_bind (hstep.err rfl)
               | Ok rX =>
                 rw [hrX] at hrun hstep
                 obtain ⟨stX, hstX, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -14390,10 +13982,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
                 rw [← ho]
                 have hset := wout_lp_set hstep hstX
                 rw [hkabs] at hset
-                refine ⟨hset, fun _ _ => ?_⟩
-                have hl : stX.store.lss = st2.store.lss := by
-                  rw [inst_lp_set_store hstX]; exact rb_lam_lss hrel2 hinv2 hfroz2 hm2wf hp3 rX hrX
-                exact NFrz.of_lss hl hnf2
+                exact hset
       | ForallE ty body m0 =>
         simp only [absENodeView]
         have hpw0 := view_bind_wf hrel hinv hrv (Or.inr rfl)
@@ -14415,7 +14004,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           rw [hopc] at hrun hgv
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨WOutR.pure hrel hinv (hq.1 _ _ hgv) hq, fun _ _ => hnf⟩
+          exact WOutR.pure hrel hinv (hq.1 _ _ hgv) hq
         | none =>
           rw [hopc] at hrun
           simp only [Option.map_none]
@@ -14423,40 +14012,34 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hnf hks hus htyR hq hp1
+          have hrec1 := ih hi1v hrel hinv hks hus htyR hq hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
             rw [hr1] at hrun hrec1
             have ho := Result.ok_injective hrun
             rw [← ho]
-            exact ⟨wout_err_bind (WOutE.err hrec1.1 rfl), fun _ hr => by cases hr⟩
+            exact wout_err_bind (WOutE.err hrec1 rfl)
           | Ok t2 =>
             rw [hr1] at hrun hrec1
-            have hnf1 : NFrz st1.store := hrec1.2 _ rfl
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
-              WOutE.dest hrec1.1
+              WOutE.dest hrec1
             refine WOutN.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 hnf1 hks hus (hmono1.res hbR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 hks hus (hmono1.res hbR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
               rw [hr2] at hrun hrec2
               have ho := Result.ok_injective hrun
               rw [← ho]
-              exact ⟨wout_err_bind (WOutE.err hrec2.1 rfl), fun _ hr => by cases hr⟩
+              exact wout_err_bind (WOutE.err hrec2 rfl)
             | Ok b2 =>
               rw [hr2] at hrun hrec2
-              have hnf2 : NFrz st2.store := hrec2.2 _ rfl
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
-                WOutE.dest hrec2.1
+                WOutE.dest hrec2
               refine WOutN.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨pw, hpwn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨m2, hm2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨hm2abs, hm2wf⟩ := subst_meta hks hus hpw0 hpwn hm2
@@ -14500,14 +14083,14 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               rw [hst] at hp3
               obtain ⟨r3, st4⟩ := p3
-              have hstep := intern_rebuilt_forall_e_res LPInv.stable hrel2 hinv2 hfroz2 hq2
+              have hstep := intern_rebuilt_forall_e_res LPInv.stable hrel2 hinv2 hq2
                 hm2wf (hmono2.res (hmono1.res hh)) (hmono2.res hres1) hres2 hp3
               cases hrX : r3 with
               | Err e =>
                 rw [hrX] at hrun hstep
                 have ho := Result.ok_injective hrun
                 rw [← ho]
-                exact ⟨wout_err_bind (hstep.err rfl), fun _ hr => by cases hr⟩
+                exact wout_err_bind (hstep.err rfl)
               | Ok rX =>
                 rw [hrX] at hrun hstep
                 obtain ⟨stX, hstX, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -14515,10 +14098,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
                 rw [← ho]
                 have hset := wout_lp_set hstep hstX
                 rw [hkabs] at hset
-                refine ⟨hset, fun _ _ => ?_⟩
-                have hl : stX.store.lss = st2.store.lss := by
-                  rw [inst_lp_set_store hstX]; exact rb_forall_e_lss hrel2 hinv2 hfroz2 hm2wf hp3 rX hrX
-                exact NFrz.of_lss hl hnf2
+                exact hset
       | LetE ty val body =>
         simp only [absENodeView]
         have htyR : EResolves lst (absEIdx ty) :=
@@ -14541,7 +14121,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           rw [hopc] at hrun hgv
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨WOutR.pure hrel hinv (hq.1 _ _ hgv) hq, fun _ _ => hnf⟩
+          exact WOutR.pure hrel hinv (hq.1 _ _ hgv) hq
         | none =>
           rw [hopc] at hrun
           simp only [Option.map_none]
@@ -14549,58 +14129,49 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           have hi1v := hi1 i1 hi1'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi1v hrel hinv hfrozen hnf hks hus htyR hq hp1
+          have hrec1 := ih hi1v hrel hinv hks hus htyR hq hp1
           rw [show absU i1 = m from hi1v] at hrec1
           cases hr1 : r1 with
           | Err e =>
             rw [hr1] at hrun hrec1
             have ho := Result.ok_injective hrun
             rw [← ho]
-            exact ⟨wout_err_bind (WOutE.err hrec1.1 rfl), fun _ hr => by cases hr⟩
+            exact wout_err_bind (WOutE.err hrec1 rfl)
           | Ok t2 =>
             rw [hr1] at hrun hrec1
-            have hnf1 : NFrz st1.store := hrec1.2 _ rfl
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
-              WOutE.dest hrec1.1
+              WOutE.dest hrec1
             refine WOutN.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 hnf1 hks hus (hmono1.res hvalR) hq1 hp2
+            have hrec2 := ih hi1v hrel1 hinv1 hks hus (hmono1.res hvalR) hq1 hp2
             rw [show absU i1 = m from hi1v] at hrec2
             cases hr2 : r2 with
             | Err e =>
               rw [hr2] at hrun hrec2
               have ho := Result.ok_injective hrun
               rw [← ho]
-              exact ⟨wout_err_bind (WOutE.err hrec2.1 rfl), fun _ hr => by cases hr⟩
+              exact wout_err_bind (WOutE.err hrec2 rfl)
             | Ok w2 =>
               rw [hr2] at hrun hrec2
-              have hnf2 : NFrz st2.store := hrec2.2 _ rfl
               obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
-                WOutE.dest hrec2.1
+                WOutE.dest hrec2
               refine WOutN.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
-              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
-                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
               obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨r3, st3⟩ := p3
-              have hrec3 := ih hi1v hrel2 hinv2 hfroz2 hnf2 hks hus (hmono2.res (hmono1.res hbR)) hq2 hp3
+              have hrec3 := ih hi1v hrel2 hinv2 hks hus (hmono2.res (hmono1.res hbR)) hq2 hp3
               rw [show absU i1 = m from hi1v] at hrec3
               cases hr3 : r3 with
               | Err e =>
                 rw [hr3] at hrun hrec3
                 have ho := Result.ok_injective hrun
                 rw [← ho]
-                exact ⟨wout_err_bind (WOutE.err hrec3.1 rfl), fun _ hr => by cases hr⟩
+                exact wout_err_bind (WOutE.err hrec3 rfl)
               | Ok b2 =>
                 rw [hr3] at hrun hrec3
-                have hnf3 : NFrz st3.store := hrec3.2 _ rfl
                 obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
-                  WOutE.dest hrec3.1
+                  WOutE.dest hrec3
                 refine WOutN.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
-                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
-                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
                 obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨q, hqq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨st4, same⟩ := q
@@ -14633,7 +14204,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
                 obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 rw [hst] at hp4
                 obtain ⟨r4, st5⟩ := p4
-                have hstep := intern_rebuilt_let_e_res LPInv.stable hrel3 hinv3 hfroz3
+                have hstep := intern_rebuilt_let_e_res LPInv.stable hrel3 hinv3
                   hq3 (hmono3.res (hmono2.res (hmono1.res hh)))
                   (hmono3.res (hmono2.res hres1)) (hmono3.res hres2) hres3 hp4
                 cases hrX : r4 with
@@ -14641,7 +14212,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
                   rw [hrX] at hrun hstep
                   have ho := Result.ok_injective hrun
                   rw [← ho]
-                  exact ⟨wout_err_bind (hstep.err rfl), fun _ hr => by cases hr⟩
+                  exact wout_err_bind (hstep.err rfl)
                 | Ok rX =>
                   rw [hrX] at hrun hstep
                   obtain ⟨stX, hstX, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -14649,10 +14220,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
                   rw [← ho]
                   have hset := wout_lp_set hstep hstX
                   rw [hkabs] at hset
-                  refine ⟨hset, fun _ _ => ?_⟩
-                  have hl : stX.store.lss = st3.store.lss := by
-                    rw [inst_lp_set_store hstX]; exact rb_let_e_lss hrel3 hinv3 hfroz3 hp4
-                  exact NFrz.of_lss hl hnf3
+                  exact hset
       | Proj nn i1 sub =>
         simp only [absENodeView]
         have hsR : EResolves lst (absEIdx sub) :=
@@ -14674,7 +14242,7 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           rw [hopc] at hrun hgv
           have ho := Result.ok_injective hrun
           rw [← ho]
-          exact ⟨WOutR.pure hrel hinv (hq.1 _ _ hgv) hq, fun _ _ => hnf⟩
+          exact WOutR.pure hrel hinv (hq.1 _ _ hgv) hq
         | none =>
           rw [hopc] at hrun
           simp only [Option.map_none]
@@ -14682,34 +14250,31 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
           have hi2v := hi1 i2 hi2'
           obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨r1, st1⟩ := p1
-          have hrec1 := ih hi2v hrel hinv hfrozen hnf hks hus hsR hq hp1
+          have hrec1 := ih hi2v hrel hinv hks hus hsR hq hp1
           rw [show absU i2 = m from hi2v] at hrec1
           cases hr1 : r1 with
           | Err e =>
             rw [hr1] at hrun hrec1
             have ho := Result.ok_injective hrun
             rw [← ho]
-            exact ⟨wout_err_bind (WOutE.err hrec1.1 rfl), fun _ hr => by cases hr⟩
+            exact wout_err_bind (WOutE.err hrec1 rfl)
           | Ok u =>
             rw [hr1] at hrun hrec1
-            have hnf1 : NFrz st1.store := hrec1.2 _ rfl
             obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
-              WOutE.dest hrec1.1
+              WOutE.dest hrec1
             refine WOutN.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
-            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
-              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
-            have hstep := intern_rebuilt_proj_res LPInv.stable hrel1 hinv1 hfroz1 hq1
+            have hstep := intern_rebuilt_proj_res LPInv.stable hrel1 hinv1 hq1
               (hmono1.res hh) (hmono1.nsres hnR) hres1 hp2
             cases hrX : r2 with
             | Err e =>
               rw [hrX] at hrun hstep
               have ho := Result.ok_injective hrun
               rw [← ho]
-              exact ⟨wout_err_bind (hstep.err rfl), fun _ hr => by cases hr⟩
+              exact wout_err_bind (hstep.err rfl)
             | Ok rX =>
               rw [hrX] at hrun hstep
               obtain ⟨stX, hstX, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -14717,23 +14282,19 @@ private theorem inst_lp_go_aux (n : Nat) : LPGoAt n := by
               rw [← ho]
               have hset := wout_lp_set hstep hstX
               rw [hkabs] at hset
-              refine ⟨hset, fun _ _ => ?_⟩
-              have hl : stX.store.lss = st1.store.lss := by
-                rw [inst_lp_set_store hstX]; exact rb_proj_lss hrel1 hinv1 hfroz1 hp2
-              exact NFrz.of_lss hl hnf1
+              exact hset
 
 theorem inst_lp_go_wout {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
     {us : alloc.vec.Vec kernel.level.Level} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hnf : NFrz st.store) (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
     (hus : ∀ v ∈ us.val, ConRon.Refine.LevelWF v)
     (hh : EResolves lst (absEIdx h)) (hq : LPInv lst)
     (hrun : arena.expr_ops.inst_lp_go pers st ks us fuel h = ok o) :
     WOutN pers st lst o
       ((instLPGo (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels us) (absU fuel) (absEIdx h)).run lst) :=
-  inst_lp_go_aux _ rfl hrel hinv hfrozen hnf hks hus hh hq hrun
+  inst_lp_go_aux _ rfl hrel hinv hks hus hh hq hrun
 
 /-- `Arena/ExprOps.lean:1941 instLPGo`.  **Corrected** (task #97-P5-Mut round
 2, finding 19): `hfrozen` and `NFrz` (the walk interns expressions and, at
@@ -14744,22 +14305,20 @@ theorem inst_lp_go_refines {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
     {us : alloc.vec.Vec kernel.level.Level} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hnf : NFrz st.store) (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
     (hus : ∀ v ∈ us.val, ConRon.Refine.LevelWF v)
     (hh : EResolves lst (absEIdx h)) (hq : LPInv lst)
     (hrun : arena.expr_ops.inst_lp_go pers st ks us fuel h = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instLPGo (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels us)
         (absU fuel) (absEIdx h)) :=
-  WOutE.toSim (inst_lp_go_wout hrel hinv hfrozen hnf hks hus hh hq hrun).1
+  WOutE.toSim (inst_lp_go_wout hrel hinv hks hus hh hq hrun)
 
 theorem inst_lp_fast_wout {pers st lst} {fuel : Std.U64}
     {ks : alloc.vec.Vec arena.handle.NIdx} {us : arena.handle.LsIdx}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hnf : NFrz st.store) (he : EResolves lst (absEIdx e))
+    (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.inst_lp_fast pers st fuel ks us e = ok o) :
     WOutE (fun _ => True) pers st lst o
       (instLPFast (absU fuel) (absNIdxList ks) (absLsIdx us) (absEIdx e)) := by
@@ -14824,19 +14383,19 @@ theorem inst_lp_fast_wout {pers st lst} {fuel : Std.U64}
       have hst3s : st3.store = st.store := by rw [hs3, hw2.2, hw1.2]
       obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r4, st4⟩ := p4
-      have hgo := inst_lp_go_wout hrel3 hinv3 (by rw [hst3s]; exact hfrozen)
-        (by rw [hst3s]; exact hnf) (hw1.1 ksP rfl) (hw2.1 usP rfl)
+      have hgo := inst_lp_go_wout hrel3 hinv3
+        (hw1.1 ksP rfl) (hw2.1 usP rfl)
         (by show (lst3.store.view _).isSome = true; rw [hstore3]; exact he) hq3 hp4
       cases hr4 : r4 with
       | Err er =>
         rw [hr4] at hrun hgo
         have ho := Result.ok_injective hrun
         rw [← ho]
-        exact wout_err_bind (WOutE.err hgo.1 rfl)
+        exact wout_err_bind (WOutE.err hgo rfl)
       | Ok r5 =>
         rw [hr4] at hrun hgo
         obtain ⟨lst4, hx4, hrel4, hinv4, hext4, hres4, hmono4, hfl1, hfl2, -⟩ :=
-          WOutE.dest hgo.1
+          WOutE.dest hgo
         obtain ⟨st5, hst5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have ho := Result.ok_injective hrun
         rw [← ho]
@@ -14863,12 +14422,11 @@ theorem inst_lp_fast_refines {pers st lst} {fuel : Std.U64}
     {ks : alloc.vec.Vec arena.handle.NIdx} {us : arena.handle.LsIdx}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hnf : NFrz st.store) (he : EResolves lst (absEIdx e))
+    (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.inst_lp_fast pers st fuel ks us e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (instLPFast (absU fuel) (absNIdxList ks) (absLsIdx us) (absEIdx e)) :=
-  (inst_lp_fast_wout hrel hinv hfrozen hnf he hrun).toSim
+  (inst_lp_fast_wout hrel hinv he hrun).toSim
 
 
 /-! ## The axiom census

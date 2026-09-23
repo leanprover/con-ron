@@ -353,6 +353,75 @@ list item 24 is therefore discharged, and the upstream ask is the RE-STATEMENT
 #print axioms checkDeclsPure_thmDecl_const
 #print axioms no_False_theorem_accepted_pure
 
+/-! ## Round seven — `validateIndD_run`, CLOSED
+
+The inductive record's READ half, over its two loops: `forIn_sim` relates a
+read-only `AM` loop to con-leche's `Except String` one through an arbitrary
+state relation (the two `do` elaborators build different loop states), and
+`denoteN_inj` is load-bearing three times — the duplicate-constructor guard
+(`ListRel.nodup_iff_denoteN`), the constructor index (`ctorIx_fold_rel`) and
+the `induct`/`T.rec` comparisons. -/
+
+#print axioms except_ok_bind
+#print axioms except_bind_of
+#print axioms except_bind_ex
+#print axioms ListRel.refl_eq
+#print axioms readName_bind
+#print axioms ListRel.singleton_right
+#print axioms ListRel.singleton_left
+#print axioms forIn_sim
+#print axioms mapM_sim
+#print axioms storeFuel_run
+#print axioms indPiTeleLen_run
+#print axioms piSortTeleLen?_run
+#print axioms ListRel.mem_iff_denoteN
+#print axioms ListRel.nodup_iff_denoteN
+#print axioms ListRel.flatten
+#print axioms ListRel.zip
+#print axioms ctorIx_fold_rel
+#print axioms VInv.nil
+#print axioms VInv.inv
+#print axioms VInv.res
+#print axioms validateIndD_run'
+#print axioms validateIndD_run
+
+/-! ## Round seven, continued — the install half, the line, the hoist, CLOSED
+
+The machinery `installIndD_run`, `processLineCoreD_run`,
+`hoistNatOpGround_run` and `projRewriteD_run` stand on.  Everything here is
+at Lean's own three. -/
+
+#print axioms noteProjIota_run
+#print axioms pushGenD_run
+#print axioms ListRel.of_denoteNList
+#print axioms MapRel.foldl_insert
+#print axioms noteGen_run
+#print axioms pushGenList_run
+#print axioms mapM_sim'
+#print axioms ListRel.append
+#print axioms denoteCIList_of_listRel
+#print axioms denoteCaps_default
+#print axioms wants_eq
+#print axioms MapRel.getElem?_rel
+#print axioms MapRel.foldl_insert_by
+#print axioms ctxRel_of_maps
+#print axioms head_name_rel
+#print axioms ListRel.forall_left
+#print axioms StateDRel.setDeclined
+#print axioms StateDRel.setModelled
+#print axioms MapRel.foldl_insert_owners
+#print axioms pushDecl_built_run
+#print axioms StateDRel.setProjRewrites
+#print axioms StateDRel.bumpIndCount
+#print axioms reorder_toList
+#print axioms denoteDecls_filterMap
+#print axioms movedNames_toList
+#print axioms denoteNList_append'
+#print axioms denoteNList_flatMap_names
+#print axioms applyHoist_run
+#print axioms lamBody_run
+#print axioms denoteNList_beq
+
 /-! ## PROVED, but resting on an open leaf
 
 The campaign's rule is that a result carrying `sorryAx` is not in the census
@@ -368,8 +437,19 @@ can tell the two apart.
 * the preparation and the prelude — `builtinPreludeE_run` on `parseBytes_run`,
   `preparePrelude_run` on `frontOf_run`/`hoistNatOpGround_run` (items 19-22);
 * `FoldOK_post_parse` on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote`
-  (the Checker tier's item 6) and nothing else. -/
+  (the Checker tier's item 6) and nothing else;
+* round 7's skeletons — `processLineCoreD_run`, `installIndD_run`,
+  `registerProjOwners_run` and `projRewriteD_run` rest on `projRecValue_run` /
+  `projRecOwners_run` (whose `ParseStep` frame is round 7's finding),
+  `hoistNatOpGround_run` on `hoistTargets_run` (whose twin is round 7's other
+  finding), `FoldOK_post_pins` on the Checker tier's `internAllPins_run`. -/
 
+#print axioms registerProjOwners_run
+#print axioms installIndD_run
+#print axioms processLineCoreD_run
+#print axioms hoistNatOpGround_run
+#print axioms projRewriteD_run
+#print axioms FoldOK_post_pins
 #print axioms applyLine_run
 #print axioms applyFinalLine_run
 #print axioms feedChunk_run_le

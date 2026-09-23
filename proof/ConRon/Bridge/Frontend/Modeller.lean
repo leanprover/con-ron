@@ -98,15 +98,27 @@ modeller can give: `inProcessModeller` interns the table
 interns the reserved name `projTableName sn` itself, so the clause is true of
 its answer by construction.  `IProjTableOK`'s two SIZE clauses would not be —
 they would have to be imported from con-leche's own `ProjTable`, which nothing
-states — and they are not what any consumer here reads. -/
+states — and they are not what any consumer here reads.
+
+**The second conjunct is the DECLINE's frame** (task #97-P3-Frontend round 7).
+The first says nothing about a run that answers `.error`, and `installIndD`
+carries on after one (the census books the decline, or the record is declined
+with a verdict) — so without it `installIndD_run`'s `ParseStep` is false at a
+modeller that moves the state and then declines.  Both instantiations decline
+with a `pure`, so it costs them one line. -/
 def ModellerWF (md : Modeller) : Prop :=
-  ∀ ctx b s hs s', StateOK s → s.store.scratchOn = false →
+  (∀ ctx b s hs s', StateOK s → s.store.scratchOn = false →
     md.generate ctx b s = .ok (.ok hs, s') →
     StateOK s' ∧ Ext s.store s'.store ∧
       (∀ d ∈ hs, PersDecl d) ∧ (∀ d ∈ hs, DeclProjNamed s'.store d) ∧
       (denoteDecls s'.store hs).isSome = true ∧
       s'.memos = s.memos ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
-      s'.store.scratchOn = s.store.scratchOn
+      s'.store.scratchOn = s.store.scratchOn) ∧
+  (∀ ctx b s m s', StateOK s → s.store.scratchOn = false →
+    md.generate ctx b s = .ok (.error m, s') →
+    StateOK s' ∧ Ext s.store s'.store ∧
+      s'.memos = s.memos ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
+      s'.store.scratchOn = s.store.scratchOn)
 
 /-- con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
 `RefineOld/Frontend/ChunksR.lean:143 ModellerRefines` — **the seam's second
@@ -124,14 +136,23 @@ accepts") does not have to reason about coverage at all.
 `StateOK s` and the closed scratch tier are hypotheses here for the same
 reason as above (finding 14): the answer's DENOTATION is a fact about the
 store, and `denoteDecls` at a store that is not well formed relates nothing to
-anything. -/
+anything.
+
+**The decline half names con-leche's REASON, not just a decline** (task
+#97-P3-Frontend round 7).  `installIndD`'s census branch books the reason
+(`inModelDeclined.push (T0, why)`), and `StateDRel.inModelDeclined` relates
+the two booked strings by EQUALITY — so with only "con-leche declines too"
+the census arm of `installIndD_run` is false at a modeller whose reason
+differs from con-leche's.  The concrete modeller returns con-leche's own
+reason (it calls con-leche's generator), so `inProcessModeller_refines` keeps
+the stronger promise at no cost. -/
 def ModellerRefines (md : Modeller) : Prop :=
   ∀ ctx ctxP b bP s o s', StateOK s → s.store.scratchOn = false →
     CtxRel s.store ctx ctxP → BlockRecRel s.store b bP →
     md.generate ctx b s = .ok (o, s') →
     (∀ hs, o = .ok hs → ∀ dsP, denoteDecls s'.store hs = some dsP →
         ConLeche.Frontend.InModel.generate ctxP bP = .ok dsP) ∧
-      (∀ m, o = .error m → ∃ w, ConLeche.Frontend.InModel.generate ctxP bP = .error w)
+      (∀ m, o = .error m → ConLeche.Frontend.InModel.generate ctxP bP = .error m)
 
 /-! ## The instantiation the driver runs
 
@@ -156,6 +177,28 @@ twin BUILDS the reserved name (`projTableName sn`) where con-leche recomputes
 it, so the two agree by construction and the seam's promise costs this
 instantiation nothing. -/
 theorem inProcessModeller_wf : ModellerWF inProcessModeller := by
+  refine ⟨?_, ?_⟩
+  rotate_left
+  · intro ctx b s m s' hok hoff hrun
+    simp only [inProcessModeller] at hrun
+    obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨ht, hs₁⟩ := AM.get_ok hget
+    rw [ht, hs₁] at hrest
+    cases hb : denoteBlockRec s.store b with
+    | none => rw [hb] at hrest; exact absurd (AM.fail_ok hrest) (by simp)
+    | some bP =>
+    rw [hb] at hrest
+    simp only [] at hrest
+    cases hg : ConLeche.Frontend.InModel.generate (ctxOf s.store ctx) bP with
+    | error why =>
+      rw [hg] at hrest
+      obtain ⟨-, rfl⟩ := AM.pure_ok hrest
+      exact ⟨hok, Ext.refl _, rfl, rfl, rfl, rfl⟩
+    | ok ds =>
+    rw [hg] at hrest
+    simp only [] at hrest
+    obtain ⟨p, s₂, hint, hrest2⟩ := AM.bind_ok hrest
+    exact absurd (AM.pure_ok hrest2).1 (by simp)
   intro ctx b s hs s' hok hoff hrun
   simp only [inProcessModeller] at hrun
   obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
@@ -216,8 +259,10 @@ theorem inProcessModeller_refines : ModellerRefines inProcessModeller := by
     rw [hg] at hrest
     obtain ⟨hv, hst⟩ := AM.pure_ok hrest
     subst hst; subst hv
-    exact ⟨fun hs h => absurd h (by simp),
-      fun m _ => ⟨why, by rw [← hctx]; exact hg⟩⟩
+    refine ⟨fun hs h => absurd h (by simp), fun m hm => ?_⟩
+    injection hm with hm
+    subst hm
+    rw [← hctx]; exact hg
   | ok ds =>
   rw [hg] at hrest
   simp only [] at hrest
@@ -244,9 +289,13 @@ instantiation for a run with modelling switched off, and a proof about it
 would be a proof about a different pipeline.  What it does keep is the first
 promise, vacuously — it never returns records. -/
 theorem declineModeller_wf : ModellerWF declineModeller := by
-  intro ctx b s hs s' _ _ h
-  injection h with h1
-  injection h1 with h2 _
-  exact nomatch h2
+  refine ⟨?_, ?_⟩
+  · intro ctx b s hs s' _ _ h
+    injection h with h1
+    injection h1 with h2 _
+    exact nomatch h2
+  · intro ctx b s m s' hok _ h
+    obtain ⟨-, rfl⟩ := AM.pure_ok h
+    exact ⟨hok, Ext.refl _, rfl, rfl, rfl, rfl⟩
 
 end ConRon.Bridge.Frontend

@@ -88,6 +88,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+    (hpins : PinsOK s)
     {pre : PreludeIx} (hrun : builtinPreludeE md s = .ok (.ok pre, s')) :
     ParseStep s s' ∧ PersPreludeIx pre ∧ DeclsProjNamed s'.store pre.decls ∧
       ∃ preC, ConLeche.Frontend.builtinPreludeE = .ok preC ∧
@@ -104,7 +105,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     simp only [Except.ok.injEq] at hv
     subst hv; subst hs
     rw [hbytes] at hpb
-    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpb
+    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpins hpb
     refine ⟨hstep, hpers, hrel.projNamed, ⟨rc.decls⟩, ?_, hrel.decls⟩
     rw [ConLeche.Frontend.builtinPreludeE, ConLeche.Frontend.parseExportD, hcl]
     rfl
@@ -626,33 +627,6 @@ theorem UCSeen.mono {st st' : EStore} {seen : Std.HashSet EIdx}
     intro h hc
     obtain ⟨e₀, he₀⟩ := Option.isSome_iff_exists.mp (hs.dom h hc)
     rw [denote_ext he₀ hx]; rfl
-
-/-- con-leche: none — the accumulator's own step: a name pushed on both
-sides. -/
-theorem denoteNList_snoc {st : NStore} :
-    ∀ {l : List NIdx} {lP : List ConLeche.Name} {n : NIdx}
-      {nP : ConLeche.Name}, denoteNList st l = some lP →
-      denoteN st n = some nP → denoteNList st (l ++ [n]) = some (lP ++ [nP]) := by
-  intro l
-  induction l with
-  | nil =>
-    intro lP n nP hl hn
-    simp only [denoteNList, Option.some.injEq] at hl
-    subst hl
-    simp only [List.nil_append, denoteNList, hn]
-  | cons a as ih =>
-    intro lP n nP hl hn
-    rw [denoteNList] at hl
-    cases ha : denoteN st a with
-    | none => rw [ha] at hl; simp at hl
-    | some x =>
-      cases has : denoteNList st as with
-      | none => rw [ha, has] at hl; simp at hl
-      | some xs =>
-        rw [ha, has] at hl
-        simp only [Option.some.injEq] at hl
-        subst hl
-        simp only [List.cons_append, denoteNList, ha, ih has hn]
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo — **the
 arena side of the used-constant walk**: the twin's walk over handles visits
@@ -1211,13 +1185,182 @@ against con-leche's `Std.HashMap Nat Nat` keyed by stream position — the two
 maps are equal as functions of the position, which is what `applyHoist`
 reads.  Task #97-P3-Frontend's sorry list, item 21. -/
 theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     {ds : Array IDeclaration} {dsP : Array Declaration}
     (hwf : StoreWF s.store) (hnds : DeclsProjNamed s.store ds)
     (hds : denoteDeclArray s.store ds = some dsP)
     {target : Std.HashMap Nat Nat} (hrun : hoistTargets ds s = .ok (target, s')) :
     ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets dsP := by
   sorry
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
+twin's `reorder` fold, as a `filterMap` over the index list. -/
+theorem reorder_toList (ds : Array IDeclaration) :
+    ∀ (order : List Nat) (acc : Array IDeclaration),
+      (order.foldl (fun acc k => acc ++ (ds[k]?.toArray)) acc).toList
+        = acc.toList ++ order.filterMap (fun k => ds[k]?) := by
+  intro order
+  induction order with
+  | nil => intro acc; simp
+  | cons k ks ih =>
+    intro acc
+    simp only [List.foldl_cons, ih, Array.toList_append, List.filterMap_cons]
+    cases h : ds[k]? <;> simp
+
+/-- con-leche: none — the records at a list of indices denote the denoted
+records at the same indices. -/
+theorem denoteDecls_filterMap {st : EStore} {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDecls st ds.toList = some dsP.toList) :
+    ∀ (order : List Nat),
+      denoteDecls st (order.filterMap (fun k => ds[k]?))
+        = some (order.filterMap (fun k => dsP[k]?)) := by
+  intro order
+  induction order with
+  | nil => rfl
+  | cons k ks ih =>
+    have h := denoteDecls_getElem? ds.toList dsP.toList hds k
+    simp only [Array.getElem?_toList] at h
+    simp only [List.filterMap_cons]
+    cases h1 : ds[k]? with
+    | none =>
+      rw [h1] at h
+      rw [h.none_left rfl] ; exact ih
+    | some d =>
+      obtain ⟨dP, h2, h3⟩ := h.some_left h1
+      rw [h2]
+      simp only [denoteDecls, h3, ih]
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
+twin's `movedNames` loop, as con-leche's `filter` then `flatMap`. -/
+theorem movedNames_toList (ds : Array IDeclaration) (target : Std.HashMap Nat Nat) :
+    ∀ (n k : Nat) (acc : Array NIdx), ds.size - k = n →
+      (movedNames ds target acc k).toList
+        = acc.toList ++ ((List.range' k (ds.size - k)).filter (fun i => target.contains i)).flatMap
+            (fun i => (ds[i]?.map IDeclaration.names).getD []) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k acc hn
+    rw [movedNames, dif_neg (by omega)]
+    simp [hn]
+  | succ n ih =>
+    intro k acc hn
+    have hk : k < ds.size := by omega
+    rw [movedNames, dif_pos hk, ih (k + 1) _ (by omega)]
+    have hr : ds.size - k = (ds.size - (k + 1)) + 1 := by omega
+    rw [hr, List.range'_succ]
+    by_cases hc : target.contains k = true
+    · rw [if_pos hc]
+      simp [hc, Array.getElem?_eq_getElem hk, List.flatMap_cons]
+    · rw [if_neg hc]
+      simp [hc]
+
+/-- con-leche: none — `denoteNList` through `++`. -/
+theorem denoteNList_append' {st : NStore} :
+    ∀ {a : List NIdx} {b : List NIdx} {aP bP : List ConLeche.Name},
+      denoteNList st a = some aP → denoteNList st b = some bP →
+      denoteNList st (a ++ b) = some (aP ++ bP) := by
+  intro a
+  induction a with
+  | nil => intro b aP bP ha hb; simp only [denoteNList, Option.some.injEq] at ha; subst ha; simpa using hb
+  | cons x xs ih =>
+    intro b aP bP ha hb
+    simp only [denoteNList] at ha
+    cases hx : denoteN st x with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : denoteNList st xs with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        obtain rfl := Option.some.inj ha
+        simp only [List.cons_append, denoteNList, hx, ih hxs hb]
+
+/-- con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names — the names
+of the records at a list of in-range indices denote (`declNames_denote`). -/
+theorem denoteNList_flatMap_names {st : EStore} {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDecls st ds.toList = some dsP.toList)
+    (hnds : DeclsProjNamed st ds) :
+    ∀ (idx : List Nat), (∀ i ∈ idx, i < ds.size) →
+      denoteNList st.ns (idx.flatMap (fun i => (ds[i]?.map IDeclaration.names).getD []))
+        = some (idx.flatMap (fun i => (dsP[i]!).names)) := by
+  intro idx
+  induction idx with
+  | nil => intro _; rfl
+  | cons i is ih =>
+    intro hb
+    have hi := hb i (by simp)
+    have h := denoteDecls_getElem? ds.toList dsP.toList hds i
+    simp only [Array.getElem?_toList, Array.getElem?_eq_getElem hi] at h
+    obtain ⟨dP, h2, h3⟩ := h.some_left rfl
+    have hn := declNames_denote (hnds _ (Array.getElem_mem hi)) h3
+    have hiP : i < dsP.size := by
+      rw [Array.getElem?_eq_some_iff] at h2; exact h2.1
+    have hdP : dsP[i]! = dP := by
+      rw [getElem!_pos dsP i hiP]; exact (Array.getElem?_eq_some_iff.mp h2).2
+    simp only [List.flatMap_cons, Array.getElem?_eq_getElem hi, Option.map_some,
+      Option.getD_some, hdP]
+    exact denoteNList_append' hn (ih (fun j hj => hb j (by simp [hj])))
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — **the
+reorder, at one and the same target map**: the twin's `reorder` over the sorted
+index list is con-leche's `List.map` over the same list (the two comparators
+are the same function of the map), and the moved names are the declared names
+of the moved records, in index order (`declNames_denote`, so `DeclsProjNamed`).
+Pure on both sides.  Round 7's child of `hoistNatOpGround_run`; the two
+comparators close by `congr` (they are the same term up to the matcher). -/
+theorem applyHoist_run {st : EStore} {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDeclArray st ds = some dsP)
+    (hpds : PersDecls ds) (hnds : DeclsProjNamed st ds)
+    (target : Std.HashMap Nat Nat) :
+    PersDecls (applyHoist ds target).1 ∧ DeclsProjNamed st (applyHoist ds target).1 ∧
+      denoteDeclArray st (applyHoist ds target).1
+        = some (ConLeche.Frontend.applyHoist dsP target).1 ∧
+      denoteNList st.ns (applyHoist ds target).2.toList
+        = some (ConLeche.Frontend.applyHoist dsP target).2.toList := by
+  have hL := denoteDeclArray_iff.mp hds
+  have hsz : ds.size = dsP.size := by
+    have := denoteDecls_length _ _ hL; simpa using this
+  simp only [applyHoist, ConLeche.Frontend.applyHoist]
+  generalize hO : ((List.range ds.size).mergeSort fun a b => !hoistLt target b a) = ord
+  rw [show (List.range dsP.size).mergeSort _ = ord from ?_]
+  rotate_left
+  · rw [← hO, ← hsz]
+    congr 1
+  have hbd : ∀ k ∈ ord, k < ds.size := by
+    intro k hk
+    rw [← hO] at hk
+    have := (List.mergeSort_perm (List.range ds.size) _).mem_iff.mp hk
+    simpa using this
+  have hre : (reorder ds ord).toList = ord.filterMap (fun k => ds[k]?) := by
+    rw [reorder, reorder_toList]; simp
+  have hmemR : ∀ x ∈ reorder ds ord, x ∈ ds := by
+    intro x hx
+    rw [← Array.mem_toList_iff, hre, List.mem_filterMap] at hx
+    obtain ⟨k, -, hk⟩ := hx
+    exact Array.mem_of_getElem? hk
+  refine ⟨fun x hx => hpds x (hmemR x hx), fun x hx => hnds x (hmemR x hx), ?_, ?_⟩
+  · rw [denoteDeclArray_iff, hre]
+    rw [denoteDecls_filterMap hL ord]
+    congr 1
+    have key : ∀ l : List Nat, (∀ k ∈ l, k < dsP.size) →
+        l.filterMap (fun k => dsP[k]?) = l.map (fun k => dsP[k]!) := by
+      intro l
+      induction l with
+      | nil => intro _; rfl
+      | cons k ks ih =>
+        intro hb
+        have hk := hb k (by simp)
+        simp only [List.filterMap_cons, Array.getElem?_eq_getElem hk, List.map_cons,
+          getElem!_pos dsP k hk, ih (fun j hj => hb j (by simp [hj]))]
+    exact key ord (fun k hk => hsz ▸ hbd k hk)
+  · rw [movedNames_toList ds target _ 0 #[] rfl]
+    simp only [List.nil_append, Nat.sub_zero, ← List.range_eq_range']
+    simp only [Array.toList_flatMap, Array.toList_filter, Array.toList_range]
+    rw [← hsz]
+    refine denoteNList_flatMap_names hL hnds _ (fun i hi => ?_)
+    simp only [List.mem_filter, List.mem_range] at hi
+    exact hi.1
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:167 hoistNatOpGround — the
 hoist.  Its answer is a PERMUTATION of its argument, so the denotation of the
@@ -1226,12 +1369,13 @@ result is the permutation of the denotation, and the moved-name list denotes.
 **The frame is `ParseStep` for round 4's finding 16's reason** (round 5):
 `hoistTargets` reads `usedConsts`, which interns at a projection table.
 
-`sorry`: `hoistTargets_run`, then
-`applyHoist`'s `reorder` as a `List.map` over a permutation of indices — the
-same list of indices on both sides.  Task #97-P3-Frontend's sorry list,
-item 21. -/
+`hoistTargets_run` (the SAME target map on both sides), then
+`applyHoist_run` at it.  Round 7 skeletonised it: what it rests on is those
+two, and `PinsOK s` is new — `isNatOpRecord` reads the pinned operation names
+(`natDivModNames`/`natOpNames` are pin reads), so without it the twin's
+target map is not con-leche's. -/
 theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}
     (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
     (hnds : DeclsProjNamed s.store ds)
@@ -1242,7 +1386,25 @@ theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
         = some (ConLeche.Frontend.hoistNatOpGround dsP).1 ∧
       denoteNList s'.store.ns moved.toList
         = some (ConLeche.Frontend.hoistNatOpGround dsP).2.toList := by
-  sorry
+  rw [hoistNatOpGround] at hrun
+  rw [ConLeche.Frontend.hoistNatOpGround]
+  obtain ⟨target, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hstep, rfl⟩ := hoistTargets_run hok hoff hpins hwf hnds hds h1
+  have hds1 := denoteDeclArray_ext hstep.ext hds
+  have hnds1 := hnds.mono hstep.ext
+  by_cases he : (ConLeche.Frontend.hoistTargets dsP).isEmpty = true
+  · rw [if_pos he] at hrun
+    rw [if_pos he]
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+    injection hv with h1 h2
+    subst h1; subst h2
+    exact ⟨hstep, hpds, hnds1, hds1, rfl⟩
+  · rw [if_neg he] at hrun
+    rw [if_neg he]
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+    obtain ⟨h1, h2, h3, h4⟩ := applyHoist_run hds1 hpds hnds1 (ConLeche.Frontend.hoistTargets dsP)
+    rw [← hv] at h1 h2 h3 h4
+    exact ⟨hstep, h1, h2, h3, h4⟩
 
 /-! ## The prepared stream -/
 
@@ -1254,7 +1416,7 @@ fold's argument.
 
 `frontOf_run` and `hoistNatOpGround_run` composed. -/
 theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {pre : PreludeIx}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
     (hprep : PersPreludeIx pre) (hnpre : DeclsProjNamed s.store pre.decls)
     {ds : Array IDeclaration}
@@ -1290,7 +1452,8 @@ theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
         exact hnpre d (by simpa using hd))
       hds hpds hnds hfront
   obtain ⟨hstep2, hpo, hno, hclo, -⟩ :=
-    hoistNatOpGround_run hstep1.ok (by rw [hstep1.scratch]; exact hoff) hstep1.ok.wf
+    hoistNatOpGround_run hstep1.ok (by rw [hstep1.scratch]; exact hoff)
+      (hpins.mono hstep1.ext hstep1.pins) hstep1.ok.wf
       (denoteDeclArray_append hclf hclr)
       (by
         intro d hd
@@ -1318,7 +1481,7 @@ Proved from `preparePrelude_run` and con-leche's own `mem_preparePrelude`, so
 the permutation argument is never re-run on this side — which is the point of
 stating the pass as a denotation equation rather than as a permutation. -/
 theorem mem_preparePrelude_denote {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {pre : PreludeIx}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
     (hprep : PersPreludeIx pre) (hnpre : DeclsProjNamed s.store pre.decls)
     {ds : Array IDeclaration}
@@ -1329,7 +1492,7 @@ theorem mem_preparePrelude_denote {s s' : AState} (hok : StateOK s)
     {d : Declaration} (hmem : d ∈ dsP) :
     ∃ outP, denoteDeclArray s'.store out = some outP ∧ d ∈ outP := by
   obtain ⟨-, -, -, hout⟩ :=
-    preparePrelude_run hok hoff hpre hprep hnpre hds hpds hnds hrun
+    preparePrelude_run hok hoff hpins hpre hprep hnpre hds hpds hnds hrun
   exact ⟨_, hout, ConLeche.Frontend.mem_preparePrelude hmem⟩
 
 end ConRon.Bridge.Frontend
