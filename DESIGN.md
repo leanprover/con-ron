@@ -60852,3 +60852,18 @@ per-module build time (one run each, noisy): 466 s → 428 s.
 (`extract-check` 100 s, `lake-bridge` 552 s).  Submitted as slice 1; the
 workaround cleanups follow as slice 2 (their sites are in the Checker round-2
 slice-2 branch, still in the queue when this was submitted).
+
+#### Slice 1b — `twin_bind_pure` skips a twin `if` (core, one commit)
+
+Reported by the Checker Base/Top lane through the coordinator (its local
+`chk_lockstep` wrapper in `Checker/Base.lean`): when the twin's next step is
+an `if` the last Rust test already decided and the Rust's next step is a
+state bind whose partner is INSIDE the branch, the `rustStep` fallback
+`LS.twin_bind_pure` could take the whole `if` as the partner and bury it under
+`>>= pure`.  The fallback now does not fire at a twin `ite`/`dite`; `stepCore`
+then decides the `if` (cheap tier, then dear) or, failing that, splits it
+(slice 1).  New test in `Tactic/Tests.lean` (a twin `if b then … else
+unresolvedConstsError …` with `¬ b = true` in context against the Rust's
+`unresolved_consts_error` bind).  `lake build ConRonRefine2` green.  The lane's
+`chk_lockstep` can become `lockstep` once this and its branch are both on
+`arena`.
