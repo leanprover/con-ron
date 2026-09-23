@@ -330,6 +330,9 @@ namespace ConRon.Bridge
 #print axioms checkThmVal_bridge
 #print axioms checkOpaqueVal_bridge
 
+-- the check half of the install/check seam, on the same machinery
+#print axioms checkValueGroup_bridge
+
 /-! ## Group 2 — the three headline theorems
 
 Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`
