@@ -10238,9 +10238,9 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx f2 == absEIdx f && absEIdx a2 == absEIdx a) = same := by
-                rw [eidx_eq2_abs hbb]
+                rw [eidx_eq2_beq hbb]
                 cases bb with
-                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_abs hsame]; rfl
+                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_beq hsame]; rfl
                 | false =>
                   rw [if_neg (by simp)] at hsame
                   rw [← Result.ok_injective hsame]; rfl
@@ -10349,9 +10349,9 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx t2 == absEIdx ty && absEIdx b2 == absEIdx body) = same := by
-                rw [eidx_eq2_abs hbb]
+                rw [eidx_eq2_beq hbb]
                 cases bb with
-                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_abs hsame]; rfl
+                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_beq hsame]; rfl
                 | false =>
                   rw [if_neg (by simp)] at hsame
                   rw [← Result.ok_injective hsame]; rfl
@@ -10508,7 +10508,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
                 obtain ⟨st5, same⟩ := q
                 have hs : st5 = st4 ∧ (absEIdx t2 == absEIdx ty &&
                     absEIdx w2 == absEIdx val && absEIdx b2 == absEIdx body) = same := by
-                  rw [eidx_eq2_abs hbb]
+                  rw [eidx_eq2_beq hbb]
                   cases bb with
                   | true =>
                     rw [if_pos rfl] at hqq
@@ -10518,9 +10518,9 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
                     simp only [Prod.mk.injEq] at this
                     obtain ⟨rfl, rfl⟩ := this
                     refine ⟨rfl, ?_⟩
-                    rw [eidx_eq2_abs hb1']
+                    rw [eidx_eq2_beq hb1']
                     cases b1 with
-                    | true => rw [if_pos rfl] at hb3; rw [eidx_eq2_abs hb3]; rfl
+                    | true => rw [if_pos rfl] at hb3; rw [eidx_eq2_beq hb3]; rfl
                     | false =>
                       rw [if_neg (by simp)] at hb3
                       rw [← Result.ok_injective hb3]; rfl
@@ -10617,7 +10617,7 @@ private theorem abstract1_go_aux (n : Nat) : Abs1GoAt n := by
             have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
               intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-            rw [eidx_eq2_abs hsame]
+            rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
             have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
@@ -10886,9 +10886,9 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx f2 == absEIdx f && absEIdx a2 == absEIdx a) = same := by
-                rw [eidx_eq2_abs hbb]
+                rw [eidx_eq2_beq hbb]
                 cases bb with
-                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_abs hsame]; rfl
+                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_beq hsame]; rfl
                 | false =>
                   rw [if_neg (by simp)] at hsame
                   rw [← Result.ok_injective hsame]; rfl
@@ -10997,9 +10997,9 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx t2 == absEIdx ty && absEIdx b2 == absEIdx body) = same := by
-                rw [eidx_eq2_abs hbb]
+                rw [eidx_eq2_beq hbb]
                 cases bb with
-                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_abs hsame]; rfl
+                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_beq hsame]; rfl
                 | false =>
                   rw [if_neg (by simp)] at hsame
                   rw [← Result.ok_injective hsame]; rfl
@@ -11180,7 +11180,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
                 obtain ⟨st5, same⟩ := q
                 have hs : st5 = st4 ∧ (absEIdx t2 == absEIdx ty &&
                     absEIdx w2 == absEIdx val && absEIdx b2 == absEIdx body) = same := by
-                  rw [eidx_eq2_abs hbb]
+                  rw [eidx_eq2_beq hbb]
                   cases bb with
                   | true =>
                     rw [if_pos rfl] at hqq
@@ -11190,9 +11190,9 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
                     simp only [Prod.mk.injEq] at this
                     obtain ⟨rfl, rfl⟩ := this
                     refine ⟨rfl, ?_⟩
-                    rw [eidx_eq2_abs hb1']
+                    rw [eidx_eq2_beq hb1']
                     cases b1 with
-                    | true => rw [if_pos rfl] at hb3; rw [eidx_eq2_abs hb3]; rfl
+                    | true => rw [if_pos rfl] at hb3; rw [eidx_eq2_beq hb3]; rfl
                     | false =>
                       rw [if_neg (by simp)] at hb3
                       rw [← Result.ok_injective hb3]; rfl
@@ -11289,7 +11289,7 @@ private theorem abstract_range_go_aux (n : Nat) : AbsRangeGoAt n := by
             have hfroz1 : st2.store.shared_on = true → st2.store.scratch_on = true := by
               intro hs; rw [hfl2]; exact hfrozA (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-            rw [eidx_eq2_abs hsame]
+            rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st3⟩ := p2
             have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
