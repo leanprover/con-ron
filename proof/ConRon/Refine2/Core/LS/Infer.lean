@@ -8,6 +8,8 @@ Task #97-P5-Core round 5, region E.  The Theorem-2 lockstep lemmas of
 (`infer_spine`, `infer_spine_io`, `infer_app`, `infer_app_io_at`).
 -/
 import ConRon.Refine2.Core.LS.PrimsE
+import ConRon.Refine2.Core.LS.Leaves
+import ConRon.Refine2.Core.LS.Shapes
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -19,90 +21,6 @@ namespace ConRon.Refine2.Lockstep
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-/-- Region A2: `head_and_args` against `headAndArgs`. -/
-@[lockstep] theorem stub_head_and_args_ls {pers st v lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = (absEIdx a.1, absEIdxArr a.2))
-      (arena.core.head_and_args pers st v) st lst (headAndArgs (absEIdx v)) := by
-  sorry
-
-/-- Region A2: `infer_lam_result` against `inferLamResult`. -/
-@[lockstep] theorem stub_infer_lam_result_ls {pers st ty bt depth mb lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.infer_lam_result pers st ty bt depth mb) lst
-      (inferLamResult (absEIdx ty) (absEIdx bt) (absU depth)
-        (ConRon.Refine.absBinderMeta mb)) := by
-  sorry
-
-/-- Region A2: `infer_lams_out` against `inferLamsOut`.  The two `PropWhenWF`
-premises are what `prop_when::beq` needs (see `PrimsE.lean`); a statement
-without them is at least as strong for the consumer. -/
-@[lockstep] theorem stub_infer_lams_out_ls {pers st mode d stk n cur prev_pw lst}
-    (hx : ExprOpsHyp pers)
-    (hstk : ∀ p ∈ (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)).val,
-      ConRon.Refine.PropWhenWF p.2.pw)
-    (hpw : ConRon.Refine.PropWhenWF prev_pw)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.infer_lams_out pers st mode d stk n cur prev_pw) lst
-      (inferLamsOut (ConRon.Refine.absMode mode) (absU d) (absLamStk stk) (absSz n)
-        (absEIdx cur) (ConRon.Refine.absPropWhen prev_pw)) := by
-  sorry
-
-/-- Region A2: `infer_pis_out` against `inferPisOut`. -/
-@[lockstep] theorem stub_infer_pis_out_ls {pers st mode stk n v pv lst}
-    (hstk : ∀ p ∈ (stk : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)).val,
-      ConRon.Refine.PropWhenWF p.2)
-    (hpv : ConRon.Refine.PropWhenWF pv)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absLIdx a)
-      (arena.core.infer_pis_out pers st mode stk n v pv) lst
-      (inferPisOut (ConRon.Refine.absMode mode) (absPiStk stk) (absSz n) (absLIdx v)
-        (ConRon.Refine.absPropWhen pv)) := by
-  sorry
-
-/-- Region A1: `const_e` against `constE`. -/
-@[lockstep] theorem stub_const_e_ls {pers st n lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.const_e pers st n) lst
-      (constE (absNIdx n)) := by
-  sorry
-
-/-- Region A1: `zero_level` against `zeroLevel`. -/
-@[lockstep] theorem stub_zero_level_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
-  sorry
-
-/-- Region A1: `unknown_const_error` against `unknownConstError`. -/
-@[lockstep] theorem stub_unknown_const_error_ls {pers st n lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => absAErrKind a = lAErrKind b) (arena.core.unknown_const_error st n) lst
-      (unknownConstError (absNIdx n)) := by
-  sorry
-
-/-- Region A1: `lvl_eq` against `lvlEq?`. -/
-@[lockstep] theorem stub_lvl_eq_ls {pers st u v lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.lvl_eq pers st u v) lst
-      (lvlEq? (absLIdx u) (absLIdx v)) := by
-  sorry
-
-/-- Region A1: `const_ty_at` against `constTyAt`. -/
-@[lockstep] theorem stub_const_ty_at_ls {pers st cv us lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.const_ty_at pers st cv us) lst
-      (constTyAt (absIConstantVal cv) (absLsIdx us)) := by
-  sorry
-
-/-- Region A1: `proj_entry_type_at` against `IProjEntry.typeAt`. -/
-@[lockstep] theorem stub_proj_entry_type_at_ls {pers st entry us targs pe lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.proj_entry_type_at pers st entry us targs pe)
-      lst ((absIProjEntry entry).typeAt (absLsIdx us) (absEIdxList targs) (absEIdx pe)) := by
-  sorry
 
 /-- Region B: `nat_lit_supported` against `natLitSupported`. -/
 @[lockstep] theorem stub_nat_lit_supported_ls {pers vis st fe lfe lst}
@@ -263,10 +181,11 @@ end spineIO
     generalize heq : (GetElem.getElem stk.val (_ : Nat) _ : arena.handle.EIdx × kernel.expr.BinderMeta) = p at hf
     obtain ⟨x, bm⟩ := p
     obtain rfl := (Result.ok_injective hf)
-    refine LS.tail (stub_infer_lams_out_ls hx hstk ?_ hrel hinv) ?_ (fun _ _ h => h)
+    refine LS.tail (infer_lams_out_ls hx hstk ?_ hrel hinv) ?_ (fun _ _ h => h)
     · have hbm : bm = (x, bm).2 := rfl
       rw [hbm, ← heq]; exact hstk _ (List.getElem_mem _)
     · have hne : stk.val.length ≠ 0 := by scalar_tac
+      show inferLamsOut _ _ (absLamStk stk) _ _ _ = _
       simp only [vec_len_abs]
       rw [if_neg hne, absLamStk_last_pw stk _ (by assumption) (by scalar_tac), heq]
 

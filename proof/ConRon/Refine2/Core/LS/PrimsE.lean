@@ -269,6 +269,26 @@ theorem lam_pw_wf_ls {pers} (hx : ExprOpsHyp pers) {st lst}
         exact hw
     · cases Result.ok_injective hrun; trivial
 
+theorem lam_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {x : arena.handle.EIdx × kernel.expr.BinderMeta} (h : stk1.val = stk.val ++ [x])
+    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw) (hx : ConRon.Refine.PropWhenWF x.2.pw) :
+    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [h, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact hs p hp
+  · exact hx
+
+theorem pi_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)}
+    {x : arena.handle.LIdx × kernel.prop_when.PropWhen} (h : stk1.val = stk.val ++ [x])
+    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2) (hx : ConRon.Refine.PropWhenWF x.2) :
+    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2 := by
+  intro p hp
+  rw [h, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact hs p hp
+  · exact hx
+
 /-! ## Reads -/
 
 @[lockstep] theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -433,18 +453,6 @@ interns the reserved table name. -/
       (arena.env.ifenv_find_proj pers vis st.store fe t i) st lst
       (lfe.findProj? (absNIdx t) (absU i)) := by
   -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
-
-/-! ## The two pins -/
-
-@[lockstep] theorem pin_nat_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat st) st lst pinNat := by
-  sorry
-
-@[lockstep] theorem pin_string_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_string st) st lst pinString := by
   sorry
 
 /-! ## Levels (the propositional-structure check of the `.proj` clause) -/
