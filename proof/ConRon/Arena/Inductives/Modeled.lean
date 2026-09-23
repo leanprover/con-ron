@@ -121,21 +121,29 @@ def projFwd (T ctor : NIdx) (nF : Nat) : AM (List (NIdx × NIdx)) := do
 the shape of every pinned iota/eta/unit statement body, read in one function:
 the head's name, its single level, the type slot and the two sides. -/
 def eqApp3? (h : EIdx) : AM (Option (NIdx × LIdx × EIdx × EIdx × EIdx)) := do
-  match ← view h with
-  | .app f1 r => do
-    match ← view f1 with
-    | .app f2 l => do
-      match ← view f2 with
-      | .app f3 ty => do
-        match ← view f3 with
-        | .const c us => do
-          match ← viewLs us with
-          | [lv] => pure (some (c, lv, ty, l, r))
-          | _ => pure none
+  if h.tag == ETag.app then
+    match ← view h with
+    | .app f1 r => do
+      if f1.tag == ETag.app then
+        match ← view f1 with
+        | .app f2 l => do
+          if f2.tag == ETag.app then
+            match ← view f2 with
+            | .app f3 ty => do
+              if f3.tag == ETag.const then
+                match ← view f3 with
+                | .const c us => do
+                  match ← viewLs us with
+                  | [lv] => pure (some (c, lv, ty, l, r))
+                  | _ => pure none
+                | _ => pure none
+              else pure none
+            | _ => pure none
+          else pure none
         | _ => pure none
-      | _ => pure none
+      else pure none
     | _ => pure none
-  | _ => pure none
+  else pure none
 
 /-! ## The iota certificates -/
 
@@ -144,23 +152,20 @@ Certify that both sides of a modeled iota equation inhabit the equation's
 type, and that the equation's type slot itself inhabits the sort the
 statement's own `Eq.{ℓA}` names. -/
 def checkIotaSidesTy (mode : CheckMode) (feSelf : IFEnv) (depth : Nat)
-    (alphaS lhsS rhsS : EIdx) (lA : LIdx) (cvName : NIdx) : AM Unit := do
+    (alphaS lhsS rhsS : EIdx) (lA : LIdx) : AM Unit := do
   let tl ← inferTypeCore mode feSelf checkFuel depth lhsS
   unless ← isDefEqCore mode feSelf checkFuel depth tl alphaS do
-    let n ← readName cvName
-    fail (.notImplemented s!"iota statement lhs type for {n}")
+    fail (.notImplemented "iota statement lhs type")
   let tr ← inferTypeCore mode feSelf checkFuel depth rhsS
   unless ← isDefEqCore mode feSelf checkFuel depth tr alphaS do
-    let n ← readName cvName
-    fail (.notImplemented s!"iota statement rhs type for {n}")
+    fail (.notImplemented "iota statement rhs type")
   -- TT-lane check (task #147): the slot-sort certification is skipped unless
   -- `mode.ttChecks`.
   if mode.ttChecks then
     let ta ← inferTypeCore mode feSelf checkFuel depth alphaS
     let s ← internE (.sort lA)
     unless ← isDefEqCore mode feSelf checkFuel depth ta s do
-      let n ← readName cvName
-      fail (.notImplemented s!"iota statement type slot sort for {n}")
+      fail (.notImplemented "iota statement type slot sort")
 
 /-- con-leche: none — the name of a recursor's `j`-th model iota theorem,
 `(cvName.str "_model").str "iota_j"`, interned. -/
@@ -174,22 +179,22 @@ def checkIotaThm (mode : CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
     (mI rP j : Nat) (r : IRecRule) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) : AM Unit := do
-  let nm ← readName cvName
   let cvt ← unwrapOr (← fe'.findCV? (← iotaThmName cvName j))
-    (.notImplemented s!"missing iota theorem for {nm}")
+    (.notImplemented "missing iota theorem")
   unless cvt.levelParams = lps do
-    fail (.notImplemented s!"iota theorem level mismatch for {nm}")
+    fail (.notImplemented "iota theorem level mismatch")
   -- open the theorem's telescope: params, motives, minors, fields
   let depth := rP + cnF
   let (fvs, tbody) ← unwrapOr (← openPisAtFvarsF depth cvt.type 0)
-    (.notImplemented s!"iota statement shape mismatch for {nm}")
+    (.notImplemented "iota statement shape mismatch")
   -- the body is an equation (at one level, like the pinned `Eq`)
   let targs ← getAppArgs coreWalkFuel tbody
   let tfn ← getAppFn coreWalkFuel tbody
   unless ← isEqHead tfn do
-    fail (.notImplemented s!"iota statement not an equation for {nm}")
+    fail (.notImplemented "iota statement not an equation")
   unless targs.length = 3 do
-    fail (.notImplemented s!"iota statement not an equation for {nm}")
+    fail (.notImplemented "iota statement not an equation")
+  let lA ← eqHeadLevel tfn
   let b0 ← internE (.bvar 0)
   let lhsS := targs.getD 1 b0
   let rhsS := targs.getD 2 b0
@@ -202,56 +207,57 @@ def checkIotaThm (mode : CheckMode) (fe' feSelf : IFEnv)
   let lfn ← getAppFn coreWalkFuel lhsS
   let lus ← paramLevels lps
   let wantHd ← internE (.const (renameBy f cvName) lus)
+  -- the head, arity and prefix pins decline with ONE message, the port's
+  -- `M_IOTA_HEAD` (it merges the three into `iota_lhs_prefix_ok`)
   unless lfn == wantHd do
-    fail (.notImplemented s!"iota statement head mismatch for {nm}")
+    fail (.notImplemented "iota statement head mismatch")
   unless largs.length = mI + 1 do
-    fail (.notImplemented s!"iota statement arity mismatch for {nm}")
+    fail (.notImplemented "iota statement head mismatch")
   unless largs.take rP == fvs.take rP do
-    fail (.notImplemented s!"iota statement prefix mismatch for {nm}")
+    fail (.notImplemented "iota statement head mismatch")
   let major := largs.getLastD b0
   let cus ← paramLevels cvj.levelParams
   let cHd ← internE (.const (renameBy f r.ctor) cus)
   let wantMajor ← mkAppN cHd (fvs.take cnP ++ xFvs)
   unless major == wantMajor do
-    fail (.notImplemented s!"iota statement major mismatch for {nm}")
+    fail (.notImplemented "iota statement major mismatch")
   -- the constructor's telescope (renamed), instantiated at the major's
   -- arguments: field domains and the canonical index tuple
   unless (← stripPis (cnP + cnF) cvj.type).isSome do
-    fail (.notImplemented s!"iota constructor telescope for {nm}")
+    fail (.notImplemented "iota constructor telescope")
   let ctyR ← renameConstsFast coreWalkFuel (renameBy f) cvj.type
   let (cdoms, cres) ← unwrapOr
       (← instPisAtF coreWalkFuel (fvs.take cnP ++ xFvs) ctyR)
-      (.notImplemented s!"iota constructor telescope for {nm}")
+      (.notImplemented "iota constructor telescope")
   let cargs ← getAppArgs coreWalkFuel cres
   unless cargs.length = cnP + (mI - rP) do
-    fail (.notImplemented s!"iota constructor indices for {nm}")
+    fail (.notImplemented "iota constructor indices")
   checkDefEqList mode feSelf depth ((largs.drop rP).take (mI - rP)) (cargs.drop cnP)
   checkDefEqList mode feSelf depth (← xFvs.mapM fvarTypeD) (cdoms.drop cnP)
   -- the statement's prefix domains are the recursor's (renamed)
   let tyAR ← renameConstsFast coreWalkFuel (renameBy f) tyA
   let (rdoms, _) ← unwrapOr (← instPisAtF coreWalkFuel (fvs.take rP) tyAR)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   checkDefEqList mode feSelf depth (← (fvs.take rP).mapM fvarTypeD) rdoms
   -- the rule's λ-domains are the public recursor prefix and constructor field
   -- domains
   let (fvsP, _) ← unwrapOr (← openPisAtFvarsF rP tyA 0)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   let (cdomsP, crestP) ← unwrapOr
       (← instPisAtF coreWalkFuel (fvsP.take cnP) cvj.type)
-      (.notImplemented s!"iota constructor telescope for {nm}")
+      (.notImplemented "iota constructor telescope")
   checkDefEqList mode feSelf depth (← (fvsP.take cnP).mapM fvarTypeD) cdomsP
   let (xFvsP, _) ← unwrapOr (← openPisAtFvarsF cnF crestP rP)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   let (ldoms, _) ← unwrapOr (← instLamsAtF coreWalkFuel (fvsP ++ xFvsP) rhsA)
-    (.notImplemented s!"rule shape mismatch for {nm}")
+    (.notImplemented "rule shape mismatch")
   checkDefEqList mode feSelf depth (← (fvsP ++ xFvsP).mapM fvarTypeD) ldoms
   -- the right side: definitionally the rule's applied rhs
   let rhsR ← renameConstsFast coreWalkFuel (renameBy f) rhsA
   let rhsApplied ← mkAppN rhsR fvs
   unless ← isDefEqCore mode feSelf checkFuel depth rhsS rhsApplied do
-    fail (.notImplemented s!"iota statement mismatch for {nm}")
-  checkIotaSidesTy mode feSelf depth (targs.getD 0 b0) lhsS rhsS
-    (← eqHeadLevel tfn) cvName
+    fail (.notImplemented "iota statement mismatch")
+  checkIotaSidesTy mode feSelf depth (targs.getD 0 b0) lhsS rhsS lA
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
 The nested-shape data of a non-canonical rule: the constructor's level and
@@ -264,9 +270,12 @@ def nestedRuleShape (fe' feSelf : IFEnv) (cvName : NIdx) (lps : List NIdx)
   if !((← fe'.findCV? thm).isSome && decide (rP ≤ mI)) then pure none else
   match ← stripPis mI tyA with
   | some (_, rest) => do
+    if rest.tag == ETag.forallE then
     match ← view rest with
     | .forallE dom _ _ => do
-      match ← view (← getAppFn coreWalkFuel dom) with
+      let hd ← getAppFn coreWalkFuel dom
+      if hd.tag == ETag.const then
+      match ← view hd with
       | .const _D lvlsIdx => do
         let args ← getAppArgs coreWalkFuel dom
         let k := mI - rP
@@ -287,7 +296,9 @@ def nestedRuleShape (fe' feSelf : IFEnv) (cvName : NIdx) (lps : List NIdx)
           pure (some (lvls, pins))
         else pure none
       | _ => pure none
+      else pure none
     | _ => pure none
+    else pure none
   | _ => pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
@@ -301,20 +312,20 @@ def checkIotaThmN (mode : CheckMode) (fe' feSelf : IFEnv)
   match ← nestedRuleShape fe' feSelf cvName lps tyA mI rP cnP j with
   | none => pure .inert
   | some (lvls, pins) => do
-  let nm ← readName cvName
   let cvt ← unwrapOr (← fe'.findCV? (← iotaThmName cvName j))
-    (.notImplemented s!"missing iota theorem for {nm}")
+    (.notImplemented "missing iota theorem")
   unless cvt.levelParams = lps do
-    fail (.notImplemented s!"iota theorem level mismatch for {nm}")
+    fail (.notImplemented "iota theorem level mismatch")
   let depth := rP + cnF
   let (fvs, tbody) ← unwrapOr (← openPisAtFvarsF depth cvt.type 0)
-    (.notImplemented s!"iota statement shape mismatch for {nm}")
+    (.notImplemented "iota statement shape mismatch")
   let targs ← getAppArgs coreWalkFuel tbody
   let tfn ← getAppFn coreWalkFuel tbody
   unless ← isEqHead tfn do
-    fail (.notImplemented s!"iota statement not an equation for {nm}")
+    fail (.notImplemented "iota statement not an equation")
   unless targs.length = 3 do
-    fail (.notImplemented s!"iota statement not an equation for {nm}")
+    fail (.notImplemented "iota statement not an equation")
+  let lA ← eqHeadLevel tfn
   let b0 ← internE (.bvar 0)
   let lhsS := targs.getD 1 b0
   let rhsS := targs.getD 2 b0
@@ -326,62 +337,67 @@ def checkIotaThmN (mode : CheckMode) (fe' feSelf : IFEnv)
   let lfn ← getAppFn coreWalkFuel lhsS
   let lus ← paramLevels lps
   let wantHd ← internE (.const (renameBy f cvName) lus)
+  -- the head, arity and prefix pins decline with ONE message, the port's
+  -- `M_IOTA_HEAD` (it merges the three into `iota_lhs_prefix_ok`)
   unless lfn == wantHd do
-    fail (.notImplemented s!"iota statement head mismatch for {nm}")
+    fail (.notImplemented "iota statement head mismatch")
   unless largs.length = mI + 1 do
-    fail (.notImplemented s!"iota statement arity mismatch for {nm}")
+    fail (.notImplemented "iota statement head mismatch")
   unless largs.take rP == fvs.take rP do
-    fail (.notImplemented s!"iota statement prefix mismatch for {nm}")
+    fail (.notImplemented "iota statement head mismatch")
   let major := largs.getLastD b0
   let lvlsIdx ← internLsNode lvls
   let cHd ← internE (.const (renameBy f r.ctor) lvlsIdx)
   let wantMajor ← mkAppN cHd (pinsF ++ xFvs)
   unless major == wantMajor do
-    fail (.notImplemented s!"iota statement major mismatch for {nm}")
+    fail (.notImplemented "iota statement major mismatch")
   -- the constructor's telescope at the stored level instantiations (renamed)
   let (_, cbody0) ← unwrapOr (← stripPis (cnP + cnF) cvj.type)
-    (.notImplemented s!"iota constructor telescope for {nm}")
-  unless (match ← view (← getAppFn coreWalkFuel cbody0) with
-      | .const _ _ => true
-      | _ => false) do
-    fail (.notImplemented s!"iota constructor residual head for {nm}")
+    (.notImplemented "iota constructor telescope")
+  let chd ← getAppFn coreWalkFuel cbody0
+  if chd.tag == ETag.const then
+    unless (match ← view chd with
+        | .const _ _ => true
+        | _ => false) do
+      fail (.notImplemented "iota constructor residual head")
+  else
+    fail (.notImplemented "iota constructor residual head")
   let ctyL ← instLPFast coreWalkFuel cvj.levelParams lvlsIdx cvj.type
   let ctyR ← renameConstsFast coreWalkFuel (renameBy f) ctyL
   let (cdoms, cres) ← unwrapOr (← instPisAtF coreWalkFuel (pinsF ++ xFvs) ctyR)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   let cargs ← getAppArgs coreWalkFuel cres
   unless cargs.length = cnP + (mI - rP) do
-    fail (.notImplemented s!"iota constructor indices for {nm}")
+    fail (.notImplemented "iota constructor indices")
   checkDefEqList mode feSelf depth ((largs.drop rP).take (mI - rP)) (cargs.drop cnP)
   checkDefEqList mode feSelf depth (← xFvs.mapM fvarTypeD) (cdoms.drop cnP)
   -- the statement's prefix domains are the recursor's (renamed)
   let tyAR ← renameConstsFast coreWalkFuel (renameBy f) tyA
   let (rdoms, _) ← unwrapOr (← instPisAtF coreWalkFuel (fvs.take rP) tyAR)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   checkDefEqList mode feSelf depth (← (fvs.take rP).mapM fvarTypeD) rdoms
   -- the rule's λ-domains are the public recursor prefix and the constructor's
   -- field domains at the public instantiations
   let (fvsP, _) ← unwrapOr (← openPisAtFvarsF rP tyA 0)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   let pinsP ← pins.mapM fun p => instSpine coreWalkFuel (fvsP.take rP) (rP - 1) p
   checkAnnotList mode feSelf depth pinsP
   let ctyL2 ← instLPFast coreWalkFuel cvj.levelParams lvlsIdx cvj.type
   let (cdomsP, crestP) ← unwrapOr (← instPisAtF coreWalkFuel pinsP ctyL2)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   checkTypedList mode feSelf depth pinsP cdomsP
   let (xFvsP, crest2P) ← unwrapOr (← openPisAtFvarsF cnF crestP rP)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   unless (← getAppArgs coreWalkFuel crest2P).length == cnP + (mI - rP) do
-    fail (.notImplemented s!"iota constructor arity for {nm}")
+    fail (.notImplemented "iota constructor arity")
   let (ldoms, _) ← unwrapOr (← instLamsAtF coreWalkFuel (fvsP ++ xFvsP) rhsA)
-    (.notImplemented s!"rule shape mismatch for {nm}")
+    (.notImplemented "rule shape mismatch")
   checkDefEqList mode feSelf depth (← (fvsP ++ xFvsP).mapM fvarTypeD) ldoms
   let rhsR ← renameConstsFast coreWalkFuel (renameBy f) rhsA
   let rhsApplied ← mkAppN rhsR fvs
   unless ← isDefEqCore mode feSelf checkFuel depth rhsS rhsApplied do
-    fail (.notImplemented s!"iota statement mismatch for {nm}")
-  checkIotaSidesTy mode feSelf depth (targs.getD 0 b0) lhsS rhsS
-    (← eqHeadLevel tfn) cvName
+    fail (.notImplemented "iota statement mismatch")
+  checkIotaSidesTy mode feSelf depth (targs.getD 0 b0) lhsS rhsS lA
   pure (.nested lvls pins)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
@@ -390,26 +406,23 @@ side, then the model's `iota_j` theorem. -/
 def checkIotaRule (mode : CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
     (mI rP j : Nat) (r : IRecRule) : AM IRecRule := do
-  let nm ← readName cvName
   let some (.ctorInfo cvj cnP cnF) := fe'.find? r.ctor
-    | do
-      let cn ← readName r.ctor
-      fail (.invalid s!"iota rule constructor {cn} not stored")
+    | fail (.invalid "iota rule constructor not stored")
   unless r.nfields = cnF do
     fail (.invalid "rule field count mismatch")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 r.rhs do
-    fail (.invalid s!"loose bound variable in rule of {nm}")
+    fail (.invalid "loose bound variable in rule")
   if ← hasFvarFast coreWalkFuel r.rhs then
-    fail (.invalid s!"free variable in rule of {nm}")
+    fail (.invalid "free variable in rule")
   let rhsA ← annotateCore mode feSelf checkFuel 0 r.rhs
   unless ← allLevelParamsDefined lps rhsA do
-    fail (.invalid s!"undeclared universe parameter in rule of {nm}")
+    fail (.invalid "undeclared universe parameter in rule")
   unless ← constsResolveFFast feSelf rhsA do
-    fail (← unresolvedConstsError s!"rule of {nm}" rhsA)
+    fail (← unresolvedConstsError "rule" rhsA)
   -- the rule's rhs must be a λ-telescope over the recursor prefix and the
   -- constructor fields (so it can be applied positionally)
   unless (← stripLams (rP + cnF) rhsA).isSome do
-    fail (.notImplemented s!"rule shape mismatch for {nm}")
+    fail (.notImplemented "rule shape mismatch")
   let _rhsTy ← inferTypeCore mode feSelf checkFuel 0 rhsA
   -- the firing mode is computed once, here, and stored on the rule
   let fire ← if ← recRulePlain coreWalkFuel tyA mI rP cnP then do
@@ -447,10 +460,8 @@ def checkMemberVal (mode : CheckMode) (blockNames : List NIdx) (fe' : IFEnv)
   -- the model counterpart
   let mn ← internNNode (.str cvA.name "_model")
   let some (.defnInfo cvm _mval _) := fe'.find? mn
-    | do
-      let hd ← readName (blockNames.headD cvA.name)
-      fail (.notImplemented s!"no install route for inductive block \
-        {hd}: no direct route recognises it and no model for {an} was generated")
+    | fail (.notImplemented s!"no install route for an inductive block: no direct \
+        route recognises it and no model for {an} was generated")
   unless cvm.levelParams = cvA.levelParams do
     fail (.notImplemented s!"model level parameters mismatch for {an}")
   let renamed ← renameConstsFast coreWalkFuel (renameBy f) cvA.type
@@ -471,9 +482,7 @@ def checkIndMember (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps)
   match ci with
   | .indInfo _ _ => pure (fe'.push (.indInfo cvA caps))
   | .ctorInfo _ nP nF => pure (fe'.push (.ctorInfo cvA nP nF))
-  | _ => do
-    let an ← readName cvA.name
-    fail (.invalid s!"non-inductive member {an} in block")
+  | _ => fail (.invalid "non-inductive member in block")
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
 The member fold of `checkModeled`, as an explicit recursion (DESIGN §3.4: a
@@ -617,7 +626,7 @@ def checkProjIota (mode : CheckMode) (fe' feSelf : IFEnv) (T ctorName : NIdx)
   let targsO ← getAppArgs coreWalkFuel sbodyO
   let b0 ← internE (.bvar 0)
   checkIotaSidesTy mode feSelf depth (targsO.getD 0 b0) (targsO.getD 1 b0)
-    (targsO.getD 2 b0) (← eqHeadLevel (← getAppFn coreWalkFuel sbody)) pmn
+    (targsO.getD 2 b0) (← eqHeadLevel (← getAppFn coreWalkFuel sbody))
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn
 Check and install the public projection function for field `i` of a modeled
@@ -657,32 +666,35 @@ def checkEtaThm (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
       | some (.defnInfo cvmj _ _) => pure (cvmj.levelParams == lps)
       | _ => pure false
     if !projsOk then pure false else
-    match ← stripPis (nP + 1) tcv.type, ← stripPis nP cvmT.type with
-    | some (sbinders, sbody), some (tbindersM, tbodyM) => do
-      if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
-      let us ← paramLevels lps
-      let tHd ← internE (.const tm us)
-      let psLo ← structPsAt 0 nP
-      let famLo ← mkAppN tHd psLo
-      let xdomOk ← match sbinders[nP]? with
-        | some (xdom, _) => pure (xdom == famLo)
-        | none => pure false
-      if !xdomOk then pure false else do
-      let psHi ← structPsAt 1 nP
-      let famHi ← mkAppN tHd psHi
-      match ← eqApp3? sbody with
-      | some (c, lA, tySlot, lhsC, rhsC) => do
-        let b0 ← internE (.bvar 0)
-        let cHd ← internE (.const cm us)
-        let projArgs ← (List.range nF).mapM fun j => do
-          let pHd ← internE (.const (← projModelName T j) us)
-          mkAppN pHd (psHi ++ [b0])
-        let wantRhs ← mkAppN cHd (psHi ++ projArgs)
-        let sortA ← internE (.sort lA)
-        pure (c == (← pinEq) && lhsC == b0 && tySlot == famHi &&
-          rhsC == wantRhs && (!mode.ttChecks || tbodyM == sortA))
+    match ← stripPis (nP + 1) tcv.type with
+    | none => pure false
+    | some (sbinders, sbody) =>
+      match ← stripPis nP cvmT.type with
       | none => pure false
-    | _, _ => pure false
+      | some (tbindersM, tbodyM) => do
+          if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
+          let us ← paramLevels lps
+          let tHd ← internE (.const tm us)
+          let psLo ← structPsAt 0 nP
+          let famLo ← mkAppN tHd psLo
+          let xdomOk ← match sbinders[nP]? with
+            | some (xdom, _) => pure (xdom == famLo)
+            | none => pure false
+          if !xdomOk then pure false else do
+          let psHi ← structPsAt 1 nP
+          let famHi ← mkAppN tHd psHi
+          match ← eqApp3? sbody with
+          | some (c, lA, tySlot, lhsC, rhsC) => do
+            let b0 ← internE (.bvar 0)
+            let cHd ← internE (.const cm (← paramLevels lps))
+            let projArgs ← (List.range nF).mapM fun j => do
+              let pHd ← internE (.const (← projModelName T j) (← paramLevels lps))
+              mkAppN pHd (psHi ++ [b0])
+            let wantRhs ← mkAppN cHd (psHi ++ projArgs)
+            let sortA ← internE (.sort lA)
+            pure (c == (← pinEq) && lhsC == b0 && tySlot == famHi &&
+              rhsC == wantRhs && (!mode.ttChecks || tbodyM == sortA))
+          | none => pure false
   | _, _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:644-680 checkUnitThm
@@ -696,30 +708,33 @@ def checkUnitThm (mode : CheckMode) (fe' : IFEnv) (T : NIdx) (lps : List NIdx)
   | some (.thmInfo tcv _), some (.defnInfo cvmT _ _) => do
     if !(← eqBasisStored fe') then pure false else
     if !(tcv.levelParams == lps && cvmT.levelParams == lps) then pure false else
-    match ← stripPis (nP + 2) tcv.type, ← stripPis nP cvmT.type with
-    | some (sbinders, sbody), some (tbindersM, tbodyM) => do
-      if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
-      let us ← paramLevels lps
-      let tHd ← internE (.const tm us)
-      let fam0 ← mkAppN tHd (← structPsAt 0 nP)
-      let fam1 ← mkAppN tHd (← structPsAt 1 nP)
-      let fam2 ← mkAppN tHd (← structPsAt 2 nP)
-      let xOk ← match sbinders[nP]? with
-        | some (xdom, _) => pure (xdom == fam0)
-        | none => pure false
-      let yOk ← match sbinders[nP + 1]? with
-        | some (ydom, _) => pure (ydom == fam1)
-        | none => pure false
-      if !(xOk && yOk) then pure false else
-      match ← eqApp3? sbody with
-      | some (c, lA, tySlot, lhsC, rhsC) => do
-        let b0 ← internE (.bvar 0)
-        let b1 ← internE (.bvar 1)
-        let sortA ← internE (.sort lA)
-        pure (c == (← pinEq) && lhsC == b1 && rhsC == b0 &&
-          tySlot == fam2 && (!mode.ttChecks || tbodyM == sortA))
+    match ← stripPis (nP + 2) tcv.type with
+    | none => pure false
+    | some (sbinders, sbody) =>
+      match ← stripPis nP cvmT.type with
       | none => pure false
-    | _, _ => pure false
+      | some (tbindersM, tbodyM) => do
+          if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
+          let us ← paramLevels lps
+          let tHd ← internE (.const tm us)
+          let fam0 ← mkAppN tHd (← structPsAt 0 nP)
+          let fam1 ← mkAppN tHd (← structPsAt 1 nP)
+          let fam2 ← mkAppN tHd (← structPsAt 2 nP)
+          let xOk ← match sbinders[nP]? with
+            | some (xdom, _) => pure (xdom == fam0)
+            | none => pure false
+          let yOk ← match sbinders[nP + 1]? with
+            | some (ydom, _) => pure (ydom == fam1)
+            | none => pure false
+          if !(xOk && yOk) then pure false else
+          match ← eqApp3? sbody with
+          | some (c, lA, tySlot, lhsC, rhsC) => do
+            let b0 ← internE (.bvar 0)
+            let b1 ← internE (.bvar 1)
+            let sortA ← internE (.sort lA)
+            pure (c == (← pinEq) && lhsC == b1 && rhsC == b0 &&
+              tySlot == fam2 && (!mode.ttChecks || tbodyM == sortA))
+          | none => pure false
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:682-710 ctorTargetsFam

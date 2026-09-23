@@ -140,7 +140,9 @@ theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     intro s₀ s' r hok hpre hrun
     obtain ⟨hT, hlps, hh⟩ := hpre
     simp only [Arena.recPositivity] at hrun
-    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨v0, hv0⟩ := denoteE_view hh
+    obtain ⟨v, s1, k1, z1⟩ := bindOk (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1
     have hhv : denoteEView s₀.store v = some hP := by
@@ -181,6 +183,7 @@ theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         exact ⟨p2, rfl⟩
       | true =>
       rw [hm] at z2
+      simp only [Bool.not_true, Bool.false_eq_true, if_false, Arena.recPositivityAt] at z2
       simp only [Bool.not_true, Bool.false_eq_true, if_false]
       obtain ⟨us, s3, k3, z3⟩ := bindOk z2
       obtain ⟨p3, hus⟩ := paramLevels_spec lps lpsP s2 s3 us p2.ok
@@ -233,7 +236,9 @@ theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
           exact ⟨q4.trans p7, rfl⟩
       case isFalse hc =>
         rw [if_neg hc]
-        obtain ⟨fv, s7, k7, z7⟩ := bindOk z6
+        obtain ⟨fv0, hfv0⟩ := denoteE_view hfn
+        obtain ⟨fv, s7, k7, z7⟩ := bindOk (tagIf_view_run hfv0
+          (fun hne => by cases fv0 <;> first | rfl | exact absurd rfl hne) z6)
         obtain ⟨hs7, hfv⟩ := view_run k7
         rw [hs7] at z7
         split at z7
@@ -458,7 +463,9 @@ theorem piBinders_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
   | succ fuel ih =>
     intro h hP s₀ s' r hok hd hrun
     simp only [Arena.piBinders] at hrun
-    obtain ⟨v, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨v0, hv0⟩ := denoteE_view hd
+    obtain ⟨v, s₁, h1, h2⟩ := bindOk (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
     obtain ⟨hs1, hw⟩ := view_run h1
     rw [hs1] at h2
     have hde : denoteEView s₀.store v = some hP := by
@@ -1534,16 +1541,16 @@ theorem nativeRulePrefixOk_spec (recTy : EIdx) (recTyP : Expr)
   obtain ⟨lq, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨hs1, hlq⟩ := stripLams_pstep hok hrhs k1
   rw [hs1] at z1
-  obtain ⟨pq, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨hs2, hpq⟩ := stripPis_pstep hok hrt k2
-  rw [hs2] at z2
   rcases lq with _ | ⟨rbs, rb⟩
-  · obtain ⟨rfl, rfl⟩ := pureOk z2
+  · obtain ⟨rfl, rfl⟩ := pureOk z1
     refine ⟨PStep.refl hok, ?_⟩
     show false = ConLeche.nativeRulePrefixOk recTyP nP n j nF rhsP
     have h0 : rhsP.stripLams (nP + 1 + n + nF) = none := (Option.some.inj hlq).symm
     simp only [ConLeche.nativeRulePrefixOk, h0]
   obtain ⟨rxs, rbP, hslP, hrbs, -⟩ := denoteBP_someB' hlq
+  obtain ⟨pq, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hpq⟩ := stripPis_pstep hok hrt k2
+  rw [hs2] at z2
   rcases pq with _ | ⟨tbs, tb⟩
   · obtain ⟨rfl, rfl⟩ := pureOk z2
     refine ⟨PStep.refl hok, ?_⟩
@@ -1894,7 +1901,9 @@ theorem nativeCounts?_spec (nPd : Nat) (cvT : IConstantVal)
   obtain ⟨p1, hbs, hbody⟩ :=
     piBinders_spec Arena.coreWalkFuel cvT.type cvTP.type s₀ s1 q hok
       (denoteCV_type hcv) k1
-  obtain ⟨v, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨v0, hv0⟩ := denoteE_view hbody
+  obtain ⟨v, s2, k2, hz2⟩ := bindOk (tagIf_view_run hv0
+    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hz1)
   obtain ⟨hs2, hview⟩ := view_run k2
   rw [hs2] at hz2
   have hlen : q.1.length = (cvTP.type.piBinders).1.length :=
@@ -2312,7 +2321,9 @@ theorem nativeShape?_run (nPd : Nat) (block : List IConstantInfo)
                 isProp := by rw [hprop μ env fe hc] }
 
   obtain ⟨txs, tbodyP, hspt, -, htbody⟩ := denoteBP_someB htq
-  obtain ⟨tv, s7, k7, hz7⟩ := bindOk hz6
+  obtain ⟨tv0, htv0⟩ := denoteE_view htbody
+  obtain ⟨tv, s7, k7, hz7⟩ := bindOk (tagIf_view_run htv0
+    (fun hne => by cases tv0 <;> first | rfl | exact absurd rfl hne) hz6)
   obtain ⟨hs7, htv⟩ := view_run k7
   rw [hs7] at hz7
   have htbv : denoteEView s2.store tv = some tbodyP := by

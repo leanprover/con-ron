@@ -131,6 +131,12 @@ section for every task you land.
   of bisection.  Iterate with `lake build <module>`, or with
   `lake env lean -Dbackward.isDefEq.respectTransparency=false
   -Dbackward.do.legacy=true <file>`.
+* **Never run `lake -d proof …` from the worktree root.**  The root has no
+  `lean-toolchain` matching `proof/`'s, so elan picks a different Lean (4.34
+  on 2026-09-23) and the build rewrites shared con-leche `.olean`s under
+  `_tmp/aeneas-lean` with an incompatible header, breaking every other
+  agent's build until restored from `_tmp/lake-cache`.  Always `cd proof`
+  (or `env -C proof lake build …`).
 * **An agent's `cd` does not persist between tool calls.**  `cd <main tree>
   && python3 …` in one call edits the MAIN TREE, and the next call's
   `git commit` then runs back in the worktree — so the edit lands on the
@@ -140,16 +146,36 @@ section for every task you land.
   the worktree: do every edit with a path relative to the worktree, and if
   a file genuinely belongs to another checkout, say so in the report
   instead of editing it.
-* **Agents land their own branches** (maintainer's instruction, 2026-09-23:
-  keeps the coordinator's context tidy).  When the round is done: merge the
-  integration branch (`arena` during the campaign) into your branch, run
-  `scripts/gates.sh`, then `scripts/land.sh <your worktree path>` — it
-  fast-forwards the main tree and drops your worktree.  If it is not a
-  fast-forward, merge again, re-run the gates the delta can touch, retry.
-  `land.sh` is the one sanctioned write to the main tree from an agent;
-  everything else still stays inside your worktree.  Then send the
-  coordinator a short report: the landed commit, counts, findings, and every
-  ruling you need.
+* **Lane agents SUBMIT; the merge queue lands** (task #97-MQ, maintainer's
+  instruction 2026-09-23; replaces "agents land their own branches").  One
+  long-running *queue agent* owns every merge into the integration branch
+  (`arena` during the campaign), so merges are sequenced and no lane re-merges
+  and re-gates because another lane landed first.
+  * **Lane agent**, when the round is done: merge `arena` into your branch
+    once, run `scripts/gates.sh` there, then `scripts/submit.sh <your
+    worktree path> "<one-line note>"` and report to the coordinator (landed
+    = "submitted at <commit>").  Do not run `land.sh`, do not re-merge if
+    `arena` moves, and do not commit to that branch again — the queue merges
+    the submitted commit and deletes the branch.  If the queue bounces it,
+    fix, commit, re-submit.
+  * **Queue agent**: takes `_tmp/merge-queue` in order, merges each commit
+    into its own worktree `_tmp/wt-mq` (a branch following `arena`), runs
+    `scripts/gates.sh --only <steps>` for the steps the merge's delta can
+    touch (see DESIGN `### Task #97-MQ` for the path→step table), fast-
+    forwards the main tree (`git -C <main> merge --ff-only mq`), and drops the
+    lane's worktree with `scripts/drop-worktree.sh`.  It resolves MECHANICAL
+    conflicts only (DESIGN.md appends, import lists, generated axioms/census
+    output, overview-links anchors); anything that needs a proof changed is
+    bounced to the lane with the error.  It may batch several queued
+    branches under one gate run and back one out if the batch goes red.
+  * `scripts/land.sh` stays for the queue agent's own use and for when no
+    queue is running.
+* **`Refine2/Tactic/Lockstep.lean` is shared core.**  Lanes extend the
+  `lockstep` tactic through its extension points — `@[lockstep]`/
+  `@[lockstep_inline]` lemmas and the side-goal tier's `macro_rules` — and do
+  not edit existing alternatives.  If a change to the core is unavoidable,
+  make it a separate small commit and name it in the report, so the queue can
+  land it ahead of dependent work.
 * **Landing a branch (merge discipline).**  The *agent* merges master into
   its branch and runs the gates there; the landing is then a fast-forward
   merge of that branch into master.  If master moved in between so the

@@ -112,7 +112,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
     fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   simp only [Arena.installConstantVal] at hrun
   -- 1. the duplicate-declaration guard
-  obtain ⟨hdup, r1⟩ := AM.dguard_ok hnever hrun
+  obtain ⟨hdup, r1⟩ := AM.dguard_ok AM.Never.fail_any hrun
   replace r1 := AM.pure_bind_ok r1
   have hfind : fe.find? cv.name = none := by
     cases hf : fe.find? cv.name with
@@ -128,7 +128,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   have hlps2 : Frontend.denoteNList s2.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hp2.ext.lss.ls.ns _ _ hlps
   have hty2 : denoteE s2.store cv.type = some c.type := denote_ext hty hp2.ext
-  obtain ⟨hres, r3⟩ := AM.dguard_ok hnever r2
+  obtain ⟨hres, r3⟩ := AM.dguard_ok AM.Never.fail_any r2
   replace r3 := AM.pure_bind_ok r3
   have hresP : ConLeche.reservedBasisNames.contains c.name = false := by
     have hc := denoteNList_contains hck2.state.wf rs reservedBasisNameValues
@@ -140,7 +140,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   -- 3. the reserved-projection-name guard
   obtain ⟨b3, s3, g3r, r4⟩ := AM.bind_ok r3
   obtain ⟨hs3, hb3⟩ := isProjFnShape_run hck2.state rfl hnm2 g3r
-  obtain ⟨hproj, r5⟩ := AM.dguard_ok hnever r4
+  obtain ⟨hproj, r5⟩ := AM.dguard_ok AM.Never.fail_any r4
   replace r5 := AM.pure_bind_ok r5
   have hprojP : c.name.isProjFnShape = false := by
     rw [← hb3]
@@ -148,7 +148,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
     | false => rfl
     | true => rw [hb] at hproj; exact absurd rfl hproj
   -- 4. the duplicate-universe-parameter guard
-  obtain ⟨hnod, r6⟩ := AM.dunless_ok hnever r5
+  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r5
   replace r6 := AM.pure_bind_ok r6
   have hnodP : ConLeche.Name.nodup c.levelParams = true := by
     rw [← nameNodup_spec hck2.state.wf cv.levelParams c.levelParams hlps2]
@@ -161,7 +161,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
       t.pins = s3.pins ∧ RelV (Expr.looseBVarsBounded 0) s3.store cv.type r)
     rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s3
       cv.type hck2.state (by rw [hty2]; rfl))
-  obtain ⟨hlbb, r8⟩ := AM.dunless_ok hnever r7
+  obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
   replace r8 := AM.pure_bind_ok r8
   have hlbbP : c.type.looseBVarsBounded 0 = true := by
     rw [← h5r c.type hty2]; exact hlbb
@@ -179,7 +179,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
       t.pins = s5.pins ∧ RelV Expr.hasFvar s5.store cv.type r)
     rfl g6r (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s5 cv.type
       hck5.state (by rw [hty5]; rfl))
-  obtain ⟨hfv, r10⟩ := AM.dguard_ok hnever r9
+  obtain ⟨hfv, r10⟩ := AM.dguard_ok AM.Never.fail_any r9
   replace r10 := AM.pure_bind_ok r10
   have hfvP : c.type.hasFvar = false := by
     rw [← h6r c.type hty5]
@@ -214,7 +214,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
     allLevelParamsDefined_run hck7.state hlps7 hv7 g8r
-  obtain ⟨hlpd, r13⟩ := AM.dunless_ok hnever r12
+  obtain ⟨hlpd, r13⟩ := AM.dunless_ok AM.Never.fail_any r12
   replace r13 := AM.pure_bind_ok r13
   have hlpdP : v.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
@@ -232,7 +232,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hv8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
+    (AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
   have hcrP : v.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK μ env fe s9 :=

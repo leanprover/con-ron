@@ -602,17 +602,17 @@ because it is structural on the count.  It INTERNS, so it is a `Sim`. -/
 /-- `canon_names_go` ⊑ `canonNamesGo`, with the Rust's accumulator in front. -/
 theorem canon_names_go_refines {pers st lst} {i n : Std.U64}
     {out : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_names_go pers st i n out = ok o) :
-    Sim absNIdxL (fun _ => True) pers lst o
+    Sim₀ absNIdxL pers lst o
       (do pure (absNIdxL out ++ (← canonNamesGo (absU i) (absU n)))) := by
   sorry
 
 /-- `canon_names` ⊑ `canonNames`. -/
 theorem canon_names_refines {pers st lst} {n : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_names pers st n = ok o) :
-    Sim absNIdxL (fun _ => True) pers lst o (canonNames (absU n)) := by
+    Sim₀ absNIdxL pers lst o (canonNames (absU n)) := by
   sorry
 
 /-! ## The two node transcriptions
@@ -687,7 +687,7 @@ arm's `Internal`. -/
 theorem canon_level_eq_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {u v : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_level_eq pers st ps ps2 cs fuel u v = ok o) :
     SimRE id lst o
       (canonLevelEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
@@ -699,7 +699,7 @@ theorem canon_level_eq_refines {pers st lst}
 theorem canon_level_eq_at_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {a b : arena.store.LNodeView} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_level_eq_at pers st ps ps2 cs fuel a b = ok o) :
     SimRE id lst o
       (canonLevelEqAtSpec (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
@@ -710,7 +710,7 @@ theorem canon_level_eq_at_refines {pers st lst}
 theorem canon_level_list_eq_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {us vs : alloc.vec.Vec arena.handle.LIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_level_list_eq pers st ps ps2 cs fuel us vs i = ok o) :
     SimRE id lst o
       (canonLevelListEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
@@ -722,7 +722,7 @@ LIST handles. -/
 theorem canon_levels_eq_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {us vs : arena.handle.LsIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_levels_eq pers st ps ps2 cs fuel us vs = ok o) :
     SimRE id lst o
       (canonLevelsEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
@@ -738,7 +738,7 @@ The binder metadata is NOT compared, exactly as con-leche's clause does not:
 theorem canon_expr_eq_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {a b : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_expr_eq pers st ps ps2 cs fuel a b = ok o) :
     SimRE id lst o
       (canonExprEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
@@ -749,7 +749,7 @@ theorem canon_expr_eq_refines {pers st lst}
 theorem canon_expr_eq_at_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {va vb : arena.store.ENodeView} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_expr_eq_at pers st ps ps2 cs fuel va vb = ok o) :
     SimRE id lst o
       (canonExprEqAtSpec (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
@@ -761,7 +761,7 @@ order and with its short-circuit. -/
 theorem canon_expr_eq_two_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {a a2 b b2 : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_expr_eq_two pers st ps ps2 cs fuel a a2 b b2 = ok o) :
     SimRE id lst o
       (do
@@ -776,7 +776,7 @@ theorem canon_expr_eq_two_refines {pers st lst}
 theorem canon_rules_eq_refines {pers st lst}
     {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
     {rs rs2 : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_rules_eq pers st ps ps2 cs fuel rs rs2 i = ok o) :
     SimRE id lst o
       (canonRulesEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
@@ -793,9 +793,9 @@ why the length test stands in for comparing them — and why ONE `canonNames`
 serves both sides. -/
 theorem i_constant_val_canon_eq_refines {pers st lst}
     {cv cv2 : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.i_constant_val_canon_eq pers st cv cv2 = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       ((absIConstantVal cv).canonEq (absIConstantVal cv2)) := by
   sorry
 
@@ -804,9 +804,9 @@ past its two scalar tests (extraction rule 5). -/
 theorem canon_eq_cv_and_rules_refines {pers st lst}
     {cv cv2 : arena.env.IConstantVal}
     {rs rs2 : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_eq_cv_and_rules pers st cv cv2 rs rs2 = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (do
         if ← (absIConstantVal cv).canonEq (absIConstantVal cv2) then do
           let cs ← canonNames (absIConstantVal cv).levelParams.length
@@ -819,9 +819,9 @@ theorem canon_eq_cv_and_rules_refines {pers st lst}
 /-- `canon_eq_cv_and_value` is the `.defnInfo` / `.thmInfo` arms' shared tail. -/
 theorem canon_eq_cv_and_value_refines {pers st lst}
     {cv cv2 : arena.env.IConstantVal} {v v2 : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_eq_cv_and_value pers st cv cv2 v v2 = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (do
         if ← (absIConstantVal cv).canonEq (absIConstantVal cv2) then do
           let cs ← canonNames (absIConstantVal cv).levelParams.length
@@ -836,9 +836,9 @@ capabilities are not compared (`canon` resets both to `{}`), and a projection
 table is compared as it stands. -/
 theorem i_constant_info_canon_eq_refines {pers st lst}
     {ci ci2 : arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.i_constant_info_canon_eq pers st ci ci2 = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       ((absIConstantInfo ci).canonEq (absIConstantInfo ci2)) := by
   sorry
 
@@ -846,9 +846,9 @@ theorem i_constant_info_canon_eq_refines {pers st lst}
 member for member, up to the canonical form. -/
 theorem canon_eq_list_refines {pers st lst}
     {xs ys : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.canon.canon_eq_list pers st xs ys i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (canonEqList (absICILFrom xs i) (absICILFrom ys i)) := by
   sorry
 

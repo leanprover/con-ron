@@ -2,7 +2,7 @@
 # `ConRon.Refine2.Checker.Init` — Theorem 2 at the driver's START state
 
 **Task #97-P5-Top** (task #97-COMPOSE's mismatch 2, `InitRel`).  Every
-Theorem-2 lemma takes `AStateRel pers st lst ∧ AStateInv pers st` and
+Theorem-2 lemma takes `AStateRel₀ pers st lst ∧ AStateInv pers st` and
 concludes it for the post-state; nothing concluded it for the START state.
 The binary makes that state as `AState::init(EStore::empty())` read through
 `PersTier::empty()`, and the twin driver as `AState.init EStore.empty`.
@@ -239,7 +239,7 @@ theorem init_rel {pers : arena.store.PersTier} {est : arena.store.EStore}
     {st : arena.monad.AState}
     (hest : arena.store.EStore.empty = ok est)
     (hst : arena.monad.AState.init est = ok st) :
-    AStateRel pers st (AState.init EStore.empty) ∧ AStateInv pers st ∧
+    AStateRel₀ pers st (AState.init EStore.empty) ∧ AStateInv pers st ∧
       st.store.scratch_on = false := by
   obtain ⟨hSR, hSI, hoff⟩ := estore_empty pers hest
   rw [arena.monad.AState.init] at hst
@@ -255,7 +255,7 @@ theorem init_rel {pers : arena.store.PersTier} {est : arena.store.EStore}
   subst hp'
   obtain ⟨hMR, hMI⟩ := memos_empty hm
   obtain ⟨hCR, hCI⟩ := caches_empty hc
-  exact ⟨⟨hSR, hMR, hCR, ⟨rfl, rfl, rfl, rfl, rfl⟩, EStore.empty_wf⟩, ⟨hSI, hMI, hCI⟩,
+  exact ⟨⟨hSR, hMR, hCR, ⟨rfl, rfl, rfl, rfl, rfl⟩⟩, ⟨hSI, hMI, hCI⟩,
     hoff⟩
 
 /-- info: 'ConRon.Refine2.init_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/

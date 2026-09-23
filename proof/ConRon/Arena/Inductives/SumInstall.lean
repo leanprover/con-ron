@@ -83,9 +83,11 @@ def checkSumTele (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat)
     (cvTa₀ : IConstantVal) : AM (IConstantVal × LIdx) := do
   match ← stripPis n cvTa₀.type with
   | some (_, body) => do
-    match ← view body with
-    | .sort s => pure (cvTa₀, s)
-    | _ => checkSumTeleSlow mode fe cv n cvTa₀
+    if body.tag == ETag.sort then
+      match ← view body with
+      | .sort s => pure (cvTa₀, s)
+      | _ => checkSumTeleSlow mode fe cv n cvTa₀
+    else checkSumTeleSlow mode fe cv n cvTa₀
   | none => checkSumTeleSlow mode fe cv n cvTa₀
 where
   /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:80-94 checkSumTele
@@ -176,17 +178,19 @@ def normPosDom (mode : CheckMode) (fe : IFEnv) (T : NIdx) :
     if !(← mentionsConst T e) then pure e else do
     let w ← whnf mode fe checkFuel d e
     if !(← mentionsConst T w) then pure w else
-    match ← view w with
-    | .forallE dom body bm => do
-      if ← mentionsConst T dom then
-        fail (.invalid "direct sum: non positive occurrence of the inductive type")
-      else do
-        let fv ← internE (.fvar d dom)
-        let opened ← instantiate1Fast coreWalkFuel body fv 0
-        let body' ← normPosDom mode fe T (d + 1) fuel opened
-        let closed ← abstract1Fast coreWalkFuel body' d 0
-        internE (.forallE dom closed bm)
-    | _ => pure w
+    if w.tag == ETag.forallE then
+      match ← view w with
+      | .forallE dom body bm => do
+        if ← mentionsConst T dom then
+          fail (.invalid "direct sum: non positive occurrence of the inductive type")
+        else do
+          let fv ← internE (.fvar d dom)
+          let opened ← instantiate1Fast coreWalkFuel body fv 0
+          let body' ← normPosDom mode fe T (d + 1) fuel opened
+          let closed ← abstract1Fast coreWalkFuel body' d 0
+          internE (.forallE dom closed bm)
+      | _ => pure w
+    else pure w
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:177-188 normFieldDoms
 The constructor's field binders with their domains normalised, opened at the
@@ -196,14 +200,16 @@ def normFieldDoms (mode : CheckMode) (fe : IFEnv) (T : NIdx) :
     Nat → Nat → EIdx → AM (List (EIdx × BinderMeta) × EIdx)
   | _, 0, e => pure ([], e)
   | i, n + 1, h => do
-    match ← view h with
-    | .forallE dom body bm => do
-      let dom' ← normPosDom mode fe T i 1024 dom
-      let fv ← internE (.fvar i dom)
-      let opened ← instantiate1Fast coreWalkFuel body fv 0
-      let (bs, r) ← normFieldDoms mode fe T (i + 1) n opened
-      pure ((dom', bm) :: bs, r)
-    | _ => fail (.notImplemented "direct sum: constructor field telescope")
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body bm => do
+        let dom' ← normPosDom mode fe T i 1024 dom
+        let fv ← internE (.fvar i dom)
+        let opened ← instantiate1Fast coreWalkFuel body fv 0
+        let (bs, r) ← normFieldDoms mode fe T (i + 1) n opened
+        pure ((dom', bm) :: bs, r)
+      | _ => fail (.notImplemented "direct sum: constructor field telescope")
+    else fail (.notImplemented "direct sum: constructor field telescope")
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
 `List.zipWith (fun x b => (x.fvarTypeD, b.2)) fvsP cbs`, as an explicit

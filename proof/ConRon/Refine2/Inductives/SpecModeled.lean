@@ -21,14 +21,14 @@ DESIGN §3.4 cuts them into eight and eleven functions; `checkEtaThm`,
 `checkUnitThm`, `checkProjIota` and `checkModeled` are cut four to eight ways
 each.
 
-**The message argument is kept.**  Several twin fragments interpolate the
-recursor's name into their decline (`s!"… for {nm}"`), so the transcriptions
-take `nm : ConLeche.Name` and spell the same string.  An `_unfold` equation is
-an equality of TWIN terms, so a transcription may not paraphrase a message
-even though DESIGN §3.1 lets the PORT replace it by a constant.
+**The messages are the port's constants** (task #97-T2-LOCKSTEP lane
+Inductives).  The twin fragments used to interpolate the recursor's name into
+their declines, which made them read a name the port never reads; the twin now
+declines with the port's constant messages, and the transcriptions spell the
+same strings (an `_unfold` equation is an equality of TWIN terms).
 
-Nothing under `Arena/` is edited, which is the standing rule for a twin
-(DESIGN §8.4).
+The twin is edited only where it and the port did different things (task
+#97-T2-LOCKSTEP): the tag-first reads, the short-circuits and the name reads.
 -/
 import ConRon.Refine2.Inductives.NativeInstallF
 
@@ -46,28 +46,25 @@ open ConRon.Arena
 /-- `checkIotaSidesTy`'s `if mode.ttChecks` tail, which the port calls
 `check_iota_slot_ty`. -/
 def checkIotaSlotTySpec (mode : ConLeche.CheckMode) (feSelf : IFEnv) (depth : Nat)
-    (alphaS : EIdx) (lA : LIdx) (cvName : NIdx) : AM Unit := do
+    (alphaS : EIdx) (lA : LIdx) : AM Unit := do
   if mode.ttChecks then
     let ta ← inferTypeCore mode feSelf checkFuel depth alphaS
     let s ← internE (.sort lA)
     unless ← isDefEqCore mode feSelf checkFuel depth ta s do
-      let n ← readName cvName
-      fail (.notImplemented s!"iota statement type slot sort for {n}")
+      fail (.notImplemented "iota statement type slot sort")
 
 /-- The owed equation: `checkIotaSidesTy` IS its two side certifications and
 `checkIotaSlotTySpec`. -/
 theorem checkIotaSidesTy_unfold (mode : ConLeche.CheckMode) (feSelf : IFEnv)
-    (depth : Nat) (alphaS lhsS rhsS : EIdx) (lA : LIdx) (cvName : NIdx) :
-    checkIotaSidesTy mode feSelf depth alphaS lhsS rhsS lA cvName = (do
+    (depth : Nat) (alphaS lhsS rhsS : EIdx) (lA : LIdx) :
+    checkIotaSidesTy mode feSelf depth alphaS lhsS rhsS lA = (do
       let tl ← inferTypeCore mode feSelf checkFuel depth lhsS
       unless ← isDefEqCore mode feSelf checkFuel depth tl alphaS do
-        let n ← readName cvName
-        fail (.notImplemented s!"iota statement lhs type for {n}")
+        fail (.notImplemented "iota statement lhs type")
       let tr ← inferTypeCore mode feSelf checkFuel depth rhsS
       unless ← isDefEqCore mode feSelf checkFuel depth tr alphaS do
-        let n ← readName cvName
-        fail (.notImplemented s!"iota statement rhs type for {n}")
-      checkIotaSlotTySpec mode feSelf depth alphaS lA cvName) := by
+        fail (.notImplemented "iota statement rhs type")
+      checkIotaSlotTySpec mode feSelf depth alphaS lA) := by
   rfl
 
 /-! ## `projBack` and `projFwd`'s two inner `let rec`s
@@ -116,45 +113,35 @@ theorem projFwd_unfold (T ctor : NIdx) (nF : Nat) :
 
 /-! ## The prologue both statement checks share
 
-**Finding 20 — the port hoists `eqHeadLevel` into the prologue.**  The twin
-calls it at the very END (`checkIotaSidesTy … (← eqHeadLevel tfn) cvName`) and
-the port's `iota_stmt_open_at` computes it eagerly.  It is sound on the arm
-the success statement claims anything about: `eqHeadLevel` is a reader, and on
-the path `isEqHead` has already accepted it is `viewLs`' single level and
-interns nothing.  Off shape it falls back to `zeroLevel`, which `isEqHead` has
-rejected before either side reaches it.
-
-**Finding 21 — the twin reads the recursor's NAME and the port does not.**
-`checkIotaThm`, `checkIotaThmN` and `checkIotaRule` open with
-`let nm ← readName cvName`, purely to interpolate it into their declines; the
-port's messages are constants (DESIGN §3.1), so it never reads the handle.
-`readName` throws `.internal` on a dangling handle, so the twin can fail where
-the port succeeds — task #97-P5-0's finding 3 in another guise, and the reason
-every statement of these three families carries "`cvName` resolves". -/
+**Findings 20 and 21 are fixed in the twin** (task #97-T2-LOCKSTEP lane
+Inductives): `checkIotaThm`/`checkIotaThmN` read `eqHeadLevel` in the
+prologue, where the port's `iota_stmt_open_at` does, and no longer read the
+recursor's name for their messages; the transcriptions below are therefore the
+twin's own fragments, with no `nm` argument. -/
 
 /-- The prologue's tail: the theorem's telescope opened at free variables, the
 body's equation head and its arity.  `iota_stmt_open_at` is the port's. -/
-def iotaStmtOpenAtSpec (depth : Nat) (tty : EIdx) (nm : ConLeche.Name) :
+def iotaStmtOpenAtSpec (depth : Nat) (tty : EIdx) :
     AM (List EIdx × List EIdx × LIdx) := do
   let (fvs, tbody) ← unwrapOr (← openPisAtFvarsF depth tty 0)
-    (.notImplemented s!"iota statement shape mismatch for {nm}")
+    (.notImplemented "iota statement shape mismatch")
   let targs ← getAppArgs coreWalkFuel tbody
   let tfn ← getAppFn coreWalkFuel tbody
   unless ← isEqHead tfn do
-    fail (.notImplemented s!"iota statement not an equation for {nm}")
+    fail (.notImplemented "iota statement not an equation")
   unless targs.length = 3 do
-    fail (.notImplemented s!"iota statement not an equation for {nm}")
+    fail (.notImplemented "iota statement not an equation")
   pure (fvs, targs, ← eqHeadLevel tfn)
 
 /-- The prologue: the stored `iota_j` theorem, its level parameters, and
 `iotaStmtOpenAtSpec`. -/
 def iotaStmtOpenSpec (fe' : IFEnv) (cvName : NIdx) (lps : List NIdx)
-    (depth j : Nat) (nm : ConLeche.Name) : AM (List EIdx × List EIdx × LIdx) := do
+    (depth j : Nat) : AM (List EIdx × List EIdx × LIdx) := do
   let cvt ← unwrapOr (← fe'.findCV? (← iotaThmName cvName j))
-    (.notImplemented s!"missing iota theorem for {nm}")
+    (.notImplemented "missing iota theorem")
   unless cvt.levelParams = lps do
-    fail (.notImplemented s!"iota theorem level mismatch for {nm}")
-  iotaStmtOpenAtSpec depth cvt.type nm
+    fail (.notImplemented "iota theorem level mismatch")
+  iotaStmtOpenAtSpec depth cvt.type
 
 /-- The left side's head, arity and prefix pins, shared by the plain and the
 nested statement checks.  The twin declines each of the three with its own
@@ -184,24 +171,22 @@ def checkIotaMajorSpec (f : List (NIdx × NIdx)) (r : IRecRule) (cvj : IConstant
 applied to the whole opened frame, and both sides inhabit the type slot. -/
 def checkIotaThmRhsSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (depth : Nat) (rhsA : EIdx) (fvs targs : List EIdx)
-    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (cvName : NIdx) (nm : ConLeche.Name) :
+    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (cvName : NIdx) :
     AM Unit := do
   let rhsR ← renameConstsFast coreWalkFuel (renameBy f) rhsA
   let rhsApplied ← mkAppN rhsR fvs
   unless ← isDefEqCore mode feSelf checkFuel depth rhsS rhsApplied do
-    fail (.notImplemented s!"iota statement mismatch for {nm}")
+    fail (.notImplemented "iota statement mismatch")
   checkIotaSidesTy mode feSelf depth (targs.getD 0 b0) (targs.getD 1 b0) rhsS lA
-    cvName
 
 /-- The rule's λ-domains against the opened frame. -/
 def checkIotaThmLamsSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (depth : Nat) (rhsA : EIdx) (fvs targs : List EIdx)
-    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (all : List EIdx) (cvName : NIdx)
-    (nm : ConLeche.Name) : AM Unit := do
+    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (all : List EIdx) (cvName : NIdx) : AM Unit := do
   let (ldoms, _) ← unwrapOr (← instLamsAtF coreWalkFuel all rhsA)
-    (.notImplemented s!"rule shape mismatch for {nm}")
+    (.notImplemented "rule shape mismatch")
   checkDefEqList mode feSelf depth (← all.mapM fvarTypeD) ldoms
-  checkIotaThmRhsSpec mode feSelf f depth rhsA fvs targs rhsS lA b0 cvName nm
+  checkIotaThmRhsSpec mode feSelf f depth rhsA fvs targs rhsS lA b0 cvName
 
 /-- The public frame: the recursor's telescope opened afresh, the
 constructor's instantiated at its first `cnP` variables and then opened at
@@ -209,61 +194,61 @@ constructor's instantiated at its first `cnP` variables and then opened at
 def checkIotaThmFramesSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (rP : Nat) (cvj : IConstantVal)
     (cnP depth : Nat) (rhsA : EIdx) (fvs targs : List EIdx) (rhsS : EIdx)
-    (lA : LIdx) (b0 : EIdx) (cvName : NIdx) (nm : ConLeche.Name) : AM Unit := do
+    (lA : LIdx) (b0 : EIdx) (cvName : NIdx) : AM Unit := do
   let cnF := depth - rP
   let (fvsP, _) ← unwrapOr (← openPisAtFvarsF rP tyA 0)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   let (cdomsP, crestP) ← unwrapOr
       (← instPisAtF coreWalkFuel (fvsP.take cnP) cvj.type)
-      (.notImplemented s!"iota constructor telescope for {nm}")
+      (.notImplemented "iota constructor telescope")
   checkDefEqList mode feSelf depth (← (fvsP.take cnP).mapM fvarTypeD) cdomsP
   let (xFvsP, _) ← unwrapOr (← openPisAtFvarsF cnF crestP rP)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   checkIotaThmLamsSpec mode feSelf f depth rhsA fvs targs rhsS lA b0
-    (fvsP ++ xFvsP) cvName nm
+    (fvsP ++ xFvsP) cvName
 
 /-- The statement's prefix domains are the recursor's (renamed). -/
 def checkIotaThmPrefixSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (rP : Nat) (cvj : IConstantVal)
     (cnP depth : Nat) (rhsA : EIdx) (fvs targs : List EIdx) (rhsS : EIdx)
-    (lA : LIdx) (b0 : EIdx) (cvName : NIdx) (nm : ConLeche.Name) : AM Unit := do
+    (lA : LIdx) (b0 : EIdx) (cvName : NIdx) : AM Unit := do
   let tyAR ← renameConstsFast coreWalkFuel (renameBy f) tyA
   let (rdoms, _) ← unwrapOr (← instPisAtF coreWalkFuel (fvs.take rP) tyAR)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   checkDefEqList mode feSelf depth (← (fvs.take rP).mapM fvarTypeD) rdoms
   checkIotaThmFramesSpec mode feSelf f tyA rP cvj cnP depth rhsA fvs targs rhsS lA
-    b0 cvName nm
+    b0 cvName
 
 /-- The index tuple's arity and the two index/domain comparisons. -/
 def checkIotaThmIdxSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (mI rP : Nat) (cvj : IConstantVal)
     (cnP depth : Nat) (rhsA : EIdx) (fvs xFvs largs targs : List EIdx)
     (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (cdoms : List EIdx) (cres : EIdx)
-    (cvName : NIdx) (nm : ConLeche.Name) : AM Unit := do
+    (cvName : NIdx) : AM Unit := do
   let cargs ← getAppArgs coreWalkFuel cres
   unless cargs.length = cnP + (mI - rP) do
-    fail (.notImplemented s!"iota constructor indices for {nm}")
+    fail (.notImplemented "iota constructor indices")
   checkDefEqList mode feSelf depth ((largs.drop rP).take (mI - rP)) (cargs.drop cnP)
   checkDefEqList mode feSelf depth (← xFvs.mapM fvarTypeD) (cdoms.drop cnP)
   checkIotaThmPrefixSpec mode feSelf f tyA rP cvj cnP depth rhsA fvs targs rhsS lA
-    b0 cvName nm
+    b0 cvName
 
 /-- The constructor's telescope (renamed), instantiated at the major's
 arguments. -/
 def checkIotaThmCtorSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (mI rP : Nat) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (fvs xFvs largs targs : List EIdx)
-    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (cvName : NIdx) (nm : ConLeche.Name) :
+    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (cvName : NIdx) :
     AM Unit := do
   let depth := rP + cnF
   unless (← stripPis (cnP + cnF) cvj.type).isSome do
-    fail (.notImplemented s!"iota constructor telescope for {nm}")
+    fail (.notImplemented "iota constructor telescope")
   let ctyR ← renameConstsFast coreWalkFuel (renameBy f) cvj.type
   let (cdoms, cres) ← unwrapOr
       (← instPisAtF coreWalkFuel (fvs.take cnP ++ xFvs) ctyR)
-      (.notImplemented s!"iota constructor telescope for {nm}")
+      (.notImplemented "iota constructor telescope")
   checkIotaThmIdxSpec mode feSelf f tyA mI rP cvj cnP depth rhsA fvs xFvs largs
-    targs rhsS lA b0 cdoms cres cvName nm
+    targs rhsS lA b0 cdoms cres cvName
 
 /-- The owed equation: `checkIotaThm` IS the name read, the prologue, the
 head/arity/prefix pins, the major and `checkIotaThmCtorSpec`. -/
@@ -272,20 +257,24 @@ theorem checkIotaThm_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
     (mI rP j : Nat) (r : IRecRule) (cvj : IConstantVal) (cnP cnF : Nat)
     (rhsA : EIdx) :
     checkIotaThm mode fe' feSelf f cvName lps tyA mI rP j r cvj cnP cnF rhsA = (do
-      let nm ← readName cvName
       let depth := rP + cnF
-      let (fvs, targs, lA) ← iotaStmtOpenSpec fe' cvName lps depth j nm
+      let (fvs, targs, lA) ← iotaStmtOpenSpec fe' cvName lps depth j
       let b0 ← internE (.bvar 0)
       let rhsS := targs.getD 2 b0
       let xFvs := fvs.drop rP
       let largs ← getAppArgs coreWalkFuel (targs.getD 1 b0)
       let lfn ← getAppFn coreWalkFuel (targs.getD 1 b0)
       unless ← iotaLhsPrefixOkSpec f cvName lps mI rP fvs lfn largs do
-        fail (.notImplemented s!"iota statement head mismatch for {nm}")
+        fail (.notImplemented "iota statement head mismatch")
       unless ← checkIotaMajorSpec f r cvj cnP fvs xFvs largs b0 do
-        fail (.notImplemented s!"iota statement major mismatch for {nm}")
+        fail (.notImplemented "iota statement major mismatch")
       checkIotaThmCtorSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs xFvs largs
-        targs rhsS lA b0 cvName nm) := by
+        targs rhsS lA b0 cvName) := by
+  -- TRUE since task #97-T2-LOCKSTEP lane Inductives (round 4's defect was the
+  -- twin's three distinct head/arity/prefix messages against this ONE; the twin
+  -- now declines all three with the port's `M_IOTA_HEAD`).  The peel through the
+  -- tier's longest `do` block exhausts the default heartbeats at the prologue's
+  -- `unwrapOr`; left for the round that states the fragments' lockstep proofs.
   sorry
 
 /-! ## `nestedRuleShape`, split six ways -/
@@ -346,12 +335,17 @@ def nestedRuleShapeAtSpec (feSelf : IFEnv) (lps : List NIdx) (tyA : EIdx)
     (mI rP cnP : Nat) : AM (Option (List LIdx × List EIdx)) := do
   match ← stripPis mI tyA with
   | some (_, rest) => do
-    match ← view rest with
-    | .forallE dom _ _ => do
-      match ← view (← getAppFn coreWalkFuel dom) with
-      | .const _D lvlsIdx => nestedRuleShapeArgsSpec feSelf lps mI rP cnP dom lvlsIdx
+    if rest.tag == ETag.forallE then
+      match ← view rest with
+      | .forallE dom _ _ => do
+        let hd ← getAppFn coreWalkFuel dom
+        if hd.tag == ETag.const then
+          match ← view hd with
+          | .const _D lvlsIdx => nestedRuleShapeArgsSpec feSelf lps mI rP cnP dom lvlsIdx
+          | _ => pure none
+        else pure none
       | _ => pure none
-    | _ => pure none
+    else pure none
   | _ => pure none
 
 /-- The owed equation: `nestedRuleShape` IS the `iota_j` guard and
@@ -369,9 +363,11 @@ theorem nestedRuleShape_unfold (fe' feSelf : IFEnv) (cvName : NIdx)
   rw [nestedRuleShapeAtSpec]
   refine am_bind_congr _ ?_; intro sp
   rcases sp with _ | ⟨_, rest⟩ <;> simp only []
+  refine if_congr Iff.rfl ?_ rfl
   refine am_bind_congr _ ?_; intro v
   cases v <;> simp only []
   refine am_bind_congr _ ?_; intro fn
+  refine if_congr Iff.rfl ?_ rfl
   refine am_bind_congr _ ?_; intro v2
   cases v2 <;> simp only []
   rw [nestedRuleShapeArgsSpec]
@@ -417,15 +413,15 @@ and the rule's λ-domains against the whole frame. -/
 def checkIotaThmNFieldsSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (mI rP cnP cnF : Nat) (rhsA : EIdx)
     (fvs targs : List EIdx) (rhsS : EIdx) (lA : LIdx) (b0 : EIdx)
-    (fvsP : List EIdx) (crestP : EIdx) (cvName : NIdx) (nm : ConLeche.Name) :
+    (fvsP : List EIdx) (crestP : EIdx) (cvName : NIdx) :
     AM Unit := do
   let depth := rP + cnF
   let (xFvsP, crest2P) ← unwrapOr (← openPisAtFvarsF cnF crestP rP)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   unless (← getAppArgs coreWalkFuel crest2P).length == cnP + (mI - rP) do
-    fail (.notImplemented s!"iota constructor arity for {nm}")
+    fail (.notImplemented "iota constructor arity")
   checkIotaThmLamsSpec mode feSelf f depth rhsA fvs targs rhsS lA b0
-    (fvsP ++ xFvsP) cvName nm
+    (fvsP ++ xFvsP) cvName
 
 /-- The PUBLIC frame: the recursor's telescope opened afresh, the pins
 instantiated there (annotated, and typed against the constructor's domains at
@@ -433,48 +429,46 @@ the stored level instantiations). -/
 def checkIotaThmNFramesSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (mI rP : Nat) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (fvs targs : List EIdx) (rhsS : EIdx)
-    (lA : LIdx) (b0 : EIdx) (lvlsIdx : LsIdx) (pins : List EIdx) (cvName : NIdx)
-    (nm : ConLeche.Name) : AM Unit := do
+    (lA : LIdx) (b0 : EIdx) (lvlsIdx : LsIdx) (pins : List EIdx) (cvName : NIdx) : AM Unit := do
   let depth := rP + cnF
   let (fvsP, _) ← unwrapOr (← openPisAtFvarsF rP tyA 0)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   let pinsP ← instSpineListSpec (fvsP.take rP) (rP - 1) pins
   checkAnnotList mode feSelf depth pinsP
   let ctyL2 ← instLPFast coreWalkFuel cvj.levelParams lvlsIdx cvj.type
   let (cdomsP, crestP) ← unwrapOr (← instPisAtF coreWalkFuel pinsP ctyL2)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   checkTypedList mode feSelf depth pinsP cdomsP
   checkIotaThmNFieldsSpec mode feSelf f mI rP cnP cnF rhsA fvs targs rhsS lA b0
-    fvsP crestP cvName nm
+    fvsP crestP cvName
 
 /-- The statement's prefix domains are the recursor's (renamed). -/
 def checkIotaThmNPrefixSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (mI rP : Nat) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (fvs targs : List EIdx) (rhsS : EIdx)
-    (lA : LIdx) (b0 : EIdx) (lvlsIdx : LsIdx) (pins : List EIdx) (cvName : NIdx)
-    (nm : ConLeche.Name) : AM Unit := do
+    (lA : LIdx) (b0 : EIdx) (lvlsIdx : LsIdx) (pins : List EIdx) (cvName : NIdx) : AM Unit := do
   let depth := rP + cnF
   let tyAR ← renameConstsFast coreWalkFuel (renameBy f) tyA
   let (rdoms, _) ← unwrapOr (← instPisAtF coreWalkFuel (fvs.take rP) tyAR)
-    (.notImplemented s!"iota recursor telescope for {nm}")
+    (.notImplemented "iota recursor telescope")
   checkDefEqList mode feSelf depth (← (fvs.take rP).mapM fvarTypeD) rdoms
   checkIotaThmNFramesSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs targs rhsS
-    lA b0 lvlsIdx pins cvName nm
+    lA b0 lvlsIdx pins cvName
 
 /-- The index tuple's arity and the two index/domain comparisons. -/
 def checkIotaThmNIdxSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (mI rP : Nat) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (fvs xFvs largs targs : List EIdx) (rhsS : EIdx)
     (lA : LIdx) (b0 : EIdx) (lvlsIdx : LsIdx) (pins cdoms : List EIdx)
-    (cres : EIdx) (cvName : NIdx) (nm : ConLeche.Name) : AM Unit := do
+    (cres : EIdx) (cvName : NIdx) : AM Unit := do
   let depth := rP + cnF
   let cargs ← getAppArgs coreWalkFuel cres
   unless cargs.length = cnP + (mI - rP) do
-    fail (.notImplemented s!"iota constructor indices for {nm}")
+    fail (.notImplemented "iota constructor indices")
   checkDefEqList mode feSelf depth ((largs.drop rP).take (mI - rP)) (cargs.drop cnP)
   checkDefEqList mode feSelf depth (← xFvs.mapM fvarTypeD) (cdoms.drop cnP)
   checkIotaThmNPrefixSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs targs rhsS
-    lA b0 lvlsIdx pins cvName nm
+    lA b0 lvlsIdx pins cvName
 
 /-- The constructor's telescope at the stored level instantiations (renamed),
 instantiated at the pins and the field variables. -/
@@ -482,19 +476,23 @@ def checkIotaThmNCtorSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (mI rP : Nat) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (fvs xFvs largs targs : List EIdx) (rhsS : EIdx)
     (lA : LIdx) (b0 : EIdx) (lvlsIdx : LsIdx) (pins pinsF : List EIdx)
-    (cvName : NIdx) (nm : ConLeche.Name) : AM Unit := do
+    (cvName : NIdx) : AM Unit := do
   let (_, cbody0) ← unwrapOr (← stripPis (cnP + cnF) cvj.type)
-    (.notImplemented s!"iota constructor telescope for {nm}")
-  unless (match ← view (← getAppFn coreWalkFuel cbody0) with
-      | .const _ _ => true
-      | _ => false) do
-    fail (.notImplemented s!"iota constructor residual head for {nm}")
+    (.notImplemented "iota constructor telescope")
+  let chd ← getAppFn coreWalkFuel cbody0
+  if chd.tag == ETag.const then
+    unless (match ← view chd with
+        | .const _ _ => true
+        | _ => false) do
+      fail (.notImplemented "iota constructor residual head")
+  else
+    fail (.notImplemented "iota constructor residual head")
   let ctyL ← instLPFast coreWalkFuel cvj.levelParams lvlsIdx cvj.type
   let ctyR ← renameConstsFast coreWalkFuel (renameBy f) ctyL
   let (cdoms, cres) ← unwrapOr (← instPisAtF coreWalkFuel (pinsF ++ xFvs) ctyR)
-    (.notImplemented s!"iota constructor telescope for {nm}")
+    (.notImplemented "iota constructor telescope")
   checkIotaThmNIdxSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs xFvs largs
-    targs rhsS lA b0 lvlsIdx pins cdoms cres cvName nm
+    targs rhsS lA b0 lvlsIdx pins cdoms cres cvName
 
 /-- The major premise at the STORED level instantiations, applied to the
 instantiated pins and the field variables. -/
@@ -502,24 +500,23 @@ def checkIotaThmNMajorSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (tyA : EIdx) (mI rP : Nat) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (fvs xFvs largs targs : List EIdx) (rhsS : EIdx)
     (lA : LIdx) (b0 : EIdx) (lvls : List LIdx) (pins pinsF : List EIdx)
-    (r : IRecRule) (cvName : NIdx) (nm : ConLeche.Name) : AM Unit := do
+    (r : IRecRule) (cvName : NIdx) : AM Unit := do
   let major := largs.getLastD b0
   let lvlsIdx ← internLsNode lvls
   let cHd ← internE (.const (renameBy f r.ctor) lvlsIdx)
   let wantMajor ← mkAppN cHd (pinsF ++ xFvs)
   unless major == wantMajor do
-    fail (.notImplemented s!"iota statement major mismatch for {nm}")
+    fail (.notImplemented "iota statement major mismatch")
   checkIotaThmNCtorSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs xFvs largs
-    targs rhsS lA b0 lvlsIdx pins pinsF cvName nm
+    targs rhsS lA b0 lvlsIdx pins pinsF cvName
 
 /-- The nested statement's prologue at a recognised shape. -/
 def checkIotaThmNAtSpec (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
     (mI rP j : Nat) (r : IRecRule) (cvj : IConstantVal) (cnP cnF : Nat)
     (rhsA : EIdx) (lvls : List LIdx) (pins : List EIdx) : AM Unit := do
-  let nm ← readName cvName
   let depth := rP + cnF
-  let (fvs, targs, lA) ← iotaStmtOpenSpec fe' cvName lps depth j nm
+  let (fvs, targs, lA) ← iotaStmtOpenSpec fe' cvName lps depth j
   let b0 ← internE (.bvar 0)
   let rhsS := targs.getD 2 b0
   let xFvs := fvs.drop rP
@@ -527,9 +524,9 @@ def checkIotaThmNAtSpec (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
   let largs ← getAppArgs coreWalkFuel (targs.getD 1 b0)
   let lfn ← getAppFn coreWalkFuel (targs.getD 1 b0)
   unless ← iotaLhsPrefixOkSpec f cvName lps mI rP fvs lfn largs do
-    fail (.notImplemented s!"iota statement head mismatch for {nm}")
+    fail (.notImplemented "iota statement head mismatch")
   checkIotaThmNMajorSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs xFvs largs
-    targs rhsS lA b0 lvls pins pinsF r cvName nm
+    targs rhsS lA b0 lvls pins pinsF r cvName
 
 /-- The owed equation: `checkIotaThmN` IS the shape recognition and
 `checkIotaThmNAtSpec`, with `.nested lvls pins` as the answer. -/
@@ -559,13 +556,13 @@ def checkIotaRuleBitsSpec (fe' : IFEnv) (cvName : NIdx) (r : IRecRule) (cnP : Na
 def checkIotaRuleFireSpec (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
     (mI rP j : Nat) (r : IRecRule) (cvj : IConstantVal) (cnP cnF : Nat)
-    (rhsA : EIdx) (nm : ConLeche.Name) : AM IRecRule := do
+    (rhsA : EIdx) : AM IRecRule := do
   unless ← allLevelParamsDefined lps rhsA do
-    fail (.invalid s!"undeclared universe parameter in rule of {nm}")
+    fail (.invalid "undeclared universe parameter in rule")
   unless ← constsResolveFFast feSelf rhsA do
-    fail (← unresolvedConstsError s!"rule of {nm}" rhsA)
+    fail (← unresolvedConstsError "rule" rhsA)
   unless (← stripLams (rP + cnF) rhsA).isSome do
-    fail (.notImplemented s!"rule shape mismatch for {nm}")
+    fail (.notImplemented "rule shape mismatch")
   let _rhsTy ← inferTypeCore mode feSelf checkFuel 0 rhsA
   let fire ← if ← recRulePlain coreWalkFuel tyA mI rP cnP then do
       checkIotaThm mode fe' feSelf f cvName lps tyA mI rP j r cvj cnP cnF rhsA
@@ -577,15 +574,14 @@ def checkIotaRuleFireSpec (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
 /-- The right-hand side's generic well-formedness, then the annotation. -/
 def checkIotaRuleWfSpec (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
-    (mI rP j : Nat) (r : IRecRule) (cvj : IConstantVal) (cnP cnF : Nat)
-    (nm : ConLeche.Name) : AM IRecRule := do
+    (mI rP j : Nat) (r : IRecRule) (cvj : IConstantVal) (cnP cnF : Nat) : AM IRecRule := do
   unless ← looseBVarsBoundedFast coreWalkFuel 0 r.rhs do
-    fail (.invalid s!"loose bound variable in rule of {nm}")
+    fail (.invalid "loose bound variable in rule")
   if ← hasFvarFast coreWalkFuel r.rhs then
-    fail (.invalid s!"free variable in rule of {nm}")
+    fail (.invalid "free variable in rule")
   let rhsA ← annotateCore mode feSelf checkFuel 0 r.rhs
   checkIotaRuleFireSpec mode fe' feSelf f cvName lps tyA mI rP j r cvj cnP cnF rhsA
-    nm
+   
 
 /-- The owed equation: `checkIotaRule` IS the name read, the constructor
 lookup, the field-count pin and `checkIotaRuleWfSpec`. -/
@@ -593,15 +589,12 @@ theorem checkIotaRule_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
     (mI rP j : Nat) (r : IRecRule) :
     checkIotaRule mode fe' feSelf f cvName lps tyA mI rP j r = (do
-      let nm ← readName cvName
       match fe'.find? r.ctor with
       | some (.ctorInfo cvj cnP cnF) => do
         unless r.nfields = cnF do
           fail (.invalid "rule field count mismatch")
-        checkIotaRuleWfSpec mode fe' feSelf f cvName lps tyA mI rP j r cvj cnP cnF nm
-      | _ => do
-        let cn ← readName r.ctor
-        fail (.invalid s!"iota rule constructor {cn} not stored")) := by
+        checkIotaRuleWfSpec mode fe' feSelf f cvName lps tyA mI rP j r cvj cnP cnF
+      | _ => fail (.invalid "iota rule constructor not stored")) := by
   rfl
 
 /-! ## `checkMemberVal`, split two ways -/
@@ -613,10 +606,8 @@ def checkMemberModelSpec (f : List (NIdx × NIdx)) (fe' : IFEnv)
     AM IConstantVal := do
   let mn ← internNNode (.str cvA.name "_model")
   let some (.defnInfo cvm _mval _) := fe'.find? mn
-    | do
-      let hd ← readName (blockNames.headD cvA.name)
-      fail (.notImplemented s!"no install route for inductive block \
-        {hd}: no direct route recognises it and no model for {an} was generated")
+    | fail (.notImplemented s!"no install route for an inductive block: no direct \
+        route recognises it and no model for {an} was generated")
   unless cvm.levelParams = cvA.levelParams do
     fail (.notImplemented s!"model level parameters mismatch for {an}")
   let renamed ← renameConstsFast coreWalkFuel (renameBy f) cvA.type
@@ -708,7 +699,7 @@ def checkProjIotaFieldSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
   let targsO ← getAppArgs coreWalkFuel sbodyO
   let b0 ← internE (.bvar 0)
   checkIotaSidesTy mode feSelf depth (targsO.getD 0 b0) (targsO.getD 1 b0)
-    (targsO.getD 2 b0) (← eqHeadLevel (← getAppFn coreWalkFuel sbody)) pmn
+    (targsO.getD 2 b0) (← eqHeadLevel (← getAppFn coreWalkFuel sbody))
 
 /-- The expected redex, and the head and redex pins the statement's body must
 meet. -/
@@ -852,13 +843,16 @@ def checkEtaThmBodySpec (mode : ConLeche.CheckMode) (T : NIdx) (lps : List NIdx)
 /-- The statement's shape: the parameter domains are the model former's. -/
 def checkEtaThmShapeSpec (mode : ConLeche.CheckMode) (T : NIdx) (lps : List NIdx)
     (nP nF : Nat) (tm cm : NIdx) (tty mtty : EIdx) : AM Bool := do
-  match ← stripPis (nP + 1) tty, ← stripPis nP mtty with
-  | some (sbinders, sbody), some (tbindersM, tbodyM) => do
-    if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
-    let us ← paramLevels lps
-    let tHd ← internE (.const tm us)
-    checkEtaThmBodySpec mode T lps nP nF tHd cm sbinders sbody tbodyM
-  | _, _ => pure false
+  match ← stripPis (nP + 1) tty with
+  | none => pure false
+  | some (sbinders, sbody) =>
+    match ← stripPis nP mtty with
+    | none => pure false
+    | some (tbindersM, tbodyM) => do
+      if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
+      let us ← paramLevels lps
+      let tHd ← internE (.const tm us)
+      checkEtaThmBodySpec mode T lps nP nF tHd cm sbinders sbody tbodyM
 
 /-- The pinned `Eq` basis, the three level-parameter pins and the projection
 models' own level parameters. -/
@@ -884,7 +878,63 @@ theorem checkEtaThm_unfold (mode : ConLeche.CheckMode) (fe' : IFEnv)
         some (.defnInfo cvmC _ _) =>
         checkEtaThmAtSpec mode fe' T lps nP nF tm cm tcv cvmT cvmC
       | _, _, _ => pure false) := by
-  sorry
+  rw [checkEtaThm]
+  refine am_bind_congr _ ?_; intro tm
+  refine am_bind_congr _ ?_; intro etn
+  refine am_bind_congr _ ?_; intro cm
+  rcases fe'.find? etn with _ | ci1 <;> rcases fe'.find? tm with _ | ci2 <;>
+    rcases fe'.find? cm with _ | ci3 <;> simp only [] <;> (try rfl)
+  cases ci1 <;> cases ci2 <;> cases ci3 <;> simp only [] <;> (try rfl)
+  rw [checkEtaThmAtSpec]
+  refine am_bind_congr _ ?_; intro eb
+  refine if_congr Iff.rfl rfl ?_
+  refine if_congr Iff.rfl rfl ?_
+  rw [List.range_eq_range']
+  refine am_bind_congr₂
+    (range_allM_counted _ (projModelsOkSpec fe' T lps) (fun i => rfl) ?_ nF 0) ?_
+  · intro m i
+    rw [projModelsOkSpec]
+    twin_reduce
+    refine am_bind_congr _ ?_; intro pn
+    split <;> split <;> (try simp_all)
+  intro po
+  refine if_congr Iff.rfl rfl ?_
+  rw [checkEtaThmShapeSpec]
+  refine am_bind_congr _ ?_; intro sp1
+  rcases sp1 with _ | ⟨sbinders, sbody⟩
+  · rfl
+  simp only []
+  refine am_bind_congr _ ?_; intro sp2
+  rcases sp2 with _ | ⟨tbindersM, tbodyM⟩
+  · rfl
+  simp only []
+  refine if_congr Iff.rfl rfl ?_
+  refine am_bind_congr _ ?_; intro us
+  refine am_bind_congr _ ?_; intro tHd
+  rw [checkEtaThmBodySpec]
+  refine am_bind_congr _ ?_; intro psLo
+  refine am_bind_congr _ ?_; intro famLo
+  rcases hx : sbinders[nP]? with _ | ⟨xdom, xm⟩
+  · simp only [pure_bind, Bool.not_false, if_true]
+  simp only [pure_bind]
+  refine if_congr Iff.rfl rfl ?_
+  refine am_bind_congr _ ?_; intro psHi
+  refine am_bind_congr _ ?_; intro famHi
+  rw [checkEtaThmEqSpec]
+  refine am_bind_congr _ ?_; intro eq3
+  rcases eq3 with _ | ⟨c, lA, tySlot, lhsC, rhsC⟩
+  · rfl
+  simp only []
+  refine am_bind_congr _ ?_; intro b0
+  refine am_bind_congr _ ?_; intro us2
+  refine am_bind_congr _ ?_; intro cHd
+  refine am_bind_congr₂
+    (range_mapM_counted _ (etaProjArgsSpec T lps psHi b0) (fun i => rfl) ?_ nF 0) ?_
+  · intro m i
+    rw [etaProjArgsSpec]
+    twin_reduce
+  intro projArgs
+  rfl
 
 /-! ## `checkUnitThm`, split five ways -/
 
@@ -930,11 +980,14 @@ def checkUnitThmAtSpec (mode : ConLeche.CheckMode) (fe' : IFEnv) (lps : List NId
     (mlps : List NIdx) : AM Bool := do
   if !(← eqBasisStored fe') then pure false else
   if !(tlps == lps && mlps == lps) then pure false else
-  match ← stripPis (nP + 2) tty, ← stripPis nP mtty with
-  | some (sbinders, sbody), some (tbindersM, tbodyM) => do
-    if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else
-    checkUnitThmShapeSpec mode lps nP tm sbinders sbody tbodyM
-  | _, _ => pure false
+  match ← stripPis (nP + 2) tty with
+  | none => pure false
+  | some (sbinders, sbody) =>
+    match ← stripPis nP mtty with
+    | none => pure false
+    | some (tbindersM, tbodyM) => do
+      if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else
+      checkUnitThmShapeSpec mode lps nP tm sbinders sbody tbodyM
 
 /-- The owed equation: `checkUnitThm` IS the two lookups and
 `checkUnitThmAtSpec`. -/
@@ -959,9 +1012,13 @@ theorem checkUnitThm_unfold (mode : ConLeche.CheckMode) (fe' : IFEnv) (T : NIdx)
   refine if_congr Iff.rfl rfl ?_
   refine if_congr Iff.rfl rfl ?_
   refine am_bind_congr _ ?_; intro sp1
+  rcases sp1 with _ | ⟨sbinders, sbody⟩
+  · rfl
+  simp only []
   refine am_bind_congr _ ?_; intro sp2
-  rcases sp1 with _ | ⟨sbinders, sbody⟩ <;> rcases sp2 with _ | ⟨tbindersM, tbodyM⟩ <;>
-    simp only [] <;> (try rfl)
+  rcases sp2 with _ | ⟨tbindersM, tbodyM⟩
+  · rfl
+  simp only []
   refine if_congr Iff.rfl rfl ?_
   rw [checkUnitThmShapeSpec]
   simp only [famAtSpec]
@@ -1053,5 +1110,8 @@ theorem checkModeled_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
 
 /-- info: 'ConRon.Refine2.checkUnitThm_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkUnitThm_unfold
+
+/-- info: 'ConRon.Refine2.checkEtaThm_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkEtaThm_unfold
 
 end ConRon.Refine2

@@ -178,7 +178,7 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
       t.pins = s.pins ∧ RelV (Expr.looseBVarsBounded 0) s.store value r)
     rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s
       value hck0.state (by rw [hv]; rfl))
-  obtain ⟨hlbb, r8⟩ := AM.dunless_ok hnever r7
+  obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
   replace r8 := AM.pure_bind_ok r8
   have hlbbP : x.looseBVarsBounded 0 = true := by
     rw [← h5r x hv]; exact hlbb
@@ -195,7 +195,7 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
       t.pins = s5.pins ∧ RelV Expr.hasFvar s5.store value r)
     rfl g6r (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s5 value
       hck5.state (by rw [hv5]; rfl))
-  obtain ⟨hfv, r10⟩ := AM.dguard_ok hnever r9
+  obtain ⟨hfv, r10⟩ := AM.dguard_ok AM.Never.fail_any r9
   replace r10 := AM.pure_bind_ok r10
   have hfvP : x.hasFvar = false := by
     rw [← h6r x hv5]
@@ -223,7 +223,7 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
   obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
     allLevelParamsDefined_run hck7.state hlps7 hw7 g8r
-  obtain ⟨hlpd, r13⟩ := AM.dunless_ok hnever r12
+  obtain ⟨hlpd, r13⟩ := AM.dunless_ok AM.Never.fail_any r12
   replace r13 := AM.pure_bind_ok r13
   have hlpdP : w.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
@@ -236,7 +236,7 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hw8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
+    (AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
   have hcrP : w.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK μ env fe s9 :=
@@ -449,7 +449,7 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
     rfl g3 (hknot.defeq s2 0 vtype cv.type vt c.type hck2 hvt2 hty2 hwsvt
       (ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar))
   obtain ⟨F3, hF3⟩ := hsim3
-  obtain ⟨hb, r4⟩ := AM.dunless_ok hnever r3
+  obtain ⟨hb, r4⟩ := AM.dunless_ok AM.Never.fail_any r3
   replace r4 := AM.pure_bind_ok r4
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
   subst hb
@@ -544,10 +544,10 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨b5, s5, ge, re⟩ := AM.bind_ok rd
   obtain ⟨bb, rfl⟩ : ∃ bb, o = some bb := by
     cases ho : o with
-    | none => rw [ho] at ge; exact absurd ge (AM.Never.fail _ _ _ _)
+    | none => rw [ho] at ge; exact absurd ge (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | some bb => exact ⟨bb, rfl⟩
   obtain ⟨rfl, rfl⟩ := AM.pure_ok ge
-  obtain ⟨hprop, rf⟩ := AM.dunless_ok hnever re
+  obtain ⟨hprop, rf⟩ := AM.dunless_ok AM.Never.fail_any re
   replace rf := AM.pure_bind_ok rf
   have heqv : ConLeche.Level.isEquiv uu .zero = some true := by
     rw [← hod, hprop]
@@ -581,7 +581,7 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
       Core.SimV (ConLeche.isDefEqCore μ env) 0 vt c.type r)
     rfl gi (hknot.defeq s7 0 vtype cv.type vt c.type hck7 hvt7 hty7 hwsvt hwsty)
   obtain ⟨F3, hF3⟩ := hsim8
-  obtain ⟨hb, rj⟩ := AM.dunless_ok hnever ri
+  obtain ⟨hb, rj⟩ := AM.dunless_ok AM.Never.fail_any ri
   replace rj := AM.pure_bind_ok rj
   obtain ⟨rfl, rfl⟩ := AM.pure_ok rj
   subst hb
@@ -657,7 +657,7 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
     rfl g3 (hknot.defeq s2 0 vtype cv.type vt c.type hck2 hvt2 hty2 hwsvt
       (ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar))
   obtain ⟨F3, hF3⟩ := hsim3
-  obtain ⟨hb, r4⟩ := AM.dunless_ok hnever r3
+  obtain ⟨hb, r4⟩ := AM.dunless_ok AM.Never.fail_any r3
   replace r4 := AM.pure_bind_ok r4
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
   subst hb
@@ -1688,7 +1688,7 @@ theorem substConst0_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr} 
   induction fuel with
   | zero =>
     intro h h' e s s' _ _ _ _ _ hrun
-    exact absurd hrun (AM.Never.fail _ _ _ _)
+    exact absurd hrun (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   | succ fuel ih =>
     intro h h' e s s' hst hp hn hx he hrun
     have hwf := hst.wf
@@ -2163,13 +2163,13 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     hck.mono hs12.ok hs12.ext hs12.caches hs12.pins
   rcases AM.ite_ok r2 with ⟨hc1, r3⟩ | ⟨-, r3⟩
   rotate_left
-  · exact absurd r3 AM.readFail_ne
+  · exact absurd r3 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   obtain ⟨b3, s3, g3, r4⟩ := AM.bind_ok r3
   obtain ⟨hck3, hx3, hp3, rfl⟩ :=
     reducePinGuard_run hck2 (denoteN_ext hn hs12.ext) g3
   rcases AM.ite_ok r4 with ⟨hc2, r5⟩ | ⟨-, r5⟩
   rotate_left
-  · exact absurd r5 AM.readFail_ne
+  · exact absurd r5 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   have hx03 : Ext s.store s3.store := hs12.ext.trans hx3
   -- the value, annotated
   obtain ⟨va, s4, g4, r6⟩ := AM.bind_ok r5
@@ -2205,7 +2205,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
   obtain ⟨F7, hF7⟩ := hsim7
   rcases AM.ite_ok r9 with ⟨hc7, r10⟩ | ⟨-, r10⟩
   rotate_left
-  · exact absurd r10 AM.readFail_ne
+  · exact absurd r10 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   have hc7' : ok1 = true := hc7
   subst hc7'
   -- the identity certificate
@@ -2240,7 +2240,7 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
   obtain ⟨F10, hF10⟩ := hsim10
   rcases AM.ite_ok r13 with ⟨hc10, r14⟩ | ⟨-, r14⟩
   rotate_left
-  · exact absurd r14 AM.readFail_ne
+  · exact absurd r14 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   have hc10' : ok2 = true := hc10
   subst hc10'
   obtain ⟨-, rfl⟩ := AM.pure_ok r14

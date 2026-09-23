@@ -111,7 +111,41 @@ theorem param_levels_go_refines {pers st lst}
     (hrun : arena.inductives.struct_parts.param_levels_go pers st lps i out = ok o) :
     Sim₀ absLIdxL pers lst o
       (do pure (absLIdxL out ++ (← paramLevelsGoSpec (absNIdxLFrom lps i)))) := by
-  sorry
+  simp only [absLIdxL, absNIdxLFrom]
+  refine sim_vec_cursor_copy lps ⟨⟨0#u32⟩⟩ absNIdx absLIdx
+    (fun n => Arena.internLNode (.param n)) paramLevelsGoSpec
+    (fun s i out => arena.inductives.struct_parts.param_levels_go pers s lps i out)
+    rfl (fun _ _ => rfl) ?_ ?_ i out st lst o hrel hinv hrun
+  · intro st i out o hn h
+    rw [arena.inductives.struct_parts.param_levels_go.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len lps by scalar_tac)] at h
+    exact (Result.ok_injective h).symm
+  · intro st lst i x out o hx hrel hinv h
+    rw [arena.inductives.struct_parts.param_levels_go.eq_def] at h
+    have hlt : i.val < lps.val.length := by
+      rcases Nat.lt_or_ge i.val lps.val.length with h' | h'
+      · exact h'
+      · rw [List.getElem?_eq_none h'] at hx; cases hx
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len lps by scalar_tac)] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨r, st1⟩ := p
+    have hnx : n = x := by
+      have := vec_index_some hn; rw [hx] at this; exact (Option.some.inj this).symm
+    have hn1n : n1 = n := dupId_nidx n n1 hn1
+    subst hnx; subst hn1n
+    refine ⟨r, st1, intern_l_node_run₀ hrel hinv _ hp, ?_, ?_⟩
+    · intro u hu
+      subst hu
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      refine ⟨i2, out1, ?_, ConRon.Refine.vec_push_val hout1, h⟩
+      have := ConRon.Refine.Nat.uadd_val hi2
+      simpa using this
+    · intro e he
+      subst he
+      exact (Result.ok_injective h).symm
 
 /-- `param_levels` ⊑ `paramLevels`. -/
 theorem param_levels_refines {pers st lst}
@@ -119,7 +153,29 @@ theorem param_levels_refines {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.struct_parts.param_levels pers st lps = ok o) :
     Sim₀ absLsIdx pers lst o (paramLevels (absNIdxL lps)) := by
-  sorry
+  rw [arena.inductives.struct_parts.param_levels] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := p
+  have hgo := param_levels_go_refines hrel hinv hp
+  rw [paramLevels_unfold]
+  have h0 : absNIdxLFrom lps 0#usize = absNIdxL lps := by
+    simp [absNIdxLFrom, absNIdxL]
+  have hnew : absLIdxL (alloc.vec.Vec.new arena.handle.LIdx) = [] := rfl
+  rw [h0, hnew] at hgo
+  simp only [List.nil_append, bind_pure] at hgo
+  cases r with
+  | Err e =>
+    have ho : (core.result.Result.Err e, st1) = o := Result.ok_injective hrun
+    subst ho
+    show AOut₀ _ _ (core.result.Result.Err e) st1 _
+    rw [am_run_bind]
+    exact AErrSim.bind (Sim₀.apply_err hgo) _
+  | Ok us =>
+    obtain ⟨lst1, hrun1, hrel1, hinv1⟩ := Sim₀.apply hgo
+    have hls := intern_ls_node_run₀ hrel1 hinv1 us hrun
+    show AOut₀ _ _ o.1 o.2 _
+    rw [am_run_bind, hrun1]
+    exact hls
 
 /-! ## The families and the spines -/
 
@@ -236,7 +292,9 @@ theorem struct_elim_level_refines {pers st lst} {elim : arena.handle.NIdx}
       = ok o) :
     Sim₀ absLIdx pers lst o
       (structElimLevel (absNIdx elim) large) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.struct_parts.struct_elim_level, structElimLevel]
+  lockstep
 
 /-- `struct_ctor_spine_at` ⊑ `structCtorSpineAt`. -/
 theorem struct_ctor_spine_at_refines {pers st lst} {c : arena.handle.NIdx}
@@ -465,7 +523,9 @@ theorem struct_proj_arg_p_refines {pers st lst} {t : arena.handle.NIdx}
     (hrun : arena.inductives.struct_parts.struct_proj_arg_p pers st t j = ok o) :
     Sim₀ absEIdx pers lst o
       (structProjArgP (absNIdx t) (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.struct_parts.struct_proj_arg_p, structProjArgP]
+  lockstep
 
 /-- `struct_proj_resid_p` ⊑ `structProjResidP`. -/
 theorem struct_proj_resid_p_refines {pers st lst} {t : arena.handle.NIdx}

@@ -216,7 +216,10 @@ theorem idx_free_of_refines {pers st lst} {t : arena.handle.NIdx}
       (idxFreeOfSpec (absNIdx t) (absEIdxLFrom idx i)) := by
   sorry
 
-/-- `rec_positivity_at` ⊑ `recPositivity`'s `_` arm. -/
+/-- `rec_positivity_at` ⊑ `recPositivityAt` — the leaf of the walk, past the
+`mentionsConst` test (which `rec_positivity` makes before the call; the
+statement used to read `recPositivityAtSpec`, which includes that test, so the
+two sides did not do the same thing — task #97-T2-LOCKSTEP lane Inductives). -/
 theorem rec_positivity_at_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs : Std.U64}
     {h : arena.handle.EIdx} {k : Std.U64} {o}
@@ -224,7 +227,7 @@ theorem rec_positivity_at_refines {pers st lst} {t : arena.handle.NIdx}
     (hrun : arena.inductives.native_parts.rec_positivity_at pers st t lps n_p n_idx
       ofs h k = ok o) :
     Sim₀ absRecFieldKind pers lst o
-      (recPositivityAtSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+      (recPositivityAt (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absU ofs) (absEIdx h) (absU k)) := by
   sorry
 

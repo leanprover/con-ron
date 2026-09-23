@@ -134,34 +134,15 @@ def nativeOpenedOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
       let residOk ← (xargs.drop nP).allM fun e => constsResolveFFast fe₀ e
       if !residOk then pure false else
       (List.range nF).allM fun i => do
-        match xFvs[i]?, ks.getD i .ordinary with
-        | some x, .ordinary => do constsResolveFFast fe₀ (← fvarTypeD x)
-        | some x, .recursive => do
-          let xt ← fvarTypeD x
-          let fn ← getAppFn coreWalkFuel xt
-          let args ← getAppArgs coreWalkFuel xt
-          if !(fn == hd && args.take nP == fvsP && args.length == nP + nIdx) then
-            pure false
-          else do
-            let idxOk ← (args.drop nP).allM fun e => constsResolveFFast fe₀ e
-            if !idxOk then pure false else do
-            let later ← (xFvs.drop (i + 1)).anyM fun y => do
-              mentionsFvar (nP + i) (← fvarTypeD y)
-            if later then pure false else
-            pure !(← mentionsFvar (nP + i) xrest)
-        | some x, .reflexive => do
-          -- the field's own telescope, OPENED at variables at the field's
-          -- depth (task #202)
-          let xt ← fvarTypeD x
-          let (tele, _) ← piBinders coreWalkFuel xt
-          match ← openPisAtFvarsF tele.length xt (nP + i) with
-          | none => pure false
-          | some (afvs, body) => do
-            if afvs.length == 0 then pure false else do
-            let domsOk ← afvs.allM fun a => do constsResolveFFast fe₀ (← fvarTypeD a)
-            if !domsOk then pure false else do
-            let fn ← getAppFn coreWalkFuel body
-            let args ← getAppArgs coreWalkFuel body
+        match xFvs[i]? with
+        | none => pure false
+        | some x =>
+          match ks.getD i .ordinary with
+          | .ordinary => do constsResolveFFast fe₀ (← fvarTypeD x)
+          | .recursive => do
+            let xt ← fvarTypeD x
+            let fn ← getAppFn coreWalkFuel xt
+            let args ← getAppArgs coreWalkFuel xt
             if !(fn == hd && args.take nP == fvsP && args.length == nP + nIdx) then
               pure false
             else do
@@ -171,7 +152,29 @@ def nativeOpenedOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
                 mentionsFvar (nP + i) (← fvarTypeD y)
               if later then pure false else
               pure !(← mentionsFvar (nP + i) xrest)
-        | _, _ => pure false
+          | .reflexive => do
+            -- the field's own telescope, OPENED at variables at the field's
+            -- depth (task #202)
+            let xt ← fvarTypeD x
+            let (tele, _) ← piBinders coreWalkFuel xt
+            match ← openPisAtFvarsF tele.length xt (nP + i) with
+            | none => pure false
+            | some (afvs, body) => do
+              if afvs.length == 0 then pure false else do
+              let domsOk ← afvs.allM fun a => do constsResolveFFast fe₀ (← fvarTypeD a)
+              if !domsOk then pure false else do
+              let fn ← getAppFn coreWalkFuel body
+              let args ← getAppArgs coreWalkFuel body
+              if !(fn == hd && args.take nP == fvsP && args.length == nP + nIdx) then
+                pure false
+              else do
+                let idxOk ← (args.drop nP).allM fun e => constsResolveFFast fe₀ e
+                if !idxOk then pure false else do
+                let later ← (xFvs.drop (i + 1)).anyM fun y => do
+                  mentionsFvar (nP + i) (← fvarTypeD y)
+                if later then pure false else
+                pure !(← mentionsFvar (nP + i) xrest)
+          | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:435-445 nativeFieldsOk
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69 nativeFieldsOkF
