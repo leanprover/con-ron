@@ -1066,22 +1066,5 @@ theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
         (ConLeche.Frontend.projRecOwners blockP typesP ctorsP recsP) := by
   sorry
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:379-380 registerProjOwners — the
-census, recorded in the parse state's two tables.
-
-`sorry`: `projRecOwners_run` plus `MapRel.insert` at `projOwners`.  Task
-#97-P3-Frontend's sorry list, item 13. -/
-theorem registerProjOwners_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd sd' : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
-    {cts : List ConLeche.Frontend.IndCtorRec}
-    {rcs : List ConLeche.Frontend.IndRecRec} {block : List IConstantInfo}
-    {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)
-    (hrun : registerProjOwners sd tys cts rcs block s = .ok (sd', s')) :
-    ParseStep s s' ∧ PersStateD sd' ∧
-      ∃ sc', ConLeche.Frontend.registerProjOwners sc tys cts rcs blockP = .ok sc' ∧
-        StateDRel s'.store sd' sc' := by
-  sorry
 
 end ConRon.Bridge.Frontend

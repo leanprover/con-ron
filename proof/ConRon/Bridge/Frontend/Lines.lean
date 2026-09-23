@@ -2916,6 +2916,122 @@ theorem StateDRel.setModelled {st : EStore} {sd : StateD}
       { sc with inModelled := b, inModelGen := gC } :=
   { h with inModelled := hab, inModelGen := hg }
 
+/-- con-leche: ConLeche/Frontend/ExportC.lean:394-396 registerProjOwners — the
+owner map, extended by the census on both sides (`MapRel.insert` per owner,
+keyed by its own type former). -/
+theorem MapRel.foldl_insert_owners {st : EStore} (hwf : StoreWF st) :
+    ∀ {os : List ProjRecOwner} {osC : List ConLeche.Frontend.ProjRecOwner},
+      ListRel (ProjRecOwnerRel st) os osC →
+      ∀ {m : Std.HashMap NIdx ProjRecOwner}
+        {mc : Std.HashMap ConLeche.Name ConLeche.Frontend.ProjRecOwner},
+        MapRel st (ProjRecOwnerRel st) m mc →
+        MapRel st (ProjRecOwnerRel st) (os.foldl (fun m o => m.insert o.T o) m)
+          (osC.foldl (fun m o => m.insert o.T o) mc) := by
+  intro os osC h
+  induction h with
+  | nil => intro m mc hm; exact hm
+  | cons hab _ ih =>
+    intro m mc hm
+    exact ih (MapRel.insert hwf hm hab.T hab)
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:379-380 registerProjOwners — the
+census, recorded in the parse state's two tables.
+
+Three `mapM`s over `parseCVD_run` (the export's shape data, related in exactly
+the shape `projRecOwners_run` asks), then `projRecOwners_run` and
+`MapRel.foldl_insert_owners`.  Round 7 moved it here from
+`Bridge/Frontend/ProjRec.lean` (it needs `parseCVD_run`, which this module
+states) and proved it from `projRecOwners_run`; it inherits that leaf's frame
+finding (DESIGN, task #97-P3-Frontend round 7). -/
+theorem registerProjOwners_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd sd' : StateD}
+    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
+    (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
+    {cts : List ConLeche.Frontend.IndCtorRec}
+    {rcs : List ConLeche.Frontend.IndRecRec} {block : List IConstantInfo}
+    {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)
+    (hrun : registerProjOwners sd tys cts rcs block s = .ok (sd', s')) :
+    ParseStep s s' ∧ PersStateD sd' ∧
+      ∃ sc', ConLeche.Frontend.registerProjOwners sc tys cts rcs blockP = .ok sc' ∧
+        StateDRel s'.store sd' sc' := by
+  suffices h : (ParseStep s s' ∧ PersStateD sd') ∧
+      ∃ sc', ConLeche.Frontend.registerProjOwners sc tys cts rcs blockP = .ok sc' ∧
+        StateDRel s'.store sd' sc' from ⟨h.1.1, h.1.2, h.2⟩
+  rw [registerProjOwners] at hrun
+  rw [ConLeche.Frontend.registerProjOwners]
+  obtain ⟨types, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  refine except_bind_ex (mapM_sim'
+    (P := fun (p : NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool)
+        (q : ConLeche.Name × List ConLeche.Name × Expr × Nat × Nat ×
+          List ConLeche.Name × Bool) =>
+      denoteN s.store.ns p.1 = some q.1 ∧
+        denoteNList s.store.ns p.2.1 = some q.2.1 ∧
+        denoteE s.store p.2.2.1 = some q.2.2.1 ∧
+        p.2.2.2.1 = q.2.2.2.1 ∧ p.2.2.2.2.1 = q.2.2.2.2.1 ∧
+        denoteNList s.store.ns p.2.2.2.2.2.1 = some q.2.2.2.2.2.1 ∧
+        p.2.2.2.2.2.2 = q.2.2.2.2.2.2)
+    (fun t b s0' h => by
+      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
+      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
+      rw [hs2] at h3
+      obtain ⟨hs, s₃, h4, h5⟩ := AM.bind_ok h3
+      obtain ⟨hs4, xs, hxs, hdxs⟩ := StateD_names_run hrel t.ctors h4
+      rw [hs4] at h5
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h5
+      refine ⟨rfl, _, by rw [hc, except_ok_bind, hxs]; rfl, ?_⟩
+      exact ⟨denoteCV_name hdc, denoteCV_lps hdc, denoteCV_type hdc, rfl, rfl, hdxs, rfl⟩)
+    tys h1) ?_
+  rintro typesC ⟨hs1, htR⟩
+  rw [hs1] at hrun
+  obtain ⟨ctors, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  refine except_bind_ex (mapM_sim'
+    (P := fun (p : NIdx × Nat × EIdx) (q : ConLeche.Name × Nat × Expr) =>
+      denoteN s.store.ns p.1 = some q.1 ∧ p.2.1 = q.2.1 ∧
+        denoteE s.store p.2.2 = some q.2.2)
+    (fun t b s0' h => by
+      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
+      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
+      rw [hs2] at h3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
+      refine ⟨rfl, _, by rw [hc, except_ok_bind]; rfl, ?_⟩
+      exact ⟨denoteCV_name hdc, rfl, denoteCV_type hdc⟩)
+    cts h1) ?_
+  rintro ctorsC ⟨hs1, hcR⟩
+  rw [hs1] at hrun
+  obtain ⟨recs, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  refine except_bind_ex (mapM_sim'
+    (P := fun (p : NIdx × List NIdx × EIdx × Nat × Nat)
+        (q : ConLeche.Name × List ConLeche.Name × Expr × Nat × Nat) =>
+      denoteN s.store.ns p.1 = some q.1 ∧
+        denoteNList s.store.ns p.2.1 = some q.2.1 ∧
+        denoteE s.store p.2.2.1 = some q.2.2.1 ∧
+        p.2.2.2.1 = q.2.2.2.1 ∧ p.2.2.2.2 = q.2.2.2.2)
+    (fun t b s0' h => by
+      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
+      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
+      rw [hs2] at h3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
+      refine ⟨rfl, _, by rw [hc, except_ok_bind]; rfl, ?_⟩
+      exact ⟨denoteCV_name hdc, denoteCV_lps hdc, denoteCV_type hdc, rfl, rfl⟩)
+    rcs h1) ?_
+  rintro recsC ⟨hs1, hrR⟩
+  rw [hs1] at hrun
+  obtain ⟨fuel, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  have hs1 := storeFuel_run h1
+  rw [hs1] at hrun
+  obtain ⟨os, s₂, h2, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hstep, hos⟩ := projRecOwners_run hok hoff hpins hb htR hcR hrR h2
+  have hrel2 := hrel.ext hstep.ext
+  generalize ConLeche.Frontend.projRecOwners blockP typesC ctorsC recsC = osC at hos ⊢
+  cases hos with
+  | nil =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨⟨hstep, hp⟩, _, rfl, hrel2⟩
+  | cons hab hrest =>
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    refine ⟨⟨hstep, { hp with }⟩, _, rfl, { hrel2 with projOwners := ?_ }⟩
+    exact MapRel.foldl_insert_owners hstep.ok.wf (ListRel.cons hab hrest) hrel2.projOwners
+
 /-- con-leche: ConLeche/Frontend/ExportC.lean:564-565 installIndD — the half
 that WRITES: the block's constants, the projection-owner registration and the
 modeller seam.  This is the one theorem of the tier that takes the modeller's
@@ -2926,7 +3042,7 @@ Since round 5 `hmw` carries one clause more — a generated record's projection
 tables are rightly named (`DeclProjNamed`) — and that is what `pushGenList`
 hands `pushDecl_run` for the records the seam returned.
 
-`registerProjOwners_run` (`Bridge/Frontend/ProjRec.lean`), `blockRecOf_run`,
+`registerProjOwners_run` (above), `blockRecOf_run`,
 then `hmw`/`hmr` at the seam and `pushGenList_run` for what it returns.
 
 **Two preconditions the round-1 statement lacked** (task #97-P3-Frontend
