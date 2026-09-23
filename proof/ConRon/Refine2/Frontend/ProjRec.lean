@@ -86,7 +86,17 @@ def OOut (lst : AState)
 /-- **`proj_rec_owner_dup` is the identity**, the house `foo_dup` (§3.4). -/
 theorem proj_rec_owner_dup_refines {o o'}
     (h : frontend.proj_rec.proj_rec_owner_dup o = ok o') :
-    absProjRecOwner o' = absProjRecOwner o := by sorry
+    absProjRecOwner o' = absProjRecOwner o := by
+  rw [frontend.proj_rec.proj_rec_owner_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [dupId_nidx _ _ hn, dupId_nidx _ _ hn1, dupId_nidx _ _ hn2, dupId_eidx _ _ he]
+  simp only [absProjRecOwner, nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
 
 /-! ### `text::cps_beq` (moved here from `ExportC.lean`, round 3: `is_proj_iota_name` reads it) -/
 
@@ -367,28 +377,123 @@ theorem append_eidx_refines {out xs v}
 /-- **`type_names`** — the block's type-former names, `types.map (·.1)`. -/
 theorem type_names_refines {types v}
     (h : frontend.proj_rec.type_names types = ok v) :
-    absNIdxL v = (absProjTypeRecL types).map (·.1) := by sorry
+    absNIdxL v = (absProjTypeRecL types).map (·.1) := by
+  rw [frontend.proj_rec.type_names] at h
+  have key : ∀ (k : Nat) (out : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) r,
+      types.val.length - i.val = k →
+      frontend.proj_rec.type_names_loop types (alloc.vec.Vec.len types) out i = ok r →
+      r.val = out.val ++ (types.val.drop i.val).map (·.1) := by
+    intro k
+    induction k with
+    | zero =>
+      intro out i r hk h
+      rw [frontend.proj_rec.type_names_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]; simp
+    | succ k ih =>
+      intro out i r hk h
+      have hi : i.val < types.val.length := by omega
+      rw [frontend.proj_rec.type_names_loop, if_pos (by scalar_tac),
+        vec_index_ok_eq types i hi, bind_tc_ok] at h
+      obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn2] at h
+      obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi1v : i1.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi1).trans (by simp)
+      rw [ih o1 i1 r (by omega) h, ConRon.Refine.vec_push_val ho1, hi1v,
+        List.drop_eq_getElem_cons hi]
+      simp only [List.map_cons, List.append_assoc, List.singleton_append]
+      rfl
+  have := key _ _ 0#usize v rfl h
+  simp [absNIdxL, absProjTypeRecL, this, alloc.vec.Vec.with_capacity, absProjTypeRec,
+    Function.comp_def]
 
 /-- **`any_is_rec`** — `types.any (·.2.2.2.2.2.2)`. -/
 theorem any_is_rec_refines {types v}
     (h : frontend.proj_rec.any_is_rec types = ok v) :
-    v = (absProjTypeRecL types).any (·.2.2.2.2.2.2) := by sorry
+    v = (absProjTypeRecL types).any (·.2.2.2.2.2.2) := by
+  rw [frontend.proj_rec.any_is_rec] at h
+  have key : ∀ (k : Nat) (i : Std.Usize) b, types.val.length - i.val = k →
+      frontend.proj_rec.any_is_rec_loop types (alloc.vec.Vec.len types) i = ok b →
+      b = ((types.val.drop i.val).map absProjTypeRec).any (·.2.2.2.2.2.2) := by
+    intro k
+    induction k with
+    | zero =>
+      intro i b hk h
+      rw [frontend.proj_rec.any_is_rec_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]; rfl
+    | succ k ih =>
+      intro i b hk h
+      have hi : i.val < types.val.length := by omega
+      rw [frontend.proj_rec.any_is_rec_loop, if_pos (by scalar_tac),
+        vec_index_ok_eq types i hi, bind_tc_ok] at h
+      rw [List.drop_eq_getElem_cons hi, List.map_cons, List.any_cons]
+      rcases hx : types.val[i.val] with ⟨a1, a2, a3, a4, a5, a6, b0⟩
+      rw [hx] at h
+      change (if b0 = true then ok true else _) = ok b at h
+      split at h
+      · rename_i hb
+        cases Result.ok_injective h
+        simp [absProjTypeRec, hb]
+      · rename_i hb
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi1).trans (by simp)
+        rw [ih i1 b (by omega) h, hi1v]
+        simp [absProjTypeRec, hb]
+  simpa [absProjTypeRecL] using key _ 0#usize v rfl h
 
 /-- **`declared_num_params`** — the first type record's parameter count, `0`
 at an empty block: the twin's `(types.head?.map (·.2.2.2.1)).getD 0`. -/
 theorem declared_num_params_refines {types v}
     (h : frontend.proj_rec.declared_num_params types = ok v) :
-    absU v = (((absProjTypeRecL types).head?).map (·.2.2.2.1)).getD 0 := by sorry
+    absU v = (((absProjTypeRecL types).head?).map (·.2.2.2.1)).getD 0 := by
+  rw [frontend.proj_rec.declared_num_params] at h
+  split at h
+  · rename_i h0
+    cases Result.ok_injective h
+    have : types.val = [] := by
+      have := congrArg UScalar.val h0; simpa using this
+    simp [absProjTypeRecL, this]
+  · rename_i h0
+    have hp : 0 < types.val.length := by
+      have : (alloc.vec.Vec.len types).val ≠ 0 := fun e => h0 (UScalar.eq_of_val_eq e)
+      simpa using Nat.pos_of_ne_zero this
+    rw [vec_index_ok_eq types 0#usize hp, bind_tc_ok] at h
+    cases Result.ok_injective h
+    obtain ⟨x, xs, hx⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_length_pos hp)
+    simp [absProjTypeRecL, hx, absProjTypeRec]
 
 /-- **`occurs_record`** — the visited set's insert. -/
 theorem occurs_record_refines {rm ls h' m'} (hs : HSetRel rm ls)
     (h : frontend.proj_rec.occurs_record rm h' = ok m') :
-    HSetRel m' (ls.insert (absEIdx h')) := by sorry
+    HSetRel m' (ls.insert (absEIdx h')) := by
+  rw [frontend.proj_rec.occurs_record] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [dupId_eidx _ _ he] at h
+  obtain ⟨⟨old, m1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨hinv', -, htf, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen eidx_eq2 hs.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial hins
+  refine ⟨fun k => ?_, hinv'⟩
+  rw [htf, Std.HashSet.contains_insert]
+  by_cases hk : k = h'
+  · subst hk; simp
+  · have hne : (absEIdx h' == absEIdx k) = false := by
+      simp only [beq_eq_false_iff_ne, ne_eq]
+      exact fun e => hk (absEIdx_inj e).symm
+    rw [Function.update_of_ne hk, hs.1 k, hne, Bool.false_or]
 
 /-- **`occurs_seen`** — the visited set's probe. -/
 theorem occurs_seen_refines {rm ls h' v} (hs : HSetRel rm ls)
     (h : frontend.proj_rec.occurs_seen rm h' = ok v) :
-    v = ls.contains (absEIdx h') := by sorry
+    v = ls.contains (absEIdx h') := by
+  rw [frontend.proj_rec.occurs_seen] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [eidx_get hs.2 hr] at h
+  rw [← hs.1 h']
+  cases hto : ConRon.Refine.HashMap2.toFun rm h' <;> rw [hto] at h <;> simp only [Result.ok.injEq] at h <;>
+    simp [← h]
 
 /-! ## The artifact name and its pre-filter -/
 
@@ -796,39 +901,53 @@ theorem proj_iota_level_refines {pers rst lst fuel ty o}
 
 /-! ## The occurrence test -/
 
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem occurs_seen_spec {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashSet EIdx} (hs : HSetRel rm ls) (h' : arena.handle.EIdx) :
+    LSP (frontend.proj_rec.occurs_seen rm h') (fun v => v = ls.contains (absEIdx h')) :=
+  fun _ h => occurs_seen_refines hs h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem occurs_record_spec {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashSet EIdx} (hs : HSetRel rm ls) (h' : arena.handle.EIdx) :
+    LSP (frontend.proj_rec.occurs_record rm h') (fun m' => HSetRel m' (ls.insert (absEIdx h'))) :=
+  fun _ h => occurs_record_refines hs h
+
+attribute [local lockstep_inline] frontend.proj_rec.occurs_const_node
+  frontend.proj_rec.occurs_const_two
+
+open ConRon.Refine2.Lockstep in
 /-- **`occurs_const_go` refines `occursConstGo`** (`ProjRec.lean:141-186`):
-does the constant `n` occur in the DAG under `h`, each node visited once. -/
-theorem occurs_const_go_refines {pers rst lst n seen ls fuel h' o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hs : HSetRel seen ls)
-    (h : frontend.proj_rec.occurs_const_go pers rst n seen fuel h' = ok o) :
-    OOut lst o (occursConstGo (absNIdx n) ls (absU fuel) (absEIdx h')) := by sorry
-
-/-- **`occurs_const_node`** — the port's split at a resolved view. -/
-theorem occurs_const_node_refines {pers rst lst n seen ls fuel h' v o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hs : HSetRel seen ls)
-    (h : frontend.proj_rec.occurs_const_node pers rst n seen fuel h' v = ok o) :
-    OOut lst o (occursConstGo (absNIdx n) ls (absU fuel + 1) (absEIdx h')) := by
-  sorry
-
-/-- **`occurs_const_two`** — the twin's four identical two-child `match`
-nests, as one function. -/
-theorem occurs_const_two_refines {pers rst lst n seen ls fuel h' x y o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hs : HSetRel seen ls)
-    (h : frontend.proj_rec.occurs_const_two pers rst n seen fuel h' x y = ok o) :
-    OOut lst o (do
-      let (b, s) ← occursConstGo (absNIdx n) ls (absU fuel) (absEIdx x)
-      if b then pure (true, s)
-      else occursConstGo (absNIdx n) s (absU fuel) (absEIdx y)) := by sorry
-
-/-- **`occurs_const_fast` refines `occursConstFast`** (`ProjRec.lean:192-196`). -/
-theorem occurs_const_fast_refines {pers rst lst fuel n h' o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.occurs_const_fast pers rst fuel n h' = ok o) :
-    SimRE id lst o (occursConstFast (absU fuel) (absNIdx n) (absEIdx h')) := by
-  sorry
+does the constant `n` occur in the DAG under `h`, each node visited once.  The
+port's two splits (`occurs_const_node`, `occurs_const_two`) are unfolded in
+place. -/
+theorem occurs_const_go_aux (N : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (n : arena.handle.NIdx) (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (ls : Std.HashSet EIdx) (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = N → HSetRel seen ls → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => a.1 = b.1 ∧ HSetRel a.2 b.2)
+        (frontend.proj_rec.occurs_const_go pers st n seen fuel h) st lst
+        (occursConstGo (absNIdx n) ls N (absEIdx h)) := by
+  induction N with
+  | zero =>
+    intro pers st lst n seen ls fuel h hn hs hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.occurs_const_go, occursConstGo, if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst n seen ls fuel h hn hs hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.occurs_const_go, occursConstGo, if_neg (by scalar_tac)]
+    lockstep
+    -- the twin's `match (b, seen) with | (false, seen) => …` at the port's
+    -- `if b` (the negative arm): the Bool is `false`, the match reduces
+    iterate 3
+      all_goals
+        simp only [Bool.not_eq_true] at hc
+        subst hc
+        dsimp only
+        lockstep
 
 /-! ## The telescope helpers -/
 
