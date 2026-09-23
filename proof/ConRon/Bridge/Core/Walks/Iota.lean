@@ -48,6 +48,180 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 3. The firing rule's comparands and the index comparison -/
 
+/-- con-leche: none — a denoting level-handle list is a valid list node. -/
+theorem lsViewOK_of_denote {st : LsStore} :
+    ∀ {v : List LIdx} {L : List Level}, denoteLList st.ls v = some L → st.ViewOK v
+  | [], _, _ => by intro c hc; simp at hc
+  | u :: us, L, h => by
+    simp only [denoteLList] at h
+    cases h1 : denoteL st.ls u with
+    | none => rw [h1] at h; simp [opt2] at h
+    | some l =>
+      cases h2 : denoteLList st.ls us with
+      | none => rw [h1, h2] at h; simp [opt2] at h
+      | some L' =>
+        intro c hc
+        rcases List.mem_cons.mp hc with rfl | hc
+        · exact lview_isSome_of_denote h1
+        · exact lsViewOK_of_denote h2 c hc
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:948-968 recFireComparands — the
+nested rule's level comparands, `lvls.map (Level.subst lps us)`. -/
+theorem substLevelsAt_spec (ks : List ConLeche.Name) (vs : List Level) :
+    ∀ (lvls : List LIdx) (s₀ : AState) (L : List Level),
+      CheckOK mode env fe s₀ → denoteLList s₀.store.ls lvls = some L →
+      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.substLevelsAt ks vs lvls
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          denoteLList s'.store.ls r = some (L.map (Level.subst ks vs))⌝⦄ := by
+  intro lvls
+  induction lvls with
+  | nil =>
+    intro s₀ L hok hL
+    simp only [denoteLList, Option.some.injEq] at hL
+    subst hL
+    mvcgen [ConRon.Arena.substLevelsAt]
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, rfl⟩
+  | cons u us ih =>
+    intro s₀ L hok hL
+    obtain ⟨l0, L', hu, hus, rfl⟩ : ∃ l0 L', denoteL s₀.store.ls u = some l0 ∧
+        denoteLList s₀.store.ls us = some L' ∧ L = l0 :: L' := by
+      simp only [denoteLList] at hL
+      cases h1 : denoteL s₀.store.ls u with
+      | none => rw [h1] at hL; simp [opt2] at hL
+      | some l =>
+        cases h2 : denoteLList s₀.store.ls us with
+        | none => rw [h1, h2] at hL; simp [opt2] at hL
+        | some L' =>
+          rw [h1, h2] at hL
+          simp only [opt2, Option.some.injEq] at hL
+          exact ⟨l, L', rfl, rfl, hL.symm⟩
+    unfold ConRon.Arena.substLevelsAt
+    refine triple_seq (ExprOps.readLevelM_specF s₀ u hok.caches.readL) ?_
+    rintro l s1 ⟨hst1, hm1, hp1, hc1, hl1, hL1⟩
+    have hok1 := CheckOK.ofReadbackFrame hok
+      (ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1)
+    have hle : l0 = l := Option.some.inj (hu.symm.trans hl1)
+    subst hle
+    refine triple_seq (internLevel_spec s1 (Level.subst ks vs l0)
+      hok1.state.wf) ?_
+    rintro h s2 ⟨hwf2, hx2, _, _, _, _, hc2, hp2, hh⟩
+    have hok2 : CheckOK mode env fe s2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
+    have hx02 : Ext s₀.store s2.store := by rw [← hst1]; exact hx2
+    refine triple_seq (ih s2 L' hok2 (denoteLListE_ext hx02 _ _ hus)) ?_
+    rintro rest s3 ⟨hok3, hx3, hp3, hrest⟩
+    mvcgen
+    bridge_peel; subst_vars
+    refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), ?_⟩
+    simp only [List.map_cons]
+    exact denoteLList_cons_of (denoteL_ext hh hx3) hrest
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:948-968 recFireComparands — the
+canonical rule's level comparands, `cvjLps.map fun p => Level.subst lps us
+(.param p)`. -/
+theorem substParamLevels_spec (ks : List ConLeche.Name) (vs : List Level) :
+    ∀ (ps : List NIdx) (s₀ : AState) (cs : List ConLeche.Name),
+      CheckOK mode env fe s₀ → Frontend.denoteNList s₀.store.ns ps = some cs →
+      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.substParamLevels ks vs ps
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          denoteLList s'.store.ls r =
+            some (cs.map fun p => Level.subst ks vs (.param p))⌝⦄ := by
+  intro ps
+  induction ps with
+  | nil =>
+    intro s₀ cs hok hcs
+    simp only [Frontend.denoteNList, Option.some.injEq] at hcs
+    subst hcs
+    mvcgen [ConRon.Arena.substParamLevels]
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, rfl⟩
+  | cons p ps ih =>
+    intro s₀ cs hok hcs
+    obtain ⟨c0, cs', hp0, hps, rfl⟩ : ∃ c0 cs', denoteN s₀.store.ns p = some c0 ∧
+        Frontend.denoteNList s₀.store.ns ps = some cs' ∧ cs = c0 :: cs' := by
+      simp only [Frontend.denoteNList] at hcs
+      cases h1 : denoteN s₀.store.ns p with
+      | none => rw [h1] at hcs; simp at hcs
+      | some c =>
+        cases h2 : Frontend.denoteNList s₀.store.ns ps with
+        | none => rw [h1, h2] at hcs; simp at hcs
+        | some cs' =>
+          rw [h1, h2] at hcs
+          simp only [Option.some.injEq] at hcs
+          exact ⟨c, cs', rfl, rfl, hcs.symm⟩
+    unfold ConRon.Arena.substParamLevels
+    refine triple_seq (ExprOps.readNameM_specF s₀ p hok.caches.readN) ?_
+    rintro pn s1 ⟨hst1, hm1, hp1, hc1, hpn1, hN1⟩
+    have hok1 := CheckOK.ofReadbackFrame hok
+      (ReadbackFrame.ofReadN hst1 hm1 hp1 hc1 hN1)
+    have hle : c0 = pn := Option.some.inj (hp0.symm.trans hpn1)
+    subst hle
+    refine triple_seq (internLevel_spec s1 (Level.subst ks vs (.param c0))
+      hok1.state.wf) ?_
+    rintro h s2 ⟨hwf2, hx2, _, _, _, _, hc2, hp2, hh⟩
+    have hok2 : CheckOK mode env fe s2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
+    have hx02 : Ext s₀.store s2.store := by rw [← hst1]; exact hx2
+    refine triple_seq (ih s2 cs' hok2 (denoteNListE_ext hx02 _ _ hps)) ?_
+    rintro rest s3 ⟨hok3, hx3, hp3, hrest⟩
+    mvcgen
+    bridge_peel; subst_vars
+    refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), ?_⟩
+    simp only [List.map_cons]
+    exact denoteLList_cons_of (denoteL_ext hh hx3) hrest
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:948-968 recFireComparands — the
+nested rule's parameter pins, level-instantiated and instantiated at the
+recursor's leading-argument spine. -/
+theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
+    (rP : Nat) (ksv : List ConLeche.Name) (usv : List Level) (xs : List Expr) :
+    ∀ (pins : List EIdx) (s₀ : AState) (Ps : List Expr),
+      CheckOK mode env fe s₀ →
+      Frontend.denoteNList s₀.store.ns lps = some ksv →
+      denoteLs s₀.store.lss us = some usv →
+      Frontend.denoteEList s₀.store args = some xs →
+      Frontend.denoteEList s₀.store pins = some Ps →
+      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.instSpinePins lps us args rP pins
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          Frontend.denoteEList s'.store r = some (Ps.map fun p =>
+            Expr.instSpine (xs.take rP) (rP - 1)
+              (p.instantiateLevelParams ksv usv))⌝⦄ := by
+  intro pins
+  induction pins with
+  | nil =>
+    intro s₀ Ps hok _ _ _ hPs
+    obtain rfl := denoteEList_nil_inv hPs
+    mvcgen [ConRon.Arena.instSpinePins]
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, rfl⟩
+  | cons p ps ih =>
+    intro s₀ Ps hok hks hus hxs hPs
+    obtain ⟨P, Ps', hP, hPs', rfl⟩ := denoteEList_cons_inv hPs
+    unfold ConRon.Arena.instSpinePins
+    refine triple_seq (ExprOps.instLPFast_spec coreWalkFuel s₀ lps us p ksv usv
+      hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hks hus
+      (by rw [hP]; rfl)) ?_
+    rintro q s1 ⟨hst1, hx1, _, hL1, hLs1, hN1, hc1, hp1, _, hrel1⟩
+    have hok1 := CheckOK.ofInstLP hok hst1 hx1 hL1 hLs1 hN1 hc1 hp1
+    have hq := hrel1 P hP
+    have hxs1 := ExprOps.denoteEList_take rP _ _ (denoteEList_ext hx1 _ _ hxs)
+    refine triple_seq (ExprOps.instSpine_spec coreWalkFuel (args.take rP) s1
+      (rP - 1) q hok1.state (by rw [hq]; rfl) (by rw [hxs1]; rfl)) ?_
+    rintro sp s2 ⟨hst2, hx2, _, hc2, hp2, hrel2⟩
+    have hok2 : CheckOK mode env fe s2 := hok1.mono hst2 hx2 hc2 hp2
+    have hsp := hrel2 _ _ hq hxs1
+    have hx02 := hx1.trans hx2
+    refine triple_seq (ih s2 Ps' hok2 (denoteNListE_ext hx02 _ _ hks)
+      (denoteLs_ext hus hx02) (denoteEList_ext hx02 _ _ hxs)
+      (denoteEList_ext hx02 _ _ hPs')) ?_
+    rintro rest s3 ⟨hok3, hx3, hp3, hrest⟩
+    mvcgen
+    bridge_peel; subst_vars
+    refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), ?_⟩
+    simp only [List.map_cons, Frontend.denoteEList, denote_ext hsp hx3, hrest]
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:948-968 recFireComparands —
 **THEOREM 1 for `recFireComparands`**: both comparand lists, substituted and
 re-interned. -/
@@ -69,7 +243,93 @@ theorem recFireComparands_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
           some (ConLeche.recFireComparands rl' ks vs cs xs rP).1 ∧
         Frontend.denoteEList s'.store r.2 =
           some (ConLeche.recFireComparands rl' ks vs cs xs rP).2⌝⦄ := by
-  sorry
+  obtain ⟨c, f, rr, _hc, hf, _hr, rfl⟩ : ∃ c f rr,
+      denoteN s₀.store.ns rl.ctor = some c ∧
+      Frontend.denoteFire s₀.store rl.fire = some f ∧
+      denoteE s₀.store rl.rhs = some rr ∧
+      rl' = ⟨c, rl.nfields, rl.ctorParams, f, rr, rl.k, rl.eta,
+        rl.paramsBlind⟩ := by
+    simp only [Frontend.denoteRule] at hrl
+    split at hrl
+    · rename_i c f rr hc hf hr; cases hrl; exact ⟨c, f, rr, hc, hf, hr, rfl⟩
+    · simp at hrl
+  unfold ConRon.Arena.recFireComparands
+  -- the two readbacks every branch starts with
+  have hread : ∀ {β : Type} (k : List ConLeche.Name → List Level → AM β)
+      (Q : β → AState → Prop),
+      (∀ s2, CheckOK mode env fe s2 → s2.store = s₀.store → s2.pins = s₀.pins →
+        ⦃fun s => ⌜s = s2⌝⦄ k ks vs ⦃⇓? r s' => ⌜Q r s'⌝⦄) →
+      ⦃fun s => ⌜s = s₀⌝⦄ (do
+        let a ← readNamesM lps
+        let b ← readLevelsM us
+        k a b) ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+    intro β k Q hk
+    refine triple_seq (ExprOps.readNamesM_specF s₀ lps hok.caches.readN) ?_
+    rintro ks' s1 ⟨hst1, hm1, hp1, hc1, hks1, hN1⟩
+    have hok1 := CheckOK.ofReadbackFrame hok (ReadbackFrame.ofReadN hst1 hm1 hp1 hc1 hN1)
+    refine triple_seq (ExprOps.readLevelsM_specF s1 us hok1.caches.readLs) ?_
+    rintro vs' s2 ⟨hst2, hm2, hp2, hc2, hvs2, hLs2⟩
+    have hok2 := CheckOK.ofReadbackFrame hok1
+      (ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hLs2)
+    rw [hks] at hks1
+    obtain rfl := Option.some.inj hks1
+    rw [hst1, hvs] at hvs2
+    obtain rfl := Option.some.inj hvs2
+    exact hk s2 hok2 (hst2.trans hst1) (hp2.trans hp1)
+  cases hfire : rl.fire
+  case nested lvls pins =>
+    rw [hfire] at hf
+    obtain ⟨Lv, Ps, hLv, hPs, rfl⟩ : ∃ Lv Ps,
+        denoteLList s₀.store.ls lvls = some Lv ∧
+        Frontend.denoteEList s₀.store pins = some Ps ∧ f = .nested Lv Ps := by
+      simp only [Frontend.denoteFire] at hf
+      split at hf
+      · rename_i Lv Ps h1 h2; cases hf; exact ⟨Lv, Ps, h1, h2, rfl⟩
+      · simp at hf
+    dsimp only
+    refine hread _ _ (fun s2 hok2 hst2 hp2 => ?_)
+    have hx02 : Ext s₀.store s2.store := by rw [hst2]; exact Ext.refl _
+    refine triple_seq (substLevelsAt_spec ks vs lvls s2 Lv hok2
+      (by rw [hst2]; exact hLv)) ?_
+    rintro ls s3 ⟨hok3, hx3, hp3, hls⟩
+    refine triple_seq (internLsNode_spec s3 ls hok3.state.wf
+      (lsViewOK_of_denote hls)) ?_
+    rintro lsh s4 ⟨hwf4, hx4, _, _, _, _, hc4, hp4, _, hlsh⟩
+    have hok4 : CheckOK mode env fe s4 := hok3.mono ⟨hwf4⟩ hx4 hc4 hp4
+    have hx04 : Ext s₀.store s4.store := hx02.trans (hx3.trans hx4)
+    refine triple_seq (instSpinePins_spec lps us args rP ks vs xs pins s4 Ps hok4
+      (denoteNListE_ext hx04 _ _ hks) (denoteLs_ext hvs hx04)
+      (denoteEList_ext hx04 _ _ hxs) (denoteEList_ext hx04 _ _ hPs)) ?_
+    rintro ps s5 ⟨hok5, hx5, hp5, hps⟩
+    have hlsh4 : denoteLs s4.store.lss lsh = some (Lv.map (Level.subst ks vs)) :=
+      denoteLs_of_list_ext hx4 hls hlsh
+    mvcgen
+    bridge_peel; subst_vars
+    refine ⟨hok5, hx04.trans hx5, hp5.trans (hp4.trans (hp3.trans hp2)), ?_, ?_⟩
+    · rw [denoteLs_ext hlsh4 hx5]; simp [ConLeche.recFireComparands]
+    · rw [hps]; simp [ConLeche.recFireComparands]
+  all_goals
+    rw [hfire] at hf
+    simp only [Frontend.denoteFire, Option.some.injEq] at hf
+    subst hf
+    dsimp only
+    refine hread _ _ (fun s2 hok2 hst2 hp2 => ?_)
+    have hx02 : Ext s₀.store s2.store := by rw [hst2]; exact Ext.refl _
+    refine triple_seq (substParamLevels_spec ks vs cvjLps s2 cs hok2
+      (by rw [hst2]; exact hcs)) ?_
+    rintro ls s3 ⟨hok3, hx3, hp3, hls⟩
+    refine triple_seq (internLsNode_spec s3 ls hok3.state.wf
+      (lsViewOK_of_denote hls)) ?_
+    rintro lsh s4 ⟨hwf4, hx4, _, _, _, _, hc4, hp4, _, hlsh⟩
+    have hok4 : CheckOK mode env fe s4 := hok3.mono ⟨hwf4⟩ hx4 hc4 hp4
+    have hx04 : Ext s₀.store s4.store := hx02.trans (hx3.trans hx4)
+    have hlsh4 := denoteLs_of_list_ext hx4 hls hlsh
+    mvcgen
+    bridge_peel; subst_vars
+    refine ⟨hok4, hx04, hp4.trans (hp3.trans hp2), ?_, ?_⟩
+    · rw [hlsh4]; simp [ConLeche.recFireComparands]
+    · rw [ExprOps.denoteEList_take _ _ _ (denoteEList_ext hx04 _ _ hxs)]
+      simp [ConLeche.recFireComparands]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:255-265 iotaIndexOk — **THEOREM 1
 for `iotaIndexOk`**: the canonical-index comparison of a firing redex. -/

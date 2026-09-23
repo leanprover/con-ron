@@ -20,6 +20,19 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 2. The major's preparation -/
 
+/-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — every
+major but a string literal takes the `Nat` conversion. -/
+theorem litMajorToCtorFueled_nstr {F d : Nat} {x : Expr}
+    (hx : ∀ str, x ≠ .lit (.strVal str)) :
+    ConLeche.litMajorToCtorFueled mode env F d x =
+      .ok (ConLeche.litToCtorIfNat env x) := by
+  cases x with
+  | lit l =>
+    cases l with
+    | strVal str => exact absurd rfl (hx str)
+    | natVal n => rfl
+  | _ => rfl
+
 /-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — **THEOREM
 1 for `litMajorToCtor`**: a `Nat` literal one layer, a supported `String`
 literal to its reduced constructor form. -/
@@ -33,7 +46,61 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         s'.pins = s₀.pins ∧
         SimEOp (fun F => ConLeche.litMajorToCtorFueled mode env F d x) d
           s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  unfold ConRon.Arena.litMajorToCtor
+  refine view_bind_triple hv ?_
+  -- every major but a string literal: the `Nat` conversion
+  have hnat : (∀ str, x ≠ .lit (.strVal str)) →
+      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.litToCtorIfNat fe h
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          SimEOp (fun F => ConLeche.litMajorToCtorFueled mode env F d x) d
+            s'.store r⌝⦄ := by
+    intro hnl
+    refine triple_mono (litToCtorIfNat_spec s₀ h x hok hden) ?_
+    rintro r s' ⟨hok', hx', hp', hr⟩
+    refine ⟨hok', hx', hp', _, hr, ConLeche.litToCtorIfNat_WScoped hw, 0, ?_⟩
+    exact litMajorToCtorFueled_nstr hnl
+  cases v
+  case lit l =>
+    obtain rfl := denote_lit_inv hwf hv hden
+    cases l with
+    | natVal n => exact hnat (by intro str h; cases h)
+    | strVal str =>
+      dsimp only
+      refine triple_seq (strLitSupported_spec s₀ hok) ?_
+      rintro sup s1 ⟨hok1, hx1, hp1, hsup⟩
+      split
+      next hsupt =>
+        have hS : ConLeche.strLitSupported env = true := hsup ▸ hsupt
+        refine triple_seq (strLitToConstructor_spec s1 str hok1) ?_
+        rintro c s2 ⟨hok2, hx2, hp2, hc⟩
+        refine triple_mono (hsim.whnf s2 d c _ hok2 hc
+          (strLitToConstructor_WScoped str d)) ?_
+        rintro r s3 ⟨hok3, hx3, hp3, w, hw3, hww, F, hF⟩
+        refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1),
+          w, hw3, hww, F, ?_⟩
+        simp only [ConLeche.litMajorToCtorFueled, ConLeche.litMajorToCtor, hS,
+          if_true]
+        exact hF
+      next hsupf =>
+        have hS : ConLeche.strLitSupported env = false := by
+          rw [← hsup]; simpa using hsupf
+        mvcgen
+        bridge_peel; subst_vars
+        refine ⟨hok1, hx1, hp1, .lit (.strVal str), denote_ext hden hx1, hw, 0,
+          ?_⟩
+        simp only [ConLeche.litMajorToCtorFueled, ConLeche.litMajorToCtor, hS,
+          Bool.false_eq_true, if_false]
+        rfl
+  all_goals
+    dsimp only
+    refine hnat ?_
+    intro str hx
+    subst hx
+    have := view_of_denote_lit hwf hv hden
+    cases this
 
 /-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — **THEOREM 1
 for `majorToCtor`**, the stuck-major rescue: K, η, and the pinned `And`.
