@@ -63,6 +63,38 @@ open Lockstep in
   subst h
   exact ConRon.Refine.ExprOps.usize_cast_u64_val x
 
+/-! ## The mode gates: each is its twin field, a Rust-only step -/
+
+open Lockstep in
+@[lockstep] theorem tt_checks_twin (m : kernel.env.CheckMode) :
+    LSP (kernel.env.tt_checks m) (fun b => TwinEq (ConRon.Refine.absMode m).ttChecks b) := by
+  intro b h
+  cases m <;> (simp only [kernel.env.tt_checks, Result.ok.injEq] at h; rw [← h]; rfl)
+
+open Lockstep in
+@[lockstep] theorem verified_checks_twin (m : kernel.env.CheckMode) :
+    LSP (kernel.env.verified_checks m) (fun b => TwinEq (ConRon.Refine.absMode m).verifiedChecks b) := by
+  intro b h
+  cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
+
+open Lockstep in
+@[lockstep] theorem beta_gate_twin (m : kernel.env.CheckMode) :
+    LSP (kernel.env.beta_gate m) (fun b => TwinEq (ConRon.Refine.absMode m).betaGate b) := by
+  intro b h
+  cases m <;> (simp only [kernel.env.beta_gate, Result.ok.injEq] at h; rw [← h]; rfl)
+
+open Lockstep in
+@[lockstep] theorem io_gate_twin (m : kernel.env.CheckMode) :
+    LSP (kernel.env.io_gate m) (fun b => TwinEq (ConRon.Refine.absMode m).ioGate b) := by
+  intro b h
+  cases m <;> (simp only [kernel.env.io_gate, Result.ok.injEq] at h; rw [← h]; rfl)
+
+open Lockstep in
+@[lockstep] theorem certs_twin (m : kernel.env.CheckMode) :
+    LSP (kernel.env.certs m) (fun b => TwinEq (ConRon.Refine.absMode m).certs b) := by
+  intro b h
+  cases m <;> (simp only [kernel.env.certs, Result.ok.injEq] at h; rw [← h]; rfl)
+
 /-! ## The checker tier's statements in `LS` form
 
 Generated from `Refine2/Checker/{Base,Pins,Axioms,Canon}.lean` (every

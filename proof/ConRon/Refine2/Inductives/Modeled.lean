@@ -390,7 +390,10 @@ theorem check_iota_slot_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaSlotTySpec (ConRon.Refine.absMode mode) lfS (absU depth)
         (absEIdx alpha_s) (absLIdx l_a)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_slot_ty, checkIotaSlotTySpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_slot_ty_ls

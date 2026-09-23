@@ -824,6 +824,18 @@ macro_rules
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
           absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
 
+/-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
+lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
+lf.visibleBelow` — `IFEnvInv.coreCtx`/`coreCtxSelf` turn those into it. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | (apply IFEnvInv.coreCtxSelf <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption))
+      | (apply IFEnvInv.coreCtx <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
+          | assumption | (checker_env_facts; simp_all; done)))
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
