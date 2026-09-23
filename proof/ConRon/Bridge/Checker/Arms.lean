@@ -30,7 +30,7 @@ step's `CoreStep`/`Ext` by `denoteFEnv_pext` and `PersPins.mono`; that
 bookkeeping is `FoldOK.step` below, which is the only thing in this module
 that is not a transcription.
 -/
-import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.DivMod
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.DeclWF
 
