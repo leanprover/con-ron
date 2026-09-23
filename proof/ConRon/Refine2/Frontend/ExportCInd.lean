@@ -578,6 +578,11 @@ value `V` classifies as a verdict of the same kind.  Its twin sides are
 `Refine2/Frontend/SpecInd.lean`'s transcriptions, and `validateIndD_unfold`
 (definitional) composes them into `validateIndD`. -/
 
+/-- `validateIndD`'s answer's verdict, if it is one. -/
+def vOfSum : VRes → Option RecordVerdict
+  | .inl v => some v
+  | _ => none
+
 /-- A loop state's verdict, if it carries one. -/
 def vOfOpt : Option VRes → Option RecordVerdict
   | some (.inl v) => some v
@@ -1422,6 +1427,31 @@ theorem check_rec_records_refines
   rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at this
   exact this
 
+/-- An `AM` `mapM` that answers keeps the length. -/
+theorem am_mapM_length {X Y : Type} {f : X → AM Y} :
+    ∀ (l : List X) (s s' : AState) (r : List Y), (l.mapM f).run s = .ok (r, s') →
+      r.length = l.length
+  | [], s, s', r, h => by
+    have : (Except.ok ([], s) : Except Arena.CheckError _) = .ok (r, s') := h
+    cases this; rfl
+  | x :: l, s, s', r, h => by
+    rw [List.mapM_cons] at h
+    simp only [am_run_bind'] at h
+    cases hx : (f x).run s with
+    | error e => rw [hx] at h; cases h
+    | ok p =>
+      rw [hx] at h
+      cases hl : (l.mapM f).run p.2 with
+      | error e =>
+        have : ((l.mapM f >>= fun ys => pure (p.1 :: ys)) : AM _).run p.2 = .ok (r, s') := h
+        rw [am_run_bind', hl] at this; cases this
+      | ok q =>
+        have : ((l.mapM f >>= fun ys => pure (p.1 :: ys)) : AM _).run p.2 = .ok (r, s') := h
+        rw [am_run_bind', hl] at this
+        have e : (Except.ok (p.1 :: q.1, q.2) : Except Arena.CheckError _) = .ok (r, s') := this
+        cases e
+        simp [am_mapM_length l p.2 q.2 q.1 (by rw [hl])]
+
 /-- **`validate_ind_d` refines `validateIndD`** (`ExportC.lean:442-539`) — the
 load-bearing statement of this file: the eleven verdicts, at the same kind and
 in the same order.
@@ -1435,20 +1465,179 @@ state they started in — task #97-P5-Front round 2 strengthened them from
 `install_ind_d` and no `Ext` for its verdict. -/
 theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (hd : StateDRel rsd lsd) (_hi : StateDInv rsd)
     (h : frontend.export_c.validate_ind_d pers rst.store rsd tys cts rcs = ok o) :
-    (∀ v, o = .Ok v →
-      (validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
-          (absIndRecRecs rcs)).run lst
-        = .ok (.inr (absIndCtorRecs v.1, absU v.2), lst)) ∧
-    (∀ e, o = .Err e →
-      (∀ ce, e = .Err ce → AErrSim ce
-        ((validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
-          (absIndRecRecs rcs)).run lst)) ∧
-      (∀ vd, e = .Verdict vd → ∃ lv,
-        (validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
-          (absIndRecRecs rcs)).run lst = .ok (.inl lv, lst) ∧
-        lVerdictKind lv = absVerdictKind vd)) := by sorry
+    SimLV (fun v => .inr (absIndCtorRecs v.1, absU v.2)) vOfSum lst o
+      (validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts) (absIndRecRecs rcs)) := by
+  rw [validateIndD_unfold]
+  rw [frontend.export_c.validate_ind_d] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [any_ty_unsafe_refines hb] at h
+  by_cases hu : (absIndTypeRecs tys).any (·.isUnsafe) = true
+  · rw [if_pos hu] at h
+    rw [if_pos hu]
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [frontend.export_c.declined] at h
+    cases Result.ok_injective h
+    exact ⟨_, _, rfl, rfl, rfl⟩
+  rw [if_neg hu] at h
+  rw [if_neg hu]
+  simp only [pure_bind]
+  obtain ⟨n_pd, hnpd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hnpd' : ((absIndTypeRecs tys).map (·.numParams)).head?.getD 0 = absU n_pd := by
+    split at hnpd
+    · rename_i h0
+      cases Result.ok_injective hnpd
+      have : tys.val = [] := by
+        rw [← List.length_eq_zero_iff]; have := congrArg (·.val) h0; simpa using this
+      simp [absIndTypeRecs, this]
+    · rename_i h0
+      obtain ⟨itr, hitr, hnpd⟩ := ConRon.Refine.bind_eq_ok_iff.mp hnpd
+      cases Result.ok_injective hnpd
+      have h0' : 0 < tys.val.length := by
+        rcases Nat.eq_zero_or_pos tys.val.length with e | e
+        · exact absurd (by scalar_tac) h0
+        · exact e
+      have := vec_index_eq (i := 0#usize) h0' hitr
+      simp only [show (0#usize : Std.Usize).val = 0 from rfl] at this
+      rw [← this]
+      simp [absIndTypeRecs, List.head?_eq_getElem?, List.getElem?_eq_getElem h0', absIndTypeRec]
+  rw [hnpd']
+  obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [all_num_params_refines hb1] at h
+  by_cases hall : ((absIndTypeRecs tys).map (·.numParams)).all (· == absU n_pd) = true
+  swap
+  · rw [if_neg hall] at h
+    rw [if_neg hall]
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [frontend.export_c.declined] at h
+    cases Result.ok_injective h
+    exact ⟨_, _, rfl, rfl, rfl⟩
+  rw [if_pos hall] at h
+  rw [if_pos hall]
+  try simp only [pure_bind]
+  -- the four name/type readers
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hN := ty_names_of_refines (lst := lst) hd hr
+  refine SimLV.bind hN (fun v hv => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hT := ty_types_of_refines (lst := lst) hd hr1
+  refine SimLV.bind hT (fun v1 hv1 => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv1
+  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hL := listed_ctors_of_refines (lst := lst) hd hr2
+  refine SimLV.bind hL (fun v2 hv2 => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv2
+  obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hC := ctor_names_of_refines (lst := lst) hd hr3
+  refine SimLV.bind hC (fun v3 hv3 => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv3
+  have hlenNT : v.val.length = v1.val.length := by
+    have e1 := am_mapM_length _ _ _ _ (SimLR.apply hN)
+    have e2 := am_mapM_length _ _ _ _ (SimLR.apply hT)
+    simp [absNIdxL, absEIdxL] at e1 e2; omega
+  have hlenC : (absNIdxL v3).length = cts.val.length := by
+    have := am_mapM_length _ _ _ _ (SimLR.apply hC)
+    simpa [absIndCtorRecs] using this
+  -- the flattened listing: no duplicate, one per record
+  obtain ⟨flat, hflat, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hfl := flatten_listed_refines hflat
+  obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [names_have_dup_refines hb2, hfl] at h
+  by_cases hnd : ((v2.val.map absNIdxL).flatten).Nodup
+  swap
+  · rw [if_pos (by simp [hnd])] at h
+    rw [if_neg hnd]
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases invalid_ok h
+    exact ⟨_, _, rfl, rfl, rfl⟩
+  rw [if_neg (by simp [hnd])] at h
+  rw [if_pos hnd]
+  have hflen : flat.val.length = ((v2.val.map absNIdxL).flatten).length := by
+    rw [← hfl]; simp [absNIdxL]
+  by_cases hne : (alloc.vec.Vec.len flat != alloc.vec.Vec.len cts) = true
+  · rw [if_pos hne] at h
+    have hne' : ¬ (((v2.val.map absNIdxL).flatten).length == (absIndCtorRecs cts).length) = true := by
+      simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hne
+      simp only [beq_iff_eq, absIndCtorRecs, List.length_map, ← hflen]
+      simpa using hne
+    rw [if_neg hne']
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases invalid_ok h
+    exact ⟨_, _, rfl, rfl, rfl⟩
+  rw [if_neg hne] at h
+  have heq : (((v2.val.map absNIdxL).flatten).length == (absIndCtorRecs cts).length) = true := by
+    simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hne
+    simp only [beq_iff_eq, absIndCtorRecs, List.length_map, ← hflen]
+    simpa using hne
+  rw [if_pos heq]
+  -- the constructor index, the fuel, the block's own order
+  obtain ⟨ctor_ix, hix, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hX := ctor_index_of_refines hix
+  have hrange := ctorIx_lt (absNIdxL v3) ∅ 0 (by simp) 
+  obtain ⟨fuel, hfuel, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hF : SimLR absU lst (.Ok fuel) storeFuel := store_fuel_refines hrel hinv hfuel
+  refine SimLV.bind hF (fun fuel' hf => ?_) (fun e he => by cases he)
+  cases hf
+  obtain ⟨r4, hr4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hO := order_block_ctors_refines hrel hinv hd hX
+    (fun x k hk => by have := hrange x k hk; omega) hr4
+  refine SimLV.bind_lv hO (fun v4 hv4 => ?_) (fun b lv hb => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  swap
+  · obtain ⟨b1, b2⟩ := b
+    rcases b1 with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
+    subst hb
+    exact ⟨_, rfl, rfl⟩
+  subst hv4
+  dsimp only at h
+  -- the K flag and the recursor records
+  obtain ⟨nested, hnest, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [any_ty_nested_refines hnest] at h
+  obtain ⟨n_types, hnt, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hntv : absU n_types = (absIndTypeRecs tys).length := by
+    simp only [lift, Result.ok.injEq] at hnt; subst hnt
+    simp [absU, absIndTypeRecs]
+  obtain ⟨n_ctors, hnc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hncv : absU n_ctors = (absIndCtorRecs v4).length := by
+    simp only [lift, Result.ok.injEq] at hnc; subst hnc
+    simp [absU, absIndCtorRecs]
+  obtain ⟨r5, hr5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hK := k_expected_of_refines hrel hinv hr5
+  refine SimLV.bind hK (fun v5 hv5 => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv5
+  dsimp only at h
+  by_cases hns : (absIndTypeRecs tys).any (·.numNested != 0) = true
+  · rw [if_pos hns] at h
+    cases Result.ok_injective h
+    rw [if_pos hns]
+    rfl
+  rw [if_neg hns] at h
+  rw [if_neg hns]
+  obtain ⟨r6, hr6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hR := check_rec_records_refines hrel hinv hd hlenNT hr6
+  rw [hntv, hncv] at hR
+  refine SimLV.bind_lv hR (fun w hw => ?_) (fun b lv hb => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  swap
+  · obtain ⟨b1, b2⟩ := b
+    rcases b1 with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
+    subst hb
+    exact ⟨_, rfl, rfl⟩
+  subst hw
+  cases Result.ok_injective h
+  rfl
 
 /-! ## The block's constants -/
 
