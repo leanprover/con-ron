@@ -1529,6 +1529,26 @@ theorem structProjArgP_spec (T : NIdx) (TP : ConLeche.Name) (j : Nat) :
     internProjE_run hstep1.ok (denoteN_ext hT hstep1.ext) hb h2
   exact ⟨hstep1.trans hstep2, hr⟩
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift — the run
+form of `Bridge/ExprOps/Subst.lean`'s closed `instPisAtLift_spec` at this
+tier's frame, with the answer as an `ROp RE`. -/
+theorem instPisAtLift_pstep {fuel : Nat} {args : List EIdx} {argsP : List Expr}
+    {s₀ s' : AState} {c : EIdx} {cP : Expr} {r : Option EIdx}
+    (hok : StateOK s₀) (ha : Frontend.denoteEList s₀.store args = some argsP)
+    (hc : denoteE s₀.store c = some cP)
+    (hrun : Arena.instPisAtLift fuel args c s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ ROp RE (Expr.instPisAtLift argsP cP) s'.store r := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.instPisAtLift_spec fuel args s₀ c hok (by rw [ha]; rfl) (by rw [hc]; rfl))
+  refine ⟨PStep.of_caches h1 h2 h3 h4 h5, ?_⟩
+  have h7 := h6 argsP ha cP hc
+  cases r with
+  | none => simp only [denoteEO, Option.some.injEq] at h7; exact h7.symm
+  | some j =>
+    simp only [denoteEO, Option.map_eq_some_iff] at h7
+    obtain ⟨e, he, hx⟩ := h7
+    exact ⟨e, hx.symm, he⟩
+
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:347-354 structProjResidP
 The constructor type's residual after `i` projections have been substituted.
 
@@ -1539,7 +1559,38 @@ theorem structProjResidP_spec (T : NIdx) (TP : ConLeche.Name) (nP : Nat)
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
       (Arena.structProjResidP T nP cty i)
       (ROp RE (ConLeche.structProjResidP TP nP ctyP i)) := by
-  sorry
+  induction i with
+  | zero =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨_, hc⟩ := hpre
+    simp only [Arena.structProjResidP] at hrun
+    obtain ⟨ps, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
+    obtain ⟨p2, hr⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) hz1
+    exact ⟨p1.trans p2, hr⟩
+  | succ i ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hc⟩ := hpre
+    simp only [Arena.structProjResidP] at hrun
+    obtain ⟨o, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := ih s₀ s1 o hok ⟨hT, hc⟩ k1
+    cases o with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk hz1
+      refine ⟨p1, ?_⟩
+      show ConLeche.structProjResidP TP nP ctyP (i + 1) = none
+      simp only [ConLeche.structProjResidP, show ConLeche.structProjResidP TP nP ctyP i = none
+        from ho, Option.bind_none]
+    | some h =>
+      obtain ⟨e, he, hd⟩ := ho
+      obtain ⟨a, s2, k2, hz2⟩ := bindOk hz1
+      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s1 s2 a p1.ok
+        (denoteN_ext hT p1.ext) k2
+      obtain ⟨p3, hr⟩ := instPisAtLift_pstep (argsP := [ConLeche.structProjArgP TP i])
+        p2.ok (by simp only [Frontend.denoteEList, ha]) (denote_ext hd p2.ext) hz2
+      refine ⟨p1.trans (p2.trans p3), ?_⟩
+      simp only [ConLeche.structProjResidP, he, Option.bind_some]
+      exact hr
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — **the cutoff's
 run form**, at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s `bvarB_run`
@@ -2087,7 +2138,58 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP)
       (Arena.structProjBodiesGo T k i h)
       (ROp REL (ConLeche.structProjBodiesGo TP k i hP)) := by
-  sorry
+  induction k generalizing i h hP with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.structProjBodiesGo] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, [], by simp only [ConLeche.structProjBodiesGo], rfl⟩
+  | succ k ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hh⟩ := hpre
+    simp only [Arena.structProjBodiesGo] at hrun
+    obtain ⟨v, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at hz1
+    have hhv : denoteEView s₀.store v = some hP := by
+      rw [← denoteE_view_eq hok.wf hv]; exact hh
+    split at hz1
+    case h_1 fdom body m =>
+      obtain ⟨fdomP, bodyP, rfl, hfd, hbd⟩ := denote_forallE_inv hok.wf hv hh
+      obtain ⟨a, s2, k2, hz2⟩ := bindOk hz1
+      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
+      obtain ⟨b, s3, k3, hz3⟩ := bindOk hz2
+      obtain ⟨hok3, hx3, hbm3, hc3, hp3, -, hb⟩ :=
+        ExprOps.instantiate1LiftFast_run p2.ok ha
+          (by rw [denote_ext hbd p2.ext]; rfl) k3
+      have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hbm3 hc3 hp3
+      have hb' := hb bodyP (denote_ext hbd p2.ext)
+      obtain ⟨o, s4, k4, hz4⟩ := bindOk hz3
+      obtain ⟨p4, ho⟩ := ih (i + 1) b _ s3 s4 o p3.ok
+        ⟨denoteN_ext hT (p2.ext.trans p3.ext), hb'⟩ k4
+      have q4 : PStep s₀ s4 := p2.trans (p3.trans p4)
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk hz4
+        refine ⟨q4, ?_⟩
+        show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP m) = none
+        simp only [ConLeche.structProjBodiesGo]
+        rw [show ConLeche.structProjBodiesGo TP k (i + 1) _ = none from ho]
+        rfl
+      | some l =>
+        obtain ⟨lP, hl, hdl⟩ := ho
+        obtain ⟨rfl, rfl⟩ := pureOk hz4
+        refine ⟨q4, fdomP :: lP, ?_, ?_⟩
+        · simp only [ConLeche.structProjBodiesGo]
+          rw [hl]; rfl
+        · show Frontend.denoteEList _ (fdom :: l) = some (fdomP :: lP)
+          simp only [Frontend.denoteEList, denote_ext hfd q4.ext, hdl]
+    case h_2 hne =>
+      obtain ⟨rfl, rfl⟩ := pureOk hz1
+      refine ⟨PStep.refl hok, ?_⟩
+      have hns := ExprOps.denoteEView_not_forallE hhv hne
+      show _ = none
+      cases hP <;> first | rfl | exact absurd rfl (hns _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:768-771 structProjBodies
 The entry, after `nP` parameter binders.
@@ -2098,7 +2200,41 @@ theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
       (Arena.structProjBodies T nP nF cty)
       (ROp REA (ConLeche.structProjBodies TP nP nF ctyP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hc⟩ := hpre
+  simp only [Arena.structProjBodies] at hrun
+  obtain ⟨ps, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
+  obtain ⟨o, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨p2, ho⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) k2
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    refine ⟨p1.trans p2, ?_⟩
+    show ConLeche.structProjBodies TP nP nF ctyP = none
+    simp only [ConLeche.structProjBodies]
+    rw [show Expr.instPisAtLift (ConLeche.structProjPs nP) ctyP = none from ho]
+  | some h =>
+    obtain ⟨e, he, hd⟩ := ho
+    obtain ⟨o2, s3, k3, hz3⟩ := bindOk hz2
+    obtain ⟨p3, ho2⟩ := structProjBodiesGo_spec T TP nF 0 h e s2 s3 o2 p2.ok
+      ⟨denoteN_ext hT (p1.ext.trans p2.ext), hd⟩ k3
+    have q3 : PStep s₀ s3 := p1.trans (p2.trans p3)
+    cases o2 with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk hz3
+      refine ⟨q3, ?_⟩
+      show ConLeche.structProjBodies TP nP nF ctyP = none
+      simp only [ConLeche.structProjBodies, he]
+      rw [show ConLeche.structProjBodiesGo TP nF 0 e = none from ho2]
+      rfl
+    | some l =>
+      obtain ⟨lP, hl, hdl⟩ := ho2
+      obtain ⟨rfl, rfl⟩ := pureOk hz3
+      refine ⟨q3, lP.toArray, ?_, ?_⟩
+      · simp only [ConLeche.structProjBodies, he, hl]; rfl
+      · show Frontend.denoteEArray _ l.toArray = _
+        simp only [Frontend.denoteEArray, hdl]
 
 /-! ## `mentionsConst`, memoised -/
 
