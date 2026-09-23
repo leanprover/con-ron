@@ -235,30 +235,8 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           s'.store r⌝⦄ := by
   sorry
 
-/-- con-leche: ConLeche/Kernel/Core.lean:949-961 projCertAt — **THEOREM 1 for
-`projCertAt`**: the fire certificate of a projection, gated on
-`mode.verifiedChecks`.
-
-**OPEN**: the `verified = false` arm is `pure true` on both sides and is
-free; the `true` arm is `projCert`, which reads the projection table and
-therefore waits on §3's `denoteProjEntry`.  The argument list's denotation is
-`Frontend.denoteEList`, which `Bridge/Rel.lean` already has. -/
-theorem projCertAt_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (verified lic : Bool) (c : NIdx) (us : LsIdx)
-    (args : List EIdx) (cn : ConLeche.Name) (ls : List Level)
-    (xs : List Expr) (hok : CheckOK mode env fe s₀)
-    (hc : denoteN s₀.store.ns c = some cn)
-    (hus : denoteLs s₀.store.lss us = some ls)
-    (hargs : Frontend.denoteEList s₀.store args = some xs) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.projCertAt (coreKnot mode fe id fuel) fe d verified lic c
-        us args
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp
-          (fun F => ConLeche.projCertAtFueled mode env F d verified lic cn ls
-            xs) b⌝⦄ := by
-  sorry
+/-! `projCertAt_spec` **moved to `Bridge/Core/Walks/Proj.lean`** in round 4
+and is CLOSED there, beside `projCert_spec`. -/
 
 /-! ## 4. The `defeq` body's five certificate walks
 

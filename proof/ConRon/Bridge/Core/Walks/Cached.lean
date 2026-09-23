@@ -477,6 +477,32 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     exact ⟨CheckOK.ofCache hck (CacheOK.insertConstTy hck.caches
         (denoteN_ext hn hx) (denoteLs_ext hus hx) hf hd) rfl rfl, hx, hp, hd⟩
 
+/-- con-leche: none — `constTyAt_spec` in ANSWER shape: the constant comes
+out of the environment index (`projCert` reads it off `fe.find?`), so its
+denotation is not known when `mvcgen` applies the spec. -/
+theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hpre : ∃ nm ls ci, denoteN s₀.store.ns cv.name = some nm ∧
+      denoteLs s₀.store.lss us = some ls ∧ env.find? nm = some ci ∧
+      Frontend.denoteCV s₀.store cv = some ci.toConstantVal) :
+    ⦃fun s => ⌜s = s₀⌝⦄ constTyAt cv us
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ nm ls ci, denoteN s₀.store.ns cv.name = some nm →
+          denoteLs s₀.store.lss us = some ls → env.find? nm = some ci →
+          denoteE s'.store r =
+            some (ci.toConstantVal.type.instantiateLevelParams
+              ci.toConstantVal.levelParams ls)⌝⦄ := by
+  obtain ⟨nm, ls, ci, hn, hus, hf, hcv⟩ := hpre
+  have h := constTyAt_spec s₀ cv us nm ls ci hok hn hus hf hcv
+  mvcgen [h]
+  intro hck hx hp hd
+  refine ⟨hck, hx, hp, fun nm' ls' ci' hn' hus' hf' => ?_⟩
+  obtain rfl := Option.some.inj (hn.symm.trans hn')
+  obtain rfl := Option.some.inj (hus.symm.trans hus')
+  obtain rfl := Option.some.inj (hf.symm.trans hf')
+  exact hd
+
 /-- con-leche: none — **THEOREM 1 for `constValAt`** (the delta step's
 expensive half, and the reason `unfoldDefinition` is not free).  **OPEN**:
 needs `instLPFast_spec`. -/
@@ -839,6 +865,7 @@ have written". -/
 #print axioms constTyAt_spec
 #print axioms constValAt_spec
 #print axioms constValAt_spec'
+#print axioms constTyAt_spec'
 #print axioms ruleRhsAt_spec
 
 end Census
