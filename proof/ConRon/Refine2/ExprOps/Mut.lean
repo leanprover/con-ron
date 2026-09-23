@@ -854,6 +854,182 @@ theorem intern_e_bind_i_flags {pers st} {tag : Std.U32}
   · exact intern_e_lam_i_flags hrun
   · exact intern_e_forall_e_i_flags hrun
 
+/-! ## Finding 19's scaffolding: what a walk carries that `Sim` does not
+
+**Finding 19 (task #97-P5-Mut).**  `Refine2/Shape.lean`'s `AOut` carries the
+run equation, the two invariants and `Ext`, and its `WF` slot is `α → Prop` —
+it never sees the twin's POST-state.  Since task #97-P5-Specs put `StoreWF` in
+`AStateRel` (finding 16), every `intern_e_*_run` asks its caller for
+`hview : lst.store.ViewOK …` — *"the children decode"* — and a walk's children
+are its own recursive ANSWERS.  So an interning walk cannot chain: nothing in
+its callee's conclusion says the answer decodes.
+
+**The statements of this file are not merely unprovable that way, they are
+FALSE as written** wherever the node interned has a child the walk produced.
+Take `instantiate1_go_refines`: nothing in `AStateRel`/`AStateInv`/`MemosRel`
+constrains the VALUES in the twin's `inst1C`, so a state whose memo maps
+`(h, d)` to a handle that decodes nowhere satisfies every hypothesis; the
+`app` arm then answers that handle, the caller interns `app r a'`, and
+`EWFAt.childOK` — *"every child of a decoding node decodes"* — fails at the
+twin's post-store for every rank function, so `AStateRel`'s `storeWF`
+conjunct, and with it the conclusion, is false.
+
+`WOutE` below is the fix, and it is deliberately LOCAL: widening `Shape.lean`'s
+`WF` slot to `α → AState → Prop` is the same claim tier-wide and touches every
+`Sim` statement in `Refine2/**`, which is a coordinator's call and not a lane's.
+A walk proves `WOutE` by induction and projects `Sim` at the boundary
+(`WOutE.toSim`); the public statement keeps its shape and grows only the
+hypotheses the port genuinely needs. -/
+
+/-- **The twin's `intern` hands back a handle that DECODES to the node it
+interned.** -/
+theorem intern_resolves {ls : EStore} {v : ENodeView} (hwf : StoreWF ls)
+    (hview : ls.ViewOK v) (hbm : EStore.eViewNeedsBM v = false)
+    (hcap : ECapAt ls v) :
+    (ls.intern v).1.view (ls.intern v).2 = some v := by
+  cases hf : ls.find? v with
+  | some hh =>
+    rw [intern_of_find hf]
+    exact EStore.view_of_find hwf hf
+  | none =>
+    refine EStore.intern_view_spec hwf hview ⟨hcap hf, ?_⟩
+    intro hb; rw [hbm] at hb; simp at hb
+
+/-- The twin store's `view` only grows.  `Ext` (`Arena/Denote.lean`) is the
+DENOTATION half of the same monotonicity and is what the tier already carries;
+a walk that will intern a node built from a handle it read two steps ago needs
+the `view` half as well, and `EStore.view_intern_mono` is what supplies it at
+an intern. -/
+def EViewExt (ls ls' : EStore) : Prop :=
+  ∀ i v, ls.view i = some v → ls'.view i = some v
+
+theorem EViewExt.refl (ls : EStore) : EViewExt ls ls := fun _ _ h => h
+
+theorem EViewExt.trans {a b c : EStore} (h1 : EViewExt a b) (h2 : EViewExt b c) :
+    EViewExt a c := fun i v h => h2 i v (h1 i v h)
+
+theorem EViewExt.resolves {ls ls' : EStore} (h : EViewExt ls ls') {lst lst' : AState}
+    (h1 : lst.store = ls) (h2 : lst'.store = ls') {i : EIdx}
+    (hr : EResolves lst i) : EResolves lst' i := by
+  show (lst'.store.view i).isSome = true
+  rw [h2]
+  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp (h1 ▸ hr : (ls.view i).isSome = true)
+  rw [h i v hv]; rfl
+
+/-- **The outcome of an interning step, with everything a WALK needs.**
+
+`Sim`'s `AOut` carries the run equation, the two invariants and `Ext`, and
+task #97-P5-Mut's finding 19 is that those four are not enough for a caller
+that will intern again: it needs
+
+* `EResolves lst' r` — "the answer decodes", which is `intern_e_*_run`'s own
+  `hview` at the next step and which `AOut`'s `WF : α → Prop` slot cannot
+  say, because it never sees `lst'`;
+* `EViewExt` — "what decoded before still decodes", for the handles the walk
+  read before the intern;
+* the two Rust tier flags, which is what carries `hfrozen` across the step. -/
+def WOutE (pers : arena.store.PersTier) (st : arena.monad.AState) (lst : AState)
+    (o : core.result.Result arena.handle.EIdx kernel.core_types.CheckError ×
+      arena.monad.AState) (x : AM EIdx) : Prop :=
+  match o.1 with
+  | .Ok r => ∃ lst', x.run lst = .ok (absEIdx r, lst') ∧ AStateRel pers o.2 lst' ∧
+      AStateInv pers o.2 ∧ Ext lst.store lst'.store ∧ EResolves lst' (absEIdx r) ∧
+      EViewExt lst.store lst'.store ∧
+      o.2.store.shared_on = st.store.shared_on ∧
+      o.2.store.scratch_on = st.store.scratch_on
+  | .Err e => AErrSim e (x.run lst)
+
+theorem WOutE.toSim {pers st lst o x} (h : WOutE pers st lst o x) :
+    Sim absEIdx (fun _ => True) pers lst o x := by
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2 (x.run lst)
+  rw [WOutE] at h
+  cases ho : o.1 with
+  | Ok r =>
+    rw [ho] at h
+    obtain ⟨lst', hx, h1, h2, h3, -⟩ := h
+    exact AOut.ok hx h1 h2 h3 trivial
+  | Err e => rw [ho] at h; exact AOut.err h
+
+/-- The error arm of a chained step, at `WOutE`: the callee threw, so the
+whole bind throws. -/
+theorem wout_err_bind {e : kernel.core_types.CheckError}
+    {pers : arena.store.PersTier} {stB : arena.monad.AState} {lst : AState}
+    {x : AM EIdx} {f : EIdx → AM EIdx}
+    (h : AErrSim e (x.run lst)) :
+    WOutE pers stB lst (.Err e, stB) (do let v ← x; f v) := by
+  show AErrSim e _
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+/-- The error half of a `WOutE` at a call site. -/
+theorem WOutE.err {pers st lst o x} {e : kernel.core_types.CheckError}
+    (h : WOutE pers st lst o x) (he : o.1 = .Err e) : AErrSim e (x.run lst) := by
+  rw [WOutE, he] at h; exact h
+
+/-- **The chained step**, which is what makes `WOutE` an induction hypothesis:
+a first call that answered `g` at `lst1`, a continuation measured from there,
+and the two extensions and the two flags composed. -/
+theorem WOutE.bind {pers : arena.store.PersTier}
+    {st st1 : arena.monad.AState} {lst lst1 : AState}
+    {o : core.result.Result arena.handle.EIdx kernel.core_types.CheckError ×
+      arena.monad.AState}
+    {g : arena.handle.EIdx} {x : AM EIdx} {k : EIdx → AM EIdx}
+    (hx1 : x.run lst = .ok (absEIdx g, lst1))
+    (hext1 : Ext lst.store lst1.store)
+    (hmono1 : EViewExt lst.store lst1.store)
+    (hfl1 : st1.store.shared_on = st.store.shared_on)
+    (hfl2 : st1.store.scratch_on = st.store.scratch_on)
+    (h : WOutE pers st1 lst1 o (k (absEIdx g))) :
+    WOutE pers st lst o (do let v ← x; k v) := by
+  have hrun : (do let v ← x; k v).run lst = (k (absEIdx g)).run lst1 := by
+    rw [StateT.run_bind, hx1]; rfl
+  rw [WOutE] at h ⊢
+  cases ho : o.1 with
+  | Ok r =>
+    rw [ho] at h
+    obtain ⟨lst', hx, h1, h2, h3, h4, h5, h6, h7⟩ := h
+    exact ⟨lst', by rw [hrun]; exact hx, h1, h2, Ext.trans hext1 h3, h4,
+      EViewExt.trans hmono1 h5, by rw [h6, hfl1], by rw [h7, hfl2]⟩
+  | Err e => rw [ho] at h; rw [hrun]; exact h
+
+/-- `arena::monad::intern_e_app` at `WOutE`: `intern_e_app_run`'s proof, with
+`estore_intern_app_abs`'s `ECapAt` kept rather than swallowed, so that
+`intern_resolves` can be applied to the answer. -/
+theorem intern_e_app_res {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (f a : arena.handle.EIdx)
+    (hview : lst.store.ViewOK (.app (absEIdx f) (absEIdx a)))
+    {o} (hrun : arena.monad.intern_e_app pers st f a = ok o) :
+    WOutE pers st lst o (Arena.internAppE (absEIdx f) (absEIdx a)) := by
+  have hfl := intern_e_app_flags hrun
+  rw [arena.monad.intern_e_app] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      (fun h => hchild_app hrel.storeWF h) hp
+  show WOutE pers st lst (r, ({ st with store := e } : arena.monad.AState)) _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
+    simp only [WOutE]
+    refine ⟨{ lst with store :=
+        (lst.store.intern (.app (absEIdx f) (absEIdx a))).1 }, ?_,
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
+        intern_storeWF_of_cap hrel.storeWF rfl hview hcap⟩,
+      ⟨hinv', hinv.memos, hinv.caches⟩, EStore.intern_ext _ _, ?_,
+      fun i v hv => EStore.view_intern_mono _ _ hv, hfl.1, hfl.2⟩
+    · rw [Arena.internAppE, internE_run_of_cap rfl hcap, hhd]
+    · show ((lst.store.intern (.app (absEIdx f) (absEIdx a))).1.view
+        (absEIdx hh)).isSome = true
+      rw [hhd, intern_resolves hrel.storeWF hview rfl hcap]
+      rfl
+  | Err ee => simp only [WOutE]; exact AErrSim.of_none (herr ee hr)
+
 /-! ## `internRebuilt` and its twelve per-constructor entries
 
 Task #97-P6-5's upward cutoff (`internRebuilt`) and task #97-P6-15's
@@ -1582,23 +1758,158 @@ batched β), so this pair is one-to-one: `mk_app_n` is `mkAppN` at the `List`
 and `mk_app_n_from` is `mkAppNFrom` at the push-order `Array` and the same
 increasing cursor.  `Specs.lean` primitives: `internE`, `internAppE`. -/
 
-/-- `Arena/ExprOps.lean:1069 mkAppN`. -/
-theorem mk_app_n_refines {pers st lst} {f : arena.handle.EIdx}
-    {args : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.mk_app_n pers st f args = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
-      (mkAppN (absEIdx f) (absEIdxList args)) := by
-  sorry
+/-! ### `mkAppN`, the tier's first walk closed under finding 19
+
+**Task #97-P5-Mut corrected both statements**: they carried `hrel`/`hinv` and
+nothing else, and the `app` each step interns has the PREVIOUS step's answer
+as its function child.  What goes in is `hfrozen` (the tier flag the port's
+own `intern` tests, carried across the step by `intern_e_app_flags`) and the
+two `EResolves` the `ViewOK` at each step needs — of the head and of every
+argument.  They are the smallest hypotheses that make the statement true, and
+they are what `WOutE` then re-establishes one step down. -/
+
+@[simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
+    (absEIdxArr v).size = v.val.length := by
+  simp [absEIdxArr]
+
+theorem absEIdxArr_get (v : alloc.vec.Vec arena.handle.EIdx) (k : Nat)
+    (h : k < v.val.length) :
+    (absEIdxArr v)[k]'(by simpa using h) = absEIdx (v.val[k]) := by
+  simp [absEIdxArr]
+
+/-- **Twin-only**: the cursor form over an array is the list form over what
+the cursor has not consumed.  `mkAppN` is `mk_app_n`'s twin and `mkAppNFrom`
+is `mk_app_n_from`'s, and this is the one place the two shapes meet. -/
+theorem mkAppNFrom_eq (arr : Array EIdx) :
+    ∀ (n i : Nat) (f : EIdx), arr.size - i = n →
+      mkAppNFrom f arr i = mkAppN f (arr.toList.drop i) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i f hn
+    rw [mkAppNFrom, dif_neg (show ¬ (i < arr.size) from by omega),
+      List.drop_eq_nil_of_le (by simpa using Nat.le_of_sub_eq_zero hn), mkAppN]
+  | succ m ih =>
+    intro i f hn
+    have hlt : i < arr.size := by omega
+    rw [mkAppNFrom, dif_pos hlt]
+    rw [show arr.toList.drop i = arr[i] :: arr.toList.drop (i + 1) from by
+      rw [List.drop_eq_getElem_cons (by simpa using hlt)]
+      simp]
+    rw [mkAppN]
+    have : ∀ g : EIdx, mkAppNFrom g arr (i + 1) = mkAppN g (arr.toList.drop (i + 1)) :=
+      fun g => ih (i + 1) g (by omega)
+    simp only [Arena.internAppE]
+    exact bind_congr (fun g => this g)
+
+theorem absEIdxArr_toList (v : alloc.vec.Vec arena.handle.EIdx) :
+    (absEIdxArr v).toList = absEIdxList v := by
+  simp [absEIdxArr, absEIdxList]
+
+private theorem mk_app_n_from_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {f : arena.handle.EIdx} {args : alloc.vec.Vec arena.handle.EIdx}
+      {i : Std.Usize} {o},
+      args.val.length - i.val = n →
+      AStateRel pers st lst → AStateInv pers st →
+      (st.store.shared_on = true → st.store.scratch_on = true) →
+      EResolves lst (absEIdx f) →
+      (∀ x ∈ args.val, EResolves lst (absEIdx x)) →
+      arena.expr_ops.mk_app_n_from pers st f args i = ok o →
+      WOutE pers st lst o (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst f args i o hn hrel hinv hfrozen hf hargs hrun
+    rw [arena.expr_ops.mk_app_n_from] at hrun
+    have hge : i.val ≥ args.val.length := by omega
+    rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
+      show args.val.length ≤ i.val
+      omega)] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho, mkAppNFrom]
+    rw [dif_neg (show ¬ (absSz i < (absEIdxArr args).size) from by
+      rw [absEIdxArr_size]; show ¬ (i.val < args.val.length); omega)]
+    simp only [WOutE]
+    exact ⟨lst, rfl, hrel, hinv, Ext.refl _, hf, EViewExt.refl _, trivial, trivial⟩
+  | succ m ih =>
+    intro pers st lst f args i o hn hrel hinv hfrozen hf hargs hrun
+    rw [arena.expr_ops.mk_app_n_from] at hrun
+    have hlt : i.val < args.val.length := by omega
+    rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
+      show ¬ (args.val.length ≤ i.val)
+      omega)] at hrun
+    obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨hb, hval⟩ := ExprOps.vecIndexAt he1
+    obtain ⟨e2, he2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he2] at hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r, st1⟩ := p1
+    have hres1 : EResolves lst (absEIdx e1) := hargs e1 (hval ▸ List.getElem_mem hb)
+    have hview : lst.store.ViewOK (.app (absEIdx f) (absEIdx e1)) :=
+      viewOK_app hf hres1
+    have hstep := intern_e_app_res hrel hinv hfrozen f e1 hview hp1
+    rw [mkAppNFrom, dif_pos (show absSz i < (absEIdxArr args).size from by
+      rw [absEIdxArr_size]; exact hlt)]
+    rw [show (absEIdxArr args)[absSz i]'(by rw [absEIdxArr_size]; exact hlt)
+        = absEIdx e1 from by rw [absEIdxArr_get args i.val hlt, hval]]
+    cases hr : r with
+    | Err ee =>
+      rw [hr] at hrun
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact wout_err_bind (pers := pers) (stB := st1) (hstep.err (by rw [hr]))
+    | Ok g =>
+      rw [hr] at hp1 hstep
+      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hg, hmono1, hfl1, hfl2⟩ :=
+        (hstep : WOutE _ _ _ (.Ok g, st1) _)
+      rw [hr] at hrun
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : absSz i2 = absSz i + 1 := absSz_add_one hi2
+      have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+        intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+      have hargs1 : ∀ x ∈ args.val, EResolves lst1 (absEIdx x) := by
+        intro x hx
+        exact hmono1.resolves rfl rfl (hargs x hx)
+      have hi2n : args.val.length - i2.val = m := by
+        have : i2.val = i.val + 1 := hi2v
+        omega
+      have hrec := ih (st := st1) (lst := lst1) (f := g) (i := i2)
+        hi2n hrel1 hinv1 hfroz1 hg hargs1 hrun
+      rw [hi2v] at hrec
+      exact WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 hrec
 
 /-- `Arena/ExprOps.lean:1079 mkAppNFrom`. -/
 theorem mk_app_n_from_refines {pers st lst} {f : arena.handle.EIdx}
     {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hf : EResolves lst (absEIdx f))
+    (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
     (hrun : arena.expr_ops.mk_app_n_from pers st f args i = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
-      (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i)) := by
-  sorry
+      (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i)) :=
+  (mk_app_n_from_aux _ rfl hrel hinv hfrozen hf hargs hrun).toSim
+
+/-- `Arena/ExprOps.lean:1069 mkAppN`. -/
+theorem mk_app_n_refines {pers st lst} {f : arena.handle.EIdx}
+    {args : alloc.vec.Vec arena.handle.EIdx} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hf : EResolves lst (absEIdx f))
+    (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
+    (hrun : arena.expr_ops.mk_app_n pers st f args = ok o) :
+    Sim absEIdx (fun _ => True) pers lst o
+      (mkAppN (absEIdx f) (absEIdxList args)) := by
+  rw [arena.expr_ops.mk_app_n] at hrun
+  have h := (mk_app_n_from_aux _ rfl hrel hinv hfrozen hf hargs hrun).toSim
+  rw [show absSz (0#usize) = 0 from rfl,
+    mkAppNFrom_eq (absEIdxArr args) ((absEIdxArr args).size - 0) 0 (absEIdx f) rfl,
+    List.drop_zero, absEIdxArr_toList] at h
+  exact h
 
 /-! ## The telescope instantiations
 
