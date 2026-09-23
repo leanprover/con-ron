@@ -225,6 +225,44 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
     hipins, hpps, fun x hx => hpersDs x (by simpa using hx), _,
     denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)⟩
 
+/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
+**the twin's store is well formed after the preparation**: Theorem 1's
+`StateOK` along the first four stages (`stages_frame`'s own chain, stopped at
+`preparePrelude`).  Theorem 2 is lockstep (task #97-T2-LOCKSTEP): the
+frontend's statements relate the stores by `AStateRel₀` only, and the checker
+tier's front door (`intern_all_pins_refines`, still over the deprecated
+`AStateRel`) takes the twin's `StoreWF` from here — Theorem 1's fact about the
+twin's own run, supplied from outside Theorem 2 (`AStateRel₀.of₀`). -/
+theorem stages_prep_wf {chunks : List ByteArray}
+    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
+    {sA sB sC sD : AState} {pre : PreludeIx} {r : ParseResultD}
+    {ds : Array IDeclaration}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
+    (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
+    (hD : preparePrelude pre r.decls sC = .ok (ds, sD)) :
+    StoreWF sD.store := by
+  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
+  have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
+  have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
+  obtain ⟨hokA, -, hpinsA, -, hoffA, -, hcachesA⟩ :=
+    internReservedPins_run hok0 hoff0 hA
+  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
+  obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
+    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
+      hokA hoffA hpinsA hrbA hB
+  obtain ⟨hstep2, hpersR, rc, -, hrelR⟩ :=
+    parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
+      (hrbA.step hstep1) hC
+  obtain ⟨hstep3, -, -, -⟩ :=
+    preparePrelude_run (preC := preC) hstep2.ok
+      (by rw [hstep2.scratch, hstep1.scratch, hoffA])
+      (hpinsA.mono (hstep1.trans hstep2).ext (hstep1.trans hstep2).pins)
+      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
+      (hnPre.mono hstep2.ext) hrelR.decls hpersR hrelR.projNamed hD
+  exact hstep3.ok.wf
+
 /-- con-leche: ConLeche/Model/Fold.lean:254 checkDeclsPure_sound_of — **the
 model at (B), at the pipeline**: `Bridge/Checker/Capstone.lean`'s
 `Arena.model_exists` is stated at the PURE fold; the binary runs the
@@ -402,26 +440,29 @@ theorem rust_stages
   -- 1. the reserved pins
   obtain ⟨sA, hA, hrelA, hinvA, -, -⟩ :=
     (intern_reserved_pins_refines hrel0 hinv0 h1).dest
-  -- 2. the prelude
-  obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB, -⟩ :=
-    builtin_prelude_e_refines scanSpec hmr hrelA hinvA h2
+  -- 2. the prelude (lockstep: `AStateRel₀` from here to the preparation)
+  obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB⟩ :=
+    builtin_prelude_e_refines scanSpec hmr hrelA.to₀ hinvA h2
   subst hpreL
   -- 3. the stream: the reader loop IS `parse_chunks` over the chunks read
   have h3' := parse_source_eq hreads h3
-  obtain ⟨rv, sC, hC, hrv, hrelC, hinvC, -⟩ :=
+  obtain ⟨rv, sC, hC, hrv, hrelC, hinvC⟩ :=
     parse_chunks_refines scanSpec hmr hrelB hinvB h3'
   -- 4. the preparation
-  obtain ⟨sD, hD, hrelD, hinvD, -, -⟩ :=
-    (prepare_prelude_refines hrelC hinvC h4).dest
-  -- 5. the startup pin walk
-  obtain ⟨sE, hE, hrelE, hinvE, -, -⟩ :=
-    (intern_all_pins_refines hrelD hinvD
-      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
-  -- the fold's entry: the twin's scratch tier is closed there
+  obtain ⟨sD, hD, hrelD, hinvD⟩ :=
+    (prepare_prelude_refines hrelC hinvC h4).apply
   have hdecls : rv.decls = absIDeclArr r.decls := hrv.decls
   have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
       = .ok ((absIDeclL ds).toArray, sD) := by
     rw [hdecls]; exact hD
+  -- the twin's own store is well formed there (Theorem 1), for the checker
+  -- tier's front door, which is still over the deprecated `AStateRel`
+  have hwfD : ConRon.Arena.StoreWF sD.store := stages_prep_wf hbytes hA hB hC hD'
+  -- 5. the startup pin walk
+  obtain ⟨sE, hE, hrelE, hinvE, -, -⟩ :=
+    (intern_all_pins_refines (hrelD.of₀ hwfD) hinvD
+      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
+  -- the fold's entry: the twin's scratch tier is closed there
   have hoff : sE.store.scratchOn = false :=
     (stages_frame (pins := ConRon.Refine.absPins pins) hbytes hA hB hC
       hD' hE).1

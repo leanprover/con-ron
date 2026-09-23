@@ -390,7 +390,7 @@ length of any path through it because a child is interned before its parent.
 The port reads the same counter. -/
 
 theorem store_fuel_refines {pers rst lst v}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.store_fuel pers rst.store = ok v) :
     SimR absU lst v storeFuel := by
   rw [frontend.export_c.store_fuel] at h
@@ -448,38 +448,37 @@ what is left is the nineteen-field `StateDRel` at the fresh record —
 `IdTableRel` at a singleton and at `id_table_empty`, `RelOn` at six
 `HashMap2::new`s (`Refine/HashMap2.lean`'s `new_refines`), and `StateDInv`. -/
 theorem state_d_init_refines {pers rst lst in_model census o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.state_d_init pers rst.store in_model census = ok o) :
-    SimRel (fun rsd lsd => StateDRel rsd lsd ∧ StateDInv rsd) pers lst
+    SimRel₀ (fun rsd lsd => StateDRel rsd lsd ∧ StateDInv rsd) pers lst
       (o.1, withStore rst o.2) (StateD.init in_model census) := by
   rw [frontend.export_c.state_d_init] at h
   obtain ⟨⟨r, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hS1 := ConRon.Refine2.intern_n_node_run hrel hinv .Anonymous trivial
-    (fun c hc => by cases hc) (o := (r, withStore rst ar1))
+  have hS1 := ConRon.Refine2.intern_n_node_run₀ hrel hinv .Anonymous trivial
+    (o := (r, withStore rst ar1))
     (by rw [arena.monad.intern_n_node, h1]; simp only [bind_tc_ok]; rfl)
-  simp only [Sim, absNNodeView] at hS1
-  simp only [SimRel, StateD.init, am_run_bind']
+  simp only [Sim₀, absNNodeView] at hS1
+  simp only [SimRel₀, StateD.init, am_run_bind']
   cases r with
   | Err e =>
     have ho := Result.ok_injective h; subst ho
-    exact AErrSim.bind (AOut.destErr hS1) _
+    exact AErrSim.bind (AOut₀.destErr hS1) _
   | Ok n0 =>
-    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hS1
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hS1
     rw [hx1]
     simp only [except_ok_bind]
     obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hS2 := ConRon.Refine2.intern_l_node_run hrel1 hinv1 .Zero
-      (LStore.ViewOK.mk (by intro c hc; simp [LNodeView.lchildren] at hc)
-        (by intro c hc; simp [LNodeView.nchildren] at hc)) (o := (r2, withStore rst ar2))
+    have hS2 := ConRon.Refine2.intern_l_node_run₀ hrel1 hinv1 .Zero
+      (o := (r2, withStore rst ar2))
       (by rw [arena.monad.intern_l_node]; rw [h2]
           simp only [bind_tc_ok]; rfl)
-    simp only [Sim, absLNodeView] at hS2
+    simp only [Sim₀, absLNodeView] at hS2
     cases r2 with
     | Err e =>
       have ho := Result.ok_injective h; subst ho
-      exact AErrSim.bind (AOut.destErr hS2) _
+      exact AErrSim.bind (AOut₀.destErr hS2) _
     | Ok l0 =>
-      obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hS2
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hS2
       rw [hx2]
       simp only [except_ok_bind]
       obtain ⟨it, hit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -510,7 +509,7 @@ theorem state_d_init_refines {pers rst lst in_model census o}
         ConRon.Refine.HashMap2.RelOn_empty n2', ConRon.Refine.HashMap2.RelOn_empty n3', rfl,
         rfl, rfl, ConRon.Refine.HashMap2.RelOn_empty n4', rfl, rfl,
         ConRon.Refine.HashMap2.RelOn_empty n5', rfl, by simp⟩,
-        ⟨i0, i1, i2, i3, i4, i5⟩⟩, hrel2, hinv2, Ext.trans hext1 hext2⟩
+        ⟨i0, i1, i2, i3, i4, i5⟩⟩, hrel2, hinv2⟩
 
 /-- **`state_model_ctx`** — the three tables the modeller reads, borrowed off
 the state (`types::ModelCtx`'s deviation).  The twin builds the three closures
@@ -568,33 +567,22 @@ theorem AErrSim.of_kind {γ : Type} {e e' : kernel.core_types.CheckError}
     (hk : absAErrKind e' = absAErrKind e) : AErrSim e' x := by
   intro k hk'; exact h k (hk ▸ hk')
 
-theorem LOut.rebase {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {lst lst1 : AState} {o : core.result.Result α frontend.export_c.LineErr}
-    {rst' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
-    (hext : Ext lst.store lst1.store) (h : LOut A pers lst1 o rst' x) :
-    LOut A pers lst o rst' x := by
-  cases o with
-  | Err e => exact h
-  | Ok r =>
-    obtain ⟨lst2, hx, h1, h2, h3⟩ := h
-    exact ⟨lst2, hx, h1, h2, Ext.trans hext h3⟩
-
 /-- **`arena::env::i_constant_info_to_constant_val` refines
 `IConstantInfo.toConstantVal`** (`Arena/Env.lean:222-229`): six arms are a
 copy, the `.projInfo` arm interns `Sort 1` in both, in the same order. -/
 theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : arena.env.i_constant_info_to_constant_val pers rst.store c = ok o) :
-    Sim absIConstantVal (fun _ => True) pers lst (o.1, withStore rst o.2)
+    Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
       (absIConstantInfo c).toConstantVal := by
   have plain : ∀ v iv, arena.env.i_constant_val_dup v = ok iv →
       o = (.Ok iv, rst.store) →
       (absIConstantInfo c).toConstantVal = pure (absIConstantVal v) →
-      Sim absIConstantVal (fun _ => True) pers lst (o.1, withStore rst o.2)
+      Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
         (absIConstantInfo c).toConstantVal := by
     intro v iv hiv ho hx
     subst ho
-    refine AOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _) trivial
+    refine AOut₀.ok (lst' := lst) ?_ hrel hinv
     rw [hx, i_constant_val_dup_abs hiv]; rfl
   cases c with
   | AxiomInfo v =>
@@ -618,15 +606,11 @@ theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
   | ProjInfo tbl =>
     clear plain
     simp only [arena.env.i_constant_info_to_constant_val] at h
-    show AOut _ _ _ _ _ _ _
+    show AOut₀ _ _ _ _ _
     simp only [absIConstantInfo, IConstantInfo.toConstantVal]
     -- 1. the level `0`
     obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hv0 : lst.store.ls.ViewOK (absLNodeView arena.store.LNodeView.Zero) := by
-      constructor
-      · intro c hc; simp [absLNodeView, LNodeView.lchildren] at hc
-      · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-    have hS1 := intern_l_node_run hrel hinv arena.store.LNodeView.Zero hv0
+    have hS1 := intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
       (o := (r1, withStore rst ar1))
       (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
     rw [show Arena.internLNode LNodeView.zero
@@ -635,21 +619,13 @@ theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
     | Err e =>
       have ho := Result.ok_injective h
       subst ho
-      exact AOut.errBind hS1
+      exact AOut₀.errBind hS1
     | Ok z =>
-    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
     rw [run_bind_ok hx1]
-    refine AOut.rebase hext1 ?_
     -- 2. the level `1`
     obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨hvz, -, -⟩ := internLNode_run_view hrel.storeWF hv0 hx1
-    have hv1 : lst1.store.ls.ViewOK (absLNodeView (arena.store.LNodeView.Succ z)) := by
-      constructor
-      · intro c hc
-        simp only [absLNodeView, LNodeView.lchildren, List.mem_singleton] at hc
-        subst hc; rw [hvz]; rfl
-      · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-    have hS2 := intern_l_node_run hrel1 hinv1 (arena.store.LNodeView.Succ z) hv1
+    have hS2 := intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
       (o := (r2, withStore rst ar2))
       (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [bind_tc_ok]; rfl)
     rw [show Arena.internLNode (.succ (absLIdx z))
@@ -658,42 +634,33 @@ theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
     | Err e =>
       have ho := Result.ok_injective h
       subst ho
-      exact AOut.errBind hS2
+      exact AOut₀.errBind hS2
     | Ok one =>
-    obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+    obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
     rw [run_bind_ok hx2]
-    refine AOut.rebase hext2 ?_
     -- 3. the expression `Sort 1`
     obtain ⟨⟨r3, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨hvo, -, -⟩ := internLNode_run_view hrel1.storeWF hv1 hx2
-    have hv2 : lst2.store.ViewOK (absENodeView (arena.store.ENodeView.Sort one)) := by
-      constructor
-      · intro c hc; simp [absENodeView, ENodeView.echildren] at hc
-      · intro c hc; simp [absENodeView, ENodeView.nchildren] at hc
-      · intro c hc
-        simp only [absENodeView, ENodeView.lchildren, List.mem_singleton] at hc
-        subst hc; rw [hvo]; rfl
-      · intro c hc; simp [absENodeView, ENodeView.lschildren] at hc
-    have hS3 := intern_e_run hrel2 hinv2 (arena.store.ENodeView.Sort one) hv2
-      (fun l hl => by cases hl) (fun ty b m hm => by rcases hm with hm | hm <;> cases hm)
+    have hS3 := intern_e_sort_run₀ hrel2 hinv2 one
       (o := (r3, withStore rst ar3))
-      (by rw [arena.monad.intern_e]; rw [h3]; simp only [bind_tc_ok]; rfl)
-    rw [show Arena.internE (.sort (absLIdx one))
-        = Arena.internE (absENodeView (arena.store.ENodeView.Sort one)) from rfl]
+      (by rw [arena.monad.intern_e_sort]
+          rw [show arena.store.EStore.intern_sort (withStore rst ar2).store pers one
+              = arena.store.EStore.intern ar2 pers (arena.store.ENodeView.Sort one) from rfl,
+            h3]
+          simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
     cases r3 with
     | Err e =>
       have ho := Result.ok_injective h
       subst ho
-      exact AOut.errBind hS3
+      exact AOut₀.errBind hS3
     | Ok ty =>
-    obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+    obtain ⟨lst3, hx3, hrel3, hinv3⟩ := Sim₀.apply hS3
     rw [run_bind_ok hx3]
-    refine AOut.rebase hext3 ?_
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have ho := Result.ok_injective h
     subst ho
-    refine AOut.ok (lst' := lst3) ?_ hrel3 hinv3 (Ext.refl _) trivial
+    refine AOut₀.ok (lst' := lst3) ?_ hrel3 hinv3
     show Except.ok _ = _
     simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
 
@@ -719,7 +686,7 @@ theorem note_block_loop_refines {pers : arena.store.PersTier}
     {bl : alloc.vec.Vec arena.env.IConstantInfo} :
     ∀ (k : Std.Usize) (out : alloc.vec.Vec (arena.handle.NIdx ×
         (alloc.vec.Vec arena.handle.NIdx) × arena.handle.EIdx × (Option Std.U64)))
-      {rst lst o}, AStateRel pers rst lst → AStateInv pers rst →
+      {rst lst o}, AStateRel₀ pers rst lst → AStateInv pers rst →
       frontend.export_c.note_block_loop pers rst.store bl out (alloc.vec.Vec.len bl) k
         = ok o →
       SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
@@ -729,7 +696,7 @@ theorem note_block_loop_refines {pers : arena.store.PersTier}
             pure (v.name, v.levelParams, v.type, (none : Option Nat))
           pure (absNoteEntryL out ++ es)) := by
   refine cursor_induction (fun k : Std.Usize => k.val) bl.val.length
-    (fun k out => ∀ {rst lst o}, AStateRel pers rst lst → AStateInv pers rst →
+    (fun k out => ∀ {rst lst o}, AStateRel₀ pers rst lst → AStateInv pers rst →
       frontend.export_c.note_block_loop pers rst.store bl out (alloc.vec.Vec.len bl) k
         = ok o →
       SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
@@ -744,7 +711,7 @@ theorem note_block_loop_refines {pers : arena.store.PersTier}
     cases Result.ok_injective h
     have hnil : absICILFrom bl k = [] := by
       simp [absICILFrom, List.drop_eq_nil_of_le hk]
-    refine LOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _)
+    refine LOut.ok (lst' := lst) ?_ hrel hinv
     rw [hnil]; show Except.ok _ = _; simp
   · intro k out hk ih rst lst o hrel hinv h
     rw [frontend.export_c.note_block_loop.eq_def] at h
@@ -760,7 +727,7 @@ theorem note_block_loop_refines {pers : arena.store.PersTier}
       simp only [absICILFrom]
       rw [List.drop_eq_getElem_cons hk, hiiv]; rfl
     have hT := i_constant_info_to_constant_val_refines hrel hinv hr
-    show LOut _ _ _ _ _ _
+    show LOut _ _ _ _ _
     rw [hdrop]
     simp only [List.mapM_cons, bind_assoc, pure_bind]
     cases r with
@@ -770,18 +737,17 @@ theorem note_block_loop_refines {pers : arena.store.PersTier}
       obtain ⟨e', rfl, hk'⟩ := fail_refines hr1
       show AErrSim e' _
       rw [am_run_bind']
-      exact AErrSim.of_kind (AErrSim.bind (Sim.apply_err hT) _) hk'
+      exact AErrSim.of_kind (AErrSim.bind (Sim₀.apply_err hT) _) hk'
     | Ok cv =>
       obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hT
+      obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hT
       have hk1v : k1.val = k.val + 1 := usize_add_one_inv hk1
       have hR := ih k1 out1 hk1v (rst := withStore rst ar1) (lst := lst1) hrel1 hinv1 h
       rw [run_bind_ok hx1]
-      refine LOut.rebase hext1 ?_
       have hout : absNoteEntryL out1 = absNoteEntryL out ++
           [((absIConstantVal cv).name, (absIConstantVal cv).levelParams,
             (absIConstantVal cv).type, (none : Option Nat))] := by
@@ -796,7 +762,7 @@ theorem note_block_loop_refines {pers : arena.store.PersTier}
 
 /-- **`note_block`** — the `indDecl` arm's `block.mapM`, at a cursor. -/
 theorem note_block_refines {pers rst lst bl i out o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.note_block pers rst.store bl i out = ok o) :
     SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
       (do
@@ -811,7 +777,7 @@ theorem note_block_refines {pers rst lst bl i out o}
 declaration declares.  The `.basisDecl` arm fails loudly on both sides (the
 twin's own choice: no frontend function produces one). -/
 theorem note_decl_entries_refines {pers rst lst d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.note_decl_entries pers rst.store d = ok o) :
     SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
       (noteDeclEntries (absIDeclaration d)) := by
@@ -824,7 +790,7 @@ theorem note_decl_entries_refines {pers rst lst d o}
         (noteDeclEntries (absIDeclaration d)) := by
     intro cv hh v hv ho hx
     subst ho
-    refine LOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _)
+    refine LOut.ok (lst' := lst) ?_ hrel hinv
     rw [hx, note_one_refines hv]; rfl
   cases d with
   | AxiomDecl cv =>
@@ -964,7 +930,7 @@ theorem note_entries_refines {rsd lsd es rsd'} (hd : StateDRel rsd lsd)
 
 /-- **`note_decl` refines `noteDecl`** (`ExportC.lean:138-155`). -/
 theorem note_decl_refines {pers rst lst rsd lsd d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.note_decl pers rst.store rsd d = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
@@ -977,9 +943,9 @@ theorem note_decl_refines {pers rst lst rsd lsd d o}
   | Ok es =>
     obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h
-    obtain ⟨lst', hx, hrel', hinv', hext⟩ := hE
+    obtain ⟨lst', hx, hrel', hinv'⟩ := hE
     obtain ⟨hd', hi'⟩ := note_entries_refines hd hi hst1
-    refine ⟨_, lst', ?_, hd', hi', hrel', hinv', hext⟩
+    refine ⟨_, lst', ?_, hd', hi', hrel', hinv'⟩
     rw [am_run_bind', hx]; rfl
   | Err e =>
     cases Result.ok_injective h
@@ -988,7 +954,7 @@ theorem note_decl_refines {pers rst lst rsd lsd d o}
 
 /-- **`push_decl` refines `pushDecl`** (`ExportC.lean:158-159`). -/
 theorem push_decl_refines {pers rst lst rsd lsd d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_decl pers rst.store rsd d = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
@@ -1000,9 +966,9 @@ theorem push_decl_refines {pers rst lst rsd lsd d o}
   | Ok u =>
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h
-    obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext⟩ := hN
+    obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv'⟩ := hN
     refine ⟨{ lsd' with decls := lsd.decls.push (absIDeclaration d) }, lst', ?_, ?_,
-      ⟨hi'.1, hi'.2, hi'.3, hi'.4, hi'.5, hi'.6⟩, hrel', hinv', hext⟩
+      ⟨hi'.1, hi'.2, hi'.3, hi'.4, hi'.5, hi'.6⟩, hrel', hinv'⟩
     · rw [pushDecl_run, hx]; rfl
     · refine { hd' with decls := ?_ }
       show lsd.decls.push (absIDeclaration d) = absIDeclArr v
@@ -1347,7 +1313,7 @@ theorem get_decl_d_refines {rsd lsd lst i o} (hd : StateDRel rsd lsd)
 datum over the direct name table.  `PropWhen` holds con-leche `Name`s, so the
 resolved handles are read BACK — which is `denoteN` itself. -/
 theorem parse_pw_d_refines {pers rst lst rsd lsd r o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd)
     (h : frontend.export_c.parse_pw_d pers rst.store rsd r = ok o) :
     SimLR ConRon.Refine.absPropWhen lst o (parsePwD lsd (absPwRec r)) := by sorry
@@ -1384,7 +1350,7 @@ theorem st_fresh_expr_refines {rsd lsd lst i o} (hd : StateDRel rsd lsd)
 /-- **`parse_name_entry_d` refines `parseNameEntryD`**
 (`ExportC.lean:226-236`). -/
 theorem parse_name_entry_d_refines {pers rst lst rsd lsd i r o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : NameRecStrWF r)
     (h : frontend.export_c.parse_name_entry_d pers rst.store rsd i r = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
@@ -1400,7 +1366,7 @@ theorem parse_level_rec_d_refines {rsd lsd lst r o} (hd : StateDRel rsd lsd)
 /-- **`parse_level_entry_d` refines `parseLevelEntryD`**
 (`ExportC.lean:240-255`). -/
 theorem parse_level_entry_d_refines {pers rst lst rsd lsd i r o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.parse_level_entry_d pers rst.store rsd i r = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
@@ -1412,7 +1378,7 @@ decimal digits, so the arm needs `NatValSpec`.  Its `StrVal` arm interns a
 `Lit` node, whose `ENodeViewWF` is `ExprRecStrWF` (task #97-P5-Front round 2,
 finding F5: the hypothesis was missing). -/
 theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hs : ExprRecStrWF r) (hnat : NatValSpec r)
     (h : frontend.export_c.parse_expr_rec_d pers rst.store rsd r = ok o) :
     SimL absEIdx pers lst (o.1, withStore rst o.2)
@@ -1421,7 +1387,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
 /-- **`parse_expr_entry_d` refines `parseExprEntryD`**
 (`ExportC.lean:259-282`). -/
 theorem parse_expr_entry_d_refines {pers rst lst rsd lsd i r o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : ExprRecStrWF r)
     (hnat : NatValSpec r)
     (h : frontend.export_c.parse_expr_entry_d pers rst.store rsd i r = ok o) :
@@ -1487,33 +1453,12 @@ theorem proj_owner_of_refines {rsd lsd t o} (hd : StateDRel rsd lsd)
   | none => cases Result.ok_injective h; rw [← hrel, ← hg]
   | some x => cases Result.ok_injective h; rw [← hrel, ← hg]
 
-/-- **`proj_rewrite_at`** — the port's split past the two table lookups.
-
-**FALSE AS STATED, and unused** (task #97-P5-Front round 3): the twin side
-here reads `projLevels` at `cv.name` and never compares level parameters,
-where the port's `proj_rewrite_at` (and the twin's `projRewriteD`) tests
-`cv.level_params == o.lps` first and reads `projLevels` at
-`proj_iota_name t i`.  A level-parameter mismatch makes the port answer
-`Ok none` where this statement's twin may run `projRecValue`.
-`proj_rewrite_d_refines` therefore inlines the split rather than calling this;
-restating it is a conclusion change and waits on the coordinator. -/
-theorem proj_rewrite_at_refines {pers rst lst rsd lsd cv vl t i fuel o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.proj_rewrite_at pers rst rsd cv vl t i fuel = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
-      (do
-        match lsd.projOwners[absNIdx t]?, lsd.projLevels[absNIdx cv.name]? with
-        | some ow, some l =>
-          projRecValue (absU fuel) ow l (absEIdx cv.ty) (absEIdx vl) (absU i)
-        | _, _ => pure none) := by sorry
-
 /-- **`proj_rewrite_d` refines `projRewriteD`** (`ExportC.lean:302-322`). -/
 theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.proj_rewrite_d pers rst rsd cv vl = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (projRewriteD lsd (absIConstantVal cv) (absEIdx vl)) := by
   rw [frontend.export_c.proj_rewrite_d] at h
   obtain ⟨fuel, hfuel, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1521,27 +1466,27 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
     store_fuel_refines hrel hinv hfuel
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hL := lam_body_refines hrel hinv hr
-  show AOut _ _ _ _ _ _ _
+  show AOut₀ _ _ _ _ _
   rw [projRewriteD, run_bind_ok hF]
   have hnone : ∀ {x : AM (Option EIdx)}, x.run lst = .ok (none, lst) →
-      AOut (Option.map absEIdx) (fun _ => True) pers lst
+      AOut₀ (Option.map absEIdx) pers
         (core.result.Result.Ok (none : Option arena.handle.EIdx)) rst (x.run lst) :=
-    fun hx => AOut.ok (lst' := lst) hx hrel hinv (Ext.refl _) trivial
+    fun hx => AOut₀.ok (lst' := lst) hx hrel hinv
   cases r with
   | Err e =>
     cases Result.ok_injective h
-    exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hL _)
+    exact AOut₀.err (by rw [am_run_bind']; exact AErrSim.bind hL _)
   | Ok v =>
     have hL' : (lamBody (absU fuel) (absEIdx vl)).run lst = .ok (absEIdx v, lst) := hL
     rw [run_bind_ok hL']
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hV := view_run hrel hinv hr1
+    have hV := view_run₀ hrel hinv hr1
     cases r1 with
     | Err e =>
       cases Result.ok_injective h
-      exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hV _)
+      exact AOut₀.err (by rw [am_run_bind']; exact AErrSim.bind hV _)
     | Ok ev =>
-      obtain ⟨lst1, hx1, -, -, -, -⟩ := hV
+      obtain ⟨lst1, hx1, -, -⟩ := hV
       have := view_run_state hx1
       subst this
       rw [run_bind_ok hx1]
@@ -1549,13 +1494,13 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
       | Proj t i sub =>
         simp only [absENodeView]
         obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have hV2 := view_run hrel hinv hr2
+        have hV2 := view_run₀ hrel hinv hr2
         cases r2 with
         | Err e =>
           cases Result.ok_injective h
-          exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hV2 _)
+          exact AOut₀.err (by rw [am_run_bind']; exact AErrSim.bind hV2 _)
         | Ok ev1 =>
-          obtain ⟨lst2, hx2, -, -, -, -⟩ := hV2
+          obtain ⟨lst2, hx2, -, -⟩ := hV2
           have := view_run_state hx2
           subst this
           rw [run_bind_ok hx2]
@@ -1565,7 +1510,7 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
             simp only at h
             split at h
             · -- the `.bvar 0` arm: the port's `proj_rewrite_at`, inline
-              show AOut _ _ _ _ _ _ ((match lsd.projOwners[absNIdx t]? with
+              show AOut₀ _ _ _ _ ((match lsd.projOwners[absNIdx t]? with
                 | none => pure none
                 | some o =>
                   if (absIConstantVal cv).levelParams != o.lps then pure none
@@ -1598,17 +1543,16 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
                   cases r3 with
                   | Err e =>
                     cases Result.ok_injective h
-                    exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hN _)
+                    exact AOut₀.err (by rw [am_run_bind']; exact AErrSim.bind hN _)
                   | Ok k =>
-                    obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hN
+                    obtain ⟨lst3, hx3, hrel3, hinv3⟩ := Sim₀.apply hN
                     rw [run_bind_ok hx3]
-                    refine AOut.rebase hext3 ?_
                     obtain ⟨o2, ho2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
                     rw [← proj_level_of_refines hd hi ho2]
                     cases o2 with
                     | none =>
                       cases Result.ok_injective h
-                      exact AOut.ok (lst' := lst3) rfl hrel3 hinv3 (Ext.refl _) trivial
+                      exact AOut₀.ok (lst' := lst3) rfl hrel3 hinv3
                     | some l =>
                       exact proj_rec_value_refines hrel3 hinv3 h
                 · rename_i hbf
@@ -1630,19 +1574,19 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
 
 /-- **`note_proj_iota` refines `noteProjIota`** (`ExportC.lean:325-335`). -/
 theorem note_proj_iota_refines {pers rst lst rsd lsd cvp o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.note_proj_iota pers rst rsd cvp = ok o) :
     ∀ _u, o.1 = .Ok _u → ∃ lsd' lst',
       (noteProjIota lsd (absIConstantVal cvp)).run lst = .ok (lsd', lst') ∧
-      StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel pers o.2.1 lst' ∧
-      AStateInv pers o.2.1 ∧ Ext lst.store lst'.store := by sorry
+      StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel₀ pers o.2.1 lst' ∧
+      AStateInv pers o.2.1 := by sorry
 
 /-! ## The modeller's booking -/
 
 /-- **`push_gen_d` refines `pushGenD`** (`ExportC.lean:339-345`). -/
 theorem push_gen_d_refines {pers rst lst rsd lsd d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_gen_d pers rst rsd d = ok o) :
     SimD pers lst o (pushGenD lsd (absIDeclaration d)) := by sorry
@@ -1665,7 +1609,7 @@ theorem note_gen_refines {rsd lsd lst d t0 rsd'} (hd : StateDRel rsd lsd)
 
 /-- **`push_gen_list` refines `pushGenList`** (`ExportC.lean:425-428`). -/
 theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_gen_list pers rst rsd gen t0 = ok o) :
     SimD pers lst o (pushGenList lsd (absIDeclL gen) (absNIdx t0)) := by sorry
@@ -1674,7 +1618,7 @@ theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
 
 /-- **`ind_pi_tele_len` refines `indPiTeleLen`** (`ExportC.lean:358-364`). -/
 theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.ind_pi_tele_len pers rst.store fuel h' = ok o) :
     SimLR absU lst o (indPiTeleLen (absU fuel) (absEIdx h')) := by sorry
 
@@ -1682,7 +1626,7 @@ theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
 frontend caller (`k_expected_of`) rather than left as a hole; the twin's is
 `Arena/ExprOps.lean`'s `piResult`. -/
 theorem pi_result_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.pi_result pers rst.store fuel h' = ok o) :
     SimLR absEIdx lst o (piResult (absU fuel) (absEIdx h')) := by sorry
 
@@ -1809,7 +1753,7 @@ theorem note_proj_owners_refines {rsd lsd owners rsd'} (hd : StateDRel rsd lsd)
 /-- **`register_proj_owners` refines `registerProjOwners`**
 (`ExportC.lean:401-421`). -/
 theorem register_proj_owners_refines {pers rst lst rsd lsd tys cts rcs block o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.register_proj_owners pers rst rsd tys cts rcs block
       = ok o) :
@@ -1838,11 +1782,11 @@ theorem at_line_refines {e n ce} (h : frontend.export_c.at_line e n = ok ce) :
 /-! ## Line-layer shape lemmas (moved from `Top.lean` by task #97-P5-Front round 3,
 so that `ExportCInd.lean`'s `install_ind_d` can compose with them) -/
 
-theorem SimDV.of_run_eq {pers : arena.store.PersTier} {lst : AState}
+theorem SimDV.of_run_eq {pers : arena.store.PersTier} {lst lst1 : AState}
     {o : core.result.Result Unit frontend.export_c.LineErr ×
       arena.monad.AState × frontend.export_c.StateD}
     {x y : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)}
-    (h : SimDV pers lst o x) (hxy : y.run lst = x.run lst) : SimDV pers lst o y := by
+    (h : SimDV pers lst1 o x) (hxy : y.run lst = x.run lst1) : SimDV pers lst o y := by
   rcases o with ⟨r, rst', rsd'⟩
   unfold SimDV at h ⊢
   rw [hxy]; exact h
@@ -1858,35 +1802,23 @@ theorem SimD.toSimDV_inl {pers : arena.store.PersTier} {lst : AState}
   simp only [SimD] at h
   cases r with
   | Ok u =>
-    obtain ⟨lsd', lst', hx, hd, hi, hrel, hinv, hext⟩ := h
-    refine SimDV.mk (lsd' := lsd') ?_ hd hi hrel hinv hext
+    obtain ⟨lsd', lst', hx, hd, hi, hrel, hinv⟩ := h
+    refine SimDV.mk (lsd' := lsd') ?_ hd hi hrel hinv
     simp only [am_run_bind', hx, except_ok_bind]; rfl
   | Err e =>
     exact SimDV.of_bind (f := fun p => (pure (Sum.inl p.1) : AM _).run p.2) h
       (by simp only [am_run_bind'])
 
-/-- A twin prefix that answers `a` at a state the store only grew to. -/
+/-- A twin prefix that answers `a`, then the rest. -/
 theorem SimDV.bind_ok {α : Type} {pers : arena.store.PersTier} {lst lst1 : AState}
     {o : core.result.Result Unit frontend.export_c.LineErr ×
       arena.monad.AState × frontend.export_c.StateD}
     {x : AM α} {f : α → AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)} {a : α}
-    (hx : x.run lst = .ok (a, lst1)) (hext : Ext lst.store lst1.store)
+    (hx : x.run lst = .ok (a, lst1))
     (h : SimDV pers lst1 o (f a)) : SimDV pers lst o (x >>= f) := by
-  rcases o with ⟨r, rst', rsd'⟩
   have hrun : (x >>= f).run lst = (f a).run lst1 := by
     simp only [am_run_bind', hx, except_ok_bind]
-  unfold SimDV at h ⊢
-  rw [hrun]
-  cases r with
-  | Ok u =>
-    obtain ⟨lsd', lst', hx', hd, hi, hrel, hinv, hext'⟩ := h
-    exact ⟨lsd', lst', hx', hd, hi, hrel, hinv, Ext.trans hext hext'⟩
-  | Err e =>
-    cases e with
-    | Err ce => exact h
-    | Verdict v =>
-      obtain ⟨lv, lst', hx', hk, hext'⟩ := h
-      exact ⟨lv, lst', hx', hk, Ext.trans hext hext'⟩
+  exact SimDV.of_run_eq h hrun
 
 /-! ## The axiom census
 
