@@ -1340,29 +1340,31 @@ theorem internExprGo_sstep :
     | none =>
       rw [hmem] at hrun
       simp only [] at hrun
-      obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
+      -- the name first, then the subterm: the port's order (task
+      -- #97-T2-LOCKSTEP lane Promote, divergence P1)
+      obtain ⟨hn, s₁, hnm, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨hstep1, hdn⟩ := internName_sstep hok hnm
+      obtain ⟨p1, s₂, h1, hrest2⟩ := AM.bind_ok hrest
       obtain ⟨m1, hsu⟩ := p1
-      obtain ⟨hstep1, hds, hm1⟩ := ih hok hm h1
-      simp only [] at hrest
-      obtain ⟨hn, s₂, hnm, hrest2⟩ := AM.bind_ok hrest
-      obtain ⟨hstep2, hdn⟩ := internName_sstep hstep1.ok hnm
+      obtain ⟨hstep2, hds, hm1⟩ := ih hstep1.ok (hm.mono hstep1.ext) h1
+      simp only [] at hrest2
       obtain ⟨x, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
       obtain ⟨hstep3, hden⟩ :=
         internE_sstep hstep2.ok
-          (viewOK_proj (nview_isSome_of_denote hdn)
-            (by rw [denote_ext hds hstep2.ext]; rfl)) hin
+          (viewOK_proj (nview_isSome_of_denote (denoteN_ext hdn hstep2.ext))
+            (by rw [hds]; rfl)) hin
       have hde : denoteE s₃.store x = some (Expr.proj n i sub) := by
         rw [hden]
         simp only [denoteEView, opt2_eq_some_iff]
-        exact ⟨n, sub, denoteN_ext hdn hstep3.ext,
-          denote_ext hds (hstep2.ext.trans hstep3.ext), rfl⟩
+        exact ⟨n, sub, denoteN_ext hdn (hstep2.ext.trans hstep3.ext),
+          denote_ext hds hstep3.ext, rfl⟩
       obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
       subst hst
       simp only [Prod.mk.injEq] at hv
       obtain ⟨hmm, hhh⟩ := hv
       subst hmm; subst hhh
       exact ⟨(hstep1.trans hstep2).trans hstep3, hde,
-        (hm1.mono (hstep2.ext.trans hstep3.ext)).insert hde⟩
+        (hm1.mono hstep3.ext).insert hde⟩
 
 theorem internExprList_sstep : ∀ (es : List Expr) {s s' : AState}
     {m m' : EMemo} {hs : List EIdx}, StateOK s →

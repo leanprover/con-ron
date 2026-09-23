@@ -515,8 +515,8 @@ def internExprGo (m : EMemo) : Expr → AM (EMemo × EIdx)
     match m[e]? with
     | some h => pure (m, h)
     | none => do
-      let (m, hs) ← internExprGo m sub
       let hn ← internName n
+      let (m, hs) ← internExprGo m sub
       let h ← internE (.proj hn i hs)
       pure (m.insert e h, h)
 

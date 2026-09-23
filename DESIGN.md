@@ -59630,3 +59630,107 @@ kept in `Checker/Base.lean` for it); `Refine2/Core/Bracket.lean` (the
 deletions above); `Refine2/Specs.lean` (the shims); `Tactic/Lockstep.lean`
 (above); `Refine2/Checker/Phased.lean` (the pool's file — the one statement
 there had to lose `BrOK`/`DeclResolves` with the family).
+
+### Task #97-T2-LANE-Promote — `Refine2/Promote/**` lockstep, the tier closed but one statement gap (2026-09-23, Opus under Fable)
+
+The lockstep migration's step 6 (task #97-T2-AUDIT §7): `Refine2/Promote/`
+off `AStateRelW`/`AOutW`/`SimW`/`EViewPers`/`hview`, and the tier's frontier
+and dead-weight `sorry`s closed.  Worktree `_tmp/wt-t2-promote` off `arena`
+`998ccde3`.  **The statement migration had already been done by the Checker
+lane** (`t2-lock-checker` `af48d5b7`: `SimPM`/`POut`/`EOut` made lockstep in
+`Checker/Shape.lean`, the Promote statements restated, `AStateRelW` and the
+three shims `intern_name_run'`/`intern_persistent_n_run`/`view_n_run`
+deleted), so this branch merged that work first (and its submitted
+`2c05bb85` before submitting) and did the proofs.  **Promote no longer names
+`AStateRelW` or any `W`/`hview`/`EViewPers` shape** (docs only).
+
+#### 1. The promote tier (`Promote/Promote.lean`): every walk one `lockstep` call
+
+* `Promote/Prims.lean` (new, the tier's `@[lockstep]` pairs): the name/level/
+  list views (`view_n_ls` carries `NNodeViewWF`), `view_wf_ls` (the
+  expression view with `ENodeViewWF`, from the new `estore_view_wf`: the Rust
+  store's `nodesP` at `lits`/`bms`; taken as a LOCAL hypothesis where needed,
+  because local candidates are tried before the registered `view_ls`), the
+  four persistent interns (`intern_persistent_*_run₀`), the tier bits, `dup2`
+  at N/L/Ls, the Rust-only copies (`reducibility_hint_dup`, `i_ind_caps_dup`,
+  `basis_kind_dup`, `quot_kind_dup`), `LS.toSimPM`, and the twin cursor
+  helper `pmapFrom` (the port's accumulator recursion over the twin's `List`,
+  `pmapFrom_cons_eq` back to the twin's cons recursion).
+* The memo primitives as `LSP` pairs whose `TwinEq` rewrites the twin's
+  `m.xM[h]?` (`pmemo_get_*_spec`), and `pmemo_set_*_spec`.
+* Twin-side helpers in `Refine2` only (no twin change): `promoteLTwo`/
+  `promoteETwo` (the `_two` splits' partners; `promote{L,E}NodeSpec` now bind
+  them), `promoteProjTableRest`, `indexPromotedTwin`.
+* **Closed** (all axiom-clean): `promote_{n,l,e}` by fuel induction, each
+  `_node`/`_two` derived inside the successor step and every case body one
+  `lockstep`; `promote_ls`; the five cursors (`l`/`n`/`e` lists, rules, ci
+  list: zero case by hand, successor one `lockstep`); `promote_cv`/`fire`/
+  `rule`/`caps`/`proj_table(_rest)`/`ci`/`decl` (one `lockstep` each, `cases`
+  first); `index_promoted_refines` (by hand: finding B's fused loop against
+  the twin's two passes, one step lemma `index_promoted_step`);
+  `promote_new_refines_keyed`.  Statement changes: `promote_{n,e}_node_refines`
+  take the Rust view's key predicate (`NNodeViewWF`/`ENodeViewWF`, a Rust-input
+  fact); the `_two`/`_rest` twins are the named helpers.
+
+#### 2. The intern tier (`Promote/Intern.lean`)
+
+`arena::intern`'s walks return their memo OUTSIDE the `Result`, which is not
+`LS`'s shape; `LSM` is `LS` with that memo (bind rules for a walk, a state
+callee, a store-level callee `LSS`, a Rust-only step; `LSM.fresh` for the
+fresh-memo entries; `LSM.toSimEM`).  It is a manual judgement next to the
+tactic, not a tactic extension: the walks here are ten arms of `ExprWF.ind_node`
+plus straight-line records, a few lines each.  **Closed, axiom-clean**:
+`memo_get`, `intern_expr_{go,node}` (one induction, both halves), `intern_expr`,
+`intern_expr_list(_go)`, `intern_level_list_go`, `intern_cv(_go)`, `fire`,
+`rule`, `rules`, `caps`, `proj_table(_rest)` (with `proj_table_name_lss`),
+`ci(_go)`, `ci_list(_go)`, `decl`, `decls(_go)`.  `EMemoRel` gained
+`KeysOk ExprWF` (the Rust-side key predicate `HashMap2`'s probe needs;
+`Checker/Shape.lean`, three lines).
+
+#### 3. Divergences and findings
+
+* **P1 (divergence, fixed in the twin).**  `intern_expr_node`'s projection arm
+  interns the NAME and then the subterm; `Frontend.internExprGo` did the
+  subterm first.  Both write the name store, so the two orders hand out
+  different handles.  `Arena/Frontend/Readback.lean` now follows the port;
+  Theorem 1's `internExprGo_sstep` (`Bridge/Frontend/Shared.lean`) took the
+  reordering (the name step first, the memo invariant carried across it by
+  `mono`).  No Rust change.
+* **D (statement gap, `sorry` kept on the old statement): `IFEnvKeys`.**
+  `promote_new_refines` as stated is FALSE: a Rust index row keyed `b`
+  pointing at slot 0 whose constant is NOT named `b` satisfies `IFEnvRel`
+  (the twin row reads `(0, abs consts[0])`), survives `erase_installed`, and
+  after `index_promoted` overwrites slot 0 with its promotion the port's row
+  reads the promoted constant while the twin's still reads the old one.  The
+  true statement is `promote_new_refines_keyed`, premise `IFEnvKeys rf`: every
+  row points at a slot whose constant carries the row's key — a Rust-side
+  representation invariant every writer keeps (`mk_ifenv_go`, `ifenv_push`,
+  `index_promoted`).  `promote_new_refines` is `…_keyed` with that premise
+  `sorry`d, so the checker lane's consumers keep compiling; it is the tier's
+  one frontier item.  **Ruling needed:** add `IFEnvKeys` to `IFEnvInv`
+  (checker lane's shape; producers `ifenv_push_refines`, the two `mkIFEnv`
+  starts, `erase_installed`/`promote_new` here), or carry it separately.
+* Old statements that were false and are restated: `intern_expr_node_refines`
+  (claimed the memo write the port's CALLER does — now against
+  `internExprNodeSpec`), `intern_proj_table_rest_refines` (was against the
+  whole `internProjTable`, which re-interns the structure name).
+* Unused and deleted: `viewN_run_state`.
+
+#### 4. Counts
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: at the start (`998ccde3`) 61 items /
+152 tainted / 641 dead, the Promote tier 5 frontier items (`index_promoted`,
+`intern_expr_list`, `promote_cv`, `promote_e`, `intern_expr`) + 45 dead
+weight (25 in `Promote.lean`, 20 in `Intern.lean`).  At this branch's tip
+(after merging `t2-lock-checker` `2c05bb85` and `arena` `ecee8ea4`): **50 / 128
+/ 587**; the Promote tier **1 frontier item (`promote_new_refines`, finding D)
+and 0 dead weight**.  (`t2-lock-checker` alone measured 54 / 139 / 632.)
+
+#### 5. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `Arena/Frontend/Readback.lean` | P1's twin fix (two lines swapped; citations unmoved) |
+| `Bridge/Frontend/Shared.lean` | P1's Theorem-1 repair |
+| `Refine2/Checker/Shape.lean` | `EMemoRel` gains `KeysOk` (only this tier reads it) |
