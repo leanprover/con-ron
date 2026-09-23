@@ -59,8 +59,8 @@ the proof is:
 
 1. **Theorem 2, per stage** — `Refine2`'s six `…_refines` lemmas walk the
    Rust runs into six TWIN runs from the twin's own start state
-   `AState.init EStore.empty`, related at every step (`AStateRel`/
-   `AStateInv`);
+   `AState.init EStore.empty`, related at every step (`AStateRel₀`/
+   `AStateInv`: lockstep);
 2. **Theorem 1** — the twin runs feed `Arena.pooledAccepts_bridge`, whose
    pure fold accepts the denoted stream: con-leche's
    `checkDeclsPure_sound_of` gives the model, and
@@ -71,11 +71,10 @@ the proof is:
    model.
 
 Every step is an existing theorem; what this file adds is glue: the Rust
-runs threaded through `Sim`/`SimStream`/`SimFold`, and the two twin-store
-facts the composition needs from Theorem 1 (`StoreWF` where a not-yet-lockstep
-parser statement takes `AStateRel`, and at the headline's `AStateRel`), read
-off its stage lemmas.  Theorem 2 itself carries no fact about the twin's store
-(task #97-T2-AUDIT).
+runs threaded through `Sim₀`/`SimStream`/`SimFold`, and the one twin-store
+fact the composition needs from Theorem 1 — `StoreWF` at the headline's
+`AStateRel` (`stages_storeWF`) — read off its stage lemmas.  Theorem 2 itself
+carries no fact about the twin's store (task #97-T2-AUDIT).
 
 ## The named hypotheses
 
@@ -308,7 +307,7 @@ theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
 /-- con-leche: none — **the fold's end state is well formed** (Theorem 1).
 Theorem 2 is a lockstep refinement and its relation `AStateRel₀` carries no
 fact about the twin's store (task #97-T2-AUDIT); the headline states the full
-`AStateRel`, whose one extra clause, `StoreWF`, is Theorem 1's.  It is
+`AStateRel`, whose one extra clause, `StoreWF`, is Theorem 1's:
 phase A's `annotFold_bridge` (the first step of `Arena.pooledAccepts_bridge`)
 ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and the pooled fold hands
 the phase-A state back. -/
@@ -363,12 +362,9 @@ the driver's start state give six accepting twin runs from the twin's, at the
 abstracted values, with the Rust's final state related to the twin's and the
 Rust's environment related to the twin's.
 
-Theorem 2's six top lemmas, one per stage, lockstep: nothing about the twin's
-store is assumed at the fold's entry (task #97-T2-LOCKSTEP lane Checker
-deleted `BrOK` and ruling 2's `DeclResolves`).  The parser tier's statements
-still take the full `AStateRel` (their lane's migration is pending), so
-`StoreWF` after the reserved pins comes from Theorem 1's
-`internReservedPins_run`. -/
+Theorem 2's six top lemmas, one per stage, all lockstep (`AStateRel₀`, no
+precondition on the twin: task #97-T2-LOCKSTEP lane Checker deleted `BrOK`
+and ruling 2's `DeclResolves`). -/
 theorem rust_stages
     (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hind : ConRon.Bridge.IndSpec .verified)
@@ -416,34 +412,29 @@ theorem rust_stages
           (absIDeclL ds).toArray sE lfe sF ∧
       AStateRel₀ pers st6 sF ∧ IFEnvRel fe lfe := by
   obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hest hst0
-  -- 1. the reserved pins (lockstep)
+  -- 1. the reserved pins
   obtain ⟨sA, hA, hrelA, hinvA⟩ :=
     (intern_reserved_pins_refines hrel0 hinv0 h1).dest
-  -- the parser tier's statements still take the twin's `StoreWF` in their
-  -- relation (the Frontend lane's migration is pending); Theorem 1 supplies it
-  have hwfA : ConRon.Arena.StoreWF sA.store :=
-    (ConRon.Bridge.internReservedPins_run ⟨ConRon.Arena.EStore.empty_wf⟩ rfl hA).1.wf
   -- 2. the prelude
-  obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB, -⟩ :=
-    builtin_prelude_e_refines scanSpec hmr (hrelA.of₀ hwfA) hinvA h2
+  obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB⟩ :=
+    builtin_prelude_e_refines scanSpec hmr hrelA hinvA h2
   subst hpreL
   -- 3. the stream: the reader loop IS `parse_chunks` over the chunks read
   have h3' := parse_source_eq hreads h3
-  obtain ⟨rv, sC, hC, hrv, hrelC, hinvC, -⟩ :=
+  obtain ⟨rv, sC, hC, hrv, hrelC, hinvC⟩ :=
     parse_chunks_refines scanSpec hmr hrelB hinvB h3'
   -- 4. the preparation
-  obtain ⟨sD, hD, hrelD, hinvD, -, -⟩ :=
-    (prepare_prelude_refines hrelC hinvC h4).dest
-  -- 5. the startup pin walk
-  obtain ⟨sE, hE, hrelE, hinvE⟩ :=
-    (intern_all_pins_refines hrelD.to₀ hinvD
-      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
+  obtain ⟨sD, hD, hrelD, hinvD⟩ :=
+    (prepare_prelude_refines hrelC hinvC h4).apply
   have hdecls : rv.decls = absIDeclArr r.decls := hrv.decls
   have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
       = .ok ((absIDeclL ds).toArray, sD) := by
     rw [hdecls]; exact hD
-  -- 6. the fold, as the binary runs it, pool and all (lockstep: no
-  -- precondition on the twin)
+  -- 5. the startup pin walk
+  obtain ⟨sE, hE, hrelE, hinvE⟩ :=
+    (intern_all_pins_refines hrelD hinvD
+      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
+  -- 6. the fold, as the binary runs it, pool and all
   obtain ⟨lfe, sF, hF, hfe, hrelF⟩ := pool_accepts_refines (mode := .Verified) (ds := ds)
     (pins := ipins) hrelE hinvE h6
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
@@ -512,6 +503,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       h1 h2 hreads h3 h4 h5 h6
   obtain ⟨env, hden, hmod⟩ := stages_model V (ConRon.Bridge.CoreSpec.of_core rfl) hind
     hbytes hA hB hC hD hE hF
+  -- the relation's `StoreWF` clause is Theorem 1's (Theorem 2 is lockstep)
   have hwfF := stages_storeWF (ConRon.Bridge.CoreSpec.of_core rfl) hind hbytes
     hA hB hC hD hE hF
   exact ⟨sF, lfe, env, hrelF.of₀ hwfF, hfe, hden, hmod⟩

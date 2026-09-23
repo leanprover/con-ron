@@ -35,7 +35,7 @@ transcriptions are what `Refine2/Frontend/Spec.lean` still owes** — the one
 group of this tier where the statement is about the port's own arm rather
 than about a twin clause.  DESIGN.md's section lists them.
 
-## `sorry` count in this file: 26
+## `sorry` count in this file: 25
 -/
 import ConRon.Refine2.Frontend.ExportC
 
@@ -125,7 +125,7 @@ theorem ctor_index_of_refines {ns m}
 is `denoteN`'s; messages are never compared, so what is claimed is that it
 succeeds wherever the twin's `readName` does. -/
 theorem show_name_refines {pers rst lst h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.show_name pers rst.store h' = ok o) :
     ∀ m, o = .Ok m → ∃ s lst', (readName (absNIdx h')).run lst = .ok (s, lst') := by
   sorry
@@ -141,7 +141,7 @@ the module note. -/
 constructor: `cidx` names its position, `induct` names its type former, and
 `numParams + numFields` is the constructor type's own Π-telescope length. -/
 theorem check_one_ctor_refines {pers rst lst rsd lsd fuel n t c j n_pd o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd)
     (h : frontend.export_c.check_one_ctor pers rst.store fuel rsd n t c j n_pd
       = ok o) :
@@ -165,7 +165,7 @@ theorem check_one_ctor_refines {pers rst lst rsd lsd fuel n t c j n_pd o}
 former. -/
 theorem order_type_ctors_refines
     {pers rst lst rsd lsd fuel t ns cts ctor_ix lm n_pd out o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hx : NameIdxRel ctor_ix lm)
     (h : frontend.export_c.order_type_ctors pers rst.store fuel rsd t ns cts
       ctor_ix n_pd out = ok o) :
@@ -177,7 +177,7 @@ theorem order_type_ctors_refines
 the constructors in the block's own order, `types[].ctors` in type order. -/
 theorem order_block_ctors_refines
     {pers rst lst rsd lsd fuel ty_names listed cts ctor_ix lm n_pd o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hx : NameIdxRel ctor_ix lm)
     (h : frontend.export_c.order_block_ctors pers rst.store fuel rsd ty_names
       listed cts ctor_ix n_pd = ok o) :
@@ -190,7 +190,7 @@ theorem order_block_ctors_refines
 /-- **`k_expected_of`** — official's `is_K_target`: a single type former with
 a single constructor of zero fields whose result sort is `Prop`. -/
 theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.k_expected_of pers rst.store fuel ty_types listed cts
       = ok o) :
     SimLR (Option.map id) lst o
@@ -208,7 +208,7 @@ theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
 own telescope once the parameters are peeled. -/
 theorem check_rec_indices_refines
     {pers rst lst fuel rn t_pre num_indices ty_names ty_types n_pd o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.check_rec_indices pers rst.store fuel rn t_pre
       num_indices ty_names ty_types n_pd = ok o) :
     SimLR (fun _ => ()) lst o
@@ -225,7 +225,7 @@ theorem check_rec_indices_refines
 record. -/
 theorem check_one_rec_refines
     {pers rst lst rsd lsd fuel r ty_names ty_types n_pd n_types n_ctors k_exp o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd)
     (h : frontend.export_c.check_one_rec pers rst.store fuel rsd r ty_names
       ty_types n_pd n_types n_ctors k_exp = ok o) :
@@ -235,7 +235,7 @@ theorem check_one_rec_refines
 loop. -/
 theorem check_rec_records_refines
     {pers rst lst rsd lsd fuel rcs ty_names ty_types n_pd n_types n_ctors k_exp o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd)
     (h : frontend.export_c.check_rec_records pers rst.store fuel rsd rcs ty_names
       ty_types n_pd n_types n_ctors k_exp = ok o) :
@@ -253,7 +253,7 @@ state they started in — task #97-P5-Front round 2 strengthened them from
 `∃ lst'`, which left `process_line_core_d`'s `ind` arm no `AStateRel` for
 `install_ind_d` and no `Ext` for its verdict. -/
 theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.validate_ind_d pers rst.store rsd tys cts rcs = ok o) :
     (∀ v, o = .Ok v →
@@ -405,7 +405,7 @@ context. -/
 theorem install_gen_refines {G : Type} {inst : frontend.types.Modeller G} {m : G}
     {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd block n_pd t0 b o}
     (hmr : ModellerRefines inst m lmd)
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.install_gen inst pers m rst rsd block n_pd t0 b = ok o) :
     SimDV pers lst o
@@ -417,7 +417,7 @@ and the modeller or the push. -/
 theorem install_ind_tail {G : Type} {inst : frontend.types.Modeller G} {m : G}
     {lmd : Arena.Frontend.Modeller} {pers rst2 lst2 st1 lsd1 tys cts rcs v n_pd t0 o}
     (hmr : ModellerRefines inst m lmd)
-    (hrel : AStateRel pers rst2 lst2) (hinv : AStateInv pers rst2)
+    (hrel : AStateRel₀ pers rst2 lst2) (hinv : AStateInv pers rst2)
     (hd : StateDRel st1 lsd1) (hi : StateDInv st1)
     (h : (do
       let r2 ← frontend.export_c.block_rec_of st1 tys cts rcs
@@ -450,7 +450,7 @@ theorem install_ind_tail {G : Type} {inst : frontend.types.Modeller G} {m : G}
     cases Result.ok_injective h
     exact SimDV.of_bind hBR (am_run_bind' _ _ _)
   | Ok v1 =>
-    refine SimDV.bind_ok hBR (Ext.refl _) ?_
+    refine SimDV.bind_ok hBR ?_
     obtain ⟨st2, hst2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨hd2, hi2⟩ := note_ind_blocks_refines hd hi hst2
     have hIM : (noteIndBlocks lsd1 (absBlockRec v1)).inModel = st2.in_model := hd2.inModel
@@ -493,7 +493,7 @@ change to the state a validated inductive record makes. -/
 theorem install_ind_d_refines {G : Type} {inst : frontend.types.Modeller G} {m : G}
     {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd tys cts rcs n_pd o}
     (hmr : ModellerRefines inst m lmd)
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.install_ind_d inst pers m rst rsd tys cts rcs n_pd
       = ok o) :
@@ -509,7 +509,7 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.types.Modeller G} {m :
     cases Result.ok_injective h
     exact SimDV.of_bind hB (am_run_bind' _ _ _)
   | Ok v =>
-    refine SimDV.bind_ok (show (indBlockOf lsd _ _ _).run lst = _ from hB) (Ext.refl _) ?_
+    refine SimDV.bind_ok (show (indBlockOf lsd _ _ _).run lst = _ from hB) ?_
     obtain ⟨⟨r1, ar1, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hR := register_proj_owners_refines hrel hinv hd hi h1
     cases r1 with
@@ -517,15 +517,15 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.types.Modeller G} {m :
       cases Result.ok_injective h
       exact SimDV.of_bind hR (am_run_bind' _ _ _)
     | Ok u =>
-      obtain ⟨lsd1, lst1, hx1, hd1, hi1, hrel1, hinv1, hext1⟩ := hR
-      refine SimDV.bind_ok hx1 hext1 ?_
+      obtain ⟨lsd1, lst1, hx1, hd1, hi1, hrel1, hinv1⟩ := hR
+      refine SimDV.bind_ok hx1 ?_
       rcases ConRon.Refine.HashMap2.ite_eq_ok h with ⟨hlen, h⟩ | ⟨hlen, h⟩
       · have hnil : (absICIL v).head? = none := by
           have : v.val.length = 0 := by scalar_tac
           simp [absICIL, List.length_eq_zero_iff.mp this]
         obtain ⟨⟨r2, e⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have hN := ConRon.Refine2.intern_n_node_run hrel1 hinv1 .Anonymous trivial
-          (fun c hc => by cases hc) (o := (r2, { ar1 with store := e }))
+        have hN := ConRon.Refine2.intern_n_node_run₀ hrel1 hinv1 .Anonymous trivial
+          (o := (r2, { ar1 with store := e }))
           (by rw [arena.monad.intern_n_node, h2]; simp only [bind_tc_ok]; rfl)
         simp only [hnil]
         rw [show Arena.internNNode NNodeView.anonymous
@@ -537,10 +537,10 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.types.Modeller G} {m :
           obtain ⟨e', rfl, hk⟩ := fail_refines hr3
           show AErrSim e' _
           rw [am_run_bind']
-          exact AErrSim.of_kind (AErrSim.bind (Sim.apply_err hN) _) hk
+          exact AErrSim.of_kind (AErrSim.bind (Sim₀.apply_err hN) _) hk
         | Ok h0 =>
-          obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hN
-          refine SimDV.bind_ok hx2 hext2 ?_
+          obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hN
+          refine SimDV.bind_ok hx2 ?_
           exact install_ind_tail hmr hrel2 hinv2 hd1 hi1 h
       · obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨t0, ht0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -550,8 +550,7 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.types.Modeller G} {m :
           simp only [absICIL, List.head?_map]
           rw [List.head?_eq_getElem?, h1]; rfl
         simp only [hhd]
-        refine SimDV.bind_ok (a := absNIdx t0) (by rw [i_constant_info_name_abs ht0]; rfl)
-          (Ext.refl _) ?_
+        refine SimDV.bind_ok (a := absNIdx t0) (by rw [i_constant_info_name_abs ht0]; rfl) ?_
         exact install_ind_tail hmr hrel1 hinv1 hd1 hi1 h
 
 end ConRon.Refine2.Frontend
