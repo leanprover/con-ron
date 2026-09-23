@@ -364,19 +364,123 @@ theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-! ## The fields' universe bound -/
 
+/-- con-leche: none — a level-handle list denotes across an append. -/
+theorem denoteLList_append' {st : LStore} :
+    ∀ {a : List LIdx} {as : List Level} {b : List LIdx} {bs : List Level},
+      denoteLList st a = some as → denoteLList st b = some bs →
+      denoteLList st (a ++ b) = some (as ++ bs) := by
+  intro a
+  induction a with
+  | nil =>
+    intro as b bs ha hb
+    simp only [denoteLList, Option.some.injEq] at ha
+    subst ha; simpa using hb
+  | cons x xs ih =>
+    intro as b bs ha hb
+    simp only [denoteLList] at ha
+    cases hx : denoteL st x with
+    | none => rw [hx] at ha; simp [opt2] at ha
+    | some y =>
+      cases hxs : denoteLList st xs with
+      | none => rw [hx, hxs] at ha; simp [opt2] at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        simp only [opt2, Option.some.injEq] at ha
+        subst ha
+        simp only [List.cons_append, denoteLList, hx, ih hxs hb, opt2]
+
+/-- con-leche: none — **an expression-handle list's `contains` is the
+denotation's**, at both signs: `beq_ehandle_eq` at every element (the store is
+hash-consed, so a handle equality IS a term equality). -/
+theorem denoteEList_contains {st : EStore} (hwf : StoreWF st) :
+    ∀ {xs : List EIdx} {xsP : List Expr}, Frontend.denoteEList st xs = some xsP →
+      ∀ {h : EIdx} {hP : Expr}, denoteE st h = some hP →
+        xs.contains h = xsP.contains hP := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro xsP hxs h hP _
+    simp only [Frontend.denoteEList, Option.some.injEq] at hxs
+    subst hxs; rfl
+  | cons x xs ih =>
+    intro xsP hxs h hP hh
+    simp only [Frontend.denoteEList] at hxs
+    cases hx : denoteE st x with
+    | none => rw [hx] at hxs; simp at hxs
+    | some y =>
+      cases hr : Frontend.denoteEList st xs with
+      | none => rw [hx, hr] at hxs; simp at hxs
+      | some ys =>
+        rw [hx, hr] at hxs
+        obtain rfl := (Option.some.inj hxs).symm
+        simp only [List.contains_cons, beq_ehandle_eq hwf hh hx, ih hr hh]
+
+/-- con-leche: none — `checkStructFieldSortsI` is monotone in the fuel of its
+`inferType`/`ensureSort`. -/
+theorem checkStructFieldSortsI_mono {μ : CheckMode} {env : Env} {F F' : Nat}
+    (hle : F ≤ F') {isProp large : Bool} {sP : Level} {nP : Nat}
+    {fvsP idxArgsP : List Expr} : ∀ {j : Nat} {ls : List Level},
+    ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F) env isProp large sP nP
+      fvsP idxArgsP j = .ok ls →
+    ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F') env isProp large sP nP
+      fvsP idxArgsP j = .ok ls := by
+  intro j
+  induction j with
+  | zero => intro ls h; exact h
+  | succ j ih =>
+    intro ls h
+    simp only [ConLeche.checkStructFieldSortsI, ConLeche.fueledOps, bind, Except.bind]
+      at h ⊢
+    cases ha : fvsP[j]? with
+    | none =>
+      simp [ha, ConLeche.unwrapOr, throw, throwThe, MonadExceptOf.throw] at h
+    | some a =>
+    simp only [ha, ConLeche.unwrapOr, pure, Except.pure] at h ⊢
+    cases hi : ConLeche.inferTypeCore μ env F (nP + j) a.fvarTypeD with
+    | error x => rw [hi] at h; exact nomatch h
+    | ok t =>
+    rw [hi] at h; rw [ConLeche.inferTypeCore_mono hle hi]
+    dsimp only at h ⊢
+    cases he : ConLeche.ensureSortCore μ env F (nP + j) t with
+    | error x => rw [he] at h; exact nomatch h
+    | ok u =>
+    rw [he] at h; rw [ConLeche.ensureSortCore_mono hle he]
+    dsimp only at h ⊢
+    cases hr : ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F) env isProp
+        large sP nP fvsP idxArgsP j with
+    | error x =>
+      simp only [ConLeche.fueledOps, pure, Except.pure] at hr
+      rw [hr] at h
+      exfalso
+      revert h
+      repeat' split
+      all_goals simp_all [throw, throwThe, MonadExceptOf.throw]
+    | ok rest =>
+      have hr' := ih hr
+      simp only [ConLeche.fueledOps, pure, Except.pure] at hr hr'
+      rw [hr] at h; rw [hr']; exact h
+
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:114-139 checkStructFieldSortsI
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:45-61 checkStructFieldSortsIF
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:63-81 checkStructFieldSortsIFA
 Each field's sort, checked against the family's — official's
 subsingleton-elimination criterion at a one-constructor block.
 
-`sorry`: a `Nat` recursion over `CoreSpec.knot`'s `infer` slot,
-`CoreSpec.sort`'s `EnsureSortSpec`, and `Bridge/ExprOps/Leaves.lean`'s
-`fvarTypeD`. -/
+**CLOSED** (task #97-P3-Ind round 7): a `Nat` recursion over `CoreSpec.knot`'s
+`infer` slot, `CoreSpec.sort`'s `EnsureSortSpec`, `fvarTypeD_run`, the
+universe comparison (`readLevel` twice and `liftFueled`), `lvlEq?_spec` at the
+zero pin, and `denoteEList_contains` for the index test — one fuel for the
+walk by `checkStructFieldSortsI_mono` at `max`.
+
+**Two preconditions it was missing** (round 7, §R6.3's repair): `EnvWF env`
+and, for each field it infers, the scope of that field's type at its depth —
+`Expr.WScoped (nP + i) fvsP[i].fvarTypeD`, exactly `checkStructDomsAt_spec`'s
+hypothesis on its left column. -/
 theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (isProp large : Bool) (s : LIdx)
-    (sP : Level) (nP : Nat) (fvs idxArgs : List EIdx)
-    (fvsP idxArgsP : List Expr) (j : Nat) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (isProp large : Bool)
+    (s : LIdx) (sP : Level) (nP : Nat) (fvs idxArgs : List EIdx)
+    (fvsP idxArgsP : List Expr) (j : Nat)
+    (hws : ∀ i, i < j → ∀ a, fvsP[i]? = some a → Expr.WScoped (nP + i) a.fvarTypeD) :
     CSpec μ env fe
       (fun st => denoteL st.ls s = some sP ∧
         Frontend.denoteEList st fvs = some fvsP ∧
@@ -387,7 +491,167 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F) env isProp
           large sP nP fvsP idxArgsP j = .ok ls ∧
         denoteLList st.ls r = some ls) := by
-  sorry
+  have hknot := hk.knot env fe henv
+  have hsort := hk.sort env fe henv
+  induction j with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.checkStructFieldSortsI] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, 0, [], rfl, rfl⟩
+  | succ j ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hs, hfvs, hidx, hfe⟩ := hpre
+    simp only [Arena.checkStructFieldSortsI] at hrun
+    obtain ⟨fv, s1, k1, z1⟩ := bindOk hrun
+    cases hfv : fvs[j]? with
+    | none =>
+      rw [hfv] at k1; simp only [Arena.unwrapOr] at k1; exact absurd k1 (fun h => failOk h)
+    | some fv' =>
+    rw [hfv] at k1; simp only [Arena.unwrapOr] at k1
+    obtain ⟨rfl, hs1⟩ := pureOk k1
+    rw [hs1] at z1
+    obtain ⟨aP, haP, hda⟩ := ExprOps.denoteEList_getElem? fvs fvsP hfvs j fv hfv
+    obtain ⟨t, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨hs2, ht⟩ := fvarTypeD_run hok.state hda k2
+    rw [hs2] at z2
+    have hwsa := hws j (Nat.lt_succ_self j) aP haP
+    obtain ⟨ty, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨hok3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun u => u = s₀)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+        u.pins = s₀.pins ∧
+        Core.SimE (ConLeche.inferTypeCore μ env) (nP + j) aP.fvarTypeD u.store r)
+      rfl k3 (hknot.infer s₀ (nP + j) t aP.fvarTypeD hok ht hwsa)
+    have c3 : CoreStep μ env fe s₀ s3 := ⟨hok3, hx3, hp3⟩
+    obtain ⟨tyP, htyP, hwsty, F1, hF1⟩ := hsim3
+    obtain ⟨u, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨hok4, hx4, hp4, hsim4⟩ := AM.of_run (P := fun u => u = s3)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s3.store u.store ∧
+        u.pins = s3.pins ∧
+        SimL (ConLeche.ensureSortCore μ env) (nP + j) tyP u.store r)
+      rfl k4 (hsort s3 (nP + j) ty tyP hok3 htyP hwsty)
+    have c4 : CoreStep μ env fe s₀ s4 := c3.trans ⟨hok4, hx4, hp4⟩
+    obtain ⟨uP, huP, F2, hF2⟩ := hsim4
+    -- the common tail: the recursive call and the snoc
+    have tail : ∀ (s5 : AState), CoreStep μ env fe s4 s5 →
+        (do let rest ← Arena.checkStructFieldSortsI μ fe isProp large s nP fvs idxArgs j
+            pure (rest ++ [u]) : AM (List LIdx)) s5 = .ok (r, s') →
+        CoreStep μ env fe s₀ s' ∧ ∃ F3 restP,
+          ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F3) env isProp
+            large sP nP fvsP idxArgsP j = .ok restP ∧
+          denoteLList s'.store.ls r = some (restP ++ [uP]) := by
+      intro s5 c5 z5
+      have c05 := c4.trans c5
+      obtain ⟨rest, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨c6, F3, restP, hF3, hrest⟩ := ih (fun i hi => hws i (Nat.lt_succ_of_lt hi))
+        s5 s6 rest c05.ok ⟨denoteL_ext hs c05.ext, denoteEList_ext c05.ext _ _ hfvs,
+          denoteEList_ext c05.ext _ _ hidx, denoteFEnv_ext c05.ext hfe⟩ k6
+      obtain ⟨rfl, rfl⟩ := pureOk z6
+      refine ⟨c05.trans c6, F3, restP, hF3, ?_⟩
+      exact denoteLList_append' hrest (by
+        simp only [denoteLList, denoteL_ext huP (c5.ext.trans c6.ext), opt2])
+    have hF1' : ∀ F, F1 ≤ F →
+        ConLeche.inferTypeCore μ env F (nP + j) aP.fvarTypeD = .ok tyP :=
+      fun F hle => ConLeche.inferTypeCore_mono hle hF1
+    have hF2' : ∀ F, F2 ≤ F → ConLeche.ensureSortCore μ env F (nP + j) tyP = .ok uP :=
+      fun F hle => ConLeche.ensureSortCore_mono hle hF2
+    cases isProp with
+    | false =>
+      simp only [Bool.not_false, if_true] at z4
+      obtain ⟨lu, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hlu⟩ := readLevel_run k5
+      rw [hs5] at z5
+      obtain ⟨ls, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨hs6, hls⟩ := readLevel_run k6
+      rw [hs6] at z6
+      obtain ⟨b, s7, k7, z7⟩ := bindOk z6
+      have hlu' : lu = uP := Option.some.inj (hlu.symm.trans huP)
+      have hls' : ls = sP := Option.some.inj (hls.symm.trans (denoteL_ext hs c4.ext))
+      subst hlu' hls'
+      cases hleq : Level.leq lu ls with
+      | none =>
+        rw [hleq] at k7; simp only [Arena.liftFueled] at k7
+        exact absurd k7 (fun h => failOk h)
+      | some bb =>
+      rw [hleq] at k7; simp only [Arena.liftFueled] at k7
+      cases bb with
+      | false =>
+        obtain ⟨rfl, rfl⟩ := pureOk k7
+        simp only [Bool.false_eq_true, if_false] at z7
+        obtain ⟨_, _, k, _⟩ := bindOk z7
+        exact absurd k (fun h => failOk h)
+      | true =>
+      obtain ⟨rfl, rfl⟩ := pureOk k7
+      simp only [if_true] at z7
+      obtain ⟨_, s8, k8, z8⟩ := bindOk z7
+      obtain ⟨-, rfl⟩ := pureOk k8
+      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (CoreStep.refl hok4) z8
+      refine ⟨c, max (max F1 F2) F3, restP ++ [lu], ?_, hr⟩
+      have e1 := hF1' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))
+      have e2 := hF2' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _))
+      have e3 := checkStructFieldSortsI_mono (Nat.le_max_right (max F1 F2) F3) hF3
+      simp only [ConLeche.fueledOps, pure, Except.pure] at e3
+      generalize max (max F1 F2) F3 = Fm at e1 e2 e3 ⊢
+      simp only [ConLeche.checkStructFieldSortsI, haP, ConLeche.unwrapOr, ConLeche.fueledOps,
+        bind, Except.bind, pure, Except.pure, e1, e2]
+      simp [ConLeche.liftFueled, hleq, e3, pure, Except.pure]
+    | true =>
+    cases large with
+    | false =>
+      simp only [Bool.not_true, Bool.false_eq_true, if_false] at z4
+      obtain ⟨_, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨-, rfl⟩ := pureOk k5
+      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (CoreStep.refl hok4) z5
+      refine ⟨c, max (max F1 F2) F3, restP ++ [uP], ?_, hr⟩
+      have e1 := hF1' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))
+      have e2 := hF2' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _))
+      have e3 := checkStructFieldSortsI_mono (Nat.le_max_right (max F1 F2) F3) hF3
+      simp only [ConLeche.fueledOps, pure, Except.pure] at e3
+      generalize max (max F1 F2) F3 = Fm at e1 e2 e3 ⊢
+      simp only [ConLeche.checkStructFieldSortsI, haP, ConLeche.unwrapOr, ConLeche.fueledOps,
+        bind, Except.bind, pure, Except.pure, e1, e2]
+      simp [e3]
+    | true =>
+      simp only [Bool.not_true, Bool.false_eq_true, if_false, if_true] at z4
+      obtain ⟨z, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hz⟩ := zeroLevel_run hok4.pins k5
+      rw [hs5] at z5
+      obtain ⟨vv, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨hok6, hst6, hp6, lu, lz, hlu, hlz, hvv⟩ :=
+        AM.of_run (P := fun t => t = s4) rfl k6 (Core.lvlEq?_spec s4 u z hok4)
+      have hlu' : lu = uP := Option.some.inj (hlu.symm.trans huP)
+      have hlz' : lz = .zero := Option.some.inj (hlz.symm.trans hz)
+      subst hlu' hlz'
+      have c6 : CoreStep μ env fe s4 s6 := ⟨hok6, by rw [hst6]; exact Ext.refl _, hp6⟩
+      have hcont : idxArgs.contains fv = idxArgsP.contains aP :=
+        denoteEList_contains hok4.state.wf (denoteEList_ext c4.ext _ _ hidx)
+          (denote_ext hda c4.ext)
+      rw [hvv, hcont] at z6
+      split at z6
+      case isFalse hn =>
+        obtain ⟨_, _, k, _⟩ := bindOk z6; exact absurd k (fun h => failOk h)
+      case isTrue hy =>
+      obtain ⟨_, s8, k8, z8⟩ := bindOk z6
+      obtain ⟨-, rfl⟩ := pureOk k8
+      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ c6 z8
+      refine ⟨c, max (max F1 F2) F3, restP ++ [lu], ?_, hr⟩
+      have e1 := hF1' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))
+      have e2 := hF2' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _))
+      have e3 := checkStructFieldSortsI_mono (Nat.le_max_right (max F1 F2) F3) hF3
+      simp only [ConLeche.fueledOps, pure, Except.pure] at e3
+      generalize max (max F1 F2) F3 = Fm at e1 e2 e3 ⊢
+      simp only [ConLeche.checkStructFieldSortsI, haP, ConLeche.unwrapOr, ConLeche.fueledOps,
+        bind, Except.bind, pure, Except.pure, e1, e2]
+      simp only [Bool.or_eq_true, beq_iff_eq, List.contains_iff_mem] at hy
+      simp [e3]
+      intro hn
+      exact hy.resolve_left hn
 
 /-! ## The positivity normalisation -/
 
