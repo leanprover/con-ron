@@ -291,15 +291,18 @@ half. -/
 def EViewExt (ls ls' : EStore) : Prop :=
   (∀ i v, ls.view i = some v → ls'.view i = some v) ∧
     (∀ i m, ls.viewBM i = some m → ls'.viewBM i = some m) ∧
-    (∀ i v, ls.ns.view i = some v → ls'.ns.view i = some v)
+    (∀ i v, ls.ns.view i = some v → ls'.ns.view i = some v) ∧
+    (∀ i v, ls.ls.view i = some v → ls'.ls.view i = some v) ∧
+    (∀ i v, ls.lss.view i = some v → ls'.lss.view i = some v)
 
 theorem EViewExt.refl (ls : EStore) : EViewExt ls ls :=
-  ⟨fun _ _ h => h, fun _ _ h => h, fun _ _ h => h⟩
+  ⟨fun _ _ h => h, fun _ _ h => h, fun _ _ h => h, fun _ _ h => h, fun _ _ h => h⟩
 
 theorem EViewExt.trans {a b c : EStore} (h1 : EViewExt a b) (h2 : EViewExt b c) :
     EViewExt a c :=
   ⟨fun i v h => h2.1 i v (h1.1 i v h), fun i m h => h2.2.1 i m (h1.2.1 i m h),
-    fun i v h => h2.2.2 i v (h1.2.2 i v h)⟩
+    fun i v h => h2.2.2.1 i v (h1.2.2.1 i v h), fun i v h => h2.2.2.2.1 i v (h1.2.2.2.1 i v h),
+    fun i v h => h2.2.2.2.2 i v (h1.2.2.2.2 i v h)⟩
 
 /-- An expression intern moves neither the name store nor the level stores. -/
 theorem lss_intern (st : EStore) (w : ENodeView) : (st.intern w).1.lss = st.lss := by
@@ -309,13 +312,15 @@ theorem lss_intern (st : EStore) (w : ENodeView) : (st.intern w).1.lss = st.lss 
 
 theorem EViewExt.intern (ls : EStore) (w : ENodeView) : EViewExt ls (ls.intern w).1 :=
   ⟨fun _ _ h => EStore.view_intern_mono _ _ h, fun _ _ h => viewBM_intern_mono _ _ h,
-    fun _ _ h => by simp only [EStore.ns, lss_intern]; exact h⟩
+    fun _ _ h => by simp only [EStore.ns, lss_intern]; exact h,
+    fun _ _ h => by simp only [EStore.ls, lss_intern]; exact h,
+    fun _ _ h => by rw [lss_intern]; exact h⟩
 
 /-- `EViewExt` at a name handle. -/
 theorem EViewExt.nsres {ls ls' : EStore} (h : EViewExt ls ls') {n : NIdx}
     (hn : (ls.ns.view n).isSome = true) : (ls'.ns.view n).isSome = true := by
   obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hn
-  rw [h.2.2 n v hv]; rfl
+  rw [h.2.2.1 n v hv]; rfl
 
 theorem EViewExt.resolves {ls ls' : EStore} (h : EViewExt ls ls') {lst lst' : AState}
     (h1 : lst.store = ls) (h2 : lst'.store = ls') {i : EIdx}
