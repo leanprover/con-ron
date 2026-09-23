@@ -466,6 +466,38 @@ listed; the candidate half is at Lean's own three. -/
 #print axioms blockNames_rel
 #print axioms headNP_eq
 
+/-! ## Round eight — the projection rewrite, CLOSED
+
+`Bridge/Frontend/ProjRecValue.lean` and `Bridge/Frontend/Scratch.lean`:
+`projRecValue_run` with its whole cone, and the scratch-frame family that
+turns the Inductives tier's `PStep` into the parse's `ParseStep`.  Every one
+at Lean's own three.  `projRewriteD_run` moved with it and is closed too. -/
+
+#print axioms projRecValue_scratch
+#print axioms projRecOwners_scratch
+#print axioms ParseStep.ofPStep
+#print axioms ReadCachesOK.pstep
+#print axioms ReadCachesOK.step
+#print axioms ReadCachesOK.ofEmpty
+#print axioms internName_pstep
+#print axioms denoteBL_of_listRel
+#print axioms denoteBL_length
+#print axioms mkLams_pstep
+#print axioms headIs_run
+#print axioms instPisOpen_run
+#print axioms denoteEList_getLast?
+#print axioms mkProjMotive_run
+#print axioms mkProjMinor_run
+#print axioms buildBinders_run
+#print axioms buildMotives_run
+#print axioms buildMinors_run
+#print axioms clProjRecValue_eq
+#print axioms denoteBP_some_bl
+#print axioms internParamLevels_run
+#print axioms instLPFast_pstep
+#print axioms projRecValue_run
+#print axioms projRewriteD_run
+
 /-! ## PROVED, but resting on an open leaf
 
 The campaign's rule is that a result carrying `sorryAx` is not in the census
@@ -482,18 +514,15 @@ can tell the two apart.
   `preparePrelude_run` on `frontOf_run`/`hoistNatOpGround_run` (items 19-22);
 * `FoldOK_post_parse` on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote`
   (the Checker tier's item 6) and nothing else;
-* round 7's skeletons — `processLineCoreD_run`, `installIndD_run`,
-  `registerProjOwners_run` and `projRewriteD_run` rest on `projRecValue_run` /
-  `projRecOwners_run` (the latter closed in round 8 modulo
-  `occursConstFast_run`'s two con-leche-tier asks),
-  `FoldOK_post_pins` on the Checker tier's `internAllPins_run`.
-  (`hoistNatOpGround_run` left this list in round 8: `hoistTargets_run` is
-  closed.) -/
+* round 7's skeletons — `processLineCoreD_run`, `installIndD_run` and
+  `registerProjOwners_run` rest on `projRecOwners_run`, which since round 8 is
+  closed modulo `occursConstFast_run`'s two con-leche-tier asks and nothing
+  else; `FoldOK_post_pins` on the Checker tier's `internAllPins_run`.
+  (`hoistNatOpGround_run` and `projRewriteD_run` left this list in round 8.) -/
 
 #print axioms registerProjOwners_run
 #print axioms installIndD_run
 #print axioms processLineCoreD_run
-#print axioms projRewriteD_run
 #print axioms FoldOK_post_pins
 #print axioms applyLine_run
 #print axioms applyFinalLine_run
