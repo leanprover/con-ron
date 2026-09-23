@@ -712,49 +712,6 @@ theorem env_not_rec_of_index {s : AState} (hok : CheckOK mode env fe s)
         | (simp at hci)
         | (split at hci <;> simp at hci)
 
-/-- con-leche: none — a denoted rule's fields. -/
-theorem rule_denote {st : EStore} {rl : IRecRule} {rl' : RecRule}
-    (h : Frontend.denoteRule st rl = some rl') :
-    rl.compareParams = rl'.compareParams ∧ (rl.fire = .inert ↔ rl'.fire = .inert) ∧
-      rl'.ctorParams = rl.ctorParams ∧ rl'.nfields = rl.nfields ∧
-      denoteN st.ns rl.ctor = some rl'.ctor ∧ denoteE st rl.rhs = some rl'.rhs ∧
-      (∀ lvls pins, rl'.fire = .nested lvls pins →
-        ∃ ilvls ipins, rl.fire = .nested ilvls ipins) := by
-  simp only [Frontend.denoteRule] at h
-  split at h
-  · rename_i c f r hc hf hr
-    cases h
-    refine ⟨?_, ?_, rfl, rfl, hc, hr, ?_⟩
-    · simp only [IRecRule.compareParams, RecRule.compareParams]
-      cases hfi : rl.fire with
-      | inert => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
-                 subst hf; rfl
-      | plain => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
-                 subst hf; rfl
-      | nested l p =>
-        rw [hfi] at hf; simp only [Frontend.denoteFire] at hf
-        split at hf
-        · cases hf; rfl
-        · simp at hf
-    · cases hfi : rl.fire with
-      | inert => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
-                 subst hf; simp
-      | plain => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
-                 subst hf; simp
-      | nested l p =>
-        rw [hfi] at hf; simp only [Frontend.denoteFire] at hf
-        split at hf
-        · cases hf; simp
-        · simp at hf
-    · intro lvls pins hn
-      cases hfi : rl.fire with
-      | inert => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
-                 subst hf; cases hn
-      | plain => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
-                 subst hf; cases hn
-      | nested l p => exact ⟨l, p, rfl⟩
-  · simp at h
-
 /-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — `findRule` IS the
 rule lookup `rules.find? (fun r' => r'.ctor == cj)`, across the denotation. -/
 theorem findRule_denote {st : EStore} (hwf : StoreWF st) {cj : NIdx}
