@@ -1921,7 +1921,7 @@ theorem find?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx} {v : ENodeView
     split at hpf
     · cases hpf
     · rename_i mi hmi
-      simp only [EStore.findAt, hpf]
+      simp only [EStore.findAt, EStore.persFindMaybe_eq ⟨rk, hw⟩, hpf]
   | false =>
     have hsf : st.scrFind? v = some h := (hw.consS v h).mpr ⟨hv, hp⟩
     have hpf : st.persFind? v = none := hw.fresh v h hsf
@@ -1936,7 +1936,7 @@ theorem find?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx} {v : ENodeView
     · cases hsf
     · rename_i mi hmi
       have hpf' : st.pers.find? v mi = none := by rw [hmi] at hpf; exact hpf
-      simp only [EStore.findAt, hpf', hon, if_true, hsf]
+      simp only [EStore.findAt, EStore.persFindMaybe_of_none hpf', hon, if_true, hsf]
 
 theorem internE_run_of_find {lst : AState} {w : ENodeView} {h : EIdx}
     (hf : lst.store.find? w = some h) : (Arena.internE w).run lst = .ok (h, lst) := by
