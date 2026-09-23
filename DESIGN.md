@@ -51156,7 +51156,10 @@ Rust, no generated model.
 
 Gates on the merged tip (`4f6f3961` merged in): **all 16 OK**
 (`extract-check` 100 s, `lake-build` 35 s, `lake-refine2` 1 s, `lake-bridge`
-1 s, `lake-capstone` 2 s).
+1 s, `lake-capstone` 2 s).  Again after merging `arena` `9308f410`
+(#97-P5-POOL, T2-LOCKSTEP step 1 — `Arena/Monad.lean` moved, so everything
+rebuilt): **all 16 OK** (`extract-check` 105 s, `lake-build` 51 s,
+`lake-refine2` 186 s, `lake-bridge` 534 s, `lake-capstone` 3 s).
 
 **The tier went from 5 open statements to 0**, and with them the whole
 Inductives tier is `sorry`-free: `Axioms.lean` prints
