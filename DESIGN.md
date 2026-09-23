@@ -51154,7 +51154,8 @@ and task #97-P3-Core round 6's `CoreSpec.of_core`).  The diff is
 `Bridge/Inductives/**`, `Capstone.lean` (the authorised edit, R8.1) and this
 section.  No Rust, no generated model; `Bridge/Checker/**` untouched.
 
-Gates on the merged tip: GATES_PENDING.
+Gates on the merged tip: **all 16 OK** (`extract-check` 97 s,
+`lake-refine2` 211 s, `lake-bridge` 4 s, `lake-capstone` 8 s).
 
 **The tier went from 28 open statements to 5**, all five in `Modeled.lean`
 and all five under the modeled route's iota and projection certificates:
