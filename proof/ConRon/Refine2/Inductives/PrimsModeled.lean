@@ -19,6 +19,8 @@ so the two lanes never edit one file.
 -/
 import ConRon.Refine2.Inductives.SpecModeled
 import ConRon.Refine.Env
+import ConRon.Refine2.Frontend.ExportC
+import ConRon.Refine2.Checker.Canon
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -151,6 +153,11 @@ lookup to the abstraction of the Rust answer, the twin tests
     (a.map f).isSome = core.option.Option.is_some a := by
   cases a <;> rfl
 
+/-- The same for the twin's `(fe.find? n).isNone`. -/
+@[lockstep_simp] theorem isNone_map_is_none {α β : Type} (f : α → β) (a : Option α) :
+    (a.map f).isNone = core.option.Option.is_none a := by
+  cases a <;> rfl
+
 /-- The twin's `recs.isEmpty` is the port's `recs.len() == 0`. -/
 @[lockstep_simp] theorem absICIL_isEmpty (v : alloc.vec.Vec arena.env.IConstantInfo) :
     ((absICIL v).isEmpty = true) = (alloc.vec.Vec.len v = 0#usize) := by
@@ -206,6 +213,47 @@ theorem ifenv_dup_rel {rf a : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf 
   · simp only [hlen]; exact hinv2
   · intro n p hp; rw [hlen]; exact hinv3 n p hp
 
+/-- `arena::env::i_constant_info_to_constant_val` ⊑ `IConstantInfo.toConstantVal`
+at the store level — `Frontend/ExportC.lean`'s `Sim₀` statement, in `LSS` form. -/
+@[lockstep] theorem i_constant_info_to_constant_val_lss {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (c : arena.env.IConstantInfo) :
+    LSS pers (fun a b => b = absIConstantVal a)
+      (arena.env.i_constant_info_to_constant_val pers st.store c) st lst
+      (absIConstantInfo c).toConstantVal := by
+  intro o s' h
+  have hs := Frontend.i_constant_info_to_constant_val_refines hrel hinv h
+  cases o with
+  | Err e => exact hs
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := hs
+    exact ⟨_, lst', hx, rfl, h1, h2⟩
+
+/-- `arena::canon::i_constant_info_beq` is the twin's `==` on the abstraction
+(`Checker/Canon.lean`'s `i_constant_info_beq_refines`). -/
+@[lockstep] theorem i_constant_info_beq_spec (a b : arena.env.IConstantInfo) :
+    LSP (arena.canon.i_constant_info_beq a b)
+      (fun o => o = (absIConstantInfo a == absIConstantInfo b)) :=
+  fun _ h => i_constant_info_beq_refines h
+
+/-- `arena::core::nidx_vec_beq` is `==` on the abstracted name lists
+(`Inductives/Shape.lean`'s `nidx_vec_beq_abs`). -/
+@[lockstep] theorem nidx_vec_beq_spec (a b : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.core.nidx_vec_beq a b) (fun o => o = (absNIdxL a == absNIdxL b)) :=
+  fun _ h => nidx_vec_beq_abs h
+
+/-- `arena::env::i_rec_rules_dup` is the identity on the abstraction. -/
+@[lockstep] theorem i_rec_rules_dup_spec (rs : alloc.vec.Vec arena.env.IRecRule) :
+    LSP (arena.env.i_rec_rules_dup rs)
+      (fun r => r.val.map absIRecRule = rs.val.map absIRecRule) :=
+  fun _ h => i_rec_rules_dup_abs h
+
+/-- A lockstep goal whose twin is propositionally another program. -/
+theorem LS_of_twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x y : AM β} (h : LS pers R m lst x) (hx : x = y) :
+    LS pers R m lst y := hx ▸ h
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
@@ -213,13 +261,35 @@ theorem ifenv_dup_rel {rf a : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf 
 
 end IndModeledPrims
 
+open Lean Elab Tactic in
+/-- Fails unless the goal mentions the port's `Option` tests. -/
+elab "ind_opt_guard" : tactic => do
+  let t ← getMainTarget
+  unless t.containsConst (fun n => n == ``core.option.Option.is_some ||
+      n == ``core.option.Option.is_none) do
+    throwError "ind_opt_guard: no Option test"
+
+/-- A twin test `is_none o` decided by the port's `is_some o` (or the reverse). -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (ind_opt_guard
+               simp only [core.option.Option.is_some, core.option.Option.is_none] at *
+               simp_all [Option.isSome_iff_ne_none, Option.isNone_iff_eq_none]; done))
+
 /-- `lockstep`, then a twin `if` left under a `>>= pure` is decided by the last
 Rust test (`hc`) and `lockstep` runs again.  The core tactic's
 `LS.twin_bind_pure` fallback fires when the Rust's next bind finds no partner
 while the twin is an undecided `if`, and it wraps the `if` in `>>= pure`, where
 the twin-`if` rule no longer sees it. -/
-macro "lockstep_ite" : tactic => `(tactic| (lockstep; all_goals (try (
-  rw [bind_pure]; (first | rw [if_pos ‹_›] | rw [if_neg ‹_›]); lockstep))))
+syntax "lockstep_ite" : tactic
+macro_rules | `(tactic| lockstep_ite) => `(tactic| (lockstep; all_goals (try (
+  rw [bind_pure]
+  (first
+    | refine Lockstep.LS.twin_ite_pos ‹_› ?_
+    | refine Lockstep.LS.twin_ite_neg ‹_› ?_
+    | refine Lockstep.LS.twin_ite_pos (by lockstep_side_ite) ?_
+    | refine Lockstep.LS.twin_ite_neg (by lockstep_side_ite) ?_)
+  lockstep_ite))))
 
 /-! ## The axiom census -/
 

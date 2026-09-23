@@ -106,7 +106,9 @@ theorem eq_basis_stored_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.modeled.eq_basis_stored pers vis st rf = ok o) :
     Sim₀ id pers lst o (eqBasisStored lf) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.eq_basis_stored, eqBasisStored]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem eq_basis_stored_ls
@@ -129,7 +131,9 @@ theorem model_name_refines {pers st lst} {n : arena.handle.NIdx} {o}
     (hrun : arena.inductives.modeled.model_name pers st n = ok o) :
     Sim₀ absNIdx pers lst o
       (internNNode (.str (absNIdx n) "_model")) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.model_name]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem model_name_ls
@@ -248,6 +252,28 @@ theorem rename_by_rel {r : arena.inductives.modeled.RenameBy} :
   intro n o hrun
   exact (rename_by_refines hrun).symm
 
+/-- `block_rename_table_from` in `LS` form, by induction on the names left. -/
+theorem block_rename_table_from_aux (n : Nat) :
+    ∀ {pers st lst} {block_names : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)},
+      block_names.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absRenameTbl a)
+        (arena.inductives.modeled.block_rename_table_from pers st block_names i out) lst
+        (do pure (absRenameTbl out ++
+          (← blockRenameTable (absNIdxLFrom block_names i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst block_names i out hn hrel hinv
+    rw [arena.inductives.modeled.block_rename_table_from, if_pos (by scalar_tac), absNIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), blockRenameTable]
+    lockstep
+  | succ m ih =>
+    intro pers st lst block_names i out hn hrel hinv
+    rw [arena.inductives.modeled.block_rename_table_from, if_neg (by scalar_tac), absNIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), blockRenameTable]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
 /-- `block_rename_table_from` ⊑ `blockRenameTable` from the cursor on, with
 the accumulated pairs in front. -/
 theorem block_rename_table_from_refines {pers st lst}
@@ -258,8 +284,8 @@ theorem block_rename_table_from_refines {pers st lst}
       out = ok o) :
     Sim₀ absRenameTbl pers lst o
       (do pure (absRenameTbl out ++
-        (← blockRenameTable (absNIdxLFrom block_names i)))) := by
-  sorry
+        (← blockRenameTable (absNIdxLFrom block_names i)))) :=
+  Lockstep.LS.toSim₀ (block_rename_table_from_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem block_rename_table_from_ls
@@ -274,6 +300,20 @@ open Lockstep in
         (← blockRenameTable (absNIdxLFrom block_names i)))) :=
   LS.ofSim₀ fun _ h => block_rename_table_from_refines hrel hinv h
 
+open Lockstep in
+/-- `block_rename_table_from_ls` at the cursor `0` and an empty accumulator:
+the form `block_rename_table`'s twin has. -/
+@[lockstep] theorem block_rename_table_from_ls0 {pers st lst}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absRenameTbl a)
+      (arena.inductives.modeled.block_rename_table_from pers st block_names 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (blockRenameTable (absNIdxL block_names)) := by
+  have h := block_rename_table_from_ls (block_names := block_names) (i := 0#usize)
+    (out := alloc.vec.Vec.new _) hrel hinv
+  simpa [absRenameTbl, absNIdxLFrom, absNIdxL, alloc.vec.Vec.new] using h
+
 /-- `block_rename_table` ⊑ `blockRenameTable` — every member name maps to its
 `_model` companion, every other name to itself. -/
 theorem block_rename_table_refines {pers st lst}
@@ -282,7 +322,9 @@ theorem block_rename_table_refines {pers st lst}
     (hrun : arena.inductives.modeled.block_rename_table pers st block_names = ok o) :
     Sim₀ absRenameBy pers lst o
       (blockRenameTable (absNIdxL block_names)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.block_rename_table]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem block_rename_table_ls
@@ -1928,7 +1970,9 @@ theorem check_ind_member_refines {pers st lst} {mode : kernel.env.CheckMode}
     SimRel₀ IFEnvRelI pers lst o
       (checkIndMember (ConRon.Refine.absMode mode) (absNIdxL block_names)
         (absIIndCaps caps) lf2 (absIConstantInfo ci)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.check_ind_member, checkIndMember]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_ind_member_ls
@@ -2000,6 +2044,42 @@ open Lockstep in
         (absIIndCaps caps) lf (absICILFrom nonrecs i)) :=
   LS.ofSimRel₀ fun _ h => check_ind_members_refines hrel hinv hfe h
 
+/-- `provision_recs` in `LS` form from the cursor on, by induction on the
+recursors left.  The twin carries the port's accumulator in front of its own
+answer, as `block_rename_table_from` does. -/
+theorem provision_recs_aux (n : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode}
+      {block_names : alloc.vec.Vec arena.handle.NIdx} {rfA lfA}
+      {recs : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+        (alloc.vec.Vec arena.env.IRecRule))},
+      recs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rfA lfA →
+      Lockstep.LS pers (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL r.2)
+        (arena.inductives.modeled.provision_recs pers st mode block_names rfA recs i out) lst
+        (do let p ← provisionRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lfA
+              (absICILFrom recs i)
+            pure (p.1, absRecsL out ++ p.2)) := by
+  induction n with
+  | zero =>
+    intro pers st lst mode block_names rfA lfA recs i out hn hrel hinv hfe
+    rw [arena.inductives.modeled.provision_recs, if_pos (by scalar_tac), absICILFrom,
+      vecFrom_nil _ _ _ (by omega), provisionRecs]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode block_names rfA lfA recs i out hn hrel hinv hfe
+    rw [arena.inductives.modeled.provision_recs, if_neg (by scalar_tac), absICILFrom,
+      vecFrom_cons _ _ _ (by omega)]
+    -- the twin matches the member itself: split it where the port splits its copy
+    cases hci : (↑recs : List arena.env.IConstantInfo)[i.val] <;>
+      simp only [absIConstantInfo, provisionRecs, bind_assoc, pure_bind] <;> lockstep
+    -- the tail call: the port pushed onto its accumulator where the twin conses
+    -- after the recursion
+    all_goals
+      refine IndModeledPrims.LS_of_twin_eq (ih ?_ ‹_› ‹_› ‹_›) ?_
+      · simp_all; omega
+      · simp_all [absIConstantInfo, absRecsL, absICILFrom]
+
 /-- `provision_recs` ⊑ `provisionRecs` from the cursor on, with the
 accumulated checked records in front — phase 0 of the recursor group. -/
 theorem provision_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -2011,11 +2091,12 @@ theorem provision_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hfe : IFEnvRelI rfA lfA)
     (hrun : arena.inductives.modeled.provision_recs pers st mode block_names rfA recs
       i out = ok o) :
-    SimRel₀ (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL out ++ absRecsL r.2)
+    SimRel₀ (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL r.2)
       pers lst o
-      (provisionRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lfA
-        (absICILFrom recs i)) := by
-  sorry
+      (do let p ← provisionRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lfA
+            (absICILFrom recs i)
+          pure (p.1, absRecsL out ++ p.2)) :=
+  Lockstep.LS.toSimRel₀ (provision_recs_aux _ rfl hrel hinv hfe) hrun
 
 open Lockstep in
 @[lockstep] theorem provision_recs_ls
@@ -2030,10 +2111,62 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rfA lfA) :
-    LS pers (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL out ++ absRecsL r.2) (arena.inductives.modeled.provision_recs pers st mode block_names rfA recs i out) lst
+    LS pers (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL r.2) (arena.inductives.modeled.provision_recs pers st mode block_names rfA recs i out) lst
+      (do let p ← provisionRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lfA
+            (absICILFrom recs i)
+          pure (p.1, absRecsL out ++ p.2)) :=
+  provision_recs_aux _ rfl hrel hinv hfe
+
+open Lockstep in
+/-- `provision_recs_ls` at the cursor `0` and an empty accumulator: the form
+`check_ind_recs`'s twin has. -/
+@[lockstep] theorem provision_recs_ls0
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {rfA lfA}
+    {recs : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfA lfA) :
+    LS pers (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL r.2)
+      (arena.inductives.modeled.provision_recs pers st mode block_names rfA recs 0#usize
+        (alloc.vec.Vec.new _)) lst
       (provisionRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lfA
-        (absICILFrom recs i)) :=
-  LS.ofSimRel₀ fun _ h => provision_recs_refines hrel hinv hfe h
+        (absICIL recs)) := by
+  have h := provision_recs_aux (recs := recs) (i := 0#usize)
+    (out := alloc.vec.Vec.new _) (mode := mode) (block_names := block_names) _ rfl hrel hinv hfe
+  simpa [absRecsL, absICILFrom, absICIL, alloc.vec.Vec.new] using h
+
+/-- `install_ind_recs` in `LS` form, by induction on the records left. -/
+theorem install_ind_recs_aux (n : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode}
+      {rf2 lf2} {rfS lfS} {f : arena.inductives.modeled.RenameBy} {rfA lfA}
+      {checked : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+        (alloc.vec.Vec arena.env.IRecRule))} {i : Std.Usize},
+      checked.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf2 lf2 → IFEnvRelI rfS lfS → IFEnvRelI rfA lfA →
+      Lockstep.LS pers IFEnvRelI
+        (arena.inductives.modeled.install_ind_recs pers st mode rf2 rfS f rfA checked i) lst
+        (installIndRecs (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f) lfA
+          (absRecsLFrom checked i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst mode rf2 lf2 rfS lfS f rfA lfA checked i hn hrel hinv hfe2 hfeS hfeA
+    rw [arena.inductives.modeled.install_ind_recs, if_pos (by scalar_tac), absRecsLFrom,
+      vecFrom_nil _ _ _ (by omega), installIndRecs]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf2 lf2 rfS lfS f rfA lfA checked i hn hrel hinv hfe2 hfeS hfeA
+    rw [arena.inductives.modeled.install_ind_recs, if_neg (by scalar_tac), absRecsLFrom,
+      vecFrom_cons _ _ _ (by omega), installIndRecs]
+    lockstep
+    -- the tail call: the environment the port pushed is the twin's up to the
+    -- record copies
+    all_goals
+      refine IndModeledPrims.LS_of_twin_eq (ih ?_ ‹_› ‹_› ‹_› ‹_› ‹_›) ?_
+      · simp_all; omega
+      · simp_all [absIConstantInfo, absRecsLFrom, absIRecRuleL]
 
 /-- `install_ind_recs` ⊑ `installIndRecs` from the cursor on. -/
 theorem install_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -2048,8 +2181,8 @@ theorem install_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
       checked i = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (installIndRecs (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f) lfA
-        (absRecsLFrom checked i)) := by
-  sorry
+        (absRecsLFrom checked i)) :=
+  Lockstep.LS.toSimRel₀ (install_ind_recs_aux _ rfl hrel hinv hfe2 hfeS hfeA) hrun
 
 open Lockstep in
 @[lockstep] theorem install_ind_recs_ls
@@ -2120,7 +2253,9 @@ theorem check_proj_lookups_model_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       pers lst o
       (checkProjLookupsModelSpec lf2 (absNIdx t) (absNIdxL lps) (absU i)
         (absIConstantVal cvj)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_lookups_model, checkProjLookupsModelSpec]
+  lockstep_ite
 
 open Lockstep in
 @[lockstep] theorem check_proj_lookups_model_ls
