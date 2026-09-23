@@ -2751,5 +2751,12 @@ structure IndOut (fe fe' : IFEnv) (s s' : AState) (run : Env → Prop) : Prop wh
   checker tier's two-line follow-on, and `indSpec_of_bridge` simply drops it
   until then. -/
   proj : ProjOut fe s'.store fe'
+  /-- **the ninth clause** (task #97-P3-Ind round 7, the coordinator's
+  authorised conclusion change): the environment the new index denotes is
+  well formed.  The fold boundary after each declaration needs `EnvWF` at the
+  pushed index (task #97-P3-Checker round 9's finding); `DeclOut` gains the
+  same clause.  Stated for every denotation — `denoteFEnv` is a function, so
+  this is the `denote` clause's witness. -/
+  envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
 
 end ConRon.Bridge.Inductives

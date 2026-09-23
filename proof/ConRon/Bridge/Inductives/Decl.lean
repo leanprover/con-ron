@@ -250,6 +250,31 @@ theorem checkDecl_ind_route {μ : CheckMode} {ops : CheckerOps CheckM}
   simp only [ConLeche.checkDecl, hpin, hparams, if_true]
   rfl
 
+/-! ## The environment's well-formedness, after the route (task #97-P3-Ind round 7) -/
+
+/-- con-leche: ConLeche/Model/Fold.lean:165-223 declStep_preserves (the
+`.indDecl` arm's `wf` half) — **a checked inductive block leaves a
+well-formed environment**, V-free.
+
+**This is an ASK of con-leche, stated here so that the arm can cite it.**
+con-leche establishes `EnvWF env₂` for an inductive block only INSIDE the
+model construction (`Model/Inductives/DeclNative.lean`'s `declNative`,
+`Interp/DeclIndP.lean`'s `declInd`: the new environment's `EnvModelM`
+carries `toEnvFacts.wf`), and every stage lemma on the way takes the input
+model.  The facts it reads are all syntactic and V-free — the former's cons
+(`Verify/Inductives/SumWF.lean`'s `direct_sum_ind_wf`), the constructors'
+(`envWF_consSumCtors`), the recursor's (`FixWF.lean`'s `direct_fix_rec_wf`),
+the projection table's and the modeled route's members, recursors and
+projection functions (`BridgeWfImp.lean`'s `…_wfimp` family) — so the
+statement is the V-free extraction of what `declStep_preserves` already
+proves.  **Owner: con-leche** (`Verify/Inductives/*WF.lean`); open here. -/
+theorem indDecl_envWF {μ : CheckMode} {F : Nat} {pinsP : List NatOpPinSet} {env env' : Env}
+    {b : List ConstantInfo} {nP : Nat} (henv : EnvWF env)
+    (hpin : ConLeche.basisPinHit b = none)
+    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
+      = .ok env') : EnvWF env' := by
+  sorry
+
 /-! ## The arm -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:564-600 checkDecl (the `.indDecl`
@@ -320,7 +345,11 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
           visible := hinst.visible
           denote := ⟨env', hden, F, by
             rw [checkDecl_ind_route hpin hparams, hr2]; exact hrunP⟩
-          proj := hinst.proj }
+          proj := hinst.proj
+          envWF := fun env'' h'' => by
+            obtain rfl := Option.some.inj (h''.symm.trans hden)
+            exact indDecl_envWF (pinsP := pinsP) (F := F) hok.envWF hpin (by
+              rw [checkDecl_ind_route hpin hparams, hr2]; exact hrunP) }
     | some pa =>
       simp only [ROp] at hr2
       obtain ⟨q, hq, hrel⟩ := hr2
@@ -336,7 +365,11 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
           visible := hinst.visible
           denote := ⟨env', hden, F, by
             rw [checkDecl_ind_route hpin hparams, hq]; exact hrunP⟩
-          proj := hinst.proj }
+          proj := hinst.proj
+          envWF := fun env'' h'' => by
+            obtain rfl := Option.some.inj (h''.symm.trans hden)
+            exact indDecl_envWF (pinsP := pinsP) (F := F) hok.envWF hpin (by
+              rw [checkDecl_ind_route hpin hparams, hq]; exact hrunP) }
 
 /-! ## `IndSpec`, and the two clauses that stand between it and this arm -/
 
@@ -363,6 +396,6 @@ theorem indSpec_of_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have out := checkIndDecl_bridge (pinsP := pinsP) hμ hk hok hb hpin hrun
   obtain ⟨env', hden, F, hrunP⟩ := out.denote
   exact ⟨out.state, out.ext, out.pins, out.coh, out.pushed, out.visible, env',
-    F, hden, hrunP⟩
+    F, hden, hrunP, out.envWF env' hden⟩
 
 end ConRon.Bridge.Inductives
