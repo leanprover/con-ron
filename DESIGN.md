@@ -49113,6 +49113,169 @@ and all discharge the obligation with `hok.pins` at the site.
    round's landing.
 
 
+#### Round 4 — `whnfBody_spec` sorry-free, the projection certificate closed, and three missing preconditions (2026-09-23, Opus under Fable)
+
+Branch `p3-core-4` off `arena` `7f4b4a86`, merged forward once (`f04744f2`).
+The round was handed three unblockings — `instLPFast_spec`'s cache frame
+(task #97-P3-1 round 4), the fourteen `ENodeView` match auxiliaries owned by
+`Bridge/Specs.lean` (finding 18 closed), and the 26 `BMExt` frames — and one
+goal: **`whnfBody_spec` sorry-free except for `reduceNat_spec`.**  It went one
+further: `reduceNat_spec` closed too, so **`whnfBody_spec` is the first of the
+six bodies at `[propext, Classical.choice, Quot.sound]`**.  The Core tier is
+**25 `sorry` → 16**.
+
+##### 1. What closed
+
+| theorem | module | on what |
+|---|---|---|
+| `constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec` | `Walks/Cached.lean` | `instLPFast_spec`'s record equation + `ReadNCacheOK` (finding 19's ask, answered) |
+| `constTyAt_spec'`, `constValAt_spec'` | `Walks/Cached.lean` | NEW — answer shape (∃ in, ∀ out) of the two above; four lines each |
+| `IProjEntry.typeAt_spec` | `Walks/Proj.lean` | `instLPFast_spec` then `instantiateListFast_spec` on the push-order vector |
+| `unfoldDefinition_spec` | `Walks/Spine.lean` (moved from `Owed.lean`) | `getAppFn`/`getAppArgs`/`mkAppN` + `constValAt_spec'` |
+| `etaCert_spec` | `Walks/Spine.lean` (moved) | three primed knot slots, two `internE`s, `instantiate1Fast_specE` |
+| `iotaCertsAux_go`, `iotaCerts_spec` | `Walks/Proj.lean` | NEW — con-leche's `iotaCertsCAux_sim` over the push-order accumulator |
+| `projCert_spec` | `Walks/Proj.lean` | `constTyAt_spec'` + `iotaCerts_spec` |
+| `projCertAt_spec` | `Walks/Proj.lean` (moved from `Owed.lean`) | `projCert_spec` |
+| `reduceNat_spec` | `Walks/Nat.lean` (NEW module, moved from `Owed.lean`) | six state-only walks, all closed here |
+| `whnfLoop_spec`, `whnfBody_spec` | `Arms/Whnf.lean` | now inherit nothing |
+
+`Walks/Nat.lean` (1 275 lines) is the round's new module: `rawNatLit?`,
+`natBinOpName`, `natOpStored`, `natOpWfNames`, `natOpResult`, `constE`,
+`natIndOk`/`natZeroOk`/`natSuccOk`, `natLitSupported` — each an EQUATION with
+the con-leche function of the same name, each in published and (where a
+caller reaches it through another call) answer shape — then `reduceNat_spec`
+itself, fifty verification conditions, one per exit and per callee
+precondition, over five pure-side exit equations (`reduceNatFueled_succ`,
+`_succ_no`, `_bin`, `_wf`, `_bin_no`) and `reduceNatFueled_none_of`.
+
+##### 2. Three missing preconditions, repaired (no conclusion changed)
+
+All three are con-leche's own hypotheses at the corresponding `…C_sim`, and
+without them the statements are false or unprovable:
+
+1. **`unfoldDefinition_spec` gains `EnvWF env`.**  Its postcondition promises
+   `Expr.WScoped d` of the unfolding, which is con-leche's
+   `unfoldDefinition_WScoped` — whose hypothesis is exactly `EnvWF` (the
+   stored VALUE is closed).  A definition whose stored value has a loose
+   bound variable unfolds, in both tiers, to a term that is not well-scoped,
+   and nothing in `CheckOK` excludes such an environment: the statement was
+   **false** as published.  `whnfLoop_spec` takes it too; `whnfBody_spec`
+   already had it (as `_henv`, unused until now).
+2. **`projCert_spec` gains `EnvWF env` and `∀ x ∈ xs, Expr.WScoped d x`**,
+   con-leche's `Verify/Cached/DiscC2.lean:442 projCertC_sim` verbatim: the
+   constructor's instantiated type must be well-scoped for the certificate
+   walk (`const_ty_hasFvar`), and every argument must be for the knot's
+   `inferIO`/`defeq` slots.
+3. **`projCertAt_spec`** — the same two, inherited.
+
+`projCert(At)_spec`'s only callers are the still-`sorry` `.proj` arms of
+`whnfCoreBody` / `inferBody`, which hold both facts.
+
+##### 3. Round 3's rule, applied five more times
+
+*A walk whose subject is another walk's answer must not take that answer's
+denotation as an explicit argument* — measured again at every new call site:
+`constValAt` (subject from `getAppFn`/`view` inside `unfoldDefinition`),
+`constTyAt` (from `fe.find?` inside `projCert`), `rawNatLit?` (the reduct of
+a `whnf`), `natBinOpName` / `natOpStored` / `natOpResult` (a name read off a
+`view`).  Each got a primed form, four lines over the published one; each
+published form stays for callers that already hold the denotation.  `mvcgen`
+leaves the explicit argument as a `?nm : Name` GOAL otherwise, and a later
+`exact` then unifies it with whatever is at hand — the failure is silent until
+the post-condition does not match.
+
+##### 4. The import wall is really gone
+
+`Walks/Cached.lean` now imports `Bridge/ExprOps/Owed.lean`; `Walks/Proj.lean`
+imports `ExprOps/{Subst,Spine}`, `Walks/{Owed,Spine,Mono}`;
+`Arms/Whnf.lean` — ON the knot-facing chain — imports `Walks/Nat.lean`
+(hence `Walks/Spine.lean` and the `ExprOps` tier).  `lake build
+ConRonBridge` is green, so the chain `Knot → Memo → Arms/* → Induction` now
+carries the `ExprOps` tier and `mvcgen` over `ensureSort`
+(`Walks/Spine.lean`'s `isPropType_spec`) with no clash — finding 18's fix
+(task #97-P3-1 round 4 §6) confirmed from the consumer side.
+`denoteCV_inv` moved down from `Walks/Spine.lean` to `Walks/Cached.lean`
+(same name, same statement).
+
+##### 5. `Arena/PropRead.lean` — priced, not done
+
+Three of the six walks left in `Walks/Owed.lean` (`propIrrel`, `annotPwPi`,
+`annotPwLam`) wait on it and nothing else does.  The module is 185 lines, nine
+functions: `peelNeverPis` (structural), `numArgs` (fuel), `residualPW`
+(`readLevel`), `headTypePW` and `headProofPW` (the index, `isTowerEntry`,
+`toConstantVal`, `viewLsLen`, the two readbacks and `Level.substPW`),
+`typeSortPW`, `proofPW`, `notProofFast`, `isProofFast`.  Every one is the
+CHEAP row of this tier — an `Option PropWhen` / `Bool` equation with the
+con-leche function, no fuel on the pure side, no knot call — so the price is
+`Walks/Nat.lean`'s, not `iotaCerts`'s: **one module of ~600–800 lines, one
+round.**  Two things to know before starting it:
+
+* the con-leche side is `find?`-abstracted (`PropRead.lean` takes
+  `find? : Name → Option ConstantInfo`); the comparand is `env.find?`, and
+  `Walks/Nat.lean`'s `OptCI` / `optCI_find` is exactly the relation the index
+  lookup gives — reuse it;
+* `headTypePW`/`headProofPW` read `readNamesM`, whose registered spec
+  (`Bridge/SpecsL.lean`) still has no cache frame — `Walks/Proj.lean`'s
+  `readNamesMB` copy is the workaround, or the one-conjunct fix to
+  `readNamesM_spec` that `Proj.lean`'s note asks for.
+
+##### 6. Two process notes
+
+1. **`rename_i` over a 60-hypothesis verification condition is written by a
+   script, not by hand.**  `mvcgen` over `etaCert` (22 VCs), `iotaCertsAux`
+   (24) and `reduceNat` (50) leaves 20–60 inaccessible hypotheses per VC.
+   The round named them by TYPE with a 60-line Python classifier over the
+   build's goal dump (`CheckOK s✝ⁿ` → `hckN`, `Ext a b` → `hxAB`, the
+   `SimE` of the knot's `whnf` at subject `a✝¹` → `hwb`, …) and pasted the
+   generated `rename_i` lines; every proof then read like hand-named code.
+   The one trap: the goal DISPLAY omits `∀` binders in some hypotheses
+   (`denoteN … = some nm → …` with `nm` bound), so read types from a build,
+   not from intuition.
+2. **`(fun F => P F) F = .ok v`** — `SimOOp`/`SimBOp`'s existential leaves
+   the pure call as an unreduced β-redex after `refine ⟨…, F, ?_⟩`; `rw` with
+   a step equation does not see through it.  `dsimp only` first.
+
+##### 7. The sorry list, per file — sixteen
+
+| file | round 3 | round 4 | what is left |
+|---|---:|---:|---|
+| `Core/Arms/WhnfCore.lean` | 2 | 2 | `whnfCoreBody_app_batched`, `whnfCoreBody_spec` |
+| `Core/Arms/Whnf.lean` | 0 | 0 | — **`whnfBody_spec` sorry-free** |
+| `Core/Arms/Infer.lean` | 3 | 3 | the three `inferBody` pieces |
+| `Core/Arms/InferIO.lean` | 1 | 1 | `inferBodyIO_spec` |
+| `Core/Arms/Defeq.lean` | 2 | 2 | `defeqPeel_chain`, `defeqBody_spec` |
+| `Core/Arms/Annotate.lean` | 2 | 2 | `annotateBody_binders_batched`, `annotateBody_spec` |
+| `Core/Walks/Cached.lean` | 3 | **0** | — |
+| `Core/Walks/Owed.lean` | 10 | **6** | `iotaRec`, `projLitToCtor`, `propIrrel`, `stuckIrrel`, `annotPwPi`, `annotPwLam` |
+| `Core/Walks/Proj.lean` | 2 | **0** | — |
+| `Core/Walks/Spine.lean` | 0 | 0 | (+ `unfoldDefinition`, `etaCert`) |
+| `Core/Walks/Nat.lean` | — | **0** | NEW |
+| **total** | **25** | **16** | |
+
+##### 8. Axioms and gates
+
+Every theorem the round closed or touched is at `[propext, Classical.choice,
+Quot.sound]` — the module censuses of `Walks/{Cached,Proj,Spine,Nat}.lean`
+and `Arms/Whnf.lean` print them (`reduceNat_spec`, `unfoldDefinition_spec`,
+`etaCert_spec`, `iotaCertsAux_go`, `projCert_spec`, `projCertAt_spec`,
+`whnfLoop_spec`, `whnfBody_spec` among them).  No `sorryAx`, no
+`bv_decide` axiom.
+
+`scripts/gates.sh` on the merged tree: **all 16 OK** (`cargo-build` 4 s,
+`cargo-test` 10 s, `lint-rust` 2 s, `provenance` 0 s, `provenance-self` 1 s,
+`twin-lines` 0 s, `overview-links` 0 s, `holes` 0 s, `gen-pins` 1 s,
+`gen-prelude` 0 s, `gen-prelude-lean` 0 s, `extract-check` 143 s,
+`lake-build` 121 s, `lake-refine2` 141 s, `lake-bridge` 20 s,
+`lake-capstone` 3 s); the frontier line reads *14 items in 9 modules*.
+`lake build ConRonBridge` before the merge: **619 jobs, green** (618 at the
+branch point; the round adds `Walks/Nat.lean`).
+
+| | |
+|---|---|
+| branch | `p3-core-4` off `arena` `7f4b4a86`, merged forward once (`f04744f2`) |
+| the diff | `proof/ConRon/Bridge/Core/**` (one new module, `Walks/Nat.lean`) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module |
+
+
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, round 2 (2026-09-22, Opus under Fable)
 
 (The section this continues is `### Task #97-P5-Ind` above; its §6 is the
