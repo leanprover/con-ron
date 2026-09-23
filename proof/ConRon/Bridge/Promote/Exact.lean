@@ -33,13 +33,13 @@ conjunct: the four handle-kind specs and the declaration layer's four are the
 walks of `Bridge/Promote/Walk.lean` / `WalkDecl.lean` (fuel and list
 inductions over `EStore.internPersistent_spec'`, at `Arena/WF.lean`'s promote
 window invariant `StoreWF'`), and `promoteNew_spec` is `promoteCIList` plus
-the two index passes — EXCEPT its `IFEnvCoh fe'` conjunct, which is
-`promoteNew_coh` below and is FALSE as stated for `k ≠ 0` (a hash map's
-representation depends on its insertion order; `Bridge/Promote/Coh.lean`
-proves the extensional coherence instead, at one added precondition).
+the two index passes.  Its `IFEnvCoh fe'` conjunct needs
+`Bridge/Promote/Coh.lean`'s `promoteNew_cohX`, so `promoteNew_spec` itself
+lives there (task #97-P3-Checker round 9, on the coordinator's ruling that
+`IFEnvCoh` is the EXTENSIONAL coherence — see its definition).
 `Bridge/Checker/**`'s per-declaration brackets read `promoteNew_spec`,
 `promoteVG_spec`, `promoteNew_pushed`, `promoteNew_projOK` and
-`promoteBracket_close` from this file.
+`promoteBracket_close`.
 -/
 import ConRon.Bridge.Promote.WalkDecl
 
@@ -197,12 +197,37 @@ environment is the denotation of its list (the index is a cache of the list,
 DESIGN §8.3 lesson 13). -/
 def denoteFEnv (st : EStore) (fe : IFEnv) : Option Env := denoteIEnv st fe.env
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — the counter the index
+build ends at is the list's length. -/
+theorem mkIFEnvGo_fst' : ∀ (cs : List IConstantInfo), (mkIFEnvGo cs).1 = cs.length := by
+  intro cs
+  induction cs with
+  | nil => rfl
+  | cons a as ih => simp only [mkIFEnvGo, List.length_cons, ih]
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — **the index is its
 list's index**, which is con-leche's own join-point clause
-(`Verify/Cached/BridgeC.lean:609`'s `fe' = mkFEnv fe'.env`).  `IFEnv.push`
-preserves it; `IFEnv.restrictTo` does not, which is why phase B's prefix view
-is handled by a congruence (`mkFEnv_find?_visibleBelow`) and not by this. -/
-def IFEnvCoh (fe : IFEnv) : Prop := fe = mkIFEnv fe.env
+(`Verify/Cached/BridgeC.lean:609`'s `fe' = mkFEnv fe'.env`), stated
+EXTENSIONALLY: the same counter, and the same answer at every key.
+`IFEnv.push` preserves it; `IFEnv.restrictTo` does not, which is why phase
+B's prefix view is handled by a congruence (`mkFEnv_find?_visibleBelow`) and
+not by this.
+
+**Redefined** (task #97-P3-Checker round 9, the coordinator's ruling on task
+#97-P3-Promote's finding).  It was `fe = mkIFEnv fe.env`, an equation between
+two `Std.HashMap` VALUES, which includes their bucket layout: `promoteNew`
+inserts newest-first where `mkIFEnv` inserts oldest-first, so the two differ
+under a bucket collision and the promotion could not meet it.  Every consumer
+reads only the counter and the lookups, which is what this says (it was
+`Bridge/Promote/Coh.lean`'s `IFEnvCohX`). -/
+def IFEnvCoh (fe : IFEnv) : Prop :=
+  fe.visibleBelow = fe.env.consts.length ∧
+    ∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — an index built by
+`mkIFEnv` is coherent. -/
+theorem IFEnvCoh.mk (e : IEnv) : IFEnvCoh (mkIFEnv e) :=
+  ⟨mkIFEnvGo_fst' e.consts, fun _ => rfl⟩
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **what a push does
 to the denotation**: one more constant at the front, which is exactly what
@@ -231,11 +256,9 @@ One of the two `IFEnv.push` lemmas task #97-P3-Ind §8 asks for (the other is
 `Bridge/Inductives/**` want the pair. -/
 theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
     IFEnvCoh (fe.push ci) := by
-  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx h
-  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 :=
-    congrArg IFEnv.visibleBelow h
-  show fe.push ci = mkIFEnv (fe.push ci).env
-  simp only [IFEnv.push, mkIFEnv, mkIFEnvGo, hidx, hvb]
+  refine ⟨by simp [IFEnv.push, h.1], fun n => ?_⟩
+  simp only [IFEnv.push, mkIFEnvGo, mkIFEnvGo_fst', Std.HashMap.getElem?_insert, h.2 n,
+    h.1]
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — **every counter the
 index build hands out is BELOW the counter it stops at**, which is what makes
@@ -288,14 +311,6 @@ index passes.  The lemmas below read the run (`promoteNew_run_zero`,
 (`Pushed.split`), and say what the two index passes can answer
 (`eraseInstalled_getElem?`, `indexPromoted_getElem?`). -/
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — the counter the index
-build ends at is the list's length. -/
-theorem mkIFEnvGo_fst' : ∀ (cs : List IConstantInfo), (mkIFEnvGo cs).1 = cs.length := by
-  intro cs
-  induction cs with
-  | nil => rfl
-  | cons a as ih => simp only [mkIFEnvGo, List.length_cons, ih]
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — a row of the index
 build is an entry of its list, filed under that entry's own name. -/
 theorem mkIFEnvGo_key : ∀ (cs : List IConstantInfo) (n : NIdx) (p : Nat × IConstantInfo),
@@ -315,9 +330,7 @@ theorem mkIFEnvGo_key : ∀ (cs : List IConstantInfo) (n : NIdx) (p : Nat × ICo
       exact ⟨List.mem_cons_of_mem _ h1, h2⟩
 
 theorem IFEnvCoh.vb_eq {fe : IFEnv} (h : IFEnvCoh fe) :
-    fe.visibleBelow = fe.env.consts.length := by
-  have : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 := congrArg IFEnv.visibleBelow h
-  rw [this, mkIFEnvGo_fst']
+    fe.visibleBelow = fe.env.consts.length := h.1
 
 /-- con-leche: none — arena infrastructure; **the step's constants are the
 `k` newest**: with both ends coherent and the step only pushing, `k` is the
@@ -460,109 +473,6 @@ theorem promoteNew_run_pos {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
   obtain ⟨rfl, rfl⟩ := hr
   exact ⟨cs1, h1, rfl⟩
 
-/-- con-leche: none — arena infrastructure; **the coherence clause of the
-fold's promotion — FALSE as stated for `k ≠ 0`** (task #97-P3-Promote's
-finding).
-
-`IFEnvCoh fe` is `fe = mkIFEnv fe.env`, an equation between `Std.HashMap`s,
-and a `Std.HashMap` is a bucket array: two maps with the same bindings built
-in different insertion orders are different VALUES when two keys share a
-bucket (the bucket's association list records the order) or when one of them
-was resized and the other was not.  `promoteNew` builds its index by
-`eraseInstalled` (which never shrinks the bucket array) and then
-`indexPromoted`, which inserts the step's constants NEWEST FIRST; `mkIFEnv`
-builds from the back, OLDEST FIRST.  Two promoted names that hash to one
-bucket therefore come out in opposite orders, and nothing in this statement's
-hypotheses — which fix only the denotation — rules that out.
-
-What IS true, and all that every consumer of `IFEnvCoh` reads
-(`IFEnvCoh.find?`, `IFEnv.find?_mem`, `ProjOut.push`, `Split.lean`'s use), is
-the EXTENSIONAL coherence: the same answer at every key, and the same
-counter.  See this task's DESIGN section for the repair (it changes the
-definition of `IFEnvCoh`, a conclusion of four other lanes' statements, and so
-needs the coordinator's authorisation).  `k = 0` is proved: nothing moved. -/
-theorem promoteNew_coh {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
-    {s s' : AState} (hcoh : IFEnvCoh fe)
-    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) : IFEnvCoh fe' := by
-  by_cases hk : k = 0
-  · subst hk
-    obtain ⟨-, rfl, -⟩ := promoteNew_run_zero hrun
-    exact hcoh
-  · sorry
-
-/-- con-leche: none — arena infrastructure; **the fold's promotion is
-exact**: the `k` constants the step installed are copied into the persistent
-tier and re-indexed, and the environment denotes what it denoted.
-
-`fe0` is the PRE-step environment and `k` the counter difference, which is
-what `Arena/Checker.lean`'s `checkDeclStep` and `annotStep` compute; the
-hypotheses say the step only pushed and that everything below it was already
-persistent, which is the fold's own invariant one step earlier.
-
-PROVED (task #97-P3-Promote): `promoteCIList_step` on the step's constants (`Pushed.split` locates them), the two index passes read row by row (`eraseInstalled_getElem?`, `indexPromoted_getElem?`), and the denotation split at the `take`/`drop` — EXCEPT the `IFEnvCoh fe'` conjunct, which is `promoteNew_coh` and is false as stated (see it). -/
-theorem promoteNew_spec {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
-    {env : Env} {s s' : AState} (hwf : StoreWF' s.store)
-    (hm : PMemoOK m s.store) (hcoh0 : IFEnvCoh fe0) (hp0 : PersIFEnv fe0)
-    (hcoh : IFEnvCoh fe) (hpush : Pushed fe0 fe)
-    (hk : k = fe.visibleBelow - fe0.visibleBelow)
-    (hd : denoteFEnv s.store fe = some env)
-    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersIFEnv fe' ∧ IFEnvCoh fe' ∧ denoteFEnv s'.store fe' = some env ∧
-      fe'.visibleBelow = fe.visibleBelow ∧ PFrame s s' := by
-  have hx := promoteNew_aext m fuel k fe s (m', fe') s' hrun
-  obtain ⟨htake, hdrop, hlen⟩ := Pushed.split hcoh0 hcoh hpush hk
-  refine (fun (H : StoreWF' s'.store ∧ PMemoOK m' s'.store ∧ PersIFEnv fe' ∧
-      denoteFEnv s'.store fe' = some env ∧ fe'.visibleBelow = fe.visibleBelow) =>
-    ⟨H.1, hx.ext, H.2.1, H.2.2.1, promoteNew_coh hcoh hrun, H.2.2.2.1, H.2.2.2.2,
-      PFrame.of_aext hx⟩) ?_
-  by_cases hk0 : k = 0
-  · subst hk0
-    obtain ⟨h1, h2, h3⟩ := promoteNew_run_zero hrun
-    subst m'; subst fe'; subst s'
-    -- nothing was pushed, so the step's index IS the one before it
-    have he : fe = fe0 := by
-      rw [hcoh, hcoh0]
-      simp only [List.take_zero, List.nil_append] at htake
-      have : fe.env = fe0.env := by
-        cases hfe : fe.env; cases hfe0 : fe0.env
-        rw [hfe, hfe0] at htake; simp only at htake; rw [htake]
-      rw [this]
-    subst he
-    exact ⟨hwf, hm, hp0, hd, rfl⟩
-  obtain ⟨cs', h1, rfl⟩ := promoteNew_run_pos hk0 hrun
-  obtain ⟨hwf1, hm1, hx1, hp1, -, -, hd1⟩ := promoteCIList_step _ hwf hm h1
-  refine ⟨hwf1, hm1, ⟨?_, ?_⟩, ?_, rfl⟩
-  · -- the list: the promoted step, then the untouched (persistent) tail
-    intro c hc
-    rcases List.mem_append.mp hc with hc | hc
-    · exact hp1 c hc
-    · rw [hdrop] at hc; exact hp0.env c hc
-  · -- the rows: a promoted one, or an old one the erase kept — and an old row
-    -- the erase kept is filed under a name no step constant has, so it is a
-    -- row of the tail
-    intro n p hp
-    rcases indexPromoted_getElem? _ _ _ n p hp with ⟨hmem, hname⟩ | hold
-    · have hpc := hp1 _ hmem
-      exact ⟨hname ▸ persCI_name hpc, hpc⟩
-    · obtain ⟨hidx, hnot⟩ := eraseInstalled_getElem? _ _ n p hold
-      have hidx' : (mkIFEnvGo fe.env.consts).2[n]? = some p := by
-        rw [← show fe.idx = (mkIFEnvGo fe.env.consts).2 from congrArg IFEnv.idx hcoh]
-        exact hidx
-      obtain ⟨hmem, hname⟩ := mkIFEnvGo_key _ n p hidx'
-      rw [← htake] at hmem
-      rcases List.mem_append.mp hmem with hin | hin
-      · exact absurd hname (hnot _ hin)
-      · have hpc := hp0.env _ hin
-        exact ⟨hname ▸ persCI_name hpc, hpc⟩
-  · -- the denotation: the step's constants promoted exactly, the tail carried
-    simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd ⊢
-    obtain ⟨zs, hzs, rfl⟩ := hd
-    rw [← List.take_append_drop k fe.env.consts] at hzs
-    obtain ⟨za, zb, hza, hzb, rfl⟩ := denoteCIList_append _ _ zs hzs
-    exact ⟨za ++ zb, denoteCIList_append_of _ _ za zb (hd1 za hza)
-      (denoteCIList_promote_ext hx1 _ zb hzb), rfl⟩
-
 /-! ## What the fold's step needs beside the spec
 
 Three facts about the same run, stated separately so that
@@ -661,8 +571,5 @@ theorem promoteBracket_close {s0 s : AState} (hwf0 : StoreWF s0.store)
 
 /-- info: 'ConRon.Bridge.promoteBracket_close' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteBracket_close
-
-/-- info: 'ConRon.Bridge.promoteNew_spec' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteNew_spec
 
 end ConRon.Bridge

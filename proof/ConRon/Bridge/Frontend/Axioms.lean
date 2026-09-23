@@ -422,6 +422,82 @@ at Lean's own three. -/
 #print axioms lamBody_run
 #print axioms denoteNList_beq
 
+/-! ## Round eight — the target map, CLOSED
+
+`hoistTargets_run` against the round-8 twin (`hoistClosure`'s fuel counts
+marked records), and with it `hoistNatOpGround_run`, which rested on nothing
+else.  Everything here is at Lean's own three. -/
+
+#print axioms forIn_id_yield
+#print axioms loop_id_unfold
+#print axioms IdxRel.mono
+#print axioms pushOne_sim
+#print axioms arr_rev_cons
+#print axioms loop_drop
+#print axioms declAt_denote
+#print axioms hoistClosure_sim
+#print axioms isNatOpRecord_run
+#print axioms hoistDeps_sim
+#print axioms hoistTargetsGo_sim
+#print axioms forIn_id_bind_yield
+#print axioms forIn_id_ite_yield
+#print axioms loop_congr
+#print axioms clHoistTargets_eq
+#print axioms IdxRel.insertOne
+#print axioms insertNames_sim
+#print axioms nameIndex_sim
+#print axioms nameIndex_lt
+#print axioms hoistTargets_run
+#print axioms hoistNatOpGround_run
+
+/-! ## Round eight — the owner census's candidates
+
+`Bridge/Frontend/ProjRecOwners.lean`.  `projRecOwners_run` itself is closed
+modulo `occursConstFast_run`'s two con-leche-tier asks (through
+`ctorsMentionBlock_run`), so it and the three recursion-test walks are NOT
+listed; the candidate half is at Lean's own three. -/
+
+#print axioms listRel_of_denoteNList
+#print axioms beq_denoteN
+#print axioms findCtorRec_rel
+#print axioms findRecRec_rel
+#print axioms projRecCandidates_run
+#print axioms any_isRec_eq
+#print axioms blockNames_rel
+#print axioms headNP_eq
+
+/-! ## Round eight — the projection rewrite, CLOSED
+
+`Bridge/Frontend/ProjRecValue.lean` and `Bridge/Frontend/Scratch.lean`:
+`projRecValue_run` with its whole cone, and the scratch-frame family that
+turns the Inductives tier's `PStep` into the parse's `ParseStep`.  Every one
+at Lean's own three.  `projRewriteD_run` moved with it and is closed too. -/
+
+#print axioms projRecValue_scratch
+#print axioms projRecOwners_scratch
+#print axioms ParseStep.ofPStep
+#print axioms ReadCachesOK.pstep
+#print axioms ReadCachesOK.step
+#print axioms ReadCachesOK.ofEmpty
+#print axioms internName_pstep
+#print axioms denoteBL_of_listRel
+#print axioms denoteBL_length
+#print axioms mkLams_pstep
+#print axioms headIs_run
+#print axioms instPisOpen_run
+#print axioms denoteEList_getLast?
+#print axioms mkProjMotive_run
+#print axioms mkProjMinor_run
+#print axioms buildBinders_run
+#print axioms buildMotives_run
+#print axioms buildMinors_run
+#print axioms clProjRecValue_eq
+#print axioms denoteBP_some_bl
+#print axioms internParamLevels_run
+#print axioms instLPFast_pstep
+#print axioms projRecValue_run
+#print axioms projRewriteD_run
+
 /-! ## PROVED, but resting on an open leaf
 
 The campaign's rule is that a result carrying `sorryAx` is not in the census
@@ -438,17 +514,15 @@ can tell the two apart.
   `preparePrelude_run` on `frontOf_run`/`hoistNatOpGround_run` (items 19-22);
 * `FoldOK_post_parse` on `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote`
   (the Checker tier's item 6) and nothing else;
-* round 7's skeletons — `processLineCoreD_run`, `installIndD_run`,
-  `registerProjOwners_run` and `projRewriteD_run` rest on `projRecValue_run` /
-  `projRecOwners_run` (whose `ParseStep` frame is round 7's finding),
-  `hoistNatOpGround_run` on `hoistTargets_run` (whose twin is round 7's other
-  finding), `FoldOK_post_pins` on the Checker tier's `internAllPins_run`. -/
+* round 7's skeletons — `processLineCoreD_run`, `installIndD_run` and
+  `registerProjOwners_run` rest on `projRecOwners_run`, which since round 8 is
+  closed modulo `occursConstFast_run`'s two con-leche-tier asks and nothing
+  else; `FoldOK_post_pins` on the Checker tier's `internAllPins_run`.
+  (`hoistNatOpGround_run` and `projRewriteD_run` left this list in round 8.) -/
 
 #print axioms registerProjOwners_run
 #print axioms installIndD_run
 #print axioms processLineCoreD_run
-#print axioms hoistNatOpGround_run
-#print axioms projRewriteD_run
 #print axioms FoldOK_post_pins
 #print axioms applyLine_run
 #print axioms applyFinalLine_run

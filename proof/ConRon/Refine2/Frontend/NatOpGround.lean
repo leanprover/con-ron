@@ -25,11 +25,19 @@ the code after a loop into every exit of it.
    Task #87 §5 stopped at exactly this function for the `Expr`-tree port —
    *"`sp` goes up as well as down"* — and §18 of that task is where it finally
    fell, as a well-founded argument over "records not yet at their target".
-   The twin makes it a FUELLED recursion (`hoistClosure`'s `ds.size * ds.size
-   + 1`), so over handles the port and the twin agree on the measure and the
-   lemma is a fuel induction rather than a well-founded one.  **That is a
-   strict improvement on the original campaign and is worth recording**: the
-   twin's fuel is the thing that buys it.
+   **The port's loop is UNFUELLED; the twin's is not, and the two do not share
+   a measure.**  (Until task #97-P3-Frontend round 8 this note said they did:
+   the twin then counted POPS with `ds.size * ds.size + 1`, which a record
+   pushing one entry per reference — duplicates included — can exhaust, and
+   the twin answered a truncated closure where this loop runs on.)  The twin
+   now spends fuel only on a pop that MARKS a record (`hoistDropDone` drops the
+   finished ones structurally), passes `ds.size`, and
+   `Arena/Frontend/NatOpGround.lean`'s `hoistClosure_fuel_succ` proves that
+   fuel sufficient: at least the pending count, one more unit changes nothing.
+   So `hoist_close_refines` below is an induction on the port's loop carrying
+   `hoistPending ≤ fuel`, with the fuel-0 `fail` unreachable — the
+   well-founded argument of task #87 §18, with the twin's lemma as its
+   measure.
 
 ## `sorry` count in this file: 27
 -/
@@ -207,10 +215,10 @@ theorem idx_get_refines {rm lm n o} (hr : NameIdxRel rm lm)
 
 `hoist_close` is the twin's `hoistClosure` and `hoist_push_deps` its
 `pushDeps`/`pushOne` pair; `stack_push_u64` is the port's explicit stack push,
-which the twin writes as a `::`.  The twin's fuel is `ds.size * ds.size + 1`
-and the port's `while` is the same recursion under `-loops-to-rec`, so the
-shape step is §6 of task #97-P5-2's fuel induction and not task #87 §18's
-well-founded argument. -/
+which the twin writes as a `::`.  The port's `while` is unfuelled; the twin's
+fuel counts marked records (`ds.size`, sufficient by `hoistClosure_fuel_succ`),
+so the refinement is an induction on the port's loop with `hoistPending ≤
+fuel` as the invariant (module note, item 3). -/
 
 /-- **`target_done`** — *"record `k` already precedes `i`"*. -/
 theorem target_done_refines {rm lm k i v} (hr : TargetRel rm lm)
@@ -232,18 +240,18 @@ theorem hoist_push_deps_refines {rm lm used stack sp i k o}
     (hr : NameIdxRel rm lm)
     (h : frontend.nat_op_ground.hoist_push_deps rm used stack sp i k = ok o) :
     (o.1.val.take o.2.val).map absU =
-      hoistClosure.pushOne lm (absU i) (absNIdxL used)
+      hoistClosure.pushOne lm (absU i) (absU k) (absNIdxL used)
         ((stack.val.take sp.val).map absU) := by sorry
 
 /-- **`hoist_close` refines `hoistClosure`**
-(`Arena/Frontend/NatOpGround.lean:156-166`). -/
+(`Arena/Frontend/NatOpGround.lean:171-199`). -/
 theorem hoist_close_refines {pers rst lst ds rm lm target ltarget j i o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (hr : NameIdxRel rm lm) (ht : TargetRel target ltarget)
     (h : frontend.nat_op_ground.hoist_close pers rst ds rm target j i = ok o) :
     ∀ t, o.1 = .Ok t → ∃ lt lst',
       (hoistClosure (absIDeclArr ds) lm (absU i)
-        ((absIDeclArr ds).size * (absIDeclArr ds).size + 1) ltarget
+        (absIDeclArr ds).size ltarget
         [absU j]).run lst = .ok (lt, lst') ∧ TargetRel t lt ∧
       AStateRel pers o.2 lst' ∧ AStateInv pers o.2 ∧ Ext lst.store lst'.store := by
   sorry
@@ -262,7 +270,7 @@ theorem hoist_targets_at_refines {pers rst lst ds rm lm target ltarget c i o}
   sorry
 
 /-- **`hoist_targets` refines `hoistTargets`**
-(`Arena/Frontend/NatOpGround.lean:208-211`): the map from a record's index to
+(`Arena/Frontend/NatOpGround.lean:360-363`): the map from a record's index to
 the earliest pinned-operation index it must precede. -/
 theorem hoist_targets_refines {pers rst lst ds o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
@@ -279,12 +287,12 @@ Nine pure functions against the twin's five.  `apply_hoist`'s bucket pass is
 argument at handles: the keys are pairwise distinct because each carries its
 own index, so `Pairwise` + `Perm` identifies the two orders. -/
 
-/-- **`hoist_key` refines `hoistKey`** (`NatOpGround.lean:218-221`). -/
+/-- **`hoist_key` refines `hoistKey`** (`NatOpGround.lean:370-373`). -/
 theorem hoist_key_refines {rm lm k o} (hr : TargetRel rm lm)
     (h : frontend.nat_op_ground.hoist_key rm k = ok o) :
     (absU o.1, absU o.2.1, absU o.2.2) = hoistKey lm (absU k) := by sorry
 
-/-- **`hoist_lt` refines `hoistLt`** (`NatOpGround.lean:225-229`). -/
+/-- **`hoist_lt` refines `hoistLt`** (`NatOpGround.lean:377-381`). -/
 theorem hoist_lt_refines {rm lm a b v} (hr : TargetRel rm lm)
     (h : frontend.nat_op_ground.hoist_lt rm a b = ok v) :
     v = hoistLt lm (absU a) (absU b) := by sorry
@@ -306,7 +314,7 @@ theorem hoist_order_refines {n rm lm moved v} (hr : TargetRel rm lm)
     v.val.map absU =
       (List.range n.val).mergeSort (fun a b => !hoistLt lm b a) := by sorry
 
-/-- **`hoist_reorder` refines `reorder`** (`NatOpGround.lean:247-248`).  Task
+/-- **`hoist_reorder` refines `reorder`** (`NatOpGround.lean:399-400`).  Task
 #87 §5's precondition is the port's own: an out-of-range `order` entry makes
 the port's read FAIL rather than read garbage, so the lemma needs no
 hypothesis on the permutation. -/
@@ -314,14 +322,14 @@ theorem hoist_reorder_refines {ds order v}
     (h : frontend.nat_op_ground.hoist_reorder ds order = ok v) :
     absIDeclArr v = reorder (absIDeclArr ds) (order.val.map absU) := by sorry
 
-/-- **`hoist_moved_names` refines `movedNames`** (`NatOpGround.lean:233-240`). -/
+/-- **`hoist_moved_names` refines `movedNames`** (`NatOpGround.lean:385-392`). -/
 theorem hoist_moved_names_refines {ds moved rm lm v} (hr : TargetRel rm lm)
     (hm : moved.val.map absU = (List.range (absIDeclArr ds).size).filter
       (fun k => lm.contains k))
     (h : frontend.nat_op_ground.hoist_moved_names ds moved = ok v) :
     absNIdxArr v = movedNames (absIDeclArr ds) lm #[] 0 := by sorry
 
-/-- **`apply_hoist` refines `applyHoist`** (`NatOpGround.lean:252-256`).  Task
+/-- **`apply_hoist` refines `applyHoist`** (`NatOpGround.lean:404-408`).  Task
 #87 §5's two genuine preconditions are the port's own and are free at the one
 call site: every target key and value below `ds.len()`. -/
 theorem apply_hoist_refines {ds rm lm o} (hr : TargetRel rm lm)
@@ -329,7 +337,7 @@ theorem apply_hoist_refines {ds rm lm o} (hr : TargetRel rm lm)
     (absIDeclArr o.1, absNIdxArr o.2) = applyHoist (absIDeclArr ds) lm := by sorry
 
 /-- **`hoist_nat_op_ground` refines `hoistNatOpGround`**
-(`Arena/Frontend/NatOpGround.lean:261-265`) — **the hoist**, and one of the
+(`Arena/Frontend/NatOpGround.lean:413-417`) — **the hoist**, and one of the
 tier's named deliverables. -/
 theorem hoist_nat_op_ground_refines {pers rst lst ds o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)

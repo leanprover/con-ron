@@ -430,4 +430,19 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms internReservedPins_run
 #print axioms internAllPins_run
 
+-- round 9: the children closed (each prints the three standard axioms)
+#print axioms checkDecl_nodup
+#print axioms Arena.checkPending_prefix
+#print axioms denoteN_default_of_pinNames
+#print axioms internPinSets_run
+#print axioms bracketClose_foldOK
+#print axioms FoldOK.projMem
+-- `annotStep_split`'s bracket is proved; its one open child is
+-- `Arena.checkDecl_wfProj` (reached through `Arena.annotStepGo_full`)
+#print axioms Arena.annotStepGo_bridge
+#print axioms Arena.annotStep_split
+-- `checkDivModPin_bridge` skeletonised: the loop is proved, over four pieces
+#print axioms checkDivModPinLoop_bridge
+#print axioms checkDivModPin_bridge
+
 end ConRon.Bridge

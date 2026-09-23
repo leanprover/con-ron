@@ -126,7 +126,58 @@ theorem denoteN_default_of_pinNames {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {hs : List NIdx}
     (hd : Frontend.denoteNList st.ns hs = some pinNames) :
     denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous := by
-  sorry
+  -- 1. some handle views as `.anonymous`: the first pin name's chain
+  have hchain : ∀ (f : Nat) (i : NIdx) (n : ConLeche.Name),
+      Arena.denoteNAux st.ns f i = some n → ∃ a, st.ns.view a = some .anonymous := by
+    intro f
+    induction f with
+    | zero => intro i n h; simp [Arena.denoteNAux] at h
+    | succ k ih =>
+      intro i n h
+      simp only [Arena.denoteNAux, Option.bind_eq_some_iff] at h
+      obtain ⟨v, hv, h⟩ := h
+      cases v with
+      | anonymous => exact ⟨i, hv⟩
+      | str p s =>
+        simp only [Option.map_eq_some_iff] at h
+        obtain ⟨q, hq, -⟩ := h
+        exact ih p q hq
+      | num p m =>
+        simp only [Option.map_eq_some_iff] at h
+        obtain ⟨q, hq, -⟩ := h
+        exact ih p q hq
+  obtain ⟨a, ha⟩ : ∃ a, st.ns.view a = some .anonymous := by
+    cases hs with
+    | nil => simp [Frontend.denoteNList, pinNames] at hd
+    | cons h0 hs0 =>
+      simp only [Frontend.denoteNList] at hd
+      cases h0d : denoteN st.ns h0 with
+      | none => rw [h0d] at hd; simp at hd
+      | some x => exact hchain _ h0 x h0d
+  -- 2. it is persistent, so the persistent `anons` table is non-empty
+  have hpa : a.isPersistent = true := Frontend.PersN_of_view hwf hoff ha
+  have hnode : ∃ x, st.ns.pers.anons.node? 0 = some x := by
+    simp only [Arena.NStore.view, hpa, if_true, Arena.NTables.get] at ha
+    by_cases ht : (a.tag == NTag.anonymous) = true
+    · rw [if_pos ht, Option.map_eq_some_iff] at ha
+      obtain ⟨x, hx, -⟩ := ha
+      simp only [Arena.Tbl.node?] at hx ⊢
+      have hlt : a.idxNat < st.ns.pers.anons.nodes.size :=
+        (Array.getElem?_eq_some_iff.mp hx).1
+      exact ⟨_, Array.getElem?_eq_getElem (by omega)⟩
+    · rw [if_neg ht] at ha
+      split at ha
+      · simp at ha
+      · split at ha <;> simp at ha
+  obtain ⟨x, hx⟩ := hnode
+  -- 3. the zero word is that slot
+  have hv0 : st.ns.view (default : NIdx) = some .anonymous := by
+    have hp0 : (default : NIdx).isPersistent = true := by decide
+    have ht0 : ((default : NIdx).tag == NTag.anonymous) = true := by decide
+    have hi0 : (default : NIdx).idxNat = 0 := by decide
+    simp only [Arena.NStore.view, hp0, if_true, Arena.NTables.get, ht0, hi0, hx,
+      Option.map_some]
+  simp only [Arena.denoteN, Arena.denoteNAux, hv0, Option.bind_some]
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-119 reservedBasisNames —
 **the pin table, filled**: `internReservedPins` on a store with the scratch
@@ -213,6 +264,171 @@ theorem internReservedPins_run {s s' : AState} (hok : StateOK s)
         zeroLevel := Frontend.PersL_of_denote hwf6 hoff6 hz6
         sortOne := Frontend.PersE_of_denote hwf6 hoff6 he6 }
 
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — ONE pin variant,
+interned: sixteen `internExpr`/`internExprList` calls, each an `IStepS` link
+(`Frontend.internExpr_sstep`, `Frontend.internExprList_sstep` at a fresh
+memo), every denotation transported to the final store. -/
+theorem internPinSet_sstep {ps : NatOpPinSet} {p : INatOpPinSet} {s s' : AState}
+    (hok : StateOK s) (hrun : ConRon.Arena.internPinSet ps s = .ok (p, s')) :
+    Frontend.IStepS s s' ∧ PinSetDenote s'.store p ps := by
+  have iE : ∀ {a b : AState} {e : Expr} {h : EIdx}, StateOK a →
+      ConRon.Arena.internExpr e a = .ok (h, b) →
+      Frontend.IStepS a b ∧ denoteE b.store h = some e :=
+    fun hok hr => Frontend.internExpr_sstep hok hr
+  have iL : ∀ {a b : AState} {es : List Expr} {hs : List EIdx}, StateOK a →
+      ConRon.Arena.internExprList es a = .ok (hs, b) →
+      Frontend.IStepS a b ∧ Frontend.denoteEList b.store hs = some es := by
+    intro a b es hs hok hr
+    simp only [ConRon.Arena.internExprList] at hr
+    obtain ⟨q, a1, hg, hr2⟩ := AM.bind_ok hr
+    obtain ⟨hv, hst⟩ := AM.pure_ok hr2
+    subst hst; subst hv
+    obtain ⟨hs1, hd, -⟩ :=
+      Frontend.internExprList_sstep es hok (Frontend.EMemoOK.empty a.store) hg
+    exact ⟨hs1, hd⟩
+  simp only [ConRon.Arena.internPinSet] at hrun
+  obtain ⟨x1, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨t1, d1⟩ := iE hok g1
+  obtain ⟨x2, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨t2, d2⟩ := iE t1.ok g2
+  obtain ⟨x3, s3, g3, r3⟩ := AM.bind_ok r2
+  obtain ⟨t3, d3⟩ := iE t2.ok g3
+  obtain ⟨x4, s4, g4, r4⟩ := AM.bind_ok r3
+  obtain ⟨t4, d4⟩ := iE t3.ok g4
+  obtain ⟨x5, s5, g5, r5⟩ := AM.bind_ok r4
+  obtain ⟨t5, d5⟩ := iE t4.ok g5
+  obtain ⟨x6, s6, g6, r6⟩ := AM.bind_ok r5
+  obtain ⟨t6, d6⟩ := iE t5.ok g6
+  obtain ⟨x7, s7, g7, r7⟩ := AM.bind_ok r6
+  obtain ⟨t7, d7⟩ := iE t6.ok g7
+  obtain ⟨x8, s8, g8, r8⟩ := AM.bind_ok r7
+  obtain ⟨t8, d8⟩ := iE t7.ok g8
+  obtain ⟨x9, s9, g9, r9⟩ := AM.bind_ok r8
+  obtain ⟨t9, d9⟩ := iL t8.ok g9
+  obtain ⟨x10, s10, g10, r10⟩ := AM.bind_ok r9
+  obtain ⟨t10, d10⟩ := iL t9.ok g10
+  obtain ⟨x11, s11, g11, r11⟩ := AM.bind_ok r10
+  obtain ⟨t11, d11⟩ := iL t10.ok g11
+  obtain ⟨x12, s12, g12, r12⟩ := AM.bind_ok r11
+  obtain ⟨t12, d12⟩ := iL t11.ok g12
+  obtain ⟨x13, s13, g13, r13⟩ := AM.bind_ok r12
+  obtain ⟨t13, d13⟩ := iL t12.ok g13
+  obtain ⟨x14, s14, g14, r14⟩ := AM.bind_ok r13
+  obtain ⟨t14, d14⟩ := iL t13.ok g14
+  obtain ⟨x15, s15, g15, r15⟩ := AM.bind_ok r14
+  obtain ⟨t15, d15⟩ := iL t14.ok g15
+  obtain ⟨x16, s16, g16, r16⟩ := AM.bind_ok r15
+  obtain ⟨t16, d16⟩ := iL t15.ok g16
+  obtain ⟨hv, hst⟩ := AM.pure_ok r16
+  subst hst; subst hv
+  have e16 : Ext s'.store s'.store := Ext.refl _
+  have e15 : Ext s15.store s'.store := t16.ext.trans e16
+  have e14 : Ext s14.store s'.store := t15.ext.trans e15
+  have e13 : Ext s13.store s'.store := t14.ext.trans e14
+  have e12 : Ext s12.store s'.store := t13.ext.trans e13
+  have e11 : Ext s11.store s'.store := t12.ext.trans e12
+  have e10 : Ext s10.store s'.store := t11.ext.trans e11
+  have e9 : Ext s9.store s'.store := t10.ext.trans e10
+  have e8 : Ext s8.store s'.store := t9.ext.trans e9
+  have e7 : Ext s7.store s'.store := t8.ext.trans e8
+  have e6 : Ext s6.store s'.store := t7.ext.trans e7
+  have e5 : Ext s5.store s'.store := t6.ext.trans e6
+  have e4 : Ext s4.store s'.store := t5.ext.trans e5
+  have e3 : Ext s3.store s'.store := t4.ext.trans e4
+  have e2 : Ext s2.store s'.store := t3.ext.trans e3
+  have e1 : Ext s1.store s'.store := t2.ext.trans e2
+  refine ⟨(((((((((((((((t1).trans t2).trans t3).trans t4).trans t5).trans t6).trans t7).trans t8).trans t9).trans t10).trans t11).trans t12).trans t13).trans t14).trans t15).trans t16, ?_⟩
+  exact
+    { toolchain := rfl
+      divPin := e1.expr _ _ d1
+      modPin := e2.expr _ _ d2
+      gcdPin := e3.expr _ _ d3
+      landPin := e4.expr _ _ d4
+      lorPin := e5.expr _ _ d5
+      xorPin := e6.expr _ _ d6
+      shiftLeftPin := e7.expr _ _ d7
+      shiftRightPin := e8.expr _ _ d8
+      divProofs := denoteEList_ext e9 _ _ d9
+      modProofs := denoteEList_ext e10 _ _ d10
+      gcdProofs := denoteEList_ext e11 _ _ d11
+      landProofs := denoteEList_ext e12 _ _ d12
+      lorProofs := denoteEList_ext e13 _ _ d13
+      xorProofs := denoteEList_ext e14 _ _ d14
+      shiftLeftProofs := denoteEList_ext e15 _ _ d15
+      shiftRightProofs := denoteEList_ext e16 _ _ d16 }
+
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — the variant list,
+interned: the list recursion over `internPinSet_sstep`. -/
+theorem internPinSets_sstep : ∀ (ps : List NatOpPinSet) {r : List INatOpPinSet}
+    {s s' : AState}, StateOK s → ConRon.Arena.internPinSets ps s = .ok (r, s') →
+    Frontend.IStepS s s' ∧ PinsDenote s'.store r ps := by
+  intro ps
+  induction ps with
+  | nil =>
+    intro r s s' hok hrun
+    rw [ConRon.Arena.internPinSets] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst; subst hv
+    exact ⟨Frontend.IStepS.refl hok, trivial⟩
+  | cons q qs ih =>
+    intro r s s' hok hrun
+    rw [ConRon.Arena.internPinSets] at hrun
+    obtain ⟨p, s₁, g1, r1⟩ := AM.bind_ok hrun
+    obtain ⟨t1, d1⟩ := internPinSet_sstep hok g1
+    obtain ⟨ps', s₂, g2, r2⟩ := AM.bind_ok r1
+    obtain ⟨t2, d2⟩ := ih t1.ok g2
+    obtain ⟨hv, hst⟩ := AM.pure_ok r2
+    subst hst; subst hv
+    exact ⟨t1.trans t2, (PinsDenote.mono t2.ext [p] [q] ⟨d1, trivial⟩).1, d2⟩
+
+/-- con-leche: none — a pin variant that denotes on a closed store is
+persistent (`Pers…_of_denote`, clause by clause). -/
+theorem PersPinSet_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {p : INatOpPinSet} {q : NatOpPinSet}
+    (h : PinSetDenote st p q) : PersPinSet p := by
+  have hE := fun {x : EIdx} {e : Expr} (hd : denoteE st x = some e) =>
+    Frontend.PersE_of_denote hwf hoff hd
+  have hL := fun {xs : List EIdx} {es : List Expr}
+    (hd : Frontend.denoteEList st xs = some es) =>
+    Frontend.PersEList_of_denote hwf hoff hd
+  refine ⟨?_, ?_⟩
+  · intro e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    · exact hE h.divPin
+    · exact hE h.modPin
+    · exact hE h.gcdPin
+    · exact hE h.landPin
+    · exact hE h.lorPin
+    · exact hE h.xorPin
+    · exact hE h.shiftLeftPin
+    · exact hE h.shiftRightPin
+  · intro e he
+    simp only [List.mem_append] at he
+    rcases he with ((((((he | he) | he) | he) | he) | he) | he) | he
+    · exact hL h.divProofs e he
+    · exact hL h.modProofs e he
+    · exact hL h.gcdProofs e he
+    · exact hL h.landProofs e he
+    · exact hL h.lorProofs e he
+    · exact hL h.xorProofs e he
+    · exact hL h.shiftLeftProofs e he
+    · exact hL h.shiftRightProofs e he
+
+/-- con-leche: none — the same, list-wise. -/
+theorem PersPinSets_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) :
+    ∀ {r : List INatOpPinSet} {ps : List NatOpPinSet},
+      PinsDenote st r ps → PersPinSets r
+  | [], _, _ => fun _ h => absurd h (by simp)
+  | _ :: _, [], h => h.elim
+  | p :: r, q :: ps, h => by
+    intro x hx
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact PersPinSet_of_denote hwf hoff h.1
+    · exact PersPinSets_of_denote hwf hoff h.2 x hx
+
+
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — **the pin variants,
 interned**: `internPinSets` on a closed scratch tier hands back a list that
 denotes its argument, variant by variant, in persistent handles.
@@ -226,7 +442,10 @@ theorem internPinSets_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
     StateOK s' ∧ Ext s.store s'.store ∧ PinsDenote s'.store r ps ∧
       PersPinSets r ∧ s'.store.scratchOn = false ∧ s'.pins = s.pins ∧
       s'.caches = s.caches ∧ s'.memos = s.memos := by
-  sorry
+  obtain ⟨hst, hd⟩ := internPinSets_sstep ps hok hrun
+  have hoff' := hst.off hoff
+  exact ⟨hst.ok, hst.ext, hd, PersPinSets_of_denote hst.ok.wf hoff' hd, hoff',
+    hst.pins, hst.caches, hst.memos⟩
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:41-66 BasisKind.decls — the raw
 pinned block's intern, as one scratch-agnostic step. -/

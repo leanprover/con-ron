@@ -870,7 +870,7 @@ theorem IStep.trans {a b c : AState} (h₁ : IStep a b) (h₂ : IStep b c) :
 
 theorem IStep.toParse {s s' : AState} (h : IStep s s')
     (hoff : s.store.scratchOn = false) : ParseStep s s' :=
-  ParseStep.of_caches h.ok h.ext (by rw [h.off, hoff]) h.memos h.caches h.pins
+  ParseStep.of_caches h.ok h.ext (by rw [h.off, hoff]) h.caches h.pins
 
 /-! ## The same frame, WITHOUT the scratch flag
 
@@ -919,7 +919,7 @@ theorem IStepS.toIStep {s s' : AState} (h : IStepS s s')
 
 /-- con-leche: none — and the parse's own frame, which needs no flag at all. -/
 theorem IStepS.toParse {s s' : AState} (h : IStepS s s') : ParseStep s s' :=
-  ParseStep.of_caches h.ok h.ext h.scratch h.memos h.caches h.pins
+  ParseStep.of_caches h.ok h.ext h.scratch h.caches h.pins
 
 /-! ## `internE`'s scratch flag -/
 

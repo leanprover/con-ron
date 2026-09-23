@@ -39,10 +39,10 @@ Everything in this module is CLOSED except what it delegates:
   seven arm theorems — the arms carry the tier's remaining `sorry`s;
 * `Arena.checkDeclStep_bridge` is the per-declaration bracket —
   `flushCaches` / `enterScratch` / `promoteNew` / `dropScratch` composed over
-  `Bridge/Promote/Exact.lean`'s `promoteNew_spec` and
-  `Bridge/Promote/Pers.lean`'s `PExt.{enterScratch,dropScratch}` — and it is
-  the ONE `sorry` of this module, waiting on the store-layer gap the first of
-  those two names;
+  `Bridge/Promote/Coh.lean`'s `promoteNew_spec` and
+  `Bridge/Promote/Pers.lean`'s `PExt.enterScratch` and
+  `Bridge/Promote/Weak.lean`'s `PExt.dropScratch'` — and it is the ONE
+  `sorry` of this module (see its note for what it waits on);
 * `Arena.checkDeclsPure_bridge` is the list induction, and it is proved.
 
 So the shape of the whole tier is: one induction (here), one bracket (here),
@@ -211,15 +211,13 @@ next step starts from a `FoldOK` again.
 with.**  Task #97-P3-Checker's finding 4 named `PExt.enterScratch` as the gap;
 task #97-P3-Checker-2 **closed it** (`Bridge/Promote/Pers.lean`: the two ends
 of the bracket have equal `view` at every handle, so the readbacks are equal
-functions).  Three things now stand between this statement and its proof, and
-all three are named:
+functions).  Items 1 and 2 of the three this note used to name are CLOSED
+by task #97-P3-Promote: the promote window's invariant is `StoreWF'`
+(`Arena/WF.lean`; `StoreWFP` and `EWFAtP` are gone), `promoteNew_spec`
+(`Bridge/Promote/Coh.lean`) is proved, and the closing drop is
+`promoteBracket_close` / `PExt.dropScratch'` (`Bridge/Promote/Exact.lean`,
+`Weak.lean`).  What remains is
 
-1. `promoteNew_spec` and `StoreWFP.dropScratch_wf` (`Bridge/Promote/**`, the
-   store layer's items 1 and 5) — stated, open;
-2. `PExt` across the closing `dropScratch` at a store that is only
-   `StoreWFP` (the promotion breaks `fresh` transiently), which is
-   `PExt.dropScratch`'s argument re-run from `EWFAtP` and belongs beside
-   item 1;
 3. **`IFEnvOK env' fe' s'` at the NEW environment**, which is
    `IFEnvOK_of_denote` (`Bridge/Checker/Inv.lean`, item 6) — and that is not
    provable until `Arena/Frontend/Readback.lean`'s `denoteProjTable` pins
