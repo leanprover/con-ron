@@ -402,7 +402,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
   -- the front door
   obtain ⟨cvA, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, cA, F1, hcA, hpure1⟩ :=
-    checkConstantVal_bridge hμ hk hok hcv g1
+    checkConstantVal_bridge_of_fold hμ hk hok hcv g1
   have hok1 : FoldOK μ env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
@@ -624,7 +624,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
   simp only [Arena.checkDecl] at hrun
   obtain ⟨cvA, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, cA, F1, hcA, hpure1⟩ :=
-    checkConstantVal_bridge hμ hk hok hcv g1
+    checkConstantVal_bridge_of_fold hμ hk hok hcv g1
   have hok1 : FoldOK μ env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   obtain ⟨hstep2, hpush2, env', F2, hstep, hpure2⟩ :=
@@ -661,7 +661,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
   -- the front door
   obtain ⟨cvA, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, cA, F1, hcA, hpure1⟩ :=
-    checkConstantVal_bridge hμ hk hok hcv g1
+    checkConstantVal_bridge_of_fold hμ hk hok hcv g1
   have hok1 : FoldOK μ env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   -- the value check
@@ -800,7 +800,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
     have hnmP : ¬ (c.name = ConLeche.quotSoundName) := fun h => hno (hqs.mpr h)
     obtain ⟨cvA, s2, g2, r2⟩ := AM.bind_ok hgood
     obtain ⟨hstep2, cA, F2, hcA, hpure2⟩ :=
-      checkConstantVal_bridge hμ hk hok hcv g2
+      checkConstantVal_bridge_of_fold hμ hk hok hcv g2
     have hok2 : FoldOK μ env fe s2 := hok.ofCore hstep2
     -- the standard-axiom shape test
     obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok r2

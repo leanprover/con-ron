@@ -30,7 +30,7 @@ import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Pins
 import ConRon.Bridge.Checker.Split
-import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.DivMod
 import ConRon.Bridge.Checker.Arms
 
 namespace ConRon.Bridge
@@ -444,5 +444,17 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- `checkDivModPin_bridge` skeletonised: the loop is proved, over four pieces
 #print axioms checkDivModPinLoop_bridge
 #print axioms checkDivModPin_bridge
+
+-- round 10: `DeclOut`'s two clauses (each prints the three standard axioms)
+#print axioms declBasisRun_envWF
+#print axioms checkDecl_wf_pure
+#print axioms projMem_of_noTower
+#print axioms DeclCore.out
+#print axioms divModEnvGuard_run
+#print axioms divModPinGuard_run
+#print axioms substConstAll_run
+-- `Arena.checkDecl_wfProj` is proved; it reaches `IndSpec.wf` (the Inductives
+-- tier's debt) and the arms' own leaves
+#print axioms Arena.checkDecl_wfProj
 
 end ConRon.Bridge
