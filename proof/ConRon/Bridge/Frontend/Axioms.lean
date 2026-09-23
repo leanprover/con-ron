@@ -450,6 +450,22 @@ else.  Everything here is at Lean's own three. -/
 #print axioms hoistTargets_run
 #print axioms hoistNatOpGround_run
 
+/-! ## Round eight — the owner census's candidates
+
+`Bridge/Frontend/ProjRecOwners.lean`.  `projRecOwners_run` itself is closed
+modulo `occursConstFast_run`'s two con-leche-tier asks (through
+`ctorsMentionBlock_run`), so it and the three recursion-test walks are NOT
+listed; the candidate half is at Lean's own three. -/
+
+#print axioms listRel_of_denoteNList
+#print axioms beq_denoteN
+#print axioms findCtorRec_rel
+#print axioms findRecRec_rel
+#print axioms projRecCandidates_run
+#print axioms any_isRec_eq
+#print axioms blockNames_rel
+#print axioms headNP_eq
+
 /-! ## PROVED, but resting on an open leaf
 
 The campaign's rule is that a result carrying `sorryAx` is not in the census
@@ -468,7 +484,8 @@ can tell the two apart.
   (the Checker tier's item 6) and nothing else;
 * round 7's skeletons — `processLineCoreD_run`, `installIndD_run`,
   `registerProjOwners_run` and `projRewriteD_run` rest on `projRecValue_run` /
-  `projRecOwners_run` (whose `ParseStep` frame is round 7's finding),
+  `projRecOwners_run` (the latter closed in round 8 modulo
+  `occursConstFast_run`'s two con-leche-tier asks),
   `FoldOK_post_pins` on the Checker tier's `internAllPins_run`.
   (`hoistNatOpGround_run` left this list in round 8: `hoistTargets_run` is
   closed.) -/

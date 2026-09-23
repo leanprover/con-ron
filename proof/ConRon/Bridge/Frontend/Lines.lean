@@ -30,6 +30,7 @@ state.
 import ConRon.Bridge.Frontend.Modeller
 import ConRon.Bridge.Frontend.Shared
 import ConRon.Bridge.Frontend.ProjRec
+import ConRon.Bridge.Frontend.ProjRecOwners
 
 namespace ConRon.Bridge.Frontend
 
