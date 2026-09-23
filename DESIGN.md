@@ -56993,3 +56993,9 @@ to `6cfd995d` (`CLAUDE.md`, and a `Bridge/Inductives/**` +
 `Bridge/Checker/{Arms,Hyp}.lean` landing): merged cleanly, and the gates that
 delta can reach re-run — `lake build ConRonBridge ConRonCapstone` green (2 790
 jobs); no Rust, `Refine2/**` or default-target module is downstream of it.
+**Fourth merge**, `arena` at `e3ea3e55` (a Frontend round, `Refine2/Dup.lean`
+— `nidx_vec_dup_val`, which `pins_dup_val` uses, moved there — and a
+`gates.sh` lock): `DESIGN.md` conflict only.  `scripts/gates.sh` on
+`0c643232`: **all 16 OK** (`extract-check` 120 s); frontier **38 items in 13
+modules, 125 tainted declarations**, none in this task's modules.  The shared
+Lake cache re-seeded from this state before landing.
