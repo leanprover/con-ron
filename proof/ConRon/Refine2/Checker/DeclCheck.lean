@@ -1555,6 +1555,7 @@ open Lockstep in
       (certDivModEqsSpec (absCertCtx cx) (absNIdx c) (absEIdx h1) (absEIdx h2)
         (absEIdx h3) (absEIdx h4) (absEIdx rec_rhs) (absEIdx base_rhs)) :=
   LS.ofSim₀ fun _ h => cert_div_mod_eqs_refines hrel hinv h
+
 /-- `cert_div_mod_guards` — the `div`/`mod` branch's four guards. -/
 theorem cert_div_mod_guards_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {rec_rhs base_rhs : arena.handle.EIdx} {o}
@@ -1704,6 +1705,7 @@ open Lockstep in
         (absEIdx b_f) (absEIdx z) (absEIdx two) (absNIdx mod_n) (absNIdx div_n)
         (absNIdx add_n) (absNIdx mul_n) (absNIdx sub_n) (absNIdx gcd_n)) :=
   LS.ofSim₀ fun _ h => cert_ctx_names_rest_refines hrel hinv h
+
 /-- `cert_ctx_names` — the context, through the six arithmetic names. -/
 theorem cert_ctx_names_refines {pers st lst}
     {nat_ty x y one : arena.handle.EIdx} {ble_n : arena.handle.NIdx}
@@ -1905,6 +1907,7 @@ open Lockstep in
       (arena.decl_check.div_mod_cert_proofs st ps c) lst
       (divModCertProofs (absINatOpPinSet ps) (absNIdx c)) :=
   LS.ofSim₀ fun _ h => div_mod_cert_proofs_refines hrel hinv h
+
 /-- `div_mod_certs_guard_go` ⊑ `divModCertsGuardGo` at the cursor. -/
 theorem div_mod_certs_guard_go_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {ann_val : arena.handle.EIdx}

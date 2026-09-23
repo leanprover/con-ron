@@ -2500,6 +2500,10 @@ theorem is_thm_refines {k : arena.checker_split.ValueKind} {o : Bool}
     subst h2
     rfl)
 
+@[lockstep] theorem Lockstep.is_thm_spec (k : arena.checker_split.ValueKind) :
+    LSP (arena.checker_split.is_thm k) (fun o => o = (absValueKind k == .thm)) :=
+  fun _ h => is_thm_refines h
+
 /-- **`install_constant_val` ⊑ `installConstantVal`** — `checkConstantVal`
 minus its inference: the syntactic guards and the annotation of the type. -/
 theorem install_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -2565,32 +2569,31 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absIConstantVal cv) (absEIdx value)) := by
   sorry
 
-/-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
-is-a-proposition test and, for a theorem, the value's guards and annotation.
-
-**Open, and stopped on a divergence** (task #97-P5-Top round 3).  The glue is
-written in the round-3 log (`is_thm ; zero_level ; lvl_eq ; lift_fueled ;
-install_value ; check_value_group_tail`, with `lvl_eq_refines` above), but it
-closes only with clauses the statement does not have and, by the
-coordinator's round-3 rule, must not grow.  (The NOT-A-PROPOSITION decline,
-the third blocker of round 3, is gone: task #97-T2-LOCKSTEP step 1 made the
-twin's message the Rust's constant `M_THM_NOT_PROP`, so the twin no longer
-reads the name there.)
-
-* (task #97-T2-LOCKSTEP) the `Good`/`EResolves` plumbing that stopped it is
-  gone with the lockstep statements; it is one `lockstep` call once
-  `install_value_refines` (a leaf) is `@[lockstep]`. -/
-theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {u : arena.handle.LIdx} {o}
+@[lockstep] theorem Lockstep.install_value_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
-      = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
-        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
-  sorry
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_split.install_value pers vis st mode rf cv value) lst
+      (installValue (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
+        (absEIdx value)) := by
+  have hlf : lf.restrictTo (absU vis) = lf := by rw [IFEnv.restrictTo, hvis]
+  refine LS.ofSim₀ fun _ h => ?_
+  have := install_value_refines hrel hinv hfe.rel hfe.inv h
+  rwa [hlf] at this
+
+/-- The same at a split scalar: the twin environment viewed at `vis`. -/
+@[lockstep] theorem Lockstep.install_value_at_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_split.install_value pers vis st mode rf cv value) lst
+      (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+        (absIConstantVal cv) (absEIdx value)) :=
+  LS.ofSim₀ fun _ h => install_value_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
 against the declared one.
@@ -2632,6 +2635,37 @@ open Lockstep in
       (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
         (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) :=
   LS.ofSim₀ fun _ h => check_value_group_tail_refines hrel hinv hfe.rel hfe.inv h
+
+/-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
+is-a-proposition test and, for a theorem, the value's guards and annotation.
+
+**Open, and stopped on a divergence** (task #97-P5-Top round 3).  The glue is
+written in the round-3 log (`is_thm ; zero_level ; lvl_eq ; lift_fueled ;
+install_value ; check_value_group_tail`, with `lvl_eq_refines` above), but it
+closes only with clauses the statement does not have and, by the
+coordinator's round-3 rule, must not grow.  (The NOT-A-PROPOSITION decline,
+the third blocker of round 3, is gone: task #97-T2-LOCKSTEP step 1 made the
+twin's message the Rust's constant `M_THM_NOT_PROP`, so the twin no longer
+reads the name there.)
+
+* (task #97-T2-LOCKSTEP) the `Good`/`EResolves` plumbing that stopped it is
+  gone with the lockstep statements; it is one `lockstep` call once
+  `install_value_refines` (a leaf) is `@[lockstep]`. -/
+theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
+    {u : arena.handle.LIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
+      = ok o) :
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.check_value_group_value]
+  unfold checkValueGroupValueSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_value_group_value_ls {pers st lst} {vis : Std.U64} {rf lf}
@@ -2702,20 +2736,6 @@ namespace Lockstep
       (arena.checker_split.install_constant_val pers vis st mode rf cv) lst
       (installConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) :=
   LS.ofSim₀ fun _ h => install_constant_val_refines hrel hinv hfe.rel hfe.inv hvis h
-
-@[lockstep] theorem install_value_ls {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.checker_split.install_value pers vis st mode rf cv value) lst
-      (installValue (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
-        (absEIdx value)) := by
-  have hlf : lf.restrictTo (absU vis) = lf := by rw [IFEnv.restrictTo, hvis]
-  refine LS.ofSim₀ fun _ h => ?_
-  have := install_value_refines hrel hinv hfe.rel hfe.inv h
-  rwa [hlf] at this
 
 @[lockstep] theorem pmemo_empty_spec :
     LSP arena.promote.PMemo.empty (fun o => PMemoRel o PMemo.empty) :=
