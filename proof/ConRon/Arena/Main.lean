@@ -490,9 +490,9 @@ def main (args : List String) : IO UInt32 := do
 
 end ConRon.Arena
 
-/-- con-leche: Main.lean:992-1019 main
-Lake's entry point.  A `lean_exe`'s root module must declare a TOP-LEVEL
-`main`, and the driver above lives in the `ConRon.Arena` namespace with the
-rest of (B), so this forwards to it — the arrangement `ConRon/Gen/Main.lean`
-already uses. -/
-def main (args : List String) : IO UInt32 := ConRon.Arena.main args
+-- (The top-level `main` Lake's `con-ron-lean` executable needs lives in
+-- `ConRon/Arena/Exe.lean`, not here: task #97-COMPOSE found that a top-level
+-- `main` in this module collides with `ConRon/Dump/Pins.lean`'s the moment
+-- one file imports both Theorem 1's capstone, which imports this module for
+-- `runPipeline`, and Theorem 2's tier, which reaches `ConRon.Dump.Pins`
+-- through `ConRon.Refine.Pins`.)

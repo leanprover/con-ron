@@ -115,7 +115,7 @@ root = "ConRon.Dump.Pins"
 # checker's gate is the differential, not the build.
 [[lean_exe]]
 name = "con-ron-lean"
-root = "ConRon.Arena.Main"
+root = "ConRon.Arena.Exe"
 
 # The `ExprOps` micro-benchmark (DESIGN.md §8.6 P2b, task #97b).  The
 # performance phase comes before the proofs, so the memo and cutoff choices of
@@ -145,3 +145,14 @@ roots = ["ConRon.Refine2"]
 # `roots`-only library silently drops orphaned modules, and "the tier is
 # green" then means "the tier the root happens to reach is green".
 globs = ["ConRon.Refine2.+"]
+
+# **THE COMPOSITION** (DESIGN.md §8.2's last line, task #97-COMPOSE):
+# "Capstones for the binary = Theorem 2 ∘ Theorem 1 ∘ con-leche".  The one
+# module that imports BOTH `ConRon.Bridge` (Theorem 1) and `ConRon.Refine2`
+# (Theorem 2), so its own library root; `scripts/gates.sh`'s `lake-capstone`
+# step builds it.  `ConRon.Capstone.model_exists` and
+# `ConRon.Capstone.no_False_declaration` are the campaign's root theorems:
+# the sorry frontier is measured from them.
+[[lean_lib]]
+name = "ConRonCapstone"
+roots = ["ConRon.Capstone"]
