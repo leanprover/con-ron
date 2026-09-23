@@ -56148,3 +56148,180 @@ pass `scanSpec`, the hypothesis list's entry is struck through.  Axiom census
 unchanged.  Re-gated what the delta touches: `lake build ConRonRefine2
 ConRonCapstone ConRonBridge` green (2 766 jobs); no Rust, generated-model or
 gate-script change came with the merge.
+
+### Task #97-P5-Core round 3 — Theorem 2's knot: `KnotRel` and `BodyRel` are false at a dangling cache entry (2026-09-23, Opus under Fable)
+
+Branch `p5-core-3` off `arena` `aa1dc3e2`.  The brief: skeletonise
+`bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f` top-down (one child per body,
+one per tag group of each dispatch, Theorem 1's Core round 5 shape), then
+close the children cheapest first (`reduce_nat_refines` via `pin_at_refines`).
+
+**The round stopped at the first step, on the rule "if a statement looks
+false, stop and report".  `BodyRel f` is false for every `f ≥ 1`, `KnotRel f`
+is false for every `f ≥ 2`, and so `knotRel_checkFuel' : KnotRel
+Arena.checkFuel` — the lemma that is to make `ind_rel` and both Theorem 2
+capstones unconditional — is false as stated.**  Nothing under `proof/` was
+changed; this section is the round's whole diff.  Two further statements of
+the tier are false for a smaller reason (§3).
+
+#### 1. The counterexample
+
+`CachesRel` relates the port's thirteen caches to the twin's key for key with
+`RelOn (fun _ => True) …` and says nothing about the VALUES; `AStateInv`'s
+cache clause is the `HashMap2` invariant; `StoreWF` (now in `AStateRel`) is
+about the store alone.  So a state whose `whnf_core_c` maps a live handle to a
+**dangling** one satisfies every hypothesis of every `KnotRel`/`BodyRel`
+field.  Take
+
+* `e` an `app`-tagged handle that resolves (so `EResolves lst (absEIdx e)`
+  holds, and `whnf_core_stuck_tag e` is false);
+* `d` a `sort`-tagged handle whose index is past the `sorts` table in both
+  tiers (dangling: `EStore.view d = none`, `view_sort d = none`);
+* `st.caches.whnf_core_c = {e ↦ d}` and, as `CachesRel` then forces,
+  `lst.caches.whnfCoreC = {absEIdx e ↦ absEIdx d}`; everything else empty or
+  arbitrary but related; `lane = LANE_FULL`, `fu = f ≥ 1`.
+
+`BodyRel.whnf` at `(st, lst, e)`:
+
+| step | port (`Generated/Funs.lean`) | twin (`Arena/Core.lean`) |
+|---|---|---|
+| `whnf_body` → `whnf_loop 100000` → `whnf_step` | | `whnfBody` → `whnfLoop` → `whnfStep` |
+| `knot_whnf_core e` (fuel `≥ 1`, not stuck, full lane) | `whnf_core_probe` hits: `Ok d` | `coreKnot`'s slot, `whnfCoreC[e]?` hits: `absEIdx d` |
+| literal step on `d` | `reduce_nat`: **tag-first**, `tag d ≠ APP` → `Ok none` (`:28414`) | `reduceNat`: **`match ← view e`** → dangling → **`internal`** |
+| delta step on `d` | `unfold_definition`: `get_app_fn d` answers `d` off the tag, `tag d ≠ CONST` → `Ok none` | not reached |
+| answer | **`Ok d`** | **error** |
+
+`Sim` at an `Ok` port answer requires an `ok` twin run, so the field is false
+at that state.  `KnotRel f` holds there (it is about the knot, whose own
+probe answers `d` on both sides), so `KnotRel f → BodyRel f` is false.  For
+`KnotRel (f + 1)` itself take the same state with `whnf_c` empty: the knot's
+`whnf` slot misses, runs `whnf_body` at `f`, and meets the same step — so
+`knotRel_succ` is sound and it is `KnotRel`'s STATEMENT that is false from
+`f = 2` on, whatever proves it.  `checkFuel` is far above 2.
+
+The same shape bites at every site where the port reads a knot answer's TAG
+and the twin its VIEW (finding 14's split), with the dangling answer coming
+from any of the knot's five `EIdx`-valued caches or from `const_ty_c` /
+`const_val_c` / `rule_rhs_c`: `ensure_sort` (port `Invalid`, twin `internal`
+— finding 14 itself), `infer_forall`/`infer_pis` (tag test for `SORT`),
+`reduce_nat`'s `raw_nat_lit` of a `whnf` answer, the `defeq` step's tag
+dispatches.  §1's is the shortest because it needs one cache entry and no
+environment.
+
+**This is task #97-P5-Top's ruling 2 one tier down.**  That ruling said *"a
+universally quantified 'every Core answer resolves' is FALSE (the Rust
+invariant does not constrain cache contents)"* and moved the Checker tier's
+statements onto `Good`/`ResolveInv`; but `KnotRel` and `BodyRel` are exactly
+such universally quantified statements, and the Core tier had been carrying
+the answer-resolution fact as NAMED HYPOTHESES (`CoreAmbient.resWhnfCore`,
+`AnswerResolves` on `ensure_sort_refines`, the second conjunct of
+`reduce_nat_refines`) that `bodyRel_of_knot` — which has no hypotheses — can
+never discharge.  Task #97-P5-Mut met the same thing at the ExprOps memos
+(its finding 19's memo half) and fixed it with a LOCAL clause, `MemoRes`.
+
+#### 2. The fix, and the ruling it needs
+
+Both options change `KnotRel`/`BodyRel`'s CONCLUSIONS, which is the
+coordinator's call.
+
+**(A) — recommended: `MemoRes` at the knot's caches.**  Define
+
+    CoreCachesRes lst := ∀ k r, lst.caches.{whnfCoreC,whnfC,inferC,inferIOC,
+      annotC}[k]? = some r → EResolves lst r   (and constTyC, constValC, ruleRhsC)
+
+and give each of the six `KnotRel` fields and seven `BodyRel` fields
+`CoreCachesRes lst` as a premise, with the conclusion strengthened from
+`Sim absEIdx (fun _ => True)` to the `WOutE (CoreCachesRes)` shape of
+`ExprOps/Mut.lean` — the answer resolves at the post-state, `CoreCachesRes`
+holds there, `EViewExt`, the two tier flags.  Everything the tier currently
+carries as a hypothesis for this falls out: `CoreAmbient.resWhnfCore` is the
+strengthened `KnotRel.whnfCore`, `AnswerResolves` on `ensure_sort` is
+`KnotRel.whnf`'s, `CoreAmbient.resExt` is `EViewExt`, `CoreAmbient.wf` is
+`AStateRel.storeWF` already.  It is Theorem-2-internal: at a fold step's
+bracket entry `flush_caches` empties the caches (`Core/Bracket.lean`), so the
+premise is `MemoRes.of_empty`'s analogue there; phase B's entry
+(`enter_scratch` alone, caches kept) takes it from the state phase A left,
+which the strengthened conclusions deliver.  Nothing from Theorem 1.  Cost: the
+knot's six `knotRel_succ_*` (the probe hit is now the premise, the miss is
+the body's conclusion plus `*_set`'s write keeping the clause), the six
+entries, `ensure_sort_refines`, `Delta.lean`, `Loops.lean` — i.e. the whole
+tier re-stated once, before any body is proved.
+
+**(B) — the `Good` route (ruling 2 extended).**  Parametrise `KnotRel` and
+`BodyRel` by Theorem 1's abstract `Good` and a knot-level `ResolveInv` (the
+twin's knot answers resolve from `Good` states and keep `Good`).  No
+Theorem-2 invariant to thread, but every body's inner knot call then has to
+re-establish `Good` at the intermediate twin state, and the discharge moves
+to the capstone.  (A) is smaller and matches the ExprOps tier's precedent.
+
+**Either way `knotRel_checkFuel'`'s statement changes** (a premise more, a
+conclusion stronger), so `Refine2/Checker/KnotHyp.lean` and the checker-tier
+call sites that use a `KnotRel` field move with it (under (A) they gain the
+cache clause as a thread, beside `AStateRel`).
+
+#### 3. Two more false statements in the tier (named hypotheses, repairable)
+
+`Core/Arms/Delta.lean`'s `ExprOpsHyp` — the bundle `unfold_definition_refines`
+is "closed modulo" — has two fields that are false as stated, because they
+carry no premise on the input handle:
+
+* **`headRes`** — *"`get_app_fn pers st fuel h = ok (.Ok w)` → `w`
+  resolves"*.  `get_app_fn` answers `h` itself off the TAG when `h` is not
+  `app`-tagged (`Generated/Funs.lean:18071`), so a dangling non-`app` `h`
+  is a counterexample.
+* **`mkAppNRes`** — *"`mk_app_n` answers a resolving handle"*.  At empty
+  `args` `mk_app_n_from` answers `f` itself (`:19702`), so a dangling `f` is a
+  counterexample.
+
+And the two `Sim` fields, `instLPFast` and `mkAppN`, are STRONGER than the
+lemmas they stand for: `ExprOps/Mut.lean`'s `inst_lp_fast_refines` and
+`mk_app_n_refines` (now closed) take `EResolves` of the input handle(s), the
+fields do not — so `ExprOpsHyp` cannot be instantiated from the closed
+lemmas.  The repair is missing preconditions only (which the brief
+authorises): each field gains its input's `EResolves`, and
+`unfold_definition_refines` gains `EResolves lst (absEIdx e)` of its
+argument — which its caller `whnf_step_of_cont` has for the `whnfCore` reduct
+at the state `reduce_nat` left through `CoreAmbient.resExt`, the clause task
+#97-P5-Core-2 recorded as having "no consumer left".  The stored `value`
+`inst_lp_fast` is applied to needs *"the environment's stored handles
+resolve"*, a `CoreCtx` clause (it is `IFEnvInv`'s, and `ciHandles` in
+`Refine2/Checker/Base.lean` already names the handles).  **Not done here**:
+the `mkAppNRes` repair still needs the `constValAt` answer to resolve, which
+is `const_val_c`'s value — §1's problem again — so it waits on the ruling.
+
+So **`unfold_definition_refines` is closed modulo a hypothesis bundle that
+cannot be instantiated**, and task #97-P5-Core-2 §7's axiom row for it, while
+accurate, overstates what is proved.
+
+#### 4. What was not done, and the order after the ruling
+
+No skeleton was written: every child of `bodyRel_of_knot` that reads a knot
+answer (all of `whnf_core_body`'s `app`/`proj` arms, all of `whnf_body`,
+`infer_body`'s `forallE`/`lam`/`app`/`proj`, `defeq_body`, `annotate_body`'s
+binder arms) would be stated false or would carry the same undischargeable
+hypothesis, and a skeleton over false children moves the frontier without
+moving the proof.  `pin_at_refines` was not moved (its only consumer here is
+`reduce_nat_refines`, whose conclusion's second conjunct is §1's fact).
+
+Once (A) or (B) is ruled, the order is: re-state the two relations and
+re-prove `Core/Induction.lean`'s `knotRel_zero`/`knotRel_succ_*` (the probe
+hit is where the new premise is spent, the write where it is re-made); then
+`Core/Entries.lean`, `ensure_sort_refines`, `Loops.lean` (whose `CoreAmbient`
+shrinks to nothing); then §3's repair; then the skeleton the brief asked for.
+
+#### 5. Frontier and gates
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`, at the start and at the end (no Lean
+file changed in between, so the two are one run):
+
+*34 items in 14 modules, 109 tainted, dead weight 769; top
+`Refine2.Frontend.apply_line_refines` (fan-in 7, reach 14).*
+`bodyRel_of_knot` is on it (fan-in 2, reach 11, row 4).  The first run in
+this worktree rebuilt the stale `Bridge/**` part of the copied build (30 min
+wall), which is not the script's cost.
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | GATES_LINE |
+| the diff | this section only |
