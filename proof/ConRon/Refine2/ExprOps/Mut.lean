@@ -1739,7 +1739,7 @@ second. -/
 
 /-- The port's handle equality is the twin's, through `absEIdx`'s
 injectivity. -/
-theorem eidx_eq2_abs {a b : arena.handle.EIdx} {c : Bool}
+theorem eidx_eq2_beq {a b : arena.handle.EIdx} {c : Bool}
     (h : arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok c) :
     (absEIdx a == absEIdx b) = c := by
   have := eidx_eq2 a b c trivial trivial h
@@ -4545,7 +4545,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
               intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-            rw [eidx_eq2_abs hsame]
+            rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
             have hstep := intern_rebuilt_fvar_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
@@ -4627,9 +4627,9 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
               obtain ⟨bb, hbb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
               have hs : (absEIdx f2 == absEIdx f && absEIdx a2 == absEIdx a) = same := by
-                rw [eidx_eq2_abs hbb]
+                rw [eidx_eq2_beq hbb]
                 cases bb with
-                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_abs hsame]; rfl
+                | true => rw [if_pos rfl] at hsame; rw [eidx_eq2_beq hsame]; rfl
                 | false =>
                   rw [if_neg (by simp)] at hsame
                   rw [← Result.ok_injective hsame]; rfl
@@ -4723,7 +4723,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                   absEIdx b2 == absEIdx body &&
                     ((⟨.never⟩ : ConLeche.BinderMeta) ==
                       ConRon.Refine.absBinderMeta m0)) = same := by
-                rw [eidx_eq2_abs hbb]
+                rw [eidx_eq2_beq hbb]
                 cases bb with
                 | true =>
                   rw [if_pos rfl] at hqq
@@ -4733,7 +4733,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                   simp only [Prod.mk.injEq] at this
                   obtain ⟨rfl, rfl⟩ := this
                   refine ⟨rfl, ?_⟩
-                  rw [eidx_eq2_abs hb1]
+                  rw [eidx_eq2_beq hb1]
                   cases b1 with
                   | true =>
                     rw [if_pos rfl] at hb3
@@ -4841,7 +4841,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                   absEIdx b2 == absEIdx body &&
                     ((⟨.never⟩ : ConLeche.BinderMeta) ==
                       ConRon.Refine.absBinderMeta m0)) = same := by
-                rw [eidx_eq2_abs hbb]
+                rw [eidx_eq2_beq hbb]
                 cases bb with
                 | true =>
                   rw [if_pos rfl] at hqq
@@ -4851,7 +4851,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                   simp only [Prod.mk.injEq] at this
                   obtain ⟨rfl, rfl⟩ := this
                   refine ⟨rfl, ?_⟩
-                  rw [eidx_eq2_abs hb1]
+                  rw [eidx_eq2_beq hb1]
                   cases b1 with
                   | true =>
                     rw [if_pos rfl] at hb3
@@ -4972,7 +4972,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                 obtain ⟨st4, same⟩ := q
                 have hs : st4 = st3 ∧ (absEIdx t2 == absEIdx ty &&
                     absEIdx w2 == absEIdx val && absEIdx b2 == absEIdx body) = same := by
-                  rw [eidx_eq2_abs hbb]
+                  rw [eidx_eq2_beq hbb]
                   cases bb with
                   | true =>
                     rw [if_pos rfl] at hqq
@@ -4982,9 +4982,9 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
                     simp only [Prod.mk.injEq] at this
                     obtain ⟨rfl, rfl⟩ := this
                     refine ⟨rfl, ?_⟩
-                    rw [eidx_eq2_abs hb1]
+                    rw [eidx_eq2_beq hb1]
                     cases b1 with
-                    | true => rw [if_pos rfl] at hb3; rw [eidx_eq2_abs hb3]; rfl
+                    | true => rw [if_pos rfl] at hb3; rw [eidx_eq2_beq hb3]; rfl
                     | false =>
                       rw [if_neg (by simp)] at hb3
                       rw [← Result.ok_injective hb3]; rfl
@@ -5061,7 +5061,7 @@ private theorem reset_meta_go_aux (n : Nat) : ResetGoAt n := by
             have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
               intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
             obtain ⟨same, hsame, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-            rw [eidx_eq2_abs hsame]
+            rw [eidx_eq2_beq hsame]
             obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
             obtain ⟨r2, st2⟩ := p2
             have hstep := intern_rebuilt_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
