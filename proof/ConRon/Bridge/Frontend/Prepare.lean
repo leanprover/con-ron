@@ -88,6 +88,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
+    (hpins : PinsOK s)
     {pre : PreludeIx} (hrun : builtinPreludeE md s = .ok (.ok pre, s')) :
     ParseStep s s' ∧ PersPreludeIx pre ∧ DeclsProjNamed s'.store pre.decls ∧
       ∃ preC, ConLeche.Frontend.builtinPreludeE = .ok preC ∧
@@ -104,7 +105,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     simp only [Except.ok.injEq] at hv
     subst hv; subst hs
     rw [hbytes] at hpb
-    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpb
+    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpins hpb
     refine ⟨hstep, hpers, hrel.projNamed, ⟨rc.decls⟩, ?_, hrel.decls⟩
     rw [ConLeche.Frontend.builtinPreludeE, ConLeche.Frontend.parseExportD, hcl]
     rfl
@@ -1184,12 +1185,35 @@ against con-leche's `Std.HashMap Nat Nat` keyed by stream position — the two
 maps are equal as functions of the position, which is what `applyHoist`
 reads.  Task #97-P3-Frontend's sorry list, item 21. -/
 theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     {ds : Array IDeclaration} {dsP : Array Declaration}
     (hwf : StoreWF s.store) (hnds : DeclsProjNamed s.store ds)
     (hds : denoteDeclArray s.store ds = some dsP)
     {target : Std.HashMap Nat Nat} (hrun : hoistTargets ds s = .ok (target, s')) :
     ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets dsP := by
+  sorry
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — **the
+reorder, at one and the same target map**: the twin's `reorder` over the sorted
+index list is con-leche's `List.map` over the same list (the two comparators
+are the same function of the map), and the moved names are the declared names
+of the moved records, in index order (`declNames_denote`, so `DeclsProjNamed`).
+Pure on both sides.
+
+`sorry`: round 7's skeleton child of `hoistNatOpGround_run` — the comparator
+equality (`hoistLt`/`hoistKey` against con-leche's two local lambdas, a
+`funext` and a case split on the two lookups), `reorder` as `List.map` by
+induction over the index list, and `movedNames` against `filter`/`flatMap` by
+induction over the index. -/
+theorem applyHoist_run {st : EStore} {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDeclArray st ds = some dsP)
+    (hpds : PersDecls ds) (hnds : DeclsProjNamed st ds)
+    (target : Std.HashMap Nat Nat) :
+    PersDecls (applyHoist ds target).1 ∧ DeclsProjNamed st (applyHoist ds target).1 ∧
+      denoteDeclArray st (applyHoist ds target).1
+        = some (ConLeche.Frontend.applyHoist dsP target).1 ∧
+      denoteNList st.ns (applyHoist ds target).2.toList
+        = some (ConLeche.Frontend.applyHoist dsP target).2.toList := by
   sorry
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:167 hoistNatOpGround — the
@@ -1199,12 +1223,13 @@ result is the permutation of the denotation, and the moved-name list denotes.
 **The frame is `ParseStep` for round 4's finding 16's reason** (round 5):
 `hoistTargets` reads `usedConsts`, which interns at a projection table.
 
-`sorry`: `hoistTargets_run`, then
-`applyHoist`'s `reorder` as a `List.map` over a permutation of indices — the
-same list of indices on both sides.  Task #97-P3-Frontend's sorry list,
-item 21. -/
+`hoistTargets_run` (the SAME target map on both sides), then
+`applyHoist_run` at it.  Round 7 skeletonised it: what it rests on is those
+two, and `PinsOK s` is new — `isNatOpRecord` reads the pinned operation names
+(`natDivModNames`/`natOpNames` are pin reads), so without it the twin's
+target map is not con-leche's. -/
 theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     (hwf : StoreWF s.store) {ds : Array IDeclaration} {dsP : Array Declaration}
     (hds : denoteDeclArray s.store ds = some dsP) (hpds : PersDecls ds)
     (hnds : DeclsProjNamed s.store ds)
@@ -1215,7 +1240,25 @@ theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
         = some (ConLeche.Frontend.hoistNatOpGround dsP).1 ∧
       denoteNList s'.store.ns moved.toList
         = some (ConLeche.Frontend.hoistNatOpGround dsP).2.toList := by
-  sorry
+  rw [hoistNatOpGround] at hrun
+  rw [ConLeche.Frontend.hoistNatOpGround]
+  obtain ⟨target, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hstep, rfl⟩ := hoistTargets_run hok hoff hpins hwf hnds hds h1
+  have hds1 := denoteDeclArray_ext hstep.ext hds
+  have hnds1 := hnds.mono hstep.ext
+  by_cases he : (ConLeche.Frontend.hoistTargets dsP).isEmpty = true
+  · rw [if_pos he] at hrun
+    rw [if_pos he]
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+    injection hv with h1 h2
+    subst h1; subst h2
+    exact ⟨hstep, hpds, hnds1, hds1, rfl⟩
+  · rw [if_neg he] at hrun
+    rw [if_neg he]
+    obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+    obtain ⟨h1, h2, h3, h4⟩ := applyHoist_run hds1 hpds hnds1 (ConLeche.Frontend.hoistTargets dsP)
+    rw [← hv] at h1 h2 h3 h4
+    exact ⟨hstep, h1, h2, h3, h4⟩
 
 /-! ## The prepared stream -/
 
@@ -1227,7 +1270,7 @@ fold's argument.
 
 `frontOf_run` and `hoistNatOpGround_run` composed. -/
 theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {pre : PreludeIx}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
     (hprep : PersPreludeIx pre) (hnpre : DeclsProjNamed s.store pre.decls)
     {ds : Array IDeclaration}
@@ -1263,7 +1306,8 @@ theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
         exact hnpre d (by simpa using hd))
       hds hpds hnds hfront
   obtain ⟨hstep2, hpo, hno, hclo, -⟩ :=
-    hoistNatOpGround_run hstep1.ok (by rw [hstep1.scratch]; exact hoff) hstep1.ok.wf
+    hoistNatOpGround_run hstep1.ok (by rw [hstep1.scratch]; exact hoff)
+      (hpins.mono hstep1.ext hstep1.pins) hstep1.ok.wf
       (denoteDeclArray_append hclf hclr)
       (by
         intro d hd
@@ -1291,7 +1335,7 @@ Proved from `preparePrelude_run` and con-leche's own `mem_preparePrelude`, so
 the permutation argument is never re-run on this side — which is the point of
 stating the pass as a denotation equation rather than as a permutation. -/
 theorem mem_preparePrelude_denote {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {pre : PreludeIx}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {pre : PreludeIx}
     {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
     (hprep : PersPreludeIx pre) (hnpre : DeclsProjNamed s.store pre.decls)
     {ds : Array IDeclaration}
@@ -1302,7 +1346,7 @@ theorem mem_preparePrelude_denote {s s' : AState} (hok : StateOK s)
     {d : Declaration} (hmem : d ∈ dsP) :
     ∃ outP, denoteDeclArray s'.store out = some outP ∧ d ∈ outP := by
   obtain ⟨-, -, -, hout⟩ :=
-    preparePrelude_run hok hoff hpre hprep hnpre hds hpds hnds hrun
+    preparePrelude_run hok hoff hpins hpre hprep hnpre hds hpds hnds hrun
   exact ⟨_, hout, ConLeche.Frontend.mem_preparePrelude hmem⟩
 
 end ConRon.Bridge.Frontend

@@ -3147,6 +3147,34 @@ theorem installIndD_run {md : Modeller} (hmw : ModellerWF md)
 
 /-! ## The line -/
 
+/-- con-leche: ConLeche/Frontend/ExportC.lean:675-676 processLineCoreD — a
+record the parse builds itself, pushed: the three facts `pushDecl_run` asks,
+off the record's denotation. -/
+theorem pushDecl_built_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
+    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
+    (hp : PersStateD sd) {d : IDeclaration} {dP : Declaration}
+    (hpn : DeclProjNamed s.store d)
+    (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
+    (hrun : pushDecl sd d s = .ok (sd', s')) :
+    ParseStep s s' ∧ PersStateD sd' ∧
+      StateDRel s'.store sd' (ConLeche.Frontend.pushDecl sc dP) :=
+  pushDecl_run hok hoff hrel hp (PersDecl_of_denote hok.wf hoff hpn hd) hpn hd hrun
+/-- con-leche: none — the rewrite list, updated on both sides. -/
+theorem StateDRel.setProjRewrites {st : EStore} {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc)
+    {a : Array NIdx} {b : Array ConLeche.Name}
+    (hab : denoteNList st.ns a.toList = some b.toList) :
+    StateDRel st { sd with projRewrites := a } { sc with projRewrites := b } :=
+  { h with projRewrites := hab }
+
+/-- con-leche: none — the block counter, bumped on both sides. -/
+theorem StateDRel.bumpIndCount {st : EStore} {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
+    StateDRel st { sd with indCount := sd.indCount + 1 }
+      { sc with indCount := sc.indCount + 1 } :=
+  { h with indCount := by simp only [h.indCount] }
+
 /-- con-leche: ConLeche/Frontend/ExportC.lean:629 processLineCoreD — **the
 record's own semantics**: six declaration kinds, the projection rewrite on two
 of them, and the inductive route.  `Arena/Frontend/ExportC.lean`'s own note
@@ -3163,14 +3191,15 @@ modeller, and `ModellerWF`'s own clause is exactly this.  **Nothing propagates
 past here** — that is what putting the fact in `StateDRel.projNamed` and in
 the seam's promise bought.
 
-`sorry`: six arms over `parseCVD_run`, `getDeclD_run`, `projRewriteD_run`
-(`Bridge/Frontend/ProjRec.lean`) and `pushDecl_run`, plus the `ind` arm over
-`validateIndD_run` and `installIndD_run`.  Task #97-P3-Frontend's sorry list,
-item 9 — **the tier's critical path**: `feedChunk` and everything above it
-wait on this one. -/
+Six arms over `parseCVD_run`, `getDeclD_run`, `projRewriteD_run`
+(`Bridge/Frontend/ProjRec.lean`, two-sided since round 7) and `pushDecl_run`,
+plus the `ind` arm over `validateIndD_run'` and `installIndD_run`.  Round 7
+skeletonised it: its own proof is closed, and what it rests on is
+`projRewriteD_run` and `registerProjOwners_run`.  `PinsOK s` is new (round 7),
+for `installIndD_run`. -/
 theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : ConLeche.Frontend.DeclRec}
     {x : StateD ⊕ RecordVerdict}
@@ -3178,20 +3207,194 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
       ∃ y, ConLeche.Frontend.processLineCoreD sc d = .ok y ∧
         SumRel s'.store x y := by
-  sorry
+  cases d with
+  | ax cvr isUnsafe =>
+    simp only [processLineCoreD] at hrun
+    simp only [ConLeche.Frontend.processLineCoreD]
+    obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
+    rw [hs1] at hrun
+    rw [hc, except_ok_bind]
+    cases isUnsafe with
+    | true =>
+      simp only [if_true] at hrun ⊢
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨ParseStep.refl hok, (fun _ h => by cases h), _, rfl, trivial⟩
+    | false =>
+      simp only [Bool.false_eq_true, if_false, pure_bind] at hrun ⊢
+      obtain ⟨sd', s₂, h2, hrun⟩ := AM.bind_ok hrun
+      obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
+        DeclProjNamed.of_axiomDecl (by simp only [denoteDecl, hdc]; rfl) h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
+  | defn cvr value hints safety =>
+    cases hints
+    all_goals
+      simp only [processLineCoreD] at hrun
+      simp only [ConLeche.Frontend.processLineCoreD]
+      obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
+      obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
+      rw [hs1] at hrun
+      rw [hc, except_ok_bind]
+      split at hrun
+      · split
+        rotate_left
+        · exfalso; rename_i hne; first | exact hne rfl | exact hne "safe" rfl | simp at hne
+        obtain ⟨vl, s₂, h2, hrun⟩ := AM.bind_ok hrun
+        obtain ⟨hs2, e, he, hde⟩ := getDeclD_run hrel h2
+        rw [hs2] at hrun
+        rw [he, except_ok_bind]
+        obtain ⟨o, s₃, h3, hrun⟩ := AM.bind_ok hrun
+        obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrel hdc hde h3
+        have hoff3 : s₃.store.scratchOn = false := by rw [hstep3.scratch]; exact hoff
+        have hrel3 := hrel.ext hstep3.ext
+        have hdc3 := denoteCV_ext hdc hstep3.ext
+        cases o with
+        | none =>
+          rw [hopt.none_left rfl]
+          dsimp only at hrun ⊢
+          obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
+          obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
+            DeclProjNamed.of_defnDecl
+            (by simp only [denoteDecl, hdc3, denote_ext hde hstep3.ext]; try rfl) h4
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+          exact ⟨hstep3.trans hstep4, fun _ h => by cases h; exact hp4, _, rfl, hrel4⟩
+        | some vl' =>
+          obtain ⟨e', he', hde'⟩ := hopt.some_left rfl
+          rw [he']
+          dsimp only at hrun ⊢
+          obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
+          obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
+            DeclProjNamed.of_defnDecl
+            (by simp only [denoteDecl, hdc3, hde']; try rfl) h4
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+          refine ⟨hstep3.trans hstep4, fun _ h => by cases h; exact { hp4 with }, _, rfl, ?_⟩
+          refine hrel4.setProjRewrites ?_
+          rw [Array.toList_push, Array.toList_push]
+          exact denoteNList_snoc hrel4.projRewrites
+            (denoteN_ext (denoteCV_name hdc) (hstep3.ext.trans hstep4.ext))
+      · split
+        · exfalso; rename_i hne; first | exact hne rfl | simp_all
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+        exact ⟨ParseStep.refl hok, (fun _ h => by cases h), _, rfl, trivial⟩
+  | thm cvr value =>
+    simp only [processLineCoreD] at hrun
+    simp only [ConLeche.Frontend.processLineCoreD]
+    obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
+    rw [hs1] at hrun
+    rw [hc, except_ok_bind]
+    obtain ⟨vl, s₂, h2, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs2, e, he, hde⟩ := getDeclD_run hrel h2
+    rw [hs2] at hrun
+    rw [he, except_ok_bind]
+    obtain ⟨o, s₃, h3, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrel hdc hde h3
+    have hoff3 : s₃.store.scratchOn = false := by rw [hstep3.scratch]; exact hoff
+    have hrel3 := hrel.ext hstep3.ext
+    have hdc3 := denoteCV_ext hdc hstep3.ext
+    cases o with
+    | none =>
+      rw [hopt.none_left rfl]
+      dsimp only at hrun ⊢
+      obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
+      obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
+        DeclProjNamed.of_thmDecl
+        (by simp only [denoteDecl, hdc3, denote_ext hde hstep3.ext]; try rfl) h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨hstep3.trans hstep4, fun _ h => by cases h; exact hp4, _, rfl, hrel4⟩
+    | some vl' =>
+      obtain ⟨e', he', hde'⟩ := hopt.some_left rfl
+      rw [he']
+      dsimp only at hrun ⊢
+      obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
+      obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
+        DeclProjNamed.of_thmDecl (by simp only [denoteDecl, hdc3, hde']; try rfl) h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      refine ⟨hstep3.trans hstep4, fun _ h => by cases h; exact { hp4 with }, _, rfl, ?_⟩
+      refine hrel4.setProjRewrites ?_
+      rw [Array.toList_push, Array.toList_push]
+      exact denoteNList_snoc hrel4.projRewrites
+        (denoteN_ext (denoteCV_name hdc) (hstep3.ext.trans hstep4.ext))
+  | opaq cvr value isUnsafe =>
+    simp only [processLineCoreD] at hrun
+    simp only [ConLeche.Frontend.processLineCoreD]
+    obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
+    rw [hs1] at hrun
+    rw [hc, except_ok_bind]
+    cases isUnsafe with
+    | true =>
+      simp only [if_true] at hrun ⊢
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨ParseStep.refl hok, (fun _ h => by cases h), _, rfl, trivial⟩
+    | false =>
+      simp only [Bool.false_eq_true, if_false, pure_bind] at hrun ⊢
+      obtain ⟨vl, s₂, h2, hrun⟩ := AM.bind_ok hrun
+      obtain ⟨hs2, e, he, hde⟩ := getDeclD_run hrel h2
+      rw [hs2] at hrun
+      rw [he, except_ok_bind]
+      obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
+      obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
+        DeclProjNamed.of_opaqueDecl (by simp only [denoteDecl, hdc, hde]; try rfl) h3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
+  | quot cvr kind =>
+    simp only [processLineCoreD] at hrun
+    simp only [ConLeche.Frontend.processLineCoreD]
+    obtain ⟨cv, s₁, h1, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
+    rw [hs1] at hrun
+    rw [hc, except_ok_bind]
+    split at hrun
+    all_goals
+      first
+        | (exfalso
+           obtain ⟨qk, s₂, h2, -⟩ := AM.bind_ok hrun
+           exact AM.fail_ok h2)
+        | (simp only [pure_bind] at hrun
+           obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
+           obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
+             DeclProjNamed.of_quotDecl (by simp only [denoteDecl, hdc]; try rfl) h3
+           obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+           refine ⟨hstep, fun _ h => by cases h; exact hp', ?_⟩
+           split
+           all_goals first
+             | exact ⟨_, rfl, hrel'⟩
+             | (exfalso; simp_all; done))
+  | ind tys cts rcs =>
+    simp only [processLineCoreD] at hrun
+    simp only [ConLeche.Frontend.processLineCoreD]
+    obtain ⟨v, s₁, h1, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, y, hy, hvr⟩ := validateIndD_run' hok hrel.bumpIndCount h1
+    rw [hs1] at hrun
+    rw [hy, except_ok_bind]
+    cases v with
+    | inl v =>
+      cases y with
+      | inl w =>
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+        exact ⟨ParseStep.refl hok, (fun _ h => by cases h), _, rfl, hvr⟩
+      | inr q => exact absurd hvr (by simp [VRes])
+    | inr p =>
+      cases y with
+      | inl w => exact absurd hvr (by simp [VRes])
+      | inr q =>
+        obtain rfl : p = q := hvr
+        exact installIndD_run hmw hmr hok hoff hpins hrel.bumpIndCount { hp with } hrun
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:710 applyDeclD — `processLineCoreD`
 on both sides, by definition. -/
 theorem applyDeclD_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : ConLeche.Frontend.DeclRec}
     {x : StateD ⊕ RecordVerdict}
     (hrun : applyDeclD md sd d s = .ok (x, s')) :
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
       ∃ y, ConLeche.Frontend.applyDeclD sc d = .ok y ∧ SumRel s'.store x y :=
-  processLineCoreD_run hmw hmr hok hoff hrel hp hrun
+  processLineCoreD_run hmw hmr hok hoff hpins hrel hp hrun
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:719 applyLine — **THE SEMANTIC
 LAYER**: one scanned line applied.  Six arms; the two trivial ones (`header`,
@@ -3204,7 +3407,7 @@ Six arms over `parseExprEntryD_run` / `parseNameEntryD_run` /
 `Scan/Fast.lean` rather than twinning it. -/
 theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {r : ConLeche.Frontend.LineRec}
     {x : StateD ⊕ RecordVerdict}
@@ -3245,7 +3448,7 @@ theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
   | decl d =>
     rw [applyLine] at hrun
     obtain ⟨hstep, hpers, y, hcl, hxy⟩ :=
-      applyDeclD_run hmw hmr hok hoff hrel hp hrun
+      applyDeclD_run hmw hmr hok hoff hpins hrel hp hrun
     exact ⟨hstep, hpers, y, by rw [ConLeche.Frontend.applyLine]; exact hcl, hxy⟩
   | header =>
     rw [applyLine] at hrun

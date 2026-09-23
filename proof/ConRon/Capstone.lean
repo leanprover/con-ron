@@ -166,13 +166,14 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
     internReservedPins_run hok0 hoff0 hA
   obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
-      hokA hoffA hB
+      hokA hoffA hpinsA hB
   obtain ⟨hstep2, hpersR, rc, -, hrelR⟩ :=
     parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) hC
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins) hC
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])
+      (hpinsA.mono (hstep1.trans hstep2).ext (hstep1.trans hstep2).pins)
       (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
       (hnPre.mono hstep2.ext) hrelR.decls hpersR hrelR.projNamed hD
   have hoff3 : sD.store.scratchOn = false := by
