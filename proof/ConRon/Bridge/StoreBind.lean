@@ -129,6 +129,17 @@ theorem ETables.findBind_eq_find? (t : ETables) {tag : UInt32} {ty b : EIdx}
   · rfl
   · rfl
 
+/-- con-leche: none — arena infrastructure; the SKIPPING persistent probe at a
+binder record is the skipping probe at the view it spells out (task
+#97-T2-LOCKSTEP D2): both skip on `bindHasScratchChild` at the same three
+handles, and probe the same key. -/
+theorem EStore.persFindBindMaybe_eq_persFindMaybe (st : EStore) {tag : UInt32}
+    {ty b : EIdx} {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true) :
+    st.persFindBindMaybe tag ⟨ty, b, mi⟩ = st.persFindMaybe (eBindView tag ty b m) mi := by
+  rcases ETag.isBind_eq htag with rfl | rfl
+  · rfl
+  · rfl
+
 /-- con-leche: none — arena infrastructure; and the append at a binder RECORD
 is the append at that VIEW: the same array, the same record, the same
 handle. -/
@@ -166,6 +177,7 @@ theorem EStore.internBindI_eq_internAt {st : EStore} {tag : UInt32} {ty b : EIdx
     (hder : st.bmDer mi = (hash m.pw, m.pw.hasParams)) :
     st.internBindI tag ty b mi = st.internAt (eBindView tag ty b m) mi := by
   simp only [EStore.internBindI, EStore.internAt,
+    EStore.persFindBindMaybe_eq_persFindMaybe (m := m) _ htag,
     EStore.derOfBindAtI_eq_derOfView htag hder,
     ETables.findBind_eq_find? (m := m) _ htag,
     ETables.pushBind_eq_push (m := m) _ _ _ htag]
@@ -185,6 +197,7 @@ theorem EStore.findBindI_eq_findAt {st : EStore} {tag : UInt32} {ty b : EIdx}
     {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true) :
     st.findBindI tag ty b mi = st.findAt (eBindView tag ty b m) mi := by
   simp only [EStore.findBindI, EStore.findAt,
+    EStore.persFindBindMaybe_eq_persFindMaybe (m := m) _ htag,
     ETables.findBind_eq_find? (m := m) _ htag]
 
 /-- con-leche: none — arena infrastructure; and therefore it is `find?` at

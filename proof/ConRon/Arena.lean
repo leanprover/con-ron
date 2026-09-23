@@ -15,6 +15,7 @@ import ConRon.Arena.Handle
 import ConRon.Arena.Store
 import ConRon.Arena.Denote
 import ConRon.Arena.WF
+import ConRon.Arena.WFSkip
 import ConRon.Arena.WFProofs
 import ConRon.Arena.StoreTest
 import ConRon.Arena.Monad
