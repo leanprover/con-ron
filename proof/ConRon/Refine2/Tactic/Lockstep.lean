@@ -604,6 +604,264 @@ theorem LSS.tail {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → �
     obtain ⟨b, lst', h1, h2, h3, h4⟩ := h
     exact ⟨b, lst', h1, hR _ _ h2, h3, h4⟩
 
+/-! ## Walks that return their memo beside the `Result` (task #97-T2-TACTIC round 2)
+
+A memoised Rust walk hands its memo back OUTSIDE the `Result` (a `&mut`
+borrow comes back whatever happened): `(Result<T>, AState, M)` for a walk
+that threads the state (`arena::intern`'s `intern_expr_go`,
+`consts_resolve_f_go`), `(Result<T>, M)` for a reader
+(`all_level_params_defined_go`).  Such a computation is not `LS`'s shape, but
+it IS one after the memo moves into the answer: `packM`/`packRM` do that, and
+`LSM`/`LSRM` are `LS` of the packed computation, with the answer relation on
+`(answer, memo)`.  So the whole zip applies unchanged; the tactic unfolds an
+`LSM`/`LSRM` goal to its `LS`, pushes `packM` through the Rust program
+(`LS.packM_bind`, `_ok_ok`, `_ok_err`, `_ite`), and steps a memo walk as a
+callee with `LS.bindM`/`LS.bindRM` or in tail position with `LS.tailM`/
+`LS.tailRM`, its spec an `LSM`/`LSRM` lemma or hypothesis.  An error claims
+nothing about the memo, as the twin throws. -/
+
+/-- A state walk's outcome with its memo moved into the answer. -/
+def packMemo {α M : Type} :
+    core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M →
+    core.result.Result (α × M) kernel.core_types.CheckError × arena.monad.AState
+  | (.Ok a, st, mm) => (.Ok (a, mm), st)
+  | (.Err e, st, _) => (.Err e, st)
+
+/-- A state walk with its memo moved into the answer. -/
+def packM {α M : Type}
+    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)) :
+    Result (core.result.Result (α × M) kernel.core_types.CheckError × arena.monad.AState) :=
+  m >>= fun p => ok (packMemo p)
+
+/-- A reader walk's outcome with its memo moved into the answer, at the state
+`st` it read. -/
+def packRMemo {α M : Type} (st : arena.monad.AState) :
+    core.result.Result α kernel.core_types.CheckError × M →
+    core.result.Result (α × M) kernel.core_types.CheckError × arena.monad.AState
+  | (.Ok a, mm) => (.Ok (a, mm), st)
+  | (.Err e, _) => (.Err e, st)
+
+/-- A reader walk with its memo moved into the answer. -/
+def packRM {α M : Type} (st : arena.monad.AState)
+    (m : Result (core.result.Result α kernel.core_types.CheckError × M)) :
+    Result (core.result.Result (α × M) kernel.core_types.CheckError × arena.monad.AState) :=
+  m >>= fun p => ok (packRMemo st p)
+
+/-- **The lockstep judgement of a memoised state walk**: `LS` of the walk with
+its memo moved into the answer; `R` relates `(answer, memo)` to the twin's
+answer (typically the twin's `(answer, memo)` pair). -/
+def LSM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
+    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M))
+    (lst : AState) (x : AM β) : Prop :=
+  LS pers R (packM m) lst x
+
+/-- **The lockstep judgement of a memoised reader walk** at the state `st`. -/
+def LSRM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
+    (m : Result (core.result.Result α kernel.core_types.CheckError × M))
+    (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
+  LS pers R (packRM st m) lst x
+
+theorem LSM.toLS {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    {lst : AState} {x : AM β} (h : LSM pers R m lst x) : LS pers R (packM m) lst x := h
+
+/-- What an `LSM` says about one outcome, unpacked. -/
+theorem LSM.apply {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    {lst : AState} {x : AM β} (h : LSM pers R m lst x) {o st' mm}
+    (hm : m = ok (o, st', mm)) :
+    match o with
+    | .Ok a => ∃ b lst', x.run lst = .ok (b, lst') ∧ R (a, mm) b ∧ AStateRel₀ pers st' lst' ∧
+        AStateInv pers st'
+    | .Err e => AErrSim e (x.run lst) := by
+  have := h (packMemo (o, st', mm)).1 (packMemo (o, st', mm)).2
+    (by simp only [packM, hm, bind_tc_ok])
+  cases o <;> exact this
+
+/-- What an `LSRM` says about one outcome, unpacked. -/
+theorem LSRM.apply {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × M)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β} (h : LSRM pers R m st lst x) {o mm}
+    (hm : m = ok (o, mm)) :
+    match o with
+    | .Ok a => ∃ b lst', x.run lst = .ok (b, lst') ∧ R (a, mm) b ∧ AStateRel₀ pers st lst' ∧
+        AStateInv pers st
+    | .Err e => AErrSim e (x.run lst) := by
+  have := h (packRMemo st (o, mm)).1 (packRMemo st (o, mm)).2
+    (by simp only [packRM, hm, bind_tc_ok])
+  cases o <;> exact this
+
+/-- `LSM` from its outcomes. -/
+theorem LSM.intro {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    {lst : AState} {x : AM β}
+    (h : ∀ o st' mm, m = ok (o, st', mm) →
+      match o with
+      | .Ok a => ∃ b lst', x.run lst = .ok (b, lst') ∧ R (a, mm) b ∧
+          AStateRel₀ pers st' lst' ∧ AStateInv pers st'
+      | .Err e => AErrSim e (x.run lst)) : LSM pers R m lst x := by
+  intro o st' hm
+  obtain ⟨⟨r, st1, mm⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have := h r st1 mm h1
+  cases r with
+  | Ok a =>
+    cases Result.ok_injective h2
+    obtain ⟨b, lst', hx, hR, h3, h4⟩ := this
+    exact ⟨b, lst', hx, hR, h3, h4⟩
+  | Err e => cases Result.ok_injective h2; exact this
+
+/-! ### The Rust side of a packed walk -/
+
+theorem LS.packM_bind {γ α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {f : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    {lst : AState} {x : AM β} (h : LS pers R (f >>= fun p => packM (k p)) lst x) :
+    LS pers R (packM (f >>= k)) lst x := by
+  unfold packM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem LS.packM_ok_ok {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {a : α} {st : arena.monad.AState} {mm : M} {lst : AState} {x : AM β}
+    (h : LS pers R (ok (.Ok (a, mm), st)) lst x) :
+    LS pers R (packM (ok (.Ok a, st, mm))) lst x := by
+  unfold packM; rw [bind_tc_ok]; exact h
+
+theorem LS.packM_ok_err {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {e : kernel.core_types.CheckError} {st : arena.monad.AState} {mm : M} {lst : AState}
+    {x : AM β} (h : LS pers R (ok (.Err e, st)) lst x) :
+    LS pers R (packM (ok ((.Err e : core.result.Result α _), st, mm))) lst x := by
+  unfold packM; rw [bind_tc_ok]; exact h
+
+theorem LS.packM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {c : Prop} [Decidable c]
+    {a b : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    {lst : AState} {x : AM β}
+    (h : LS pers R (if c then packM a else packM b) lst x) :
+    LS pers R (packM (if c then a else b)) lst x := by
+  by_cases hc : c
+  · rw [if_pos hc] at h ⊢; exact h
+  · rw [if_neg hc] at h ⊢; exact h
+
+theorem LS.packRM_bind {γ α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {st : arena.monad.AState} {f : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × M)}
+    {lst : AState} {x : AM β} (h : LS pers R (f >>= fun p => packRM st (k p)) lst x) :
+    LS pers R (packRM st (f >>= k)) lst x := by
+  unfold packRM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem LS.packRM_ok_ok {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {a : α} {st : arena.monad.AState} {mm : M} {lst : AState} {x : AM β}
+    (h : LS pers R (ok (.Ok (a, mm), st)) lst x) :
+    LS pers R (packRM st (ok (.Ok a, mm))) lst x := by
+  unfold packRM; rw [bind_tc_ok]; exact h
+
+theorem LS.packRM_ok_err {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {e : kernel.core_types.CheckError} {st : arena.monad.AState} {mm : M} {lst : AState}
+    {x : AM β} (h : LS pers R (ok (.Err e, st)) lst x) :
+    LS pers R (packRM st (ok ((.Err e : core.result.Result α _), mm))) lst x := by
+  unfold packRM; rw [bind_tc_ok]; exact h
+
+theorem LS.packRM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
+    {st : arena.monad.AState} {c : Prop} [Decidable c]
+    {a b : Result (core.result.Result α kernel.core_types.CheckError × M)}
+    {lst : AState} {x : AM β}
+    (h : LS pers R (if c then packRM st a else packRM st b) lst x) :
+    LS pers R (packRM st (if c then a else b)) lst x := by
+  by_cases hc : c
+  · rw [if_pos hc] at h ⊢; exact h
+  · rw [if_neg hc] at h ⊢; exact h
+
+theorem ErrArm.packM_ok_err {α M : Type} {e : kernel.core_types.CheckError}
+    {st : arena.monad.AState} {mm : M} :
+    ErrArm (packM (ok ((.Err e : core.result.Result α _), st, mm))) e := by
+  unfold packM; rw [bind_tc_ok]; exact errArm_ok
+
+theorem ErrArm.packM_bind {γ α M : Type} {e : kernel.core_types.CheckError} {f : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    (h : ErrArm (f >>= fun p => packM (k p)) e) : ErrArm (packM (f >>= k)) e := by
+  unfold packM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem ErrArm.packRM_ok_err {α M : Type} {e : kernel.core_types.CheckError}
+    {st : arena.monad.AState} {mm : M} :
+    ErrArm (packRM st (ok ((.Err e : core.result.Result α _), mm))) e := by
+  unfold packRM; rw [bind_tc_ok]; exact errArm_ok
+
+theorem ErrArm.packRM_bind {γ α M : Type} {e : kernel.core_types.CheckError}
+    {st : arena.monad.AState} {f : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × M)}
+    (h : ErrArm (f >>= fun p => packRM st (k p)) e) : ErrArm (packRM st (f >>= k)) e := by
+  unfold packRM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+/-! ### A memoised walk as a callee -/
+
+/-- A memoised state walk as a callee (its memo comes back beside the result). -/
+theorem LS.bindM {α γ β δ M : Type} {pers : arena.store.PersTier}
+    {R₁ : α × M → β → Prop} {R : γ → δ → Prop}
+    {f : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    {k : core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x' x : AM β} {g : β → AM δ}
+    (hf : LSM pers R₁ f lst x') (hx : x' = x)
+    (he : ∀ e st1 mm, ErrArm (k (.Err e, st1, mm)) e)
+    (hk : ∀ a mm b st1 lst1, R₁ (a, mm) b → AStateRel₀ pers st1 lst1 → AStateInv pers st1 →
+      LS pers R (k (.Ok a, st1, mm)) lst1 (g b)) :
+    LS pers R (f >>= k) lst (x >>= g) := by
+  subst hx
+  intro o st' hm
+  obtain ⟨⟨r, st1, mm⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have h1 := hf.apply hf1
+  cases r with
+  | Err e =>
+    have := he e st1 mm o st' hk1
+    subst this
+    exact errSim_bind h1
+  | Ok a =>
+    obtain ⟨b, lst1, hx1, hR, hrel, hinv⟩ := h1
+    rw [run_bind_ok hx1]
+    exact hk a mm b st1 lst1 hR hrel hinv o st' hk1
+
+/-- A memoised reader walk as a callee, reading at the current state `st`. -/
+theorem LS.bindRM {α γ β δ M : Type} {pers : arena.store.PersTier}
+    {R₁ : α × M → β → Prop} {R : γ → δ → Prop}
+    {f : Result (core.result.Result α kernel.core_types.CheckError × M)}
+    {st : arena.monad.AState}
+    {k : core.result.Result α kernel.core_types.CheckError × M →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x' x : AM β} {g : β → AM δ}
+    (hf : LSRM pers R₁ f st lst x') (hx : x' = x)
+    (he : ∀ e mm, ErrArm (k (.Err e, mm)) e)
+    (hk : ∀ a mm b lst1, R₁ (a, mm) b → AStateRel₀ pers st lst1 → AStateInv pers st →
+      LS pers R (k (.Ok a, mm)) lst1 (g b)) :
+    LS pers R (f >>= k) lst (x >>= g) := by
+  subst hx
+  intro o st' hm
+  obtain ⟨⟨r, mm⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have h1 := hf.apply hf1
+  cases r with
+  | Err e =>
+    have := he e mm o st' hk1
+    subst this
+    exact errSim_bind h1
+  | Ok a =>
+    obtain ⟨b, lst1, hx1, hR, hrel, hinv⟩ := h1
+    rw [run_bind_ok hx1]
+    exact hk a mm b lst1 hR hrel hinv o st' hk1
+
+/-- A memoised state walk in tail position of a packed walk. -/
+theorem LS.tailM {α β M : Type} {pers : arena.store.PersTier} {R₁ R : α × M → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
+    {lst : AState} {x' x : AM β}
+    (hf : LSM pers R₁ m lst x') (hx : x' = x) (hR : ∀ p b, R₁ p b → R p b) :
+    LS pers R (packM m) lst x :=
+  LS.tail hf hx hR
+
+/-- A memoised reader walk in tail position of a packed reader walk. -/
+theorem LS.tailRM {α β M : Type} {pers : arena.store.PersTier} {R₁ R : α × M → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × M)}
+    {st : arena.monad.AState} {lst : AState} {x' x : AM β}
+    (hf : LSRM pers R₁ m st lst x') (hx : x' = x) (hR : ∀ p b, R₁ p b → R p b) :
+    LS pers R (packRM st m) lst x :=
+  LS.tail hf hx hR
+
 /-! ## Rust-side normalisation of an inlined fragment -/
 
 theorem LS.rust_assoc {γ δ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
@@ -1271,6 +1529,10 @@ partial def headNorm (e : Expr) : MetaM Expr := do
     match ← withTransparency .default (Meta.reduceMatcher? e) with
     | ReduceMatcherResult.reduced e' => return ← headNorm e'
     | _ => return e
+  -- a packed memo walk: its Rust program is the argument
+  if e.isAppOfArity ``packM 3 || e.isAppOfArity ``packRM 4 then
+    let n := e.getAppNumArgs
+    return mkAppN e.getAppFn (e.getAppArgs.set! (n - 1) (← headNorm e.appArg!))
   return e
 
 /-- The twin side's `simp only [lockstep_simp]`, on the twin argument alone. -/
@@ -1350,6 +1612,21 @@ partial def splitRels (g : MVarId) : TacticM MVarId := g.withContext do
         match (← getLCtx).findFromUserName? `hR with
         | some d => instantiateMVars d.type
         | none => pure (mkConst ``True)
+      -- a relation constant that unfolds (reducibly) to a conjunction (a
+      -- memo walk's `(answer, memo)` relation): unfold it, reduce the pair
+      -- projections, and split as below
+      let (g1, t) ← g1.withContext do
+        if t.isAppOfArity ``And 2 then return (g1, t)
+        let t' ← whnfR t
+        unless t'.isAppOfArity ``And 2 do return (g1, t)
+        let some d := (← getLCtx).findFromUserName? `hR | return (g1, t)
+        let g1' ← g1.replaceLocalDeclDefEq d.fvarId t'
+        let [g1''] ← runOn g1' (evalT `(tactic| try dsimp only at $hi:ident)) | return (g1', t')
+        let t'' ← g1''.withContext do
+          match (← getLCtx).findFromUserName? `hR with
+          | some d => instantiateMVars d.type
+          | none => pure t'
+        return (g1'', t'')
       if t.isAppOfArity ``And 2 then
         let rest ← runOn g1 (evalT `(tactic| (obtain ⟨$hl:ident, $hi:ident⟩ := $hi:ident; try subst $hl:ident)))
         let [g2] := rest | return g1
@@ -1392,11 +1669,20 @@ def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
 /-- The Rust computation's shape. -/
 inductive RKind where
   | state | read | write | value
+  /-- a memoised state walk, `(Result α, AState, M)` -/
+  | memo
+  /-- a memoised reader walk, `(Result α, M)` -/
+  | rmemo
 
 def classify (T : Expr) : MetaM RKind := do
   let T ← whnfR T
   if T.isAppOfArity ``Prod 2 && (T.getArg! 0).isAppOfArity ``core.result.Result 2 then
-    return .state
+    let rest ← whnfR (T.getArg! 1)
+    if rest.isAppOfArity ``Prod 2 && (← whnfR (rest.getArg! 0)).isConstOf ``arena.monad.AState then
+      return .memo
+    if rest.isConstOf ``arena.monad.AState || rest.isConstOf ``arena.store.EStore then
+      return .state
+    return .rmemo
   if T.isAppOfArity ``core.result.Result 2 then return .read
   if T.isConstOf ``arena.monad.AState then return .write
   return .value
@@ -1413,6 +1699,16 @@ partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.with
   let ty ← instantiateMVars (← g.getType)
   let m ← headNorm (ty.getArg! 1)
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
+  -- a packed memo walk's error arm
+  if m.isAppOfArity ``packM 3 || m.isAppOfArity ``packRM 4 then
+    let isM := m.isAppOfArity ``packM 3
+    let t := m.appArg!
+    if t.isAppOfArity ``Result.ok 2 then
+      return ← runClosed g (if isM then evalT `(tactic| exact ErrArm.packM_ok_err)
+        else evalT `(tactic| exact ErrArm.packRM_ok_err))
+    if depth < 16 && t.isAppOfArity ``Bind.bind 6 then
+      let gs ← applyRule g (if isM then ``ErrArm.packM_bind else ``ErrArm.packRM_bind)
+      return ← errArmChain (← pick gs `h) (depth + 1)
   if depth < 16 && m.isAppOfArity ``Bind.bind 6 then
     let f ← headNorm (m.getArg! 4)
     if f.isAppOfArity ``Result.ok 2 then
@@ -1534,11 +1830,23 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
         let hx ← pick gs `hx
         specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         return ← cont (← pick gs `hk) [`a, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
+      | .memo =>
+        let gs ← applyRule g ``LS.bindM
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
+        errArm (← pick gs `he) [`e, `st1, `mm]
+        return ← cont (← pick gs `hk) [`a, `mm, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
+      | .rmemo =>
+        let gs ← applyRule g ``LS.bindRM
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
+        errArm (← pick gs `he) [`e, `mm]
+        return ← cont (← pick gs `hk) [`a, `mm, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
     catch e =>
       s.restore
       firstErr.set (some e)
       match kind with
-      | .state | .write =>
+      | .state | .write | .memo | .rmemo =>
         -- the twin ends in the partner action where the Rust still binds.
         -- Atomic: the bind is taken on the rewritten goal at once, or the
         -- rewrite is undone — a bare `x >>= pure` goal would be normalised back
@@ -1582,7 +1890,14 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
       if r.isAppOfArity ``core.result.Result.Ok 3 then
         let gs ← applyRule g ``LS.pure
         for n in [`hR, `hrel, `hinv] do
-          runClosed (← pick gs n) (evalT `(tactic| lockstep_side))
+          let sg ← pick gs n
+          -- a relation constant that unfolds (reducibly) to a conjunction
+          let sg ← sg.withContext do
+            let t ← instantiateMVars (← sg.getType)
+            if t.isAppOfArity ``And 2 then return sg
+            let t' ← whnfR t
+            if t'.isAppOfArity ``And 2 then sg.replaceTargetDefEq t' else return sg
+          runClosed sg (evalT `(tactic| lockstep_side))
         return []
       if r.isAppOfArity ``core.result.Result.Err 3 then
         let gs ← applyRule g ``LS.err
@@ -1778,18 +2093,31 @@ partial def twinEqsOf (pf t : Expr) : MetaM (List (Expr × Expr)) := do
 def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   unless ty.isAppOfArity ``LS 7 do return g
+  let some ext ← getSimpExtension? `lockstep_simp | return g
+  let base ← ext.getTheorems
+  let baseCtx ← Simp.mkContext (simpTheorems := #[base]) (congrTheorems := ← getSimpCongrTheorems)
   let mut thms : SimpTheorems := {}
   let mut any := false
+  let mut i := 0
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t ← instantiateMVars d.type
     for (pf, te) in ← twinEqsOf d.toExpr t do
-      let eqTy ← mkEq (te.getArg! 1) (te.getArg! 2)
-      thms ← thms.add (.fvar d.fvarId) #[] (← mkExpectedTypeHint pf eqTy)
+      let lhs := te.getArg! 1
+      let rhs := te.getArg! 2
+      let pf ← mkExpectedTypeHint pf (← mkEq lhs rhs)
+      thms ← thms.add (.fvar d.fvarId) #[] pf
+      -- the twin side is in `lockstep_simp` normal form, so the fact's left
+      -- side is used in that form too (simp rewrites the subterms first)
+      let (r, _) ← simp lhs baseCtx
+      if r.expr != lhs then
+        let pf' ← match r.proof? with
+          | some p => mkEqTrans (← mkEqSymm p) pf
+          | none => mkExpectedTypeHint pf (← mkEq r.expr rhs)
+        thms ← thms.add (.other (Name.mkSimple s!"lockstepTwinEq{i}")) #[] pf'
+        i := i + 1
       any := true
   unless any do return g
-  let some ext ← getSimpExtension? `lockstep_simp | return g
-  let base ← ext.getTheorems
   let x := ty.getArg! 6
   let ctx ← Simp.mkContext (simpTheorems := #[base, thms]) (congrTheorems := ← getSimpCongrTheorems)
   let (r, _) ← simp x ctx
@@ -1813,12 +2141,56 @@ def applyWith (g : MVarId) (rule : Name) (side : List Name) (next : Name)
     runClosed (← pick gs s) (evalT `(tactic| (intros; rfl)))
   pick gs next
 
+/-- One Rust-side move of a packed memo walk `packM t` / `packRM st t`. -/
+def packMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext do
+  let isM := m.isAppOfArity ``packM 3
+  let t ← headNorm m.appArg!
+  if t.isAppOfArity ``Bind.bind 6 then
+    let gs ← applyRule g (if isM then ``LS.packM_bind else ``LS.packRM_bind)
+    return ← normAll [← pick gs `h]
+  if t.isAppOfArity ``ite 5 then
+    let gs ← applyRule g (if isM then ``LS.packM_ite else ``LS.packRM_ite)
+    return ← normAll [← pick gs `h]
+  if t.isAppOfArity ``Result.ok 2 then
+    let v ← instantiateMVars t.appArg!
+    if v.isAppOfArity ``Prod.mk 4 then
+      let r := (v.getArg! 2).headBeta
+      if r.isAppOf ``core.result.Result.Ok then
+        let gs ← applyRule g (if isM then ``LS.packM_ok_ok else ``LS.packRM_ok_ok)
+        return ← normAll [← pick gs `h]
+      if r.isAppOf ``core.result.Result.Err then
+        let gs ← applyRule g (if isM then ``LS.packM_ok_err else ``LS.packRM_ok_err)
+        return ← normAll [← pick gs `h]
+      if let .fvar fv := r then
+        let subs ← g.cases fv
+        return ← normAll (subs.toList.map (·.mvarId))
+    throwError "lockstep: a packed Rust leaf with no constructor to read{indentExpr t}"
+  if t.isAppOfArity ``Aeneas.Std.uncurry 5 then
+    if let .fvar fv := t.appArg! then
+      let subs ← g.cases fv
+      return ← normAll (subs.toList.map (·.mvarId))
+  if let some mapp ← matchMatcherApp? t then
+    if let some (.fvar fv) := mapp.discrs.find? (·.isFVar) then
+      let subs ← g.cases fv
+      return ← normAll (subs.toList.map (·.mvarId))
+    throwError "lockstep: a packed Rust `match` on a term{indentExpr t}"
+  -- a memoised walk in tail position
+  let gs ← applyRule g (if isM then ``LS.tailM else ``LS.tailRM)
+  let hx ← pick gs `hx
+  specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
+  runClosed (← pick gs `hR)
+    (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
+  return []
+
 /-- The Core tier's extra moves; `none` when none applies. -/
 def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let some rp := rustPos ty | return none
   let isLS := rp == 4
   let m := (ty.getArg! rp).headBeta
+  -- a packed memo walk (an unfolded `LSM`/`LSRM`): push the packing through
+  if isLS && (m.isAppOfArity ``packM 3 || m.isAppOfArity ``packRM 4) then
+    return some (← packMove g m)
   -- a tail call to a fragment
   if let some n := m.getAppFn.constName? then
     if ← isInline n then
@@ -1956,7 +2328,14 @@ elab "lockstep_step" : tactic => do
   -- matched on its bare form
   let g ← g.withContext do
     let ty ← instantiateMVars (← g.getType)
-    if ty.consumeMData != ty then g.replaceTargetDefEq ty.consumeMData else pure g
+    let g ← if ty.consumeMData != ty then g.replaceTargetDefEq ty.consumeMData else pure g
+    -- a memoised walk's judgement is `LS` of the packed walk
+    let ty := ty.consumeMData
+    if ty.isAppOfArity ``LSM 8 || ty.isAppOfArity ``LSRM 9 then
+      match ← unfoldDefinition? ty with
+      | some ty' => g.replaceTargetDefEq ty'
+      | none => pure g
+    else pure g
   let others := (← getGoals).tail
   let s ← saveState
   try

@@ -210,6 +210,78 @@ example {pers st lst} {h h' : arena.handle.EIdx}
   lockstep_step_fails_with "no candidate for `ConRon.Generated.arena.monad.view` closes"
   sorry
 
+/-! ## 6. Memoised walks: `LSM` / `LSRM`
+
+Walks that return their memo beside the `Result` (the Checker tier's
+`consts_resolve_f_*` and `all_level_params_defined_*`, the Promote tier's
+intern walks) are zipped by `lockstep` through `LSM` (state) and `LSRM`
+(reader); the recursive walk is a hypothesis here, as an induction
+hypothesis is in a fuel induction. -/
+
+/-- The answer-and-memo relation of the Checker tier's `Bool`-memo walks. -/
+abbrev BMemoR (p : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (b : Bool × Std.HashMap EIdx Bool) : Prop :=
+  b.1 = p.1 ∧ ExprOps.LMemoRel p.2 b.2
+
+/-- `consts_resolve_f_two`: two memoised state walks in a row, the memo
+threaded, the two answers combined. -/
+example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    {rm lm} {fuel : Std.U64} {a b : arena.handle.EIdx}
+    (hgo : ∀ {st lst rm lm} (h : arena.handle.EIdx), AStateRel₀ pers st lst →
+      AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LSM pers BMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
+        (constsResolveFGo lf lm (absU fuel) (absEIdx h)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ExprOps.LMemoRel rm lm) :
+    LSM pers BMemoR (arena.checker_base.consts_resolve_f_two pers vis st rf rm fuel a b) lst
+      (do
+        let (b₁, memo) ← constsResolveFGo lf lm (absU fuel) (absEIdx a)
+        let (b₂, memo) ← constsResolveFGo lf memo (absU fuel) (absEIdx b)
+        pure (b₁ && b₂, memo)) := by
+  rw [arena.checker_base.consts_resolve_f_two]
+  lockstep
+
+/-- `consts_resolve_f_fast`: a fresh memo, the walk as a callee, the memo
+dropped. -/
+example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    {e : arena.handle.EIdx}
+    (hgo : ∀ {st lst rm lm} (fuel : Std.U64) (h : arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LSM pers BMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
+        (constsResolveFGo lf lm (absU fuel) (absEIdx h)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.checker_base.consts_resolve_f_fast pers vis st rf e)
+      lst (constsResolveFFast lf (absEIdx e)) := by
+  rw [arena.checker_base.consts_resolve_f_fast, constsResolveFFast]
+  lockstep
+
+/-- `all_level_params_defined_binder`: a memoised READER walk (`LSRM`), twice,
+with the binder's own test between. -/
+example {pers st lst} {params : alloc.vec.Vec kernel.name.Name} {rm lm}
+    {fuel : Std.U64} {t b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    (hgo : ∀ {rm lm lst} (h : arena.handle.EIdx), AStateRel₀ pers st lst →
+      AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LSRM pers BMemoR (arena.checker_base.all_level_params_defined_go pers st params rm fuel h)
+        st lst
+        (allLevelParamsDefinedGo (ConRon.Refine.absNames params) lm (absU fuel) (absEIdx h)))
+    (hpd : LSP (kernel.prop_when.params_defined params m.pw)
+      (fun b3 => TwinEq ((ConRon.Refine.absBinderMeta m).pw.paramsDefined
+        (ConRon.Refine.absNames params)) b3))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ExprOps.LMemoRel rm lm) :
+    LSRM pers BMemoR
+      (arena.checker_base.all_level_params_defined_binder pers st params rm fuel t b m) st lst
+      (do
+        let (b₁, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
+          lm (absU fuel) (absEIdx t)
+        if !b₁ then pure (false, memo) else do
+          let (b₂, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
+            memo (absU fuel) (absEIdx b)
+          pure (b₂ && (ConRon.Refine.absBinderMeta m).pw.paramsDefined
+            (ConRon.Refine.absNames params), memo)) := by
+  rw [arena.checker_base.all_level_params_defined_binder]
+  lockstep
+
 /-! ## The axiom census -/
 
 #print axioms lift_fueled_any_ls
