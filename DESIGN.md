@@ -55896,3 +55896,19 @@ measure the machine.
   not exported, to keep out of those files).
 * `OVERVIEW.md` §8.2's driver and pool rows, and
   `scripts/overview-links-expected.txt`.
+
+#### 6. Gates, merge and cache
+
+`arena` merged at `e899ecd1` (P3-Frontend round 8, P3-Checker round 9,
+P5-Front, P3-Promote): two conflicts — `Capstone.lean` (the capstone lost
+`hsc` to `scanSpec` there while it gained `hreads` here; both kept) and this
+file (both appends kept) — and one follow-up, `annotFold_bridge`'s new
+`NodupNames` argument in `Bridge/Checker/Phased.lean`.  `scripts/gates.sh` on
+the result: **all 16 OK** (`extract-check` 103 s).  Capstone frontier
+(`frontier.sh`): **32 items in 13 modules, 103 tainted declarations** — none
+of them in this task's four new modules, which carry no `sorry`; census of the
+two roots unchanged.  The shared Lake cache was seeded from this worktree
+(`LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build
+ConRonRefine2 ConRonBridge ConRonCapstone`), `Refine2/Core/Eqns.lean` (1 036 s
+here) included.
+
