@@ -48,6 +48,25 @@ def RenameRel (st : EStore) (tbl : List (NIdx × NIdx))
   ∀ (n : NIdx) (nm : ConLeche.Name), denoteN st.ns n = some nm →
     denoteN st.ns (Arena.renameBy tbl n) = some (f nm)
 
+/-- con-leche: none — **a rename relation at every well-formed extension**
+(task #97-P3-Ind round 8): the form the iota family needs, because its
+renaming walks run at stores the certificate's earlier steps have grown, and
+`RenameRel` is not monotone in general (round 7's R7.5).  The two builders
+supply it (`blockRenameTable_specW`, `projBack_specW`/`projFwd_specW`). -/
+def RenameRelW (st : EStore) (tbl : List (NIdx × NIdx))
+    (f : ConLeche.Name → ConLeche.Name) : Prop :=
+  ∀ st' : EStore, Ext st st' → StoreWF st' → RenameRel st' tbl f
+
+theorem RenameRelW.mono {st st' : EStore} {tbl : List (NIdx × NIdx)}
+    {f : ConLeche.Name → ConLeche.Name} (h : RenameRelW st tbl f) (hx : Ext st st') :
+    RenameRelW st' tbl f :=
+  fun st'' hx' hwf => h st'' (hx.trans hx') hwf
+
+theorem RenameRelW.now {st : EStore} {tbl : List (NIdx × NIdx)}
+    {f : ConLeche.Name → ConLeche.Name} (h : RenameRelW st tbl f) (hwf : StoreWF st) :
+    RenameRel st tbl f :=
+  h st (Ext.refl _) hwf
+
 /-- con-leche: none — a rename relation survives an append, because both sides
 are `denoteN` facts. -/
 theorem RenameRel.ext {st st' : EStore} {tbl : List (NIdx × NIdx)}
@@ -1215,7 +1234,7 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
     CSpec μ envSelf feSelf
-      (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
+      (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRule st r = some rP' ∧
         Frontend.denoteCV st cvj = some cvjP ∧ denoteE st rhsA = some rhsAP ∧
@@ -1264,7 +1283,7 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
     CSpec μ envSelf feSelf
-      (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
+      (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRule st r = some rP' ∧
         Frontend.denoteCV st cvj = some cvjP ∧ denoteE st rhsA = some rhsAP ∧
@@ -1289,7 +1308,7 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) :
     CSpec μ envSelf feSelf
-      (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
+      (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRule st r = some rP' ∧
         denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
@@ -1311,7 +1330,7 @@ theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (rs : List IRecRule) (rsP : List RecRule) :
     CSpec μ envSelf feSelf
-      (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
+      (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRules st rs = some rsP ∧
         denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
@@ -1320,7 +1339,52 @@ theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (fun st x => ∃ F rls, ConLeche.checkIotaRules μ (ConLeche.fueledOps μ F)
         env' envSelf fP cvNameP lpsP tyAP mI rP j rsP = .ok rls ∧
         Frontend.denoteRules st x = some rls) := by
-  sorry
+  induction rs generalizing j rsP with
+  | nil =>
+    intro s₀ s' r hck hpre hrun
+    obtain ⟨-, -, -, -, hrs, -⟩ := hpre
+    simp only [Frontend.denoteRules, Option.some.injEq] at hrs
+    subst hrs
+    simp only [Arena.checkIotaRules] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hck, 0, [], rfl, rfl⟩
+  | cons rl rest ih =>
+    intro s₀ s' r hck hpre hrun
+    obtain ⟨hren, hcn, hlps, hty, hrs, hfe', hfeS, hok'⟩ := hpre
+    simp only [Frontend.denoteRules] at hrs
+    cases hr1 : Frontend.denoteRule s₀.store rl with
+    | none => rw [hr1] at hrs; simp at hrs
+    | some rlP =>
+    cases hr2 : Frontend.denoteRules s₀.store rest with
+    | none => rw [hr1, hr2] at hrs; simp at hrs
+    | some restP =>
+    rw [hr1, hr2] at hrs
+    obtain rfl := (Option.some.inj hrs).symm
+    simp only [Arena.checkIotaRules] at hrun
+    obtain ⟨r1, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, F₁, rl', hF₁, hrl'⟩ := checkIotaRule_spec fe' feSelf env' envSelf hk henv tbl fP
+      cvName cvNameP lps lpsP tyA tyAP mI rP j rl rlP s₀ s₁ r1 hck
+      ⟨hren, hcn, hlps, hty, hr1, hfe', hfeS, hok'⟩ k1
+    have x1 := c1.ext
+    obtain ⟨r2, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨c2, F₂, rls, hF₂, hrls⟩ := ih (j + 1) restP s₁ s₂ r2 c1.ok
+      ⟨hren.mono x1, denoteN_ext hcn x1, denoteNListE_ext x1 _ _ hlps, denote_ext hty x1,
+        denoteRules_ext x1 _ _ hr2, denoteFEnv_ext x1 hfe', denoteFEnv_ext x1 hfeS,
+        hok'.mono x1⟩ k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c1.trans c2, max F₁ F₂, rl' :: rls, ?_, ?_⟩
+    · have g₁ : ConLeche.checkIotaRule μ (ConLeche.fueledOps μ (max F₁ F₂)) env' envSelf fP
+          cvNameP lpsP tyAP mI rP j rlP = .ok rl' := by
+        rw [← ConLeche.checkIotaRule_datF] at hF₁ ⊢
+        exact (ConLeche.checkIotaRule μ (ConLeche.fueledOpsM μ) env' envSelf fP cvNameP lpsP
+          tyAP mI rP j rlP).property (Nat.le_max_left F₁ F₂) hF₁
+      have g₂ : ConLeche.checkIotaRules μ (ConLeche.fueledOps μ (max F₁ F₂)) env' envSelf fP
+          cvNameP lpsP tyAP mI rP (j + 1) restP = .ok rls := by
+        rw [← ConLeche.checkIotaRules_datF] at hF₂ ⊢
+        exact (ConLeche.checkIotaRules μ (ConLeche.fueledOpsM μ) env' envSelf fP cvNameP lpsP
+          tyAP mI rP (j + 1) restP).property (Nat.le_max_right F₁ F₂) hF₂
+      simp only [ConLeche.checkIotaRules, bind, Except.bind, g₁, g₂, pure, Except.pure]
+    · simp only [Frontend.denoteRules, denoteRule_ext hrl' c2.ext, hrls]
 
 /-! ## The member checks -/
 
@@ -1698,6 +1762,54 @@ def denoteRecs (st : EStore) :
     | _, _, _ => none
 
 
+/-- con-leche: none — a provisioned recursor list keeps its denotation as
+the arena grows. -/
+theorem denoteRecs_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ {cs : List (IConstantVal × Nat × Nat × List IRecRule)}
+      {csP : List (ConstantVal × Nat × Nat × List RecRule)},
+      denoteRecs st cs = some csP → denoteRecs st' cs = some csP
+  | [], csP, h => h
+  | (cv, mI, rP, rs) :: rest, csP, h => by
+    simp only [denoteRecs] at h ⊢
+    split at h
+    · rename_i a b c ha hb hc
+      rw [denoteCV_ext ha hx, denoteRules_ext hx _ _ hb, denoteRecs_ext hx hc]
+      exact h
+    · exact nomatch h
+
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean:428 checkIotaRules_datF — one fuel
+for the recursor group's install fold. -/
+theorem iotaFold_up {μ : CheckMode} {F G : Nat} {env₂ envSelf : Env}
+    {fP : ConLeche.Name → ConLeche.Name}
+    {cs : List (ConstantVal × Nat × Nat × List RecRule)} {a e : Env} (hle : F ≤ G)
+    (h : cs.foldlM (fun (a : Env) c => do
+          let rules' ← ConLeche.checkIotaRules μ (ConLeche.fueledOps μ F) env₂ envSelf fP
+            c.1.name c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2
+          pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env)) a = .ok e) :
+    cs.foldlM (fun (a : Env) c => do
+          let rules' ← ConLeche.checkIotaRules μ (ConLeche.fueledOps μ G) env₂ envSelf fP
+            c.1.name c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2
+          pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env)) a = .ok e := by
+  have e1 : ∀ F, cs.foldlM (fun (a : Env) c => do
+          let rules' ← ConLeche.checkIotaRules μ (ConLeche.fueledOps μ F) env₂ envSelf fP
+            c.1.name c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2
+          pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env)) a =
+      (cs.foldlM (fun (a : Env) c => (do
+          let rules' ← ConLeche.checkIotaRules μ (ConLeche.fueledOpsM μ) env₂ envSelf fP
+            c.1.name c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2
+          pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env) :
+            ConLeche.FueledM Env)) a).val F := by
+    intro F
+    rw [ConLeche.foldlM_atF]
+    simp only [ConLeche.FueledM.atF_bind, ConLeche.checkIotaRules_datF,
+      ConLeche.FueledM.atF_pure]
+  rw [e1] at h ⊢
+  exact (cs.foldlM (fun (a : Env) c => (do
+          let rules' ← ConLeche.checkIotaRules μ (ConLeche.fueledOpsM μ) env₂ envSelf fP
+            c.1.name c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2
+          pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env) :
+            ConLeche.FueledM Env)) a).property hle h
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
 The recursors' headers checked and PROVISIONALLY installed (their rules may
 mention each other, so they install as a group).
@@ -1733,17 +1845,81 @@ theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
     (cs : List (IConstantVal × Nat × Nat × List IRecRule))
     (csP : List (ConstantVal × Nat × Nat × List RecRule)) :
     CSpec μ envSelf feSelf
-      (fun st => RenameRel st tbl fP ∧ denoteFEnv st fe₂ = some env₂ ∧
+      (fun st => RenameRelW st tbl fP ∧ denoteFEnv st fe₂ = some env₂ ∧
         denoteFEnv st feSelf = some envSelf ∧
         denoteFEnv st acc = some envAcc ∧ IFEnvOKS env₂ fe₂ st ∧
-        denoteRecs st cs = some csP)
+        denoteRecs st cs = some csP ∧ IFEnvOKS envAcc acc st)
       (Arena.installIndRecs μ fe₂ feSelf tbl acc cs)
-      (InstRel acc (fun e => ∃ F, csP.foldlM (fun (a : Env) c => do
+      (fun st r => InstRel acc (fun e => (∃ F, csP.foldlM (fun (a : Env) c => do
           let rules' ← ConLeche.checkIotaRules μ (ConLeche.fueledOps μ F) env₂ envSelf fP
             c.1.name c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2
           pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env)) envAcc
-        = .ok e)) := by
-  sorry
+        = .ok e) ∧ IFEnvOKS e r st) st r) := by
+  induction cs generalizing acc envAcc csP with
+  | nil =>
+    intro s₀ s' r hck hpre hrun
+    obtain ⟨-, -, -, hacc, -, hcs, hokA⟩ := hpre
+    simp only [denoteRecs, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.installIndRecs] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hck, hcoh, Pushed.refl _, Nat.le_refl _,
+      ⟨envAcc, hacc, ⟨0, rfl⟩, hokA⟩, ProjOut.refl _ _⟩
+  | cons c cs ih =>
+    intro s₀ s' r hck hpre hrun
+    obtain ⟨hren, hfe₂, hfeS, hacc, hok₂, hcs, hokA⟩ := hpre
+    obtain ⟨cv, mI, rP, rs⟩ := c
+    simp only [denoteRecs] at hcs
+    cases hcv : Frontend.denoteCV s₀.store cv with
+    | none => rw [hcv] at hcs; simp at hcs
+    | some cvP =>
+    cases hrs : Frontend.denoteRules s₀.store rs with
+    | none => rw [hcv, hrs] at hcs; simp at hcs
+    | some rsP =>
+    cases hrest : denoteRecs s₀.store cs with
+    | none => rw [hcv, hrs, hrest] at hcs; simp at hcs
+    | some restP =>
+    rw [hcv, hrs, hrest] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    simp only [Arena.installIndRecs] at hrun
+    obtain ⟨rules', s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, F₁, rlsP, hF₁, hrls⟩ := checkIotaRules_spec fe₂ feSelf env₂ envSelf hk henvSelf
+      tbl fP cv.name cvP.name cv.levelParams cvP.levelParams cv.type cvP.type mI rP 0 rs rsP
+      s₀ s₁ rules' hck ⟨hren, denoteCV_name hcv, denoteCV_lps hcv, denoteCV_type hcv, hrs,
+        hfe₂, hfeS, hok₂⟩ k1
+    have x1 := c1.ext
+    have hci : Frontend.denoteCI s₁.store (.recInfo cv mI rP rules') =
+        some (.recInfo cvP mI rP rlsP) := by
+      simp only [Frontend.denoteCI, denoteCV_ext hcv x1, hrls]
+    have hpush := denoteFEnv_push (denoteFEnv_ext x1 hacc) hci
+    have hokA₁ : IFEnvOKS ⟨.recInfo cvP mI rP rlsP :: envAcc.consts⟩
+        (acc.push (.recInfo cv mI rP rules')) s₁.store := by
+      intro t ht
+      have h0 : IFEnvOK envAcc acc t := hokA.mono x1 t ht
+      obtain ⟨c, hc, he⟩ := denoteFEnv_push_inv (denoteFEnv_ext x1 hacc) hpush
+      have hst : StateOK t := ⟨by rw [ht]; exact c1.ok.state.wf⟩
+      have := h0.push hst hcoh (fun t' h => IConstantInfo.noConfusion h) (by rw [ht]; exact hci)
+      exact this
+    obtain ⟨c2, hinst₂⟩ := ih (acc.push (.recInfo cv mI rP rules'))
+      ⟨.recInfo cvP mI rP rlsP :: envAcc.consts⟩ (hcoh.push _) restP s₁ s' r c1.ok
+      ⟨hren.mono x1, denoteFEnv_ext x1 hfe₂, denoteFEnv_ext x1 hfeS, hpush, hok₂.mono x1,
+        denoteRecs_ext x1 hrest, hokA₁⟩ z1
+    refine ⟨c1.trans c2, ?_⟩
+    have h1 : InstRel acc (fun _ => True) s₁.store (acc.push (.recInfo cv mI rP rules')) :=
+      ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hpush, trivial⟩,
+        ProjOut.push hcoh _ (fun t h => IConstantInfo.noConfusion h)⟩
+    refine (InstRel.trans c2.ext h1 hinst₂).imp ?_
+    rintro e ⟨⟨F₂, hF₂⟩, hr⟩
+    refine ⟨⟨max F₁ F₂, ?_⟩, hr⟩
+    have g₁ : ConLeche.checkIotaRules μ (ConLeche.fueledOps μ (max F₁ F₂)) env₂ envSelf fP
+        cvP.name cvP.levelParams cvP.type mI rP 0 rsP = .ok rlsP := by
+      rw [← ConLeche.checkIotaRules_datF] at hF₁ ⊢
+      exact (ConLeche.checkIotaRules μ (ConLeche.fueledOpsM μ) env₂ envSelf fP cvP.name
+        cvP.levelParams cvP.type mI rP 0 rsP).property (Nat.le_max_left F₁ F₂) hF₁
+    have g₂ := iotaFold_up (μ := μ) (Nat.le_max_right F₁ F₂) hF₂
+    rw [List.foldlM_cons]
+    simp only [bind, Except.bind, g₁, pure, Except.pure]
+    exact g₂
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 The recursor group: the pinned `Eq` basis, the provisioning, the rename table
