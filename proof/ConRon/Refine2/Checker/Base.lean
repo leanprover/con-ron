@@ -193,12 +193,55 @@ theorem vec_dup_refines {T β : Type} {A : T → β} {inst : ron.hashmap.Dup T}
 `ConLeche/Kernel/Level.lean`'s three `Name` predicates: the declaration front
 door is their only reader.  Each is a handle comparison or one `viewN`. -/
 
+private theorem nidx_contains_from_aux (m : Nat) :
+    ∀ {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize} {n : arena.handle.NIdx}
+      {o : Bool}, ns.val.length - i.val = m →
+      arena.checker_base.nidx_contains_from ns i n = ok o →
+      o = (absNIdxLFrom ns i).contains (absNIdx n) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro ns i n o hm hrun
+    rw [arena.checker_base.nidx_contains_from.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val ns
+    by_cases hge : i ≥ ns.len
+    · have hle : ns.val.length ≤ i.val := by scalar_tac
+      rw [if_pos hge] at hrun
+      rw [← Result.ok_injective hrun]
+      simp [absNIdxLFrom, List.drop_eq_nil_of_le hle]
+    · have hlt : i.val < ns.val.length := by scalar_tac
+      rw [if_neg hge] at hrun
+      obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hlt', rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn1
+      obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hbv := nidx_eq2_abs hb
+      have hcons : absNIdxLFrom ns i = absNIdx ns.val[i.val] :: (ns.val.drop (i.val + 1)).map absNIdx := by
+        simp only [absNIdxLFrom, List.drop_eq_getElem_cons hlt, List.map_cons]
+      rw [hcons, List.contains_cons]
+      by_cases hc : b = true
+      · rw [if_pos hc] at hrun
+        rw [← Result.ok_injective hrun]
+        subst hc
+        have heq : (absNIdx ns.val[i.val] == absNIdx n) = true := hbv.symm
+        rw [BEq.comm] at heq
+        simp [heq]
+      · rw [if_neg hc] at hrun
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        have hrec := ih (ns.val.length - i2.val) (by omega) rfl hrun
+        have hbf : b = false := by simpa using hc
+        subst hbf
+        have hne : (absNIdx ns.val[i.val] == absNIdx n) = false := hbv.symm
+        rw [BEq.comm] at hne
+        rw [hrec, hne]
+        simp [absNIdxLFrom, hi2v]
+
 /-- `nidx_contains_from` is `ns.contains n` from the cursor on. -/
 theorem nidx_contains_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize} {n : arena.handle.NIdx} {o : Bool}
     (hrun : arena.checker_base.nidx_contains_from ns i n = ok o) :
-    o = (absNIdxLFrom ns i).contains (absNIdx n) := by
-  sorry
+    o = (absNIdxLFrom ns i).contains (absNIdx n) :=
+  nidx_contains_from_aux _ rfl hrun
 
 /-- `arena::core::nat_op_names` ⊑ `natOpNames` — the seven structural `Nat`
 operations, as seven pin reads (task #97-P5-Top: a child of
@@ -208,7 +251,107 @@ theorem nat_op_names_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.nat_op_names st = ok o) :
     Sim absNIdxL (fun _ => True) pers lst o natOpNames := by
-  sorry
+  unfold natOpNames
+  rw [arena.core.nat_op_names] at hrun
+  unfold Sim
+  obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_pred_name] at hq0
+  obtain ⟨r0, hr0, hq0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq0
+  have hS0 := pin_nat_pred_refines hrel hinv hr0
+  obtain rfl := (Result.ok_injective hq0).symm
+  cases r0 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natPredName) hS0)
+  | Ok a0 =>
+  rw [pin_ok (tw := natPredName) hS0]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_add_name] at hq1
+  obtain ⟨r1, hr1, hq1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq1
+  have hS1 := pin_nat_add_refines hrel hinv hr1
+  obtain rfl := (Result.ok_injective hq1).symm
+  cases r1 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natAddName) hS1)
+  | Ok a1 =>
+  rw [pin_ok (tw := natAddName) hS1]
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_sub_name] at hq2
+  obtain ⟨r2, hr2, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2
+  have hS2 := pin_nat_sub_refines hrel hinv hr2
+  obtain rfl := (Result.ok_injective hq2).symm
+  cases r2 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natSubName) hS2)
+  | Ok a2 =>
+  rw [pin_ok (tw := natSubName) hS2]
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_mul_name] at hq3
+  obtain ⟨r3, hr3, hq3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq3
+  have hS3 := pin_nat_mul_refines hrel hinv hr3
+  obtain rfl := (Result.ok_injective hq3).symm
+  cases r3 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natMulName) hS3)
+  | Ok a3 =>
+  rw [pin_ok (tw := natMulName) hS3]
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_pow_name] at hq4
+  obtain ⟨r4, hr4, hq4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq4
+  have hS4 := pin_nat_pow_refines hrel hinv hr4
+  obtain rfl := (Result.ok_injective hq4).symm
+  cases r4 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natPowName) hS4)
+  | Ok a4 =>
+  rw [pin_ok (tw := natPowName) hS4]
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_beq_name] at hq5
+  obtain ⟨r5, hr5, hq5⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq5
+  have hS5 := pin_nat_beq_refines hrel hinv hr5
+  obtain rfl := (Result.ok_injective hq5).symm
+  cases r5 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natBeqName) hS5)
+  | Ok a5 =>
+  rw [pin_ok (tw := natBeqName) hS5]
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_ble_name] at hq6
+  obtain ⟨r6, hr6, hq6⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq6
+  have hS6 := pin_nat_ble_refines hrel hinv hr6
+  obtain rfl := (Result.ok_injective hq6).symm
+  cases r6 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natBleName) hS6)
+  | Ok a6 =>
+  rw [pin_ok (tw := natBleName) hS6]
+  obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w1, hw1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w2, hw2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w3, hw3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w4, hw4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w5, hw5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w6, hw6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl := (Result.ok_injective hrun).symm
+  have hv : w6.val = [a0, a1, a2, a3, a4, a5, a6] := by
+    rw [push_nidx_val hw6, push_nidx_val hw5, push_nidx_val hw4, push_nidx_val hw3, push_nidx_val hw2, push_nidx_val hw1, push_nidx_val hw0]
+    rfl
+  refine ⟨lst, ?_, hrel, hinv, Ext.refl _, trivial⟩
+  simp only [absNIdxL, hv, List.map_cons, List.map_nil]
+  rfl
 
 /-- `arena::core::nat_div_mod_names` ⊑ `natDivModNames` — the eight pinned
 well-founded operations, as eight pin reads (task #97-P5-Top, as above). -/
@@ -216,7 +359,120 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.nat_div_mod_names st = ok o) :
     Sim absNIdxL (fun _ => True) pers lst o natDivModNames := by
-  sorry
+  unfold natDivModNames
+  rw [arena.core.nat_div_mod_names] at hrun
+  unfold Sim
+  obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_div_name] at hq0
+  obtain ⟨r0, hr0, hq0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq0
+  have hS0 := pin_nat_div_refines hrel hinv hr0
+  obtain rfl := (Result.ok_injective hq0).symm
+  cases r0 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natDivName) hS0)
+  | Ok a0 =>
+  rw [pin_ok (tw := natDivName) hS0]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_mod_name] at hq1
+  obtain ⟨r1, hr1, hq1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq1
+  have hS1 := pin_nat_mod_refines hrel hinv hr1
+  obtain rfl := (Result.ok_injective hq1).symm
+  cases r1 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natModName) hS1)
+  | Ok a1 =>
+  rw [pin_ok (tw := natModName) hS1]
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_gcd_name] at hq2
+  obtain ⟨r2, hr2, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2
+  have hS2 := pin_nat_gcd_refines hrel hinv hr2
+  obtain rfl := (Result.ok_injective hq2).symm
+  cases r2 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natGcdName) hS2)
+  | Ok a2 =>
+  rw [pin_ok (tw := natGcdName) hS2]
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_land_name] at hq3
+  obtain ⟨r3, hr3, hq3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq3
+  have hS3 := pin_nat_land_refines hrel hinv hr3
+  obtain rfl := (Result.ok_injective hq3).symm
+  cases r3 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natLandName) hS3)
+  | Ok a3 =>
+  rw [pin_ok (tw := natLandName) hS3]
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_lor_name] at hq4
+  obtain ⟨r4, hr4, hq4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq4
+  have hS4 := pin_nat_lor_refines hrel hinv hr4
+  obtain rfl := (Result.ok_injective hq4).symm
+  cases r4 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natLorName) hS4)
+  | Ok a4 =>
+  rw [pin_ok (tw := natLorName) hS4]
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_xor_name] at hq5
+  obtain ⟨r5, hr5, hq5⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq5
+  have hS5 := pin_nat_xor_refines hrel hinv hr5
+  obtain rfl := (Result.ok_injective hq5).symm
+  cases r5 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natXorName) hS5)
+  | Ok a5 =>
+  rw [pin_ok (tw := natXorName) hS5]
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_shift_left_name] at hq6
+  obtain ⟨r6, hr6, hq6⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq6
+  have hS6 := pin_nat_shift_left_refines hrel hinv hr6
+  obtain rfl := (Result.ok_injective hq6).symm
+  cases r6 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natShiftLeftName) hS6)
+  | Ok a6 =>
+  rw [pin_ok (tw := natShiftLeftName) hS6]
+  obtain ⟨q7, hq7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_shift_right_name] at hq7
+  obtain ⟨r7, hr7, hq7⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq7
+  have hS7 := pin_nat_shift_right_refines hrel hinv hr7
+  obtain rfl := (Result.ok_injective hq7).symm
+  cases r7 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := natShiftRightName) hS7)
+  | Ok a7 =>
+  rw [pin_ok (tw := natShiftRightName) hS7]
+  obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w1, hw1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w2, hw2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w3, hw3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w4, hw4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w5, hw5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w6, hw6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w7, hw7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl := (Result.ok_injective hrun).symm
+  have hv : w7.val = [a0, a1, a2, a3, a4, a5, a6, a7] := by
+    rw [push_nidx_val hw7, push_nidx_val hw6, push_nidx_val hw5, push_nidx_val hw4, push_nidx_val hw3, push_nidx_val hw2, push_nidx_val hw1, push_nidx_val hw0]
+    rfl
+  refine ⟨lst, ?_, hrel, hinv, Ext.refl _, trivial⟩
+  simp only [absNIdxL, hv, List.map_cons, List.map_nil]
+  rfl
 
 /-- `name_nodup_from` ⊑ `nameNodup` from the cursor on. -/
 theorem name_nodup_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
