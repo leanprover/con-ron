@@ -60791,3 +60791,100 @@ they used (`internNodeE_run_wf`, `internLamE_run_wf`, `internForallEE_run_wf`)
 and their census entries; the `₀` statements stay.  `EResolves` stays:
 `Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore` takes it as a premise
 (Core lane), and five Core files `open` it.
+
+### Task #97-T2-LOCKSTEP lane Checker DeclCheck — the pin-gate leaves, the `erase_pw_eq` walk, the basis pins; two twin fixes (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-chk-decl` off `4265c378` (`arena` `b047603a` merged
+mid-slice).  Lane `Refine2/Checker/{DeclCheck,Axioms,Pins,Spec}.lean` under
+the lockstep rule; `Base.lean`/`Top.lean` are another agent's.
+
+#### 1. Divergences
+
+* **Fixed in the twin — `natOpEquations` reads all fifteen operation pins.**
+  The Rust's `nat_op_equations` reads them through `nat_op_pins` (fifteen
+  `pin_at`s) before the dispatch; the twin read seven.  `pin_at` can fail
+  (`M_PINS_UNSET`, an `Internal` the twin must match), so the extra eight reads
+  are observable.  The twin now reads the eight unused names too
+  (`Arena/Core.lean`, `_di … _sr`).  Theorem 1: `natOpEquations_run`
+  (`Bridge/Checker/DeclVal.lean`) takes eight more `pinAt_run` steps, nothing
+  else.  `scripts/twin-lines.py update` relocated 245 `Lean twin:` ranges
+  (digits only in Rust doc comments; `extract-check` unaffected).
+* **Found, NOT fixed (next slice): `divModCertStmts` interns in a different
+  order.**  The twin writes `eqAt1 natTy (← natAp2 c x y) (← natAp2 c (← natAp2
+  modN y x) x)`, which interns `c x y` FIRST; the Rust (`cert_gcd` →
+  `cert_two_eqs` → `cert_eq`) interns the right-hand side first and `c x y`
+  inside `cert_eq`.  Same in every arm, and the `div`/`mod` arm reads
+  `pinNatSucc` before its `sub`/`c` interns where the Rust
+  (`cert_rec_rhs`) reads it after.  Different append order ⇒ different
+  handles ⇒ no `AStateRel₀` after the call.  So `divModCertStmts_unfold`
+  (`Spec.lean`, "a COST problem" per #97-P5-Checker-2) is in fact FALSE, and
+  `div_mod_cert_stmts_refines` and the `cert_*` statements over the `Spec`
+  transcriptions (`cert_rec_rhs`, `cert_gcd`, `cert_div_mod*`,
+  `cert_two_eqs`, `cert_ctx_{bool,nums}`) wait on it.  Fix: rewrite
+  `Arena.divModCertStmts` in the Rust's factoring (the `cert*Spec` helpers
+  become the twin), and re-prove `divModCertStmts_run`
+  (`Bridge/Checker/DivMod.lean`, 1 300 generated lines) compositionally, one
+  `_run` per helper.  No ruling needed (twin-only).
+* **Statements corrected (no program change):** `subst_const0_pairs_refines`
+  related `out ++ v` to `out ++ rest` (double-counted `out`; now `absEqPairs`);
+  `erase_pw_eq_two`'s twin compared `a` with `b` where the Rust compares `a`
+  with `a2`; `groundGuardsRestSpec` began one test before the Rust's
+  `ground_guards_rest` (split moved); `check_div_mod_cert_at`'s statement named
+  the whole `checkDivModCerts` (guard included) where the Rust starts past the
+  guard — it and `check_div_mod_cert_tail` (both unused) are deleted, and the
+  certificate walk unfolds them in place.
+* `install_basis_decl{,s}_refines` now conclude `IFEnvRelI` (the coordinator's
+  request, for `Top`'s `check_basis_decl_install`), proved by hand (pure).
+
+#### 2. Closed by `lockstep` (all axiom-clean modulo callees in other files)
+
+`DeclCheck.lean`: `nat_op_{guard,deps,equations,stored_ok_all}` and the
+`arena::core` callees they exposed, stated here as `@[lockstep]` leaves
+(`nat_{ind,zero,succ}_ok`, `nat_lit_supported`, `nat_op_{cod,ty_pinned,
+stored_ok,deps_stored}`, `bool_ctors_lp_empty`, `subst_const0`,
+`subst_const_all`); `subst_const0_{list,pairs}`, `consts_resolve_all`,
+`reduce_elem_ok`, `ground_guards{,_rest}`, `div_mod_cert_{guard,guard_rest,
+proofs,applied_hyps}`, `div_mod_certs_guard_go`, `check_div_mod_certs`,
+`div_mod_env_guard_rest`, `div_mod_decl_pin`, `div_mod_slot_{1,2}`,
+`eq_basis_pinned`, `install_basis_decl{,s}`.  `Axioms.lean`: `erase_pw_eq`
+and its two fragments (one fuel induction, `LSR`: the walk is read-only;
+`erasePwEq_unfold` is `rfl` after one `rw`), `i_constant_val_matches_pin`,
+`block_names`, `basis_pin_hit{,_go}`, `quot_pin_hit`.
+
+Extension points only, plus one shared-prim change (below): Rust-only specs
+`push_nidx`, `push_eq`, `eidx_vec_dup`, `i_constant_info_beq`,
+`nidx_vec_beq`, `literal_beq` (at `LiteralWF`), `block_names`,
+`quot_kind_slot`; twin splits `ite_bor` (a twin `a || b` test against the
+Rust's two tests), `quotPinHit_split` (the `blk[k.slot]?` match as a `dite`).
+
+**Shared-file edits:** `Tactic/Prims.lean` — `EViewMetaWF` gains
+`.Lit l => LiteralWF l` (new `etables_get_lit_wf`/`estore_view_lit_wf`), so
+`view_ls` hands a caller the literal's well-formedness (kind 1, from
+`AStateInv`); `erase_pw_eq`'s literal arm needs it for `literal_beq`.
+`Inductives/Prims.lean` — its duplicate wrappers of `erase_pw_eq{,_at,_two}`
+and `i_constant_val_matches_pin` (identical to `Axioms.lean`'s, which are now
+the proved ones) removed.  `Refine2/Checker/Spec.lean`: `groundGuards*`
+split, `checkDivModCertTailSpec` deleted.
+
+**Tactic limit 2 (Rust bind vs twin `if`) met and worked around locally:**
+`nat_op_cod_ls` (two `rw [bind_pure, if_pos/if_neg …]` rounds),
+`bool_ctors_lp_empty_ls` and `nat_op_guard_aux` (a file-local
+`lockstep_ite_bp` macro deciding the wrapped twin `if` from the context).
+Tactic limit 1 not met.
+
+#### 3. Frontier, still open in the lane
+
+`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: **start** (`4265c378`) 50 items / 233
+tainted / dead weight 402; **after this slice** (before the `arena` merge)
+40 / 234 / 379 — DeclCheck 13 → 2 items, Axioms 3 → 0.  Open:
+`div_mod_cert_stmts` (the divergence above), `consts_resolve_all` is closed
+but `consts_resolve_f_fast` (Base) is below it; new item surfaced in
+`Checker/Canon.lean` (no lane): `i_constant_info_beq_refines` (fan-in 9) and
+`canon_eq_list`/`i_constant_val_canon_eq`.  DeclCheck dead weight: the
+std-axiom gate family (`iff_{intro,rec}_pinned`, `nonempty_{intro,rec}_pinned`,
+`true_intro_pinned`, `std_axiom_ok*`, `trust_compiler_ok`, `of_reduce_ax_ok*`)
+— the twin's literal-arity patterns (`.ctorInfo cv 2 2`) make the zip time
+out at `whnf`; needs `if`-form splits of the `*PinnedSpec`s (next slice) —
+and the `cert_*` family (the divergence).  `div_mod_attempt_reason` is a
+message string (tactic limit 1).
