@@ -66,7 +66,7 @@ theorem Arena.installThenCheckPhased_bridge {μ : CheckMode}
     obtain ⟨n, fe₁, pend⟩ := p
     obtain ⟨env₁, pendP, hok₁, -, hPA, hrel, hnil, hc₁⟩ :=
       Arena.annotFold_bridge hμ hk hind hpp ds.toList dsP Env.empty 0 n
-        (mkIFEnv IEnv.empty) fe₁ #[] pend [] s s₁ hok hpins hpd hden .nil hA
+        (mkIFEnv IEnv.empty) fe₁ #[] pend [] s s₁ hok hnd0 hpins hpd hden .nil hA
     simp only [List.nil_append] at hrel
     obtain ⟨r2, s₂, hB, hrest2⟩ := AM.bind_ok hrest
     cases r2 with
