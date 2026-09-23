@@ -6421,6 +6421,504 @@ theorem mk_app_n_refines {pers st lst} {f : arena.handle.EIdx}
     List.drop_zero, absEIdxArr_toList] at h
   exact h
 
+/-! ## The telescopes' outcome (task #97-P5-Mut round 2)
+
+The telescope walks answer an `Option` of a handle or of a domain list and a
+handle, so `WOutE` (whose answer is ONE handle, with its `EResolves`) does not
+fit them.  `WOutX` is `WOutE` at any result type, without the answer clause and
+without a side invariant: the run equation, the two invariants, `Ext`,
+`EViewExt` and the two tier flags — what a caller that walks again after the
+call needs (`instPisAtFGo`'s domain intern after its recursive call). -/
+
+def WOutX {α β : Type} (A : α → β) (pers : arena.store.PersTier)
+    (st : arena.monad.AState) (lst : AState)
+    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
+    (res : Except Arena.CheckError (β × AState)) : Prop :=
+  match o.1 with
+  | .Ok r => ∃ lst', res = .ok (A r, lst') ∧ AStateRel pers o.2 lst' ∧
+      AStateInv pers o.2 ∧ Ext lst.store lst'.store ∧ EViewExt lst.store lst'.store ∧
+      o.2.store.shared_on = st.store.shared_on ∧
+      o.2.store.scratch_on = st.store.scratch_on
+  | .Err e => AErrSim e res
+
+theorem WOutX.toSim {α β : Type} {A : α → β} {pers st lst o} {x : AM β}
+    (h : WOutX A pers st lst o (x.run lst)) : Sim A (fun _ => True) pers lst o x := by
+  show AOut A (fun _ => True) pers lst o.1 o.2 (x.run lst)
+  simp only [WOutX] at h
+  cases ho : o.1 with
+  | Ok r =>
+    rw [ho] at h
+    obtain ⟨lst', hx, h1, h2, h3, -⟩ := h
+    exact AOut.ok hx h1 h2 h3 trivial
+  | Err e => rw [ho] at h; exact AOut.err h
+
+theorem WOutX.ok {α β : Type} {A : α → β} {pers st lst} {r : α}
+    {st' : arena.monad.AState} {res : Except Arena.CheckError (β × AState)} {lst' : AState}
+    (hx : res = .ok (A r, lst')) (h1 : AStateRel pers st' lst')
+    (h2 : AStateInv pers st') (h3 : Ext lst.store lst'.store)
+    (h5 : EViewExt lst.store lst'.store)
+    (h6 : st'.store.shared_on = st.store.shared_on)
+    (h7 : st'.store.scratch_on = st.store.scratch_on) :
+    WOutX A pers st lst (.Ok r, st') res :=
+  ⟨lst', hx, h1, h2, h3, h5, h6, h7⟩
+
+theorem WOutX.dest {α β : Type} {A : α → β} {pers st lst} {r : α}
+    {st' : arena.monad.AState} {res : Except Arena.CheckError (β × AState)}
+    (h : WOutX A pers st lst (.Ok r, st') res) :
+    ∃ lst', res = .ok (A r, lst') ∧ AStateRel pers st' lst' ∧
+      AStateInv pers st' ∧ Ext lst.store lst'.store ∧ EViewExt lst.store lst'.store ∧
+      st'.store.shared_on = st.store.shared_on ∧
+      st'.store.scratch_on = st.store.scratch_on := h
+
+theorem WOutX.err_bind {α β γ : Type} {A : α → β} {e : kernel.core_types.CheckError}
+    {pers : arena.store.PersTier} {st stB : arena.monad.AState} {lst0 lst : AState}
+    {x : AM γ} {f : γ → AM β} (h : AErrSim e (x.run lst)) :
+    WOutX A pers st lst0 (.Err e, stB) ((do let v ← x; f v).run lst) := by
+  show AErrSim e _
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+theorem WOutX.bind {α β γ : Type} {A : α → β} {pers : arena.store.PersTier}
+    {st st1 : arena.monad.AState} {lst lst1 : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {g : γ} {x : AM γ} {k : γ → AM β}
+    (hx1 : x.run lst = .ok (g, lst1)) (hext1 : Ext lst.store lst1.store)
+    (hmono1 : EViewExt lst.store lst1.store)
+    (hfl1 : st1.store.shared_on = st.store.shared_on)
+    (hfl2 : st1.store.scratch_on = st.store.scratch_on)
+    (h : WOutX A pers st1 lst1 o ((k g).run lst1)) :
+    WOutX A pers st lst o ((do let v ← x; k v).run lst) := by
+  rw [run_bind_of hx1]
+  simp only [WOutX] at h ⊢
+  cases ho : o.1 with
+  | Ok r =>
+    rw [ho] at h
+    obtain ⟨lst', hx, h1, h2, h3, h5, h6, h7⟩ := h
+    exact ⟨lst', hx, h1, h2, Ext.trans hext1 h3, EViewExt.trans hmono1 h5,
+      by rw [h6, hfl1], by rw [h7, hfl2]⟩
+  | Err e => rw [ho] at h; exact h
+
+/-- The twin's `view` run at a handle that decodes. -/
+theorem view_run_some {lst : AState} {hh : EIdx} {v : ENodeView}
+    (h : lst.store.view hh = some v) : (Arena.view hh).run lst = .ok (v, lst) := by
+  show ((match lst.store.view hh with
+          | some v => (pure v : AM ENodeView)
+          | none => Arena.fail
+              (.internal "arena: dangling expression handle")).run lst) = _
+  rw [h]; rfl
+
+theorem view_of_viewBind' {st : EStore} {i : EIdx} {ty b : EIdx}
+    {m : ConLeche.BinderMeta} (htg : ETag.isBind i.tag = true)
+    (h : st.viewBind i = some (ty, b, m)) :
+    st.view i = some (eBindView i.tag ty b m) := by
+  simp only [EStore.view, htg, if_true, h]
+
+theorem view_none_of_viewBind {st : EStore} {i : EIdx}
+    (htg : ETag.isBind i.tag = true) (h : st.viewBind i = none) :
+    st.view i = none := by
+  simp only [EStore.view, htg, if_true, h]
+
+/-- A cursor below the length reads the element and moves on. -/
+theorem listFrom_cons (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (hi : i.val < args.val.length) :
+    absEIdxListFrom args i =
+      absEIdx args.val[i.val] :: (args.val.drop (i.val + 1)).map absEIdx := by
+  simp only [absEIdxListFrom]
+  rw [List.drop_eq_getElem_cons hi]
+  rfl
+
+theorem listFrom_nil (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (hi : args.val.length ≤ i.val) : absEIdxListFrom args i = [] := by
+  simp only [absEIdxListFrom]
+  rw [List.drop_eq_nil_of_le hi]; rfl
+
+theorem mem_drop_here {l : List arena.handle.EIdx} {i : Nat} (hi : i < l.length) :
+    l[i] ∈ l.drop i := by
+  rw [List.drop_eq_getElem_cons hi]; exact List.mem_cons_self
+
+theorem mem_drop_succ {l : List arena.handle.EIdx} {i : Nat} {x : arena.handle.EIdx}
+    (hi : i < l.length) (hx : x ∈ l.drop (i + 1)) : x ∈ l.drop i := by
+  rw [List.drop_eq_getElem_cons hi]; exact List.mem_cons_of_mem _ hx
+
+/-- The binder read of a `∀`-tagged handle that decodes: the twin's view is the
+`forallE` the port's `view_bind` answered, and its body resolves. -/
+theorem view_bind_forall {pers st lst} (hrel : AStateRel pers st lst)
+    {h : arena.handle.EIdx} {t : Std.U32} (htg : (absEIdx h).tag = absU32 t)
+    (hF : t = arena.handle.ETAG_FORALL_E) (hh : EResolves lst (absEIdx h))
+    {o} (ho : arena.monad.view_bind pers st h = ok o) :
+    ∃ dom body m, o = some (dom, body, m) ∧
+      lst.store.view (absEIdx h) = some (.forallE (absEIdx dom) (absEIdx body)
+        (ConRon.Refine.absBinderMeta m)) ∧
+      EResolves lst (absEIdx dom) ∧ EResolves lst (absEIdx body) := by
+  have htF : (absEIdx h).tag = ETag.forallE := by rw [htg, hF, etag_forallE_abs]
+  have hbind : ETag.isBind (absEIdx h).tag = true := by rw [htF]; decide
+  have hvb := (view_bind_run hrel hbind ho).apply
+  have h2 : (Arena.viewBind (absEIdx h)).run lst
+      = .ok (lst.store.viewBind (absEIdx h), lst) := rfl
+  rw [h2] at hvb
+  simp only [Except.ok.injEq, Prod.mk.injEq, and_true] at hvb
+  cases hoc : o with
+  | none =>
+    rw [hoc] at hvb
+    have := view_none_of_viewBind hbind hvb
+    simp [EResolves, this] at hh
+  | some p =>
+    obtain ⟨dom, body, m⟩ := p
+    rw [hoc] at hvb
+    have hv := view_of_viewBind' hbind hvb
+    rw [htF] at hv
+    simp only [eBindView, ETag.forallE, ETag.lam] at hv
+    have hv' : lst.store.view (absEIdx h) = some (.forallE (absEIdx dom) (absEIdx body)
+        (ConRon.Refine.absBinderMeta m)) := by
+      rw [hv]; rfl
+    exact ⟨dom, body, m, rfl, hv',
+      EResolves.child hrel.storeWF hv' (by simp [ENodeView.echildren]),
+      EResolves.child hrel.storeWF hv' (by simp [ENodeView.echildren])⟩
+
+/-- A `∀`-less handle that decodes: the twin's view is not a `forallE`. -/
+theorem view_not_forall {lst : AState} {h : arena.handle.EIdx} {t : Std.U32}
+    (htg : (absEIdx h).tag = absU32 t) (hF : ¬ t = arena.handle.ETAG_FORALL_E)
+    {v : ENodeView} (hv : lst.store.view (absEIdx h) = some v) :
+    ∀ ty b m, v ≠ .forallE ty b m := by
+  intro ty b m hc
+  subst hc
+  have := EStore_view_tagOf hv
+  rw [htg] at this
+  exact hF (absU32_inj (by rw [this, etag_forallE_abs]; rfl))
+
+/-! ### `instPis` and its cursor companion -/
+
+private theorem inst_pis_from_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {e : arena.handle.EIdx} {args : alloc.vec.Vec arena.handle.EIdx}
+      {i : Std.Usize} {o},
+      args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
+      (st.store.shared_on = true → st.store.scratch_on = true) →
+      EResolves lst (absEIdx e) →
+      (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
+      arena.expr_ops.inst_pis_from pers st fuel e args i = ok o →
+      WOutX absOptE pers st lst o
+        ((instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel e args i o hn hrel hinv hfrozen he hargs hrun
+    rw [arena.expr_ops.inst_pis_from] at hrun
+    rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
+      show args.val.length ≤ i.val; omega)] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    rw [← Result.ok_injective hrun, listFrom_nil args i (by omega)]
+    exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
+  | succ k ih =>
+    intro pers st lst fuel e args i o hn hrel hinv hfrozen he hargs hrun
+    have hlt : i.val < args.val.length := by omega
+    rw [arena.expr_ops.inst_pis_from] at hrun
+    rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
+      show ¬ (args.val.length ≤ i.val); omega)] at hrun
+    rw [listFrom_cons args i hlt]
+    simp only [instPis]
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp he
+    rw [run_bind_of (view_run_some hv)]
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htg := eidx_tag_abs ht
+    by_cases hF : t = arena.handle.ETAG_FORALL_E
+    · rw [if_pos hF] at hrun
+      obtain ⟨ob, hob, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨dom, body, mb, hobe, hvF, -, hbR⟩ := view_bind_forall hrel htg hF he hob
+      rw [hvF] at hv
+      simp only [Option.some.injEq] at hv
+      subst hv
+      rw [hobe] at hrun
+      obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hb1, hval1⟩ := ExprOps.vecIndexAt he1
+      obtain ⟨a, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hae : a = args.val[i.val] := by rw [dupId_eidx _ _ ha, hval1]
+      obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st1⟩ := p1
+      have haR : EResolves lst (absEIdx a) := by
+        rw [hae]; exact hargs _ (mem_drop_here hlt)
+      have hstep := instantiate1_fast_wout hrel hinv hfrozen hbR haR hp1
+      rw [show absU (0#u64 : Std.U64) = 0 from rfl, hae] at hstep
+      cases hr1 : r1 with
+      | Err er =>
+        rw [hr1] at hrun hstep
+        rw [← Result.ok_injective hrun]
+        exact WOutX.err_bind (hstep.err rfl)
+      | Ok b =>
+        rw [hr1] at hrun hstep
+        obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
+          hstep.dest
+        refine WOutX.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+        obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi3v : i3.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
+        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hfroz1 hres1
+          (fun x hx => hmono1.res (hargs x (mem_drop_succ hlt (hi3v ▸ hx)))) hrun
+        simp only [absEIdxListFrom, hi3v] at hrec
+        exact hrec
+    · rw [if_neg hF] at hrun
+      rw [← Result.ok_injective hrun]
+      have hnf := view_not_forall htg hF hv
+      cases v with
+      | forallE ty b m => exact absurd rfl (hnf ty b m)
+      | _ => exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
+
+/-! ### `instPisAt` and its cursor companion -/
+
+private theorem inst_pis_at_from_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {h : arena.handle.EIdx} {o},
+      args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
+      (st.store.shared_on = true → st.store.scratch_on = true) →
+      EResolves lst (absEIdx h) →
+      (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
+      arena.expr_ops.inst_pis_at_from pers st fuel args i h = ok o →
+      WOutX absOptArgsE pers st lst o
+        ((instPisAt (absU fuel) (absEIdxListFrom args i) (absEIdx h)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    rw [arena.expr_ops.inst_pis_at_from] at hrun
+    rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
+      show args.val.length ≤ i.val; omega)] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    rw [← Result.ok_injective hrun, listFrom_nil args i (by omega)]
+    exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
+  | succ k ih =>
+    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    have hlt : i.val < args.val.length := by omega
+    rw [arena.expr_ops.inst_pis_at_from] at hrun
+    rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
+      show ¬ (args.val.length ≤ i.val); omega)] at hrun
+    rw [listFrom_cons args i hlt]
+    simp only [instPisAt]
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp he
+    rw [run_bind_of (view_run_some hv)]
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htg := eidx_tag_abs ht
+    by_cases hF : t = arena.handle.ETAG_FORALL_E
+    · rw [if_pos hF] at hrun
+      obtain ⟨ob, hob, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨dom, body, mb, hobe, hvF, -, hbR⟩ := view_bind_forall hrel htg hF he hob
+      rw [hvF] at hv
+      simp only [Option.some.injEq] at hv
+      subst hv
+      rw [hobe] at hrun
+      obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hb1, hval1⟩ := ExprOps.vecIndexAt he1
+      obtain ⟨a, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hae : a = args.val[i.val] := by rw [dupId_eidx _ _ ha, hval1]
+      obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st1⟩ := p1
+      have haR : EResolves lst (absEIdx a) := by
+        rw [hae]; exact hargs _ (mem_drop_here hlt)
+      have hstep := instantiate1_fast_wout hrel hinv hfrozen hbR haR hp1
+      rw [show absU (0#u64 : Std.U64) = 0 from rfl, hae] at hstep
+      cases hr1 : r1 with
+      | Err er =>
+        rw [hr1] at hrun hstep
+        rw [← Result.ok_injective hrun]
+        exact WOutX.err_bind (hstep.err rfl)
+      | Ok b =>
+        rw [hr1] at hrun hstep
+        obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
+          hstep.dest
+        refine WOutX.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+        obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi3v : i3.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
+        obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨r2, st2⟩ := p2
+        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hfroz1 hres1
+          (fun x hx => hmono1.res (hargs x (mem_drop_succ hlt (hi3v ▸ hx)))) hp2
+        simp only [absEIdxListFrom, hi3v] at hrec
+        cases hr2 : r2 with
+        | Err er =>
+          rw [hr2] at hrun hrec
+          rw [← Result.ok_injective hrun]
+          exact WOutX.err_bind hrec
+        | Ok o1 =>
+          rw [hr2] at hrun hrec
+          obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hmono2, hfl3, hfl4⟩ := hrec.dest
+          rw [run_bind_of hx2]
+          cases ho1 : o1 with
+          | none =>
+            rw [ho1] at hrun
+            rw [← Result.ok_injective hrun]
+            exact WOutX.ok rfl hrel2 hinv2 hext2 hmono2 hfl3 hfl4
+          | some pp =>
+            rw [ho1] at hrun
+            obtain ⟨vv, e2⟩ := pp
+            obtain ⟨v1, hv1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            rw [← Result.ok_injective hrun]
+            refine WOutX.ok ?_ hrel2 hinv2 hext2 hmono2 hfl3 hfl4
+            show _ = Except.ok (some (absEIdxList v1, absEIdx e2), lst2)
+            rw [show absEIdxList v1 = absEIdx dom :: absEIdxList vv from
+              ExprOps.cons_eidx_refines hv1]
+            rfl
+    · rw [if_neg hF] at hrun
+      rw [← Result.ok_injective hrun]
+      have hnf := view_not_forall htg hF hv
+      cases v with
+      | forallE ty b m => exact absurd rfl (hnf ty b m)
+      | _ => exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
+
+/-- The binder read of a `λ`-tagged handle that decodes: the twin's view is the
+`lam` the port's `view_bind` answered, and its body resolves. -/
+theorem view_bind_lam {pers st lst} (hrel : AStateRel pers st lst)
+    {h : arena.handle.EIdx} {t : Std.U32} (htg : (absEIdx h).tag = absU32 t)
+    (hF : t = arena.handle.ETAG_LAM) (hh : EResolves lst (absEIdx h))
+    {o} (ho : arena.monad.view_bind pers st h = ok o) :
+    ∃ dom body m, o = some (dom, body, m) ∧
+      lst.store.view (absEIdx h) = some (.lam (absEIdx dom) (absEIdx body)
+        (ConRon.Refine.absBinderMeta m)) ∧
+      EResolves lst (absEIdx dom) ∧ EResolves lst (absEIdx body) := by
+  have htL : (absEIdx h).tag = ETag.lam := by rw [htg, hF, etag_lam_abs]
+  have hbind : ETag.isBind (absEIdx h).tag = true := by rw [htL]; decide
+  have hvb := (view_bind_run hrel hbind ho).apply
+  have h2 : (Arena.viewBind (absEIdx h)).run lst
+      = .ok (lst.store.viewBind (absEIdx h), lst) := rfl
+  rw [h2] at hvb
+  simp only [Except.ok.injEq, Prod.mk.injEq, and_true] at hvb
+  cases hoc : o with
+  | none =>
+    rw [hoc] at hvb
+    have := view_none_of_viewBind hbind hvb
+    simp [EResolves, this] at hh
+  | some p =>
+    obtain ⟨dom, body, m⟩ := p
+    rw [hoc] at hvb
+    have hv := view_of_viewBind' hbind hvb
+    rw [htL] at hv
+    simp only [eBindView, ETag.lam, ETag.lam] at hv
+    have hv' : lst.store.view (absEIdx h) = some (.lam (absEIdx dom) (absEIdx body)
+        (ConRon.Refine.absBinderMeta m)) := by
+      rw [hv]; rfl
+    exact ⟨dom, body, m, rfl, hv',
+      EResolves.child hrel.storeWF hv' (by simp [ENodeView.echildren]),
+      EResolves.child hrel.storeWF hv' (by simp [ENodeView.echildren])⟩
+
+/-- A `λ`-less handle that decodes: the twin's view is not a `lam`. -/
+theorem view_not_lam {lst : AState} {h : arena.handle.EIdx} {t : Std.U32}
+    (htg : (absEIdx h).tag = absU32 t) (hF : ¬ t = arena.handle.ETAG_LAM)
+    {v : ENodeView} (hv : lst.store.view (absEIdx h) = some v) :
+    ∀ ty b m, v ≠ .lam ty b m := by
+  intro ty b m hc
+  subst hc
+  have := EStore_view_tagOf hv
+  rw [htg] at this
+  exact hF (absU32_inj (by rw [this, etag_lam_abs]; rfl))
+
+/-! ### `instLamsAt` and its cursor companion -/
+
+private theorem inst_lams_at_from_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {h : arena.handle.EIdx} {o},
+      args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
+      (st.store.shared_on = true → st.store.scratch_on = true) →
+      EResolves lst (absEIdx h) →
+      (∀ x ∈ args.val.drop i.val, EResolves lst (absEIdx x)) →
+      arena.expr_ops.inst_lams_at_from pers st fuel args i h = ok o →
+      WOutX absOptArgsE pers st lst o
+        ((instLamsAt (absU fuel) (absEIdxListFrom args i) (absEIdx h)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    rw [arena.expr_ops.inst_lams_at_from] at hrun
+    rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
+      show args.val.length ≤ i.val; omega)] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    rw [← Result.ok_injective hrun, listFrom_nil args i (by omega)]
+    exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
+  | succ k ih =>
+    intro pers st lst fuel args i h o hn hrel hinv hfrozen he hargs hrun
+    have hlt : i.val < args.val.length := by omega
+    rw [arena.expr_ops.inst_lams_at_from] at hrun
+    rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
+      show ¬ (args.val.length ≤ i.val); omega)] at hrun
+    rw [listFrom_cons args i hlt]
+    simp only [instLamsAt]
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp he
+    rw [run_bind_of (view_run_some hv)]
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htg := eidx_tag_abs ht
+    by_cases hF : t = arena.handle.ETAG_LAM
+    · rw [if_pos hF] at hrun
+      obtain ⟨ob, hob, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨dom, body, mb, hobe, hvF, -, hbR⟩ := view_bind_lam hrel htg hF he hob
+      rw [hvF] at hv
+      simp only [Option.some.injEq] at hv
+      subst hv
+      rw [hobe] at hrun
+      obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hb1, hval1⟩ := ExprOps.vecIndexAt he1
+      obtain ⟨a, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hae : a = args.val[i.val] := by rw [dupId_eidx _ _ ha, hval1]
+      obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st1⟩ := p1
+      have haR : EResolves lst (absEIdx a) := by
+        rw [hae]; exact hargs _ (mem_drop_here hlt)
+      have hstep := instantiate1_fast_wout hrel hinv hfrozen hbR haR hp1
+      rw [show absU (0#u64 : Std.U64) = 0 from rfl, hae] at hstep
+      cases hr1 : r1 with
+      | Err er =>
+        rw [hr1] at hrun hstep
+        rw [← Result.ok_injective hrun]
+        exact WOutX.err_bind (hstep.err rfl)
+      | Ok b =>
+        rw [hr1] at hrun hstep
+        obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
+          hstep.dest
+        refine WOutX.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+        have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+          intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+        obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi3v : i3.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
+        obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨r2, st2⟩ := p2
+        have hrec := ih (i := i3) (by omega) hrel1 hinv1 hfroz1 hres1
+          (fun x hx => hmono1.res (hargs x (mem_drop_succ hlt (hi3v ▸ hx)))) hp2
+        simp only [absEIdxListFrom, hi3v] at hrec
+        cases hr2 : r2 with
+        | Err er =>
+          rw [hr2] at hrun hrec
+          rw [← Result.ok_injective hrun]
+          exact WOutX.err_bind hrec
+        | Ok o1 =>
+          rw [hr2] at hrun hrec
+          obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hmono2, hfl3, hfl4⟩ := hrec.dest
+          rw [run_bind_of hx2]
+          cases ho1 : o1 with
+          | none =>
+            rw [ho1] at hrun
+            rw [← Result.ok_injective hrun]
+            exact WOutX.ok rfl hrel2 hinv2 hext2 hmono2 hfl3 hfl4
+          | some pp =>
+            rw [ho1] at hrun
+            obtain ⟨vv, e2⟩ := pp
+            obtain ⟨v1, hv1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            rw [← Result.ok_injective hrun]
+            refine WOutX.ok ?_ hrel2 hinv2 hext2 hmono2 hfl3 hfl4
+            show _ = Except.ok (some (absEIdxList v1, absEIdx e2), lst2)
+            rw [show absEIdxList v1 = absEIdx dom :: absEIdxList vv from
+              ExprOps.cons_eidx_refines hv1]
+            rfl
+    · rw [if_neg hF] at hrun
+      rw [← Result.ok_injective hrun]
+      have hnf := view_not_lam htg hF hv
+      cases v with
+      | lam ty b m => exact absurd rfl (hnf ty b m)
+      | _ => exact WOutX.ok rfl hrel hinv (Ext.refl _) (EViewExt.refl _) rfl rfl
+
 /-! ## The telescope instantiations
 
 Six `_from` cursor companions with no twin of their own (DESIGN §3.4's
