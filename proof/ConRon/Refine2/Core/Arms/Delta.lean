@@ -254,48 +254,6 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
 -- `nidx_vec_dup_val` moved down to `Refine2/Dup.lean` (task #97-P5-Front
 -- round 2), beside the other `arena::env` copies.
 
-/-! ## The three store readers, at the lockstep relation
-
-`Refine2/Specs.lean`'s `view_app_run`, `view_const_run` and `view_ls_len_run`
-take `AStateRel` and use its `store` clause alone; these are the same three
-lines over `AStateRel₀` (task #97-P5-Core round 4).  They belong in
-`Specs.lean`, which is not this lane's: the tier-wide migration to
-`AStateRel₀` retires these copies. -/
-
-theorem view_app_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view_app pers st h = ok o) :
-    SimR (Option.map absPairE) lst o (Arena.viewApp (absEIdx h)) := by
-  rw [arena.monad.view_app] at hrun
-  show (Arena.viewApp (absEIdx h)).run lst = _
-  rw [show (Arena.viewApp (absEIdx h)).run lst
-        = .ok (lst.store.viewApp (absEIdx h), lst) from rfl,
-    estore_view_app_abs hrel.store hrun]
-
-theorem view_const_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view_const pers st h = ok o) :
-    SimR (Option.map absConstT) lst o (Arena.viewConst (absEIdx h)) := by
-  rw [arena.monad.view_const] at hrun
-  show (Arena.viewConst (absEIdx h)).run lst = _
-  rw [show (Arena.viewConst (absEIdx h)).run lst
-        = .ok (lst.store.viewConst (absEIdx h), lst) from rfl,
-    estore_view_const_abs hrel.store hrun]
-
-theorem view_ls_len_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    {h : arena.handle.LsIdx} {o}
-    (hrun : arena.monad.view_ls_len pers st h = ok o) :
-    SimR (Option.map absSz) lst o (Arena.viewLsLen (absLsIdx h)) := by
-  rw [arena.monad.view_ls_len] at hrun
-  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [arena.store.EStore.ls_s] at hl
-  have hl2 : l = st.store.lss := (Result.ok_injective hl).symm
-  subst hl2
-  show (Arena.viewLsLen (absLsIdx h)).run lst = _
-  rw [show (Arena.viewLsLen (absLsIdx h)).run lst
-        = .ok (lst.store.lss.viewLen (absLsIdx h), lst) from rfl,
-    lsstore_view_len_abs hrel.store.lss hrun]
-
 /-! ## The two spine readers, at the lockstep relation
 
 `Refine2/ExprOps/Read.lean`'s `get_app_fn_refines` and `get_app_args_refines`,
