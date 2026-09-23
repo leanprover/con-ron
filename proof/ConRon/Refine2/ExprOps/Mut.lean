@@ -1056,9 +1056,8 @@ conditions are not the port's to give — the same seven `intern_e_run` asks
 for, each guarded by `same = false` exactly as the twelve per-constructor
 siblings above guard theirs.  `hchild` is NOT among them: finding 14's
 `hchild_*` derive it from `hrel.storeWF`, which is what `intern_e_run` already
-does at six of its ten arms; what survives is `ViewOK`, the literal's
-well-formedness, the datum-array capacity, the `PropWhen` shape, the two
-persistent binder probes and `ECapAt`. -/
+does at all ten arms since round 2; what survives is `ViewOK`, the literal's
+well-formedness and the `PropWhen` shape. -/
 theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Bool}
     {v : arena.store.ENodeView} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)

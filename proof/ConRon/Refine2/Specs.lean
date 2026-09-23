@@ -8945,13 +8945,13 @@ same ten at the same place, so **each arm is definitionally its wrapper** and
 the proof is `cases v` above ten `exact`s.
 
 What the arms need is the interesting part, and it is where finding 16's
-clause pays a second time: **`hchild` is gone at six of the ten**, because
-round 3 §2's `hchild_*` derive it from `StoreWF` and `hrel.storeWF` is that
-now.  What survives as a hypothesis is what genuinely is not the port's to
-give — `ViewOK` (the children decode), the literal's own well-formedness, and
-at the two binder arms the datum-array capacity, the `PropWhen` shape, the
-persistent binder probe and `ECapAt` (finding 15 is why the last two are not
-free here either). -/
+clause pays a second time: **`hchild` is gone at all ten**, because round 3
+§2's `hchild_*` derive it from `StoreWF` and `hrel.storeWF` is that now — at
+the two binder arms since task #97-P5-Mut round 2, which also made their
+`ECapAt` a conclusion of `estore_intern_{lam,forall_e}_abs`.  What survives
+as a hypothesis is what genuinely is not the port's to give — `ViewOK` (the
+children decode), the literal's own well-formedness and the binder datum's
+`PropWhen` shape. -/
 theorem intern_e_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
