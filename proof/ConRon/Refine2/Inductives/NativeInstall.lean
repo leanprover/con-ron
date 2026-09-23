@@ -211,7 +211,22 @@ theorem any_dom_mentions_refines {pers st lst} {t : arena.handle.NIdx}
       = ok o) :
     Sim₀ id pers lst o
       (anyDomMentionsSpec (absNIdx t) (absBinderLFrom cbs i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absBinderLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor cbs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)) (anyDomMentionsSpec (absNIdx t))
+    (fun st i => arena.inductives.native_install.any_dom_mentions pers st t cbs i) ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_install.any_dom_mentions.eq_def, anyDomMentionsSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_install.any_dom_mentions.eq_def, anyDomMentionsSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem any_dom_mentions_ls

@@ -283,7 +283,22 @@ theorem idx_free_of_refines {pers st lst} {t : arena.handle.NIdx}
     (hrun : arena.inductives.native_parts.idx_free_of pers st t idx i = ok o) :
     Sim₀ id pers lst o
       (idxFreeOfSpec (absNIdx t) (absEIdxLFrom idx i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor idx (absEIdx) (idxFreeOfSpec (absNIdx t))
+    (fun st i => arena.inductives.native_parts.idx_free_of pers st t idx i) ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.idx_free_of.eq_def, idxFreeOfSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.idx_free_of.eq_def, idxFreeOfSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem idx_free_of_ls
