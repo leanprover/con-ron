@@ -530,12 +530,12 @@ theorem nb_hok {pers : arena.store.PersTier} {ls : EStore} {w : ENodeView}
     {r : core.result.Result arena.handle.EIdx kernel.core_types.CheckError}
     (hok : ∀ hh, r = .Ok hh → absEIdx hh = (ls.intern w).2 ∧
       StoreRel pers rs' (ls.intern w).1 ∧ StoreInv pers rs' ∧ ECapAt ls w)
-    (hfl : rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) :
+    (hfl : rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧ rs'.lss = rs.lss) :
     ∀ hh, r = .Ok hh → absEIdx hh = (ls.intern w).2 ∧
       StoreRel pers rs' (ls.intern w).1 ∧ StoreInv pers rs' ∧ ECapAt ls w ∧
       ECapBMAt ls w ∧ rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on :=
   fun hh hr => let ⟨a1, a2, a3, a4⟩ := hok hh hr
-    ⟨a1, a2, a3, a4, ECapBMAt.of_no_bm hnb, hfl.1, hfl.2⟩
+    ⟨a1, a2, a3, a4, ECapBMAt.of_no_bm hnb, hfl.1, hfl.2.1⟩
 
 /-- `arena::monad::intern_e_app` at `WOutE`. -/
 theorem intern_e_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
@@ -734,7 +734,7 @@ theorem intern_e_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
       obtain ⟨a1, a2, a3, a4⟩ := hok hh hr
       rw [heqL] at a1 a2
       exact ⟨a1, a2, a3, ECapAt_of_EBindCapAt htag hfb (by rw [hl]; exact a4), hbm,
-        hfl.1, hfl.2⟩
+        hfl.1, hfl.2.1⟩
   · rw [if_neg hc] at hrun
     have hne : absU32 tag ≠ ETag.lam := by
       rw [← etag_lam_abs]
@@ -765,7 +765,7 @@ theorem intern_e_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
       obtain ⟨a1, a2, a3, a4⟩ := hok hh hr
       rw [heqF] at a1 a2
       exact ⟨a1, a2, a3, ECapAt_of_EBindCapAt htag hfb (by rw [hf]; exact a4), hbm,
-        hfl.1, hfl.2⟩
+        hfl.1, hfl.2.1⟩
 
 /-! ## `internRebuilt` and its twelve per-constructor entries
 
@@ -1416,7 +1416,7 @@ theorem intern_e_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
   refine wout_intern_tail hQ hrel hinv hq hview
     (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
   intro hh hr
-  obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hok hh hr
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, -⟩ := hok hh hr
   have hiv := intern_lam_eq (ty := absEIdx ty) (b := absEIdx b) hrel.storeWF a4
   rw [← hiv] at a1 a2
   exact ⟨a1, a2, a3, a5, a4, a6, a7⟩
@@ -1445,7 +1445,7 @@ theorem intern_e_forall_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st ls
   refine wout_intern_tail hQ hrel hinv hq hview
     (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
   intro hh hr
-  obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hok hh hr
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, -⟩ := hok hh hr
   have hiv := intern_forall_e_eq (ty := absEIdx ty) (b := absEIdx b) hrel.storeWF a4
   rw [← hiv] at a1 a2
   exact ⟨a1, a2, a3, a5, a4, a6, a7⟩
