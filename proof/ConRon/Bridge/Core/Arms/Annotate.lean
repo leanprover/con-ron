@@ -539,9 +539,31 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
       | (apply CheckOK.state; assumption)
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
+/-- con-leche: none — `Walks/Proj.lean`'s `IFEnv.findProj?_spec` in ANSWER
+shape: the looked-up name is read off a `view` of a `whnf`'s head, so its
+denotation goes in as an existential and out as a universal (round 3's
+rule). -/
+theorem IFEnv.findProj?_spec' {fe : IFEnv} (s₀ : AState) (T : NIdx) (i : Nat)
+    (hok : CheckOK mode env fe s₀)
+    (hT : ∃ Tn, denoteN s₀.store.ns T = some Tn) :
+    ⦃fun s => ⌜s = s₀⌝⦄ fe.findProj? T i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        ∀ Tn, denoteN s₀.store.ns T = some Tn →
+          ∀ e, r = some e → ∃ p, denoteProjEntry s'.store e = some p ∧
+            env.findProj? Tn i = some p⌝⦄ := by
+  obtain ⟨Tn, hTn⟩ := hT
+  have h := IFEnv.findProj?_spec (mode := mode) (env := env) (fe := fe)
+    s₀ T i Tn hok hTn
+  mvcgen [h]
+  intro hck hx _ hc hp hsome _
+  refine ⟨hck, hx, hc, hp, fun Tn' hTn' => ?_⟩
+  rw [hTn] at hTn'; obtain rfl := Option.some.inj hTn'; exact hsome
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1882-1900 annotateBody — **the `.proj`
 clause**: `KnotSpec.annotate`, `KnotSpec.inferIO'`, `KnotSpec.whnf'`,
-`getAppFn`/`getAppArgs`, `IFEnv.findProj?_spec`; pure side `annot_proj`. -/
+`getAppFn`/`getAppArgs`, `IFEnv.findProj?_spec`; pure side `annot_proj`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
@@ -554,7 +576,116 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case proj sn k pe =>
+    obtain ⟨snm, epe, rfl, hdsn, hdpe⟩ := denote_proj_inv hwf hv hden
+    have hwpe : Expr.WScoped d epe := by unfold Expr.WScoped at hw; exact hw
+    have h1 := hsim.annotate s₀ d pe epe hok hdpe hwpe
+    have hio := hsim.inferIO'
+    have hn := hsim.whnf'
+    have hgf := fun (s : AState) (h : EIdx) (hs : StateOK s)
+        (hd : (denoteE s.store h).isSome = true) =>
+      ExprOps.getAppFn_spec coreWalkFuel s h hs hd
+    have hga := fun (s : AState) (h : EIdx) (hs : StateOK s)
+        (hd : (denoteE s.store h).isSome = true) =>
+      ExprOps.getAppArgs_spec coreWalkFuel s h hs hd
+    have hfp := fun (s : AState) (T : NIdx) (j : Nat) =>
+      IFEnv.findProj?_spec' (mode := mode) (env := env) (fe := fe) s T j
+    mvcgen [h1, hio, hn, hgf, hga, hfp]
+    all_goals (bridge_peel; subst_vars)
+    case vc3.hdw =>
+      rename_i s1 r0 s0 ck_s0 hse x_s1_s0 p_s0_s1
+      exact SimE.exists_denote hse
+    case vc5.hdw =>
+      rename_i s2 r1 s1 r0 s0 ck_s1 ck_s0 x_s1_s0 hse p_s0_s1 hse_2 x_s2_s1 p_s1_s2
+      obtain ⟨v1, hv1, _⟩ := hse
+      exact SimE.exists_denote (hse_2 v1 hv1)
+    case vc7.hd =>
+      rename_i s3 r2 s2 r1 s1 r0 s0 ck_s2 ck_s1 ck_s0 x_s2_s1 x_s1_s0 hse p_s1_s2
+        hse_2 p_s0_s1 hse_3 x_s3_s2 p_s2_s3
+      obtain ⟨v1, hv1, _⟩ := hse
+      obtain ⟨v2, hv2, _⟩ := hse_2 v1 hv1
+      exact (hse_3 v2 hv2).denote
+    case vc9.hT =>
+      rename_i s3 r3 s2 r2 s1 r1 r0 c0 us0 s0 ck_s2 ck_s1 x_s2_s1 hse p_s1_s2 hse_2
+        x_s3_s2 p_s2_s3 v_r0_s0 ck_s0 hgf x_s1_s0 p_s0_s1 hse_3
+      obtain ⟨v1, hv1, _⟩ := hse
+      obtain ⟨v2, hv2, _⟩ := hse_2 v1 hv1
+      obtain ⟨v3, hv3, _⟩ := hse_3 v2 hv2
+      obtain ⟨Tn, _, _, hTn, _⟩ := denote_const_inv ck_s0.state.wf v_r0_s0 (hgf v3 hv3)
+      exact ⟨Tn, hTn⟩
+    case vc12.hd =>
+      rename_i s4 r3 s3 r2 s2 r1 r0 c0 us0 s1 e0 hneg0 s0 ck_s3 ck_s2 ck_s0 x_s3_s2
+        x_s1_s0 hse p_s2_s3 hse_2 c_s0_s1 p_s0_s1 hfp x_s4_s3 p_s3_s4 v_r0_s1 ck_s1
+        hgf x_s2_s1 p_s1_s2 hse_3
+      obtain ⟨v1, hv1, _⟩ := hse
+      obtain ⟨v2, hv2, _⟩ := hse_2 v1 hv1
+      obtain ⟨v3, hv3, _⟩ := hse_3 v2 hv2
+      rw [denote_ext hv3 x_s1_s0]; rfl
+    case vc14.post.success.post.success.post.success.post.success.post.success.h_1.post.success.h_1.isFalse.post.success.isFalse.post.success =>
+      rename_i s5 r5 s4 r4 s3 r3 r2 c0 us0 s2 e0 hneg0 r1 hneg1 s1 r0 s0 ck_s4 ck_s3
+        x_s4_s3 hse p_s3_s4 hse_2 x_s5_s4 p_s4_s5 v_r2_s2 ck_s2 hgf x_s3_s2 p_s2_s3
+        hse_3 ck_s1 hga x_s2_s1 c_s1_s2 p_s1_s2 hfp
+      intro wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ _ d_r0_s0
+      have x41 := x_s4_s3.trans (x_s3_s2.trans x_s2_s1)
+      refine ⟨ck_s1.mono ⟨wf_s0⟩ x_s1_s0 c_s0_s1 p_s0_s1,
+        x_s5_s4.trans (x41.trans x_s1_s0),
+        p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans p_s4_s5))), ?_⟩
+      obtain ⟨v1, hv1, hw1, F1, hF1⟩ := hse
+      obtain ⟨v2, hv2, _, F2, hF2⟩ := hse_2 v1 hv1
+      obtain ⟨v3, hv3, _, F3, hF3⟩ := hse_3 v2 hv2
+      obtain ⟨Tn, US, hfe, hTn, _⟩ :=
+        denote_const_inv ck_s2.state.wf v_r2_s2 (hgf v3 hv3)
+      obtain ⟨pe', hpe', hfind⟩ := hfp Tn hTn e0 rfl
+      have hcs : c0 = sn := by simpa using hneg0
+      subst hcs
+      have hTs : Tn = snm := Option.some.inj
+        (hTn.symm.trans (denoteN_ext hdsn (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+      have hlen : r1.length = e0.numParams := by simpa using hneg1
+      have hargs := denoteEList_len (hga v3 (denote_ext hv3 x_s2_s1))
+      have hnp := (denoteProjEntry_inv hpe').2.2.2.2.2.2.2.1
+      refine ⟨.proj Tn k v1, ?_, by unfold Expr.WScoped; exact hw1,
+        max F1 (max F2 F3) + 1, ?_⟩
+      · rw [d_r0_s0]
+        simp [denoteEView, opt2, denoteN_ext hTn (x_s2_s1.trans x_s1_s0),
+          denote_ext hv1 (x41.trans x_s1_s0)]
+      · exact annot_proj
+          (ConLeche.annotateCore_mono (by omega) hF1)
+          (ConLeche.inferTypeIO_mono (by omega) hF2)
+          (ConLeche.whnf_mono (by omega) hF3) hfe hfind hTs
+          (by rw [hargs, hlen, hnp])
+    case vc16 =>
+      rename_i s4 r4 s3 r3 s2 r2 r1 c0 us0 s1 e0 hneg0 s0 r0 hneg1 ck_s3 ck_s2 ck_s0
+        x_s3_s2 x_s1_s0 hse p_s2_s3 hse_2 c_s0_s1 p_s0_s1 hfp x_s4_s3 p_s3_s4 v_r1_s1
+        ck_s1 hgf x_s2_s1 p_s1_s2 hse_3
+      intro s hs _; subst hs
+      obtain ⟨v1, hv1, _⟩ := hse
+      obtain ⟨v2, hv2, _⟩ := hse_2 v1 hv1
+      obtain ⟨v3, hv3, _⟩ := hse_3 v2 hv2
+      obtain ⟨Tn, _, _, hTn, _⟩ :=
+        denote_const_inv ck_s1.state.wf v_r1_s1 (hgf v3 hv3)
+      exact viewOK_proj (nview_isSome_of_denote (denoteN_ext hTn x_s1_s0))
+        (by rw [denote_ext hv1 (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))]; rfl)
+    case vc18.hT =>
+      rename_i s4 r3 s3 r2 s2 r1 r0 c0 us0 s1 s0 ck_s3 ck_s2 ck_s0 x_s3_s2 x_s1_s0
+        hse p_s2_s3 hse_2 c_s0_s1 p_s0_s1 hfp x_s4_s3 p_s3_s4 v_r0_s1 ck_s1 hgf
+        x_s2_s1 p_s1_s2 hse_3
+      obtain ⟨v1, hv1, _⟩ := hse
+      obtain ⟨v2, hv2, _⟩ := hse_2 v1 hv1
+      obtain ⟨v3, hv3, _⟩ := hse_3 v2 hv2
+      obtain ⟨Tn, _, _, hTn, _⟩ :=
+        denote_const_inv ck_s1.state.wf v_r0_s1 (hgf v3 hv3)
+      exact ⟨Tn, denoteN_ext hTn x_s1_s0⟩
+    all_goals first
+      | assumption
+      | exact fun h => h.elim
+      | (apply CheckOK.state; assumption)
+      | (intro s hs _; subst hs; apply CheckOK.wf'; assumption)
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1808-1816 annotateBody — **the leaf
 clauses**: `.bvar`, `.fvar` (the scope check), `.sort` and `.const` answer
@@ -644,6 +775,8 @@ section Census
 #print axioms annotateBody_leaf
 #print axioms ensureSortCore_of_whnf
 #print axioms annotateBody_letE
+#print axioms IFEnv.findProj?_spec'
+#print axioms annotateBody_proj
 end Census
 
 end ConRon.Bridge.Core
