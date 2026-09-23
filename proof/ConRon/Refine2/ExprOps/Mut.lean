@@ -1400,7 +1400,7 @@ theorem intern_e_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
   obtain ⟨hok, herr⟩ :=
     estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hrel.storeWF hpw hp
   refine wout_intern_tail hQ hrel hinv hq hview
-    (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
+    (fun hcap hbm => internE_run_of_caps hrel.storeWF hcap hbm) ?_ herr
   intro hh hr
   obtain ⟨a1, a2, a3, a4, a5, a6, a7, -⟩ := hok hh hr
   have hiv := intern_lam_eq (ty := absEIdx ty) (b := absEIdx b) hrel.storeWF a4
@@ -1429,7 +1429,7 @@ theorem intern_e_forall_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st ls
     estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store
       hrel.storeWF hpw hp
   refine wout_intern_tail hQ hrel hinv hq hview
-    (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
+    (fun hcap hbm => internE_run_of_caps hrel.storeWF hcap hbm) ?_ herr
   intro hh hr
   obtain ⟨a1, a2, a3, a4, a5, a6, a7, -⟩ := hok hh hr
   have hiv := intern_forall_e_eq (ty := absEIdx ty) (b := absEIdx b) hrel.storeWF a4
@@ -1940,8 +1940,33 @@ theorem find?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx} {v : ENodeView
 
 theorem internE_run_of_find {lst : AState} {w : ENodeView} {h : EIdx}
     (hf : lst.store.find? w = some h) : (Arena.internE w).run lst = .ok (h, lst) := by
-  rw [Arena.internE, run_get_bind, hf]
-  rfl
+  -- a hit of the whole-view probe is a datum hit and then a node hit at that
+  -- datum's handle, which is exactly what the binder arm's two steps probe
+  have hbind : ∀ {mi : BMIdx} {k : BMIdx → AM EIdx} {m : ConLeche.BinderMeta},
+      lst.store.findBM m = some mi → (k mi).run lst = .ok (h, lst) →
+      (Arena.internBME m >>= k).run lst = .ok (h, lst) := by
+    intro mi k m hm hk
+    rw [StateT.run_bind, internBME_run_of_cap (ECapBMOf.of_find_ne (by rw [hm]; simp)),
+      internBM_of_findBM hm]
+    exact hk
+  cases w
+  case lam ty b m =>
+    cases hm : lst.store.findBM m with
+    | none => simp [EStore.find?, EStore.findBMOfView, hm] at hf
+    | some mi =>
+      simp only [EStore.find?, EStore.findBMOfView, hm] at hf
+      rw [findAt_lam_eq_findBindI] at hf
+      refine hbind hm ?_
+      rw [Arena.internLamIE, run_get_bind, hf]; rfl
+  case forallE ty b m =>
+    cases hm : lst.store.findBM m with
+    | none => simp [EStore.find?, EStore.findBMOfView, hm] at hf
+    | some mi =>
+      simp only [EStore.find?, EStore.findBMOfView, hm] at hf
+      rw [findAt_forallE_eq_findBindI] at hf
+      refine hbind hm ?_
+      rw [Arena.internForallEIE, run_get_bind, hf]; rfl
+  all_goals (rw [internE_eq_node rfl, Arena.internNodeE, run_get_bind, hf]; rfl)
 
 /-- The cutoff against the unconditional intern. -/
 theorem wout_same_of_intern {Q : AState → Prop} {pers st lst o} {w : ENodeView}
@@ -9506,27 +9531,10 @@ theorem WOutE.bind_any {Q : AState → Prop} {pers : arena.store.PersTier}
 /-- The twin's `internE` moves only the store. -/
 theorem internE_memos {v : ENodeView} {lst lst' : AState} {r : EIdx}
     (h : (Arena.internE v).run lst = .ok (r, lst')) : lst'.memos = lst.memos := by
-  rw [Arena.internE, run_get_bind] at h
-  cases hf : lst.store.find? v with
-  | some hh =>
-    rw [hf] at h
-    have h' : (Except.ok (hh, lst) : Except Arena.CheckError (EIdx × AState))
-        = .ok (r, lst') := h
-    cases h'; rfl
-  | none =>
-    rw [hf] at h
-    by_cases hc : ((if lst.store.scratchOn then lst.store.scr.sizeOf v
-        else lst.store.pers.sizeOf v) < Idx.idxCap &&
-        ((lst.store.findBMOfView v).isSome ||
-          (if lst.store.scratchOn then lst.store.scr.bmSize
-            else lst.store.pers.bmSize) < Idx.idxCap)) = true
-    · rw [if_pos hc] at h
-      have h' : (Except.ok ((lst.store.intern v).2, { lst with store := (lst.store.intern v).1 }) :
-          Except Arena.CheckError (EIdx × AState)) = .ok (r, lst') := h
-      cases h'; rfl
-    · rw [if_neg hc] at h
-      rw [arena_fail_run] at h
-      cases h
+  cases v
+  case lam ty b m => rw [(internLamE_run_inv h).2.2]
+  case forallE ty b m => rw [(internForallEE_run_inv h).2.2]
+  all_goals (rw [internE_eq_node rfl] at h; rw [(internNodeE_run_inv h).2])
 
 
 /-- A memo table other than the walk's own is untouched. -/

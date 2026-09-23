@@ -248,9 +248,32 @@ Both facts hold of the store operation: `EStore.view_intern_mono`
 conjunct in the monadic specs, which is what this section adds.  They belong
 in `Bridge/Specs.lean`, replacing the versions there. -/
 
-/-- con-leche: none — `internE` with view and binder-datum monotonicity.  The
-two new conjuncts are `EStore.view_intern_mono` and
-`EStore.viewBM_intern_mono` under the monadic wrapper. -/
+/-- con-leche: none — `internE` moves no node read: the node arms end at a
+cons hit or at `EStore.intern`, the two binder arms (task #97-T2-LOCKSTEP D6)
+at `EStore.internBM` and then `EStore.internBindI`. -/
+theorem internE_view_mono {s s' : AState} {w : ENodeView} {h : EIdx}
+    (hrun : internE w s = .ok (h, s')) :
+    ∀ i v, s.store.view i = some v → s'.store.view i = some v := by
+  intro i v hi
+  cases w
+  case lam ty b m =>
+    obtain ⟨mi, s₁, h1, h2⟩ := internE_lam_split hrun
+    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
+    obtain ⟨-, rfl⟩ := internLamIE_ok h2
+    exact EStore.view_internBindI_mono _ _ _ _ _ (EStore.view_internBM_mono _ m hi)
+  case forallE ty b m =>
+    obtain ⟨mi, s₁, h1, h2⟩ := internE_forallE_split hrun
+    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
+    obtain ⟨-, rfl⟩ := internForallEIE_ok h2
+    exact EStore.view_internBindI_mono _ _ _ _ _ (EStore.view_internBM_mono _ m hi)
+  all_goals
+    rcases internNodeE_ok hrun with ⟨-, rfl⟩ | ⟨-, -, rfl⟩
+    · exact hi
+    · exact EStore.view_intern_mono _ _ hi
+
+/-- con-leche: none — `internE` with view and binder-datum monotonicity:
+`internE_spec` (whose `BMExt` conjunct is the datum half) and
+`internE_view_mono`. -/
 @[spec high] theorem internE_specV (s₀ : AState) (w : ENodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
     ⦃fun s => ⌜s = s₀⌝⦄ internE w
@@ -261,32 +284,10 @@ two new conjuncts are `EStore.view_intern_mono` and
         (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         s'.store.view h = some w ∧
         denoteE s'.store h = denoteEView s'.store w⌝⦄ := by
-  unfold internE
-  mvcgen
-  spec_fails
-  -- **The cons HIT** (task #97-P5-1's finding 9): `internE` probes before it
-  -- tests the capacity, so this branch moves nothing and both monotonicity
-  -- conjuncts are reflexive.
-  case vc1.h_1 =>
-    rename_i s hs i hfind
-    subst hs
-    have hview := EStore.view_of_find hwf hfind
-    obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, fun _ _ hi => hi,
-      fun _ _ hmi => hmi, hview, denoteE_unfold hwf' hview⟩
-  rename_i s hs _hfind _n _nbm hcap _s1
-  subst hs
-  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq] at hcap
-  have hcap' : EStore.capOK s.store w := by
-    refine ⟨hcap.1, fun hbm => ?_⟩
-    simp only [EStore.capOKBM]
-    rcases hcap.2 with hh | hh
-    · rw [hbm] at hh; exact absurd hh (by simp)
-    · exact hh
-  obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec hwf hv hcap'
-  exact ⟨h1, h2, EStore.lss_intern _ _, rfl, rfl, rfl,
-    fun i v hi => EStore.view_intern_mono s.store w hi,
-    fun mi m hmi => EStore.viewBM_intern_mono s.store w hmi, h3, h4⟩
+  refine AM.triple_of_run_at fun h s' hrun => ?_
+  obtain ⟨p1, p2, p3, p4, -, p6, p7, p8, p9, p10⟩ :=
+    AM.of_run (P := fun t => t = s₀) rfl hrun (internE_spec s₀ w hwf hv)
+  exact ⟨p1, p2, p4, p6, p7, p8, internE_view_mono hrun, p3, p9, p10⟩
 
 /-- con-leche: none — `internRebuilt` with the same two conjuncts.  The
 `same = true` branch answers the handle it was given, so both are
