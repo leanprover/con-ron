@@ -581,7 +581,7 @@ def checkIotaRuleWfSpec (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
     fail (.invalid "free variable in rule")
   let rhsA ← annotateCore mode feSelf checkFuel 0 r.rhs
   checkIotaRuleFireSpec mode fe' feSelf f cvName lps tyA mI rP j r cvj cnP cnF rhsA
-   
+  
 
 /-- The owed equation: `checkIotaRule` IS the name read, the constructor
 lookup, the field-count pin and `checkIotaRuleWfSpec`. -/

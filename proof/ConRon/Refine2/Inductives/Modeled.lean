@@ -80,15 +80,45 @@ theorem doms_match_renamed_refines {F : Type}
         (absU k)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem doms_match_renamed_ls
+    {F : Type}
+    {inst : arena.expr_ops.NIdxToNIdx F}
+    {pers st lst}
+    {f : F}
+    {g : NIdx → NIdx}
+    {bs1 bs2 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {o1 o2 k : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hf : RenameRel inst f g) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.doms_match_renamed inst pers st f bs1 bs2 o1 o2 k) lst
+      (domsMatchRenamed g (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2)
+        (absU k)) :=
+  LS.ofSim₀ fun _ h => doms_match_renamed_refines hrel hinv hf h
+
 /-- `eq_basis_stored` ⊑ `eqBasisStored` — *the pinned `Eq` basis is the stored
 `Eq`*, the guard three clauses of this module share. -/
 theorem eq_basis_stored_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRelI rf lf)
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.modeled.eq_basis_stored pers vis st rf = ok o) :
     Sim₀ id pers lst o (eqBasisStored lf) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem eq_basis_stored_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.eq_basis_stored pers vis st rf) lst
+                       (eqBasisStored lf) :=
+  LS.ofSim₀ fun _ h => eq_basis_stored_refines hrel hinv hfe hvis h
 
 /-- `model_name` ⊑ `internNNode (.str n "_model")` — the one name suffix every
 modeled-route lookup builds.  Over handles building a name means INTERNING
@@ -100,6 +130,16 @@ theorem model_name_refines {pers st lst} {n : arena.handle.NIdx} {o}
       (internNNode (.str (absNIdx n) "_model")) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem model_name_ls
+    {pers st lst}
+    {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.inductives.modeled.model_name pers st n) lst
+      (internNNode (.str (absNIdx n) "_model")) :=
+  LS.ofSim₀ fun _ h => model_name_refines hrel hinv h
+
 /-- `intern_ls` ⊑ `internLsNode` at the level list `nestedRuleShape`
 returned. -/
 theorem intern_ls_refines {pers st lst} {us : alloc.vec.Vec arena.handle.LIdx} {o}
@@ -107,6 +147,16 @@ theorem intern_ls_refines {pers st lst} {us : alloc.vec.Vec arena.handle.LIdx} {
     (hrun : arena.inductives.modeled.intern_ls pers st us = ok o) :
     Sim₀ absLsIdx pers lst o (internLsNode (absLIdxL us)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem intern_ls_ls
+    {pers st lst}
+    {us : alloc.vec.Vec arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absLsIdx a) (arena.inductives.modeled.intern_ls pers st us) lst
+                             (internLsNode (absLIdxL us)) :=
+  LS.ofSim₀ fun _ h => intern_ls_refines hrel hinv h
 
 /-! ## The renaming tables -/
 
@@ -185,6 +235,19 @@ theorem block_rename_table_from_refines {pers st lst}
         (← blockRenameTable (absNIdxLFrom block_names i)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem block_rename_table_from_ls
+    {pers st lst}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absRenameTbl a) (arena.inductives.modeled.block_rename_table_from pers st block_names i out) lst
+      (do pure (absRenameTbl out ++
+        (← blockRenameTable (absNIdxLFrom block_names i)))) :=
+  LS.ofSim₀ fun _ h => block_rename_table_from_refines hrel hinv h
+
 /-- `block_rename_table` ⊑ `blockRenameTable` — every member name maps to its
 `_model` companion, every other name to itself. -/
 theorem block_rename_table_refines {pers st lst}
@@ -194,6 +257,16 @@ theorem block_rename_table_refines {pers st lst}
     Sim₀ absRenameBy pers lst o
       (blockRenameTable (absNIdxL block_names)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem block_rename_table_ls
+    {pers st lst}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absRenameBy a) (arena.inductives.modeled.block_rename_table pers st block_names) lst
+      (blockRenameTable (absNIdxL block_names)) :=
+  LS.ofSim₀ fun _ h => block_rename_table_refines hrel hinv h
 
 /-- `proj_pairs_from` ⊑ `projBack.go` at `back := true` and `projFwd.go` at
 `back := false`, with the accumulated pairs in front. -/
@@ -208,6 +281,20 @@ theorem proj_pairs_from_refines {pers st lst} {t : arena.handle.NIdx}
         (← projPairsFromSpec (absNIdx t) back (absU n_f - absU j) (absU j)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem proj_pairs_from_ls
+    {pers st lst}
+    {t : arena.handle.NIdx}
+    {n_f j : Std.U64}
+    {back : Bool}
+    {out : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absRenameTbl a) (arena.inductives.modeled.proj_pairs_from pers st t n_f j back out) lst
+      (do pure (absRenameTbl out ++
+        (← projPairsFromSpec (absNIdx t) back (absU n_f - absU j) (absU j)))) :=
+  LS.ofSim₀ fun _ h => proj_pairs_from_refines hrel hinv h
+
 /-- `proj_back` ⊑ `projBack` — rename a model-side projection type back to
 public names, as a table. -/
 theorem proj_back_refines {pers st lst} {t ctor : arena.handle.NIdx}
@@ -218,6 +305,17 @@ theorem proj_back_refines {pers st lst} {t ctor : arena.handle.NIdx}
       (projBack (absNIdx t) (absNIdx ctor) (absU n_f)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem proj_back_ls
+    {pers st lst}
+    {t ctor : arena.handle.NIdx}
+    {n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absRenameBy a) (arena.inductives.modeled.proj_back pers st t ctor n_f) lst
+      (projBack (absNIdx t) (absNIdx ctor) (absU n_f)) :=
+  LS.ofSim₀ fun _ h => proj_back_refines hrel hinv h
+
 /-- `proj_fwd` ⊑ `projFwd` — the forward (public → model) map on the
 projection family. -/
 theorem proj_fwd_refines {pers st lst} {t ctor : arena.handle.NIdx}
@@ -227,6 +325,17 @@ theorem proj_fwd_refines {pers st lst} {t ctor : arena.handle.NIdx}
     Sim₀ absRenameBy pers lst o
       (projFwd (absNIdx t) (absNIdx ctor) (absU n_f)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem proj_fwd_ls
+    {pers st lst}
+    {t ctor : arena.handle.NIdx}
+    {n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absRenameBy a) (arena.inductives.modeled.proj_fwd pers st t ctor n_f) lst
+      (projFwd (absNIdx t) (absNIdx ctor) (absU n_f)) :=
+  LS.ofSim₀ fun _ h => proj_fwd_refines hrel hinv h
 
 /-! ## The equation pattern -/
 
@@ -242,15 +351,25 @@ theorem eq_app3_refines {pers st lst} {h : arena.handle.EIdx} {o}
       lst o (eqApp3? (absEIdx h)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem eq_app3_ls
+    {pers st lst}
+    {h : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = (Option.map fun q => (absNIdx q.1, absLIdx q.2.1, absEIdx q.2.2.1, absEIdx q.2.2.2.1, absEIdx q.2.2.2.2)) a) (arena.inductives.modeled.eq_app3 pers st h) st lst
+            (eqApp3? (absEIdx h)) :=
+  LSR.ofSimRE hrel hinv fun _ h => eq_app3_refines hrel hinv h
+
 /-! ## The iota certificates -/
 
 /-- `check_iota_slot_ty` ⊑ `checkIotaSidesTy`'s TT-lane tail. -/
 theorem check_iota_slot_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {depth : Std.U64} {alpha_s : arena.handle.EIdx}
-    {l_a : arena.handle.LIdx} {lcv : NIdx} {o}
+    {l_a : arena.handle.LIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_slot_ty pers vis st mode rfS depth
       alpha_s l_a = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -258,22 +377,58 @@ theorem check_iota_slot_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx alpha_s) (absLIdx l_a)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_slot_ty_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {depth : Std.U64}
+    {alpha_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_slot_ty pers vis st mode rfS depth alpha_s l_a) lst
+      (checkIotaSlotTySpec (ConRon.Refine.absMode mode) lfS (absU depth)
+        (absEIdx alpha_s) (absLIdx l_a)) :=
+  LS.ofSim₀ fun _ h => check_iota_slot_ty_refines hrel hinv hfe hvis h
+
 /-- `check_iota_sides_ty` ⊑ `checkIotaSidesTy` — both sides of a modeled iota
 equation inhabit the equation's type, and the type slot inhabits the sort the
 statement's own `Eq.{ℓA}` names. -/
 theorem check_iota_sides_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
     {alpha_s lhs_s rhs_s : arena.handle.EIdx} {l_a : arena.handle.LIdx}
-    {lcv : NIdx} {o}
+    {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_sides_ty pers vis st mode rfS depth
       alpha_s lhs_s rhs_s l_a = ok o) :
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaSidesTy (ConRon.Refine.absMode mode) lfS (absU depth)
         (absEIdx alpha_s) (absEIdx lhs_s) (absEIdx rhs_s) (absLIdx l_a)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_sides_ty_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {depth : Std.U64}
+    {alpha_s lhs_s rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_sides_ty pers vis st mode rfS depth alpha_s lhs_s rhs_s l_a) lst
+      (checkIotaSidesTy (ConRon.Refine.absMode mode) lfS (absU depth)
+        (absEIdx alpha_s) (absEIdx lhs_s) (absEIdx rhs_s) (absLIdx l_a)) :=
+  LS.ofSim₀ fun _ h => check_iota_sides_ty_refines hrel hinv hfe hvis h
 
 /-- `iota_thm_name` ⊑ `iotaThmName` — `(cvName.str "_model").str "iota_j"`,
 interned.  `toString j` is the port's own decimal recursion
@@ -285,6 +440,17 @@ theorem iota_thm_name_refines {pers st lst} {cv_name : arena.handle.NIdx}
     Sim₀ absNIdx pers lst o
       (iotaThmName (absNIdx cv_name) (absU j)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem iota_thm_name_ls
+    {pers st lst}
+    {cv_name : arena.handle.NIdx}
+    {j : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.inductives.modeled.iota_thm_name pers st cv_name j) lst
+      (iotaThmName (absNIdx cv_name) (absU j)) :=
+  LS.ofSim₀ fun _ h => iota_thm_name_refines hrel hinv h
 
 /-- `last_d_eidx` ⊑ `xs.getLastD dflt` — the major premise is the argument
 spine's last entry. -/
@@ -327,12 +493,23 @@ theorem iota_stmt_open_at_refines {pers st lst} {depth : Std.U64}
       pers lst o (iotaStmtOpenAtSpec (absU depth) (absEIdx tty)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem iota_stmt_open_at_ls
+    {pers st lst}
+    {depth : Std.U64}
+    {tty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (fun r => (absEIdxL r.1, absEIdxL r.2.1, absLIdx r.2.2)) a) (arena.inductives.modeled.iota_stmt_open_at pers st depth tty) lst
+                 (iotaStmtOpenAtSpec (absU depth) (absEIdx tty)) :=
+  LS.ofSim₀ fun _ h => iota_stmt_open_at_refines hrel hinv h
+
 /-- `iota_stmt_open` ⊑ the prologue both statement checks share. -/
 theorem iota_stmt_open_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {depth j : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.iota_stmt_open pers vis st rf2 cv_name lps depth
       j = ok o) :
@@ -341,6 +518,23 @@ theorem iota_stmt_open_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (iotaStmtOpenSpec lf2 (absNIdx cv_name) (absNIdxL lps) (absU depth) (absU j)
        ) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem iota_stmt_open_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {depth j : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = (fun r => (absEIdxL r.1, absEIdxL r.2.1, absLIdx r.2.2)) a) (arena.inductives.modeled.iota_stmt_open pers vis st rf2 cv_name lps depth j) lst
+      (iotaStmtOpenSpec lf2 (absNIdx cv_name) (absNIdxL lps) (absU depth) (absU j)
+       ) :=
+  LS.ofSim₀ fun _ h => iota_stmt_open_refines hrel hinv hfe hvis h
 
 /-- `iota_lhs_prefix_ok` ⊑ the left side's head, arity and prefix pins. -/
 theorem iota_lhs_prefix_ok_refines {pers st lst}
@@ -355,6 +549,23 @@ theorem iota_lhs_prefix_ok_refines {pers st lst}
       (iotaLhsPrefixOkSpec (absRenameBy f) (absNIdx cv_name) (absNIdxL lps)
         (absU m_i) (absU r_p) (absEIdxL fvs) (absEIdx lfn) (absEIdxL largs)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem iota_lhs_prefix_ok_ls
+    {pers st lst}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {m_i r_p : Std.U64}
+    {fvs : alloc.vec.Vec arena.handle.EIdx}
+    {lfn : arena.handle.EIdx}
+    {largs : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.iota_lhs_prefix_ok pers st f cv_name lps m_i r_p fvs lfn largs) lst
+      (iotaLhsPrefixOkSpec (absRenameBy f) (absNIdx cv_name) (absNIdxL lps)
+        (absU m_i) (absU r_p) (absEIdxL fvs) (absEIdx lfn) (absEIdxL largs)) :=
+  LS.ofSim₀ fun _ h => iota_lhs_prefix_ok_refines hrel hinv h
 
 /-- `check_iota_major` ⊑ `checkIotaThm`'s major-premise pin. -/
 theorem check_iota_major_refines {pers st lst}
@@ -371,6 +582,23 @@ theorem check_iota_major_refines {pers st lst}
         (absEIdx b0)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_major_ls
+    {pers st lst}
+    {f : arena.inductives.modeled.RenameBy}
+    {r : arena.env.IRecRule}
+    {cvj : arena.env.IConstantVal}
+    {cn_p : Std.U64}
+    {fvs x_fvs largs : alloc.vec.Vec arena.handle.EIdx}
+    {b0 : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_iota_major pers st f r cvj cn_p fvs x_fvs largs b0) lst
+      (checkIotaMajorSpec (absRenameBy f) (absIRecRule r) (absIConstantVal cvj)
+        (absU cn_p) (absEIdxL fvs) (absEIdxL x_fvs) (absEIdxL largs)
+        (absEIdx b0)) :=
+  LS.ofSim₀ fun _ h => check_iota_major_refines hrel hinv h
+
 /-- `check_iota_thm_rhs` ⊑ `checkIotaThm`'s right-side stage. -/
 theorem check_iota_thm_rhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
@@ -378,8 +606,8 @@ theorem check_iota_thm_rhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_rhs pers vis st mode rfS f depth
       rhs_a fvs targs rhs_s l_a b0 = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -387,6 +615,30 @@ theorem check_iota_thm_rhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) lcv) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_thm_rhs_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {depth : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_rhs pers vis st mode rfS f depth rhs_a fvs targs rhs_s l_a b0) lst
+      (checkIotaThmRhsSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
+        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_rhs_refines hrel hinv hfe hvis h
 
 /-- `check_iota_thm_lams` ⊑ `checkIotaThm`'s λ-domain stage. -/
 theorem check_iota_thm_lams_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -396,8 +648,8 @@ theorem check_iota_thm_lams_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx}
     {all : alloc.vec.Vec arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_lams pers vis st mode rfS f depth
       rhs_a fvs targs rhs_s l_a b0 all = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -405,6 +657,31 @@ theorem check_iota_thm_lams_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absEIdxL all) lcv) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_thm_lams_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {depth : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {all : alloc.vec.Vec arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_lams pers vis st mode rfS f depth rhs_a fvs targs rhs_s l_a b0 all) lst
+      (checkIotaThmLamsSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
+        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absEIdxL all) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_lams_refines hrel hinv hfe hvis h
 
 /-- `check_iota_thm_frames` ⊑ `checkIotaThm`'s public-frame stage. -/
 theorem check_iota_thm_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -414,8 +691,8 @@ theorem check_iota_thm_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_frames pers vis st mode rfS f
       ty_a r_p cvj cn_p depth rhs_a fvs targs rhs_s l_a b0 = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -425,6 +702,34 @@ theorem check_iota_thm_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absLIdx l_a) (absEIdx b0) lcv) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_frames_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p depth : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_frames pers vis st mode rfS f ty_a r_p cvj cn_p depth rhs_a fvs targs rhs_s l_a b0) lst
+      (checkIotaThmFramesSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU r_p) (absIConstantVal cvj) (absU cn_p) (absU depth)
+        (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s)
+        (absLIdx l_a) (absEIdx b0) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_frames_refines hrel hinv hfe hvis h
+
 /-- `check_iota_thm_prefix` ⊑ `checkIotaThm`'s prefix-domain stage. -/
 theorem check_iota_thm_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
@@ -433,8 +738,8 @@ theorem check_iota_thm_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_prefix pers vis st mode rfS f
       ty_a r_p cvj cn_p depth rhs_a fvs targs rhs_s l_a b0 = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -443,6 +748,34 @@ theorem check_iota_thm_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s)
         (absLIdx l_a) (absEIdx b0) lcv) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_thm_prefix_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p depth : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_prefix pers vis st mode rfS f ty_a r_p cvj cn_p depth rhs_a fvs targs rhs_s l_a b0) lst
+      (checkIotaThmPrefixSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU r_p) (absIConstantVal cvj) (absU cn_p) (absU depth)
+        (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s)
+        (absLIdx l_a) (absEIdx b0) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_prefix_refines hrel hinv hfe hvis h
 
 /-- `check_iota_thm_idx` ⊑ `checkIotaThm`'s index-tuple stage. -/
 theorem check_iota_thm_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -454,8 +787,8 @@ theorem check_iota_thm_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {b0 : arena.handle.EIdx} {cdoms : alloc.vec.Vec arena.handle.EIdx}
     {cres : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_idx pers vis st mode rfS f ty_a
       m_i r_p cvj cn_p depth rhs_a fvs x_fvs largs targs rhs_s l_a b0 cdoms cres
       = ok o) :
@@ -467,6 +800,37 @@ theorem check_iota_thm_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx b0) (absEIdxL cdoms) (absEIdx cres) lcv) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_idx_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p depth : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {cdoms : alloc.vec.Vec arena.handle.EIdx}
+    {cres : arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_idx pers vis st mode rfS f ty_a m_i r_p cvj cn_p depth rhs_a fvs x_fvs largs targs rhs_s l_a b0 cdoms cres) lst
+      (checkIotaThmIdxSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
+        (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
+        (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
+        (absEIdx b0) (absEIdxL cdoms) (absEIdx cres) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_idx_refines hrel hinv hfe hvis h
+
 /-- `check_iota_thm_ctor` ⊑ `checkIotaThm`'s constructor-telescope stage. -/
 theorem check_iota_thm_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
@@ -476,8 +840,8 @@ theorem check_iota_thm_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {rhs_s : arena.handle.EIdx} {l_a : arena.handle.LIdx}
     {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_ctor pers vis st mode rfS f ty_a
       m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0 = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -488,6 +852,35 @@ theorem check_iota_thm_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx b0) lcv) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_ctor_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_ctor pers vis st mode rfS f ty_a m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0) lst
+      (checkIotaThmCtorSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
+        (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
+        (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
+        (absEIdx b0) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_ctor_refines hrel hinv hfe hvis h
+
 /-- `check_iota_thm` ⊑ `checkIotaThm` — **check a canonical recursor rule's
 `iota_j` theorem, semantically**. -/
 theorem check_iota_thm_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -497,8 +890,8 @@ theorem check_iota_thm_refines {pers st lst} {mode : kernel.env.CheckMode}
     {cvj : arena.env.IConstantVal} {cn_p cn_f : Std.U64}
     {rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_iota_thm pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -507,6 +900,32 @@ theorem check_iota_thm_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
         (absEIdx rhs_a)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_thm_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p j : Std.U64}
+    {r : arena.env.IRecRule}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm pers st mode rf2 rfS f cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a) lst
+      (checkIotaThm (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+        (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+        (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
+        (absEIdx rhs_a)) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_refines hrel hinv hfe2 hfeS h
 
 /-! ## The nested-shape recogniser -/
 
@@ -522,6 +941,20 @@ theorem lower_bvars_list_refines {pers st lst} {k : Std.U64}
         (← lowerBVarsListSpec (absU k) (absEIdxLFrom xs i)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem lower_bvars_list_ls
+    {pers st lst}
+    {k : Std.U64}
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a) (arena.inductives.modeled.lower_bvars_list pers st k xs i out) lst
+      (do pure (absEIdxL out ++
+        (← lowerBVarsListSpec (absU k) (absEIdxLFrom xs i)))) :=
+  LS.ofSim₀ fun _ h => lower_bvars_list_refines hrel hinv h
+
 /-- `lift_bvars_list` ⊑ `nestedRuleShape`'s `pins.mapM (liftLooseBVarsFast …)`,
 from the cursor on. -/
 theorem lift_bvars_list_refines {pers st lst} {k : Std.U64}
@@ -534,12 +967,26 @@ theorem lift_bvars_list_refines {pers st lst} {k : Std.U64}
         (← liftBVarsListSpec (absU k) (absEIdxLFrom xs i)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem lift_bvars_list_ls
+    {pers st lst}
+    {k : Std.U64}
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a) (arena.inductives.modeled.lift_bvars_list pers st k xs i out) lst
+      (do pure (absEIdxL out ++
+        (← liftBVarsListSpec (absU k) (absEIdxLFrom xs i)))) :=
+  LS.ofSim₀ fun _ h => lift_bvars_list_refines hrel hinv h
+
 /-- `nested_pins_ok` ⊑ `nestedRuleShape`'s `pins.allM`, from the cursor on. -/
 theorem nested_pins_ok_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {lps : alloc.vec.Vec arena.handle.NIdx} {r_p : Std.U64}
     {pins : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
+    (hfe : IFEnvRelI rfS lfS)
     (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.nested_pins_ok pers vis st rfS lps r_p pins i
       = ok o) :
@@ -547,12 +994,29 @@ theorem nested_pins_ok_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (nestedPinsOkSpec lfS (absNIdxL lps) (absU r_p) (absEIdxLFrom pins i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem nested_pins_ok_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {r_p : Std.U64}
+    {pins : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.nested_pins_ok pers vis st rfS lps r_p pins i) lst
+      (nestedPinsOkSpec lfS (absNIdxL lps) (absU r_p) (absEIdxLFrom pins i)) :=
+  LS.ofSim₀ fun _ h => nested_pins_ok_refines hrel hinv hfe hvis h
+
 /-- `nested_rule_shape_args` ⊑ `nestedRuleShape`'s argument-spine stage. -/
 theorem nested_rule_shape_args_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {lps : alloc.vec.Vec arena.handle.NIdx} {m_i r_p cn_p : Std.U64}
     {dom : arena.handle.EIdx} {lvls_idx : arena.handle.LsIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
+    (hfe : IFEnvRelI rfS lfS)
     (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.nested_rule_shape_args pers vis st rfS lps m_i
       r_p cn_p dom lvls_idx = ok o) :
@@ -561,13 +1025,31 @@ theorem nested_rule_shape_args_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx dom) (absLsIdx lvls_idx)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem nested_rule_shape_args_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {m_i r_p cn_p : Std.U64}
+    {dom : arena.handle.EIdx}
+    {lvls_idx : arena.handle.LsIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (Option.map fun q => (absLIdxL q.1, absEIdxL q.2)) a) (arena.inductives.modeled.nested_rule_shape_args pers vis st rfS lps m_i r_p cn_p dom lvls_idx) lst
+      (nestedRuleShapeArgsSpec lfS (absNIdxL lps) (absU m_i) (absU r_p) (absU cn_p)
+        (absEIdx dom) (absLsIdx lvls_idx)) :=
+  LS.ofSim₀ fun _ h => nested_rule_shape_args_refines hrel hinv hfe hvis h
+
 /-- `nested_rule_shape_at` ⊑ `nestedRuleShape`'s body past the `iota_j`
 guard. -/
 theorem nested_rule_shape_at_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {lps : alloc.vec.Vec arena.handle.NIdx} {ty_a : arena.handle.EIdx}
     {m_i r_p cn_p : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
+    (hfe : IFEnvRelI rfS lfS)
     (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.nested_rule_shape_at pers vis st rfS lps ty_a
       m_i r_p cn_p = ok o) :
@@ -576,6 +1058,23 @@ theorem nested_rule_shape_at_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU r_p) (absU cn_p)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem nested_rule_shape_at_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p cn_p : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (Option.map fun q => (absLIdxL q.1, absEIdxL q.2)) a) (arena.inductives.modeled.nested_rule_shape_at pers vis st rfS lps ty_a m_i r_p cn_p) lst
+      (nestedRuleShapeAtSpec lfS (absNIdxL lps) (absEIdx ty_a) (absU m_i)
+        (absU r_p) (absU cn_p)) :=
+  LS.ofSim₀ fun _ h => nested_rule_shape_at_refines hrel hinv hfe hvis h
+
 /-- `nested_rule_shape` ⊑ `nestedRuleShape` — the constructor's level and
 parameter instantiations, read off the recursor type's major-premise
 domain. -/
@@ -583,14 +1082,32 @@ theorem nested_rule_shape_refines {pers st lst} {rf2 lf2} {rfS lfS}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {ty_a : arena.handle.EIdx} {m_i r_p cn_p j : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.nested_rule_shape pers st rf2 rfS cv_name lps
       ty_a m_i r_p cn_p j = ok o) :
     Sim₀ (Option.map fun q => (absLIdxL q.1, absEIdxL q.2)) pers lst o
       (nestedRuleShape lf2 lfS (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a)
         (absU m_i) (absU r_p) (absU cn_p) (absU j)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem nested_rule_shape_ls
+    {pers st lst}
+    {rf2 lf2}
+    {rfS lfS}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p cn_p j : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = (Option.map fun q => (absLIdxL q.1, absEIdxL q.2)) a) (arena.inductives.modeled.nested_rule_shape pers st rf2 rfS cv_name lps ty_a m_i r_p cn_p j) lst
+      (nestedRuleShape lf2 lfS (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a)
+        (absU m_i) (absU r_p) (absU cn_p) (absU j)) :=
+  LS.ofSim₀ fun _ h => nested_rule_shape_refines hrel hinv hfe2 hfeS h
 
 /-! ## `checkIotaThmN` -/
 
@@ -610,6 +1127,23 @@ theorem inst_spine_list_renamed_refines {pers st lst}
           (absEIdxLFrom pins i)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem inst_spine_list_renamed_ls
+    {pers st lst}
+    {f : arena.inductives.modeled.RenameBy}
+    {args : alloc.vec.Vec arena.handle.EIdx}
+    {t : Std.U64}
+    {pins : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a) (arena.inductives.modeled.inst_spine_list_renamed pers st f args t pins i out) lst
+      (do pure (absEIdxL out ++
+        (← instSpineListRenamedSpec (absRenameBy f) (absEIdxL args) (absU t)
+          (absEIdxLFrom pins i)))) :=
+  LS.ofSim₀ fun _ h => inst_spine_list_renamed_refines hrel hinv h
+
 /-- `inst_spine_list` ⊑ the same without the renaming — the public frame's. -/
 theorem inst_spine_list_refines {pers st lst}
     {args : alloc.vec.Vec arena.handle.EIdx} {t : Std.U64}
@@ -624,6 +1158,22 @@ theorem inst_spine_list_refines {pers st lst}
           (absEIdxLFrom pins i)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem inst_spine_list_ls
+    {pers st lst}
+    {args : alloc.vec.Vec arena.handle.EIdx}
+    {t : Std.U64}
+    {pins : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a) (arena.inductives.modeled.inst_spine_list pers st args t pins i out) lst
+      (do pure (absEIdxL out ++
+        (← instSpineListSpec (absEIdxL args) (absU t)
+          (absEIdxLFrom pins i)))) :=
+  LS.ofSim₀ fun _ h => inst_spine_list_refines hrel hinv h
+
 /-- `check_iota_thm_n_fields` ⊑ `checkIotaThmN`'s field stage. -/
 theorem check_iota_thm_n_fields_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
@@ -633,8 +1183,8 @@ theorem check_iota_thm_n_fields_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs_p : alloc.vec.Vec arena.handle.EIdx} {crest_p : arena.handle.EIdx}
     {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_n_fields pers vis st mode rfS f
       m_i r_p cn_p cn_f rhs_a fvs targs rhs_s l_a b0 fvs_p crest_p = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -643,6 +1193,33 @@ theorem check_iota_thm_n_fields_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0)
         (absEIdxL fvs_p) (absEIdx crest_p) lcv) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_fields_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {m_i r_p cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {fvs_p : alloc.vec.Vec arena.handle.EIdx}
+    {crest_p : arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_n_fields pers vis st mode rfS f m_i r_p cn_p cn_f rhs_a fvs targs rhs_s l_a b0 fvs_p crest_p) lst
+      (checkIotaThmNFieldsSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absU m_i) (absU r_p) (absU cn_p) (absU cn_f) (absEIdx rhs_a)
+        (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0)
+        (absEIdxL fvs_p) (absEIdx crest_p) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_fields_refines hrel hinv hfe hvis h
 
 /-- `check_iota_thm_n_frames` ⊑ `checkIotaThmN`'s public-frame stage. -/
 theorem check_iota_thm_n_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -654,8 +1231,8 @@ theorem check_iota_thm_n_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {lvls_idx : arena.handle.LsIdx} {pins : alloc.vec.Vec arena.handle.EIdx}
     {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_n_frames pers vis st mode rfS f
       ty_a m_i r_p cvj cn_p cn_f rhs_a fvs targs rhs_s l_a b0 lvls_idx pins
       = ok o) :
@@ -667,6 +1244,37 @@ theorem check_iota_thm_n_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdxL pins) lcv) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_frames_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lvls_idx : arena.handle.LsIdx}
+    {pins : alloc.vec.Vec arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_n_frames pers vis st mode rfS f ty_a m_i r_p cvj cn_p cn_f rhs_a fvs targs rhs_s l_a b0 lvls_idx pins) lst
+      (checkIotaThmNFramesSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
+        (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
+        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absLsIdx lvls_idx)
+        (absEIdxL pins) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_frames_refines hrel hinv hfe hvis h
+
 /-- `check_iota_thm_n_prefix` ⊑ `checkIotaThmN`'s prefix-domain stage. -/
 theorem check_iota_thm_n_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
@@ -677,8 +1285,8 @@ theorem check_iota_thm_n_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {lvls_idx : arena.handle.LsIdx} {pins : alloc.vec.Vec arena.handle.EIdx}
     {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_n_prefix pers vis st mode rfS f
       ty_a m_i r_p cvj cn_p cn_f rhs_a fvs targs rhs_s l_a b0 lvls_idx pins
       = ok o) :
@@ -689,6 +1297,37 @@ theorem check_iota_thm_n_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absLsIdx lvls_idx)
         (absEIdxL pins) lcv) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_prefix_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lvls_idx : arena.handle.LsIdx}
+    {pins : alloc.vec.Vec arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_n_prefix pers vis st mode rfS f ty_a m_i r_p cvj cn_p cn_f rhs_a fvs targs rhs_s l_a b0 lvls_idx pins) lst
+      (checkIotaThmNPrefixSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
+        (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
+        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absLsIdx lvls_idx)
+        (absEIdxL pins) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_prefix_refines hrel hinv hfe hvis h
 
 /-- `check_iota_thm_n_idx` ⊑ `checkIotaThmN`'s index-tuple stage. -/
 theorem check_iota_thm_n_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -701,8 +1340,8 @@ theorem check_iota_thm_n_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {pins cdoms : alloc.vec.Vec arena.handle.EIdx} {cres : arena.handle.EIdx}
     {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_n_idx pers vis st mode rfS f ty_a
       m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0 lvls_idx pins
       cdoms cres = ok o) :
@@ -715,6 +1354,39 @@ theorem check_iota_thm_n_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx cres) lcv) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_idx_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lvls_idx : arena.handle.LsIdx}
+    {pins cdoms : alloc.vec.Vec arena.handle.EIdx}
+    {cres : arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_n_idx pers vis st mode rfS f ty_a m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0 lvls_idx pins cdoms cres) lst
+      (checkIotaThmNIdxSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
+        (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
+        (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
+        (absEIdx b0) (absLsIdx lvls_idx) (absEIdxL pins) (absEIdxL cdoms)
+        (absEIdx cres) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_idx_refines hrel hinv hfe hvis h
+
 /-- `check_iota_thm_n_ctor` ⊑ `checkIotaThmN`'s constructor-telescope stage. -/
 theorem check_iota_thm_n_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
@@ -725,8 +1397,8 @@ theorem check_iota_thm_n_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {b0 : arena.handle.EIdx} {lvls_idx : arena.handle.LsIdx}
     {pins pins_f : alloc.vec.Vec arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_n_ctor pers vis st mode rfS f
       ty_a m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0 lvls_idx
       pins pins_f = ok o) :
@@ -739,6 +1411,38 @@ theorem check_iota_thm_n_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         lcv) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_ctor_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lvls_idx : arena.handle.LsIdx}
+    {pins pins_f : alloc.vec.Vec arena.handle.EIdx}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_n_ctor pers vis st mode rfS f ty_a m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0 lvls_idx pins pins_f) lst
+      (checkIotaThmNCtorSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
+        (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
+        (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
+        (absEIdx b0) (absLsIdx lvls_idx) (absEIdxL pins) (absEIdxL pins_f)
+        lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_ctor_refines hrel hinv hfe hvis h
+
 /-- `check_iota_thm_n_major` ⊑ `checkIotaThmN`'s major-premise stage. -/
 theorem check_iota_thm_n_major_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
@@ -750,8 +1454,8 @@ theorem check_iota_thm_n_major_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {pins pins_f : alloc.vec.Vec arena.handle.EIdx} {r : arena.env.IRecRule}
     {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_thm_n_major pers vis st mode rfS f
       ty_a m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0 lvls pins
       pins_f r = ok o) :
@@ -764,6 +1468,39 @@ theorem check_iota_thm_n_major_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absIRecRule r) lcv) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_major_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {f : arena.inductives.modeled.RenameBy}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
+    {rhs_s : arena.handle.EIdx}
+    {l_a : arena.handle.LIdx}
+    {b0 : arena.handle.EIdx}
+    {lvls : alloc.vec.Vec arena.handle.LIdx}
+    {pins pins_f : alloc.vec.Vec arena.handle.EIdx}
+    {r : arena.env.IRecRule}
+    {lcv : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_n_major pers vis st mode rfS f ty_a m_i r_p cvj cn_p cn_f rhs_a fvs x_fvs largs targs rhs_s l_a b0 lvls pins pins_f r) lst
+      (checkIotaThmNMajorSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
+        (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
+        (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
+        (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
+        (absEIdx b0) (absLIdxL lvls) (absEIdxL pins) (absEIdxL pins_f)
+        (absIRecRule r) lcv) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_major_refines hrel hinv hfe hvis h
+
 /-- `check_iota_thm_n_at` ⊑ `checkIotaThmN`'s prologue at a recognised shape. -/
 theorem check_iota_thm_n_at_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf2 lf2} {rfS lfS} {f : arena.inductives.modeled.RenameBy}
@@ -773,8 +1510,8 @@ theorem check_iota_thm_n_at_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rhs_a : arena.handle.EIdx} {lvls : alloc.vec.Vec arena.handle.LIdx}
     {pins : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_iota_thm_n_at pers st mode rf2 rfS f
       cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a lvls pins = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -783,6 +1520,34 @@ theorem check_iota_thm_n_at_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
         (absEIdx rhs_a) (absLIdxL lvls) (absEIdxL pins)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_at_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p j : Std.U64}
+    {r : arena.env.IRecRule}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {lvls : alloc.vec.Vec arena.handle.LIdx}
+    {pins : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_iota_thm_n_at pers st mode rf2 rfS f cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a lvls pins) lst
+      (checkIotaThmNAtSpec (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+        (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+        (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
+        (absEIdx rhs_a) (absLIdxL lvls) (absEIdxL pins)) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_at_refines hrel hinv hfe2 hfeS h
 
 /-- `check_iota_thm_n` ⊑ `checkIotaThmN` — **the nested-auxiliary statement
 check**: a rule the nested shape does not recognise is `.inert`, and the
@@ -794,8 +1559,8 @@ theorem check_iota_thm_n_refines {pers st lst} {mode : kernel.env.CheckMode}
     {cvj : arena.env.IConstantVal} {cn_p cn_f : Std.U64}
     {rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_iota_thm_n pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok o) :
     Sim₀ absIRecRuleFire pers lst o
@@ -805,6 +1570,32 @@ theorem check_iota_thm_n_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx rhs_a)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_thm_n_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p j : Std.U64}
+    {r : arena.env.IRecRule}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = absIRecRuleFire a) (arena.inductives.modeled.check_iota_thm_n pers st mode rf2 rfS f cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a) lst
+      (checkIotaThmN (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+        (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+        (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
+        (absEIdx rhs_a)) :=
+  LS.ofSim₀ fun _ h => check_iota_thm_n_refines hrel hinv hfe2 hfeS h
+
 /-! ## One rule, and the fold over a recursor's rules -/
 
 /-- `check_iota_rule_bits` ⊑ `checkIotaRule`'s stored rule. -/
@@ -812,7 +1603,7 @@ theorem check_iota_rule_bits_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {cv_name : arena.handle.NIdx} {r : arena.env.IRecRule} {cn_p : Std.U64}
     {rhs_a : arena.handle.EIdx} {fire : arena.env.IRecRuleFire} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_iota_rule_bits pers vis st rf2 cv_name r
       cn_p rhs_a fire = ok o) :
@@ -820,6 +1611,25 @@ theorem check_iota_rule_bits_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (checkIotaRuleBitsSpec lf2 (absNIdx cv_name) (absIRecRule r) (absU cn_p)
         (absEIdx rhs_a) (absIRecRuleFire fire)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_rule_bits_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {cv_name : arena.handle.NIdx}
+    {r : arena.env.IRecRule}
+    {cn_p : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    {fire : arena.env.IRecRuleFire}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = absIRecRule a) (arena.inductives.modeled.check_iota_rule_bits pers vis st rf2 cv_name r cn_p rhs_a fire) lst
+      (checkIotaRuleBitsSpec lf2 (absNIdx cv_name) (absIRecRule r) (absU cn_p)
+        (absEIdx rhs_a) (absIRecRuleFire fire)) :=
+  LS.ofSim₀ fun _ h => check_iota_rule_bits_refines hrel hinv hfe hvis h
 
 /-- `check_iota_rule_fire` ⊑ `checkIotaRule`'s guard-and-firing stage. -/
 theorem check_iota_rule_fire_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -829,8 +1639,8 @@ theorem check_iota_rule_fire_refines {pers st lst} {mode : kernel.env.CheckMode}
     {cvj : arena.env.IConstantVal} {cn_p cn_f : Std.U64}
     {rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_iota_rule_fire pers st mode rf2 rfS f
       cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok o) :
     Sim₀ absIRecRule pers lst o
@@ -840,6 +1650,32 @@ theorem check_iota_rule_fire_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx rhs_a)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_rule_fire_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p j : Std.U64}
+    {r : arena.env.IRecRule}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = absIRecRule a) (arena.inductives.modeled.check_iota_rule_fire pers st mode rf2 rfS f cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a) lst
+      (checkIotaRuleFireSpec (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+        (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+        (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
+        (absEIdx rhs_a)) :=
+  LS.ofSim₀ fun _ h => check_iota_rule_fire_refines hrel hinv hfe2 hfeS h
+
 /-- `check_iota_rule_wf` ⊑ `checkIotaRule`'s well-formedness stage. -/
 theorem check_iota_rule_wf_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf2 lf2} {rfS lfS} {f : arena.inductives.modeled.RenameBy}
@@ -847,8 +1683,8 @@ theorem check_iota_rule_wf_refines {pers st lst} {mode : kernel.env.CheckMode}
     {ty_a : arena.handle.EIdx} {m_i r_p j : Std.U64} {r : arena.env.IRecRule}
     {cvj : arena.env.IConstantVal} {cn_p cn_f : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_iota_rule_wf pers st mode rf2 rfS f
       cv_name lps ty_a m_i r_p j r cvj cn_p cn_f = ok o) :
     Sim₀ absIRecRule pers lst o
@@ -858,6 +1694,31 @@ theorem check_iota_rule_wf_refines {pers st lst} {mode : kernel.env.CheckMode}
        ) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_rule_wf_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p j : Std.U64}
+    {r : arena.env.IRecRule}
+    {cvj : arena.env.IConstantVal}
+    {cn_p cn_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = absIRecRule a) (arena.inductives.modeled.check_iota_rule_wf pers st mode rf2 rfS f cv_name lps ty_a m_i r_p j r cvj cn_p cn_f) lst
+      (checkIotaRuleWfSpec (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+        (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+        (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
+       ) :=
+  LS.ofSim₀ fun _ h => check_iota_rule_wf_refines hrel hinv hfe2 hfeS h
+
 /-- `check_iota_rule` ⊑ `checkIotaRule` — one modeled recursor rule: generic
 well-formedness of the right-hand side, then the model's `iota_j` theorem. -/
 theorem check_iota_rule_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -865,8 +1726,8 @@ theorem check_iota_rule_refines {pers st lst} {mode : kernel.env.CheckMode}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {ty_a : arena.handle.EIdx} {m_i r_p j : Std.U64} {r : arena.env.IRecRule} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_iota_rule pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j r = ok o) :
     Sim₀ absIRecRule pers lst o
@@ -874,6 +1735,28 @@ theorem check_iota_rule_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_iota_rule_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p j : Std.U64}
+    {r : arena.env.IRecRule}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = absIRecRule a) (arena.inductives.modeled.check_iota_rule pers st mode rf2 rfS f cv_name lps ty_a m_i r_p j r) lst
+      (checkIotaRule (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+        (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+        (absU j) (absIRecRule r)) :=
+  LS.ofSim₀ fun _ h => check_iota_rule_refines hrel hinv hfe2 hfeS h
 
 /-- `check_iota_rules` ⊑ `checkIotaRules` from the cursor on, with the
 accumulated rules in front. -/
@@ -884,8 +1767,8 @@ theorem check_iota_rules_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rules : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IRecRule} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_iota_rules pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j rules i out = ok o) :
     Sim₀ absIRecRuleL pers lst o
@@ -895,6 +1778,31 @@ theorem check_iota_rules_refines {pers st lst} {mode : kernel.env.CheckMode}
           (absU j) (absIRecRuleLFrom rules i)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_iota_rules_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {cv_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ty_a : arena.handle.EIdx}
+    {m_i r_p j : Std.U64}
+    {rules : alloc.vec.Vec arena.env.IRecRule}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.env.IRecRule}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = absIRecRuleL a) (arena.inductives.modeled.check_iota_rules pers st mode rf2 rfS f cv_name lps ty_a m_i r_p j rules i out) lst
+      (do pure (absIRecRuleL out ++
+        (← checkIotaRules (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+          (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+          (absU j) (absIRecRuleLFrom rules i)))) :=
+  LS.ofSim₀ fun _ h => check_iota_rules_refines hrel hinv hfe2 hfeS h
+
 /-! ## The block's members -/
 
 /-- `check_member_model` ⊑ `checkMemberVal`'s model-counterpart stage. -/
@@ -902,7 +1810,7 @@ theorem check_member_model_refines {pers st lst} {vis : Std.U64}
     {f : arena.inductives.modeled.RenameBy} {rf2 lf2}
     {cv_a : arena.env.IConstantVal} {lblock : List NIdx} {lan : ConLeche.Name} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_member_model pers vis st f rf2 cv_a
       = ok o) :
@@ -911,20 +1819,55 @@ theorem check_member_model_refines {pers st lst} {vis : Std.U64}
         lan) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_member_model_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {f : arena.inductives.modeled.RenameBy}
+    {rf2 lf2}
+    {cv_a : arena.env.IConstantVal}
+    {lblock : List NIdx}
+    {lan : ConLeche.Name}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a) (arena.inductives.modeled.check_member_model pers vis st f rf2 cv_a) lst
+      (checkMemberModelSpec (absRenameBy f) lf2 (absIConstantVal cv_a) lblock
+        lan) :=
+  LS.ofSim₀ fun _ h => check_member_model_refines hrel hinv hfe hvis h
+
 /-- `check_member_val` ⊑ `checkMemberVal` — a block member's constant against
 its `_model` counterpart. -/
 theorem check_member_val_refines {pers st lst} {vis : Std.U64}
     {mode : kernel.env.CheckMode} {block_names : alloc.vec.Vec arena.handle.NIdx}
     {rf2 lf2} {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
-    (hvis : absU vis = lf2.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_member_val pers vis st mode block_names
       rf2 cv = ok o) :
     Sim₀ absIConstantVal pers lst o
       (checkMemberVal (ConRon.Refine.absMode mode) (absNIdxL block_names) lf2
         (absIConstantVal cv)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_member_val_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {mode : kernel.env.CheckMode}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {rf2 lf2}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a) (arena.inductives.modeled.check_member_val pers vis st mode block_names rf2 cv) lst
+      (checkMemberVal (ConRon.Refine.absMode mode) (absNIdxL block_names) lf2
+        (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => check_member_val_refines hrel hinv hfe hvis h
 
 /-- `check_ind_member` ⊑ `checkIndMember` — check and install one non-recursor
 member against its `_model` counterpart, with the executed tier's flush at the
@@ -933,26 +1876,59 @@ theorem check_ind_member_refines {pers st lst} {mode : kernel.env.CheckMode}
     {block_names : alloc.vec.Vec arena.handle.NIdx} {caps : arena.env.IIndCaps}
     {rf2 lf2} {ci : arena.env.IConstantInfo} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf2 lf2)
     (hrun : arena.inductives.modeled.check_ind_member pers st mode block_names caps
       rf2 ci = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkIndMember (ConRon.Refine.absMode mode) (absNIdxL block_names)
         (absIIndCaps caps) lf2 (absIConstantInfo ci)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_ind_member_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {caps : arena.env.IIndCaps}
+    {rf2 lf2}
+    {ci : arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) :
+    LS pers IFEnvRelI (arena.inductives.modeled.check_ind_member pers st mode block_names caps rf2 ci) lst
+      (checkIndMember (ConRon.Refine.absMode mode) (absNIdxL block_names)
+        (absIIndCaps caps) lf2 (absIConstantInfo ci)) :=
+  LS.ofSimRel₀ fun _ h => check_ind_member_refines hrel hinv hfe h
 
 /-- `check_ind_members` ⊑ `checkIndMembers` from the cursor on. -/
 theorem check_ind_members_refines {pers st lst} {mode : kernel.env.CheckMode}
     {block_names : alloc.vec.Vec arena.handle.NIdx} {caps : arena.env.IIndCaps}
     {rf lf} {nonrecs : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.modeled.check_ind_members pers st mode block_names caps
       rf nonrecs i = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkIndMembers (ConRon.Refine.absMode mode) (absNIdxL block_names)
         (absIIndCaps caps) lf (absICILFrom nonrecs i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_ind_members_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {caps : arena.env.IIndCaps}
+    {rf lf}
+    {nonrecs : alloc.vec.Vec arena.env.IConstantInfo}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.inductives.modeled.check_ind_members pers st mode block_names caps rf nonrecs i) lst
+      (checkIndMembers (ConRon.Refine.absMode mode) (absNIdxL block_names)
+        (absIIndCaps caps) lf (absICILFrom nonrecs i)) :=
+  LS.ofSimRel₀ fun _ h => check_ind_members_refines hrel hinv hfe h
 
 /-- `provision_recs` ⊑ `provisionRecs` from the cursor on, with the
 accumulated checked records in front — phase 0 of the recursor group. -/
@@ -962,14 +1938,32 @@ theorem provision_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
     {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfA lfA) (hfinv : IFEnvInv rfA) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfA lfA)
     (hrun : arena.inductives.modeled.provision_recs pers st mode block_names rfA recs
       i out = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r.1 v.1 ∧ v.2 = absRecsL out ++ absRecsL r.2)
+    SimRel₀ (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL out ++ absRecsL r.2)
       pers lst o
       (provisionRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lfA
         (absICILFrom recs i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem provision_recs_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {rfA lfA}
+    {recs : alloc.vec.Vec arena.env.IConstantInfo}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+      (alloc.vec.Vec arena.env.IRecRule))}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfA lfA) :
+    LS pers (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absRecsL out ++ absRecsL r.2) (arena.inductives.modeled.provision_recs pers st mode block_names rfA recs i out) lst
+      (provisionRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lfA
+        (absICILFrom recs i)) :=
+  LS.ofSimRel₀ fun _ h => provision_recs_refines hrel hinv hfe h
 
 /-- `install_ind_recs` ⊑ `installIndRecs` from the cursor on. -/
 theorem install_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -977,15 +1971,36 @@ theorem install_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
     {checked : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS)
-    (hfeA : IFEnvRel rfA lfA) (hfinvA : IFEnvInv rfA) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
+    (hfeA : IFEnvRelI rfA lfA)
     (hrun : arena.inductives.modeled.install_ind_recs pers st mode rf2 rfS f rfA
       checked i = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (installIndRecs (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f) lfA
         (absRecsLFrom checked i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem install_ind_recs_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {f : arena.inductives.modeled.RenameBy}
+    {rfA lfA}
+    {checked : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+      (alloc.vec.Vec arena.env.IRecRule))}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
+    (hfeA : IFEnvRelI rfA lfA) :
+    LS pers IFEnvRelI (arena.inductives.modeled.install_ind_recs pers st mode rf2 rfS f rfA checked i) lst
+      (installIndRecs (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f) lfA
+        (absRecsLFrom checked i)) :=
+  LS.ofSimRel₀ fun _ h => install_ind_recs_refines hrel hinv hfe2 hfeS hfeA h
 
 /-- `check_ind_recs` ⊑ `checkIndRecs` — check and install a block's recursors
 *as a group*.  The twin uses `fe₂` four times where Lean's value semantics
@@ -995,13 +2010,28 @@ theorem check_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
     {block_names : alloc.vec.Vec arena.handle.NIdx} {rf2 lf2}
     {recs : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf2 lf2)
     (hrun : arena.inductives.modeled.check_ind_recs pers st mode block_names rf2 recs
       = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkIndRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lf2
         (absICIL recs)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_ind_recs_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {rf2 lf2}
+    {recs : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) :
+    LS pers IFEnvRelI (arena.inductives.modeled.check_ind_recs pers st mode block_names rf2 recs) lst
+      (checkIndRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lf2
+        (absICIL recs)) :=
+  LS.ofSimRel₀ fun _ h => check_ind_recs_refines hrel hinv hfe h
 
 /-! ## The projection functions -/
 
@@ -1010,7 +2040,7 @@ theorem check_proj_lookups_model_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx} {i : Std.U64}
     {cvj : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_lookups_model pers vis st rf2 t lps i
       cvj = ok o) :
@@ -1020,13 +2050,31 @@ theorem check_proj_lookups_model_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absIConstantVal cvj)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_lookups_model_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {i : Std.U64}
+    {cvj : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absIConstantVal r.2)) a) (arena.inductives.modeled.check_proj_lookups_model pers vis st rf2 t lps i cvj) lst
+      (checkProjLookupsModelSpec lf2 (absNIdx t) (absNIdxL lps) (absU i)
+        (absIConstantVal cvj)) :=
+  LS.ofSim₀ fun _ h => check_proj_lookups_model_refines hrel hinv hfe hvis h
+
 /-- `check_proj_lookups` ⊑ `checkProjLookups` — stage 1 of `checkProjFn`: the
 stored constants the projection depends on. -/
 theorem check_proj_lookups_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {t ctor_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_lookups pers vis st rf2 t ctor_name
       lps n_p n_f i = ok o) :
@@ -1036,12 +2084,29 @@ theorem check_proj_lookups_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absU n_p) (absU n_f) (absU i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_lookups_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absIConstantVal r.2)) a) (arena.inductives.modeled.check_proj_lookups pers vis st rf2 t ctor_name lps n_p n_f i) lst
+      (checkProjLookups lf2 (absNIdx t) (absNIdx ctor_name) (absNIdxL lps)
+        (absU n_p) (absU n_f) (absU i)) :=
+  LS.ofSim₀ fun _ h => check_proj_lookups_refines hrel hinv hfe hvis h
+
 /-- `check_proj_ty_wf` ⊑ `checkProjTy`'s well-formedness stage. -/
 theorem check_proj_ty_wf_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p : Std.U64}
     {pty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_ty_wf pers vis st rf2 lps n_p pty
       = ok o) :
@@ -1049,13 +2114,29 @@ theorem check_proj_ty_wf_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (checkProjTyWfSpec lf2 (absNIdxL lps) (absU n_p) (absEIdx pty)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_ty_wf_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p : Std.U64}
+    {pty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a) (arena.inductives.modeled.check_proj_ty_wf pers vis st rf2 lps n_p pty) lst
+      (checkProjTyWfSpec lf2 (absNIdxL lps) (absU n_p) (absEIdx pty)) :=
+  LS.ofSim₀ fun _ h => check_proj_ty_wf_refines hrel hinv hfe hvis h
+
 /-- `check_proj_ty` ⊑ `checkProjTy` — stage 2: the public projection type,
 pinned by the renaming roundtrip. -/
 theorem check_proj_ty_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {t ctor_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {mty : arena.handle.EIdx} {n_p n_f : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_ty pers vis st rf2 t ctor_name lps
       mty n_p n_f = ok o) :
@@ -1064,13 +2145,31 @@ theorem check_proj_ty_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absEIdx mty) (absU n_p) (absU n_f)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_ty_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {mty : arena.handle.EIdx}
+    {n_p n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a) (arena.inductives.modeled.check_proj_ty pers vis st rf2 t ctor_name lps mty n_p n_f) lst
+      (checkProjTy lf2 (absNIdx t) (absNIdx ctor_name) (absNIdxL lps)
+        (absEIdx mty) (absU n_p) (absU n_f)) :=
+  LS.ofSim₀ fun _ h => check_proj_ty_refines hrel hinv hfe hvis h
+
 /-- `check_proj_iota_field` ⊑ `checkProjIota`'s field stage. -/
 theorem check_proj_iota_field_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {n_p n_f i : Std.U64}
     {tty sbody rhs_c : arena.handle.EIdx} {lpmn : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_iota_field pers vis st mode rfS n_p
       n_f i tty sbody rhs_c = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -1079,6 +2178,25 @@ theorem check_proj_iota_field_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         lpmn) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_iota_field_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {n_p n_f i : Std.U64}
+    {tty sbody rhs_c : arena.handle.EIdx}
+    {lpmn : NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_proj_iota_field pers vis st mode rfS n_p n_f i tty sbody rhs_c) lst
+      (checkProjIotaFieldSpec (ConRon.Refine.absMode mode) lfS (absU n_p)
+        (absU n_f) (absU i) (absEIdx tty) (absEIdx sbody) (absEIdx rhs_c)
+        lpmn) :=
+  LS.ofSim₀ fun _ h => check_proj_iota_field_refines hrel hinv hfe hvis h
+
 /-- `check_proj_iota_lhs` ⊑ `checkProjIota`'s redex stage. -/
 theorem check_proj_iota_lhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -1086,8 +2204,8 @@ theorem check_proj_iota_lhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {tty sbody : arena.handle.EIdx} {p_args : alloc.vec.Vec arena.handle.EIdx}
     {mk_spine : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_iota_lhs pers vis st mode rfS lps n_p
       n_f i pmn tty sbody p_args mk_spine = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -1096,6 +2214,28 @@ theorem check_proj_iota_lhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx sbody) (absEIdxL p_args) (absEIdx mk_spine)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_iota_lhs_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f i : Std.U64}
+    {pmn : arena.handle.NIdx}
+    {tty sbody : arena.handle.EIdx}
+    {p_args : alloc.vec.Vec arena.handle.EIdx}
+    {mk_spine : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_proj_iota_lhs pers vis st mode rfS lps n_p n_f i pmn tty sbody p_args mk_spine) lst
+      (checkProjIotaLhsSpec (ConRon.Refine.absMode mode) lfS (absNIdxL lps)
+        (absU n_p) (absU n_f) (absU i) (absNIdx pmn) (absEIdx tty)
+        (absEIdx sbody) (absEIdxL p_args) (absEIdx mk_spine)) :=
+  LS.ofSim₀ fun _ h => check_proj_iota_lhs_refines hrel hinv hfe hvis h
+
 /-- `check_proj_iota_body` ⊑ `checkProjIota`'s body stage. -/
 theorem check_proj_iota_body_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {ctor_name : arena.handle.NIdx}
@@ -1103,8 +2243,8 @@ theorem check_proj_iota_body_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {n_p n_f i : Std.U64} {pmn : arena.handle.NIdx}
     {tty sbody : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_iota_body pers vis st mode rfS
       ctor_name lps cvj n_p n_f i pmn tty sbody = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -1113,14 +2253,36 @@ theorem check_proj_iota_body_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absNIdx pmn) (absEIdx tty) (absEIdx sbody)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_iota_body_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {cvj : arena.env.IConstantVal}
+    {n_p n_f i : Std.U64}
+    {pmn : arena.handle.NIdx}
+    {tty sbody : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_proj_iota_body pers vis st mode rfS ctor_name lps cvj n_p n_f i pmn tty sbody) lst
+      (checkProjIotaBodySpec (ConRon.Refine.absMode mode) lfS (absNIdx ctor_name)
+        (absNIdxL lps) (absIConstantVal cvj) (absU n_p) (absU n_f) (absU i)
+        (absNIdx pmn) (absEIdx tty) (absEIdx sbody)) :=
+  LS.ofSim₀ fun _ h => check_proj_iota_body_refines hrel hinv hfe hvis h
+
 /-- `check_proj_iota_doms` ⊑ `checkProjIota`'s domain stage. -/
 theorem check_proj_iota_doms_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {t ctor_name : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {cvj : arena.env.IConstantVal}
     {n_p n_f i : Std.U64} {pmn : arena.handle.NIdx} {tty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
-    (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow)
     (hrun : arena.inductives.modeled.check_proj_iota_doms pers vis st mode rfS t
       ctor_name lps cvj n_p n_f i pmn tty = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -1129,6 +2291,28 @@ theorem check_proj_iota_doms_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU n_f) (absU i) (absNIdx pmn) (absEIdx tty)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_iota_doms_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfS lfS}
+    {mode : kernel.env.CheckMode}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {cvj : arena.env.IConstantVal}
+    {n_p n_f i : Std.U64}
+    {pmn : arena.handle.NIdx}
+    {tty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfS lfS)
+    (hvis : absU vis = lfS.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_proj_iota_doms pers vis st mode rfS t ctor_name lps cvj n_p n_f i pmn tty) lst
+      (checkProjIotaDomsSpec (ConRon.Refine.absMode mode) lfS (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absIConstantVal cvj) (absU n_p)
+        (absU n_f) (absU i) (absNIdx pmn) (absEIdx tty)) :=
+  LS.ofSim₀ fun _ h => check_proj_iota_doms_refines hrel hinv hfe hvis h
+
 /-- `check_proj_iota` ⊑ `checkProjIota` — stage 4: the model's
 `proj_i.iota` theorem pins the rule. -/
 theorem check_proj_iota_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -1136,8 +2320,8 @@ theorem check_proj_iota_refines {pers st lst} {mode : kernel.env.CheckMode}
     {lps : alloc.vec.Vec arena.handle.NIdx} {cvj : arena.env.IConstantVal}
     {n_p n_f i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
-    (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS)
     (hrun : arena.inductives.modeled.check_proj_iota pers st mode rf2 rfS t ctor_name
       lps cvj n_p n_f i = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -1146,20 +2330,59 @@ theorem check_proj_iota_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absU n_f) (absU i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_iota_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {rfS lfS}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {cvj : arena.env.IConstantVal}
+    {n_p n_f i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe2 : IFEnvRelI rf2 lf2)
+    (hfeS : IFEnvRelI rfS lfS) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.modeled.check_proj_iota pers st mode rf2 rfS t ctor_name lps cvj n_p n_f i) lst
+      (checkProjIota (ConRon.Refine.absMode mode) lf2 lfS (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absIConstantVal cvj) (absU n_p)
+        (absU n_f) (absU i)) :=
+  LS.ofSim₀ fun _ h => check_proj_iota_refines hrel hinv hfe2 hfeS h
+
 /-- `check_proj_fn_rule` ⊑ `checkProjFn`'s rule-and-install stage. -/
 theorem check_proj_fn_rule_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf2 lf2} {t ctor_name : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {cvj : arena.env.IConstantVal}
     {n_p n_f i : Std.U64} {pty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf2 lf2)
     (hrun : arena.inductives.modeled.check_proj_fn_rule pers st mode rf2 t ctor_name
       lps cvj n_p n_f i pty = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkProjFnRuleSpec (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absIConstantVal cvj) (absU n_p)
         (absU n_f) (absU i) (absEIdx pty)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_proj_fn_rule_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {cvj : arena.env.IConstantVal}
+    {n_p n_f i : Std.U64}
+    {pty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) :
+    LS pers IFEnvRelI (arena.inductives.modeled.check_proj_fn_rule pers st mode rf2 t ctor_name lps cvj n_p n_f i pty) lst
+      (checkProjFnRuleSpec (ConRon.Refine.absMode mode) lf2 (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absIConstantVal cvj) (absU n_p)
+        (absU n_f) (absU i) (absEIdx pty)) :=
+  LS.ofSimRel₀ fun _ h => check_proj_fn_rule_refines hrel hinv hfe h
 
 /-- `check_proj_fn` ⊑ `checkProjFn` — the public projection function for field
 `i`, stored as a degenerate recursor carrying one rule. -/
@@ -1167,13 +2390,29 @@ theorem check_proj_fn_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf2 lf2} {t ctor_name : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_f i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf2 lf2)
     (hrun : arena.inductives.modeled.check_proj_fn pers st mode rf2 t ctor_name lps
       n_p n_f i = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkProjFn (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_proj_fn_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) :
+    LS pers IFEnvRelI (arena.inductives.modeled.check_proj_fn pers st mode rf2 t ctor_name lps n_p n_f i) lst
+      (checkProjFn (ConRon.Refine.absMode mode) lf2 (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) :=
+  LS.ofSimRel₀ fun _ h => check_proj_fn_refines hrel hinv hfe h
 
 /-! ## The capabilities -/
 
@@ -1183,7 +2422,7 @@ theorem proj_models_ok_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_f j : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.proj_models_ok pers vis st rf2 t lps n_f j
       = ok o) :
@@ -1191,6 +2430,23 @@ theorem proj_models_ok_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (projModelsOkSpec lf2 (absNIdx t) (absNIdxL lps) (absU n_f - absU j)
         (absU j)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem proj_models_ok_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_f j : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.proj_models_ok pers vis st rf2 t lps n_f j) lst
+      (projModelsOkSpec lf2 (absNIdx t) (absNIdxL lps) (absU n_f - absU j)
+        (absU j)) :=
+  LS.ofSim₀ fun _ h => proj_models_ok_refines hrel hinv hfe hvis h
 
 /-- `eta_proj_args` ⊑ `checkEtaThm`'s `(List.range nF).mapM`, from field `j`
 on, with the accumulated arguments in front. -/
@@ -1207,6 +2463,23 @@ theorem eta_proj_args_refines {pers st lst} {t : arena.handle.NIdx}
           (absEIdx b0) (absU n_f - absU j) (absU j)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem eta_proj_args_ls
+    {pers st lst}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {ps_hi : alloc.vec.Vec arena.handle.EIdx}
+    {b0 : arena.handle.EIdx}
+    {n_f j : Std.U64}
+    {out : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a) (arena.inductives.modeled.eta_proj_args pers st t lps ps_hi b0 n_f j out) lst
+      (do pure (absEIdxL out ++
+        (← etaProjArgsSpec (absNIdx t) (absNIdxL lps) (absEIdxL ps_hi)
+          (absEIdx b0) (absU n_f - absU j) (absU j)))) :=
+  LS.ofSim₀ fun _ h => eta_proj_args_refines hrel hinv h
+
 /-- `check_eta_thm_eq` ⊑ `checkEtaThm`'s equation stage. -/
 theorem check_eta_thm_eq_refines {pers st lst} {mode : kernel.env.CheckMode}
     {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -1221,6 +2494,25 @@ theorem check_eta_thm_eq_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absU n_f) (absNIdx cm) (absEIdx sbody) (absEIdx tbody_m)
         (absEIdxL ps_hi) (absEIdx fam_hi)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_eta_thm_eq_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_f : Std.U64}
+    {cm : arena.handle.NIdx}
+    {sbody tbody_m : arena.handle.EIdx}
+    {ps_hi : alloc.vec.Vec arena.handle.EIdx}
+    {fam_hi : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_eta_thm_eq pers st mode t lps n_f cm sbody tbody_m ps_hi fam_hi) lst
+      (checkEtaThmEqSpec (ConRon.Refine.absMode mode) (absNIdx t) (absNIdxL lps)
+        (absU n_f) (absNIdx cm) (absEIdx sbody) (absEIdx tbody_m)
+        (absEIdxL ps_hi) (absEIdx fam_hi)) :=
+  LS.ofSim₀ fun _ h => check_eta_thm_eq_refines hrel hinv h
 
 /-- `check_eta_thm_body` ⊑ `checkEtaThm`'s subject-binder stage. -/
 theorem check_eta_thm_body_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -1237,6 +2529,25 @@ theorem check_eta_thm_body_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx sbody) (absEIdx tbody_m)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_eta_thm_body_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {t_hd : arena.handle.EIdx}
+    {cm : arena.handle.NIdx}
+    {sbinders : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {sbody tbody_m : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_eta_thm_body pers st mode t lps n_p n_f t_hd cm sbinders sbody tbody_m) lst
+      (checkEtaThmBodySpec (ConRon.Refine.absMode mode) (absNIdx t) (absNIdxL lps)
+        (absU n_p) (absU n_f) (absEIdx t_hd) (absNIdx cm) (absBinderL sbinders)
+        (absEIdx sbody) (absEIdx tbody_m)) :=
+  LS.ofSim₀ fun _ h => check_eta_thm_body_refines hrel hinv h
+
 /-- `check_eta_thm_shape` ⊑ `checkEtaThm`'s shape stage. -/
 theorem check_eta_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
     {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -1251,13 +2562,30 @@ theorem check_eta_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx tty) (absEIdx mtty)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_eta_thm_shape_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {tm cm : arena.handle.NIdx}
+    {tty mtty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_eta_thm_shape pers st mode t lps n_p n_f tm cm tty mtty) lst
+      (checkEtaThmShapeSpec (ConRon.Refine.absMode mode) (absNIdx t)
+        (absNIdxL lps) (absU n_p) (absU n_f) (absNIdx tm) (absNIdx cm)
+        (absEIdx tty) (absEIdx mtty)) :=
+  LS.ofSim₀ fun _ h => check_eta_thm_shape_refines hrel hinv h
+
 /-- `check_eta_thm_at` ⊑ `checkEtaThm`'s pin stage. -/
 theorem check_eta_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {mode : kernel.env.CheckMode} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_f : Std.U64}
     {tm cm : arena.handle.NIdx} {tcv cvm_t cvm_c : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_eta_thm_at pers vis st mode rf2 t lps n_p
       n_f tm cm tcv cvm_t cvm_c = ok o) :
@@ -1268,13 +2596,35 @@ theorem check_eta_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absIConstantVal cvm_c)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_eta_thm_at_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {tm cm : arena.handle.NIdx}
+    {tcv cvm_t cvm_c : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_eta_thm_at pers vis st mode rf2 t lps n_p n_f tm cm tcv cvm_t cvm_c) lst
+      (checkEtaThmAtSpec (ConRon.Refine.absMode mode) lf2 (absNIdx t)
+        (absNIdxL lps) (absU n_p) (absU n_f) (absNIdx tm) (absNIdx cm)
+        (absIConstantVal tcv) (absIConstantVal cvm_t)
+        (absIConstantVal cvm_c)) :=
+  LS.ofSim₀ fun _ h => check_eta_thm_at_refines hrel hinv hfe hvis h
+
 /-- `check_eta_thm` ⊑ `checkEtaThm` — does the model document structural eta
 for this single-constructor block? -/
 theorem check_eta_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {mode : kernel.env.CheckMode} {t ctor_name : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_f : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_eta_thm pers vis st mode rf2 t ctor_name
       lps n_p n_f = ok o) :
@@ -1282,6 +2632,24 @@ theorem check_eta_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (checkEtaThm (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_eta_thm_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {mode : kernel.env.CheckMode}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_eta_thm pers vis st mode rf2 t ctor_name lps n_p n_f) lst
+      (checkEtaThm (ConRon.Refine.absMode mode) lf2 (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f)) :=
+  LS.ofSim₀ fun _ h => check_eta_thm_refines hrel hinv hfe hvis h
 
 /-- `fam_at` ⊑ `mkAppN tHd (← structPsAt o nP)` — the model family at an
 offset, which the twin writes out at three. -/
@@ -1293,6 +2661,17 @@ theorem fam_at_refines {pers st lst} {t_hd : arena.handle.EIdx}
       (famAtSpec (absEIdx t_hd) (absU ofs) (absU n_p)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem fam_at_ls
+    {pers st lst}
+    {t_hd : arena.handle.EIdx}
+    {ofs n_p : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.inductives.modeled.fam_at pers st t_hd ofs n_p) lst
+      (famAtSpec (absEIdx t_hd) (absU ofs) (absU n_p)) :=
+  LS.ofSim₀ fun _ h => fam_at_refines hrel hinv h
+
 /-- `check_unit_thm_eq` ⊑ `checkUnitThm`'s equation stage. -/
 theorem check_unit_thm_eq_refines {pers st lst} {mode : kernel.env.CheckMode}
     {sbody tbody_m fam2 : arena.handle.EIdx} {o}
@@ -1303,6 +2682,18 @@ theorem check_unit_thm_eq_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkUnitThmEqSpec (ConRon.Refine.absMode mode) (absEIdx sbody)
         (absEIdx tbody_m) (absEIdx fam2)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_unit_thm_eq_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {sbody tbody_m fam2 : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_unit_thm_eq pers st mode sbody tbody_m fam2) lst
+      (checkUnitThmEqSpec (ConRon.Refine.absMode mode) (absEIdx sbody)
+        (absEIdx tbody_m) (absEIdx fam2)) :=
+  LS.ofSim₀ fun _ h => check_unit_thm_eq_refines hrel hinv h
 
 /-- `check_unit_thm_shape` ⊑ `checkUnitThm`'s shape stage. -/
 theorem check_unit_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -1319,6 +2710,23 @@ theorem check_unit_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx tbody_m)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_unit_thm_shape_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p : Std.U64}
+    {tm : arena.handle.NIdx}
+    {sbinders : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {sbody tbody_m : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_unit_thm_shape pers st mode lps n_p tm sbinders sbody tbody_m) lst
+      (checkUnitThmShapeSpec (ConRon.Refine.absMode mode) (absNIdxL lps)
+        (absU n_p) (absNIdx tm) (absBinderL sbinders) (absEIdx sbody)
+        (absEIdx tbody_m)) :=
+  LS.ofSim₀ fun _ h => check_unit_thm_shape_refines hrel hinv h
+
 /-- `check_unit_thm_at` ⊑ `checkUnitThm`'s pin stage. -/
 theorem check_unit_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {mode : kernel.env.CheckMode} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -1326,7 +2734,7 @@ theorem check_unit_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {tlps : alloc.vec.Vec arena.handle.NIdx} {mtty : arena.handle.EIdx}
     {mlps : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_unit_thm_at pers vis st mode rf2 lps n_p
       tm tty tlps mtty mlps = ok o) :
@@ -1336,13 +2744,36 @@ theorem check_unit_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absNIdxL mlps)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_unit_thm_at_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {mode : kernel.env.CheckMode}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p : Std.U64}
+    {tm : arena.handle.NIdx}
+    {tty : arena.handle.EIdx}
+    {tlps : alloc.vec.Vec arena.handle.NIdx}
+    {mtty : arena.handle.EIdx}
+    {mlps : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_unit_thm_at pers vis st mode rf2 lps n_p tm tty tlps mtty mlps) lst
+      (checkUnitThmAtSpec (ConRon.Refine.absMode mode) lf2 (absNIdxL lps)
+        (absU n_p) (absNIdx tm) (absEIdx tty) (absNIdxL tlps) (absEIdx mtty)
+        (absNIdxL mlps)) :=
+  LS.ofSim₀ fun _ h => check_unit_thm_at_refines hrel hinv hfe hvis h
+
 /-- `check_unit_thm` ⊑ `checkUnitThm` — does the model document unit-likeness
 for this block? -/
 theorem check_unit_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {mode : kernel.env.CheckMode} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.check_unit_thm pers vis st mode rf2 t lps n_p
       = ok o) :
@@ -1350,6 +2781,24 @@ theorem check_unit_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (checkUnitThm (ConRon.Refine.absMode mode) lf2 (absNIdx t) (absNIdxL lps)
         (absU n_p)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_unit_thm_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf2 lf2}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.check_unit_thm pers vis st mode rf2 t lps n_p) lst
+      (checkUnitThm (ConRon.Refine.absMode mode) lf2 (absNIdx t) (absNIdxL lps)
+        (absU n_p)) :=
+  LS.ofSim₀ fun _ h => check_unit_thm_refines hrel hinv hfe hvis h
 
 /-- `ctor_targets_fam` ⊑ `ctorTargetsFam` — official's structure-likeness,
 read off the block's own constructor. -/
@@ -1364,34 +2813,84 @@ theorem ctor_targets_fam_refines {pers st lst} {ctor_ty : arena.handle.EIdx}
         (absU n_f)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem ctor_targets_fam_ls
+    {pers st lst}
+    {ctor_ty : arena.handle.EIdx}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.ctor_targets_fam pers st ctor_ty t lps n_p n_f) lst
+      (ctorTargetsFam (absEIdx ctor_ty) (absNIdx t) (absNIdxL lps) (absU n_p)
+        (absU n_f)) :=
+  LS.ofSim₀ fun _ h => ctor_targets_fam_refines hrel hinv h
+
 /-- `install_proj_fn_step` ⊑ `installProjFnStep` — one projection-function
 install step, skipped where the model's artifact is absent. -/
 theorem install_proj_fn_step_refines {pers st lst} {mode : kernel.env.CheckMode}
     {t ctor_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f : Std.U64} {re le} {i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel re le) (hfinv : IFEnvInv re) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI re le)
     (hrun : arena.inductives.modeled.install_proj_fn_step pers st mode t ctor_name
       lps n_p n_f re i = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (installProjFnStep (ConRon.Refine.absMode mode) (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) le
         (absU i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem install_proj_fn_step_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {re le}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI re le) :
+    LS pers IFEnvRelI (arena.inductives.modeled.install_proj_fn_step pers st mode t ctor_name lps n_p n_f re i) lst
+      (installProjFnStep (ConRon.Refine.absMode mode) (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) le
+        (absU i)) :=
+  LS.ofSimRel₀ fun _ h => install_proj_fn_step_refines hrel hinv hfe h
 
 /-- `install_proj_fns` ⊑ `installProjFns` — the projection fold. -/
 theorem install_proj_fns_refines {pers st lst} {mode : kernel.env.CheckMode}
     {t ctor_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f : Std.U64} {rf lf} {k i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.modeled.install_proj_fns pers st mode t ctor_name lps
       n_p n_f rf k i = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (installProjFns (ConRon.Refine.absMode mode) (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) lf (absU k)
         (absU i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem install_proj_fns_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {rf lf}
+    {k i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.inductives.modeled.install_proj_fns pers st mode t ctor_name lps n_p n_f rf k i) lst
+      (installProjFns (ConRon.Refine.absMode mode) (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) lf (absU k)
+        (absU i)) :=
+  LS.ofSimRel₀ fun _ h => install_proj_fns_refines hrel hinv hfe h
 
 /-- `ind_block_caps` ⊑ `indBlockCaps` — the capabilities recorded for a
 single-constructor modeled block.  **`checkEtaThm` runs whatever the
@@ -1402,7 +2901,7 @@ theorem ind_block_caps_refines {pers st lst} {vis : Std.U64}
     {mode : kernel.env.CheckMode} {rf lf}
     {cv_t cv_c : arena.env.IConstantVal} {n_p n_f : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRelI rf lf)
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.modeled.ind_block_caps pers vis st mode rf cv_t cv_c n_p
       n_f = ok o) :
@@ -1411,6 +2910,23 @@ theorem ind_block_caps_refines {pers st lst} {vis : Std.U64}
         (absIConstantVal cv_c) (absU n_p) (absU n_f)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem ind_block_caps_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {mode : kernel.env.CheckMode}
+    {rf lf}
+    {cv_t cv_c : arena.env.IConstantVal}
+    {n_p n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIIndCaps a) (arena.inductives.modeled.ind_block_caps pers vis st mode rf cv_t cv_c n_p n_f) lst
+      (indBlockCaps (ConRon.Refine.absMode mode) lf (absIConstantVal cv_t)
+        (absIConstantVal cv_c) (absU n_p) (absU n_f)) :=
+  LS.ofSim₀ fun _ h => ind_block_caps_refines hrel hinv hfe hvis h
+
 /-- `ctor_residual_ok` ⊑ `ctorResidualOk` — con-leche's task #136: an
 eta-capable family's constructor returns the family applied to its
 parameters. -/
@@ -1418,7 +2934,7 @@ theorem ctor_residual_ok_refines {pers st lst} {vis : Std.U64}
     {mode : kernel.env.CheckMode} {rf2 lf2} {t ctor_name : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_f : Std.U64} {eta : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
+    (hfe : IFEnvRelI rf2 lf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.inductives.modeled.ctor_residual_ok pers vis st mode rf2 t
       ctor_name lps n_p n_f eta = ok o) :
@@ -1426,6 +2942,25 @@ theorem ctor_residual_ok_refines {pers st lst} {vis : Std.U64}
       (ctorResidualOk (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) eta) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem ctor_residual_ok_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {mode : kernel.env.CheckMode}
+    {rf2 lf2}
+    {t ctor_name : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {eta : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2)
+    (hvis : absU vis = lf2.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.ctor_residual_ok pers vis st mode rf2 t ctor_name lps n_p n_f eta) lst
+      (ctorResidualOk (ConRon.Refine.absMode mode) lf2 (absNIdx t)
+        (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) eta) :=
+  LS.ofSim₀ fun _ h => ctor_residual_ok_refines hrel hinv hfe hvis h
 
 /-! ## The install -/
 
@@ -1628,7 +3163,7 @@ from field `j` on — the same test the direct route's table install makes. -/
 theorem proj_fn_family_free_modeled_refines {pers st lst} {vis : Std.U64} {rf lf}
     {t : arena.handle.NIdx} {n_f j : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRelI rf lf)
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.modeled.proj_fn_family_free pers vis st rf t n_f j
       = ok o) :
@@ -1636,19 +3171,51 @@ theorem proj_fn_family_free_modeled_refines {pers st lst} {vis : Std.U64} {rf lf
       (projFnFamilyFreeSpec lf (absNIdx t) (absU n_f - absU j) (absU j)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem proj_fn_family_free_modeled_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {t : arena.handle.NIdx}
+    {n_f j : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.modeled.proj_fn_family_free pers vis st rf t n_f j) lst
+      (projFnFamilyFreeSpec lf (absNIdx t) (absU n_f - absU j) (absU j)) :=
+  LS.ofSim₀ fun _ h => proj_fn_family_free_modeled_refines hrel hinv hfe hvis h
+
 /-- `check_modeled_projs` ⊑ `checkModeled`'s projection stage. -/
 theorem check_modeled_projs_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf3 lf3} {cv_t cv_c : arena.env.IConstantVal} {n_p n_f : Std.U64}
     {eta : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf3 lf3) (hfinv : IFEnvInv rf3) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf3 lf3)
     (hrun : arena.inductives.modeled.check_modeled_projs pers st mode rf3 cv_t cv_c
       n_p n_f eta = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkModeledProjsSpec (ConRon.Refine.absMode mode) lf3
         (absIConstantVal cv_t) (absIConstantVal cv_c) (absU n_p) (absU n_f)
         eta) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_modeled_projs_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf3 lf3}
+    {cv_t cv_c : arena.env.IConstantVal}
+    {n_p n_f : Std.U64}
+    {eta : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf3 lf3) :
+    LS pers IFEnvRelI (arena.inductives.modeled.check_modeled_projs pers st mode rf3 cv_t cv_c n_p n_f eta) lst
+      (checkModeledProjsSpec (ConRon.Refine.absMode mode) lf3
+        (absIConstantVal cv_t) (absIConstantVal cv_c) (absU n_p) (absU n_f)
+        eta) :=
+  LS.ofSimRel₀ fun _ h => check_modeled_projs_refines hrel hinv hfe h
 
 /-- `check_modeled_struct` ⊑ `checkModeled`'s single-type-former,
 single-constructor arm. -/
@@ -1657,15 +3224,34 @@ theorem check_modeled_struct_refines {pers st lst} {mode : kernel.env.CheckMode}
     {nonrecs recs : alloc.vec.Vec arena.env.IConstantInfo}
     {cv_t cv_c : arena.env.IConstantVal} {n_p n_f : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.modeled.check_modeled_struct pers st mode rf block_names
       nonrecs recs cv_t cv_c n_p n_f = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkModeledStructSpec (ConRon.Refine.absMode mode) lf
         (absNIdxL block_names) (absICIL nonrecs) (absICIL recs)
         (absIConstantVal cv_t) (absIConstantVal cv_c) (absU n_p)
         (absU n_f)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_modeled_struct_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf lf}
+    {block_names : alloc.vec.Vec arena.handle.NIdx}
+    {nonrecs recs : alloc.vec.Vec arena.env.IConstantInfo}
+    {cv_t cv_c : arena.env.IConstantVal}
+    {n_p n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.inductives.modeled.check_modeled_struct pers st mode rf block_names nonrecs recs cv_t cv_c n_p n_f) lst
+      (checkModeledStructSpec (ConRon.Refine.absMode mode) lf
+        (absNIdxL block_names) (absICIL nonrecs) (absICIL recs)
+        (absIConstantVal cv_t) (absIConstantVal cv_c) (absU n_p)
+        (absU n_f)) :=
+  LS.ofSimRel₀ fun _ h => check_modeled_struct_refines hrel hinv hfe h
 
 /-- `check_modeled` ⊑ `checkModeled` — **the modeled route's front door**:
 every member is checked against its `_model` counterpart, then stored as a

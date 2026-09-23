@@ -34,14 +34,32 @@ theorem check_struct_doms_at_f_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {off : Std.U64}
     {fvs doms : alloc.vec.Vec arena.handle.EIdx} {k : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.struct_install_f.check_struct_doms_at_f pers vis st mode
       rf off fvs doms k = ok o) :
     Sim₀ (fun _ => ()) pers lst o
       (checkStructDomsAtF (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
         (absEIdxL doms) (absU k)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_struct_doms_at_f_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {off : Std.U64}
+    {fvs doms : alloc.vec.Vec arena.handle.EIdx}
+    {k : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.struct_install_f.check_struct_doms_at_f pers vis st mode rf off fvs doms k) lst
+      (checkStructDomsAtF (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
+        (absEIdxL doms) (absU k)) :=
+  LS.ofSim₀ fun _ h => check_struct_doms_at_f_refines hrel hinv hfe hvis h
 
 /-- `check_struct_doms_at_fa` ⊑ `checkStructDomsAtFA` — con-leche's `Array`
 spelling of the same walk; over handles the container is the caller's and the
@@ -50,14 +68,32 @@ theorem check_struct_doms_at_fa_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {off : Std.U64}
     {fvs doms : alloc.vec.Vec arena.handle.EIdx} {k : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.struct_install_f.check_struct_doms_at_fa pers vis st
       mode rf off fvs doms k = ok o) :
     Sim₀ (fun _ => ()) pers lst o
       (checkStructDomsAtFA (ConRon.Refine.absMode mode) lf (absU off)
         (absEIdxL fvs) (absEIdxL doms) (absU k)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_struct_doms_at_fa_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {off : Std.U64}
+    {fvs doms : alloc.vec.Vec arena.handle.EIdx}
+    {k : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.struct_install_f.check_struct_doms_at_fa pers vis st mode rf off fvs doms k) lst
+      (checkStructDomsAtFA (ConRon.Refine.absMode mode) lf (absU off)
+        (absEIdxL fvs) (absEIdxL doms) (absU k)) :=
+  LS.ofSim₀ fun _ h => check_struct_doms_at_fa_refines hrel hinv hfe hvis h
 
 /-- `check_struct_proj_table_f` ⊑ `checkStructProjTableF`. -/
 theorem check_struct_proj_table_f_refines {pers st lst}
@@ -66,13 +102,33 @@ theorem check_struct_proj_table_f_refines {pers st lst}
     {guards : alloc.vec.Vec arena.handle.LIdx} {off : Std.U64}
     {cv_ca : arena.env.IConstantVal} {rf lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.struct_install_f.check_struct_proj_table_f pers st t c
       lps n_p n_f res_sort guards off cv_ca rf = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkStructProjTableF (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
         (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
         (absIConstantVal cv_ca) lf) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_struct_proj_table_f_ls
+    {pers st lst}
+    {t c : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {res_sort : arena.handle.LIdx}
+    {guards : alloc.vec.Vec arena.handle.LIdx}
+    {off : Std.U64}
+    {cv_ca : arena.env.IConstantVal}
+    {rf lf}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.inductives.struct_install_f.check_struct_proj_table_f pers st t c lps n_p n_f res_sort guards off cv_ca rf) lst
+      (checkStructProjTableF (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
+        (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
+        (absIConstantVal cv_ca) lf) :=
+  LS.ofSimRel₀ fun _ h => check_struct_proj_table_f_refines hrel hinv hfe h
 
 end ConRon.Refine2

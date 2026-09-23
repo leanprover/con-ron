@@ -192,6 +192,17 @@ theorem with_sort_refines {pers st lst}
       ((absInductiveShape p).withSort (absLIdx s)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem with_sort_ls
+    {pers st lst}
+    {p : arena.inductives.sum_parts.InductiveShape}
+    {s : arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absInductiveShape a) (arena.inductives.sum_parts.with_sort pers st p s) lst
+      ((absInductiveShape p).withSort (absLIdx s)) :=
+  LS.ofSim₀ fun _ h => with_sort_refines hrel hinv h
+
 /-- `rule_prefix` ⊑ `InductiveShape.rulePrefix` — `nP + 1 + |ctors|`, and the
 port's `ctors.len() as u64` against the twin's `List.length` is the one place
 this module's arithmetic crosses the container. -/
