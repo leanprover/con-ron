@@ -93,6 +93,7 @@ them here (`Refine2/Checker/KnotHyp.lean`).
 -/
 import ConRon.Refine2.Checker.Axioms
 import ConRon.Refine2.Checker.Spec
+import ConRon.Refine2.Checker.Leaves
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

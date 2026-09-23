@@ -1465,27 +1465,6 @@ open Lockstep in
       (mentionsConstGo (absNIdx t) lm (absU fuel) (absEIdx h)) :=
   LS.ofSimRel₀ fun _ h => mentions_const_go_refines hrel hinv hm h
 
-/-- `mentions_const` ⊑ `mentionsConst` — one memoised walk from the empty
-memo. -/
-theorem mentions_const_refines {pers st lst} {t : arena.handle.NIdx}
-    {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.struct_parts.mentions_const pers st t e = ok o) :
-    Sim₀ id pers lst o
-      (mentionsConst (absNIdx t) (absEIdx e)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem mentions_const_ls
-    {pers st lst}
-    {t : arena.handle.NIdx}
-    {e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.inductives.struct_parts.mentions_const pers st t e) lst
-      (mentionsConst (absNIdx t) (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => mentions_const_refines hrel hinv h
-
 /-! ## The axiom census
 
 The tier's first STATEFUL `_refines` (round 4), and the shape every other one
