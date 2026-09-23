@@ -4,9 +4,9 @@
 Task #97-P5-Core round 5, region G.  The `@[lockstep]` pairs the annotation
 bodies (`annotate_body` and its binder loops) step through that no earlier
 file provides: the binder stack's abstraction, the level read and its
-zero-ness, the handle equalities, the `usize → u64` cast, and two pending
-intern prims (`intern_e_fvar`, and `ifenv_find_proj`, which interns the
-projection table's reserved name).
+zero-ness, the handle equalities, the `usize → u64` cast, and one pending
+intern prim (`ifenv_find_proj`, which interns the projection table's
+reserved name).
 -/
 import ConRon.Refine2.Core.LS.Prims
 
@@ -216,13 +216,6 @@ the Rust store, `read_level_m_wf`). -/
         { hinv with caches := { hinv.caches with readLC := h2, readLVals := hvals } }⟩
 
 /-! ## Interns — pending the foundation's intern slice -/
-
-@[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (i : Std.U64) (ty : arena.handle.EIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st i ty) lst
-      (Arena.internFVarE (absU i) (absEIdx ty)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
 
 /-- `arena::env::ifenv_find_proj` (a store-level step: it interns the
 reserved projection-table name) against `IFEnv.findProj?`.  The Rust store

@@ -22,13 +22,15 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PG
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
-/-- Region A2's `pw_written`. -/
+/-- Region A2's `pw_written` (its statement in `Core/LS/Shapes.lean`). -/
 @[lockstep] theorem stub_pw_written_ls (pw : kernel.prop_when.PropWhen) :
     LSP (arena.core.pw_written pw)
-      (fun b => TwinEq (pwWritten (ConRon.Refine.absPropWhen pw)) b) := by
+      (fun b => b = pwWritten (ConRon.Refine.absPropWhen pw)) := by
   sorry
 
-/-- Region A2's `annot_binder_meta`. -/
+/-- Region A2's `annot_binder_meta`, in the `TwinEq` form this file's zip needs:
+`Core/LS/Shapes.lean`'s `absBinderMeta r = annotBinderMeta (pw.map …) …` does
+not rewrite the twin (the reported statement-form mismatch). -/
 @[lockstep] theorem stub_annot_binder_meta_ls (pw : Option kernel.prop_when.PropWhen)
     (mb : kernel.expr.BinderMeta) :
     LSP (arena.core.annot_binder_meta pw mb)
@@ -60,74 +62,6 @@ attribute [local lockstep_simp] absEIdxArr_eq vec_new_val vec_len_abs absStk_siz
   List.map_append List.map_cons List.map_nil List.push_toArray
   List.nil_append List.size_toArray List.length_map
   ite_true ite_false Bool.not_true Bool.not_false Nat.add_sub_cancel
-
-/-! ## Local tactic glue: the `ok`-bind feed, propositionally
-
-`lockstep_core`'s `coreMove` feeds `ok v >>= k` to `k v` by
-`replaceTargetDefEq`, but Aeneas's `Result` is an `ITree` and `bind_ok` is a
-theorem, not a definitional equation: the kernel rejects the proof term.
-`lockstep_g_okfeed` does the same move by `bind_tc_ok`, and runs before
-`lockstep_core_step`; `lockstep_g_sbind` is `LS.bind` with the error arm
-closed by `bind_tc_ok` too (a Rust continuation that re-packs a pair,
-`let (st2, node) ← (… ; ok (st3, node1))`). -/
-
-theorem LS.rust_ok_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {v : γ} {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R (k v) lst x) :
-    LS pers R (ok v >>= k) lst x := by
-  rw [bind_tc_ok]; exact h
-
-theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α → Prop}
-    (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
-  rw [bind_tc_ok]; exact h
-
-open Lean Meta Elab Tactic in
-elab "lockstep_g_okfeed" : tactic => do
-  let g ← getMainGoal
-  let others := (← getGoals).tail
-  g.withContext do
-    let ty ← instantiateMVars (← g.getType)
-    let some rp := rustPos ty | throwError "lockstep_g_okfeed: not a judgement"
-    let m := (ty.getArg! rp).headBeta
-    unless m.isAppOfArity ``Bind.bind 6 do throwError "lockstep_g_okfeed: no bind"
-    unless (m.getArg! 4).headBeta.isAppOfArity ``Result.ok 2 do
-      throwError "lockstep_g_okfeed: not an ok"
-    let rule := if rp == 4 then ``LS.rust_ok_bind else ``LSP.rust_ok_bind
-    let gs ← applyRule g rule
-    let rest ← normAll [← pick gs `h]
-    setGoals (rest ++ others)
-
-macro "lockstep_g_errarm" : tactic => `(tactic| (
-  intro e st1; unfold ErrArm; intro o st2 h
-  simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h
-  all_goals first | exact h.1.symm | exact h.symm))
-
-open Lean Meta Elab Tactic in
-elab "lockstep_g_sbind" : tactic => do
-  let g ← getMainGoal
-  let others := (← getGoals).tail
-  g.withContext do
-    let ty ← instantiateMVars (← g.getType)
-    unless ty.isAppOfArity ``LS 7 do throwError "lockstep_g_sbind: not LS"
-    let m := (ty.getArg! 4).headBeta
-    unless m.isAppOfArity ``Bind.bind 6 do throwError "lockstep_g_sbind: no bind"
-    let f := m.getArg! 4
-    match ← classify (← inferType f).appArg! with
-    | .state => pure ()
-    | _ => throwError "lockstep_g_sbind: not a state step"
-    let gs ← applyRule g ``LS.bind
-    specCore (← pick gs `hf)
-    runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
-    runClosed (← pick gs `he) (evalT `(tactic| lockstep_g_errarm))
-    let rest ← cont (← pick gs `hk) [`a, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
-    setGoals ((← normAll rest) ++ others)
-
-macro "lockstep_g1" : tactic =>
-  `(tactic| (first | lockstep_g_okfeed | lockstep_core_step | lockstep_g_sbind))
-
-/-- `lockstep_core` with region G's two moves. -/
-macro "lockstep_g" : tactic =>
-  `(tactic| repeat' lockstep_g1)
 
 /-! ## The datum computations -/
 
@@ -171,7 +105,7 @@ theorem annotate_binders_out_aux (m : Nat) :
   | zero =>
     intro pers st lst is_lam d pw stk n cur hx hn hrel hinv
     rw [arena.core.annotate_binders_out.eq_def, annotateBindersOut]
-    lockstep_g
+    lockstep_core
   | succ m ih =>
     intro pers st lst is_lam d pw stk n cur hx hn hrel hinv
     have hidx : ∀ i : Std.Usize, i.val = m → LSP (alloc.vec.Vec.index
@@ -180,7 +114,7 @@ theorem annotate_binders_out_aux (m : Nat) :
       fun i hi => hi ▸ stk_index_twin stk i
     rw [arena.core.annotate_binders_out.eq_def, annotateBindersOut]
     show LS _ _ _ _ _
-    lockstep_g
+    lockstep_core
 
 @[lockstep] theorem annotate_binders_out_ls {pers st is_lam d pw stk n cur lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -202,7 +136,7 @@ theorem annotate_binders_out_aux (m : Nat) :
       (annotatePisLeaf (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d)
         (absEIdx t) (absU k) (absEIdxArr fvs) (absStk stk)) := by
   rw [arena.core.annotate_pis_leaf, annotatePisLeaf]
-  lockstep_g
+  lockstep_core
 
 @[lockstep] theorem annotate_lams_leaf_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe d t k fvs stk lst}
@@ -214,7 +148,7 @@ theorem annotate_binders_out_aux (m : Nat) :
       (annotateLamsLeaf (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d)
         (absEIdx t) (absU k) (absEIdxArr fvs) (absStk stk)) := by
   rw [arena.core.annotate_lams_leaf, annotateLamsLeaf]
-  lockstep_g
+  lockstep_core
 
 section loops
 attribute [local lockstep_simp] absStk_eq
@@ -233,11 +167,11 @@ theorem annotate_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
   | zero =>
     intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
     rw [arena.core.annotate_pis, annotatePis]
-    lockstep_g
+    lockstep_core
   | succ n ih =>
     intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
     rw [arena.core.annotate_pis, annotatePis]
-    lockstep_g
+    lockstep_core
 
 
 @[lockstep] theorem annotate_pis_ls {f : Nat} (hk : KnotRel f)
@@ -265,11 +199,11 @@ theorem annotate_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
   | zero =>
     intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
     rw [arena.core.annotate_lams, annotateLams]
-    lockstep_g
+    lockstep_core
   | succ n ih =>
     intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
     rw [arena.core.annotate_lams, annotateLams]
-    lockstep_g
+    lockstep_core
 
 
 @[lockstep] theorem annotate_lams_ls {f : Nat} (hk : KnotRel f)
@@ -303,7 +237,7 @@ attribute [local lockstep_simp] annotateBinder absIProjEntry bne_iff_ne ExprOps.
       (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx e)) := by
   rw [arena.core.annotate_body, annotateBody]
-  lockstep_g
+  lockstep_core
 
 end loops
 
