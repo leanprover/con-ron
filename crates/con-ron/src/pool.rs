@@ -23,12 +23,12 @@
 //! `intern_persistent`'s only caller is phase A's `arena::promote`).  So a
 //! worker is
 //!
-//!   * its own `AState` — an EMPTY store whose four `shared_on` flags are
-//!     set, its own `Memos`, its own `Caches`, and a COPY of the driver's
-//!     `Pins` (sixty-eight handles into the persistent tier, so a copy is
-//!     two `Vec<NIdx>` and three words);
+//!   * its own `AState`, `checker::worker_state(pins)` — an EMPTY store whose
+//!     four `shared_on` flags are set, its own `Memos`, its own `Caches`, and
+//!     a COPY of the driver's `Pins` (sixty-eight handles into the persistent
+//!     tier, so a copy is two `Vec<NIdx>` and three words);
 //!   * `&PersTier`, the persistent tier the driver froze at the phase
-//!     boundary and every worker reads;
+//!     boundary (`checker::freeze_tier`) and every worker reads;
 //!   * `&IFEnv`, the installed index — **by reference, and this is what task
 //!     #97-P6-6b's second half bought**.  `check_pending` used to take the
 //!     index BY VALUE so that it could restrict it to the record's prefix
@@ -37,23 +37,30 @@
 //!     parameter now (`pc.vis`), so the environment is shared and **a worker
 //!     costs no environment copy at all**.
 //!
-//! One `AState` per worker for the whole run, not one per record: the state
-//! is bracketed by `check_pending` (the scratch tier opened and dropped, the
-//! caches flushed at both ends), so a worker's tables are the sequential
-//! lane's at the head of every record, and keeping them lets task
-//! #97-P6-7's `clear_fit` high-water mark settle exactly as it does in one
-//! lane.
+//! Every sequential piece of that — the freeze, the worker's state, the
+//! per-record check — is the VERIFIED crate's since task #97-P5-Driver, and
+//! so is the walk this module is argued equal to:
+//! `checker::check_pending_worker(pers, mode, fe, pins, pend)`, which is ONE
+//! worker's state and `check_pending_list` from it — this pool at one worker,
+//! call for call.
 //!
-//! ## The guarantee, and why it is the sequential walk's
+//! ## THE TRUSTED CLAIM, and the whole of it
 //!
-//! **The verdict, and the record a rejection names, are the same at every
-//! `--jobs`.**  A worker's result is the record's index with its outcome; the
-//! workers' arrays are merged *by record index* into one table and the table
-//! is walked in **record order**, stopping at the first failing record in
-//! fold order.  That walk is `check_pending_list`'s, whatever the workers'
-//! timing, so the pool cannot report the second failure of a stream that has
-//! two — `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2,
-//! 3, 4 and 8 workers on a list whose records 2 and 4 both fail.
+//! **`check_pool(pers, mode, fe, pend, pins, n, _)` returns what
+//! `checker::check_pending_worker(pers, mode, fe, pins, pend)` returns, at
+//! every worker count `n`** — the same verdict, and on a failure the same fold
+//! position.  `pool_is_check_pending_worker_at_every_jobs` is its test.  It
+//! rests on two arguments, and the second is the one master's pool did not
+//! need.
+//!
+//! **(1) Merge by record index — master's argument.**  A worker's result is
+//! the record's index with its outcome; the workers' arrays are merged *by
+//! record index* into one table and the table is walked in **record order**,
+//! stopping at the first failing record in fold order.  That walk is
+//! `check_pending_list`'s, whatever the workers' timing, so the pool cannot
+//! report the second failure of a stream that has two —
+//! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
+//! and 8 workers on a list whose records 2 and 4 both fail.
 //!
 //! **The table is complete below the first failure**, which is what makes the
 //! walk total.  con-leche's argument, and the port's: a worker that fails
@@ -63,12 +70,39 @@
 //! below `f` is never skipped, and — the counter being monotone — it was
 //! claimed before `f` was and is finished by the worker that claimed it.
 //! Records above `f` may be missing from the table, and the walk never
-//! reaches them.
+//! reaches them.  (A worker also never checks a record after its own first
+//! failure: every later claim is above it, hence at or above the limit.)
 //!
 //! Every access is `Relaxed`: a stale read of `limit` can only be *larger*
 //! than the current value, i.e. can only make a worker do work it could have
 //! skipped, and the results themselves travel through the `join` at the end
 //! of the scope, which is the release/acquire pair.
+//!
+//! **(2) A record's outcome does not depend on which records its worker
+//! checked before it — the deliberate difference from master.**  Master's
+//! pool checked every record from a fresh `cstate_new()`, so (1) was the
+//! whole argument.  Here a worker keeps ONE `AState` for the whole run, so
+//! record `k` is checked on a state its worker's earlier records have used —
+//! records `0..k` in the one-worker walk, some subsequence of them in a pool.
+//! The claim is that this history is invisible to the outcome, and the
+//! argument is the bracket: `check_pending` opens with `enter_scratch`, which
+//! resets the per-call memos and turns on an EMPTY scratch tier, and closes
+//! with `drop_scratch`, which resets the per-declaration caches and truncates
+//! the scratch tier; the persistent tier is `&PersTier`, immutable, and the
+//! store's own persistent tables are frozen (a persistent append is
+//! `M_FROZEN`'s decline); the pins are never written.  So what one record
+//! hands the next is CAPACITY — slot-vector lengths, `clear_fit`'s high-water
+//! mark, `Vec` capacities — and no lookup's answer depends on a capacity
+//! (`ron::hashmap2`'s refinement lemmas, `clear_fit_refines` included, are
+//! stated on contents).  **Why it is taken**: task #97-P5-Driver built the
+//! master-shaped alternative — a fresh `worker_state` per record, in the pool
+//! and in the verified walk alike, which makes (2) true by construction — and
+//! measured it on `Init` at **+16.4 % instructions** (246.7 G against
+//! 211.9 G, `--jobs=1`), all of it re-growing the tables every record that
+//! the high-water mark of task #97-P6-7 exists to keep.  (2) is a statement
+//! about the verified crate's `check_pending` and nothing else, so it could
+//! be proved; DESIGN.md's task #97-P5-Driver section says what that would
+//! take.
 //!
 //! ## Threads, stacks and the address-space arithmetic
 //!
@@ -86,17 +120,14 @@ use std::sync::Mutex;
 
 use con_ron_core::arena::checker;
 use con_ron_core::arena::checker::PendingCheck;
-use con_ron_core::arena::env::nidx_vec_dup;
 use con_ron_core::arena::env::IFEnv;
 use con_ron_core::arena::monad::AState;
 use con_ron_core::arena::pins::Pins;
-use con_ron_core::arena::store::EStore;
 use con_ron_core::arena::store::PersTier;
 
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env::CheckMode;
-use con_ron_core::ron::hashmap::Dup;
 
 use crate::driver::PhaseObserver;
 use crate::driver::STACK_BYTES;
@@ -112,37 +143,6 @@ pub type RecordResult = Result<(), (CheckError, u64)>;
 /// the pool's two internal errors are formatted here, above it.
 fn internal(msg: &str) -> CheckError {
     core_types::internal(msg.chars().map(|c| c as u32).collect())
-}
-
-/// con-leche: none — the pin table is handles, so a worker's copy is a memcpy
-/// The driver's `Pins` for a worker.  DESIGN.md §8.3's pins are sixty-eight
-/// HANDLES into the persistent tier and nothing else, so every worker may own
-/// the record and none of them needs to intern anything to fill it — which is
-/// the reason task #97-P6-6b left `Pins` in `AState` rather than moving it
-/// into `PersTier`.
-fn pins_dup(p: &Pins) -> Pins {
-    Pins {
-        names: nidx_vec_dup(&p.names),
-        reserved: nidx_vec_dup(&p.reserved),
-        empty_levels: p.empty_levels.dup2(),
-        zero_level: p.zero_level.dup2(),
-        sort_one: p.sort_one.dup2(),
-    }
-}
-
-/// con-leche: Main.lean:262-278 checkWorker
-/// **A worker's state**: an empty store whose four `shared_on` flags are set,
-/// so that every persistent read goes to the `PersTier` the driver froze and
-/// a persistent append is refused (`arena::store`'s frozen-tier guard).  The
-/// scratch tier is off until `check_pending` opens it.
-pub fn worker_state(pins: &Pins) -> AState {
-    let mut st = AState::init(EStore::empty());
-    st.store.shared_on = true;
-    st.store.lss.shared_on = true;
-    st.store.lss.ls.shared_on = true;
-    st.store.lss.ls.ns.shared_on = true;
-    st.pins = pins_dup(pins);
-    st
 }
 
 /// con-leche: Main.lean:240-260 checkOne
@@ -214,7 +214,7 @@ fn check_worker<O: PhaseObserver + Send>(
 ) -> Vec<(usize, RecordResult)> {
     let m = pend.len();
     let mut acc: Vec<(usize, RecordResult)> = Vec::new();
-    let mut st: AState = worker_state(pins);
+    let mut st: AState = checker::worker_state(pins);
     loop {
         let k = next.fetch_add(1, Ordering::Relaxed);
         if k >= m {
@@ -271,7 +271,9 @@ pub fn collect_checks(pend: &[PendingCheck], tab: Vec<Option<RecordResult>>) -> 
 }
 
 /// con-leche: Main.lean:289-316 checkPool
-/// **Phase B on a pool of `workers` worker threads.**  Spawns them inside a
+/// **Phase B on a pool of `workers` worker threads** — argued equal to the
+/// verified `checker::check_pending_worker(pers, mode, fe, pins, pend)` (the
+/// module note's trusted claim).  Spawns them inside a
 /// `std::thread::scope` — which is what lets them hold `&PersTier`, `&IFEnv`
 /// and `&[PendingCheck]` with no `Arc<Mutex<…>>` and no `'static` bound —
 /// waits for all of them, merges their results by record index and walks the
@@ -340,6 +342,8 @@ mod tests {
     use con_ron_core::arena::env as ienv;
     use con_ron_core::arena::env::IConstantVal;
     use con_ron_core::arena::monad;
+    use con_ron_core::arena::store::EStore;
+    use con_ron_core::ron::hashmap::Dup;
     use con_ron_core::arena::store::ENodeView;
     use con_ron_core::arena::store::LNodeView;
     use con_ron_core::arena::store::NNodeView;
@@ -394,13 +398,10 @@ mod tests {
                 vis: 0,
             });
         }
-        let pins = pins_dup(&st.pins);
-        let store = st.store;
-        let tier = PersTier {
-            n: store.lss.ls.ns.pers,
-            l: store.lss.ls.pers,
-            ls: store.lss.pers,
-            e: store.pers,
+        let pins = checker::pins_dup(&st.pins);
+        let tier = match checker::freeze_tier(&mut st.store) {
+            Ok(t) => t,
+            Err(_) => panic!("the fixture's store has its flags down"),
         };
         (tier, pins, pend)
     }
@@ -422,6 +423,39 @@ mod tests {
                     workers
                 ),
                 Err((_, pos)) => assert_eq!(pos, 2, "at {} workers", workers),
+            }
+        }
+    }
+
+    /// **The trusted claim, as a test**: at every worker count the pool
+    /// returns what the verified one-worker walk
+    /// `checker::check_pending_worker` returns — the same verdict, and on a
+    /// failure the same fold position.
+    #[test]
+    fn pool_is_check_pending_worker_at_every_jobs() {
+        let lists: Vec<Vec<bool>> = vec![
+            vec![true, true, false, true, false, true],
+            vec![true; 9],
+            vec![],
+            vec![false, true],
+            vec![true, true, true, true, true, false],
+        ];
+        let fe: IFEnv = ienv::mk_ifenv(ienv::i_env_empty());
+        let mode = CheckMode::Verified;
+        for oks in lists {
+            let (tier, pins, pend) = fixture(&oks);
+            let seq = checker::check_pending_worker(&tier, &mode, &fe, &pins, &pend);
+            for workers in [1usize, 2, 3, 4, 8] {
+                let mut obs = Silent;
+                let lock = Mutex::new(&mut obs);
+                let pooled = check_pool(&tier, &mode, &fe, &pend, &pins, workers, &lock);
+                match (&seq, &pooled) {
+                    (Ok(()), Ok(())) => {}
+                    (Err((_, a)), Err((_, b))) => {
+                        assert_eq!(a, b, "{:?} at {} workers", oks, workers)
+                    }
+                    _ => panic!("{:?} at {} workers: the pool and the walk disagree", oks, workers),
+                }
             }
         }
     }

@@ -3242,6 +3242,62 @@ pub fn parse_chunks<G: Modeller>(
     chunk_finish(pers, m, ar, st, &carry[..], line_no)
 }
 
+/// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
+/// **Where the reader loop's bytes come from** (task #97-P5-Driver): the one
+/// input seam of the parse, declared here and implemented in the driver over a
+/// file handle — `Modeller`'s arrangement.  `IO.FS.Handle.read` has no model,
+/// so the refinement is stated under a hypothesis that the reads ARE a list
+/// of chunks (`Refine2/Frontend/Source.lean`'s `ReadsAs`), which is the one
+/// thing about the input the binary trusts.
+pub trait ChunkSource {
+    /// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
+    /// The next buffer of the input, read strictly forward, never seeked:
+    /// EMPTY exactly at the end of the input.  A source whose read fails
+    /// answers empty too and keeps the failure for its owner, who reports it
+    /// instead of any verdict.
+    fn next_chunk(&mut self) -> Vec<u8>;
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
+/// Lean twin: none — the reads have no model; `Refine2/Frontend/Source.lean`'s
+/// `parse_source_eq` makes this `parse_chunks` over the chunks read.
+/// **THE READER LOOP**, moved here from the driver by task #97-P5-Driver:
+/// `parse_chunks`' loop with the reads interleaved — the same `state_d_init`,
+/// one `chunk_step` per buffer the source hands out, and `chunk_finish` at
+/// the first empty one.  The input is never held whole: each buffer is fed to
+/// the step and dropped, so the source may be a pipe and no scratch file
+/// exists (con-leche task #180).
+pub fn parse_source<G: Modeller, S: ChunkSource>(
+    pers: &PersTier,
+    m: &G,
+    ar: &mut AState,
+    src: &mut S,
+    in_model: bool,
+    census: bool,
+) -> Result<ParseResultD, (CheckError, u64)> {
+    let mut st = match state_d_init(pers, &mut ar.store, in_model, census) {
+        Err(e) => return Err((e, 0)),
+        Ok(v) => v,
+    };
+    let mut carry: Vec<u8> = Vec::new();
+    let mut line_no: u64 = 0;
+    let mut total: u64 = 0;
+    loop {
+        let buf: Vec<u8> = src.next_chunk();
+        if buf.len() == 0 {
+            return chunk_finish(pers, m, ar, st, &carry[..], line_no);
+        }
+        match chunk_step(pers, m, ar, &mut st, carry, line_no, total, &buf[..]) {
+            Err(e) => return Err(e),
+            Ok((c2, l, t)) => {
+                carry = c2;
+                line_no = l;
+                total = t;
+            }
+        }
+    }
+}
+
 /// con-leche: none — the line number folded into the message
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:850-859 atLine` —
 /// con-leche reports a parse failure as `(CheckError, lineNo)` and its
