@@ -57824,3 +57824,8 @@ each reaches: `overview-links` OK and `lake build ConRonBridge ConRonCapstone`
 green after the first, `lake build ConRonRefine2 ConRonCapstone` green after
 the other two; none touches Rust, the model or a default-target module.  The
 cache seeding was repeated on the landing state.
+**Eighth merge**, `315ab8d5` (task #97-P3-Core round 6: `hk` is a theorem,
+`CoreSpec.of_core`, and left the two roots' signatures): conflict in the two
+roots' bodies, resolved to `CoreSpec.of_core rfl` with this task's `hreads`
+and `stages_installThenCheck`; `lake build ConRonBridge ConRonCapstone` green
+(2 803 jobs); cache re-seeded.
