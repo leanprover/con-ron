@@ -771,6 +771,21 @@ macro_rules
                have := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx _ _›
                simp_all [ExprOps.absEIdxList, absEIdxL, absEIdxList]; done))
 
+open Lean Elab Tactic in
+/-- Fails unless the goal is an `IFEnvRelI`. -/
+elab "ind_fe_guard" : tactic => do
+  unless (← instantiateMVars (← getMainTarget)).isAppOf ``IFEnvRelI do
+    throwError "ind_fe_guard: not IFEnvRelI"
+
+/-- The environment an `ifenv_push` answered (`IFEnvRelI a (lf.push (absIConstantInfo
+ci)) ∧ …`), against the twin's push of the same record spelled field by
+field: the two records are equal after the abstraction and the vector facts. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (ind_fe_guard
+               convert (‹IFEnvRelI _ _ ∧ _›).1 using 3
+               simp_all [absIConstantInfo, absIConstantVal, alloc.vec.Vec.new]; done))
+
 /-- `lf.restrictTo (absU rf.visible_below) = lf` from `IFEnvRelI rf lf`. -/
 macro_rules
   | `(tactic| lockstep_side_ext) =>

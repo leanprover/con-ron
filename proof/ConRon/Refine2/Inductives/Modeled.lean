@@ -2728,7 +2728,9 @@ theorem check_proj_fn_rule_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkProjFnRuleSpec (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absIConstantVal cvj) (absU n_p)
         (absU n_f) (absU i) (absEIdx pty)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_fn_rule, checkProjFnRuleSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_proj_fn_rule_ls
