@@ -1369,13 +1369,22 @@ theorem consts_resolve_f_go_refines {pers st lst} {vis : Std.U64} {rf lf}
   sorry
 
 /-- `consts_resolve_f_node` is `consts_resolve_f_go`'s miss arm past the
-`view` (extraction rule 5), stated against the twin's arm at that view. -/
+`view` (extraction rule 5), stated against the twin's arm at that view.
+
+`hnl`: the view is not one of the four leaves.  The Rust answers `false` at a
+leaf view and the twin's transcription calls `constsResolve` (`true` at a
+`bvar`), so the statement is false there; its one caller,
+`consts_resolve_f_go`, reaches it only at the non-leaf views (a Rust-input
+fact; coordinator's ruling). -/
 theorem consts_resolve_f_node_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rm lm} {fuel : Std.U64} {v : arena.store.ENodeView} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hm : ExprOps.LMemoRel rm lm)
     (hview : lst.store.view (absEIdx h) = some (absENodeView v))
+    (hnl : match v with
+      | .BVar _ | .Sort _ | .Const _ _ | .Lit _ => False
+      | _ => True)
     (hrun : arena.checker_base.consts_resolve_f_node pers vis st rf rm fuel v = ok o) :
     SimBM id pers lst o
       (constsResolveFNodeSpec (lf.restrictTo (absU vis)) lm (absU fuel) (absEIdx h)
@@ -1520,16 +1529,15 @@ theorem unresolved_consts_error_of {pers st lst} {e : arena.handle.EIdx} {o}
 CheckError, so it is a `SimRel₀` at the kind: a term that mentions `sorryAx`
 DECLINES (`notImplemented`) and anything else REJECTS (`invalid`), and the
 claim is that the two agree on WHICH — messages are never compared
-(DESIGN §3.1).  **Closed modulo `mentions_const`**: `unresolved_consts_error_of`
-is the whole proof; the `sorry` is `Inductives/StructParts.lean`'s
-`mentions_const_ls` (itself a `sorry` there), which this module cannot import. -/
+(DESIGN §3.1).  `unresolved_consts_error_of` at `mentions_const_ls`
+(`Checker/Leaves.lean`, moved down from `Inductives/StructParts.lean`). -/
 theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {o}
     {w : String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
     SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
       (unresolvedConstsError w (absEIdx e)) :=
-  unresolved_consts_error_of (fun _ _ _ => sorry) hrel hinv hrun
+  unresolved_consts_error_of (fun _ hrel hinv => mentions_const_ls hrel hinv) hrel hinv hrun
 
 open Lockstep in
 @[lockstep] theorem unresolved_consts_error_ls {pers st lst}
@@ -2627,6 +2635,30 @@ theorem recs_form_suffix_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     o = recsFormSuffix (absICILFrom block i) :=
   recs_form_suffix_aux _ rfl hrun
 
+open Lockstep in
+/-- `arena::env::pi_sort_tele_len` as a store read (`Checker/Leaves.lean`'s
+`env_pi_sort_tele_len_run`). -/
+@[lockstep] theorem pi_sort_tele_len_ls {pers st lst} {fuel : Std.U64}
+    {h : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = Option.map absU a)
+      (arena.env.pi_sort_tele_len pers st.store fuel h) st lst
+      (piSortTeleLen? (absU fuel) (absEIdx h)) :=
+  LSR.ofSimRE hrel hinv fun _ hr => Frontend.env_pi_sort_tele_len_run hrel hinv hr
+
+/-- A `u64` handle-free comparison, read back. -/
+@[lockstep_simp] theorem absU_beq_u64 (a b : Std.U64) :
+    (absU a == absU b) = decide (a = b) := by
+  by_cases h : a = b
+  · subst h; simp
+  · have : absU a ≠ absU b := fun e => h (Std.UScalar.eq_of_val_eq e)
+    simp [h, this]
+
+/-- `≤` on `u64`, read back. -/
+@[lockstep_simp] theorem absU_le_u64 (a b : Std.U64) :
+    decide (absU a ≤ absU b) = decide (a ≤ b) := by
+  simp only [absU]; rfl
+
 /-- `ind_params_ok_at` is `ind_params_ok`'s per-member test. -/
 theorem ind_params_ok_at_refines {pers st lst} {n_p : Std.U64}
     {ci : arena.env.IConstantInfo} {o}
@@ -2634,7 +2666,9 @@ theorem ind_params_ok_at_refines {pers st lst} {n_p : Std.U64}
     (hrun : arena.checker_base.ind_params_ok_at pers st n_p ci = ok o) :
     Sim₀ id pers lst o
       (indParamsOkAtSpec (absU n_p) (absIConstantInfo ci)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  cases ci <;> (rw [arena.checker_base.ind_params_ok_at]; simp only [absIConstantInfo,
+    indParamsOkAtSpec]) <;> lockstep
 
 open Lockstep in
 @[lockstep] theorem ind_params_ok_at_ls {pers st lst}
@@ -2647,6 +2681,37 @@ open Lockstep in
       (indParamsOkAtSpec (absU n_p) (absIConstantInfo ci)) :=
   LS.ofSim₀ fun _ h => ind_params_ok_at_refines hrel hinv h
 
+theorem ind_params_ok_aux {n_p : Std.U64} {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (m : Nat) : ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (i : Std.Usize), block.val.length - i.val = m →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.checker_base.ind_params_ok pers st n_p block i) lst
+        (indParamsOk (absU n_p) (absICILFrom block i)) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro pers st lst i hm hrel hinv
+    have hl := alloc.vec.Vec.len_val block
+    by_cases hge : i ≥ block.len
+    · have hle : block.val.length ≤ i.val := by scalar_tac
+      have hnil : absICILFrom block i = [] := by
+        simp [absICILFrom, List.drop_eq_nil_of_le hle]
+      rw [arena.checker_base.ind_params_ok, hnil, indParamsOk]
+      lockstep
+    · have hlt : i.val < block.val.length := by scalar_tac
+      have ih' : ∀ (i2 : Std.Usize), i2.val = i.val + 1 → ∀ {st lst},
+          AStateRel₀ pers st lst → AStateInv pers st →
+          Lockstep.LS pers (fun a b => b = id a)
+            (arena.checker_base.ind_params_ok pers st n_p block i2) lst
+            (indParamsOk (absU n_p) ((block.val.drop (i.val + 1)).map absIConstantInfo)) := by
+        intro i2 hi2 st lst hrel hinv
+        have e : (block.val.drop (i.val + 1)).map absIConstantInfo = absICILFrom block i2 := by
+          simp [absICILFrom, hi2]
+        rw [e]
+        exact ih _ (by omega) i2 rfl hrel hinv
+      rw [arena.checker_base.ind_params_ok, absICILFrom_cons hlt, indParamsOk_unfold]
+      lockstep
+
 /-- `ind_params_ok` ⊑ `indParamsOk` from the cursor on — **the stream's
 declared parameter count, checked as official checks it** (con-leche's task
 #228).  Both halves are one-sided on purpose: `false` means official
@@ -2656,8 +2721,8 @@ theorem ind_params_ok_refines {pers st lst} {n_p : Std.U64}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.ind_params_ok pers st n_p block i = ok o) :
     Sim₀ id pers lst o
-      (indParamsOk (absU n_p) (absICILFrom block i)) := by
-  sorry
+      (indParamsOk (absU n_p) (absICILFrom block i)) :=
+  Lockstep.LS.toSim₀ (ind_params_ok_aux _ i rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem ind_params_ok_ls {pers st lst}
