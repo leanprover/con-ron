@@ -764,20 +764,95 @@ theorem mk_proj_motive_refines {pers rst lst pb fuel dom o}
       (mkProjMotive (absProjBuild pb) (absU fuel) (absEIdx dom)) :=
   Lockstep.LS.toSim₀ (mk_proj_motive_ls hrel hinv pb fuel dom) h
 
+open ConRon.Refine2.Lockstep in
+/-- `usize as u64`: a widening, so the value is kept. -/
+@[lockstep] theorem usize_cast_u64_spec (i : Std.Usize) :
+    LSP (lift (UScalar.cast .U64 i)) (fun r : Std.U64 => r.val = i.val) := by
+  intro r h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have := i.hBounds
+  simp only [UScalarTy.numBits] at this ⊢
+  cases System.Platform.numBits_eq with
+  | inl h => rw [h] at this; omega
+  | inr h => rw [h] at this; omega
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem mk_proj_minor_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pb : frontend.proj_rec.ProjBuild) (fuel : Std.U64)
+    (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (major : arena.handle.EIdx)
+    (hwf : BindersWF bs) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (frontend.proj_rec.mk_proj_minor_at pers st pb fuel bs major) lst
+      (mkProjMinorAt (absProjBuild pb) (absU fuel) (absBinderPairs bs) (absEIdx major)) := by
+  rw [frontend.proj_rec.mk_proj_minor_at, mkProjMinorAt]
+  refine LSR.bind (head_is_ls hrel hinv fuel pb.ctor major) (by simp [absProjBuild])
+    (fun _ => by lockstep_errarm) (fun a b lst1 hR hrel1 hinv1 => ?_)
+  subst hR
+  have hlen : (absBinderPairs bs).length = bs.val.length := by simp [absBinderPairs]
+  cases b <;> simp only [Bool.false_eq_true, if_true, if_false, reduceIte]
+  · lockstep
+  · by_cases hi : (absProjBuild pb).i < (absBinderPairs bs).length
+    · rw [if_pos hi]
+      have hi' : pb.i.val < bs.val.length := by simpa [absProjBuild, hlen] using hi
+      have hl' : (alloc.vec.Vec.len bs).val = bs.val.length := by simp
+      lockstep
+    · rw [if_neg hi]
+      have hi' : ¬ pb.i.val < bs.val.length := by simpa [absProjBuild, hlen] using hi
+      have hl' : (alloc.vec.Vec.len bs).val = bs.val.length := by simp
+      lockstep_step
+      rw [if_pos (by scalar_tac)]
+      lockstep
+
 /-- **`mk_proj_minor_at`** — the port's split under the domain's view. -/
 theorem mk_proj_minor_at_refines {pers rst lst pb fuel bs major o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst) (hwf : BindersWF bs)
     (h : frontend.proj_rec.mk_proj_minor_at pers rst pb fuel bs major = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
       (mkProjMinorAt (absProjBuild pb) (absU fuel) (absBinderPairs bs)
-        (absEIdx major)) := by sorry
+        (absEIdx major)) :=
+  Lockstep.LS.toSim₀ (mk_proj_minor_at_ls hrel hinv pb fuel bs major hwf) h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem mk_proj_minor_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pb : frontend.proj_rec.ProjBuild) (fuel : Std.U64)
+    (dom : arena.handle.EIdx) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (frontend.proj_rec.mk_proj_minor pers st pb fuel dom) lst
+      (mkProjMinor (absProjBuild pb) (absU fuel) (absEIdx dom)) := by
+  rw [frontend.proj_rec.mk_proj_minor, mkProjMinor]
+  refine LSR.bind (strip_pis_all_ls hrel hinv fuel dom) rfl
+    (fun _ => by lockstep_errarm) (fun a b lst1 hR hrel1 hinv1 => ?_)
+  obtain ⟨hwf, rfl⟩ := hR
+  obtain ⟨v, e⟩ := a
+  refine LSR.bind (get_app_args_seam hrel1 hinv1 fuel e) rfl
+    (fun _ => by lockstep_errarm) (fun args b lst2 hR hrel2 hinv2 => ?_)
+  subst hR
+  by_cases hnil : args.val = []
+  · have hl0 : (alloc.vec.Vec.len args).val = 0 := by simp [hnil]
+    have hlast : (ExprOps.absEIdxList args).getLast? = none := by
+      simp [ExprOps.absEIdxList, hnil]
+    simp only [hlast]
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  · have hpos : 0 < args.val.length := List.length_pos_iff.mpr hnil
+    have hlast : (ExprOps.absEIdxList args).getLast? =
+        some (absEIdx (args.val[args.val.length - 1]'(by omega))) := by
+      simp [ExprOps.absEIdxList, List.getLast?_eq_getElem?, List.getElem?_map,
+        List.getElem?_eq_getElem (show args.val.length - 1 < args.val.length by omega)]
+    simp only [hlast]
+    rw [if_neg (by scalar_tac)]
+    lockstep
 
 /-- **`mk_proj_minor` refines `mkProjMinor`** (`ProjRec.lean:297-310`). -/
 theorem mk_proj_minor_refines {pers rst lst pb fuel dom o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_proj_minor pers rst pb fuel dom = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
-      (mkProjMinor (absProjBuild pb) (absU fuel) (absEIdx dom)) := by sorry
+      (mkProjMinor (absProjBuild pb) (absU fuel) (absEIdx dom)) :=
+  Lockstep.LS.toSim₀ (mk_proj_minor_ls hrel hinv pb fuel dom) h
 
 /-- **`build_binders_at`** — the port's split under the peeled binder. -/
 theorem build_binders_at_refines {pers rst lst kind pb fuel k dom body o}
