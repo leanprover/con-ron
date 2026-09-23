@@ -750,8 +750,7 @@ theorem mkIFEnvGo_mem : ∀ (cs : List IConstantInfo) (n : NIdx)
 /-- con-leche: none — `mkIFEnvGo_mem` at the index of a coherent `IFEnv`. -/
 theorem IFEnv.find?_mem {fe : IFEnv} (hcoh : IFEnvCoh fe) {n : NIdx}
     {ci : IConstantInfo} (h : fe.find? n = some ci) : ci ∈ fe.env.consts := by
-  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx hcoh
-  simp only [IFEnv.find?, hidx] at h
+  simp only [IFEnv.find?, hcoh.2 n] at h
   cases hg : (mkIFEnvGo fe.env.consts).2[n]? with
   | none => rw [hg] at h; simp at h
   | some p =>
@@ -839,11 +838,8 @@ theorem mkIFEnv_find? (e : IEnv) (n : NIdx) : (mkIFEnv e).find? n = e.find? n :=
 COHERENT index, which is the form every consumer has. -/
 theorem IFEnvCoh.find? {fe : IFEnv} (hcoh : IFEnvCoh fe) (n : NIdx) :
     fe.find? n = fe.env.find? n := by
-  have h1 : fe.idx = (mkIFEnv fe.env).idx := congrArg IFEnv.idx hcoh
-  have h2 : fe.visibleBelow = (mkIFEnv fe.env).visibleBelow :=
-    congrArg IFEnv.visibleBelow hcoh
   have h3 : fe.find? n = (mkIFEnv fe.env).find? n := by
-    simp only [IFEnv.find?, h1, h2]
+    simp only [IFEnv.find?, mkIFEnv, hcoh.2 n, hcoh.1, mkIFEnvGo_fst]
   rw [h3, mkIFEnv_find?]
 
 /-! ## The index spec across a PUSH
