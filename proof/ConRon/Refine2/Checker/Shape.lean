@@ -128,7 +128,8 @@ macro "twin_reduce" : tactic =>
 
 /-! ## `SimRel` — `Sim` with the result RELATED rather than abstracted -/
 
-/-- `AOut` with the result related.  `WF` is gone: a relation says everything
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `AOutRel₀`.
+`AOut` with the result related.  `WF` is gone: a relation says everything
 a well-formedness predicate did, and every consumer of this shape in the tier
 states its `WF` inside `R`. -/
 def AOutRel {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
@@ -199,6 +200,89 @@ theorem SimRel.mono {α β : Type} {R R' : α → β → Prop}
   | Ok r =>
     rintro ⟨v, lst', hx, hr, h1, h2, h3⟩
     exact ⟨v, lst', hx, hRR _ _ hr, h1, h2, h3⟩
+
+/-! ## `SimRel₀` — the lockstep `SimRel` (task #97-T2-LOCKSTEP)
+
+`AOutRel`/`SimRel` over `AStateRel₀`, without `Ext` and without the dead
+pre-state in the outcome.  `AOutRel`/`SimRel` above are **deprecated shims**
+until every lane has moved; `SimRel.to₀` projects a proved old statement.  A
+result that wants a well-formedness predicate states it inside `R`
+(`fun r v => v = A r ∧ WF r`). -/
+
+def AOutRel₀ {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
+    (o : core.result.Result α kernel.core_types.CheckError)
+    (st' : arena.monad.AState)
+    (x : Except Arena.CheckError (β × AState)) : Prop :=
+  match o with
+  | .Ok r => ∃ v lst', x = .ok (v, lst') ∧ R r v ∧ AStateRel₀ pers st' lst' ∧
+      AStateInv pers st'
+  | .Err e => AErrSim e x
+
+def SimRel₀ {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
+    (lst : AState)
+    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
+    (x : AM β) : Prop :=
+  AOutRel₀ R pers o.1 o.2 (x.run lst)
+
+theorem AOutRel₀.ok {α β : Type} {R : α → β → Prop} {r : α} {v : β}
+    {pers : arena.store.PersTier} {lst' : AState} {st' : arena.monad.AState}
+    {x : Except Arena.CheckError (β × AState)}
+    (hx : x = .ok (v, lst')) (hr : R r v) (hrel : AStateRel₀ pers st' lst')
+    (hinv : AStateInv pers st') : AOutRel₀ R pers (.Ok r) st' x :=
+  ⟨v, lst', hx, hr, hrel, hinv⟩
+
+theorem AOutRel₀.err {α β : Type} {R : α → β → Prop}
+    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
+    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
+    (h : AErrSim e x) : AOutRel₀ R pers (.Err e) st' x := h
+
+theorem AOutRel₀.dest {α β : Type} {R : α → β → Prop} {r : α}
+    {pers : arena.store.PersTier} {st' : arena.monad.AState}
+    {x : Except Arena.CheckError (β × AState)}
+    (h : AOutRel₀ R pers (.Ok r) st' x) :
+    ∃ v lst', x = .ok (v, lst') ∧ R r v ∧ AStateRel₀ pers st' lst' ∧
+      AStateInv pers st' := h
+
+/-- The value equation is the stronger claim: a `Sim₀` feeds a `SimRel₀`
+consumer. -/
+theorem Sim₀.toSimRel₀ {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : Sim₀ A pers lst o x) :
+    SimRel₀ (fun r v => v = A r) pers lst o x := by
+  revert h
+  unfold Sim₀ SimRel₀ AOut₀ AOutRel₀
+  cases o.1 with
+  | Err e => exact id
+  | Ok r =>
+    rintro ⟨lst', hx, h1, h2⟩
+    exact ⟨A r, lst', hx, rfl, h1, h2⟩
+
+/-- Every old `SimRel` is a lockstep one. -/
+theorem SimRel.to₀ {α β : Type} {R : α → β → Prop}
+    {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : SimRel R pers lst o x) : SimRel₀ R pers lst o x := by
+  revert h
+  unfold SimRel SimRel₀ AOutRel AOutRel₀
+  cases o.1 with
+  | Err e => exact id
+  | Ok r =>
+    rintro ⟨v, lst', hx, hr, h1, h2, -⟩
+    exact ⟨v, lst', hx, hr, h1.to₀, h2⟩
+
+theorem SimRel₀.mono {α β : Type} {R R' : α → β → Prop}
+    {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : SimRel₀ R pers lst o x) (hRR : ∀ r v, R r v → R' r v) :
+    SimRel₀ R' pers lst o x := by
+  revert h
+  unfold SimRel₀ AOutRel₀
+  cases o.1 with
+  | Err e => exact id
+  | Ok r =>
+    rintro ⟨v, lst', hx, hr, h1, h2⟩
+    exact ⟨v, lst', hx, hRR _ _ hr, h1, h2⟩
 
 /-! ## `SimRE` — a reader that can FAIL
 
