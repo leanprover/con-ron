@@ -58,9 +58,14 @@ six more.
 * `Walks/Nat.lean` — **the literal acceleration** (task #97-P3-Core round
   4): `reduceNat_spec` and the six state-only walks under it, all CLOSED —
   which is what makes `Arms/Whnf.lean`'s `whnfBody_spec` sorry-free.
-* `Walks/Owed.lean` — **the statements not yet reached** (six after round
-  4: `iotaRec`, `projLitToCtor`, `propIrrel`, `stuckIrrel`, `annotPwPi`,
-  `annotPwLam`),
+* `Walks/PropRead.lean` — **the head-symbol prop-ness readers** (task
+  #97-P3-Core round 5): Theorem 1 for the nine functions of
+  `Arena/PropRead.lean`, each an equation with con-leche's reader at
+  `find? := env.find?`, in published and answer shape; then `propIrrel_spec`,
+  `annotPwPi_spec` and `annotPwLam_spec` (moved from `Walks/Owed.lean`) and
+  their answer-shape forms.  All CLOSED.
+* `Walks/Owed.lean` — **the statements not yet reached** (three after round
+  5: `iotaRec`, `projLitToCtor`, `stuckIrrel`),
   each with what it is waiting on written at the site.  `defEqList_spec` is
   the nearest and its fuel merge is now IN HAND (`Walks/Mono.lean`'s
   `defEqListFueled_mono`); `reduceNat_spec` and `unfoldDefinition_spec` were

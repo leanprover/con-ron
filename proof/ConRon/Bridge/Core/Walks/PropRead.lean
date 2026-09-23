@@ -947,3 +947,656 @@ theorem isProofFast_spec (fuel : Nat) (s₀ : AState) (a : EIdx) (x : Expr)
   mvcgen [hb]
   intro h1 h2 h3 h4
   exact ⟨h1, h2, h3, h4 x hden⟩
+
+/-! ## 5. The three walks that waited on the readers
+
+`Walks/Owed.lean`'s `annotPwPi`, `annotPwLam` and `propIrrel`, moved here
+(round 5): each is a reader of §3–4 first and the knot's answer-shape slots
+(`Bridge/Core/Knot.lean`) after, and the `ensureSort` in the annotation pair
+is why they cannot sit in `Owed.lean` (`Walks/Spine.lean`'s module note). -/
+
+/-! ### The pure sides at their exits -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — the reader
+answers, at any fuel. -/
+theorem annotPwPi_fast {F d : Nat} {x : Expr} {pw : PropWhen}
+    (h : ConLeche.typeSortPW env.find? x = some pw) :
+    ConLeche.annotPwPi (ConLeche.pureFns mode env F) env d x = .ok pw := by
+  simp only [ConLeche.annotPwPi, h, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — the reader
+declines: one io inference and a sort. -/
+theorem annotPwPi_of_steps {F d : Nat} {x ti : Expr} {l : Level}
+    (h0 : ConLeche.typeSortPW env.find? x = none)
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ti)
+    (h2 : ConLeche.whnf mode env F d ti = .ok (.sort l)) :
+    ConLeche.annotPwPi (ConLeche.pureFns mode env F) env d x =
+      .ok (Level.zeronessOf l) := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ti := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d ti = .ok (.sort l) := h2
+  simp only [ConLeche.annotPwPi, ConLeche.ensureSort, h0, e1, e2, bind,
+    Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — the reader
+answers, at any fuel. -/
+theorem annotPwLam_fast {F d : Nat} {x : Expr} {pw : PropWhen}
+    (h : ConLeche.proofPW env.find? x = some pw) :
+    ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x = .ok pw := by
+  simp only [ConLeche.annotPwLam, h, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — the reader
+declines: two io inferences and a sort. -/
+theorem annotPwLam_of_steps {F d : Nat} {x bt btt : Expr} {l : Level}
+    (h0 : ConLeche.proofPW env.find? x = none)
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok bt)
+    (h2 : ConLeche.inferTypeIO mode env F d bt = .ok btt)
+    (h3 : ConLeche.whnf mode env F d btt = .ok (.sort l)) :
+    ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x =
+      .ok (Level.zeronessOf l) := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok bt := h1
+  have e2 : (ConLeche.pureFns mode env F).inferIO d bt = .ok btt := h2
+  have e3 : (ConLeche.pureFns mode env F).whnf d btt = .ok (.sort l) := h3
+  simp only [ConLeche.annotPwLam, ConLeche.ensureSort, h0, e1, e2, e3, bind,
+    Except.bind, pure, Except.pure]
+
+/-! ### `annotPwPi` and `annotPwLam` -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — **THEOREM 1
+for `annotPwPi`**: the `PropWhen` datum a ∀ binder is stamped with.
+**CLOSED** (round 5, moved from `Walks/Owed.lean`, statement unchanged):
+`typeSortPW_spec'`, then — when the reader declines — `KnotSpec.inferIO'`,
+`ensureSort`'s `KnotSpec.whnf'` and the level readback. -/
+theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
+    (hw : Expr.WScoped d x) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.annotPwPi (coreKnot mode fe id fuel) fe d body'
+    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimVOp
+          (fun F => ConLeche.annotPwPi (ConLeche.pureFns mode env F) env d x)
+          pw⌝⦄ := by
+  have hts := typeSortPW_spec' (mode := mode) (env := env) (fe := fe)
+    coreWalkFuel s₀ body' hok ⟨x, hden⟩
+  have hi := hsim.inferIO'
+  have hn := hsim.whnf'
+  mvcgen [ConRon.Arena.annotPwPi, ConRon.Arena.ensureSort, hts, hi, hn]
+  all_goals (bridge_peel; subst_vars)
+  -- the reader answers
+  case vc2 =>
+    rename_i s1 pw s0 hck hst hp hts'
+    exact ⟨hck, by rw [hst]; exact Ext.refl _, hp, 0,
+      annotPwPi_fast (hts' x hden).symm⟩
+  -- the callees' preconditions
+  case vc3.hok => rename_i s1 s0 hck _ _ _; exact hck
+  case vc4.hdw =>
+    rename_i s1 s0 _ hst _ _
+    exact ⟨x, by rw [hst]; exact hden, hw⟩
+  case vc5.hok => rename_i s2 s1 r s0 _ hck0 _ _ _ _ _ _; exact hck0
+  case vc6.hdw =>
+    rename_i s2 s1 ti s0 _ _ _ _ hsio hst _ _
+    exact SimE.exists_denote (hsio x (by rw [hst]; exact hden))
+  case vc7.hc =>
+    rename_i s3 s2 ti s1 w u s0 _ _ _ _ _ _ _ _ hck0 _ _ _ _
+    exact hck0.caches.readL
+  -- the reader declines: infer, reduce to a sort, read the level back
+  case vc8 =>
+    rename_i s4 s3 ti s2 w u s1 l s0 hck3 hck2 hst01 hx32 hm01 hp23 hsio hp01
+      hc01 hl hL hst34 hp34 hts' hck1 hview hx21 hp12 hsw
+    have hf := ReadbackFrame.ofReadL hst01 hm01 hp01 hc01 hL
+    have hx43 : Ext s4.store s3.store := by rw [hst34]; exact Ext.refl _
+    refine ⟨CheckOK.ofReadbackFrame hck1 hf,
+      ((hx43.trans hx32).trans hx21).trans hf.ext,
+      hf.pins.trans (hp12.trans (hp23.trans hp34)), ?_⟩
+    obtain ⟨ti', hti', _, F1, hF1⟩ := hsio x (by rw [hst34]; exact hden)
+    obtain ⟨w', hw', _, F2, hF2⟩ := hsw ti' hti'
+    obtain ⟨l', rfl, hl'⟩ := denote_sort_inv hck1.state.wf hview hw'
+    rw [hl] at hl'; cases hl'
+    exact ⟨max F1 F2, annotPwPi_of_steps (hts' x hden).symm
+      (ConLeche.inferTypeIO_mono (Nat.le_max_left _ _) hF1)
+      (ConLeche.whnf_mono (Nat.le_max_right _ _) hF2)⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — **THEOREM 1
+for `annotPwLam`**: the same at a λ binder.  **CLOSED** (round 5, moved from
+`Walks/Owed.lean`, statement unchanged): `proofPW_spec'`, then — when the
+reader declines — two `KnotSpec.inferIO'`, `ensureSort`'s `KnotSpec.whnf'`
+and the level readback. -/
+theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
+    (hw : Expr.WScoped d x) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.annotPwLam (coreKnot mode fe id fuel) fe d body'
+    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimVOp
+          (fun F => ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x)
+          pw⌝⦄ := by
+  have hpp := proofPW_spec' (mode := mode) (env := env) (fe := fe)
+    coreWalkFuel s₀ body' hok ⟨x, hden⟩
+  have hi := hsim.inferIO'
+  have hn := hsim.whnf'
+  mvcgen [ConRon.Arena.annotPwLam, ConRon.Arena.ensureSort, hpp, hi, hn]
+  all_goals (bridge_peel; subst_vars)
+  -- the reader answers
+  case vc2 =>
+    rename_i s1 pw s0 hck hst hp hpp'
+    exact ⟨hck, by rw [hst]; exact Ext.refl _, hp, 0,
+      annotPwLam_fast (hpp' x hden).symm⟩
+  -- the callees' preconditions
+  case vc3.hok => rename_i s1 s0 hck _ _ _; exact hck
+  case vc4.hdw =>
+    rename_i s1 s0 _ hst _ _
+    exact ⟨x, by rw [hst]; exact hden, hw⟩
+  case vc5.hok => rename_i s2 s1 r s0 _ hck0 _ _ _ _ _ _; exact hck0
+  case vc6.hdw =>
+    rename_i s2 s1 bt s0 _ _ _ _ hsio hst _ _
+    exact SimE.exists_denote (hsio x (by rw [hst]; exact hden))
+  case vc7.hok =>
+    rename_i s3 s2 bt s1 btt s0 _ _ hck0 _ _ _ _ _ _ _ _ _
+    exact hck0
+  case vc8.hdw =>
+    rename_i s3 s2 bt s1 btt s0 _ _ _ _ _ _ hsio1 _ hsio2 hst _ _
+    obtain ⟨bt', hbt', _, _⟩ := hsio1 x (by rw [hst]; exact hden)
+    exact SimE.exists_denote (hsio2 bt' hbt')
+  case vc9.hc =>
+    rename_i s4 s3 bt s2 btt s1 w u s0 _ _ _ _ _ _ _ _ _ _ _ _ hck0 _ _ _ _
+    exact hck0.caches.readL
+  -- the reader declines: two io inferences, a sort, the level read back
+  case vc10 =>
+    rename_i s5 s4 bt s3 btt s2 w u s1 l s0 hck4 hck3 hck2 hst01 hx43 hx32 hm01
+      hp34 hsio1 hp23 hsio2 hp01 hc01 hl hL hst45 hp45 hpp' hck1 hview hx21
+      hp12 hsw
+    have hf := ReadbackFrame.ofReadL hst01 hm01 hp01 hc01 hL
+    have hx54 : Ext s5.store s4.store := by rw [hst45]; exact Ext.refl _
+    refine ⟨CheckOK.ofReadbackFrame hck1 hf,
+      (((hx54.trans hx43).trans hx32).trans hx21).trans hf.ext,
+      hf.pins.trans (hp12.trans (hp23.trans (hp34.trans hp45))), ?_⟩
+    obtain ⟨bt', hbt', _, F1, hF1⟩ := hsio1 x (by rw [hst45]; exact hden)
+    obtain ⟨btt', hbtt', _, F2, hF2⟩ := hsio2 bt' hbt'
+    obtain ⟨w', hw', _, F3, hF3⟩ := hsw btt' hbtt'
+    obtain ⟨l', rfl, hl'⟩ := denote_sort_inv hck1.state.wf hview hw'
+    rw [hl] at hl'; cases hl'
+    exact ⟨max F1 (max F2 F3), annotPwLam_of_steps (hpp' x hden).symm
+      (ConLeche.inferTypeIO_mono (Nat.le_max_left _ _) hF1)
+      (ConLeche.inferTypeIO_mono
+        (Nat.le_trans (Nat.le_max_left F2 F3) (Nat.le_max_right F1 _)) hF2)
+      (ConLeche.whnf_mono
+        (Nat.le_trans (Nat.le_max_right F2 F3) (Nat.le_max_right F1 _)) hF3)⟩
+
+/-! ### `propIrrel`'s pure side at its five exits -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the "not a
+proof" arm refuses, at any fuel. -/
+theorem propIrrel_no {F d : Nat} {x y : Expr}
+    (h : (ConLeche.notProofFast env.find? x ||
+      ConLeche.notProofFast env.find? y) = true) :
+    ConLeche.propIrrelFueled mode env F d x y = .ok false := by
+  simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, h, if_true, pure,
+    Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the "yes" arm
+(the squash-regime licence), at any fuel. -/
+theorem propIrrel_yes {F d : Nat} {x y : Expr}
+    (hn : (ConLeche.notProofFast env.find? x ||
+      ConLeche.notProofFast env.find? y) = false)
+    (h : (ConLeche.isProofFast env.find? x &&
+      ConLeche.isProofFast env.find? y) = true) :
+    ConLeche.propIrrelFueled mode env F d x y = .ok true := by
+  simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, h,
+    Bool.false_eq_true, if_false, if_true, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the slow path:
+the first subject's type's type does not reduce to a sort. -/
+theorem propIrrel_slow_a {F d : Nat} {x y ta tta w : Expr}
+    (hn : (ConLeche.notProofFast env.find? x ||
+      ConLeche.notProofFast env.find? y) = false)
+    (hi : (ConLeche.isProofFast env.find? x &&
+      ConLeche.isProofFast env.find? y) = false)
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+    (h2 : ConLeche.inferTypeIO mode env F d ta = .ok tta)
+    (h3 : ConLeche.whnf mode env F d tta = .ok w)
+    (hw : ∀ l, w ≠ .sort l) :
+    ConLeche.propIrrelFueled mode env F d x y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode env F).inferIO d ta = .ok tta := h2
+  have e3 : (ConLeche.pureFns mode env F).whnf d tta = .ok w := h3
+  simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, hi,
+    Bool.false_eq_true, if_false, e1, e2, e3, bind, Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the slow path:
+the first subject's side is a sort, the second's type's type does not reduce
+to one. -/
+theorem propIrrel_slow_b {F d : Nat} {x y ta tta tb ttb w : Expr} {uT : Level}
+    {okA : Bool}
+    (hn : (ConLeche.notProofFast env.find? x ||
+      ConLeche.notProofFast env.find? y) = false)
+    (hi : (ConLeche.isProofFast env.find? x &&
+      ConLeche.isProofFast env.find? y) = false)
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+    (h2 : ConLeche.inferTypeIO mode env F d ta = .ok tta)
+    (h3 : ConLeche.whnf mode env F d tta = .ok (.sort uT))
+    (h4 : Level.isEquiv uT Level.zero = some okA)
+    (h5 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h6 : ConLeche.inferTypeIO mode env F d tb = .ok ttb)
+    (h7 : ConLeche.whnf mode env F d ttb = .ok w)
+    (hw : ∀ l, w ≠ .sort l) :
+    ConLeche.propIrrelFueled mode env F d x y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode env F).inferIO d ta = .ok tta := h2
+  have e3 : (ConLeche.pureFns mode env F).whnf d tta = .ok (.sort uT) := h3
+  have e5 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h5
+  have e6 : (ConLeche.pureFns mode env F).inferIO d tb = .ok ttb := h6
+  have e7 : (ConLeche.pureFns mode env F).whnf d ttb = .ok w := h7
+  simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, hi,
+    Bool.false_eq_true, if_false, e1, e2, e3, e5, e6, e7, ConLeche.liftFueled,
+    h4, bind, Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the slow path
+to its end: both sides are sorts, and the verdict is the two level
+comparisons' conjunction. -/
+theorem propIrrel_slow {F d : Nat} {x y ta tta tb ttb : Expr} {uT vT : Level}
+    {okA okB : Bool}
+    (hn : (ConLeche.notProofFast env.find? x ||
+      ConLeche.notProofFast env.find? y) = false)
+    (hi : (ConLeche.isProofFast env.find? x &&
+      ConLeche.isProofFast env.find? y) = false)
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+    (h2 : ConLeche.inferTypeIO mode env F d ta = .ok tta)
+    (h3 : ConLeche.whnf mode env F d tta = .ok (.sort uT))
+    (h4 : Level.isEquiv uT Level.zero = some okA)
+    (h5 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h6 : ConLeche.inferTypeIO mode env F d tb = .ok ttb)
+    (h7 : ConLeche.whnf mode env F d ttb = .ok (.sort vT))
+    (h8 : Level.isEquiv vT Level.zero = some okB) :
+    ConLeche.propIrrelFueled mode env F d x y = .ok (okA && okB) := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e2 : (ConLeche.pureFns mode env F).inferIO d ta = .ok tta := h2
+  have e3 : (ConLeche.pureFns mode env F).whnf d tta = .ok (.sort uT) := h3
+  have e5 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h5
+  have e6 : (ConLeche.pureFns mode env F).inferIO d tb = .ok ttb := h6
+  have e7 : (ConLeche.pureFns mode env F).whnf d ttb = .ok (.sort vT) := h7
+  simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, hi,
+    Bool.false_eq_true, if_false, e1, e2, e3, e5, e6, e7, ConLeche.liftFueled,
+    h4, h8, bind, Except.bind, pure, Except.pure]
+
+/-! ### `propIrrel` -/
+
+/-- con-leche: none — a state whose store did not move is an extension of
+the one before it; the readers' store equations feed the knot's `Ext`
+chain through this. -/
+theorem ext_of_store_eq {s t : AState} (h : t.store = s.store) :
+    Ext s.store t.store := by
+  rw [h]; exact Ext.refl _
+
+/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — **THEOREM 1 for
+`propIrrel`**, the hoisted proof-irrelevance test.  **CLOSED** (round 5,
+moved from `Walks/Owed.lean`, statement unchanged): the two fast arms are
+`notProofFast_spec'` / `isProofFast_spec'` at both subjects — equations, so
+both Bool outcomes of each guard transfer — and the slow path is
+`KnotSpec.inferIO'` twice and `KnotSpec.whnf'` once per side, the zero pin
+and `lvlEq?_spec`, over a six-way fuel merge. -/
+theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
+    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hdb : denoteE s₀.store b = some y)
+    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.propIrrel (coreKnot mode fe id fuel) fe d a b
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimBOp (fun F => ConLeche.propIrrelFueled mode env F d x y) r⌝⦄ := by
+  have hnp := fun (s : AState) (e : EIdx) =>
+    notProofFast_spec' (mode := mode) (env := env) (fe := fe) coreWalkFuel s e
+  have hip := fun (s : AState) (e : EIdx) =>
+    isProofFast_spec' (mode := mode) (env := env) (fe := fe) coreWalkFuel s e
+  have hi := hsim.inferIO'
+  have hn := hsim.whnf'
+  mvcgen [ConRon.Arena.propIrrel, ConRon.Arena.zeroLevel,
+    ConRon.Arena.liftFueled, hnp, hip, hi, hn, lvlEq?_spec]
+  all_goals (bridge_peel; subst_vars)
+  -- the callees' `CheckOK` and pin preconditions
+  case vc1.hok | vc3.hok | vc6.hok | vc8.hok | vc11.hok | vc13.hok | vc15.hok
+    | vc21.hok | vc22.hok | vc24.hok | vc26.hok | vc31.hok => assumption
+  case vc17.hp =>
+    rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 u0 s0 hck_s6
+      hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5
+      hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a
+      hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2 hio_r2 hck_s0 hvs_r0 hx_s1_s0
+      hp_s0_s1 hwh_r1
+    exact hck_s0.pins
+  -- the two subjects' denotations, carried to the state each call runs in
+  case vc2.hpre => exact ⟨x, hda⟩
+  case vc4.hpre =>
+    rename_i s1 r0 s0 hck_s0 hst_s0_s1 hp_s0_s1 hnp_a
+    exact ⟨y, by rw [hst_s0_s1]; exact hdb⟩
+  case vc7.hpre =>
+    rename_i s2 r1 s1 r0 hg0 s0 hck_s1 hck_s0 hst_s1_s2 hst_s0_s1 hp_s1_s2
+      hnp_a hp_s0_s1 hnp_b
+    exact ⟨x, by rw [hst_s0_s1, hst_s1_s2]; exact hda⟩
+  case vc9.hpre =>
+    rename_i s3 r2 s2 r1 hg0 s1 r0 s0 hck_s2 hck_s1 hck_s0 hst_s2_s3 hst_s1_s2
+      hst_s0_s1 hp_s2_s3 hnp_a hp_s1_s2 hnp_b hp_s0_s1 hip_a
+    exact ⟨y, by rw [hst_s0_s1, hst_s1_s2, hst_s2_s3]; exact hdb⟩
+  case vc12.hdw =>
+    rename_i s4 r3 s3 r2 hg1 s2 r1 s1 r0 hg0 s0 hck_s3 hck_s2 hck_s1 hck_s0
+      hst_s3_s4 hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b
+      hp_s1_s2 hip_a hp_s0_s1 hip_b
+    exact ⟨x, by rw [hst_s0_s1, hst_s1_s2, hst_s2_s3, hst_s3_s4]; exact hda,
+      hwa⟩
+  case vc14.hdw =>
+    rename_i s5 r4 s4 r3 hg1 s3 r2 s2 r1 hg0 s1 r0 s0 hck_s4 hck_s3 hck_s2
+      hck_s1 hck_s0 hst_s4_s5 hst_s3_s4 hst_s2_s3 hst_s1_s2 hx_s1_s0 hp_s4_s5
+      hnp_a hp_s3_s4 hnp_b hp_s2_s3 hip_a hp_s1_s2 hip_b hp_s0_s1 hio_a
+    exact SimE.exists_denote (hio_a x
+      (by rw [hst_s1_s2, hst_s2_s3, hst_s3_s4, hst_s4_s5]; exact hda))
+  case vc16.hdw =>
+    rename_i s6 r5 s5 r4 hg1 s4 r3 s3 r2 hg0 s2 r1 s1 r0 s0 hck_s5 hck_s4
+      hck_s3 hck_s2 hck_s1 hck_s0 hst_s5_s6 hst_s4_s5 hst_s3_s4 hst_s2_s3
+      hx_s2_s1 hx_s1_s0 hp_s5_s6 hnp_a hp_s4_s5 hnp_b hp_s3_s4 hip_a hp_s2_s3
+      hip_b hp_s1_s2 hio_a hp_s0_s1 hio_r1
+    obtain ⟨ta, hta, _, _⟩ := hio_a x
+      (by rw [hst_s2_s3, hst_s3_s4, hst_s4_s5, hst_s5_s6]; exact hda)
+    exact SimE.exists_denote (hio_r1 ta hta)
+  case vc23.hdw =>
+    rename_i s8 r7 s7 r6 hg1 s6 r5 s5 r4 hg0 s4 r3 s3 r2 s2 r1 u0 r0 s1 s0 a0
+      hck_s7 hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s0 hst_s7_s8 hst_s6_s7
+      hst_s5_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2 hst_s0_s1 hp_s7_s8 hnp_a hp_s6_s7
+      hnp_b hp_s5_s6 hip_a hp_s4_s5 hip_b hp_s3_s4 hio_a hp_s2_s3 hio_r3
+      hp_s0_s1 hz_r0 hck_s1 hvs_r1 hx_s2_s1 hp_s1_s2 hwh_r2 heq_u0
+    have hx : Ext s8.store s0.store :=
+      ((((((ext_of_store_eq hst_s7_s8).trans (ext_of_store_eq hst_s6_s7)).trans
+        (ext_of_store_eq hst_s5_s6)).trans (ext_of_store_eq hst_s4_s5)).trans
+        ((hx_s4_s3.trans hx_s3_s2).trans hx_s2_s1)).trans
+        (ext_of_store_eq hst_s0_s1))
+    exact ⟨y, denote_ext hdb hx, hwb⟩
+  case vc25.hdw =>
+    rename_i s9 r8 s8 r7 hg1 s7 r6 s6 r5 hg0 s5 r4 s4 r3 s3 r2 u0 r1 s2 s1 a0
+      r0 s0 hck_s8 hck_s7 hck_s6 hck_s5 hck_s4 hck_s3 hck_s1 hck_s0 hst_s8_s9
+      hst_s7_s8 hst_s6_s7 hst_s5_s6 hx_s5_s4 hx_s4_s3 hst_s1_s2 hx_s1_s0
+      hp_s8_s9 hnp_a hp_s7_s8 hnp_b hp_s6_s7 hip_a hp_s5_s6 hip_b hp_s4_s5
+      hio_a hp_s3_s4 hio_r4 hp_s1_s2 hp_s0_s1 hio_b hz_r1 hck_s2 hvs_r2
+      hx_s3_s2 hp_s2_s3 hwh_r3 heq_u0
+    have hx : Ext s9.store s1.store :=
+      ((((((ext_of_store_eq hst_s8_s9).trans (ext_of_store_eq hst_s7_s8)).trans
+        (ext_of_store_eq hst_s6_s7)).trans (ext_of_store_eq hst_s5_s6)).trans
+        ((hx_s5_s4.trans hx_s4_s3).trans hx_s3_s2)).trans
+        (ext_of_store_eq hst_s1_s2))
+    exact SimE.exists_denote (hio_b y (denote_ext hdb hx))
+  case vc27.hdw =>
+    rename_i s10 r9 s9 r8 hg1 s8 r7 s7 r6 hg0 s6 r5 s5 r4 s4 r3 u0 r2 s3 s2 a0
+      r1 s1 r0 s0 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5 hck_s4 hck_s2 hck_s1
+      hck_s0 hst_s9_s10 hst_s8_s9 hst_s7_s8 hst_s6_s7 hx_s6_s5 hx_s5_s4
+      hst_s2_s3 hx_s2_s1 hx_s1_s0 hp_s9_s10 hnp_a hp_s8_s9 hnp_b hp_s7_s8
+      hip_a hp_s6_s7 hip_b hp_s5_s6 hio_a hp_s4_s5 hio_r5 hp_s2_s3 hp_s1_s2
+      hio_b hp_s0_s1 hio_r1 hz_r2 hck_s3 hvs_r3 hx_s4_s3 hp_s3_s4 hwh_r4 heq_u0
+    have hx : Ext s10.store s2.store :=
+      ((((((ext_of_store_eq hst_s9_s10).trans (ext_of_store_eq hst_s8_s9)).trans
+        (ext_of_store_eq hst_s7_s8)).trans (ext_of_store_eq hst_s6_s7)).trans
+        ((hx_s6_s5.trans hx_s5_s4).trans hx_s4_s3)).trans
+        (ext_of_store_eq hst_s2_s3))
+    obtain ⟨tb, htb, _, _⟩ := hio_b y (denote_ext hdb hx)
+    exact SimE.exists_denote (hio_r1 tb htb)
+  -- the "not a proof" arm refuses
+  case vc5 =>
+    rename_i s2 r1 s1 r0 hg0 s0 hck_s1 hck_s0 hst_s1_s2 hst_s0_s1 hp_s1_s2
+      hnp_a hp_s0_s1 hnp_b
+    refine ⟨hck_s0, ext_of_store_eq (hst_s0_s1.trans hst_s1_s2),
+      hp_s0_s1.trans hp_s1_s2, 0, propIrrel_no ?_⟩
+    rw [hnp_a x hda, hnp_b y (by rw [hst_s1_s2]; exact hdb)] at hg0
+    exact hg0
+  -- the "yes" arm licenses
+  case vc10 =>
+    rename_i s4 r3 s3 r2 hg1 s2 r1 s1 r0 hg0 s0 hck_s3 hck_s2 hck_s1 hck_s0
+      hst_s3_s4 hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b
+      hp_s1_s2 hip_a hp_s0_s1 hip_b
+    refine ⟨hck_s0, ext_of_store_eq
+        (hst_s0_s1.trans (hst_s1_s2.trans (hst_s2_s3.trans hst_s3_s4))),
+      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans hp_s3_s4)), 0,
+      propIrrel_yes ?_ ?_⟩
+    · rw [hnp_a x hda, hnp_b y (by rw [hst_s3_s4]; exact hdb)] at hg1
+      simpa using hg1
+    · rw [hip_a x (by rw [hst_s2_s3, hst_s3_s4]; exact hda),
+        hip_b y (by rw [hst_s1_s2, hst_s2_s3, hst_s3_s4]; exact hdb)] at hg0
+      exact hg0
+  -- the slow path to its end: both sides are sorts
+  case vc32 =>
+    rename_i s12 r10 s11 r9 hg1 s10 r8 s9 r7 hg0 s8 r6 s7 r5 s6 r4 u1 r3 s5 s4
+      a1 r2 s3 r1 s2 r0 u0 s1 s0 a0 hck_s11 hck_s10 hck_s9 hck_s8 hck_s7
+      hck_s6 hck_s4 hck_s3 hck_s2 hck_s0 hst_s11_s12 hst_s10_s11 hst_s9_s10
+      hst_s8_s9 hx_s8_s7 hx_s7_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2 hst_s0_s1
+      hp_s11_s12 hnp_a hp_s10_s11 hnp_b hp_s9_s10 hip_a hp_s8_s9 hip_b hp_s7_s8
+      hio_a hp_s6_s7 hio_r6 hp_s4_s5 hp_s3_s4 hio_b hp_s2_s3 hio_r2 hp_s0_s1
+      hz_r3 hck_s5 hvs_r4 hx_s6_s5 hp_s5_s6 hwh_r5 heq_u1 hck_s1 hvs_r0
+      hx_s2_s1 hp_s1_s2 hwh_r1 heq_u0
+    have hx128 : Ext s12.store s8.store :=
+      (((ext_of_store_eq hst_s11_s12).trans (ext_of_store_eq hst_s10_s11)).trans
+        (ext_of_store_eq hst_s9_s10)).trans (ext_of_store_eq hst_s8_s9)
+    have hx84 : Ext s8.store s4.store :=
+      ((hx_s8_s7.trans hx_s7_s6).trans hx_s6_s5).trans
+        (ext_of_store_eq hst_s4_s5)
+    have hx40 : Ext s4.store s0.store :=
+      ((hx_s4_s3.trans hx_s3_s2).trans hx_s2_s1).trans
+        (ext_of_store_eq hst_s0_s1)
+    refine ⟨hck_s0, (hx128.trans hx84).trans hx40,
+      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
+        (hp_s4_s5.trans (hp_s5_s6.trans (hp_s6_s7.trans (hp_s7_s8.trans
+        (hp_s8_s9.trans (hp_s9_s10.trans (hp_s10_s11.trans
+        hp_s11_s12)))))))))), ?_⟩
+    -- the first side
+    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx128)
+    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r6 ta hta
+    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r5 tta htta
+    obtain ⟨uT, rfl, huT⟩ := denote_sort_inv hck_s5.state.wf hvs_r4 hw
+    obtain ⟨lu, lv, hlu, hlv, hA⟩ := heq_u1
+    rw [huT] at hlu; rw [hz_r3] at hlv
+    cases hlu; cases hlv
+    -- the second side
+    obtain ⟨tb, htb, _, F4, hF4⟩ := hio_b y (denote_ext hdb (hx128.trans hx84))
+    obtain ⟨ttb, httb, _, F5, hF5⟩ := hio_r2 tb htb
+    obtain ⟨w2, hw2, _, F6, hF6⟩ := hwh_r1 ttb httb
+    obtain ⟨vT, rfl, hvT⟩ := denote_sort_inv hck_s1.state.wf hvs_r0 hw2
+    obtain ⟨lu', lv', hlu', hlv', hB⟩ := heq_u0
+    have hz1 : denoteL s1.store.ls r3 = some Level.zero :=
+      denoteL_ext hz_r3 (((ext_of_store_eq hst_s4_s5).trans hx_s4_s3).trans
+        (hx_s3_s2.trans hx_s2_s1))
+    rw [hvT] at hlu'; rw [hz1] at hlv'
+    cases hlu'; cases hlv'
+    -- the two guards declined
+    rw [hnp_a x hda, hnp_b y (by rw [hst_s11_s12]; exact hdb)] at hg1
+    rw [hip_a x (by rw [hst_s10_s11, hst_s11_s12]; exact hda),
+      hip_b y (by rw [hst_s9_s10, hst_s10_s11, hst_s11_s12]; exact hdb)] at hg0
+    refine ⟨F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow (by simpa using hg1)
+      (by simpa using hg0)
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.inferTypeIO_mono (by omega) hF2)
+      (ConLeche.whnf_mono (by omega) hF3) hA.symm
+      (ConLeche.inferTypeIO_mono (by omega) hF4)
+      (ConLeche.inferTypeIO_mono (by omega) hF5)
+      (ConLeche.whnf_mono (by omega) hF6) hB.symm⟩
+  -- the second side's type's type is not a sort
+  case vc34 =>
+    rename_i s11 r10 s10 r9 hg1 s9 r8 s8 r7 hg0 s7 r6 s6 r5 s5 r4 u0 r3 s4 s3
+      a0 r2 s2 r1 s1 r0 x1 hnv0 s0 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5
+      hck_s3 hck_s2 hck_s1 hst_s10_s11 hst_s9_s10 hst_s8_s9 hst_s7_s8 hx_s7_s6
+      hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s10_s11 hnp_a hp_s9_s10 hnp_b
+      hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6 hio_r6 hp_s3_s4
+      hp_s2_s3 hio_b hp_s1_s2 hio_r2 hz_r3 hck_s4 hvs_r4 hx_s5_s4 hp_s4_s5
+      hwh_r5 heq_u0 hck_s0 hv_r0 hx_s1_s0 hp_s0_s1 hwh_r1
+    have hx117 : Ext s11.store s7.store :=
+      (((ext_of_store_eq hst_s10_s11).trans (ext_of_store_eq hst_s9_s10)).trans
+        (ext_of_store_eq hst_s8_s9)).trans (ext_of_store_eq hst_s7_s8)
+    have hx73 : Ext s7.store s3.store :=
+      ((hx_s7_s6.trans hx_s6_s5).trans hx_s5_s4).trans
+        (ext_of_store_eq hst_s3_s4)
+    have hx30 : Ext s3.store s0.store :=
+      (hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0
+    refine ⟨hck_s0, (hx117.trans hx73).trans hx30,
+      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
+        (hp_s4_s5.trans (hp_s5_s6.trans (hp_s6_s7.trans (hp_s7_s8.trans
+        (hp_s8_s9.trans (hp_s9_s10.trans hp_s10_s11))))))))), ?_⟩
+    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx117)
+    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r6 ta hta
+    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r5 tta htta
+    obtain ⟨uT, rfl, huT⟩ := denote_sort_inv hck_s4.state.wf hvs_r4 hw
+    obtain ⟨lu, lv, hlu, hlv, hA⟩ := heq_u0
+    rw [huT] at hlu; rw [hz_r3] at hlv
+    cases hlu; cases hlv
+    obtain ⟨tb, htb, _, F4, hF4⟩ := hio_b y (denote_ext hdb (hx117.trans hx73))
+    obtain ⟨ttb, httb, _, F5, hF5⟩ := hio_r2 tb htb
+    obtain ⟨w2, hw2, _, F6, hF6⟩ := hwh_r1 ttb httb
+    have hns := denote_not_sort hck_s0.state.wf hv_r0 hw2 hnv0
+    rw [hnp_a x hda, hnp_b y (by rw [hst_s10_s11]; exact hdb)] at hg1
+    rw [hip_a x (by rw [hst_s9_s10, hst_s10_s11]; exact hda),
+      hip_b y (by rw [hst_s8_s9, hst_s9_s10, hst_s10_s11]; exact hdb)] at hg0
+    exact ⟨F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow_b (by simpa using hg1)
+      (by simpa using hg0)
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.inferTypeIO_mono (by omega) hF2)
+      (ConLeche.whnf_mono (by omega) hF3) hA.symm
+      (ConLeche.inferTypeIO_mono (by omega) hF4)
+      (ConLeche.inferTypeIO_mono (by omega) hF5)
+      (ConLeche.whnf_mono (by omega) hF6) hns⟩
+  -- the first side's type's type is not a sort
+  case vc48 =>
+    rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 x1 hnv0 s0
+      hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5
+      hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a
+      hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2 hio_r2 hck_s0 hv_r0 hx_s1_s0
+      hp_s0_s1 hwh_r1
+    have hx73 : Ext s7.store s3.store :=
+      (((ext_of_store_eq hst_s6_s7).trans (ext_of_store_eq hst_s5_s6)).trans
+        (ext_of_store_eq hst_s4_s5)).trans (ext_of_store_eq hst_s3_s4)
+    refine ⟨hck_s0, hx73.trans ((hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0),
+      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
+        (hp_s4_s5.trans (hp_s5_s6.trans hp_s6_s7))))), ?_⟩
+    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx73)
+    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r2 ta hta
+    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r1 tta htta
+    have hns := denote_not_sort hck_s0.state.wf hv_r0 hw hnv0
+    rw [hnp_a x hda, hnp_b y (by rw [hst_s6_s7]; exact hdb)] at hg1
+    rw [hip_a x (by rw [hst_s5_s6, hst_s6_s7]; exact hda),
+      hip_b y (by rw [hst_s4_s5, hst_s5_s6, hst_s6_s7]; exact hdb)] at hg0
+    exact ⟨F1 + F2 + F3, propIrrel_slow_a (by simpa using hg1)
+      (by simpa using hg0)
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.inferTypeIO_mono (by omega) hF2)
+      (ConLeche.whnf_mono (by omega) hF3) hns⟩
+
+/-! ### The three in ANSWER shape
+
+`annotateBody`'s binder arms reach `annotPwPi` / `annotPwLam` through the
+knot's `annotate` answer, and `defeqStep` reaches `propIrrel` through
+`whnfCore` answers, so by round 3's rule each subject's denotation goes in as
+an existential and comes out as a universal.  Four lines each over the
+published statements. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — answer
+shape. -/
+theorem annotPwPi_spec' {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (body' : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store body' = some x ∧ Expr.WScoped d x) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.annotPwPi (coreKnot mode fe id fuel) fe d body'
+    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store body' = some x →
+        SimVOp
+          (fun F => ConLeche.annotPwPi (ConLeche.pureFns mode env F) env d x)
+          pw⌝⦄ := by
+  obtain ⟨x, hx, hw⟩ := hdw
+  have hb := annotPwPi_spec hsim s₀ d body' x hok hx hw
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  exact ⟨h1, h2, h3, fun x' hx' => by
+    obtain rfl := Option.some.inj (hx'.symm.trans hx); exact h4⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — answer
+shape. -/
+theorem annotPwLam_spec' {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (body' : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store body' = some x ∧ Expr.WScoped d x) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.annotPwLam (coreKnot mode fe id fuel) fe d body'
+    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store body' = some x →
+        SimVOp
+          (fun F => ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x)
+          pw⌝⦄ := by
+  obtain ⟨x, hx, hw⟩ := hdw
+  have hb := annotPwLam_spec hsim s₀ d body' x hok hx hw
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  exact ⟨h1, h2, h3, fun x' hx' => by
+    obtain rfl := Option.some.inj (hx'.symm.trans hx); exact h4⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — answer shape. -/
+theorem propIrrel_spec' {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode env fe s₀)
+    (hda : ∃ x, denoteE s₀.store a = some x ∧ Expr.WScoped d x)
+    (hdb : ∃ y, denoteE s₀.store b = some y ∧ Expr.WScoped d y) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.propIrrel (coreKnot mode fe id fuel) fe d a b
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∀ x y, denoteE s₀.store a = some x →
+        denoteE s₀.store b = some y →
+        SimBOp (fun F => ConLeche.propIrrelFueled mode env F d x y) r⌝⦄ := by
+  obtain ⟨x, hx, hwx⟩ := hda
+  obtain ⟨y, hy, hwy⟩ := hdb
+  have hb := propIrrel_spec hsim s₀ d a b x y hok hx hy hwx hwy
+  mvcgen [hb]
+  intro h1 h2 h3 h4
+  exact ⟨h1, h2, h3, fun x' y' hx' hy' => by
+    obtain rfl := Option.some.inj (hx'.symm.trans hx)
+    obtain rfl := Option.some.inj (hy'.symm.trans hy)
+    exact h4⟩
+
+/-! ## 6. The axiom census -/
+
+section Census
+
+#print axioms denoteCI_isTowerEntry
+#print axioms toConstantVal_nt_spec
+#print axioms denote_not_sort
+#print axioms denote_not_lam
+#print axioms denote_not_app'
+#print axioms denote_not_fvar
+#print axioms denoteEO_some_inv
+#print axioms const_hit
+#print axioms headTypePW_const_hit
+#print axioms headProofPW_const_hit
+#print axioms substPW_cutoff
+/-! **The nine readers**, answer shape then published shape. -/
+#print axioms peelNeverPis_spec'
+#print axioms peelNeverPis_spec
+#print axioms numArgs_spec'
+#print axioms numArgs_spec
+#print axioms residualPW_spec'
+#print axioms residualPW_spec
+#print axioms headTypePW_spec'
+#print axioms headTypePW_spec
+#print axioms typeSortPW_spec'
+#print axioms typeSortPW_spec
+#print axioms headProofPW_spec'
+#print axioms headProofPW_spec
+#print axioms proofPW_spec'
+#print axioms proofPW_spec
+#print axioms notProofFast_spec'
+#print axioms notProofFast_spec
+#print axioms isProofFast_spec'
+#print axioms isProofFast_spec
+/-! **The three walks that waited on them.** -/
+#print axioms annotPwPi_of_steps
+#print axioms annotPwLam_of_steps
+#print axioms propIrrel_slow
+#print axioms annotPwPi_spec
+#print axioms annotPwPi_spec'
+#print axioms annotPwLam_spec
+#print axioms annotPwLam_spec'
+#print axioms propIrrel_spec
+#print axioms propIrrel_spec'
+
+end Census
+
+end ConRon.Bridge.Core
