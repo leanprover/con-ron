@@ -50,6 +50,9 @@ theorem check_value_group_refines' {pers st lst} {vis : Std.U64} {rf lf}
   rw [arena.checker_split.check_value_group, checkValueGroup_unfold]
   lockstep
 
+
+/-! ## The axiom census -/
+
 #print axioms check_value_group_refines'
 
 end ConRon.Refine2.Lockstep.Sample

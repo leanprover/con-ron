@@ -26,27 +26,75 @@ bridge back).  Four companion judgements carry the other Rust callee shapes:
 | `LSW` | `Result AState` — writes, total | `lift_set` |
 | `LSP` | `Result α`, **Rust only** — no twin counterpart | `fuel - 1#u64`, `dup2`, `eidx_nat_key`, `fail` |
 
-## The tactic (modelled on Aeneas's `progress`, see DESIGN task #97-T2-TACTIC)
+## The tactic — modelled on Aeneas's `progress`, not on `mvcgen`
 
-`lockstep` repeats `lockstep_step` and stops at the first goal it cannot make
-progress on.  One step looks at the RUST side of the goal:
+`progress`/`step` keys a spec lemma on the program being stepped (the head of
+the next bind), applies it, and introduces the outputs; `mvcgen` computes a
+weakest precondition over a whole `do` block and leaves verification
+conditions.  Theorem 2 needs the first: the two programs are stepped in
+lockstep, the next bind's callee picks the lemma, and every step ends in the
+related results as hypotheses.  A VC generator would have to thread the twin
+through a WP of the Rust (or the reverse), and a failure would show up as an
+unprovable VC far from its cause; here a failure is a goal stuck at the very
+bind where the two programs stop doing the same thing, which is the
+divergence detector the task asked for.
 
-* a bind `f >>= k`: pick the bind rule by `f`'s type, then close the rule's
-  spec premise with a `@[lockstep]` lemma (or a local hypothesis — the
-  induction hypothesis) keyed on `f`'s head constant.  The spec's TWIN action
-  is not unified against the goal's: the rules take `x' = x` as a separate
-  premise, closed by `congr` and the side tactic, so an argument that is the
-  same number spelled differently (`absU i1` against `absU c + 1`) is a side
-  goal rather than a unification failure;
-* an `if`/`match`: split the Rust side, then reduce the twin's `if`/`match` on
-  the facts that split produced;
-* a leaf `ok (.Ok a, st)` / `ok (.Err e, st)`: close against the twin's `pure`
-  / `throw`;
-* anything else (a tail call): a spec lemma directly.
+`lockstep` repeats `lockstep_step` over every goal and leaves the goals it
+cannot move.  One step looks at the RUST side first:
 
-Side goals (relation, invariant, argument correspondence, conditions) go to
-`lockstep_side`, which is `assumption`/`rfl`/`simp`/`scalar_tac`, in that
-order.  **No `grind`** anywhere in the tactic.
+* an `if`/`match`/`uncurry` on a variable: split (`cases`), normalise heads;
+* a bind `f >>= k`: the bind rule by `f`'s type (the table above); its spec
+  premise is closed by a `@[lockstep]` lemma or a LOCAL HYPOTHESIS (the
+  induction hypothesis, a knot slot) filed under `f`'s head constant, of the
+  same judgement.  The spec's twin action is not unified with the goal's:
+  the rules take `x' = x`, closed by `congr 1` and the side tactic, so
+  `absU i1` against `absU c + 1` is a side goal, not a unification failure.
+  A Rust-only value step with no lemma keeps its equation (`LS.bind_eq`) —
+  unless the callee reads the Rust state, which must have a twin partner:
+  then the step FAILS with "the Rust reads the state at `f` and no
+  @[lockstep] lemma pairs it with the twin's next action".  That message is
+  the divergence detector;
+* a leaf `ok (.Ok a, st)` / `ok (.Err e, st)`: against the twin's `pure` /
+  its throwing action;
+* anything else: a tail call, closed by a spec directly.
+
+The twin side moves only when the Rust cannot: `pure`/`get` binds, and an
+`if` decided by the facts the Rust steps produced (cheap tier first, the last
+Rust test's polarity first).  After every step the heads of both programs are
+normalised by DEFINITIONAL steps (`headNorm`: beta, `let`, `uncurry` at a
+pair, a `match` on constructors) and the twin alone by `simp only
+[lockstep_simp]` (the abstraction equations, the twin's arm definitions);
+nothing traverses the whole remaining Rust program.  A goal no step moves is
+tried once against `lockstep_contra` (a branch the context rules out).
+
+Side goals go to `lockstep_side`: `assumption`, `rfl`, `simp only
+[lockstep_simp(, *)]`, then `scalar_tac`/`simp_all`; an arithmetic goal
+(`=`/`<`/`≤` on `Nat`) goes to `omega`/`scalar_tac` early.  **No `grind`**
+anywhere; `simp (config := {decide := true})` is the one `decide` path, and
+every sample is kernel-checked by the build (`#print axioms` in each file).
+`lockstep_stats` prints and resets the per-alternative timings of the side
+tactics (a tuning aid).
+
+## How to use it (the recipe the lane briefs point to)
+
+    theorem f_refines … (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+        (hrun : rust_f pers st args = ok o) : Sim₀ A pers lst o (twinF …) := by
+      refine LS.toSim₀ ?_ hrun
+      rw [rust_f, twinF]          -- or the twin's `_succ`/`_unfold` equation
+      lockstep
+
+* A recursive function: state the `_aux` over `n` with the conclusion in `LS`
+  form, `induction n`, then per case `intro …; rw [rust_f, twin_zero/succ];
+  lockstep`.  The induction hypothesis is found in the context.
+* Twin arms that are separate (well-founded) definitions: `attribute [local
+  lockstep_simp] armApp armLam …`.
+* A callee from another lane: its lemma in `LS`/`LSR`/`LSV`/`LSW`/`LSP` form,
+  tagged `@[lockstep]`, or taken as a hypothesis.
+* A new primitive pair: one `@[lockstep]` lemma (`Tactic/Prims.lean` has the
+  shapes; `LSV.of_store_read` is a store read in one line); a new condition
+  correspondence: one `@[lockstep_simp]` equation (`absU32_beq_app`).
+* A goal left over is either a missing lemma (the message names the Rust
+  callee) or a divergence (the twin's next action is a different operation).
 -/
 import ConRon.Refine2.Shape
 import ConRon.Refine2.Tactic.Attr

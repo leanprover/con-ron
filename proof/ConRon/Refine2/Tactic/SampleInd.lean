@@ -45,4 +45,8 @@ theorem ctors_copy_from_refines' (n : Nat) :
       List.map_nil, List.append_assoc, List.drop_eq_getElem_cons hlt, hv]
     rfl
 
+/-! ## The axiom census -/
+
+#print axioms ctors_copy_from_refines'
+
 end ConRon.Refine2.Lockstep.Sample

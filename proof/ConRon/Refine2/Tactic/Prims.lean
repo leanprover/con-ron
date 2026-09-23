@@ -7,14 +7,17 @@ shape `Tactic/Lockstep.lean` steps with.  Each is the existing `Specs.lean` /
 where the existing proof only reads `hrel.store` / `hrel.memos` the proof
 below is that proof with `AStateRel₀`.
 
-**The interns are `sorry` here, on purpose.**  Under `AStateRel₀` an intern's
-lockstep statement is TRUE only after the D2 twin fix (task #97-T2-AUDIT §4:
-the Rust skips the persistent probe when a child is scratch, the twin always
-probes); until then the existing lemma needs `hchild`, which is a fact about
-the twin store no lockstep context carries.  They are restated with
-`AStateRel₀`, `AStateInv` and nothing else, which is the statement the Specs
-slice of the migration will prove.  `#print axioms` on each sample therefore
-shows `sorryAx` exactly through these.
+**The seven interns are `sorry` here, and as stated they are FALSE until the
+D2 twin fix lands** (task #97-T2-AUDIT §4: the Rust skips the persistent
+probe when a child is in the scratch tier, the twin always probes, so on a
+store that is not `StoreWF` the two can answer different handles).  Under
+`AStateRel₀` the existing lemmas need `hchild`, a fact about the twin store
+no lockstep context carries.  They are stated with `AStateRel₀`, `AStateInv`
+and nothing else because that is the statement the migration's intern slice
+proves once the twin mirrors the `sk` skip; `intern_e_bind_i_ls` also waits
+on finding 15 (`internLamIE`'s capacity test before the probe).  Nothing
+outside the `Tactic/Sample*.lean` measurements may use them; `#print axioms`
+on each sample shows `sorryAx` exactly through these.
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.ExprOps.Mut

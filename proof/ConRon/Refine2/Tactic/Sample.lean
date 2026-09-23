@@ -99,7 +99,6 @@ theorem instantiate1_go_aux' (n : Nat) :
 
 end inst1
 
-#print axioms lift_loose_bvars_go_refines'
 
 /-! ## 2. A telescope: `inst_pis_from` (old: `ExprOps/Mut.lean`, 76 + 10 lines) — a D1 function
 
@@ -166,5 +165,14 @@ theorem inst_pis_from_tf_aux' (hI1 : I1Spec) (n : Nat) :
     rw [arena.expr_ops.inst_pis_from, listFrom_cons args i (by omega), instPisTF]
     lockstep
 
+
+/-! ## The axiom census -/
+
+#print axioms intern_rebuilt_app_refines'
+#print axioms intern_rebuilt_bind_refines'
+#print axioms lift_loose_bvars_go_refines'
+#print axioms instantiate1_go_aux'
+#print axioms inst_pis_from_aux'
+#print axioms inst_pis_from_tf_aux'
 
 end ConRon.Refine2.Lockstep.Sample

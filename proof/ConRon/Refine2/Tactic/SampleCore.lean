@@ -65,6 +65,10 @@ theorem ensure_sort_tf_refines' {f : Nat} (hW : WhnfLS f)
   rw [arena.core.ensure_sort, ensureSortTF]
   lockstep
 
+
+/-! ## The axiom census -/
+
+#print axioms ensure_sort_refines'
 #print axioms ensure_sort_tf_refines'
 
 end ConRon.Refine2.Lockstep.Sample
