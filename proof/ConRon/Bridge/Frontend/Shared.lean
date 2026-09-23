@@ -931,22 +931,24 @@ theorem AM.set_state_ok {s s' t : AState} {u : PUnit}
 theorem internE_scratchOn {s s' : AState} {v : ENodeView} {h : EIdx}
     (hrun : internE v s = .ok (h, s')) :
     s'.store.scratchOn = s.store.scratchOn := by
-  rw [internE] at hrun
-  obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
-  obtain ⟨ht, hs₁⟩ := AM.get_ok hget
-  rw [ht, hs₁] at hrest
-  cases hf : s.store.find? v with
-  | some i => rw [hf] at hrest; rw [(AM.pure_ok hrest).2]
-  | none =>
-    rw [hf] at hrest
-    simp only [] at hrest
-    repeat' split at hrest
-    all_goals
-      first
-        | exact absurd (AM.fail_ok hrest) (by simp)
-        | (obtain ⟨u, s₂, hset, hrest2⟩ := AM.bind_ok hrest
-           rw [(AM.pure_ok hrest2).2, AM.set_state_ok hset]
-           exact EStore.scratchOn_intern _ _)
+  -- the two binder arms (task #97-T2-LOCKSTEP D6): the datum step, then the
+  -- node step at its handle, each read off by `Arena/PersistentRun.lean`
+  cases v
+  case lam ty b m =>
+    obtain ⟨mi, s₁, h1, h2⟩ := internE_lam_split hrun
+    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
+    obtain ⟨-, rfl⟩ := internLamIE_ok h2
+    simp only [EStore.internLamI, EStore.scratchOn_internBindI, EStore.scratchOn_internBM]
+  case forallE ty b m =>
+    obtain ⟨mi, s₁, h1, h2⟩ := internE_forallE_split hrun
+    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
+    obtain ⟨-, rfl⟩ := internForallEIE_ok h2
+    simp only [EStore.internForallEI, EStore.scratchOn_internBindI,
+      EStore.scratchOn_internBM]
+  all_goals
+    rcases internNodeE_ok hrun with ⟨-, rfl⟩ | ⟨-, -, rfl⟩
+    · rfl
+    · exact EStore.scratchOn_intern _ _
 
 /-! ## The four leaf interns, in run form -/
 

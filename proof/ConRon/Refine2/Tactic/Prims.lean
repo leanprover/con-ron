@@ -7,17 +7,17 @@ shape `Tactic/Lockstep.lean` steps with.  Each is the existing `Specs.lean` /
 where the existing proof only reads `hrel.store` / `hrel.memos` the proof
 below is that proof with `AStateRel₀`.
 
-**The seven interns are `sorry` here, and as stated they are FALSE until the
-D2 twin fix lands** (task #97-T2-AUDIT §4: the Rust skips the persistent
-probe when a child is in the scratch tier, the twin always probes, so on a
-store that is not `StoreWF` the two can answer different handles).  Under
-`AStateRel₀` the existing lemmas need `hchild`, a fact about the twin store
-no lockstep context carries.  They are stated with `AStateRel₀`, `AStateInv`
-and nothing else because that is the statement the migration's intern slice
-proves once the twin mirrors the `sk` skip; `intern_e_bind_i_ls` also waits
-on finding 15 (`internLamIE`'s capacity test before the probe).  Nothing
-outside the `Tactic/Sample*.lean` measurements may use them; `#print axioms`
-on each sample shows `sorryAx` exactly through these.
+**Five of the seven interns are the `₀` lemmas** (`LS.ofSim₀` over
+`intern_e_{bvar,app,let_e,proj,bind_i}_run₀`): D2 made the twin mirror the
+Rust's `sk` skip, slice 3 stated the non-binder wrappers lockstep, and D6
+(task #97-T2-LOCKSTEP) made `internE`'s binder arm the Rust's `intern_bm`
+then `intern_lam_i`.  **`intern_e_lam_ls` / `intern_e_forall_e_ls` stay
+`sorry`**, and only because of their statement: `intern_e_{lam,forall_e}_run₀`
+need `PropWhenWF m.pw` of the Rust INPUT datum (the `bms` cons key is a
+`PropWhen`, so `TblRel` is `RelOn PropWhenWF`), which a lockstep context does
+not carry and which these two statements do not ask for.  Nothing outside the
+`Tactic/Sample*.lean` measurements may use them; `#print axioms` on each
+sample shows `sorryAx` exactly through these.
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.Specs
@@ -1101,19 +1101,19 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
   exact ⟨(), _, rfl, trivial, { hrel with memos := { hrel.memos with inst1C := h1 } },
     { hinv with memos := { hinv.memos with inst1C := h2 } }⟩
 
-/-! ## Interns — pending D2 (see the module note) -/
+/-! ## Interns (see the module note: `lam` / `forall_e` still `sorry`) -/
 
 @[lockstep] theorem intern_e_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (i : Std.U64) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bvar pers st i) lst
       (Arena.internBVarE (absU i)) := by
-  sorry
+  exact LS.ofSim₀ (fun _ hm => intern_e_bvar_run₀ hrel hinv i hm)
 
 @[lockstep] theorem intern_e_app_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (f a : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_app pers st f a) lst
       (Arena.internAppE (absEIdx f) (absEIdx a)) := by
-  sorry
+  exact LS.ofSim₀ (fun _ hm => intern_e_app_run₀ hrel hinv f a hm)
 
 @[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
@@ -1131,18 +1131,18 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
     (hinv : AStateInv pers st) (t v b : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_let_e pers st t v b) lst
       (Arena.internLetEE (absEIdx t) (absEIdx v) (absEIdx b)) := by
-  sorry
+  exact LS.ofSim₀ (fun _ hm => intern_e_let_e_run₀ hrel hinv t v b hm)
 
 @[lockstep] theorem intern_e_bind_i_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bind_i pers st t ty b m) lst
       (Arena.internBindIE (absU32 t) (absEIdx ty) (absEIdx b) (absBMIdx m)) := by
-  sorry
+  exact LS.ofSim₀ (fun _ hm => intern_e_bind_i_run₀ hrel hinv t ty b m hm)
 
 @[lockstep] theorem intern_e_proj_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (n : arena.handle.NIdx) (i : Std.U64) (s : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_proj pers st n i s) lst
       (Arena.internProjE (absNIdx n) (absU i) (absEIdx s)) := by
-  sorry
+  exact LS.ofSim₀ (fun _ hm => intern_e_proj_run₀ hrel hinv n i s hm)
 
 end ConRon.Refine2.Lockstep
