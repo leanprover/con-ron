@@ -733,21 +733,21 @@
     26  weak.backward.do.legacy = true
 
 == scripts/gates.sh#L59-L75
-    59  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
-    60  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    61  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
-    62  run provenance    python3 "$root/scripts/provenance.py" check
-    63  run provenance-self python3 "$root/scripts/provenance-selftest.py"
-    64  # The other half of the same ledger: `provenance` checks what the Rust was
-    65  # ported FROM (con-leche, a pinned tree), `twin-lines` what it is a port OF
-    66  # (`proof/ConRon/**`, OUR tree, which every task edits — so its ranges rot
-    67  # faster).  Task #97-TWIN.
-    68  run twin-lines    python3 "$root/scripts/twin-lines.py" check
-    69  run overview-links "$root/scripts/overview-links.sh"
-    70  run holes         "$root/scripts/holes.sh" --check
-    71  run gen-pins      "$root/scripts/gen-pins.sh" --check
-    72  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
-    73  run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
-    74  run extract-check "$root/scripts/extract.sh" --check
-    75  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
+    59  # enforce by itself: `-D warnings` does.
+    60  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+    61  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
+    62  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+    63  run provenance    python3 "$root/scripts/provenance.py" check
+    64  run provenance-self python3 "$root/scripts/provenance-selftest.py"
+    65  # The other half of the same ledger: `provenance` checks what the Rust was
+    66  # ported FROM (con-leche, a pinned tree), `twin-lines` what it is a port OF
+    67  # (`proof/ConRon/**`, OUR tree, which every task edits — so its ranges rot
+    68  # faster).  Task #97-TWIN.
+    69  run twin-lines    python3 "$root/scripts/twin-lines.py" check
+    70  run overview-links "$root/scripts/overview-links.sh"
+    71  run holes         "$root/scripts/holes.sh" --check
+    72  run gen-pins      "$root/scripts/gen-pins.sh" --check
+    73  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+    74  run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
+    75  run extract-check "$root/scripts/extract.sh" --check
 
