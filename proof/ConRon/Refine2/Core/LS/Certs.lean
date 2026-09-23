@@ -103,6 +103,18 @@ theorem def_eq_list_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
       (liftFueled "level comparison" o) := by
   sorry
 
+@[lockstep] theorem stub_reserved_basis_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxList a) (arena.core.reserved_basis_names st) st lst
+      reservedBasisNames := by
+  sorry
+
+@[lockstep] theorem stub_const_ty_at_ls {pers st lst cv us}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.const_ty_at pers st cv us) lst
+      (constTyAt (absIConstantVal cv) (absLsIdx us)) := by
+  sorry
+
 /-! ## `iotaIndexOk` -/
 
 @[lockstep] theorem iota_index_ok_ls {f : Nat} (hk : KnotRel f)
@@ -242,6 +254,26 @@ the port's input (every binder datum the port reads out of the store is, by
   have hvb : PC1.ViewBindWF pers := PC1.viewBindWF_holds pers
   unfold PC1.ViewBindWF at hvb
   strip_mdata
+  lockstep_core
+
+/-! ## `structUnitCert` (fragment `struct_unit_cert_tail`) -/
+
+attribute [lockstep_inline] arena.core.struct_unit_cert_tail
+
+@[lockstep] theorem struct_unit_cert_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_unit_cert pers vis st mode lane fu fe depth a b) lst
+      (structUnitCert (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.struct_unit_cert, structUnitCert]
+  lockstep_core
+  -- glue: the port's `view_ls` against the twin's `viewLsLen` + `failDanglingLs`
+  refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
+  dsimp only
   lockstep_core
 
 /-! ## Divergence evidence (D-C1-1)
