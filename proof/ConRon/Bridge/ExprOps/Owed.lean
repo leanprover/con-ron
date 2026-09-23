@@ -122,11 +122,12 @@ theorem abstract1Fast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ abstract1Fast fuel e d k
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.abs1C = ∅ ∧
         RelE (fun x => Expr.abstract1 x d k) s₀.store e s'.store r⌝⦄ := by
   have hr := (abstract1Go_spec hfv d fuel).run
   mvcgen [abstract1Fast, hr]
-  all_goals bridge_vcs [Expr.abstract1]
+  all_goals bridge_vcs [Expr.abstract1, BMExt]
 
 /-! ## `abstractRange`'s executed form -/
 
@@ -412,11 +413,12 @@ theorem abstractRangeGo_spec (hfv : FvarBSpec) (d k : Nat) (fuel : Nat)
     (hden : (denoteE s₀.store c).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ abstractRangeGo d k fuel c cur
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelE (fun x => Expr.abstractRange x d k cur) s₀.store c s'.store r⌝⦄ := by
   have hr := (abstractRangeGo_specS hfv d k fuel).run
   mvcgen [hr]
-  all_goals bridge_vcs [Expr.abstractRange]
+  all_goals bridge_vcs [Expr.abstractRange, BMExt]
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC — the
 bracket over `abstractRangeGo_spec`.
@@ -434,19 +436,20 @@ theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ abstractRangeFast fuel e d k c
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (s'.memos.abs1C = ∅ ∨ s' = s₀) ∧
         RelE (fun x => Expr.abstractRange x d k c) s₀.store e s'.store r⌝⦄ := by
   have hr := fun (s₁ : AState) (cc : EIdx) (cur : Nat) =>
     abstractRangeGo_spec hfv d k fuel s₁ cc cur
   mvcgen [abstractRangeFast, hr]
-  all_goals try bridge_vcs [Expr.abstractRange]
+  all_goals try bridge_vcs [Expr.abstractRange, BMExt]
   -- The `k = 0` clause, which returns the subject: `abstractRange_zero_eq` is
   -- its licence and nothing in the state moves.
   all_goals
     (bridge_peel
      subst_vars
-     refine ⟨hok, Ext.refl _, rfl, rfl, Or.inr rfl, ?_⟩
+     refine ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, Or.inr rfl, ?_⟩
      intro x hx
      rw [hx]
      simp only [abstractRange_zero_eq])
@@ -461,11 +464,12 @@ theorem resetMetaFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ resetMetaFast fuel e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.resetC = ∅ ∧
         RelE Expr.resetMeta s₀.store e s'.store r⌝⦄ := by
   have hr := (resetMetaGo_spec fuel).run
   mvcgen [resetMetaFast, hr]
-  all_goals bridge_vcs [Expr.resetMeta]
+  all_goals bridge_vcs [Expr.resetMeta, BMExt]
 
 /-! ## `renameConsts`
 
@@ -641,11 +645,12 @@ theorem renameConstsGo_spec (f : NIdx → NIdx) (fn : ConLeche.Name → ConLeche
     (hden : (denoteE s₀.store c).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ renameConstsGo f fuel c
     ⦃⇓? r s' => ⌜StateOK s' ∧ RenameMemoA fn s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelE (Expr.renameConsts fn) s₀.store c s'.store r⌝⦄ := by
   have hr := (renameConstsGo_specS f fn s₀.store.ns hf fuel).run
   mvcgen [hr]
-  all_goals bridge_vcs [Expr.renameConsts]
+  all_goals bridge_vcs [Expr.renameConsts, BMExt]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 renameConstsFast — the
 bracket over `renameConstsGo_spec`, in `ExprOps/Inst1.lean`'s
@@ -658,11 +663,12 @@ theorem renameConstsFast_spec (fuel : Nat) (f : NIdx → NIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ renameConstsFast fuel f e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.renameC = ∅ ∧
         RelE (Expr.renameConsts fn) s₀.store e s'.store r⌝⦄ := by
   have hr := renameConstsGo_spec f fn fuel
   mvcgen [renameConstsFast, hr]
-  all_goals bridge_vcs [Expr.renameConsts]
+  all_goals bridge_vcs [Expr.renameConsts, BMExt]
 
 /-! ## `instantiateLevelParams`
 
@@ -689,6 +695,24 @@ theorem view_eq_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
     st'.view i = st.view i := by
   simp only [EStore.view, EStore.viewBind, EStore.viewBindI, EStore.viewBM,
     EStore.persGetBind, EStore.persGetBM, hp, hs, ho]
+
+/-- con-leche: none — arena infrastructure: `view_eq_of_tables` at the BINDER
+DATUM store.  `EStore.viewBM` reads `pers`, `scr` and `scratchOn` and nothing
+else, so a step that frames those three is a `BMExt` — which is what carries
+the round-5 `BMExt` conjunct of `InstLPSpec` across `substLMemoAt` /
+`substLsMemoAt`, the two steps of this walk that intern into the LEVEL store
+and frame the expression store by table equation rather than by `Ext`.
+
+`Bridge/Inductives/Rel.lean`'s `bmExt_of_nested` is the same three lines in
+another tier's file; the fact belongs beside `BMExt.intern` in
+`Bridge/StoreBM.lean` and a round that owns both files should collapse the
+two. -/
+theorem bmExt_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
+    (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) :
+    BMExt st st' := by
+  intro mi m h
+  simp only [EStore.viewBM, EStore.persGetBM, hp, hs, ho]
+  exact h
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2465
 Expr.instantiateLevelParams_eq_self — **the `hasLP` cutoff's licence**, at the
@@ -848,6 +872,7 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
     ⦃fun s => ⌜s = s₁⌝⦄ rec h
     ⦃⇓? r s' => ⌜StateOK s' ∧ InstLPMemoA ks us s' ∧ InstLPLMemoA ks us s' ∧
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -869,7 +894,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     constructor
     intro s₀ h _ _ _ _ _ _ _
     mvcgen [instLPGo_zero]
-    all_goals bridge_vcs [Expr.instantiateLevelParams]
+    all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hml hmls hcl hcls hden
@@ -889,18 +914,21 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl, fun _ _ hi => hi,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+        fun _ _ hi => hi,
         InstLPAt.cutoff hok.wf (by grind)⟩
     -- `bvar`, `lit`
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl, fun _ _ hi => hi,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+        fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl, fun _ _ hi => hi,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+        fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     -- `sort`: the LEVEL arm, `ExprOps/InstLP.lean`'s `substLMemoAt_spec`
     next =>
@@ -909,7 +937,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind,
         by grind [view_eq_of_tables], ?_⟩
       exact InstLPAt.sort_step hok.wf (by lp_hyp)
@@ -922,7 +956,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind,
         by grind [view_eq_of_tables], ?_⟩
       exact InstLPAt.const_step hok.wf (by lp_hyp) hn0
@@ -944,7 +984,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `app`
@@ -956,7 +1002,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `lam` and `forallE`: the binder DATUM is substituted too
@@ -968,7 +1020,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     next =>
@@ -979,7 +1037,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `letE`
@@ -991,7 +1055,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `proj`
@@ -1005,7 +1075,13 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans], by grind [ReadLCacheOK.mono],
+        by grind only [Ext.trans],
+        by first
+          | grind only [BMExt, BMExt.trans, BMExt.refl]
+          | exact BMExt.trans
+              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
+              _hbm,
+        by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
 
@@ -1019,6 +1095,7 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (hden : (denoteE s₀.store c).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPGo ks us fuel c
     ⦃⇓? r s' => ⌜StateOK s' ∧ InstLPMemoA ks us s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -1029,7 +1106,7 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
           s'.store r⌝⦄ := by
   have hr := (instLPGo_specS ks us fuel).run
   mvcgen [hr]
-  all_goals bridge_vcs [Expr.instantiateLevelParams]
+  all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
 
 /-! ### The NAME readback with the sibling readback tables framed
 
@@ -1139,6 +1216,7 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPFast fuel ks us e
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         ReadNCacheOK s'.caches.readNC s'.store ∧
@@ -1153,13 +1231,13 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
   have hr := fun (kk : List ConLeche.Name) (uu : List Level) (s₁ : AState)
       (c : EIdx) => instLPGo_spec kk uu fuel s₁ c
   mvcgen [instLPFast, hr]
-  all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono]
+  all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono, BMExt]
   -- The HOISTED `hasLP` cutoff (task #97-P6-10), which returns the subject
   -- without reading `ks`/`us` back and without clearing the memo.
   next =>
     bridge_peel
     subst_vars
-    exact ⟨hok, Ext.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
+    exact ⟨hok, Ext.refl _, BMExt.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
       InstLPAt.cutoff hok.wf (by grind)⟩
 
 /-! ## The axiom check -/
