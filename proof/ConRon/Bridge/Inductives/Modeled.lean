@@ -28,6 +28,7 @@ branch and `defeqPeel_chain`'s two equality short-circuits).
 import ConRon.Bridge.Inductives.NativeInstall
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Frontend.Shared
+import ConLeche.Verify.Extend.Iota
 
 namespace ConRon.Bridge.Inductives
 
@@ -1139,20 +1140,20 @@ equation, its sides the rule's own.
 `sorry`: `iotaThmName_spec`, `eqApp3?_spec`, `checkIotaSidesTy_spec`,
 `Bridge/ExprOps/Reset.lean`'s `renameConstsFast_spec`, `CoreSpec.knot`'s
 `defeq` slot, and `IFEnvOK` at the theorem's lookup. -/
-theorem checkIotaThm_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
-    CSpec μ env fe'
+    CSpec μ envSelf feSelf
       (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRule st r = some rP' ∧
         Frontend.denoteCV st cvj = some cvjP ∧ denoteE st rhsA = some rhsAP ∧
         denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
-        denoteFEnv st fe' = some env)
+        IFEnvOKS env' fe' st)
       (Arena.checkIotaThm μ fe' feSelf tbl cvName lps tyA mI rP j r cvj cnP
         cnF rhsA)
       (fun _ _ => ∃ F, ConLeche.checkIotaThm μ (ConLeche.fueledOps μ F) env'
@@ -1167,15 +1168,16 @@ a level list and an expression list — task #97d-2's deviation 6 keeps the
 levels a `List LIdx`.
 
 `sorry`: `stripPis`' spec and `Bridge/ExprOps/Spine.lean`'s `getAppSpine`. -/
-theorem nestedRuleShape_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
+theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (cvName : NIdx) (cvNameP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr)
     (mI rP cnP j : Nat) :
-    CSpec μ env fe'
+    CSpec μ envSelf feSelf
       (fun st => denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧
-        denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf)
+        denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
+        IFEnvOKS env' fe' st)
       (Arena.nestedRuleShape fe' feSelf cvName lps tyA mI rP cnP j)
       (ROp (fun q st r => denoteLList st.ls r.1 = some q.1 ∧
           Frontend.denoteEList st r.2 = some q.2)
@@ -1187,20 +1189,20 @@ theorem nestedRuleShape_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
 
 `sorry`: `nestedRuleShape_spec`, `checkIotaThm_spec`'s pieces, and
 `Frontend.denoteFire` at the answer. -/
-theorem checkIotaThmN_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
-    CSpec μ env fe'
+    CSpec μ envSelf feSelf
       (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRule st r = some rP' ∧
         Frontend.denoteCV st cvj = some cvjP ∧ denoteE st rhsA = some rhsAP ∧
         denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
-        denoteFEnv st fe' = some env)
+        IFEnvOKS env' fe' st)
       (Arena.checkIotaThmN μ fe' feSelf tbl cvName lps tyA mI rP j r cvj cnP
         cnF rhsA)
       (fun st x => ∃ F fire, ConLeche.checkIotaThmN μ (ConLeche.fueledOps μ F)
@@ -1213,18 +1215,18 @@ One rule certified and its firing mode written in.
 
 `sorry`: `checkIotaThm_spec`, `checkIotaThmN_spec` and `IFEnvOK` at the
 constructor's lookup. -/
-theorem checkIotaRule_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) :
-    CSpec μ env fe'
+    CSpec μ envSelf feSelf
       (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRule st r = some rP' ∧
         denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
-        denoteFEnv st fe' = some env)
+        IFEnvOKS env' fe' st)
       (Arena.checkIotaRule μ fe' feSelf tbl cvName lps tyA mI rP j r)
       (fun st x => ∃ F rl, ConLeche.checkIotaRule μ (ConLeche.fueledOps μ F)
         env' envSelf fP cvNameP lpsP tyAP mI rP j rP' = .ok rl ∧
@@ -1235,18 +1237,18 @@ theorem checkIotaRule_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
 The whole rule list.
 
 `sorry`: a list induction over `checkIotaRule_spec`. -/
-theorem checkIotaRules_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (rs : List IRecRule) (rsP : List RecRule) :
-    CSpec μ env fe'
+    CSpec μ envSelf feSelf
       (fun st => RenameRel st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteE st tyA = some tyAP ∧ Frontend.denoteRules st rs = some rsP ∧
         denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
-        denoteFEnv st fe' = some env)
+        IFEnvOKS env' fe' st)
       (Arena.checkIotaRules μ fe' feSelf tbl cvName lps tyA mI rP j rs)
       (fun st x => ∃ F rls, ConLeche.checkIotaRules μ (ConLeche.fueledOps μ F)
         env' envSelf fP cvNameP lpsP tyAP mI rP j rsP = .ok rls ∧
@@ -1262,7 +1264,8 @@ A member's header checked against its `_model` counterpart.
 (`Bridge/Checker/Base.lean`, item 11 of task #97-P3-Checker's list — the whole
 tier's single highest-value remaining proof), and `CoreSpec.knot`'s `defeq`. -/
 theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
-    (env' : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
+    (env' : Env) (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (henv : EnvWF env) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (cv : IConstantVal)
     (cvP : ConstantVal) :
     CSpec μ env fe'
@@ -1280,16 +1283,19 @@ One member checked and installed at its real inductive kind.
 
 `sorry`: `checkMemberVal_spec` and `IFEnv.push`'s two lemmas. -/
 theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (hcoh : IFEnvCoh fe') (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (caps : IIndCaps) (capsP : IndCaps)
     (ci : IConstantInfo) (ciP : ConstantInfo) :
-    CSpec μ env fe'
-      (fun st => Frontend.denoteNList st.ns blockNames = some blockNamesP ∧
-        Frontend.denoteCaps st caps = some capsP ∧
-        Frontend.denoteCI st ci = some ciP ∧ denoteFEnv st fe' = some env)
+    ISpec
+      (fun s => ReadOK env fe' s ∧
+        Frontend.denoteNList s.store.ns blockNames = some blockNamesP ∧
+        Frontend.denoteCaps s.store caps = some capsP ∧
+        Frontend.denoteCI s.store ci = some ciP ∧ denoteFEnv s.store fe' = some env)
       (Arena.checkIndMember μ blockNames caps fe' ci)
-      (InstRel fe' (fun e => ∃ F, ConLeche.checkIndMember
-        (ConLeche.fueledOps μ F) blockNamesP capsP env ciP = .ok e)) := by
+      (fun s r => CheckOK μ env fe' s ∧
+        InstRel fe' (fun e => ∃ F, ConLeche.checkIndMember
+          (ConLeche.fueledOps μ F) blockNamesP capsP env ciP = .ok e) s.store r) := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
@@ -1299,20 +1305,37 @@ theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 `sorry`: a list induction over `checkIndMember_spec` and `InstRel.trans`
 (closed, `Bridge/Inductives/Rel.lean`). -/
 theorem checkIndMembers_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (hcoh : IFEnvCoh fe) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (caps : IIndCaps) (capsP : IndCaps)
-    (cis : List IConstantInfo) (cisP : List ConstantInfo) :
-    CSpec μ env fe
-      (fun st => Frontend.denoteNList st.ns blockNames = some blockNamesP ∧
-        Frontend.denoteCaps st caps = some capsP ∧
-        Frontend.denoteCIList st cis = some cisP ∧ denoteFEnv st fe = some env)
+    (cis : List IConstantInfo) (cisP : List ConstantInfo)
+    (hpins : ∀ ci ∈ cisP, ∀ cv caps₀, ci = .indInfo cv caps₀ →
+      ConLeche.EtaPins μ env cv.name cv.levelParams capsP) :
+    ISpec
+      (fun s => ReadOK env fe s ∧
+        Frontend.denoteNList s.store.ns blockNames = some blockNamesP ∧
+        Frontend.denoteCaps s.store caps = some capsP ∧
+        Frontend.denoteCIList s.store cis = some cisP ∧ denoteFEnv s.store fe = some env)
       (Arena.checkIndMembers μ blockNames caps fe cis)
-      (InstRel fe (fun e => ∃ F,
+      (fun s r => InstRel fe (fun e => (∃ F,
         cisP.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F)
-          blockNamesP capsP) env = .ok e)) := by
+          blockNamesP capsP) env = .ok e) ∧ ReadOK e r s) s.store r) := by
   sorry
 
 /-! ## The recursors -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
+(its answer's second component) — a provisioned recursor list denotes: each
+checked header, its major index, its rule prefix and its stream rules. -/
+def denoteRecs (st : EStore) :
+    List (IConstantVal × Nat × Nat × List IRecRule) →
+      Option (List (ConstantVal × Nat × Nat × List RecRule))
+  | [] => some []
+  | (cv, mI, rP, rs) :: rest =>
+    match Frontend.denoteCV st cv, Frontend.denoteRules st rs, denoteRecs st rest with
+    | some cvP, some rsP, some restP => some ((cvP, mI, rP, rsP) :: restP)
+    | _, _, _ => none
+
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
 The recursors' headers checked and PROVISIONALLY installed (their rules may
@@ -1320,19 +1343,21 @@ mention each other, so they install as a group).
 
 `sorry`: `checkMemberVal_spec` and `IFEnv.push`, over a list induction. -/
 theorem provisionRecs_spec {μ : CheckMode} {env : Env} (feAcc : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (hcoh : IFEnvCoh feAcc) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (cis : List IConstantInfo)
     (cisP : List ConstantInfo) :
-    CSpec μ env feAcc
-      (fun st => Frontend.denoteNList st.ns blockNames = some blockNamesP ∧
-        Frontend.denoteCIList st cis = some cisP ∧
-        denoteFEnv st feAcc = some env)
+    ISpec
+      (fun s => ReadOK env feAcc s ∧
+        Frontend.denoteNList s.store.ns blockNames = some blockNamesP ∧
+        Frontend.denoteCIList s.store cis = some cisP ∧
+        denoteFEnv s.store feAcc = some env)
       (Arena.provisionRecs μ blockNames feAcc cis)
-      (fun st r => ∃ F envP recsP,
+      (fun s r => ∃ F envP recsP,
         ConLeche.provisionRecs (ConLeche.fueledOps μ F) blockNamesP env cisP
           = .ok (envP, recsP) ∧
-        InstRel feAcc (fun e => e = envP) st r.1 ∧
-        recsP.length = r.2.length) := by
+        InstRel feAcc (fun e => e = envP) s.store r.1 ∧
+        denoteRecs s.store r.2 = some recsP ∧ ReadOK envP r.1 s) := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
@@ -1340,17 +1365,23 @@ theorem provisionRecs_spec {μ : CheckMode} {env : Env} (feAcc : IFEnv)
 each provisioned recursor's rules certified and the record installed.
 
 `sorry`: `checkIotaRules_spec` and `IFEnv.push`, over a list induction. -/
-theorem installIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ feSelf acc : IFEnv)
-    (env₂ envSelf envAcc : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
+    (env₂ envSelf envAcc : Env) (hk : CoreSpec μ Arena.checkFuel)
+    (henvSelf : EnvWF envSelf) (hcoh : IFEnvCoh acc)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cs : List (IConstantVal × Nat × Nat × List IRecRule))
     (csP : List (ConstantVal × Nat × Nat × List RecRule)) :
-    CSpec μ env acc
+    CSpec μ envSelf feSelf
       (fun st => RenameRel st tbl fP ∧ denoteFEnv st fe₂ = some env₂ ∧
         denoteFEnv st feSelf = some envSelf ∧
-        denoteFEnv st acc = some envAcc ∧ denoteFEnv st acc = some env)
+        denoteFEnv st acc = some envAcc ∧ IFEnvOKS env₂ fe₂ st ∧
+        denoteRecs st cs = some csP)
       (Arena.installIndRecs μ fe₂ feSelf tbl acc cs)
-      (InstRel acc (fun _ => csP.length = cs.length)) := by
+      (InstRel acc (fun e => ∃ F, csP.foldlM (fun (a : Env) c => do
+          let rules' ← ConLeche.checkIotaRules μ (ConLeche.fueledOps μ F) env₂ envSelf fP
+            c.1.name c.1.levelParams c.1.type c.2.1 c.2.2.1 0 c.2.2.2
+          pure (⟨.recInfo c.1 c.2.1 c.2.2.1 rules' :: a.consts⟩ : Env)) envAcc
+        = .ok e)) := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
@@ -1360,16 +1391,19 @@ and the certified installs.
 `sorry`: `eqBasisStored_spec`, `provisionRecs_spec`, `blockRenameTable_spec`
 and `installIndRecs_spec`. -/
 theorem checkIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (hcoh : IFEnvCoh fe₂) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (recs : List IConstantInfo)
     (recsP : List ConstantInfo) :
-    CSpec μ env fe₂
-      (fun st => Frontend.denoteNList st.ns blockNames = some blockNamesP ∧
-        Frontend.denoteCIList st recs = some recsP ∧
-        denoteFEnv st fe₂ = some env)
+    ISpec
+      (fun s => ReadOK env fe₂ s ∧
+        Frontend.denoteNList s.store.ns blockNames = some blockNamesP ∧
+        Frontend.denoteCIList s.store recs = some recsP ∧
+        denoteFEnv s.store fe₂ = some env)
       (Arena.checkIndRecs μ blockNames fe₂ recs)
-      (InstRel fe₂ (fun e => ∃ F, ConLeche.checkIndRecs
-        μ (ConLeche.fueledOps μ F) blockNamesP env recsP = .ok e)) := by
+      (fun s r => InstRel fe₂ (fun e => (∃ F, ConLeche.checkIndRecs
+        μ (ConLeche.fueledOps μ F) blockNamesP env recsP = .ok e) ∧ ReadOK e r s)
+        s.store r) := by
   sorry
 
 /-! ## The projection functions -/
@@ -1565,18 +1599,18 @@ The projection function's iota certificate.
 
 `sorry`: `projBack_spec`/`projFwd_spec`, `domsMatchRenamed_spec`,
 `eqApp3?_spec` and `CoreSpec.knot`'s `defeq` slot. -/
-theorem checkProjIota_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+theorem checkProjIota_spec {μ : CheckMode} (fe' feSelf : IFEnv)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (T ctorName : NIdx) (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (cvj : IConstantVal) (cvjP : ConstantVal)
     (nP nF i : Nat) :
-    CSpec μ env fe'
+    CSpec μ envSelf feSelf
       (fun st => denoteN st.ns T = some TP ∧
         denoteN st.ns ctorName = some ctorNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         Frontend.denoteCV st cvj = some cvjP ∧
         denoteFEnv st fe' = some env' ∧ denoteFEnv st feSelf = some envSelf ∧
-        denoteFEnv st fe' = some env)
+        IFEnvOKS env' fe' st)
       (Arena.checkProjIota μ fe' feSelf T ctorName lps cvj nP nF i)
       (fun _ _ => ∃ F, ConLeche.checkProjIota μ (ConLeche.fueledOps μ F) env'
         envSelf TP ctorNameP lpsP cvjP nP nF i = .ok ()) := by
@@ -1588,7 +1622,8 @@ One projection function checked and installed.
 `sorry`: `checkProjLookups_spec`, `checkProjTy_spec`, `checkProjIota_spec`,
 `CoreSpec.knot`'s `defeq` slot and `IFEnv.push`. -/
 theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T ctorName : NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh fe')
+    (T ctorName : NIdx)
     (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF i : Nat) :
     CSpec μ env fe'
@@ -2556,17 +2591,19 @@ One projection install, with its duplicate guard.
 
 `sorry`: `checkProjFn_spec` and `IFEnvOK`'s `miss` clause. -/
 theorem installProjFnStep_spec {μ : CheckMode} {env : Env} (e : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T ctorName : NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh e)
+    (T ctorName : NIdx)
     (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF i : Nat) :
-    CSpec μ env e
-      (fun st => denoteN st.ns T = some TP ∧
-        denoteN st.ns ctorName = some ctorNameP ∧
-        Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteFEnv st e = some env)
+    ISpec
+      (fun s => ReadOK env e s ∧ denoteN s.store.ns T = some TP ∧
+        denoteN s.store.ns ctorName = some ctorNameP ∧
+        Frontend.denoteNList s.store.ns lps = some lpsP ∧
+        denoteFEnv s.store e = some env)
       (Arena.installProjFnStep μ T ctorName lps nP nF e i)
-      (InstRel e (fun x => ∃ F, ConLeche.installProjFnStep
-        μ (ConLeche.fueledOps μ F) TP ctorNameP lpsP nP nF env i = .ok x)) := by
+      (fun s r => InstRel e (fun x => (∃ F, ConLeche.installProjFnStep
+        μ (ConLeche.fueledOps μ F) TP ctorNameP lpsP nP nF env i = .ok x) ∧
+        ReadOK x r s) s.store r) := by
   sorry
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
@@ -2575,19 +2612,20 @@ theorem installProjFnStep_spec {μ : CheckMode} {env : Env} (e : IFEnv)
 
 `sorry`: a `Nat` recursion over `installProjFnStep_spec` and `InstRel.trans`. -/
 theorem installProjFns_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T ctorName : NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
+    (T ctorName : NIdx)
     (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF k i : Nat) :
-    CSpec μ env fe
-      (fun st => denoteN st.ns T = some TP ∧
-        denoteN st.ns ctorName = some ctorNameP ∧
-        Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteFEnv st fe = some env)
+    ISpec
+      (fun s => ReadOK env fe s ∧ denoteN s.store.ns T = some TP ∧
+        denoteN s.store.ns ctorName = some ctorNameP ∧
+        Frontend.denoteNList s.store.ns lps = some lpsP ∧
+        denoteFEnv s.store fe = some env)
       (Arena.installProjFns μ T ctorName lps nP nF fe k i)
-      (InstRel fe (fun x => ∃ F,
+      (fun s r => InstRel fe (fun x => (∃ F,
         (List.range k).foldlM (fun e j => ConLeche.installProjFnStep
           μ (ConLeche.fueledOps μ F) TP ctorNameP lpsP nP nF e (i + j)) env
-          = .ok x)) := by
+          = .ok x) ∧ ReadOK x r s) s.store r) := by
   sorry
 
 /-! ## The capability record and the route -/
@@ -2807,14 +2845,14 @@ group, and — at a structure-like block — the projection functions.
 `recsFormSuffix`/`isRecInfo`'s exactness (both tag reads, so both are
 `Frontend.denoteCI`'s case split). -/
 theorem checkModeled_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (block : List IConstantInfo)
-    (blockP : List ConstantInfo) :
-    CSpec μ env fe
-      (fun st => Frontend.denoteCIList st block = some blockP ∧
-        denoteFEnv st fe = some env)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) :
+    ISpec
+      (fun s => CheckOK μ env fe s ∧ Frontend.denoteCIList s.store block = some blockP ∧
+        denoteFEnv s.store fe = some env ∧ IFEnvCoh fe)
       (Arena.checkModeled μ fe block)
-      (InstRel fe (fun e => ∃ F, ConLeche.checkModeled μ
-        (ConLeche.fueledOps μ F) env blockP = .ok e)) := by
+      (fun s fe' => InstRel fe (fun e => ∃ F, ConLeche.checkModeled μ
+        (ConLeche.fueledOps μ F) env blockP = .ok e) s.store fe') := by
   sorry
 
 end ConRon.Bridge.Inductives

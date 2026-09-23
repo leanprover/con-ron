@@ -334,10 +334,10 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
     | none =>
       simp only [ROp] at hr2
       obtain ⟨hcore, hinst⟩ :=
-        checkModeled_spec fe hk hok.envWF block b s₂ s' fe' hck₂ ⟨hb₂, hfe₂⟩ h4
+        checkModeled_spec fe _hμ hk hok.envWF block b s₂ s' fe' ⟨hck₂, hb₂, hfe₂, hok.coh⟩ h4
       obtain ⟨env', hden, F, hrunP⟩ := hinst.denote
       exact
-        { state := hcore.ok.state
+        { state := hcore.state
           ext := (hext12.trans hcore.ext)
           pins := by rw [hcore.pins, hpins12]
           coh := hinst.coh
@@ -354,10 +354,10 @@ theorem checkIndDecl_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
       simp only [ROp] at hr2
       obtain ⟨q, hq, hrel⟩ := hr2
       obtain ⟨hcore, hinst⟩ :=
-        checkNative_spec fe hk hok.envWF pa q s₂ s' fe' hck₂ ⟨hrel, hfe₂⟩ h4
+        checkNative_spec fe _hμ hk hok.envWF pa q s₂ s' fe' ⟨hck₂, hrel, hfe₂, hok.coh⟩ h4
       obtain ⟨env', hden, F, hrunP⟩ := hinst.denote
       exact
-        { state := hcore.ok.state
+        { state := hcore.state
           ext := (hext12.trans hcore.ext)
           pins := by rw [hcore.pins, hpins12]
           coh := hinst.coh

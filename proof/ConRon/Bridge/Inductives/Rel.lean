@@ -243,6 +243,110 @@ theorem PSpecP.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
   obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
   exact ⟨hstep.toCore hok, hr⟩
 
+/-! ## The install frame (task #97-P3-Ind round 8, ruling 2 on finding R7.4)
+
+A run that SWITCHES the environment index part-way — pushes a constant and
+calls the knot at the pushed index (`checkNativePass`, `checkNativeTail`, the
+modeled route's iota family at `feSelf`, the member and recursor folds) —
+leaves cache rows valid for the NEW environment only (`ConstTyCacheOK env`
+asks `env.find?` of every cached constant type).  `CoreStep` at the ENTRY
+index is then false.  What such a run owes the consumer
+(`Bridge/Inductives/Decl.lean` reads `.state`, `.ext` and `.pins` alone) is
+the install frame below; where the next stage runs knot calls at the index
+the run ended on, the statement adds `CheckOK` at that index itself. -/
+
+/-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC (the frame half) —
+**the install frame**: the state invariant, an append and an untouched pin
+table.  `CoreStep` without the caches' environment. -/
+structure InstStep (s s' : AState) : Prop where
+  state : StateOK s'
+  ext : Ext s.store s'.store
+  pins : s'.pins = s.pins
+
+theorem InstStep.refl {s : AState} (h : StateOK s) : InstStep s s :=
+  ⟨h, Ext.refl _, rfl⟩
+
+theorem InstStep.trans {a b c : AState} (h₁ : InstStep a b) (h₂ : InstStep b c) :
+    InstStep a c :=
+  ⟨h₂.state, h₁.ext.trans h₂.ext, by rw [h₂.pins, h₁.pins]⟩
+
+theorem _root_.ConRon.Bridge.CoreStep.toInst {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : CoreStep μ env fe s s') : InstStep s s' :=
+  ⟨h.ok.state, h.ext, h.pins⟩
+
+theorem PStep.toInst {s s' : AState} (h : PStep s s') : InstStep s s' :=
+  ⟨h.ok, h.ext, h.pins⟩
+
+/-- con-leche: none — **the install grade's statement**: from a state
+satisfying `P` (which names the `CheckOK` the run's FIRST knot call needs, at
+whatever index that is), an accepting run leaves the install frame and an
+answer related by `R` to the FINAL state (so `R` may say `CheckOK` at the
+index the run ended on). -/
+def ISpec {α : Type} (P : AState → Prop) (c : AM α) (R : AState → α → Prop) :
+    Prop :=
+  ∀ (s₀ s' : AState) (r : α), P s₀ → c s₀ = .ok (r, s') →
+    InstStep s₀ s' ∧ R s' r
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (without the caches) —
+**`CheckOK` less its cache clause**: what a state is known to satisfy at an
+index whose environment the caches were NOT computed for (after an install
+pushed, before the next flush).  Every read-only twin of the tier (the index
+lookups, the name and pin reads) needs only this; a knot call needs the
+caches too, and gets them from the flush that precedes it
+(`ReadOK.flush`). -/
+structure ReadOK (env : Env) (fe : IFEnv) (s : AState) : Prop where
+  state : StateOK s
+  pins : PinsOK s
+  ienv : IFEnvOK env fe s
+
+theorem _root_.ConRon.Bridge.CheckOK.toR {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (h : CheckOK μ env fe s) : ReadOK env fe s :=
+  ⟨h.state, h.pins, h.ienv⟩
+
+theorem ReadOK.mono {env : Env} {fe : IFEnv} {s s' : AState} (h : ReadOK env fe s)
+    (hok : StateOK s') (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
+    ReadOK env fe s' :=
+  ⟨hok, h.pins.mono hx hp, h.ienv.mono hx⟩
+
+theorem ReadOK.ofInst {env : Env} {fe : IFEnv} {s s' : AState} (h : ReadOK env fe s)
+    (hi : InstStep s s') : ReadOK env fe s' :=
+  h.mono hi.state hi.ext hi.pins
+
+/-- con-leche: ConLeche/Cached/CheckerC.lean flushC — **the flush restores
+`CheckOK` at any index the state reads correctly**: the caches go, and the
+empty cache set is sound at every environment (`CacheOK.of_empty`). -/
+theorem ReadOK.flush {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : ReadOK env fe s) (hrun : Arena.flushCaches s = .ok ((), s')) :
+    CheckOK μ env fe s' ∧ InstStep s s' ∧ s'.store = s.store := by
+  have e : Arena.flushCaches s = .ok ((), { s with caches := Caches.empty }) := rfl
+  rw [e] at hrun
+  obtain ⟨-, rfl⟩ := Prod.mk.inj (Except.ok.inj hrun)
+  exact ⟨⟨⟨h.state.wf⟩, CacheOK.of_empty rfl, ⟨h.pins.1, h.pins.2, h.pins.3, h.pins.4,
+      h.pins.5, h.pins.6, h.pins.7⟩, ⟨h.ienv.1, h.ienv.2, h.ienv.3⟩⟩,
+    ⟨⟨h.state.wf⟩, Ext.refl _, rfl⟩, rfl⟩
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `ienv` clause) — the
+index spec as a predicate on the STORE (it reads nothing else), so a
+`CSpec`'s store precondition can name it at an index OTHER than the one the
+caches serve (the iota family reads `fe'`'s lookups and runs its knot calls
+at `feSelf`). -/
+def IFEnvOKS (env : Env) (fe : IFEnv) (st : EStore) : Prop :=
+  ∀ s : AState, s.store = st → IFEnvOK env fe s
+
+theorem _root_.ConRon.Bridge.IFEnvOK.toS {env : Env} {fe : IFEnv} {s : AState} (h : IFEnvOK env fe s) :
+    IFEnvOKS env fe s.store := by
+  intro s' hs
+  exact ⟨fun n ci hf => by rw [hs]; exact h.hit n ci hf,
+    fun nm c he => by rw [hs]; exact h.cover nm c he,
+    fun n t hf => by rw [hs]; exact h.proj n t hf⟩
+
+theorem IFEnvOKS.mono {env : Env} {fe : IFEnv} {st st' : EStore}
+    (h : IFEnvOKS env fe st) (hx : Ext st st') : IFEnvOKS env fe st' := by
+  intro s hs
+  have h0 : IFEnvOK env fe { s with store := st } := h _ rfl
+  have h1 := h0.mono (s' := s) (by rw [hs]; exact hx)
+  exact h1
+
 /-! ### The `Option` lift
 
 An `Option`-valued twin (`structPartsCore?`, `nativeParts?`, `replacePisPw`,
@@ -2108,6 +2212,41 @@ theorem InstRel.trans {fe₀ fe₁ fe₂ : IFEnv} {P₁ P₂ : Env → Prop}
   visible := Nat.le_trans h₁.visible h₂.visible
   denote := h₂.denote
   proj := h₁.proj.trans h₂.proj hx
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push's
+denotation, inverted**: the pushed row denotes, and the new environment is
+the old one with it consed. -/
+theorem denoteFEnv_push_inv {st : EStore} {fe : IFEnv} {env env' : Env}
+    {ci : IConstantInfo} (h : denoteFEnv st fe = some env)
+    (h' : denoteFEnv st (fe.push ci) = some env') :
+    ∃ c, Frontend.denoteCI st ci = some c ∧ env' = ⟨c :: env.consts⟩ := by
+  simp only [denoteFEnv, denoteIEnv, IFEnv.push, Option.map_eq_some_iff] at h h'
+  obtain ⟨cs, hcs, rfl⟩ := h
+  obtain ⟨cs', hcs', rfl⟩ := h'
+  simp only [Frontend.denoteCIList] at hcs'
+  cases hc : Frontend.denoteCI st ci with
+  | none => rw [hc] at hcs'; simp at hcs'
+  | some c =>
+    rw [hc, hcs] at hcs'
+    simp only [Option.some.injEq] at hcs'
+    exact ⟨c, rfl, by rw [← hcs']⟩
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the read invariant
+survives a push of a non-table row** (`IFEnvOK.push`), at the pushed
+index's denotation. -/
+theorem ReadOK.push {env env' : Env} {fe : IFEnv} {s : AState} {ci : IConstantInfo}
+    (h : ReadOK env fe s) (hcoh : IFEnvCoh fe) (hnp : ∀ t, ci ≠ .projInfo t)
+    (hfe : denoteFEnv s.store fe = some env)
+    (hfe' : denoteFEnv s.store (fe.push ci) = some env') :
+    ReadOK env' (fe.push ci) s := by
+  obtain ⟨c, hc, rfl⟩ := denoteFEnv_push_inv hfe hfe'
+  exact ⟨h.state, h.pins, h.ienv.push h.state hcoh hnp hc⟩
+
+/-- con-leche: none — `InstRel` survives the arena's growth. -/
+theorem InstRel.ext {fe fe' : IFEnv} {P : Env → Prop} {st st' : EStore}
+    (h : InstRel fe P st fe') (hx : Ext st st') : InstRel fe P st' fe' := by
+  obtain ⟨e, he, hp⟩ := h.denote
+  exact ⟨h.coh, h.pushed, h.visible, ⟨e, denoteFEnv_ext hx he, hp⟩, h.proj.mono hx⟩
 
 /-! ## The recognisers' readers (task #97-P3-Ind round 6)
 

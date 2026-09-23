@@ -176,13 +176,13 @@ there so that `IFEnvOK`'s new field has one named debtor; this is its site.
 is `⟨[ci], rfl⟩`.  The `denoteFEnv` clause is the push's `denoteCI` at the new
 `.projInfo` row; the `proj` clause is `hg`, the `bodies.size` test read off
 the `unless`, and `projTableName_spec` at `tn`. -/
-theorem checkStructProjTable_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
     (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF : Nat) (resSort : LIdx)
     (resSortP : Level) (guards : List LIdx) (guardsP : List Level) (off : Nat)
     (cvCa : IConstantVal) (cvCaP : ConstantVal)
-    (hg : guards.length = nF) :
-    CSpec μ env fe
+    (hg : guards.length = nF) (hcoh : IFEnvCoh fe) :
+    PSpecP
       (fun st => denoteN st.ns T = some TP ∧ denoteN st.ns C = some CP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
         denoteL st.ls resSort = some resSortP ∧
@@ -194,5 +194,30 @@ theorem checkStructProjTable_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         @ConLeche.checkStructProjTable CheckM _ _ TP CP lpsP nP nF resSortP
           guardsP off cvCaP env = .ok env')) := by
   sorry
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
+The same at the core grade, read off `checkStructProjTable_run` (the twin is
+pure, so it needs no `CheckOK` and leaves `PStep`).  **`hcoh` added** (task
+#97-P3-Ind round 8, ruling 3 on round 7's R7.5: `InstRel.coh` of the pushed
+index needs the old index coherent). -/
+theorem checkStructProjTable_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
+    (lpsP : List ConLeche.Name) (nP nF : Nat) (resSort : LIdx)
+    (resSortP : Level) (guards : List LIdx) (guardsP : List Level) (off : Nat)
+    (cvCa : IConstantVal) (cvCaP : ConstantVal)
+    (hg : guards.length = nF) (hcoh : IFEnvCoh fe) :
+    CSpec μ env fe
+      (fun st => denoteN st.ns T = some TP ∧ denoteN st.ns C = some CP ∧
+        Frontend.denoteNList st.ns lps = some lpsP ∧
+        denoteL st.ls resSort = some resSortP ∧
+        denoteLList st.ls guards = some guardsP ∧
+        Frontend.denoteCV st cvCa = some cvCaP ∧
+        denoteFEnv st fe = some env)
+      (Arena.checkStructProjTable T C lps nP nF resSort guards off cvCa fe)
+      (InstRel fe (fun env' =>
+        @ConLeche.checkStructProjTable CheckM _ _ TP CP lpsP nP nF resSortP
+          guardsP off cvCaP env = .ok env')) :=
+  (checkStructProjTable_run fe env T C TP CP lps lpsP nP nF resSort resSortP guards
+    guardsP off cvCa cvCaP hg hcoh).toCSpec μ env fe
 
 end ConRon.Bridge.Inductives
