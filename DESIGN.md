@@ -56178,6 +56178,156 @@ re-ran the Lean gates it can touch: `ConRonBridge` (634 jobs),
 `ConRonCapstone` (2 768) and `lake build` green; the Rust, lint, provenance and
 extraction gates cannot be reached by it.
 
+#### Round 3 — the startup walk closed down to its pin leaves, `erase_installed`; three items stopped on divergences under the no-invariant rule (2026-09-23, Opus under Fable)
+
+Branch `p5-top-3` off `arena` `aa1dc3e2`, worked in three sub-branches (startup
+walk; promotion; `check_value_group_value`) and merged with `arena` once, at
+`d6288114` (task #97-T2-AUDIT, and the Checker, Front, Core and Ind rounds; no
+conflict).  Lane `Refine2/{Checker,Promote}/**`.  `Capstone.lean` is unchanged,
+and `Refine2` still imports nothing of `Bridge`.
+
+**Mid-round rule (from the coordinator, after the maintainer's question that
+became task #97-T2-AUDIT):** add NO new invariant-style hypothesis or clause
+to a Theorem-2 statement (resolves, `ViewOK`, `StoreWF`, `Ext`, memo-OK, new
+`ResolveInv` fields).  Where one is needed, stop on that statement and report
+the twin/Rust divergence behind it.  Everything this round had already added
+of that kind was backed out before landing, or held back on a branch (§3).
+
+##### 1. What closed
+
+| item | how |
+|---|---|
+| `intern_all_basis` | measure induction over the cursor (`intern_all_basis_aux`), `all_basis_kinds_refines` |
+| `intern_all_axiom_pins`, and its chain `_rest`, `intern_all_trust_pins`, `intern_all_reduce_pins` | glue over the pin constants' `_refines` |
+| `intern_pin_sets` | cursor measure induction (`intern_pin_sets_aux`, `internPinSets_cons_acc`).  The accumulator is counted once: the Rust base case returns `out` itself |
+| `intern_pin_set`, `intern_pin_set_proofs` | glue over `intern_expr{,_list}_refines` and `str_copy_eq` |
+| `pin_reserved` (leaf) | written like `pin_empty_levels_refines`; `Checker/Pins.lean` now imports `Refine2/Core/Arms/Delta` for `nidx_vec_dup_val` (no cycle) |
+| `erase_installed` | the index read back as a membership test (`erase_installed_aux`, `eraseInstalled_getElem?_eq'`); axiom-clean, census row added |
+| `lvl_eq` (new statement, `Checker/Base.lean`) | `arena::core::lvl_eq` ⊑ `lvlEq?`, which no tier had stated: the `lvlEqC` probe and capped write (`Core/Probes.lean`'s `cache_insert_step`), `read_level_m_run` twice, and `Level.is_equiv_refines`.  Axiom-clean, census row added.  It is `check_value_group_value`'s `lvl_eq u zero` |
+
+**`SimFold` (round 1's F1 carried over): no defect.**  In the frontend,
+`SimStreamRel`'s error arm was false because the twin's failures escape as
+throws where the Rust returns an `(error, line)` pair.  `Checker/Top.lean`'s
+`SimFold` is not in that position.  Both twin fold steps CATCH: `annotDeclStep`
+turns every `annotStep` throw into `.ok (.error (e, p.1), abandoned)`, and
+`checkPendingList` turns every `checkPending` throw into `.ok (.error (e,
+pc.pos), abandoned)`.  `annotFold` and `installThenCheck` only `pure` those
+values on.  The Rust returns `Err((e, pos))` at the same positions.  So the
+twin never throws where the Rust has a pair, and the value-only error arm is
+true.  Its consumers (`annot_fold_refines`, `check_pending_list_refines`,
+`install_then_check_refines`) were already closed, so it was not on the
+frontier.  No change.
+
+##### 2. Stopped on divergences (the round-3 rule)
+
+1. **`intern_all_names` — the reserved names (a ruling).**  The port's
+   `reserved_basis_names` is `pin_reserved`, a table READ (task #97-P6-4a).
+   The twin's `reservedBasisNames` still re-interns 13 of the 19 names.  At a
+   related state whose table is filled but whose store lacks, say,
+   `Eq.refl`, the twin's store grows and the Rust's does not.  The glue went
+   through with `hres : reservedBasisNames.run lst = pinReserved.run lst`,
+   discharged by a new `Capstone.reservedNamesRead_of_stages` `sorry`.  Both
+   were backed out; the statement is `sorry` with the divergence in its
+   docstring.  **Fix:** the twin's `reservedBasisNames := pinReserved`; the
+   proof is then glue over closed or stated leaves.  The same divergence sits
+   behind the twin's other `reservedBasisNames` call sites
+   (`Checker/Spec.lean`, `Inductives/Spec.lean` twice).
+2. **`check_value_group_value` and `check_value_group_tail` — a twin-only
+   name read.**  Both glues were written and green at `786715f8` (in the
+   history of this branch).  They needed three clauses the rule forbids:
+   * `VGResolves` growing *"the name decodes"*;
+   * `ResolveInv.lvlEq` (`Good` across `lvlEq?`);
+   * `ResolveInv.installValue` (the annotated value resolves, and `Good` is
+     kept).
+
+   All three were backed out.  The divergence behind the first: the Rust
+   declines with constant messages (`M_THM_NOT_PROP`, and `Invalid
+   (value_kind_word k)` for a mismatch).  The twin declines with `s!"… {←
+   readName g.cvA.name} …"`, a store READ on one side only, which throws
+   `.internal` at a dangling name.  That is the same divergence as round 1's
+   `checkDecl` `.defnDecl` arm (task #97-P5-Checker round 4 §4).  The other
+   two are the `Good`/`EResolves` plumbing, i.e. task #97-T2-AUDIT's D1
+   (tag-first against view-first).  **Fix:** drop the name from the twin's
+   two decline messages, or make the Rust read it too; then D1.  The brief's
+   expected `isDefEqCore` field turned out unnecessary: the tail is the last
+   step and needs no `Good` after it.
+3. **The promotion walks — held on branch `p5-top-3-promote` (`9b576da3`),
+   not landed.**  The sub-agent closed the whole promotion tier from a new
+   twin-side module `Refine2/Promote/Twin.lean` (the cores of
+   `Bridge/Promote/{Pers,Weak,StoreP,Memo,Walk}.lean`, copied with their
+   sources cited, since `Refine2` may not import `Bridge`).  That covers the
+   name, level, levels and expression walks with their `_node`/`_two`/`_list`
+   companions, `promote_cv`, the declaration layer (`fire`, `rule(s)`,
+   `caps`, `proj_table(_rest)`, `ci(_list)`, `decl`) and `index_promoted`.
+   All accumulators were checked against the Rust `Ok out`.  It rests on
+   hypotheses the rule forbids, and that task #97-T2-AUDIT classifies as
+   kind 3 (the promote window's `StoreWF'`):
+   * `hmo : PTwin.PMemoOK lm lst.store` on every promotion statement with a
+     memo (supplied in `Top.lean` by `PMemoOK.empty` and a keep lemma);
+   * `hvok`/`hvwf` (the view's children have views; datum WF) on
+     `promote_{n,l,e}_node_refines`;
+   * `hnorow` on `index_promoted_refines` (no index row points into the
+     slice): the POSITION-against-CONSTANT representation of the index.
+
+   It also leaves two `sorry`s, each a divergence:
+   * **`intern_persistent_e_run_nocap` — audit D3, confirmed independently.**
+     The twin's `internPersistentE` tests the persistent binder-datum table's
+     capacity on every binder-node miss.  The port tests only when it
+     appends a new datum.  At a full table, a new binder node over an
+     existing datum succeeds in the port and fails in the twin, so
+     `promote_e_refines` is false in exactly that corner.  **Fix:** gate the
+     twin's test on the datum lookup, as task #97-P5-Twin did for `internE`.
+   * **`IFEnvNamed` inside `promote_new`.**  A Rust index row holds a slot
+     position; a twin row holds the constant.  Writing a promoted constant
+     back into its slot changes what a row that points there under another
+     name answers.  The fact that no such row exists is Theorem 1's
+     (`IFEnvCoh`).  It was threaded as a precondition, then backed out under
+     the rule.
+
+   When the audit's migration (`storeWF` out of `AStateRel`, the promote
+   window no longer special) lands, `hmo`/`hvok` should disappear, and the
+   branch is the proof material.
+
+##### 3. Counts and the frontier
+
+| file | `sorry` tactic lines (was) |
+|---|---:|
+| `Checker/Top.lean` | 21 (26) |
+| `Checker/Pins.lean` | 0 (4) |
+| `Checker/Base.lean` | 59 (59) — `lvl_eq` added closed |
+| `Promote/Promote.lean` | 28 (29) |
+
+`lake build ConRonRefine2`: 703 `declaration uses sorry` warnings, against
+713 at the merged `arena` (`d6288114`, measured in a detached worktree).
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`:
+
+| | items | modules | tainted | dead weight |
+|---|---:|---:|---:|---:|
+| start (`aa1dc3e2`) | 34 | 14 | 109 | 769 |
+| end (after the `arena` merge) | 54 | 14 | 151 | 694 |
+
+**Left the frontier:** `intern_all_basis`, `intern_all_axiom_pins`,
+`intern_pin_sets`, `erase_installed` (this lane), and
+`Bridge.{divModEnvGuard_run,divModPinGuard_run,Arena.checkDecl_wfProj}`
+(the merged Checker round 10).  **Entered:** the leaves the startup-walk glue
+now reaches: the eighteen pin constants of `Checker/Axioms.lean` (`iff_raw` …
+`trust_compiler_a`, `reduce_*`, `of_reduce_*_a`), `basis_kind_decls{,_a}`
+and `intern_expr{,_list}`; and `Bridge.IndSpec.wf` (merged).  The growth is
+the startup walk moving down to one Rust function per item.
+`intern_all_names`, `check_value_group_value`, `promote_cv`, `promote_e` and
+`index_promoted` stay on the frontier (§2).  No non-standard axiom.
+
+**Next in this lane:** the eighteen pin constants and `basis_kind_decls{,_a}`
+(one-function leaves, no invariants needed); the three rulings of §2
+(`reservedBasisNames`, the decline-message name reads, D3's capacity test),
+each a twin edit that turns a stopped item into glue; and the promotion
+branch, once the audit's migration removes the promote window.
+
+**Gates:** `scripts/gates.sh` after the `arena` merge: **all 16 OK**
+(`extract-check` 175 s, `lake-build` 36 s).  `ConRonRefine2`,
+`ConRonCapstone` green.
+
 ### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
 
 Lane: `proof/ConRon/Bridge/Promote/**`, untouched since task #97-P3-Checker
