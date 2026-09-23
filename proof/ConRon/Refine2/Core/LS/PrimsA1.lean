@@ -2323,7 +2323,7 @@ theorem take_eidx_n_from_val (xs : alloc.vec.Vec arena.handle.EIdx) :
 
 /-! ## The recursor-rule lookups (pure on both sides) -/
 
-attribute [lockstep_simp] absIRecRule absIRecRuleFire
+attribute [local lockstep_simp] absIRecRule absIRecRuleFire
 
 @[lockstep] theorem rec_rule_k_ls (rules : alloc.vec.Vec arena.env.IRecRule) :
     LSP (arena.core.rec_rule_k rules) (fun b => b = recRuleK (rules.val.map absIRecRule)) := by

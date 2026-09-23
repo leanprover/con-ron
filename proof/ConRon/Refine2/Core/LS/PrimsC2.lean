@@ -523,7 +523,9 @@ theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       cases Result.ok_injective h
       rfl
 
-@[lockstep] theorem view_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+/-- (Region B's `view_lit_ls`, which carries the literal's well-formedness,
+is the registered pair.) -/
+theorem view_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map ConRon.Refine.absLiteral a)
       (arena.monad.view_lit pers st h) st lst (Arena.viewLit (absEIdx h)) :=

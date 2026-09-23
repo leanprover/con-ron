@@ -55,6 +55,10 @@ attribute [local lockstep_simp] decide_usize_eq_len absIConstantVal_levelParams_
 
 attribute [local lockstep_simp] absIConstantVal absIIndCaps
 
+-- region A1's rec-rule abstraction, unfolded here only (region C2 reads it
+-- through projection lemmas)
+attribute [local lockstep_simp] absIRecRule absIRecRuleFire
+
 open Lean Elab Tactic in
 /-- Rewrite the twin side with the context's `TwinEq` facts; fails when
 nothing changes. -/

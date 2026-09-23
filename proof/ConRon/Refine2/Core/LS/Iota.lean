@@ -15,6 +15,9 @@ Each is one `lockstep_c2` run (the shared `lockstep` plus this file's local move
 (`@[lockstep_inline]`) against the twin's body.
 -/
 import ConRon.Refine2.Core.LS.PrimsC2
+import ConRon.Refine2.Core.LS.Leaves
+import ConRon.Refine2.Core.LS.Shapes
+import ConRon.Refine2.Core.LS.Lits
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -248,13 +251,6 @@ attribute [local lockstep_simp] absIConstantVal_name absIConstantVal_levelParams
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
-/-- Region A1. -/
-@[lockstep] theorem stub_const_ty_at_ls {pers st cv us lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.const_ty_at pers st cv us) lst
-      (constTyAt (absIConstantVal cv) (absLsIdx us)) := by
-  sorry
-
 /-- Region C1. -/
 @[lockstep] theorem stub_iota_certs_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth lic h args lst}
@@ -265,70 +261,6 @@ attribute [local lockstep_simp] absIConstantVal_name absIConstantVal_levelParams
       (arena.core.iota_certs pers vis st mode lane fu fe depth lic h args 0#usize) lst
       (iotaCerts (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) lic
         (absEIdx h) (absEIdxList args)) := by
-  sorry
-
-/-- Region B. -/
-@[lockstep] theorem stub_lit_to_ctor_if_nat_ls {pers vis st fe lfe h lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.lit_to_ctor_if_nat pers vis st fe h) lst
-      (litToCtorIfNat lfe (absEIdx h)) := by
-  sorry
-
-/-- Region B. -/
-@[lockstep] theorem stub_str_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
-      (strLitSupported lfe) := by
-  sorry
-
-/-- Region B. -/
-@[lockstep] theorem stub_str_lit_to_constructor_ls {pers st s lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.str_lit_to_constructor pers st s) lst
-      (strLitToConstructor (ConRon.Refine.absString s)) := by
-  sorry
-
-/-- Region A2. -/
-@[lockstep] theorem stub_eta_projs_ls {pers vis st fe lfe t us targs b nF lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = absEIdxList a)
-      (arena.core.eta_projs pers vis st fe t us targs b nF) lst
-      (etaProjs lfe (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU nF)) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_is_ctor_app_ls {pers vis st fe lfe e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.is_ctor_app pers vis st fe e) lst
-      (isCtorApp lfe (absEIdx e)) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_caps_never_zero_ls {pers st lps us caps lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.caps_never_zero pers st lps us caps) lst
-      (capsNeverZero (lps.val.map absNIdx) (absLsIdx us) (absIIndCaps caps)) := by
-  sorry
-
-/-- Region A2. -/
-@[lockstep] theorem stub_fab_scope_ok_ls {pers st depth fab major lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.fab_scope_ok pers st depth fab major) lst
-      (fabScopeOk (absU depth) (absEIdx fab) (absEIdx major)) := by
-  sorry
-
-/-- Region A2. -/
-@[lockstep] theorem stub_and_rescue_slots_ls {pers vis st fe lfe ctor nP ust lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.and_rescue_slots pers vis st fe ctor nP ust) lst
-      (andRescueSlots lfe (absNIdx ctor) (absU nP) (absLsIdx ust)) := by
   sorry
 
 /-- Region C1. -/
@@ -354,56 +286,6 @@ attribute [local lockstep_simp] absIConstantVal_name absIConstantVal_levelParams
       (structEtaCertWith (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b) (absEIdx wtb)) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_rec_rule_k_ls (rules : alloc.vec.Vec arena.env.IRecRule) :
-    LSP (arena.core.rec_rule_k rules) (fun b => b = recRuleK (rules.val.map absIRecRule)) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_find_rule_ls (rules : alloc.vec.Vec arena.env.IRecRule)
-    (c : arena.handle.NIdx) :
-    LSP (arena.core.find_rule rules c 0#usize)
-      (fun o => TwinEq (findRule (rules.val.map absIRecRule) (absNIdx c))
-        (o.bind (fun j => (rules.val[j.val]?).map absIRecRule))) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_lvls_eq_ls {pers st us vs lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.lvls_eq pers st us vs) lst
-      (lvlsEq? (absLsIdx us) (absLsIdx vs)) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_lift_fueled_ls {pers st lst} (what : String) (o : Option Bool)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst (liftFueled what o) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_rule_rhs_at_ls {pers st rec_name ctor lps rhs us lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.rule_rhs_at pers st rec_name ctor lps rhs us) lst
-      (ruleRhsAt (absNIdx rec_name) (absNIdx ctor) (lps.val.map absNIdx) (absEIdx rhs)
-        (absLsIdx us)) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_rec_fire_comparands_ls {pers st rl lps us cvj_lps args r_p lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (absLsIdx a.1, absEIdxList a.2))
-      (arena.core.rec_fire_comparands pers st rl lps us cvj_lps args r_p) lst
-      (recFireComparands (absIRecRule rl) (lps.val.map absNIdx) (absLsIdx us)
-        (cvj_lps.val.map absNIdx) (absEIdxList args) (absU r_p)) := by
-  sorry
-
-/-- Region A1. -/
-@[lockstep] theorem stub_read_name_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.NIdx) :
-    LS pers (fun a b => ConRon.Refine.NameWF a ∧ b = ConRon.Refine.absName a)
-      (arena.monad.read_name_m pers st h) lst (Arena.readNameM (absNIdx h)) := by
   sorry
 
 /-- Region C1. -/
@@ -583,7 +465,7 @@ attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
       (liftFueled "level comparison" o) :=
-  stub_lift_fueled_ls "level comparison" o hrel hinv
+  lift_fueled_ls hrel hinv o "level comparison"
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem iota_rec_at_ls {f : Nat} (hk : KnotRel f)

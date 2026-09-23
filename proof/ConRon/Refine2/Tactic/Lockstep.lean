@@ -1245,9 +1245,14 @@ each link fed by `bind_tc_ok`. -/
 partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let m ← headNorm (ty.getArg! 1)
+  -- the callee of a bind is head-normalised too (a fragment's `let (r, s) :=
+  -- (Err e, s)` and its `match` reduce definitionally)
+  let m ← if m.isAppOfArity ``Bind.bind 6 then
+      pure (mkAppN m.getAppFn (m.getAppArgs.set! 4 (← headNorm (m.getArg! 4))))
+    else pure m
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
   if depth < 16 && m.isAppOfArity ``Bind.bind 6 then
-    let f ← headNorm (m.getArg! 4)
+    let f := m.getArg! 4
     if f.isAppOfArity ``Result.ok 2 then
       let gs ← applyRule g ``ErrArm.of_ok_bind
       return ← errArmChain (← pick gs `h) (depth + 1)
