@@ -213,4 +213,73 @@ theorem annotate_binders_out_aux (m : Nat) :
   rw [arena.core.annotate_lams_leaf, annotateLamsLeaf]
   lockstep_g
 
+section loops
+attribute [local lockstep_simp] absStk_eq
+
+theorem annotate_pis_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers vis st mode lane fu fe lfe lst} (d peel : Std.U64) (t : arena.handle.EIdx)
+      (k : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx)
+      (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      ExprOpsHyp pers → peel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      CoreCtx vis fe lfe → absU fu = f →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.annotate_pis pers vis st mode lane fu fe d peel t k fvs stk) lst
+        (annotatePis (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) n
+          (absEIdx t) (absU k) (absEIdxArr fvs) (absStk stk)) := by
+  induction n with
+  | zero =>
+    intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
+    rw [arena.core.annotate_pis, annotatePis]
+    lockstep_g
+  | succ n ih =>
+    intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
+    rw [arena.core.annotate_pis, annotatePis]
+    lockstep_g
+
+
+@[lockstep] theorem annotate_pis_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe d peel t k fvs stk lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.annotate_pis pers vis st mode lane fu fe d peel t k fvs stk) lst
+      (annotatePis (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absU peel)
+        (absEIdx t) (absU k) (absEIdxArr fvs) (absStk stk)) :=
+  annotate_pis_aux hk _ d peel t k fvs stk hx rfl hrel hinv hctx hf
+
+theorem annotate_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers vis st mode lane fu fe lfe lst} (d peel : Std.U64) (t : arena.handle.EIdx)
+      (k : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx)
+      (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      ExprOpsHyp pers → peel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      CoreCtx vis fe lfe → absU fu = f →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.annotate_lams pers vis st mode lane fu fe d peel t k fvs stk) lst
+        (annotateLams (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) n
+          (absEIdx t) (absU k) (absEIdxArr fvs) (absStk stk)) := by
+  induction n with
+  | zero =>
+    intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
+    rw [arena.core.annotate_lams, annotateLams]
+    lockstep_g
+  | succ n ih =>
+    intro pers vis st mode lane fu fe lfe lst d peel t k fvs stk hx hn hrel hinv hctx hf
+    rw [arena.core.annotate_lams, annotateLams]
+    lockstep_g
+
+
+@[lockstep] theorem annotate_lams_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe d peel t k fvs stk lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.annotate_lams pers vis st mode lane fu fe d peel t k fvs stk) lst
+      (annotateLams (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absU peel)
+        (absEIdx t) (absU k) (absEIdxArr fvs) (absStk stk)) :=
+  annotate_lams_aux hk _ d peel t k fvs stk hx rfl hrel hinv hctx hf
+
+end loops
+
 end ConRon.Refine2.Lockstep
