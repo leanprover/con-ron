@@ -1,5 +1,5 @@
 name = "con-ron"
-defaultTargets = ["ConRon", "ConRonSpike", "ConRonArena"]
+defaultTargets = ["ConRon", "ConRonSpike", "ConRonArena", "ConRonTools"]
 
 # con-leche, the Lean checker this port refines (DESIGN.md §1).  A plain lake
 # dependency (task #91), pinned by `rev`; `proof/lake-manifest.json`'s
@@ -36,6 +36,14 @@ roots = ["ConRon"]
 # ("environment already contains 'alloc.rc.Rc'").  Two library roots keeps
 # both elaborating under a plain `lake build` while keeping them apart
 # (DESIGN.md, task #12).
+# Project tooling that is Lean metaprogramming rather than proof: the `sorry`
+# frontier of task #97-FRONTIER (`#sorry_frontier`, `scripts/frontier.sh`).
+# Depends on Lean core only, so every other library may import it.
+[[lean_lib]]
+name = "ConRonTools"
+roots = ["ConRon.Tools"]
+globs = ["ConRon.Tools.+"]
+
 [[lean_lib]]
 name = "ConRonSpike"
 roots = ["ConRon.Spike.LevelName"]
