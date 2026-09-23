@@ -51159,7 +51159,11 @@ Gates on the merged tip (`4f6f3961` merged in): **all 16 OK**
 1 s, `lake-capstone` 2 s).  Again after merging `arena` `9308f410`
 (#97-P5-POOL, T2-LOCKSTEP step 1 — `Arena/Monad.lean` moved, so everything
 rebuilt): **all 16 OK** (`extract-check` 105 s, `lake-build` 51 s,
-`lake-refine2` 186 s, `lake-bridge` 534 s, `lake-capstone` 3 s).
+`lake-refine2` 186 s, `lake-bridge` 534 s, `lake-capstone` 3 s).  And after
+merging `arena` `18202495` (T2-LOCKSTEP D4 — the port's variant-attempt
+restore, `Generated/**` moved): **all 16 OK** (`extract-check` 190 s,
+`lake-build` 40 s, `lake-refine2` 178 s, `lake-bridge` 522 s,
+`lake-capstone` 3 s).
 
 **The tier went from 5 open statements to 0**, and with them the whole
 Inductives tier is `sorry`-free: `Axioms.lean` prints
@@ -51183,7 +51187,7 @@ ConRon.Capstone.no_False_declaration`:
 * before (`5108218b`, this branch's base, measured with the new module moved
   aside): **65 items in 16 modules, 174 tainted, dead weight 647**; top
   **`Bridge.IndSpec.wf`** (fan-in 9, reach 15).
-* after (the landing tip): **61 items in 14 modules, 152 tainted, dead weight 645**; top
+* after (the landing tip): **61 items in 14 modules, 152 tainted, dead weight 641**; top
   `Refine2.reduce_nat_refines` (fan-in 4, reach 16).  `IndSpec.wf` is gone, and
   no item of this lane remains (the tier is `sorry`-free); every remaining
   item is in `Refine2/**` or `Bridge/Frontend/**`.  (The branch also carries
