@@ -61227,7 +61227,9 @@ bound itself).  Tactic limit 1 not met.
 `scripts/frontier.sh ConRon.Capstone.model_exists
 ConRon.Capstone.no_False_declaration`: **start** (`4265c378`) 50 items / 233
 tainted / dead weight 402; **after this slice** (before the `arena` merge)
-40 / 234 / 379 — DeclCheck 13 → 2 items, Axioms 3 → 0.  Open:
+40 / 234 / 379 — DeclCheck 13 → 2 items, Axioms 3 → 0; **after merging
+`arena`** (`e27b0943`) 37 / 248 / 343.  `scripts/gates.sh`: all 16 OK
+(`LAKE_JOBS=4`).  Open:
 `div_mod_cert_stmts` (the divergence above), `consts_resolve_all` is closed
 but `consts_resolve_f_fast` (Base) is below it; new item surfaced in
 `Checker/Canon.lean` (no lane): `i_constant_info_beq_refines` (fan-in 9) and
