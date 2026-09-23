@@ -58905,6 +58905,7 @@ The eight attempts' copies are noise, as the audit expected.
 | `Bridge/Checker/Base.lean` | docs |
 | `Refine2/Shape.lean`, `Refine2/ExprOps/Mut.lean` | docs |
 Gates: `scripts/gates.sh` on the branch after merging `arena` (`f216c474`...`4f6f3961`): **all 16 OK** (`extract-check` 125 s, `lake-bridge` 536 s).  The shared Lake cache was seeded from this state (`ConRonRefine2 ConRonBridge ConRonCapstone`).
+**Second merge**, `arena` at `5453ac2e` (T2-LOCKSTEP step 1's slice: `arena::monad`/`Arena/Monad.lean`, `Refine2/Specs.lean`, `Bridge/Specs.lean`): `DESIGN.md` conflict only.  `scripts/gates.sh`: the first 14 OK (`extract-check` 115 s, `lake-refine2` 180 s); `lake-bridge` failed on `con-leche` `.olean`s reported missing / "incompatible header" in the shared packages directory, which a concurrent write had touched.  Re-running `lake build ConRonBridge ConRonCapstone` was green (2 805 jobs).  The cache was re-seeded from this state.
 
 ### Task #97-T2-LOCKSTEP step 1 — the foundation: lockstep shapes, twin fixes D2/D3/D5/D6, `Specs.lean`, the bracket (2026-09-23, Opus under Fable)
 
