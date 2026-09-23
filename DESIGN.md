@@ -38677,6 +38677,148 @@ STATEMENTS and no closure count.
 | the diff | `proof/ConRon/Bridge/ExprOps/{Ranges,Subst,MemoSpecs,InstLP,Owed,Inst1}.lean`, `proof/ConRon/Bridge/Specs.lean`, three tokens in `proof/ConRon/Bridge/{Frontend/Shared,Inductives/Rel}.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/` |
 | `#print axioms` | every theorem this round touched: `[propext, Classical.choice, Quot.sound]` |
 
+
+#### Round 5 — the twenty-six frames stated, and the two spellings of `BMExt` (2026-09-23, Opus under Fable)
+
+Branch `p3-exprops-5` off `arena`'s tip `b0d3fb18`, merged forward once
+(`c87b3ee6`).  The subject is round 4 §7's own open item: **the twenty-six
+specs that stated `Ext` and no `BMExt`**, taken in one pass because three
+tiers have already hit this species from downstream and the coordinator asked
+before a fourth did.  Nothing outside `proof/ConRon/Bridge/ExprOps/**` is
+written except **one token** in `Bridge/Core/Walks/Spine.lean` (§4) and the
+`lakefile.toml` note of §5.
+
+#### 1. Twenty-six, twenty-eight, and why both numbers are right
+
+Round 4 §7's table lists **28 names** and its prose says **26**.  Both are
+correct and the difference is the finding: `AbsRangeGoSpec` and `RenameSpec`
+(`Owed.lean`) already carry
+
+    (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m)
+
+which is `BMExt`'s *definition* — the same spelling round 4 declared COMPLETE
+for `Abs.lean`'s `Abs1Spec` and its ten arms and hops.  They are complete and
+were left alone; the other **26 are now stated**, and the count reconciles.
+
+| file | specs widened | what it cost |
+|---|---|---|
+| `Abs.lean` | `AbsRangeSpec` | 5 × `BMExt.refl _`, 6 × `grind only [BMExt, BMExt.trans, BMExt.refl]` |
+| `Inst1.lean` | `instantiate1Fast_spec` (+ its `_run`) | **nothing** — `bridge_vcs` took it unchanged |
+| `Spine.lean` | `mkAppN_spec`, `mkAppNFrom_spec`, `bvarRange_spec`, `pisToLams_spec`, `replacePiBody_spec`, `instSpine_spec`, `instPis_spec`, `instPisAt_spec`, `instLamsAt_spec` | 15 × `BMExt.refl _`, 9 × `grind only [BMExt.trans, BMExt.refl]` |
+| `TelescopeF.lean` | `InstListSpec`, `instPisAtFGo_spec`, `instLamsAtFGo_spec`, `instPisAtF_spec`, `instLamsAtF_spec`, `recRulePlain_spec` | 5 × `BMExt.refl _`, 7 × `grind only [BMExt.trans, BMExt.refl]` |
+| `Owed.lean` | `abstract1Fast_spec`, `abstractRangeGo_spec`, `abstractRangeFast_spec`, `resetMetaFast_spec`, `renameConstsGo_spec`, `renameConstsFast_spec`, `InstLPSpec`, `instLPGo_spec`, `instLPFast_spec` | 9 `bridge_vcs` calls gained the `BMExt` unfolding hint, 5 × `BMExt.refl _`, 8 tuple slots, one new five-line lemma |
+
+31 statement lines in all: the 26 registered postconditions, the `_run` twin
+of `instantiate1Fast_spec`, and the four local `have hinst` restatements of
+`instantiate1Fast_spec` inside `Spine.lean`'s four folding walks (a `have`
+that repeats a spec's postcondition has to be widened with it, or its body no
+longer typechecks).
+
+`Bridge/ExprOps/**` stays at **0 `sorry` across all thirteen modules**, and
+no closure count moved: this round changed 26 statements and closed no new
+goal.
+
+#### 2. The finding: `grind` does not bridge `BMExt`'s two spellings
+
+Round 4 priced the edit at *"one `BMExt.refl _` or one `by grind only
+[BMExt.trans, BMExt.refl]` per verification condition"*.  That price is right
+in `Inst1`, `Spine` and `TelescopeF` and **wrong in `Abs` and `Owed`**, and
+the reason is an import:
+
+* `Bridge/Specs.lean`'s `internE_spec` states `BMExt s₀.store s'.store`
+  FOLDED;
+* `ExprOps/MemoSpecs.lean`'s `internE_specV` — `@[spec high]`, so it WINS
+  wherever it is imported — states the same fact UNFOLDED, as
+  `(∀ mi m, … viewBM … )`.
+
+`Abs`, `Reset`, `InstLP` and `Owed` import `MemoSpecs`; `Inst1`, `Spine` and
+`TelescopeF` do not.  So in half the tier the arm's context holds the
+unfolded form while the widened postcondition asks for the folded one, and
+`grind only [BMExt.trans, BMExt.refl]` **fails**: it treats `BMExt a b` as an
+atom and never connects it to the ∀-statement beside it.  (`BMExt.get` is
+`@[grind →]`, which is what makes the folded form work at all.)
+
+**The fix is one token**: put the *definition* `BMExt` in the `grind`
+parameter list — `grind only [BMExt, BMExt.trans, BMExt.refl]`, and
+`bridge_vcs [Expr.abstract1, BMExt]` for the closer, which already carries
+`BMExt.trans`/`BMExt.refl` but had nothing to unfold with.  Nine `bridge_vcs`
+calls in `Owed.lean` and six `grind`s in `Abs.lean` take it, and every one of
+them then closes.  **The closer in `Bridge/Specs.lean` was deliberately NOT
+changed**: adding `BMExt` to its standing list would unfold the relation in
+every `bridge_vcs` of all 83 modules of the tier, under four live agents, for
+a gain that is one token at each of the fifteen sites that actually need it.
+
+#### 3. `substL*MemoAt_spec` frames the nested stores and not `BMExt`
+
+`InstLPSpec`'s `sort` and `const` arms are the one place in the twenty-six
+where the conjunct is not already in the arm's context in either spelling.
+They run `substLMemoAt` / `substLsMemoAt`, whose Theorem 1 (`ExprOps/
+InstLP.lean`) frames `pers`, `scr` and `scratchOn` — round 4 §7's *"complete
+in substance"* — and the lemma that turns those three into a `BMExt` is
+`bmExt_of_nested`, which lives in `Bridge/Inductives/Rel.lean`, another
+tier's file and not in this one's import closure.
+
+`ExprOps/Owed.lean` therefore gains **`bmExt_of_tables`**, five lines beside
+its own `view_eq_of_tables` (the identical argument at `EStore.view`), and
+the two arms close as
+
+    BMExt.trans (bmExt_of_tables (by assumption) (by assumption) (by assumption)) _hbm
+
+`bmExt_of_nested` and `bmExt_of_tables` are the same three lines in two
+files.  The fact belongs beside `BMExt.intern` in `Bridge/StoreBM.lean`; a
+round that owns both `Bridge/StoreBM.lean` and `Bridge/Inductives/Rel.lean`
+should move it there under one name and delete the other two.  This round did
+not, because `Inductives` has a live agent and the name is used three times
+in the file it would be deleted from.
+
+#### 4. What moved outside the lane: one token
+
+| file | edit | why |
+|---|---|---|
+| `Bridge/Core/Walks/Spine.lean` | `intro h1 h2 h3 h4 h5 h6` → `intro h1 h2 _hbm h3 h4 h5 h6` | `instantiate1Fast_spec` gained a conjunct |
+
+Round 4's rule again, and for the last time in this tier: **a positionally
+destructured postcondition cannot be widened without touching its
+consumers.**  `instantiate1Fast_specE` is the only code consumer of any of
+the twenty-six outside `Bridge/ExprOps/**` — every other out-of-tier mention
+found by the sweep is a doc comment.  It has **no consumers of its own yet**,
+so it was left at its old strength rather than widened: the Core tier can add
+`BMExt s₀.store s'.store ∧` to its postcondition and pass `_hbm` through in
+three lines whenever `whnfBody`'s delta half wants it.
+
+#### 5. `lakefile.toml`'s `ConRonBridge` note, corrected
+
+Round 4 closed finding 18 and left the note that justified `globs` saying
+something false: *"Two modules of the `ExprOps` tier cannot sit in ONE import
+closure."*  They can, since `Bridge/Specs.lean` took ownership of all
+fourteen derived `match` auxiliaries.  The note now says what is still true
+(the tier's modules are siblings, and `ConRon.Bridge`'s fifteen imports reach
+only a part of its 83 modules, so `globs` is what builds them), records the
+wall and its removal as history, and says explicitly that `globs` stays for
+the sibling shape and not because an import would fail.
+
+#### 6. The sweep, re-run
+
+Round 4 §7's check — *for every `…Spec` record and every `_spec` of
+`Bridge/ExprOps/**`, does the postcondition state each component of the frame
+its grade promises?* — is now **complete for `BMExt`**: every spec of the
+tier states it, in one spelling or the other, and the two spellings are
+listed in §2 so the next reader knows which `grind` to write.  The other
+components were already complete after round 4 (no spec writes a cache table
+without framing it; every memoised walk frames its own table).
+
+#### 7. Gates
+
+`scripts/gates.sh` on the merged tip, once: **all 13 OK**.  `ConRonBridge` is
+not a default target, so it was built separately: **617 jobs, green**, with
+`Bridge/ExprOps/**` at **0 `sorry` across all thirteen modules**.
+
+| | |
+|---|---|
+| branch | `p3-exprops-5` off `arena` `b0d3fb18`, merged forward once (`c87b3ee6`) |
+| the diff | `proof/ConRon/Bridge/ExprOps/{Abs,Inst1,Spine,TelescopeF,Owed}.lean`, `proof/lakefile.toml`, one token in `proof/ConRon/Bridge/Core/Walks/Spine.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, and **no `Bridge/Specs.lean`** |
+| `#print axioms` | every theorem this round touched: `[propext, Classical.choice, Quot.sound]` |
+
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the Core round: DESIGN §8.2's **Theorem 1** at
