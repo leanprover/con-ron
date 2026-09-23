@@ -218,16 +218,6 @@ theorem basis_pin_hit_refines {pers st lst} {block : alloc.vec.Vec arena.env.ICo
       (basisPinHit (absICIL block)) := by
   sorry
 
-open Lockstep in
-@[lockstep] theorem basis_pin_hit_ls {pers st lst}
-    {block : alloc.vec.Vec arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map ConRon.Refine.absBasisKind) a)
-      (arena.basis.basis_pin_hit pers st block) lst
-      (basisPinHit (absICIL block)) :=
-  LS.ofSim₀ fun _ h => basis_pin_hit_refines hrel hinv h
-
 /-- `quot_pin_hit` ⊑ `quotPinHit` — the record is the pinned package's constant at the slot it declares itself at, compared at `toConstantVal`. -/
 theorem quot_pin_hit_refines {pers st lst} {k : kernel.env.QuotKind} {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

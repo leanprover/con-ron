@@ -2556,14 +2556,25 @@ theorem pinSetFrom_nil (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
   simp only [absINatOpPinSetLFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
 
 open Lockstep in
-@[lockstep] theorem check_div_mod_pin_try_ls {pers st lst} {vis : Std.U64} {rf lf}
+/-- `check_div_mod_pin_try` in the loop's judgement, at the variant under the
+cursor; the loop's own statement at `i + 1` is the hypothesis `hloop` (the two
+are one recursion). -/
+theorem check_div_mod_pin_try_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx}
     {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
     {tried : alloc.vec.Vec Std.U32} {ltried : List String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
-    (hi : i.val < variants.val.length) :
+    (hi : i.val < variants.val.length)
+    (hloop : ∀ (st' : arena.monad.AState) (lst' : AState) (i' : Std.Usize)
+        (tried' : alloc.vec.Vec Std.U32) (ltried' : List String) o',
+      i'.val = i.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+      arena.decl_check.check_div_mod_pin_loop pers vis st' mode rf c value2
+        variants i' tried' = ok o' →
+      Sim₀ (fun _ : Unit => ()) pers lst' o'
+        (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
+          (absEIdx value2) (absINatOpPinSetLFrom variants i') ltried')) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
       (arena.decl_check.check_div_mod_pin_try pers vis st mode rf c value2
         variants i tried) lst
@@ -2571,8 +2582,10 @@ open Lockstep in
         (absEIdx value2) (absINatOpPinSet variants.val[i.val])
         ((variants.val.drop (i.val + 1)).map absINatOpPinSet) ltried) := by
   refine LS.ofSim₀ fun _ h => ?_
-  have h1 := check_div_mod_pin_try_refines (ltried := ltried) hrel hinv hfe.rel hfe.inv hvis
-    (List.getElem?_eq_getElem hi) h
+  have h1 := check_div_mod_pin_try_refines (ltried := ltried) hrel hinv
+    (List.getElem?_eq_getElem hi)
+    (fun _ _ _ h1 h2 h3 => check_div_mod_pin_at_refines h1 h2 hfe.rel hfe.inv hvis h3)
+    hloop h
   rwa [pinSetFrom_cons variants i hi, List.tail_cons] at h1
 
 theorem checkDivModPinLoop_cons_try (mode : ConLeche.CheckMode) (fe : IFEnv) (c : NIdx)
@@ -2615,6 +2628,16 @@ theorem check_div_mod_pin_loop_aux (n : Nat) :
     rw [if_neg (by scalar_tac)]
     refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
     subst hp
+    have hT : ∀ {st lst tried ltried}, AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => b = (fun _ : Unit => ()) a)
+          (arena.decl_check.check_div_mod_pin_try pers vis st mode rf c value2 v i tried) lst
+          (checkDivModPinTrySpec (ConRon.Refine.absMode mode) lf (absNIdx c)
+            (absEIdx value2) (absINatOpPinSet v.val[i.val])
+            ((v.val.drop (i.val + 1)).map absINatOpPinSet) ltried) :=
+      fun h1 h2 => check_div_mod_pin_try_ls h1 h2 hfe hvis hlt
+        fun _ _ i' _ _ _ hi' h3 h4 h5 =>
+          LS.toSim₀ (ih (mode := mode) (c := c) (value2 := value2) v i' _ _ (by omega)
+            h3 h4 hfe hvis) h5
     lockstep
     all_goals
       have ha : a.val = i.val + 1 := by simpa using hP
