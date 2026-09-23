@@ -30,7 +30,7 @@ PrepareR.lean` is where the `Expr`-tree port's version of it was proved
 (1 904 lines, `front_of_refines`).  Over handles the argument is the same; the
 proof is not transcribed here, for the reason DESIGN.md's section gives.
 
-## `sorry` count in this file: 12
+## `sorry` count in this file: 2
 -/
 import ConRon.Refine2.Frontend.Types
 
@@ -204,7 +204,50 @@ theorem i_declaration_dup_abs {d o : arena.env.IDeclaration}
 this tier for the same reason. -/
 theorem i_declaration_names_abs {d : arena.env.IDeclaration} {v}
     (h : arena.env.i_declaration_names d = ok v) :
-    v.val.map absNIdx = (absIDeclaration d).names := by sorry
+    v.val.map absNIdx = (absIDeclaration d).names := by
+  have one : ∀ {cv : arena.env.IConstantVal} {v},
+      arena.env.i_declaration_one_name cv = ok v → v.val.map absNIdx = [absNIdx cv.name] := by
+    intro cv v h
+    rw [arena.env.i_declaration_one_name] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [ConRon.Refine.vec_push_val h, dupId_nidx _ _ hn]
+    simp [alloc.vec.Vec.with_capacity]
+  have from_ : ∀ (block : alloc.vec.Vec arena.env.IConstantInfo) (k : Nat) (i : Std.Usize)
+      (out v : alloc.vec.Vec arena.handle.NIdx),
+      block.val.length - i.val = k →
+      arena.env.i_constant_info_names_from block i out = ok v →
+      v.val.map absNIdx = out.val.map absNIdx ++
+        (block.val.drop i.val).map (fun c => (absIConstantInfo c).name) := by
+    intro block k
+    induction k with
+    | zero =>
+      intro i out v hk h
+      rw [arena.env.i_constant_info_names_from] at h
+      rw [if_pos (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]; simp
+    | succ k ih =>
+      intro i out v hk h
+      rw [arena.env.i_constant_info_names_from] at h
+      rw [if_neg (by scalar_tac)] at h
+      obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v := usize_add_one_inv hi2
+      rw [ih i2 out1 v (by omega) h, ConRon.Refine.vec_push_val ho1, hi2v]
+      obtain ⟨hlt, hx⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hc)
+      rw [List.drop_eq_getElem_cons (l := block.val) hlt, hx]
+      simp [i_constant_info_name_abs hn]
+  rw [arena.env.i_declaration_names.eq_def] at h
+  cases d <;> simp only at h
+  all_goals first
+    | (rw [one h]; rfl)
+    | (cases Result.ok_injective h; rfl)
+    | skip
+  rename_i block np
+  rw [from_ block _ 0#usize _ v rfl h]
+  simp [absIDeclaration, IDeclaration.names]
 
 /-- **`prepare::prelude_key` refines `preludeKey`**
 (`Arena/Frontend/Prepare.lean:56-59`).  The one reason this takes the store is
@@ -227,12 +270,118 @@ theorem prelude_key_refines {pers rst lst d o}
 `IDeclaration.names` is pure, which is what keeps `findIdx`'s predicate a
 predicate (`Arena/Env.lean`'s `tableName` note). -/
 theorem declares_refines {n d v} (h : frontend.prepare.declares n d = ok v) :
-    v = declares (absNIdx n) (absIDeclaration d) := by sorry
+    v = declares (absNIdx n) (absIDeclaration d) := by
+  rw [frontend.prepare.declares] at h
+  obtain ⟨ns, hns, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [declares, ← i_declaration_names_abs hns]
+  rw [arena.env.nidx_vec_contains] at h
+  have key : ∀ (k : Nat) (i : Std.Usize) (o : Bool), ns.val.length - i.val = k →
+      arena.env.nidx_vec_contains_from ns i n = ok o →
+      o = ((ns.val.drop i.val).map absNIdx).contains (absNIdx n) := by
+    intro k
+    induction k with
+    | zero =>
+      intro i o hk h
+      rw [arena.env.nidx_vec_contains_from] at h
+      rw [if_pos (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]; rfl
+    | succ k ih =>
+      intro i o hk h
+      rw [arena.env.nidx_vec_contains_from] at h
+      rw [if_neg (by scalar_tac)] at h
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbv : b = (absNIdx n1 == absNIdx n) := nidx_eq2_abs hb
+      obtain ⟨hlt, hx⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hn1)
+      rw [List.drop_eq_getElem_cons hlt, hx, List.map_cons, List.contains_cons]
+      cases hbb : b
+      · rw [hbb] at h hbv
+        rw [if_neg (by simp)] at h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        rw [ih i2 o (by have := usize_add_one_inv hi2; omega) h,
+          usize_add_one_inv hi2]
+        have : (absNIdx n == absNIdx n1) = false := by
+          rw [BEq.comm]; exact hbv.symm
+        simp [this]
+      · rw [hbb] at h hbv
+        rw [if_pos (by simp), Result.ok.injEq] at h
+        subst h
+        have : (absNIdx n == absNIdx n1) = true := by
+          rw [BEq.comm]; exact hbv.symm
+        simp [this]
+  rw [key _ 0#usize v rfl h]
+  simp
 
 /-- **`prepare::pick_idx`** against this file's transcription. -/
 theorem pick_idx_refines {n ds picked k}
     (h : frontend.prepare.pick_idx n ds picked = ok k) :
-    k.val = pickIdx (absNIdx n) (absIDeclArr ds) picked.val := by sorry
+    k.val = pickIdx (absNIdx n) (absIDeclArr ds) picked.val := by
+  -- once a hit is recorded the loop only returns it
+  have found : ∀ (k' : Nat) (i hit r : Std.Usize), ds.val.length - i.val = k' →
+      hit ≠ alloc.vec.Vec.len ds →
+      frontend.prepare.pick_idx_loop n ds picked (alloc.vec.Vec.len ds) i hit = ok r →
+      r = hit := by
+    intro k' i hit r _ hne h
+    rw [frontend.prepare.pick_idx_loop] at h
+    split at h <;> exact (Result.ok_injective h).symm
+  have key : ∀ (k' : Nat) (i r : Std.Usize), ds.val.length - i.val = k' →
+      i.val ≤ ds.val.length →
+      frontend.prepare.pick_idx_loop n ds picked (alloc.vec.Vec.len ds) i
+        (alloc.vec.Vec.len ds) = ok r →
+      r.val = i.val + pickL (declares (absNIdx n))
+        ((ds.val.map absIDeclaration).drop i.val) (picked.val.drop i.val) := by
+    intro k'
+    induction k' with
+    | zero =>
+      intro i r hk hle h
+      rw [frontend.prepare.pick_idx_loop] at h
+      rw [if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by simp only [List.length_map]; omega)]
+      simp [pickL]; scalar_tac
+    | succ k' ih =>
+      intro i r hk hle h
+      rw [frontend.prepare.pick_idx_loop] at h
+      rw [if_pos (by scalar_tac), if_pos rfl] at h
+      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hit1, hh1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi1v := usize_add_one_inv hi1
+      obtain ⟨hbl, hbx⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hb)
+      have hlt : i.val < ds.val.length := by omega
+      have hA : (ds.val.map absIDeclaration).drop i.val =
+          absIDeclaration ds.val[i.val] :: (ds.val.map absIDeclaration).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (by simp only [List.length_map]; exact hlt)]
+        simp
+      have hB : picked.val.drop i.val = b :: picked.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hbl, hbx]
+      rw [hA, hB]
+      simp only [pickL, List.headD_cons, List.tail_cons]
+      split at hh1
+      · rename_i hbt
+        cases Result.ok_injective hh1
+        rw [ih i1 r (by omega) (by omega) h, hi1v]
+        simp [hbt]; omega
+      · rename_i hbf
+        obtain ⟨d, hd, hh1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hh1
+        obtain ⟨b1, hb1, hh1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hh1
+        obtain ⟨_, hdx⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hd)
+        have hdecl := declares_refines hb1
+        rw [← hdx] at hdecl
+        split at hh1
+        · rename_i hb1t
+          cases Result.ok_injective hh1
+          have := found _ i1 i r rfl (by scalar_tac) h
+          subst this
+          simp [hbf, ← hdecl, hb1t]
+        · rename_i hb1f
+          cases Result.ok_injective hh1
+          rw [ih i1 r (by omega) (by omega) h, hi1v]
+          simp [hbf, ← hdecl, hb1f]; omega
+  rw [frontend.prepare.pick_idx] at h
+  have := key _ 0#usize k rfl (by simp) h
+  simpa [pickIdx, absIDeclArr] using this
 
 /-- **`prepare::no_picks`** — `n` falses. -/
 theorem no_picks_refines {n v} (h : frontend.prepare.no_picks n = ok v) :

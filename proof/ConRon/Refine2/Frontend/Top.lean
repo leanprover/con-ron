@@ -42,7 +42,7 @@ declaration `Modeller::generate` returns is well formed"*, and over handles
 `DeclRecStrWF` does not appear either — it is inside `ScanSpec.scanLineStr`,
 which is where the scanner owes it.
 
-## `sorry` count in this file: 15
+## `sorry` count in this file: 7
 -/
 import ConRon.Refine2.Frontend.ExportCInd
 
@@ -288,10 +288,15 @@ theorem usize_numBits_le : UScalarTy.numBits .Usize ≤ 64 := by
 /-- **`CHUNK_SIZE` refines `chunkSize`** (`ExportC.lean:768`). -/
 theorem chunk_size_refines {v} (h : frontend.export_c.CHUNK_SIZE = ok v) :
     v.val = chunkSize.toNat := by
-  -- `4 * 1024 * 1024` on both sides, but the twin's is a `USize` numeral and
-  -- the port's a `Std.Usize` product; the round trip wants `USize.toNat` of a
-  -- literal, which neither `decide` nor `simp` takes here.
-  sorry
+  rw [frontend.export_c.CHUNK_SIZE] at h
+  obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [(ConRon.Refine.Nat.umul_val h).2, (ConRon.Refine.Nat.umul_val ha).2]
+  have hc : chunkSize.toNat = 4194304 := by
+    simp only [chunkSize]
+    cases System.Platform.numBits_eq with
+    | inl h32 => simp [USize.toNat_mul, USize.toNat_ofNat, h32]
+    | inr h64 => simp [USize.toNat_mul, USize.toNat_ofNat, h64]
+  rw [hc]; rfl
 
 /-- **`concat_bytes` refines `concatBytes`** (`ExportC.lean:824-826`). -/
 theorem concat_bytes_refines {chunks v}
