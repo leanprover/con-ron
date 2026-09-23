@@ -2983,6 +2983,25 @@ denotation; a twin-ledger row of the "shape" kind.
     lake package); only term-touching algorithms get handle twins.
     Accepted by the maintainer 2026-09-20.
 
+### 8.x Deferred cleanups (after the campaign closes)
+
+Things deliberately left for the end, recorded here so they are not lost.
+
+* **Prove the `Native` guards unreachable (completeness).**  Theorem 2
+  claims nothing when the port raises `CheckError::Native`, which is what
+  makes it a *partial*-correctness statement: sound, but silent about a run
+  that declines where it should accept.  On 2026-09-22 the maintainer ruled
+  the ~20 `M_FROZEN` sites in `arena::store` (`shared_on` set during a
+  persistent intern) from `Internal` to `Native` — "fine for now, it gives
+  partial correctness; but if there is an invariant why we do not hit this
+  code path we should be able to prove this."  So, once every `sorry` is
+  gone: for each `Native` site, either prove it unreachable from the
+  checker's entry (the frozen guard should follow from the phase discipline:
+  nothing interns persistently while the tier is shared), or document why it
+  is a genuine resource limit (the capacity guards are: `u32` handles).  The
+  same pass covers the `as usize` casts task #97-P5-Usize left in class (a)
+  "bounded by an invariant" — each such citation should become a lemma.
+
 ## Task log
 
 `spikes/` was removed at publication (task #76); its contents are in the
