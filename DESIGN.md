@@ -59533,3 +59533,133 @@ steps before `extract-check`, ~20 s together, always run):
 When unsure, run the full gates.  A landing whose merge from the lane's view
 was clean but whose union with the other queued branches breaks a proof is
 bounced to that lane with the failing log, never patched in the queue.
+
+### Task #97-T2-LOCKSTEP lane Inductives — the tier on the lockstep shapes; its twin/Rust divergences fixed in the twin (2026-09-23, Opus under Fable)
+
+The brief: take the inductives tier (`Refine2/Inductives/**`, Theorem 2) onto
+`AStateRel₀`/`Sim₀`/`SimRel₀` (task #97-T2-LOCKSTEP step 1), fix the tier's
+twin/Rust divergences **in the twin**, retire the `Specs.lean` shims the tier
+keeps alive, and prove through the shared `lockstep` tactic where it
+applies.  Worktrees `_tmp/wt-t2-ind` (slice 1, landed with `land.sh` before
+task #97-MQ) and `_tmp/wt-t2-ind2` (slices 2–3, submitted to the queue).  No
+semantic invariant was added to any statement; seven were removed.
+
+#### 1. The statements (slice 1, landed at `9dc13d78`)
+
+* Every statement of the tier moved to the lockstep shapes: 253 `AStateRel₀`
+  premises, every `Sim A (fun _ => True)` to `Sim₀ A`, `SimRel` to `SimRel₀`.
+  The three memo-threading walks (`hasLooseBVarBGo`, `mentionsConstGo`,
+  `mentionsFvarGo`) conclude `SimRel₀ WOutRel`/`LOutRel` (`Inductives/Shape.lean`:
+  the answer bit equal and the memos related — `ExprOps/Read.lean`'s
+  `WOut`/`LOut` without the `Ext`/`StoreWF` they carried).
+* `sim_cursor_copy`/`sim_vec_cursor_copy` (round 4's stateful recipe) lost the
+  side condition `Q` and `AOut.ext_left`: under `AStateRel₀` nothing is carried
+  across a step.
+* `inductives_check_ind_decl_refines` (the tier's top) takes and concludes
+  `IFEnvRelI` — what `Checker/Top.lean`'s `check_ind_decl_refines` consumes on
+  the checker lane — and no `KnotRel` binder.  **`ind_rel`/`ind_rel_of_knot`
+  are deleted**: `IndRel` (`Checker/Shape.lean`, the checker lane's) is stated
+  over the old `AStateRel`/`SimRel`, which a lockstep statement does not imply,
+  and nothing consumes it any more.  The structure itself is left to its owner.
+* **Round 4's bundle recommendation is unnecessary.**  Every `₀` intern of
+  `Specs.lean` has premises `hrel₀ hinv hrun` plus, at most, a representation
+  fact about its Rust INPUT (`NNodeViewWF`, `PropWhenWF`, `LevelWF`/`NameWF`
+  of a tree); no scratch or frozen flag appears anywhere.  So the tier's 212
+  intern-reaching statements need no hypothesis beyond `hrel₀ hinv`.
+
+#### 2. The divergences (slices 2 and 3)
+
+Four read-only auditors compared every Rust function of `arena/inductives/**`
+with its twin (one per file group).  Every row below was re-read on both sides
+and fixed in the twin; the Rust changed in comments only
+(`scripts/twin-lines.py update`, one repointed citation, one comment).
+
+| class | sites |
+|---|---|
+| **D1, tag-first** (the audit's 17) | `eqApp3?` (4 levels), `nestedRuleShape` (the major's domain, its head), `checkIotaThmN` (the residual head), `recPositivity` (+ its leaf), `piBinders`, `nativeCounts?`, `nativeShape?` (the sort read), `replacePisPw`, `pisToLamsPw`, `structShape` (the former's residual, the motive's domain and codomain), `structPartsCore?`, `structProjBodiesGo`, `checkSumTele`, `normPosDom`, `normFieldDoms` |
+| **short-circuit** (Lean lifts `(← f)` out of `&&` and multi-scrutinee `match`es; the Rust stops early) | `structShape` (three `stripPis`), `structPartsCore?` (`structShape` under the pure tests, at both eliminators), `nativeRulePrefixOk` (`stripPis` under `stripLams`), `checkEtaThm`, `checkUnitThm` |
+| **extra reads** (the twin read a NAME the port never reads, for a message) | `checkIotaThm`, `checkIotaThmN`, `checkIotaRule` (two), `checkIotaSidesTy` (three; its `cvName` parameter is gone), `checkMemberVal`'s no-model decline, `checkIndMember`'s non-inductive decline |
+| **order** | `checkIotaThm`/`checkIotaThmN` read `eqHeadLevel` in the prologue, where `iota_stmt_open_at` does (round 1's finding 20) |
+| **recomputed effect** | `checkEtaThm` re-reads `paramLevels` for the constructor head and per projection, as `check_eta_thm_eq`/`eta_proj_args` do (round 4 §R4.6's third defect: the twin was the odd one out) |
+| **messages** | the head/arity/prefix pins of both iota checks decline with one message, the port's `M_IOTA_HEAD` (round 4 §R4.6's first two defects) |
+| **structure** | `nativeOpenedOk`'s per-field dispatch matches `xFvs[i]?` before the kind (it matched the two together) — round 2's defect; the effects were already equal |
+
+`recPositivityAt` is new: the Rust's `rec_positivity_at` (the leaf past the
+`mentionsConst` test), so the tag-first dispatch does not spell the leaf
+twice.
+
+**Theorem 1 repairs** (`Bridge/Inductives/{StructParts,NativeParts,SumInstall,Modeled}.lean`,
+proofs only, no statement changed except `checkIotaSidesTy_spec`'s program,
+which lost the name argument): each tag-first site is Core round 4's
+`tagIf_view_run` step before the old proof (`denoteE_view` gives the view);
+the short-circuits reorder the `bindOk`s; `structPartsCore?_run`'s eliminator
+split is re-proved with one `small` helper for the small arm;
+`checkEtaThm_spec` threads the second `paramLevels`; the name reads' failure
+arms are `AM.Never.fail`.  `nestedRuleShape_spec` runs at `maxHeartbeats
+400000` (two `simp_all`s in its off-shape arms).  `Arena/InductivesTest.lean`'s
+differential compares error KINDS (the modelled declines are the port's
+constants now), the ruling `CheckerTest.lean` already has.
+
+#### 3. The transcriptions and the statements they fixed
+
+* `Spec.lean`/`SpecModeled.lean` follow the twin at every site above.
+  **`nativeOpenedOk_unfold` is closed** (the transcription read
+  `xFvs.getD i default` where port and twin both answer `false` off the end)
+  and **`checkEtaThm_unfold` is closed**.  `checkIotaThm_unfold` and
+  `checkIotaThmN_unfold` are TRUE now (one message), and still `sorry`: the peel
+  through the tier's longest `do` block exhausts the default heartbeats at its
+  prologue.  `checkModeled_unfold` is unchanged (round 4's matcher issue).
+* `rec_positivity_at_refines` was stated against a transcription that
+  included the `mentionsConst` test the port makes BEFORE the call; it is now
+  against `recPositivityAt`.
+* **The seven `hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome` hypotheses
+  are gone** (round 1's finding 21 — a fact about the twin's store), and so are
+  the statements' quantified-over message names (`lnm`) and the name argument
+  of the two side-certification statements (finding 22).
+
+#### 4. Proofs
+
+| lemma | how |
+|---|---|
+| `struct_elim_level_refines`, `struct_proj_arg_p_refines` | **one `lockstep` call** after `refine LS.toSim₀ ?_ hrun; rw [rust, twin]`; the one missing primitive was the `NIdx` copy (`nidx_dup2_spec`, `Tactic/Prims.lean` — the ExprOps lane carries the same fact as `dup2_nidx` on its branch; whichever lands second keeps one) |
+| `param_levels_go_refines`, `param_levels_refines` | the stateful cursor recipe (`sim_vec_cursor_copy`) and `intern_ls_node_run₀` |
+| `nativeOpenedOk_unfold`, `checkEtaThm_unfold` | §3 |
+
+The tier's `sorry`s: **255 → 249**.  The rest is gated on callees outside the
+lane: the tier's 414 Rust functions call about 65 external ones — `strip_pis`
+(28 call sites), `mk_app_n` (19), `get_app_args`/`get_app_fn`, `rename_consts_fast`,
+`fvar_type_d`, `lift_loose_bvars_fast`, `infer_type_core`/`is_def_eq_core`,
+`check_constant_val`, `ifenv_*`, `intern_n_node` — whose `@[lockstep]` lemmas
+are on the ExprOps, Core and Checker lanes' branches and not yet on `arena`.
+The recipe for the next round: an `_ls` companion per `_refines`
+(`LS.ofSim₀`/`ofSimRel₀`), then `lockstep` per statement.
+
+#### 5. The shims
+
+The one `Specs.lean` shim this tier used, `intern_e_bvar_run`
+(`struct_ps_at_from`), is no longer used here; it stays alive through
+`ExprOps/Mut.lean` (its other consumer), so it was not deleted.
+
+#### 6. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `Arena/Inductives/{Modeled,NativeParts,NativeInstall,StructParts,SumInstall}.lean` | the twin fixes (brief) |
+| `Arena/InductivesTest.lean` | the differential compares kinds |
+| `Bridge/Inductives/{Modeled,NativeParts,StructParts,SumInstall}.lean` | Theorem 1 repairs, minimal (brief) |
+| `Refine2/Tactic/Prims.lean` | `nidx_dup2_spec` |
+| `crates/con-ron-core/src/arena/inductives/*.rs` | `twin-lines.py update`, one citation repointed (`rec_positivity_at` → `recPositivityAt`), one comment (`iota_lhs_prefix_ok`) |
+
+#### 7. Frontier and gates
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`:
+at the start (`arena` `18202495`) **65 items in 16 modules, 173 tainted, dead
+weight 643**; at the end (the submitted tip, `arena` `ecee8ea4` merged)
+**55 items in 13 modules, 122 tainted, dead weight 626**.  The item and taint
+movement is the other lanes' landings (task #97-T1-OCC, #97-P3-Ind round 9,
+the Frontend lane); this lane's share is in the dead weight — the tier is dead
+weight on both runs, because `check_ind_decl_refines` (the checker lane's) is
+itself a frontier `sorry` and does not route through this tier yet.
+
+`scripts/gates.sh` on the tip after the one `arena` merge: **all 16 OK**.
+Slice 1 was gated separately before it landed (all 16 OK).
