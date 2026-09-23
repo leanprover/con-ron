@@ -58654,3 +58654,137 @@ Gates: `scripts/gates.sh` all 16 OK on the branch after the third `arena` merge.
 ConRonRefine2 ConRonBridge"` to stop a build of my own that I had started
 twice.  The pattern matched only that worktree's build, and nothing else was
 killed, but the brief says never `pkill`; it is recorded here.
+
+### Task #97-P5-POOL — the pool's claim made structural; stage 6 is the pool (2026-09-23, Opus under Fable)
+
+**The brief** was to prove the pool claim's clause (2), task #97-P5-Driver
+§3: *a record's outcome does not depend on which records its worker checked
+before*.  With it proved, the pool row would be master's
+merge-by-record-index argument alone.  Worktree `_tmp/wt-p5-pool` off `arena`
+`5108218b`.
+
+#### 1. Why clause (2) was not proved (reported first, then ruled)
+
+* **Theorem 2 cannot give the literal claim.**  `Sim₀`/`AErrSim` claim
+  nothing about a Rust `Native` and compare an error's KIND, not its message.
+  Two Rust runs related to the same twin run can therefore still differ:
+  `Ok` against `Native`, or `Invalid m₁` against `Invalid m₂`.  "The pool
+  returns what `check_pending_worker` returns" can come out of Theorem 2 only
+  up to `Native` and messages.
+* **Even that weaker form needs a frame lemma over the whole checker.**  To
+  relate a worker state after k accepted records to `lst.worker` (up to
+  memos), most parts come free: scratch tables, `scratchOn` and caches from
+  the relation to the twin's `dropScratch`, which sets them to the empty
+  literals; memos from `enter_scratch`; `AStateInv` from `Sim`.  Two parts do
+  not: the persistent arm (`rPersE (tierOf …)`) and the pins.  They need
+  either the Rust keeping its four `shared_on` flags and its pins, or the twin
+  keeping its four persistent tables and its pins, across `check_value_group`.
+  `AStateRel₀` relates `w_k` to the lockstep twin state `T_k`, not to
+  `lst.worker`.  No such frame exists: `Refine2` has `shared_on` frames only
+  on intern wrappers and `ExprOps/Mut.lean`'s walks, and `Bridge` has
+  `pins` only under Theorem 1's invariants (`CoreStep.pins`) and only
+  `Ext`/`PExt`, which are denotational, for the store.  The Rust closure of
+  `check_pending` is ≈1 200 definitions of `Generated/Funs.lean`, the twin
+  closure of `checkValueGroup` ≈580.  Either frame is a one-state induction
+  the size of `KnotRel`'s, and `lockstep` is two-state, so it does not apply.
+
+Three options went to the coordinator: (a) that frame; (b) a per-record reset
+in the Rust (flags and `pins_dup`), which makes (2)-up-to-the-twin a page;
+(c) no clause (2) at all.  **Ruling: (c)**, including changing stage 6 of the
+root theorems.
+
+#### 2. What (c) is, and what was proved
+
+A worker IS the verified walk: one `worker_state`, then `check_pending` on
+the records it claims, in claim order, on that one state.  That is
+`check_pending_worker` on its own records.  So nothing about a worker's
+history is needed once each worker is related to the twin on its own and the
+per-record conclusions are gathered at con-leche's level, where each
+record's pure check is at its own prefix environment.
+
+* **`Arena/Pooled.lean`** (new, twin): `PooledAccepts mode pins ds s fe s'`.
+  `annotFold` accepted from `s` ending in `s'`, and record lists `parts`, each
+  drawn from the pending array, together covering it, each accepted by
+  `checkPendingList` from `s'.worker`.  It is a module of its own so that the
+  `ConRon.Arena` aggregator, which half the proof imports, does not rebuild.
+* **`Refine2/Checker/Phased.lean`** (Theorem 2):
+  * `PoolAccepts inst pers st mode pins ds h fe st'` is stage 6 as the driver
+    runs it, spelled with verified calls only: `fold_start`,
+    `annot_fold_hooked` accepting with `(n, fe, pend)` and `st'`,
+    `freeze_tier st'.store` accepting with `tier`, and `parts` (lists of
+    `PendingCheck`, each drawn from `pend`, together covering it), each
+    accepted by `check_pending_worker tier mode fe st'.pins`.  `thaw_tier`
+    then restores `st'.store` exactly (`freeze_tier_ok`), so `st'` is what the
+    fold hands back.
+  * `poolAccepts_of_check_decls_phased`: an accepting `check_decls_phased` is
+    a `PoolAccepts` with one worker.  This is the non-vacuity check: the
+    hypothesis is met by the verified sequential walk.
+  * `pool_accepts_refines`: `check_decls_phased_refines`' hypotheses
+    verbatim; it concludes the twin's `PooledAccepts` from the related state,
+    `IFEnvRel`, and `AStateRel` at `st'`.  Each worker is `worker_state_rel`
+    plus `check_pending_list_refines` on its own list.
+* **`Bridge/Checker/Phased.lean`** (Theorem 1): `Arena.pooledAccepts_bridge`,
+  with `installThenCheckPhased_bridge`'s hypotheses verbatim, concludes that
+  con-leche's `checkDeclsPure` accepts the denoted stream at the environment
+  `fe'` denotes in `s'`.  Per record `p ∈ pendP`, it finds `p`'s handle record
+  (`ListRel`), a list that covers the record, and a related pure list through
+  `p`.  `checkPendingList_worker` moves the list's run to the phase-A state,
+  and `Arena.checkPendingList_bridge`, which is stated for ANY related list,
+  gives `p`'s pure accept.  `PhaseA.foldlM` assembles the fold.  Four small
+  `ListRel` helpers are private to the file.
+* **`Capstone.lean`**:
+  * `rust_stages`, `model_exists` and `no_False_declaration` take
+    `(h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6)` in
+    place of the `check_decls_phased` run.
+  * `stages_model` takes the twin's `PooledAccepts` and goes through
+    `Arena.pooledAccepts_bridge`.
+  * **`no_False_declaration` now goes through the pure fold**, the open
+    question of the ruling.  It went through: the pooled phase B is several
+    worker walks, so there is no `Arena.runPipeline` run to refute.  The
+    route is `Arena.no_False_declaration_pipeline`'s own last steps:
+    * new `stages_false_mem` is `stages_frame`'s steps keeping the pure parse
+      (`parseChunks_run`'s fourth conjunct), then
+      `parseChunks_jsonWithTheoremFalse` and `mem_preparePrelude`: the file's
+      `False` theorem is in the denoted stream;
+    * new `stages_no_False` puts that next to `Arena.pooledAccepts_bridge`'s
+      pure accept of the same stream (`denoteDecls` is a function), and
+      `no_False_theorem_accepted_pure` refutes it.
+
+    Neither statement is weakened.
+  * `runPipeline_ok_of_stages` and `stages_installThenCheck` had no other
+    user and are deleted.  `check_decls_phased_refines` and
+    `installThenCheckPhased_bridge` stay, and `poolAccepts_of_check_decls_phased`
+    ties them to the new stage.
+
+No `sorry` added, no Rust code changed, and no semantic invariant added to
+Theorem 2.  The `hwork` obligation on `declResolves_of_stages` is untouched:
+every worker is still related from `lst.worker`, so this does not make it moot.
+It goes with `ResolveInv` in the Checker lockstep lane.  Frontier
+(`scripts/frontier.sh --summary` of the two roots): **65 items in 16 modules,
+173 tainted declarations** here, against 65 / 174 on the branch point.  The
+one declaration fewer is the `runPipeline` route.
+
+#### 3. The trust surface
+
+The pool row (OVERVIEW §8.2, `pool.rs`'s note "THE TRUSTED CLAIM") now reads:
+**when `check_pool` accepts, every record was checked, and each worker's
+records, in the order it checked them, are accepted by the verified
+`check_pending_worker`** — which is `PoolAccepts`.  It rests on `pool.rs`'s
+control flow and on master's argument only:
+* a worker is `worker_state` then `check_pending` on its claims, threading
+  one state;
+* results are merged by record index and walked in record order;
+* an accept means every slot is `Ok`, and the limit never moves on an
+  accepting run.
+
+Nothing is claimed about the checker.  The unverified crate's three rows are
+master's three: the modeller, the driver's call sequence (its row now says
+the capstone's last stage is the driver's line pool included), and the pool's
+control flow.  The per-worker state reuse (task #97-P6-6b, +16.4 % without it)
+stays and no longer costs a trusted clause.  The failure side (first failure
+in fold order) is kept and tested but is not part of what the capstone uses.
+Edits outside the proof: the module note and `check_pool`'s doc comment in
+`crates/con-ron/src/pool.rs`, the driver's doc comment in
+`crates/con-ron/src/driver.rs` (comments only), OVERVIEW §8.2's driver and
+pool rows, and `scripts/overview-links-expected.txt` (the pool anchor is now
+`#L46-L100`).
