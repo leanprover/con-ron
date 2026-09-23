@@ -56,11 +56,9 @@ the call site rather than here:
 
 1. **The entries are LOCKSTEP statements** (task #97-P5-Core round 4): over
    `AStateRel₀` (take `hrel.to₀`), with no `StoreWF` and no `EResolves`
-   premise, and a `Sim₀` conclusion without `Ext`.  A checker-tier proof that
-   still concludes `Sim` gets the twin's `StoreWF` and `Ext` from `ResolveInv`
-   (`wf`, `inferExt`, `ensureSortExt`) — Theorem 1's — and rebuilds
-   `AStateRel` with `AStateRel₀.of₀`; `check_value_group_refines` is the one
-   such site.  The old `AnswerResolves` at `ensure_sort_core` (task
+   premise, and a `Sim₀` conclusion without `Ext` — and so, since task
+   #97-T2-LOCKSTEP lane Checker, is every checker-tier statement; each entry
+   is filed below as a `@[lockstep]` spec at `checkFuel`.  The old `AnswerResolves` at `ensure_sort_core` (task
    #97-P5-Arms' finding 14) is gone: the twin tests the reduct's tag where the
    port does.
 2. **`CoreCtx vis fe lfe` replaces `IFEnvRel rf lf ∧ absU vis = lf.visibleBelow`.**
@@ -69,6 +67,8 @@ the call site rather than here:
 -/
 import ConRon.Refine2.Checker.Shape
 import ConRon.Refine2.Core.Arms
+import ConRon.Refine2.Core.Arms.Sort
+import ConRon.Refine2.Tactic.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -134,6 +134,182 @@ theorem IFEnvInv.coreCtxSelf {rf : arena.env.IFEnv} {lf : IFEnv}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
     CoreCtx rf.visible_below rf lf :=
   IFEnvInv.coreCtx hfe hfinv hfe.visibleBelow.symm
+
+/-! ## Bridges between `LS` and the checker tier's shapes (task #97-T2-LOCKSTEP lane Checker) -/
+
+namespace Lockstep
+
+theorem LS.toSimRel₀ {α β : Type} {R : α → β → Prop} {pers : arena.store.PersTier}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {o}
+    (h : LS pers R m lst x) (hm : m = ok o) : SimRel₀ R pers lst o x := by
+  obtain ⟨o, st'⟩ := o
+  have := h o st' hm
+  show AOutRel₀ R pers o st' (x.run lst)
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := this
+    exact ⟨b, lst', hx, hR, h1, h2⟩
+
+theorem LS.ofSimRel₀ {α β : Type} {R : α → β → Prop} {pers : arena.store.PersTier}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β}
+    (h : ∀ o, m = ok o → SimRel₀ R pers lst o x) : LS pers R m lst x := by
+  intro o st' hm
+  have := h _ hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := this
+    exact ⟨b, lst', hx, hR, h1, h2⟩
+
+/-- A promotion's memo-threading outcome is an `LS` at the paired relation. -/
+theorem LS.ofSimPM {α β : Type} {R : α → β → Prop} {pers : arena.store.PersTier}
+    {m : Result (core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
+      arena.monad.AState)}
+    {lst : AState} {x : AM (PMemo × β)}
+    (h : ∀ o, m = ok o → SimPM R pers lst o x) :
+    LS pers (fun r v => PMemoRel r.1 v.1 ∧ R r.2 v.2) m lst x := by
+  intro o st' hm
+  have := h _ hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨m', v, lst', hx, hR, hM, h1, h2⟩ := this
+    exact ⟨(m', v), lst', hx, ⟨hM, hR⟩, h1, h2⟩
+
+/-- A reader that can fail (`SimRE`) is an `LSR`. -/
+theorem LSR.ofSimRE {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (h : ∀ o, m = ok o → SimRE A lst o x) : LSR pers (fun a b => b = A a) m st lst x := by
+  intro o hm
+  have := h _ hm
+  cases o with
+  | Err e => exact this
+  | Ok a => exact ⟨A a, lst, this, rfl, hrel, hinv⟩
+
+end Lockstep
+
+/-! ## The checker tier's side-goal extension of `lockstep`
+
+A fold step's side goals read the environment COUNTERS — `k = fe2.vis - fe.vis`
+against the twin's `fe.visibleBelow - vis`, and `promote_new`'s bound — which
+live inside `IFEnvRel` (a structure) and `IFEnvInv`.  `checker_env_facts` puts
+those counters in the context as equations and bounds; the extension tier then
+tries `omega` and `simp_all`. -/
+
+open Lean Meta Elab Tactic in
+/-- For every `IFEnvRelI r v` / `IFEnvRel r v` / `IFEnvInv r` in the context, add
+`v.visibleBelow = r.visible_below.val` and the counter's bound. -/
+elab "checker_env_facts" : tactic => do
+  let g ← getMainGoal
+  g.withContext do
+    let mut g := g
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let t ← instantiateMVars d.type
+      let h := d.toExpr
+      let mut facts : Array Expr := #[]
+      if t.isAppOfArity ``IFEnvRelI 2 then
+        facts := facts.push (← mkAppM ``IFEnvRel.visibleBelow #[← mkAppM ``IFEnvRelI.rel #[h]])
+        facts := facts.push (← mkAppM ``IFEnvInv.visBound #[← mkAppM ``IFEnvRelI.inv #[h]])
+      else if t.isAppOfArity ``IFEnvRel 2 then
+        facts := facts.push (← mkAppM ``IFEnvRel.visibleBelow #[h])
+      else if t.isAppOfArity ``IFEnvInv 1 then
+        facts := facts.push (← mkAppM ``IFEnvInv.visBound #[h])
+      for f in facts do
+        let (_, g') ← (← g.assert `hce (← inferType f) f).intro1P
+        g := g'
+    replaceMainGoal [g]
+
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (checker_env_facts; first
+      | omega
+      | (simp only [absU] at *; omega)
+      | (simp_all only [lockstep_simp]; done)
+      | (simp_all; done)))
+
+/-! ## The seven front doors as `@[lockstep]` specs (task #97-T2-LOCKSTEP lane Checker)
+
+The checker calls the Core tier at `checkFuel` only, so each front door is
+filed for the `lockstep` tactic at that fuel, with the knot discharged by
+`knotRel_checkFuel'`.  `hf` (the Rust's `CHECK_FUEL` read as the twin's
+`checkFuel`) is a side goal the tactic closes with `check_fuel_abs`. -/
+
+attribute [lockstep_simp] check_fuel_abs core_walk_fuel_abs
+
+open Lockstep in
+@[lockstep] theorem infer_type_core_ls {pers vis st mode fe lfe fu depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_type_core pers vis st mode fe fu depth e) lst
+      (Arena.inferTypeCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
+        (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hf h
+
+open Lockstep in
+@[lockstep] theorem infer_type_io_ls {pers vis st mode fe lfe fu depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_type_io pers vis st mode fe fu depth e) lst
+      (Arena.inferTypeIO (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
+        (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => infer_type_io_refines knotRel_checkFuel' hrel hinv hctx hf h
+
+open Lockstep in
+@[lockstep] theorem ensure_sort_core_ls {pers vis st mode fe lfe fu depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    LS pers (fun a b => b = absLIdx a)
+      (arena.core.ensure_sort_core pers vis st mode fe fu depth e) lst
+      (ensureSortCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
+        (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => ensure_sort_core_refines knotRel_checkFuel' hrel hinv hctx hf h
+
+open Lockstep in
+@[lockstep] theorem is_def_eq_core_ls {pers vis st mode fe lfe fu depth a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    LS pers (fun a b => b = id a)
+      (arena.core.is_def_eq_core pers vis st mode fe fu depth a b) lst
+      (Arena.isDefEqCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
+        (absEIdx a) (absEIdx b)) :=
+  LS.ofSim₀ fun _ h => is_def_eq_core_refines knotRel_checkFuel' hrel hinv hctx hf h
+
+open Lockstep in
+@[lockstep] theorem whnf_ls {pers vis st mode fe lfe fu depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.whnf pers vis st mode fe fu depth e) lst
+      (Arena.whnf (ConRon.Refine.absMode mode) lfe checkFuel (absU depth) (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => whnf_refines knotRel_checkFuel' hrel hinv hctx hf h
+
+open Lockstep in
+@[lockstep] theorem whnf_core_ls {pers vis st mode fe lfe fu depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.whnf_core pers vis st mode fe fu depth e) lst
+      (Arena.whnfCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
+        (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => whnf_core_refines knotRel_checkFuel' hrel hinv hctx hf h
+
+open Lockstep in
+@[lockstep] theorem annotate_core_ls {pers vis st mode fe lfe fu depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.annotate_core pers vis st mode fe fu depth e) lst
+      (Arena.annotateCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
+        (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => annotate_core_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 /-! ## The axiom census
 

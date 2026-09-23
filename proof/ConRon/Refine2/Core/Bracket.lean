@@ -49,6 +49,11 @@ this hypothesis.*
 So the three lemmas below hand back the twin's post-state EXPLICITLY rather
 than existentially (`SimS` quantifies it), because the bracket has to name it
 to chain the three store facts across it.
+
+**Superseded (task #97-T2-LOCKSTEP).**  The paragraphs above describe the old
+shape, where Theorem 2 carried `Ext`.  Theorem 2 is lockstep now: the three
+primitives are the plain `SimS₀` lemmas at the end of this file, and
+`ScratchClosed`/`ext_bracket` remain only as twin-store facts.
 -/
 import ConRon.Refine2.Specs
 import ConRon.Arena.Core
@@ -685,198 +690,6 @@ theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
     reset_map_inv hinv.instLPLsC e12]
 
 
-
-/-! ## The three primitives
-
-Each hands the twin's post-state back EXPLICITLY — `SimS` quantifies it, and
-the bracket has to name it to chain `ScratchClosed` / `StoreWF` / `Ext`
-across the three steps.  `Ext` is deliberately NOT among the conclusions:
-`flush_caches`' is `Ext.refl`, `enter_scratch`'s and `drop_scratch`'s are the
-store-level lemmas above, under the side condition only the BRACKET has. -/
-
-/-- **`flush_caches` ⊑ `flushCaches`** — the per-declaration cache drop.  The
-store is untouched, so this one IS a `SimS` (`flush_caches_sim` below says
-so); the explicit form is what the bracket uses. -/
-theorem flush_caches_refines {pers st lst st'}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.flush_caches st = ok st') :
-    (flushCaches : AM Unit).run lst = .ok ((), { lst with caches := Caches.empty }) ∧
-      AStateRel pers st' { lst with caches := Caches.empty } ∧
-      AStateInv pers st' := by
-  rw [arena.core.flush_caches] at hrun
-  obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hst : st' = { st with caches := c } := (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := caches_reset hinv.caches hc
-  exact ⟨rfl, { hrel with caches := hr }, { hinv with caches := hi }⟩
-
-/-- `flush_caches` in `Refine2/Shape.lean`'s own shape: it appends nothing, so
-`Ext.refl` is the whole of its store claim. -/
-theorem flush_caches_sim {pers st lst st'}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.flush_caches st = ok st') :
-    SimS pers lst st' flushCaches := by
-  obtain ⟨h1, h2, h3⟩ := flush_caches_refines hrel hinv hrun
-  exact SimS.mk h1 h2 h3 (Ext.refl _)
-
-/-- **`enter_scratch` ⊑ `enterScratch`** — the bracket opened: the per-call
-memos cleared and the scratch tier turned on and emptied.
-
-**Not a `SimS`.**  `SimS` demands `Ext lst.store lst'.store`, and opening the
-tier un-decodes every handle the previous tier held; `ScratchClosed.ext` is
-the `Ext` that IS true, and it is true only at a declaration boundary. -/
-theorem enter_scratch_refines {pers st lst st'}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.enter_scratch st = ok st') :
-    (enterScratch : AM Unit).run lst = .ok ((),
-        { lst with store := lst.store.enableScratch, memos := Memos.empty }) ∧
-      AStateRel pers st'
-        { lst with store := lst.store.enableScratch, memos := Memos.empty } ∧
-      AStateInv pers st' := by
-  rw [arena.core.enter_scratch] at hrun
-  obtain ⟨m, hm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hst : st' = { st with store := e, memos := m } :=
-    (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨hmr, hmi⟩ := memos_reset hinv.memos hm
-  obtain ⟨hsr, hsi⟩ := estore_enable hrel.store hinv.store he
-  -- task #97-P5-Specs: `AStateRel` now carries `StoreWF` on the twin store, and
-  -- `EStore.enableScratch_wf` is what re-establishes it across the opening.
-  have hwf' : StoreWF lst.store.enableScratch := EStore.enableScratch_wf hrel.storeWF
-  exact ⟨rfl, { hrel with store := hsr, memos := hmr, storeWF := hwf' },
-    { hinv with store := hsi, memos := hmi }⟩
-
-/-- **`drop_scratch` ⊑ `dropScratch`** — the bracket closed: the caches
-dropped and the scratch tier gone, in one operation so the two halves cannot
-drift apart.
-
-**Not a `SimS`, and this is the finding `Refine2/Shape.lean`'s module note
-owes** (task #97-P5-Checker-2 §5, item 2): `Ext` is denotation preservation
-and a dropped scratch handle no longer decodes, so there is no `Ext` here at
-all.  What the bracket gets instead is `ext_bracket`, from the store the
-bracket was ENTERED at. -/
-theorem drop_scratch_refines {pers st lst st'}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.drop_scratch st = ok st') :
-    (dropScratch : AM Unit).run lst = .ok ((),
-        { lst with store := lst.store.dropScratch, caches := Caches.empty }) ∧
-      AStateRel pers st'
-        { lst with store := lst.store.dropScratch, caches := Caches.empty } ∧
-      AStateInv pers st' := by
-  rw [arena.core.drop_scratch] at hrun
-  obtain ⟨s1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hst : st' = { s1 with store := e } := (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨-, hr1, hi1⟩ := flush_caches_refines hrel hinv h1
-  obtain ⟨hsr, hsi⟩ := estore_drop hr1.store hi1.store he
-  refine ⟨rfl, ?_, ?_⟩
-  -- task #97-P5-Specs: `EStore.dropScratch_wf` for `AStateRel`'s `storeWF`.
-  · have hwf' : StoreWF lst.store.dropScratch := EStore.dropScratch_wf hrel.storeWF
-    exact { hr1 with store := hsr, storeWF := hwf' }
-  · exact { hi1 with store := hsi }
-
-/-! ## The boundary, at the whole state, and the named hypothesis
-
-`BrOK` is the declaration boundary as the bracket's consumers want it: one
-`StoreWF` and one flag, from which `ScratchClosed` follows.  It is what a
-bracketed step is entered at and what it leaves behind, so it THREADS through
-a fold — the property the three statements of `Refine2/Checker/Top.lean` need
-and that `SimRel`'s existential post-state cannot carry on its own.
-
-**`TwinWF` is the round's one named hypothesis, and its owner is the Bridge.**
-`Ext` across a `dropScratch` is false without the tier discipline
-(`ext_dropScratch`'s note), and the tier discipline on the TWIN's store is
-`StoreWF` — Theorem 1's invariant, which `AStateRel`/`AStateInv` do not carry
-and cannot: they relate the port's state to the twin's and say nothing about
-the twin's own well-formedness.  `TwinWF x` is *"the twin action `x` keeps the
-store well formed"*, which is the `StateOK st'` conjunct of
-`Bridge/Checker/Fold.lean`'s `Arena.checkDecl_bridge` and its siblings.  It is
-universally quantified over the state, so it threads through a fold unchanged.
--/
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): the lockstep bracket is `flush_caches_sim₀` / `enter_scratch_sim₀` / `drop_scratch_sim₀`; this goes when `Refine2/Checker/Top.lean` and `Capstone.lean` have moved.
-con-leche: none — **the declaration boundary**: the twin's store is well
-formed and its scratch tier is closed.  Entered and left by every bracketed
-step. -/
-structure BrOK (ls : AState) : Prop where
-  wf : StoreWF ls.store
-  off : ls.store.scratchOn = false
-
-theorem BrOK.closedStore {ls : AState} (h : BrOK ls) : ScratchClosed ls.store :=
-  ScratchClosed.of_wf h.wf h.off
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): the lockstep bracket is `flush_caches_sim₀` / `enter_scratch_sim₀` / `drop_scratch_sim₀`; this goes when `Refine2/Checker/Top.lean` and `Capstone.lean` have moved.
-**NAMED HYPOTHESIS** — the twin action `x` keeps the store well formed;
-Theorem 1's `StateOK` conjunct, at one action.  OWNER: `Bridge/Checker/**`
-(`Arena.checkDecl_bridge` and its siblings already conclude it). -/
-def TwinWF {α : Type} (x : AM α) : Prop :=
-  ∀ (ls ls' : AState) (v : α), StoreWF ls.store →
-    x.run ls = .ok (v, ls') → StoreWF ls'.store
-
-/-! ## The bracket, as two halves
-
-Two lemmas, and between them the caller puts its own body.  `bracket_open` is
-`flushCaches; enterScratch` (`check_decl_step` and `annot_step`);
-`enter_scratch_refines` alone is `check_pending`'s, which has no cache flush
-of its own.  `bracket_close` is the half that needs the named hypothesis. -/
-
-/-- con-leche: none — the twin state a bracket is entered INTO: the caches
-dropped, the memos cleared and the scratch tier on. -/
-def brEntered (ls : AState) : AState :=
-  { ls with
-    store := ls.store.enableScratch,
-    memos := Memos.empty,
-    caches := Caches.empty }
-
-/-- con-leche: none — the twin state a bracket LEAVES: the caches dropped and
-the scratch tier gone. -/
-def brLeft (ls : AState) : AState :=
-  { ls with
-    store := ls.store.dropScratch,
-    caches := Caches.empty }
-
-theorem brLeft_brOK {ls : AState} (h : StoreWF ls.store) : BrOK (brLeft ls) :=
-  ⟨EStore.dropScratch_wf h, rfl⟩
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): the lockstep bracket is `flush_caches_sim₀` / `enter_scratch_sim₀` / `drop_scratch_sim₀`; this goes when `Refine2/Checker/Top.lean` and `Capstone.lean` have moved.
-con-leche: none — **the bracket's front half**: the caches dropped, the
-memos cleared, the scratch tier on, and every denotation of the boundary
-carried across. -/
-theorem bracket_open {pers st st1 st2 lst}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
-    (hflush : arena.core.flush_caches st = ok st1)
-    (henter : arena.core.enter_scratch st1 = ok st2) :
-    ((flushCaches >>= fun _ => enterScratch : AM Unit)).run lst
-        = .ok ((), (brEntered lst)) ∧
-      AStateRel pers st2 (brEntered lst) ∧ AStateInv pers st2 ∧
-      Ext lst.store (brEntered lst).store := by
-  obtain ⟨hr1, hrel1, hinv1⟩ := flush_caches_refines hrel hinv hflush
-  obtain ⟨hr2, hrel2, hinv2⟩ := enter_scratch_refines hrel1 hinv1 henter
-  refine ⟨?_, hrel2, hinv2, hbr.closedStore.ext⟩
-  have : ((flushCaches >>= fun _ => enterScratch : AM Unit)).run lst
-      = ((flushCaches : AM Unit).run lst) >>= fun p => (enterScratch : AM Unit).run p.2 :=
-    rfl
-  rw [this, hr1]
-  exact hr2
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): the lockstep bracket is `flush_caches_sim₀` / `enter_scratch_sim₀` / `drop_scratch_sim₀`; this goes when `Refine2/Checker/Top.lean` and `Capstone.lean` have moved.
-con-leche: none — **the bracket's back half**, and the `Ext` it owes.  The
-body's `Ext` is measured from the OPENED store; this hands back the `Ext` from
-the boundary, which is what `AOutRel` asks of a bracketed step.  `hwf` is the
-named hypothesis, discharged at the call site from `TwinWF` of the body. -/
-theorem bracket_close {pers st st' lst lst2}
-    (hbr : BrOK lst) (hrel : AStateRel pers st lst2) (hinv : AStateInv pers st)
-    (hext : Ext lst.store.enableScratch lst2.store) (hwf : StoreWF lst2.store)
-    (hdrop : arena.core.drop_scratch st = ok st') :
-    (dropScratch : AM Unit).run lst2 = .ok ((), (brLeft lst2)) ∧
-      AStateRel pers st' (brLeft lst2) ∧ AStateInv pers st' ∧
-      Ext lst.store (brLeft lst2).store ∧ BrOK (brLeft lst2) := by
-  obtain ⟨hr, hrel', hinv'⟩ := drop_scratch_refines hrel hinv hdrop
-  exact ⟨hr, hrel', hinv', ext_bracket hbr.closedStore hwf hext,
-    brLeft_brOK hwf⟩
-
 /-! ## The bracket in the lockstep shape (task #97-T2-LOCKSTEP step 1)
 
 Theorem 2 is a lockstep refinement: the Rust and the twin run the same three
@@ -884,9 +697,10 @@ operations — `flush_caches`, `enter_scratch`, `drop_scratch` — from related
 states, and each is a plain `SimS₀`.  Nothing about the twin's store is
 carried: `ScratchClosed`, `BrOK`, `TwinWF` and `ext_bracket` existed only to
 move `Ext`/`StoreWF` across the bracket, and those are Theorem 1's
-(`Arena.checkDecl_bridge` concludes `StateOK`).  The old `_refines` statements
-and the two halves below them are **deprecated shims** until the checker lane
-has moved to these. -/
+(`Arena.checkDecl_bridge` concludes `StateOK`).  The checker lane moved to
+these (task #97-T2-LOCKSTEP lane Checker), and the old explicit `_refines`
+statements, `BrOK`, `TwinWF` and the two halves `bracket_open` /
+`bracket_close` are deleted. -/
 
 /-- **`flush_caches` ⊑ `flushCaches`**, lockstep. -/
 theorem flush_caches_sim₀ {pers st lst st'}
@@ -944,18 +758,6 @@ theorem drop_scratch_sim₀ {pers st lst st'}
 
 /-- info: 'ConRon.Refine2.ext_bracket' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ext_bracket
-
-/-- info: 'ConRon.Refine2.bracket_open' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms bracket_open
-
-/-- info: 'ConRon.Refine2.bracket_close' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms bracket_close
-
-/-- info: 'ConRon.Refine2.enter_scratch_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms enter_scratch_refines
-
-/-- info: 'ConRon.Refine2.drop_scratch_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms drop_scratch_refines
 
 /-- info: 'ConRon.Refine2.flush_caches_sim₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms flush_caches_sim₀
