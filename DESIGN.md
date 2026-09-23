@@ -60055,3 +60055,9 @@ runs): 23.4/22.9 s → 29.9/24.9 s.
 |---|---|
 | `crates/con-ron-core/src/arena/{store,checker_base,decl_check}.rs` | the full copy |
 | `Arena/CheckerBase.lean`, `Bridge/Checker/Base.lean`, `Refine2/Shape.lean` | twin mirror; docs |
+
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`5901271c`):
+**all 16 OK** (`extract-check` 104 s).  `lake build ConRon ConRonBridge
+ConRonRefine2 ConRonCapstone` green (2 825 jobs) before the merge.  The
+shared Lake cache was seeded from this state (`ConRonCapstone ConRonRefine2
+ConRonBridge` + default targets).
