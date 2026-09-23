@@ -420,13 +420,59 @@ theorem projFwd_spec (T ctor : NIdx) (TP ctorP : ConLeche.Name) (nF : Nat) :
 
 /-! ## Two helpers the modeled route owns -/
 
+open Std.Do in
+set_option mvcgen.warning false in
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 renameConstsFast —
+`Bridge/ExprOps/Owed.lean`'s `renameConstsFast_spec` with the NAME store's
+frame kept: the walk interns expression nodes only, which `RenameSpec` states
+(`s'.store.ns = ns0`) and the entry point dropped.  `RenameRel` mentions only
+the name store, so this is what carries a rename relation across a rename. -/
+theorem renameConstsFast_ns (fuel : Nat) (f : NIdx → NIdx)
+    (g : ConLeche.Name → ConLeche.Name) (s₀ : AState) (e : EIdx)
+    (hok : StateOK s₀)
+    (hf : ∀ (n : NIdx) (x : ConLeche.Name), denoteN s₀.store.ns n = some x →
+      denoteN s₀.store.ns (f n) = some (g x))
+    (hden : (denoteE s₀.store e).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ renameConstsFast fuel f e
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
+        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.store.ns = s₀.store.ns ∧
+        RelE (Expr.renameConsts g) s₀.store e s'.store r⌝⦄ := by
+  have hr := (ExprOps.renameConstsGo_specS f g s₀.store.ns hf fuel).run
+  mvcgen [renameConstsFast, hr]
+  all_goals bridge_vcs [Expr.renameConsts, BMExt]
+
+/-- con-leche: none — the run form, at this tier's frame. -/
+theorem renameConstsFast_pstep {fuel : Nat} {tbl : List (NIdx × NIdx)}
+    {fP : ConLeche.Name → ConLeche.Name} {s₀ s' : AState} {e r : EIdx} {eP : Expr}
+    (hok : StateOK s₀) (hren : RenameRel s₀.store tbl fP)
+    (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.renameConstsFast fuel (Arena.renameBy tbl) e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ s'.store.ns = s₀.store.ns ∧
+      denoteE s'.store r = some (eP.renameConsts fP) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (renameConstsFast_ns fuel _ fP s₀ e hok hren (by rw [hd]; rfl))
+  exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h6, h7 eP hd⟩
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux — the
+range peeled at its TOP, which is the order the twin's recursion runs in. -/
+theorem domsMatchAux_succ (g : Nat → Expr → Expr) (bs₁ bs₂ : List (Expr × BinderMeta))
+    (o₁ o₂ k : Nat) :
+    ConLeche.domsMatchAux g bs₁ bs₂ o₁ o₂ (k + 1) =
+      (ConLeche.domsMatchAux g bs₁ bs₂ o₁ o₂ k &&
+        (match bs₁[o₁ + k]?, bs₂[o₂ + k]? with
+         | some b₁, some b₂ => b₁.1 == g k b₂.1
+         | _, _ => false)) := by
+  simp only [ConLeche.domsMatchAux, List.range_succ, List.all_append, List.all_cons,
+    List.all_nil, Bool.and_true]
+  rfl
+
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux —
 `domsMatchAux` with the right side renamed; con-leche's higher-order `g` is
 instantiated at `fun _ e => e.renameConsts fP`, which is `checkProjIota`'s own
 instance of it.
 
-`sorry`: a `Nat` recursion over `Bridge/ExprOps/Reset.lean`'s
-`renameConstsFast_spec` (closed) and `denoteE_inj`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem domsMatchRenamed_spec (tbl : List (NIdx × NIdx))
     (fP : ConLeche.Name → ConLeche.Name) (bs₁ bs₂ : List (EIdx × BinderMeta))
     (bs₁P bs₂P : List (Expr × BinderMeta)) (o₁ o₂ k : Nat) :
@@ -435,7 +481,58 @@ theorem domsMatchRenamed_spec (tbl : List (NIdx × NIdx))
       (Arena.domsMatchRenamed (Arena.renameBy tbl) bs₁ bs₂ o₁ o₂ k)
       (RV (ConLeche.domsMatchAux (fun _ e => e.renameConsts fP) bs₁P bs₂P
         o₁ o₂ k)) := by
-  sorry
+  induction k with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.domsMatchRenamed] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | succ k ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hren, h1, h2⟩ := hpre
+    show PStep s₀ s' ∧ r = _
+    rw [domsMatchAux_succ]
+    simp only [Arena.domsMatchRenamed] at hrun
+    obtain ⟨hA1, hB1⟩ := denoteBinders_getElem? h1 (o₁ + k)
+    obtain ⟨hA2, hB2⟩ := denoteBinders_getElem? h2 (o₂ + k)
+    cases hb1 : bs₁[o₁ + k]? with
+    | none =>
+      rw [hb1] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨PStep.refl hok, by simp only [hB1 hb1, Bool.and_false]⟩
+    | some p1 =>
+    obtain ⟨t1, m1⟩ := p1
+    obtain ⟨t1P, hp1, hd1⟩ := hA1 t1 m1 hb1
+    cases hb2 : bs₂[o₂ + k]? with
+    | none =>
+      rw [hb1, hb2] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨PStep.refl hok, by simp only [hp1, hB2 hb2, Bool.and_false]⟩
+    | some p2 =>
+    obtain ⟨t2, m2⟩ := p2
+    obtain ⟨t2P, hp2, hd2⟩ := hA2 t2 m2 hb2
+    rw [hb1, hb2] at hrun
+    dsimp only at hrun
+    obtain ⟨rr, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1', hns, hrr⟩ := renameConstsFast_pstep hok hren hd2 k1
+    have e1 := beq_ehandle_eq p1'.ok.wf (denote_ext hd1 p1'.ext) hrr
+    rw [e1] at z1
+    split at z1
+    case isTrue hc =>
+      have hren1 : RenameRel s1.store tbl fP := by
+        intro n nm hn; rw [hns] at hn ⊢; exact hren n nm hn
+      obtain ⟨p2', hr⟩ := ih s1 s' r p1'.ok
+        ⟨hren1, denoteBinders_ext p1'.ext _ _ h1, denoteBinders_ext p1'.ext _ _ h2⟩ z1
+      refine ⟨p1'.trans p2', ?_⟩
+      rw [hr]
+      simp only [hp1, hp2]
+      rw [hc, Bool.and_true]
+    case isFalse hc =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1', ?_⟩
+      simp only [hp1, hp2]
+      simp only [Bool.not_eq_true] at hc
+      rw [hc, Bool.and_false]
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 The "requires the pinned `Eq` basis" guard: `env.find? eqName = some eqA`.

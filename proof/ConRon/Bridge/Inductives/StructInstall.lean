@@ -30,6 +30,40 @@ open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## The parameter domains, pinned definitionally -/
 
+/-- con-leche: none — the pure walk is monotone in the fuel of its `isDefEq`:
+`ConLeche.isDefEqCore_mono` at every pair. -/
+theorem checkStructDomsAt_mono {μ : CheckMode} {env : Env} {F F' : Nat}
+    (hle : F ≤ F') {off : Nat} {fvsP domsP : List Expr} :
+    ∀ {j : Nat}, ConLeche.checkStructDomsAt (ConLeche.fueledOps μ F) env off fvsP
+        domsP j = (.ok () : CheckM Unit) →
+      ConLeche.checkStructDomsAt (ConLeche.fueledOps μ F') env off fvsP domsP j
+        = (.ok () : CheckM Unit) := by
+  intro j
+  induction j with
+  | zero => intro _; rfl
+  | succ j ih =>
+    intro h
+    simp only [ConLeche.checkStructDomsAt, ConLeche.fueledOps] at h ⊢
+    cases ha : fvsP[j]? with
+    | none => simp [ha, ConLeche.unwrapOr, bind, Except.bind, throw, throwThe,
+        MonadExceptOf.throw] at h
+    | some a =>
+    cases hb : domsP[j]? with
+    | none => simp [ha, hb, ConLeche.unwrapOr, bind, Except.bind, throw, throwThe,
+        MonadExceptOf.throw, pure, Except.pure] at h
+    | some b =>
+    simp only [ha, hb, ConLeche.unwrapOr, bind, Except.bind, pure, Except.pure] at h ⊢
+    cases hd : ConLeche.isDefEqCore μ env F (off + j) a.fvarTypeD b with
+    | error e => rw [hd] at h; exact nomatch h
+    | ok c =>
+      rw [hd] at h
+      rw [ConLeche.isDefEqCore_mono hle hd]
+      cases c with
+      | false => exact nomatch h
+      | true =>
+        simp only [if_true] at h ⊢
+        exact ih h
+
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:32-51 checkStructDomsAt
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
@@ -37,13 +71,22 @@ The first `j` parameter domains are definitionally the declared ones.  A
 `Unit` answer: what it claims is that con-leche's own check SUCCEEDS at some
 fuel.
 
-`sorry`: a `Nat` recursion over `CoreSpec.knot`'s `defeq` slot
-(`Bridge/Core/Knot.lean`), with `unwrapOr`'s spec
-(`Bridge/Checker/Base.lean`) at the two list indexings.  This is the tier's
-first `KnotSpec` consumer and its shape is the one the other eleven copy. -/
+**CLOSED** (task #97-P3-Ind round 6): a `Nat` recursion over `CoreSpec.knot`'s
+`defeq` slot, `fvarTypeD_run` for the left side, and one fuel for the whole
+walk (`ConLeche.isDefEqCore_mono` at `max`).
+
+**Two preconditions it was missing** (round 6), both the knot's own: the
+`defeq` slot is stated at a well-formed environment (`CoreSpec.knot` takes
+`EnvWF env`) and at WELL-SCOPED arguments (`Expr.WScoped` at the depth of the
+comparison, `off + i` at the `i`-th pair).  `Bridge/Checker/Base.lean`'s
+`checkDefEqList_bridge` carries exactly the same two for exactly the same
+reason.  Nothing consumes this statement yet (the arena's install inlines no
+call to it), so no caller moved. -/
 theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (off : Nat) (fvs doms : List EIdx)
-    (fvsP domsP : List Expr) (j : Nat) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (off : Nat)
+    (fvs doms : List EIdx) (fvsP domsP : List Expr) (j : Nat)
+    (hws : ∀ i, i < j → ∀ a b, fvsP[i]? = some a → domsP[i]? = some b →
+      Expr.WScoped (off + i) a.fvarTypeD ∧ Expr.WScoped (off + i) b) :
     CSpec μ env fe
       (fun st => Frontend.denoteEList st fvs = some fvsP ∧
         Frontend.denoteEList st doms = some domsP ∧
@@ -51,7 +94,58 @@ theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (Arena.checkStructDomsAt μ fe off fvs doms j)
       (fun _ _ => ∃ F, ConLeche.checkStructDomsAt (ConLeche.fueledOps μ F)
         env off fvsP domsP j = (.ok () : CheckM Unit)) := by
-  sorry
+  have hknot := hk.knot env fe henv
+  induction j with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.checkStructDomsAt] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, 0, rfl⟩
+  | succ j ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hfvs, hdoms, hfe⟩ := hpre
+    simp only [Arena.checkStructDomsAt] at hrun
+    obtain ⟨a, s1, k1, hz1⟩ := bindOk hrun
+    cases ha : fvs[j]? with
+    | none =>
+      rw [ha] at k1; simp only [Arena.unwrapOr] at k1; exact absurd k1 (fun h => failOk h)
+    | some a' =>
+    rw [ha] at k1; simp only [Arena.unwrapOr] at k1
+    obtain ⟨rfl, hs1⟩ := pureOk k1
+    rw [hs1] at hz1
+    obtain ⟨b, s2, k2, hz2⟩ := bindOk hz1
+    cases hb : doms[j]? with
+    | none =>
+      rw [hb] at k2; simp only [Arena.unwrapOr] at k2; exact absurd k2 (fun h => failOk h)
+    | some b' =>
+    rw [hb] at k2; simp only [Arena.unwrapOr] at k2
+    obtain ⟨rfl, hs2⟩ := pureOk k2
+    rw [hs2] at hz2
+    obtain ⟨aP, haP, hda⟩ := ExprOps.denoteEList_getElem? fvs fvsP hfvs j a ha
+    obtain ⟨bP, hbP, hdb⟩ := ExprOps.denoteEList_getElem? doms domsP hdoms j b hb
+    obtain ⟨t, s3, k3, hz3⟩ := bindOk hz2
+    obtain ⟨hs3, ht⟩ := fvarTypeD_run hok.state hda k3
+    rw [hs3] at hz3
+    obtain ⟨c, s4, k4, hz4⟩ := bindOk hz3
+    obtain ⟨hws1, hws2⟩ := hws j (Nat.lt_succ_self j) aP bP haP hbP
+    obtain ⟨hok4, hx4, hp4, hsim⟩ := AM.of_run (P := fun u => u = s₀)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+        u.pins = s₀.pins ∧
+        Core.SimV (ConLeche.isDefEqCore μ env) (off + j) aP.fvarTypeD bP r)
+      rfl k4 (hknot.defeq s₀ (off + j) t b aP.fvarTypeD bP hok ht hdb hws1 hws2)
+    obtain ⟨F1, hF1⟩ := hsim
+    obtain ⟨hc, hz5⟩ := AM.dunless_ok AM.Never.fail_any hz4
+    replace hz5 := AM.pure_bind_ok hz5
+    subst hc
+    obtain ⟨hstep, F2, hF2⟩ := ih (fun i hi => hws i (Nat.lt_succ_of_lt hi)) s4 s' r
+      hok4 ⟨denoteEList_ext hx4 _ _ hfvs, denoteEList_ext hx4 _ _ hdoms,
+        denoteFEnv_ext hx4 hfe⟩ hz5
+    refine ⟨⟨hstep.ok, hx4.trans hstep.ext, by rw [hstep.pins, hp4]⟩, max F1 F2, ?_⟩
+    have h1 := ConLeche.isDefEqCore_mono (Nat.le_max_left F1 F2) hF1
+    have h2 := checkStructDomsAt_mono (Nat.le_max_right F1 F2) hF2
+    simp only [ConLeche.checkStructDomsAt, haP, hbP, ConLeche.unwrapOr,
+      ConLeche.fueledOps, bind, Except.bind, pure, Except.pure, h1, if_true]
+    exact h2
 
 /-! ## The projection table -/
 
