@@ -415,6 +415,258 @@ theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {o
       (unresolvedConstsError w (absEIdx e)) := by
   sorry
 
+/-! ## `DeclResolves` — the declaration's handles and the Core answers resolve
+
+**Task #97-P5-Top round 2, ruling 2.**  The Core entries carry task #97-P5-0's
+finding 3 (`EResolves` of the handle they dispatch on: the port reads the
+handle's TAG, the twin its VIEW) and task #97-P5-Arms' finding 14
+(`AnswerResolves` of a callee's answer).  Nothing in `AStateRel`/`AStateInv`
+says a handle resolves — the Rust invariant does not constrain cache contents,
+so a universally quantified "every answer resolves" would be FALSE — and the
+fact is Theorem 1's ("the checker never holds a dangling handle", its
+`StateOK`).  So it enters Theorem 2 as a precondition, in the form Theorem 1
+can discharge:
+
+* `Good : IFEnv → AState → Prop` is Theorem 1's twin-state invariant, ABSTRACT
+  here (`Refine2` does not import `Bridge`);
+* `ResolveInv mode Good` is what Theorem 2 consumes of it: the Core answers
+  resolve from `Good` states, and `Good` survives the twin steps the glue
+  walks over — each field a twin-only statement over `Good` states;
+* `HandlesResolve Good hs` / `VGResolves Good fe g` — the declaration's (the
+  value group's) handles resolve in every `Good` state.
+
+The capstone (`ConRon/Capstone.lean`, the one module that sees both theorems)
+supplies `Good` and the facts from Theorem 1, the way it supplies `BrOK`. -/
+
+/-- The expression handles a stored constant carries. -/
+def ciHandles : IConstantInfo → List EIdx
+  | .axiomInfo cv => [cv.type]
+  | .defnInfo cv v _ => [cv.type, v]
+  | .thmInfo cv v => [cv.type, v]
+  | .indInfo cv _ => [cv.type]
+  | .ctorInfo cv _ _ => [cv.type]
+  | .recInfo cv _ _ rules => cv.type :: rules.map (·.rhs)
+  | .projInfo t => t.bodies.toList
+
+/-- The expression handles a declaration record carries. -/
+def declHandles : IDeclaration → List EIdx
+  | .axiomDecl cv => [cv.type]
+  | .defnDecl cv v _ => [cv.type, v]
+  | .thmDecl cv v => [cv.type, v]
+  | .opaqueDecl cv v => [cv.type, v]
+  | .basisDecl _ => []
+  | .indDecl block _ => block.flatMap ciHandles
+  | .quotDecl _ cv => [cv.type]
+
+/-- **The handles resolve in every `Good` state at `fe`.** -/
+def ResolvesAt (Good : IFEnv → AState → Prop) (fe : IFEnv) (hs : List EIdx) : Prop :=
+  ∀ s, Good fe s → ∀ h ∈ hs, ExprOps.EResolves s h
+
+theorem ResolvesAt.sub {Good : IFEnv → AState → Prop} {fe : IFEnv} {hs hs' : List EIdx}
+    (h : ResolvesAt Good fe hs) (hsub : ∀ x ∈ hs', x ∈ hs) : ResolvesAt Good fe hs' :=
+  fun s hg x hx => h s hg x (hsub x hx)
+
+/-- **The handles resolve in every `Good` state** — a stream declaration's
+handles are persistent, so Theorem 1's invariant carries them whatever the
+environment. -/
+def HandlesResolve (Good : IFEnv → AState → Prop) (hs : List EIdx) : Prop :=
+  ∀ fe, ResolvesAt Good fe hs
+
+/-- **A value group's handles resolve** in every `Good` state at the
+environment phase B checks it against (phase A made them; they are that
+environment's constant's type and value). -/
+def VGResolves (Good : IFEnv → AState → Prop) (fe : IFEnv) (g : ValueGroup) :
+    Prop :=
+  ∀ s, Good fe s → ExprOps.EResolves s g.cvA.type ∧ ExprOps.EResolves s g.jv
+
+/-- **What Theorem 2 consumes of Theorem 1's invariant `Good`** (ruling 2).
+Every field is a statement about the TWIN alone, over `Good` states: the Core
+answers resolve, and `Good` survives the twin steps the refinement's glue
+walks over.  Fields are added as the leaves below are proved; each is a
+Theorem-1 run lemma's frame. -/
+structure ResolveInv (mode : ConLeche.CheckMode) (Good : IFEnv → AState → Prop) : Prop where
+  /-- `inferTypeCore` answers a resolving handle, and keeps `Good`. -/
+  infer : ∀ {fe : IFEnv} {v d : Nat} {e w : EIdx} {s s' : AState}, Good fe s →
+    ExprOps.EResolves s e →
+    inferTypeCore mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
+    ExprOps.EResolves s' w ∧ Good fe s'
+  /-- `whnf` answers a resolving handle. -/
+  whnf : ∀ {fe : IFEnv} {v d : Nat} {e w : EIdx} {s s' : AState}, Good fe s →
+    ExprOps.EResolves s e →
+    Arena.whnf mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
+    ExprOps.EResolves s' w
+  /-- `ensureSortCore` keeps `Good`. -/
+  ensureSort : ∀ {fe : IFEnv} {v d : Nat} {e : EIdx} {u : LIdx} {s s' : AState},
+    Good fe s → ExprOps.EResolves s e →
+    ensureSortCore mode (fe.restrictTo v) checkFuel d e s = .ok (u, s') → Good fe s'
+  /-- `enterScratch` (phase B's bracket opened) keeps `Good`. -/
+  enterScratch : ∀ {fe : IFEnv} {s : AState}, Good fe s →
+    Good fe { s with store := s.store.enableScratch, memos := Memos.empty }
+  /-- `flushCaches; enterScratch` (a fold step's bracket opened) keeps `Good`. -/
+  flushEnter : ∀ {fe : IFEnv} {s : AState}, Good fe s →
+    Good fe ({ s with caches := Caches.empty, store := s.store.enableScratch,
+                      memos := Memos.empty } : AState)
+  /-- phase B's step keeps `Good`. -/
+  checkPending : ∀ {fe : IFEnv} {pc : PendingCheck} {s s' : AState}, Good fe s →
+    checkPending mode fe pc s = .ok ((), s') → Good fe s'
+  /-- phase A's step keeps `Good`, at the environment it hands on. -/
+  annotDeclStep : ∀ {pins : List INatOpPinSet} {p : Nat × IFEnv × Array PendingCheck}
+    {pd : IDeclaration} {p' : Nat × IFEnv × Array PendingCheck} {s s' : AState},
+    Good p.2.1 s → annotDeclStep mode pins p pd s = .ok (.ok p', s') → Good p'.2.1 s'
+  /-- the pure fold's step keeps `Good`, at the environment it hands on. -/
+  checkDeclStep : ∀ {pins : List INatOpPinSet} {fe fe' : IFEnv} {d : IDeclaration}
+    {s s' : AState}, Good fe s → checkDeclStep mode pins fe d s = .ok (fe', s') →
+    Good fe' s'
+  /-- `installConstantVal` keeps `Good`. -/
+  installConstantVal : ∀ {fe : IFEnv} {cv c : IConstantVal} {s s' : AState},
+    Good fe s → installConstantVal mode fe cv s = .ok (c, s') → Good fe s'
+  /-- `checkConstantVal` keeps `Good`, and its annotated type resolves. -/
+  checkConstantVal : ∀ {fe : IFEnv} {cv c : IConstantVal} {s s' : AState},
+    Good fe s → checkConstantVal mode fe cv s = .ok (c, s') →
+    Good fe s' ∧ ExprOps.EResolves s' c.type
+
+/-! ### Twin readers leave the state alone
+
+The glue carries `Good` across the twin's pin reads (`natOpNames`,
+`natDivModNames`, `reduceOpNames`), which read the pin table and write
+nothing. -/
+
+/-- A twin action that never changes the state it succeeds from. -/
+def AMReads {α : Type} (x : AM α) : Prop :=
+  ∀ (s : AState) (v : α) (s' : AState), x.run s = .ok (v, s') → s' = s
+
+theorem AMReads.pure' {α : Type} (a : α) : AMReads (pure a : AM α) := by
+  intro s v s' h
+  have h' : (Except.ok (a, s) : Except Arena.CheckError (α × AState)) = .ok (v, s') := h
+  cases h'
+  rfl
+
+theorem AMReads.bind' {α β : Type} {x : AM α} {f : α → AM β} (hx : AMReads x)
+    (hf : ∀ a, AMReads (f a)) : AMReads (x >>= f) := by
+  intro s v s' h
+  rw [am_run_bind'] at h
+  cases hx' : x.run s with
+  | error e => rw [hx'] at h; cases h
+  | ok p =>
+    obtain ⟨a, s1⟩ := p
+    rw [hx', except_ok_bind] at h
+    rw [hf a s1 v s' h, hx s a s1 hx']
+
+theorem pinAt_reads (i : Nat) : AMReads (pinAt i) := by
+  intro s v s' h
+  by_cases hi : i < s.pins.names.size
+  · have h2 : (Arena.pinAt i).run s = .ok (s.pins.names[i], s) := by
+      show (Arena.pinAt i) s = _
+      rw [Arena.pinAt]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos hi]
+    rw [h2] at h
+    cases h
+    rfl
+  · have h2 : (Arena.pinAt i).run s
+        = .error (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
+      show (Arena.pinAt i) s = _
+      rw [Arena.pinAt]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, dif_neg hi,
+        Arena.fail, throwThe, MonadExceptOf.throw,
+        Function.comp_apply, StateT.lift]
+    rw [h2] at h
+    cases h
+
+theorem natOpNames_reads : AMReads natOpNames := by
+  unfold natOpNames
+  repeat (first | exact AMReads.pure' _ | refine AMReads.bind' (pinAt_reads _) fun _ => ?_)
+
+theorem natDivModNames_reads : AMReads natDivModNames := by
+  unfold natDivModNames
+  repeat (first | exact AMReads.pure' _ | refine AMReads.bind' (pinAt_reads _) fun _ => ?_)
+
+theorem reduceOpNames_reads : AMReads reduceOpNames := by
+  unfold reduceOpNames
+  repeat (first | exact AMReads.pure' _ | refine AMReads.bind' (pinAt_reads _) fun _ => ?_)
+
+/-- A continuation-passing `SimRel` composition that hands the continuation
+the twin's own run of the first half — which a `Good`-carrying glue step
+needs to move `Good` across it (ruling 2). -/
+theorem SimRel.of_sim_bind_run {α β γ δ : Type} {A : α → β} {R : γ → δ → Prop}
+    {pers : arena.store.PersTier} {lst : AState} {x : AM β} {f : β → AM δ}
+    {r : α} {st1 : arena.monad.AState}
+    {o : core.result.Result γ kernel.core_types.CheckError × arena.monad.AState}
+    (h1 : Sim A (fun _ => True) pers lst (.Ok r, st1) x)
+    (h2 : ∀ lst1, x.run lst = .ok (A r, lst1) → AStateRel pers st1 lst1 →
+      AStateInv pers st1 → SimRel R pers lst1 o (f (A r))) :
+    SimRel R pers lst o (x >>= f) := by
+  obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := Sim.apply h1
+  have h := h2 lst1 hx hrel1 hinv1
+  unfold SimRel AOutRel at h ⊢
+  rw [am_run_bind', hx, except_ok_bind]
+  revert h
+  cases o.1 with
+  | Err e => exact id
+  | Ok r' =>
+    rintro ⟨v, lst2, hy, hr, hrel2, hinv2, hext2⟩
+    exact ⟨v, lst2, hy, hr, hrel2, hinv2, Ext.trans hext1 hext2⟩
+
+/-! ### `EResolves` is a fact about the Rust state
+
+`AStateRel` pins the twin store's node arrays down exactly (`TblRel.nodes`),
+and `EStore.view` reads nothing else, so two twin states related to the same
+Rust state resolve the same handles.  This is what turns a twin-side
+"the answer resolves" into the Core entries' `AnswerResolves`, which
+quantifies over every twin state related to the Rust post-state. -/
+
+/-- A table with everything but its node array erased. -/
+def tblSkel {α ι δ : Type} [BEq α] [Hashable α] (t : Tbl α ι δ) : Tbl α ι δ :=
+  ⟨t.nodes, #[], ∅⟩
+
+/-- An expression tier with everything `EStore.view` does not read erased. -/
+def eTablesSkel (t : ETables) : ETables :=
+  ⟨tblSkel t.bvars, tblSkel t.fvars, tblSkel t.sorts, tblSkel t.consts,
+    tblSkel t.apps, tblSkel t.lams, tblSkel t.foralls, tblSkel t.lets,
+    tblSkel t.lits, tblSkel t.projs, tblSkel t.bms⟩
+
+theorem estore_view_skel (st : EStore) (h : EIdx) :
+    st.view h = (EStore.mk default (eTablesSkel st.pers) (eTablesSkel st.scr)
+      st.scratchOn).view h := rfl
+
+private theorem tbl_nodes_eq {A I D α ι δ ω : Type} [DecidableEq A] [BEq α]
+    [Hashable α] {P : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ}
+    {obsD : δ → ω} {rt : arena.store.Tbl A I D} {la lb : Tbl α ι δ}
+    (ha : TblRel P absA absI absD obsD rt la) (hb : TblRel P absA absI absD obsD rt lb) :
+    tblSkel la = tblSkel lb := by
+  have : la.nodes = lb.nodes := Array.toList_inj.mp (ha.nodes.trans hb.nodes.symm)
+  simp only [tblSkel, this]
+
+private theorem etables_skel_eq {rt : arena.store.ETables} {la lb : ETables}
+    (ha : ETablesRel rt la) (hb : ETablesRel rt lb) :
+    eTablesSkel la = eTablesSkel lb := by
+  simp only [eTablesSkel, tbl_nodes_eq ha.bvars hb.bvars, tbl_nodes_eq ha.fvars hb.fvars,
+    tbl_nodes_eq ha.sorts hb.sorts, tbl_nodes_eq ha.consts hb.consts,
+    tbl_nodes_eq ha.apps hb.apps, tbl_nodes_eq ha.lams hb.lams,
+    tbl_nodes_eq ha.foralls hb.foralls, tbl_nodes_eq ha.lets hb.lets,
+    tbl_nodes_eq ha.lits hb.lits, tbl_nodes_eq ha.projs hb.projs,
+    tbl_nodes_eq ha.bms hb.bms]
+
+/-- **Two twin states related to one Rust state view every handle alike.** -/
+theorem view_of_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
+    {la lb : AState} (ha : AStateRel pers st la) (hb : AStateRel pers st lb)
+    (h : EIdx) : la.store.view h = lb.store.view h := by
+  rw [estore_view_skel la.store, estore_view_skel lb.store,
+    etables_skel_eq ha.store.perst hb.store.perst,
+    etables_skel_eq ha.store.scrt hb.store.scrt,
+    ha.store.scratchOn, hb.store.scratchOn]
+
+/-- `EResolves` transported between two twin states related to one Rust
+state. -/
+theorem EResolves.of_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
+    {la lb : AState} {h : EIdx} (ha : AStateRel pers st la)
+    (hb : AStateRel pers st lb) (hr : ExprOps.EResolves la h) :
+    ExprOps.EResolves lb h := by
+  unfold ExprOps.EResolves at hr ⊢
+  rw [← view_of_rel ha hb h]
+  exact hr
+
 /-! ## The per-declaration constant check -/
 
 /-- `check_constant_val_guards_rest` is `check_constant_val_guards`'s tail past
@@ -466,9 +718,11 @@ theorem check_constant_val_after_annot_refines {pers st lst} {vis : Std.U64}
 /-- **`check_constant_val` ⊑ `checkConstantVal`** — the common per-declaration
 constant check, whole. -/
 theorem check_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o} {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hcv : ResolvesAt Good lf [absEIdx cv.ty])
     (hrun : arena.checker_base.check_constant_val pers vis st mode rf cv = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
       (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
@@ -859,9 +1113,11 @@ theorem is_thm_refines {k : arena.checker_split.ValueKind} {o : Bool}
 /-- **`install_constant_val` ⊑ `installConstantVal`** — `checkConstantVal`
 minus its inference: the syntactic guards and the annotation of the type. -/
 theorem install_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o} {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hcv : ResolvesAt Good lf [absEIdx cv.ty])
     (hrun : arena.checker_split.install_constant_val pers vis st mode rf cv = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
       (installConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
@@ -882,9 +1138,11 @@ theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
 `check{Defn,Thm,Opaque}Val` minus its inference. -/
 theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx} {o}
+    {value : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hv : ResolvesAt Good lf [absEIdx value])
     (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
@@ -895,9 +1153,11 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
 is-a-proposition test and, for a theorem, the value's guards and annotation. -/
 theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {u : arena.handle.LIdx} {o}
+    {u : arena.handle.LIdx} {o} {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hvg : VGResolves Good lf (absValueGroup g))
     (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -909,9 +1169,12 @@ theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
 against the declared one. -/
 theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {jv : arena.handle.EIdx} {o}
+    {jv : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hvg : VGResolves Good lf (absValueGroup g))
+    (hjv : ExprOps.EResolves lst (absEIdx jv))
     (hrun : arena.checker_split.check_value_group_tail pers vis st mode rf g jv
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
@@ -919,40 +1182,33 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
         (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
   sorry
 
-/-- **`check_value_group`, composed** (task #97-P5-Top) — `infer_type_core ;
-ensure_sort_core ; check_value_group_value`, the first two through
-`Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
-(lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
-`checkFuel` (`knotRel_checkFuel'`).
+/-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
+declaration, at the environment the constant was installed at.
 
-**It carries the Core entries' own resolve side conditions, and that is why it
-is not `check_value_group_refines`.**  `infer_type_core_refines` needs the
-declared type to resolve in the twin store (`EResolves`, task #97-P5-0's
-finding 3: the port dispatches on the handle's TAG, the twin on its VIEW) and
-`ensure_sort_core_refines` needs the whnf answer to resolve (`AnswerResolves`,
-task #97-P5-Arms' finding 14).  Neither is derivable from the public
-statement's hypotheses: the `ValueGroup` is the port's own data, and nothing
-relates its handles to the twin store beyond the abstraction.  That is task
-#97-P5-Checker round 4's `DeclResolves` question (the capstones' input
-precondition and an environment-resolves clause in `IFEnvRelI`), and
-`check_value_group_refines` below waits on its ruling; this lemma is the rest
-of its proof. -/
-theorem check_value_group_of_resolves {pers st lst} {vis : Std.U64} {rf lf}
+**PROVED** (task #97-P5-Top round 2), under ruling 2's precondition:
+`infer_type_core ; ensure_sort_core ; check_value_group_value`, the first two
+through `Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
+(lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
+`checkFuel` (`knotRel_checkFuel'`).  The Core entries' own side conditions
+come from the precondition: `EResolves` of the declared type (task #97-P5-0's
+finding 3) is `VGResolves` at the entry state; the inferred type resolves by
+`ResolveInv.infer` at the twin's own run; and `ensure_sort_core`'s
+`AnswerResolves` of the whnf answer (task #97-P5-Arms' finding 14) is
+`ResolveInv.whnf` at the twin run `KnotRel.whnf` produces, carried to every
+twin state related to the Rust post-state by `EResolves.of_rel`. -/
+theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
+    {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hres : ExprOps.EResolves lst (absEIdx g.cv_a.ty))
-    (hinfer : ∀ p, arena.core.infer_type_core pers vis st mode rf
-      arena.core.CHECK_FUEL 0#u64 g.cv_a.ty = ok p → AnswerResolves pers p)
-    (hwhnf : ∀ st1 stype, arena.core.infer_type_core pers vis st mode rf
-      arena.core.CHECK_FUEL 0#u64 g.cv_a.ty = ok (.Ok stype, st1) →
-      ∀ p, arena.core.knot_whnf pers vis st1 mode arena.core.LANE_FULL
-        arena.core.CHECK_FUEL rf 0#u64 stype = ok p → AnswerResolves pers p)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hvg : VGResolves Good lf (absValueGroup g))
     (hrun : arena.checker_split.check_value_group pers vis st mode rf g = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       (checkValueGroup (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
         (absValueGroup g)) := by
   have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+  have hres : ExprOps.EResolves lst (absEIdx g.cv_a.ty) := (hvg lst hg).1
   rw [arena.checker_split.check_value_group] at hrun
   unfold Sim
   rw [checkValueGroup_unfold,
@@ -970,14 +1226,26 @@ theorem check_value_group_of_resolves {pers st lst} {vis : Std.U64} {rf lf}
     exact AOut.errBind hS1
   | Ok stype =>
   obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
-  have hres1 : ExprOps.EResolves lst1 (absEIdx stype) :=
-    hinfer _ hq1 stype rfl lst1 hrel1
+  obtain ⟨hres1, hg1⟩ := hR.infer hg hres hx1
+  -- the whnf answer `ensure_sort_core` dispatches on resolves: the twin's does
+  -- (`ResolveInv.whnf`), and every twin state related to the Rust's views alike
+  have hwhnf : ∀ p, arena.core.knot_whnf pers vis st1 mode arena.core.LANE_FULL
+      arena.core.CHECK_FUEL rf 0#u64 stype = ok p → AnswerResolves pers p := by
+    intro p hp w hw lst' hrel'
+    have hW := knotRel_checkFuel'.whnf hrel1 hinv1 hctx hrel1.storeWF hres1
+      check_fuel_abs hp
+    rw [laneKnot_full, h0] at hW
+    obtain ⟨p1, p2⟩ := p
+    simp only at hw
+    subst hw
+    obtain ⟨lst2, hx2, hrel2, -, -, -⟩ := Sim.apply hW
+    exact EResolves.of_rel hrel2 hrel' (hR.whnf hg1 hres1 hx2)
   rw [run_bind_ok hx1]
   refine AOut.rebase hext1 ?_
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r2, st2⟩ := q2
   have hS2 := ensure_sort_core_refines knotRel_checkFuel' hrel1 hinv1 hctx hrel1.storeWF
-    hres1 check_fuel_abs (hwhnf st1 stype hq1) hq2
+    hres1 check_fuel_abs hwhnf hq2
   rw [h0] at hS2
   cases r2 with
   | Err e =>
@@ -986,25 +1254,10 @@ theorem check_value_group_of_resolves {pers st lst} {vis : Std.U64} {rf lf}
     exact AOut.errBind hS2
   | Ok u =>
   obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  have hg2 := hR.ensureSort hg1 hres1 hx2
   rw [run_bind_ok hx2]
   refine AOut.rebase hext2 ?_
-  exact check_value_group_value_refines hrel2 hinv2 hfe hfinv hrun
-
-/-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
-declaration, at the environment the constant was installed at.
-
-Its proof is `check_value_group_of_resolves` above once the three resolve
-facts are available at its call site; see that lemma's note (task
-#97-P5-Top). -/
-theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.check_value_group pers vis st mode rf g = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
-      (checkValueGroup (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
-        (absValueGroup g)) := by
-  sorry
+  exact check_value_group_value_refines hrel2 hinv2 hfe hfinv hR hg2 hvg hrun
 
 
 /-! ## The axiom census -/

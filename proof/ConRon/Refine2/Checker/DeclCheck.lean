@@ -372,12 +372,17 @@ theorem check_thm_val_witness_refines {pers st lst} {rf lf}
         (absIConstantVal cv) (absEIdx value)) := by
   sorry
 
-/-- **`check_thm_val` ⊑ `checkThmVal`**. -/
+/-- **`check_thm_val` ⊑ `checkThmVal`**.  Ruling 2's precondition (task
+#97-P5-Top round 2): the checked constant's (annotated) type resolves here,
+and the value resolves in every `Good` state. -/
 theorem check_thm_val_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx} {o}
+    {value : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hty : ExprOps.EResolves lst (absEIdx cv.ty))
+    (hv : ResolvesAt Good lf [absEIdx value])
     (hrun : arena.decl_check.check_thm_val pers st mode rf cv value = ok o) :
     SimRel IFEnvRelI pers lst o
       (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
