@@ -956,7 +956,7 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
         pushed := hpush
         run := ⟨env', 0, hden, checkDecl_ind_basis_pure hr1.symm hpure⟩ }
   | none =>
-    obtain ⟨hst, hx, hp, hcoh, hpush, hvis, env', F, hden, hpure⟩ :=
+    obtain ⟨hst, hx, hp, hcoh, hpush, hvis, env', F, hden, hpure, -⟩ :=
       hind.run (pinsP := pinsP) hok1 hb1 hr1.symm r1
     exact
       { state := hst
