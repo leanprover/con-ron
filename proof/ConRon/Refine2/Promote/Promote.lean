@@ -1123,4 +1123,7 @@ handle type. -/
 /-- info: 'ConRon.Refine2.promote_n_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promote_n_refines
 
+/-- info: 'ConRon.Refine2.erase_installed_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms erase_installed_refines
+
 end ConRon.Refine2
