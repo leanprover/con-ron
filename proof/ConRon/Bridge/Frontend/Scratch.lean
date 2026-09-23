@@ -158,6 +158,19 @@ macro_rules | `(tactic| sp_auto) => `(tactic| repeat' sp_step)
 theorem view_sp (b : Bool) (h : EIdx) : SPb b (view h) := by unfold view; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact view_sp _ _)
 
+/-- con-leche: none — the typed projections the tag-first twins read
+(task #97-T2-LOCKSTEP), and their dangling-handle arm, read only. -/
+theorem viewBind_sp (b : Bool) (h : EIdx) : SPb b (viewBind h) := by unfold viewBind; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewBind_sp _ _)
+theorem viewBindI_sp (b : Bool) (h : EIdx) : SPb b (viewBindI h) := by unfold viewBindI; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewBindI_sp _ _)
+theorem viewFVarTy_sp (b : Bool) (h : EIdx) : SPb b (viewFVarTy h) := by
+  unfold viewFVarTy; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewFVarTy_sp _ _)
+theorem failDanglingE_sp (b : Bool) {α : Type} : SPb b (failDanglingE : AM α) := by
+  unfold failDanglingE; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact failDanglingE_sp _)
+
 /-- con-leche: none — `internNodeE` interns in the tier it found. -/
 theorem internNodeE_sp (b : Bool) (w : ENodeView) : SPb b (internNodeE w) := by
   unfold internNodeE; sp_auto

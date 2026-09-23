@@ -448,6 +448,71 @@ theorem eidx_take_beq_refines {args want : alloc.vec.Vec arena.handle.EIdx}
       rw [List.getElem?_take_of_lt hj2] at hq
       exact hq
 
+/-! ## `take_eidx_n`: the prefix at a machine-word count -/
+
+theorem take_eidx_n_from_aux (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (k : Nat) (c : Std.U64) (i : Std.Usize) (out r : alloc.vec.Vec arena.handle.EIdx),
+      xs.val.length ≤ i.val + k →
+      arena.expr_ops.take_eidx_n_from xs c i out = ok r →
+      absEIdxL r = absEIdxL out ++ ((absEIdxL xs).drop i.val).take c.val := by
+  intro k
+  induction k with
+  | zero =>
+    intro c i out r hk h
+    rw [arena.expr_ops.take_eidx_n_from.eq_def] at h
+    have hd : (absEIdxL xs).drop i.val = [] := List.drop_eq_nil_of_le (by simp [absEIdxL]; omega)
+    rw [hd]
+    split at h
+    · rw [Result.ok.injEq] at h; subst h; simp
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      subst h; simp
+  | succ k ih =>
+    intro c i out r hk h
+    rw [arena.expr_ops.take_eidx_n_from.eq_def] at h
+    split at h
+    · rename_i hc
+      rw [Result.ok.injEq] at h; subst h; subst hc; simp
+    · rename_i hc
+      by_cases hx : i.val ≥ xs.val.length
+      · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+        subst h
+        rw [List.drop_eq_nil_of_le (by simp [absEIdxL]; omega)]
+        simp
+      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+        have hxi : i.val < xs.val.length := by omega
+        obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨c2, hc2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hb, hpv⟩ := vecIndexAt he
+        have hee : e1 = e := dupId_eidx e e1 he1
+        have hov : out1.val = out.val ++ [e1] := ConRon.Refine.vec_push_val hout1
+        have hc0 : c.val ≠ 0 := fun h0 => hc (Std.UScalar.eq_of_val_eq (by simpa using h0))
+        have hc2v : c2.val = c.val - 1 := (ConRon.Refine.Nat.usub_val hc2).2
+        have hi2v : i2.val = i.val + 1 :=
+          (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+        have hih := ih c2 i2 out1 r (by omega) h
+        rw [hih, hi2v, hc2v]
+        have hd : (absEIdxL xs).drop i.val
+            = absEIdx e :: (absEIdxL xs).drop (i.val + 1) := by
+          rw [List.drop_eq_getElem_cons (by simpa [absEIdxL] using hxi)]
+          simp only [absEIdxL, List.getElem_map, hpv]
+        have hob : absEIdxL out1 = absEIdxL out ++ [absEIdx e] := by
+          simp [absEIdxL, hov, hee]
+        rw [hd, hob]
+        obtain ⟨c', hc'⟩ : ∃ c', c.val = c' + 1 := ⟨c.val - 1, by omega⟩
+        rw [hc', List.take_succ_cons]
+        simp
+
+theorem take_eidx_n_refines {xs : alloc.vec.Vec arena.handle.EIdx} {c : Std.U64}
+    {r : alloc.vec.Vec arena.handle.EIdx}
+    (h : arena.expr_ops.take_eidx_n xs c = ok r) :
+    absEIdxL r = (absEIdxL xs).take c.val := by
+  rw [arena.expr_ops.take_eidx_n] at h
+  have := take_eidx_n_from_aux xs xs.val.length c 0#usize _ r (by simp) h
+  simpa [absEIdxL] using this
+
 /-! ## The binder telescope's cons -/
 
 theorem binder_copy_from_aux
@@ -592,6 +657,31 @@ Relation in, relation out.  Each `get` is `Refine/HashMap2WF.lean`'s
 cursor, so `Refine2/AbsState.lean`'s `eidxNat_eq2` / `eidx_eq2` are
 unrestricted), and each `insert` is `Rel_insert_wf` plus the `Inv` its first
 component carries. -/
+
+/-! ## The memo relations (finding 2, and finding 3 for `SeenRel`) -/
+
+/-- `wscoped_b_go`'s memo, keyed on `(handle, depth)`. -/
+def WMemoRel (rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+    (lm : Std.HashMap (EIdx × Nat) Bool) : Prop :=
+  RelOn (fun _ => True) rm lm absEIdxNat id ∧
+    Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm
+
+/-- `leaves_sub_go`'s memo, keyed on the handle alone (`bl` is fixed for the
+call, which is why it is not in the key). -/
+def LMemoRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (lm : Std.HashMap EIdx Bool) : Prop :=
+  RelOn (fun _ => True) rm lm absEIdx id ∧
+    Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm
+
+/-- `fvar_leaves_go`'s `seen` set.  **Membership, not value** (finding 3): the
+Rust's table is `bool`-valued and the twin's `Unit`-valued, and no reader
+looks at either value — which is what `RelOn` at the value abstraction
+`fun _ => ()` says, and stating it that way (rather than as an `isSome`
+agreement) is what lets `Refine/HashMap2WF.lean`'s kit apply unchanged. -/
+def SeenRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (lm : Std.HashMap EIdx Unit) : Prop :=
+  RelOn (fun _ => True) rm lm absEIdx (fun _ => ()) ∧
+    Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm
 
 theorem wscoped_memo_get_refines
     {memo : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
@@ -929,3 +1019,139 @@ info: 'ConRon.Refine2.ExprOps.fvl_record_refines' depends on axioms: [propext, C
 #print axioms subst_level_list_refines
 
 end ConRon.Refine2.ExprOps
+
+/-! ## Shared abstractions of the `ExprOps` tier (namespace `ConRon.Refine2`)
+
+Moved here from `ExprOps/Mut.lean` (task #97-T2-LOCKSTEP lane ExprOps) so that
+`Refine2/Tactic/Prims.lean` can state its primitive pairs without importing
+the walks it is the vocabulary of. -/
+
+namespace ConRon.Refine2
+
+open ConRon.Arena
+
+/-! ## The handle-vector abstractions
+
+Three readings of one Rust type.  `Vec<EIdx>` is the twin's `Array EIdx` where
+it is a substitution ACCUMULATOR (task #97-P6-15's push order) and its
+`List EIdx` where it is an argument SPINE (con-leche's own shape); a `_from`
+cursor companion reads the spine from the cursor on. -/
+
+/-- A `Vec<EIdx>` as the twin's push-order `Array EIdx`. -/
+def absEIdxArr (v : alloc.vec.Vec arena.handle.EIdx) : Array EIdx :=
+  (v.val.map absEIdx).toArray
+
+/-- A `Vec<EIdx>` as the twin's `List EIdx`. -/
+def absEIdxList (v : alloc.vec.Vec arena.handle.EIdx) : List EIdx :=
+  v.val.map absEIdx
+
+/-- A `Vec<EIdx>` read from a cursor on — DESIGN §3.4's standing
+`List`-as-cursor deviation, and the only abstraction here that mentions one. -/
+def absEIdxListFrom (v : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
+    List EIdx := (v.val.drop i.val).map absEIdx
+
+/-- A `Vec<NIdx>` as the twin's `List NIdx` (`instLPFast`'s level-parameter
+names, which the arena keeps as handles). -/
+def absNIdxList (v : alloc.vec.Vec arena.handle.NIdx) : List NIdx :=
+  v.val.map absNIdx
+
+/-- `Option<EIdx>`. -/
+def absOptE (o : Option arena.handle.EIdx) : Option EIdx := o.map absEIdx
+
+/-- `Option<(Vec<EIdx>, EIdx)>` — the domain list and the residual that
+`inst_pis_at` and its three siblings answer. -/
+def absOptArgsE (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)) :
+    Option (List EIdx × EIdx) :=
+  o.map fun p => (absEIdxList p.1, absEIdx p.2)
+
+attribute [simp] absEIdxArr absEIdxList absEIdxListFrom absNIdxList absOptE
+  absOptArgsE
+
+@[simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
+    (absEIdxArr v).size = v.val.length := by
+  simp [absEIdxArr]
+
+theorem absEIdxArr_get (v : alloc.vec.Vec arena.handle.EIdx) (k : Nat)
+    (h : k < v.val.length) :
+    (absEIdxArr v)[k]'(by simpa using h) = absEIdx (v.val[k]) := by
+  simp [absEIdxArr]
+
+
+/-- The memo key: `eidx_nat_key` is the pair. -/
+theorem eidx_nat_key_abs {h : arena.handle.EIdx} {d : Std.U64}
+    {k : arena.monad.EIdxNat} (hk : arena.monad.eidx_nat_key h d = ok k) :
+    absEIdxNat k = (absEIdx h, absU d) := by
+  rw [arena.monad.eidx_nat_key] at hk
+  obtain ⟨e, he, hk⟩ := ConRon.Refine.bind_eq_ok_iff.mp hk
+  have hee : e = h := dupId_eidx h e he
+  have hkk : ({ h := e, d := d } : arena.monad.EIdxNat) = k := Result.ok_injective hk
+  rw [← hkk, hee]; rfl
+
+/-- A cursor below the length reads the element and moves on. -/
+theorem listFrom_cons (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (hi : i.val < args.val.length) :
+    absEIdxListFrom args i =
+      absEIdx args.val[i.val] :: (args.val.drop (i.val + 1)).map absEIdx := by
+  simp only [absEIdxListFrom]
+  rw [List.drop_eq_getElem_cons hi]
+  rfl
+
+theorem listFrom_nil (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (hi : args.val.length ≤ i.val) : absEIdxListFrom args i = [] := by
+  simp only [absEIdxListFrom]
+  rw [List.drop_eq_nil_of_le hi]; rfl
+
+/-- `subst_level_list` hands back well-formed levels. -/
+theorem subst_level_list_from_wf
+    (ks : alloc.vec.Vec kernel.name.Name) (us vs : alloc.vec.Vec kernel.level.Level)
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hus : ∀ u ∈ us.val, ConRon.Refine.LevelWF u)
+    (hvs : ∀ v ∈ vs.val, ConRon.Refine.LevelWF v) :
+    ∀ (n : Nat) (i : Std.Usize) (out r : alloc.vec.Vec kernel.level.Level),
+      vs.val.length ≤ i.val + n → (∀ v ∈ out.val, ConRon.Refine.LevelWF v) →
+      arena.expr_ops.subst_level_list_from ks us vs i out = ok r →
+      ∀ v ∈ r.val, ConRon.Refine.LevelWF v := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out r hn hout h
+    rw [arena.expr_ops.subst_level_list_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+    rw [← h]; exact hout
+  | succ n ih =>
+    intro i out r hn hout h
+    rw [arena.expr_ops.subst_level_list_from.eq_def] at h
+    by_cases hx : i.val ≥ vs.val.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+      rw [← h]; exact hout
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len vs by scalar_tac)] at h
+      obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨l1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hb, hlv⟩ := ExprOps.vecIndexAt hl
+      have hlwf : ConRon.Refine.LevelWF l := by
+        rw [← hlv]; exact hvs _ (List.getElem_mem hb)
+      obtain ⟨-, hwf1⟩ := ConRon.Refine.Level.subst_use hl1 hlwf hks hus
+      have hov : out1.val = out.val ++ [l1] := ConRon.Refine.vec_push_val hout1
+      have hi2v : i2.val = i.val + 1 :=
+        (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+      refine ih i2 out1 r (by omega) ?_ h
+      intro v hv
+      rw [hov] at hv
+      rcases List.mem_append.mp hv with hv | hv
+      · exact hout v hv
+      · simp at hv; rw [hv]; exact hwf1
+
+theorem subst_level_list_wf {ks : alloc.vec.Vec kernel.name.Name}
+    {us vs r : alloc.vec.Vec kernel.level.Level}
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hus : ∀ u ∈ us.val, ConRon.Refine.LevelWF u)
+    (hvs : ∀ v ∈ vs.val, ConRon.Refine.LevelWF v)
+    (h : arena.expr_ops.subst_level_list ks us vs = ok r) :
+    ∀ v ∈ r.val, ConRon.Refine.LevelWF v := by
+  rw [arena.expr_ops.subst_level_list] at h
+  exact subst_level_list_from_wf ks us vs hks hus hvs vs.val.length _ _ _ (by scalar_tac)
+    (by intro v hv; simp at hv) h
+
+end ConRon.Refine2

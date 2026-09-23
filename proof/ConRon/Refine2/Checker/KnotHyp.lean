@@ -179,18 +179,6 @@ theorem LS.ofSimPM {α β : Type} {R : α → β → Prop} {pers : arena.store.P
     obtain ⟨m', v, lst', hx, hR, hM, h1, h2⟩ := this
     exact ⟨(m', v), lst', hx, ⟨hM, hR⟩, h1, h2⟩
 
-/-- A reader that can fail (`SimRE`) is an `LSR`. -/
-theorem LSR.ofSimRE {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (h : ∀ o, m = ok o → SimRE A lst o x) : LSR pers (fun a b => b = A a) m st lst x := by
-  intro o hm
-  have := h _ hm
-  cases o with
-  | Err e => exact this
-  | Ok a => exact ⟨A a, lst, this, rfl, hrel, hinv⟩
-
 end Lockstep
 
 /-! ## The checker tier's side-goal extension of `lockstep`
