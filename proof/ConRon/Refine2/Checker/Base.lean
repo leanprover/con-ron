@@ -104,6 +104,29 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF)
 
+/-- `lockstep`, deciding a twin `if` from the context BEFORE the Rust moves.
+The shared tactic moves a Rust bind before it decides a twin `if`, and when
+that bind's spec does not match (its twin partner is inside the `if`) it
+falls back to `LS.twin_bind_pure`, which succeeds and buries the `if` under a
+`>>= pure` where it is never decided.  That happens exactly where a guard's
+Rust test was already split (`hc` in context) and the Rust's next step is a
+state-threading call in the branch (`unresolved_consts_error`, the axiom
+arms' `*_ok` gates).  This wrapper tries the context's decision first (a test
+in context, or the twin's `a || b` against the Rust's two nested tests);
+everything else is `lockstep_step`.
+(Reported as a tactic issue for the shared `Tactic/Lockstep.lean`.) -/
+macro "chk_lockstep" : tactic => `(tactic| repeat' (first
+  | (refine Lockstep.LS.twin_ite_neg (by first
+      | assumption
+      | (simp only [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)
+      | lockstep_side_cheap | lockstep_side_ite) ?_)
+  | (refine Lockstep.LS.twin_ite_pos (by first
+      | assumption
+      | (simp only [Bool.or_eq_true]; first
+          | exact Or.inl (by assumption) | exact Or.inr (by assumption))
+      | lockstep_side_cheap | lockstep_side_ite) ?_)
+  | lockstep_step))
+
 /-! ## The attempt bracket — lockstep since task #97-T2-LOCKSTEP D4b -/
 
 /-! ### The copies are the identity
@@ -1331,18 +1354,42 @@ theorem all_level_params_defined_refines {pers st lst}
 
 /-! ## The front door's verdict at an unresolved constant -/
 
+/-- `unresolved_consts_error` by `lockstep`, with its walk `mentions_const` as a
+hypothesis: that walk's statement (`mentions_const_ls`) is
+`Refine2/Inductives/StructParts.lean`'s, a module ABOVE this one (the
+Inductives tier imports the checker's base), so it cannot be named here. -/
+theorem unresolved_consts_error_of {pers st lst} {e : arena.handle.EIdx} {o}
+    {w : String}
+    (hM : ∀ {st lst} (t : arena.handle.NIdx), AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.inductives.struct_parts.mentions_const pers st t e) lst
+        (mentionsConst (absNIdx t) (absEIdx e)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
+    SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
+      (unresolvedConstsError w (absEIdx e)) := by
+  have hS : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_sorry_ax st) st lst
+        pinSorryAx :=
+    fun hrel hinv => Lockstep.LSR.ofSimRE hrel hinv fun _ h => pin_sorry_ax_refines hrel hinv h
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker_base.unresolved_consts_error, unresolvedConstsError]
+  chk_lockstep
+
 /-- `unresolved_consts_error` ⊑ `unresolvedConstsError`.  The result is a
 CheckError, so it is a `SimRel₀` at the kind: a term that mentions `sorryAx`
 DECLINES (`notImplemented`) and anything else REJECTS (`invalid`), and the
 claim is that the two agree on WHICH — messages are never compared
-(DESIGN §3.1). -/
+(DESIGN §3.1).  **Closed modulo `mentions_const`**: `unresolved_consts_error_of`
+is the whole proof; the `sorry` is `Inductives/StructParts.lean`'s
+`mentions_const_ls` (itself a `sorry` there), which this module cannot import. -/
 theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {o}
     {w : String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
     SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
-      (unresolvedConstsError w (absEIdx e)) := by
-  sorry
+      (unresolvedConstsError w (absEIdx e)) :=
+  unresolved_consts_error_of (fun _ _ _ => sorry) hrel hinv hrun
 
 /-! ### Twin readers leave the state alone
 
@@ -1416,28 +1463,6 @@ here under `chk_` names so the two files never collide. -/
 
 attribute [local lockstep_simp] ite_true ite_false
 
-/-- `lockstep`, deciding a twin `if` from the context BEFORE the Rust moves.
-The shared tactic moves a Rust bind before it decides a twin `if`, and when
-that bind's spec does not match (its twin partner is inside the `if`) it
-falls back to `LS.twin_bind_pure`, which succeeds and buries the `if` under a
-`>>= pure` where it is never decided.  That happens exactly where a guard's
-Rust test was already split (`hc` in context) and the Rust's next step is a
-state-threading call in the branch (`unresolved_consts_error`, the axiom
-arms' `*_ok` gates).  This wrapper tries the context's decision first (a test
-in context, or the twin's `a || b` against the Rust's two nested tests);
-everything else is `lockstep_step`.
-(Reported as a tactic issue for the shared `Tactic/Lockstep.lean`.) -/
-macro "chk_lockstep" : tactic => `(tactic| repeat' (first
-  | (refine Lockstep.LS.twin_ite_neg (by first
-      | assumption
-      | (simp only [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)
-      | lockstep_side_cheap | lockstep_side_ite) ?_)
-  | (refine Lockstep.LS.twin_ite_pos (by first
-      | assumption
-      | (simp only [Bool.or_eq_true]; first
-          | exact Or.inl (by assumption) | exact Or.inr (by assumption))
-      | lockstep_side_cheap | lockstep_side_ite) ?_)
-  | lockstep_step))
 
 namespace Lockstep
 
