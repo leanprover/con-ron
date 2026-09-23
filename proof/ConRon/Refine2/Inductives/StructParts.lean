@@ -761,4 +761,12 @@ theorem mentions_const_refines {pers st lst} {t : arena.handle.NIdx}
       (mentionsConst (absNIdx t) (absEIdx e)) := by
   sorry
 
+/-! ## The axiom census
+
+The tier's first STATEFUL `_refines` (round 4), and the shape every other one
+of the family will be built from. -/
+
+/-- info: 'ConRon.Refine2.struct_ps_at_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms struct_ps_at_from_refines
+
 end ConRon.Refine2

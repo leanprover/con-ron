@@ -1059,4 +1059,7 @@ attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFr
 /-- info: 'ConRon.Refine2.sim_cursor_copy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms sim_cursor_copy
 
+/-- info: 'ConRon.Refine2.sim_vec_cursor_copy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sim_vec_cursor_copy
+
 end ConRon.Refine2

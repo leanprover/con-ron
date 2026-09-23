@@ -1378,4 +1378,13 @@ dearest (a memoised walk under rule 11's peel). -/
 /-- info: 'ConRon.Refine2.nativeShape_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms nativeShape_unfold
 
+/-- info: 'ConRon.Refine2.structShape_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms structShape_unfold
+
+/-- info: 'ConRon.Refine2.structPartsCore_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms structPartsCore_unfold
+
+/-- info: 'ConRon.Refine2.recCtorKinds_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms recCtorKinds_unfold
+
 end ConRon.Refine2

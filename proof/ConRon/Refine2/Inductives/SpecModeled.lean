@@ -1048,4 +1048,10 @@ theorem checkModeled_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
 /-- info: 'ConRon.Refine2.checkProjFn_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkProjFn_unfold
 
+/-- info: 'ConRon.Refine2.nestedRuleShape_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nestedRuleShape_unfold
+
+/-- info: 'ConRon.Refine2.checkUnitThm_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkUnitThm_unfold
+
 end ConRon.Refine2
