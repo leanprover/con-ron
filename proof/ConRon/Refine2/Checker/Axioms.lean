@@ -140,7 +140,8 @@ theorem propext_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.propext_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (propextName) := by
-  sorry
+  rw [arena.std_axioms.propext_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_propext_refines hrel hinv h) hrun
 
 /-- `choice_name` ⊑ `choiceName`, off the pin table. -/
 theorem choice_name_refines {pers st lst} {o}
@@ -148,7 +149,8 @@ theorem choice_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.choice_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (choiceName) := by
-  sorry
+  rw [arena.std_axioms.choice_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_choice_refines hrel hinv h) hrun
 
 /-- `iff_name` ⊑ `iffName`, off the pin table. -/
 theorem iff_name_refines {pers st lst} {o}
@@ -156,7 +158,8 @@ theorem iff_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (iffName) := by
-  sorry
+  rw [arena.std_axioms.iff_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_iff_refines hrel hinv h) hrun
 
 /-- `iff_intro_name` ⊑ `iffIntroName`, off the pin table. -/
 theorem iff_intro_name_refines {pers st lst} {o}
@@ -164,7 +167,8 @@ theorem iff_intro_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_intro_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (iffIntroName) := by
-  sorry
+  rw [arena.std_axioms.iff_intro_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_iff_intro_refines hrel hinv h) hrun
 
 /-- `iff_rec_name` ⊑ `iffRecName`, off the pin table. -/
 theorem iff_rec_name_refines {pers st lst} {o}
@@ -172,7 +176,8 @@ theorem iff_rec_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_rec_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (iffRecName) := by
-  sorry
+  rw [arena.std_axioms.iff_rec_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_iff_rec_refines hrel hinv h) hrun
 
 /-- `nonempty_name` ⊑ `nonemptyName`, off the pin table. -/
 theorem nonempty_name_refines {pers st lst} {o}
@@ -180,7 +185,8 @@ theorem nonempty_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nonempty_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (nonemptyName) := by
-  sorry
+  rw [arena.std_axioms.nonempty_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_nonempty_refines hrel hinv h) hrun
 
 /-- `nonempty_intro_name` ⊑ `nonemptyIntroName`, off the pin table. -/
 theorem nonempty_intro_name_refines {pers st lst} {o}
@@ -188,7 +194,8 @@ theorem nonempty_intro_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nonempty_intro_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (nonemptyIntroName) := by
-  sorry
+  rw [arena.std_axioms.nonempty_intro_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_nonempty_intro_refines hrel hinv h) hrun
 
 /-- `nonempty_rec_name` ⊑ `nonemptyRecName`, off the pin table. -/
 theorem nonempty_rec_name_refines {pers st lst} {o}
@@ -196,7 +203,8 @@ theorem nonempty_rec_name_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nonempty_rec_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (nonemptyRecName) := by
-  sorry
+  rw [arena.std_axioms.nonempty_rec_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_nonempty_rec_refines hrel hinv h) hrun
 
 /-- `erase_pw_eq` ⊑ `erasePwEq` — structural equality up to the `pw` datum, which is exactly what the erasure forgives. -/
 theorem erase_pw_eq_refines {pers st lst} {fuel : Std.U64} {a : arena.handle.EIdx} {b : arena.handle.EIdx} {o}
@@ -343,7 +351,8 @@ theorem true_name_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.true_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (trueName) := by
-  sorry
+  rw [arena.trust_axioms.true_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_true_refines hrel hinv h) hrun
 
 /-- `true_intro_name` ⊑ `trueIntroName`, off the pin table. -/
 theorem true_intro_name_refines {pers st lst} {o}
@@ -351,7 +360,8 @@ theorem true_intro_name_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.true_intro_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (trueIntroName) := by
-  sorry
+  rw [arena.trust_axioms.true_intro_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_true_intro_refines hrel hinv h) hrun
 
 /-- `trust_compiler_name` ⊑ `trustCompilerName`, off the pin table. -/
 theorem trust_compiler_name_refines {pers st lst} {o}
@@ -359,7 +369,8 @@ theorem trust_compiler_name_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.trust_compiler_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (trustCompilerName) := by
-  sorry
+  rw [arena.trust_axioms.trust_compiler_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_trust_compiler_refines hrel hinv h) hrun
 
 /-- `reduce_nat_name` ⊑ `reduceNatName`, off the pin table. -/
 theorem reduce_nat_name_refines {pers st lst} {o}
@@ -367,7 +378,8 @@ theorem reduce_nat_name_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.reduce_nat_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (reduceNatName) := by
-  sorry
+  rw [arena.trust_axioms.reduce_nat_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_reduce_nat_refines hrel hinv h) hrun
 
 /-- `reduce_bool_name` ⊑ `reduceBoolName`, off the pin table. -/
 theorem reduce_bool_name_refines {pers st lst} {o}
@@ -375,7 +387,8 @@ theorem reduce_bool_name_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.reduce_bool_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (reduceBoolName) := by
-  sorry
+  rw [arena.trust_axioms.reduce_bool_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_reduce_bool_refines hrel hinv h) hrun
 
 /-- `of_reduce_nat_name` ⊑ `ofReduceNatName`, off the pin table. -/
 theorem of_reduce_nat_name_refines {pers st lst} {o}
@@ -383,7 +396,8 @@ theorem of_reduce_nat_name_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.of_reduce_nat_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (ofReduceNatName) := by
-  sorry
+  rw [arena.trust_axioms.of_reduce_nat_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_of_reduce_nat_refines hrel hinv h) hrun
 
 /-- `of_reduce_bool_name` ⊑ `ofReduceBoolName`, off the pin table. -/
 theorem of_reduce_bool_name_refines {pers st lst} {o}
@@ -391,7 +405,8 @@ theorem of_reduce_bool_name_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.of_reduce_bool_name st = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (ofReduceBoolName) := by
-  sorry
+  rw [arena.trust_axioms.of_reduce_bool_name] at hrun
+  exact name_read_sim hrel hinv (fun _ h => pin_of_reduce_bool_refines hrel hinv h) hrun
 
 /-- `reduce_op_names` ⊑ `reduceOpNames` — the reduce operations pinned at their `opaque` install. -/
 theorem reduce_op_names_refines {pers st lst} {o}
@@ -399,7 +414,43 @@ theorem reduce_op_names_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.reduce_op_names st = ok o) :
     Sim absNIdxL (fun _ => True) pers lst o
       (reduceOpNames) := by
-  sorry
+  unfold reduceOpNames
+  rw [arena.trust_axioms.reduce_op_names] at hrun
+  unfold Sim
+  obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.trust_axioms.reduce_nat_name] at hq0
+  obtain ⟨r0, hr0, hq0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq0
+  have hS0 := pin_reduce_nat_refines hrel hinv hr0
+  obtain rfl := (Result.ok_injective hq0).symm
+  cases r0 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := reduceNatName) hS0)
+  | Ok a0 =>
+  rw [pin_ok (tw := reduceNatName) hS0]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.trust_axioms.reduce_bool_name] at hq1
+  obtain ⟨r1, hr1, hq1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq1
+  have hS1 := pin_reduce_bool_refines hrel hinv hr1
+  obtain rfl := (Result.ok_injective hq1).symm
+  cases r1 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut.err (pin_err (tw := reduceBoolName) hS1)
+  | Ok a1 =>
+  rw [pin_ok (tw := reduceBoolName) hS1]
+  obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w1, hw1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl := (Result.ok_injective hrun).symm
+  have hv : w1.val = [a0, a1] := by
+    rw [ConRon.Refine.vec_push_val hw1, ConRon.Refine.vec_push_val hw0,
+      ConRon.Refine.ExprOps.with_capacity_val]
+    rfl
+  refine ⟨lst, ?_, hrel, hinv, Ext.refl _, trivial⟩
+  simp only [absNIdxL, hv, List.map_cons, List.map_nil]
+  rfl
 
 /-- `of_reduce_op` ⊑ `ofReduceOp` — the reduce operation an `ofReduce*` axiom speaks about; con-leche's name test is a handle comparison here. -/
 theorem of_reduce_op_refines {pers st lst} {n : arena.handle.NIdx} {o}
@@ -489,38 +540,32 @@ theorem reduce_bool_cv_a_refines {pers st lst} {o}
       (reduceBoolCvA) := by
   sorry
 
-/-- `of_reduce_nat_a` ⊑ the RAW `ofReduceRaw ofReduceNatName`, interned.
+/-- `of_reduce_nat_a` ⊑ `ofReduceNatA` — the RAW pin `ofReduceRaw ofReduceNatName`,
+interned.
 
-**Restated by task #97-P5-Top: the old statement (against the twin's
-`ofReduceNatA`) was false.**  The port interns
-`kernel::trust_axioms::of_reduce_pin_a`, which is the RAW pin (that module's
-note: `matchesPin` cannot tell it from the annotated one), and con-leche's
-`ofReduceNatA ≠ ofReduceRaw ofReduceNatName` — they differ in the binder
-`pw` data, so they intern different `BMNode`s.  `of_reduce_pin_a_refines`
-below has the same defect and is left for the ruling (DESIGN.md, task
-#97-P5-Top). -/
+Task #97-P5-Top found the old statement false (the twin interned con-leche's
+annotated `ofReduceNatA`, the port the raw pin); round 2's ruling (a) moved
+the twin's slot to the raw pin (`Arena/TrustAxioms.lean`), so the statement is
+the port's again. -/
 theorem of_reduce_nat_a_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.trust_axioms.of_reduce_nat_a pers st = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
-      (internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)) := by
+      (ofReduceNatA) := by
   sorry
 
-/-- `of_reduce_bool_a` ⊑ the RAW `ofReduceRaw ofReduceBoolName`, interned.
+/-- `of_reduce_bool_a` ⊑ `ofReduceBoolA` — the RAW pin `ofReduceRaw ofReduceBoolName`,
+interned.
 
-**Restated by task #97-P5-Top: the old statement (against the twin's
-`ofReduceBoolA`) was false.**  The port interns
-`kernel::trust_axioms::of_reduce_pin_a`, which is the RAW pin (that module's
-note: `matchesPin` cannot tell it from the annotated one), and con-leche's
-`ofReduceBoolA ≠ ofReduceRaw ofReduceBoolName` — they differ in the binder
-`pw` data, so they intern different `BMNode`s.  `of_reduce_pin_a_refines`
-below has the same defect and is left for the ruling (DESIGN.md, task
-#97-P5-Top). -/
+Task #97-P5-Top found the old statement false (the twin interned con-leche's
+annotated `ofReduceBoolA`, the port the raw pin); round 2's ruling (a) moved
+the twin's slot to the raw pin (`Arena/TrustAxioms.lean`), so the statement is
+the port's again. -/
 theorem of_reduce_bool_a_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.trust_axioms.of_reduce_bool_a pers st = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
-      (internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)) := by
+      (ofReduceBoolA) := by
   sorry
 
 /-- `reduce_op_cv_a` ⊑ `reduceOpCvA`. -/

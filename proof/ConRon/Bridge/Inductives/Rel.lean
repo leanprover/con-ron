@@ -2028,9 +2028,8 @@ theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
     ProjOut fe st (fe.push ci) := by
   intro n t hf
   left
-  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx hcoh
-  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 :=
-    congrArg IFEnv.visibleBelow hcoh
+  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 := by
+    rw [hcoh.1, mkIFEnvGo_fst']
   simp only [IFEnv.find?, IFEnv.push, Std.HashMap.getElem?_insert] at hf
   by_cases hEq : (ci.name == n) = true
   · rw [if_pos hEq] at hf
@@ -2044,7 +2043,7 @@ theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
       rw [hg] at hf
       have hlt : cnt < fe.visibleBelow := by
         rw [hvb]
-        exact mkIFEnvGo_counter_lt fe.env.consts n cnt cinfo (hidx ▸ hg)
+        exact mkIFEnvGo_counter_lt fe.env.consts n cnt cinfo (hcoh.2 n ▸ hg)
       simp only [if_pos (Nat.lt_succ_of_lt hlt)] at hf
       simp only [IFEnv.find?, hg, if_pos hlt]
       exact hf

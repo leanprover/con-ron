@@ -96,17 +96,15 @@ function that is not in `CheckM` at all
 `∃ F` and no fuel bookkeeping: the conclusion is an equation between the
 arena's answer and con-leche's.  They are the first four of these to write.
 
-## 2. What the SIX that are left are waiting on (round 4)
+## 2. What the THREE that are left are waiting on (round 5)
 
 Round 4 closed four of round 3's ten and moved each to the module whose
 imports it needs: `unfoldDefinition` and `etaCert` to `Walks/Spine.lean`,
-`projCertAt` to `Walks/Proj.lean`, `reduceNat` to `Walks/Nat.lean`.  Left
-here:
+`projCertAt` to `Walks/Proj.lean`, `reduceNat` to `Walks/Nat.lean`.  Round 5
+closed three more — `propIrrel`, `annotPwPi` and `annotPwLam`, which waited
+on `Arena/PropRead.lean`'s readers — and moved them beside those readers'
+theorems, to `Walks/PropRead.lean`.  Left here:
 
-* **three on a module that does not exist** — `propIrrel`, `annotPwPi` and
-  `annotPwLam` read `Arena/PropRead.lean`'s `notProofFast`, `isProofFast`,
-  `typeSortPW` and `proofPW`, and that file has no bridge spec anywhere
-  (DESIGN §8's `### Task #97-P3-Core` round 4 prices it);
 * **`projLitToCtor`** — `strLitSupported`, `strLitToConstructor` and
   `litMajorToCtor`;
 * **`stuckIrrel`** and **`iotaRec`**, the two towers (`iotaRec`'s
@@ -191,25 +189,9 @@ theorem iotaRec_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           s'.store r⌝⦄ := by
   sorry
 
-/-- con-leche: ConLeche/Kernel/Core.lean:742-756 projLitToCtor — **THEOREM 1
-for `projLitToCtor`**: a string-literal scrutinee expands to its reduced
-constructor form before the projection table is consulted.
-
-**OPEN**: `strLitSupported`, `strLitToConstructor` and `litMajorToCtor` as
-callee rules, plus `KnotSpec.whnf`.  `strLitToConstructor` builds a cons
-spine in the store, so its rule is the first in this tier whose
-postcondition is a genuine `Ext` rather than a store equation. -/
-theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.projLitToCtor (coreKnot mode fe id fuel) fe d h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.projLitToCtorFueled mode env F d x) d
-          s'.store r⌝⦄ := by
-  sorry
+/-! `projLitToCtor_spec` **moved to `Bridge/Core/Walks/ProjLit.lean`** in round
+5 and is CLOSED there, over `strLitSupported_spec` (`Walks/StrLit.lean`) and
+`strLitToConstructor_spec` (`Walks/StrCtor.lean`). -/
 
 /-! `projCertAt_spec` **moved to `Bridge/Core/Walks/Proj.lean`** in round 4
 and is CLOSED there, beside `projCert_spec`. -/
@@ -219,44 +201,13 @@ and is CLOSED there, beside `projCert_spec`. -/
 `Bridge/Core/Arms/Defeq.lean`'s `defeqBody_spec` names exactly these five as
 the callee rules it is missing. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — **THEOREM 1 for
-`propIrrel`**, the hoisted proof-irrelevance test.
+/-! `propIrrel_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
+and is CLOSED there, over that module's `notProofFast` / `isProofFast`. -/
 
-**OPEN, on a MODULE that does not exist** (round 3's reading): `notProofFast`
-and `isProofFast` are `Arena/PropRead.lean` walks and that file has no bridge
-spec anywhere — not one.  After them it is `KnotSpec.inferIO'` at both
-subjects and `KnotSpec.defeq'` at their types, both in hand.  It shares its
-blocker with `annotPwPi` and `annotPwLam` below. -/
-theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.propIrrel (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.propIrrelFueled mode env F d x y) r⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **THEOREM 1 for
-`stuckIrrel`**, the fallback at two stuck terms: structure-η in both
-directions, then the unit certificate.
-
-**OPEN**: `structEtaCert` and `structUnitCert` as callee rules, which are two
-more knot-calling walks (`structEtaCertWith` is 70 lines and sits under
-both). -/
-theorem stuckIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r⌝⦄ := by
-  sorry
+/-! `stuckIrrel_spec` **moved to `Bridge/Core/Walks/Stuck.lean`** in round 5,
+where it is PROVED from three child walks (`structEtaCert_spec`,
+`structUnitCert_spec`, `proofIrrel_spec`) and gains the precondition
+`hμ : mode.verifiedChecks = true` (that module's note says why). -/
 
 /-! ### `etaCert`'s pure side, and the ExprOps slot in ANSWER shape
 
@@ -562,45 +513,11 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 `Bridge/Core/Arms/Annotate.lean`'s `annotateBody_spec` names `annotPwPi` and
 `annotPwLam`; `isPropType` is under both. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — **THEOREM 1
-for `annotPwPi`**: the `PropWhen` datum a ∀ binder is stamped with.
+/-! `annotPwPi_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
+and is CLOSED there, over that module's `typeSortPW`. -/
 
-**OPEN**: `isPropType_spec` (CLOSED, `Bridge/Core/Walks/Spine.lean`) and the
-head-symbol reader — which is **`Arena/PropRead.lean`'s `typeSortPW`, not an
-`ExprOps` walk**, and that file has no bridge spec anywhere (round 3's
-correction; `ExprOps/Walks.lean`'s `forallPw_spec` is a different reader and
-is not what this clause calls).  `PropWhen` is a type both tiers share, so
-the answer relation is `SimVOp` and nothing has to be denoted. -/
-theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.annotPwPi (coreKnot mode fe id fuel) fe d body'
-    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimVOp
-          (fun F => ConLeche.annotPwPi (ConLeche.pureFns mode env F) env d x)
-          pw⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — **THEOREM 1
-for `annotPwLam`**: the same at a λ binder.
-
-**OPEN**: `isPropType_spec` (CLOSED) and `Arena/PropRead.lean`'s `proofPW`
-— the same missing module as `annotPwPi` and `propIrrel` (round 3). -/
-theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.annotPwLam (coreKnot mode fe id fuel) fe d body'
-    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimVOp
-          (fun F => ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x)
-          pw⌝⦄ := by
-  sorry
+/-! `annotPwLam_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
+and is CLOSED there, over that module's `proofPW`. -/
 
 /-! ## 6. The axiom census
 

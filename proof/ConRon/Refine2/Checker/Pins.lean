@@ -47,6 +47,9 @@ import ConRon.Refine2.Promote.Promote
 import ConRon.Refine.PinsAbs
 import ConRon.Refine.ExprOpsSubst
 import ConRon.Refine.BasisNames
+import ConRon.Refine.CoreKNames
+import ConRon.Refine.StdAxioms
+import ConRon.Refine.TrustAxioms
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -58,14 +61,247 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF StrWF)
 
+/-! ## One pin read inside a name walk (task #97-P5-Top round 2)
+
+`arena::core::nat_op_names` and its siblings are chains of pin reads
+(`let (r, st1) ← nat_pred_name st; match r with …`), each a `SimRE` against the
+twin's reader.  `pin_step` is one link: the decline propagates, and on success
+the twin's bind continues at the SAME twin state, because a pin read writes
+nothing. -/
+
+theorem pin_ok {lst : AState} {β : Type} {a : arena.handle.NIdx} {tw : AM NIdx}
+    {kt : NIdx → AM β} (hS : SimRE absNIdx lst (.Ok a) tw) :
+    (tw >>= kt).run lst = (kt (absNIdx a)).run lst := by
+  have hx : tw.run lst = .ok (absNIdx a, lst) := hS
+  rw [am_run_bind', hx, except_ok_bind]
+
+theorem pin_err {lst : AState} {β : Type} {e : kernel.core_types.CheckError}
+    {tw : AM NIdx} {kt : NIdx → AM β} (hS : SimRE absNIdx lst (.Err e) tw) :
+    AErrSim e ((tw >>= kt).run lst) := by
+  rw [am_run_bind']
+  exact AErrSim.bind hS _
+
+/-- A name reader of the checker modules (`std_axioms::propext_name` …): one pin
+read, the state handed back untouched. -/
+theorem name_read_sim {pers : arena.store.PersTier} {st : arena.monad.AState}
+    {lst : AState}
+    {pin : Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)}
+    {tw : AM NIdx}
+    {o : core.result.Result arena.handle.NIdx kernel.core_types.CheckError ×
+      arena.monad.AState}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hS : ∀ r, pin = ok r → SimRE absNIdx lst r tw)
+    (hrun : (do let r ← pin; ok (r, st)) = ok o) :
+    Sim absNIdx (fun _ => True) pers lst o tw := by
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl := (Result.ok_injective hrun).symm
+  have h := hS r hr
+  cases r with
+  | Err e => exact AOut.err h
+  | Ok a => exact ⟨lst, h, hrel, hinv, Ext.refl _, trivial⟩
+
+/-- `arena::core::push_nidx` is `Vec::push` (the handle `dup2` is the
+identity). -/
+theorem push_nidx_val {out w : alloc.vec.Vec arena.handle.NIdx} {n : arena.handle.NIdx}
+    (h : arena.core.push_nidx out n = ok w) : w.val = out.val ++ [n] := by
+  rw [arena.core.push_nidx] at h
+  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [dupId_nidx _ _ hn1] at h
+  exact ConRon.Refine.vec_push_val h
+
 /-! ## The table's own two writers and its four readers -/
 
+set_option maxRecDepth 20000 in
 /-- `pin_names` is the twin's `pinNames`, a pure list of con-leche `Name`s
 built by nineteen `basis_names` calls.  The `NamesWF` conjunct is what every
 caller of `intern_name_list` owes (`Refine2/Promote/Intern.lean`'s note). -/
 theorem pin_names_refines {o} (hrun : arena.pins.pin_names = ok o) :
     ConRon.Refine.absNames o = pinNames ∧ NamesWF o := by
-  sorry
+  rw [arena.pins.pin_names] at hrun
+  obtain ⟨n0, h0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o0, ho0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n2, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o2, ho2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n3, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o3, ho3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n4, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o4, ho4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n5, h5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o5, ho5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n6, h6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o6, ho6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n7, h7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o7, ho7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n8, h8, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o8, ho8, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n9, h9, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o9, ho9, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n10, h10, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o10, ho10, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n11, h11, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o11, ho11, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n12, h12, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o12, ho12, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n13, h13, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o13, ho13, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n14, h14, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o14, ho14, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n15, h15, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o15, ho15, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n16, h16, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o16, ho16, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n17, h17, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o17, ho17, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n18, h18, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o18, ho18, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n19, h19, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o19, ho19, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n20, h20, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o20, ho20, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n21, h21, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o21, ho21, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n22, h22, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o22, ho22, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n23, h23, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o23, ho23, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n24, h24, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o24, ho24, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n25, h25, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o25, ho25, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n26, h26, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o26, ho26, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n27, h27, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o27, ho27, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n28, h28, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o28, ho28, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n29, h29, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o29, ho29, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n30, h30, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o30, ho30, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n31, h31, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o31, ho31, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n32, h32, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o32, ho32, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n33, h33, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o33, ho33, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n34, h34, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o34, ho34, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n35, h35, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o35, ho35, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n36, h36, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o36, ho36, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n37, h37, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o37, ho37, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n38, h38, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o38, ho38, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n39, h39, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o39, ho39, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n40, h40, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o40, ho40, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n41, h41, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o41, ho41, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n42, h42, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o42, ho42, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n43, h43, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o43, ho43, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n44, h44, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o44, ho44, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n45, h45, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o45, ho45, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n46, h46, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o46, ho46, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n47, h47, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨o47, ho47, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n48, h48, hlast⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨e0, f0⟩ := ConRon.Refine.BasisNames.eq_name_refines h0
+  obtain ⟨e1, f1⟩ := ConRon.Refine.BasisNames.punit_name_refines h1
+  obtain ⟨e2, f2⟩ := ConRon.Refine.BasisNames.punit_rec_name_refines h2
+  obtain ⟨e3, f3⟩ := ConRon.Refine.BasisNames.nat_name_refines h3
+  obtain ⟨e4, f4⟩ := ConRon.Refine.BasisNames.nat_zero_name_refines h4
+  obtain ⟨e5, f5⟩ := ConRon.Refine.BasisNames.nat_succ_name_refines h5
+  obtain ⟨e6, f6⟩ := ConRon.Refine.BasisNames.quot_sound_name_refines h6
+  obtain ⟨e7, f7⟩ := ConRon.Refine.BasisNames.string_name_refines h7
+  obtain ⟨e8, f8⟩ := ConRon.Refine.BasisNames.string_of_list_name_refines h8
+  obtain ⟨e9, f9⟩ := ConRon.Refine.BasisNames.list_name_refines h9
+  obtain ⟨e10, f10⟩ := ConRon.Refine.BasisNames.list_nil_name_refines h10
+  obtain ⟨e11, f11⟩ := ConRon.Refine.BasisNames.list_cons_name_refines h11
+  obtain ⟨e12, f12⟩ := ConRon.Refine.BasisNames.char_name_refines h12
+  obtain ⟨e13, f13⟩ := ConRon.Refine.BasisNames.and_name_refines h13
+  obtain ⟨e14, f14⟩ := ConRon.Refine.BasisNames.char_of_nat_name_refines h14
+  obtain ⟨e15, f15⟩ := ConRon.Refine.BasisNames.sorry_ax_name_refines h15
+  obtain ⟨e16, f16⟩ := ConRon.Refine.CoreK.nat_pred_name_refines h16
+  obtain ⟨e17, f17⟩ := ConRon.Refine.CoreK.nat_add_name_refines h17
+  obtain ⟨e18, f18⟩ := ConRon.Refine.CoreK.nat_sub_name_refines h18
+  obtain ⟨e19, f19⟩ := ConRon.Refine.CoreK.nat_mul_name_refines h19
+  obtain ⟨e20, f20⟩ := ConRon.Refine.CoreK.nat_pow_name_refines h20
+  obtain ⟨e21, f21⟩ := ConRon.Refine.CoreK.nat_beq_name_refines h21
+  obtain ⟨e22, f22⟩ := ConRon.Refine.CoreK.nat_ble_name_refines h22
+  obtain ⟨e23, f23⟩ := ConRon.Refine.CoreK.nat_div_name_refines h23
+  obtain ⟨e24, f24⟩ := ConRon.Refine.CoreK.nat_mod_name_refines h24
+  obtain ⟨e25, f25⟩ := ConRon.Refine.CoreK.nat_gcd_name_refines h25
+  obtain ⟨e26, f26⟩ := ConRon.Refine.CoreK.nat_land_name_refines h26
+  obtain ⟨e27, f27⟩ := ConRon.Refine.CoreK.nat_lor_name_refines h27
+  obtain ⟨e28, f28⟩ := ConRon.Refine.CoreK.nat_xor_name_refines h28
+  obtain ⟨e29, f29⟩ := ConRon.Refine.CoreK.nat_shift_left_name_refines h29
+  obtain ⟨e30, f30⟩ := ConRon.Refine.CoreK.nat_shift_right_name_refines h30
+  obtain ⟨e31, f31⟩ := ConRon.Refine.CoreK.bool_name_refines h31
+  obtain ⟨e32, f32⟩ := ConRon.Refine.CoreK.bool_true_name_refines h32
+  obtain ⟨e33, f33⟩ := ConRon.Refine.CoreK.bool_false_name_refines h33
+  obtain ⟨e34, f34⟩ := ConRon.Refine.StdAxioms.propext_name_refines h34
+  obtain ⟨e35, f35⟩ := ConRon.Refine.StdAxioms.choice_name_refines h35
+  obtain ⟨e36, f36⟩ := ConRon.Refine.StdAxioms.iff_name_refines h36
+  obtain ⟨e37, f37⟩ := ConRon.Refine.StdAxioms.iff_intro_name_refines h37
+  obtain ⟨e38, f38⟩ := ConRon.Refine.StdAxioms.iff_rec_name_refines h38
+  obtain ⟨e39, f39⟩ := ConRon.Refine.StdAxioms.nonempty_name_refines h39
+  obtain ⟨e40, f40⟩ := ConRon.Refine.StdAxioms.nonempty_intro_name_refines h40
+  obtain ⟨e41, f41⟩ := ConRon.Refine.StdAxioms.nonempty_rec_name_refines h41
+  obtain ⟨e42, f42⟩ := ConRon.Refine.TrustAxioms.true_name_refines h42
+  obtain ⟨e43, f43⟩ := ConRon.Refine.TrustAxioms.true_intro_name_refines h43
+  obtain ⟨e44, f44⟩ := ConRon.Refine.TrustAxioms.trust_compiler_name_refines h44
+  obtain ⟨e45, f45⟩ := ConRon.Refine.TrustAxioms.reduce_nat_name_refines h45
+  obtain ⟨e46, f46⟩ := ConRon.Refine.TrustAxioms.reduce_bool_name_refines h46
+  obtain ⟨e47, f47⟩ := ConRon.Refine.TrustAxioms.of_reduce_nat_name_refines h47
+  obtain ⟨e48, f48⟩ := ConRon.Refine.TrustAxioms.of_reduce_bool_name_refines h48
+  have hval : o.val = [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15,
+      n16, n17, n18, n19, n20, n21, n22, n23, n24, n25, n26, n27, n28, n29, n30, n31, n32, n33, n34,
+      n35, n36, n37, n38, n39, n40, n41, n42, n43, n44, n45, n46, n47, n48] := by
+    rw [ConRon.Refine.vec_push_val hlast, ConRon.Refine.vec_push_val ho47,
+      ConRon.Refine.vec_push_val ho46, ConRon.Refine.vec_push_val ho45, ConRon.Refine.vec_push_val
+      ho44, ConRon.Refine.vec_push_val ho43, ConRon.Refine.vec_push_val ho42,
+      ConRon.Refine.vec_push_val ho41, ConRon.Refine.vec_push_val ho40, ConRon.Refine.vec_push_val
+      ho39, ConRon.Refine.vec_push_val ho38, ConRon.Refine.vec_push_val ho37,
+      ConRon.Refine.vec_push_val ho36, ConRon.Refine.vec_push_val ho35, ConRon.Refine.vec_push_val
+      ho34, ConRon.Refine.vec_push_val ho33, ConRon.Refine.vec_push_val ho32,
+      ConRon.Refine.vec_push_val ho31, ConRon.Refine.vec_push_val ho30, ConRon.Refine.vec_push_val
+      ho29, ConRon.Refine.vec_push_val ho28, ConRon.Refine.vec_push_val ho27,
+      ConRon.Refine.vec_push_val ho26, ConRon.Refine.vec_push_val ho25, ConRon.Refine.vec_push_val
+      ho24, ConRon.Refine.vec_push_val ho23, ConRon.Refine.vec_push_val ho22,
+      ConRon.Refine.vec_push_val ho21, ConRon.Refine.vec_push_val ho20, ConRon.Refine.vec_push_val
+      ho19, ConRon.Refine.vec_push_val ho18, ConRon.Refine.vec_push_val ho17,
+      ConRon.Refine.vec_push_val ho16, ConRon.Refine.vec_push_val ho15, ConRon.Refine.vec_push_val
+      ho14, ConRon.Refine.vec_push_val ho13, ConRon.Refine.vec_push_val ho12,
+      ConRon.Refine.vec_push_val ho11, ConRon.Refine.vec_push_val ho10, ConRon.Refine.vec_push_val
+      ho9, ConRon.Refine.vec_push_val ho8, ConRon.Refine.vec_push_val ho7, ConRon.Refine.vec_push_val
+      ho6, ConRon.Refine.vec_push_val ho5, ConRon.Refine.vec_push_val ho4, ConRon.Refine.vec_push_val
+      ho3, ConRon.Refine.vec_push_val ho2, ConRon.Refine.vec_push_val ho1, ConRon.Refine.vec_push_val
+      ho0]
+    simp
+  refine ⟨?_, ?_⟩
+  · rw [ConRon.Refine.absNames, hval]
+    simp only [List.map_cons, List.map_nil, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11,
+      e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22, e23, e24, e25, e26, e27, e28, e29, e30,
+      e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45, e46, e47, e48]
+    rfl
+  · intro x hx
+    rw [hval] at hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    rcases hx with
+      rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl
+    exacts [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17,
+      f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36,
+      f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48]
 
 /-! ### The startup walk's glue (task #97-P5-Top) -/
 

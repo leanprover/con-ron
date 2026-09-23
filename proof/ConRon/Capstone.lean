@@ -224,6 +224,40 @@ theorem stages_model (V : Type w) [ConLeche.SetTheory V]
   exact ⟨env', hdenF,
     ConLeche.Model.checkDeclsPure_sound_of (V := V) (pins := pins) rfl hpure⟩
 
+/-- **Ruling 2's `DeclResolves`, discharged from Theorem 1** (task
+#97-P5-Top round 2).  Theorem 2's fold (`install_then_check_refines`) needs the
+declaration's handles and the Core answers to resolve in the twin store; that
+is a fact about what the TWIN run keeps, so `Refine2` takes it as a
+precondition stated over an abstract invariant `Good`
+(`Refine2/Checker/Base.lean`'s `ResolveInv`, `Refine2/Checker/Top.lean`'s
+`DeclResolves`), and this is where it is discharged — here, the one module
+that sees both theorems, the way `BrOK` is (`stages_frame`).
+
+**Open (`sorry`), and Theorem 1's to close.**  The witness is Theorem 1's
+fold invariant: `Good fe s := ∃ env, FoldOK .verified env fe s ∧ (the prepared
+stream's handles resolve in `s`) ∧ (every handle of `fe` resolves in `s`)`.
+`entry` is `stages_frame` (`FoldOK_of_start` and `denoteDecls`), `decls` is
+`PersDecl` plus the store only growing, each `ResolveInv` field is the frame of
+one Theorem-1 run lemma (`inferType`/`whnf`/`ensureSort` under `hk`, whose
+answers DENOTE, hence resolve; `annotStep_run`, `checkPending_run`,
+`checkDeclStep_run`, `installConstantVal`/`checkConstantVal`'s), and
+`pending` is phase A's record invariant (a recorded value group is the
+installed constant's type and value, hence `fe`'s). -/
+theorem declResolves_of_stages
+    (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
+    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
+    {chunks : List ByteArray} {pins : List NatOpPinSet}
+    {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD}
+    {ds : Array IDeclaration} {ipins : List INatOpPinSet}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
+    (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
+    (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
+    (hE : internAllPins pins sD = .ok (ipins, sE)) :
+    ∃ Good : IFEnv → AState → Prop,
+      ConRon.Refine2.DeclResolves .verified ipins ds.toList sE Good := by
+  sorry
+
 end Twin
 
 /-! ## 2. The Rust side: the six stages, walked into the twin by Theorem 2 -/
@@ -255,8 +289,12 @@ Rust's environment related to the twin's.
 
 Theorem 2's six top lemmas, one per stage, and `BrOK` at the fold's entry from
 `stages_frame` (the twin's frame: the scratch tier is closed after the
-startup walk) and `AStateRel.storeWF`. -/
+startup walk) and `AStateRel.storeWF`; ruling 2's `DeclResolves` at the fold's
+entry from `declResolves_of_stages` (Theorem 1's, which is why `hk` and `hind`
+are here). -/
 theorem rust_stages
+    (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
+    (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
@@ -324,8 +362,13 @@ theorem rust_stages
   have hoff : sE.store.scratchOn = false :=
     (stages_frame (pins := ConRon.Refine.absPins pins) hbytes hA hB hC
       hD' hE).1
+  -- the fold's entry, ruling 2: the declarations' handles and the Core answers
+  -- resolve (Theorem 1's `declResolves_of_stages`)
+  obtain ⟨Good, hres⟩ := declResolves_of_stages hk hind hbytes hA hB hC hD' hE
+  rw [List.toList_toArray] at hres
   -- 6. the fold
-  have hF := install_then_check_refines hrelE hinvE ⟨hrelE.storeWF, hoff⟩ h6
+  have hF := install_then_check_refines (mode := .Verified) (ds := ds) (pins := ipins)
+    hrelE hinvE ⟨hrelE.storeWF, hoff⟩ hres h6
   obtain ⟨lfe, sF, hF, hfe, hrelF, -, -⟩ := hF
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
 
@@ -386,7 +429,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hbytes hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hk hind hbytes hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨env, hden, hmod⟩ := stages_model V hk hind hbytes hA hB hC hD hE hF
   exact ⟨sF, lfe, env, hrelF, hfe, hden, hmod⟩
 
@@ -433,7 +476,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok fe, st6)) :
     False := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hbytes hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hk hind hbytes hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨n, hn⟩ := runPipeline_ok_of_stages hA hB hC hD hE hF
   obtain ⟨e, he⟩ := ConRon.Bridge.Frontend.Arena.no_False_declaration_pipeline V
     hk hind hbytes (ConRon.Refine.absPins pins) (absChunks chunks) hfalse
