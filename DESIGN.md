@@ -59092,3 +59092,151 @@ conflict, both appends kept).  `scripts/gates.sh` on the merge: **all 16 OK**
 (`extract-check` 142 s).  `arena` then moved to `5453ac2e` (T2-LOCKSTEP step 1:
 the foundation, Rust and twin included); merged (`DESIGN.md` conflict only)
 and re-gated: **all 16 OK** (`extract-check` 113 s, `lake-bridge` 550 s).
+
+### Task #97-T2-LOCKSTEP lane ExprOps — `arena::expr_ops` lockstep, its D1 twins, the `lockstep` tactic's walk moves (2026-09-23, Opus under Fable)
+
+The lane brief: move every `Refine2/ExprOps/**` statement to the lockstep
+shapes (`AStateRel₀`, `AStateInv`, `Sim₀`/`AOut₀`, no `Ext`, no store
+invariant), prove them with `lockstep`, fix the lane's D1 twins and repair
+Theorem 1, provide `ExprOpsHyp`'s `instLPFast`/`mkAppN` early, and delete the
+`Specs.lean` shims the lane kept alive.  Worktrees `_tmp/wt-t2-exprops`
+(slice 1) and `_tmp/wt-t2-exprops-b` (slice 2).
+
+#### 1. What landed
+
+* **Slice 1** (merge queue, `8e8a879c`, gates 16/16): `Tactic/Prims.lean` no
+  longer imports `ExprOps/Mut.lean` (the shared abstractions `absEIdxArr`,
+  `absEIdxList(From)`, `absOptE`, `eidx_nat_key_abs`, `listFrom_*` moved to
+  `ExprOps/Pure.lean`; `Read` and `Mut` import `Prims`).  `Mut.lean` restated
+  for `mk_app_n(_from)`, `inst_lp_go`/`inst_lp_fast`, `subst_l(s)_memo_at` and
+  the twelve `intern_rebuilt_*` — **`ExprOpsHyp.instLPFast` and `.mkAppN` are
+  `inst_lp_fast_refines` and `mk_app_n_refines`**, exactly the bundle's field
+  shapes.
+* **Slice 2** (this section): the rest of `Read.lean` (every read-only walk)
+  and `Mut.lean` (every state-writing walk), the D1 twins and their Theorem-1
+  repairs, the shim deletion.
+
+Every function of `expr_ops.rs` that reads or writes the state has two
+lemmas: `f_ls` (the `LS`/`LSR`/`LSV` judgement, `@[lockstep]`, so a caller's
+`lockstep` steps over the call) and `f_refines` (the public `Sim₀`/`AOut₀`,
+one line from `f_ls`).  The Rust-only splits `*_node`/`*_two` of the three
+memoised DAG walks are unfolded in place before `lockstep` and have no
+statement of their own.  **Sizes**: `Mut.lean` 14 661 → 1 485 lines,
+`Read.lean` 4 880 → 878; `MemoRes`, `WOutE`/`WOutR`, `WOutX`, `WOutO`,
+`WOutN`, `WOutLv`, `EViewExt`, `QStable`, `RenameRes`, `LPInv`, `LssStep`, the
+`EResolves` premises and the `hview`/`StoreWF` threading are gone (the
+definitions `EResolves`, `WOut`/`LOut`/`FOut` stay in `Read.lean`, marked
+deprecated, for the Core, Checker and Inductives statements that still name
+them).  Of the 223 theorems in the two files, **90 are proved by `lockstep`**
+(`rw [rust_f, twinF]; lockstep`, per case of a fuel/cursor/count induction in
+41 of them); the others are the `_ls` instances of an `_aux` and the one-line
+public statements, plus four twin-only equations (`mkAppNFrom_eq`,
+`mkAppN_absEIdxList`, `leafMem_reverse`, `denoteEList_length_tf`).  No proof
+in the lane is by hand against a goal `lockstep` left.  `#print axioms` over
+all 175 `_ls`/`_refines`: `[propext, Classical.choice, Quot.sound]`.
+
+#### 2. D1 and the other divergences, fixed in the twin
+
+The tactic stopped exactly at each of these, at the Rust's typed projection
+against the twin's `view`:
+
+| twin (`Arena/ExprOps.lean`) | Rust reads | was |
+|---|---|---|
+| `isLam` | tag, `view_bind_i` | `view` |
+| `lamPw`, `forallPw`, `stripLams`, `stripPis`, `piArity` | tag, `view_bind` | `view` (`lamPw`/`stripPis` tag-first but still `view`) |
+| `instPis`, `instPisAt`, `instLamsAt`, `instPisAtFGo`, `instLamsAtFGo`, `instPisAtLift` | tag, `view_bind` | `view` |
+| `pisToLams`, `replacePiBody` | tag, `view_bind`, `intern_e_lam`/`_forall_e` | `view`, `internE (.lam …)` |
+| `fvarTypeD` | tag, `view_fvar_ty` | `view` |
+| `recRulePlain` | tag, `view_bind` | tag, `view` |
+| `Frontend.lamBody` (`Arena/Frontend/ProjRec.lean`) | tag, `view_bind` | `view` |
+
+`piResult` (already `viewBindI`) and `abstractRangeGo` (already the Rust's
+tag dispatch) needed nothing: `lockstep` closed them as they were.  Two
+divergences outside the audit's list, both found by the tactic:
+
+* **`renameConstsGo` cut off where the Rust interns.**  The Rust's
+  `rename_consts_go` interns unconditionally in every arm; the twin used
+  `internRebuilt*` (`if same then pure h`).  On a store where a view's cons
+  entry is not the handle itself the two answer different handles.  The twin
+  now interns in every arm.
+* **`recRulePlain` compared `args.take cnP`, the Rust `args.take want.len()`**
+  (`eidx_take_beq`).  The twin now takes `want.length`; Theorem 1 gets `cnP`
+  back from `bvarRangeSpec`'s length.
+
+**Theorem 1 repairs** (`Bridge/**`): a new `Bridge/ExprOps/TagFirst.lean`
+(the projections as views: `@[grind →]` lemmas at both tag spellings, the
+`else` arm's "view, not that constructor" lemmas, and `tf_views`, a meta
+tactic that adds them to an arm's context); `Spine.lean`'s `arm_pre` calls
+`tf_views`, which repaired all nine `Spine.lean` specs and
+`TelescopeF.lean`'s unchanged; `Walks.lean`'s `isLam_spec` (two helper
+lemmas); `Subst.lean`'s `instPisAtLift` arms (`tf_views`);
+`Owed.lean`'s `renameConstsGo_specS` (unconditional-intern specs at the
+`internRebuilt*_specV` shape, `attribute [local spec high]`);
+`TelescopeF.lean`'s `recRulePlain_canonical`;
+`Frontend/Scratch.lean` (scratch-flag lemmas for `viewBind`, `viewBindI`,
+`viewFVarTy`, `failDanglingE`); `Frontend/ProjRec.lean`'s `lamBody_run`;
+`Specs.lean`'s two stale matcher-owner lemmas (the matchers no longer exist).
+`Refine2/Frontend/ProjRec.lean`'s `lam_body_refines` (a `sorry`, the
+frontend lane's) is now provable as the brief's audit said.
+
+#### 3. The shared tactic and its primitives
+
+Merged onto the coordinator's shared `lockstep` (`cc726e46`); this lane's
+earlier copies of ok-bind, `dite`, error-arm and tail-read moves were dropped
+in its favour.  What the walks needed on top, now in the shared
+`Tactic/Lockstep.lean`:
+
+* an answer relation with an existential (a walk-local memo: `∃ m', WMemoRel
+  a.2 m' ∧ b = (a.1, m')`) is destructured and substituted, and its witness
+  supplied at a leaf; a relation with side facts is split into its conjuncts;
+* a Rust `match` on a TERM in callee position (an inline memo probe) is cased
+  on after rewriting the term with the context's key equation (`absEIdxNat k =
+  (h, d)`), so the twin's match on the same term reduces with it; a twin
+  `match` on a term the Rust decided by its own test is cased on with the
+  contradicting branch closed;
+* the spec's twin action is checked inside candidate selection (a candidate
+  whose twin action is not the goal's gives way to the next: the two
+  `inst_list_cutoff` pairings, `derivedE`-inline and `instListCutoff`);
+* tag-constant disequalities, index equalities of two vector reads, `beq` on
+  `Nat` in twin tests, and error arms of the `let (st1, body) ← let (r2, st3)
+  := y; …` shape.
+
+`Prims.lean` gained the lane's pairs: the eleven memo get/set/clear families,
+`view_fvar_ty`/`view_fvar_idx`/`derived_l`, the level readbacks with their
+`LevelWF`/`NameWF`, level/`PropWhen`/binder-datum Rust-only steps
+(`level::subst`, `subst_level_list`, `subst_pw`, `binder_meta(_beq)`,
+`never`), the three walk-local memos (`WMemoRel`/`LMemoRel`/`SeenRel`, moved
+to `Pure.lean`), handle `eq2`/`dup2`, the `u64`/`usize` casts, `max_u64`,
+`sub_nat`, `last_eidx`, the `Pure.lean` helpers, `intern_e`; `view_ls` and
+`view_bind_ls` carry the answered datum's `PropWhenWF` (kind 1, from
+`AStateInv`), `derived_e_ls` all three observed fields.
+
+#### 4. Shims
+
+49 `Specs.lean` deprecated shims had no consumer left and are deleted (the 72
++ 6 the step-1 table assigned to `ExprOps/Mut`/`Read`, less those still named
+elsewhere): the memo `*_run`s, the eleven clears, the eight `view_*_run`s,
+`read_{level(s),name(s)}_m_run`, `intern_level(s)_run'`, `derived_l_run`,
+`bvar_b_get_run`.  Still alive, with consumers in other lanes:
+`intern_e_run` (and the `intern_e_*_run`/`estore_intern_*_abs` chain its proof
+uses: `Frontend/ExportC`), `intern_e_bvar_run` (`Inductives/StructParts`),
+`intern_e_sort_run`, `intern_l(s)_node_run` (`Checker/Pins`),
+`inst1_get_run`/`inst1_set_run` (`Core/Probes`), `read_level_m_run`
+(`Checker/Base`), `view_run` (`Core/Arms/Sort`, `Frontend/ExportC`).
+
+#### 5. An incident, and its repair
+
+A `lake -d proof build` run from the worktree ROOT (where no
+`lean-toolchain` is) used elan's default toolchain (a local 4.34 build) and
+rewrote two oleans of the SHARED con-leche package
+(`ConLeche/Semantics/Syntax`, `ConLeche/Frontend/Scan/Fast`) and 35 traces,
+for about fifteen minutes; builds importing them failed with "incompatible
+header" (the lane's own gate run did).  Repaired from the Lake artifact cache
+(`_tmp/lake-cache/artifacts`, by the outputs each module's trace records):
+both oleans and their `.olean.server`/`.private`/`.ir`/`.ir.sig` restored,
+every con-leche olean scanned for a 4.34 header (none left), `lake build
+--no-build` on them clean.  **Always run `lake` from inside `proof/`.**
+
+#### 6. Gates
+
+See the slice's submission note.
