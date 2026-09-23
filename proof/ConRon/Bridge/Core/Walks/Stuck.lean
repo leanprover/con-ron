@@ -10,7 +10,7 @@ statement over a tower; this module skeletonises the tower top-down:
 | walk | twin | con-leche | status |
 |---|---|---|---|
 | `stuckIrrel_spec` | `Arena/Core.lean:1564` | `Kernel/Core.lean:532-542` | **proved** from the three below |
-| `structEtaCert_spec` | `:1502` (over `structEtaCertWith`, `:1416`) | `:450-473` (`:376-448`) | OPEN |
+| `structEtaCert_spec` | `:1502` | `:450-473` | **proved** from `etaCtorShape_spec` (closed) and `structEtaCertWith_spec` (`:1416` / `:376-448`, OPEN) |
 | `structUnitCert_spec` | `:1513` | `:475-503` | **CLOSED** |
 | `proofIrrel_spec` | `:1265` | `:284-305` | **CLOSED**, over `isUnitLikeTy_spec` (new) |
 
@@ -462,18 +462,94 @@ theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
   simp only [e3, e4, bind, Except.bind]
   exact h5
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:738-749 etaCtorShape — **THEOREM
+1 for `etaCtorShape`**, the constructor-shape test `structEtaCert` runs
+FIRST (the divergence audit's D13): an equation with con-leche's reader. -/
+theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
+    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.etaCtorShape fe a
+    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = ConLeche.etaCtorShape env x⌝⦄ := by
+  have hwf := hok.state.wf
+  unfold ConRon.Arena.etaCtorShape
+  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state
+    (by rw [hda]; rfl)) ?_
+  rintro hd s1 ⟨hs1, hrelF⟩
+  subst s1
+  have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
+  obtain ⟨vh, hvh⟩ := denoteE_view hdd
+  refine view_bind_triple hvh ?_
+  cases vh
+  case const c us =>
+    obtain ⟨cn, ls, hgf, hcn, _⟩ := denote_const_inv hwf hvh hdd
+    dsimp only
+    split
+    next icv cnP cnF hfd =>
+      obtain ⟨dcv, _hdcv, hfind⟩ := env_ctor_of_index hok hcn hfd
+      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ a hok.state
+        (by rw [hda]; rfl)) ?_
+      rintro args s2 ⟨hs2, hrelA⟩
+      subst s2
+      have hargs := hrelA x hda
+      mvcgen
+      bridge_peel; subst_vars
+      refine ⟨rfl, ?_⟩
+      simp only [ConLeche.etaCtorShape, hgf, hfind, denoteEList_len hargs]
+    next hnd =>
+      have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
+      mvcgen
+      bridge_peel; subst_vars
+      refine ⟨rfl, ?_⟩
+      simp only [ConLeche.etaCtorShape, hgf]
+      try (split
+           · rename_i cv p q heq; exact absurd heq (hnc cv p q)
+           · rfl)
+  all_goals
+    dsimp only
+    mvcgen
+    bridge_peel; subst_vars
+    refine ⟨rfl, ?_⟩
+    have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
+    simp only [ConLeche.etaCtorShape]
+    try (split
+         · rename_i c us heq; exact absurd heq (hnc c us)
+         · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — **THEOREM
+1 for `structEtaCertWith`**, the structure-η certificate against a GIVEN
+weak-head-normal type `wtb` of the stuck side.
+
+**OPEN** — the round's next item under `stuckIrrel`: seventy lines over
+`getAppFn`/`getAppArgs` (twice), the index at the constructor and at the
+type former, `reservedBasisNames_spec`, `viewLsLen`, `towerSlotsAll` /
+`recSlotsAll` (two counted recursions over `IFEnv.findProj?_spec` /
+`projFnName`), `lvlsEq?_spec`, `liftFueled_spec`, `constTyAt_spec` +
+`iotaCerts_spec` (the family certificate, gated on `mode.certs`),
+`structEtaProjCerts` (a `List Nat` recursion over `projFnName`, `stripPis`,
+`constTyAt`, `iotaCerts`), `defEqList_spec` twice, and `etaProjs`
+(`projNodesGo`/`projAppsGo` over `internE`/`mkAppN`) under the TT gate. -/
+theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (a b wtb : EIdx) (x y w : Expr)
+    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
+    (hdb : denoteE s₀.store b = some y) (hdw : denoteE s₀.store wtb = some w)
+    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y)
+    (hww : Expr.WScoped d w) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.structEtaCertWith mode (coreKnot mode fe id fuel) fe d a b wtb
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimBOp (fun F => ConLeche.structEtaCertWithFueled mode env F d x y w)
+          r⌝⦄ := by
+  sorry
+
 /-! ## 2. The three children -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:450-473 structEtaCert — **THEOREM 1
 for `structEtaCert`**: structural η certification of a fully applied
 constructor `a` against a stuck `b` of an η-capable stored structure.
 
-**OPEN**: `etaCtorShape` (`getAppFn`, the index, `getAppArgs`), two knot
-slots (`inferIO`, `whnf`), then `structEtaCertWith` — seventy lines over
-`towerSlotsAll`/`recSlotsAll`, `reservedBasisNames`, `lvlsEq?_spec`,
-`constTyAt_spec`, `iotaCerts_spec`, `structEtaProjCerts` (a `List Nat`
-recursion over `projFnName`, `stripPis`, `constTyAt`, `iotaCerts`),
-`etaProjs` (`projNodesGo`/`projAppsGo`, `mkAppN`) and `defEqList_spec`. -/
+**PROVED** (round 5) from `etaCtorShape_spec` (closed above), two knot
+slots, and the child `structEtaCertWith_spec` (OPEN, above). -/
 theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
@@ -485,7 +561,44 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structEtaCertFueled mode env F d x y) r⌝⦄ := by
-  sorry
+  unfold ConRon.Arena.structEtaCert
+  refine triple_seq (etaCtorShape_spec s₀ a x hok hda) ?_
+  rintro sh s1 ⟨hs1, hsh⟩
+  subst s1
+  split
+  next hsht =>
+    have hshape : ConLeche.etaCtorShape env x = true := hsh ▸ hsht
+    refine triple_seq (hsim.inferIO s₀ d b y hok hdb hwb) ?_
+    rintro tb s2 ⟨hok2, hx2, hp2, vtb, hvtb, hwvtb, F1, hF1⟩
+    refine triple_seq (hsim.whnf s2 d tb vtb hok2 hvtb hwvtb) ?_
+    rintro wtb s3 ⟨hok3, hx3, hp3, vw, hvw, hwvw, F2, hF2⟩
+    have hx03 : Ext s₀.store s3.store := hx2.trans hx3
+    refine triple_mono (structEtaCertWith_spec hμ henv hsim s3 d a b wtb x y vw
+      hok3 (denote_ext hda hx03) (denote_ext hdb hx03) hvw hwa hwb hwvw) ?_
+    rintro r s4 ⟨hok4, hx4, hp4, F3, hF3⟩
+    refine ⟨hok4, hx03.trans hx4, hp4.trans (hp3.trans hp2),
+      max (max F1 F2) F3, ?_⟩
+    have e1 : (ConLeche.pureFns mode env (max (max F1 F2) F3)).inferIO d y =
+        .ok vtb :=
+      ConLeche.inferTypeIO_mono (Nat.le_trans (Nat.le_max_left F1 F2)
+        (Nat.le_max_left _ _)) hF1
+    have e2 : (ConLeche.pureFns mode env (max (max F1 F2) F3)).whnf d vtb =
+        .ok vw :=
+      ConLeche.whnf_mono (Nat.le_trans (Nat.le_max_right F1 F2)
+        (Nat.le_max_left _ _)) hF2
+    have e3 := structEtaCertWithFueled_mono (Nat.le_max_right (max F1 F2) F3) hF3
+    simp only [ConLeche.structEtaCertFueled, ConLeche.structEtaCert, hshape,
+      if_true, e1, e2, bind, Except.bind]
+    exact e3
+  next hshf =>
+    have hshape : ConLeche.etaCtorShape env x = false := by
+      rw [← hsh]; simpa using hshf
+    mvcgen
+    bridge_peel; subst_vars
+    refine ⟨hok, Ext.refl _, rfl, 0, ?_⟩
+    simp only [ConLeche.structEtaCertFueled, ConLeche.structEtaCert, hshape,
+      Bool.false_eq_true, if_false]
+    rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — **THEOREM 1
 for `structUnitCert`**: `a` and `b` inhabit the same stored unit-like family.
@@ -978,6 +1091,8 @@ section Census
 #print axioms env_ind_of_index
 #print axioms structUnitCert_cmp
 #print axioms structUnitCert_spec
+#print axioms etaCtorShape_spec
+#print axioms structEtaCert_spec
 #print axioms stuckIrrelFueled_eta1
 #print axioms stuckIrrelFueled_eta2
 #print axioms stuckIrrelFueled_unit
