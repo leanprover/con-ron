@@ -52,13 +52,18 @@ shape: `unescape_bytes_loop_refines` states con-leche's one-pass `unescape`
 the port's own second pass, and `utf8_decode_spec` closes it.
 
 ## `sorry` count in this file: 0
+
+**Moved back from `RefineOld/Frontend/ScanStr.lean` by task #97-P5-Front** (namespace
+`ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
-import ConRon.RefineOld.Frontend.ScanKit
+import ConRon.Refine2.Frontend.Scan.Kit
+import ConRon.Refine.ExprOps
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
-namespace ConRon.Refine.Frontend
+namespace ConRon.Refine2.Frontend
+open ConRon.Refine
 
 open ConRon.Refine ConLeche.Frontend
 
@@ -3108,4 +3113,4 @@ theorem unescape_spec : UnescapeSpec := by
       ByteArray.extract_zero_size] at hu
     rw [hu, hloop]
 
-end ConRon.Refine.Frontend
+end ConRon.Refine2.Frontend
