@@ -62,7 +62,27 @@ attribute [lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
   · have : absU32 t ≠ absU32 arena.handle.ETAG_FVAR := fun hc => h (absU32_inj hc)
     simp [h, this]
 
+/-! ## Handle equality, one normal form
+
+The port's `eq2` on handles is stated `r = (absNIdx a == absNIdx b)` by some
+prims and `r = decide (absNIdx a = absNIdx b)` by others; both twin spellings
+occur (`c = entry.ctor` in an `if`, `n₁ == n₂` in a `pure`).  The `lockstep_simp`
+normal form is `decide (_ = _)`. -/
+
+theorem idx_beq_decide {k : IdxKind} (a b : Idx k) :
+    (a == b) = decide (a = b) := by
+  by_cases h : a = b <;> simp [h]
+
 /-! ## The environment -/
+
+/-- `arena::env::IProjEntry` as the twin's `IProjEntry`, field for field. -/
+def absIProjEntry (e : arena.env.IProjEntry) : IProjEntry :=
+  ⟨absNIdx e.struct_name, absU e.idx, e.level_params.val.map absNIdx, absU e.num_params,
+    absNIdx e.ctor, absU e.num_fields, absEIdx e.body, absLIdx e.field_sort,
+    absLIdx e.struct_sort, absU e.off⟩
+
+attribute [lockstep_simp] absIProjEntry
+
 
 attribute [lockstep_simp] absIConstantInfo
 

@@ -10,6 +10,7 @@ Task #97-P5-Core round 5, region E.  The Theorem-2 lockstep lemmas of
 import ConRon.Refine2.Core.LS.PrimsE
 import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Shapes
+import ConRon.Refine2.Core.LS.Lits
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -21,20 +22,6 @@ namespace ConRon.Refine2.Lockstep
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-/-- Region B: `nat_lit_supported` against `natLitSupported`. -/
-@[lockstep] theorem stub_nat_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers vis st fe) lst
-      (natLitSupported lfe) := by
-  sorry
-
-/-- Region B: `str_lit_supported` against `strLitSupported`. -/
-@[lockstep] theorem stub_str_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
-      (strLitSupported lfe) := by
-  sorry
 
 
 /-! ## The application spine -/
@@ -326,10 +313,9 @@ of the store, `bms`' `TblInv`). -/
 
 /-! ## The bodies -/
 
--- region A2's `ifenv_find_proj_ls` answers in `PA2.absIProjEntry`, region
--- A1's `proj_entry_type_at_ls` reads `PA1.absIProjEntry`: the same record, by
+-- region A2's `ifenv_find_proj_ls` answers in `absIProjEntry`, region
+-- A1's `proj_entry_type_at_ls` reads `absIProjEntry`: the same record, by
 -- unfolding (three copies of the definition exist; the coordinator merges them)
-attribute [lockstep_simp] PA2.absIProjEntry
 
 attribute [lockstep_inline] arena.core.infer_sort arena.core.infer_fvar arena.core.infer_const
   arena.core.infer_lit_nat arena.core.infer_lit_str arena.core.infer_proj

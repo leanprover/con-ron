@@ -10,6 +10,8 @@ two binder-telescope loops and their leaves, and the body `annotateBody`
 `annotate_let`, `annotate_proj`, `annotate_proj_at`.
 -/
 import ConRon.Refine2.Core.LS.PrimsG
+import ConRon.Refine2.Core.LS.Shapes
+import ConRon.Refine2.Core.LS.Lits
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -21,40 +23,6 @@ namespace ConRon.Refine2.Lockstep
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PG
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-/-- Region A2's `pw_written` (its statement in `Core/LS/Shapes.lean`). -/
-@[lockstep] theorem stub_pw_written_ls (pw : kernel.prop_when.PropWhen) :
-    LSP (arena.core.pw_written pw)
-      (fun b => b = pwWritten (ConRon.Refine.absPropWhen pw)) := by
-  sorry
-
-/-- Region A2's `annot_binder_meta`, in the `TwinEq` form this file's zip needs:
-`Core/LS/Shapes.lean`'s `absBinderMeta r = annotBinderMeta (pw.map …) …` does
-not rewrite the twin (the reported statement-form mismatch). -/
-@[lockstep] theorem stub_annot_binder_meta_ls (pw : Option kernel.prop_when.PropWhen)
-    (mb : kernel.expr.BinderMeta) :
-    LSP (arena.core.annot_binder_meta pw mb)
-      (fun m => TwinEq (annotBinderMeta (ExprOps.absPwOpt pw) (ConRon.Refine.absBinderMeta mb))
-        (ConRon.Refine.absBinderMeta m)) := by
-  sorry
-
-/-- Region B's `nat_lit_supported`. -/
-@[lockstep] theorem stub_nat_lit_supported_ls {pers vis st fe lfe lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers vis st fe) lst
-      (natLitSupported lfe) := by
-  sorry
-
-/-- Region B's `str_lit_supported`. -/
-@[lockstep] theorem stub_str_lit_supported_ls {pers vis st fe lfe lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
-      (strLitSupported lfe) := by
-  sorry
 
 /-! ## Local normalisation -/
 

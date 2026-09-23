@@ -1327,14 +1327,6 @@ theorem pin_of_reduce_bool_run₀ {pers st lst} {o}
 
 /-! ## The projection-table entry -/
 
-/-- `arena::env::IProjEntry` as the twin's `IProjEntry`, field for field. -/
-def absIProjEntry (e : arena.env.IProjEntry) : IProjEntry :=
-  ⟨absNIdx e.struct_name, absU e.idx, e.level_params.val.map absNIdx, absU e.num_params,
-    absNIdx e.ctor, absU e.num_fields, absEIdx e.body, absLIdx e.field_sort,
-    absLIdx e.struct_sort, absU e.off⟩
-
-attribute [lockstep_simp] absIProjEntry
-
 @[lockstep] theorem snoc_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx)
     (y : arena.handle.EIdx) :
     LSP (arena.expr_ops.snoc_eidx_of xs y)
@@ -2414,26 +2406,5 @@ theorem find_rule_from (rules : alloc.vec.Vec arena.env.IRecRule) (c : arena.han
   simpa using this
 
 /-! ## Interns — pending the foundation's intern slice -/
-
-@[lockstep] theorem intern_e_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_const pers st n us) lst
-      (Arena.internE (.const (absNIdx n) (absLsIdx us))) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
-
-@[lockstep] theorem intern_level_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (l : kernel.level.Level) :
-    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_level pers st l) lst
-      (Arena.internLevel (ConRon.Refine.absLevel l)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
-
-@[lockstep] theorem intern_ls_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (v : alloc.vec.Vec arena.handle.LIdx) :
-    LS pers (fun a b => b = absLsIdx a) (arena.monad.intern_ls_node pers st v) lst
-      (Arena.internLsNode (v.val.map absLIdx)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
 
 end ConRon.Refine2.Lockstep.PA1

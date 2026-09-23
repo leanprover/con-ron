@@ -56,7 +56,7 @@ attribute [lockstep_simp] absConstT
   intro b h
   cases m <;> (simp only [kernel.env.beta_gate, Result.ok.injEq] at h; rw [← h]; rfl)
 
-@[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
+ theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun o => o = decide (absNIdx a = absNIdx b)) := by
   intro o h
@@ -69,11 +69,11 @@ attribute [lockstep_simp] absConstT
     have h2 : absNIdx a ≠ absNIdx b := fun hc => hab (absNIdx_inj hc)
     simp [h1, h2]
 
-@[lockstep] theorem dup2_nidx_ls (h : arena.handle.NIdx) :
+ theorem dup2_nidx_ls (h : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _ he => dupId_nidx _ _ he
 
-@[lockstep] theorem dup2_lsidx_ls (h : arena.handle.LsIdx) :
+ theorem dup2_lsidx_ls (h : arena.handle.LsIdx) :
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _ he => dupId_lsidx _ _ he
 
@@ -161,7 +161,7 @@ theorem i_rec_rules_dup_from_id {rs : alloc.vec.Vec arena.env.IRecRule} :
   simpa [alloc.vec.Vec.with_capacity,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
 
-@[lockstep] theorem arc_deref_ls {T : Type} (A : Type) (x : T) :
+ theorem arc_deref_ls {T : Type} (A : Type) (x : T) :
     LSP (alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x) (fun y => y = x) := by
   intro y h; cases Result.ok_injective h; rfl
 
@@ -183,7 +183,7 @@ theorem i_rec_rules_dup_from_id {rs : alloc.vec.Vec arena.env.IRecRule} :
   | inl h => rw [h] at this; omega
   | inr h => rw [h] at this; omega
 
-@[lockstep] theorem fail_dangling_ls_spec (T : Type) :
+ theorem fail_dangling_ls_spec (T : Type) :
     LSP (arena.monad.fail_dangling_ls T) (fun r => ∃ v, r = .Err (.Internal v)) := by
   intro r h
   rw [arena.monad.fail_dangling_ls] at h
@@ -387,7 +387,7 @@ theorem take_eidx_n_from_aux (m : Nat) :
       rw [show n1.val = j by omega]
       rfl
 
-@[lockstep] theorem take_eidx_n_ls (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+ theorem take_eidx_n_ls (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
     LSP (arena.expr_ops.take_eidx_n xs n)
       (fun r => TwinEq ((absEIdxList xs).take n.val) (absEIdxList r)) := by
   intro r h
@@ -531,14 +531,14 @@ theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (fun _ hr => by rw [arena.monad.view_lit] at hr; exact estore_view_lit_abs hrel.store hr)
     hrel hinv
 
-@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map absConstT a)
       (arena.monad.view_const pers st h) st lst (Arena.viewConst (absEIdx h)) := by
   intro o hrun
   exact ⟨_, lst, view_const_run₀ hrel hrun, rfl, hrel, hinv⟩
 
-@[lockstep] theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
     LSV pers (fun a b => b = Option.map absSz a)
       (arena.monad.view_ls_len pers st h) st lst (Arena.viewLsLen (absLsIdx h)) := by
@@ -585,7 +585,7 @@ theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     rw [hrunl, hview]
     rfl
 
-@[lockstep] theorem pin_and_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem pin_and_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_and st) st lst pinAnd := by
   intro o hrun

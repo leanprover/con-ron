@@ -123,7 +123,7 @@ leave on the twin side. -/
 
 /-! ## Rust-only value steps -/
 
-@[lockstep] theorem verified_checks_ls (m : kernel.env.CheckMode) :
+ theorem verified_checks_ls (m : kernel.env.CheckMode) :
     LSP (kernel.env.verified_checks m)
       (fun b => b = (ConRon.Refine.absMode m).verifiedChecks) :=
   by
@@ -291,14 +291,14 @@ theorem pi_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.LIdx × kernel.pr
 
 /-! ## Reads -/
 
-@[lockstep] theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
     LSV pers (fun a b => b = Option.map absSz a) (arena.monad.view_ls_len pers st h) st lst
       (Arena.viewLsLen (absLsIdx h)) := by
   intro o hrun
   exact ⟨_, lst, view_ls_len_run₀ hrel hrun, rfl, hrel, hinv⟩
 
-@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map absConstT a) (arena.monad.view_const pers st h) st lst
       (Arena.viewConst (absEIdx h)) := by
@@ -378,7 +378,7 @@ theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (by intro n hn; exact absurd hn (by simp [alloc.vec.Vec.new])) hrun
 
 /-- The memoised level readback; the tree it answers is well formed. -/
-@[lockstep] theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
     LS pers (fun a b => ConRon.Refine.LevelWF a ∧ b = ConRon.Refine.absLevel a)
       (arena.monad.read_level_m pers st h) lst (Arena.readLevelM (absLIdx h)) := by
@@ -392,7 +392,7 @@ theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     obtain ⟨lst', hx, h1, h2⟩ := H
     exact ⟨_, lst', hx, ⟨W.1 a rfl, rfl⟩, h1, h2⟩
 
-@[lockstep] theorem read_levels_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem read_levels_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
     LS pers (fun a b => ConRon.Refine.LevelsWF a ∧ b = ConRon.Refine.absLevels a)
       (arena.monad.read_levels_m pers st h) lst (Arena.readLevelsM (absLsIdx h)) := by
@@ -406,7 +406,7 @@ theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     obtain ⟨lst', hx, h1, h2⟩ := H
     exact ⟨_, lst', hx, ⟨W.1 a rfl, rfl⟩, h1, h2⟩
 
-@[lockstep] theorem read_names_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+ theorem read_names_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (ks : alloc.vec.Vec arena.handle.NIdx) :
     LS pers (fun a b => ConRon.Refine.NamesWF a ∧ b = ConRon.Refine.absNames a)
       (arena.monad.read_names_m pers st ks) lst (Arena.readNamesM (ks.val.map absNIdx)) := by
@@ -466,7 +466,7 @@ specialises. -/
   rw [absLamStk_getElem! stk i hi]
   cases c <;> simp_all [ConRon.Refine.absBinderMeta]
 
-@[lockstep] theorem prop_when_beq_ls {a b : kernel.prop_when.PropWhen}
+ theorem prop_when_beq_ls {a b : kernel.prop_when.PropWhen}
     (ha : ConRon.Refine.PropWhenWF a) (hb : ConRon.Refine.PropWhenWF b) :
     LSP (kernel.prop_when.beq a b)
       (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) := by
@@ -502,15 +502,15 @@ theorem absLamStk_last_pw (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.B
     ((absLamStk v)[v.val.length - 1]!).2.pw = ConRon.Refine.absPropWhen (v.val[i]).2.pw := by
   subst hi; rw [absLamStk_getElem! v _ h]; rfl
 
-@[lockstep] theorem prop_when_dup_ls (pw : kernel.prop_when.PropWhen) :
+ theorem prop_when_dup_ls (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
   fun _ h => ConRon.Refine.PropWhen.dup_eq h
 
-@[lockstep] theorem binder_meta_dup_ls (m : kernel.expr.BinderMeta) :
+ theorem binder_meta_dup_ls (m : kernel.expr.BinderMeta) :
     LSP (kernel.expr.binder_meta_dup m) (fun r => r = m) :=
   fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
 
-@[lockstep] theorem lidx_dup2_ls (h : arena.handle.LIdx) :
+ theorem lidx_dup2_ls (h : arena.handle.LIdx) :
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun e he => dupId_lidx _ _ he
 
@@ -526,7 +526,7 @@ theorem absLamStk_last_pw (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.B
 /-- `i_constant_info_to_constant_val` against `IConstantInfo.toConstantVal`, a
 store-level step.  The `ProjInfo` arm interns `Sort 1` (level `0`, level `1`,
 the sort), in the same order on both sides. -/
-@[lockstep] theorem i_constant_info_to_constant_val_ls {pers st lst}
+ theorem i_constant_info_to_constant_val_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (ci : arena.env.IConstantInfo) :
     LSS pers (fun a b => b = absIConstantVal a)
       (arena.env.i_constant_info_to_constant_val pers st.store ci) st lst
@@ -617,12 +617,12 @@ the sort), in the same order on both sides. -/
 
 /-! ## Levels (the propositional-structure check of the `.proj` clause) -/
 
-@[lockstep] theorem level_zero_ls :
+ theorem level_zero_ls :
     LSP kernel.level.zero (fun u => ConRon.Refine.LevelWF u ∧
       ConRon.Refine.absLevel u = ConLeche.Level.zero) :=
   fun _ h => ⟨ConRon.Refine.Level.zero_wf h, ConRon.Refine.Level.zero_refines h⟩
 
-@[lockstep] theorem level_subst_ls {ks : alloc.vec.Vec kernel.name.Name}
+ theorem level_subst_ls {ks : alloc.vec.Vec kernel.name.Name}
     {vs : alloc.vec.Vec kernel.level.Level} {u : kernel.level.Level}
     (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs)
     (hu : ConRon.Refine.LevelWF u) :
@@ -633,7 +633,7 @@ the sort), in the same order on both sides. -/
   have := ConRon.Refine.Level.subst_refines hu hks hvs h
   exact ⟨this.2, this.1⟩
 
-@[lockstep] theorem level_is_equiv_ls {l r : kernel.level.Level}
+ theorem level_is_equiv_ls {l r : kernel.level.Level}
     (hl : ConRon.Refine.LevelWF l) (hr : ConRon.Refine.LevelWF r) :
     LSP (kernel.level.is_equiv l r) (fun o =>
       ConLeche.Level.isEquiv (ConRon.Refine.absLevel l) (ConRon.Refine.absLevel r) = o) :=
@@ -641,7 +641,7 @@ the sort), in the same order on both sides. -/
 
 /-! ## Handles and scalars -/
 
-@[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
+ theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun c => c = decide (absNIdx a = absNIdx b)) := by
   intro c h
@@ -660,7 +660,7 @@ the sort), in the same order on both sides. -/
   cases Result.ok_injective h
   exact usize_cast_u64_val' x
 
-@[lockstep] theorem fail_dangling_ls_ls (T : Type) :
+ theorem fail_dangling_ls_ls (T : Type) :
     LSP (arena.monad.fail_dangling_ls T) (fun r => ∃ v, r = .Err (.Internal v)) := by
   intro r h
   rw [arena.monad.fail_dangling_ls] at h
