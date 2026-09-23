@@ -940,6 +940,12 @@ open Lockstep in
     rw [← hf]
     simp [TwinEq, i_constant_info_dup_abs hii]
 
+-- `lf.restrictTo (absU vis)` at the split counter IS `lf` (`hvis`): the
+-- checker tier's statements are at the restriction, the tier's twins at `lf`.
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/

@@ -63,6 +63,12 @@ open Lockstep in
   subst h
   exact ConRon.Refine.ExprOps.usize_cast_u64_val x
 
+open Lockstep in
+/-- `expr_ops::sub_nat` is truncated `Nat` subtraction. -/
+@[lockstep] theorem sub_nat_spec (a b : Std.U64) :
+    LSP (kernel.expr_ops.sub_nat a b) (fun r => r.val = a.val - b.val) :=
+  fun _ h => ConRon.Refine.ExprOps.sub_nat_val h
+
 /-! ## The mode gates: each is its twin field, a Rust-only step -/
 
 open Lockstep in

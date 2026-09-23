@@ -227,6 +227,16 @@ open Lockstep in
     LSP (arena.inductives.modeled.rename_by tbl n) (fun o => TwinEq (renameBy (absRenameTbl tbl) (absNIdx n)) (absNIdx o)) :=
   fun o h => (rename_by_refines h).symm
 
+open Lockstep in
+/-- The `NIdxToNIdx` trait method of `RenameBy` IS `rename_by` of its table. -/
+@[lockstep] theorem rename_by_rename_twin (f : arena.inductives.modeled.RenameBy)
+    (n : arena.handle.NIdx) :
+    LSP (arena.inductives.modeled.RenameBy.Insts.Con_ron_coreArenaExpr_opsNIdxToNIdx.rename f n)
+      (fun o => TwinEq (renameBy (absRenameBy f) (absNIdx n)) (absNIdx o)) := by
+  intro o h
+  rw [arena.inductives.modeled.RenameBy.Insts.Con_ron_coreArenaExpr_opsNIdxToNIdx.rename] at h
+  exact (rename_by_refines h).symm
+
 /-- **Finding 15, cashed.**  `RenameBy` IS the twin's partial application
 `renameBy tbl`, so the `RenameRel` hypothesis every `rename_consts` statement
 of `Refine2/ExprOps/Mut.lean` carries is discharged at this tier's every call
