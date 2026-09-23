@@ -166,28 +166,9 @@ and is CLOSED there, over the six state-only walks under it. -/
 
 `whnfCoreBody`'s `.app` and `.proj` clauses' callees. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **THEOREM 1 for
-`iotaRec`**: one ι step at a recursor application, with the stuck-major
-machinery under it.
-
-**OPEN, and the largest single item of the tier**: `Arena/Core.lean`'s
-`iotaRec` is `iotaRecAt` over `findRule`, and `iotaRecAt` is 85 lines over
-`prepareMajor` (120 lines of `majorToCtor`), `recFireComparands`,
-`ruleRhsAt` and `iotaCerts`.  Six knot-calling walks under one statement;
-the corresponding con-leche tower is `Verify/Iota*.lean`.  Its `ruleRhsAt`
-leg waits on `ExprOps.instLPFast_spec` like the other two instantiated
-caches. -/
-theorem iotaRec_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.iotaRec mode (coreKnot mode fe id fuel) fe d e
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.iotaRecFueled mode env F d x) d
-          s'.store r⌝⦄ := by
-  sorry
+/-! `iotaRec_spec` **moved to `Bridge/Core/Walks/Iota.lean`** in round 6: its
+η rescue calls `structEtaCertWith` (`Walks/Stuck.lean`), which this module
+cannot import.  It gained `hμ` and `EnvWF env` there (that module's note). -/
 
 /-! `projLitToCtor_spec` **moved to `Bridge/Core/Walks/ProjLit.lean`** in round
 5 and is CLOSED there, over `strLitSupported_spec` (`Walks/StrLit.lean`) and
