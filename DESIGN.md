@@ -54701,9 +54701,9 @@ module in 2-4 s): `parse_chunks` 34, `parse_chunks_loop` 84, `builtin_prelude_e`
 `scan_err_to_check` 11, `parse_result_of_state` 8, `chunk_size` 12 (the
 "silly" one of task #97-P5-Frontend §7.2), plus ~150 lines of stream plumbing
 (`StreamErrSim`, `wrap_map`, `stream_unwrap_{ok,err}`, `SimStreamD.of_wrap_id`,
-`usize_size_val`, `cast_u{64,128}_*`, the byte-vector facts).  Wall time for
-the whole round's proving: about one agent-day; the loops were the only
-lemmas that took more than two build iterations.
+`usize_size_val`, `cast_u{64,128}_*`, the byte-vector facts).  The four
+loop inductions were the only lemmas that took more than two or three build
+iterations.
 
 **One idiom worth keeping**: every `match ← x with | .error e => pure (.error
 e) | .ok … => pure (.ok …)` elaborates to its OWN auxiliary matcher, so no
@@ -54766,8 +54766,9 @@ SUBJECT survived the swap.  Moved (`git mv`) to
 `ConRon.Refine2.Frontend`, three `open ConRon.Refine (…)` lines (a bare `open`
 makes `vec_push_val` ambiguous in `Ind`), one `import ConRon.Refine.ExprOps`
 in `Str`, the `#guard_msgs` census strings re-spelled.  **Nothing else — all
-~17 500 lines elaborate `sorry`-free against the swapped model**, first try
-per file.  `Scan/Spec.lean` then proves
+~17 500 lines elaborate `sorry`-free against the swapped model** (`Kit`,
+`Obj`, `Expr`, `WF`, `Line` with no proof edit at all; `Str`/`Ind`/`Line` only
+the import/`open` fixes above).  `Scan/Spec.lean` then proves
 
     theorem scanSpec : ScanSpec      -- axioms: propext, Classical.choice, Quot.sound
 
