@@ -117,7 +117,9 @@ theorem check_sum_tele_slow_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
       (checkSumTele.checkSumTeleSlow (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absU n) (absIConstantVal cv_ta0)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_tele_slow, checkSumTele.checkSumTeleSlow]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_sum_tele_slow_ls
@@ -152,7 +154,9 @@ theorem check_sum_tele_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
       (checkSumTele (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)
         (absIConstantVal cv_ta0)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_tele, checkSumTele]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_sum_tele_ls

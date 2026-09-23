@@ -703,7 +703,9 @@ theorem native_rule_scoped_refines {pers st lst} {vis : Std.U64} {rfR lfR}
       rhs = ok o) :
     Sim₀ id pers lst o
       (nativeRuleScopedSpec lfR (absNIdxL rlps) (absEIdx rhs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_install.native_rule_scoped, nativeRuleScopedSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rule_scoped_ls

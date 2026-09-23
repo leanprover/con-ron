@@ -758,7 +758,9 @@ theorem struct_idx_at_refines {pers st lst} {n_f ofs i l m : Std.U64}
     Sim₀ absEIdx pers lst o
       (structIdxAt (absU n_f) (absU ofs) (absU i) (absU l) (absU m)
         (absEIdx e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_idx_at, structIdxAt]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_idx_at_ls
@@ -1104,7 +1106,9 @@ theorem struct_minor_ty_close_refines {pers st lst} {n_f ofs n_p : Std.U64}
       (structMinorTyCloseSpec (absU n_f) (absU ofs) (absU n_p)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)
         (absEIdx q2) (absEIdx concl0)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_minor_ty_close, structMinorTyCloseSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_minor_ty_close_ls
@@ -1165,7 +1169,9 @@ theorem struct_minor_ty_r_refines {pers st lst} {c : arena.handle.NIdx}
     Sim₀ (Option.map absEIdx) pers lst o
       (structMinorTyR (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f) (absU ofs)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_minor_ty_r, structMinorTyR]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_minor_ty_r_ls
@@ -1498,7 +1504,9 @@ theorem struct_rec_rhs_at_refines {pers st lst} {t : arena.handle.NIdx}
         (absEIdx tty) (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU j)
         (ConRon.Refine.absPropWhen pw) (absU n) (absU n_f) (absEIdx cty)
         (absNatL rec_idx) (absLIdx l)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_rec_rhs_at, structRecRhsAtSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_rhs_at_ls
@@ -1693,7 +1701,9 @@ theorem native_rule_fields_ok_refines {pers st lst} {n_p n j n_f : Std.U64}
     Sim₀ id pers lst o
       (nativeRuleFieldsOkSpec (absU n_p) (absU n) (absU j) (absU n_f)
         (absBinderL rbs) (absEIdx mty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_rule_fields_ok, nativeRuleFieldsOkSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rule_fields_ok_ls
@@ -1745,7 +1755,9 @@ theorem native_rule_body_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
       (nativeRuleBodyOkSpec (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absU j)
         (absNatL rec_idx) (absEIdx cty) (absEIdx rhs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_rule_body_ok, nativeRuleBodyOkSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rule_body_ok_ls
@@ -2453,7 +2465,9 @@ theorem native_shape_sort_refines {pers st lst} {cv_t : arena.env.IConstantVal}
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeSortSpec (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absIRecRuleL rules) (absU n_p) (absU n_idx)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_shape_sort, nativeShapeSortSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_shape_sort_ls
