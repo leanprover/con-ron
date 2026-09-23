@@ -2172,4 +2172,86 @@ theorem checkNative_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       Bool.false_eq_true, if_false, g₂, hs', if_true]
     exact g₃
 
+
+/-! ## The fixpoint route's pure `EnvWF` (task #97-P3-Ind round 8, for `indDecl_envWF`)
+
+con-leche proves the well-formedness of the environment an inductive block
+leaves only inside its model construction and its cached bridge; the V-free
+facts are all public (`direct_sum_ind_wf`, `envWF_consSumCtors`,
+`direct_fix_rec_wf`, `direct_table_wf`), and these lemmas assemble them along
+the pure route. -/
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeCSDecl.lean:329 checkNativeTailS_run
+(its `EnvWF` half, pure) — **the install after the pass leaves a well-formed
+environment**: the recursor's cons (`direct_fix_rec_wf`) at the
+constructors' conses, then the table (`direct_table_wf`). -/
+theorem checkNativeTail_envWF {μ : CheckMode} {F : Nat} {env e : Env}
+    {q : ConLeche.NativePass Env}
+    (henv₂ : EnvWF (ConLeche.consSumCtors q.p.nP q.ctorsA q.env₁))
+    (h : ConLeche.checkNativeTail (ConLeche.fueledOps μ F) env q = .ok e) : EnvWF e := by
+  have hthrow : ∀ {α : Type} {er : ConLeche.CheckError} {a : α},
+      (throw er : CheckM α) = .ok a → False := by
+    intro α er a h; simp [throw, throwThe, MonadExceptOf.throw] at h
+  unfold ConLeche.checkNativeTail at h
+  by_cases hg : (q.p.large && !q.p.resSort.isNeverZero && decide (2 ≤ q.p.ctors.length)) = true
+  · rw [if_pos hg] at h
+    obtain ⟨_, h1, -⟩ := ConLeche.exceptBind_ok h
+    exact (hthrow h1).elim
+  rw [if_neg hg] at h
+  obtain ⟨tq, -, h⟩ := ConLeche.exceptBind_ok h
+  obtain ⟨is, -, h⟩ := ConLeche.exceptBind_ok h
+  by_cases hk : ConLeche.nativeFieldsOk env q.p.cvT.name q.p.cvT.levelParams q.p.nP q.p.nIdx
+      q.ctorsA q.p.kinds = true
+  · rw [if_pos hk] at h
+    by_cases hr : ConLeche.nativeRulesOk q.p.cvR.name (q.p.cvR.levelParams.map .param) .never
+        q.p.nP q.p.ctors.length q.ctorsA q.p.kinds q.p.rhss q.p.cvR.type = true
+    · rw [if_pos hr] at h
+      obtain ⟨v, hrec, h⟩ := ConLeche.exceptBind_ok h
+      obtain ⟨cvRa, rhss⟩ := v
+      dsimp only at h
+      have hR := ConLeche.direct_fix_rec_wf henv₂ hrec
+      unfold ConLeche.checkNativeTable at h
+      split at h
+      · by_cases hi : (q.p.nIdx == 0) = true
+        · rw [if_pos hi] at h
+          exact ConLeche.direct_table_wf hR h
+        · rw [if_neg hi] at h
+          simp only [pure, Except.pure, Except.ok.injEq] at h
+          subst h; exact hR
+      · simp only [pure, Except.pure, Except.ok.injEq] at h
+        subst h; exact hR
+    · rw [if_neg hr] at h
+      obtain ⟨_, h1, -⟩ := ConLeche.exceptBind_ok h
+      exact (hthrow h1).elim
+  · rw [if_neg hk] at h
+    obtain ⟨_, h1, -⟩ := ConLeche.exceptBind_ok h
+    exact (hthrow h1).elim
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeCSDecl.lean:433 checkNativeS_run (its
+`EnvWF` half, pure) — **the fixpoint route leaves a well-formed environment**. -/
+theorem checkNative_envWF {μ : CheckMode} {F : Nat} {env e : Env} {p₀ : ConLeche.NativeParts}
+    (henv : EnvWF env)
+    (h : ConLeche.checkNative (ConLeche.fueledOps μ F) env p₀ = .ok e) : EnvWF e := by
+  unfold ConLeche.checkNative at h
+  split at h
+  · simp only [bind, Except.bind] at h
+    split at h
+    · exact nomatch h
+    · rename_i v hpass
+      obtain ⟨q, settled⟩ := v
+      obtain ⟨-, -, henv₂⟩ := checkNativePass_envWF henv hpass
+      simp only at h
+      split at h
+      · exact checkNativeTail_envWF henv₂ h
+      · split at h
+        · exact nomatch h
+        · rename_i v' hpass'
+          obtain ⟨q', settled'⟩ := v'
+          obtain ⟨-, -, henv₂'⟩ := checkNativePass_envWF henv hpass'
+          simp only at h
+          split at h
+          · exact checkNativeTail_envWF henv₂' h
+          · simp [throw, throwThe, MonadExceptOf.throw] at h
+  · simp [throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
+
 end ConRon.Bridge.Inductives

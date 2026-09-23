@@ -273,7 +273,13 @@ theorem indDecl_envWF {μ : CheckMode} {F : Nat} {pinsP : List NatOpPinSet} {env
     (hpin : ConLeche.basisPinHit b = none)
     (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
       = .ok env') : EnvWF env' := by
-  sorry
+  by_cases hparams : ConLeche.indParamsOk nP b = true
+  · rw [checkDecl_ind_route hpin hparams] at h
+    split at h
+    · exact checkNative_envWF henv h
+    · exact checkModeled_envWF henv h
+  · exfalso
+    simp [ConLeche.checkDecl, hpin, hparams, throw, throwThe, MonadExceptOf.throw] at h
 
 /-! ## The arm -/
 

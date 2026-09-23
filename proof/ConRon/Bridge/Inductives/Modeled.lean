@@ -4358,4 +4358,87 @@ theorem checkModeled_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       erw [g₁]
       exact g₂
 
+
+/-! ## The modeled route's pure `EnvWF` (task #97-P3-Ind round 8, for `indDecl_envWF`) -/
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:767 foldProjFnS_run (its
+`EnvWF` half, pure) — the projection fold, one `installProjFnStep_envWF` per
+field. -/
+theorem foldProjFn_envWF {μ : CheckMode} {F : Nat} {T C : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF : Nat} :
+    ∀ {xs : List Nat} {env e : Env}, EnvWF env →
+      xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps nP nF) env
+        = .ok e → EnvWF e
+  | [], env, e, henv, h => by
+    simp only [List.foldlM, pure, Except.pure, Except.ok.injEq] at h
+    subst h; exact henv
+  | x :: xs, env, e, henv, h => by
+    rw [List.foldlM_cons] at h
+    obtain ⟨e₁, h1, h2⟩ := ConLeche.exceptBind_ok h
+    exact foldProjFn_envWF (installProjFnStep_envWF henv h1) h2
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeCSDecl.lean:517 checkIndDeclSF_run
+(its `EnvWF` half, pure) — **the modeled route leaves a well-formed
+environment**: the member fold at the block's pins (`foldIndMember_envWF`,
+`etaPins_of_indBlockCaps`), the recursor group (`checkIndRecs_envWF`) and
+the projection fold (`foldProjFn_envWF`). -/
+theorem checkModeled_envWF {μ : CheckMode} {F : Nat} {env e : Env} {block : List ConstantInfo}
+    (henv : EnvWF env)
+    (h : ConLeche.checkModeled μ (ConLeche.fueledOps μ F) env block = .ok e) : EnvWF e := by
+  have hthrow : ∀ {α : Type} {er : ConLeche.CheckError} {a : α},
+      (throw er : CheckM α) = .ok a → False := by
+    intro α er a h; simp [throw, throwThe, MonadExceptOf.throw] at h
+  have hbn : ∀ ci ∈ block.filter (fun ci => match ci with
+      | .recInfo _ _ _ _ => true | _ => false),
+      (block.map (·.name)).contains ci.name = true := by
+    intro ci hci
+    have : ci.name ∈ block.map (·.name) := List.mem_map_of_mem (List.mem_filter.mp hci).1
+    simpa using this
+  unfold ConLeche.checkModeled at h
+  dsimp only at h
+  by_cases hsuf : @decide _ (ConLeche.blockRecSuffixDec block) = true
+  case neg =>
+    rw [if_neg hsuf] at h
+    obtain ⟨_, h1, -⟩ := ConLeche.exceptBind_ok h
+    exact (hthrow h1).elim
+  rw [if_pos hsuf] at h
+  split at h
+  · rename_i cvT c0 cvC nP nF heqI heqC
+    obtain ⟨caps, hcaps, h⟩ := ConLeche.exceptBind_ok h
+    obtain rfl : caps = ConLeche.indBlockCaps μ env cvT cvC nP nF :=
+      (Except.ok.inj hcaps).symm
+    obtain ⟨env₂, hfold, h⟩ := ConLeche.exceptBind_ok h
+    have henv₂ := foldIndMember_envWF henv (by
+      intro ci hci cv caps₀ hceq
+      have hmemI : ci ∈ block.filter (fun ci => match ci with
+          | .indInfo _ _ => true | _ => false) :=
+        List.mem_filter.mpr ⟨(List.mem_filter.mp hci).1, by subst hceq; rfl⟩
+      erw [heqI] at hmemI
+      obtain ⟨rfl, -⟩ := ConstantInfo.indInfo.inj (hceq ▸ List.mem_singleton.mp hmemI)
+      exact ConLeche.etaPins_of_indBlockCaps) hfold
+    obtain ⟨env₃, hrecs, h⟩ := ConLeche.exceptBind_ok h
+    have henv₃ := checkIndRecs_envWF henv₂ hbn hrecs
+    by_cases h1 : ConLeche.ctorResidualOk μ env₃ cvT.name cvC.name cvT.levelParams nP nF
+        (ConLeche.indBlockCaps μ env cvT cvC nP nF).eta = true
+    case neg =>
+      rw [if_neg h1] at h
+      obtain ⟨_, h2, -⟩ := ConLeche.exceptBind_ok h
+      exact (hthrow h2).elim
+    rw [if_pos h1] at h
+    by_cases h2 : ((List.range nF).all fun j => (env₃.find? (ConLeche.projFnName cvT.name j)).isNone)
+        = true
+    case neg =>
+      rw [if_neg h2] at h
+      obtain ⟨_, h3, -⟩ := ConLeche.exceptBind_ok h
+      exact (hthrow h3).elim
+    rw [if_pos h2] at h
+    split at h
+    · exact foldProjFn_envWF henv₃ h
+    · simp only [pure, Except.pure, Except.ok.injEq] at h
+      subst h; exact henv₃
+  · obtain ⟨env₂, hfold, h⟩ := ConLeche.exceptBind_ok h
+    have henv₂ := foldIndMember_envWF (caps := {}) henv
+      (fun _ _ _ _ _ => ⟨(fun h => nomatch h), (fun h => nomatch h)⟩) hfold
+    exact checkIndRecs_envWF henv₂ hbn h
+
 end ConRon.Bridge.Inductives
