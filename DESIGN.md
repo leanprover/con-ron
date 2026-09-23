@@ -60987,7 +60987,7 @@ hypotheses; (4) `install_basis_decls`'s `IFEnvRelI` is the DeclCheck lane's,
   induction, each step one `lockstep`, `indParamsOk_unfold`): closed.
 * `consts_resolve_f_node_refines` takes `hnl` (the view is not a leaf).
 
-Frontier: `arena` `ddb4acdb` (see the history file) → this branch 49 items /
+Frontier: `arena` `ddb4acdb` 50 / 244 / 389 → this branch 49 items /
 244 tainted / dead weight 387.  This lane's items on it: `mentions_const`
 (now in `Leaves`, Inductives' walk), the two guard walks (waiting on `LSM`),
 `check_basis_decl_install` (DeclCheck's statement).
