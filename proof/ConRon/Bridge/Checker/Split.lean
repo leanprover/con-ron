@@ -297,7 +297,8 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cvA = some gP.cvA)
     (hjv : denoteE s.store g.jv = some gP.jv)
-    (hwsty : Expr.WScoped 0 gP.cvA.type) (hwsjv : Expr.WScoped 0 gP.jv)
+    (hwsty : Expr.WScoped 0 gP.cvA.type)
+    (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : checkValueGroup μ fe g s = .ok ((), s')) :
     CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
@@ -428,7 +429,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
   · -- the other two kinds: the record's own value, and no test
     have hnthmP : gP.kind ≠ ConLeche.ValueKind.thm := fun hq =>
       hnthm (hkeq.mpr hq)
-    exact tail s2 g.jv gP.jv 0 hckb (Ext.refl _) rfl hjv2 hwsjv
+    exact tail s2 g.jv gP.jv 0 hckb (Ext.refl _) rfl hjv2 (hwsjv hnthmP)
       (fun hq => absurd hq hnthmP) (fun _ => rfl) (fun hq => absurd hq hnthmP)
       (AM.pure_bind_ok gd)
 
@@ -738,6 +739,473 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
   · intro n t hf
     exact hok.check.ienv.proj n t (IFEnv.restrictTo_find?_le hk hf)
 
+/-! ## The two-phase fold, skeletonised (task #97-P3-Checker round 8)
+
+`installThenCheck` is phase A (`annotFold`) then phase B (`checkPendingList`),
+and `checkDeclsPure` is ONE fold of `checkDecl`.  The bridge between them is
+con-leche's `checkDecl_of_split_*` (`Verify/CheckerSplit.lean`): a separable
+value declaration's install halves at `env`, plus its check half at the SAME
+`env`, are `checkDecl` at `env`.  The skeleton is therefore
+
+1. **the pure record of phase A**, `PhaseA` — per declaration either a full
+   `checkDecl` step, or the install halves (`SplitInstall`) leaving the pair
+   `(env, vg)` owed a check — and `PhaseA.foldlM`, which pays every owed
+   check and returns `checkDecl`'s fold.  Pure, con-leche only: PROVED;
+2. **phase A over handles**, `Arena.annotFold_bridge`, by induction over
+   `Arena.annotStep_split` (one step: the four arms and the bracket);
+3. **phase B over handles**, `Arena.checkPendingList_bridge`, by induction
+   over `Arena.checkPending_prefix` (one record, at the prefix environment);
+4. the assembly, `Arena.installThenCheck_bridge`.
+
+`PendRel` is what crosses the seam for one record: the handle record
+denotes the pure one, the two scope facts phase B's knot calls need, the
+environment it was installed at (`EnvWF`, its length = `pc.vis`, and the
+final environment extends it — so `env'.prefixTo pc.vis` IS it,
+`Env.prefixTo_of_extends`), and persistence, so that it survives every later
+bracket. -/
+
+/-- con-leche: none — two lists related pointwise (core has no
+`List.Forall₂`). -/
+inductive ListRel {α β : Type} (R : α → β → Prop) : List α → List β → Prop
+  | nil : ListRel R [] []
+  | cons {a : α} {b : β} {l : List α} {l' : List β} :
+      R a b → ListRel R l l' → ListRel R (a :: l) (b :: l')
+
+theorem ListRel.nil_right {α β : Type} {R : α → β → Prop} {l : List α}
+    (h : ListRel R l []) : l = [] := by
+  cases h; rfl
+
+/-- con-leche: none — the handle record's kind is the pure record's, in the
+disjunctive form `checkValueGroup_bridge` takes (the arena and con-leche each
+have their own `ValueKind`). -/
+def KindRel (a : Arena.ValueKind) (b : ConLeche.ValueKind) : Prop :=
+  a = .defn ∧ b = .defn ∨ a = .thm ∧ b = .thm ∨ a = .opaque ∧ b = .opaque
+
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:318-397 checkDecl_of_split_* —
+the install halves of a separable value declaration, as the three lemmas'
+premises: what phase A ran, at `env`, for record `d`, leaving `vg` and the
+extended environment `env'`. -/
+def SplitInstall (μ : CheckMode) (F : Nat) (env : Env) (d : Declaration)
+    (vg : ConLeche.ValueGroup) (env' : Env) : Prop :=
+  (∃ cv value hint, d = .defnDecl cv value hint ∧
+    (ConLeche.natOpNames.contains cv.name ||
+      ConLeche.natDivModNames.contains cv.name) = false ∧
+    vg.kind = .defn ∧
+    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
+    ConLeche.installValue (ConLeche.fueledOps μ F) env vg.cvA value = .ok vg.jv ∧
+    env' = ⟨.defnInfo vg.cvA vg.jv hint :: env.consts⟩) ∨
+  (∃ cv value, d = .thmDecl cv value ∧ vg.kind = .thm ∧
+    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
+    vg.jv = value ∧
+    env' = ⟨.thmInfo vg.cvA value :: env.consts⟩) ∨
+  (∃ cv value, d = .opaqueDecl cv value ∧
+    ConLeche.reduceOpNames.contains cv.name = false ∧ vg.kind = .opaque ∧
+    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
+    ConLeche.installValue (ConLeche.fueledOps μ F) env vg.cvA value = .ok vg.jv ∧
+    env' = ⟨.axiomInfo vg.cvA :: env.consts⟩)
+
+/-- con-leche: ConLeche/Cached/Installed.lean:201-209 InstallRun — **the pure
+record of an accepting phase A**: each declaration is a full `checkDecl` step
+or a split install owing the check of `(env, vg)`, in fold order. -/
+inductive PhaseA (μ : CheckMode) (pinsP : List NatOpPinSet) :
+    Env → List Declaration → Env → List (Env × ConLeche.ValueGroup) → Prop
+  | nil (env : Env) : PhaseA μ pinsP env [] env []
+  | full {env env₁ env' : Env} {d : Declaration} {ds : List Declaration}
+      {pend : List (Env × ConLeche.ValueGroup)} (F : Nat)
+      (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env₁)
+      (rest : PhaseA μ pinsP env₁ ds env' pend) :
+      PhaseA μ pinsP env (d :: ds) env' pend
+  | split {env env₁ env' : Env} {d : Declaration} {ds : List Declaration}
+      {pend : List (Env × ConLeche.ValueGroup)} (vg : ConLeche.ValueGroup) (F : Nat)
+      (h : SplitInstall μ F env d vg env₁)
+      (rest : PhaseA μ pinsP env₁ ds env' pend) :
+      PhaseA μ pinsP env (d :: ds) env' ((env, vg) :: pend)
+
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:318-397 checkDecl_of_split_* —
+one split step with its owed check paid is `checkDecl`, at one fuel. -/
+theorem SplitInstall.checkDecl {μ : CheckMode} {pinsP : List NatOpPinSet}
+    {F : Nat} {env env' : Env} {d : Declaration} {vg : ConLeche.ValueGroup}
+    (h : SplitInstall μ F env d vg env')
+    (hC : ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env vg = .ok ()) :
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env' := by
+  rcases h with ⟨cv, value, hint, rfl, hnat, hk, hI, hV, rfl⟩ |
+    ⟨cv, value, rfl, hk, hI, hjv, rfl⟩ | ⟨cv, value, rfl, hred, hk, hI, hV, rfl⟩
+  · exact ConLeche.checkDecl_of_split_defn hnat hk hI hV hC
+  · exact ConLeche.checkDecl_of_split_thm hk hI hjv hC
+  · exact ConLeche.checkDecl_of_split_opaque hred hk hI hV hC
+
+theorem SplitInstall.mono {μ : CheckMode} {F F' : Nat} (hle : F ≤ F')
+    {env env' : Env} {d : Declaration} {vg : ConLeche.ValueGroup}
+    (h : SplitInstall μ F env d vg env') : SplitInstall μ F' env d vg env' := by
+  rcases h with ⟨cv, value, hint, h1, h2, h3, h4, h5, h6⟩ |
+    ⟨cv, value, h1, h2, h3, h4, h5⟩ | ⟨cv, value, h1, h2, h3, h4, h5, h6⟩
+  · exact Or.inl ⟨cv, value, hint, h1, h2, h3,
+      ConLeche.installConstantVal_mono hle h4, ConLeche.installValue_mono hle h5, h6⟩
+  · exact Or.inr (Or.inl ⟨cv, value, h1, h2,
+      ConLeche.installConstantVal_mono hle h3, h4, h5⟩)
+  · exact Or.inr (Or.inr ⟨cv, value, h1, h2, h3,
+      ConLeche.installConstantVal_mono hle h4, ConLeche.installValue_mono hle h5, h6⟩)
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — **phase A
+with every owed check paid is `checkDecl`'s fold**, at one fuel (and every
+larger one).  PROVED: an induction over `PhaseA`, `SplitInstall.checkDecl` at
+each split step, the fuels raised to one `max`. -/
+theorem PhaseA.foldlM {μ : CheckMode} {pinsP : List NatOpPinSet}
+    {env : Env} {ds : List Declaration} {env' : Env}
+    {pend : List (Env × ConLeche.ValueGroup)} (h : PhaseA μ pinsP env ds env' pend)
+    (hB : ∀ p ∈ pend, ∃ F,
+      ConLeche.checkValueGroup (ConLeche.fueledOps μ F) p.1 p.2 = .ok ()) :
+    ∃ F, ∀ F', F ≤ F' →
+      ds.foldlM (ConLeche.checkDecl μ (ConLeche.fueledOps μ F') pinsP) env
+        = .ok env' := by
+  induction h with
+  | nil env => exact ⟨0, fun _ _ => rfl⟩
+  | full F h rest ih =>
+    obtain ⟨F₂, h₂⟩ := ih hB
+    refine ⟨max F F₂, fun F' hle => ?_⟩
+    simp only [List.foldlM, Bind.bind, Except.bind]
+    rw [checkDecl_mono (Nat.le_trans (Nat.le_max_left _ _) hle) h]
+    exact h₂ F' (Nat.le_trans (Nat.le_max_right _ _) hle)
+  | @split env₀ env₁ env' d ds pend vg F h rest ih =>
+    obtain ⟨Fc, hC⟩ := hB (env₀, vg) (by simp)
+    obtain ⟨F₂, h₂⟩ := ih (fun p hp => hB p (by simp [hp]))
+    refine ⟨max (max F Fc) F₂, fun F' hle => ?_⟩
+    have hF : F ≤ F' := by omega
+    have hFc : Fc ≤ F' := by omega
+    simp only [List.foldlM, Bind.bind, Except.bind]
+    rw [SplitInstall.checkDecl (h.mono hF) (ConLeche.checkValueGroup_mono hFc hC)]
+    exact h₂ F' (by omega)
+
+/-- con-leche: none — **what crosses the install/check seam for one record**,
+at the store phase B will read it in and the environment phase A ended at. -/
+structure PendRel (st : EStore) (envF : Env) (pc : PendingCheck)
+    (p : Env × ConLeche.ValueGroup) : Prop where
+  kind : KindRel pc.vg.kind p.2.kind
+  cv : Frontend.denoteCV st pc.vg.cvA = some p.2.cvA
+  jv : denoteE st pc.vg.jv = some p.2.jv
+  wsty : Expr.WScoped 0 p.2.cvA.type
+  wsjv : p.2.kind ≠ .thm → Expr.WScoped 0 p.2.jv
+  envWF : EnvWF p.1
+  vis : pc.vis = p.1.consts.length
+  ext : ∃ new, envF.consts = new ++ p.1.consts
+  pers : PersVG pc.vg
+
+/-- con-leche: none — a record's relation survives a later bracket (`PExt`,
+the record being persistent) and a later extension of the environment. -/
+theorem PendRel.mono {st st' : EStore} {envF envF' : Env} {pc : PendingCheck}
+    {p : Env × ConLeche.ValueGroup} (h : PendRel st envF pc p)
+    (hx : PExt st st') (he : ∃ new, envF'.consts = new ++ envF.consts) :
+    PendRel st' envF' pc p where
+  kind := h.kind
+  cv := denoteCV_pext hx h.pers.cvA h.cv
+  jv := hx.expr _ _ h.pers.jv h.jv
+  wsty := h.wsty
+  wsjv := h.wsjv
+  envWF := h.envWF
+  vis := h.vis
+  ext := by
+    obtain ⟨n1, h1⟩ := h.ext
+    obtain ⟨n2, h2⟩ := he
+    exact ⟨n2 ++ n1, by rw [h2, h1, List.append_assoc]⟩
+  pers := h.pers
+
+/-- con-leche: none — the prefix at a record's visibility bound IS the
+environment it was installed at. -/
+theorem PendRel.prefix {st : EStore} {envF : Env} {pc : PendingCheck}
+    {p : Env × ConLeche.ValueGroup} (h : PendRel st envF pc p) :
+    envF.prefixTo pc.vis = p.1 := by
+  obtain ⟨new, hn⟩ := h.ext
+  rw [h.vis]
+  exact Env.prefixTo_of_extends hn
+
+/-- con-leche: ConLeche/Verify/Cached/InstalledC.lean installRun_trace — **the
+pure fold keeps names unique**: every install is guarded by a `find?` miss
+(`checkConstantVal`, `installBasisDecl`, the inductive install), which is
+what con-leche's `PushChain` carries through its cached fold.
+
+`sorry`: a case split over `checkDecl`'s arms, reading the duplicate guard
+off each (con-leche proves it for the cached fold only). -/
+theorem checkDecl_nodup {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
+    {env env' : Env} {d : Declaration}
+    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env')
+    (hnd : NodupNames env) : NodupNames env' := by
+  sorry
+
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean installConstantVal_inv — a
+split install pushes one constant whose name the environment did not have.
+
+PROVED: `installConstantVal_inv`'s `find?` miss. -/
+theorem SplitInstall.nodup {μ : CheckMode} {F : Nat} {env env' : Env}
+    {d : Declaration} {vg : ConLeche.ValueGroup}
+    (h : SplitInstall μ F env d vg env') (hnd : NodupNames env) :
+    NodupNames env' := by
+  have key : ∀ {cv cvA : ConstantVal} {c : ConstantInfo},
+      ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok cvA →
+      c.name = cvA.name → NodupNames ⟨c :: env.consts⟩ := by
+    intro cv cvA c hI hc
+    obtain ⟨hfind, -, -, -, -, -, type', -, -, -, hcvA⟩ :=
+      ConLeche.installConstantVal_inv hI
+    unfold NodupNames at hnd ⊢
+    simp only [List.map_cons, List.nodup_cons]
+    refine ⟨?_, hnd⟩
+    intro hmem
+    obtain ⟨x, hx, hxn⟩ := List.mem_map.mp hmem
+    have hne := List.find?_eq_none.mp hfind x hx
+    rw [hc, hcvA] at hxn
+    simp [hxn] at hne
+  rcases h with ⟨cv, value, hint, -, -, -, hI, -, rfl⟩ |
+    ⟨cv, value, -, -, hI, -, rfl⟩ | ⟨cv, value, -, -, -, hI, -, rfl⟩
+  · exact key hI rfl
+  · exact key hI rfl
+  · exact key hI rfl
+
+theorem PhaseA.nodup {μ : CheckMode} {pinsP : List NatOpPinSet}
+    {env : Env} {ds : List Declaration} {env' : Env}
+    {pend : List (Env × ConLeche.ValueGroup)} (h : PhaseA μ pinsP env ds env' pend) :
+    NodupNames env → NodupNames env' := by
+  induction h with
+  | nil => exact id
+  | full F h rest ih => exact fun hnd => ih (checkDecl_nodup h hnd)
+  | split vg F h rest ih => exact fun hnd => ih (h.nodup hnd)
+
+/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
+step with the pure half it ran**: `Arena.annotStep_bridge`'s conclusion plus
+what the fold needs to rebuild `checkDecl` — a full step's `checkDecl` at
+`env`, or a split step's `SplitInstall` at `env` with the record's
+`PendRel` — and the two frame facts phase B reads (the caches are empty after
+the bracket's `dropScratch`; the environment only grows).
+
+`sorry`: `annotStepGo`'s four arms — `installConstantVal_bridge` and
+`installValue_bridge` (both PROVED) for the split arms, `Arena.checkDecl_bridge`
+for the rest — then the bracket: `promoteVG_spec` / `promoteNew_spec` at ONE
+memo, `PExt.dropScratch`, and `IFEnvOK` at the pushed index.  The bracket is
+`Arena.checkDeclStep_bridge`'s with one promotion more, and the arms' install
+halves are the round-4 lemmas, so this is one round once the bracket's store
+lemmas are in (DESIGN, task #97-P3-Checker's sorry list, item 19). -/
+theorem Arena.annotStep_split {μ : CheckMode}
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
+    {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
+    {pd : IDeclaration} {d : Declaration} {s s' : AState}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hpp : PersPinSets pins) (hpend : ∀ pc ∈ pend.toList, PersVG pc.vg)
+    (hd : Frontend.denoteDecl s.store pd = some d)
+    (hrun : Arena.annotStep μ pins i fe pend pd s = .ok ((fe', pend'), s')) :
+    ∃ env', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
+      Pushed fe fe' ∧ (∀ pc ∈ pend'.toList, PersVG pc.vg) ∧
+      s'.caches = Caches.empty ∧ (∃ new, env'.consts = new ++ env.consts) ∧
+      ((pend'.toList = pend.toList ∧ ∃ F,
+          ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') ∨
+        ∃ pc gP F, pend'.toList = pend.toList ++ [pc] ∧ pc.pos = i ∧
+          pc.vis = fe.visibleBelow ∧ SplitInstall μ F env d gP env' ∧
+          PendRel s'.store env' pc (env, gP)) := by
+  sorry
+
+/-- con-leche: none — every related record is persistent. -/
+theorem PendRel.listRel_pers {st : EStore} {envF : Env} :
+    ∀ {l : List PendingCheck} {l' : List (Env × ConLeche.ValueGroup)},
+      ListRel (PendRel st envF) l l' → ∀ pc ∈ l, PersVG pc.vg
+  | [], [], .nil => fun _ h => absurd h (by simp)
+  | _ :: _, _ :: _, .cons h hs => by
+    intro pc hpc
+    rcases List.mem_cons.mp hpc with rfl | hpc
+    · exact h.pers
+    · exact PendRel.listRel_pers hs pc hpc
+
+/-- con-leche: none — the relation survives a later bracket, record by
+record. -/
+theorem PendRel.listRel_mono {st st' : EStore} {envF envF' : Env}
+    (hx : PExt st st') (he : ∃ new, envF'.consts = new ++ envF.consts) :
+    ∀ {l : List PendingCheck} {l' : List (Env × ConLeche.ValueGroup)},
+      ListRel (PendRel st envF) l l' →
+      ListRel (PendRel st' envF') l l'
+  | [], [], .nil => .nil
+  | _ :: _, _ :: _, .cons h hs => .cons (h.mono hx he) (PendRel.listRel_mono hx he hs)
+
+theorem ListRel.snoc {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {l' : List β} {a : α} {b : β},
+      ListRel R l l' → R a b → ListRel R (l ++ [a]) (l' ++ [b])
+  | [], [], _, _, .nil, h => .cons h .nil
+  | _ :: _, _ :: _, _, _, .cons h hs, hab => .cons h (ListRel.snoc hs hab)
+
+/-- con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls (phase A) —
+**phase A over handles**: an accepting `annotFold` is a pure `PhaseA` whose
+owed checks are the arena's pending records, related one for one.
+
+PROVED from `Arena.annotStep_split`: an induction over the records, the
+relation carried across each bracket by `PendRel.listRel_mono`. -/
+theorem Arena.annotFold_bridge {μ : CheckMode}
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    (hpp : PersPinSets pins) :
+    ∀ (ds : List IDeclaration) (dsP : List Declaration) (env : Env) (i i' : Nat)
+      (fe fe' : IFEnv) (pend pend' : Array PendingCheck)
+      (pendP : List (Env × ConLeche.ValueGroup)) (s s' : AState),
+      FoldOK μ env fe s → PinsDenote s.store pins pinsP →
+      (∀ x ∈ ds, PersDecl x) → denoteDecls s.store ds = some dsP →
+      ListRel (PendRel s.store env) pend.toList pendP →
+      Arena.annotFold μ pins (i, fe, pend) ds s = .ok (.ok (i', fe', pend'), s') →
+      ∃ env' pendP', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
+        PhaseA μ pinsP env dsP env' pendP' ∧
+        ListRel (PendRel s'.store env') pend'.toList (pendP ++ pendP') ∧
+        (ds = [] → s' = s) ∧ (ds ≠ [] → s'.caches = Caches.empty) := by
+  intro ds
+  induction ds with
+  | nil =>
+    intro dsP env i i' fe fe' pend pend' pendP s s' hok _ _ hden hrel hrun
+    simp only [denoteDecls, Option.some.injEq] at hden
+    subst hden
+    simp only [Arena.annotFold] at hrun
+    obtain ⟨he, rfl⟩ := AM.pure_ok hrun
+    simp only [Except.ok.injEq, Prod.mk.injEq] at he
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    exact ⟨env, [], hok, PExt.refl _, .nil env, by simpa using hrel,
+      fun _ => rfl, fun h => absurd rfl h⟩
+  | cons a as ih =>
+    intro dsP env i i' fe fe' pend pend' pendP s s' hok hpins hpd hden hrel hrun
+    simp only [denoteDecls] at hden
+    cases ha : Frontend.denoteDecl s.store a with
+    | none => rw [ha] at hden; simp at hden
+    | some x =>
+      cases has : denoteDecls s.store as with
+      | none => rw [ha, has] at hden; simp at hden
+      | some xs =>
+        rw [ha, has] at hden
+        simp only [Option.some.injEq] at hden
+        subst hden
+        simp only [Arena.annotFold] at hrun
+        obtain ⟨r1, s₁, hstep, htail⟩ := AM.bind_ok hrun
+        simp only [Arena.annotDeclStep] at hstep
+        cases hA : Arena.annotStep μ pins i fe pend a s with
+        | error e =>
+          rw [hA] at hstep
+          simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+          obtain ⟨rfl, rfl⟩ := hstep
+          obtain ⟨hbad, -⟩ := AM.pure_ok htail
+          exact absurd hbad (by simp)
+        | ok v =>
+          obtain ⟨⟨fe₁, pend₁⟩, s₁'⟩ := v
+          rw [hA] at hstep
+          simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+          obtain ⟨h1, h2⟩ := hstep
+          subst h1
+          subst s₁'
+          obtain ⟨env₁, hok₁, hx₁, -, -, hc₁, hext₁, hcase⟩ :=
+            Arena.annotStep_split hμ hk hind hok hpins hpp
+              (PendRel.listRel_pers hrel) ha hA
+          have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hrel
+          have hpins₁ := PinsDenote.pmono hx₁ _ _ hpp hpins
+          have hpd₁ : ∀ c ∈ as, PersDecl c := fun c hc => hpd c (by simp [hc])
+          have has₁ := denoteDecls_pext hx₁ as xs hpd₁ has
+          rcases hcase with ⟨hpeq, F, hF⟩ | ⟨pc, gP, F, hpeq, -, -, hsplit, hpc⟩
+          · have hrelA : ListRel (PendRel s₁.store env₁) pend₁.toList pendP := by
+              rw [hpeq]; exact hrel₁
+            obtain ⟨env', pendP', hok', hx', hA', hrel', hnil', hc'⟩ :=
+              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' pendP s₁ s' hok₁ hpins₁ hpd₁
+                has₁ hrelA htail
+            refine ⟨env', pendP', hok', hx₁.trans hx', .full F hF hA', hrel',
+              fun h => absurd h (by simp), fun _ => ?_⟩
+            by_cases hnil : as = []
+            · rw [hnil'  hnil]; exact hc₁
+            · exact hc' hnil
+          · have hrelA : ListRel (PendRel s₁.store env₁) pend₁.toList
+                (pendP ++ [(env, gP)]) := by
+              rw [hpeq]; exact ListRel.snoc hrel₁ hpc
+            obtain ⟨env', pendP', hok', hx', hA', hrel', hnil', hc'⟩ :=
+              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' (pendP ++ [(env, gP)]) s₁ s'
+                hok₁ hpins₁ hpd₁ has₁ hrelA htail
+            refine ⟨env', (env, gP) :: pendP', hok', hx₁.trans hx',
+              .split gP F hsplit hA', by simpa [List.append_assoc] using hrel',
+              fun h => absurd h (by simp), fun _ => ?_⟩
+            by_cases hnil : as = []
+            · rw [hnil' hnil]; exact hc₁
+            · exact hc' hnil
+
+/-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
+B's check of one record, at the prefix environment itself**.  The form the
+fold consumes: `checkDecl_of_split_*` needs the check half at the SAME
+environment as the install halves, and `Arena.checkPending_bridge`'s
+existential `envK` (equal to the prefix only up to `find?`) cannot be fed to
+it without a `find?`-congruence of the whole pure core that con-leche does not
+state.  It is available here directly: `IFEnvOK_restrictTo` gives the index
+invariant AT `env.prefixTo pc.vis`, so the knot is instantiated there.
+
+`sorry`: `IFEnvOK_restrictTo` (its `hproj` from `IFEnvOK.proj` under name
+uniqueness), `CoreSpec` at the prefix environment, `checkValueGroup_bridge`,
+then the bracket with nothing to promote — `PExt.enterScratch` /
+`PExt.dropScratch` and `FoldOK` across them. -/
+theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
+    {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (hok : FoldOK μ env fe s) (hpers : PersVG pc.vg)
+    (hnd : (env.consts.map (·.name)).Nodup)
+    (hckK : CacheOK μ (env.prefixTo pc.vis) s)
+    (henvK : EnvWF (env.prefixTo pc.vis))
+    (hkind : KindRel pc.vg.kind gP.kind)
+    (hcv : Frontend.denoteCV s.store pc.vg.cvA = some gP.cvA)
+    (hjv : denoteE s.store pc.vg.jv = some gP.jv)
+    (hwsty : Expr.WScoped 0 gP.cvA.type)
+    (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
+    (hrun : Arena.checkPending μ fe pc s = .ok ((), s')) :
+    FoldOK μ env fe s' ∧ PExt s.store s'.store ∧ s'.caches = Caches.empty ∧
+      ∃ F, ConLeche.checkValueGroup (ConLeche.fueledOps μ F)
+        (env.prefixTo pc.vis) gP = .ok () := by
+  sorry
+
+/-- con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList —
+**phase B over handles**: every owed check of phase A is paid, at the
+environment it was owed at.
+
+PROVED from `Arena.checkPending_prefix`: an induction over the records;
+each check leaves the caches empty (`dropScratch`), which is the next check's
+`CacheOK` at ITS prefix. -/
+theorem Arena.checkPendingList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (hnd : NodupNames env) :
+    ∀ (pend : List PendingCheck) (pendP : List (Env × ConLeche.ValueGroup))
+      (s s' : AState), FoldOK μ env fe s →
+      ListRel (PendRel s.store env) pend pendP →
+      (pend ≠ [] → s.caches = Caches.empty) →
+      Arena.checkPendingList μ fe pend s = .ok (.ok (), s') →
+      FoldOK μ env fe s' ∧ PExt s.store s'.store ∧
+        ∀ p ∈ pendP, ∃ F,
+          ConLeche.checkValueGroup (ConLeche.fueledOps μ F) p.1 p.2 = .ok () := by
+  intro pend
+  induction pend with
+  | nil =>
+    intro pendP s s' hok hrel _ hrun
+    cases hrel
+    simp only [Arena.checkPendingList] at hrun
+    obtain ⟨-, rfl⟩ := AM.pure_ok hrun
+    exact ⟨hok, PExt.refl _, fun _ h => absurd h (by simp)⟩
+  | cons pc rest ih =>
+    intro pendP s s' hok hrel hc hrun
+    cases hrel with
+    | cons hp hrest =>
+      rename_i p pendP'
+      have hc0 := hc (by simp)
+      simp only [Arena.checkPendingList] at hrun
+      cases hA : Arena.checkPending μ fe pc s with
+      | error e =>
+        rw [hA] at hrun
+        simp at hrun
+      | ok v =>
+        obtain ⟨⟨⟩, s₁⟩ := v
+        rw [hA] at hrun
+        have hpre := hp.prefix
+        obtain ⟨hok₁, hx₁, hc₁, F, hF⟩ :=
+          Arena.checkPending_prefix hμ hk hok hp.pers hnd
+            (CacheOK.of_empty hc0) (by rw [hpre]; exact hp.envWF) hp.kind hp.cv
+            hp.jv hp.wsty hp.wsjv hA
+        rw [hpre] at hF
+        obtain ⟨hok', hx', hall⟩ :=
+          ih pendP' s₁ s' hok₁ (PendRel.listRel_mono hx₁ ⟨[], rfl⟩ hrest)
+            (fun _ => hc₁) hrun
+        refine ⟨hok', hx₁.trans hx', fun q hq => ?_⟩
+        rcases List.mem_cons.mp hq with rfl | hq
+        · exact ⟨F, hF⟩
+        · exact hall q hq
+
 /-! ## Phase A and phase B -/
 
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase
@@ -749,25 +1217,34 @@ The conclusion is the install half's, not `checkDecl`'s: a value kind leaves a
 is what ran.  The three non-value arms fall through to `checkDecl` and the
 conclusion is `Bridge/Checker/Decl.lean`'s `DeclOut`.
 
-`sorry`: `annotStepGo`'s four arms over `installConstantVal_bridge`,
-`installValue_bridge` and `Arena.checkDecl_bridge`, then the bracket —
-`promoteVG_spec` and `promoteNew_spec` at ONE memo, then `PExt.dropScratch`.
-The bracket is `Arena.checkDeclStep_bridge`'s with one operation more.  Task
-#97-P3-Checker's sorry list, item 19. -/
+**The statement gained `hpend`** (task #97-P3-Checker round 8): the
+conclusion says every record of `pend'` is persistent, and `pend'` contains
+`pend` — so without the same of `pend` it was false at a non-persistent
+input.  A missing precondition, free at the one call site (`annotFold`
+starts from `#[]` and carries it).
+
+PROVED from `Arena.annotStep_split` (round 8), which carries this conclusion
+and the pure half the fold needs; the `sorry` lives there. -/
 theorem Arena.annotStep_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
     {pd : IDeclaration} {d : Declaration} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
-    (hpp : PersPinSets pins) (hd : Frontend.denoteDecl s.store pd = some d)
+    (hpp : PersPinSets pins) (hpend : ∀ pc ∈ pend.toList, PersVG pc.vg)
+    (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.annotStep μ pins i fe pend pd s = .ok ((fe', pend'), s')) :
     ∃ env', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
       Pushed fe fe' ∧ (∀ pc ∈ pend'.toList, PersVG pc.vg) ∧
       (pend'.toList = pend.toList ∨
         ∃ pc, pend'.toList = pend.toList ++ [pc] ∧ pc.pos = i ∧
           pc.vis = fe.visibleBelow) := by
-  sorry
+  obtain ⟨env', h1, h2, h3, h4, -, -, hcase⟩ :=
+    Arena.annotStep_split hμ hk hind hok hpins hpp hpend hd hrun
+  refine ⟨env', h1, h2, h3, h4, ?_⟩
+  rcases hcase with ⟨hpeq, -⟩ | ⟨pc, gP, F, hpeq, hpos, hvis, -, -⟩
+  · exact Or.inl hpeq
+  · exact Or.inr ⟨pc, hpeq, hpos, hvis⟩
 
 /-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
 B's check of one record**, against the prefix view, inside its own bracket.
@@ -783,10 +1260,20 @@ record's own header, and none of them is derivable from `FoldOK μ env fe s`:
 | `henvK : EnvWF (env.prefixTo pc.vis)` | `ConstWF` asks for `constsResolve` at the environment the constant is stored in, and LOWERING the environment can only break that clause, so `EnvWF env` does not imply it.  It is the install fold's to carry |
 | `hwsty : Expr.WScoped 0 gP.cvA.type`, `hwsjv : Expr.WScoped 0 gP.jv` | round 5 §7's two clauses, which `checkValueGroup_bridge` takes and this theorem cannot conjure: phase A's `installConstantVal` / `installValue` tested exactly that guard (`hasFvar = false` at depth 0 IS `WScoped 0`), so they travel in the `PendingCheck`, not in the state |
 
-`sorry`: `IFEnvOK_restrictTo` and `checkValueGroup_bridge`, then the
-bracket with nothing to promote (`Arena/Checker.lean`: "Nothing crosses back,
-so there is nothing to promote").  Task #97-P3-Checker's sorry list,
-item 19. -/
+**Two more repairs** (task #97-P3-Checker round 8), both on the pure
+record's side:
+
+* `hkind : pc.vg.kind = gP.kind` was MISSING: nothing tied the handle record's
+  kind to the pure one's, and `checkValueGroup` branches on it (a theorem's
+  check tests propositionality and annotates the raw value; the other two do
+  not), so the conclusion was false at a mismatched pair;
+* `hwsjv` is WEAKENED to `gP.kind ≠ .thm → …`: a theorem's pending value is
+  its RAW value, which phase A never guards (a theorem installs by statement),
+  so the unconditional form is not dischargeable at the fold — and
+  `checkValueGroup_bridge` only ever used it on the other two kinds.
+
+PROVED from `Arena.checkPending_prefix` (round 8), which states the check AT
+the prefix environment; the `sorry` lives there. -/
 theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
@@ -794,14 +1281,18 @@ theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
     (hnd : (env.consts.map (·.name)).Nodup)
     (hckK : CacheOK μ (env.prefixTo pc.vis) s)
     (henvK : EnvWF (env.prefixTo pc.vis))
+    (hkind : KindRel pc.vg.kind gP.kind)
     (hcv : Frontend.denoteCV s.store pc.vg.cvA = some gP.cvA)
     (hjv : denoteE s.store pc.vg.jv = some gP.jv)
-    (hwsty : Expr.WScoped 0 gP.cvA.type) (hwsjv : Expr.WScoped 0 gP.jv)
+    (hwsty : Expr.WScoped 0 gP.cvA.type)
+    (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : Arena.checkPending μ fe pc s = .ok ((), s')) :
     ∃ envK F, FoldOK μ env fe s' ∧ PExt s.store s'.store ∧
       envK.find? = (env.prefixTo pc.vis).find? ∧
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) envK gP = .ok () := by
-  sorry
+  obtain ⟨h1, h2, -, F, hF⟩ := Arena.checkPending_prefix hμ hk hok hpers hnd hckK
+    henvK hkind hcv hjv hwsty hwsjv hrun
+  exact ⟨env.prefixTo pc.vis, F, h1, h2, rfl, hF⟩
 
 /-! ## The punchline -/
 
@@ -813,15 +1304,15 @@ theorem is about.  With `Bridge/Checker/Fold.lean`'s
 Theorem 1 — the half the history report's fine print 5 prices — and with
 `Bridge/Checker/Capstone.lean` it carries the model to the binary's own fold.
 
-`sorry`: the `InstallRun` induction (con-leche's
-`Verify/Cached/InstalledC.lean:456 installRun_model` is the same walk at the
-model instead of at `checkDeclsPure`): phase A's records give the install
-halves at each prefix environment, `Arena.checkPending_bridge` gives the check
-half at the SAME one through `IFEnvOK_restrictTo`, `checkDecl_of_split_*`
-combines them into `ConLeche.checkDecl`, and `checkDecl_mono` raises the fuels
-to one.  Task #97-P3-Checker's sorry list, item 20 — the largest remaining
-item after the seven arms, and the only one that is a *fold* rather than a
-*step*. -/
+**SKELETONISED** (task #97-P3-Checker round 8): phase A is
+`Arena.annotFold_bridge` (PROVED, over the child `Arena.annotStep_split`),
+phase B is `Arena.checkPendingList_bridge` (PROVED, over the child
+`Arena.checkPending_prefix`), and the two are one accept by `PhaseA.foldlM`
+(PROVED: `checkDecl_of_split_*` at each split step, `checkDecl_mono` for the
+fuel).  Name uniqueness at the end of phase A — what `IFEnvOK_restrictTo`
+needs — is `PhaseA.nodup`, over the child `checkDecl_nodup`.  So the `sorry`s
+this theorem reaches in this tier are exactly `Arena.annotStep_split`,
+`Arena.checkPending_prefix` and `checkDecl_nodup`. -/
 theorem Arena.installThenCheck_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}
@@ -836,6 +1327,43 @@ theorem Arena.installThenCheck_bridge {μ : CheckMode}
     ∃ env' F', denoteFEnv s'.store fe' = some env' ∧
       ConLeche.checkDeclsPure μ (ConLeche.fueledOps μ F') pinsP dsP
         = .ok env' := by
-  sorry
+  have hnd0 : NodupNames Env.empty := List.nodup_nil
+  simp only [Arena.installThenCheck] at hrun
+  obtain ⟨r1, s₁, hA, hrest⟩ := AM.bind_ok hrun
+  cases r1 with
+  | error e =>
+    obtain ⟨hbad, -⟩ := AM.pure_ok hrest
+    exact absurd hbad (by simp)
+  | ok p =>
+    obtain ⟨n, fe₁, pend⟩ := p
+    obtain ⟨env₁, pendP, hok₁, -, hPA, hrel, hnil, hc₁⟩ :=
+      Arena.annotFold_bridge hμ hk hind hpp ds.toList dsP Env.empty 0 n
+        (mkIFEnv IEnv.empty) fe₁ #[] pend [] s s₁ hok hpins hpd hden .nil hA
+    simp only [List.nil_append] at hrel
+    obtain ⟨r2, s₂, hB, hrest2⟩ := AM.bind_ok hrest
+    cases r2 with
+    | error e =>
+      obtain ⟨hbad, -⟩ := AM.pure_ok hrest2
+      exact absurd hbad (by simp)
+    | ok u =>
+      obtain ⟨he, hs'⟩ := AM.pure_ok hrest2
+      simp only [Except.ok.injEq] at he
+      subst he
+      subst s'
+      have hc : pend.toList ≠ [] → s₁.caches = Caches.empty := by
+        intro hne
+        by_cases hds : ds.toList = []
+        · exfalso
+          rw [hds] at hden
+          simp only [denoteDecls, Option.some.injEq] at hden
+          subst hden
+          cases hPA
+          exact hne (ListRel.nil_right hrel)
+        · exact hc₁ hds
+      obtain ⟨hok₂, -, hall⟩ :=
+        Arena.checkPendingList_bridge hμ hk (hPA.nodup hnd0) pend.toList pendP s₁ s₂
+          hok₁ hrel hc hB
+      obtain ⟨F, hF⟩ := hPA.foldlM hall
+      exact ⟨env₁, F, hok₂.denote, hF F (Nat.le_refl _)⟩
 
 end ConRon.Bridge

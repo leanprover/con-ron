@@ -631,14 +631,60 @@ theorem struct_used_later_list_refines {pers st lst}
 theorem used_get_d_refines {used : alloc.vec.Vec Bool} {j : Std.U64} {o}
     (hrun : arena.inductives.struct_parts.used_get_d used j = ok o) :
     o = (absBoolL used).getD (absU j) false := by
-  sorry
+  -- task #97-P5-Usize: the bound is compared in `u64` (round 3 §R3.5).
+  rw [arena.inductives.struct_parts.used_get_d] at hrun
+  obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  simp only [lift, Result.ok.injEq] at hi1
+  have hi1v : i1.val = used.val.length := by
+    rw [← hi1, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+  by_cases hlt : j < i1
+  · rw [if_pos hlt] at hrun
+    have hlt' : j.val < used.val.length := by scalar_tac
+    obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    simp only [lift, Result.ok.injEq] at hi2
+    have hi2v : i2.val = j.val := by
+      rw [← hi2]
+      exact ConRon.Refine.ExprOps.u64_cast_usize_val
+        (le_trans (Nat.le_of_lt hlt') used.property)
+    have hx := vec_index_some hrun
+    rw [hi2v] at hx
+    simp [absBoolL, absU, List.getD_eq_getElem?_getD, hx]
+  · rw [if_neg hlt] at hrun
+    obtain rfl := Result.ok_injective hrun
+    have hge : used.val.length ≤ j.val := by scalar_tac
+    simp [absBoolL, absU, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_none (by simpa using hge)]
 
 /-- `sort_get_d` ⊑ `sorts.getD j z`. -/
 theorem sort_get_d_refines {sorts : alloc.vec.Vec arena.handle.LIdx} {j : Std.U64}
     {z : arena.handle.LIdx} {o}
     (hrun : arena.inductives.struct_parts.sort_get_d sorts j z = ok o) :
     absLIdx o = (absLIdxL sorts).getD (absU j) (absLIdx z) := by
-  sorry
+  -- task #97-P5-Usize: the bound is compared in `u64` (round 3 §R3.5).
+  rw [arena.inductives.struct_parts.sort_get_d] at hrun
+  obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  simp only [lift, Result.ok.injEq] at hi1
+  have hi1v : i1.val = sorts.val.length := by
+    rw [← hi1, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+  by_cases hlt : j < i1
+  · rw [if_pos hlt] at hrun
+    have hlt' : j.val < sorts.val.length := by scalar_tac
+    obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    simp only [lift, Result.ok.injEq] at hi2
+    have hi2v : i2.val = j.val := by
+      rw [← hi2]
+      exact ConRon.Refine.ExprOps.u64_cast_usize_val
+        (le_trans (Nat.le_of_lt hlt') sorts.property)
+    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hx := vec_index_some hl
+    rw [hi2v] at hx
+    rw [dupId_lidx _ _ hrun]
+    simp [absLIdxL, absU, List.getD_eq_getElem?_getD, hx]
+  · rw [if_neg hlt] at hrun
+    rw [dupId_lidx _ _ hrun]
+    have hge : sorts.val.length ≤ j.val := by scalar_tac
+    simp [absLIdxL, absU, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_none (by simpa using hge)]
 
 /-- `struct_proj_guards_col` ⊑ `structProjGuards`' `col`. -/
 theorem struct_proj_guards_col_refines {pers st lst} {used : alloc.vec.Vec Bool}
@@ -768,5 +814,11 @@ of the family will be built from. -/
 
 /-- info: 'ConRon.Refine2.struct_ps_at_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms struct_ps_at_from_refines
+
+/-- info: 'ConRon.Refine2.used_get_d_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms used_get_d_refines
+
+/-- info: 'ConRon.Refine2.sort_get_d_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sort_get_d_refines
 
 end ConRon.Refine2
