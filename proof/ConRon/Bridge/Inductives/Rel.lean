@@ -2287,6 +2287,13 @@ theorem InstRel.imp {fe fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
   obtain ⟨e, he, hp⟩ := h.denote
   exact ⟨h.coh, h.pushed, h.visible, ⟨e, he, hPQ e hp⟩, h.proj⟩
 
+/-- con-leche: none — `InstRel.imp` with the denoted environment in hand. -/
+theorem InstRel.impD {fe fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
+    (h : InstRel fe P st fe')
+    (hPQ : ∀ e, denoteFEnv st fe' = some e → P e → Q e) : InstRel fe Q st fe' := by
+  obtain ⟨e, he, hp⟩ := h.denote
+  exact ⟨h.coh, h.pushed, h.visible, ⟨e, he, hPQ e he hp⟩, h.proj⟩
+
 /-! ## The recognisers' readers (task #97-P3-Ind round 6)
 
 `structPartsCore?` and `nativeShape?` read the reserved-name list, peel a

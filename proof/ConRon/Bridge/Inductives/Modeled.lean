@@ -30,6 +30,7 @@ import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Frontend.Shared
 import ConLeche.Verify.Extend.Iota
 import ConLeche.Verify.Extend.Modeled
+import ConLeche.Verify.Extend.Proj
 import ConRon.Bridge.Frontend.Lines
 
 namespace ConRon.Bridge.Inductives
@@ -3365,6 +3366,89 @@ theorem ctorTargetsFam_spec (ctorTy : EIdx) (ctorTyP : Expr) (T : NIdx)
     simp only [RV, ConLeche.ctorTargetsFam, hsp]
     exact beq_ehandle_eq hstep.ok.wf (denote_ext hx hstep.ext) hfam
 
+/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:595 checkProjFnS_run (its
+`EnvWF` half, pure) — **an installed projection function keeps the
+environment well formed**: its type is `checkProjTy`'s (closed, resolving,
+scoped), its one rule `checkProjRule`'s annotated right-hand side, and the
+rule is never `.nested`. -/
+theorem checkProjFn_envWF {μ : CheckMode} {F : Nat} {env e : Env} {T C : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} (henv : EnvWF env)
+    (h : ConLeche.checkProjFn μ (ConLeche.fueledOps μ F) env T C lps nP nF i = .ok e) :
+    EnvWF e := by
+  obtain ⟨cvj, mcv, -, pty, hty, -, -, rhsA, hrule, -, rfl⟩ := ConLeche.checkProjFn_inv h
+  obtain ⟨-, -, hres, hbv, hfv, hlp, -⟩ := ConLeche.checkProjTy_inv hty
+  obtain ⟨raw, rb, cb, cbody, hraw, hrf, hrb, hann, halp, hrres, hrbv,
+    hrfv, hsl, hsp, hdm, -⟩ := ConLeche.checkProjRule_inv hrule
+  refine ConLeche.EnvWF.cons henv ⟨hfv, hlp, Expr.constsResolve_mono hres, hbv,
+    (fun _ _ _ heq2 => nomatch heq2), ?_, (fun _ heq => nomatch heq),
+    (fun _ _ heq => nomatch heq)⟩
+  intro cvR mI' rP' rules'' heq2 r hr
+  injection heq2 with e1 e2 e3 e4
+  subst e1
+  subst e4
+  rcases List.mem_singleton.mp hr with rfl
+  refine ⟨hrfv, halp, Expr.constsResolve_mono hrres, hrbv, ?_⟩
+  intro lvls pins hf
+  cases hcond : Expr.recRulePlain pty nP nP nP <;>
+    simp [ConLeche.projFnRule, ConLeche.recRuleBits, hcond] at hf
+
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
+(its `EnvWF` half, pure). -/
+theorem installProjFnStep_envWF {μ : CheckMode} {F : Nat} {env e : Env} {T C : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} (henv : EnvWF env)
+    (h : ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps nP nF env i = .ok e) :
+    EnvWF e := by
+  unfold ConLeche.installProjFnStep at h
+  split at h
+  · exact checkProjFn_envWF henv h
+  · simp only [pure, Except.pure, Except.ok.injEq] at h
+    subst h; exact henv
+
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn (its
+shape) — **the projection function's install pushes one recursor row**, not a
+projection table.  Structural: read off the twin's last line. -/
+theorem checkProjFn_push {μ : CheckMode} {fe : IFEnv} {T C : NIdx} {lps : List NIdx}
+    {nP nF i : Nat} {s s' : AState} {r : IFEnv}
+    (h : Arena.checkProjFn μ fe T C lps nP nF i s = .ok (r, s')) :
+    ∃ ci, r = fe.push ci ∧ ∀ t, ci ≠ .projInfo t := by
+  simp only [Arena.checkProjFn] at h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨-, h⟩ := AM.dunless_ok AM.Never.fail_any h
+  replace h := AM.pure_bind_ok h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := pureOk h
+  exact ⟨_, rfl, fun t h => IConstantInfo.noConfusion h⟩
+
+theorem installProjFnStep_up {μ : CheckMode} {F G : Nat} {env e : Env} {T C : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF i : Nat} (hle : F ≤ G)
+    (h : ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps nP nF env i = .ok e) :
+    ConLeche.installProjFnStep μ (ConLeche.fueledOps μ G) T C lps nP nF env i = .ok e := by
+  rw [← ConLeche.installProjFnStep_datF] at h ⊢
+  exact (ConLeche.installProjFnStep μ (ConLeche.fueledOpsM μ) T C lps nP nF env i).property
+    hle h
+
+theorem foldProjFnI_up {μ : CheckMode} {F G : Nat} {T C : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF : Nat} {g : Nat → Nat} {xs : List Nat} {env e : Env}
+    (hle : F ≤ G)
+    (h : xs.foldlM (fun e j => ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps
+      nP nF e (g j)) env = .ok e) :
+    xs.foldlM (fun e j => ConLeche.installProjFnStep μ (ConLeche.fueledOps μ G) T C lps
+      nP nF e (g j)) env = .ok e := by
+  have e1 : ∀ F, xs.foldlM (fun e j => ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T
+      C lps nP nF e (g j)) env = (xs.foldlM (fun e j => ConLeche.installProjFnStep μ
+        (ConLeche.fueledOpsM μ) T C lps nP nF e (g j)) env).val F := by
+    intro F
+    rw [ConLeche.foldlM_atF]
+    simp only [ConLeche.installProjFnStep_datF]
+  rw [e1] at h ⊢
+  exact (xs.foldlM (fun e j => ConLeche.installProjFnStep μ (ConLeche.fueledOpsM μ) T C lps
+    nP nF e (g j)) env).property hle h
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
 One projection install, with its duplicate guard.
 
@@ -3383,7 +3467,40 @@ theorem installProjFnStep_spec {μ : CheckMode} {env : Env} (e : IFEnv)
       (fun s r => InstRel e (fun x => (∃ F, ConLeche.installProjFnStep
         μ (ConLeche.fueledOps μ F) TP ctorNameP lpsP nP nF env i = .ok x) ∧
         ReadOK x r s) s.store r) := by
-  sorry
+  intro s₀ s' r hpre hrun
+  obtain ⟨hread, hT, hC, hlps, hfe⟩ := hpre
+  simp only [Arena.installProjFnStep] at hrun
+  obtain ⟨pm, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hpm⟩ := projModelName_run hread.state hT k1
+  have hread₁ := hread.mono p1.ok p1.ext p1.pins
+  have hsome := hread₁.ienv.find_isSome p1.ok hpm
+  have hfe₁ := denoteFEnv_ext p1.ext hfe
+  split at z1
+  · rename_i hyes
+    obtain ⟨u, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨hck₂, hi₂, hst₂⟩ := hread₁.flush (μ := μ) k2
+    have x02 : Ext s₀.store s₂.store := by rw [hst₂]; exact p1.ext
+    obtain ⟨c3, hinst⟩ := checkProjFn_spec e hk henv hcoh T ctorName TP ctorNameP lps lpsP
+      nP nF i s₂ s' r hck₂ ⟨denoteN_ext hT x02, denoteN_ext hC x02,
+        denoteNListE_ext x02 _ _ hlps, denoteFEnv_ext x02 hfe⟩ z2
+    obtain ⟨ci, hpush, hnp⟩ := checkProjFn_push z2
+    refine ⟨p1.toInst.trans (hi₂.trans c3.toInst), hinst.impD ?_⟩
+    rintro x hx ⟨F, hF⟩
+    refine ⟨⟨F, ?_⟩, ?_⟩
+    · have hyes' : (env.find? (ConLeche.projModelName TP i)).isSome = true := by
+        rw [← hsome]; exact hyes
+      simp only [ConLeche.installProjFnStep, if_pos hyes']
+      exact hF
+    · subst hpush
+      exact c3.ok.toR.push hcoh hnp (denoteFEnv_ext c3.ext (denoteFEnv_ext x02 hfe)) hx
+  · rename_i hno
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    have hno' : ¬ (env.find? (ConLeche.projModelName TP i)).isSome = true := by
+      rw [← hsome]; exact hno
+    refine ⟨p1.toInst, hcoh, Pushed.refl _, Nat.le_refl _,
+      ⟨env, hfe₁, ⟨0, ?_⟩, hread₁⟩, ProjOut.refl _ _⟩
+    simp only [ConLeche.installProjFnStep, if_neg hno']
+    rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
 `installProjFns` is the twin's explicit recursion for con-leche's third
@@ -3405,7 +3522,41 @@ theorem installProjFns_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         (List.range k).foldlM (fun e j => ConLeche.installProjFnStep
           μ (ConLeche.fueledOps μ F) TP ctorNameP lpsP nP nF e (i + j)) env
           = .ok x) ∧ ReadOK x r s) s.store r) := by
-  sorry
+  induction k generalizing fe env i with
+  | zero =>
+    intro s₀ s' r hpre hrun
+    obtain ⟨hread, hT, hC, hlps, hfe⟩ := hpre
+    simp only [Arena.installProjFns] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨InstStep.refl hread.state, hcoh, Pushed.refl _, Nat.le_refl _,
+      ⟨env, hfe, ⟨0, rfl⟩, hread⟩, ProjOut.refl _ _⟩
+  | succ k ih =>
+    intro s₀ s' r hpre hrun
+    obtain ⟨hread, hT, hC, hlps, hfe⟩ := hpre
+    simp only [Arena.installProjFns] at hrun
+    obtain ⟨fe₁, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨i1, hinst₁⟩ := installProjFnStep_spec fe hk henv hcoh T ctorName TP ctorNameP lps
+      lpsP nP nF i s₀ s₁ fe₁ ⟨hread, hT, hC, hlps, hfe⟩ k1
+    obtain ⟨env₁, hden₁, ⟨F₁, hF₁⟩, hread₁⟩ := hinst₁.denote
+    have henv₁ := installProjFnStep_envWF henv hF₁
+    have x1 := i1.ext
+    obtain ⟨i2, hinst₂⟩ := ih (fe := fe₁) (env := env₁) (i := i + 1) henv₁ hinst₁.coh s₁ s' r
+      ⟨hread₁, denoteN_ext hT x1, denoteN_ext hC x1, denoteNListE_ext x1 _ _ hlps, hden₁⟩ z1
+    refine ⟨i1.trans i2, (InstRel.trans i2.ext hinst₁ hinst₂).imp ?_⟩
+    rintro x ⟨⟨F₂, hF₂⟩, hrx⟩
+    refine ⟨⟨max F₁ F₂, ?_⟩, hrx⟩
+    have g₁ := installProjFnStep_up (Nat.le_max_left F₁ F₂) hF₁
+    have g₂ := foldProjFnI_up (μ := μ) (Nat.le_max_right F₁ F₂) hF₂
+    rw [List.range_succ_eq_map, List.foldlM_cons]
+    simp only [Nat.add_zero, bind, Except.bind, g₁]
+    rw [List.foldlM_map]
+    have hfun : (fun e j => ConLeche.installProjFnStep μ (ConLeche.fueledOps μ (max F₁ F₂)) TP
+        ctorNameP lpsP nP nF e (i + (j + 1))) = (fun e j => ConLeche.installProjFnStep μ
+        (ConLeche.fueledOps μ (max F₁ F₂)) TP ctorNameP lpsP nP nF e (i + 1 + j)) := by
+      funext e j
+      rw [Nat.add_comm j 1, ← Nat.add_assoc]
+    rw [hfun]
+    exact g₂
 
 /-! ## The capability record and the route -/
 
