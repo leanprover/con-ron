@@ -41755,6 +41755,20 @@ where `FoldOK`'s `PersIFEnv` is false.  The proof never needed `PersIFEnv`
 (its two uses computed a denotation nothing read — so the restatement does not
 take `denoteFEnv` either).  The arms call `checkConstantVal_bridge_of_fold`.
 
+##### 5. Part 1's frontier and gates
+
+`scripts/gates.sh`: **all 16 OK** on the merge onto `arena`'s `6cfd995d`
+(`extract-check` 406 s, `lake-refine2` 148 s, `lake-bridge` 65 s);
+`Arena/Checker` T1 **stated 88/242, closed 85** (round 9: 83/242, 78).
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+| run | tree | items | tainted | dead weight | this lane's items |
+|---|---|---:|---:|---:|---|
+| start | `arena` `29ec471f` (clean) | 32 | 101 | 794 | `checkDivModPinAt_bridge`, `divModCertsGuard_run`, `divModPinGuard_run` (reach 14), `divModEnvGuard_run` (13), `Arena.checkDecl_wfProj` (10) |
+| part 1 | `checker-r10` on `6cfd995d` | 32 | 109 | 756 | `IndSpec.wf` (fan-in 1, reach 13 — the Inductives tier's debt), `divModCertsGuard_run`, `checkDivModPinAt_bridge` (15), `declResolves_of_stages` (4, §3, added to the capstone meanwhile) |
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
