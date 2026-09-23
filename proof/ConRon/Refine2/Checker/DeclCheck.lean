@@ -1194,7 +1194,10 @@ theorem nat_one_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.nat_one pers st = ok o) :
     Sim₀ absEIdx pers lst o natOne := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.nat_one]
+  try unfold natOne
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem nat_one_ls {pers st lst}
@@ -1210,7 +1213,10 @@ theorem nat_var_refines {pers st lst} {i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.nat_var pers st i = ok o) :
     Sim₀ absEIdx pers lst o (natVar (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.nat_var]
+  try unfold natVar
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem nat_var_ls {pers st lst}
@@ -1315,7 +1321,10 @@ theorem cert_guard_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrun : arena.decl_check.cert_guard pers st cx a b r = ok o) :
     Sim₀ absEIdx pers lst o
       (certGuardSpec (absCertCtx cx) (absEIdx a) (absEIdx b) (absEIdx r)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_guard]
+  try unfold certGuardSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_guard_ls {pers st lst}
@@ -1336,7 +1345,10 @@ theorem cert_eq_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrun : arena.decl_check.cert_eq pers st cx c rhs = ok o) :
     Sim₀ absEIdx pers lst o
       (certEqSpec (absCertCtx cx) (absNIdx c) (absEIdx rhs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_eq]
+  try unfold certEqSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_eq_ls {pers st lst}
@@ -1358,7 +1370,10 @@ theorem cert_halves_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrun : arena.decl_check.cert_halves pers st cx c = ok o) :
     Sim₀ absEIdx pers lst o
       (certHalvesSpec (absCertCtx cx) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_halves]
+  try unfold certHalvesSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_halves_ls {pers st lst}
@@ -1397,7 +1412,10 @@ theorem cert_lor_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_lor_rhs pers st cx c = ok o) :
     Sim₀ absEIdx pers lst o (certLorRhsSpec (absCertCtx cx) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_lor_rhs]
+  try unfold certLorRhsSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_lor_rhs_ls {pers st lst}
@@ -1416,7 +1434,10 @@ theorem cert_xor_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_xor_rhs pers st cx c = ok o) :
     Sim₀ absEIdx pers lst o (certXorRhsSpec (absCertCtx cx) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_xor_rhs]
+  try unfold certXorRhsSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_xor_rhs_ls {pers st lst}
@@ -1478,7 +1499,10 @@ theorem cert_shift_left_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_shift_left pers st cx c = ok o) :
     Sim₀ absStmts pers lst o (certShiftLeftSpec (absCertCtx cx) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_shift_left]
+  try unfold certShiftLeftSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_shift_left_ls {pers st lst}
@@ -1497,7 +1521,10 @@ theorem cert_shift_right_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_shift_right pers st cx c = ok o) :
     Sim₀ absStmts pers lst o (certShiftRightSpec (absCertCtx cx) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_shift_right]
+  try unfold certShiftRightSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_shift_right_ls {pers st lst}
@@ -1516,7 +1543,10 @@ theorem cert_land_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_land pers st cx c = ok o) :
     Sim₀ absStmts pers lst o (certLandSpec (absCertCtx cx) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_land]
+  try unfold certLandSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_land_ls {pers st lst}
@@ -1788,7 +1818,10 @@ theorem cert_ctx_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_ctx pers st = ok o) :
     Sim₀ absCertCtx pers lst o certCtxFullSpec := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_ctx]
+  try unfold certCtxFullSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_ctx_ls {pers st lst}

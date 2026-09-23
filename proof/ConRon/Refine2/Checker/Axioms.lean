@@ -1002,7 +1002,10 @@ theorem reduce_elem_ty_refines {pers st lst} {c : arena.handle.NIdx} {o}
     (hrun : arena.trust_axioms.reduce_elem_ty pers st c = ok o) :
     Sim₀ absEIdx pers lst o
       (reduceElemTy (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.trust_axioms.reduce_elem_ty]
+  try unfold reduceElemTy
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem reduce_elem_ty_ls {pers st lst}

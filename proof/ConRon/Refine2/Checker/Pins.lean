@@ -2480,4 +2480,33 @@ namespace Lockstep
 
 end Lockstep
 
+
+/-! ## `arena::core`'s small interning builders as `@[lockstep]` specs (task
+#97-T2-LOCKSTEP lane Checker round 2) -/
+
+namespace Lockstep
+
+@[lockstep] theorem const_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.const_e pers st n) lst
+      (constE (absNIdx n)) := by
+  rw [arena.core.const_e, constE]
+  lockstep
+
+@[lockstep] theorem nat_ap1_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (a : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.nat_ap1 pers st n a) lst
+      (natAp1 (absNIdx n) (absEIdx a)) := by
+  rw [arena.core.nat_ap1, natAp1]
+  lockstep
+
+@[lockstep] theorem nat_ap2_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (a b : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.nat_ap2 pers st n a b) lst
+      (natAp2 (absNIdx n) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.nat_ap2, natAp2]
+  lockstep
+
+end Lockstep
+
 end ConRon.Refine2
