@@ -40296,7 +40296,7 @@ and nothing in the round needed a raised heartbeat budget.
 
 #### Round 5 — the three statement repairs, and the index retired (2026-09-22, Opus under Fable)
 
-Branch `p3-checker-5` off `arena`'s `ffe22843`.  The diff is
+Branch `p3-checker-5` off `arena`'s `ffe22843`, merged forward twice (the frontend round's `43f97b23`, then the `ExprOps` round's `b0d3fb18`).  The diff is
 `proof/ConRon/Bridge/Checker/**`, three lines of `proof/ConRon/Bridge/StateOK.lean`
 (a rename in prose), three lines of `proof/ConRon/Bridge/Frontend/Capstone.lean`
 (§2, reported) and this text: no Rust file, no generated model, no `Arena/`, no
@@ -40502,7 +40502,7 @@ assemble once.
 
 | gate | |
 |---|---|
-| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 110 s) |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 91 s, `lake-build` 110 s), and again after the second merge forward onto `arena`'s `b0d3fb18` (`extract-check` 107 s) |
 | `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 162 `sorry` warnings, of which **27** are this tier's (round 4: 169 / 31) |
 | `#print axioms` | `Bridge/Checker/Axioms.lean` lists **217 results: 204 closed** and **13 with `sorryAx`** (round 4: 194 / 179 / 15).  The thirteen are `CoreSpec.of_knot`, the seven arms, the three headline theorems, `Arena.no_proof_of_False` and `Arena.installThenCheck_bridge` — `canonEqList_run` and `IConstantInfo.canonEq_run` have left the list (§5).  None carries `CoreSpec` or `IndSpec`; no `bv_decide` axiom anywhere |
 | `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 62/242, closed 39** (round 4: 61/242 stated, 36 closed) |
