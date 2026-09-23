@@ -45,7 +45,7 @@ threads its `seen` table as an argument-and-result pair INSIDE the `Result`
 
 ## `sorry` count in this file: 54
 -/
-import ConRon.Refine2.Frontend.Spec
+import ConRon.Refine2.Frontend.ExprOpsSeam
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -386,28 +386,160 @@ theorem lam_body_refines {pers rst lst fuel h' o}
       show Except.ok _ = _
       rw [dupId_eidx _ _ he]
 
-/-- **`strip_pis_all` refines `stripPisAll`** (`ProjRec.lean:209-217`). -/
-theorem strip_pis_all_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.strip_pis_all pers rst fuel h' = ok o) :
-    SimRE (fun p => (absBinderPairs p.1, absEIdx p.2)) lst o
-      (stripPisAll (absU fuel) (absEIdx h')) := by sorry
+/-! ### Condition correspondences this file adds (`lockstep_simp`, an extension point) -/
+
+@[lockstep_simp] theorem absU32_beq_const' (t : Std.U32) :
+    (absU32 t == ETag.const) = decide (t = arena.handle.ETAG_CONST) := by
+  rw [← etag_const_abs]
+  by_cases h : t = arena.handle.ETAG_CONST
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_CONST := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+attribute [lockstep_simp] etag_const_abs etag_sort_abs
+
+/-! ### `strip_pis_all`, lockstep (round 3) -/
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem cons_binder_spec (ty : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    LSP (arena.expr_ops.cons_binder ty m xs)
+      (fun r => absBinderPairs r = (absEIdx ty, ConRon.Refine.absBinderMeta m) ::
+        absBinderPairs xs) :=
+  fun _ h => ExprOps.cons_binder_refines h
+
+open ConRon.Refine2.Lockstep in
+theorem strip_pis_all_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = (absBinderPairs a.1, absEIdx a.2))
+        (frontend.proj_rec.strip_pis_all pers st fuel h) st lst
+        (stripPisAll n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h hn hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.strip_pis_all, stripPisAll, if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst fuel h hn hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.strip_pis_all, stripPisAll, if_neg (by scalar_tac)]
+    lockstep
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem strip_pis_all_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => b = (absBinderPairs a.1, absEIdx a.2))
+      (frontend.proj_rec.strip_pis_all pers st fuel h) st lst
+      (stripPisAll (absU fuel) (absEIdx h)) :=
+  strip_pis_all_aux _ fuel h rfl hrel hinv
+
+open ConRon.Refine2.Lockstep in
+/-- `get_app_args_seam` / `head_is`: the port's `view_const_name`. -/
+@[lockstep] theorem view_const_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absNIdx a) (arena.monad.view_const_name pers st h) st lst
+      (Arena.viewConstName (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewConstName (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by
+      have := view_const_name_run₀ hrel hr
+      have h2 : (Except.ok (lst.store.viewConstName (absEIdx h), lst) :
+          Except Arena.CheckError _) = _ := this
+      simp only [Except.ok.injEq, Prod.mk.injEq] at h2
+      exact h2.1)
+    hrel hinv
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem head_is_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (t : arena.handle.NIdx) (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a) (frontend.proj_rec.head_is pers st fuel t e) st lst
+      (headIs (absU fuel) (absNIdx t) (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [frontend.proj_rec.head_is, headIs]
+  lockstep
+
+/-! ### `mk_lams`, lockstep (round 3)
+
+A binder datum the port re-interns must be well formed (`intern_e_lam_wf_ls`'s
+premise, a Rust-input fact); the telescope's data are, being read out of the
+store (`view_bind_meta_wf`), so the statement carries it as a premise on `bs`. -/
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem binder_meta_dup_spec (m : kernel.expr.BinderMeta) :
+    LSP (kernel.expr.binder_meta_dup m) (fun m' => m' = m) :=
+  fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
+
+/-- The binder telescope's data are well formed. -/
+def BindersWF (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) : Prop :=
+  ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw
+
+theorem absBinderPairsFrom_nil (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (i : Std.Usize) (hi : bs.val.length ≤ i.val) : absBinderPairsFrom bs i = [] := by
+  simp only [absBinderPairsFrom]
+  rw [List.drop_eq_nil_of_le hi]; rfl
+
+theorem absBinderPairsFrom_cons (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (i : Std.Usize) (hi : i.val < bs.val.length) :
+    absBinderPairsFrom bs i =
+      (absEIdx bs.val[i.val].1, ConRon.Refine.absBinderMeta bs.val[i.val].2) ::
+        (bs.val.drop (i.val + 1)).map
+          (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)) := by
+  simp only [absBinderPairsFrom]
+  rw [List.drop_eq_getElem_cons hi]
+  rfl
+
+open ConRon.Refine2.Lockstep in
+theorem mk_lams_from_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize)
+      (body : arena.handle.EIdx),
+      bs.val.length - i.val = n → BindersWF bs → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a) (frontend.proj_rec.mk_lams_from pers st bs i body) lst
+        (mkLams (absBinderPairsFrom bs i) (absEIdx body)) := by
+  induction n with
+  | zero =>
+    intro pers st lst bs i body hn hwf hrel hinv
+    rw [frontend.proj_rec.mk_lams_from, absBinderPairsFrom_nil bs i (by omega), mkLams,
+      if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst bs i body hn hwf hrel hinv
+    have hi : i.val < bs.val.length := by omega
+    have hpw : ConRon.Refine.PropWhenWF bs.val[i.val].2.pw := hwf _ (List.getElem_mem hi)
+    rw [frontend.proj_rec.mk_lams_from, absBinderPairsFrom_cons bs i hi, mkLams,
+      if_neg (by scalar_tac)]
+    lockstep
 
 /-- **`mk_lams_from`** — the cursor companion of `mk_lams`.  The twin conses
 on the way OUT, so the cursor recurses to the end of the list and interns
 outward from there. -/
 theorem mk_lams_from_refines {pers rst lst bs i body o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst) (hwf : BindersWF bs)
     (h : frontend.proj_rec.mk_lams_from pers rst bs i body = ok o) :
     Sim₀ absEIdx pers lst o
-      (mkLams (absBinderPairsFrom bs i) (absEIdx body)) := by sorry
+      (mkLams (absBinderPairsFrom bs i) (absEIdx body)) :=
+  Lockstep.LS.toSim₀ (mk_lams_from_aux _ bs i body rfl hwf hrel hinv) h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem mk_lams_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (body : arena.handle.EIdx)
+    (hwf : BindersWF bs) :
+    LS pers (fun a b => b = absEIdx a) (frontend.proj_rec.mk_lams pers st bs body) lst
+      (mkLams (absBinderPairs bs) (absEIdx body)) := by
+  have := mk_lams_from_aux _ bs 0#usize body rfl hwf hrel hinv
+  rw [frontend.proj_rec.mk_lams]
+  simpa [absBinderPairsFrom, absBinderPairs] using this
 
 /-- **`mk_lams` refines `mkLams`** (`ProjRec.lean:221-228`). -/
 theorem mk_lams_refines {pers rst lst bs body o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst) (hwf : BindersWF bs)
     (h : frontend.proj_rec.mk_lams pers rst bs body = ok o) :
     Sim₀ absEIdx pers lst o
-      (mkLams (absBinderPairs bs) (absEIdx body)) := by sorry
+      (mkLams (absBinderPairs bs) (absEIdx body)) :=
+  Lockstep.LS.toSim₀ (mk_lams_ls hrel hinv bs body hwf) h
 
 /-- **`inst_pis_open_from`** — the cursor companion of `inst_pis_open`. -/
 theorem inst_pis_open_from_refines {pers rst lst fuel e args i o}
@@ -436,12 +568,6 @@ theorem intern_param_levels_refines {pers rst lst ns o}
     (h : frontend.proj_rec.intern_param_levels pers rst ns = ok o) :
     Sim₀ (fun v => v.val.map absLIdx) pers lst o
       (projRecValue.internParamLevels (absNIdxL ns)) := by sorry
-
-/-- **`head_is` refines `headIs`** (`ProjRec.lean:267-273`). -/
-theorem head_is_refines {pers rst lst fuel t e o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.head_is pers rst fuel t e = ok o) :
-    SimRE id lst o (headIs (absU fuel) (absNIdx t) (absEIdx e)) := by sorry
 
 /-! ## The two binder bodies -/
 
@@ -691,4 +817,5 @@ theorem proj_rec_owners_refines {pers rst lst fuel block types ctors recs o}
       (projRecOwners (absU fuel) (absICIL block) (absProjTypeRecL types)
         (absProjCtorRecL ctors) (absProjRecRecL recs)) := by sorry
 
+#print axioms mk_lams_ls
 end ConRon.Refine2.Frontend
