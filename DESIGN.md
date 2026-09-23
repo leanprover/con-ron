@@ -61006,3 +61006,19 @@ unresolvedConstsError …` with `¬ b = true` in context against the Rust's
 `unresolved_consts_error` bind).  `lake build ConRonRefine2` green.  The lane's
 `chk_lockstep` can become `lockstep` once this and its branch are both on
 `arena`.
+
+#### Slice 2 — the lanes' workarounds removed (branch `t2-tactic-3`)
+
+With slices 1/1b on the branch, every workaround the reports named is plain
+`lockstep` (module builds of `Checker/{Base,Top,DeclCheck}` green, then the
+gates):
+
+| file | before | after |
+|---|---|---|
+| `Checker/Base.lean` | `install_constant_val_tail_refines`: `lockstep; all_goals (try (rw [bind_pure]; rw [if_neg …])); all_goals lockstep` | `lockstep` |
+| `Checker/Base.lean` | `install_value_tail_refines`: the same, then `LS.bind unresolved_consts_error_value_ls … ; lockstep` by hand | `lockstep` |
+| `Checker/Base.lean` | `Lockstep.unresolved_consts_error_{type,value}_ls` (copies at fixed subjects) | deleted; the generic `unresolved_consts_error_ls` (free `w`) is picked |
+| `Checker/Base.lean` | `lift_fueled_ls` at `"level comparison"` only | for every `what` |
+| `Checker/Base.lean`, `Checker/Top.lean` | the local `chk_lockstep` wrapper (decide a twin `if` before the Rust moves), 7 uses | deleted; `lockstep` |
+| `Checker/DeclCheck.lean` | `check_div_mod_pin_loop_aux` succ: `lockstep` + a 5-line tail applying the IH at `tried ++ [msg]` | `lockstep` |
+| `Checker/DeclCheck.lean` | `check_div_mod_pin_loop_nil_ls` (twin `tried` fixed at `[]`) | `check_div_mod_pin_loop_ls`, any `ltried` (no other user of the old name) |
