@@ -49055,9 +49055,14 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 #### Round 5 — `structShape_spec`, the `PinsOK` ruling executed, and TWO new blockers named (2026-09-23, Opus under Fable)
 
-Branch `p3-ind-5` off `arena`'s tip `aa4c7a76`, merged forward twice
-(`43f97b23`, task #97-P3-Frontend round 5, and `b0d3fb18`, task #97-P3-ExprOps
-round 4 — the second one matters: it is what unblocked §R5.6's last item).
+Branch `p3-ind-5` off `arena`'s tip `aa4c7a76`, merged forward FOUR times
+(`43f97b23`, task #97-P3-Frontend round 5; `b0d3fb18`, task #97-P3-ExprOps
+round 4 — that one matters, it is what closed `structIdxAt_spec`;
+`4b28bf9d`, task #97-P3-ExprOps round 5; and `c5ebd998`, task #97-P3-Checker
+rounds 5 and 6, whose `denoteCI_name_of` call sites §R5.3's weakening moved
+under — three `.toNamed`s, and the second and third of them are what §R5.5's
+second finding was found by).  Gates: **all fifteen OK**, the fifteenth being
+the one this round added.
 The diff is twelve Lean files — `Bridge/Inductives/{Rel,StructParts,
 NativeParts,SumInstall,NativeInstall,Modeled}.lean`, `Bridge/StateOK.lean`,
 `Bridge/Checker/{Inv,Pins,Basis}.lean`, `Bridge/Core/Memo.lean`,
