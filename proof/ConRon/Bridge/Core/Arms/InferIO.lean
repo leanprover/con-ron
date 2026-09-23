@@ -37,6 +37,8 @@ import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Core.Arms.Infer
+import ConRon.Bridge.Core.Walks.FvarB
+import ConRon.Bridge.ExprOps.Walks
 
 namespace ConRon.Bridge.Core
 
@@ -267,7 +269,11 @@ batched one. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1350-1373 inferBodyIO — **the io
 `.app` clause**: the batched `inferAppIOAt`/`inferSpineIO` (task #97-P6-9)
-against the chained `inferIO_app_licensed`/`inferIO_app_cert`. -/
+against the chained `inferIO_app_licensed`/`inferIO_app_cert`.
+**CLOSED** (task #97-P3-Core round 6): `headAndArgs_app_spec`, the knot's
+io slot at the head, the carry `inferSpineIO_go` (`Walks/InferSpine.lean`;
+the licence test is the datum alone by `hμ`), then con-leche's
+`inferSpineIO_sound` (at `hg`) and `Expr.mkAppN_getApp`. -/
 theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
@@ -280,7 +286,39 @@ theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  sorry
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case app f a =>
+    dsimp only
+    unfold ConRon.Arena.inferAppIOAt
+    -- stage 1: the spine's head and argument vector
+    refine triple_seq (headAndArgs_app_spec s₀ i e hok.state hden
+      (by simp [htag])) ?_
+    rintro ⟨hd, args⟩ s1 ⟨hs1, hhd, hargs⟩
+    subst s1
+    dsimp only at hhd hargs ⊢
+    -- stage 2: the head's io-grade type, once
+    refine triple_seq (hsim.inferIO s₀ d hd e.getAppFn hok hhd
+      (Expr.WScoped.getAppFn hw)) ?_
+    rintro tf s2 ⟨hok2, hx2, hp2, th, hth, hwth, F1, hF1⟩
+    -- stage 3: the batched io spine, then con-leche's identification
+    refine triple_mono (inferSpineIO_go hμ hsim d args _ tf #[] 0 s2 th []
+      e.getAppArgs rfl hok2 hth (InstLVec.empty _)
+      (by rw [ConLeche.Expr.instantiateList_nil]; exact hwth)
+      (by rw [List.drop_zero]; exact denoteEList_ext hx2 _ _ hargs)
+      (Expr.WScoped.getAppArgs hw)) ?_
+    rintro r s3 ⟨hok3, hx3, hp3, v, hv, hwv, F2, hF2⟩
+    refine ⟨hok3, hx2.trans hx3, hp3.trans hp2, v, hv, hwv, ?_⟩
+    obtain ⟨F', hF'⟩ := ConLeche.inferSpineIO_sound hg e.getAppArgs e.getAppFn
+      th v F1 F2 hF1 hF2
+    rw [ConLeche.Expr.mkAppN_getApp] at hF'
+    exact ⟨F', hF'⟩
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
+
+/-! `inferBodyIO_app`: sorry-free (task #97-P3-Core round 6). -/
+#print axioms inferBodyIO_app
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the `.forallE`
 clause**, chained: `KnotSpec.infer`, `KnotSpec.whnf'`, `instantiate1Fast`,
@@ -450,10 +488,78 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
       | (apply CacheOK.readL; apply CheckOK.caches; assumption)
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
+/-- con-leche: none — **a `pure` exit** at a pinned state (`Defeq.lean`'s
+`triple_pure_post`, which this module does not import). -/
+theorem triple_pure_lam {α : Type} {s₀ : AState} {v : α}
+    {Q : α → AState → Prop} (h : Q v s₀) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (pure v : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
+  mvcgen
+  subst_vars; exact h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody — the λ
+clause's result `.forallE ty (bt.abstract1 depth) mb`, the twin's
+`inferLamResult`: `abstract1Fast` (over the Core tier's `fvarBSpec`,
+`Walks/FvarB.lean`) then one intern. -/
+theorem inferLamResult_spec {fe : IFEnv} (s₀ : AState) (ty bt : EIdx) (d : Nat)
+    (m : BinderMeta) (et vbt : Expr) (hok : CheckOK mode env fe s₀)
+    (hdt : denoteE s₀.store ty = some et) (hdb : denoteE s₀.store bt = some vbt) :
+    ⦃fun s => ⌜s = s₀⌝⦄ inferLamResult ty bt d m
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        denoteE s'.store r = some (.forallE et (vbt.abstract1 d) m)⌝⦄ := by
+  unfold inferLamResult
+  refine triple_seq (ExprOps.abstract1Fast_spec fvarBSpec coreWalkFuel s₀ bt d 0
+    hok.state (by rw [hdb]; rfl)) ?_
+  rintro ab s1 ⟨hso1, hx1, _, hc1, hp1, _, hrel⟩
+  have hok1 := hok.mono hso1 hx1 hc1 hp1
+  have hdab : denoteE s1.store ab = some (vbt.abstract1 d 0) := hrel vbt hdb
+  have hdt1 := denote_ext hdt hx1
+  refine triple_mono (internE_spec s1 (.forallE ty ab m) hok1.state.wf
+    (viewOK_forallE (by rw [hdt1]; rfl) (by rw [hdab]; rfl))) ?_
+  rintro r s2 ⟨hwf2, hx2, _, _, _, _, hc2, hp2, _, hd2⟩
+  refine ⟨hok1.mono ⟨hwf2⟩ hx2 hc2 hp2, hx1.trans hx2, hp2.trans hp1, ?_⟩
+  rw [hd2]
+  simp [denoteEView, denote_ext hdt1 hx2, denote_ext hdab hx2]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1101-1107 ensureSort — the twin's
+`ensureSort` through the io record (`CoreFnsA.ioView`, whose `whnf` slot is
+the knot's): the answer denotes the level a `whnf` of the subject reached. -/
+theorem ensureSort_ioView_spec {fe : IFEnv} {fuel : Nat}
+    (hsim : KnotSpec mode env fe fuel) (s₀ : AState) (d : Nat) (j : EIdx)
+    (t : Expr) (hok : CheckOK mode env fe s₀)
+    (hd : denoteE s₀.store j = some t) (hw : Expr.WScoped d t) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.ensureSort (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d j
+    ⦃⇓? u s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∃ U, denoteL s'.store.ls u = some U ∧
+          ∃ F, ConLeche.whnf mode env F d t = .ok (.sort U)⌝⦄ := by
+  unfold ConRon.Arena.ensureSort
+  have hn : ⦃fun s => ⌜s = s₀⌝⦄
+      (CoreFnsA.ioView (coreKnot mode fe id fuel)).whnf d j
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.whnf mode env) d t s'.store r⌝⦄ :=
+    hsim.whnf s₀ d j t hok hd hw
+  refine triple_seq hn ?_
+  rintro wr s1 ⟨hok1, hx1, hp1, W, hW, _, F, hF⟩
+  obtain ⟨vw, hvw⟩ := denoteE_view hW
+  refine view_bind_triple hvw ?_
+  cases vw
+  case sort u =>
+    obtain ⟨U, rfl, hU⟩ := denote_sort_inv hok1.state.wf hvw hW
+    exact triple_pure_lam ⟨hok1, hx1, hp1, U, hU, F, hF⟩
+  all_goals exact triple_fail
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1328-1349 inferBodyIO — **the `.lam`
 clause**, chained and with no domain-sort run: `instantiate1Fast`,
 `KnotSpec.infer`, `lamPw`, `ensureSort`, `inferLamResult`; pure side
-`inferIO_lam_chain`/`_leaf`/`_trusted`. -/
+`inferIO_lam_chain`/`_leaf` (the `_trusted` exit is unreachable under `hμ`).
+**CLOSED** (task #97-P3-Core round 6, lane `lam`), staged: `internE` of the
+free variable, `instantiate1Fast_specE`, the io knot slot, `lamPw_spec`, then
+either the chain exit or the leaf's io knot slot, `ensureSort_ioView_spec`
+and `readLevelM_spec`; both exits end in `inferLamResult_spec`, whose
+`abstract1Fast` needs the Core tier's `fvarBSpec` (`Walks/FvarB.lean`). -/
 theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
@@ -466,7 +572,107 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  unfold ConRon.Arena.inferBodyIO
+  refine view_bind_triple hv ?_
+  cases v
+  case lam ty b m =>
+    obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hv hden
+    have hwt : Expr.WScoped d et := by unfold Expr.WScoped at hw; exact hw.1
+    have hwb : Expr.WScoped d eb := by unfold Expr.WScoped at hw; exact hw.2
+    dsimp only
+    -- stage 1: the free variable
+    refine triple_seq (internE_spec s₀ (.fvar d ty) hwf
+      (viewOK_fvar (by rw [hdt]; rfl))) ?_
+    rintro fv s1 ⟨hwf1, hx1, _, _, _, _, hc1, hp1, _, hd1⟩
+    have hok1 := hok.mono ⟨hwf1⟩ hx1 hc1 hp1
+    have hfv : denoteE s1.store fv = some (.fvar d et) := by
+      rw [hd1]; simp [denoteEView, denote_ext hdt hx1]
+    -- stage 2: open the body
+    refine triple_seq (instantiate1Fast_specE coreWalkFuel s1 b fv 0 hok1.state
+      (by rw [hfv]; rfl) (by rw [denote_ext hdb hx1]; rfl)) ?_
+    rintro ob s2 ⟨hso2, hx2, hc2, hp2, _, hia⟩
+    have hok2 := hok1.mono hso2 hx2 hc2 hp2
+    have hob : denoteE s2.store ob = some (eb.instantiate1 (.fvar d et) 0) :=
+      hia _ hfv eb (denote_ext hdb hx1)
+    have hwob : Expr.WScoped (d + 1) (eb.instantiate1 (.fvar d et) 0) :=
+      Expr.WScoped.instantiate1 hwt 0 hwb
+    have hx02 : Ext s₀.store s2.store := hx1.trans hx2
+    -- stage 3: the body's io type
+    have hi3 : ⦃fun s => ⌜s = s2⌝⦄
+        (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer (d + 1) ob
+        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s2.store s'.store ∧
+          s'.pins = s2.pins ∧
+          SimE (ConLeche.inferTypeIO mode env) (d + 1)
+            (eb.instantiate1 (.fvar d et) 0) s'.store r⌝⦄ :=
+      hsim.inferIO s2 (d + 1) ob _ hok2 hob hwob
+    refine triple_seq hi3 ?_
+    rintro bt s3 ⟨hok3, hx3, hp3, vbt, hvbt, hwvbt, F1, hF1⟩
+    have hx03 : Ext s₀.store s3.store := hx02.trans hx3
+    have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp1)
+    have hwres : Expr.WScoped d (.forallE et (vbt.abstract1 d) m) := by
+      unfold Expr.WScoped; exact ⟨hwt, ConLeche.WScoped.abstract1 0 hwvbt⟩
+    rw [if_pos hμ]
+    -- stage 4: the body's own binder datum
+    refine triple_seq (ExprOps.lamPw_spec s3 b hok3.state
+      (by rw [denote_ext hdb hx03]; rfl)) ?_
+    rintro pw s4 ⟨hs4, hpw⟩
+    subst s4
+    have hpw' : pw = eb.lamPw := hpw eb (denote_ext hdb hx03)
+    cases pw with
+    | some pwI =>
+      dsimp only
+      split
+      · exact triple_fail
+      · rename_i hz
+        have hz' : (m.pw == pwI) = true := by simpa using hz
+        refine triple_mono (inferLamResult_spec s3 ty bt d m et vbt hok3
+          (denote_ext hdt hx03) hvbt) ?_
+        rintro r s' ⟨hok', hx', hp', hd'⟩
+        exact ⟨hok', hx03.trans hx', hp'.trans hp03, _, hd', hwres, F1 + 1,
+          inferIO_lam_chain hg hF1 hμ hpw'.symm hz'⟩
+    | none =>
+      dsimp only
+      -- stage 5: the leaf's codomain sort
+      have hi5 : ⦃fun s => ⌜s = s3⌝⦄
+          (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer (d + 1) bt
+          ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s3.store s'.store ∧
+            s'.pins = s3.pins ∧
+            SimE (ConLeche.inferTypeIO mode env) (d + 1) vbt s'.store r⌝⦄ :=
+        hsim.inferIO s3 (d + 1) bt vbt hok3 hvbt hwvbt
+      refine triple_seq hi5 ?_
+      rintro btt s5 ⟨hok5, hx5, hp5, vbtt, hvbtt, hwvbtt, F2, hF2⟩
+      refine triple_seq (ensureSort_ioView_spec hsim s5 (d + 1) btt vbtt hok5
+        hvbtt hwvbtt) ?_
+      rintro vb s6 ⟨hok6, hx6, hp6, U, hU, F3, hF3⟩
+      refine triple_seq (readLevelM_spec s6 vb hok6.caches.readL) ?_
+      rintro lvb s7 ⟨hst7, hm7, hp7, hc7, hl7, hL7⟩
+      have hok7 := CheckOK.ofReadbackFrame hok6
+        (ReadbackFrame.ofReadL hst7 hm7 hp7 hc7 hL7)
+      obtain rfl : lvb = U := Option.some.inj (hl7.symm.trans hU)
+      have hx37 : Ext s3.store s7.store := by
+        rw [hst7]; exact hx5.trans hx6
+      split
+      · exact triple_fail
+      · rename_i hz
+        have hz' : (Level.zeronessOf lvb == m.pw) = true := by simpa using hz
+        refine triple_mono (inferLamResult_spec s7 ty bt d m et vbt hok7
+          (denote_ext hdt (hx03.trans hx37)) (denote_ext hvbt hx37)) ?_
+        rintro r s' ⟨hok', hx', hp', hd'⟩
+        refine ⟨hok', hx03.trans (hx37.trans hx'),
+          hp'.trans (hp7.trans (hp6.trans (hp5.trans hp03))), _, hd', hwres,
+          max F1 (max F2 F3) + 1, ?_⟩
+        exact inferIO_lam_leaf hg (ConLeche.inferTypeIO_mono (by omega) hF1) hμ
+          hpw'.symm (ConLeche.inferTypeIO_mono (by omega) hF2)
+          (ConLeche.whnf_mono (by omega) hF3) hz'
+  all_goals
+    exfalso
+    rw [htag] at htg
+    simp [ENodeView.tagOf, ETag.proj, ETag.app, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.lam, ETag.forallE, ETag.letE,
+      ETag.lit] at htg
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1299-1310 inferBodyIO — **the `.const`
 clause**, `inferBody`'s verbatim at the io grade.
@@ -874,5 +1080,13 @@ section Census
 #print axioms inferIO_forallE
 #print axioms inferBodyIO_forallE
 end Census
+
+/-! Lane `lam` (task #97-P3-Core round 6): the `.lam` clause, sorry-free. -/
+
+section CensusLam
+#print axioms inferLamResult_spec
+#print axioms ensureSort_ioView_spec
+#print axioms inferBodyIO_lam
+end CensusLam
 
 end ConRon.Bridge.Core

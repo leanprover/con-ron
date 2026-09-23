@@ -62,9 +62,11 @@ task #97-COMPOSE section tags each with its owning lane):
 
 * ~~`InitRel`~~ — the Rust start state is related to the twin's: a theorem
   since task #97-P5-Top (`Refine2/Checker/Init.lean`'s `init_rel`);
-* `hk : CoreSpec .verified Arena.checkFuel` — Theorem 1's Core tier spec (as
-  on `Arena.no_False_declaration_pipeline`); ~~`hind : IndSpec .verified`~~ —
-  discharged by `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task
+* ~~`hk : CoreSpec .verified Arena.checkFuel`~~ — Theorem 1's Core tier
+  spec: a theorem since task #97-P3-Core round 6
+  (`Bridge/Checker/Hyp.lean`'s `CoreSpec.of_core`, passed here);
+* ~~`hind : IndSpec .verified`~~ — Theorem 1's inductive tier spec: discharged
+  by `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task
   #97-P3-Ind round 8, so the inductive tier's open statements are on the
   capstone's frontier;
 * `hbytes` — the prelude gate (`scripts/gen-prelude-lean.sh --check`);
@@ -399,7 +401,6 @@ the twin.  The original campaign's `absEnv e` has no counterpart.)
 Composition only: `rust_stages` (Theorem 2), `stages_model` (Theorem 1 +
 con-leche). -/
 theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-    (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
@@ -431,8 +432,10 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hk hbytes hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
-  obtain ⟨env, hden, hmod⟩ := stages_model V hk hbytes hA hB hC hD hE hF
+    rust_stages (ConRon.Bridge.CoreSpec.of_core rfl) hbytes hmr hdec hpers hest hst0 h1 h2 h3
+      h4 h5 h6
+  obtain ⟨env, hden, hmod⟩ := stages_model V (ConRon.Bridge.CoreSpec.of_core rfl) hbytes hA hB
+    hC hD hE hF
   exact ⟨sF, lfe, env, hrelF, hfe, hden, hmod⟩
 
 /-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **A FILE
@@ -447,7 +450,6 @@ twin runs, `runPipeline_ok_of_stages` reassembles them into an accepting
 (which is con-leche's `no_proof_of_False_pure` through the bridge) refutes
 it. -/
 theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
@@ -477,10 +479,13 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok fe, st6)) :
     False := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hk hbytes hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages (ConRon.Bridge.CoreSpec.of_core rfl) hbytes hmr hdec hpers hest hst0 h1 h2 h3
+      h4 h5 h6
   obtain ⟨n, hn⟩ := runPipeline_ok_of_stages hA hB hC hD hE hF
   obtain ⟨e, he⟩ := ConRon.Bridge.Frontend.Arena.no_False_declaration_pipeline V
-    hk (ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk) hbytes (ConRon.Refine.absPins pins) (absChunks chunks) hfalse
+    (ConRon.Bridge.CoreSpec.of_core rfl)
+    (ConRon.Bridge.Inductives.indSpec_of_bridge rfl (ConRon.Bridge.CoreSpec.of_core rfl))
+    hbytes (ConRon.Refine.absPins pins) (absChunks chunks) hfalse
   rw [hn] at he
   exact nomatch he
 
