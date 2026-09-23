@@ -1425,6 +1425,37 @@ pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
     ar.lss.ls.ns.shared_on = false;
 }
 
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// Lean twin: none — the twin has no tier to move.
+/// **`thaw_tier` for a store whose flags may have moved**: each store gets
+/// back the tier its reads went to — `tier`'s table if its `shared_on` flag is
+/// up, its own table otherwise — and the four flags go down.  When every flag
+/// is up, which is the only case the checker reaches, this is `thaw_tier`.
+/// The frozen-tier `Nat.div`/`Nat.mod` attempt
+/// (`arena::decl_check::check_div_mod_pin_attempt`, task #97-T2-LOCKSTEP D4c)
+/// thaws its kept post-attempt state with it, so that the refinement carries
+/// the attempt's own relation across the thaw with no fact about the flags
+/// (`Refine2/Checker/Base.lean`'s `thaw_read_tier_rel`).
+pub fn thaw_read_tier(ar: &mut EStore, tier: PersTier) {
+    let PersTier { n, l, ls, e } = tier;
+    if ar.lss.ls.ns.shared_on {
+        ar.lss.ls.ns.pers = n;
+    }
+    if ar.lss.ls.shared_on {
+        ar.lss.ls.pers = l;
+    }
+    if ar.lss.shared_on {
+        ar.lss.pers = ls;
+    }
+    if ar.shared_on {
+        ar.pers = e;
+    }
+    ar.shared_on = false;
+    ar.lss.shared_on = false;
+    ar.lss.ls.shared_on = false;
+    ar.lss.ls.ns.shared_on = false;
+}
+
 /// con-leche: none — the pin table is handles, so a copy is a copy of words
 /// Lean twin: none — the value is `Pins` itself (`Refine2`'s `pins_dup_val`).
 /// A phase-B worker's copy of the driver's `Pins`: sixty-eight handles into the

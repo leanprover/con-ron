@@ -36,21 +36,23 @@
 //!    `arena::inductives` *above* this module (it calls `check_ind_decl`), so
 //!    the walk is spelled here, at its one caller.  Task #97d's own "IndBase
 //!    duplication" note is the Lean-side record of the same seam.
-//! 6. **`or_else_attempt`'s state restore is the WHOLE state** (task
-//!    #97-T2-LOCKSTEP D4b).  The twin writes the attempt as a state function,
-//!    which makes the whole pre-attempt state free; `&mut AState` has no such
-//!    thing, so the caller copies the whole `AState` (`attempt_snapshot`) and
-//!    moves the copy back on `Recovered`.  History: task #97-P4d's
-//!    `astate_dup` did this with a recursion one frame per node and
-//!    overflowed the stack on `Init`+`Std`+`Lean`'s `Nat.mod` (12.3 M nodes);
-//!    task #97-P6-2 then restored only the caches, and task #97-T2-LOCKSTEP D4
-//!    added the scratch tiers (a kept scratch node shifts every later scratch
-//!    handle's word, which no Theorem-2 relation absorbs).  A partial restore
-//!    is correct only given a frame — that the attempt leaves the persistent
-//!    tiers, the pins and the flags alone — which is a statement over the
-//!    attempt's whole 1 187-function call closure.  The maintainer ruled
-//!    (D4b) for the full copy instead: every copy is now a halved recursion,
-//!    `log2 n` deep, and the attempt runs eight times on the whole of `Init`.
+//! 6. **`or_else_attempt`'s state restore is the WHOLE state** (tasks
+//!    #97-T2-LOCKSTEP D4b, D4c).  The twin writes the attempt as a state
+//!    function, which makes the whole pre-attempt state free; `&mut AState`
+//!    has no such thing.  The caller moves the persistent tier aside
+//!    (`arena::checker::freeze_tier`, O(1)), copies the rest of the state
+//!    (`attempt_snapshot`: scratch tiers, memos, caches, pins, flags — the
+//!    persistent tables are empty by then), runs the attempt against the
+//!    frozen tier, and on `Recovered` moves the copy back and thaws the tier
+//!    into it.  History: task #97-P4d's `astate_dup` copied the whole store
+//!    with a recursion one frame per node and overflowed the stack on
+//!    `Init`+`Std`+`Lean`'s `Nat.mod` (12.3 M nodes); task #97-P6-2 then
+//!    restored only the caches, D4 added the scratch tiers (a kept scratch
+//!    node shifts every later scratch handle's word), which is the whole state
+//!    only given a frame over the attempt's 1 187-function closure; D4b copied
+//!    everything (+6.4 % instructions on `Init`); D4c moves the persistent
+//!    tier instead of copying it, which is exact by construction because the
+//!    attempt reads it through the frozen `PersTier` and cannot write it.
 
 use crate::arena::core::{
     annotate_core, append_eidx, consts_resolve, ensure_sort_core, infer_type_core, is_def_eq_core,
@@ -365,11 +367,12 @@ pub fn pins_dup(p: &Pins) -> Pins {
 /// take the snapshot, before the attempt runs: **a full copy of the whole
 /// checker state** (task #97-T2-LOCKSTEP D4b) — the four stores with both
 /// tiers, their cons tables and their flags (`EStore::dup`), the memos, the
-/// caches and the pins.  The twin's error arm resumes at its whole
-/// pre-attempt state, and so does the port's, by construction; no fact about
-/// what the attempt leaves alone is needed.  `O(store)`, eight times on the
-/// whole of `Init` (module note 6); every copy is a halved recursion
-/// (`Tbl::dup`, `HashMap2::dup`, `vec_dup`), so it is `log2 n` deep.
+/// caches and the pins.  Its one caller
+/// (`arena::decl_check::check_div_mod_pin_attempt`) takes it AFTER moving the
+/// persistent tier aside (task #97-T2-LOCKSTEP D4c), so the persistent tables
+/// it copies are empty and the copy is `O(scratch + caches)`.  Every copy is
+/// a halved recursion (`Tbl::dup`, `HashMap2::dup`, `vec_dup`), so it is
+/// `log2 n` deep.
 pub fn attempt_snapshot(st: &AState) -> AState {
     AState {
         store: st.store.dup(),
