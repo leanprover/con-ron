@@ -2585,10 +2585,18 @@ theorem checkProjTy_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
 The projection function's iota certificate.
 
-`sorry`: `projBack_spec`/`projFwd_spec`, `domsMatchRenamed_spec`,
-`eqApp3?_spec` and `CoreSpec.knot`'s `defeq` slot. -/
+**CLOSED** (task #97-P3-Ind round 9): `projModelName_run`, `IFEnvOK`'s `hit`
+at the iota theorem, `stripPis_pstep` twice, `projFwd_specW` +
+`domsMatchRenamed_spec` for the domains, `structPsAt_spec`/`bvarsDesc_spec`/
+`paramLevels_spec`/`mkAppN_run` for the redex, `eqApp3?_spec` + `pinAt_run`
+for the body, and `checkIotaSidesTy_spec` for the two sides.
+
+**One missing precondition repaired** (round 9): `EnvWF env'`.  The sides'
+scope is read off the stored theorem's type, closed because `env'` is well
+formed — con-leche's `checkProjIota_wfimp` takes the same `henv'`. -/
 theorem checkProjIota_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (T ctorName : NIdx) (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (cvj : IConstantVal) (cvjP : ConstantVal)
     (nP nF i : Nat) :
@@ -2602,7 +2610,195 @@ theorem checkProjIota_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (Arena.checkProjIota μ fe' feSelf T ctorName lps cvj nP nF i)
       (fun _ _ => ∃ F, ConLeche.checkProjIota μ (ConLeche.fueledOps μ F) env'
         envSelf TP ctorNameP lpsP cvjP nP nF i = .ok ()) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hC, hlps, hcv, hfe', hfeS, hok'⟩ := hpre
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  simp only [Arena.checkProjIota] at hrun
+  -- the theorem's name
+  obtain ⟨pmn, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hpmn⟩ := projModelName_run hck.state hT k1
+  obtain ⟨itn, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hitn⟩ := internStrN_run p1.ok hpmn k2
+  have c2 := (p1.trans p2).toCore hck
+  -- the stored theorem, at `fe'`
+  have hi2 : IFEnvOK env' fe' s₂ := hok'.mono c2.ext s₂ rfl
+  cases hf : fe'.find? itn with
+  | none => rw [hf] at z2; exact absurd z2 (AM.Never.fail _ _ _ _)
+  | some ci =>
+  rw [hf] at z2
+  obtain ⟨nm, cP, hnm, hcP, henvC⟩ := hi2.hit itn ci hf
+  obtain rfl := Option.some.inj (hnm.symm.trans hitn)
+  cases ci
+  all_goals try (exact absurd z2 (AM.Never.fail _ _ _ _))
+  rename_i tcv tval
+  obtain ⟨tcvP, tvalP, rfl, htcv, -⟩ := denoteCI_thm_inv hcP
+  dsimp only at z2
+  obtain ⟨hlp, z3⟩ := AM.dunless_ok hnever z2
+  replace z3 := AM.pure_bind_ok z3
+  have hlpP : tcvP.levelParams = lpsP := by
+    have e1 := denoteCV_lps htcv
+    rw [hlp] at e1
+    exact Option.some.inj ((denoteNListE_ext c2.ext _ _ hlps).symm.trans e1) |>.symm
+  -- the two telescopes
+  have hty2 := denoteCV_type htcv
+  obtain ⟨o1, s₃, k3, z4⟩ := bindOk z3
+  obtain ⟨hs3, ho1⟩ := stripPis_pstep c2.ok.state hty2 k3
+  subst s₃
+  rcases o1 with _ | ⟨sbinders, sbody⟩
+  · exact absurd z4 (AM.Never.fail _ _ _ _)
+  obtain ⟨sbP, sbodyP, hsP, hsb, hsbody⟩ := denoteBP_someB' ho1
+  have hC2 := denote_ext (denoteCV_type hcv) c2.ext
+  obtain ⟨o2, s₄, k4, z5⟩ := bindOk z4
+  obtain ⟨hs4, ho2⟩ := stripPis_pstep c2.ok.state hC2 k4
+  subst s₄
+  rcases o2 with _ | ⟨cbindersR, cbody⟩
+  · exact absurd z5 (AM.Never.fail _ _ _ _)
+  obtain ⟨cbP, cbodyP, hcP', hcb, -⟩ := denoteBP_someB' ho2
+  -- the domains, renamed
+  obtain ⟨fwd, s₅, k5, z6⟩ := bindOk z5
+  obtain ⟨p5, hfwd⟩ := projFwd_specW T ctorName TP ctorNameP nF s₂ s₅ fwd c2.ok.state
+    ⟨denoteN_ext hT c2.ext, denoteN_ext hC c2.ext⟩ k5
+  obtain ⟨dm, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨p6, hdm⟩ := domsMatchRenamed_spec fwd (ConLeche.projFwd TP ctorNameP nF) sbinders
+    cbindersR sbP cbP 0 0 (nP + nF) s₅ s₆ dm p5.ok
+    ⟨hfwd s₅.store (Ext.refl _) p5.ok.wf, denoteBinders_ext p5.ext _ _ hsb,
+      denoteBinders_ext p5.ext _ _ hcb⟩ k6
+  obtain ⟨hdmT, z8⟩ := AM.dunless_ok hnever z7
+  replace z8 := AM.pure_bind_ok z8
+  have hdmP : ConLeche.domsMatchAux (fun _ e => e.renameConsts (ConLeche.projFwd TP ctorNameP nF))
+      sbP cbP 0 0 (nP + nF) = true := by rw [← hdm]; exact hdmT
+  have c6 := c2.trans ((p5.trans p6).toCore c2.ok)
+  have x26 : Ext s₂.store s₆.store := p5.ext.trans p6.ext
+  -- the redex, built
+  obtain ⟨pArgs, s₇, k7, z9⟩ := bindOk z8
+  obtain ⟨q7, hpA⟩ := structPsAt_spec nF nP s₆ s₇ pArgs c6.ok.state trivial k7
+  obtain ⟨xArgs, s₈, k8, z10⟩ := bindOk z9
+  obtain ⟨q8, hxA⟩ := bvarsDesc_spec nF s₇ s₈ xArgs q7.ok trivial k8
+  obtain ⟨cmn, s₉, k9, z11⟩ := bindOk z10
+  have x08 : Ext s₀.store s₈.store := c6.ext.trans (q7.ext.trans q8.ext)
+  obtain ⟨q9, hcmn⟩ := internStrN_run q8.ok (denoteN_ext hC x08) k9
+  obtain ⟨cus, s₁₀, k10, z12⟩ := bindOk z11
+  obtain ⟨q10, hcus⟩ := paramLevels_spec cvj.levelParams cvjP.levelParams s₉ s₁₀ cus q9.ok
+    (denoteCV_lps (denoteCV_ext hcv (x08.trans q9.ext))) k10
+  obtain ⟨cHd, s₁₁, k11, z13⟩ := bindOk z12
+  obtain ⟨q11, hcHd⟩ := internConstE_run q10.ok (denoteN_ext hcmn q10.ext) hcus k11
+  obtain ⟨mkSpine, s₁₂, k12, z14⟩ := bindOk z13
+  have x8_11 : Ext s₈.store s₁₁.store := q9.ext.trans (q10.ext.trans q11.ext)
+  obtain ⟨q12, hspine⟩ := mkAppN_run _ _ q11.ok hcHd
+    (Core.denoteEList_appendI (denoteEList_ext (q8.ext.trans x8_11) _ _ hpA)
+      (denoteEList_ext x8_11 _ _ hxA)) k12
+  obtain ⟨pus, s₁₃, k13, z15⟩ := bindOk z14
+  have x0_12 : Ext s₀.store s₁₂.store := x08.trans (x8_11.trans q12.ext)
+  obtain ⟨q13, hpus⟩ := paramLevels_spec lps lpsP s₁₂ s₁₃ pus q12.ok
+    (denoteNListE_ext x0_12 _ _ hlps) k13
+  obtain ⟨pHd, s₁₄, k14, z16⟩ := bindOk z15
+  have x1_13 : Ext s₁.store s₁₃.store := p2.ext.trans (x26.trans (q7.ext.trans (q8.ext.trans
+    (x8_11.trans (q12.ext.trans q13.ext)))))
+  obtain ⟨q14, hpHd⟩ := internConstE_run q13.ok (denoteN_ext hpmn x1_13) hpus k14
+  obtain ⟨lhsS, s₁₅, k15, z17⟩ := bindOk z16
+  have x7_14 : Ext s₇.store s₁₄.store := q8.ext.trans (x8_11.trans (q12.ext.trans
+    (q13.ext.trans q14.ext)))
+  obtain ⟨q15, hlhsS⟩ := mkAppN_run _ _ q14.ok hpHd
+    (Core.denoteEList_appendI (denoteEList_ext x7_14 _ _ hpA)
+      (show Frontend.denoteEList s₁₄.store [mkSpine] = some [_] by
+        simp only [Frontend.denoteEList, denote_ext hspine (q13.ext.trans q14.ext)]; rfl)) k15
+  have c15 := c6.trans ((q7.trans (q8.trans (q9.trans (q10.trans (q11.trans (q12.trans
+    (q13.trans (q14.trans q15)))))))).toCore c6.ok)
+  have x2_15 : Ext s₂.store s₁₅.store := x26.trans (q7.ext.trans (x7_14.trans q15.ext))
+  -- the statement's body
+  obtain ⟨oe, s₁₆, k16, z18⟩ := bindOk z17
+  obtain ⟨q16, hoe⟩ := eqApp3?_spec sbody sbodyP s₁₅ s₁₆ oe q15.ok (denote_ext hsbody x2_15) k16
+  rcases oe with _ | ⟨c, l, ty, lhsC, rhsC⟩
+  · dsimp only at z18
+    exact absurd z18 (hnever _ _ _)
+  obtain ⟨cP, uP, tyP, lP, rrP, hcPd, huP, htyP, hlP, hrrP, hsbEq⟩ := hoe _ _ _ _ _ rfl
+  have c16 := c15.trans (q16.toCore c15.ok)
+  dsimp only at z18
+  -- its head is the pinned `Eq`
+  obtain ⟨en, s₁₇, k17, z19⟩ := bindOk z18
+  simp only [Arena.pinEq] at k17
+  obtain ⟨hs17, hen⟩ := pinAt_run (x := ConLeche.eqName) c16.ok.pins rfl k17
+  subst s₁₇
+  obtain ⟨hc, z20⟩ := AM.dunless_ok hnever z19
+  replace z20 := AM.pure_bind_ok z20
+  have hcEq : cP = ConLeche.eqName := by
+    subst hc; exact Option.some.inj (hcPd.symm.trans hen)
+  -- the redex side
+  obtain ⟨hlhs, z21⟩ := AM.dunless_ok hnever z20
+  replace z21 := AM.pure_bind_ok z21
+  rw [beq_ehandle_eq c16.ok.state.wf hlP (denote_ext hlhsS q16.ext)] at hlhs
+  -- the field side
+  obtain ⟨fld, s₁₈, k18, z22⟩ := bindOk z21
+  obtain ⟨q18, hfld⟩ := internBVarE_run c16.ok.state k18
+  obtain ⟨hrhs, z23⟩ := AM.dunless_ok hnever z22
+  replace z23 := AM.pure_bind_ok z23
+  rw [beq_ehandle_eq q18.ok.wf (denote_ext hrrP q18.ext) hfld] at hrhs
+  have c18 := c16.trans (q18.toCore c16.ok)
+  have x2_18 : Ext s₂.store s₁₈.store := x2_15.trans (q16.ext.trans q18.ext)
+  -- the opened telescope, for the sides
+  obtain ⟨oo, s₁₉, k19, z24⟩ := bindOk z23
+  obtain ⟨q19, hoo⟩ := openPisAtFvarsF_run c18.ok.state (denote_ext hty2 x2_18) k19
+  obtain ⟨pr, s₂₀, k20, z25⟩ := bindOk z24
+  rcases oo with _ | ⟨fvsO, sbodyO⟩
+  · simp only [Arena.unwrapOr] at k20
+    exact absurd k20 (AM.Never.fail _ _ _ _)
+  simp only [Arena.unwrapOr] at k20
+  obtain ⟨rfl, hs20⟩ := pureOk k20
+  subst s₂₀
+  obtain ⟨fvsOP, sbodyOP, hopenO, -, hsbO⟩ := denoteOpen_some_inv hoo
+  obtain ⟨targsO, s₂₁, k21, z26⟩ := bindOk z25
+  obtain ⟨hs21, htargs⟩ := getAppArgs_run q19.ok hsbO k21
+  subst s₂₁
+  obtain ⟨b0, s₂₂, k22, z27⟩ := bindOk z26
+  obtain ⟨q22, hb0⟩ := internBVarE_run q19.ok k22
+  obtain ⟨hf0, s₂₃, k23, z28⟩ := bindOk z27
+  have x2_22 : Ext s₂.store s₂₂.store := x2_18.trans (q19.ext.trans q22.ext)
+  obtain ⟨hs23, hhf0⟩ := getAppFn_run q22.ok (denote_ext hsbody x2_22) k23
+  subst s₂₃
+  have c22 := c18.trans ((q19.trans q22).toCore c18.ok)
+  obtain ⟨lA, s₂₄, k24, z29⟩ := bindOk z28
+  obtain ⟨hs24, hlA⟩ := eqHeadLevel_run q22.ok c22.ok.pins hhf0 k24
+  subst s₂₄
+  -- the sides' scope
+  have hcvtF : tcvP.type.hasFvar = false := (henv' _ (ConLeche.find?_mem henvC)).1
+  have hopenW := ConLeche.openPisAtFvars_WScoped (nP + nF) tcvP.type 0 hopenO
+    (Expr.WScoped.of_not_hasFvar hcvtF)
+  rw [Nat.zero_add] at hopenW
+  obtain ⟨-, htbodyW⟩ := hopenW
+  have htargsW : ∀ x ∈ sbodyOP.getAppArgs, Expr.WScoped (nP + nF) x :=
+    Expr.WScoped.getAppArgs htbodyW
+  have htg := denoteEList_ext q22.ext _ _ htargs
+  obtain ⟨c29, F, hF⟩ := checkIotaSidesTy_spec feSelf envSelf hk henv (nP + nF)
+    (targsO.getD 0 b0) (targsO.getD 1 b0) (targsO.getD 2 b0)
+    (sbodyOP.getAppArgs.getD 0 (.bvar 0)) (sbodyOP.getAppArgs.getD 1 (.bvar 0))
+    (sbodyOP.getAppArgs.getD 2 (.bvar 0)) lA (ConLeche.eqHeadLevel sbodyP.getAppFn) pmn
+    (ConLeche.projModelName TP i)
+    ⟨ConLeche.WScoped_getD' htargsW 0, ConLeche.WScoped_getD' htargsW 1,
+      ConLeche.WScoped_getD' htargsW 2⟩ s₂₂ s' r c22.ok
+    ⟨denoteEList_getD_fb hb0 htg 0, denoteEList_getD_fb hb0 htg 1,
+      denoteEList_getD_fb hb0 htg 2, hlA, denoteN_ext hpmn (p2.ext.trans x2_22),
+      denoteFEnv_ext c22.ext hfeS, denoteFEnv_ext c22.ext hfeS⟩ z29
+  refine ⟨c22.trans c29, F, ?_⟩
+  -- the pure side
+  have hpA : ConLeche.structPsAt nF nP =
+      (List.range nP).map fun k => Expr.bvar (nP + nF - 1 - k) := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  have hxA : ConLeche.structPsAt 0 nF =
+      (List.range nF).map fun k => Expr.bvar (nF - 1 - k) := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  rw [hpA, hxA] at hlhs
+  subst hsbEq hcEq
+  simp only [ConLeche.checkProjIota, henvC]
+  rw [if_pos hlpP]
+  simp only [hsP, hcP']
+  rw [if_pos hdmP]
+  simp only [bind, Except.bind]
+  rw [if_pos trivial, if_pos hlhs, if_pos hrhs]
+  simp only [ConLeche.unwrapOr, hopenO, pure, Except.pure]
+  exact hF
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn
 One projection function checked and installed.
@@ -2667,7 +2863,7 @@ theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
   have c04 := c03.trans c4
   -- stage 4, the iota certificate
   obtain ⟨u2, s₅, k5, z6⟩ := bindOk z5
-  obtain ⟨c5, F₂, hF₂⟩ := checkProjIota_spec fe' fe' env env hk henv T ctorName TP
+  obtain ⟨c5, F₂, hF₂⟩ := checkProjIota_spec fe' fe' env env hk henv henv T ctorName TP
     ctorNameP lps lpsP cvj cvjP nP nF i s₄ s₅ u2 c04.ok
     ⟨denoteN_ext hT c04.ext, denoteN_ext hC c04.ext, denoteNListE_ext c04.ext _ _ hlps,
       denoteCV_ext hcvj (x13.trans c4.ext), denoteFEnv_ext c04.ext hfe,

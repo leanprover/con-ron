@@ -488,4 +488,81 @@ theorem projFnRule_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv}
   obtain ⟨hfr, hrl'⟩ := recRuleBits_runX c2.ok (hi.mono c2.ext s₂ rfl) hnm hrl z2
   exact ⟨c2.trans ⟨Core.CheckOK.ofReadbackFrame c2.ok hfr, hfr.ext, hfr.pins⟩, hrl'⟩
 
+/-! ## `eqHeadLevel` -/
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:213-220 eqHeadLevel — the level
+an equality head carries, in run form: read-only, and `.zero` off shape (the
+twin's `zeroLevel` is the pinned `.zero`). -/
+theorem eqHeadLevel_run {s s' : AState} {h : EIdx} {hP : Expr} {u : LIdx}
+    (hok : StateOK s) (hp : PinsOK s) (hd : denoteE s.store h = some hP)
+    (hrun : Arena.eqHeadLevel h s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls u = some (ConLeche.eqHeadLevel hP) := by
+  simp only [Arena.eqHeadLevel] at hrun
+  obtain ⟨v, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hv⟩ := view_run k1
+  subst s₁
+  cases v
+  case const n us =>
+    obtain ⟨nm, ls, rfl, -, hls⟩ := denote_const_inv hok.wf hv hd
+    obtain ⟨w, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨hs2, hw⟩ := viewLs_run k2
+    subst s₂
+    have hll := denoteLs_of_view hw hls
+    have hlen := denoteLList_length _ _ hll
+    rcases w with _ | ⟨l, _ | ⟨l', rest⟩⟩
+    · obtain ⟨h1, h2⟩ := zeroLevel_run hp z2
+      refine ⟨h1, ?_⟩
+      rcases ls with _ | ⟨x, _ | ⟨y, ys⟩⟩
+      · exact h2
+      · simp at hlen
+      · simp at hlen
+    · obtain ⟨rfl, hs'⟩ := pureOk z2
+      subst s'
+      simp only [denoteLList, opt2] at hll
+      cases hl : denoteL s.store.ls u with
+      | none => rw [hl] at hll; simp at hll
+      | some x =>
+        rw [hl] at hll
+        simp only [Option.some.injEq] at hll
+        subst hll
+        exact ⟨rfl, rfl⟩
+    · obtain ⟨h1, h2⟩ := zeroLevel_run hp z2
+      refine ⟨h1, ?_⟩
+      rcases ls with _ | ⟨x, _ | ⟨y, ys⟩⟩
+      · exact h2
+      · simp at hlen
+      · exact h2
+  all_goals
+    obtain ⟨h1, h2⟩ := zeroLevel_run hp z1
+    refine ⟨h1, ?_⟩
+    have hz : ConLeche.eqHeadLevel hP = .zero := by
+      cases hP with
+      | const n ls =>
+        rw [denoteE_view_eq hok.wf hv] at hd
+        simp [denoteEView] at hd
+      | _ => rfl
+    rw [hz]; exact h2
+
+/-- con-leche: none — a handle list read at an index with a FALLBACK handle:
+the pure list at the same index with the fallback's denotation.  The iota
+certificates read the equation's three arguments this way (`targs.getD k b0`
+against con-leche's `targs.getD k (.bvar 0)`). -/
+theorem denoteEList_getD_fb {st : EStore} {b : EIdx} {bP : Expr}
+    (hb : denoteE st b = some bP) :
+    ∀ {hs : List EIdx} {xs : List Expr}, Frontend.denoteEList st hs = some xs →
+      ∀ (k : Nat), denoteE st (hs.getD k b) = some (xs.getD k bP) := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs h k
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simpa using hb
+  | cons a as ih =>
+    intro xs h k
+    obtain ⟨x, xs', hx, hxs', rfl⟩ := denoteEList_cons h
+    cases k with
+    | zero => simpa using hx
+    | succ k => simpa using ih hxs' k
+
 end ConRon.Bridge.Inductives
