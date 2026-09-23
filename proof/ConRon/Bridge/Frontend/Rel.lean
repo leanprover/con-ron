@@ -178,18 +178,25 @@ theorem PersE_of_view {st : EStore} (hwf : StoreWF st)
 
 /-! ## The frame
 
-One record for the six conjuncts every step of the parse carries, so that a
-composition reads `h₁.trans h₂` rather than six `And.intro`s.  It is
+One record for the five conjuncts every step of the parse carries, so that a
+composition reads `h₁.trans h₂` rather than five `And.intro`s.  It is
 `Bridge/StateOK.lean`'s `CheckOK.monoF` hypothesis, plus the scratch flag the
 frontend tier needs and the Core tier does not.
 
-The five frame conjuncts are what every caller needs and what nothing in the
-frontend breaks: **the parse interns, and the ONE other thing it does is
-compare two levels.**  It never enters the scratch tier (`Arena/Main.lean`
-runs `internReservedPins` first and the fold's bracket has not started), never
-writes a per-call memo and never touches the pin table — which is what makes
-`PersStateD` free and what makes `Bridge/Checker/Capstone.lean`'s `FoldOK`
-reachable at the post-parse state.
+The frame conjuncts are what every caller needs and what nothing in the
+frontend breaks: **the parse interns, compares levels and reads handles
+back.**  It never enters the scratch tier (`Arena/Main.lean` runs
+`internReservedPins` first and the fold's bracket has not started) and never
+touches the pin table — which is what makes `PersStateD` free and what makes
+`Bridge/Checker/Capstone.lean`'s `FoldOK` reachable at the post-parse state.
+
+**No memo clause** (task #97-P3-Frontend round 8).  Until then the record
+said `s'.memos = s.memos`, and that is false of the projection rewrite: every
+`…Fast` walk it runs (`liftLooseBVarsFast`, `instantiate1LiftFast`,
+`resetMetaFast`, `instLPFast`) CLEARS its per-call table on exit, so the
+equation fails from any start with a non-empty table.  Nothing read it — the
+capstones consume `ok`, `ext`, `scratch`, `cframe` and `pins` — so it is gone
+rather than repaired.
 
 **The cache conjunct is a FRAME and not an equation** (task #97-P3-Frame).
 Round one said `s'.caches = s.caches`, and that is false of the parse:
@@ -200,40 +207,39 @@ Round one said `s'.caches = s.caches`, and that is false of the parse:
 on a miss writes `readLC` (twice, through `readLevelM`) and `lvlEqC`.  The
 Rust does the same at the same three call sites, so the port is not at fault
 and the statement was.  `Bridge/StateOK.lean`'s `CacheFrame` is the honest
-clause: the record equation that names those two tables, plus their invariants
-as implications.  A caller holding `CheckOK` — which is where the invariants
+clause: the record equation that names those two tables — and, since round 8,
+the two other readback tables `readNC`/`readLsC`, which `projRecValue`'s
+`instLPFast` writes — plus their invariants as implications.  A caller holding `CheckOK` — which is where the invariants
 live — gets them back through `CheckOK.monoF`; a caller at `StateOK` does not
 need them. -/
 
 /-- con-leche: none — **the parse's frame**: the store only grew, the scratch
-tier stayed as it was, the per-call memos and the pin table stood still, and
-the per-declaration caches stood still up to the two tables a level comparison
+tier stayed as it was, the pin table stood still, and the per-declaration
+caches stood still up to the four tables a level comparison or a readback
 writes. -/
 structure ParseStep (s s' : AState) : Prop where
   ok : StateOK s'
   ext : Ext s.store s'.store
   scratch : s'.store.scratchOn = s.store.scratchOn
-  memos : s'.memos = s.memos
   cframe : CacheFrame s s'
   pins : s'.pins = s.pins
 
 theorem ParseStep.refl {s : AState} (hok : StateOK s) : ParseStep s s :=
-  ⟨hok, Ext.refl _, rfl, rfl, CacheFrame.refl _, rfl⟩
+  ⟨hok, Ext.refl _, rfl, CacheFrame.refl _, rfl⟩
 
 theorem ParseStep.trans {a b c : AState} (h₁ : ParseStep a b) (h₂ : ParseStep b c) :
     ParseStep a c :=
   ⟨h₂.ok, h₁.ext.trans h₂.ext, by rw [h₂.scratch, h₁.scratch],
-    by rw [h₂.memos, h₁.memos], h₁.cframe.trans h₂.cframe,
-    by rw [h₂.pins, h₁.pins]⟩
+    h₁.cframe.trans h₂.cframe, by rw [h₂.pins, h₁.pins]⟩
 
 /-- con-leche: none — the frame of a parse step that writes no
 per-declaration table at all, which is every step but the owner census.  The
 shape a proof reaches when it has the plain cache equation in hand. -/
 theorem ParseStep.of_caches {s s' : AState} (hok : StateOK s')
     (hx : Ext s.store s'.store) (hsc : s'.store.scratchOn = s.store.scratchOn)
-    (hm : s'.memos = s.memos) (hc : s'.caches = s.caches)
+    (hc : s'.caches = s.caches)
     (hp : s'.pins = s.pins) : ParseStep s s' :=
-  ⟨hok, hx, hsc, hm, CacheFrame.of_eq hc hx, hp⟩
+  ⟨hok, hx, hsc, CacheFrame.of_eq hc hx, hp⟩
 
 theorem ParseStep.of_eq {s s' : AState} (hok : StateOK s) (h : s' = s) :
     ParseStep s s' := by subst h; exact ParseStep.refl hok

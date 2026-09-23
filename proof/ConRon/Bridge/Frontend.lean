@@ -65,6 +65,7 @@ file-level lemma and the one thing this tier may not re-derive).  Both are
 prebuilt in con-leche's `.lake`, so neither costs elaboration.
 -/
 import ConRon.Bridge.Frontend.Rel
+import ConRon.Bridge.Frontend.Scratch
 import ConRon.Bridge.Frontend.ProjRec
 import ConRon.Bridge.Frontend.Shared
 import ConRon.Bridge.Frontend.Modeller

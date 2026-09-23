@@ -502,10 +502,14 @@ theorem CacheFrame.ofReadLevelM {s s' : AState} {h : LIdx} {l : Level}
     (hrun : readLevelM h s = .ok (l, s')) : CacheFrame s s' := by
   obtain ⟨hst, -, -, hc⟩ := readLevelM_frame hrun
   have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [hc]
+  have hn : s'.caches.readNC = s.caches.readNC := by rw [hc]
+  have hls : s'.caches.readLsC = s.caches.readLsC := by rw [hc]
   exact
-    { caches := by rw [hle]; exact hc
+    { caches := by rw [hle, hn, hls]; exact hc
       readL := fun hrl => (readLevelM_denote hrl hrun).2
-      lvlEq := fun _ h' => by rw [hle, hst]; exact h' }
+      lvlEq := fun _ h' => by rw [hle, hst]; exact h'
+      readN := fun h' => by rw [hn, hst]; exact h'
+      readLs := fun h' => by rw [hls, hst]; exact h' }
 
 /-- con-leche: ConLeche/Kernel/Level.lean:158-163 isEquiv — **`lvlEq?`'s
 FRAME**, `Bridge/StateOK.lean`'s `CacheFrame` at the one walk it was written
@@ -564,6 +568,8 @@ theorem lvlEq?_frame {s s' : AState} {u v : LIdx} {r : Option Bool}
       have hmemos5 : s₅.memos = s₃.memos := by rw [hs₅]
       have hpins5 : s₅.pins = s₃.pins := by rw [hs₅]
       have hread5 : s₅.caches.readLC = s₃.caches.readLC := by rw [hs₅]
+      have hreadN5 : s₅.caches.readNC = s₃.caches.readNC := by rw [hs₅]
+      have hreadLs5 : s₅.caches.readLsC = s₃.caches.readLsC := by rw [hs₅]
       have hlvl5 :
           s₅.caches.lvlEqC =
             (if s₃.caches.lvlEqC.size < cacheCap then s₃.caches.lvlEqC
@@ -576,11 +582,12 @@ theorem lvlEq?_frame {s s' : AState} {u v : LIdx} {r : Option Bool}
               lvlEqC := s₅.caches.lvlEqC } := by
         rw [hs₅]
       refine ⟨hstore5.trans hst, hmemos5.trans hm, hpins5.trans hp,
-        ?_, ?_, ?_⟩
+        ?_, ?_, ?_, ?_, ?_⟩
       · -- the record equation: the readbacks moved `readLC`, the insert
         -- moved `lvlEqC`, and nothing else moved
         refine hc5.trans ?_
-        rw [hf12.caches]
+        rw [hreadN5, hreadLs5]
+        conv => lhs; rw [hf12.caches]
       · -- `readLC` does not move across the insert
         intro hrl
         rw [hread5, hstore5]
@@ -593,6 +600,12 @@ theorem lvlEq?_frame {s s' : AState} {u v : LIdx} {r : Option Bool}
         rw [hlvl5, hstore5]
         exact LvlEqCacheOK.insert_capped (hf12.lvlEq hrl hle)
           (by rw [hst]; exact hdu) (by rw [hst2]; exact hdv) heq
+      · intro hn
+        rw [hreadN5, hstore5]
+        exact hf12.readN hn
+      · intro hn
+        rw [hreadLs5, hstore5]
+        exact hf12.readLs hn
 
 end Frame
 

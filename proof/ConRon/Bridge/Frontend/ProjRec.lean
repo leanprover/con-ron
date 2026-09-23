@@ -32,6 +32,7 @@ there is no level algorithm to relate at all.  That is lesson 4's ~1 800
 saved proof lines, collected here.
 -/
 import ConRon.Bridge.Frontend.Shared
+import ConRon.Bridge.Frontend.Scratch
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Arena.Frontend.ProjRec
 

@@ -150,7 +150,7 @@ theorem StateD_init_run {s s' : AState} (hok : StateOK s)
   -- the frame
   have hstep : ParseStep s s' :=
     ParseStep.of_caches ⟨hwf2⟩ (hx1.trans hx2) (by rw [hon2, hon1])
-      (by rw [hm2, hm1]) (by rw [hc2, hc1]) (by rw [hp2, hp1])
+      (by rw [hc2, hc1]) (by rw [hp2, hp1])
   have hoff2 : s'.store.scratchOn = false := by rw [hon2, hon1]; exact hoff
   -- the two handles denote, in the FINAL store
   have hdn1 : denoteN s₁.store.ns n0 = some .anonymous := hden1

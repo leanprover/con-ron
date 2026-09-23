@@ -3180,7 +3180,7 @@ theorem installIndD_run {md : Modeller} (hmw : ModellerWF md)
     | error why =>
       rw [herrh why rfl]
       obtain ⟨hok7, hx7, hm7, hc7, hp7, hsc7⟩ := hmw.2 _ _ _ why s₇ hstep5.ok hoff5 h7
-      have hstep7 : ParseStep s₅ s₇ := ParseStep.of_caches hok7 hx7 hsc7 hm7 hc7 hp7
+      have hstep7 : ParseStep s₅ s₇ := ParseStep.of_caches hok7 hx7 hsc7 hc7 hp7
       have hoff7 : s₇.store.scratchOn = false := by rw [hsc7]; exact hoff5
       dsimp only at hrun ⊢
       by_cases hcen : sc₄.inModelCensus = true
@@ -3211,7 +3211,7 @@ theorem installIndD_run {md : Modeller} (hmw : ModellerWF md)
         hmw.1 _ _ _ gen s₇ hstep5.ok hoff5 h7
       obtain ⟨genP, hgenP⟩ := Option.isSome_iff_exists.mp hdenS
       rw [hokh gen rfl genP hgenP]
-      have hstep7 : ParseStep s₅ s₇ := ParseStep.of_caches hok7 hx7 hsc7 hm7 hc7 hp7
+      have hstep7 : ParseStep s₅ s₇ := ParseStep.of_caches hok7 hx7 hsc7 hc7 hp7
       have hoff7 : s₇.store.scratchOn = false := by rw [hsc7]; exact hoff5
       dsimp only at hrun ⊢
       obtain ⟨st1, s₈, h8, hrun⟩ := AM.bind_ok hrun
