@@ -411,13 +411,33 @@ theorem nativeFieldsOk_spec (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
 
 /-! ## The generated recursor and its rules -/
 
+/-- con-leche: none — **a read-only walk is a core step**: a run that leaves
+the store, the caches and the pins as it found them keeps `CheckOK`.  The
+scoping guards (`allLevelParamsDefined`, `constsResolveFFast`,
+`looseBVarsBoundedFast`, `hasFvarFast`) all answer in this frame. -/
+theorem CoreStep.of_readonly {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    (hok : CheckOK μ env fe s) (hst : s'.store = s.store) (hc : s'.caches = s.caches)
+    (hp : s'.pins = s.pins) : CoreStep μ env fe s s' :=
+  ⟨hok.mono ⟨by rw [hst]; exact hok.state.wf⟩ (by rw [hst]; exact Ext.refl _) hc hp,
+    by rw [hst]; exact Ext.refl _, hp⟩
+
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:447-463 checkNativeRules
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:71-85 checkNativeRulesF
-The `k` generated right-hand sides from `j` up, each annotated and compared.
+The `k` generated right-hand sides from `j` up, each generated and its scoping
+checked.
 
-`sorry`: `structRecRhsR_spec` (`Bridge/Inductives/NativeParts.lean`),
-`unwrapOr`'s spec and `CoreSpec.knot`'s `annotate` slot, over a `Nat`
-recursion. -/
+**CLOSED** (task #97-P3-Ind round 7): a `Nat` recursion over
+`structRecRhsR_spec` and the four scoping guards' run forms —
+`allLevelParamsDefined_run` and `constsResolveFFast_run` (task #97-P3-Checker
+round 9's layout move put them in `Bridge/Checker/Names.lean`, which is what
+unblocked this), `looseBVarsBoundedFast_spec` and `hasFvarFast_spec`.
+
+**One precondition it was missing** (round 7): `structRecRhsR_spec`'s own —
+every recursive-field index a constructor record lists is below its field
+count (`hcs`).  The caller builds `ctors` with `nativeCtors4`, whose kinds are
+the classification's, so the fact is the classification's.  (The `hk`/`henv`
+pair this statement carries is unused: the twin takes no mode and calls no
+knot slot.) -/
 theorem checkNativeRules_spec {μ : CheckMode} {env : Env} (feR : IFEnv)
     (envR : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (rlps : List NIdx)
     (rlpsP : List ConLeche.Name) (T : NIdx) (TP : ConLeche.Name)
@@ -425,7 +445,8 @@ theorem checkNativeRules_spec {μ : CheckMode} {env : Env} (feR : IFEnv)
     (elimP : ConLeche.Name) (large : Bool) (nP nIdx : Nat) (tty : EIdx)
     (ttyP : Expr) (ctors : List (NIdx × Nat × EIdx × List Nat))
     (ctorsP : List (ConLeche.Name × Nat × Expr × List Nat)) (recC : NIdx)
-    (recCP : ConLeche.Name) (rlvls : LsIdx) (rlvlsP : List Level) (k j : Nat) :
+    (recCP : ConLeche.Name) (rlvls : LsIdx) (rlvlsP : List Level) (k j : Nat)
+    (hcs : ∀ c ∈ ctorsP, ∀ i ∈ c.2.2.2, i < c.2.1) :
     CSpec μ env feR
       (fun st => Frontend.denoteNList st.ns rlps = some rlpsP ∧
         denoteN st.ns T = some TP ∧
@@ -441,7 +462,72 @@ theorem checkNativeRules_spec {μ : CheckMode} {env : Env} (feR : IFEnv)
         ConLeche.checkNativeRules (m := CheckM) envR rlpsP TP lpsP elimP large
           nP nIdx ttyP ctorsP recCP rlvlsP k j = .ok rhssP ∧
         Frontend.denoteEList st r = some rhssP) := by
-  sorry
+  induction k generalizing j with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.checkNativeRules] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], rfl, rfl⟩
+  | succ k ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hrl, hT, hlps, hel, hty, hcs4, hrc, hrv, hfeR, hfe⟩ := hpre
+    obtain rfl : envR = env := Option.some.inj (hfeR.symm.trans hfe)
+    simp only [Arena.checkNativeRules] at hrun
+    obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := structRecRhsR_spec T TP lps lpsP elim elimP large nP nIdx tty ttyP
+      ctors ctorsP recC recCP rlvls rlvlsP j hcs s₀ s1 o hok.state
+      ⟨hT, hlps, hel, hty, hcs4, hrc, hrv⟩ k1
+    have c1 := p1.toCore hok
+    cases o with
+    | none =>
+      obtain ⟨_, s2, k2, _⟩ := bindOk z1
+      simp only [Arena.unwrapOr] at k2
+      exact absurd k2 (fun h => failOk h)
+    | some rhs =>
+    obtain ⟨rhsP, hrhsP, hrhs⟩ := ho
+    obtain ⟨rh, s2, k2, z2⟩ := bindOk z1
+    simp only [Arena.unwrapOr] at k2
+    obtain ⟨hrh, hs2⟩ := pureOk k2
+    rw [hrh, hs2] at z2
+    obtain ⟨b1, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨h31, h32, h33, hb1⟩ := allLevelParamsDefined_run c1.ok.state
+      (denoteNListE_ext c1.ext _ _ hrl) hrhs k3
+    have c3 := c1.trans (CoreStep.of_readonly c1.ok h31 h32 h33)
+    have hrhs3 : denoteE s3.store rhs = some rhsP := by rw [h31]; exact hrhs
+    obtain ⟨b2, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨h41, h42, h43, hb2⟩ := constsResolveFFast_run c3.ok hrhs3 k4
+    have c4 := c3.trans (CoreStep.of_readonly c3.ok h41 h42 h43)
+    have hrhs4 : denoteE s4.store rhs = some rhsP := by rw [h41]; exact hrhs3
+    obtain ⟨b3, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨h51, h52, h53, hb3⟩ := AM.of_run (P := fun t => t = s4) rfl k5
+      (ExprOps.looseBVarsBoundedFast_spec Arena.coreWalkFuel 0 s4 rhs c4.ok.state
+        (by rw [hrhs4]; rfl))
+    have c5 := c4.trans (CoreStep.of_readonly c4.ok h51 h52 h53)
+    have hrhs5 : denoteE s5.store rhs = some rhsP := by rw [h51]; exact hrhs4
+    obtain ⟨b4, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨h61, h62, h63, hb4⟩ := AM.of_run (P := fun t => t = s5) rfl k6
+      (ExprOps.hasFvarFast_spec Arena.coreWalkFuel s5 rhs c5.ok.state (by rw [hrhs5]; rfl))
+    have c6 := c5.trans (CoreStep.of_readonly c5.ok h61 h62 h63)
+    have hrhs6 : denoteE s6.store rhs = some rhsP := by rw [h61]; exact hrhs5
+    have hb3' : b3 = rhsP.looseBVarsBounded 0 := hb3 rhsP hrhs4
+    have hb4' : b4 = rhsP.hasFvar := hb4 rhsP hrhs5
+    subst hb1 hb2 hb3' hb4'
+    obtain ⟨hg, z7⟩ := AM.dunless_ok AM.Never.fail_any z6
+    replace z7 := AM.pure_bind_ok z7
+    obtain ⟨rest, s7, k7, z8⟩ := bindOk z7
+    have x06 := c6.ext
+    obtain ⟨c7, restP, hrest, hrestd⟩ := ih (j + 1) s6 s7 rest c6.ok
+      ⟨denoteNListE_ext x06 _ _ hrl, denoteN_ext hT x06, denoteNListE_ext x06 _ _ hlps,
+        denoteN_ext hel x06, denote_ext hty x06, denoteCtors4_ext x06 _ _ hcs4,
+        denoteN_ext hrc x06, denoteLs_ext hrv x06, denoteFEnv_ext x06 hfe,
+        denoteFEnv_ext x06 hfe⟩ k7
+    obtain ⟨rfl, rfl⟩ := pureOk z8
+    refine ⟨c6.trans c7, rhsP :: restP, ?_, ?_⟩
+    · simp only [ConLeche.checkNativeRules, hrhsP, ConLeche.unwrapOr, bind, Except.bind,
+        pure, Except.pure]
+      rw [if_pos hg]
+      simp only [hrest]
+    · simp only [Frontend.denoteEList, denote_ext hrhs6 c7.ext, hrestd]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:465-502 checkNativeRec
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115 checkNativeRecF
