@@ -64,6 +64,7 @@ own, `Core/Probes.lean` grew its probe and its write (`const_val_probe_abs`,
 -/
 import ConRon.Refine2.Core.Arms.Sort
 import ConRon.Refine.ExprOpsSubst
+import ConRon.Refine2.Dup
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -262,53 +263,8 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
         rw [if_neg hcv]
         rfl
 
-/-! ## `nidx_vec_dup`, the identity
-
-`arena::env::nidx_vec_dup` copies a `Vec<NIdx>` because the Rust needs an
-owned one; `dup2` is the identity on a handle (`Refine2/Inv.lean`'s
-`dupId_nidx`), so the copy is the identity on the VALUE.  The `_from` cursor
-has no twin (DESIGN §3.4's standing `List`-as-`Vec` deviation), so the shape
-step is the tier's usual measure induction on `ns.size - i`. -/
-
-private theorem nidx_vec_dup_from_val (N : Nat) :
-    ∀ {ns out r : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize},
-      ns.val.length - i.val = N →
-      arena.env.nidx_vec_dup_from ns i out = ok r →
-      r.val = out.val ++ ns.val.drop i.val := by
-  induction N using Nat.strong_induction_on with
-  | _ N ih =>
-    intro ns out r i hN h
-    rw [arena.env.nidx_vec_dup_from] at h
-    split at h
-    · rename_i hge
-      have hge' : ns.val.length ≤ i.val := by scalar_tac
-      rw [← Result.ok_injective h, List.drop_eq_nil_of_le hge']
-      simp
-    · rename_i hge
-      have hlt : i.val < ns.val.length := by scalar_tac
-      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hlt', hnv⟩ := ConRon.Refine.ExprOps.vec_index_val hn
-      have hn1v : n1 = ns.val[i.val] := (dupId_nidx _ _ hn1).trans hnv
-      have hi2v : i2.val = i.val + 1 := by
-        have h3 := ConRon.Refine.Nat.uadd_val hi2
-        simpa using h3
-      have hN2 : ns.val.length - i2.val = N - 1 := by rw [hi2v]; omega
-      have hrec := ih (N - 1) (by omega) hN2 h
-      rw [hrec, ConRon.Refine.vec_push_val hout1, hi2v, hn1v,
-        List.drop_eq_getElem_cons hlt]
-      simp
-
-/-- **`arena::env::nidx_vec_dup` is the identity on the value.** -/
-theorem nidx_vec_dup_val {ns r : alloc.vec.Vec arena.handle.NIdx}
-    (h : arena.env.nidx_vec_dup ns = ok r) : r.val = ns.val := by
-  rw [arena.env.nidx_vec_dup] at h
-  have h2 := nidx_vec_dup_from_val (ns.val.length - (0#usize).val) rfl h
-  rw [h2]
-  simp [alloc.vec.Vec.with_capacity,
-    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+-- `nidx_vec_dup_val` moved down to `Refine2/Dup.lean` (task #97-P5-Front
+-- round 2), beside the other `arena::env` copies.
 
 /-! ## The `arena::expr_ops` lemmas this tier consumes, stated by name -/
 

@@ -19,7 +19,7 @@ state by shared reference and return a value or a `LineErr`; `note_decl`,
 `&mut StateD` is Aeneas's return value, so the second family's outcome is
 `(Result () LineErr) × AState × StateD`, which is `SimD`.
 
-## `sorry` count in this file: 54
+## `sorry` count in this file: 53
 -/
 import ConRon.Refine2.Frontend.ProjRec
 
@@ -224,6 +224,32 @@ theorem store_fuel_refines {pers rst lst v}
 
 /-! ## The parse state -/
 
+/-- `scan_types::id_table_singleton` refines `IdTable.singleton`
+(`ConLeche/Frontend/Scan/Types.lean:361`): index 0 bound and nothing else. -/
+theorem id_table_singleton_rel {T α : Type} {A : T → α} {x : T}
+    {t : frontend.scan_types.IdTable T}
+    (h : frontend.scan_types.id_table_singleton x = ok t) :
+    IdTableRel A t (ConLeche.Frontend.IdTable.singleton (A x)) := by
+  rw [frontend.scan_types.id_table_singleton] at h
+  obtain ⟨dense, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap.new_refines (HashableInst := hU64) hm
+  refine ⟨?_, ConRon.Refine.HashMap.RelOn_empty hnone, hinv⟩
+  rw [ConRon.Refine.vec_push_val hd]; rfl
+
+/-- `scan_types::id_table_empty` refines `IdTable`'s field defaults
+(`ConLeche/Frontend/Scan/Types.lean:342-344`): the empty table. -/
+theorem id_table_empty_rel {T α : Type} {A : T → α}
+    {t : frontend.scan_types.IdTable T}
+    (h : frontend.scan_types.id_table_empty T = ok t) :
+    IdTableRel A t ({} : ConLeche.Frontend.IdTable α) := by
+  rw [frontend.scan_types.id_table_empty] at h
+  obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap.new_refines (HashableInst := hU64) hm
+  exact ⟨rfl, ConRon.Refine.HashMap.RelOn_empty hnone, hinv⟩
+
 /-- **`state_d_init` refines `StateD.init`** (`ExportC.lean:709-713`): index 0
 of the name table is the format's implicit `Name.anonymous` and index 0 of the
 level table its `Level.zero`, and over handles that means the handles those
@@ -241,7 +267,66 @@ theorem state_d_init_refines {pers rst lst in_model census o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.state_d_init pers rst.store in_model census = ok o) :
     SimRel (fun rsd lsd => StateDRel rsd lsd ∧ StateDInv rsd) pers lst
-      (o.1, withStore rst o.2) (StateD.init in_model census) := by sorry
+      (o.1, withStore rst o.2) (StateD.init in_model census) := by
+  rw [frontend.export_c.state_d_init] at h
+  obtain ⟨⟨r, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hS1 := ConRon.Refine2.intern_n_node_run hrel hinv .Anonymous trivial
+    (fun c hc => by cases hc) (o := (r, withStore rst ar1))
+    (by rw [arena.monad.intern_n_node, h1]; simp only [bind_tc_ok]; rfl)
+  simp only [Sim, absNNodeView] at hS1
+  simp only [SimRel, StateD.init, am_run_bind']
+  cases r with
+  | Err e =>
+    have ho := Result.ok_injective h; subst ho
+    exact AErrSim.bind (AOut.destErr hS1) _
+  | Ok n0 =>
+    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hS1
+    rw [hx1]
+    simp only [except_ok_bind]
+    obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS2 := ConRon.Refine2.intern_l_node_run hrel1 hinv1 .Zero
+      (LStore.ViewOK.mk (by intro c hc; simp [LNodeView.lchildren] at hc)
+        (by intro c hc; simp [LNodeView.nchildren] at hc)) (o := (r2, withStore rst ar2))
+      (by rw [arena.monad.intern_l_node]; rw [h2]
+          simp only [bind_tc_ok]; rfl)
+    simp only [Sim, absLNodeView] at hS2
+    cases r2 with
+    | Err e =>
+      have ho := Result.ok_injective h; subst ho
+      exact AErrSim.bind (AOut.destErr hS2) _
+    | Ok l0 =>
+      obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hS2
+      rw [hx2]
+      simp only [except_ok_bind]
+      obtain ⟨it, hit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨it1, hit1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨it2, hit2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hm1, hhm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hm2, hhm2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hm3, hhm3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hm4, hhm4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hm5, hhm5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ho := Result.ok_injective h; subst ho
+      obtain ⟨i0, -, n0'⟩ := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm
+      obtain ⟨i1, -, n1'⟩ := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm1
+      obtain ⟨i2, -, n2'⟩ := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm2
+      obtain ⟨i3, -, n3'⟩ := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm3
+      obtain ⟨i4, -, n4'⟩ := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm4
+      obtain ⟨i5, -, n5'⟩ := ConRon.Refine.HashMap2.new_refines
+        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm5
+      refine ⟨_, lst2, rfl, ⟨⟨id_table_singleton_rel hit, id_table_singleton_rel hit1,
+        id_table_empty_rel hit2, rfl,
+        ConRon.Refine.HashMap2.RelOn_empty n0', ConRon.Refine.HashMap2.RelOn_empty n1', rfl,
+        ConRon.Refine.HashMap2.RelOn_empty n2', ConRon.Refine.HashMap2.RelOn_empty n3', rfl,
+        rfl, rfl, ConRon.Refine.HashMap2.RelOn_empty n4', rfl, rfl,
+        ConRon.Refine.HashMap2.RelOn_empty n5', rfl, by simp⟩,
+        ⟨i0, i1, i2, i3, i4, i5⟩⟩, hrel2, hinv2, Ext.trans hext1 hext2⟩
 
 /-- **`state_model_ctx`** — the three tables the modeller reads, borrowed off
 the state (`types::ModelCtx`'s deviation).  The twin builds the three closures
@@ -399,10 +484,12 @@ theorem parse_level_entry_d_refines {pers rst lst rsd lsd i r o}
 
 /-- **`parse_expr_rec_d`** — the value half of `parseExprEntryD`.  Its
 `NatVal` arm is `scan_types.rs`'s deviation 2: the port keeps the literal's
-decimal digits, so the arm needs `NatValSpec`. -/
+decimal digits, so the arm needs `NatValSpec`.  Its `StrVal` arm interns a
+`Lit` node, whose `ENodeViewWF` is `ExprRecStrWF` (task #97-P5-Front round 2,
+finding F5: the hypothesis was missing). -/
 theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hnat : NatValSpec r)
+    (hd : StateDRel rsd lsd) (hs : ExprRecStrWF r) (hnat : NatValSpec r)
     (h : frontend.export_c.parse_expr_rec_d pers rst.store rsd r = ok o) :
     SimL absEIdx pers lst (o.1, withStore rst o.2)
       (parseExprRecD lsd (absExprRec r)) := by sorry
@@ -411,7 +498,8 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
 (`ExportC.lean:259-282`). -/
 theorem parse_expr_entry_d_refines {pers rst lst rsd lsd i r o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hnat : NatValSpec r)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : ExprRecStrWF r)
+    (hnat : NatValSpec r)
     (h : frontend.export_c.parse_expr_entry_d pers rst.store rsd i r = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
       (parseExprEntryD lsd (absU i) (absExprRec r)) := by sorry

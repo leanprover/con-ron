@@ -64,10 +64,11 @@ The open leaves under them: `apply_line_refines` (the line layer),
 `hoist_nat_op_ground_refines` (`NatOpGround.lean`'s tier) and
 `Prepare.lean`'s `i_declaration_dup_abs`.
 
-## `sorry` count in this file: 6
+## `sorry` count in this file: 5
 -/
 import ConRon.Refine2.Frontend.ExportCInd
 import ConRon.Refine2.Frontend.Scan.Spec
+import ConRon.Refine2.Frontend.PreludeText
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -95,17 +96,40 @@ theorem process_line_core_d_refines {G : Type} {inst : frontend.types.Modeller G
     (h : frontend.export_c.process_line_core_d inst pers m rst rsd d = ok o) :
     SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec d)) := by sorry
 
-/-- **`apply_decl_d` refines `applyDeclD`** (`ExportC.lean:662-664`). -/
+/-- **A table-entry writer inside the line layer**: the twin's
+`do pure (.inl (← x))` over a `SimD` step. -/
+theorem SimD.toSimDV_inl {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result Unit frontend.export_c.LineErr ×
+      arena.monad.AState × frontend.export_c.StateD}
+    {x : AM Arena.Frontend.StateD} (h : SimD pers lst o x) :
+    SimDV pers lst o (do pure (Sum.inl (← x))) := by
+  rcases o with ⟨r, rst', rsd'⟩
+  simp only [SimD] at h
+  cases r with
+  | Ok u =>
+    obtain ⟨lsd', lst', hx, hd, hi, hrel, hinv, hext⟩ := h
+    refine SimDV.mk (lsd' := lsd') ?_ hd hi hrel hinv hext
+    simp only [am_run_bind', hx, except_ok_bind]; rfl
+  | Err e =>
+    exact SimDV.of_bind (f := fun p => (pure (Sum.inl p.1) : AM _).run p.2) h
+      (by simp only [am_run_bind'])
+
+/-- **`apply_decl_d` refines `applyDeclD`** (`ExportC.lean:662-664`): the
+twin's and the port's are both `process_line_core_d` itself. -/
 theorem apply_decl_d_refines {G : Type} {inst : frontend.types.Modeller G}
     {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd d o}
     (hmr : ModellerRefines inst m lmd)
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : DeclRecStrWF d)
     (h : frontend.export_c.apply_decl_d inst pers m rst rsd d = ok o) :
-    SimDV pers lst o (applyDeclD lmd lsd (absDeclRec d)) := by sorry
+    SimDV pers lst o (applyDeclD lmd lsd (absDeclRec d)) := by
+  rw [frontend.export_c.apply_decl_d] at h
+  exact process_line_core_d_refines hmr hrel hinv hd hi hs h
 
 /-- **`apply_line` refines `applyLine`** (`ExportC.lean:670-678`) — THE
-SEMANTIC LAYER: one scanned line applied to the parse state. -/
+SEMANTIC LAYER: one scanned line applied to the parse state.  Proved from its
+children (task #97-P5-Front round 2): the three table-entry writers and
+`apply_decl_d`; a header or a blank line changes nothing on either side. -/
 theorem apply_line_refines {G : Type} {inst : frontend.types.Modeller G}
     {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd r o}
     (hmr : ModellerRefines inst m lmd)
@@ -113,7 +137,34 @@ theorem apply_line_refines {G : Type} {inst : frontend.types.Modeller G}
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (hs : LineRecStrWF r) (hnat : LineNatValSpec r)
     (h : frontend.export_c.apply_line inst pers m rst rsd r = ok o) :
-    SimDV pers lst o (applyLine lmd lsd (absLineRec r)) := by sorry
+    SimDV pers lst o (applyLine lmd lsd (absLineRec r)) := by
+  cases r with
+  | Name i n =>
+    rw [frontend.export_c.apply_line] at h
+    obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    exact SimD.toSimDV_inl (parse_name_entry_d_refines hrel hinv hd hi hs h1)
+  | Level i l =>
+    rw [frontend.export_c.apply_line] at h
+    obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    exact SimD.toSimDV_inl (parse_level_entry_d_refines hrel hinv hd hi h1)
+  | Expr i x =>
+    rw [frontend.export_c.apply_line] at h
+    obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    exact SimD.toSimDV_inl (parse_expr_entry_d_refines hrel hinv hd hi hs hnat h1)
+  | Decl d =>
+    rw [frontend.export_c.apply_line] at h
+    exact apply_decl_d_refines hmr hrel hinv hd hi hs h
+  | Header =>
+    rw [frontend.export_c.apply_line] at h
+    cases Result.ok_injective h
+    exact SimDV.mk rfl hd hi hrel hinv (Ext.refl _)
+  | Blank =>
+    rw [frontend.export_c.apply_line] at h
+    cases Result.ok_injective h
+    exact SimDV.mk rfl hd hi hrel hinv (Ext.refl _)
 
 /-! ## Stream plumbing (task #97-P5-Front)
 
@@ -754,8 +805,6 @@ theorem parse_export_d_refines {G : Type} {inst : frontend.types.Modeller G}
 
 /-! ### Byte vectors (task #97-P5-Front) -/
 
-theorem clone_u8 : ∀ x : Std.U8, core.clone.CloneU8.clone x = ok x := fun _ => rfl
-
 theorem to_vec_u8_val {s : Slice Std.U8} {v : alloc.vec.Vec Std.U8}
     (h : alloc.slice.Slice.to_vec core.clone.CloneU8 s = ok v) : v.val = s.val := by
   obtain ⟨v', hv', hs⟩ := WP.spec_imp_exists
@@ -763,25 +812,6 @@ theorem to_vec_u8_val {s : Slice Std.U8} {v : alloc.vec.Vec Std.U8}
   rw [hv'] at h
   cases Result.ok_injective h
   rw [hs]; rfl
-
-theorem extend_u8_val {v w : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
-    (h : alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v s = ok w) :
-    w.val = v.val ++ s.val := by
-  obtain ⟨s', hs', hss⟩ := WP.spec_imp_exists
-    (Slice.clone_spec (clone := core.clone.CloneU8.clone) (s := s) (fun x _ => clone_u8 x))
-  unfold alloc.vec.Vec.extend_from_slice at h
-  split at h
-  · split at h
-    · rename_i s'' hm
-      simp only [Result.ok.injEq] at h
-      subst h
-      have : Slice.clone core.clone.CloneU8.clone s = ok s'' := by simpa using hm
-      rw [hs'] at this
-      cases Result.ok_injective this
-      simp [hss]
-    · simp at h
-    · simp at h
-  · simp at h
 
 theorem range_from_val {v : alloc.vec.Vec Std.U8} {t : Std.Usize} {s : Slice Std.U8}
     (h : alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) v
@@ -1108,15 +1138,8 @@ theorem parse_chunks_refines {G : Type} {inst : frontend.types.Modeller G}
 
 /-! ## The prelude, and the tier's second top statement -/
 
-/-- **`prelude::builtin_prelude_text`** — the committed prelude bytes.  The
-port's constant is generated by `scripts/gen-prelude.sh` and the twin's by
-`scripts/gen-prelude-lean.sh`, both with a `--check` gate and both in the same
-67 chunks of at most 256 bytes; this says the two are the same bytes, which is
-the ONE fact about them a proof needs and which no proof can get from either
-generator. -/
-theorem builtin_prelude_text_refines {v}
-    (h : frontend.prelude.builtin_prelude_text = ok v) :
-    absChunk v = preludeText := by sorry
+/-! `builtin_prelude_text_refines` — the 67 chunks are `preludeText` — is
+`Refine2/Frontend/PreludeText.lean`'s (task #97-P5-Front round 2). -/
 
 /-- **`prelude::builtin_prelude_e` refines `builtinPreludeE`**
 (`Arena/Frontend/Prelude.lean:52-56`) — **the tier's second top statement**:
