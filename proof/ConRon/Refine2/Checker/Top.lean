@@ -1849,10 +1849,9 @@ the axiom pins, the reserved names and the pin sets, four children in
 sequence.  Glue: `intern_all_basis_refines`, `intern_all_axiom_pins_refines`,
 `intern_all_names_refines` and `intern_pin_sets_refines`.
 
-`internAllPinsPortSpec` is `internAllPins` with eight pins interned RAW where
-the twin interns them annotated; `intern_all_pins_refines` below — the
-statement the capstone consumes — is therefore false as stated, and this is
-what is true. -/
+Since round 2's ruling (a) the twin interns the raw pins too, so
+`internAllPinsPortSpec` is `internAllPins` (`internAllPinsPortSpec_eq`) and
+this is the proof route of `intern_all_pins_refines` below. -/
 theorem intern_all_pins_port_refines {pers st lst}
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
@@ -1912,16 +1911,23 @@ theorem intern_all_pins_port_refines {pers st lst}
       = internPinSets (ConRon.Refine.absPins pins) from bind_pure _] at hS4
   exact hS4
 
+/-- **The port's startup walk is the twin's**: `internAllPinsPortSpec` — the
+four Rust functions' transcriptions in sequence — is `internAllPins`, the flat
+`do` block, re-bracketed by the monad laws.  An equation since task
+#97-P5-Top round 2's ruling (a) made the twin intern the eight standard-axiom
+and `ofReduce*` pins RAW, as the port does. -/
+theorem internAllPinsPortSpec_eq (ps : List ConLeche.NatOpPinSet) :
+    internAllPinsPortSpec ps = internAllPins ps := by
+  simp only [internAllPinsPortSpec, internAllBasisSpec, internAllAxiomPinsSpec,
+    internAllAxiomPinsRestSpec, internAllTrustPinsSpec, internAllReducePinsSpec,
+    internAllNamesSpec, internAllPins, bind_assoc, pure_bind]
+
 /-- **`intern_all_pins` ⊑ `internAllPins`** — what the capstone consumes.
 
-**FALSE AS STATED (task #97-P5-Top), kept for the ruling.**  The port interns
-eight pins RAW where the twin's `internAllPins` interns them annotated
-(`iffIntro`, `iff.rec`, `Nonempty.intro`, `Nonempty.rec`, `propext`,
-`Classical.choice`, `ofReduceNat`, `ofReduceBool`; `Refine2/Checker/Spec.lean`'s
-startup-walk note), so the two post-stores hold different `BMNode`s and
-`StoreRel` fails at the first of them.  `intern_all_pins_port_refines` above is
-the true statement; closing this one needs the twin and the port to intern the
-SAME eight values — DESIGN.md, task #97-P5-Top, prices the two ways. -/
+Task #97-P5-Top found it false (the port interned eight pins raw, the twin
+annotated); round 2's ruling (a) made the twin intern the raw pins
+(`Arena/Checker.lean`), and it is now `intern_all_pins_port_refines` through
+`internAllPinsPortSpec_eq`. -/
 theorem intern_all_pins_refines {pers st lst}
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
@@ -1929,7 +1935,8 @@ theorem intern_all_pins_refines {pers st lst}
     (hrun : arena.checker.intern_all_pins pers st pins = ok o) :
     Sim absINatOpPinSetL (fun _ => True) pers lst o
       (internAllPins (ConRon.Refine.absPins pins)) := by
-  sorry
+  rw [← internAllPinsPortSpec_eq]
+  exact intern_all_pins_port_refines hrel hinv hwf hrun
 
 
 /-! ## The axiom census

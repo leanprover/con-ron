@@ -469,7 +469,15 @@ The six basis blocks in both forms (the RAW ones `basisPinHit` and
 `quotPinHit` compare against, the ANNOTATED ones `checkBasisDecl` installs),
 the standard and compiler-trust axiom pins, the reserved names the guards
 compare by handle, and the `Nat`-operation pin variants, whose interned form
-is the checker's pin-list parameter (con-leche's task #304). -/
+is the checker's pin-list parameter (con-leche's task #304).
+
+**The standard-axiom and `ofReduce*` pins are interned RAW** (`iffRaw` …
+`choiceRaw`; `ofReduceNatA`/`ofReduceBoolA` hold the raw pins,
+`Arena/TrustAxioms.lean`), because the port interns them raw and the exact
+store relation of Theorem 2 needs the port's values (task #97-P5-Top round 2,
+ruling (a)).  Nothing con-leche computes changes: the pins are only ever
+compared by `matchesPin`, which erases the `pw` datum — the one thing
+annotation writes (`Bridge/Checker/Basis.lean`'s `*_matchesPin_raw`). -/
 def internAllPins (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
   let _ ← BasisKind.decls .eqK;    let _ ← BasisKind.declsA .eqK
   let _ ← BasisKind.decls .natK;   let _ ← BasisKind.declsA .natK
@@ -477,9 +485,9 @@ def internAllPins (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
   let _ ← BasisKind.decls .emptyK; let _ ← BasisKind.declsA .emptyK
   let _ ← BasisKind.decls .falseK; let _ ← BasisKind.declsA .falseK
   let _ ← BasisKind.decls .quotK;  let _ ← BasisKind.declsA .quotK
-  let _ ← iffA; let _ ← iffIntroA; let _ ← iffRecA
-  let _ ← nonemptyA; let _ ← nonemptyIntroA; let _ ← nonemptyRecA
-  let _ ← propextA; let _ ← choiceA
+  let _ ← iffRaw; let _ ← iffIntroRaw; let _ ← iffRecRaw
+  let _ ← nonemptyRaw; let _ ← nonemptyIntroRaw; let _ ← nonemptyRecRaw
+  let _ ← propextRaw; let _ ← choiceRaw
   let _ ← trueCvA; let _ ← trueIntroCvA; let _ ← trustCompilerA; let _ ← boolCvA
   let _ ← reduceNatCvA; let _ ← reduceBoolCvA
   let _ ← ofReduceNatA; let _ ← ofReduceBoolA

@@ -489,38 +489,32 @@ theorem reduce_bool_cv_a_refines {pers st lst} {o}
       (reduceBoolCvA) := by
   sorry
 
-/-- `of_reduce_nat_a` ⊑ the RAW `ofReduceRaw ofReduceNatName`, interned.
+/-- `of_reduce_nat_a` ⊑ `ofReduceNatA` — the RAW pin `ofReduceRaw ofReduceNatName`,
+interned.
 
-**Restated by task #97-P5-Top: the old statement (against the twin's
-`ofReduceNatA`) was false.**  The port interns
-`kernel::trust_axioms::of_reduce_pin_a`, which is the RAW pin (that module's
-note: `matchesPin` cannot tell it from the annotated one), and con-leche's
-`ofReduceNatA ≠ ofReduceRaw ofReduceNatName` — they differ in the binder
-`pw` data, so they intern different `BMNode`s.  `of_reduce_pin_a_refines`
-below has the same defect and is left for the ruling (DESIGN.md, task
-#97-P5-Top). -/
+Task #97-P5-Top found the old statement false (the twin interned con-leche's
+annotated `ofReduceNatA`, the port the raw pin); round 2's ruling (a) moved
+the twin's slot to the raw pin (`Arena/TrustAxioms.lean`), so the statement is
+the port's again. -/
 theorem of_reduce_nat_a_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.trust_axioms.of_reduce_nat_a pers st = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
-      (internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)) := by
+      (ofReduceNatA) := by
   sorry
 
-/-- `of_reduce_bool_a` ⊑ the RAW `ofReduceRaw ofReduceBoolName`, interned.
+/-- `of_reduce_bool_a` ⊑ `ofReduceBoolA` — the RAW pin `ofReduceRaw ofReduceBoolName`,
+interned.
 
-**Restated by task #97-P5-Top: the old statement (against the twin's
-`ofReduceBoolA`) was false.**  The port interns
-`kernel::trust_axioms::of_reduce_pin_a`, which is the RAW pin (that module's
-note: `matchesPin` cannot tell it from the annotated one), and con-leche's
-`ofReduceBoolA ≠ ofReduceRaw ofReduceBoolName` — they differ in the binder
-`pw` data, so they intern different `BMNode`s.  `of_reduce_pin_a_refines`
-below has the same defect and is left for the ruling (DESIGN.md, task
-#97-P5-Top). -/
+Task #97-P5-Top found the old statement false (the twin interned con-leche's
+annotated `ofReduceBoolA`, the port the raw pin); round 2's ruling (a) moved
+the twin's slot to the raw pin (`Arena/TrustAxioms.lean`), so the statement is
+the port's again. -/
 theorem of_reduce_bool_a_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.trust_axioms.of_reduce_bool_a pers st = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
-      (internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)) := by
+      (ofReduceBoolA) := by
   sorry
 
 /-- `reduce_op_cv_a` ⊑ `reduceOpCvA`. -/
