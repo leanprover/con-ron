@@ -80,6 +80,35 @@ theorem lift_loose_bvars_go_refines' {pers st lst} {amount fuel : Std.U64}
 
 end lift
 
+/-! ## 1b. The canonical memoised walk: `instantiate1_go` (old: `ExprOps/Mut.lean`, 511 + 10 lines) -/
+
+section inst1
+attribute [local lockstep_simp] instantiate1ArmApp instantiate1ArmBind instantiate1ArmBVar
+  instantiate1ArmLet instantiate1ArmProj
+
+set_option maxHeartbeats 4000000 in
+set_option profiler true in
+theorem instantiate1_go_aux' (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (v : arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.expr_ops.instantiate1_go pers st v fuel h d) lst
+        (instantiate1Go (absEIdx v) n (absEIdx h) (absU d)) := by
+  induction n with
+  | zero =>
+    intro pers st lst v fuel h d hn hrel hinv
+    rw [arena.expr_ops.instantiate1_go, instantiate1Go_zero]
+    lockstep
+  | succ m ih =>
+    intro pers st lst v fuel h d hn hrel hinv
+    rw [arena.expr_ops.instantiate1_go, instantiate1Go_succ]
+    lockstep_stats
+    lockstep
+    lockstep_stats
+
+end inst1
+
 #print axioms lift_loose_bvars_go_refines'
 
 /-! ## 2. A telescope: `inst_pis_from` (old: `ExprOps/Mut.lean`, 76 + 10 lines) — a D1 function

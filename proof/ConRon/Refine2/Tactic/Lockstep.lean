@@ -328,6 +328,37 @@ theorem errArm_ok {γ : Type} {e : kernel.core_types.CheckError} {st : arena.mon
     ErrArm (γ := γ) (ok (.Err e, st)) e := by
   intro o st' h; cases Result.ok_injective h; rfl
 
+theorem uncurry_apply_proj {α β γ : Type} (f : α → β → γ) (p : α × β) :
+    Aeneas.Std.uncurry f p = f p.1 p.2 := by
+  obtain ⟨a, b⟩ := p; rfl
+
+/-! ## The Rust-only judgement as a goal (state-free functions) -/
+
+theorem LSP.bind' {α β : Type} {f : Result α} {P : α → Prop} {k : α → Result β}
+    {Q : β → Prop} (hf : LSP f P) (hk : ∀ a, P a → LSP (k a) Q) : LSP (f >>= k) Q := by
+  intro b hb
+  obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb
+  exact hk a (hf a h1) b h2
+
+theorem LSP.bind_eq {α β : Type} {f : Result α} {k : α → Result β}
+    {Q : β → Prop} (hk : ∀ a, f = ok a → LSP (k a) Q) : LSP (f >>= k) Q := by
+  intro b hb
+  obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb
+  exact hk a h1 b h2
+
+theorem LSP.ite {α : Type} {c : Prop} [Decidable c] {m₁ m₂ : Result α} {Q : α → Prop}
+    (h₁ : c → LSP m₁ Q) (h₂ : ¬ c → LSP m₂ Q) : LSP (if c then m₁ else m₂) Q := by
+  by_cases hc : c
+  · rw [if_pos hc]; exact h₁ hc
+  · rw [if_neg hc]; exact h₂ hc
+
+theorem LSP.ret {α : Type} {v : α} {Q : α → Prop} (h : Q v) : LSP (ok v) Q := by
+  intro a ha; cases Result.ok_injective ha; exact h
+
+theorem LSP.tail {α : Type} {m : Result α} {P Q : α → Prop}
+    (hf : LSP m P) (hPQ : ∀ a, P a → Q a) : LSP m Q :=
+  fun a ha => hPQ a (hf a ha)
+
 /-! ## Pure Rust-only specs of the machine words -/
 
 theorem LSP.u64_sub (x y : Std.U64) :
@@ -364,30 +395,90 @@ attribute [lockstep_simp] Aeneas.Std.uncurry_apply_pair not_false_eq_true not_tr
 
 open Lean Meta Elab Tactic
 
+/-- Per-alternative timing of the side tactics (`lockstep_stats` prints it). -/
+initialize statsRef : IO.Ref (Std.HashMap String (Nat × Nat × Nat × Nat)) ← IO.mkRef {}
+
+initialize failRef : IO.Ref (Array Format) ← IO.mkRef #[]
+
+def record (k : String) (ok : Bool) (ms : Nat) : IO Unit :=
+  statsRef.modify fun m =>
+    let (a, b, c, d) := m.getD k (0, 0, 0, 0)
+    m.insert k (if ok then (a + 1, b + ms, c, d) else (a, b, c + 1, d + ms))
+
+/-- Try the alternatives in order, timing each. -/
+def firstTimed (label : String) (alts : List (TSyntax `tactic)) : TacticM Unit := do
+  let s ← saveState
+  let mut i := 0
+  for t in alts do
+    let t0 ← IO.monoMsNow
+    try
+      evalTactic t
+      unless (← getUnsolvedGoals).isEmpty do throwError "left goals"
+      record s!"{label}.{i}" true ((← IO.monoMsNow) - t0)
+      return
+    catch _ =>
+      record s!"{label}.{i}" false ((← IO.monoMsNow) - t0)
+      s.restore
+    i := i + 1
+  let fs ← failRef.get
+  if fs.size < 40 then
+    failRef.set (fs.push (f!"{label}: " ++ (← Meta.ppExpr (← instantiateMVars (← getMainTarget)))))
+  throwError "{label}: no alternative closes the goal"
+
+def sideCheap : TacticM (List (TSyntax `tactic)) := do return [
+    ← `(tactic| assumption),
+    ← `(tactic| rfl),
+    ← `(tactic| (apply Eq.symm; assumption)),
+    ← `(tactic| (simp only [lockstep_simp] at *; first | assumption | rfl | done)),
+    ← `(tactic| (simp_all only [lockstep_simp]; done)),
+    ← `(tactic| (simp_all (config := { decide := true }) only [lockstep_simp]; done))]
+
+def sideDear : TacticM (List (TSyntax `tactic)) := do return [
+    ← `(tactic| scalar_tac),
+    ← `(tactic| (simp_all only [lockstep_simp, Bool.and_eq_true]; scalar_tac)),
+    ← `(tactic| (simp_all; done))]
+
 /-- Side goals: the relation and the invariant at the current state, an
-argument correspondence, a branch condition. -/
-syntax "lockstep_side" : tactic
-macro_rules
-  | `(tactic| lockstep_side) => `(tactic| first
-      | assumption
-      | rfl
-      | (simp only [lockstep_simp] at *; first | assumption | rfl | done)
-      | scalar_tac
-      | (simp_all only [lockstep_simp]; done)
-      | (simp_all; done))
+argument correspondence, a branch condition.  Cheap alternatives first. -/
+elab "lockstep_side" : tactic => do
+  -- an arithmetic correspondence (`absU i1 = m`) goes to `scalar_tac` early
+  let ty ← whnfR (← instantiateMVars (← getMainTarget))
+  let arith := (ty.isAppOfArity ``Eq 3 && (ty.getArg! 0).isConstOf ``Nat) ||
+    ty.isAppOfArity ``LT.lt 4 || ty.isAppOfArity ``LE.le 4
+  if arith then
+    firstTimed "sideA" [← `(tactic| assumption), ← `(tactic| rfl), ← `(tactic| scalar_tac),
+      ← `(tactic| (simp_all only [lockstep_simp]; done)), ← `(tactic| (simp_all; done))]
+  else
+    firstTimed "side" ((← sideCheap) ++ (← sideDear))
+
+elab "lockstep_side_cheap" : tactic => do
+  firstTimed "side" (← sideCheap)
+
+elab "lockstep_side_dear" : tactic => do
+  firstTimed "sideD" (← sideDear)
+
+elab "lockstep_stats" : tactic => do
+  let m ← statsRef.get
+  let rows := m.toList.toArray.qsort (fun a b => a.1 < b.1)
+  let mut msg := m!"lockstep side-tactic statistics (label: ok n / ms, fail n / ms)"
+  for (k, (a, b, c, d)) in rows do
+    msg := msg ++ m!"\n{k}: ok {a} / {b} ms, fail {c} / {d} ms"
+  for f in (← failRef.get) do
+    msg := msg ++ m!"\nFAILED {f}"
+  logInfo msg
+  statsRef.set {}
+  failRef.set #[]
 
 /-- A branch the context rules out. -/
 syntax "lockstep_contra" : tactic
-macro_rules
-  | `(tactic| lockstep_contra) => `(tactic| (exfalso; scalar_tac))
+elab_rules : tactic
+  | `(tactic| lockstep_contra) => do
+    firstTimed "contra" [← `(tactic| (exfalso; scalar_tac))]
 
 /-- The twin-action correspondence `x' = x` a bind rule leaves. -/
-syntax "lockstep_congr" : tactic
-macro_rules
-  | `(tactic| lockstep_congr) => `(tactic| first
-      | rfl
-      | (congr 1 <;> lockstep_side)
-      | (simp only [lockstep_simp] at *; done))
+elab "lockstep_congr" : tactic => do
+  firstTimed "congr" [← `(tactic| rfl), ← `(tactic| (congr 1 <;> lockstep_side)),
+    ← `(tactic| (simp only [lockstep_simp] at *; done))]
 
 /-- The twin's error leaf. -/
 syntax "lockstep_errsim" : tactic
@@ -443,12 +534,16 @@ def specCore (g : MVarId) : TacticM Unit := g.withContext do
     if d.isImplementationDetail then continue
     let t ← instantiateMVars d.type
     let ok ← forallTelescope t fun _ c => pure <|
+      c.getAppFn.constName? == ty.getAppFn.constName? &&
       match judgementRustArg? c with
       | some m' => rustKey? m'.headBeta == some k
       | none => false
     if ok then cands := cands.push d.toExpr
   for n in (← lockstepLemmas k) do
-    cands := cands.push (← mkConstWithFreshMVarLevels n)
+    let c ← mkConstWithFreshMVarLevels n
+    let same ← forallTelescope (← inferType c) fun _ concl =>
+      pure (concl.getAppFn.constName? == ty.getAppFn.constName?)
+    if same then cands := cands.push c
   if cands.isEmpty then
     throwError "lockstep: no @[lockstep] lemma for `{k}`"
   let s ← saveState
@@ -471,14 +566,64 @@ elab "lockstep_spec" : tactic => do
   specCore g
   setGoals others
 
-/-- Tidy a continuation: `subst` the answer relation, reduce the two bodies. -/
+/-- Head-normalise one side of a judgement, by definitional steps only: beta,
+`let`, `uncurry` at a pair, and a `match` whose discriminants reduce to
+constructors.  This is what `dsimp` would do at the head, without traversing
+the (large) rest of the program. -/
+partial def headNorm (e : Expr) : MetaM Expr := do
+  let e := e.headBeta
+  if let .letE _ _ v b _ := e then
+    return ← headNorm (b.instantiate1 v)
+  if e.isAppOfArity ``Aeneas.Std.uncurry 5 then
+    let p ← whnfR e.appArg!
+    if p.isAppOfArity ``Prod.mk 4 then
+      return ← headNorm (mkApp2 (e.getArg! 3) (p.getArg! 2) (p.getArg! 3))
+  if (← matchMatcherApp? e).isSome then
+    match ← withTransparency .default (Meta.reduceMatcher? e) with
+    | ReduceMatcherResult.reduced e' => return ← headNorm e'
+    | _ => return e
+  return e
+
+/-- The twin side's `simp only [lockstep_simp]`, on the twin argument alone. -/
+def simpTwin (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``LS 7 do return g
+  let x := ty.getArg! 6
+  let some ext ← getSimpExtension? `lockstep_simp | return g
+  let thms ← ext.getTheorems
+  let ctx ← Simp.mkContext (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
+  let (r, _) ← simp x ctx
+  if r.expr == x then return g
+  let ty' := mkAppN ty.getAppFn (ty.getAppArgs.set! 6 r.expr)
+  match r.proof? with
+  | none => g.replaceTargetDefEq ty'
+  | some pf =>
+    let motive ← withLocalDeclD `z (← inferType x) fun z =>
+      mkLambdaFVars #[z] (mkAppN ty.getAppFn (ty.getAppArgs.set! 6 z))
+    let eq ← mkCongrArg motive pf
+    g.replaceTargetEq ty' eq
+
+/-- Head-normalise both sides of an `LS` / `LSP` goal. -/
+def normGoal (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  if ty.isAppOfArity ``LS 7 then
+    let m ← headNorm (ty.getArg! 4)
+    let x ← headNorm (ty.getArg! 6)
+    let ty' := mkAppN ty.getAppFn ((ty.getAppArgs.set! 4 m).set! 6 x)
+    let g ← g.replaceTargetDefEq ty'
+    simpTwin g
+  else if ty.isAppOfArity ``LSP 3 then
+    let m ← headNorm (ty.getArg! 1)
+    g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
+  else return g
+
+/-- Tidy a continuation: `subst` the answer relation, normalise the heads. -/
 def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
-  runOn g do
+  let rest ← runOn g do
     if let some h := hR then
       let hi := mkIdent h
       evalT `(tactic| first | subst $hi:ident | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident) | skip)
-    evalT `(tactic| try dsimp only)
-    evalT `(tactic| try simp only [lockstep_simp])
+  rest.mapM fun g => normGoal g
 
 /-- The Rust computation's shape. -/
 inductive RKind where
@@ -499,7 +644,11 @@ def cont (g : MVarId) (names : List Name) (hR : Option Name) : TacticM (List MVa
 
 def errArm (g : MVarId) (names : List Name) : TacticM Unit := do
   let (_, g') ← g.introN names.length names
-  runClosed g' (evalT `(tactic| ((try dsimp only); (try simp only [lockstep_simp]); exact errArm_ok)))
+  let g' ← g'.withContext do
+    let ty ← instantiateMVars (← g'.getType)
+    let m ← headNorm (ty.getArg! 1)
+    g'.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
+  runClosed g' (evalT `(tactic| exact errArm_ok))
 
 /-- Drop the branches whose condition contradicts the context. -/
 def contra (gs : List MVarId) : TacticM (List MVarId) := do
@@ -516,17 +665,14 @@ def contra (gs : List MVarId) : TacticM (List MVarId) := do
 def isMatcherApp (e : Expr) : MetaM Bool := do
   return (← matchMatcherApp? e).isSome
 
-/-- One step. -/
-def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
+/-- One step of a Rust-only (`LSP`) goal. -/
+def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
   let ty ← instantiateMVars (← g.getType)
-  unless ty.isAppOfArity ``LS 7 do throwError "lockstep: not an `LS` goal"
-  let m := (ty.getArg! 4).headBeta
-  let x := (ty.getArg! 6).headBeta
-  -- the Rust side branches
+  let m := (ty.getArg! 1).headBeta
   if m.isAppOfArity ``ite 5 then
-    let gs ← applyRule g ``LS.ite
-    let g1 ← contra (← cont (← pick gs `h₁) [`hc] (some `hc))
-    let g2 ← contra (← cont (← pick gs `h₂) [`hc] none)
+    let gs ← applyRule g ``LSP.ite
+    let g1 ← cont (← pick gs `h₁) [`hc] (some `hc)
+    let g2 ← cont (← pick gs `h₂) [`hc] none
     return g1 ++ g2
   if m.isAppOfArity ``Aeneas.Std.uncurry 5 then
     if let .fvar fv := m.appArg! then
@@ -535,9 +681,13 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
       for sg in subs do
         out := out ++ (← tidy sg.mvarId none)
       return out
+    else
+      let rest ← runOn g (evalT `(tactic| rw [uncurry_apply_proj]))
+      match rest with
+      | [g'] => return ← tidy g' none
+      | _ => return rest
   if let some mapp ← matchMatcherApp? m then
-    let d := mapp.discrs.find? (·.isFVar)
-    match d with
+    match mapp.discrs.find? (·.isFVar) with
     | some (.fvar fv) =>
       let subs ← g.cases fv
       let mut out := []
@@ -545,28 +695,26 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
         out := out ++ (← tidy sg.mvarId none)
       return out
     | _ => return ← runOn g (evalT `(tactic| split))
-  -- the twin side, when it moves first
-  if x.isAppOfArity ``ite 5 then
+  if m.isAppOfArity ``Bind.bind 6 then
     let s ← saveState
     try
-      let gs ← applyRule g ``LS.twin_ite_pos
-      runClosed (← pick gs `hc) (evalT `(tactic| lockstep_side))
-      return [← pick gs `h]
+      let gs ← applyRule g ``LSP.bind'
+      specCore (← pick gs `hf)
+      return ← cont (← pick gs `hk) [`a, `hP] (some `hP)
     catch _ => s.restore
-    try
-      let gs ← applyRule g ``LS.twin_ite_neg
-      runClosed (← pick gs `hc) (evalT `(tactic| lockstep_side))
-      return [← pick gs `h]
-    catch _ => s.restore
-  if x.isAppOfArity ``Bind.bind 6 then
-    let a := (x.getArg! 4).headBeta
-    if a.isAppOfArity ``Pure.pure 4 then
-      let gs ← applyRule g ``LS.twin_pure_bind
-      return ← tidy (← pick gs `h) none
-    if a.isAppOfArity ``MonadState.get 3 then
-      let gs ← applyRule g ``LS.twin_get_bind
-      return ← tidy (← pick gs `h) none
-  -- the Rust side moves
+    let gs ← applyRule g ``LSP.bind_eq
+    return ← cont (← pick gs `hk) [`a, `hf] none
+  if m.isAppOfArity ``Result.ok 2 then
+    let gs ← applyRule g ``LSP.ret
+    runClosed (← pick gs `h) (evalT `(tactic| lockstep_side))
+    return []
+  let gs ← applyRule g ``LSP.tail
+  specCore (← pick gs `hf)
+  runClosed (← pick gs `hPQ) (evalT `(tactic| (intro _ hP; lockstep_side)))
+  return []
+
+/-- The Rust side moves: a bind, a leaf, or a tail call. -/
+def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
   if m.isAppOfArity ``Bind.bind 6 then
     let f := m.getArg! 4
     let kind ← classify (← inferType f).appArg!
@@ -630,13 +778,89 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
         let gs ← applyRule g ``LS.err
         runClosed (← pick gs `h) (evalT `(tactic| lockstep_errsim))
         return []
-    throwError "lockstep: a Rust leaf the twin does not match{indentExpr ty}"
+    throwError "lockstep: a Rust leaf the twin does not match{indentExpr (← g.getType)}"
   -- a tail call
   let gs ← applyRule g ``LS.tail
   specCore (← pick gs `hf)
   runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
   runClosed (← pick gs `hR) (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
   return []
+
+
+/-- One step. -/
+def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  if ty.isAppOfArity ``LSP 3 then return ← stepPure g
+  unless ty.isAppOfArity ``LS 7 do throwError "lockstep: not an `LS` goal"
+  let m := (ty.getArg! 4).headBeta
+  let x := (ty.getArg! 6).headBeta
+  -- the Rust side branches
+  if m.isAppOfArity ``ite 5 then
+    let gs ← applyRule g ``LS.ite
+    let g1 ← cont (← pick gs `h₁) [`hc] (some `hc)
+    let g2 ← cont (← pick gs `h₂) [`hc] none
+    return g1 ++ g2
+  if m.isAppOfArity ``Aeneas.Std.uncurry 5 then
+    if let .fvar fv := m.appArg! then
+      let subs ← g.cases fv
+      let mut out := []
+      for sg in subs do
+        out := out ++ (← tidy sg.mvarId none)
+      return out
+    else
+      let rest ← runOn g (evalT `(tactic| rw [uncurry_apply_proj]))
+      match rest with
+      | [g'] => return ← tidy g' none
+      | _ => return rest
+  if let some mapp ← matchMatcherApp? m then
+    let d := mapp.discrs.find? (·.isFVar)
+    match d with
+    | some (.fvar fv) =>
+      let subs ← g.cases fv
+      let mut out := []
+      for sg in subs do
+        out := out ++ (← tidy sg.mvarId none)
+      return out
+    | _ => return ← runOn g (evalT `(tactic| split))
+  -- the twin side, when it moves first
+  if x.isAppOfArity ``ite 5 then
+    let cheap ← `(tactic| lockstep_side_cheap)
+    let dear ← `(tactic| lockstep_side_dear)
+    -- polarity: the twin's test usually goes the way the last Rust test went
+    let lastNeg ← do
+      let mut r := false
+      for d in (← getLCtx) do
+        if d.userName.eraseMacroScopes == `hc then
+          r := (← instantiateMVars d.type).isAppOfArity ``Not 1
+      pure r
+    let rules := if lastNeg then [``LS.twin_ite_neg, ``LS.twin_ite_pos]
+      else [``LS.twin_ite_pos, ``LS.twin_ite_neg]
+    let tryIte (tac : TSyntax `tactic) : TacticM (Option (List MVarId)) := do
+      for rule in rules do
+        let s ← saveState
+        try
+          let gs ← applyRule g rule
+          runClosed (← pick gs `hc) (evalTactic tac)
+          return some [← pick gs `h]
+        catch _ => s.restore
+      return none
+    -- the fact that decides the twin's test is usually a Rust step away, so a
+    -- Rust bind moves first (a Rust-only step does not need the twin)
+    if m.isAppOfArity ``Bind.bind 6 then
+      let s ← saveState
+      try return ← rustStep g m x
+      catch _ => s.restore
+    if let some r ← tryIte cheap then return r
+    if let some r ← tryIte dear then return r
+  if x.isAppOfArity ``Bind.bind 6 then
+    let a := (x.getArg! 4).headBeta
+    if a.isAppOfArity ``Pure.pure 4 then
+      let gs ← applyRule g ``LS.twin_pure_bind
+      return ← tidy (← pick gs `h) none
+    if a.isAppOfArity ``MonadState.get 3 then
+      let gs ← applyRule g ``LS.twin_get_bind
+      return ← tidy (← pick gs `h) none
+  rustStep g m x
 
 /-- **One lockstep step** on the main goal. -/
 elab "lockstep_step" : tactic => do
@@ -648,7 +872,13 @@ elab "lockstep_step" : tactic => do
     setGoals (rest ++ others)
   catch e =>
     s.restore
-    throw e
+    -- a stuck goal may be a branch the context rules out
+    try
+      runClosed g (evalT `(tactic| lockstep_contra))
+      setGoals others
+    catch _ =>
+      s.restore
+      throw e
 
 /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
 macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)

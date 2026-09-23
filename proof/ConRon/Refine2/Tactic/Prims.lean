@@ -48,6 +48,48 @@ attribute [lockstep_simp] absENodeView Option.map_some Option.map_none absU
   · have : absU32 t ≠ absU32 arena.handle.ETAG_FORALL_E := fun hc => h (absU32_inj hc)
     simp [h, this]
 
+@[lockstep_simp] theorem absU32_beq_sort (t : Std.U32) :
+    (absU32 t == ETag.sort) = decide (t = arena.handle.ETAG_SORT) := by
+  rw [← etag_sort_abs]
+  by_cases h : t = arena.handle.ETAG_SORT
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_SORT := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem absU32_beq_app (t : Std.U32) :
+    (absU32 t == ETag.app) = decide (t = arena.handle.ETAG_APP) := by
+  rw [← etag_app_abs]
+  by_cases h : t = arena.handle.ETAG_APP
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_APP := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem absU32_beq_bvar (t : Std.U32) :
+    (absU32 t == ETag.bvar) = decide (t = arena.handle.ETAG_BVAR) := by
+  rw [← etag_bvar_abs]
+  by_cases h : t = arena.handle.ETAG_BVAR
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_BVAR := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem absU32_beq_letE (t : Std.U32) :
+    (absU32 t == ETag.letE) = decide (t = arena.handle.ETAG_LET_E) := by
+  rw [← etag_letE_abs]
+  by_cases h : t = arena.handle.ETAG_LET_E
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_LET_E := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem absU32_beq_proj (t : Std.U32) :
+    (absU32 t == ETag.proj) = decide (t = arena.handle.ETAG_PROJ) := by
+  rw [← etag_proj_abs]
+  by_cases h : t = arena.handle.ETAG_PROJ
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_PROJ := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+attribute [lockstep_simp] etag_sort_abs etag_app_abs etag_bvar_abs etag_letE_abs etag_proj_abs
+
 @[lockstep_simp] theorem isBind_forallE : ETag.isBind ETag.forallE = true := rfl
 @[lockstep_simp] theorem isBind_lam : ETag.isBind ETag.lam = true := rfl
 
@@ -98,7 +140,104 @@ attribute [lockstep_simp] absEIdxListFrom absOptE
   obtain ⟨v, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   exact ⟨v, fail_run h⟩
 
+@[lockstep] theorem vec_push_spec {α : Type} (v : alloc.vec.Vec α) (x : α) :
+    LSP (alloc.vec.Vec.push v x) (fun w => w.val = v.val ++ [x]) :=
+  fun _ h => ConRon.Refine.vec_push_val h
+
+@[lockstep] theorem e_tag_is_bind_spec (t : Std.U32) :
+    LSP (arena.handle.e_tag_is_bind t) (fun b => b = ETag.isBind (absU32 t)) := by
+  intro b h
+  rw [arena.handle.e_tag_is_bind] at h
+  simp only [ETag.isBind, absU32_beq_lam, absU32_beq_forallE]
+  split at h
+  · cases Result.ok_injective h; simp [*]
+  · cases Result.ok_injective h; simp [*]
+
+@[lockstep] theorem bvar_of_data_spec (w : Std.U64) :
+    LSP (kernel.expr.bvar_of_data w) (fun r => r.val = w.val / 65536 % 32768) :=
+  fun _ h => ConRon.Refine.Expr.bvar_of_data_val h
+
+@[lockstep] theorem sat_range_spec :
+    LSP kernel.expr.sat_range (fun r => r.val = ConLeche.satRange) :=
+  fun _ h => ConRon.Refine.Expr.sat_range_val h
+
 /-! ## Reads -/
+
+/-- A Rust store read against a twin read of the same store field. -/
+theorem LSV.of_store_read {α β : Type} {pers st lst} {m : Result α} {x : AM β}
+    {A : α → β} {F : EStore → β} (hx : ∀ l : AState, x.run l = .ok (F l.store, l))
+    (hr : ∀ a, m = ok a → F lst.store = A a)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSV pers (fun a b => b = A a) m st lst x := by
+  intro a ha
+  exact ⟨_, lst, hx lst, (hr a ha).symm ▸ rfl, hrel, hinv⟩
+
+@[lockstep] theorem view_app_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absPairE a) (arena.monad.view_app pers st h) st lst
+      (Arena.viewApp (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewApp (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by rw [arena.monad.view_app] at hr; exact estore_view_app_abs hrel.store hr)
+    hrel hinv
+
+@[lockstep] theorem view_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absU a) (arena.monad.view_bvar pers st h) st lst
+      (Arena.viewBVar (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewBVar (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by rw [arena.monad.view_bvar] at hr; exact estore_view_bvar_abs hrel.store hr)
+    hrel hinv
+
+@[lockstep] theorem view_let_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absLetT a) (arena.monad.view_let pers st h) st lst
+      (Arena.viewLet (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewLet (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by rw [arena.monad.view_let] at hr; exact estore_view_let_abs hrel.store hr)
+    hrel hinv
+
+@[lockstep] theorem view_proj_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absProjT a) (arena.monad.view_proj pers st h) st lst
+      (Arena.viewProj (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewProj (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by rw [arena.monad.view_proj] at hr; exact estore_view_proj_abs hrel.store hr)
+    hrel hinv
+
+@[lockstep] theorem view_bind_i_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx)
+    (hbind : ETag.isBind (absEIdx h).tag = true) :
+    LSV pers (fun a b => b = Option.map absBindI a) (arena.monad.view_bind_i pers st h) st lst
+      (Arena.viewBindI (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewBindI (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by
+      rw [arena.monad.view_bind_i] at hr; exact estore_view_bind_i_abs hrel.store hbind hr)
+    hrel hinv
+
+/-- `derived_e` against `derivedE`: the word, up to its hash (`derObsE`), read
+as the three fields every reader uses. -/
+@[lockstep] theorem derived_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun (d : Std.U64) (w : UInt64) =>
+        (ConLeche.bvarOfData w).toNat = d.val / 65536 % 32768)
+      (arena.monad.derived_e pers st h) st lst (derivedE (absEIdx h)) := by
+  intro d hd
+  refine ⟨_, lst, rfl, ?_, hrel, hinv⟩
+  rw [arena.monad.derived_e] at hd
+  exact (derObsE_fields (estore_derived_abs hrel.store hd)).1
+
+attribute [lockstep_simp] absPairE absLetT absProjT absBindI
+
+
+/-- `arena::monad::view_sort` against `Arena.viewSort`. -/
+@[lockstep] theorem view_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absLIdx a) (arena.monad.view_sort pers st h) st lst
+      (Arena.viewSort (absEIdx h)) := by
+  intro o hrun
+  refine ⟨_, lst, rfl, ?_, hrel, hinv⟩
+  rw [arena.monad.view_sort] at hrun
+  exact estore_view_sort_abs hrel.store hrun
 
 /-- `arena::monad::view_bind` against `Arena.viewBind`, at a binder tag. -/
 @[lockstep] theorem view_bind_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -231,6 +370,51 @@ boolean is the twin's test on the word it reads. -/
   exact ⟨(), _, rfl, trivial, { hrel with memos := { hrel.memos with liftC := h1 } },
     { hinv with memos := { hinv.memos with liftC := h2 } }⟩
 
+@[lockstep] theorem inst1_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.inst1_get st k) st lst
+      (Arena.inst1Get (absEIdxNat k)) := by
+  intro o hrun
+  refine ⟨_, lst, ?_, rfl, hrel, hinv⟩
+  rw [arena.monad.inst1_get] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hto := ConRon.Refine.HashMap2.get_refines_wf eidxNat_eq2 hinv.memos.inst1C
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hrel.memos.inst1C k trivial
+  show (Arena.inst1Get (absEIdxNat k)).run lst = _
+  rw [show (Arena.inst1Get (absEIdxNat k)).run lst
+        = .ok (lst.memos.inst1C[absEIdxNat k]?, lst) from rfl, ← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option arena.handle.EIdx) = o := Result.ok_injective hrun
+    subst h2
+    rfl
+  | some r =>
+    rw [hrc] at hrun
+    obtain ⟨x, hx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 : some x = o := Result.ok_injective hrun
+    subst h2
+    rw [dupId_eidx _ _ hx]
+
+@[lockstep] theorem inst1_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
+    LSW pers (arena.monad.inst1_set st k r) lst
+      (Arena.inst1Set (absEIdxNat k) (absEIdx r)) := by
+  intro st' hrun
+  rw [arena.monad.inst1_set] at hrun
+  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨old, hm⟩ := p
+  rw [dupId_eidx _ _ he] at hp
+  have hst : st' = { st with memos := { st.memos with inst1_c := hm } } :=
+    (Result.ok_injective hrun).symm
+  subst hst
+  obtain ⟨h1, h2⟩ := memo_insert_step eidxNat_eq2 absEIdxNat_inj hinv.memos.inst1C
+    hrel.memos.inst1C hp
+  exact ⟨(), _, rfl, trivial, { hrel with memos := { hrel.memos with inst1C := h1 } },
+    { hinv with memos := { hinv.memos with inst1C := h2 } }⟩
+
 /-! ## Interns — pending D2 (see the module note) -/
 
 @[lockstep] theorem intern_e_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -261,6 +445,12 @@ boolean is the twin's test on the word it reads. -/
     (hinv : AStateInv pers st) (t v b : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_let_e pers st t v b) lst
       (Arena.internLetEE (absEIdx t) (absEIdx v) (absEIdx b)) := by
+  sorry
+
+@[lockstep] theorem intern_e_bind_i_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bind_i pers st t ty b m) lst
+      (Arena.internBindIE (absU32 t) (absEIdx ty) (absEIdx b) (absBMIdx m)) := by
   sorry
 
 @[lockstep] theorem intern_e_proj_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
