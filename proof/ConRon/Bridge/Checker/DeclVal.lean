@@ -1235,17 +1235,12 @@ anything and the conclusion was not provable.  Free at the one call site
 through `Basis.lean`'s `RunsB` combinators — `natLitSupported_run`,
 `natOpDeps_run` / `natOpDeps_state`, `natOpDepsStored_run`, and the two `Bool`
 constructor lookups through `RunsB.matchLps` (whose `.projInfo` premise
-`IFEnvOK.proj` discharges). -/
-theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
-    {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
-    (hp : PinsOK s)
-    (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns cn = some nm)
-    (hr : natOpGuard fe2 cn s = .ok (r, s')) :
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
-      s'.pins = s.pins ∧ r = ConLeche.natOpGuard env2 nm := by
-  suffices h : RunsB (natOpGuard fe2 cn) s (ConLeche.natOpGuard env2 nm) by
-    obtain ⟨hs, rfl⟩ := h _ _ hr
-    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+`IFEnvOK.proj` discharges).  Round 10 moved the chain into
+`natOpGuard_runsB` (below), which `divModEnvGuard` binds. -/
+theorem natOpGuard_runsB {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
+    {nm : ConLeche.Name} {s : AState} (hok : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns cn = some nm) :
+    RunsB (natOpGuard fe2 cn) s (ConLeche.natOpGuard env2 nm) := by
   simp only [ConLeche.natOpGuard, Bool.and_assoc]
   unfold Arena.natOpGuard
   refine RunsB.bindB (natLitSupported_run hok hp hie) fun {s1} hs1 => ?_
@@ -1284,6 +1279,16 @@ theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
   refine RunsB.pin hs5.ok hp5 (x := ConLeche.boolFalseName) (by rfl) fun bf dbf => ?_
   exact RunsB.matchLps hs5.ok (hie5.findRel hs5.ok dbf)
     fun ci hf => CIProjNamed_of_find hie5 hf
+
+theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
+    {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
+    (hp : PinsOK s)
+    (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns cn = some nm)
+    (hr : natOpGuard fe2 cn s = .ok (r, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins ∧ r = ConLeche.natOpGuard env2 nm := by
+  obtain ⟨hs, rfl⟩ := natOpGuard_runsB hok hp hie hn _ _ hr
+  exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:640-650 natOpCod -/
 theorem natOpCod_run {env : Env} {fe : IFEnv} {cH : NIdx} {cn : ConLeche.Name}
@@ -1952,20 +1957,111 @@ not, it either stops with `.ok ()` or recurses — and the recursion is the
 induction hypothesis, at the SAME fuel.  Only the `matched` step has to line
 the two sides up: guards `true` and the pure attempt `.ok true`. -/
 
+/-- con-leche: none — a stored constant's TYPE compared against an interned
+expression, as a guard in front of a continuation (`divModEnvGuard`'s `Bool.true`
+lookup). -/
+theorem RunsB.matchTyAnd {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    (hpn : ∀ ci, x = some ci → Frontend.CIProjNamed s.store ci)
+    {ty : EIdx} {T : Expr} (hty : denoteE s.store ty = some T)
+    {Y : AM Bool} {B : Bool}
+    (hY : ∀ {s₁ : AState}, Frontend.IStepS s s₁ → RunsB Y s₁ B) :
+    RunsB (match (generalizing := false) x with
+        | some ci => do
+          let cv ← ci.toConstantVal
+          if (cv.type != ty) = true then pure false else Y
+        | none => pure false) s
+      ((match (generalizing := false) y with
+        | some ci => ci.toConstantVal.type == T
+        | none => false) && B) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · refine RunsB.bind fun {v s₁} g1 => ?_
+    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (hpn ci rfl) hd g1
+    refine ⟨hs1, ?_⟩
+    obtain ⟨-, -, hvt⟩ := denoteCV_inv hv
+    exact RunsB.guard hs1.ok
+      (by simp only [bne, beqE_of_denote hs1.ok.wf hvt (denote_ext hty hs1.ext)])
+      fun _ => hY hs1
+
+/-- con-leche: none — the same comparison as the chain's last link
+(`divModEnvGuard`'s `Bool.false` lookup). -/
+theorem RunsB.matchTy {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    (hpn : ∀ ci, x = some ci → Frontend.CIProjNamed s.store ci)
+    {ty : EIdx} {T : Expr} (hty : denoteE s.store ty = some T) :
+    RunsB (match (generalizing := false) x with
+        | some ci => do
+          let cv ← ci.toConstantVal
+          pure (cv.type == ty)
+        | none => pure false) s
+      (match (generalizing := false) y with
+        | some ci => ci.toConstantVal.type == T
+        | none => false) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · refine RunsB.bind fun {v s₁} g1 => ?_
+    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (hpn ci rfl) hd g1
+    refine ⟨hs1, ?_⟩
+    obtain ⟨-, -, hvt⟩ := denoteCV_inv hv
+    rw [beqE_of_denote hs1.ok.wf hvt (denote_ext hty hs1.ext)]
+    exact RunsB.ret hs1.ok
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard — the
 environment prerequisites, read at the extended environment.
 
-`sorry`: `natOpGuard_run` and `natOpStoredOkAll_runs` (both PROVED), the
-`fe2.find? en == some eqA` test (`IFEnvOK.find_beq_ind`), and the two `Bool`
-constructor type comparisons through `toConstantVal` (`RunsB.matchLps`'
-shape) — the `RunsB` combinators of `Bridge/Checker/Basis.lean`. -/
+**PROVED** (task #97-P3-Checker round 10): `natOpGuard_runsB`,
+`natOpDeps_run` + `natOpStoredOkAll_runs`, the `fe2.find? en == some eqA` test
+(`IFEnvOK.find_beq_ind` at the freshly interned `eqA`), and the two `Bool`
+constructors' types (`RunsB.matchTyAnd`, `RunsB.matchTy`) against the interned
+`.const Bool []`. -/
 theorem divModEnvGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
     (hp : PinsOK s) (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns cn = some nm)
     (hr : Arena.divModEnvGuard fe2 cn s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧ r = ConLeche.divModEnvGuard env2 nm := by
-  sorry
+  suffices h : RunsB (Arena.divModEnvGuard fe2 cn) s (ConLeche.divModEnvGuard env2 nm) by
+    obtain ⟨hs, rfl⟩ := h _ _ hr
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+  have tr : ∀ {t : AState}, Frontend.IStepS s t →
+      StateOK t ∧ PinsOK t ∧ IFEnvOK env2 fe2 t ∧ denoteN t.store.ns cn = some nm :=
+    fun ht => ⟨ht.ok, hp.mono ht.ext ht.pins, hie.mono ht.ext, denoteN_ext hn ht.ext⟩
+  simp only [ConLeche.divModEnvGuard, Bool.and_assoc]
+  unfold Arena.divModEnvGuard
+  refine RunsB.bindB (natOpGuard_runsB hok hp hie hn) fun {s1} hs1 => ?_
+  obtain ⟨st1, hp1, hie1, hn1⟩ := tr hs1
+  refine RunsB.guard st1 (by simp) fun _ => ?_
+  refine RunsB.bind fun {ds s2} g2 => ?_
+  obtain rfl := natOpDeps_state hp1 g2
+  obtain ⟨-, -, -, -, hds⟩ := natOpDeps_run st1 hp1 hn1 g2
+  refine ⟨Frontend.IStepS.refl st1, ?_⟩
+  refine RunsB.bindB (natOpStoredOkAll_runs ds _ st1 hp1 hie1 hds) fun {s3} hs3 => ?_
+  obtain ⟨st3, hp3, hie3, -⟩ := tr (hs1.trans hs3)
+  refine RunsB.guard st3 (by simp) fun _ => ?_
+  refine RunsB.pin st3 hp3 (x := ConLeche.eqName) (by rfl) fun en den => ?_
+  refine RunsB.bind fun {ea s4} g4 => ?_
+  obtain ⟨hs4, hea, -⟩ := internCI_fresh st3 g4
+  refine ⟨hs4, ?_⟩
+  obtain ⟨st4, hp4, hie4, -⟩ := tr ((hs1.trans hs3).trans hs4)
+  obtain ⟨cvE, dE, hE⟩ : ∃ cv d, ConLeche.eqA = .indInfo cv d := ⟨_, _, rfl⟩
+  rw [hE] at hea ⊢
+  refine RunsB.guard st4 (by
+    rw [bne, hie4.find_beq_ind st4 (denoteN_ext den hs4.ext) hea]
+    cases env2.find? eqName <;> (try simp) <;> rfl) fun _ => ?_
+  refine RunsB.pin st4 hp4 (x := ConLeche.boolName) (by rfl) fun bn dbn => ?_
+  refine RunsB.bind fun {bty s5} g5 => ?_
+  obtain ⟨hs5, hbty⟩ := constE_run st4 hp4 dbn g5
+  refine ⟨hs5, ?_⟩
+  obtain ⟨st5, hp5, hie5, -⟩ := tr (((hs1.trans hs3).trans hs4).trans hs5)
+  refine RunsB.pin st5 hp5 (x := ConLeche.boolTrueName) (by rfl) fun bt dbt => ?_
+  refine RunsB.matchTyAnd st5 (hie5.findRel st5 dbt)
+    (fun ci hf => CIProjNamed_of_find hie5 hf) hbty fun {s6} hs6 => ?_
+  have hie6 := hie5.mono hs6.ext
+  refine RunsB.pin hs6.ok (hp5.mono hs6.ext hs6.pins) (x := ConLeche.boolFalseName)
+    (by rfl) fun bf dbf => ?_
+  exact RunsB.matchTy hs6.ok (hie6.findRel hs6.ok dbf)
+    (fun ci hf => CIProjNamed_of_find hie6 hf) (denote_ext hbty hs6.ext)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:292-297 divModPinGuard — one
 variant's pin guards.
