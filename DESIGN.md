@@ -60129,3 +60129,37 @@ merged at `ecee8ea4` (`DESIGN.md` conflict, both appends kept; `Mut.lean`
 conflict, this lane's file kept); `twin-lines.py update` relocated 106 Rust
 citations (digits only); then **all 16 OK** (`extract-check` 109 s,
 `lake-refine2` 215 s, `lake-bridge` 534 s).
+
+#### 7. The bounce, and one tactic again
+
+The queue bounced both slices against `arena` `ef5e1eec` (the Checker lane's
+tactic additions, Promote, Inductives round 2).  One branch now carries both
+(`t2-lock-exprops` merged into `t2-lock-exprops-b`, then `arena`):
+
+* **`Tactic/Lockstep.lean`**: every conflict resolved to arena's side (the
+  `lockstep_side_ext` tier, `errArm_bind`, `splitRels` in place of this
+  lane's `splitAnd`).  What this lane had put *into* the core alternatives
+  now comes in through extension points in `Tactic/Prims.lean`: a
+  `lockstep_errarm` `macro_rules` (the `uncurry` repack closed with `done`,
+  the `let (st1, body) ← let (r2, st3) := y` shape), and two
+  `lockstep_side_ext` alternatives — `beq_iff_eq` + `scalar_tac`, guarded by
+  `lockstep_guard_beq` to goals that mention `==` (it was the `sideI` tier's
+  third alternative; unguarded, it would run on every failing side goal), and
+  `lockstep_and_part`, a premise matched against the parts of a syntactic
+  conjunction at reducible transparency (the fresh memo's
+  `LMemoRel a ∅ ∧ SeenRel a ∅`, which `splitAnd` used to split and
+  `splitRels` does not, because it is not named `hR`).
+* **One core edit, unavoidable**: the Checker lane's `LS.twin_bind_pure`
+  fallback in `rustStep` rewrote the goal to `x >>= pure` and returned it;
+  the next step normalised it back to `x`, and `lockstep` looped
+  (`inst_lp_fast_ls` ran past 20 minutes with the heartbeat limit off).  It
+  is now atomic: the bind is taken on the rewritten goal at once
+  (`rustStep` is `partial`), or the rewrite is undone and the original
+  failure rethrown.
+* **`Promote/Prims.lean`**: `view_wf_ls` adapted to `view_ls`'s relation
+  (`EViewMetaWF a ∧ b = absENodeView a`) by a new `LSR.mono`; its
+  `dup2_{nidx,lidx,lsidx}` copies deleted (the `Tactic/Prims` ones kept);
+  the Inductives lane's `nidx_dup2_spec` deleted likewise.
+
+`lake build ConRonRefine2` clean after the merge; `scripts/gates.sh`: see
+the submission note.
