@@ -58369,4 +58369,5 @@ neighbourhood when the intern slice lands, so that every lane shares one set.
 
 #### 7. Gates
 
-`scripts/gates.sh` on the branch after merging `arena`; see the landing commit.
+`scripts/gates.sh` on the branch after merging `arena` (`545dee59`): **all 16
+OK** (`lake-refine2` 108 s, which builds the four sample modules).
