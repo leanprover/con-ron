@@ -60475,3 +60475,95 @@ Gates: `scripts/gates.sh` on the branch after merging `arena` (`924e25b4`):
 **all 16 OK** (`extract-check` 100 s).  `lake build ConRon ConRonBridge
 ConRonRefine2 ConRonCapstone` green (2 826 jobs) before the merge.  Shared
 Lake cache seeded from this state.
+
+### Task #97-T2-LOCKSTEP lane Checker Base/Top — the constant check, the value install and the `Top` arms by `lockstep` (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-chk-base` off `arena` `70ea5a33`.  Lane: `Refine2/Checker/
+{Base,Top}.lean` only (`DeclCheck.lean`/`Axioms.lean` are another agent's).
+Under the lockstep rule; no Rust change, no twin change, no new Theorem-2
+invariant, no edit to `Tactic/Lockstep.lean`.
+
+#### Slice 1
+
+**Closed by `lockstep`** (each `refine LS.toSim₀/toSimRel₀ ?_ hrun; rw [rust,
+twin]; lockstep`, some with `simp only [am_fail_bind]` first):
+* `Base`: `check_constant_val`, `install_constant_val` (was fan-in 2),
+  `check_constant_val_guards`, `install_constant_val_tail`,
+  `check_constant_val_after_annot`, `install_value_tail`,
+  `check_value_group_value` (with `cases g.kind`; the one contradicted
+  `is_thm` branch closed by `simp_all`);
+* `Top`: `check_basis_decl` (per kind; `checkBasisDecl_quotK`/`_ne`, two
+  twin-side equations in `Top`), `check_quot_decl` (per kind),
+  `check_quot_sound_record` (`checkQuotSoundRecordSpec_split`: the Rust's
+  length test, then slot 4), `check_axiom_decl_{std,trust,of_reduce,rest}`.
+* **Closed modulo a hypothesis another lane owns**, proved as `_of` lemmas
+  whose public form passes `sorry` for exactly that hypothesis:
+  `check_constant_val_guards_rest_of`, `install_value_of`
+  (`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`, ExprOps lane, branch
+  `t2-lock-exprops-b`, not on `arena` yet: one line each when it lands);
+  `unresolved_consts_error_of` (`mentions_const_ls`, which lives in
+  `Inductives/StructParts.lean`, a module ABOVE `Checker/Base.lean`, and is
+  itself `sorry` there).
+* **Closed by hand** (state-free cursors, task #97-T2-TACTIC §4's exception):
+  `name_nodup(_from)`, `all_rec_info`, `recs_form_suffix`; and
+  `nidx_is_proj_fn_shape` (a `SimRE` reader: two tag tests, two `view_n`,
+  two literal `str_eq`s; new `viewN_run`, `view_n_simre`, `lit_abs`).
+
+**`@[lockstep]` lemmas added** (extension points only): in `Base`, the guard
+callees under `chk_` names where a copy exists ABOVE this module
+(`chk_ifenv_find_spec`, `chk_reserved_basis_names_ls`,
+`chk_nidx_contains_from_zero_spec`, `chk_nidx_vec_dup_spec`,
+`chk_zero_level_ls`, `chk_lvl_eq_ls` — `Inductives/{Shape,Prims}.lean` have
+the same pairs and import this file, so those copies could now be deleted),
+`nidx_is_proj_fn_shape_ls`, `name_nodup_spec`, `all_level_params_defined_ls`,
+`consts_resolve_f_fast_ls`, `is_thm_spec`, and the `_ls` of every piece
+above; `@[lockstep_simp]` `option_isSome_map_is_some`,
+`absIConstantVal_{mk,levelParams}` (and `absIConstantVal_{name,type}` and the
+`absValueGroup` attribute line moved up the file so the pieces see them).  In
+`Top`: `top_{std_axiom_ok,trust_compiler_ok,of_reduce_ax_ok,eq_basis_pinned}_ls`
+(DeclCheck's leaves, `top_` so a later `_ls` in DeclCheck cannot collide),
+`top_i_constant_info_dup_spec`, `absICIL_length`.  **Not** `@[lockstep]`, taken
+as local hypotheses instead: `unresolved_consts_error_ls w` and
+`lift_fueled_ls what` (the twin's message word is not determined by the Rust
+call, so a global lemma leaves an unassignable metavariable), and
+`install_value_at_ls` (beside `install_value_ls` the tactic tries it at every
+phase-A call, and its `lf.restrictTo _ = lf` side goal sends the side tier into
+a recursion: `annot_step_opaque_install` hit `maxRecDepth`).
+
+**A tactic issue, worked around locally (`chk_lockstep`, a macro in `Base`),
+not fixed in `Tactic/Lockstep.lean`.**  When the twin's head is an `if` that
+the LAST Rust test already decided (`hc` in context) and the Rust's next step
+is a state bind, `stepCore` moves the Rust first; that bind's spec does not
+match (its twin partner is inside the `if`), and `rustStep`'s fallback
+`LS.twin_bind_pure` then SUCCEEDS on the `if`, burying it under `>>= pure`
+where it is never decided.  Every guard chain whose failing branch calls a
+state function hits it (`unresolved_consts_error`, the axiom arms' `*_ok`
+gates, the twin's `a || b` against the Rust's two nested tests).
+`chk_lockstep` tries `LS.twin_ite_neg/pos` decided from the context
+(`assumption`, the `||` split, `lockstep_side_cheap`, `lockstep_side_ite`)
+before each `lockstep_step`.  Round 2's manual `if` decision in
+`check_defn_pins_refines` was the same issue; it now closes by plain
+`lockstep` (the new `chk_nidx_contains_from_zero_spec` answers its test as a
+`TwinEq`), and the workaround there is deleted.  **Suggested shared fix**
+(for whoever owns `Tactic/Lockstep.lean`): in `rustStep`'s catch, do not
+apply `LS.twin_bind_pure` when the twin is an `ite`/`dite`; or in `stepCore`,
+try `tryIte cheap` before the Rust bind when `hc` decides it.
+
+**Statement gap found (DeclCheck's, reported, not edited):**
+`install_basis_decls_refines` concludes `SimRelR (fun r v => IFEnvRel r v)`,
+without `IFEnvInv` of the result; `check_basis_decl_install_refines` (and so
+`check_basis_decl`) must answer `IFEnvRelI`.  It is the one `Top` item left
+`sorry`; it needs that leaf to carry `IFEnvRelI` (as `ifenv_push_refines`
+does) — the `IFEnvRel`-fields work the coordinator holds.
+
+**No twin/Rust divergence found** on any of these paths.
+
+Frontier (`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): **start** (`70ea5a33`) 48 items / 175
+tainted / dead weight 465; **after slice 1** 51 / 213 / 443.  Items grew
+because the closed arms reach their leaves: DeclCheck's `std_axiom_ok`,
+`trust_compiler_ok`, `of_reduce_ax_ok`, `eq_basis_pinned`; Canon's
+`i_constant_info_canon_eq`; Axioms' `quot_pin_hit`; and this lane's own next
+leaves (`all_level_params_defined`, `consts_resolve_f_fast`: the two memoised
+guard walks; `ind_params_ok`; the three `_of` hypotheses above;
+`check_basis_decl_install`).
