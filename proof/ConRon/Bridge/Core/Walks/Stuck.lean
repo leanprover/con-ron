@@ -30,6 +30,7 @@ is what every body theorem of this tier already has in hand
 -/
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.Reserved
+import ConRon.Bridge.Core.Walks.Eta
 
 namespace ConRon.Bridge.Core
 
