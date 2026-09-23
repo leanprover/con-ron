@@ -20,13 +20,6 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
 
-/-- Drop a metadata wrapper on the goal (a `have` leaves one, and the lockstep
-judgement tests do not look through it). -/
-elab "strip_mdata" : tactic => do
-  let g ← Lean.Elab.Tactic.getMainGoal
-  let t ← Lean.instantiateMVars (← g.getType)
-  Lean.Elab.Tactic.replaceMainGoal [← g.replaceTargetDefEq t.consumeMData]
-
 /-! ## `defEqList` (`def_eq_list`, a cursor loop) -/
 
 theorem def_eq_list_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
@@ -288,7 +281,6 @@ the port's input (every binder datum the port reads out of the store is, by
   rw [arena.core.eta_cert, etaCert]
   have hvb : PC1.ViewBindWF pers := PC1.viewBindWF_holds pers
   unfold PC1.ViewBindWF at hvb
-  strip_mdata
   lockstep_core
 
 /-! ## `structUnitCert` (fragment `struct_unit_cert_tail`) -/
@@ -350,11 +342,164 @@ theorem struct_eta_proj_certs_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
         (List.range' (absU j) (absU n))) :=
   struct_eta_proj_certs_aux hk _ t us2 targs b lps_t n j rfl hx hrel hinv hctx hf
 
-/-! ## `structEtaCertWith` (fragments `struct_eta_cert_{at,certs,fam,tail}`) -/
+/-! ## `structEtaCertWith` (port fragments `struct_eta_cert_{at,certs,tail}`)
 
-attribute [lockstep_inline] arena.core.struct_eta_cert_at arena.core.struct_eta_cert_certs
-  arena.core.struct_eta_cert_fam arena.core.struct_eta_cert_tail
+The port splits `structEtaCertWith` into four functions; inlining all of them
+into one `lockstep` run is too large a goal (it exhausts the heartbeat budget
+and ~11 GB).  So each fragment gets its own lemma against the twin's
+corresponding SUB-TERM, named here (`sectTail`, `sectCerts`, `sectAt`: each
+is literally the twin's text from that point on, the next one folded), and
+the caller's tail call closes the fold by `rfl`.  `struct_eta_cert_fam` stays
+`lockstep_inline`. -/
 
+attribute [lockstep_inline] arena.core.struct_eta_cert_fam
+
+/-- `structEtaCertWith` from the spine comparison on (the port's
+`struct_eta_cert_tail`). -/
+def sectTail (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (cvc : IConstantVal) (us : LsIdx) (T : NIdx) (us' : LsIdx) (targs aargs : List EIdx)
+    (b : EIdx) (eP eF : Nat) : AM Bool := do
+  if ← defEqList r fe depth (aargs.take eP) targs then do
+    let tt ←
+      if mode.ttChecks then do
+        let tyC ← constTyAt cvc us
+        let projs ← etaProjs fe T us' targs b eF
+        iotaCerts r fe depth false tyC (targs ++ projs)
+      else pure true
+    if tt then do
+      let projs ← etaProjs fe T us' targs b eF
+      defEqList r fe depth (aargs.drop eP) projs
+    else pure false
+  else pure false
+
+/-- `structEtaCertWith` from the level comparison on (`struct_eta_cert_certs`). -/
+def sectCerts (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (cvc cvT : IConstantVal) (us : LsIdx) (T : NIdx) (us' : LsIdx) (targs aargs : List EIdx)
+    (b : EIdx) (eP eF : Nat) : AM Bool := do
+  if ← liftFueled "level comparison" (← lvlsEq? us us') then do
+    let famT ←
+      if mode.certs then
+        iotaCerts r fe depth false (← constTyAt cvT us') targs
+      else pure true
+    if famT then do
+      let percerts ←
+        if !mode.certs then pure true
+        else if ← towerSlotsAll fe T eF then pure true
+        else
+          structEtaProjCerts r fe depth T us' targs b cvT.levelParams (List.range eF)
+      if percerts then sectTail mode r fe depth cvc us T us' targs aargs b eP eF
+      else pure false
+    else pure false
+  else pure false
+
+/-- `structEtaCertWith` from the stuck side's type head on (`struct_eta_cert_at`). -/
+def sectAt (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (cvc : IConstantVal) (c : NIdx) (us : LsIdx) (b wtb : EIdx) (aargs : List EIdx) :
+    AM Bool := do
+  let hh ← getAppFn coreWalkFuel wtb
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const T us' =>
+      match fe.find? T with
+      | some (.indInfo cvT caps) => do
+        let targs ← getAppArgs coreWalkFuel wtb
+        let reserved ← reservedBasisNames
+        match ← viewLsLen us' with
+        | none => failDanglingLs
+        | some uslen =>
+        let slots ←
+          if ← towerSlotsAll fe T caps.etaFields then pure true
+          else recSlotsAll fe T caps.etaFields
+        if caps.eta = true ∧ caps.etaCtor = c ∧
+            reserved.contains T = false ∧ reserved.contains c = false ∧
+            targs.length = caps.etaParams ∧
+            uslen = cvT.levelParams.length ∧
+            cvc.levelParams = cvT.levelParams ∧ slots = true then
+          sectCerts mode r fe depth cvc cvT us T us' targs aargs b caps.etaParams caps.etaFields
+        else pure false
+      | _ => pure false
+    | _ => pure false
+  else pure false
+
+@[lockstep] theorem struct_eta_cert_tail_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth cvc us t us2 targs b aargs eta_params eta_fields lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_cert_tail pers vis st mode lane fu fe depth cvc us t us2 targs b
+        aargs eta_params eta_fields) lst
+      (sectTail (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absIConstantVal cvc) (absLsIdx us) (absNIdx t) (absLsIdx us2)
+        (absEIdxList targs) (absEIdxList aargs) (absEIdx b) (absU eta_params) (absU eta_fields)) := by
+  rw [arena.core.struct_eta_cert_tail, sectTail]
+  lockstep_core
+
+attribute [local lockstep_simp] List.range_eq_range' in
+@[lockstep] theorem struct_eta_cert_certs_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth cvc cvt us t us2 targs b aargs eta_params eta_fields lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_cert_certs pers vis st mode lane fu fe depth cvc cvt us t us2 targs b
+        aargs eta_params eta_fields) lst
+      (sectCerts (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absIConstantVal cvc) (absIConstantVal cvt) (absLsIdx us) (absNIdx t)
+        (absLsIdx us2) (absEIdxList targs) (absEIdxList aargs) (absEIdx b) (absU eta_params)
+        (absU eta_fields)) := by
+  rw [arena.core.struct_eta_cert_certs, sectCerts]
+  lockstep_core
+  -- DIVERGENCE (D-C1-2): the twin's `let percerts ← if !mode.certs then pure true
+  -- else if ← towerSlotsAll fe T caps.etaFields then …` lifts the `towerSlotsAll`
+  -- read (which interns `projTableName T`) ABOVE the `!mode.certs` test
+  -- (Arena/Core.lean `structEtaCertWith`), so at a mode with `certs = false` the
+  -- twin interns and may throw `native`; the port (`struct_eta_cert_certs`,
+  -- core.rs) calls `tower_slots_all` only under `certs`.  Fix: `else do if ←
+  -- towerSlotsAll … then … else …` (see `struct_eta_cert_certs_fix_ls`, which
+  -- closes).
+  all_goals sorry
+
+@[lockstep] theorem struct_eta_cert_at_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth cvc c us b wtb aargs lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_cert_at pers vis st mode lane fu fe depth cvc c us b wtb aargs) lst
+      (sectAt (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absIConstantVal cvc) (absNIdx c) (absLsIdx us) (absEIdx b) (absEIdx wtb)
+        (absEIdxList aargs)) := by
+  rw [arena.core.struct_eta_cert_at, sectAt]
+  lockstep_core
+  -- glue: the port's `view_ls` against the twin's `viewLsLen` + `failDanglingLs`
+  refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
+  dsimp only
+  lockstep_core
+
+/-- `structEtaCertWith` with its second half folded into `sectAt`. -/
+theorem structEtaCertWith_eq (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b wtb : EIdx) :
+    structEtaCertWith mode r fe depth a b wtb = (do
+      let hh ← getAppFn coreWalkFuel a
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const c us =>
+          match fe.find? c with
+          | some (.ctorInfo cvc cnP cnF) => do
+            let aargs ← getAppArgs coreWalkFuel a
+            if aargs.length = cnP + cnF then sectAt mode r fe depth cvc c us b wtb aargs
+            else pure false
+          | _ => pure false
+        | _ => pure false
+      else pure false) := by
+  unfold structEtaCertWith sectAt sectCerts sectTail
+  rfl
+
+-- the `twin_view_const_name` rule's `hg` side (`intros; rfl`) is a defeq check
+-- between two `sectAt` continuations that differ in `us`: it does not fail fast
+-- but exhausts the heartbeats, so the rule is switched off here (tactic gap)
+attribute [-lockstep_twin] LS.twin_view_const_name in
 @[lockstep] theorem struct_eta_cert_with_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth a b wtb lst}
     (hx : ExprOpsHyp pers)
@@ -365,10 +510,75 @@ attribute [lockstep_inline] arena.core.struct_eta_cert_at arena.core.struct_eta_
       (structEtaCertWith (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b) (absEIdx wtb)) := by
-  rw [arena.core.struct_eta_cert_with, structEtaCertWith]
+  rw [arena.core.struct_eta_cert_with, structEtaCertWith_eq]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
+
+@[lockstep] theorem struct_eta_cert_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_cert pers vis st mode lane fu fe depth a b) lst
+      (structEtaCert (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.struct_eta_cert, structEtaCert]
+  lockstep_core
+
+@[lockstep] theorem stuck_irrel_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.stuck_irrel pers vis st mode lane fu fe depth a b) lst
+      (stuckIrrel (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.stuck_irrel, stuckIrrel]
+  lockstep_core
+
+/-! ## Divergence evidence (D-C1-2)
+
+`sectCerts` with the `towerSlotsAll` read inside the `else` branch (a nested
+`do`), as the port has it; the lemma against it closes. -/
+
+def sectCertsFix (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (cvc cvT : IConstantVal) (us : LsIdx) (T : NIdx) (us' : LsIdx) (targs aargs : List EIdx)
+    (b : EIdx) (eP eF : Nat) : AM Bool := do
+  if ← liftFueled "level comparison" (← lvlsEq? us us') then do
+    let famT ←
+      if mode.certs then
+        iotaCerts r fe depth false (← constTyAt cvT us') targs
+      else pure true
+    if famT then do
+      let percerts ←
+        if !mode.certs then pure true
+        else do
+          if ← towerSlotsAll fe T eF then pure true
+          else
+            structEtaProjCerts r fe depth T us' targs b cvT.levelParams (List.range eF)
+      if percerts then sectTail mode r fe depth cvc us T us' targs aargs b eP eF
+      else pure false
+    else pure false
+  else pure false
+
+attribute [local lockstep_simp] List.range_eq_range' in
+theorem struct_eta_cert_certs_fix_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth cvc cvt us t us2 targs b aargs eta_params eta_fields lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_cert_certs pers vis st mode lane fu fe depth cvc cvt us t us2 targs b
+        aargs eta_params eta_fields) lst
+      (sectCertsFix (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absIConstantVal cvc) (absIConstantVal cvt) (absLsIdx us) (absNIdx t)
+        (absLsIdx us2) (absEIdxList targs) (absEIdxList aargs) (absEIdx b) (absU eta_params)
+        (absU eta_fields)) := by
+  rw [arena.core.struct_eta_cert_certs, sectCertsFix]
+  lockstep_core
 
 /-! ## Divergence evidence (D-C1-1)
 
