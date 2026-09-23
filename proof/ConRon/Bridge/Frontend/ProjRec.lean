@@ -937,6 +937,13 @@ theorem mkLams_run {s : AState} (hok : StateOK s)
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:283-284 projRecValue — **the
 rewrite itself**: a projection function's body as a recursor application.
 
+**Two-sided since round 7** (`OptRel`), for `projRewriteD_run`'s reason: a
+twin `none` must be a con-leche `none`.  **The frame is not yet true** (round
+7's finding: `instLPFast` writes `caches.readNC`/`readLsC` and the `…Fast`
+walks clear per-call memos; `ParseStep` frames neither — and `instLPFast`'s
+answer needs the three readback-cache invariants, which this statement does
+not take).
+
 `sorry`: `stripPisAll_run`, `buildBinders_run`, `instPisOpen_run` and
 `mkLams_run` composed; `buildBinders_run` is the `ProjBinderKind` dispatch of
 deviation 1.  Task #97-P3-Frontend's sorry list, item 12. -/
@@ -947,10 +954,91 @@ theorem projRecValue_run {s s' : AState} (hok : StateOK s)
     {ty val : EIdx} {tyP valP : Expr} (hty : denoteE s.store ty = some tyP)
     (hval : denoteE s.store val = some valP) {i : Nat} {res : Option EIdx}
     (hrun : projRecValue fuel o l ty val i s = .ok (res, s')) :
-    ParseStep s s' ∧ ∀ h, res = some h → PersE h ∧
-      ∃ e, denoteE s'.store h = some e ∧
-        ConLeche.Frontend.projRecValue oc u tyP valP i = some e := by
+    ParseStep s s' ∧ (∀ h, res = some h → PersE h) ∧
+      OptRel (fun (h : EIdx) (e : Expr) => denoteE s'.store h = some e) res
+        (ConLeche.Frontend.projRecValue oc u tyP valP i) := by
   sorry
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:233-237 lamBody — the body under
+every leading `λ`, a read-only fuel walk. -/
+theorem lamBody_run {s : AState} (hok : StateOK s) :
+    ∀ (fuel : Nat) {h : EIdx} {e : Expr} (_ : denoteE s.store h = some e)
+      {b : EIdx} {s' : AState} (_ : lamBody fuel h s = .ok (b, s')),
+      s' = s ∧ denoteE s.store b = some (ConLeche.Frontend.lamBody e) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h e he b s' hrun
+    rw [lamBody] at hrun
+    exact absurd (AM.fail_ok hrun) (by simp)
+  | succ fuel ih =>
+    intro h e he b s' hrun
+    rw [lamBody] at hrun
+    obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hview⟩ := view_run hv
+    rw [hs1] at hrest
+    have hde : denoteEView s.store v = some e := by
+      rw [denoteE_view_eq hok.wf hview] at he; exact he
+    cases v
+    case lam ty body m =>
+      obtain ⟨et, eb, rfl, -, hb⟩ := denote_lam_inv hok.wf hview he
+      obtain ⟨rfl, hdb⟩ := ih hb hrest
+      exact ⟨rfl, hdb⟩
+    all_goals
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrest
+      refine ⟨rfl, ?_⟩
+      rw [he]
+      cases e with
+      | lam x y m =>
+        obtain ⟨_, _, hc, -, -⟩ := denoteEView_lam hde
+        exact absurd hc (by simp)
+      | _ => rfl
+
+/-- con-leche: none — two handle lists that denote are equal exactly when
+their denotations are (`denoteN_inj`). -/
+theorem denoteNList_beq {st : NStore} (hw : NStoreWF st) :
+    ∀ {a b : List NIdx} {aP bP : List ConLeche.Name},
+      denoteNList st a = some aP → denoteNList st b = some bP → (a == b) = (aP == bP) := by
+  intro a
+  induction a with
+  | nil =>
+    intro b aP bP ha hb
+    simp only [denoteNList, Option.some.injEq] at ha; subst ha
+    cases b with
+    | nil => simp only [denoteNList, Option.some.injEq] at hb; subst hb; rfl
+    | cons y ys =>
+      simp only [denoteNList] at hb
+      cases h1 : denoteN st y <;> cases h2 : denoteNList st ys <;> rw [h1, h2] at hb <;>
+        simp at hb
+      subst hb; rfl
+  | cons x xs ih =>
+    intro b aP bP ha hb
+    simp only [denoteNList] at ha
+    cases hx : denoteN st x with
+    | none => rw [hx] at ha; simp at ha
+    | some xP =>
+      cases hxs : denoteNList st xs with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some xsP =>
+        rw [hx, hxs] at ha; obtain rfl := Option.some.inj ha
+        cases b with
+        | nil => simp only [denoteNList, Option.some.injEq] at hb; subst hb; rfl
+        | cons y ys =>
+          simp only [denoteNList] at hb
+          cases hy : denoteN st y with
+          | none => rw [hy] at hb; simp at hb
+          | some yP =>
+            cases hys : denoteNList st ys with
+            | none => rw [hy, hys] at hb; simp at hb
+            | some ysP =>
+              rw [hy, hys] at hb; obtain rfl := Option.some.inj hb
+              simp only [List.cons_beq_cons, ih hxs hys]
+              congr 1
+              by_cases hxy : x = y
+              · subst hxy
+                rw [Option.some.inj (hx.symm.trans hy)]; simp
+              · have : xP ≠ yP := fun h => hxy (denoteN_inj hw hx (h ▸ hy))
+                rw [beq_eq_false_iff_ne.mpr hxy, beq_eq_false_iff_ne.mpr this]
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:296-297 projRewriteD — the
 rewrite AT A RECORD: the state's owner table is consulted, the iota name's
@@ -965,9 +1053,10 @@ the same kind of reason.)  **The frame is not yet true** — task
 `caches.readNC`/`readLsC` and its `…Fast` walks clear per-call memos, and
 `ParseStep` frames neither; see DESIGN.
 
-`sorry`: `projRecValue_run` plus the `projOwners`/`projLevels` reads through
-`Bridge/Frontend/Rel.lean`'s `MapRel`.  Task #97-P3-Frontend's sorry list,
-item 12. -/
+Round 7 proved it from `projRecValue_run`: `lamBody_run`, the two views, the
+`projOwners`/`projLevels` reads through `MapRel.getElem?_rel` (both
+directions — a twin miss is a con-leche miss), the level-parameter guard
+through `denoteNList_beq` (`denoteN_inj`), and `projIotaName_run`. -/
 theorem projRewriteD_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
@@ -977,7 +1066,106 @@ theorem projRewriteD_run {s s' : AState} (hok : StateOK s)
     ParseStep s s' ∧ (∀ h, o = some h → PersE h) ∧
       OptRel (fun (h : EIdx) (e : Expr) => denoteE s'.store h = some e) o
         (ConLeche.Frontend.projRewriteD sc c vlP) := by
-  sorry
+  have hnw := nsWF_of_StateOK hok
+  rw [projRewriteD] at hrun
+  rw [ConLeche.Frontend.projRewriteD]
+  obtain ⟨fuel, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  have hs1 : s₁ = s := by
+    rw [storeFuel] at h1
+    obtain ⟨t, s₀, hg, hp⟩ := AM.bind_ok h1
+    obtain ⟨rfl, rfl⟩ := AM.get_ok hg
+    exact (AM.pure_ok hp).2
+  rw [hs1] at hrun
+  obtain ⟨lb, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hdlb⟩ := lamBody_run hok fuel hvl h1
+  rw [hs1] at hrun
+  obtain ⟨v, s₁, h1, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hview⟩ := view_run h1
+  rw [hs1] at hrun
+  generalize ConLeche.Frontend.lamBody vlP = E at hdlb ⊢
+  have hdev : denoteEView s.store v = some E := by
+    rw [denoteE_view_eq hok.wf hview] at hdlb; exact hdlb
+  cases v
+  case proj t i sub =>
+    obtain ⟨tn, es, rfl, hdt, hdsub⟩ := denote_proj_inv hok.wf hview hdlb
+    obtain ⟨v2, s₁, h1, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hview2⟩ := view_run h1
+    rw [hs1] at hrun
+    have hdev2 : denoteEView s.store v2 = some es := by
+      rw [denoteE_view_eq hok.wf hview2] at hdsub; exact hdsub
+    by_cases hb : v2 = .bvar 0
+    rotate_left
+    · -- the projection's subject is not the bound variable
+      have hes : ∀ k, es = .bvar k → k ≠ 0 := by
+        intro k hk hk0; subst hk; subst hk0; exact hb (denoteEView_bvar hdev2)
+      split at hrun
+      · exact absurd rfl hb
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      refine ⟨ParseStep.refl hok, (fun _ h => by cases h), ?_⟩
+      split
+      · rename_i heq
+        injection heq with _ _ h3
+        exact absurd rfl (hes 0 h3)
+      · exact OptRel.refl_none
+    subst hb
+    obtain rfl : es = .bvar 0 := by simpa [denoteEView] using hdev2.symm
+    simp only [] at hrun ⊢
+    have hom := MapRel.getElem?_rel hnw hrel.projOwners hdt
+    cases hm : sd.projOwners[t]? with
+    | none =>
+      rw [hm] at hrun hom
+      rw [hom.none_left rfl]
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨ParseStep.refl hok, (fun _ h => by cases h), OptRel.refl_none⟩
+    | some ow =>
+      rw [hm] at hrun hom
+      dsimp only at hrun
+      obtain ⟨oc, hoc, hor⟩ := hom.some_left rfl
+      rw [hoc]
+      have hbeq := denoteNList_beq hnw (denoteCV_lps hcv) hor.lps
+      by_cases hne : (cv.levelParams != ow.lps) = true
+      · rw [if_pos hne] at hrun
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+        refine ⟨ParseStep.refl hok, (fun _ h => by cases h), ?_⟩
+        have : (c.levelParams == oc.lps) = false := by
+          rw [← hbeq]; simpa using hne
+        have hn : ¬ c.levelParams = oc.lps := by simpa using this
+        simp only [guard, hn, beq_iff_eq, if_false, Option.bind_eq_bind, Option.bind_some]
+        exact trivial
+      · rw [if_neg hne] at hrun
+        have : (c.levelParams == oc.lps) = true := by
+          rw [← hbeq]; simpa using hne
+        have hq : c.levelParams = oc.lps := by simpa using this
+        simp only [guard, hq, beq_self_eq_true, if_true, Option.bind_eq_bind, Option.bind_some,
+          Option.pure_def]
+        obtain ⟨nm, s₂, h2, hrun⟩ := AM.bind_ok hrun
+        obtain ⟨hstep2, -, hdnm⟩ := projIotaName_run hok hoff hdt h2
+        have hrel2 := hrel.ext hstep2.ext
+        have hlv := MapRel.getElem?_rel (nsWF_of_StateOK hstep2.ok) hrel2.projLevels hdnm
+        cases hl : sd.projLevels[nm]? with
+        | none =>
+          rw [hl] at hrun hlv
+          rw [hlv.none_left rfl]
+          dsimp only at hrun
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+          exact ⟨hstep2, (fun _ h => by cases h), trivial⟩
+        | some l =>
+          rw [hl] at hrun hlv
+          obtain ⟨u, hu, hlu⟩ := hlv.some_left rfl
+          rw [hu]
+          dsimp only at hrun ⊢
+          have hoff2 : s₂.store.scratchOn = false := by rw [hstep2.scratch]; exact hoff
+          obtain ⟨hstep3, hpe, hopt⟩ := projRecValue_run hstep2.ok hoff2
+            (hor.ext hstep2.ext) hlu (denote_ext (denoteCV_type hcv) hstep2.ext)
+            (denote_ext hvl hstep2.ext) hrun
+          exact ⟨hstep2.trans hstep3, hpe, hopt⟩
+  all_goals
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    refine ⟨ParseStep.refl hok, (fun _ h => by cases h), ?_⟩
+    split
+    · obtain ⟨_, _, hc, -, -⟩ := denoteEView_proj hdev
+      exact absurd hc (by simp)
+    · exact OptRel.refl_none
 
 /-! ## The owner census, and the one reordering -/
 

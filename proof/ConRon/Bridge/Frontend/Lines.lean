@@ -2787,25 +2787,6 @@ theorem wants_eq {st : EStore} {b : BlockRec}
     | cons hab _ ih => simp only [List.any_cons, hab.numNested, ih]
   exact this h.types
 
-/-- con-leche: none — a `MapRel` read at a handle that denotes: the two maps
-answer alike (`hit` one way, `cover` and `denoteN_inj` the other). -/
-theorem MapRel.getElem?_rel {α β : Type} {st : EStore} (hw : NStoreWF st.ns)
-    {R : α → β → Prop} {m : Std.HashMap NIdx α} {mc : Std.HashMap ConLeche.Name β}
-    (h : MapRel st R m mc) {k : NIdx} {n : ConLeche.Name}
-    (hk : denoteN st.ns k = some n) : OptRel R m[k]? mc[n]? := by
-  cases hm : m[k]? with
-  | some a =>
-    obtain ⟨n', b, hn', hb, hab⟩ := h.hit k a hm
-    obtain rfl : n' = n := Option.some.inj (hn'.symm.trans hk)
-    rw [hb]; exact hab
-  | none =>
-    cases hc : mc[n]? with
-    | none => exact OptRel.refl_none
-    | some b =>
-      obtain ⟨k', a, hk', ha, -⟩ := h.cover n b hc
-      obtain rfl : k' = k := denoteN_inj hw hk' hk
-      rw [hm] at ha; exact absurd ha (by simp)
-
 /-- con-leche: none — `MapRel.foldl_insert` with the key read off each element
 of a related list. -/
 theorem MapRel.foldl_insert_by {α β γ δ : Type} {st : EStore} (hwf : StoreWF st)
