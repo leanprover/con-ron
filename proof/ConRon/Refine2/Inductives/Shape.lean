@@ -876,6 +876,37 @@ macro "ind_str_side" : tactic =>
 macro_rules
   | `(tactic| lockstep_side_ext) => `(tactic| (ind_str_side; done))
 
+-- A twin `if` whose test a `TwinEq` rewrote to a literal.
+attribute [lockstep_simp] ite_true ite_false
+
+/-! ## Two environment-record constants -/
+
+open Lockstep in
+/-- `i_ind_caps_default` is the twin's `{}` (the zero word is `default`, the
+empty `if_all_zero` is `.ifAllZero []`). -/
+@[lockstep] theorem i_ind_caps_default_twin :
+    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o)) := by
+  intro o h
+  simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word,
+    kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
+    alloc.vec.Vec.len] at h
+  simp at h
+  rw [if_pos (by rfl)] at h
+  simp at h
+  subst h
+  simp [TwinEq, absIIndCaps]
+  rfl
+
+open Lockstep in
+/-- `checker_base::recs_form_suffix` from the cursor `0`
+(`Refine2/Checker/Base.lean`'s `recs_form_suffix_refines`). -/
+@[lockstep] theorem recs_form_suffix_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.checker_base.recs_form_suffix block 0#usize)
+      (fun o => TwinEq (recsFormSuffix (absICIL block)) o) := by
+  intro o h
+  have h' := recs_form_suffix_refines h
+  simpa [TwinEq, absICILFrom, absICIL] using h'.symm
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/

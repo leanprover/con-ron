@@ -142,6 +142,16 @@ theorem kinds_copy_refines
   exact aux ks.val.length i out o (by omega) hrun
 
 open Lockstep in
+/-- `kinds_copy_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem kinds_copy_twin0
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} :
+    LSP (arena.inductives.native_parts.kinds_copy ks 0#usize (alloc.vec.Vec.new arena.inductives.native_parts.RecFieldKind)) (fun o => TwinEq (absKindL ks) (absKindL o)) := by
+  intro o h
+  have h' := (kinds_copy_refines h).symm
+  simpa [Lockstep.TwinEq, absKindLFrom, absKindL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem kinds_copy_twin
     {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
     {i : Std.Usize}
@@ -178,6 +188,16 @@ theorem kindss_copy_refines
     have h2 := kinds_copy_refines hv1
     simpa [absKindL, absKindLFrom, alloc.vec.Vec.new,
       show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2
+
+open Lockstep in
+/-- `kindss_copy_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem kindss_copy_twin0
+    {kss : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)} :
+    LSP (arena.inductives.native_parts.kindss_copy kss 0#usize (alloc.vec.Vec.new (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind))) (fun o => TwinEq (absKindLL kss) (absKindLL o)) := by
+  intro o h
+  have h' := (kindss_copy_refines h).symm
+  simpa [Lockstep.TwinEq, absKindLLFrom, absKindLL, alloc.vec.Vec.new] using h'
 
 open Lockstep in
 @[lockstep] theorem kindss_copy_twin
@@ -1286,6 +1306,16 @@ theorem u64_vec_dup_refines {xs : alloc.vec.Vec Std.U64} {i : Std.Usize}
   exact aux xs.val.length i out o (by omega) hrun
 
 open Lockstep in
+/-- `u64_vec_dup_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem u64_vec_dup_twin0
+    {xs : alloc.vec.Vec Std.U64} :
+    LSP (arena.inductives.native_parts.u64_vec_dup xs 0#usize (alloc.vec.Vec.new Std.U64)) (fun o => TwinEq (absNatL xs) (absNatL o)) := by
+  intro o h
+  have h' := (u64_vec_dup_refines h).symm
+  simpa [Lockstep.TwinEq, absNatLFrom, absNatL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem u64_vec_dup_twin
     {xs : alloc.vec.Vec Std.U64}
     {i : Std.Usize}
@@ -2114,6 +2144,16 @@ theorem nidx_cons_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
   simpa [absNIdxL, absNIdxLFrom] using nidx_cons_from_map i out o hrun
 
 open Lockstep in
+/-- `nidx_cons_from_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem nidx_cons_from_twin0
+    {ns : alloc.vec.Vec arena.handle.NIdx} :
+    LSP (arena.inductives.native_parts.nidx_cons_from ns 0#usize (alloc.vec.Vec.new arena.handle.NIdx)) (fun o => TwinEq (absNIdxL ns) (absNIdxL o)) := by
+  intro o h
+  have h' := (nidx_cons_from_refines h).symm
+  simpa [Lockstep.TwinEq, absNIdxLFrom, absNIdxL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem nidx_cons_from_twin
     {ns : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize}
@@ -2212,6 +2252,19 @@ theorem ctors_pin_ok_refines {reserved : alloc.vec.Vec arena.handle.NIdx}
       simp [this]
 
 open Lockstep in
+/-- `ctors_pin_ok_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem ctors_pin_ok_twin0
+    {reserved : alloc.vec.Vec arena.handle.NIdx}
+    {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)}
+    {n_p : Std.U64}
+    {lps : alloc.vec.Vec arena.handle.NIdx} :
+    LSP (arena.inductives.native_parts.ctors_pin_ok reserved cs n_p lps 0#usize) (fun o => TwinEq (ctorsPinOkSpec (absNIdxL reserved) (absCtors3L cs) (absU n_p) (absNIdxL lps)) (o)) := by
+  intro o h
+  have h' := (ctors_pin_ok_refines h).symm
+  simpa [Lockstep.TwinEq, absCtors3LFrom, absCtors3L, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem ctors_pin_ok_twin
     {reserved : alloc.vec.Vec arena.handle.NIdx}
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)}
@@ -2251,6 +2304,16 @@ theorem ctors_of_refines
       by simp [i_constant_val_dup_abs hiv1], h⟩
 
 open Lockstep in
+/-- `ctors_of_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem ctors_of_twin0
+    {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)} :
+    LSP (arena.inductives.native_parts.ctors_of cs 0#usize (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))) (fun o => TwinEq ((absCtors3L cs).map fun c => (c.1, c.2.2)) (absCtorsL o)) := by
+  intro o h
+  have h' := (ctors_of_refines h).symm
+  simpa [Lockstep.TwinEq, absCtors3LFrom, absCtors3L, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem ctors_of_twin
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)}
     {i : Std.Usize}
@@ -2283,6 +2346,16 @@ theorem rhss_of_refines {rules : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usiz
     subst hix
     exact ⟨i2, e, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
       by simp [absIRecRule, dupId_eidx _ _ he], h⟩
+
+open Lockstep in
+/-- `rhss_of_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem rhss_of_twin0
+    {rules : alloc.vec.Vec arena.env.IRecRule} :
+    LSP (arena.inductives.native_parts.rhss_of rules 0#usize (alloc.vec.Vec.new arena.handle.EIdx)) (fun o => TwinEq ((absIRecRuleL rules).map (·.rhs)) (absEIdxL o)) := by
+  intro o h
+  have h' := (rhss_of_refines h).symm
+  simpa [Lockstep.TwinEq, absIRecRuleLFrom, absIRecRuleL, alloc.vec.Vec.new] using h'
 
 open Lockstep in
 @[lockstep] theorem rhss_of_twin

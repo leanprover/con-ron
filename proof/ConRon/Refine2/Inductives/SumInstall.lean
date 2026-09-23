@@ -297,6 +297,17 @@ theorem eidx_contains_refines {xs : alloc.vec.Vec arena.handle.EIdx}
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
 open Lockstep in
+/-- `eidx_contains_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem eidx_contains_twin0
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {x : arena.handle.EIdx} :
+    LSP (arena.inductives.sum_install.eidx_contains xs x 0#usize) (fun o => TwinEq ((absEIdxL xs).contains (absEIdx x)) (o)) := by
+  intro o h
+  have h' := (eidx_contains_refines h).symm
+  simpa [Lockstep.TwinEq, absEIdxLFrom, absEIdxL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem eidx_contains_twin
     {xs : alloc.vec.Vec arena.handle.EIdx}
     {x : arena.handle.EIdx}

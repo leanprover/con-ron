@@ -63,6 +63,16 @@ theorem ctors_copy_from_refines
       by simp [i_constant_val_dup_abs hiv1], h⟩
 
 open Lockstep in
+/-- `ctors_copy_from_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem ctors_copy_from_twin0
+    {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
+    LSP (arena.inductives.sum_parts.ctors_copy_from cs 0#usize (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))) (fun o => TwinEq (absCtorsL cs) (absCtorsL o)) := by
+  intro o h
+  have h' := (ctors_copy_from_refines h).symm
+  simpa [Lockstep.TwinEq, absCtorsLFrom, absCtorsL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem ctors_copy_from_twin
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {i : Std.Usize}

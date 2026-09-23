@@ -92,6 +92,16 @@ theorem nidx_vec_tail_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
       by rw [dupId_nidx _ _ hn2], h⟩
 
 open Lockstep in
+/-- `nidx_vec_tail_from_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem nidx_vec_tail_from_twin0
+    {ns : alloc.vec.Vec arena.handle.NIdx} :
+    LSP (arena.inductives.struct_parts.nidx_vec_tail_from ns 0#usize (alloc.vec.Vec.new arena.handle.NIdx)) (fun o => TwinEq (absNIdxL ns) (absNIdxL o)) := by
+  intro o h
+  have h' := (nidx_vec_tail_from_refines h).symm
+  simpa [Lockstep.TwinEq, absNIdxLFrom, absNIdxL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
 @[lockstep] theorem nidx_vec_tail_from_twin
     {ns : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize}

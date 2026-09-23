@@ -3326,7 +3326,10 @@ theorem check_modeled_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hrun : arena.inductives.modeled.check_modeled pers st mode rf block = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkModeled (ConRon.Refine.absMode mode) lf (absICIL block)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.check_modeled, checkModeled_unfold]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_modeled_ls {pers st lst} {mode : kernel.env.CheckMode}
