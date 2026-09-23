@@ -76,24 +76,27 @@ theorem bodyRel_stuckGatedCore {mode : ConLeche.CheckMode} {lfe : IFEnv}
         let e' ← projLitToCtor r lfe d e0
         match ← lfe.findProj? sn i with
         | some entry => do
-          match ← Arena.view (← getAppFn coreWalkFuel e') with
-          | .const c us => do
-            let args ← getAppArgs coreWalkFuel e'
-            match ← viewLsLen us with
-            | none => failDanglingLs
-            | some usl =>
-            let fok ← entry.fireOk us
-            if c = entry.ctor ∧ i < entry.numFields ∧
-                args.length = entry.numParams + entry.numFields ∧
-                usl = entry.levelParams.length ∧ fok = true then do
-              let b0 ← internE (.bvar 0)
-              let arg := args.getD (entry.numParams + i) b0
-              if ← projCertAt r lfe d mode.verifiedChecks mode.betaGate c us
-                  args then
-                r.whnfCore d arg
+          let hh ← getAppFn coreWalkFuel e'
+          if hh.tag == ETag.const then
+            match ← Arena.view hh with
+            | .const c us => do
+              let args ← getAppArgs coreWalkFuel e'
+              match ← viewLsLen us with
+              | none => failDanglingLs
+              | some usl =>
+              let fok ← entry.fireOk us
+              if c = entry.ctor ∧ i < entry.numFields ∧
+                  args.length = entry.numParams + entry.numFields ∧
+                  usl = entry.levelParams.length ∧ fok = true then do
+                let b0 ← internE (.bvar 0)
+                let arg := args.getD (entry.numParams + i) b0
+                if ← projCertAt r lfe d mode.verifiedChecks mode.betaGate c us
+                    args then
+                  r.whnfCore d arg
+                else internE (.proj sn i e')
               else internE (.proj sn i e')
-            else internE (.proj sn i e')
-          | _ => internE (.proj sn i e')
+            | _ => internE (.proj sn i e')
+          else internE (.proj sn i e')
         | none => internE (.proj sn i e')
       | .letE _ _ _ =>
         Arena.fail (.internal "whnfCore: `let` in an annotated expression")

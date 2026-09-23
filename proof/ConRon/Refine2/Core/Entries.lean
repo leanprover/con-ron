@@ -14,8 +14,12 @@ a knot slot (it runs `r.whnf` and then reads the view), so it belongs in
 
 **What the Checker tier should call:** `knotRel_checkFuel`, below —
 `KnotRel (absU CHECK_FUEL)`, i.e. `KnotRel 100000` — and then the six
-`*_refines`.  Every one takes `StoreWF lst.store` and `EResolves lst h`, which
-is task #97-P5-0's finding 3 and is P3's to supply as a clause of `StateOK`.
+`*_refines`.  **Since task #97-P5-Core round 4 they are LOCKSTEP statements**:
+over `AStateRel₀` (no `StoreWF`), with no `EResolves` premise and a `Sim₀`
+conclusion (no `Ext`).  Task #97-P5-0's finding 3 — the tag-first / view-first
+split that made them need a resolving argument — is gone because the twin now
+tests the tag where the port does (round 4's audit); a consumer that still
+wants `Sim` takes `Sim₀.toSim` with the twin's own two facts from Theorem 1.
 -/
 import ConRon.Refine2.Core.Induction
 
@@ -40,88 +44,82 @@ section Entries
 variable {pers vis st mode fe lfe fu depth lst}
 
 /-- `arena::core::whnf_core` against `Arena.whnfCore`. -/
-theorem whnf_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel pers st lst)
+theorem whnf_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hwf : StoreWF lst.store) (hres : EResolves lst (absEIdx e))
     (hf : absU fu = f)
     (hrun : arena.core.whnf_core pers vis st mode fe fu depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.whnfCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.whnf_core] at hrun
-  have h := hk.whnfCore hrel hinv hctx hwf hres hf hrun
+  have h := hk.whnfCore hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 
 /-- `arena::core::whnf` against `Arena.whnf`.  Since task #97-P5-Core-2 this
 carries no side condition at all — `KnotRel`'s two reduction fields lost the
 gated exclusion when `coreKnotGated 0` got its unconditional `fail` back. -/
-theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel pers st lst)
+theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hwf : StoreWF lst.store) (hres : EResolves lst (absEIdx e))
     (hf : absU fu = f)
     (hrun : arena.core.whnf pers vis st mode fe fu depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.whnf (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.whnf] at hrun
-  have h := hk.whnf hrel hinv hctx hwf hres hf hrun
+  have h := hk.whnf hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 
 /-- `arena::core::infer_type_core` against `Arena.inferTypeCore`. -/
-theorem infer_type_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel pers st lst)
+theorem infer_type_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hwf : StoreWF lst.store) (hres : EResolves lst (absEIdx e))
     (hf : absU fu = f)
     (hrun : arena.core.infer_type_core pers vis st mode fe fu depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.inferTypeCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.infer_type_core] at hrun
-  have h := hk.infer hrel hinv hctx hwf hres hf hrun
+  have h := hk.infer hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 
 /-- `arena::core::infer_type_io` against `Arena.inferTypeIO`. -/
-theorem infer_type_io_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel pers st lst)
+theorem infer_type_io_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hwf : StoreWF lst.store) (hres : EResolves lst (absEIdx e))
     (hf : absU fu = f)
     (hrun : arena.core.infer_type_io pers vis st mode fe fu depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.inferTypeIO (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.infer_type_io] at hrun
-  have h := hk.inferIO hrel hinv hctx hwf hres hf hrun
+  have h := hk.inferIO hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 
 /-- `arena::core::is_def_eq_core` against `Arena.isDefEqCore`. -/
-theorem is_def_eq_core_refines {f : Nat} (hk : KnotRel f) {a b o} (hrel : AStateRel pers st lst)
+theorem is_def_eq_core_refines {f : Nat} (hk : KnotRel f) {a b o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hwf : StoreWF lst.store) (hra : EResolves lst (absEIdx a))
-    (hrb : EResolves lst (absEIdx b)) (hf : absU fu = f)
+    (hf : absU fu = f)
     (hrun : arena.core.is_def_eq_core pers vis st mode fe fu depth a b = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (Arena.isDefEqCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.is_def_eq_core] at hrun
-  have h := hk.defeq hrel hinv hctx hwf hra hrb hf hrun
+  have h := hk.defeq hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 
 /-- `arena::core::annotate_core` against `Arena.annotateCore`. -/
-theorem annotate_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel pers st lst)
+theorem annotate_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hwf : StoreWF lst.store) (hres : EResolves lst (absEIdx e))
     (hf : absU fu = f)
     (hrun : arena.core.annotate_core pers vis st mode fe fu depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.annotateCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.annotate_core] at hrun
-  have h := hk.annotate hrel hinv hctx hwf hres hf hrun
+  have h := hk.annotate hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 

@@ -51,21 +51,21 @@ only CARRIES `KnotRel checkFuel` — so the change is this file and nothing else
 | `whnfCore` | `whnf_core_refines` |
 | `ensureSort` | `Refine2/Core/Arms/Sort.lean`'s `ensure_sort_core_refines` |
 
-Three differences are worth naming, because a checker-tier proof meets them at
+Two differences are worth naming, because a checker-tier proof meets them at
 the call site rather than here:
 
-1. **`StoreWF lst.store` and `EResolves lst h`.**  The Core entries carry task
-   #97-P5-0's finding 3 — the tag-first / view-first split is only sound on a
-   store that resolves the handle — where the old structure's clauses carried
-   neither.  It is the pair P3 owes as a clause of `StateOK`
-   (`Refine2/Core/KnotRel.lean` §3), and every checker body that calls a core
-   entry will need it in scope.
+1. **The entries are LOCKSTEP statements** (task #97-P5-Core round 4): over
+   `AStateRel₀` (take `hrel.to₀`), with no `StoreWF` and no `EResolves`
+   premise, and a `Sim₀` conclusion without `Ext`.  A checker-tier proof that
+   still concludes `Sim` gets the twin's `StoreWF` and `Ext` from `ResolveInv`
+   (`wf`, `inferExt`, `ensureSortExt`) — Theorem 1's — and rebuilds
+   `AStateRel` with `AStateRel₀.of₀`; `check_value_group_refines` is the one
+   such site.  The old `AnswerResolves` at `ensure_sort_core` (task
+   #97-P5-Arms' finding 14) is gone: the twin tests the reduct's tag where the
+   port does.
 2. **`CoreCtx vis fe lfe` replaces `IFEnvRel rf lf ∧ absU vis = lf.visibleBelow`.**
-   The same two facts, bundled; `IFEnvInv rf`, which the old clauses also
-   demanded, is not needed by the Core entries at all.
-3. **`AnswerResolves` at `ensure_sort_core`** (task #97-P5-Arms' finding 14):
-   it dispatches on the tag of `knot_whnf`'s own answer, which no hypothesis
-   of `KnotRel` mentions.
+   The same two facts, bundled, plus `IFEnvInv`'s two index clauses
+   (`IFEnvInv.coreCtx` below).
 -/
 import ConRon.Refine2.Checker.Shape
 import ConRon.Refine2.Core.Arms

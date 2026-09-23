@@ -81,24 +81,27 @@ def whnfCoreBodyGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       let e' ← projLitToCtor r fe depth e0
       match ← fe.findProj? sn i with
       | some entry => do
-        match ← view (← getAppFn coreWalkFuel e') with
-        | .const c us => do
-          let args ← getAppArgs coreWalkFuel e'
-          match ← viewLsLen us with
-          | none => failDanglingLs
-          | some usl =>
-          let fok ← entry.fireOk us
-          if c = entry.ctor ∧ i < entry.numFields ∧
-              args.length = entry.numParams + entry.numFields ∧
-              usl = entry.levelParams.length ∧ fok = true then do
-            let b0 ← internE (.bvar 0)
-            let arg := args.getD (entry.numParams + i) b0
-            if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
-                args then
-              r.whnfCore depth arg
+        let hh ← getAppFn coreWalkFuel e'
+        if hh.tag == ETag.const then
+          match ← view hh with
+          | .const c us => do
+            let args ← getAppArgs coreWalkFuel e'
+            match ← viewLsLen us with
+            | none => failDanglingLs
+            | some usl =>
+            let fok ← entry.fireOk us
+            if c = entry.ctor ∧ i < entry.numFields ∧
+                args.length = entry.numParams + entry.numFields ∧
+                usl = entry.levelParams.length ∧ fok = true then do
+              let b0 ← internE (.bvar 0)
+              let arg := args.getD (entry.numParams + i) b0
+              if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
+                  args then
+                r.whnfCore depth arg
+              else internE (.proj sn i e')
             else internE (.proj sn i e')
-          else internE (.proj sn i e')
-        | _ => internE (.proj sn i e')
+          | _ => internE (.proj sn i e')
+        else internE (.proj sn i e')
       | none => internE (.proj sn i e')
     | .letE _ _ _ =>
       fail (.internal "whnfCore: `let` in an annotated expression")

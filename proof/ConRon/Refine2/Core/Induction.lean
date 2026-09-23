@@ -224,54 +224,54 @@ are never compared). -/
 
 theorem knotRel_zero : KnotRel 0 := by
   constructor
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
+  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_whnf_core, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _))
+  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_whnf, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _))
+  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_infer, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_infer _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_infer _ _ _ _ _ _))
+  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_infer_io, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_inferIO _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth a b lst o _ _ _ _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_inferIO _ _ _ _ _ _))
+  · intro pers vis st mode lane fu fe lfe depth a b lst o _ _ _ hf hrun
     rw [arena.core.knot_defeq, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ _ _ hf hrun
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _))
+  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
     rw [arena.core.knot_annotate, if_pos (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
-    exact AOut.err (AErrSim.internal (laneKnot_zero_annotate _ _ _ _ _ _))
+    exact AOut₀.err (AErrSim.internal (laneKnot_zero_annotate _ _ _ _ _ _))
 
 /-! ## The twin's `do` block, split at a bind -/
 
@@ -318,11 +318,10 @@ theorem coreKnot_succ_annotate_miss (mode lfe f d e lst)
 
 theorem knotRel_succ_annotate {f : Nat} (hb : BodyRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f + 1)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
     (hrun : arena.core.knot_annotate pers vis st mode lane fu fe depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).annotate
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_annotate, if_neg (absU_ne_zero hf)] at hrun
@@ -331,7 +330,7 @@ theorem knotRel_succ_annotate {f : Nat} (hb : BodyRel f)
     subst hg
     rw [if_pos rfl] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 := hb.annotate hrel hinv hctx hwf hres (absU_pred hf hi) hrun
+    have h2 := hb.annotate hrel hinv hctx (absU_pred hf hi) hrun
     rw [laneKnot_gated] at h2
     rw [laneKnot_gated, coreKnotGated_succ_annotate]
     exact h2
@@ -344,10 +343,10 @@ theorem knotRel_succ_annotate {f : Nat} (hb : BodyRel f)
       by_cases hio : lane = arena.core.LANE_IO
       · rw [hio, laneKnot_io, coreKnotIO_succ_annotate]
       · rw [laneKnot_of_ne _ _ _ hg hio]
-    rw [show Sim absEIdx (fun _ => True) pers lst o
+    rw [show Sim₀ absEIdx pers lst o
           ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).annotate
             (absU depth) (absEIdx e))
-        = Sim absEIdx (fun _ => True) pers lst o
+        = Sim₀ absEIdx pers lst o
           ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).annotate
             (absU depth) (absEIdx e)) from by rw [htwin]]
     have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
@@ -359,8 +358,8 @@ theorem knotRel_succ_annotate {f : Nat} (hb : BodyRel f)
       rw [hoc] at hrun hprobe
       have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
       rw [← ho]
-      exact AOut.ok (coreKnot_succ_annotate_hit _ _ _ _ _ _ _ hprobe.symm)
-        hrel hinv (Ext.refl _) trivial
+      exact AOut₀.ok (coreKnot_succ_annotate_hit _ _ _ _ _ _ _ hprobe.symm)
+        hrel hinv
     | none =>
       rw [hoc] at hrun hprobe
       have htw := (coreKnot_succ_annotate_miss (ConRon.Refine.absMode mode) lfe f
@@ -370,21 +369,21 @@ theorem knotRel_succ_annotate {f : Nat} (hb : BodyRel f)
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r, st1⟩ := p
-      have hbody := hb.annotate hrel hinv hctx hwf hres (absU_pred hf hi) hbd
+      have hbody := hb.annotate hrel hinv hctx (absU_pred hf hi) hbd
       rw [hlane] at hbody
       cases r with
       | Err er =>
         have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut.err (AErrSim.of_eq (AErrSim.bind (Sim.apply_err hbody) _) htw)
+        exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
       | Ok r1 =>
-        obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hbody
+        obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
         obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
         rw [← ho]
-        obtain ⟨lst2, hset, hrel2, hinv2, hext2⟩ :=
-          SimS.apply (annot_set_run hrel1 hinv1 hs2)
-        refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+        obtain ⟨lst2, hset, hrel2, hinv2⟩ :=
+          SimS₀.apply (annot_set_run hrel1 hinv1 hs2)
+        refine AOut₀.ok ?_ hrel2 hinv2
         rw [htw, hb1]
         show ((do annotSet (absEIdx e) (absEIdx r1)
                   pure (absEIdx r1) : AM EIdx)).run lst1 = _
@@ -429,12 +428,10 @@ theorem coreKnot_succ_defeq_miss (mode lfe f d a b lst)
 
 theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
     {pers vis st mode lane fu fe lfe depth a b lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hra : EResolves lst (absEIdx a)) (hrb : EResolves lst (absEIdx b))
-    (hf : absU fu = f + 1)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
     (hrun : arena.core.knot_defeq pers vis st mode lane fu fe depth a b = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeq
         (absU depth) (absEIdx a) (absEIdx b)) := by
   rw [arena.core.knot_defeq, if_neg (absU_ne_zero hf)] at hrun
@@ -442,7 +439,7 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
   · subst hg
     rw [if_pos rfl] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 := hb.defeq hrel hinv hctx hwf hra hrb (absU_pred hf hi) hrun
+    have h2 := hb.defeq hrel hinv hctx (absU_pred hf hi) hrun
     rw [laneKnot_gated] at h2
     rw [laneKnot_gated, coreKnotGated_succ_defeq]
     exact h2
@@ -454,10 +451,10 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
       by_cases hio : lane = arena.core.LANE_IO
       · rw [hio, laneKnot_io, coreKnotIO_succ_defeq]
       · rw [laneKnot_of_ne _ _ _ hg hio]
-    rw [show Sim id (fun _ => True) pers lst o
+    rw [show Sim₀ id pers lst o
           ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeq
             (absU depth) (absEIdx a) (absEIdx b))
-        = Sim id (fun _ => True) pers lst o
+        = Sim₀ id pers lst o
           ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeq
             (absU depth) (absEIdx a) (absEIdx b)) from by rw [htwin]]
     have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
@@ -471,8 +468,8 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
       rw [hoc] at hrun hprobe
       have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
       rw [← ho]
-      exact AOut.ok (coreKnot_succ_defeq_hit _ _ _ _ _ _ _ _ hprobe.symm)
-        hrel hinv (Ext.refl _) trivial
+      exact AOut₀.ok (coreKnot_succ_defeq_hit _ _ _ _ _ _ _ _ hprobe.symm)
+        hrel hinv
     | none =>
       rw [hoc] at hrun hprobe
       have htw := (coreKnot_succ_defeq_miss (ConRon.Refine.absMode mode) lfe f
@@ -483,21 +480,21 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r, st1⟩ := p
-      have hbody := hb.defeq hrel hinv hctx hwf hra hrb (absU_pred hf hi) hbd
+      have hbody := hb.defeq hrel hinv hctx (absU_pred hf hi) hbd
       rw [hlane] at hbody
       cases r with
       | Err er =>
         have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut.err (AErrSim.of_eq (AErrSim.bind (Sim.apply_err hbody) _) htw)
+        exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
       | Ok r1 =>
-        obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hbody
+        obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
         obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
         rw [← ho]
-        obtain ⟨lst2, hset, hrel2, hinv2, hext2⟩ :=
-          SimS.apply (defeq_set_run hrel1 hinv1 hs2)
-        refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+        obtain ⟨lst2, hset, hrel2, hinv2⟩ :=
+          SimS₀.apply (defeq_set_run hrel1 hinv1 hs2)
+        refine AOut₀.ok ?_ hrel2 hinv2
         rw [htw, hb1]
         show ((do defeqSet (absEIdx a) (absEIdx b) r1
                   pure r1 : AM Bool)).run lst1 = _
@@ -542,11 +539,10 @@ theorem coreKnot_succ_infer_miss (mode lfe f d e lst)
 
 theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f + 1)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
     (hrun : arena.core.knot_infer pers vis st mode lane fu fe depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).infer
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_infer, if_neg (absU_ne_zero hf)] at hrun
@@ -554,7 +550,7 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
   · subst hg
     rw [if_pos rfl] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 := hb.infer hrel hinv hctx hwf hres (absU_pred hf hi) hrun
+    have h2 := hb.infer hrel hinv hctx (absU_pred hf hi) hrun
     rw [laneKnot_gated] at h2
     rw [laneKnot_gated, coreKnotGated_succ_infer]
     exact h2
@@ -563,15 +559,15 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
     · subst hio
       rw [if_pos rfl] at hrun
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have h2 := hb.inferIO hrel hinv hctx hwf hres (absU_pred hf hi) hrun
+      have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) hrun
       rw [laneKnotAt_false, laneKnot_io] at h2
       rw [laneKnot_io, coreKnotIO_succ_infer]
       exact h2
     · rw [if_neg hio] at hrun
-      rw [show Sim absEIdx (fun _ => True) pers lst o
+      rw [show Sim₀ absEIdx pers lst o
             ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).infer
               (absU depth) (absEIdx e))
-          = Sim absEIdx (fun _ => True) pers lst o
+          = Sim₀ absEIdx pers lst o
             ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).infer
               (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ hg hio]]
       have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
@@ -583,8 +579,8 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
         rw [hoc] at hrun hprobe
         have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut.ok (coreKnot_succ_infer_hit _ _ _ _ _ _ _ hprobe.symm)
-          hrel hinv (Ext.refl _) trivial
+        exact AOut₀.ok (coreKnot_succ_infer_hit _ _ _ _ _ _ _ hprobe.symm)
+          hrel hinv
       | none =>
         rw [hoc] at hrun hprobe
         have htw := (coreKnot_succ_infer_miss (ConRon.Refine.absMode mode) lfe f
@@ -595,21 +591,21 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
         obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r, st1⟩ := p
-        have hbody := hb.infer hrel hinv hctx hwf hres (absU_pred hf hi) hbd
+        have hbody := hb.infer hrel hinv hctx (absU_pred hf hi) hbd
         rw [hlane] at hbody
         cases r with
         | Err er =>
           have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
           rw [← ho]
-          exact AOut.err (AErrSim.of_eq (AErrSim.bind (Sim.apply_err hbody) _) htw)
+          exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
         | Ok r1 =>
-          obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hbody
+          obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
           obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
           rw [← ho]
-          obtain ⟨lst2, hset, hrel2, hinv2, hext2⟩ :=
-            SimS.apply (infer_set_run hrel1 hinv1 hs2)
-          refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+          obtain ⟨lst2, hset, hrel2, hinv2⟩ :=
+            SimS₀.apply (infer_set_run hrel1 hinv1 hs2)
+          refine AOut₀.ok ?_ hrel2 hinv2
           rw [htw, hb1]
           show ((do inferSet (absEIdx e) (absEIdx r1)
                     pure (absEIdx r1) : AM EIdx)).run lst1 = _
@@ -663,11 +659,10 @@ theorem coreKnot_succ_inferIO_miss (mode lfe f d e lst)
 
 theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f + 1)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
     (hrun : arena.core.knot_infer_io pers vis st mode lane fu fe depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).inferIO
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_infer_io, if_neg (absU_ne_zero hf)] at hrun
@@ -675,7 +670,7 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
   · subst hg
     rw [if_pos rfl] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 := hb.infer hrel hinv hctx hwf hres (absU_pred hf hi) hrun
+    have h2 := hb.infer hrel hinv hctx (absU_pred hf hi) hrun
     rw [laneKnot_gated] at h2
     rw [laneKnot_gated, coreKnotGated_succ_inferIO]
     exact h2
@@ -684,15 +679,15 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
     · subst hio
       rw [if_pos rfl] at hrun
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have h2 := hb.inferIO hrel hinv hctx hwf hres (absU_pred hf hi) hrun
+      have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) hrun
       rw [laneKnotAt_false, laneKnot_io] at h2
       rw [laneKnot_io, coreKnotIO_succ_inferIO]
       exact h2
     · rw [if_neg hio] at hrun
-      rw [show Sim absEIdx (fun _ => True) pers lst o
+      rw [show Sim₀ absEIdx pers lst o
             ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).inferIO
               (absU depth) (absEIdx e))
-          = Sim absEIdx (fun _ => True) pers lst o
+          = Sim₀ absEIdx pers lst o
             ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).inferIO
               (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ hg hio]]
       obtain ⟨bg, hbg, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -708,8 +703,8 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
         rw [hoc] at hrun hprobe
         have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut.ok (coreKnot_succ_inferIO_hit _ _ _ _ _ _ _ hprobe.symm)
-          hrel hinv (Ext.refl _) trivial
+        exact AOut₀.ok (coreKnot_succ_inferIO_hit _ _ _ _ _ _ _ hprobe.symm)
+          hrel hinv
       | none =>
         rw [hoc] at hrun hprobe
         have htw := (coreKnot_succ_inferIO_miss (ConRon.Refine.absMode mode) lfe f
@@ -720,21 +715,21 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
         obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r, st1⟩ := p
-        have hbody := hb.inferIO hrel hinv hctx hwf hres (absU_pred hf hi) hbd
+        have hbody := hb.inferIO hrel hinv hctx (absU_pred hf hi) hbd
         rw [laneKnotAt_true, hlane] at hbody
         cases r with
         | Err er =>
           have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
           rw [← ho]
-          exact AOut.err (AErrSim.of_eq (AErrSim.bind (Sim.apply_err hbody) _) htw)
+          exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
         | Ok r1 =>
-          obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hbody
+          obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
           obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
           rw [← ho]
-          obtain ⟨lst2, hset, hrel2, hinv2, hext2⟩ :=
-            SimS.apply (infer_io_set_run hrel1 hinv1 hs2)
-          refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+          obtain ⟨lst2, hset, hrel2, hinv2⟩ :=
+            SimS₀.apply (infer_io_set_run hrel1 hinv1 hs2)
+          refine AOut₀.ok ?_ hrel2 hinv2
           rw [htw, hb1]
           show ((do inferIOSet (absEIdx e) (absEIdx r1)
                     pure (absEIdx r1) : AM EIdx)).run lst1 = _
@@ -886,11 +881,10 @@ theorem coreKnot_succ_whnfCore_miss (mode lfe f d e lst)
 
 theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f + 1)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
     (hrun : arena.core.knot_whnf_core pers vis st mode lane fu fe depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_whnf_core, if_neg (absU_ne_zero hf)] at hrun
@@ -906,8 +900,7 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
     by_cases hg : lane = arena.core.LANE_GATED
     · subst hg
       rw [laneKnot_gated]
-      exact AOut.ok (coreKnotGated_succ_whnfCore_stuck _ _ _ _ _ _ hsv) hrel hinv
-        (Ext.refl _) trivial
+      exact AOut₀.ok (coreKnotGated_succ_whnfCore_stuck _ _ _ _ _ _ hsv) hrel hinv
     · have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore
           (absU depth) (absEIdx e)
           = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore
@@ -915,14 +908,13 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
         by_cases hio : lane = arena.core.LANE_IO
         · rw [hio, laneKnot_io, coreKnotIO_succ_whnfCore]
         · rw [laneKnot_of_ne _ _ _ hg hio]
-      rw [show Sim absEIdx (fun _ => True) pers lst (core.result.Result.Ok e, st)
+      rw [show Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
             ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore
               (absU depth) (absEIdx e))
-          = Sim absEIdx (fun _ => True) pers lst (core.result.Result.Ok e, st)
+          = Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
             ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore
               (absU depth) (absEIdx e)) from by rw [htwin]]
-      exact AOut.ok (coreKnot_succ_whnfCore_stuck _ _ _ _ _ _ hsv) hrel hinv
-        (Ext.refl _) trivial
+      exact AOut₀.ok (coreKnot_succ_whnfCore_stuck _ _ _ _ _ _ hsv) hrel hinv
   · rw [if_neg hbv] at hrun
     have hsv : whnfCoreStuckTag (absEIdx e) = false := by
       rw [← hst]; exact Bool.eq_false_iff.mpr hbv
@@ -930,7 +922,7 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
     · subst hg
       rw [if_pos rfl] at hrun
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have h2 := hb.whnfCoreGated hrel hinv hctx hwf hres (absU_pred hf hi) hrun
+      have h2 := hb.whnfCoreGated hrel hinv hctx (absU_pred hf hi) hrun
       rw [laneKnot_gated] at h2
       rw [laneKnot_gated, coreKnotGated_succ_whnfCore_body _ _ _ _ _ hsv]
       exact h2
@@ -942,10 +934,10 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
         by_cases hio : lane = arena.core.LANE_IO
         · rw [hio, laneKnot_io, coreKnotIO_succ_whnfCore]
         · rw [laneKnot_of_ne _ _ _ hg hio]
-      rw [show Sim absEIdx (fun _ => True) pers lst o
+      rw [show Sim₀ absEIdx pers lst o
             ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore
               (absU depth) (absEIdx e))
-          = Sim absEIdx (fun _ => True) pers lst o
+          = Sim₀ absEIdx pers lst o
             ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore
               (absU depth) (absEIdx e)) from by rw [htwin]]
       have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
@@ -957,8 +949,8 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
         rw [hoc] at hrun hprobe
         have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut.ok (coreKnot_succ_whnfCore_hit _ _ _ _ _ _ _ hsv hprobe.symm)
-          hrel hinv (Ext.refl _) trivial
+        exact AOut₀.ok (coreKnot_succ_whnfCore_hit _ _ _ _ _ _ _ hsv hprobe.symm)
+          hrel hinv
       | none =>
         rw [hoc] at hrun hprobe
         have htw := (coreKnot_succ_whnfCore_miss (ConRon.Refine.absMode mode) lfe f
@@ -969,21 +961,21 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
         obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r, st1⟩ := p
-        have hbody := hb.whnfCore hrel hinv hctx hwf hres (absU_pred hf hi) hbd
+        have hbody := hb.whnfCore hrel hinv hctx (absU_pred hf hi) hbd
         rw [hlane] at hbody
         cases r with
         | Err er =>
           have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
           rw [← ho]
-          exact AOut.err (AErrSim.of_eq (AErrSim.bind (Sim.apply_err hbody) _) htw)
+          exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
         | Ok r1 =>
-          obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hbody
+          obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
           obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
           rw [← ho]
-          obtain ⟨lst2, hset, hrel2, hinv2, hext2⟩ :=
-            SimS.apply (whnf_core_set_run hrel1 hinv1 hs2)
-          refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+          obtain ⟨lst2, hset, hrel2, hinv2⟩ :=
+            SimS₀.apply (whnf_core_set_run hrel1 hinv1 hs2)
+          refine AOut₀.ok ?_ hrel2 hinv2
           rw [htw, hb1]
           show ((do whnfCoreSet (absEIdx e) (absEIdx r1)
                     pure (absEIdx r1) : AM EIdx)).run lst1 = _
@@ -1062,11 +1054,10 @@ theorem coreKnot_succ_whnf_miss (mode lfe f d e lst)
 
 theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f + 1)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
     (hrun : arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_whnf, if_neg (absU_ne_zero hf)] at hrun
@@ -1081,8 +1072,7 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
     by_cases hg : lane = arena.core.LANE_GATED
     · subst hg
       rw [laneKnot_gated]
-      exact AOut.ok (coreKnotGated_succ_whnf_stuck _ _ _ _ _ _ hsv) hrel hinv
-        (Ext.refl _) trivial
+      exact AOut₀.ok (coreKnotGated_succ_whnf_stuck _ _ _ _ _ _ hsv) hrel hinv
     · have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
           (absU depth) (absEIdx e)
           = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
@@ -1090,14 +1080,13 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
         by_cases hio : lane = arena.core.LANE_IO
         · rw [hio, laneKnot_io, coreKnotIO_succ_whnf]
         · rw [laneKnot_of_ne _ _ _ hg hio]
-      rw [show Sim absEIdx (fun _ => True) pers lst (core.result.Result.Ok e, st)
+      rw [show Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
             ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
               (absU depth) (absEIdx e))
-          = Sim absEIdx (fun _ => True) pers lst (core.result.Result.Ok e, st)
+          = Sim₀ absEIdx pers lst (core.result.Result.Ok e, st)
             ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
               (absU depth) (absEIdx e)) from by rw [htwin]]
-      exact AOut.ok (coreKnot_succ_whnf_stuck _ _ _ _ _ _ hsv) hrel hinv
-        (Ext.refl _) trivial
+      exact AOut₀.ok (coreKnot_succ_whnf_stuck _ _ _ _ _ _ hsv) hrel hinv
   · rw [if_neg hbv] at hrun
     have hsv : whnfStuckTag (absEIdx e) = false := by
       rw [← hst]; exact Bool.eq_false_iff.mpr hbv
@@ -1105,7 +1094,7 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
     · subst hg
       rw [if_pos rfl] at hrun
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have h2 := hb.whnf hrel hinv hctx hwf hres (absU_pred hf hi) hrun
+      have h2 := hb.whnf hrel hinv hctx (absU_pred hf hi) hrun
       rw [laneKnot_gated] at h2
       rw [laneKnot_gated, coreKnotGated_succ_whnf_body _ _ _ _ _ hsv]
       exact h2
@@ -1117,10 +1106,10 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
         by_cases hio : lane = arena.core.LANE_IO
         · rw [hio, laneKnot_io, coreKnotIO_succ_whnf]
         · rw [laneKnot_of_ne _ _ _ hg hio]
-      rw [show Sim absEIdx (fun _ => True) pers lst o
+      rw [show Sim₀ absEIdx pers lst o
             ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
               (absU depth) (absEIdx e))
-          = Sim absEIdx (fun _ => True) pers lst o
+          = Sim₀ absEIdx pers lst o
             ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
               (absU depth) (absEIdx e)) from by rw [htwin]]
       have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
@@ -1132,8 +1121,8 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
         rw [hoc] at hrun hprobe
         have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
         rw [← ho]
-        exact AOut.ok (coreKnot_succ_whnf_hit _ _ _ _ _ _ _ hsv hprobe.symm)
-          hrel hinv (Ext.refl _) trivial
+        exact AOut₀.ok (coreKnot_succ_whnf_hit _ _ _ _ _ _ _ hsv hprobe.symm)
+          hrel hinv
       | none =>
         rw [hoc] at hrun hprobe
         have htw := (coreKnot_succ_whnf_miss (ConRon.Refine.absMode mode) lfe f
@@ -1143,21 +1132,21 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
         obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r, st1⟩ := p
-        have hbody := hb.whnf hrel hinv hctx hwf hres (absU_pred hf hi) hbd
+        have hbody := hb.whnf hrel hinv hctx (absU_pred hf hi) hbd
         rw [hlane] at hbody
         cases r with
         | Err er =>
           have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
           rw [← ho]
-          exact AOut.err (AErrSim.of_eq (AErrSim.bind (Sim.apply_err hbody) _) htw)
+          exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
         | Ok r1 =>
-          obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hbody
+          obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
           obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
           rw [← ho]
-          obtain ⟨lst2, hset, hrel2, hinv2, hext2⟩ :=
-            SimS.apply (whnf_set_run hrel1 hinv1 hs2)
-          refine AOut.ok ?_ hrel2 hinv2 (Ext.trans hext1 hext2) trivial
+          obtain ⟨lst2, hset, hrel2, hinv2⟩ :=
+            SimS₀.apply (whnf_set_run hrel1 hinv1 hs2)
+          refine AOut₀.ok ?_ hrel2 hinv2
           rw [htw, hb1]
           show ((do whnfSet (absEIdx e) (absEIdx r1)
                     pure (absEIdx r1) : AM EIdx)).run lst1 = _
@@ -1168,12 +1157,12 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
 
 /-- **`BodyRel f → KnotRel (f + 1)`** — the six fields above, assembled. -/
 theorem knotRel_succ {f : Nat} (hb : BodyRel f) : KnotRel (f + 1) where
-  whnfCore h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_whnfCore hb h1 h2 h3 h4 h5 h6 h7
-  whnf h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_whnf hb h1 h2 h3 h4 h5 h6 h7
-  infer h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_infer hb h1 h2 h3 h4 h5 h6 h7
-  inferIO h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_inferIO hb h1 h2 h3 h4 h5 h6 h7
-  defeq h1 h2 h3 h4 h5 h6 h7 h8 := knotRel_succ_defeq hb h1 h2 h3 h4 h5 h6 h7 h8
-  annotate h1 h2 h3 h4 h5 h6 h7 := knotRel_succ_annotate hb h1 h2 h3 h4 h5 h6 h7
+  whnfCore h1 h2 h3 h4 h5 := knotRel_succ_whnfCore hb h1 h2 h3 h4 h5
+  whnf h1 h2 h3 h4 h5 := knotRel_succ_whnf hb h1 h2 h3 h4 h5
+  infer h1 h2 h3 h4 h5 := knotRel_succ_infer hb h1 h2 h3 h4 h5
+  inferIO h1 h2 h3 h4 h5 := knotRel_succ_inferIO hb h1 h2 h3 h4 h5
+  defeq h1 h2 h3 h4 h5 := knotRel_succ_defeq hb h1 h2 h3 h4 h5
+  annotate h1 h2 h3 h4 h5 := knotRel_succ_annotate hb h1 h2 h3 h4 h5
 
 /-- **The fuel induction**: `KnotRel` at every fuel, given the arms.  The
 premise is `Core/Arms/*`'s obligation — *"given the knot at `f`, the six

@@ -73,20 +73,100 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-! ## The six bodies, and the tier's one open obligation -/
+/-! ## The six bodies, and the tier's open obligations
 
-/-- **`KnotRel f → BodyRel f`.**  The six bodies' ten-way dispatches, the two
-loops, the batched clauses and the ≈ 95 helpers under them.  This is what
-`Core/Induction.lean`'s `knot_rel` consumes and what the next round owes; the
-census is in this file's module note.
+**Task #97-P5-Core round 4: the skeleton.**  `bodyRel_of_knot` is no longer
+one `sorry`: it is the seven `BodyRel` fields assembled from one child per
+body, every child a LOCKSTEP statement over `AStateRel₀` (no `StoreWF`, no
+`EResolves`, `Sim₀`).  Two of the seven are already the loops of
+`Core/Arms/Loops.lean` (`whnf_body_refines`, closed modulo `reduce_nat` and
+the `ExprOpsHyp` seam; `defeq_body_refines`, whose loop is open); the other
+five are the ten-way dispatches below. -/
 
-Its two gated fields are GONE (task #97-P5-Core-2): the twin's
-`coreKnotGated` now tests the stuck tag exactly where the port's `knot_*` do
-and fails unconditionally at fuel `0`, so `Core/Induction.lean` reads the
-agreement off the knot's own equation and neither relation carries anything
-for it. -/
-theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := by
+/-- `arena::core::whnf_core_body` against `Arena.whnfCoreBody` — the
+head-normalization body.  **Open.** -/
+theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.whnf_core_body pers vis st mode lane fu fe depth e = ok o) :
+    Sim₀ absEIdx pers lst o
+      (whnfCoreBody (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx e)) := by
   sorry
+
+/-- `arena::core_gated::whnf_core_body_gated` against `Arena.whnfCoreBodyGated`
+— the gated lane's `whnfCore` body.  **Open.** -/
+theorem whnf_core_body_gated_refines {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hrun : arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e
+      = ok o) :
+    Sim₀ absEIdx pers lst o
+      (whnfCoreBodyGated (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx e)) := by
+  sorry
+
+/-- `arena::core::infer_body` against `Arena.inferBody`.  **Open.** -/
+theorem infer_body_refines {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.infer_body pers vis st mode lane fu fe depth e = ok o) :
+    Sim₀ absEIdx pers lst o
+      (inferBody (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx e)) := by
+  sorry
+
+/-- `arena::core::infer_body_io` against `Arena.inferBodyIO`.  **Open.** -/
+theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane io fu fe lfe depth e lst o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o) :
+    Sim₀ absEIdx pers lst o
+      (inferBodyIO (ConRon.Refine.absMode mode)
+        (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe
+        (absU depth) (absEIdx e)) := by
+  sorry
+
+/-- `arena::core::annotate_body` against `Arena.annotateBody`.  **Open.** -/
+theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hrun : arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o) :
+    Sim₀ absEIdx pers lst o
+      (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx e)) := by
+  sorry
+
+/-- **The `ExprOps` tier's lockstep obligations, named once** — the two walks
+the delta leaf borrows (`Core/Arms/Delta.lean`'s `ExprOpsHyp`), which the
+`ExprOps` tier's migration to `AStateRel₀` owes.  **Open**, and deliberately
+a single named seam rather than a hypothesis of `bodyRel_of_knot`: nothing
+below the knot can supply it until that migration. -/
+theorem exprOpsHyp (pers : arena.store.PersTier) : ExprOpsHyp pers := by
+  sorry
+
+/-- **`KnotRel f → BodyRel f`**, assembled from its seven children.  Since
+task #97-P5-Core round 4 this is a skeleton, not a `sorry`: the open work is
+the five dispatches above, `reduce_nat_refines` and `defeq_loop_refines`
+(`Core/Arms/Loops.lean`), and the `exprOpsHyp` seam. -/
+theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
+  { whnfCore := fun h1 h2 h3 h4 h5 => whnf_core_body_refines hk h1 h2 h3 h4 h5
+    whnfCoreGated := fun h1 h2 h3 h4 h5 =>
+      whnf_core_body_gated_refines hk h1 h2 h3 h4 h5
+    whnf := fun h1 h2 h3 h4 h5 =>
+      whnf_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
+    infer := fun h1 h2 h3 h4 h5 => infer_body_refines hk h1 h2 h3 h4 h5
+    inferIO := fun h1 h2 h3 h4 h5 => infer_body_io_refines hk h1 h2 h3 h4 h5
+    defeq := fun h1 h2 h3 h4 h5 => defeq_body_refines hk h1 h2 h3 h4 h5
+    annotate := fun h1 h2 h3 h4 h5 => annotate_body_refines hk h1 h2 h3 h4 h5 }
 
 /-- **The knot, unconditionally** — the theorem the Checker tier wants, and the
 only `sorry` between it and `Core/Induction.lean`'s closed induction. -/

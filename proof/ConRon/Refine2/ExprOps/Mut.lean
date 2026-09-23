@@ -7447,7 +7447,15 @@ theorem stripPis_res : ∀ (k : Nat) {h : EIdx} {lst lst' : AState}
   | succ k ih =>
     intro h lst lst' r hwf hh hrun
     obtain ⟨v, hv⟩ := EResolves.dest hh
-    rw [stripPis, StateT.run_bind, ExprOps.arena_view_run_some hv] at hrun
+    rw [stripPis] at hrun
+    -- the twin tests the tag first since task #97-P5-Core round 4
+    by_cases htf : (h.tag == ETag.forallE) = true
+    swap
+    · rw [if_neg htf, run_pure] at hrun
+      simp only [Except.ok.injEq, Prod.mk.injEq] at hrun
+      obtain ⟨rfl, rfl⟩ := hrun
+      exact ⟨rfl, fun p hp => by cases hp⟩
+    rw [if_pos htf, StateT.run_bind, ExprOps.arena_view_run_some hv] at hrun
     cases v with
     | forallE ty b m =>
       have hbR : EResolves lst b :=
@@ -7569,19 +7577,20 @@ theorem rec_rule_plain_refines {pers st lst} {fuel : Std.U64}
         have heR : EResolves lst (absEIdx e) := hres1 _ rfl
         obtain ⟨v, hv⟩ := EResolves.dest heR
         show AOut id (fun _ => True) pers lst o.1 o.2
-          ((do
+          ((if (absEIdx e).tag == ETag.forallE then (do
             match ← Arena.view (absEIdx e) with
             | .forallE dom _ _ => do
               let args ← getAppArgs (absU fuel) dom
               let want ← bvarRange (absU m_i) (absU cn_p) 0
               pure (args.take (absU cn_p) == want)
-            | _ => pure false).run lst)
-        rw [run_bind_of (view_run_of_store hv)]
+            | _ => pure false) else pure false).run lst)
         obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have htg := eidx_tag_abs ht
         by_cases hF : t = arena.handle.ETAG_FORALL_E
         · rw [if_pos hF] at hrun
           have htF : (absEIdx e).tag = ETag.forallE := by rw [htg, hF, etag_forallE_abs]
+          -- the twin tests the tag first since task #97-P5-Core round 4
+          rw [if_pos (by rw [htF]; rfl), run_bind_of (view_run_of_store hv)]
           obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hvf := view_forall_of_view_bind hrel htF ho1
           cases ho1c : o1 with
@@ -7636,15 +7645,9 @@ theorem rec_rule_plain_refines {pers st lst} {fuel : Std.U64}
         · rw [if_neg hF] at hrun
           have ho := Result.ok_injective hrun
           rw [← ho]
-          have htv := EStore_view_tagOf hv
-          cases v with
-          | forallE _ _ _ =>
-            exfalso; apply hF
-            apply absU32_inj
-            rw [etag_forallE_abs, ← htg, htv]; rfl
-          | bvar _ | fvar _ _ | sort _ | const _ _ | app _ _ | lam _ _ _ | letE _ _ _
-          | lit _ | proj _ _ _ =>
-            exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+          rw [if_neg (fun hx => hF (absU32_inj (by
+            rw [etag_forallE_abs, ← htg]; exact beq_iff_eq.mp hx)))]
+          exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
   · have hno : ¬ (decide (absU cn_p ≤ absU r_p) && decide (absU r_p ≤ absU m_i)) = true := by
       simp only [Bool.and_eq_true, decide_eq_true_eq]
       intro ⟨h1, h2⟩; exact hc ⟨by scalar_tac, by scalar_tac⟩
