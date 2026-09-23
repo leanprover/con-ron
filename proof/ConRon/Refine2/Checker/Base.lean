@@ -1235,15 +1235,158 @@ theorem reduceOpNames_reads : AMReads reduceOpNames := by
 
 /-! ## The per-declaration constant check -/
 
+/-! ### The guards' callees in the judgements `lockstep` zips with
+
+`Inductives/Prims.lean` files `reserved_basis_names` and `Inductives/Shape.lean`
+`ifenv_find` too, but both sit ABOVE this module; the checker's own copies are
+here under `chk_` names so the two files never collide. -/
+
+attribute [local lockstep_simp] ite_true ite_false
+
+/-- `lockstep`, deciding a twin `if` from the context BEFORE the Rust moves.
+The shared tactic moves a Rust bind before it decides a twin `if`, and when
+that bind's spec does not match (its twin partner is inside the `if`) it
+falls back to `LS.twin_bind_pure`, which succeeds and buries the `if` under a
+`>>= pure` where it is never decided.  That happens exactly where a guard's
+Rust test was already split (`hc` in context) and the Rust's next step is a
+state-threading call in the failing branch (`unresolved_consts_error`).  This
+wrapper tries the context's decision first; everything else is `lockstep_step`.
+(Reported as a tactic issue for the shared `Tactic/Lockstep.lean`.) -/
+macro "chk_lockstep" : tactic => `(tactic| repeat' (first
+  | (refine Lockstep.LS.twin_ite_neg (by assumption) ?_)
+  | (refine Lockstep.LS.twin_ite_pos (by assumption) ?_)
+  | lockstep_step))
+
+namespace Lockstep
+
+@[lockstep] theorem chk_ifenv_find_spec {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.ifenv_find vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
+  fun _ h => (ifenv_find_abs hctx h).symm
+
+@[lockstep_simp] theorem option_isSome_map_is_some {α β : Type} (f : α → β)
+    (a : Option α) : (a.map f).isSome = core.option.Option.is_some a := by
+  cases a <;> rfl
+
+@[lockstep] theorem chk_reserved_basis_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxL a) (arena.core.reserved_basis_names st) st lst
+      reservedBasisNames :=
+  LSR.ofSimRE hrel hinv fun _ h => reserved_basis_names_refines hrel hinv h
+
+@[lockstep] theorem nidx_is_proj_fn_shape_ls {pers st lst} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = id a) (arena.checker_base.nidx_is_proj_fn_shape pers st n)
+      st lst (NIdx.isProjFnShape (absNIdx n)) :=
+  LSR.ofSimRE hrel hinv fun _ h => nidx_is_proj_fn_shape_refines hrel hinv h
+
+@[lockstep] theorem name_nodup_spec (ns : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.checker_base.name_nodup ns)
+      (fun o => TwinEq (nameNodup (ns.val.map absNIdx)) o) :=
+  fun _ h => (name_nodup_refines h).symm
+
+@[lockstep] theorem all_level_params_defined_ls {pers st lst}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = id a)
+      (arena.checker_base.all_level_params_defined pers st lps e) st lst
+      (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) :=
+  LSR.ofSimRE hrel hinv fun _ h => all_level_params_defined_refines hrel hinv h
+
+@[lockstep] theorem consts_resolve_f_fast_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.consts_resolve_f_fast pers vis st rf e) lst
+      (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => consts_resolve_f_fast_refines hrel hinv hfe.rel hfe.inv h
+
+/-- Not `@[lockstep]`: the twin's message word `w` is not determined by the Rust
+call, so a caller passes this at its word as a local hypothesis. -/
+theorem unresolved_consts_error_ls {pers st lst} {e : arena.handle.EIdx}
+    (w : String) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (unresolvedConstsError w (absEIdx e)) :=
+  LS.ofSimRel₀ fun _ h => unresolved_consts_error_refines hrel hinv h
+
+@[lockstep] theorem chk_nidx_contains_from_zero_spec (ns : alloc.vec.Vec arena.handle.NIdx)
+    (n : arena.handle.NIdx) :
+    LSP (arena.checker_base.nidx_contains_from ns 0#usize n)
+      (fun o => TwinEq ((ns.val.map absNIdx).contains (absNIdx n)) o) := by
+  intro o h
+  have := nidx_contains_from_refines h
+  have e : absNIdxLFrom ns 0#usize = ns.val.map absNIdx := by simp [absNIdxLFrom]
+  rw [e] at this
+  exact this.symm
+
+@[lockstep] theorem chk_nidx_vec_dup_spec (ns : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_dup ns) (fun r => r.val = ns.val) :=
+  fun _ h => nidx_vec_dup_val h
+
+@[lockstep_simp] theorem absIConstantVal_mk (n : arena.handle.NIdx)
+    (v : alloc.vec.Vec arena.handle.NIdx) (t : arena.handle.EIdx) :
+    absIConstantVal { «name» := n, level_params := v, ty := t }
+      = { «name» := absNIdx n, levelParams := v.val.map absNIdx, type := absEIdx t } := rfl
+
+@[lockstep_simp] theorem absIConstantVal_name (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).name = absNIdx cv.name := rfl
+
+@[lockstep_simp] theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).type = absEIdx cv.ty := rfl
+
+@[lockstep_simp] theorem absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).levelParams = cv.level_params.val.map absNIdx := rfl
+
+end Lockstep
+
+
+/-- `check_constant_val_guards_rest` by `lockstep`, with its two `arena::expr_ops`
+callees as hypotheses: their lockstep statements (`has_fvar_fast_ls`,
+`loose_bvars_bounded_fast_ls`) are the ExprOps lane's, not on `arena` yet. -/
+theorem check_constant_val_guards_rest_of {pers st lst}
+    {cv : arena.env.IConstantVal} {o}
+    (hL : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.expr_ops.loose_bvars_bounded_fast pers st arena.core.CORE_WALK_FUEL 0#u64
+          cv.ty) lst
+        (looseBVarsBoundedFast coreWalkFuel 0 (absEIdx cv.ty)))
+    (hH : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.expr_ops.has_fvar_fast pers st arena.core.CORE_WALK_FUEL cv.ty) lst
+        (hasFvarFast coreWalkFuel (absEIdx cv.ty)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.checker_base.check_constant_val_guards_rest pers st cv = ok o) :
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (checkConstantValGuardsRestSpec (absIConstantVal cv)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.check_constant_val_guards_rest, checkConstantValGuardsRestSpec]
+  simp only [am_fail_bind]
+  chk_lockstep
+
 /-- `check_constant_val_guards_rest` is `check_constant_val_guards`'s tail past
-the duplicate-declaration test (extraction rule 5). -/
+the duplicate-declaration test (extraction rule 5).  **Closed modulo the
+ExprOps lane**: `check_constant_val_guards_rest_of` is the whole proof; the two
+`sorry`s are `has_fvar_fast_ls`/`loose_bvars_bounded_fast_ls` (branch
+`t2-lock-exprops-b`), one line each once it lands. -/
 theorem check_constant_val_guards_rest_refines {pers st lst}
     {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.check_constant_val_guards_rest pers st cv = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkConstantValGuardsRestSpec (absIConstantVal cv)) := by
-  sorry
+      (checkConstantValGuardsRestSpec (absIConstantVal cv)) :=
+  check_constant_val_guards_rest_of (fun _ _ => sorry) (fun _ _ => sorry) hrel hinv hrun
+
+open Lockstep in
+@[lockstep] theorem check_constant_val_guards_rest_ls {pers st lst}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun _ b => b = ())
+      (arena.checker_base.check_constant_val_guards_rest pers st cv) lst
+      (checkConstantValGuardsRestSpec (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => check_constant_val_guards_rest_refines hrel hinv h
 
 /-- `check_constant_val_guards` is `installConstantVal`'s guard prefix — the
 syntactic tests before the annotation. -/
@@ -1254,7 +1397,22 @@ theorem check_constant_val_guards_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.checker_base.check_constant_val_guards pers vis st rf cv = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
       (checkConstantValGuardsSpec lf (absIConstantVal cv)) := by
-  sorry
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.check_constant_val_guards, checkConstantValGuardsSpec]
+  simp only [am_fail_bind]
+  chk_lockstep
+
+open Lockstep in
+@[lockstep] theorem check_constant_val_guards_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun _ b => b = ())
+      (arena.checker_base.check_constant_val_guards pers vis st rf cv) lst
+      (checkConstantValGuardsSpec lf (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => check_constant_val_guards_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- `install_constant_val_tail` is `installConstantVal`'s tail past the
 annotation: the level-parameter test and the constant-resolution test. -/
@@ -1265,7 +1423,27 @@ theorem install_constant_val_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.checker_base.install_constant_val_tail pers vis st rf cv ty = ok o) :
     Sim₀ absIConstantVal pers lst o
       (installConstantValTailSpec lf (absIConstantVal cv) (absEIdx ty)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hlf : lf.restrictTo (absU vis) = lf := by rw [IFEnv.restrictTo, hvis]
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.install_constant_val_tail, installConstantValTailSpec]
+  simp only [am_fail_bind]
+  have hU : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun r v => absAErrKind r = lAErrKind v)
+        (arena.checker_base.unresolved_consts_error pers st ty) lst
+        (unresolvedConstsError "type" (absEIdx ty)) :=
+    fun hrel hinv => Lockstep.unresolved_consts_error_ls "type" hrel hinv
+  chk_lockstep
+
+open Lockstep in
+@[lockstep] theorem install_constant_val_tail_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {cv : arena.env.IConstantVal} {ty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.install_constant_val_tail pers vis st rf cv ty) lst
+      (installConstantValTailSpec lf (absIConstantVal cv) (absEIdx ty)) :=
+  LS.ofSim₀ fun _ h => install_constant_val_tail_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- `check_constant_val_after_annot` is `checkConstantVal`'s tail: the
 install-side tail plus the type's own inference and sort check. -/
@@ -1279,7 +1457,24 @@ theorem check_constant_val_after_annot_refines {pers st lst} {vis : Std.U64}
     Sim₀ absIConstantVal pers lst o
       (checkConstantValAfterAnnotSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx ty)) := by
-  sorry
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.check_constant_val_after_annot, checkConstantValAfterAnnotSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_constant_val_after_annot_ls {pers st lst} {vis : Std.U64}
+    {rf lf} {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    {ty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.check_constant_val_after_annot pers vis st mode rf cv ty) lst
+      (checkConstantValAfterAnnotSpec (ConRon.Refine.absMode mode) lf
+        (absIConstantVal cv) (absEIdx ty)) :=
+  LS.ofSim₀ fun _ h =>
+    check_constant_val_after_annot_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- **`check_constant_val` ⊑ `checkConstantVal`** — the common per-declaration
 constant check, whole. -/
@@ -1290,7 +1485,11 @@ theorem check_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.checker_base.check_constant_val pers vis st mode rf cv = ok o) :
     Sim₀ absIConstantVal pers lst o
       (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
-  sorry
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.check_constant_val, checkConstantVal_unfold]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_constant_val_ls {pers st lst}
@@ -1846,7 +2045,11 @@ theorem install_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.checker_split.install_constant_val pers vis st mode rf cv = ok o) :
     Sim₀ absIConstantVal pers lst o
       (installConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
-  sorry
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.install_constant_val, installConstantVal_unfold]
+  lockstep
 
 /-- `install_value_tail` is `install_value`'s tail past the annotation. -/
 theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -2110,12 +2313,6 @@ macro_rules
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun o => o = (absNIdx a == absNIdx b)) :=
   fun _ h => nidx_eq2_abs h
-
-@[lockstep_simp] theorem absIConstantVal_name (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).name = absNIdx cv.name := rfl
-
-@[lockstep_simp] theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).type = absEIdx cv.ty := rfl
 
 @[lockstep_simp] theorem absNIdxLFrom_zero (ns : alloc.vec.Vec arena.handle.NIdx) :
     absNIdxLFrom ns 0#usize = absNIdxL ns := by simp [absNIdxLFrom, absNIdxL]
