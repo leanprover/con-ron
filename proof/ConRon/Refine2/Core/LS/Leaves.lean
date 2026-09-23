@@ -45,6 +45,12 @@ theorem absIConstantVal_levelParams_length (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).levelParams.length = cv.level_params.val.length := by
   simp [absIConstantVal]
 
+theorem uscalar_eq_iff_val {ty} (a b : Std.UScalar ty) : a = b ↔ a.val = b.val :=
+  ⟨fun h => h ▸ rfl, fun h => Aeneas.Std.UScalar.eq_imp a b h⟩
+
+theorem nat_beq_eq_decide (a b : Nat) : (a == b) = decide (a = b) := by
+  by_cases h : a = b <;> simp [h]
+
 attribute [local lockstep_simp] decide_usize_eq_len absIConstantVal_levelParams_length
 
 /-! ## The pinned constants -/
@@ -197,7 +203,25 @@ the twin's `what` is free (messages are never compared). -/
       (isUnitLikeTy lfe (absEIdx h)) := by
   rw [arena.core.is_unit_like_ty, isUnitLikeTy]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
+  -- glue: the port tests `rules.len() == 1` and reads `rules[0]`, the twin
+  -- matches the singleton pattern `[r]`
+  all_goals
+    split
+    all_goals rename_i heq
+    all_goals
+      refine LS.pure ?_ ‹_› ‹_›
+      simp only [Option.some.injEq, IConstantInfo.recInfo.injEq, List.map_eq_singleton_iff] at heq
+      first
+      | rfl
+      | (obtain ⟨-, rfl, rfl, x, hx, rfl⟩ := heq
+         simp_all [absIRecRule, uscalar_eq_iff_val, alloc.vec.Vec.len_val, absU,
+           nat_beq_eq_decide]
+         done)
+      | (exfalso
+         have hl := congrArg (fun u : Std.Usize => u.val) ‹alloc.vec.Vec.len _ = 1#usize›
+         simp only [alloc.vec.Vec.len_val] at hl
+         obtain ⟨y, hy⟩ := List.length_eq_one_iff.mp hl
+         exact heq _ _ _ _ ⟨rfl, rfl, rfl, y, hy, rfl⟩)
+
 
 end ConRon.Refine2.Lockstep
