@@ -355,7 +355,27 @@ theorem structTeleAt_spec (nF o i l : Nat) (pw : PropWhen)
     PSpec (fun st => denoteBinders st tele = some teleP)
       (Arena.structTeleAt nF o i l pw tele)
       (RB (ConLeche.structTeleAt nF o i l pw teleP)) := by
-  sorry
+  intro s₀ s' r hok hte hrun
+  simp only [Arena.structTeleAt] at hrun
+  have hlen : tele.length = teleP.length := denoteBinders_length hte
+  obtain ⟨hstep, hrel⟩ := mapM_pstep (β := EIdx × BinderMeta) (γ := Expr × BinderMeta) _
+    (fun k => (ConLeche.structIdxAt nF o i l k (teleP.getD k default).1,
+      (⟨pw⟩ : BinderMeta)))
+    (fun st b c => denoteE st b.1 = some c.1 ∧ b.2 = c.2)
+    (fun k st => denoteE st (tele.getD k default).1 = some (teleP.getD k default).1)
+    (fun hx h => ⟨denote_ext h.1 hx, h.2⟩) (fun hx h => denote_ext h hx)
+    (by
+      intro k s₀ s' b hok hk hrun
+      obtain ⟨x, s1, k1, hz⟩ := bindOk hrun
+      obtain ⟨p1, hx⟩ := structIdxAt_spec nF o i l k _ _ s₀ s1 x hok hk k1
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨p1, hx, rfl⟩)
+    (List.range tele.length) s₀ s' r hok
+    (fun k hk => denoteBinders_getD hte (List.mem_range.mp hk)) hrun
+  refine ⟨hstep, ?_⟩
+  show denoteBinders _ r = some (ConLeche.structTeleAt nF o i l pw teleP)
+  rw [ConLeche.structTeleAt, ← hlen]
+  exact ListRel.toBinders hrel
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:254-255 structTeleVars
 `bvarsDesc m`; con-leche's is the same `List.range` map.
@@ -453,6 +473,42 @@ theorem mkLamsOf_spec : ∀ (bs : List (EIdx × BinderMeta))
           internLamE_run hstep1.ok (denote_ext hty hstep1.ext) hx h2
         exact ⟨hstep1.trans hstep2, hr⟩
 
+/-- con-leche: none — `structIdxAt` mapped over a denoting handle list. -/
+theorem structIdxAt_mapM (nF o i l m : Nat) :
+    ∀ (idx : List EIdx) (idxP : List Expr) (s₀ s' : AState) (r : List EIdx),
+      StateOK s₀ → Frontend.denoteEList s₀.store idx = some idxP →
+      idx.mapM (fun e => Arena.structIdxAt nF o i l m e) s₀ = .ok (r, s') →
+      PStep s₀ s' ∧
+        Frontend.denoteEList s'.store r = some (idxP.map (ConLeche.structIdxAt nF o i l m)) := by
+  intro idx
+  induction idx with
+  | nil =>
+    intro idxP s₀ s' r hok h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro idxP s₀ s' r hok h hrun
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+      cases hes : Frontend.denoteEList s₀.store es with
+      | none => rw [he, hes] at h; simp at h
+      | some esP =>
+        rw [he, hes] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.mapM_cons] at hrun
+        obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hx⟩ := structIdxAt_spec nF o i l m e eP s₀ s1 x hok he k1
+        obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+        obtain ⟨p2, hxs⟩ := ih esP s1 s2 xs p1.ok (denoteEList_ext p1.ext _ _ hes) k2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        refine ⟨p1.trans p2, ?_⟩
+        simp only [Frontend.denoteEList, List.map_cons, denote_ext hx p2.ext, hxs]
+
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:265-277 structIhApp
 The inductive-hypothesis application inside a minor premise.
 
@@ -468,7 +524,46 @@ theorem structIhApp_spec (recC : NIdx) (recCP : ConLeche.Name) (rlvls : LsIdx)
         Frontend.denoteEList st idx = some idxP)
       (Arena.structIhApp recC rlvls pw nP n nF i tele idx)
       (RE (ConLeche.structIhApp recCP rlvlsP pw nP n nF i teleP idxP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hrc, hrl, hte, hidx⟩ := hpre
+  have hlen : tele.length = teleP.length := denoteBinders_length hte
+  simp only [Arena.structIhApp] at hrun
+  obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hhd⟩ := internConstE_run hok hrc hrl k1
+  obtain ⟨ps, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hps⟩ := structRecPrefixAt_spec nP n nF tele.length s1 s2 ps p1.ok trivial k2
+  obtain ⟨ix, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨p3, hix⟩ := structIdxAt_mapM nF (n + 1) i 0 tele.length idx idxP s2 s3 ix p2.ok
+    (denoteEList_ext (p1.ext.trans p2.ext) _ _ hidx) k3
+  obtain ⟨fv, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨p4, hfv⟩ := internBVarE_run p3.ok k4
+  obtain ⟨tv, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, htv⟩ := structTeleVars_spec tele.length s4 s5 tv p4.ok trivial k5
+  obtain ⟨fa, s6, k6, z6⟩ := bindOk z5
+  obtain ⟨p6, hfa⟩ := mkAppN_run tv _ p5.ok (denote_ext hfv p5.ext) htv k6
+  obtain ⟨bd, s7, k7, z7⟩ := bindOk z6
+  have x16 : Ext s1.store s6.store :=
+    p2.ext.trans (p3.ext.trans (p4.ext.trans (p5.ext.trans p6.ext)))
+  have hargs : Frontend.denoteEList s6.store (ps ++ ix ++ [fa]) = some
+      (ConLeche.structRecPrefixAt nP n nF tele.length ++
+        idxP.map (ConLeche.structIdxAt nF (n + 1) i 0 tele.length) ++
+        [Expr.mkAppN (.bvar (nF - 1 - i + tele.length))
+          (ConLeche.structTeleVars tele.length)]) :=
+    denoteEList_append (denoteEList_append
+      (denoteEList_ext (p3.ext.trans (p4.ext.trans (p5.ext.trans p6.ext))) _ _ hps)
+      (denoteEList_ext (p4.ext.trans (p5.ext.trans p6.ext)) _ _ hix))
+      (by simp only [Frontend.denoteEList, hfa])
+  obtain ⟨p7, hbd⟩ := mkAppN_run _ _ p6.ok (denote_ext hhd x16) hargs k7
+  obtain ⟨tl, s8, k8, z8⟩ := bindOk z7
+  have x07 : Ext s₀.store s7.store := p1.ext.trans (x16.trans p7.ext)
+  obtain ⟨p8, htl⟩ := structTeleAt_spec nF (n + 1) i 0 pw tele teleP s7 s8 tl p7.ok
+    (denoteBinders_ext x07 _ _ hte) k8
+  obtain ⟨p9, hr⟩ := mkLamsOf_spec tl _ bd _ s8 s' r p8.ok
+    ⟨htl, denote_ext hbd p8.ext⟩ z8
+  refine ⟨p1.trans (p2.trans (p3.trans (p4.trans (p5.trans (p6.trans (p7.trans
+    (p8.trans p9))))))), ?_⟩
+  show denoteE _ r = _
+  rw [hr, ConLeche.structIhApp, hlen]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:279-288 structRuleBodyR
 The rule's right-hand-side body.  **Task #97d-2's deviation 3**: con-leche
@@ -488,7 +583,47 @@ theorem structRuleBodyR_spec (recC : NIdx) (recCP : ConLeche.Name)
       (RE (ConLeche.structRuleBodyR recCP rlvlsP pw nP n nF j recIdx
         (fun i => ConLeche.structFieldTeleOf ctyP nP nF i)
         (fun i => ConLeche.structFieldIdxOf ctyP nP nF i))) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hrc, hrl, hcty⟩ := hpre
+  simp only [Arena.structRuleBodyR] at hrun
+  obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hhd⟩ := internBVarE_run hok k1
+  obtain ⟨fs, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hfs⟩ := bvarsDesc_spec nF s1 s2 fs p1.ok trivial k2
+  obtain ⟨ihs, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨p3, hihs⟩ := mapM_pstep (β := EIdx) (γ := Expr) _
+    (fun i => ConLeche.structIhApp recCP rlvlsP pw nP n nF i
+      (ConLeche.structFieldTeleOf ctyP nP nF i) (ConLeche.structFieldIdxOf ctyP nP nF i))
+    (fun st b c => denoteE st b = some c)
+    (fun i st => i < nF ∧ denoteN st.ns recC = some recCP ∧
+      denoteLs st.lss rlvls = some rlvlsP ∧ denoteE st cty = some ctyP)
+    (fun hx h => denote_ext h hx)
+    (fun hx h => ⟨h.1, denoteN_ext h.2.1 hx, denoteLs_ext h.2.2.1 hx,
+      denote_ext h.2.2.2 hx⟩)
+    (by
+      intro i s₀ s' b hok hP hrun
+      obtain ⟨hi, hrc, hrl, hcty⟩ := hP
+      obtain ⟨te, t1, q1, w1⟩ := bindOk hrun
+      obtain ⟨o1, hte⟩ := structFieldTeleOf_spec cty ctyP nP nF i hi s₀ t1 te hok hcty q1
+      obtain ⟨ix, t2, q2, w2⟩ := bindOk w1
+      obtain ⟨o2, hix⟩ := structFieldIdxOf_spec cty ctyP nP nF i hi t1 t2 ix o1.ok
+        (denote_ext hcty o1.ext) q2
+      obtain ⟨o3, hb⟩ := structIhApp_spec recC recCP rlvls rlvlsP pw nP n nF i te _ ix _
+        t2 s' b o2.ok ⟨denoteN_ext hrc (o1.ext.trans o2.ext),
+          denoteLs_ext hrl (o1.ext.trans o2.ext), denoteBinders_ext o2.ext _ _ hte, hix⟩ w2
+      exact ⟨o1.trans (o2.trans o3), hb⟩)
+    recIdx s2 s3 ihs p2.ok
+    (fun i hi => ⟨hri i hi, denoteN_ext hrc (p1.ext.trans p2.ext),
+      denoteLs_ext hrl (p1.ext.trans p2.ext), denote_ext hcty (p1.ext.trans p2.ext)⟩) k3
+  have hargs := denoteEList_append (denoteEList_ext p3.ext _ _ hfs) (ListRel.toEList hihs)
+  obtain ⟨p4, hr⟩ := mkAppN_run _ _ p3.ok (denote_ext hhd (p2.ext.trans p3.ext)) hargs z3
+  refine ⟨p1.trans (p2.trans (p3.trans p4)), ?_⟩
+  show denoteE _ r = _
+  have hps : ConLeche.structPsAt 0 nF =
+      (List.range nF).map fun k => Expr.bvar (nF - 1 - k) := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun k => by omega)
+  rw [hr, ConLeche.structRuleBodyR, hps]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:290-305 structIhPis
 The inductive-hypothesis binders in front of a minor premise's body.  The same

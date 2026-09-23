@@ -2118,6 +2118,91 @@ theorem ROp.isSome {α β : Type} {R : β → EStore → α → Prop} {x : Optio
   | none => simp only [ROp] at h; rw [h]; rfl
   | some a => obtain ⟨b, hb, _⟩ := h; rw [hb]; rfl
 
+/-! ## `List.mapM` at the pure frame (task #97-P3-Ind round 6)
+
+Group 3's generators map a pure-grade twin over a list (`structTeleAt` over
+the telescope's indices, `structIhApp` over the index expressions,
+`structRuleBodyR` over the recursive positions, …).  `mapM_pstep` is the one
+induction; the answer is a pointwise relation `ListRel`, which the two
+readers below turn into `denoteEList` / `denoteBinders`. -/
+
+/-- con-leche: none — a relation lifted pointwise to two lists of the same
+length. -/
+def ListRel {β γ : Type} (R : EStore → β → γ → Prop) (st : EStore) :
+    List β → List γ → Prop
+  | [], [] => True
+  | b :: bs, c :: cs => R st b c ∧ ListRel R st bs cs
+  | _, _ => False
+
+/-- con-leche: none — **`List.mapM` of a pure-grade step**: the frame
+composes and the answers relate pointwise. -/
+theorem mapM_pstep {α β γ : Type} (f : α → AM β) (g : α → γ)
+    (R : EStore → β → γ → Prop) (P : α → EStore → Prop)
+    (hRx : ∀ {st st' : EStore} {b : β} {c : γ}, Ext st st' → R st b c → R st' b c)
+    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
+    (hf : ∀ (a : α) (s₀ s' : AState) (b : β), StateOK s₀ → P a s₀.store →
+      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ R s'.store b (g a)) :
+    ∀ (xs : List α) (s₀ s' : AState) (bs : List β), StateOK s₀ →
+      (∀ a ∈ xs, P a s₀.store) → xs.mapM f s₀ = .ok (bs, s') →
+      PStep s₀ s' ∧ ListRel R s'.store bs (xs.map g) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro s₀ s' bs hok _ hrun
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, trivial⟩
+  | cons a as ih =>
+    intro s₀ s' bs hok hP hrun
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨b, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨p1, hb⟩ := hf a s₀ s1 b hok (hP a (by simp)) k1
+    obtain ⟨cs, s2, k2, hz2⟩ := bindOk hz1
+    obtain ⟨p2, hcs⟩ := ih s1 s2 cs p1.ok
+      (fun x hx => hPx p1.ext (hP x (by simp [hx]))) k2
+    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    exact ⟨p1.trans p2, hRx p2.ext hb, hcs⟩
+
+/-- con-leche: none — `ListRel` at a handle denotation is `denoteEList`. -/
+theorem ListRel.toEList {st : EStore} :
+    ∀ {bs : List EIdx} {cs : List Expr},
+      ListRel (fun st b c => denoteE st b = some c) st bs cs →
+      Frontend.denoteEList st bs = some cs := by
+  intro bs
+  induction bs with
+  | nil => intro cs h; cases cs with
+    | nil => rfl
+    | cons _ _ => exact h.elim
+  | cons b bs ih =>
+    intro cs h
+    cases cs with
+    | nil => exact h.elim
+    | cons c cs =>
+      obtain ⟨h1, h2⟩ := h
+      simp only [Frontend.denoteEList, h1, ih h2]
+
+/-- con-leche: none — and at a binder, `denoteBinders`. -/
+theorem ListRel.toBinders {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {cs : List (Expr × BinderMeta)},
+      ListRel (fun st b c => denoteE st b.1 = some c.1 ∧ b.2 = c.2) st bs cs →
+      denoteBinders st bs = some cs := by
+  intro bs
+  induction bs with
+  | nil => intro cs h; cases cs with
+    | nil => rfl
+    | cons _ _ => exact h.elim
+  | cons b bs ih =>
+    intro cs h
+    cases cs with
+    | nil => exact h.elim
+    | cons c cs =>
+      obtain ⟨⟨h1, h1'⟩, h2⟩ := h
+      obtain ⟨t, m⟩ := b
+      obtain ⟨x, m'⟩ := c
+      try simp only at h1 h1'
+      subst h1'
+      simp only [denoteBinders, h1, ih h2]
+
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what an inductive install route leaves behind**.  Seven clauses, and the
 correspondence with `DeclOut` is one-for-one except that the `run` clause is
