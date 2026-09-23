@@ -56857,6 +56857,109 @@ this branch; out of lane: `Refine2/Checker/Shape.lean` (one import),
 `Core/Arms/Delta.lean`, `Inductives/{Shape,NativeParts}.lean` (the §2 move),
 `Refine2.lean` (the index).
 
+#### Round 3 — the line layer's four closable items, and what stops the rest (2026-09-23, Opus under Fable)
+
+Branch `p5-front-3` off `arena` `e3ea3e55`, merged forward to `arena`
+`900615df`.  Lane `proof/ConRon/Refine2/Frontend/**`.  The round was stopped
+early by the coordinator (the Theorem 2 lockstep migration of task
+#97-T2-AUDIT is about to restate `AStateRel`/`AOut`/`SimS`), at a clean point:
+every lemma below is either closed or left exactly as it was.
+
+##### 1. Closed, top-down
+
+| frontier item | how | new closed lemmas |
+|---|---|---|
+| `push_decl_refines` (fan-in 4) | `note_decl` then the push, against `pushDecl = noteDecl ∘ push` | `noteDecl_unfold` (`Spec.lean`, `cases d <;> rfl`), `pushDecl_run`, `noteDecl_run_decls`, `noteEntries_{decls,nil,cons,single}`, `note_decl`, `note_decl_entries` (seven arms), `note_one`, `note_block` + its loop, `note_entries` + its loop (`Rel_insert_wf` at `constTypes`/`heights`), **`i_constant_info_to_constant_val_refines`** (the `.projInfo` arm's three interns, `Refine2/Checker/Pins.lean`'s `Sort 1` pattern), `AErrSim.of_kind`, `LOut.rebase` |
+| `hoist_order_refines` (fan-in 1) | the bucket pass is `List.mergeSort`, ported from `RefineOld/Frontend/PrepareR.lean` (task #87 §5) | `hoistBuckets_eq_mergeSort` and its twelve key-order lemmas, the two loop lemmas |
+| `proj_rewrite_d_refines` | composed: `store_fuel` ; `lam_body` ; two `view`s ; the `proj_rewrite_at` split INLINED (see §2, F10) | `store_fuel_refines`, `estore_node_count_abs`, `etables_count_abs`, `proj_owner_of_refines`, `proj_level_of_refines` |
+| `install_ind_d_refines` | composed over `installIndD_unfold` (`Spec.lean`, now proved): `ind_block_of` ; `register_proj_owners` ; `T0` (the empty block's `internNNode .anonymous`) ; `install_ind_tail` (`block_rec_of` ; `note_ind_blocks` ; `install_gen` or `push_decl`) | `installIndD_unfold`, `install_ind_tail` |
+
+`SimDV.of_run_eq`, `SimD.toSimDV_inl`, `SimDV.bind_ok` moved from `Top.lean`
+to `ExportC.lean` (unchanged, same namespace) so `ExportCInd.lean` can use
+them.  Pinned at `[propext, Classical.choice, Quot.sound]`:
+`i_constant_info_to_constant_val_refines`, `note_entries_refines`,
+`push_decl_refines`.
+
+The frontier now shows the real subtrees: `proj_rewrite_d` rests on
+`lam_body`, `proj_iota_name`, `proj_rec_value` (`ProjRec.lean`);
+`install_ind_d` on `ind_block_of`, `register_proj_owners`, `block_rec_of`,
+`note_ind_blocks`, `install_gen`.
+
+##### 2. Findings — for the migration (twin/Rust divergences first)
+
+* **D1 — `lam_body`: the port reads the TAG, the twin VIEWS.**
+  `frontend::proj_rec::lam_body` tests `EIdx::tag(h) == ETAG_LAM` and answers
+  `h` itself on any other tag without reading the store; the twin's `lamBody`
+  does `match ← view h`, which throws `internal` on a dangling handle.  At a
+  dangling non-`lam`-tagged `h` the port is `Ok h` and the twin fails, so
+  `lam_body_refines` (`SimRE`) is false as stated.  The same tag-vs-view
+  split as task #97-P5-Core round 3's finding; `proj_rewrite_d` views the
+  answer next on both sides, so only this leaf is affected.  **For the twin:**
+  `lamBody` should read the tag first, like the port.
+* **F10 — `proj_rewrite_at_refines` is false as stated (a transcription
+  error, not a program divergence).**  Its twin side reads `projLevels` at
+  `cv.name` and never compares level parameters; the port (and the twin's
+  `projRewriteD`) compares `cv.level_params == o.lps` and reads `projLevels`
+  at `proj_iota_name t i`.  Left `sorry` with a note saying so;
+  `proj_rewrite_d_refines` inlines the split instead of calling it.
+  Restating it is a conclusion change (ruling needed; or delete it).
+* **F11 — the three table-entry writers and `proj_iota_name` need a
+  resolves fact that nothing supplies.**  `parse_{name,level,expr}_entry_d`
+  intern a node whose children are handles read out of the parse tables;
+  `proj_iota_name` interns `.str t "_model"` for an arbitrary `t`.  Neither
+  side checks a child (Rust `EStore::intern_name`/`intern_level`/`intern`
+  and the twin's `internNNode`/`internLNode`/`internE` all intern blindly —
+  **no divergence**), but `AStateRel.storeWF` at the post-state needs the
+  child to resolve, and neither `StateDRel` nor `StateDInv` says table
+  handles resolve.  So the four statements are false at a state whose table
+  (or argument) holds a dangling handle.  Per the coordinator's instruction
+  no resolves clause was added; the migration's removal of `storeWF` from
+  `AStateRel` makes all four provable as stated.
+* **F12 — `validate_ind_d_refines` cannot be composed from its children as
+  they stand.**  `check_one_ctor_refines` states the twin's checks as
+  `fail (.internal …)` where the port returns `invalid` VERDICTS (and
+  `ALineErrSim`'s verdict arm is `False`), so it is false at every rejecting
+  constructor; `order_type_ctors`/`order_block_ctors` conclude lengths only;
+  `check_one_rec`/`check_rec_records` conclude `True`.  The module note
+  already says their transcriptions are "what `Spec.lean` still owes".
+  Restating them (a transcription per loop body, as `installGen` is for
+  `installIndD`) is a conclusion change: ruling needed.  `validate_ind_d`
+  itself was not touched.
+* The remaining two items were not reached: `hoist_targets` (the
+  `hoist_close` fuel argument and the `used_consts_*` walk — both sides
+  `view` in `used_consts_node`/`usedConstsGo`, no divergence seen there).
+
+##### 3. Counts, frontier, gates
+
+| file | before | after |
+|---|---:|---:|
+| `ExportC.lean` | 46 | **36** |
+| `ExportCInd.lean` | 26 | **25** |
+| `NatOpGround.lean` | 11 | **10** |
+| `Spec.lean` | 10 | **8** |
+| `ProjRec.lean` / `Top.lean` | 56 / 2 | 56 / 2 (untouched) |
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+* **before** (this worktree at `arena` `e3ea3e55`): 38 items in 13 modules,
+  123 tainted, dead weight 722; top `push_decl_refines` (fan-in 4, reach 24).
+* **after** (merged with `arena` `900615df`): **58 items in 15 modules, 153 tainted, dead
+  weight 676**; top `hoist_targets_refines` (fan-in 3, reach 7).  This lane's
+  items are thirteen: `hoist_targets` (fan-in 3), and at fan-in 0 the new
+  children `lam_body` (D1), `proj_iota_name` (F11), `proj_rec_value`,
+  `block_rec_of`, `install_gen`, `note_ind_blocks`, `ind_block_of`,
+  `register_proj_owners`, plus `validate_ind_d` (F12) and
+  `parse_{name,level,expr}_entry_d` (F11).  `push_decl`, `hoist_order`,
+  `proj_rewrite_d`, `install_ind_d` left the frontier.  The growth in the
+  total is mostly `arena`'s delta (Checker/Pins/Promote/Bridge) plus the
+  subtrees opened here; dead weight fell by 46.
+
+**Gates** (the coordinator's clean point for the stopped round, not the full
+`gates.sh`): `arena` merged at `900615df`, `lake build ConRonRefine2
+ConRonCapstone` green.  No Rust, generated-model, lakefile or `Bridge/**`
+change on this branch.
+
 ### Task #97-P5-Core round 3 — Theorem 2's knot: `KnotRel` and `BodyRel` are false at a dangling cache entry (2026-09-23, Opus under Fable)
 
 Branch `p5-core-3` off `arena` `aa1dc3e2`.  The brief: skeletonise
