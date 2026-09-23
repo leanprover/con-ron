@@ -48,6 +48,7 @@ side enters only at `whnfCoreBody_spec`.
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Owed
+import ConRon.Bridge.Core.Walks.ProjLit
 import ConRon.Bridge.Core.Walks.Proj
 
 namespace ConRon.Bridge.Core
@@ -448,9 +449,8 @@ the projection table, and fire behind the guards and the certificate.
 `projLitToCtor_spec`, `IFEnv.findProj?_spec`, `getAppFn_spec`, the head's
 `view`, `getAppArgs_spec`, `viewLsLen`, `IProjEntry.fireOk_spec`, the guard,
 `internE (.bvar 0)`, `projCertAt_spec`, `KnotSpec.whnfCore`; the five exits
-are `whnfCore_proj_{none,head,guard,cert_false,fire}` above.  Its one
-`sorryAx` is **`projLitToCtor_spec`** (`Walks/Owed.lean`), the walk it now
-pulls into the closure.  Every callee is applied at a subject whose
+are `whnfCore_proj_{none,head,guard,cert_false,fire}` above.  **Sorry-free**
+since `projLitToCtor_spec` closed (`Walks/ProjLit.lean`, same round).  Every callee is applied at a subject whose
 denotation the previous stage NAMED, so the published (explicit-argument)
 forms serve and the primed forms above are for `mvcgen`-driven callers. -/
 theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
@@ -660,7 +660,7 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
 
 **PROVED from its three children** (round 5): a case split on the tag over
 `whnfCoreBody_app_batched` (OPEN), `whnfCoreBody_proj` (proved, over the
-open walk `projLitToCtor_spec`) and `whnfCoreBody_leaf` (CLOSED).  The note
+walk `projLitToCtor_spec`, closed too) and `whnfCoreBody_leaf` (CLOSED).  The note
 below is round 3's inventory, kept for its reasons:
 
 * the `.app` arm is `whnfCoreBody_app_batched` above (the batched spine's
@@ -696,8 +696,8 @@ section Census
 #print axioms IProjEntry.fireOk_spec'
 #print axioms projCertAt_spec'
 #print axioms whnfCoreBody_leaf
-/-! `sorryAx` expected: `projLitToCtor_spec` (`Walks/Owed.lean`) under
-`whnfCoreBody_proj`; `whnfCoreBody_app_batched` under the body theorem. -/
+/-! `sorryAx` expected only through `whnfCoreBody_app_batched`, under the
+body theorem. -/
 #print axioms whnfCoreBody_proj
 #print axioms whnfCoreBody_spec
 

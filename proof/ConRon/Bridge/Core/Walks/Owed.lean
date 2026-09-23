@@ -189,25 +189,9 @@ theorem iotaRec_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           s'.store r⌝⦄ := by
   sorry
 
-/-- con-leche: ConLeche/Kernel/Core.lean:742-756 projLitToCtor — **THEOREM 1
-for `projLitToCtor`**: a string-literal scrutinee expands to its reduced
-constructor form before the projection table is consulted.
-
-**OPEN**: `strLitSupported`, `strLitToConstructor` and `litMajorToCtor` as
-callee rules, plus `KnotSpec.whnf`.  `strLitToConstructor` builds a cons
-spine in the store, so its rule is the first in this tier whose
-postcondition is a genuine `Ext` rather than a store equation. -/
-theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.projLitToCtor (coreKnot mode fe id fuel) fe d h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.projLitToCtorFueled mode env F d x) d
-          s'.store r⌝⦄ := by
-  sorry
+/-! `projLitToCtor_spec` **moved to `Bridge/Core/Walks/ProjLit.lean`** in round
+5 and is CLOSED there, over `strLitSupported_spec` (`Walks/StrLit.lean`) and
+`strLitToConstructor_spec` (`Walks/StrCtor.lean`). -/
 
 /-! `projCertAt_spec` **moved to `Bridge/Core/Walks/Proj.lean`** in round 4
 and is CLOSED there, beside `projCert_spec`. -/
