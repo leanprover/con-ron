@@ -537,6 +537,103 @@ theorem chunk_finish_refines {G : Type} {inst : frontend.types.Modeller G}
 
 /-! ## The tier's first top statement -/
 
+/-- A `Vec<u8>` read through `[..]` is its own bytes. -/
+theorem vec_index_full {v : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U8) v () = ok s) :
+    absBytes s = absChunk v := by
+  simp only [alloc.vec.Vec.index,
+    core.slice.index.SliceIndexRangeFullSlice.index, Result.ok.injEq] at h
+  subst h
+  rfl
+
+/-- **`parse_chunks`'s loop refines `parseChunksGo`** (task #97-P5-Front) —
+from chunk `i`, the twin's fold over the chunks not yet read.  The loop the
+Rust's `while i < n` becomes under `-loops-to-rec`; its step is
+`chunk_step_refines` and its exit `chunk_finish_refines`. -/
+theorem parse_chunks_loop_refines {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers chunks}
+    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd) :
+    ∀ (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
+      (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
+      (carry : alloc.vec.Vec Std.U8) (line_no total : Std.U64) (o),
+      AStateRel pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.parse_chunks_loop inst pers m rst chunks rsd carry line_no total
+        (alloc.vec.Vec.len chunks) i = ok o →
+      SimStreamRel ParseResultDRel pers lst o
+        (parseChunksGo lmd lsd (absChunk carry) (absU line_no) (absU total)
+          ((absChunks chunks).drop i.val)) := by
+  suffices H : ∀ (k : Nat) (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
+      (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
+      (carry : alloc.vec.Vec Std.U8) (line_no total : Std.U64) (o),
+      chunks.val.length - i.val = k →
+      AStateRel pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.parse_chunks_loop inst pers m rst chunks rsd carry line_no total
+        (alloc.vec.Vec.len chunks) i = ok o →
+      SimStreamRel ParseResultDRel pers lst o
+        (parseChunksGo lmd lsd (absChunk carry) (absU line_no) (absU total)
+          ((absChunks chunks).drop i.val)) from
+    fun i rst lst rsd lsd carry line_no total o => H _ i rst lst rsd lsd carry line_no total o rfl
+  intro k
+  induction k with
+  | zero =>
+    intro i rst lst rsd lsd carry line_no total o hk hrel hinv hd hi h
+    rw [frontend.export_c.parse_chunks_loop] at h
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hF := chunk_finish_refines hsc hmr hrel hinv hd hi h
+    rw [vec_index_full hs] at hF
+    have hnil : (absChunks chunks).drop i.val = [] := by
+      simp only [absChunks, List.drop_eq_nil_iff, List.length_map]; omega
+    rw [hnil]
+    exact hF
+  | succ k ih =>
+    intro i rst lst rsd lsd carry line_no total o hk hrel hinv hd hi h
+    rw [frontend.export_c.parse_chunks_loop] at h
+    rw [if_pos (by scalar_tac)] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨r, ar1, st1⟩, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hC := chunk_step_refines hsc hmr hrel hinv hd hi hc
+    rw [vec_index_full hs] at hC
+    have hvi := vec_index_some hv
+    have hcons : (absChunks chunks).drop i.val =
+        absChunk v :: (absChunks chunks).drop (i.val + 1) := by
+      simp only [absChunks]
+      rw [List.drop_eq_getElem_cons (by simp; scalar_tac)]
+      simp only [List.getElem_map]
+      have := List.getElem?_eq_some_iff.mp hvi
+      obtain ⟨_, hx⟩ := this
+      rw [hx]
+    rw [hcons]
+    simp only [SimStreamD] at hC
+    simp only [SimStreamRel, parseChunksGo, am_run_bind']
+    cases r with
+    | Ok t =>
+      obtain ⟨c2, l, t1⟩ := t
+      obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hC
+      obtain ⟨⟨st2, c3, n3, t3⟩, hb, hfb⟩ := stream_unwrap_ok hx
+        (fun q => (q.1, q.2.1, q.2.2.1, q.2.2.2)) (fun _ => rfl) (fun _ => rfl)
+      simp only [Prod.mk.injEq] at hfb
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := hfb
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi1v : i1.val = i.val + 1 := usize_add_one_inv hi1
+      have hR := ih i1 ar1 lst' st1 st2 c2 l t1 o (by omega) hrel' hinv' hd' hi' h
+      rw [hi1v] at hR
+      rw [hb]
+      simp only [except_ok_bind]
+      simp only [SimStreamRel] at hR
+      rcases o with ⟨r2, st'⟩
+      cases r2 with
+      | Ok r =>
+        obtain ⟨w, l2, hx2, hR2, hr2, hi2, he2⟩ := hR
+        exact ⟨w, l2, hx2, hR2, hr2, hi2, Ext.trans hext' he2⟩
+      | Err p => exact hR
+    | Err e =>
+      have ho := Result.ok_injective h; subst ho
+      have hC' := stream_unwrap_err hC (fun q => (q.1, q.2.1, q.2.2.1, q.2.2.2))
+        (fun _ => rfl) (fun _ => rfl)
+      exact StreamErrSim.bind hC' _ (fun _ _ => rfl)
+
 /-- **`parse_chunks` refines `parseChunks`** (`ExportC.lean:846-848`) — **THE
 STREAMING PARSE**: `chunk_step` folded over a list of chunks with
 `chunk_finish` at its end, which is what the driver's read loop does with the
@@ -552,7 +649,32 @@ theorem parse_chunks_refines {G : Type} {inst : frontend.types.Modeller G}
     (h : frontend.export_c.parse_chunks inst pers m rst chunks in_model census
       = ok o) :
     SimStreamRel ParseResultDRel pers lst o
-      (parseChunks lmd (absChunks chunks) in_model census) := by sorry
+      (parseChunks lmd (absChunks chunks) in_model census) := by
+  rw [frontend.export_c.parse_chunks] at h
+  obtain ⟨⟨r, e⟩, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hS := state_d_init_refines hrel hinv hs
+  simp only [SimRel] at hS
+  simp only [SimStreamRel, parseChunks, am_run_bind']
+  cases r with
+  | Err e1 =>
+    have ho := Result.ok_injective h; subst ho
+    exact StreamErrSim.of_throw (n := 0#u64) hS
+  | Ok v =>
+    obtain ⟨lsd, lst1, hx1, ⟨hd1, hi1⟩, hrel1, hinv1, hext1⟩ := hS
+    rw [hx1]
+    simp only [except_ok_bind]
+    have hL := parse_chunks_loop_refines hsc hmr 0#usize (withStore rst e) lst1 v lsd
+      (alloc.vec.Vec.new Std.U8) 0#u64 0#u64 o hrel1 hinv1 hd1 hi1 h
+    have hc : absChunk (alloc.vec.Vec.new Std.U8) = .empty := rfl
+    have h0 : absU (0#u64) = 0 := rfl
+    rw [hc, h0] at hL
+    simp only [SimStreamRel] at hL
+    rcases o with ⟨r2, st'⟩
+    cases r2 with
+    | Ok r =>
+      obtain ⟨w, l2, hx2, hR2, hr2, hi2, he2⟩ := hL
+      exact ⟨w, l2, hx2, hR2, hr2, hi2, Ext.trans hext1 he2⟩
+    | Err p => exact hL
 
 /-! ## The prelude, and the tier's second top statement -/
 
@@ -581,7 +703,27 @@ theorem builtin_prelude_e_refines {G : Type} {inst : frontend.types.Modeller G}
     (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.prelude.builtin_prelude_e inst pers m rst = ok o) :
-    SimStream absPreludeIx pers lst o (builtinPreludeE lmd) := by sorry
+    SimStream absPreludeIx pers lst o (builtinPreludeE lmd) := by
+  rw [frontend.prelude.builtin_prelude_e] at h
+  obtain ⟨text, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨r, ar1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := parse_bytes_refines hsc hmr hrel hinv hp
+  have htext : absBytes (alloc.vec.Vec.deref text) = preludeText := by
+    rw [← builtin_prelude_text_refines ht]; simp [absBytes, absChunk, alloc.vec.Vec.deref]
+  rw [htext] at hP
+  simp only [SimStreamRel] at hP ⊢
+  simp only [builtinPreludeE, am_run_bind']
+  cases r with
+  | Ok r1 =>
+    have ho := Result.ok_injective h; subst ho
+    obtain ⟨v, lst', hx, hR, hrel', hinv', hext'⟩ := hP
+    refine ⟨absPreludeIx { decls := r1.decls }, lst', ?_, rfl, hrel', hinv', hext'⟩
+    rw [hx]
+    simp only [except_ok_bind, absPreludeIx, hR.decls]
+    rfl
+  | Err e =>
+    have ho := Result.ok_injective h; subst ho
+    exact StreamErrSim.bind hP _ (fun _ _ => rfl)
 
 /-- `usize as u64`: a widening, so the value is kept. -/
 theorem cast_u64_usize {i : Std.Usize} {r : Std.U64}
