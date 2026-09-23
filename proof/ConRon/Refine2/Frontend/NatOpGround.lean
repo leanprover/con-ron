@@ -149,33 +149,161 @@ the port's two extra splits (extraction rule 5: the probe's borrow must be
 dead before the descent mutates the table).  Neither has a twin, so both are
 stated against the twin's own arm. -/
 
+/-- The twin's `view` at a handle the port viewed: a read, at the same state. -/
+theorem view_step {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {h : arena.handle.EIdx} {o} (hv : arena.monad.view pers st h = ok o) :
+    match o with
+    | .Ok v => (Arena.view (absEIdx h)).run lst = .ok (absENodeView v, lst)
+    | .Err e => AErrSim e ((Arena.view (absEIdx h)).run lst) := by
+  have hL := Lockstep.view_ls hrel hinv h o hv
+  have hrun := Lockstep.view_run_of (absEIdx h) lst
+  cases o with
+  | Err e => exact hL
+  | Ok v =>
+    obtain ⟨b, lst', hx, hb, -, -⟩ := hL
+    rw [hx, hb]
+    rw [hrun] at hx
+    split at hx
+    · cases hx; rfl
+    · cases hx
+
+/-- The visited set's insert (the port records `true`). -/
+theorem seen_insert_rel {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashSet EIdx} (hs : HSetRel rm ls) {e : arena.handle.EIdx} {old m'}
+    (h : ron.hashmap2.HashMap2.insert arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 rm e true = ok (old, m')) :
+    HSetRel m' (ls.insert (absEIdx e)) := by
+  obtain ⟨hinv', -, htf, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen eidx_eq2 hs.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial h
+  refine ⟨fun k => ?_, hinv'⟩
+  rw [htf, Std.HashSet.contains_insert]
+  by_cases hk : k = e
+  · subst hk; simp
+  · have hne : (absEIdx e == absEIdx k) = false := by
+      simp only [beq_eq_false_iff_ne, ne_eq]
+      exact fun h' => hk (absEIdx_inj h').symm
+    rw [Function.update_of_ne hk, hs.1 k, hne, Bool.false_or]
+
+theorem absNIdxArr_push {acc : alloc.vec.Vec arena.handle.NIdx} {n acc'}
+    (h : alloc.vec.Vec.push acc n = ok acc') :
+    absNIdxArr acc' = (absNIdxArr acc).push (absNIdx n) := by
+  simp [absNIdxArr, ConRon.Refine.vec_push_val h]
+
+/-- The used-constants walk, every port split (`used_consts_node`,
+`used_consts_two`) unfolded in place, by induction on the fuel. -/
+theorem used_consts_go_aux {pers rst lst} (hrel : AStateRel₀ pers rst lst)
+    (hinv : AStateInv pers rst) (N : Nat) :
+    ∀ (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (ls : Std.HashSet EIdx)
+      (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64) (e : arena.handle.EIdx) o,
+      fuel.val = N → HSetRel seen ls →
+      frontend.nat_op_ground.used_consts_go pers rst seen acc fuel e = ok o →
+      UOut lst o (usedConstsGo ls (absNIdxArr acc) N (absEIdx e)) := by
+  induction N with
+  | zero =>
+    intro seen ls acc fuel e o hn hs h
+    rw [frontend.nat_op_ground.used_consts_go, if_pos (by scalar_tac)] at h
+    obtain ⟨sl, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases fail_run hr
+    cases Result.ok_injective h
+    exact AErrSim.internal rfl
+  | succ k ih =>
+    -- the two-child step, used by four arms
+    have two : ∀ (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (ls : Std.HashSet EIdx)
+        (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64) (a b : arena.handle.EIdx) o,
+        fuel.val = k → HSetRel seen ls →
+        frontend.nat_op_ground.used_consts_two pers rst seen acc fuel a b = ok o →
+        UOut lst o (do
+          let (s, acc) ← usedConstsGo ls (absNIdxArr acc) k (absEIdx a)
+          usedConstsGo s acc k (absEIdx b)) := by
+      intro seen ls acc fuel a b o hn hs h
+      rw [frontend.nat_op_ground.used_consts_two] at h
+      obtain ⟨⟨r, seen1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h1 := ih seen ls acc fuel a _ hn hs hr
+      unfold UOut at h1 ⊢
+      rw [am_run_bind']
+      cases r with
+      | Err e =>
+        cases Result.ok_injective h
+        exact AErrSim.bind h1 _
+      | Ok acc2 =>
+        obtain ⟨s', hx, hs'⟩ := h1
+        rw [hx, except_ok_bind]
+        exact ih seen1 s' acc2 fuel b o hn hs' h
+    intro seen ls acc fuel e o hn hs h
+    rw [frontend.nat_op_ground.used_consts_go, if_neg (by scalar_tac)] at h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := seen_has_refines hs hb
+    unfold usedConstsGo
+    split at h
+    · rename_i hbt
+      cases Result.ok_injective h
+      rw [if_pos (by rw [← hbv]; exact hbt)]
+      exact ⟨ls, rfl, hs⟩
+    · rename_i hbt
+      rw [if_neg (by rw [← hbv]; exact hbt)]
+      obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_eidx _ _ he1] at h
+      obtain ⟨⟨old, seen1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hs1 := seen_insert_rel hs hins
+      obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hiv : i.val = k := by
+        have := (ConRon.Refine.Nat.usub_val hi).2; rw [this, hn]; rfl
+      rw [frontend.nat_op_ground.used_consts_node] at h
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hV := view_step hrel hinv hr
+      unfold UOut
+      simp only []
+      rw [am_run_bind']
+      cases r with
+      | Err er =>
+        cases Result.ok_injective h
+        exact AErrSim.bind hV _
+      | Ok v =>
+      rw [hV, except_ok_bind]
+      cases v with
+      | BVar _ => cases Result.ok_injective h; exact ⟨_, rfl, hs1⟩
+      | «Sort» _ => cases Result.ok_injective h; exact ⟨_, rfl, hs1⟩
+      | Lit _ => cases Result.ok_injective h; exact ⟨_, rfl, hs1⟩
+      | Const n us =>
+        obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases Result.ok_injective h
+        exact ⟨_, by simp only [absENodeView, absNIdxArr_push hacc1]; rfl, hs1⟩
+      | FVar _ ty => exact ih seen1 _ acc i ty o hiv hs1 h
+      | App f a => exact two seen1 _ acc i f a o hiv hs1 h
+      | Lam ty b _ => exact two seen1 _ acc i ty b o hiv hs1 h
+      | ForallE ty b _ => exact two seen1 _ acc i ty b o hiv hs1 h
+      | LetE ty v b =>
+        obtain ⟨⟨r1, seen2⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have h2 := two seen1 _ acc i ty v _ hiv hs1 hr1
+        unfold UOut at h2
+        simp only [absENodeView]
+        rw [← bind_assoc]
+        rw [am_run_bind']
+        cases r1 with
+        | Err e =>
+          cases Result.ok_injective h
+          exact AErrSim.bind h2 _
+        | Ok acc2 =>
+          obtain ⟨s', hx, hs'⟩ := h2
+          rw [hx, except_ok_bind]
+          exact ih seen2 s' acc2 i b o hiv hs' h
+      | Proj sn _ x =>
+        obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ih seen1 _ acc1 i x o hiv hs1 h
+        simp only [absENodeView]
+        rw [← absNIdxArr_push hacc1]
+        exact this
+
 /-- **`nat_op_ground::used_consts_go` refines `usedConstsGo`**
 (`Arena/Frontend/NatOpGround.lean:50-71`). -/
 theorem used_consts_go_refines {pers rst lst seen ls acc fuel e o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_go pers rst seen acc fuel e = ok o) :
-    UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel) (absEIdx e)) := by
-  sorry
-
-/-- **`used_consts_node`** — the port-only split at a resolved view: the twin's
-`match ← view e with` arms, inline. -/
-theorem used_consts_node_refines {pers rst lst seen ls acc fuel e o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hs : HSetRel seen ls)
-    (h : frontend.nat_op_ground.used_consts_node pers rst seen acc fuel e = ok o) :
-    UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel + 1) (absEIdx e)) := by
-  sorry
-
-/-- **`used_consts_two`** — the twin's four identical two-child `match` nests,
-as one function. -/
-theorem used_consts_two_refines {pers rst lst seen ls acc fuel a b o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hs : HSetRel seen ls)
-    (h : frontend.nat_op_ground.used_consts_two pers rst seen acc fuel a b = ok o) :
-    UOut lst o (do
-      let (s, acc) ← usedConstsGo ls (absNIdxArr acc) (absU fuel) (absEIdx a)
-      usedConstsGo s acc (absU fuel) (absEIdx b)) := by sorry
+    UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel) (absEIdx e)) :=
+  used_consts_go_aux hrel hinv _ seen ls acc fuel e o rfl hs h
 
 /-- **`used_consts_rules` refines `usedConstsRules`**
 (`Arena/Frontend/NatOpGround.lean:77-83`). -/
