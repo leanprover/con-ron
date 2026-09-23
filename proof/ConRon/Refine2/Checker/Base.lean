@@ -1638,20 +1638,10 @@ open Lockstep in
       (fun o => TwinEq (nameNodup (ns.val.map absNIdx)) o) :=
   fun _ h => (name_nodup_refines h).symm
 
-/-- `check_constant_val_guards_rest` by `lockstep`, with its two `arena::expr_ops`
-callees as hypotheses: their lockstep statements (`has_fvar_fast_ls`,
-`loose_bvars_bounded_fast_ls`) are the ExprOps lane's, not on `arena` yet. -/
-theorem check_constant_val_guards_rest_of {pers st lst}
+/-- `check_constant_val_guards_rest` is `check_constant_val_guards`'s tail past
+the duplicate-declaration test (extraction rule 5).  One `lockstep` call. -/
+theorem check_constant_val_guards_rest_refines {pers st lst}
     {cv : arena.env.IConstantVal} {o}
-    (hL : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-      Lockstep.LS pers (fun a b => b = id a)
-        (arena.expr_ops.loose_bvars_bounded_fast pers st arena.core.CORE_WALK_FUEL 0#u64
-          cv.ty) lst
-        (looseBVarsBoundedFast coreWalkFuel 0 (absEIdx cv.ty)))
-    (hH : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-      Lockstep.LS pers (fun a b => b = id a)
-        (arena.expr_ops.has_fvar_fast pers st arena.core.CORE_WALK_FUEL cv.ty) lst
-        (hasFvarFast coreWalkFuel (absEIdx cv.ty)))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.check_constant_val_guards_rest pers st cv = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
@@ -1660,19 +1650,6 @@ theorem check_constant_val_guards_rest_of {pers st lst}
   rw [arena.checker_base.check_constant_val_guards_rest, checkConstantValGuardsRestSpec]
   simp only [am_fail_bind]
   chk_lockstep
-
-/-- `check_constant_val_guards_rest` is `check_constant_val_guards`'s tail past
-the duplicate-declaration test (extraction rule 5).  **Closed modulo the
-ExprOps lane**: `check_constant_val_guards_rest_of` is the whole proof; the two
-`sorry`s are `has_fvar_fast_ls`/`loose_bvars_bounded_fast_ls` (branch
-`t2-lock-exprops-b`), one line each once it lands. -/
-theorem check_constant_val_guards_rest_refines {pers st lst}
-    {cv : arena.env.IConstantVal} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.check_constant_val_guards_rest pers st cv = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkConstantValGuardsRestSpec (absIConstantVal cv)) :=
-  check_constant_val_guards_rest_of (fun _ _ => sorry) (fun _ _ => sorry) hrel hinv hrun
 
 open Lockstep in
 @[lockstep] theorem check_constant_val_guards_rest_ls {pers st lst}
@@ -2807,21 +2784,11 @@ open Lockstep in
         (absEIdx value_a)) :=
   LS.ofSim₀ fun _ h => install_value_tail_refines hrel hinv hfe.rel hfe.inv h
 
-/-- `install_value` by `lockstep`, with its two `arena::expr_ops` callees as
-hypotheses (the ExprOps lane's `loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`,
-not on `arena` yet). -/
-theorem install_value_of {pers st lst} {vis : Std.U64} {rf lf}
+/-- **`install_value` ⊑ `installValue`** — the value half of
+`check{Defn,Thm,Opaque}Val` minus its inference.  One `lockstep` call. -/
+theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
-    (hL : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-      Lockstep.LS pers (fun a b => b = id a)
-        (arena.expr_ops.loose_bvars_bounded_fast pers st arena.core.CORE_WALK_FUEL 0#u64
-          value) lst
-        (looseBVarsBoundedFast coreWalkFuel 0 (absEIdx value)))
-    (hH : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-      Lockstep.LS pers (fun a b => b = id a)
-        (arena.expr_ops.has_fvar_fast pers st arena.core.CORE_WALK_FUEL value) lst
-        (hasFvarFast coreWalkFuel (absEIdx value)))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
@@ -2834,21 +2801,6 @@ theorem install_value_of {pers st lst} {vis : Std.U64} {rf lf}
   rw [arena.checker_split.install_value, installValue_unfold]
   simp only [am_fail_bind]
   chk_lockstep
-
-/-- **`install_value` ⊑ `installValue`** — the value half of
-`check{Defn,Thm,Opaque}Val` minus its inference.  **Closed modulo the ExprOps
-lane**: `install_value_of` is the whole proof; the two `sorry`s are
-`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls` (branch `t2-lock-exprops-b`). -/
-theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
-    Sim₀ absEIdx pers lst o
-      (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
-        (absIConstantVal cv) (absEIdx value)) :=
-  install_value_of (fun _ _ => sorry) (fun _ _ => sorry) hrel hinv hfe hfinv hrun
 
 @[lockstep] theorem Lockstep.install_value_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}

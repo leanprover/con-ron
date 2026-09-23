@@ -2467,11 +2467,6 @@ namespace Lockstep
       (fun o => o = (absNIdx a == absNIdx b)) :=
   fun _ h => nidx_eq2_abs h
 
-@[lockstep] theorem eidx_eq2_spec (a b : arena.handle.EIdx) :
-    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun o => o = (absEIdx a == absEIdx b)) :=
-  fun _ h => eidx_eq2_abs h
-
 @[lockstep] theorem i_constant_val_dup_spec (cv : arena.env.IConstantVal) :
     LSP (arena.env.i_constant_val_dup cv)
       (fun o => absIConstantVal o = absIConstantVal cv) :=
