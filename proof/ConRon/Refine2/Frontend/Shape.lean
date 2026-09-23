@@ -87,13 +87,8 @@ The port's parse threads `&mut EStore` where the twin threads `AState`;
 store-only function's success arm claims — which says, among other things,
 that the twin's action left every memo alone. -/
 
-/-- The ambient Rust state with its store replaced: what a `&mut EStore`
-function hands back, read as an `AState`. -/
-@[reducible] def withStore (rst : arena.monad.AState) (e : arena.store.EStore) :
-    arena.monad.AState := { rst with store := e }
-
-@[simp] theorem withStore_store (rst : arena.monad.AState) (e : arena.store.EStore) :
-    (withStore rst e).store = e := rfl
+-- `withStore` / `withStore_store` moved to `Refine2/Checker/Shape.lean` (task
+-- #97-T2-LOCKSTEP lane Checker round 2), where the checker tier reaches them.
 
 @[simp] theorem withStore_self (rst : arena.monad.AState) :
     withStore rst rst.store = rst := rfl

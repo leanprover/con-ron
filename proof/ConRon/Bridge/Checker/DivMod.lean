@@ -84,6 +84,32 @@ theorem RunsB.matchTy {x : Option IConstantInfo} {y : Option ConstantInfo}
     rw [beqE_of_denote hs1.ok.wf hvt (denote_ext hty hs1.ext)]
     exact RunsB.ret hs1.ok
 
+/-- con-leche: ConLeche/Kernel/Checker.lean:285-290 divModEnvGuard (one
+`Bool` constructor's clause) — the twin's `boolCtorTyped` is con-leche's
+clause. -/
+theorem boolCtorTyped_runsB {env2 : Env} {fe2 : IFEnv} {n : NIdx}
+    {nm : ConLeche.Name} {s : AState} (hok : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env2 fe2 s) (hn : denoteN s.store.ns n = some nm) :
+    RunsB (Arena.boolCtorTyped fe2 n) s
+      (match env2.find? nm with
+        | some ci => ci.toConstantVal.type == .const ConLeche.boolName []
+        | none => false) := by
+  unfold Arena.boolCtorTyped
+  rcases hie.findRel hok hn with ⟨hx, hy⟩ | ⟨ci, c, hx, hy, hd⟩
+  · rw [hx, hy]; exact RunsB.ret hok
+  · rw [hx, hy]
+    refine RunsB.bind fun {v s₁} g1 => ?_
+    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (CIProjNamed_of_find hie hx) hd g1
+    refine ⟨hs1, ?_⟩
+    obtain ⟨-, -, hvt⟩ := denoteCV_inv hv
+    refine RunsB.pin hs1.ok (hp.mono hs1.ext hs1.pins) (x := ConLeche.boolName) (by rfl)
+      fun bn dbn => ?_
+    refine RunsB.bind fun {bty s₂} g2 => ?_
+    obtain ⟨hs2, hbty⟩ := constE_run hs1.ok (hp.mono hs1.ext hs1.pins) dbn g2
+    refine ⟨hs2, ?_⟩
+    rw [beqE_of_denote hs2.ok.wf (denote_ext hvt hs2.ext) hbty]
+    exact RunsB.ret hs2.ok
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard — the
 environment prerequisites, read at the extended environment.
 
@@ -126,19 +152,12 @@ theorem divModEnvGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
   refine RunsB.guard st4 (by
     rw [bne, hie4.find_beq_ind st4 (denoteN_ext den hs4.ext) hea]
     cases env2.find? eqName <;> (try simp) <;> rfl) fun _ => ?_
-  refine RunsB.pin st4 hp4 (x := ConLeche.boolName) (by rfl) fun bn dbn => ?_
-  refine RunsB.bind fun {bty s5} g5 => ?_
-  obtain ⟨hs5, hbty⟩ := constE_run st4 hp4 dbn g5
-  refine ⟨hs5, ?_⟩
+  refine RunsB.pin st4 hp4 (x := ConLeche.boolTrueName) (by rfl) fun bt dbt => ?_
+  refine RunsB.bindB (boolCtorTyped_runsB st4 hp4 hie4 dbt) fun {s5} hs5 => ?_
   obtain ⟨st5, hp5, hie5, -⟩ := tr (((hs1.trans hs3).trans hs4).trans hs5)
-  refine RunsB.pin st5 hp5 (x := ConLeche.boolTrueName) (by rfl) fun bt dbt => ?_
-  refine RunsB.matchTyAnd st5 (hie5.findRel st5 dbt)
-    (fun ci hf => CIProjNamed_of_find hie5 hf) hbty fun {s6} hs6 => ?_
-  have hie6 := hie5.mono hs6.ext
-  refine RunsB.pin hs6.ok (hp5.mono hs6.ext hs6.pins) (x := ConLeche.boolFalseName)
-    (by rfl) fun bf dbf => ?_
-  exact RunsB.matchTy hs6.ok (hie6.findRel hs6.ok dbf)
-    (fun ci hf => CIProjNamed_of_find hie6 hf) (denote_ext hbty hs6.ext)
+  refine RunsB.guard st5 (by first | rfl | (simp; rfl) | (simp; split <;> rfl)) fun _ => ?_
+  refine RunsB.pin st5 hp5 (x := ConLeche.boolFalseName) (by rfl) fun bf dbf => ?_
+  exact boolCtorTyped_runsB st5 hp5 hie5 dbf
 
 /-! ## The certificate guards' walks -/
 
