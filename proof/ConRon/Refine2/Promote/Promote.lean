@@ -527,7 +527,7 @@ theorem promote_l_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_l_list_from pers st rm fuel us i out = ok o) :
-    SimPMFW (fun v => absLIdxL out ++ absLIdxL v) pers lst o
+    SimPMFW absLIdxL pers lst o
       (do
         let (m, vs) ← promoteLList lm (absU fuel) (absLIdxLFrom us i)
         pure (m, absLIdxL out ++ vs)) := by
@@ -599,7 +599,7 @@ theorem promote_n_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_n_list_from pers st rm fuel ns i out = ok o) :
-    SimPMFW (fun v => absNIdxL out ++ absNIdxL v) pers lst o
+    SimPMFW absNIdxL pers lst o
       (do
         let (m, vs) ← promoteNList lm (absU fuel) (absNIdxLFrom ns i)
         pure (m, absNIdxL out ++ vs)) := by
@@ -623,7 +623,7 @@ theorem promote_e_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_e_list_from pers st rm fuel es i out = ok o) :
-    SimPMFW (fun v => absEIdxL out ++ absEIdxL v) pers lst o
+    SimPMFW absEIdxL pers lst o
       (do
         let (m, vs) ← promoteEList lm (absU fuel) (absEIdxLFrom es i)
         pure (m, absEIdxL out ++ vs)) := by
@@ -687,7 +687,7 @@ theorem promote_rules_from_refines {pers st lst rm lm} {fuel : Std.U64}
     (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_rules_from pers st rm fuel rs i out = ok o) :
-    SimPMFW (fun v => absIRecRuleL out ++ absIRecRuleL v) pers lst o
+    SimPMFW absIRecRuleL pers lst o
       (do
         let (m, vs) ← promoteRules lm (absU fuel) (absIRecRuleLFrom rs i)
         pure (m, absIRecRuleL out ++ vs)) := by
@@ -766,7 +766,7 @@ theorem promote_ci_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
     (hfr : PersUnfrozen st.store)
     (hm : PMemoRel rm lm)
     (hrun : arena.promote.promote_ci_list_from pers st rm fuel cs i out = ok o) :
-    SimPMFW (fun v => absICIL out ++ absICIL v) pers lst o
+    SimPMFW absICIL pers lst o
       (do
         let (m, vs) ← promoteCIList lm (absU fuel) (absICILFrom cs i)
         pure (m, absICIL out ++ vs)) := by

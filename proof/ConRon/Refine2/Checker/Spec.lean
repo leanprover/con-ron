@@ -1012,44 +1012,89 @@ def annotStepDefnSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     pure (← checkDecl mode pins fe pd, none)
   else annotStepDefnInstallSpec mode fe cv value hint
 
-/-! ### The startup walk, in six -/
+/-! ### The startup walk, in six
 
-/-- `internAllPins`' reserved-name half. -/
+**Restated by task #97-P5-Top: the old six were chained to the wrong
+continuations.**  They were written as one continuation-passing chain —
+`internAllReducePinsSpec` ran `internAllNamesSpec`, `internAllBasisSpec []`
+ran `internAllAxiomPinsSpec`, and `internAllAxiomPinsRestSpec` started at
+`nonemptyA` — so that `internAllBasisSpec` of the six kinds WAS the whole walk
+minus the pin sets.  The Rust functions do not nest that way:
+`intern_all_basis` stops at the end of its cursor, `intern_all_axiom_pins`
+runs `iff`, `iff.intro`, `iff.rec`, `Nonempty` and then `_rest`,
+`intern_all_reduce_pins` stops after the two declaration pins, and
+`intern_all_pins` calls the basis walk, the axiom pins, the names and the pin
+sets in sequence.  Five of the six statements were therefore false (every one
+but `internAllNamesSpec`'s: its twin interned MORE than the port).
+
+**And they are the RAW pins, where the Rust interns raw ones.**
+`arena::std_axioms` interns `iff_raw` … `choice_raw` and `arena::trust_axioms`
+`of_reduce_pin_a` = the RAW `ofReduceRaw` (both modules' notes: `matchesPin`
+erases the `pw` datum, which is all annotation writes).  The twin's
+`internAllPins` interns the ANNOTATED `iffA` … `choiceA`, `ofReduceNatA`,
+`ofReduceBoolA` — and six of those eight are different values
+(`iffA = iffRaw` and `nonemptyA = nonemptyRaw`; the other six differ, checked
+by `decide`), so they intern different `BMNode`s and `StoreRel`, which is
+exact, fails.  The transcriptions below are the PORT's walk; `internAllPins`
+is not their composite, and `intern_all_pins_refines` is false as stated —
+DESIGN.md, task #97-P5-Top. -/
+
+/-- `ofReduceNatA`'s RAW twin: what `arena::trust_axioms::of_reduce_nat_a`
+interns. -/
+def ofReduceNatRawSpec : AM IConstantVal :=
+  internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)
+
+/-- `ofReduceBoolA`'s RAW twin. -/
+def ofReduceBoolRawSpec : AM IConstantVal :=
+  internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)
+
+/-- `internAllPins`' reserved-name half — `intern_all_names`. -/
 def internAllNamesSpec : AM Unit := do
   let _ ← reservedBasisNames
   let _ ← natOpNames; let _ ← natDivModNames; let _ ← reduceOpNames
   let _ ← pinSorryAx; let _ ← pinQuotSound
 
-/-- `internAllPins`' two reduce pins. -/
+/-- `intern_all_reduce_pins`: the four `reduce*`/`ofReduce*` shapes (raw) and
+the two pinned defining expressions. -/
 def internAllReducePinsSpec : AM Unit := do
+  let _ ← reduceNatCvA; let _ ← reduceBoolCvA
+  let _ ← ofReduceNatRawSpec; let _ ← ofReduceBoolRawSpec
   let _ ← reduceNatDeclPin; let _ ← reduceBoolDeclPin
-  internAllNamesSpec
 
-/-- `internAllPins`' compiler-trust axiom pins. -/
+/-- `intern_all_trust_pins`: the compiler-trust shapes, then the reduce pins. -/
 def internAllTrustPinsSpec : AM Unit := do
   let _ ← trueCvA; let _ ← trueIntroCvA; let _ ← trustCompilerA; let _ ← boolCvA
-  let _ ← reduceNatCvA; let _ ← reduceBoolCvA
-  let _ ← ofReduceNatA; let _ ← ofReduceBoolA
   internAllReducePinsSpec
 
-/-- `internAllPins`' standard axiom pins past the `Iff` family. -/
+/-- `intern_all_axiom_pins_rest`: the standard axiom pins past `Nonempty`
+(raw), then the trust pins. -/
 def internAllAxiomPinsRestSpec : AM Unit := do
-  let _ ← nonemptyA; let _ ← nonemptyIntroA; let _ ← nonemptyRecA
-  let _ ← propextA; let _ ← choiceA
+  let _ ← nonemptyIntroRaw; let _ ← nonemptyRecRaw
+  let _ ← propextRaw; let _ ← choiceRaw
   internAllTrustPinsSpec
 
-/-- `internAllPins`' standard axiom pins. -/
+/-- `intern_all_axiom_pins`: the `Iff` family and `Nonempty` (raw), then the
+rest. -/
 def internAllAxiomPinsSpec : AM Unit := do
-  let _ ← iffA; let _ ← iffIntroA; let _ ← iffRecA
+  let _ ← iffRaw; let _ ← iffIntroRaw; let _ ← iffRecRaw; let _ ← nonemptyRaw
   internAllAxiomPinsRestSpec
 
-/-- `internAllPins`' six basis blocks, in BOTH forms. -/
+/-- `intern_all_basis` from the cursor on: the basis blocks in BOTH forms. -/
 def internAllBasisSpec : List BasisKind → AM Unit
-  | [] => internAllAxiomPinsSpec
+  | [] => pure ()
   | k :: ks => do
     let _ ← BasisKind.decls k
     let _ ← BasisKind.declsA k
     internAllBasisSpec ks
+
+/-- **The port's startup walk**, as a twin action: `intern_all_pins`' four
+calls in order.  It is `internAllPins` with the eight pins of the note above
+interned RAW; with them annotated it would be `internAllPins` itself. -/
+def internAllPinsPortSpec (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
+  internAllBasisSpec [.eqK, .natK, .punitK, .emptyK, .falseK, .quotK]
+  internAllAxiomPinsSpec
+  internAllNamesSpec
+  internPinSets pins
 
 /-! ## `checkDecl`, arm by arm (task #97-P5-Checker round 4)
 

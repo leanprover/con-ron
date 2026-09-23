@@ -328,7 +328,7 @@ theorem intern_rules_refines {pers st lst rm lm}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : RecRulesWF rs)
     (hrun : arena.intern.intern_rules pers st rm rs i out = ok o) :
-    SimEM (fun v => absIRecRuleL out ++ absIRecRuleL v) pers lst o
+    SimEM absIRecRuleL pers lst o
       (do let (m, hs) ← Frontend.internRules lm (absRecRuleLFrom rs i)
           pure (m, absIRecRuleL out ++ hs)) := by
   sorry
@@ -390,7 +390,7 @@ theorem intern_ci_list_go_refines {pers st lst rm lm}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ConstantInfosWF cs)
     (hrun : arena.intern.intern_ci_list_go pers st rm cs i out = ok o) :
-    SimEM (fun v => absICIL out ++ absICIL v) pers lst o
+    SimEM absICIL pers lst o
       (do let (m, hs) ← Frontend.internCIList lm (absCIListFrom cs i)
           pure (m, absICIL out ++ hs)) := by
   sorry
@@ -423,7 +423,7 @@ theorem intern_decls_go_refines {pers st lst rm lm}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ∀ d ∈ ds.val, DeclarationWF d)
     (hrun : arena.intern.intern_decls_go pers st rm ds i out = ok o) :
-    SimEM (fun v => absIDeclL out ++ absIDeclL v) pers lst o
+    SimEM absIDeclL pers lst o
       (do let (m, hs) ← Frontend.internDecls lm (absDeclLFrom ds i)
           pure (m, absIDeclL out ++ hs)) := by
   sorry

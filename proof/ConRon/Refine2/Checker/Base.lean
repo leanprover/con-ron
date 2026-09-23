@@ -517,7 +517,7 @@ theorem fvar_type_ds_refines {pers st lst}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.fvar_type_ds pers st hs i out = ok o) :
-    SimRE (fun v => absEIdxL out ++ absEIdxL v) lst o
+    SimRE absEIdxL lst o
       (do pure (absEIdxL out ++ (← fvarTypeDs (absEIdxLFrom hs i)))) := by
   sorry
 

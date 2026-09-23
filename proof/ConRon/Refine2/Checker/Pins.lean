@@ -1226,7 +1226,7 @@ theorem intern_pin_sets_refines {pers st lst}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hwf : ∀ p ∈ pss.val, NatOpPinSetWF p)
     (hrun : arena.nat_op_pin_set.intern_pin_sets pers st pss i out = ok o) :
-    Sim (fun v => absINatOpPinSetL out ++ absINatOpPinSetL v) (fun _ => True)
+    Sim absINatOpPinSetL (fun _ => True)
       pers lst o
       (do pure (absINatOpPinSetL out ++
         (← internPinSets ((pss.val.drop i.val).map ConRon.Refine.absNatOpPinSet)))) := by

@@ -1856,11 +1856,85 @@ theorem intern_all_basis_refines {pers st lst} {i : Std.Usize} {o}
           .quotK].drop i.val)) := by
   sorry
 
-/-- **`intern_all_pins` ⊑ `internAllPins`** — DESIGN §8.6 P2d's one-time tree
-walk: every datum the checker compares a stream record against, interned into
-the tier that is live at the call — which, at the driver's call, is the
-PERSISTENT one, and that is what makes every pin handle survive every
-`dropScratch` (`Arena/Intern.lean`'s module note). -/
+/-- **`intern_all_pins` ⊑ the port's startup walk** — DESIGN §8.6 P2d's
+one-time tree walk, as the port runs it (task #97-P5-Top): the basis blocks,
+the axiom pins, the reserved names and the pin sets, four children in
+sequence.  Glue: `intern_all_basis_refines`, `intern_all_axiom_pins_refines`,
+`intern_all_names_refines` and `intern_pin_sets_refines`.
+
+`internAllPinsPortSpec` is `internAllPins` with eight pins interned RAW where
+the twin interns them annotated; `intern_all_pins_refines` below — the
+statement the capstone consumes — is therefore false as stated, and this is
+what is true. -/
+theorem intern_all_pins_port_refines {pers st lst}
+    {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
+    (hrun : arena.checker.intern_all_pins pers st pins = ok o) :
+    Sim absINatOpPinSetL (fun _ => True) pers lst o
+      (internAllPinsPortSpec (ConRon.Refine.absPins pins)) := by
+  rw [arena.checker.intern_all_pins] at hrun
+  unfold Sim
+  rw [internAllPinsPortSpec]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := intern_all_basis_refines (i := 0#usize) hrel hinv hq1
+  simp only [List.drop_zero, show (0#usize : Std.Usize).val = 0 from rfl] at hS1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := intern_all_axiom_pins_refines hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := intern_all_names_refines hrel2 hinv2 hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  have hS4 := intern_pin_sets_refines (i := 0#usize) hrel3 hinv3 hwf hrun
+  have h0 : absINatOpPinSetL (alloc.vec.Vec.new arena.nat_op_pin_set.INatOpPinSet)
+      = [] := rfl
+  have h1 : (pins.val.drop (0#usize : Std.Usize).val).map ConRon.Refine.absNatOpPinSet
+      = ConRon.Refine.absPins pins := by
+    simp [ConRon.Refine.absPins]
+  simp only [h0, h1, List.nil_append] at hS4
+  unfold Sim at hS4
+  rw [show (do pure (← internPinSets (ConRon.Refine.absPins pins)) : AM _)
+      = internPinSets (ConRon.Refine.absPins pins) from bind_pure _] at hS4
+  exact hS4
+
+/-- **`intern_all_pins` ⊑ `internAllPins`** — what the capstone consumes.
+
+**FALSE AS STATED (task #97-P5-Top), kept for the ruling.**  The port interns
+eight pins RAW where the twin's `internAllPins` interns them annotated
+(`iffIntro`, `iff.rec`, `Nonempty.intro`, `Nonempty.rec`, `propext`,
+`Classical.choice`, `ofReduceNat`, `ofReduceBool`; `Refine2/Checker/Spec.lean`'s
+startup-walk note), so the two post-stores hold different `BMNode`s and
+`StoreRel` fails at the first of them.  `intern_all_pins_port_refines` above is
+the true statement; closing this one needs the twin and the port to intern the
+SAME eight values — DESIGN.md, task #97-P5-Top, prices the two ways. -/
 theorem intern_all_pins_refines {pers st lst}
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
