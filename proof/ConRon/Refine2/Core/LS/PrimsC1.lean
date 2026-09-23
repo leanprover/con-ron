@@ -124,4 +124,12 @@ theorem drop_eidx_n_from_aux (m : Nat) :
 
 attribute [lockstep_simp] ConRon.Refine.absBinderMeta
 
+/-! ## Twin-side shapes -/
+
+/-- The twin's `if ← x then pure true else pure false` is `x`: the port tail-calls. -/
+@[lockstep_simp] theorem bind_if_pure_true_false (x : AM Bool) :
+    (x >>= fun b => if b = true then pure true else pure false) = x := by
+  conv => rhs; rw [← bind_pure x]
+  congr 1; funext b; cases b <;> rfl
+
 end ConRon.Refine2.Lockstep.PC1

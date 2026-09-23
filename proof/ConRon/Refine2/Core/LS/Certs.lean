@@ -72,6 +72,30 @@ theorem def_eq_list_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
       (piResidual (absEIdx e) (absEIdxListFrom args i)) := by
   sorry
 
+@[lockstep] theorem stub_is_unit_like_ty_ls {pers vis st fe lfe h lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.is_unit_like_ty pers vis st fe h) lst
+      (isUnitLikeTy lfe (absEIdx h)) := by
+  sorry
+
+@[lockstep] theorem stub_zero_level_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
+  sorry
+
+@[lockstep] theorem stub_lvl_eq_ls {pers st u v lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lvl_eq pers st u v) lst
+      (lvlEq? (absLIdx u) (absLIdx v)) := by
+  sorry
+
+@[lockstep] theorem stub_lift_fueled_ls {pers st o lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
+      (liftFueled "level comparison" o) := by
+  sorry
+
 /-! ## `iotaIndexOk` -/
 
 @[lockstep] theorem iota_index_ok_ls {f : Nat} (hk : KnotRel f)
@@ -149,5 +173,90 @@ theorem iota_certs_aux_aux {f : Nat} (hk : KnotRel f) (N : Nat) :
         (absEIdx h) (absEIdxList args)) := by
   rw [arena.core.iota_certs, iotaCerts]
   exact iota_certs_aux_ls hk hx hrel hinv hctx hf
+
+/-! ## `proofIrrel` (fragments `prop_sorts_zero`, `prop_sorts_zero_right`) -/
+
+attribute [lockstep_inline] arena.core.prop_sorts_zero arena.core.prop_sorts_zero_right
+
+@[lockstep] theorem proof_irrel_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.proof_irrel pers vis st mode lane fu fe depth a b) lst
+      (proofIrrel (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.proof_irrel, proofIrrel]
+  lockstep_core
+  -- DIVERGENCE (D-C1-1): the port re-reads the pinned level `0` for the second
+  -- side (`prop_sorts_zero_right`, core.rs `zero_level(st)` before the second
+  -- `lvl_eq`), the twin reuses the `z` it read for the first side
+  -- (Arena/Core.lean `proofIrrel`/`propIrrel`, inner `.sort vT` arm).  The
+  -- port's second `zero_level` has no twin partner.  Fix: `let z ← zeroLevel`
+  -- again before `lvlEq? vT z` (see `proof_irrel_fix_ls`, which closes).
+  all_goals sorry
+
+@[lockstep] theorem prop_irrel_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.prop_irrel pers vis st mode lane fu fe depth a b) lst
+      (propIrrel (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.prop_irrel, propIrrel]
+  lockstep_core
+  -- DIVERGENCE (D-C1-1): the port re-reads the pinned level `0` for the second
+  -- side (`prop_sorts_zero_right`, core.rs `zero_level(st)` before the second
+  -- `lvl_eq`), the twin reuses the `z` it read for the first side
+  -- (Arena/Core.lean `proofIrrel`/`propIrrel`, inner `.sort vT` arm).  The
+  -- port's second `zero_level` has no twin partner.  Fix: `let z ← zeroLevel`
+  -- again before `lvlEq? vT z` (see `proof_irrel_fix_ls`, which closes).
+  all_goals sorry
+
+/-! ## Divergence evidence (D-C1-1)
+
+`proofIrrel` with the one-line twin fix applied (a second `zeroLevel` read
+before the second `lvlEq?`), and the lockstep lemma against it, closed by one
+`lockstep_core` call.  Delete once the twin carries the fix. -/
+
+/-- `proofIrrel` with the second `zeroLevel` read (the divergence fix). -/
+def proofIrrelFix (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
+    AM Bool := do
+  let ta ← r.inferIO depth a
+  if ← isUnitLikeTy fe (← r.whnf depth ta) then do
+    let tb ← r.inferIO depth b
+    if ← isUnitLikeTy fe (← r.whnf depth tb) then pure true else pure false
+  else do
+    let hh ← r.whnf depth (← r.inferIO depth ta)
+    if hh.tag == ETag.sort then
+      match ← view hh with
+      | .sort uT => do
+        let z ← zeroLevel
+        let okA ← liftFueled "level comparison" (← lvlEq? uT z)
+        let tb ← r.inferIO depth b
+        let hh ← r.whnf depth (← r.inferIO depth tb)
+        if hh.tag == ETag.sort then
+          match ← view hh with
+          | .sort vT => do
+            let z ← zeroLevel
+            let okB ← liftFueled "level comparison" (← lvlEq? vT z)
+            pure (okA && okB)
+          | _ => pure false
+        else pure false
+      | _ => pure false
+    else pure false
+
+theorem proof_irrel_fix_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.proof_irrel pers vis st mode lane fu fe depth a b) lst
+      (proofIrrelFix (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.proof_irrel, proofIrrelFix]
+  lockstep_core
 
 end ConRon.Refine2.Lockstep
