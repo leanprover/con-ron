@@ -58932,3 +58932,9 @@ Edits outside the proof: the module note and `check_pool`'s doc comment in
 `crates/con-ron/src/driver.rs` (comments only), OVERVIEW §8.2's driver and
 pool rows, and `scripts/overview-links-expected.txt` (the pool anchor is now
 `#L46-L100`).
+
+#### 4. Gates
+
+`arena` merged at `4f6f3961` (task #97-PERF-FRESH, DESIGN only; a `DESIGN.md`
+conflict, both appends kept).  `scripts/gates.sh` on the merge: **all 16 OK**
+(`extract-check` 142 s).
