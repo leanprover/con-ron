@@ -430,4 +430,45 @@ set_option maxHeartbeats 4000000 in
   obtain ⟨hwf, rfl⟩ := hR
   cases a <;> dsimp only <;> lockstep_e
 
+attribute [lockstep_inline] arena.core.infer_forall_io arena.core.infer_forall_io_at
+  arena.core.infer_proj_io arena.core.infer_lam_open arena.core.infer_lam_cod
+
+set_option maxHeartbeats 4000000 in
+/-- **`BodyRel.inferIO`**, in lockstep. -/
+@[lockstep] theorem infer_body_io_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane io fu fe lfe depth e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_body_io pers vis st mode lane io fu fe depth e) lst
+      (inferBodyIO (ConRon.Refine.absMode mode)
+        (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe (absU depth)
+        (absEIdx e)) := by
+  have hv := @view_wf_ls
+  have hlp := @lam_pw_wf_ls pers hx
+  rw [arena.core.infer_body_io, inferBodyIO]
+  refine LSR.bind (hv hrel hinv e) rfl ?_ ?_
+  · intro e1; exact errArm_ok
+  intro a b lst1 hR hrel hinv
+  obtain ⟨hwf, rfl⟩ := hR
+  cases a <;> dsimp only <;> lockstep_e
+  -- one goal is left: the `.lam` clause's codomain-sort computation, where the
+  -- port calls `knot_infer_io` and the twin `r.infer` at `r = laneKnotAt … io f`
+  all_goals
+    cases io with
+    | true =>
+      simp only [laneKnotAt_true_infer]
+      lockstep_e
+    | false =>
+      -- DIVERGENCE (task #97-P5-Core round 5, region E): at `io = false` the
+      -- twin's `r.infer` is `(laneKnot … f).infer`, the port's
+      -- `infer_lam_cod` (crates/con-ron-core/src/arena/core.rs:8200) calls
+      -- `knot_infer_io`.  They agree at `lane = LANE_IO` (`coreKnotIO`'s two
+      -- slots are one function) but not at `LANE_FULL`/`LANE_GATED`, which
+      -- `BodyRel.inferIO` quantifies over although no port caller reaches it
+      -- (`knot_infer_io` passes `io = true` at `LANE_FULL`, `false` only at
+      -- `LANE_IO`).  Twin: `Arena/Core.lean:2969 inferBodyIO` `.lam` clause.
+      sorry
+
 end ConRon.Refine2.Lockstep

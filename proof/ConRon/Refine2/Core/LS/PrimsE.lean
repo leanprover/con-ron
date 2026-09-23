@@ -95,6 +95,10 @@ rebound to `inferIO`; every other slot is the lane knot's own, by iota. -/
 @[lockstep_simp] theorem laneKnotAt_annotate (m fe l io f) :
     (laneKnotAt m fe l io f).annotate = (laneKnot m fe l f).annotate := by cases io <;> rfl
 
+/-- Under the io view the `infer` slot IS the lane knot's `inferIO`. -/
+theorem laneKnotAt_true_infer (m fe l f) :
+    (laneKnotAt m fe l true f).infer = (laneKnot m fe l f).inferIO := rfl
+
 /-- `ensureSort` reads its record's `whnf` slot alone. -/
 @[lockstep_simp] theorem ensureSort_laneKnotAt (m fe l io f lfe d e) :
     ensureSort (laneKnotAt m fe l io f) lfe d e = ensureSort (laneKnot m fe l f) lfe d e := by
