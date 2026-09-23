@@ -54651,4 +54651,6 @@ unused inside those proofs — that lane retires them.  `Promote/**` and
 `StructParts.lean`'s `struct_ps_at_from_refines` hands `sim_cursor_copy` the
 invariant `fun _ => True` where it used to thread the frozen implication.
 
-**Gates**: see below.
+**Gates**: `arena` merged at `61313dfd` (no `Refine2/` change came with it);
+**all 16 OK** on the merged branch (`extract-check` 106 s, `lake-refine2`
+120 s).  The shared Lake cache was not seeded from this worktree.
