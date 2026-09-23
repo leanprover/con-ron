@@ -15,7 +15,7 @@ The arena's own verification, beside the implementation (con-leche's lesson
 * `intern_spec` / `view_spec` / `dropScratch_spec` / `enableScratch_spec` —
   the store operations.
 -/
-import ConRon.Arena.WF
+import ConRon.Arena.WFSkip
 
 namespace ConRon.Arena
 
@@ -6162,7 +6162,7 @@ theorem EStore.internAt_wf_view {st : EStore} {rk : EIdx → Nat} {w : ENodeView
     (hfov : st.findBMOfView w = some mi) :
     StoreWF (st.internAt w mi).1 ∧
       (st.internAt w mi).1.view (st.internAt w mi).2 = some w := by
-  simp only [EStore.internAt]
+  simp only [EStore.internAt, EStore.persFindMaybe_eq ⟨rk, h⟩]
   split
   · rename_i i hi
     have hpf : st.persFind? w = some i := by
@@ -6203,7 +6203,7 @@ theorem EStore.internAt_isPersistent_of_off {st : EStore} {rk : EIdx → Nat}
     (hbmok : ENodeView.BMOK st.viewBM w mi)
     (hfov : st.findBMOfView w = some mi) :
     (st.internAt w mi).2.isPersistent = true := by
-  simp only [EStore.internAt]
+  simp only [EStore.internAt, EStore.persFindMaybe_eq ⟨rk, h⟩]
   split
   · rename_i i hi
     have hpf : st.persFind? w = some i := by
@@ -7965,7 +7965,7 @@ theorem EStore.find?_cases {st : EStore} {v : ENodeView} {i : EIdx}
     split at hf
     · rename_i j hp
       obtain rfl := Option.some.inj hf
-      exact Or.inl hp
+      exact Or.inl (EStore.pers_find_of_persFindMaybe hp)
     · split at hf
       · exact Or.inr hf
       · exact absurd hf (by simp)
@@ -11167,7 +11167,8 @@ formed, nothing a node read can see moves, the scratch tier does not move at
 all, and the handle it answers is a PERSISTENT handle that decodes to the
 datum it was asked for. -/
 theorem EStore.internBMPersistent_spec' {st : EStore} {rk : EIdx → Nat}
-    {m : ConLeche.BinderMeta} (h : EWFAt' st rk) (hcap : st.capOKBMPersistent) :
+    {m : ConLeche.BinderMeta} (h : EWFAt' st rk)
+    (hcap : st.persFindBM m = none → st.capOKBMPersistent) :
     StoreWF' (st.internBMPersistent m).1 ∧
       (st.internBMPersistent m).1.lss = st.lss ∧
       (st.internBMPersistent m).1.scratchOn = st.scratchOn ∧
@@ -11178,13 +11179,14 @@ theorem EStore.internBMPersistent_spec' {st : EStore} {rk : EIdx → Nat}
       (st.internBMPersistent m).2.tag = 0 ∧
       (st.internBMPersistent m).2.isPersistent = true ∧
       (∀ u : ENodeView, (st.internBMPersistent m).1.persFind? u = st.persFind? u) := by
-  simp only [EStore.capOKBMPersistent, ETables.bmSize_eq] at hcap
   cases hp : st.persFindBM m with
   | some i =>
     rw [EStore.internBMPersistent_hit hp]
     obtain ⟨h1, h2, h3⟩ := (h.bmConsP m i).mp hp
     exact ⟨⟨rk, h⟩, rfl, rfl, rfl, fun _ => rfl, fun _ => rfl, h1, h3, h2, fun _ => rfl⟩
   | none =>
+    have hcap := hcap hp
+    simp only [EStore.capOKBMPersistent, ETables.bmSize_eq] at hcap
     rw [EStore.internBMPersistent_push hp]
     obtain ⟨hwf, hview, hbm, htg, hnp, hpfA⟩ := EStore.wf_pushBM_pers'
       (st' := { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 })
@@ -11198,7 +11200,7 @@ theorem EStore.internBMPersistent_spec' {st : EStore} {rk : EIdx → Nat}
 `internPersistent` is interning. -/
 theorem EStore.internBMOfViewPersistent_spec' {st : EStore} {rk : EIdx → Nat}
     {w : ENodeView} (h : EWFAt' st rk)
-    (hcap : EStore.eViewNeedsBM w = true → st.capOKBMPersistent) :
+    (hcap : st.persCapBM w) :
     StoreWF' (st.internBMOfViewPersistent w).1 ∧
       (st.internBMOfViewPersistent w).1.lss = st.lss ∧
       (st.internBMOfViewPersistent w).1.scratchOn = st.scratchOn ∧
@@ -11217,14 +11219,14 @@ theorem EStore.internBMOfViewPersistent_spec' {st : EStore} {rk : EIdx → Nat}
   cases w
   case lam ty b m =>
     obtain ⟨hwf, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ :=
-      EStore.internBMPersistent_spec' (m := m) h (hcap rfl)
+      EStore.internBMPersistent_spec' (m := m) h hcap
     refine ⟨hwf, h2, h3, h4, h5, h6, ?_, h8, h9, h10⟩
     intro m' hm'
     simp only [ENodeView.bmOf, Option.some.injEq] at hm'
     subst hm'; exact h7
   case forallE ty b m =>
     obtain ⟨hwf, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ :=
-      EStore.internBMPersistent_spec' (m := m) h (hcap rfl)
+      EStore.internBMPersistent_spec' (m := m) h hcap
     refine ⟨hwf, h2, h3, h4, h5, h6, ?_, h8, h9, h10⟩
     intro m' hm'
     simp only [ENodeView.bmOf, Option.some.injEq] at hm'
@@ -11239,7 +11241,7 @@ theorem EStore.internBMOfViewPersistent_spec' {st : EStore} {rk : EIdx → Nat}
 the node append then runs on. -/
 theorem EStore.findBMOfView_internBMOfViewPersistent {st : EStore} {rk : EIdx → Nat}
     {w : ENodeView} (h : EWFAt' st rk)
-    (hcap : EStore.eViewNeedsBM w = true → st.capOKBMPersistent) :
+    (hcap : st.persCapBM w) :
     (st.internBMOfViewPersistent w).1.findBMOfView w
       = some (st.internBMOfViewPersistent w).2 := by
   obtain ⟨hwf, -, -, -, -, -, hbmok, htag0, hpers, -⟩ :=
@@ -11263,7 +11265,7 @@ answer at the moved key is the answer at the old one (both `none` when the
 datum was only in the scratch tier). -/
 theorem EStore.persFind?_internBMOfViewPersistent {st : EStore} {rk : EIdx → Nat}
     (h : EWFAt' st rk) {w : ENodeView}
-    (hcapBM : EStore.eViewNeedsBM w = true → st.capOKBMPersistent) :
+    (hcapBM : st.persCapBM w) :
     (st.internBMOfViewPersistent w).1.pers.find? w (st.internBMOfViewPersistent w).2
       = st.persFind? w := by
   obtain ⟨-, -, -, -, -, -, -, -, -, hpfA⟩ :=
@@ -11322,8 +11324,7 @@ of the operation and what the walk above it needs at the next node's
 `EViewPers`. -/
 theorem EStore.internPersistent_spec' {st : EStore} {w : ENodeView}
     (h : StoreWF' st) (hv : st.ViewOK w) (hp : EViewPers w)
-    (hcapBM : EStore.eViewNeedsBM w = true → st.capOKBMPersistent)
-    (hcapN : st.persFind? w = none → st.pers.sizeOf w < Idx.idxCap) :
+    (hcapBM : st.persCapBM w) (hcapN : st.persCapNode w) :
     StoreWF' (st.internPersistent w).1 ∧
       (st.internPersistent w).1.view (st.internPersistent w).2 = some w ∧
       (st.internPersistent w).2.isPersistent = true := by
@@ -11333,7 +11334,6 @@ theorem EStore.internPersistent_spec' {st : EStore} {w : ENodeView}
     rw [EStore.internPersistent_of_persFind h hpf0]
     exact ⟨⟨rk, h⟩, ((h.consP w i0).mp hpf0).1, ((h.consP w i0).mp hpf0).2⟩
   | none =>
-  have hcapN' := hcapN hpf0
   obtain ⟨hwf1, hlss1, hon1, hscr1, hview1, hszP, hbmok, htag0, hmiP, hpfA⟩ :=
     EStore.internBMOfViewPersistent_spec' h hcapBM
   have hfov1 := EStore.findBMOfView_internBMOfViewPersistent h hcapBM
@@ -11342,6 +11342,8 @@ theorem EStore.internPersistent_spec' {st : EStore} {w : ENodeView}
   obtain ⟨mi, hmi⟩ : ∃ s, s = (st.internBMOfViewPersistent w).2 := ⟨_, rfl⟩
   rw [← hst1] at hlss1 hon1 hscr1 hview1 hszP hbmok hfov1 h1
   rw [← hmi] at hbmok htag0 hmiP hfov1
+  simp only [EStore.persCapNode] at hcapN
+  rw [← hst1, ← hmi] at hcapN
   have hns1 : st1.ns = st.ns := by simp only [EStore.ns, hlss1]
   have hls1 : st1.ls = st.ls := by simp only [EStore.ls, hlss1]
   have hv1 : st1.ViewOK w := by
@@ -11350,7 +11352,6 @@ theorem EStore.internPersistent_spec' {st : EStore} {w : ENodeView}
     · rw [hns1]; exact hv.nm c hc
     · rw [hls1]; exact hv.lvl c hc
     · rw [hlss1]; exact hv.lst c hc
-  have hcap1 : st1.pers.sizeOf w < Idx.idxCap := by rw [hszP w]; exact hcapN'
   have hun : st.internPersistent w =
       (match st1.pers.find? w mi with
        | some i => (st1, i)
@@ -11371,9 +11372,39 @@ theorem EStore.internPersistent_spec' {st : EStore} {w : ENodeView}
         pers := (st1.pers.push w (st1.derOfView w) mi Idx.tierP).1 })
       (tb := (st1.pers.push w (st1.derOfView w) mi Idx.tierP).1)
       (inew := (st1.pers.push w (st1.derOfView w) mi Idx.tierP).2)
-      h1 hv1 hp rfl rfl rfl htag0 hmiP hbmok rfl rfl hcap1 hf
+      h1 hv1 hp rfl rfl rfl htag0 hmiP hbmok rfl rfl (hcapN hf) hf
     exact ⟨hwf2, hview2, hpers2⟩
 
 
+/-- con-leche: none — arena infrastructure; the datum step moves no NODE
+array, whatever it does (no invariant needed). -/
+theorem EStore.internBMOfViewPersistent_sizeOf (st : EStore) (w v : ENodeView) :
+    (st.internBMOfViewPersistent w).1.pers.sizeOf v = st.pers.sizeOf v := by
+  have hbm : ∀ m, (st.internBMPersistent m).1.pers.sizeOf v = st.pers.sizeOf v := by
+    intro m
+    cases hp : st.persFindBM m with
+    | some i => rw [EStore.internBMPersistent_hit hp]
+    | none =>
+      rw [EStore.internBMPersistent_push hp]
+      exact ETables.sizeOf_pushBM _ _ _ _ v
+  cases w
+  case lam ty b m => exact hbm m
+  case forallE ty b m => exact hbm m
+  all_goals rfl
+
+/-- con-leche: none — arena infrastructure; the old, unconditional datum
+capacity (`capOKPersistent`'s second half) implies the Rust's miss-path one. -/
+theorem EStore.persCapBM.of_needs {st : EStore} {w : ENodeView}
+    (h : EStore.eViewNeedsBM w = true → st.capOKBMPersistent) : st.persCapBM w := by
+  cases w
+  case lam ty b m => exact fun _ => h rfl
+  case forallE ty b m => exact fun _ => h rfl
+  all_goals trivial
+
+/-- con-leche: none — arena infrastructure; the old, unconditional node
+capacity implies the Rust's miss-path one. -/
+theorem EStore.persCapNode.of_size {st : EStore} {w : ENodeView}
+    (h : st.pers.sizeOf w < Idx.idxCap) : st.persCapNode w := fun _ => by
+  rw [EStore.internBMOfViewPersistent_sizeOf]; exact h
 
 end ConRon.Arena

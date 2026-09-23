@@ -337,7 +337,7 @@ theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 the reserved list in triple form: `Walks/Reserved.lean`'s
-`reservedBasisNames_runC` (a copy of `Bridge/Checker/Names.lean`'s) (six pin reads, thirteen name interns) read through
+`reservedBasisNames_runC` (a copy of `Bridge/Checker/Names.lean`'s) (the pin-table read `pinReserved`) read through
 `triple_of_run`. -/
 theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.reservedBasisNames

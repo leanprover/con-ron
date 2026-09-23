@@ -1475,27 +1475,8 @@ def etaProjs (fe : IFEnv) (T : NIdx) (us : LsIdx) (targs : List EIdx)
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 the names reserved for the pinned basis blocks, interned.  `contains` is
 then handle equality, as everywhere else in this module. -/
-def reservedBasisNames : AM (List NIdx) := do
-  let a ← pinEq
-  let b ← pin ConLeche.eqReflName
-  let c ← pin (ConLeche.eqName.str "rec")
-  let d ← pinNat
-  let e ← pinNatZero
-  let f ← pinNatSucc
-  let g ← pin (ConLeche.natName.str "rec")
-  let h ← pinPUnit
-  let i ← pin ConLeche.punitUnitName
-  let j ← pin (ConLeche.punitName.str "rec")
-  let k ← pin ConLeche.emptyName
-  let l ← pin (ConLeche.emptyName.str "rec")
-  let m ← pin ConLeche.falseName
-  let n ← pin (ConLeche.falseName.str "rec")
-  let o ← pin ConLeche.quotName
-  let p ← pin ConLeche.quotMkName
-  let q ← pin ConLeche.quotLiftName
-  let s ← pin ConLeche.quotIndName
-  let t ← pinQuotSound
-  pure [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t]
+def reservedBasisNames : AM (List NIdx) :=
+  pinReserved
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
 structure-eta certificate against a *given* weak-head-normal type of the

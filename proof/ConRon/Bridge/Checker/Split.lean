@@ -306,12 +306,6 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
   have hknot := hk.knot env fe henv
   have hsortS := hk.sort env fe henv
-  have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
-  have hnever2 : ∀ {α β : Type} {z : AM α} {f : α → Arena.CheckError},
-      AM.Never (z >>= fun a => (Arena.fail (f a) : AM β)) :=
-    fun {_ _ _ _} => AM.Never.bind fun _ => AM.Never.fail _
   obtain ⟨-, -, hty0⟩ := denoteCV_inv hcv
   have hkeq : (g.kind == Arena.ValueKind.thm) = true ↔
       gP.kind = ConLeche.ValueKind.thm := by
@@ -353,8 +347,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
       (do
         let vtype ← Arena.inferTypeCore μ fe Arena.checkFuel 0 jvA
         unless ← Arena.isDefEqCore μ fe Arena.checkFuel 0 vtype g.cvA.type do
-          Arena.fail (.invalid
-            s!"type mismatch in {g.kind.word} {← Arena.readName g.cvA.name}"))
+          Arena.fail (.invalid s!"type mismatch in {g.kind.word}"))
         sA = .ok ((), s') →
       CoreStep μ env fe s s' ∧ ∃ F,
         ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
@@ -377,7 +370,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
       rfl gi (hknot.defeq s7 0 vtype g.cvA.type vt gP.cvA.type hck7 hvt7 hty7
         hwsvt hwsty)
     obtain ⟨F3, hF3⟩ := hsim8
-    obtain ⟨hb, rj⟩ := AM.dunless_ok hnever2 ri
+    obtain ⟨hb, rj⟩ := AM.dunless_ok (AM.Never.fail _) ri
     obtain ⟨-, rfl⟩ := AM.pure_ok rj
     subst hb
     refine ⟨⟨hck8, hext2.trans (hxA.trans (hx7.trans hx8)),
@@ -416,7 +409,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
       | none => rw [ho] at gg; exact absurd gg (AM.Never.fail _ _ _ _)
       | some bb => exact ⟨bb, rfl⟩
     obtain ⟨rfl, rfl⟩ := AM.pure_ok gg
-    obtain ⟨hprop, rg⟩ := AM.dunless_ok hnever rf
+    obtain ⟨hprop, rg⟩ := AM.dunless_ok AM.Never.fail_any rf
     replace rg := AM.pure_bind_ok rg
     have heqv : ConLeche.Level.isEquiv uu .zero = some true := by
       rw [← hod, hprop]

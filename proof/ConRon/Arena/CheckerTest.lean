@@ -62,6 +62,19 @@ private def errEq : CheckError → ConLeche.CheckError → Bool
   | .internal a, .internal b => a == b
   | _, _ => false
 
+/-- con-leche: none — the arena's error against con-leche's: same
+constructor, message NOT compared (DESIGN §3.1).  The two-phase fold's check
+half (`checkValueGroup`) declines with the Rust port's constant messages,
+which carry no declaration name (task #97-T2-LOCKSTEP step 1: the twin reads
+no name on those paths, as `check_value_group_{value,tail}` do not), so
+`chkInstall` compares the kind; the one-phase `chkDecl`/`chkDecls` still
+compare messages with `errEq`. -/
+private def errKindEq : CheckError → ConLeche.CheckError → Bool
+  | .notImplemented _, .notImplemented _ => true
+  | .invalid _, .invalid _ => true
+  | .internal _, .internal _ => true
+  | _, _ => false
+
 /-- con-leche: none — intern an environment and a declaration and run the
 arena's `checkDecl` on them. -/
 private def runDecl (envCL : ConLeche.Env) (dCL : Declaration) : AM IFEnv := do
@@ -113,7 +126,7 @@ private def chkInstall (dsCL : List Declaration) : Bool :=
       ConLeche.checkDeclsPure MU OPS [] dsCL with
   | .ok (.ok fe, s'), .ok env =>
     Frontend.denoteCIList s'.store fe.env.consts == some env.consts
-  | .ok (.error (a, _), _), .error b => errEq a b
+  | .ok (.error (a, _), _), .error b => errKindEq a b
   | _, _ => false
 
 /-- con-leche: none — con-leche's own outcome, pinned by hand: an accept

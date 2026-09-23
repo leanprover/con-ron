@@ -485,67 +485,18 @@ theorem reduceOpNames_state {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
   exact (AM.pure_ok w1).2
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-the same walk as `reservedBasisNames_run`, in the scratch-agnostic frame: six
-pin reads leave the state alone and thirteen `internName`s are `IStepS`
-steps.  The startup walk needs the `scratchOn` equation `PinStep` does not
-carry. -/
+the startup walk's reserved-name step, in the scratch-agnostic frame: since
+twin fix D5 it is the pin-table read `pinReserved`, which leaves the state
+alone (`pinReserved_spec`). -/
 theorem reservedBasisNames_sstep {s s' : AState} {hs : List NIdx}
     (hst : StateOK s) (hp : PinsOK s)
     (hr : reservedBasisNames s = .ok (hs, s')) : Frontend.IStepS s s' := by
   simp only [Arena.reservedBasisNames] at hr
-  have a0 : Frontend.IStepS s s := Frontend.IStepS.refl hst
-  obtain ⟨_, u0, q0, w0⟩ := AM.bind_ok hr
-  obtain ⟨p0, -⟩ := pinAt_run (x := ConLeche.eqName) (hp.mono a0.ext a0.pins) rfl q0
-  rw [p0] at w0
-  have a1 := a0
-  obtain ⟨_, u1, q1, w1⟩ := AM.bind_ok w0
-  have a2 := a1.trans (Frontend.internName_sstep a1.ok q1).1
-  obtain ⟨_, u2, q2, w2⟩ := AM.bind_ok w1
-  have a3 := a2.trans (Frontend.internName_sstep a2.ok q2).1
-  obtain ⟨_, u3, q3, w3⟩ := AM.bind_ok w2
-  obtain ⟨p3, -⟩ := pinAt_run (x := ConLeche.natName) (hp.mono a3.ext a3.pins) rfl q3
-  rw [p3] at w3
-  have a4 := a3
-  obtain ⟨_, u4, q4, w4⟩ := AM.bind_ok w3
-  obtain ⟨p4, -⟩ := pinAt_run (x := ConLeche.natZeroName) (hp.mono a4.ext a4.pins) rfl q4
-  rw [p4] at w4
-  have a5 := a4
-  obtain ⟨_, u5, q5, w5⟩ := AM.bind_ok w4
-  obtain ⟨p5, -⟩ := pinAt_run (x := ConLeche.natSuccName) (hp.mono a5.ext a5.pins) rfl q5
-  rw [p5] at w5
-  have a6 := a5
-  obtain ⟨_, u6, q6, w6⟩ := AM.bind_ok w5
-  have a7 := a6.trans (Frontend.internName_sstep a6.ok q6).1
-  obtain ⟨_, u7, q7, w7⟩ := AM.bind_ok w6
-  obtain ⟨p7, -⟩ := pinAt_run (x := ConLeche.punitName) (hp.mono a7.ext a7.pins) rfl q7
-  rw [p7] at w7
-  have a8 := a7
-  obtain ⟨_, u8, q8, w8⟩ := AM.bind_ok w7
-  have a9 := a8.trans (Frontend.internName_sstep a8.ok q8).1
-  obtain ⟨_, u9, q9, w9⟩ := AM.bind_ok w8
-  have a10 := a9.trans (Frontend.internName_sstep a9.ok q9).1
-  obtain ⟨_, u10, q10, w10⟩ := AM.bind_ok w9
-  have a11 := a10.trans (Frontend.internName_sstep a10.ok q10).1
-  obtain ⟨_, u11, q11, w11⟩ := AM.bind_ok w10
-  have a12 := a11.trans (Frontend.internName_sstep a11.ok q11).1
-  obtain ⟨_, u12, q12, w12⟩ := AM.bind_ok w11
-  have a13 := a12.trans (Frontend.internName_sstep a12.ok q12).1
-  obtain ⟨_, u13, q13, w13⟩ := AM.bind_ok w12
-  have a14 := a13.trans (Frontend.internName_sstep a13.ok q13).1
-  obtain ⟨_, u14, q14, w14⟩ := AM.bind_ok w13
-  have a15 := a14.trans (Frontend.internName_sstep a14.ok q14).1
-  obtain ⟨_, u15, q15, w15⟩ := AM.bind_ok w14
-  have a16 := a15.trans (Frontend.internName_sstep a15.ok q15).1
-  obtain ⟨_, u16, q16, w16⟩ := AM.bind_ok w15
-  have a17 := a16.trans (Frontend.internName_sstep a16.ok q16).1
-  obtain ⟨_, u17, q17, w17⟩ := AM.bind_ok w16
-  have a18 := a17.trans (Frontend.internName_sstep a17.ok q17).1
-  obtain ⟨_, u18, q18, w18⟩ := AM.bind_ok w17
-  obtain ⟨p18, -⟩ := pinAt_run (x := ConLeche.quotSoundName) (hp.mono a18.ext a18.pins) rfl q18
-  rw [p18] at w18
-  have a19 := a18
-  obtain ⟨-, rfl⟩ := AM.pure_ok w18
-  exact a19
+  have h := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ denoteNL s.store r reservedBasisNameValues)
+    rfl hr (pinReserved_spec s hp)
+  obtain ⟨rfl, -⟩ := h
+  exact Frontend.IStepS.refl hst
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
@@ -572,7 +523,8 @@ with the rest.  `Bridge/Frontend/Capstone.lean`'s
 thirty-six links, each a scratch-agnostic `IStepS` — the twelve basis blocks
 (`BasisKind.decls_sstep` / `declsA_sstep`), eighteen fresh-memo interns
 (`internCI_fresh`, `internCV_fresh`, `Frontend.internExpr_sstep`),
-`reservedBasisNames_sstep`, and six pin reads that leave the state alone —
+`reservedBasisNames_sstep` (a table read since twin fix D5), and six pin
+reads that leave the state alone —
 then `internPinSets_run` for the variants.  `PersPins` travels because the pin
 record is untouched and persistence is a fact about handles. -/
 theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
