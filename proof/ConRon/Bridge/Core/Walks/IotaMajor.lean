@@ -102,6 +102,185 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     have := view_of_denote_lit hwf hv hden
     cases this
 
+/-! ### `majorToCtor`'s pure side, one function per rescue branch
+
+con-leche's `majorToCtor` at `pureFns mode env F`, past the shared prefix
+(not a constructor application, a single rule, its constructor's inductive),
+split into the three branches — each a copy of the con-leche text that
+`majorToCtorFueled_pre` ties to the original by `rfl`, so the copies cannot
+drift. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:571-617 majorToCtor — the K branch. -/
+def mtcK (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+    (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major : Expr) :
+    CheckM Expr :=
+  (ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
+  (ConLeche.pureFns mode env F).whnf d tm >>= fun tmaj =>
+  match tmaj.getAppFn with
+  | .const T' ust =>
+    if T' = T ∧ cvj.levelParams.length = ust.length then
+      if cnP ≤ tmaj.getAppArgs.length then
+        let fab := Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)
+        if fab.wscopedB d && fab.looseBVarsBounded 0 &&
+            fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
+          ConLeche.iotaCerts (ConLeche.pureFns mode env F) env d false
+              (cvj.type.instantiateLevelParams cvj.levelParams ust)
+              (tmaj.getAppArgs.take cnP) >>= fun rc =>
+          if rc then
+            (ConLeche.pureFns mode env F).inferIO d fab >>= fun tfab =>
+            (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
+            if rd then
+              ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d fab major >>=
+                fun r => if r then pure fab else pure major
+            else pure major
+          else pure major
+        else pure major
+      else pure major
+    else pure major
+  | _ => pure major
+
+/-- con-leche: ConLeche/Kernel/Core.lean:618-658 majorToCtor — the η branch. -/
+def mtcEta (mode : CheckMode) (env : Env) (F d : Nat) (cvj cvT : ConstantVal)
+    (caps : IndCaps) (T : ConLeche.Name) (major : Expr) : CheckM Expr :=
+  (ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
+  (ConLeche.pureFns mode env F).whnf d tm >>= fun tmaj =>
+  match tmaj.getAppFn with
+  | .const T' ust =>
+    if T' = T ∧ tmaj.getAppArgs.length = caps.etaParams ∧
+        ust.length = cvT.levelParams.length ∧
+        ConLeche.capsNeverZero cvT.levelParams ust caps = true then
+      let fab := Expr.mkAppN (.const caps.etaCtor ust)
+        (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs major caps.etaFields)
+      if fab.wscopedB d && fab.looseBVarsBounded 0 &&
+          fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
+        ConLeche.iotaCerts (ConLeche.pureFns mode env F) env d false
+            (cvj.type.instantiateLevelParams cvj.levelParams ust)
+            (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs major
+              caps.etaFields) >>= fun rc =>
+        if rc then
+          ConLeche.structEtaCertWith mode (ConLeche.pureFns mode env F) env d fab
+              major tmaj >>= fun r =>
+          if r then pure fab
+          else if caps.etaFields = 0 then
+            ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d fab major >>=
+              fun r' => if r' then pure fab else pure major
+          else pure major
+        else pure major
+      else pure major
+    else pure major
+  | _ => pure major
+
+/-- con-leche: ConLeche/Kernel/Core.lean:659-721 majorToCtor — the pinned
+`And` branch. -/
+def mtcAnd (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
+    (cvj : ConstantVal) (cnP : Nat) (T : ConLeche.Name) (major : Expr) :
+    CheckM Expr :=
+  (ConLeche.pureFns mode env F).inferIO d major >>= fun tm =>
+  (ConLeche.pureFns mode env F).whnf d tm >>= fun tmaj =>
+  match tmaj.getAppFn with
+  | .const T' ust =>
+    if T' = T ∧ tmaj.getAppArgs.length = cnP ∧
+        cvj.levelParams.length = ust.length ∧
+        ConLeche.andRescueSlots env rl.ctor cnP ust = true then
+      let fab := Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 major, .proj T 1 major])
+      if fab.wscopedB d && fab.looseBVarsBounded 0 &&
+          fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l) then
+        ConLeche.iotaCerts (ConLeche.pureFns mode env F) env d false
+            (cvj.type.instantiateLevelParams cvj.levelParams ust)
+            (tmaj.getAppArgs ++ [.proj T 0 major, .proj T 1 major]) >>= fun rc =>
+        if rc then
+          (ConLeche.pureFns mode env F).inferIO d fab >>= fun tfab =>
+          (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
+          if rd then
+            ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d fab major >>=
+              fun r => if r then pure fab else pure major
+          else pure major
+        else pure major
+      else pure major
+    else pure major
+  | _ => pure major
+
+/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — the prefix:
+past it, the three branches. -/
+theorem majorToCtorFueled_pre {F d : Nat} {cn : ConLeche.Name} {rl : RecRule}
+    {x : Expr} {cvj cvT : ConstantVal} {cnP cnF : Nat} {T : ConLeche.Name}
+    {lus : List Level} {caps : IndCaps}
+    (hnc : ConLeche.isCtorApp env x = false)
+    (hfj : env.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
+    (hpr : cvj.type.piResult.getAppFn = .const T lus)
+    (hfT : env.find? T = some (.indInfo cvT caps)) :
+    ConLeche.majorToCtorFueled mode env F d cn [rl] x =
+      if rl.k = true then mtcK mode env F d rl cvj cnP T x
+      else if rl.eta = true then mtcEta mode env F d cvj cvT caps T x
+      else if T = ConLeche.andName then mtcAnd mode env F d rl cvj cnP T x
+      else pure x := by
+  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hfj, hpr,
+    hfT, Bool.false_eq_true, if_false]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — a constructor
+application stays. -/
+theorem majorToCtorFueled_ctor {F d : Nat} {cn : ConLeche.Name}
+    {rules : List RecRule} {x : Expr} (h : ConLeche.isCtorApp env x = true) :
+    ConLeche.majorToCtorFueled mode env F d cn rules x = .ok x := by
+  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, h, if_true]; rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — every prefix
+miss leaves the major alone. -/
+theorem majorToCtorFueled_nrules {F d : Nat} {cn : ConLeche.Name}
+    {rules : List RecRule} {x : Expr} (hnc : ConLeche.isCtorApp env x = false)
+    (h : ∀ rl, rules ≠ [rl]) :
+    ConLeche.majorToCtorFueled mode env F d cn rules x = .ok x := by
+  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc,
+    Bool.false_eq_true, if_false]
+  match rules, h with
+  | [], _ => rfl
+  | [rl], h => exact absurd rfl (h rl)
+  | _ :: _ :: _, _ => rfl
+
+theorem majorToCtorFueled_nctor {F d : Nat} {cn : ConLeche.Name} {rl : RecRule}
+    {x : Expr} (hnc : ConLeche.isCtorApp env x = false)
+    (h : ∀ cvj cnP cnF, env.find? rl.ctor ≠ some (.ctorInfo cvj cnP cnF)) :
+    ConLeche.majorToCtorFueled mode env F d cn [rl] x = .ok x := by
+  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc,
+    Bool.false_eq_true, if_false]
+  first
+    | rfl
+    | (split
+       · rename_i cvj cnP cnF heq; exact absurd heq (h cvj cnP cnF)
+       · rfl)
+
+theorem majorToCtorFueled_nhead {F d : Nat} {cn : ConLeche.Name} {rl : RecRule}
+    {x : Expr} {cvj : ConstantVal} {cnP cnF : Nat}
+    (hnc : ConLeche.isCtorApp env x = false)
+    (hfj : env.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
+    (h : ∀ T lus, cvj.type.piResult.getAppFn ≠ .const T lus) :
+    ConLeche.majorToCtorFueled mode env F d cn [rl] x = .ok x := by
+  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hfj,
+    Bool.false_eq_true, if_false]
+  first
+    | rfl
+    | (split
+       · rename_i T lus heq; exact absurd heq (h T lus)
+       · rfl)
+
+theorem majorToCtorFueled_nind {F d : Nat} {cn : ConLeche.Name} {rl : RecRule}
+    {x : Expr} {cvj : ConstantVal} {cnP cnF : Nat} {T : ConLeche.Name}
+    {lus : List Level}
+    (hnc : ConLeche.isCtorApp env x = false)
+    (hfj : env.find? rl.ctor = some (.ctorInfo cvj cnP cnF))
+    (hpr : cvj.type.piResult.getAppFn = .const T lus)
+    (h : ∀ cvT caps, env.find? T ≠ some (.indInfo cvT caps)) :
+    ConLeche.majorToCtorFueled mode env F d cn [rl] x = .ok x := by
+  simp only [ConLeche.majorToCtorFueled, ConLeche.majorToCtor, hnc, hfj, hpr,
+    Bool.false_eq_true, if_false]
+  first
+    | rfl
+    | (split
+       · rename_i cvT caps heq; exact absurd heq (h cvT caps)
+       · rfl)
+
 /-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — **THEOREM 1
 for `majorToCtor`**, the stuck-major rescue: K, η, and the pinned `And`.
 The recursor's name is unused on both sides (`_recName`). -/
