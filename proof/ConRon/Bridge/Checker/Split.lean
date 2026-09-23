@@ -1117,6 +1117,118 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
             · rw [hnil' hnil]; exact hc₁
             · exact hc' hnil
 
+/-- con-leche: none — two entries of a denoting list that denote the SAME
+constant are the same entry, when the denoted names are unique (a constant
+occurring at two positions would repeat its name). -/
+theorem denoteCIList_inj_nodup {st : EStore} :
+    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
+      Frontend.denoteCIList st cs = some zs → (zs.map (·.name)).Nodup →
+      ∀ a ∈ cs, ∀ b ∈ cs, ∀ c, Frontend.denoteCI st a = some c →
+        Frontend.denoteCI st b = some c → a = b := by
+  intro cs
+  induction cs with
+  | nil => intro _ _ _ a ha; simp at ha
+  | cons x xs ih =>
+    intro zs hz hnd a ha b hb c hac hbc
+    obtain ⟨z, zs', hx, hxs, rfl⟩ := denoteCIList_cons hz
+    simp only [List.map_cons, List.nodup_cons] at hnd
+    -- an entry of the tail denotes a constant of the tail, which is not `z`
+    have htail : ∀ y ∈ xs, Frontend.denoteCI st y = some z → False := by
+      intro y hy hyz
+      obtain ⟨w, hw, hwd⟩ := denoteCIList_mem xs zs' hxs y hy
+      rw [hyz] at hwd
+      obtain rfl := Option.some.inj hwd
+      exact hnd.1 (List.mem_map_of_mem hw)
+    rcases List.mem_cons.mp ha with ha' | ha' <;>
+      rcases List.mem_cons.mp hb with hb' | hb'
+    · rw [ha', hb']
+    · rw [ha', hx] at hac; obtain rfl := Option.some.inj hac
+      exact (htail b hb' hbc).elim
+    · rw [hb', hx] at hbc; obtain rfl := Option.some.inj hbc
+      exact (htail a ha' hac).elim
+    · exact ih zs' hxs hnd.2 a ha' b hb' c hac hbc
+
+/-- con-leche: ConLeche/Verify/Cached/StreamConsts.lean:641 find?_name_of_mem —
+a name-unique environment finds every constant it holds (con-leche's lemma,
+restated: its module is not in this tier's import closure). -/
+theorem find?_of_mem_nodupNames : ∀ {cs : List ConstantInfo},
+    (cs.map (·.name)).Nodup → ∀ {c : ConstantInfo}, c ∈ cs →
+      (⟨cs⟩ : Env).find? c.name = some c := by
+  intro cs
+  induction cs with
+  | nil => intro _ c hc; exact absurd hc List.not_mem_nil
+  | cons a t ih =>
+    intro hnd c hc
+    rw [List.map_cons, List.nodup_cons] at hnd
+    show (a :: t).find? (·.name == c.name) = some c
+    rw [List.find?_cons]
+    by_cases hb : (a.name == c.name) = true
+    · simp only [hb]
+      rcases List.mem_cons.mp hc with rfl | hc'
+      · rfl
+      · exact absurd (by rw [eq_of_beq hb]; exact List.mem_map.mpr ⟨c, hc', rfl⟩) hnd.1
+    · rw [Bool.not_eq_true] at hb
+      simp only [hb]
+      rcases List.mem_cons.mp hc with rfl | hc'
+      · simp at hb
+      · exact ih hnd.2 hc'
+
+/-- con-leche: none — **every projection table the fold's index holds is well
+shaped**, not only the ones a lookup reaches: under name uniqueness every
+entry of the list IS the answer of a lookup (the `cover` clause finds a
+handle for its denoted name, and `denoteCIList_inj_nodup` says the entry
+found is this one), so `IFEnvOK.proj` reaches it.  This is
+`IFEnvOK_restrictTo`'s membership-shaped `hproj`. -/
+theorem FoldOK.projMem {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) :
+    ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t := by
+  intro t ht
+  have hd := hok.denote
+  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
+  obtain ⟨zs, hzs, rfl⟩ := hd
+  obtain ⟨c, hcm, hcd⟩ := denoteCIList_mem _ zs hzs _ ht
+  have hfind : (⟨zs⟩ : Env).find? c.name = some c :=
+    find?_of_mem_nodupNames hnd hcm
+  obtain ⟨n, ci, -, hf, hci⟩ := hok.check.ienv.cover c.name c hfind
+  have hmem := IFEnv.find?_mem hok.coh hf
+  obtain rfl := denoteCIList_inj_nodup _ zs hzs hnd ci hmem _ ht c hci hcd
+  exact hok.check.ienv.proj n t hf
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find?_visibleBelow —
+`IFEnvOK_restrictTo` at ANY bound: past the index's size the restriction
+hides nothing and the prefix is the whole environment. -/
+theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) (k : Nat) :
+    IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
+  by_cases hk : k ≤ fe.visibleBelow
+  · exact IFEnvOK_restrictTo hok (hok.projMem hnd) hnd hk
+  · have hlen : env.consts.length = fe.env.consts.length := by
+      have hd := hok.denote
+      simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
+      obtain ⟨zs, hzs, rfl⟩ := hd
+      exact (denoteCIList_length _ _ hzs).symm
+    have hvb : fe.visibleBelow = fe.env.consts.length := hok.coh.1
+    have hpre : env.prefixTo k = env := by
+      simp only [Env.prefixTo]
+      rw [show env.consts.length - k = 0 by omega, List.drop_zero]
+    have hfind : ∀ n, (fe.restrictTo k).find? n = fe.find? n := by
+      intro n
+      simp only [IFEnv.find?, IFEnv.restrictTo]
+      cases hg : fe.idx[n]? with
+      | none => rfl
+      | some p =>
+        obtain ⟨c, ci⟩ := p
+        have hc : c < fe.env.consts.length :=
+          mkIFEnvGo_lt _ n c ci (hok.coh.2 n ▸ hg)
+        simp only [if_pos (show c < k by omega), if_pos (show c < fe.visibleBelow by omega)]
+    rw [hpre]
+    have h := hok.check.ienv
+    exact ⟨fun n ci hf => h.hit n ci (by rw [← hfind]; exact hf),
+      fun nm c hf => by
+        obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hf
+        exact ⟨n, ci, h1, by rw [hfind]; exact h2, h3⟩,
+      fun n t hf => h.proj n t (by rw [← hfind]; exact hf)⟩
+
 /-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
 B's check of one record, at the prefix environment itself**.  The form the
 fold consumes: `checkDecl_of_split_*` needs the check half at the SAME
@@ -1126,16 +1238,27 @@ it without a `find?`-congruence of the whole pure core that con-leche does not
 state.  It is available here directly: `IFEnvOK_restrictTo` gives the index
 invariant AT `env.prefixTo pc.vis`, so the knot is instantiated there.
 
-`sorry`: `IFEnvOK_restrictTo` (its `hproj` from `IFEnvOK.proj` under name
-uniqueness), `CoreSpec` at the prefix environment, `checkValueGroup_bridge`,
-then the bracket with nothing to promote — `PExt.enterScratch` /
-`PExt.dropScratch` and `FoldOK` across them. -/
+PROVED (task #97-P3-Checker round 9): `IFEnvOK_prefix` (`IFEnvOK_restrictTo`,
+its `hproj` from `FoldOK.projMem` — every stored table IS a lookup's answer
+under name uniqueness), carried into the fresh scratch tier by
+`IFEnvOK.pmono`, `checkValueGroup_bridge` at the prefix, then the bracket
+with nothing to promote — `PExt.enterScratch` / `PExt.dropScratch` and
+`FoldOK` across them.
+
+**The statement's `hckK : CacheOK μ (env.prefixTo pc.vis) s` became
+`hcE : s.caches = Caches.empty`** (a precondition repair, round 9).
+`checkPending` opens with `enterScratch`, which REPLACES the scratch tier by
+an empty one and keeps the caches; a cache row valid at `s` whose handles are
+scratch handles names nothing — or, once the check interns again, something
+else — after it, so `CacheOK` at `s` does not survive the opening and the
+theorem was not provable from it.  The call site has the stronger fact: every
+`checkPending` follows a `dropScratch` (`checkPendingList_bridge`'s `hc`). -/
 theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
     {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpers : PersVG pc.vg)
     (hnd : (env.consts.map (·.name)).Nodup)
-    (hckK : CacheOK μ (env.prefixTo pc.vis) s)
+    (hcE : s.caches = Caches.empty)
     (henvK : EnvWF (env.prefixTo pc.vis))
     (hkind : KindRel pc.vg.kind gP.kind)
     (hcv : Frontend.denoteCV s.store pc.vg.cvA = some gP.cvA)
@@ -1146,7 +1269,47 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
     FoldOK μ env fe s' ∧ PExt s.store s'.store ∧ s'.caches = Caches.empty ∧
       ∃ F, ConLeche.checkValueGroup (ConLeche.fueledOps μ F)
         (env.prefixTo pc.vis) gP = .ok () := by
-  sorry
+  have hwf := hok.check.state.wf
+  simp only [Arena.checkPending] at hrun
+  obtain ⟨u1, s1, g1, r1⟩ := AM.bind_ok hrun
+  rw [enterScratch_run] at g1
+  simp only [Except.ok.injEq, Prod.mk.injEq] at g1
+  obtain ⟨-, rfl⟩ := g1
+  obtain ⟨u2, s2, g2, r2⟩ := AM.bind_ok r1
+  rw [dropScratch_run] at r2
+  simp only [Except.ok.injEq, Prod.mk.injEq] at r2
+  obtain ⟨-, rfl⟩ := r2
+  -- the opening: the prefix view's invariant, carried into the fresh scratch tier
+  have hx1 : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
+  have hwf1 := (EStore.enableScratch_spec hwf).1
+  have hck1 : CheckOK μ (env.prefixTo pc.vis) (fe.restrictTo pc.vis)
+      { store := s.store.enableScratch, memos := Memos.empty, caches := s.caches,
+        pins := s.pins } :=
+    { state := ⟨hwf1⟩
+      caches := CacheOK.of_empty hcE
+      pins := hok.check.pins.pmono hok.persPins hx1 rfl
+      ienv := (IFEnvOK_prefix hok hnd pc.vis).pmono
+        ⟨hok.persEnv.env, hok.persEnv.idx⟩ hx1 }
+  -- the check, at the prefix
+  obtain ⟨hcs, F, hF⟩ := checkValueGroup_bridge hμ hk henvK hck1 hkind
+    (denoteCV_pext hx1 hpers.cvA hcv) (hx1.expr _ _ hpers.jv hjv) hwsty hwsjv g2
+  -- the close
+  have hwf2 := hcs.ok.state.wf
+  have hx : PExt s.store s2.store.dropScratch :=
+    (hx1.trans (PExt.of_ext hcs.ext)).trans (PExt.dropScratch hwf2)
+  have hpins : s2.pins = s.pins := hcs.pins
+  refine ⟨?_, hx, rfl, F, hF⟩
+  exact
+    { check :=
+        { state := ⟨(EStore.dropScratch_spec hwf2).1⟩
+          caches := CacheOK.of_empty rfl
+          pins := hok.check.pins.pmono hok.persPins hx hpins
+          ienv := hok.check.ienv.pmono hok.persEnv hx }
+      envWF := hok.envWF
+      persPins := hok.persPins.mono hpins
+      persEnv := hok.persEnv
+      coh := hok.coh
+      denote := denoteFEnv_pext hx hok.persEnv hok.denote }
 
 /-- con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList —
 **phase B over handles**: every owed check of phase A is paid, at the
@@ -1191,7 +1354,7 @@ theorem Arena.checkPendingList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
         have hpre := hp.prefix
         obtain ⟨hok₁, hx₁, hc₁, F, hF⟩ :=
           Arena.checkPending_prefix hμ hk hok hp.pers hnd
-            (CacheOK.of_empty hc0) (by rw [hpre]; exact hp.envWF) hp.kind hp.cv
+            hc0 (by rw [hpre]; exact hp.envWF) hp.kind hp.cv
             hp.jv hp.wsty hp.wsjv hA
         rw [hpre] at hF
         obtain ⟨hok', hx', hall⟩ :=
@@ -1252,7 +1415,7 @@ record's own header, and none of them is derivable from `FoldOK μ env fe s`:
 
 | clause | why `FoldOK μ env fe s` does not give it |
 |---|---|
-| `hckK : CacheOK μ (env.prefixTo pc.vis) s` | `checkPending` opens with `enterScratch`, which does NOT flush the caches — only `dropScratch` does — so the run enters `checkValueGroup` with whatever rows the state holds, and a cache row is **not monotone downward**: a `whnf` that delta-unfolded a constant above the bound is simply wrong at `envK`.  It is TRUE at the call site for a different reason — every `checkPending` follows a `dropScratch` (phase A's last step's, or the previous record's), so `s.caches` is empty — but the statement has to say so |
+| `hckK : CacheOK μ (env.prefixTo pc.vis) s` (round 9: `hcE : s.caches = Caches.empty`, see `Arena.checkPending_prefix`) | `checkPending` opens with `enterScratch`, which does NOT flush the caches — only `dropScratch` does — so the run enters `checkValueGroup` with whatever rows the state holds, and a cache row is **not monotone downward**: a `whnf` that delta-unfolded a constant above the bound is simply wrong at `envK`.  It is TRUE at the call site for a different reason — every `checkPending` follows a `dropScratch` (phase A's last step's, or the previous record's), so `s.caches` is empty — but the statement has to say so |
 | `henvK : EnvWF (env.prefixTo pc.vis)` | `ConstWF` asks for `constsResolve` at the environment the constant is stored in, and LOWERING the environment can only break that clause, so `EnvWF env` does not imply it.  It is the install fold's to carry |
 | `hwsty : Expr.WScoped 0 gP.cvA.type`, `hwsjv : Expr.WScoped 0 gP.jv` | round 5 §7's two clauses, which `checkValueGroup_bridge` takes and this theorem cannot conjure: phase A's `installConstantVal` / `installValue` tested exactly that guard (`hasFvar = false` at depth 0 IS `WScoped 0`), so they travel in the `PendingCheck`, not in the state |
 
@@ -1275,7 +1438,7 @@ theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hpers : PersVG pc.vg)
     (hnd : (env.consts.map (·.name)).Nodup)
-    (hckK : CacheOK μ (env.prefixTo pc.vis) s)
+    (hcE : s.caches = Caches.empty)
     (henvK : EnvWF (env.prefixTo pc.vis))
     (hkind : KindRel pc.vg.kind gP.kind)
     (hcv : Frontend.denoteCV s.store pc.vg.cvA = some gP.cvA)
@@ -1286,7 +1449,7 @@ theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
     ∃ envK F, FoldOK μ env fe s' ∧ PExt s.store s'.store ∧
       envK.find? = (env.prefixTo pc.vis).find? ∧
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) envK gP = .ok () := by
-  obtain ⟨h1, h2, -, F, hF⟩ := Arena.checkPending_prefix hμ hk hok hpers hnd hckK
+  obtain ⟨h1, h2, -, F, hF⟩ := Arena.checkPending_prefix hμ hk hok hpers hnd hcE
     henvK hkind hcv hjv hwsty hwsjv hrun
   exact ⟨env.prefixTo pc.vis, F, h1, h2, rfl, hF⟩
 
