@@ -30,6 +30,7 @@ import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Frontend.Shared
 import ConLeche.Verify.Extend.Iota
 import ConLeche.Verify.Extend.Modeled
+import ConRon.Bridge.Frontend.Lines
 
 namespace ConRon.Bridge.Inductives
 
@@ -132,6 +133,84 @@ theorem blockRenameTable_spec (blockNames : List NIdx)
         | false =>
           have hne : (nm == qm) = false := by rw [← hbq]; exact hb
           have hrec := hrel q qm hq
+          simp only [Arena.renameBy] at hrec ⊢
+          have hfind : ((n, m) :: t).find? (fun p => p.1 == q)
+              = t.find? (fun p => p.1 == q) := by simp [hb]
+          rw [hfind]
+          have hne' : ¬ (qm = nm) := by
+            intro hc; rw [hc] at hne; simp at hne
+          have hct : (nm :: nms).contains qm = nms.contains qm := by
+            simp [hne']
+          rw [hct]
+          exact hrec
+
+/-- con-leche: none — `blockRenameTable_spec` at every well-formed extension
+of the final store (task #97-P3-Ind round 8, as round 7's `projBack_specW`):
+`checkMemberVal` builds the table FIRST and renames only after
+`checkConstantVal` has grown the arena.  A handle new at the extension cannot
+denote a block name the table knows (`denoteN_inj` there), so the table's
+lookups are the same. -/
+theorem blockRenameTable_specW (blockNames : List NIdx)
+    (blockNamesP : List ConLeche.Name) :
+    PSpec (fun st => Frontend.denoteNList st.ns blockNames = some blockNamesP)
+      (Arena.blockRenameTable blockNames)
+      (fun st r => ∀ st' : EStore, Ext st st' → StoreWF st' → RenameRel st' r
+        (fun n => if blockNamesP.contains n then n.str "_model" else n)) := by
+  induction blockNames generalizing blockNamesP with
+  | nil =>
+    intro s₀ s' r hok hd hrun
+    simp only [Frontend.denoteNList, Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.blockRenameTable] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    intro st' _ _ q qm hq
+    simpa [Arena.renameBy] using hq
+  | cons n ns ih =>
+    intro s₀ s' r hok hd hrun
+    simp only [Frontend.denoteNList] at hd
+    cases hn : denoteN s₀.store.ns n with
+    | none => rw [hn] at hd; simp at hd
+    | some nm =>
+      cases hns : Frontend.denoteNList s₀.store.ns ns with
+      | none => rw [hn, hns] at hd; simp at hd
+      | some nms =>
+        rw [hn, hns] at hd
+        obtain rfl := Option.some.inj hd
+        simp only [Arena.blockRenameTable] at hrun
+        obtain ⟨m, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨hstep1, hm⟩ := internNNode_run hok
+          (by intro c hc
+              simp only [NNodeView.children, List.mem_singleton] at hc
+              subst hc
+              exact nview_isSome_of_denote hn) h1
+        simp only [denoteNView, denoteN_ext hn hstep1.ext,
+          Option.map_some] at hm
+        obtain ⟨t, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨hstep2, hrel⟩ :=
+          ih nms s₁ s₂ t hstep1.ok
+            (denoteNListE_ext hstep1.ext _ _ hns) h3
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        refine ⟨hstep1.trans hstep2, ?_⟩
+        intro st' hxt hwf' q qm hq
+        have hn' : denoteN st'.ns n = some nm :=
+          denoteN_ext (denoteN_ext (denoteN_ext hn hstep1.ext) hstep2.ext) hxt
+        have hm' : denoteN st'.ns m = some (nm.str "_model") :=
+          denoteN_ext (denoteN_ext hm hstep2.ext) hxt
+        have hbq := beq_handle_eq hwf' hn' hq
+        cases hb : (n == q) with
+        | true =>
+          have hnm : (nm == qm) = true := by rw [← hbq]; exact hb
+          obtain rfl := eq_of_beq hnm
+          have hfind : ((n, m) :: t).find? (fun p => p.1 == q) = some (n, m) := by
+            simp [hb]
+          simp only [Arena.renameBy, hfind]
+          have hct : (nm :: nms).contains nm = true := by simp
+          simp only [hct, if_true]
+          exact hm'
+        | false =>
+          have hne : (nm == qm) = false := by rw [← hbq]; exact hb
+          have hrec := hrel st' hxt hwf' q qm hq
           simp only [Arena.renameBy] at hrec ⊢
           have hfind : ((n, m) :: t).find? (fun p => p.1 == q)
               = t.find? (fun p => p.1 == q) := by simp [hb]
@@ -1277,7 +1356,79 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       (fun st x => ∃ F cvA, ConLeche.checkMemberVal (ConLeche.fueledOps μ F)
         blockNamesP env' cvP = .ok cvA ∧
         Frontend.denoteCV st x = some cvA) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hbn, hcv, hfe', hfe⟩ := hpre
+  obtain rfl : env' = env := Option.some.inj (hfe'.symm.trans hfe)
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  simp only [Arena.checkMemberVal] at hrun
+  -- the rename table
+  obtain ⟨tbl, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, htbl⟩ := blockRenameTable_specW blockNames blockNamesP s₀ s₁ tbl hck.state
+    hbn k1
+  have c1 := p1.toCore hck
+  -- the member's own check
+  obtain ⟨cvA, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, cAP, F, hcA, hF⟩ := checkConstantVal_bridge hμ hk c1.ok henv
+    (denoteCV_ext hcv p1.ext) k2
+  have c12 := c1.trans c2
+  -- the model-shaped name guard
+  obtain ⟨an, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨rfl, han⟩ := Frontend.readName_run k3
+  have hnm := denoteCV_name hcA
+  obtain rfl : an = cAP.name := Option.some.inj (han.symm.trans hnm)
+  split at z3
+  · exact absurd z3 (hnever _ _ _)
+  rename_i hms
+  replace z3 := AM.pure_bind_ok z3
+  -- the model counterpart
+  obtain ⟨mn, s₄, k4, z4⟩ := bindOk z3
+  obtain ⟨p4, hmn⟩ := internNNode_run c12.ok.state
+    (by intro c hc
+        simp only [NNodeView.children, List.mem_singleton] at hc
+        subst hc
+        exact nview_isSome_of_denote hnm) k4
+  simp only [denoteNView, denoteN_ext hnm p4.ext, Option.map_some] at hmn
+  have c14 := c12.trans (p4.toCore c12.ok)
+  have hienv := c14.ok.ienv
+  cases hf : fe'.find? mn with
+  | none =>
+    rw [hf] at z4
+    exact absurd z4 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | some ci =>
+  rw [hf] at z4
+  obtain ⟨nm', cm, hnm', hcm, henvm⟩ := hienv.hit mn ci hf
+  obtain rfl := Option.some.inj (hnm'.symm.trans hmn)
+  cases ci
+  case defnInfo cvm mval hint =>
+    obtain ⟨cvmP, mvalP, rfl, hcvm, -⟩ := denoteCI_defn_inv hcm
+    dsimp only at z4
+    -- the level parameters
+    obtain ⟨hlps, z5⟩ := AM.dunless_ok hnever z4
+    replace z5 := AM.pure_bind_ok z5
+    have hlpsP : cvmP.levelParams = cAP.levelParams := by
+      have e1 := denoteCV_lps hcvm
+      have e2 := denoteNListE_ext p4.ext _ _ (denoteCV_lps hcA)
+      rw [hlps] at e1
+      exact Option.some.inj (e1.symm.trans e2)
+    -- the renamed type against the model's
+    obtain ⟨ren, s₅, k5, z6⟩ := bindOk z5
+    have x14 : Ext s₁.store s₄.store := c2.ext.trans p4.ext
+    obtain ⟨p5, -, hren⟩ := renameConstsFast_pstep c14.ok.state
+      (htbl s₄.store x14 c14.ok.state.wf) (denote_ext (denoteCV_type hcA) p4.ext) k5
+    have c15 := c14.trans (p5.toCore c14.ok)
+    have hbeq := beq_ehandle_eq c15.ok.state.wf hren
+      (denote_ext (denoteCV_type hcvm) p5.ext)
+    obtain ⟨hty, z7⟩ := AM.dunless_ok hnever z6
+    replace z7 := AM.pure_bind_ok z7
+    rw [hbeq] at hty
+    obtain ⟨rfl, rfl⟩ := pureOk z7
+    refine ⟨c15, F, cAP, ?_, denoteCV_ext hcA (p4.ext.trans p5.ext)⟩
+    have hms' : cAP.name.isModelSuffix = false := by
+      simpa using hms
+    simp only [ConLeche.checkMemberVal, bind, Except.bind, hF, hms', Bool.false_eq_true,
+      if_false, henvm, hlpsP, if_true, hty, pure, Except.pure]
+  all_goals exact absurd z4 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:164 checkIndMemberS_run
 (its `EnvWF` half, pure) — **one member step leaves a well-formed environment

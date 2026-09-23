@@ -26,6 +26,7 @@ calls `inferTypeCore` and `ensureSort`, `normPosDom` calls `whnf`,
 -/
 import ConRon.Bridge.Inductives.StructInstall
 import ConLeche.Verify.FastOps
+import ConRon.Bridge.Checker.Base
 
 namespace ConRon.Bridge.Inductives
 
