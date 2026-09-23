@@ -59476,3 +59476,17 @@ size of `Lockstep.lean`'s rule section) would cost more than it saves.  The
 ARE `LS`-shaped (`Result (Result α CheckError × AState)` against an `AM`
 do-block) and can use the shared tactic as it is; the `&EStore` ones are
 `LSS`.
+
+**Landing 1** (slices 1–2): `arena` merged at `491d3f3c`; `scripts/gates.sh`
+**all 16 OK** (`extract-check` 111 s, `lake-bridge` 54 s); frontier at the
+landing tip **55 items / 122 tainted / 632 dead weight** (from 65 / 174 / 647
+at the start; most of the drop is other lanes' landings — this lane closed
+the four F11 statements and eight more, and deleted F10).  Shared Lake cache
+seeded from the landing state.  An incident on the way: at 17:20 two oleans
+of the SHARED `_tmp/aeneas-lean/.lake/packages/con-leche`
+(`ConLeche/Frontend/Scan/Fast`, `ConLeche/Semantics/Syntax`) were rewritten
+by a Lean **4.34.0** toolchain (not this lane), and every build reading them
+failed with "incompatible header"; this worktree ran on a private copy of the
+con-leche package (restored from the Lake cache's 4.33 artifacts) until the
+shared one was repaired (it was, by 17:5x); `_tmp/aeneas-lean` was not
+touched from here.
