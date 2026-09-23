@@ -50861,12 +50861,15 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 #### Round 7 — the precondition repairs, the capability theorems, the opener, and a frame defect at every index switch (2026-09-23, Opus under Fable)
 
 Branch `ind-r7` off `arena` `f240dd91`, merged forward to `a7bb3aac` (task
-#97-P3-Promote) and then to @ARENA@ (which brought task #97-P3-Checker
+#97-P3-Promote) and then to `aa1dc3e2` (which brought task #97-P3-Checker
 round 9's layout move, `5ce4890e`).  The diff is `Bridge/Inductives/{Rel,SumInstall,
 NativeInstall,Modeled,Decl,Axioms}.lean`, this section, and — for the one
 authorised conclusion change (R7.6) — `IndSpec` in `Bridge/Checker/Hyp.lean`
 plus the one pattern in `Bridge/Checker/Arms.lean` that destructures it.  No
 Rust, no generated model.  `PStep` was not touched (the coordinator asked).
+
+Gates on the merged tip: **all 16 OK** (`extract-check` 260 s,
+`lake-refine2` 126 s, `lake-bridge` 65 s, `lake-capstone` 3 s).
 
 **The tier went from 41 open statements to 28** (27 of round 6's 41 are left
 open, and one new statement, `indDecl_envWF`, is the con-leche ask R7.6
@@ -50891,7 +50894,10 @@ ConRon.Capstone.no_False_declaration`:
 
 * before (`f240dd91`): **14 items in 9 modules, 45 tainted, dead weight 927**;
   top `Bridge.Frontend.processLineCoreD_run` (fan-in 11, reach 18);
-* after (@TIP@): @AFTER@.
+* after (the landing tip, over `arena` `aa1dc3e2`): **34 items in 14 modules,
+  109 tainted, dead weight 756**; top `Refine2.Frontend.apply_line_refines`
+  (fan-in 7, reach 14).  The growth is other lanes' skeletonisation landing in
+  between; none of the 34 is in this lane.
 
 **None of the capstone's items is in this lane, before or after, and none can
 be**: `Capstone.model_exists` and `no_False_declaration` take
@@ -50902,8 +50908,8 @@ from the capstone's point of view until someone discharges `hind` with
 `scripts/frontier.sh --tag indspec ConRon.Bridge.Inductives.indSpec_of_bridge`
 reports **2 items** (`checkModeled_spec`, `checkNative_spec` — the two route
 tops, each a sorried composition whose subtree is not yet in its closure) and
-97 dead-weight declarations across `Bridge/**` before the round, @INDAFTER@
-after.  The two tops cannot be skeletonised honestly before finding R7.4 is
+97 dead-weight declarations across `Bridge/**` before the round, and **3
+items** (the two tops and the new `indDecl_envWF`, R7.6) with **43** after.  The two tops cannot be skeletonised honestly before finding R7.4 is
 ruled on: both carry the frame defect.
 
 ##### R7.1 What closed
