@@ -97,6 +97,137 @@ theorem drop_eidx_n_from_aux (m : Nat) :
   simp only [absEIdxList, this, List.map_drop, absU]
   simp
 
+/-! ## The vector helpers (`take_eidx_n`, `append_eidx*`, `snoc*`) -/
+
+theorem take_eidx_n_from_aux (m : Nat) :
+    ∀ (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (i : Std.Usize)
+      (out r : alloc.vec.Vec arena.handle.EIdx),
+      n.val = m → arena.expr_ops.take_eidx_n_from xs n i out = ok r →
+      r.val = out.val ++ (xs.val.drop i.val).take n.val := by
+  induction m with
+  | zero =>
+    intro xs n i out r hn h
+    rw [arena.expr_ops.take_eidx_n_from] at h
+    rw [if_pos (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [hn]; simp
+  | succ m ih =>
+    intro xs n i out r hn h
+    rw [arena.expr_ops.take_eidx_n_from] at h
+    rw [if_neg (by scalar_tac)] at h
+    dsimp only at h
+    split at h
+    · cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
+    · rename_i hlt
+      obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt he
+      have hd := dupId_eidx _ _ he1
+      have hp := ConRon.Refine.vec_push_val ho1
+      have h1 := ConRon.Refine.Nat.usub_val hn1
+      have h2 := ConRon.Refine.Nat.uadd_val hi1
+      rw [ih xs n1 i1 o1 r (by simp at h1; omega) h, hp, hd, ← hx]
+      rw [List.drop_eq_getElem_cons hb, show n.val = n1.val + 1 by simp at h1; omega,
+        List.take_succ_cons, show i1.val = i.val + 1 by simpa using h2]
+      simp
+
+@[lockstep] theorem take_eidx_n_ls (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.expr_ops.take_eidx_n xs n)
+      (fun r => absEIdxList r = (absEIdxList xs).take (absU n)) := by
+  intro r h
+  rw [arena.expr_ops.take_eidx_n] at h
+  have := take_eidx_n_from_aux _ xs n 0#usize _ r rfl h
+  simp only [absEIdxList, this, absU, List.map_take]
+  simp [alloc.vec.Vec.new]
+
+theorem append_eidx_from_aux (k : Nat) :
+    ∀ (xs ys : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (r : alloc.vec.Vec arena.handle.EIdx),
+      ys.val.length - i.val = k → arena.core.append_eidx_from xs ys i = ok r →
+      r.val = xs.val ++ ys.val.drop i.val := by
+  induction k with
+  | zero =>
+    intro xs ys i r hk h
+    rw [arena.core.append_eidx_from] at h
+    rw [if_pos (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (by omega)]; simp
+  | succ k ih =>
+    intro xs ys i r hk h
+    rw [arena.core.append_eidx_from] at h
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt he
+    have hd := dupId_eidx _ _ he1
+    have hp := ConRon.Refine.vec_push_val ho1
+    have h2 := ConRon.Refine.Nat.uadd_val hi1
+    rw [ih o1 ys i1 r (by simp at h2; omega) h, hp, hd, ← hx,
+      show i1.val = i.val + 1 by simpa using h2, List.drop_eq_getElem_cons hb]
+    simp
+
+@[lockstep] theorem append_eidx_from_ls (xs ys : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
+    LSP (arena.core.append_eidx_from xs ys i) (fun r => r.val = xs.val ++ ys.val.drop i.val) :=
+  fun r h => append_eidx_from_aux _ xs ys i r rfl h
+
+@[lockstep] theorem append_eidx_ls (xs ys : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.core.append_eidx xs ys)
+      (fun r => absEIdxList r = absEIdxList xs ++ absEIdxList ys) := by
+  intro r h
+  rw [arena.core.append_eidx] at h
+  have := append_eidx_from_aux _ xs ys 0#usize r rfl h
+  simp [absEIdxList, this]
+
+/-- The whole-vector copy `eidx_copy_upto xs (len xs) 0 out` at an empty `out`. -/
+theorem eidx_copy_all_map {xs : alloc.vec.Vec arena.handle.EIdx} {n : Std.Usize}
+    {out : alloc.vec.Vec arena.handle.EIdx}
+    (h : arena.expr_ops.eidx_copy_upto xs (alloc.vec.Vec.len xs) 0#usize
+      (alloc.vec.Vec.with_capacity arena.handle.EIdx n) = ok out) :
+    out.val.map absEIdx = xs.val.map absEIdx := by
+  have hc := ExprOps.eidx_copy_upto_refines h
+  rw [ExprOps.absEIdxArr_size_len xs, ExprOps.usize_zero_val, ExprOps.absEIdxArr_with_capacity,
+    ExprOps.eidxCopyUpto_all] at hc
+  simpa [ExprOps.absEIdxArr, ExprOps.absEIdxL] using hc.symm
+
+@[lockstep] theorem append_eidx_of_ls (xs ys : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.core.append_eidx_of xs ys)
+      (fun r => absEIdxList r = absEIdxList xs ++ absEIdxList ys) := by
+  intro r h
+  rw [arena.core.append_eidx_of] at h
+  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o2, ho2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hc := eidx_copy_all_map ho2
+  have := append_eidx_from_aux _ o2 ys 0#usize r rfl h
+  simp [absEIdxList, this, hc]
+
+@[lockstep] theorem snoc2_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx) (y z : arena.handle.EIdx) :
+    LSP (arena.core.snoc2_eidx_of xs y z)
+      (fun r => absEIdxList r = absEIdxList xs ++ [absEIdx y, absEIdx z]) := by
+  intro r h
+  rw [arena.core.snoc2_eidx_of] at h
+  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o2, ho2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hc := eidx_copy_all_map ho1
+  have hp2 := ConRon.Refine.vec_push_val ho2
+  have hp := ConRon.Refine.vec_push_val h
+  simp [absEIdxList, hp, hp2, hc, dupId_eidx _ _ he, dupId_eidx _ _ he1]
+
+@[lockstep] theorem snoc_eidx_ls (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
+    LSP (arena.core.snoc_eidx xs y) (fun r => absEIdxList r = absEIdxList xs ++ [absEIdx y]) := by
+  intro r h
+  rw [arena.core.snoc_eidx] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hp := ConRon.Refine.vec_push_val h
+  simp [absEIdxList, hp, dupId_eidx _ _ he]
+
 /-! ## Rust-only mode and `PropWhen` gates -/
 
 @[lockstep] theorem is_never_ls (pw : kernel.prop_when.PropWhen) :
@@ -122,7 +253,8 @@ theorem drop_eidx_n_from_aux (m : Nat) :
   intro b h
   cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
-attribute [lockstep_simp] ConRon.Refine.absBinderMeta
+attribute [lockstep_simp] ConRon.Refine.absBinderMeta ExprOps.absStrip Option.isSome_some
+  Option.isSome_none
 
 /-! ## `PropWhen` comparison and the binder datum's well-formedness -/
 
@@ -282,6 +414,72 @@ a dup's `absIIndCaps c = absIIndCaps o` rewrites the twin's record first. -/
 @[lockstep_simp] theorem absNIdxList_length (v : alloc.vec.Vec arena.handle.NIdx) :
     (absNIdxList v).length = v.val.length := by simp [absNIdxList]
 
+@[lockstep] theorem dup2_nidx_ls (n : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n) (fun r => r = n) :=
+  fun r h => dupId_nidx _ _ h
+
+@[lockstep] theorem nidx_vec_dup_ls (ns : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_dup ns) (fun r => r = ns) :=
+  fun _ h => alloc.vec.Vec.ext _ _ (nidx_vec_dup_val h)
+
+@[lockstep] theorem snoc_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
+    LSP (arena.expr_ops.snoc_eidx_of xs y)
+      (fun r => absEIdxList r = absEIdxList xs ++ [absEIdx y]) :=
+  fun _ h => ExprOps.snoc_eidx_of_refines h
+
+/-- `nidx_vec_beq_from`: the cursor comparison of two name-handle vectors. -/
+theorem nidx_vec_beq_from_aux (a b : alloc.vec.Vec arena.handle.NIdx) (k : Nat) :
+    ∀ (i : Std.Usize) (o : Bool), a.val.length - i.val = k → a.val.length = b.val.length →
+      arena.core.nidx_vec_beq_from a b i = ok o →
+      o = decide ((a.val.drop i.val).map absNIdx = (b.val.drop i.val).map absNIdx) := by
+  induction k with
+  | zero =>
+    intro i o hk hl h
+    rw [arena.core.nidx_vec_beq_from] at h
+    rw [if_pos (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega)]; rfl
+  | succ k ih =>
+    intro i o hk hl h
+    rw [arena.core.nidx_vec_beq_from] at h
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv : b1 = (absNIdx n == absNIdx n1) := nidx_eq2_abs hb1
+    obtain ⟨hlt, hx⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hn)
+    obtain ⟨hlt1, hx1⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hn1)
+    rw [List.drop_eq_getElem_cons hlt, List.drop_eq_getElem_cons hlt1, hx, hx1,
+      List.map_cons, List.map_cons]
+    cases hbb : b1
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp), Result.ok.injEq] at h
+      subst h
+      have : absNIdx n ≠ absNIdx n1 := by
+        intro hc; rw [hc] at hbv; simp at hbv
+      simp [this]
+    · rw [hbb] at h hbv
+      rw [if_pos rfl] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi := ConRon.Refine.Nat.uadd_val hi2
+      rw [ih i2 o (by simp at hi; omega) hl h]
+      have : absNIdx n = absNIdx n1 := by simpa using hbv.symm
+      simp [this, hi]
+
+@[lockstep] theorem nidx_vec_beq_ls (a b : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.core.nidx_vec_beq a b) (fun o => o = decide (absNIdxList a = absNIdxList b)) := by
+  intro o h
+  rw [arena.core.nidx_vec_beq] at h
+  split at h
+  · have hl : a.val.length = b.val.length := by scalar_tac
+    have := nidx_vec_beq_from_aux a b _ 0#usize o rfl hl h
+    simpa [absNIdxList] using this
+  · cases Result.ok_injective h
+    have hl : a.val.length ≠ b.val.length := by scalar_tac
+    have : absNIdxList a ≠ absNIdxList b := fun hc => hl (by
+      have := congrArg List.length hc; simpa [absNIdxList] using this)
+    exact (decide_eq_false this).symm
+
 /-! ## Store reads -/
 
 @[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -346,6 +544,15 @@ theorem LS.view_ls_len_bind {γ δ : Type} {pers st lst} {h : arena.handle.LsIdx
     (hinv : AStateInv pers st) (i : Std.U64) (ty : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st i ty) lst
       (Arena.internFVarE (absU i) (absEIdx ty)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+/-- `arena::env::proj_fn_name` (two name interns on the bare store) against
+`projFnName`. -/
+@[lockstep] theorem proj_fn_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t : arena.handle.NIdx) (j : Std.U64) :
+    LSS pers (fun a b => b = absNIdx a) (arena.env.proj_fn_name pers st.store t j) st lst
+      (projFnName (absNIdx t) (absU j)) := by
   -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
   sorry
 

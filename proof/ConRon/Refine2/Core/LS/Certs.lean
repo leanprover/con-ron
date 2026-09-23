@@ -115,6 +115,41 @@ theorem def_eq_list_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
       (constTyAt (absIConstantVal cv) (absLsIdx us)) := by
   sorry
 
+@[lockstep] theorem stub_lvls_eq_ls {pers st us vs lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lvls_eq pers st us vs) lst
+      (lvlsEq? (absLsIdx us) (absLsIdx vs)) := by
+  sorry
+
+@[lockstep] theorem stub_tower_slots_all_ls {pers vis st fe lfe t n_f lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.tower_slots_all pers vis st fe t n_f) lst
+      (towerSlotsAll lfe (absNIdx t) (absU n_f)) := by
+  sorry
+
+@[lockstep] theorem stub_rec_slots_all_ls {pers vis st fe lfe t n_f lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.rec_slots_all pers vis st fe t n_f) lst
+      (recSlotsAll lfe (absNIdx t) (absU n_f)) := by
+  sorry
+
+@[lockstep] theorem stub_eta_projs_ls {pers vis st fe lfe t us targs b n_f lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = absEIdxList a) (arena.core.eta_projs pers vis st fe t us targs b n_f) lst
+      (etaProjs lfe (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU n_f)) := by
+  sorry
+
+@[lockstep] theorem stub_eta_ctor_shape_ls {pers vis st fe lfe a lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.eta_ctor_shape pers vis st fe a) lst
+      (etaCtorShape lfe (absEIdx a)) := by
+  sorry
+
 /-! ## `iotaIndexOk` -/
 
 @[lockstep] theorem iota_index_ok_ls {f : Nat} (hk : KnotRel f)
@@ -275,6 +310,65 @@ attribute [lockstep_inline] arena.core.struct_unit_cert_tail
   refine PC1.LS.view_ls_len_bind (by assumption) rfl (fun _ => errArm_ok) (fun v => ?_)
   dsimp only
   lockstep_core
+
+/-! ## `structEtaProjCerts` (a counted loop against the twin's `List.range'`) -/
+
+theorem struct_eta_proj_certs_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
+    ∀ {pers vis st mode lane fu fe lfe depth} (t : arena.handle.NIdx) (us2 : arena.handle.LsIdx)
+      (targs : alloc.vec.Vec arena.handle.EIdx) (b : arena.handle.EIdx)
+      (lps_t : alloc.vec.Vec arena.handle.NIdx) (n j : Std.U64) {lst},
+      n.val = m → ExprOpsHyp pers →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      LS pers (fun a b => b = a)
+        (arena.core.struct_eta_proj_certs pers vis st mode lane fu fe depth t us2 targs b lps_t n j)
+        lst
+        (structEtaProjCerts (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+          (absNIdx t) (absLsIdx us2) (absEIdxList targs) (absEIdx b) (absNIdxList lps_t)
+          (List.range' (absU j) (absU n))) := by
+  induction m with
+  | zero =>
+    intro pers vis st mode lane fu fe lfe depth t us2 targs b lps_t n j lst hn hx hrel hinv hctx hf
+    rw [arena.core.struct_eta_proj_certs, show absU n = 0 from hn, List.range'_zero,
+      structEtaProjCerts]
+    lockstep_core
+  | succ m ih =>
+    intro pers vis st mode lane fu fe lfe depth t us2 targs b lps_t n j lst hn hx hrel hinv hctx hf
+    rw [arena.core.struct_eta_proj_certs, show absU n = m + 1 from hn, List.range'_succ,
+      structEtaProjCerts]
+    lockstep_core
+
+@[lockstep] theorem struct_eta_proj_certs_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth t us2 targs b lps_t n j lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_proj_certs pers vis st mode lane fu fe depth t us2 targs b lps_t n j)
+      lst
+      (structEtaProjCerts (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absNIdx t) (absLsIdx us2) (absEIdxList targs) (absEIdx b) (absNIdxList lps_t)
+        (List.range' (absU j) (absU n))) :=
+  struct_eta_proj_certs_aux hk _ t us2 targs b lps_t n j rfl hx hrel hinv hctx hf
+
+/-! ## `structEtaCertWith` (fragments `struct_eta_cert_{at,certs,fam,tail}`) -/
+
+attribute [lockstep_inline] arena.core.struct_eta_cert_at arena.core.struct_eta_cert_certs
+  arena.core.struct_eta_cert_fam arena.core.struct_eta_cert_tail
+
+@[lockstep] theorem struct_eta_cert_with_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b wtb lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.struct_eta_cert_with pers vis st mode lane fu fe depth a b wtb) lst
+      (structEtaCertWith (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx a) (absEIdx b) (absEIdx wtb)) := by
+  rw [arena.core.struct_eta_cert_with, structEtaCertWith]
+  lockstep_core
+  all_goals trace_state
+  all_goals sorry
 
 /-! ## Divergence evidence (D-C1-1)
 
