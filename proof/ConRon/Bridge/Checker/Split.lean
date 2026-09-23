@@ -634,10 +634,10 @@ theorem denoteCIList_nodup {st : EStore} (hwf : StoreWF st) :
     obtain ⟨b, hbm, hbn⟩ := List.mem_map.mp hmem
     obtain ⟨z, hzm, hzd⟩ := denoteCIList_mem as xs has b hbm
     have h1 : denoteN st.ns a.name = some x.name :=
-      denoteCI_name_of (fun t ht => hproj t (by simp [ht])) ha
+      denoteCI_name_of (fun t ht => (hproj t (by simp [ht])).toNamed) ha
     have h2 : denoteN st.ns b.name = some z.name :=
       denoteCI_name_of
-        (fun t ht => hproj t (List.mem_cons_of_mem _ (ht ▸ hbm))) hzd
+        (fun t ht => (hproj t (List.mem_cons_of_mem _ (ht ▸ hbm))).toNamed) hzd
     rw [hbn] at h2
     have hxz : x.name = z.name := Option.some.inj (h1.symm.trans h2)
     exact hxa (hxz ▸ List.mem_map_of_mem hzm)
