@@ -51146,6 +51146,175 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
 
+#### Round 9 — the tier at zero: `IndSpec.wf` a projection, `checkProjFn`'s three pieces, the four certificates (2026-09-23, Opus under Fable)
+
+Branch `p3-ind-9` off `arena` `5108218b`, merged forward to `4f6f3961`
+(T2-LOCKSTEP slice 3 and #97-PERF-FRESH; `Refine2/**` and DESIGN only).  The
+diff is `Bridge/Inductives/**` (one new module, `ProjRule.lean`),
+`Bridge/Checker/Hyp.lean` (the authorised edit, R9.1) and this section.  No
+Rust, no generated model.
+
+Gates on the merged tip (`4f6f3961` merged in): **all 16 OK**
+(`extract-check` 100 s, `lake-build` 35 s, `lake-refine2` 1 s, `lake-bridge`
+1 s, `lake-capstone` 2 s).  Again after merging `arena` `9308f410`
+(#97-P5-POOL, T2-LOCKSTEP step 1 — `Arena/Monad.lean` moved, so everything
+rebuilt): **all 16 OK** (`extract-check` 105 s, `lake-build` 51 s,
+`lake-refine2` 186 s, `lake-bridge` 534 s, `lake-capstone` 3 s).  And after
+merging `arena` `18202495` (T2-LOCKSTEP D4 — the port's variant-attempt
+restore, `Generated/**` moved): **all 16 OK** (`extract-check` 190 s,
+`lake-build` 40 s, `lake-refine2` 178 s, `lake-bridge` 522 s,
+`lake-capstone` 3 s).
+
+**The tier went from 5 open statements to 0**, and with them the whole
+Inductives tier is `sorry`-free: `Axioms.lean` prints
+`[propext, Classical.choice, Quot.sound]` for every theorem it lists,
+`checkModeled_spec`, `checkIndDecl_bridge` and `indSpec_of_bridge` included.
+
+| statement | r8 → r9 |
+|---|---|
+| `Bridge.IndSpec.wf` (`Checker/Hyp.lean`, owed by this tier) | open → **proved**, a projection (R9.1) |
+| `checkProjFn_spec` | open → **proved** (R9.2) |
+| `checkProjIota_spec` | open → **proved** (R9.3) |
+| `nestedRuleShape_spec` | open → **proved** (R9.3) |
+| `checkIotaThm_spec` | open → **proved** (R9.3) |
+| `checkIotaThmN_spec` | open → **proved** (R9.3) |
+
+##### R9.0 The frontier, before and after
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+* before (`5108218b`, this branch's base, measured with the new module moved
+  aside): **65 items in 16 modules, 174 tainted, dead weight 647**; top
+  **`Bridge.IndSpec.wf`** (fan-in 9, reach 15).
+* after (the landing tip): **61 items in 14 modules, 152 tainted, dead weight 641**; top
+  `Refine2.reduce_nat_refines` (fan-in 4, reach 16).  `IndSpec.wf` is gone, and
+  no item of this lane remains (the tier is `sorry`-free); every remaining
+  item is in `Refine2/**` or `Bridge/Frontend/**`.  (The branch also carries
+  the arena merge `4f6f3961`, i.e. other lanes' movement since the base.)
+* the lane's own root, `frontier.sh ConRon.Bridge.Inductives.indSpec_of_bridge`:
+  **0 items in 0 modules, 0 tainted** (dead weight 4, none in this lane) (round 8 ended at 3 items / 12 tainted).
+
+##### R9.1 `IndSpec.run` carries the membership-shaped table clause (ruling 1 executed); `IndSpec.wf` is a projection
+
+* `Bridge/Inductives/Rel.lean`: `ProjOut` is now the conjunction of its old
+  `find?` form (renamed `ProjOutF`, what `ProjOut.absolute` reads) and a
+  MEMBERSHIP form `ProjOutM fe st fe'` — "every `.projInfo t` in
+  `fe'.env.consts` is in `fe.env.consts` or `IProjTableOK st t`".  The four
+  combinators (`refl`, `mono`, `trans`, `push`) and `push_table` carry both
+  halves; `push` and `push_table` read membership off `IFEnv.push`'s cons.
+  Every install site kept its text: they build `ProjOut` through the
+  combinators.  (The membership form is NOT derivable from the `find?` one: a
+  later push of the same name would hide a table from `find?` while leaving it
+  in the list — which is why it is carried, not derived.)
+* `Bridge/Checker/Hyp.lean` (authorised): `IndSpec.run` gains the conjunct
+  `∀ t, .projInfo t ∈ fe'.env.consts → .projInfo t ∈ fe.env.consts ∨
+  IProjTableOK s'.store t`, placed LAST (after `EnvWF env'`) so the one
+  positional consumer (`Checker/Arms.lean`'s `obtain ⟨…, hpure, -⟩`) is
+  unchanged.  `IndSpec.wf` is now `obtain` + `denoteFEnv`'s functionality: no
+  `sorry`.  `indSpec_of_bridge` passes `out.proj.2`.
+
+##### R9.2 `checkProjFn`: the three Checker-tier twins, specified here (`Bridge/Inductives/ProjRule.lean`)
+
+New module between `NativeInstall` and `Modeled` (Modeled imports it, so its
+proofs iterate without rebuilding `Modeled`):
+
+* `checkProjShape_spec` (PSpec, read-only): two `stripPis_pstep`s,
+  `getAppArgs_run`, `getAppFn_run`, and `denote_const_inv` at the head.
+* `checkProjRule_spec` (CSpec): `internBVarE_run`, `pisToLams_spec`, the four
+  scoping guards, the knot's `annotate` and `infer` slots, `stripLams_pstep`,
+  `domsMatchAux_eq`, two `openPisAtFvarsF_run`s, `instPisAtF_spec` /
+  `instLamsAtF_spec`, `fvarTypeDs_run` (new) and two `checkDefEqList_bridge`s.
+  Its two scoping hypotheses (`pty` and the constructor's type closed) are
+  exactly con-leche's `checkProjRule_wfimp`'s; the scope of the two frame lists
+  is `checkProjRuleS_sim`'s derivation, line for line.
+* `projFnRule_run`: `recRulePlain_spec`, `projFnName_run`, `recRuleBits_runX`.
+* `instListSpec : InstListSpec fuel` — `Bridge/ExprOps/TelescopeF.lean`'s
+  hypothesis record for the four `…F` telescope twins, discharged at
+  `Bridge/ExprOps/Subst.lean`'s `instantiateListFast_spec` (the note in
+  `TelescopeF.lean` foresaw it; nobody had consumed the four twins before).
+* `domsMatchAux_succ`/`domsMatchAux_eq` moved here from `Modeled.lean`.
+
+`checkProjFn_spec` (Modeled) is then a composition: lookups, type, shape,
+rule, iota, `projFnName_run`, `projFnRule_run`, `denoteFEnv_push`; the pure
+scoping facts come from `checkProjLookups_ctor` + `EnvWF` and `checkProjTy_wf`.
+
+**Candidates to move down to the Checker tier** (DESIGN note, as asked):
+`checkProjShape_spec`, `checkProjRule_spec` (twins of
+`ConLeche/Kernel/CheckerBase.lean`, living in `Arena/CheckerBase.lean`),
+`fvarTypeDs_run`, `eqHeadLevel_run`, `isEqHead_run`, `unwrapOr_ok`,
+`instLPFast_cstep`, and `instListSpec` (to `Bridge/ExprOps/TelescopeF.lean`,
+if it may import `Subst.lean`).  They read nothing of this tier but
+`Bridge/Inductives/Rel.lean`'s run-form helpers (`bindOk`, `pureOk`,
+`stripPis_pstep`, …), which would move with them or be restated.
+
+##### R9.3 The four certificates
+
+All four follow con-leche's `_wfimp` lemmas (`Verify/BridgeWfImp.lean`) for
+the scope side, step for step, and reassemble the pure run at the `max` of
+the fuels with the `_mono`/`_datF` lemmas.
+
+* `checkProjIota_spec`: `projModelName_run`, `IFEnvOK.hit` at the `iota`
+  theorem, two `stripPis_pstep`s, `projFwd_specW` + `domsMatchRenamed_spec`,
+  the redex built (`structPsAt_spec`, `bvarsDesc_spec`, `paramLevels_spec`,
+  `internConstE_run`, `mkAppN_run`), `eqApp3?_spec` + `pinAt_run` for the
+  body, then `checkIotaSidesTy_spec` at the opened telescope.
+* `nestedRuleShape_spec`: `findCV?_run` (new: `IFEnv.findCV?` at the index
+  spec, via `toConstantVal_sstep`), the two view dispatches
+  (`denote_not_forallE` new, `denote_not_const`), `mapM_E_pstep` at
+  `lowerBVarsFast_run`/`liftLooseBVarsFast_run`, `allM_E_cstep` (new) for the
+  pins' four guards, `beq_ehandleList_eq` for both spine comparisons.
+* `checkIotaThm_spec` (~430 lines): the theorem via `findCV?_run` +
+  `unwrapOr_ok`, `isEqHead_run` (new), the redex's head through the rename
+  relation, `denoteEList_getLastD`/`denoteEList_getD_fb` (new) for the
+  fallback reads, three `instPisAtF`/one `instLamsAtF`, five
+  `checkDefEqList_bridge`s, the knot's `defeq` slot, `eqHeadLevel_run` (new)
+  and `checkIotaSidesTy_spec`.
+* `checkIotaThmN_spec` (~500 lines): `nestedRuleShape_spec` for the dispatch,
+  then `checkIotaThm`'s pieces, plus `mapM_E_pstepQ` (new: `mapM` with a store
+  invariant — the rename relation and the prefix spine) for the opened pins,
+  `internLsNode_run`, `instLPFast_cstep` (new: the level instantiation writes
+  the three read caches, so its frame is `CoreStep` via `CheckOK.ofInstLP`),
+  `checkAnnotList_bridge` and `checkTypedList_bridge`.
+
+**Preconditions repaired (hypothesis changes only, as the rules allow):**
+
+* `checkIotaThm_spec`, `checkIotaThmN_spec`: `EnvWF env'`,
+  `tyAP.hasFvar = false`, `cvjP.type.hasFvar = false`,
+  `rhsAP.hasFvar = false` — exactly the four `checkIotaThm_wfimp` takes (the
+  stored theorem's statement is closed because `env'` is well formed; the
+  compared lists' scope needs the other three).
+* `checkIotaRule_spec`, `checkIotaRules_spec`: `EnvWF env'`, `tyAP.hasFvar =
+  false` (they discharge the constructor's from `EnvWF env'` at `henvC` and
+  the annotated side's from `SimE`'s `WScoped 0`).
+* `installIndRecs_spec`: `EnvWF env₂` and `∀ c ∈ csP, c.1.type.hasFvar =
+  false`; `checkIndRecs_spec` discharges them from its own `EnvWF env` and the
+  new `provisionRecs_tys` (off `checkConstantVal`'s guard — con-leche's
+  `ProvFacts.mem_facts` needs a block-name membership these statements do not
+  carry).
+* `checkProjIota_spec`: `EnvWF env'` (con-leche's `checkProjIota_wfimp`'s
+  `henv'`); `checkProjFn_spec` passes its `henv`.
+
+##### R9.4 Lessons worth keeping
+
+* **`subst x` (the variable), not `obtain ⟨rfl, …⟩`**, after every read-only
+  run lemma (`s' = s`): `rfl` eliminates the OLDER state and breaks every
+  chain built on its name (R8.7's lesson, applied throughout here).
+* **A `match` in an `if` condition** (`unless (match cbody0.getAppFn with
+  | .const _ _ => true | _ => false)`) is a different auxiliary matcher on the
+  twin and on the pure side, so `rw [if_pos h]` misses: rewrite the scrutinee
+  (`simp only [hfn]`) and let the match reduce instead.
+* **`Core.triple_mono`** (in `Bridge/Core/Memo.lean`) is the consequence rule
+  for a pinned-state triple — the way to discharge a hypothesis record from a
+  theorem stated with a stronger precondition shape.
+* `swap` is not available in this project's tactic set; order `by_cases` on
+  the negation so the short branch comes first.
+
+##### R9.5 What is left
+
+Nothing in this lane.  The capstone frontier's remaining items are other
+lanes' (see R9.0).
+
 #### Round 8 — the capstone takes `indSpec_of_bridge`, the install frame, both routes composed, and `indDecl_envWF` closed here (2026-09-23, Opus under Fable)
 
 Branch `ind-r8` off `arena` `6cfd995d`, merged forward to `b7c84da1` (which
@@ -59201,6 +59370,41 @@ conflict, both appends kept).  `scripts/gates.sh` on the merge: **all 16 OK**
 (`extract-check` 142 s).  `arena` then moved to `5453ac2e` (T2-LOCKSTEP step 1:
 the foundation, Rust and twin included); merged (`DESIGN.md` conflict only)
 and re-gated: **all 16 OK** (`extract-check` 113 s, `lake-bridge` 550 s).
+
+### Task #97-T1-OCC — the last two Theorem-1 frontier items: `clOccursConstB_eq`, `clOccursConstGo_eq` (2026-09-23, Opus under Fable)
+
+Ruling (Fable): the two con-leche-tier lemmas about con-leche's
+`occursConstB`/`occursConstGo` against the pure `occursConst`
+(`ConLeche/Frontend/ProjRec.lean:129-227`) are proved HERE, in
+`proof/ConRon/Bridge/Frontend/ProjRec.lean` — a proof about con-leche's
+definitions is not a re-derivation of them.  The docstrings keep the note that
+they are upstream candidates for `ConLeche/Verify/Frontend/ProjRec.lean`;
+con-leche is untouched.
+
+* `clOccursConstB_eq`: structural induction on the `Expr`, budget generalised;
+  per arm, case on the first child's `(Option Bool × Nat)` result — `none`
+  is vacuous, `some true` short-circuits, `some false` composes.
+* `clOccursConstGo_eq`: from the new `clOccursConstGo_inv` — for any set
+  satisfying `clOccursMemoInv n s` (*every member has `occursConst n · =
+  false`*), the walk answers `occursConst` and returns a set that still
+  satisfies it; `clOccursMemoInv_insert` is the one set fact
+  (`Std.HashSet.contains_insert` + `LawfulBEq Expr`).  `∅` satisfies it
+  trivially.  The invariant is black-only, as the twin's is (no rank needed).
+
+All ~180 lines, no `sorry`; the module builds in seconds.  Prose updated in
+`ProjRec.lean`, `ProjRecOwners.lean` and `Bridge/Frontend/Axioms.lean` (a new
+census section printing the five lemmas, `occursConstFast_run` and
+`projRecOwners_run`).  **`Bridge/Frontend/Axioms.lean` now prints no
+`sorryAx` at all** — the "resting on an open leaf" list and the frontend
+headlines are all at Lean's own three.
+
+Frontier (`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): **61 items in 16 modules, 152 tainted
+→ 59 items in 13 modules, 126 tainted**; dead weight 641 unchanged.  **No
+frontier item is in `ConRon.Bridge.*`: Theorem 1 has zero frontier items.**
+What remains is all Theorem 2 (`ConRon.Refine2.*`, top
+`reduce_nat_refines`, fan-in 4); `Bridge/Checker/Axioms.lean`'s
+`checkDeclsPure_bridge`/`model_exists` still print `sorryAx` through it.
 
 ### Task #97-T2-LOCKSTEP lane Frontend — the parser tier on the lockstep shapes; F11 closed, F10 deleted (2026-09-23, Opus under Fable)
 
