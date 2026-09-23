@@ -407,7 +407,35 @@ theorem check_axiom_decl_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_axiom_decl pers st mode rf cv = ok o) :
     SimRel IFEnvRelI pers lst o
       (checkAxiomDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
-  sorry
+  rw [arena.checker.check_axiom_decl] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hP := pin_quot_sound_refines hrel hinv hr
+  unfold SimRel AOutRel
+  rw [checkAxiomDeclSpec, am_run_bind']
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact AErrSim.bind hP _
+  | Ok qs =>
+    have hP' : (pinQuotSound : AM NIdx).run lst = .ok (absNIdx qs, lst) := hP
+    rw [hP', except_ok_bind]
+    obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hbv := nidx_eq2_abs hb
+    cases b with
+    | true =>
+      have hB := check_quot_sound_record_refines hrel hinv hfe hfinv hrun
+      have hc : (absIConstantVal cv).name == absNIdx qs := by
+        show absNIdx cv.name == absNIdx qs; rw [← hbv]
+      simp only [hc, ↓reduceIte]
+      exact hB
+    | false =>
+      have hB := check_axiom_decl_std_refines hrel hinv hfe hfinv hrun
+      have hc : ((absIConstantVal cv).name == absNIdx qs) = false := by
+        show (absNIdx cv.name == absNIdx qs) = false; rw [← hbv]
+      simp only [hc, Bool.false_eq_true, ↓reduceIte]
+      exact hB
 
 /-! ## The three value arms -/
 
@@ -452,7 +480,20 @@ theorem check_thm_decl_refines {pers st lst} {rf lf}
         let cvA ← checkConstantVal (ConRon.Refine.absMode mode) lf
           (absIConstantVal cv)
         checkThmVal (ConRon.Refine.absMode mode) lf cvA (absEIdx value)) := by
-  sorry
+  rw [arena.checker.check_thm_decl] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q
+  have hC := check_constant_val_refines (lf := lf) hrel hinv hfe hfinv
+    hfe.visibleBelow.symm hq
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact SimRel.of_sim_err hC
+  | Ok cvA =>
+    exact SimRel.of_sim_bind hC fun lst1 hrel1 hinv1 =>
+      check_thm_val_refines hrel1 hinv1 hfe hfinv hrun
 
 /-- `check_structural_nat_pin_certify` — the recurrence equations checked by
 definitional equality, in the PRE-insertion environment with the operation's

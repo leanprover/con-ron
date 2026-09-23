@@ -763,6 +763,39 @@ theorem am_run_bind_ok {α β : Type} {m : AM α} {k : α → AM β} {ls ls' : A
     intro h
     exact ⟨a, s, rfl, h⟩
 
+/-- **A `Sim` step, then a `SimRel` continuation** — the composition every
+checker arm of the shape `let x ← <Sim callee>; <SimRel callee> x` is (task
+#97-P5-Checker round 4).  The continuation is asked for at every related
+state, since the intermediate twin state is the `Sim`'s existential. -/
+theorem SimRel.of_sim_bind {α β γ δ : Type} {A : α → β} {R : γ → δ → Prop}
+    {pers : arena.store.PersTier} {lst : AState} {x : AM β} {f : β → AM δ}
+    {r : α} {st1 : arena.monad.AState}
+    {o : core.result.Result γ kernel.core_types.CheckError × arena.monad.AState}
+    (h1 : Sim A (fun _ => True) pers lst (.Ok r, st1) x)
+    (h2 : ∀ lst1, AStateRel pers st1 lst1 → AStateInv pers st1 →
+      SimRel R pers lst1 o (f (A r))) :
+    SimRel R pers lst o (x >>= f) := by
+  obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := Sim.apply h1
+  have h := h2 lst1 hrel1 hinv1
+  unfold SimRel AOutRel at h ⊢
+  rw [am_run_bind', hx, except_ok_bind]
+  revert h
+  cases o.1 with
+  | Err e => exact id
+  | Ok r' =>
+    rintro ⟨v, lst2, hy, hr, hrel2, hinv2, hext2⟩
+    exact ⟨v, lst2, hy, hr, hrel2, hinv2, Ext.trans hext1 hext2⟩
+
+/-- The failure half: a `Sim` step that fails fails the bind. -/
+theorem SimRel.of_sim_err {α β γ δ : Type} {A : α → β} {R : γ → δ → Prop}
+    {pers : arena.store.PersTier} {lst : AState} {x : AM β} {f : β → AM δ}
+    {e : kernel.core_types.CheckError} {st1 : arena.monad.AState}
+    (h1 : Sim A (fun _ => True) pers lst (.Err e, st1) x) :
+    SimRel R pers lst (.Err e, st1) (x >>= f) := by
+  show AErrSim e _
+  rw [am_run_bind']
+  exact AErrSim.bind (Sim.apply_err h1) _
+
 private theorem pure_none_ne {ls ls' : AState} {fvs : List EIdx} {r : EIdx}
     (h : (pure none : AM (Option (List EIdx × EIdx))).run ls
       = .ok (some (fvs, r), ls')) : False := by
