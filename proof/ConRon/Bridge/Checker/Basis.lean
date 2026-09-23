@@ -744,6 +744,695 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {F : Nat} {env : Env}
       pure, Except.pure]
     exact h7
 
+/-! ## The pin shape comparison
+
+`Arena.erasePwEq` is con-leche's `Expr.erasePwEq` — the `@[csimp]` lockstep
+twin of `matchesPin`'s `erasePw … == erasePw …` — descended on two handles.
+As `Canon.lean`'s `canonExprEq_run` does for `canonExprEqFast`, the bridge
+targets the lockstep twin and takes con-leche's word (`Expr.erasePwEq_eq`)
+for its agreement with the rebuild.  The walk only READS the store, so its
+frame is `s' = s`. -/
+
+/-- con-leche: none — a handle comparison IS the comparison of the two
+denotations, at any readback that is injective. -/
+theorem beq_of_denote_inj {α β : Type} [BEq α] [LawfulBEq α] [BEq β]
+    [LawfulBEq β] {d : α → Option β}
+    (hinj : ∀ {i j : α} {x : β}, d i = some x → d j = some x → i = j)
+    {i j : α} {x y : β} (hi : d i = some x) (hj : d j = some y) :
+    (i == j) = (x == y) := by
+  cases hb : (x == y) with
+  | true =>
+    obtain rfl := eq_of_beq hb
+    exact beq_iff_eq.mpr (hinj hi hj)
+  | false =>
+    cases hb' : (i == j) with
+    | false => rfl
+    | true =>
+      obtain rfl := eq_of_beq hb'
+      rw [hi] at hj
+      obtain rfl := Option.some.inj hj
+      simp at hb
+
+/-- con-leche: none — `if c then m else pure false` answers `c && B` when `m`
+answers `B` and leaves the state alone. -/
+private theorem ite_and_run {c : Bool} {m : AM Bool} {B r : Bool}
+    {s s' : AState}
+    (hm : ∀ {r' : Bool} {s'' : AState}, m s = .ok (r', s'') → s'' = s ∧ r' = B)
+    (h : (if c = true then m else pure false) s = .ok (r, s')) :
+    s' = s ∧ r = (c && B) := by
+  rcases AM.ite_ok h with ⟨hc, k⟩ | ⟨hc, k⟩
+  · obtain ⟨rfl, rfl⟩ := hm k; simp [hc]
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
+    simp only [Bool.not_eq_true] at hc
+    simp [hc]
+
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq — **the
+lockstep shape comparison is con-leche's**, arm for arm.  The bridge is to the
+lockstep twin and not to `erasePw a = erasePw b`: con-leche proves the two
+equivalent itself (`Expr.erasePwEq_eq`). -/
+theorem erasePwEq_run :
+    ∀ (fuel : Nat) {a b : EIdx} {x y : Expr} {r : Bool} {s s' : AState},
+      StoreWF s.store → denoteE s.store a = some x →
+      denoteE s.store b = some y →
+      Arena.erasePwEq fuel a b s = .ok (r, s') →
+      s' = s ∧ r = ConLeche.Expr.erasePwEq x y := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro a b x y r s s' _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro a b x y r s s' hwf hx hy hrun
+    have hwf' := hwf
+    obtain ⟨rk, hrk⟩ := hwf'
+    simp only [Arena.erasePwEq] at hrun
+    obtain ⟨va, s1, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hva⟩ := viewE_run g1
+    obtain ⟨vb, s2, g2, k2⟩ := AM.bind_ok k1
+    obtain ⟨rfl, hvb⟩ := viewE_run g2
+    cases va <;> cases vb
+    all_goals first
+      | obtain rfl := denote_bvar_inv hwf hva hx
+      | obtain ⟨xT, rfl, hxT⟩ := denote_fvar_inv hwf hva hx
+      | obtain ⟨xU, rfl, hxU⟩ := denote_sort_inv hwf hva hx
+      | obtain ⟨xN, xL, rfl, hxN, hxL⟩ := denote_const_inv hwf hva hx
+      | obtain ⟨xF, xA, rfl, hxF, hxA⟩ := denote_app_inv hwf hva hx
+      | obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_lam_inv hwf hva hx
+      | obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_forallE_inv hwf hva hx
+      | obtain ⟨xT, xW, xB, rfl, hxT, hxW, hxB⟩ := denote_letE_inv hwf hva hx
+      | obtain rfl := denote_lit_inv hwf hva hx
+      | obtain ⟨xN, xE, rfl, hxN, hxE⟩ := denote_proj_inv hwf hva hx
+    all_goals first
+      | obtain rfl := denote_bvar_inv hwf hvb hy
+      | obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
+      | obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
+      | obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
+      | obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
+      | obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
+      | obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
+      | obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
+      | obtain rfl := denote_lit_inv hwf hvb hy
+      | obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
+    all_goals first
+      | (obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+         refine ⟨rfl, ?_⟩
+         simp [ConLeche.Expr.erasePwEq]
+         done)
+      | skip
+    case fvar.fvar =>
+      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxT hyT h) k2
+      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
+    case sort.sort =>
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+      exact ⟨rfl, by
+        simp only [ConLeche.Expr.erasePwEq,
+          beq_of_denote_inj (fun h1 h2 => denoteL_inj hrk.lsWF h1 h2) hxU hyU]⟩
+    case const.const =>
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+      exact ⟨rfl, by
+        simp only [ConLeche.Expr.erasePwEq,
+          beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hxN hyN,
+          beq_of_denote_inj (fun h1 h2 => denoteLs_inj hrk.lss h1 h2) hxL hyL]⟩
+    case app.app =>
+      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨rfl, rfl⟩ := ih hwf hxF hyF g3
+      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxA hyA h) k3
+      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
+    case lam.lam =>
+      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨rfl, rfl⟩ := ih hwf hxT hyT g3
+      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxB hyB h) k3
+      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
+    case forallE.forallE =>
+      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨rfl, rfl⟩ := ih hwf hxT hyT g3
+      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxB hyB h) k3
+      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
+    case letE.letE =>
+      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨rfl, rfl⟩ := ih hwf hxT hyT g3
+      rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+      · obtain ⟨c2, s4, g4, k5⟩ := AM.bind_ok k4
+        obtain ⟨rfl, rfl⟩ := ih hwf hxW hyW g4
+        obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxB hyB h) k5
+        exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he, hc, Bool.true_and]⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+        simp only [Bool.not_eq_true] at hc
+        exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, hc, Bool.false_and]⟩
+    case proj.proj =>
+      have hsn := beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hxN hyN
+      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxE hyE h) k2
+      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he, hsn, Bool.and_assoc]⟩
+
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:197-201 ConstantVal.matchesPinFast
+— **the pin comparison is con-leche's**, at the lockstep twin, and hence (by
+con-leche's own `@[csimp]` equation) at `matchesPin` itself. -/
+theorem matchesPin_run {cv pin : IConstantVal} {c p : ConstantVal}
+    {r : Bool} {s s' : AState} (hwf : StoreWF s.store)
+    (hc : Frontend.denoteCV s.store cv = some c)
+    (hp : Frontend.denoteCV s.store pin = some p)
+    (hrun : IConstantVal.matchesPin cv pin s = .ok (r, s')) :
+    s' = s ∧ r = ConLeche.ConstantVal.matchesPin c p := by
+  have hwf' := hwf
+  obtain ⟨rk, hrk⟩ := hwf'
+  obtain ⟨hcn, hcl, hct⟩ := denoteCV_inv hc
+  obtain ⟨hpn, hpl, hpt⟩ := denoteCV_inv hp
+  have e1 := beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hcn hpn
+  have e2 := beq_of_denote_inj
+    (fun h1 h2 => denoteNList_inj hwf _ _ _ h1 h2) hcl hpl
+  rw [ConLeche.ConstantVal.matchesPin_eq_matchesPinFast]
+  simp only [IConstantVal.matchesPin] at hrun
+  rcases AM.ite_ok hrun with ⟨hq, k⟩ | ⟨hq, k⟩
+  · obtain ⟨rfl, rfl⟩ := erasePwEq_run _ hwf hct hpt k
+    simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hq
+    refine ⟨rfl, ?_⟩
+    simp [ConLeche.ConstantVal.matchesPinFast, hq.1, hq.2]
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
+    refine ⟨rfl, ?_⟩
+    simp only [Bool.and_eq_true, e1, e2, beq_iff_eq, not_and] at hq
+    by_cases h1 : c.name = p.name
+    · simp [ConLeche.ConstantVal.matchesPinFast, h1, hq h1]
+    · simp [ConLeche.ConstantVal.matchesPinFast, h1]
+
+/-! ## The shape tests' frame
+
+Every shape test below is a `Bool`-valued chain of pin reads, fresh-memo
+interns, index lookups and `matchesPin`s, and every link of it is a
+scratch-agnostic step (`Frontend.IStepS`).  `RunsB m s b` says exactly that of
+a whole chain: every success of `m` at `s` is such a step and answers `b`.  The
+combinators below follow the arena's `do`-blocks link by link, so each test is
+its own `do`-block read top to bottom, and con-leche's `&&`-chain is the `b`. -/
+
+/-- con-leche: none — every success of `m` at `s` is a scratch-agnostic step
+answering `b`. -/
+def RunsB (m : AM Bool) (s : AState) (b : Bool) : Prop :=
+  ∀ (r : Bool) (s' : AState), m s = .ok (r, s') → Frontend.IStepS s s' ∧ r = b
+
+theorem RunsB.ret {s : AState} (hok : StateOK s) {b : Bool} :
+    RunsB (Pure.pure b) s b := by
+  intro r s' h
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h
+  exact ⟨Frontend.IStepS.refl hok, rfl⟩
+
+theorem RunsB.bind {α : Type} {m : AM α} {k : α → AM Bool} {s : AState}
+    {b : Bool}
+    (h : ∀ {a : α} {s₁ : AState}, m s = .ok (a, s₁) →
+      Frontend.IStepS s s₁ ∧ RunsB (k a) s₁ b) :
+    RunsB (m >>= k) s b := by
+  intro r s' hr
+  obtain ⟨a, s₁, h1, h2⟩ := AM.bind_ok hr
+  obtain ⟨hs1, hk⟩ := h h1
+  obtain ⟨hs2, rfl⟩ := hk _ _ h2
+  exact ⟨hs1.trans hs2, rfl⟩
+
+/-- a `Bool` answered by a step, then bound. -/
+theorem RunsB.bindB {m : AM Bool} {k : Bool → AM Bool} {s : AState}
+    {A b : Bool}
+    (hm : RunsB m s A)
+    (hk : ∀ {s₁ : AState}, Frontend.IStepS s s₁ → RunsB (k A) s₁ b) :
+    RunsB (m >>= k) s b :=
+  RunsB.bind fun h1 => by
+    obtain ⟨hs, rfl⟩ := hm _ _ h1
+    exact ⟨hs, hk hs⟩
+
+theorem RunsB.ite {c c' : Prop} [Decidable c] [Decidable c'] {X Y : AM Bool}
+    {s : AState} {b1 b2 : Bool} (hc : c ↔ c')
+    (h1 : c → RunsB X s b1) (h2 : ¬ c → RunsB Y s b2) :
+    RunsB (if c then X else Y) s (if c' then b1 else b2) := by
+  by_cases h : c
+  · rw [if_pos h, if_pos (hc.mp h)]; exact h1 h
+  · rw [if_neg h, if_neg (fun h' => h (hc.mpr h'))]; exact h2 h
+
+/-- a guard: `if c then pure false else Y` is `D && B` when `c` is `!D`. -/
+theorem RunsB.guard {c D B : Bool} {Y : AM Bool} {s : AState}
+    (hok : StateOK s) (hc : c = !D) (hY : D = true → RunsB Y s B) :
+    RunsB (if c then pure false else Y) s (D && B) := by
+  cases D with
+  | false =>
+    subst hc
+    simp only [Bool.not_false, if_true, Bool.false_and]
+    exact RunsB.ret hok
+  | true =>
+    subst hc
+    simp only [Bool.not_true, Bool.false_eq_true, if_false, Bool.true_and]
+    exact hY rfl
+
+/-- con-leche: none — the index answers what the environment answers, as one
+disjunction a `match` on both sides can be read off. -/
+def FindRel (st : EStore) (x : Option IConstantInfo) (y : Option ConstantInfo) :
+    Prop :=
+  (x = none ∧ y = none) ∨
+    ∃ ci c, x = some ci ∧ y = some c ∧ Frontend.denoteCI st ci = some c
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `IFEnvOK`'s two halves at
+one handle. -/
+theorem IFEnvOK.findRel {env : Env} {fe : IFEnv} {s : AState}
+    (hok : StateOK s) (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) :
+    FindRel s.store (fe.find? n) (env.find? nm) := by
+  cases hf : fe.find? n with
+  | none => exact Or.inl ⟨rfl, h.miss hok hd hf⟩
+  | some ci =>
+    obtain ⟨nm', c, h1, h2, h3⟩ := h.hit n ci hf
+    rw [hd] at h1
+    obtain rfl := Option.some.inj h1
+    exact Or.inr ⟨ci, c, rfl, h3, h2⟩
+
+/-- con-leche: none — `FindRel` survives an extension of the store. -/
+theorem FindRel.mono {st st' : EStore} {x : Option IConstantInfo}
+    {y : Option ConstantInfo} (h : FindRel st x y) (hx : Ext st st') :
+    FindRel st' x y := by
+  rcases h with h | ⟨ci, c, h1, h2, h3⟩
+  · exact Or.inl h
+  · exact Or.inr ⟨ci, c, h1, h2, denoteCI_ext h3 hx⟩
+
+theorem RunsB.matchInd {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
+    (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
+      RunsB (K v) s (L v' && R)) :
+    RunsB (match (generalizing := false) x with | some (.indInfo cvI _) => K cvI | _ => pure false) s
+      ((match (generalizing := false) y with | some (.indInfo cvI _) => L cvI | _ => false) && R) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · cases ci with
+    | indInfo v cap =>
+      obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      exact hK v v' hv
+    | axiomInfo v =>
+      obtain ⟨v', rfl, -⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hok
+    | ctorInfo v nP nF =>
+      obtain ⟨v', rfl, -⟩ := denoteCI_ctor_inv hd; exact RunsB.ret hok
+    | defnInfo v e hh =>
+      obtain ⟨v', x, rfl, -⟩ := denoteCI_defn_inv hd; exact RunsB.ret hok
+    | thmInfo v e =>
+      obtain ⟨v', x, rfl, -⟩ := denoteCI_thm_inv hd; exact RunsB.ret hok
+    | recInfo v mI rP rs =>
+      obtain ⟨v', x, rfl, -⟩ := denoteCI_rec_inv hd; exact RunsB.ret hok
+    | projInfo t =>
+      obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd; exact RunsB.ret hok
+
+/-- The index lookups of the shape tests, one per constructor pattern. -/
+theorem RunsB.matchAxiom {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
+    (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
+      RunsB (K v) s (L v' && R)) :
+    RunsB (match (generalizing := false) x with | some (.axiomInfo cv) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.axiomInfo cv) => L cv | _ => false) && R) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · cases ci
+    all_goals first
+      | obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
+      | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
+    all_goals first
+      | exact RunsB.ret hok
+      | exact hK _ _ hv
+      | skip
+
+theorem RunsB.matchCtor0 {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
+    (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
+      RunsB (K v) s (L v' && R)) :
+    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 0 0) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.ctorInfo cv 0 0) => L cv | _ => false) && R) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · cases ci
+    all_goals first
+      | obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
+      | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
+    all_goals first
+      | exact RunsB.ret hok
+      | exact hK _ _ hv
+      | skip
+    all_goals
+      rename_i nP nF
+      rcases nP with _ | nP <;> rcases nF with _ | nF <;>
+        first | exact RunsB.ret hok | exact hK _ _ hv
+
+theorem RunsB.matchCtor1 {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
+    (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
+      RunsB (K v) s (L v' && R)) :
+    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 1 1) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.ctorInfo cv 1 1) => L cv | _ => false) && R) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · cases ci
+    all_goals first
+      | obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
+      | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
+    all_goals first
+      | exact RunsB.ret hok
+      | exact hK _ _ hv
+      | skip
+    all_goals
+      rename_i nP nF
+      rcases nP with _ | _ | nP <;> rcases nF with _ | _ | nF <;>
+        first | exact RunsB.ret hok | exact hK _ _ hv
+
+theorem RunsB.matchCtor2 {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
+    (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
+      RunsB (K v) s (L v' && R)) :
+    RunsB (match (generalizing := false) x with | some (.ctorInfo cv 2 2) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.ctorInfo cv 2 2) => L cv | _ => false) && R) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · cases ci
+    all_goals first
+      | obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
+      | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
+    all_goals first
+      | exact RunsB.ret hok
+      | exact hK _ _ hv
+      | skip
+    all_goals
+      rename_i nP nF
+      rcases nP with _ | _ | _ | nP <;> rcases nF with _ | _ | _ | nF <;>
+        first | exact RunsB.ret hok | exact hK _ _ hv
+
+theorem RunsB.matchRec3 {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
+    (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
+      RunsB (K v) s (L v' && R)) :
+    RunsB (match (generalizing := false) x with | some (.recInfo cv 3 3 _) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.recInfo cv 3 3 _) => L cv | _ => false) && R) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · cases ci
+    all_goals first
+      | obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
+      | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
+    all_goals first
+      | exact RunsB.ret hok
+      | exact hK _ _ hv
+      | skip
+    all_goals
+      rename_i mI rP rs
+      rcases mI with _ | _ | _ | _ | mI <;> rcases rP with _ | _ | _ | _ | rP <;>
+        first | exact RunsB.ret hok | exact hK _ _ hv
+
+theorem RunsB.matchRec4 {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
+    {K : IConstantVal → AM Bool} {L : ConstantVal → Bool} {R : Bool}
+    (hK : ∀ v v', Frontend.denoteCV s.store v = some v' →
+      RunsB (K v) s (L v' && R)) :
+    RunsB (match (generalizing := false) x with | some (.recInfo cv 4 4 _) => K cv | _ => pure false) s
+      ((match (generalizing := false) y with | some (.recInfo cv 4 4 _) => L cv | _ => false) && R) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hok
+  · cases ci
+    all_goals first
+      | obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
+      | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
+    all_goals first
+      | exact RunsB.ret hok
+      | exact hK _ _ hv
+      | skip
+    all_goals
+      rename_i mI rP rs
+      rcases mI with _ | _ | _ | _ | _ | mI <;> rcases rP with _ | _ | _ | _ | _ | rP <;>
+        first | exact RunsB.ret hok | exact hK _ _ hv
+
+
+/-- A stored constant compared against a freshly interned `ConstantVal` pin,
+then continued. -/
+theorem RunsB.pinCV {P : ConstantVal} {v : IConstantVal} {v' : ConstantVal}
+    {k : Bool → AM Bool} {s : AState} {b : Bool} (hst : StateOK s)
+    (hv : Frontend.denoteCV s.store v = some v')
+    (hk : ∀ {s₁ : AState}, Frontend.IStepS s s₁ →
+      RunsB (k (ConLeche.ConstantVal.matchesPin v' P)) s₁ b) :
+    RunsB (internCV P >>= fun p => IConstantVal.matchesPin v p >>= k) s b := by
+  refine RunsB.bind fun {p s₁} g1 => ?_
+  obtain ⟨hs1, hp⟩ := internCV_fresh hst g1
+  refine ⟨hs1, RunsB.bindB (fun _ _ h => ?_) fun hs3 => hk (hs1.trans hs3)⟩
+  obtain ⟨rfl, rfl⟩ := matchesPin_run hs1.ok.wf (denoteCV_ext hv hs1.ext) hp h
+  exact ⟨Frontend.IStepS.refl hs1.ok, rfl⟩
+
+/-- The same, as the last link of a chain. -/
+theorem RunsB.pinCVLast {P : ConstantVal} {v : IConstantVal} {v' : ConstantVal}
+    {s : AState} (hst : StateOK s)
+    (hv : Frontend.denoteCV s.store v = some v') :
+    RunsB (internCV P >>= fun p => IConstantVal.matchesPin v p) s
+      (ConLeche.ConstantVal.matchesPin v' P) := by
+  refine RunsB.bind fun {p s₁} g1 => ?_
+  obtain ⟨hs1, hp⟩ := internCV_fresh hst g1
+  refine ⟨hs1, fun _ _ h => ?_⟩
+  obtain ⟨rfl, rfl⟩ := matchesPin_run hs1.ok.wf (denoteCV_ext hv hs1.ext) hp h
+  exact ⟨Frontend.IStepS.refl hs1.ok, rfl⟩
+
+/-- A stored constant compared against the common data of a freshly interned
+`ConstantInfo` pin, then continued. -/
+theorem RunsB.pinCI {P : ConstantInfo} {v : IConstantVal} {v' : ConstantVal}
+    {k : Bool → AM Bool} {s : AState} {b : Bool} (hst : StateOK s)
+    (hv : Frontend.denoteCV s.store v = some v')
+    (hk : ∀ {s₁ : AState}, Frontend.IStepS s s₁ →
+      RunsB (k (ConLeche.ConstantVal.matchesPin v' P.toConstantVal)) s₁ b) :
+    RunsB (internCI P >>= fun a => IConstantInfo.toConstantVal a >>= fun p =>
+      IConstantVal.matchesPin v p >>= k) s b := by
+  refine RunsB.bind fun {a s₁} g1 => ?_
+  obtain ⟨hs1, ha, hna⟩ := internCI_fresh hst g1
+  refine ⟨hs1, RunsB.bind fun {p s₂} g2 => ?_⟩
+  obtain ⟨hs2, hp⟩ := toConstantVal_sstep hs1.ok hna ha g2
+  refine ⟨hs2, RunsB.bindB (fun _ _ h => ?_) fun hs3 => hk ((hs1.trans hs2).trans hs3)⟩
+  obtain ⟨rfl, rfl⟩ := matchesPin_run hs2.ok.wf
+    (denoteCV_ext hv (hs1.ext.trans hs2.ext)) hp h
+  exact ⟨Frontend.IStepS.refl hs2.ok, rfl⟩
+
+/-- A pinned name read off the table, then continued. -/
+theorem RunsB.pin {i : Nat} {x : ConLeche.Name} {k : NIdx → AM Bool}
+    {s : AState} {b : Bool} (hst : StateOK s) (hp : PinsOK s)
+    (hx : pinNames[i]? = some x)
+    (hk : ∀ n, denoteN s.store.ns n = some x → RunsB (k n) s b) :
+    RunsB (pinAt i >>= k) s b := by
+  refine RunsB.bind fun {n s₁} g1 => ?_
+  obtain ⟨rfl, d1⟩ := pinAt_run hp hx g1
+  exact ⟨Frontend.IStepS.refl hst, hk n d1⟩
+
+/-- con-leche: none — `Frontend.denoteCV` is injective. -/
+theorem denoteCV_inj {st : EStore} (hwf : StoreWF st) {v w : IConstantVal}
+    {c : ConstantVal} (hv : Frontend.denoteCV st v = some c)
+    (hw : Frontend.denoteCV st w = some c) : v = w := by
+  have hwf' := hwf
+  obtain ⟨rk, hrk⟩ := hwf'
+  obtain ⟨h1, h2, h3⟩ := denoteCV_inv hv
+  obtain ⟨g1, g2, g3⟩ := denoteCV_inv hw
+  cases v; cases w
+  simp only at h1 h2 h3 g1 g2 g3
+  rw [denoteN_inj hrk.nsWF h1 g1, denoteNList_inj hwf _ _ _ h2 g2,
+    denoteE_inj hwf h3 g3]
+
+/-- con-leche: none — `Frontend.denoteCI` is injective at an inductive (it is
+NOT injective at a projection table, whose `tableName` it drops). -/
+theorem denoteCI_inj_ind {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
+    {cv : ConstantVal} {d : IndCaps}
+    (h : Frontend.denoteCI st ci = some (.indInfo cv d))
+    (h' : Frontend.denoteCI st ci' = some (.indInfo cv d)) : ci = ci' := by
+  have hwf' := hwf
+  obtain ⟨rk, hrk⟩ := hwf'
+  have key : ∀ {x : IConstantInfo}, Frontend.denoteCI st x = some (.indInfo cv d) →
+      ∃ v cap, x = .indInfo v cap ∧ Frontend.denoteCV st v = some cv ∧
+        Frontend.denoteCaps st cap = some d := by
+    intro x hx
+    cases x with
+    | indInfo v cap =>
+      obtain ⟨cv', d', he, hv, hc⟩ := denoteCI_ind_inv hx
+      cases he
+      exact ⟨v, cap, rfl, hv, hc⟩
+    | axiomInfo v => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv hx; cases he
+    | ctorInfo v _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv hx; cases he
+    | defnInfo v _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv hx; cases he
+    | thmInfo v _ => obtain ⟨_, _, he, _⟩ := denoteCI_thm_inv hx; cases he
+    | recInfo v _ _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_rec_inv hx; cases he
+    | projInfo t => obtain ⟨_, he, _⟩ := denoteCI_proj_inv hx; cases he
+  obtain ⟨v, cap, rfl, hv, hc⟩ := key h
+  obtain ⟨w, cap', rfl, hw, hc'⟩ := key h'
+  obtain rfl := denoteCV_inj hwf hv hw
+  congr 1
+  simp only [Frontend.denoteCaps] at hc hc'
+  cases he : denoteN st.ns cap.etaCtor with
+  | none => rw [he] at hc; simp at hc
+  | some ct =>
+    cases he' : denoteN st.ns cap'.etaCtor with
+    | none => rw [he'] at hc'; simp at hc'
+    | some ct' =>
+      rw [he] at hc; rw [he'] at hc'
+      rw [← hc'] at hc
+      simp only [Option.some.injEq, IndCaps.mk.injEq] at hc
+      obtain ⟨e1, rfl, e3, e4, e5, e6, e7, e8⟩ := hc
+      have := denoteN_inj hrk.nsWF he he'
+      cases cap; cases cap'
+      simp_all
+
+/-- con-leche: none — the index's equality test against a pinned inductive
+IS con-leche's `env.find? nm = some P`. -/
+theorem IFEnvOK.find_beq_ind {env : Env} {fe : IFEnv} {s : AState}
+    (hok : StateOK s) (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) {a : IConstantInfo}
+    {cv : ConstantVal} {d : IndCaps}
+    (ha : Frontend.denoteCI s.store a = some (.indInfo cv d)) :
+    (fe.find? n == some a) = decide (env.find? nm = some (.indInfo cv d)) := by
+  rcases h.findRel hok hd with ⟨h1, h2⟩ | ⟨ci, c, h1, h2, h3⟩
+  · rw [h1, h2]; simp
+  · rw [h1, h2]
+    by_cases hc : ci = a
+    · subst hc
+      rw [h3] at ha
+      simp [Option.some.inj ha]
+    · have : c ≠ .indInfo cv d := by
+        rintro rfl
+        exact hc (denoteCI_inj_ind hok.wf h3 ha)
+      simp [hc, this]
+
+/-- A stored constant compared against a pin some step computes, as the last
+link of a chain. -/
+theorem RunsB.pinLastOf {m : AM IConstantVal} {P : ConstantVal}
+    {v : IConstantVal} {v' : ConstantVal} {s : AState}
+    (hv : Frontend.denoteCV s.store v = some v')
+    (hm : ∀ {p : IConstantVal} {s₁ : AState}, m s = .ok (p, s₁) →
+      Frontend.IStepS s s₁ ∧ Frontend.denoteCV s₁.store p = some P) :
+    RunsB (m >>= fun p => IConstantVal.matchesPin v p) s
+      (ConLeche.ConstantVal.matchesPin v' P) := by
+  refine RunsB.bind fun {p s₁} g1 => ?_
+  obtain ⟨hs1, hp⟩ := hm g1
+  refine ⟨hs1, fun _ _ h => ?_⟩
+  obtain ⟨rfl, rfl⟩ := matchesPin_run hs1.ok.wf (denoteCV_ext hv hs1.ext) hp h
+  exact ⟨Frontend.IStepS.refl hs1.ok, rfl⟩
+
+theorem RunsB.and_true {m : AM Bool} {s : AState} {b : Bool}
+    (h : RunsB m s (b && true)) : RunsB m s b := by
+  rwa [Bool.and_true] at h
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:75-77 ofReduceOp — the reduce
+operation an `ofReduce*` axiom speaks about, a handle comparison here. -/
+theorem ofReduceOp_run {n c : NIdx} {nm : ConLeche.Name} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hd : denoteN s.store.ns n = some nm)
+    (hrun : Arena.ofReduceOp n s = .ok (c, s')) :
+    s' = s ∧ denoteN s.store.ns c = some (ConLeche.ofReduceOp nm) := by
+  simp only [Arena.ofReduceOp] at hrun
+  obtain ⟨orn, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.ofReduceNatName) hp (by rfl) g1
+  have hiff := beq_handle_iff hst.wf hd d1
+  rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
+  · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.reduceNatName) hp (by rfl) k
+    refine ⟨rfl, ?_⟩
+    rw [d2, ConLeche.ofReduceOp, if_pos (hiff.mp hc)]
+  · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.reduceBoolName) hp (by rfl) k
+    refine ⟨rfl, ?_⟩
+    rw [d2, ConLeche.ofReduceOp, if_neg (fun h => hc (hiff.mpr h))]
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:148-150 reduceOpCvA — the
+annotated pinned type of a reduce operation, interned. -/
+theorem reduceOpCvA_run {cH : NIdx} {cn : ConLeche.Name} {v : IConstantVal}
+    {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hd : denoteN s.store.ns cH = some cn)
+    (hrun : Arena.reduceOpCvA cH s = .ok (v, s')) :
+    Frontend.IStepS s s' ∧
+      Frontend.denoteCV s'.store v = some (ConLeche.reduceOpCvA cn) := by
+  simp only [Arena.reduceOpCvA] at hrun
+  obtain ⟨rn, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.reduceNatName) hp (by rfl) g1
+  have hiff := beq_handle_iff hst.wf hd d1
+  rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
+  · obtain ⟨hs, hv⟩ := internCV_fresh hst k
+    refine ⟨hs, ?_⟩
+    rw [hv, ConLeche.reduceOpCvA, if_pos (hiff.mp hc)]
+  · obtain ⟨hs, hv⟩ := internCV_fresh hst k
+    refine ⟨hs, ?_⟩
+    rw [hv, ConLeche.reduceOpCvA, if_neg (fun h => hc (hiff.mpr h))]
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:152-154 ofReducePinA — the
+annotated pin an `ofReduce*` axiom is matched against, interned. -/
+theorem ofReducePinA_run {nH : NIdx} {nm : ConLeche.Name} {v : IConstantVal}
+    {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hd : denoteN s.store.ns nH = some nm)
+    (hrun : Arena.ofReducePinA nH s = .ok (v, s')) :
+    Frontend.IStepS s s' ∧
+      Frontend.denoteCV s'.store v = some (ConLeche.ofReducePinA nm) := by
+  simp only [Arena.ofReducePinA] at hrun
+  obtain ⟨rn, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.ofReduceNatName) hp (by rfl) g1
+  have hiff := beq_handle_iff hst.wf hd d1
+  rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
+  · obtain ⟨hs, hv⟩ := internCV_fresh hst k
+    refine ⟨hs, ?_⟩
+    rw [hv, ConLeche.ofReducePinA, if_pos (hiff.mp hc)]
+  · obtain ⟨hs, hv⟩ := internCV_fresh hst k
+    refine ⟨hs, ?_⟩
+    rw [hv, ConLeche.ofReducePinA, if_neg (fun h => hc (hiff.mpr h))]
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk — the
+element inductive's shape test is con-leche's. -/
+theorem reduceElemOk_run {env : Env} {fe : IFEnv} {cH : NIdx}
+    {cn : ConLeche.Name} {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env fe s) (hd : denoteN s.store.ns cH = some cn) :
+    RunsB (Arena.reduceElemOk fe cH) s (ConLeche.reduceElemOk env cn) := by
+  unfold Arena.reduceElemOk ConLeche.reduceElemOk
+  refine RunsB.pin hst hp (x := ConLeche.reduceNatName) (by rfl) fun rn drn => ?_
+  refine RunsB.ite (beq_handle_iff hst.wf hd drn) (fun _ => ?_) (fun _ => ?_)
+  · refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nn dnn => ?_
+    refine RunsB.bind fun {na s1} g1 => ?_
+    obtain ⟨hs1, hna, -⟩ := internCI_fresh hst g1
+    obtain ⟨cvN, dN, hN⟩ : ∃ cv d, ConLeche.natA = .indInfo cv d := ⟨_, _, rfl⟩
+    rw [hN] at hna ⊢
+    refine ⟨hs1, ?_⟩
+    rw [← (hie.mono hs1.ext).find_beq_ind hs1.ok (denoteN_ext dnn hs1.ext) hna]
+    exact RunsB.ret hs1.ok
+  · refine RunsB.pin hst hp (x := ConLeche.boolName) (by rfl) fun bn dbn => ?_
+    refine RunsB.and_true
+      (RunsB.matchInd hst (hie.findRel hst dbn) fun v v' hv => ?_)
+    rw [Bool.and_true]
+    exact RunsB.pinCVLast hst hv
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:171-177 reduceStoredOk — the
+stored reduce operation's shape test is con-leche's. -/
+theorem reduceStoredOk_run {env : Env} {fe : IFEnv} {cH : NIdx}
+    {cn : ConLeche.Name} {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env fe s) (hd : denoteN s.store.ns cH = some cn) :
+    RunsB (Arena.reduceStoredOk fe cH) s (ConLeche.reduceStoredOk env cn) := by
+  unfold Arena.reduceStoredOk ConLeche.reduceStoredOk
+  refine RunsB.and_true
+    (RunsB.matchAxiom hst (hie.findRel hst hd) fun v v' hv => ?_)
+  rw [Bool.and_true]
+  exact RunsB.pinLastOf hv fun h => reduceOpCvA_run hst hp hd h
+
 /-! ## The axiom shapes
 
 `stdAxiomOk`, `trustCompilerOk` and `ofReduceAxOk` (`Arena/DeclCheck.lean`)
@@ -756,9 +1445,10 @@ exactness; none of them calls the core — which is why each concludes
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (stdAxiomOk) — the standard
 axioms' environment shape test is con-leche's.
 
-`sorry`: `IFEnvOK` at the `Iff`/`Nonempty` family lookups and
-`IConstantVal.matchesPin` through `erasePwEq`.  Task #97-P3-Checker's sorry
-list, item 16. -/
+**PROVED** (task #97-P3-Checker round 8): the `do`-block read link by link
+through the `RunsB` combinators — `pinAt_run` per pinned name, `IFEnvOK.findRel`
+per index lookup, `matchesPin_run` (hence `erasePwEq_run`) per shape
+comparison, and `IFEnvOK.find_beq_ind` for the `Eq` basis test. -/
 theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
@@ -766,14 +1456,72 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
       r = ConLeche.stdAxiomOk env c := by
-  sorry
+  have hst := hok.check.state
+  suffices h : RunsB (stdAxiomOk fe cvA) s (ConLeche.stdAxiomOk env c) by
+    obtain ⟨hs, rfl⟩ := h _ _ hrun
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+  have tr : ∀ {t : AState}, Frontend.IStepS s t →
+      StateOK t ∧ PinsOK t ∧ IFEnvOK env fe t ∧
+        Frontend.denoteCV t.store cvA = some c := fun ht =>
+    ⟨ht.ok, hok.check.pins.mono ht.ext ht.pins, hok.check.ienv.mono ht.ext,
+      denoteCV_ext hcv ht.ext⟩
+  have hnm := (denoteCV_inv hcv).1
+  simp only [ConLeche.stdAxiomOk, Bool.and_assoc]
+  unfold Arena.stdAxiomOk
+  obtain ⟨hst0, hp0, hie0, -⟩ := tr (Frontend.IStepS.refl hst)
+  refine RunsB.pin hst hp0 (x := ConLeche.propextName) (by rfl) fun pn dpn => ?_
+  refine RunsB.pin hst hp0 (x := ConLeche.choiceName) (by rfl) fun cn dcn => ?_
+  refine RunsB.ite (beq_handle_iff hst.wf hnm dpn) (fun _ => ?_) (fun _ => ?_)
+  · -- `propext`, over the pinned `Eq` basis and the `Iff` family
+    refine RunsB.pin hst hp0 (x := ConLeche.eqName) (by rfl) fun en den => ?_
+    refine RunsB.bind fun {ea s1} g1 => ?_
+    obtain ⟨hs1, hea, -⟩ := internCI_fresh hst g1
+    refine ⟨hs1, ?_⟩
+    obtain ⟨st1, hp1, hie1, -⟩ := tr hs1
+    obtain ⟨cvE, dE, hE⟩ : ∃ cv d, ConLeche.eqA = .indInfo cv d := ⟨_, _, rfl⟩
+    rw [hE] at hea ⊢
+    refine RunsB.guard st1 (by
+      simp only [bne, hie1.find_beq_ind st1 (denoteN_ext den hs1.ext) hea]) fun _ => ?_
+    refine RunsB.pin st1 hp1 (x := ConLeche.iffName) (by rfl) fun n2 d2 => ?_
+    refine RunsB.matchInd st1 (hie1.findRel st1 d2) fun v v' hv => ?_
+    refine RunsB.pinCI st1 hv fun {s3} hs3 => ?_
+    obtain ⟨st3, hp3, hie3, -⟩ := tr (hs1.trans hs3)
+    refine RunsB.guard st3 (by simp) fun _ => ?_
+    refine RunsB.pin st3 hp3 (x := ConLeche.iffIntroName) (by rfl) fun n4 d4 => ?_
+    refine RunsB.matchCtor2 st3 (hie3.findRel st3 d4) fun w w' hw => ?_
+    refine RunsB.pinCI st3 hw fun {s5} hs5 => ?_
+    obtain ⟨st5, hp5, hie5, -⟩ := tr ((hs1.trans hs3).trans hs5)
+    refine RunsB.guard st5 (by simp) fun _ => ?_
+    refine RunsB.pin st5 hp5 (x := ConLeche.iffRecName) (by rfl) fun n6 d6 => ?_
+    refine RunsB.matchRec4 st5 (hie5.findRel st5 d6) fun u u' hu => ?_
+    refine RunsB.pinCI st5 hu fun {s7} hs7 => ?_
+    obtain ⟨st7, -, -, hcv7⟩ := tr (((hs1.trans hs3).trans hs5).trans hs7)
+    refine RunsB.guard st7 (by simp) fun _ => ?_
+    exact RunsB.pinCVLast st7 hcv7
+  · refine RunsB.ite (beq_handle_iff hst.wf hnm dcn) (fun _ => ?_)
+      (fun _ => RunsB.ret hst)
+    -- `Classical.choice`, over the `Nonempty` family
+    refine RunsB.pin hst hp0 (x := ConLeche.nonemptyName) (by rfl) fun n2 d2 => ?_
+    refine RunsB.matchInd hst (hie0.findRel hst d2) fun v v' hv => ?_
+    refine RunsB.pinCI hst hv fun {s3} hs3 => ?_
+    obtain ⟨st3, hp3, hie3, -⟩ := tr hs3
+    refine RunsB.guard st3 (by simp) fun _ => ?_
+    refine RunsB.pin st3 hp3 (x := ConLeche.nonemptyIntroName) (by rfl) fun n4 d4 => ?_
+    refine RunsB.matchCtor1 st3 (hie3.findRel st3 d4) fun w w' hw => ?_
+    refine RunsB.pinCI st3 hw fun {s5} hs5 => ?_
+    obtain ⟨st5, hp5, hie5, -⟩ := tr (hs3.trans hs5)
+    refine RunsB.guard st5 (by simp) fun _ => ?_
+    refine RunsB.pin st5 hp5 (x := ConLeche.nonemptyRecName) (by rfl) fun n6 d6 => ?_
+    refine RunsB.matchRec3 st5 (hie5.findRel st5 d6) fun u u' hu => ?_
+    refine RunsB.pinCI st5 hu fun {s7} hs7 => ?_
+    obtain ⟨st7, -, -, hcv7⟩ := tr ((hs3.trans hs5).trans hs7)
+    refine RunsB.guard st7 (by simp) fun _ => ?_
+    exact RunsB.pinCVLast st7 hcv7
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (trustCompilerOk) — the
 `Lean.trustCompiler` environment shape test is con-leche's.
 
-`sorry`: `IFEnvOK` at the `True`/`True.intro` lookups and
-`IConstantVal.matchesPin` through `erasePwEq`, exactly as `stdAxiomOk_run`.
-Task #97-P3-Checker's sorry list, item 16. -/
+**PROVED** (task #97-P3-Checker round 8): exactly as `stdAxiomOk_run`. -/
 theorem trustCompilerOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
@@ -781,14 +1529,30 @@ theorem trustCompilerOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
       r = ConLeche.trustCompilerOk env c := by
-  sorry
+  have hst := hok.check.state
+  suffices h : RunsB (trustCompilerOk fe cvA) s (ConLeche.trustCompilerOk env c) by
+    obtain ⟨hs, rfl⟩ := h _ _ hrun
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+  have hie := hok.check.ienv
+  simp only [ConLeche.trustCompilerOk, Bool.and_assoc]
+  unfold Arena.trustCompilerOk
+  refine RunsB.pin hst hok.check.pins (x := ConLeche.trueName) (by rfl) fun n1 d1 => ?_
+  refine RunsB.matchInd hst (hie.findRel hst d1) fun v v' hv => ?_
+  refine RunsB.pinCV hst hv fun {s2} hs2 => ?_
+  refine RunsB.guard hs2.ok (by simp) fun _ => ?_
+  refine RunsB.pin hs2.ok (hok.check.pins.mono hs2.ext hs2.pins) (x := ConLeche.trueIntroName)
+    (by rfl) fun n2 d2 => ?_
+  refine RunsB.matchCtor0 hs2.ok ((hie.mono hs2.ext).findRel hs2.ok d2)
+    fun w w' hw => ?_
+  refine RunsB.pinCV hs2.ok hw fun {s3} hs3 => ?_
+  refine RunsB.guard hs3.ok (by simp) fun _ => ?_
+  exact RunsB.pinCVLast hs3.ok (denoteCV_ext hcv (hs2.ext.trans hs3.ext))
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (ofReduceAxOk) — the
 `Lean.ofReduceNat`/`ofReduceBool` environment shape test is con-leche's.
 
-`sorry`: `ofReduceOp`'s handle comparison, then `IFEnvOK` at the pinned `Eq`
-basis and at `reduceElemOk` / `reduceStoredOk`.  Task #97-P3-Checker's sorry
-list, item 16. -/
+**PROVED** (task #97-P3-Checker round 8): `ofReduceOp_run`, the `Eq` basis
+test, then `reduceElemOk_run` / `reduceStoredOk_run` and the pinned type. -/
 theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
@@ -796,7 +1560,42 @@ theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
       r = ConLeche.ofReduceAxOk env c := by
-  sorry
+  have hst := hok.check.state
+  suffices h : RunsB (ofReduceAxOk fe cvA) s (ConLeche.ofReduceAxOk env c) by
+    obtain ⟨hs, rfl⟩ := h _ _ hrun
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+  have tr : ∀ {t : AState}, Frontend.IStepS s t →
+      StateOK t ∧ PinsOK t ∧ IFEnvOK env fe t ∧
+        Frontend.denoteCV t.store cvA = some c := fun ht =>
+    ⟨ht.ok, hok.check.pins.mono ht.ext ht.pins, hok.check.ienv.mono ht.ext,
+      denoteCV_ext hcv ht.ext⟩
+  have hnm := (denoteCV_inv hcv).1
+  simp only [ConLeche.ofReduceAxOk, Bool.and_assoc]
+  unfold Arena.ofReduceAxOk
+  obtain ⟨-, hp0, -, -⟩ := tr (Frontend.IStepS.refl hst)
+  refine RunsB.bind fun {cH s0} g0 => ?_
+  obtain ⟨rfl, dc⟩ := ofReduceOp_run hst hp0 hnm g0
+  refine ⟨Frontend.IStepS.refl hst, ?_⟩
+  refine RunsB.pin hst hp0 (x := ConLeche.eqName) (by rfl) fun en den => ?_
+  refine RunsB.bind fun {ea s1} g1 => ?_
+  obtain ⟨hs1, hea, -⟩ := internCI_fresh hst g1
+  refine ⟨hs1, ?_⟩
+  obtain ⟨st1, hp1, hie1, -⟩ := tr hs1
+  obtain ⟨cvE, dE, hE⟩ : ∃ cv d, ConLeche.eqA = .indInfo cv d := ⟨_, _, rfl⟩
+  rw [hE] at hea ⊢
+  refine RunsB.guard st1 (by
+    simp only [bne, hie1.find_beq_ind st1 (denoteN_ext den hs1.ext) hea]) fun _ => ?_
+  refine RunsB.bindB (reduceElemOk_run st1 hp1 hie1 (denoteN_ext dc hs1.ext))
+    fun {s2} hs2 => ?_
+  obtain ⟨st2, hp2, hie2, -⟩ := tr (hs1.trans hs2)
+  refine RunsB.guard st2 (by simp) fun _ => ?_
+  refine RunsB.bindB
+    (reduceStoredOk_run st2 hp2 hie2 (denoteN_ext dc (hs1.trans hs2).ext))
+    fun {s3} hs3 => ?_
+  obtain ⟨st3, hp3, -, hcv3⟩ := tr ((hs1.trans hs2).trans hs3)
+  refine RunsB.guard st3 (by simp) fun _ => ?_
+  exact RunsB.pinLastOf hcv3 fun h =>
+    ofReducePinA_run st3 hp3 (denoteCV_inv hcv3).1 h
 
 end ConRon.Bridge
 
