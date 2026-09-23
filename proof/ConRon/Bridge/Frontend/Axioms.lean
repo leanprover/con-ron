@@ -353,6 +353,34 @@ list item 24 is therefore discharged, and the upstream ask is the RE-STATEMENT
 #print axioms checkDeclsPure_thmDecl_const
 #print axioms no_False_theorem_accepted_pure
 
+/-! ## Round seven — `validateIndD_run`, CLOSED
+
+The inductive record's READ half, over its two loops: `forIn_sim` relates a
+read-only `AM` loop to con-leche's `Except String` one through an arbitrary
+state relation (the two `do` elaborators build different loop states), and
+`denoteN_inj` is load-bearing three times — the duplicate-constructor guard
+(`ListRel.nodup_iff_denoteN`), the constructor index (`ctorIx_fold_rel`) and
+the `induct`/`T.rec` comparisons. -/
+
+#print axioms except_ok_bind
+#print axioms except_bind_of
+#print axioms except_bind_ex
+#print axioms ListRel.refl_eq
+#print axioms readName_bind
+#print axioms ListRel.singleton_right
+#print axioms ListRel.singleton_left
+#print axioms forIn_sim
+#print axioms mapM_sim
+#print axioms storeFuel_run
+#print axioms indPiTeleLen_run
+#print axioms piSortTeleLen?_run
+#print axioms ListRel.mem_iff_denoteN
+#print axioms ListRel.nodup_iff_denoteN
+#print axioms ListRel.flatten
+#print axioms ListRel.zip
+#print axioms ctorIx_fold_rel
+#print axioms validateIndD_run
+
 /-! ## PROVED, but resting on an open leaf
 
 The campaign's rule is that a result carrying `sorryAx` is not in the census
