@@ -220,24 +220,10 @@ the callee rules it is missing. -/
 /-! `propIrrel_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
 and is CLOSED there, over that module's `notProofFast` / `isProofFast`. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **THEOREM 1 for
-`stuckIrrel`**, the fallback at two stuck terms: structure-η in both
-directions, then the unit certificate.
-
-**OPEN**: `structEtaCert` and `structUnitCert` as callee rules, which are two
-more knot-calling walks (`structEtaCertWith` is 70 lines and sits under
-both). -/
-theorem stuckIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r⌝⦄ := by
-  sorry
+/-! `stuckIrrel_spec` **moved to `Bridge/Core/Walks/Stuck.lean`** in round 5,
+where it is PROVED from three child walks (`structEtaCert_spec`,
+`structUnitCert_spec`, `proofIrrel_spec`) and gains the precondition
+`hμ : mode.verifiedChecks = true` (that module's note says why). -/
 
 /-! ### `etaCert`'s pure side, and the ExprOps slot in ANSWER shape
 
