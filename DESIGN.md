@@ -57829,3 +57829,6 @@ cache seeding was repeated on the landing state.
 roots' bodies, resolved to `CoreSpec.of_core rfl` with this task's `hreads`
 and `stages_installThenCheck`; `lake build ConRonBridge ConRonCapstone` green
 (2 803 jobs); cache re-seeded.
+**Ninth**, `12fd2d46` (T2-LOCKSTEP step 1: `Refine2` shape shims): clean;
+`lake build ConRonRefine2 ConRonCapstone` green (2 790 jobs); cache re-seeded;
+landed.
