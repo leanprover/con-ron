@@ -60132,3 +60132,27 @@ rulings needed):
 unchanged and true of `InProcess` up to the one trust it is meant to carry —
 that `crate::in_model::generate` (the task-#37 port) is con-leche's
 `InModel.generate`.
+
+**Rulings (coordinator) and what was done.**
+
+1. **A — approved, done.**  `InProcess` carries no state (`pub struct
+   InProcess {}`); the readback memo is a local of `generate`, as the tree
+   blocks already were.  `core` parse: 37 809 244 061 / 37 809 642 425
+   (+0.01 % on base); `tower_nested`, `tower_mutual`, `nested_struct_proj`
+   output byte-identical; `cargo test -p con-ron` 32/32.
+2. **c1 — approved, done in the twin.**  `inProcessModeller`'s `none` arm is
+   `pure (.error "arena: dangling handle in a modelled block")` (the port's
+   own message).  Theorem 1: `inProcessModeller_wf`'s two `none` cases — the
+   decline half now gives the decline frame (`Ext.refl`), the accept half
+   refutes `.error = .ok` — and nothing else unfolded the modeller.
+3. **c2 — the port PANICS**, because the twin cannot represent the store the
+   port keeps.  `AM` is `StateT AState (Except CheckError)`: a throw's result
+   is `.error e` with no state, and `tryCatch`'s handler resumes at the state
+   the `try` STARTED in — so a caught `internDecls` failure is a decline at
+   the pre-call store, never at the partly-interned store the port kept
+   (`*ar = ast.store`).  Representing it would mean an error-carrying-state
+   monad for the whole intern chain (the audit's D4 twin-side alternative,
+   rejected there as disproportionate).  The port now `panic!`s with the
+   intern's message: no verdict, which is what the twin's throw is.  The
+   failure is a table at capacity (`IDX_CAP`), unreachable on any export
+   measured.
