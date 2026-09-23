@@ -104,29 +104,6 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF)
 
-/-- `lockstep`, deciding a twin `if` from the context BEFORE the Rust moves.
-The shared tactic moves a Rust bind before it decides a twin `if`, and when
-that bind's spec does not match (its twin partner is inside the `if`) it
-falls back to `LS.twin_bind_pure`, which succeeds and buries the `if` under a
-`>>= pure` where it is never decided.  That happens exactly where a guard's
-Rust test was already split (`hc` in context) and the Rust's next step is a
-state-threading call in the branch (`unresolved_consts_error`, the axiom
-arms' `*_ok` gates).  This wrapper tries the context's decision first (a test
-in context, or the twin's `a || b` against the Rust's two nested tests);
-everything else is `lockstep_step`.
-(Reported as a tactic issue for the shared `Tactic/Lockstep.lean`.) -/
-macro "chk_lockstep" : tactic => `(tactic| repeat' (first
-  | (refine Lockstep.LS.twin_ite_neg (by first
-      | assumption
-      | (simp only [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)
-      | lockstep_side_cheap | lockstep_side_ite) ?_)
-  | (refine Lockstep.LS.twin_ite_pos (by first
-      | assumption
-      | (simp only [Bool.or_eq_true]; first
-          | exact Or.inl (by assumption) | exact Or.inr (by assumption))
-      | lockstep_side_cheap | lockstep_side_ite) ?_)
-  | lockstep_step))
-
 /-! ## The attempt bracket — lockstep since task #97-T2-LOCKSTEP D4b -/
 
 /-! ### The copies are the identity
@@ -1513,7 +1490,7 @@ theorem unresolved_consts_error_of {pers st lst} {e : arena.handle.EIdx} {o}
     fun hrel hinv => Lockstep.LSR.ofSimRE hrel hinv fun _ h => pin_sorry_ax_refines hrel hinv h
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker_base.unresolved_consts_error, unresolvedConstsError]
-  chk_lockstep
+  lockstep
 
 /-- `unresolved_consts_error` ⊑ `unresolvedConstsError`.  The result is a
 CheckError, so it is a `SimRel₀` at the kind: a term that mentions `sorryAx`
@@ -1540,23 +1517,6 @@ open Lockstep in
       (arena.checker_base.unresolved_consts_error pers st e) lst
       (unresolvedConstsError w (absEIdx e)) :=
   LS.ofSimRel₀ fun _ h => unresolved_consts_error_refines hrel hinv h
-
-/-- `unresolved_consts_error` at the two call sites' fixed subjects (the
-`what` string is the twin's message only, so the generic lemma leaves it
-free, which the tactic cannot pick). -/
-@[lockstep] theorem Lockstep.unresolved_consts_error_type_ls {pers st lst}
-    {e : arena.handle.EIdx} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e) lst
-      (unresolvedConstsError "type" (absEIdx e)) :=
-  unresolved_consts_error_ls hrel hinv
-
-theorem Lockstep.unresolved_consts_error_value_ls {pers st lst}
-    {e : arena.handle.EIdx} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e) lst
-      (unresolvedConstsError "value" (absEIdx e)) :=
-  unresolved_consts_error_ls hrel hinv
 
 @[lockstep] theorem Lockstep.nidx_vec_dup_spec (v : alloc.vec.Vec arena.handle.NIdx) :
     LSP (arena.env.nidx_vec_dup v) (fun r => r = v) :=
@@ -1634,12 +1594,14 @@ open Lockstep in
   LSR.ofSimRE hrel hinv fun _ h => all_level_params_defined_refines hrel hinv h
 
 open Lockstep in
-/-- `lift_fueled` ⊑ `liftFueled`: a fuel-out `none` is an `internal` error on
-both sides (the messages are not compared). -/
-@[lockstep] theorem lift_fueled_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+/-- `lift_fueled` ⊑ `liftFueled what`, for every message `what`: a fuel-out
+`none` is an `internal` error on both sides (the messages are not compared;
+the tactic fixes `what` from the goal's twin, task #97-T2-TACTIC round 2). -/
+@[lockstep] theorem lift_fueled_ls {pers st lst} {what : String}
+    (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (o : Option Bool) :
     LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
-      (liftFueled "level comparison" o) := by
+      (liftFueled what o) := by
   intro r h
   cases o with
   | some b =>
@@ -1775,7 +1737,7 @@ theorem check_constant_val_guards_rest_refines {pers st lst}
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.checker_base.check_constant_val_guards_rest, checkConstantValGuardsRestSpec]
   simp only [am_fail_bind]
-  chk_lockstep
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_constant_val_guards_rest_ls {pers st lst}
@@ -1832,8 +1794,6 @@ theorem install_constant_val_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
   rw [arena.checker_base.install_constant_val_tail]
   try unfold installConstantValTailSpec
   lockstep
-  all_goals (try (rw [bind_pure]; rw [if_neg (by assumption)]))
-  all_goals lockstep
 
 open Lockstep in
 @[lockstep] theorem install_constant_val_tail_ls {pers st lst}
@@ -2889,11 +2849,6 @@ theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
   rw [arena.checker_split.install_value_tail]
   try unfold installValueTailSpec
   lockstep
-  all_goals (try (rw [bind_pure]; rw [if_neg (by assumption)]))
-  all_goals
-    refine Lockstep.LS.bind (Lockstep.unresolved_consts_error_value_ls ‹_› ‹_›) rfl
-      (fun e st1 => Lockstep.errArm_ok) (fun a b st1 lst1 hR hrel hinv => ?_)
-    lockstep
 
 open Lockstep in
 @[lockstep] theorem install_value_tail_ls {pers st lst}
@@ -2926,7 +2881,7 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.checker_split.install_value, installValue_unfold]
   simp only [am_fail_bind]
-  chk_lockstep
+  lockstep
 
 @[lockstep] theorem Lockstep.install_value_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
