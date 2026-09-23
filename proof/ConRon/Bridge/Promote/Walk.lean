@@ -59,7 +59,7 @@ theorem denoteN_of_view {st : NStore} (h : NStoreWF' st) {i : NIdx}
 
 /-! ## The readers and the promote-interns, as run equations -/
 
-theorem viewN_run {h : NIdx} {s s' : AState} {v : NNodeView}
+theorem viewN_ok {h : NIdx} {s s' : AState} {v : NNodeView}
     (hr : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v := by
   cases hv : s.store.ns.view h with
   | some w =>
@@ -190,7 +190,7 @@ theorem promoteN_core : ∀ (fuel : Nat) (m : PMemo) (h : NIdx) (s : AState)
       | none =>
         simp only [hmemo] at hrun
         obtain ⟨v, s1, hv, h1⟩ := AM.bind_ok hrun
-        obtain ⟨rfl, hview⟩ := viewN_run hv
+        obtain ⟨rfl, hview⟩ := viewN_ok hv
         obtain ⟨x0, hx0⟩ := denoteN_of_view hwf.nsWF (by rw [hview]; rfl)
         have hden : denoteN s1.store.ns h = denoteNView s1.store.ns v := by
           obtain ⟨rk, hw⟩ := hwf.nsWF; exact denoteN_unfold' hw hview
@@ -288,7 +288,7 @@ theorem denoteL_of_view {st : LStore} (h : LStoreWF' st) {i : LIdx}
   obtain ⟨rk, h⟩ := h
   exact denoteL_of_view' h _ i (Nat.lt_succ_self _) hv
 
-theorem viewL_run {h : LIdx} {s s' : AState} {v : LNodeView}
+theorem viewL_ok {h : LIdx} {s s' : AState} {v : LNodeView}
     (hr : viewL h s = .ok (v, s')) : s' = s ∧ s.store.ls.view h = some v := by
   cases hv : s.store.ls.view h with
   | some w =>
@@ -468,7 +468,7 @@ theorem promoteL_core : ∀ (fuel : Nat) (m : PMemo) (h : LIdx) (s : AState)
       | none =>
         simp only [hmemo] at hrun
         obtain ⟨v, s1, hv, h1⟩ := AM.bind_ok hrun
-        obtain ⟨rfl, hview⟩ := viewL_run hv
+        obtain ⟨rfl, hview⟩ := viewL_ok hv
         obtain ⟨x0, hx0⟩ := denoteL_of_view hwf.lsWF (by rw [hview]; rfl)
         have hden : denoteL s1.store.ls h = denoteLView s1.store.ls v := by
           obtain ⟨rk, hw⟩ := hwf.lsWF; exact denoteL_unfold' hw hview
@@ -618,7 +618,7 @@ theorem promoteLList_step {fuel : Nat} : ∀ (us : List LIdx) {m m' : PMemo}
       exact ⟨a, as, hx2.lss.ls.lvl _ _ (hd1 a ha),
         hd2 as (denoteLList_ext hx1.lss.ls us as has), rfl⟩
 
-theorem viewLs_run {h : LsIdx} {s s' : AState} {v : LsNodeView}
+theorem viewLs_ok {h : LsIdx} {s s' : AState} {v : LsNodeView}
     (hr : viewLs h s = .ok (v, s')) : s' = s ∧ s.store.lss.view h = some v := by
   cases hv : s.store.lss.view h with
   | some w =>
@@ -729,7 +729,7 @@ theorem promoteLs_step {m m' : PMemo} {fuel : Nat} {h r : LsIdx} {s s' : AState}
     | none =>
       simp only [hmemo] at hrun
       obtain ⟨us, s1, hv, h1⟩ := AM.bind_ok hrun
-      obtain ⟨rfl, hview⟩ := viewLs_run hv
+      obtain ⟨rfl, hview⟩ := viewLs_ok hv
       obtain ⟨xs, hxs⟩ := denoteLs_of_view hwf.lssWF hview
       have hden : denoteLs s1.store.lss h = some xs := by
         simp only [denoteLs, hview]; exact hxs
@@ -816,7 +816,7 @@ theorem denoteE_of_view {st : EStore} (h : StoreWF' st) {i : EIdx}
   obtain ⟨rk, h⟩ := h
   exact denoteE_of_view' h _ i (Nat.lt_succ_self _) hv
 
-theorem view_run {h : EIdx} {s s' : AState} {v : ENodeView}
+theorem view_ok {h : EIdx} {s s' : AState} {v : ENodeView}
     (hr : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v := by
   cases hv : s.store.view h with
   | some w =>
@@ -1005,7 +1005,7 @@ theorem promoteE_core : ∀ (fuel : Nat) (m : PMemo) (h : EIdx) (s : AState)
       | none =>
         simp only [hmemo] at hrun
         obtain ⟨v, s1, hv, h1⟩ := AM.bind_ok hrun
-        obtain ⟨rfl, hview⟩ := view_run hv
+        obtain ⟨rfl, hview⟩ := view_ok hv
         obtain ⟨x0, hx0⟩ := denoteE_of_view hwf (by rw [hview]; rfl)
         have hden : denoteE s1.store h = denoteEView s1.store v := by
           obtain ⟨rk, hw⟩ := hwf; exact denoteE_unfold' hw hview
