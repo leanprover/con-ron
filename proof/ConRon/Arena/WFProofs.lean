@@ -15,7 +15,7 @@ The arena's own verification, beside the implementation (con-leche's lesson
 * `intern_spec` / `view_spec` / `dropScratch_spec` / `enableScratch_spec` —
   the store operations.
 -/
-import ConRon.Arena.WF
+import ConRon.Arena.WFSkip
 
 namespace ConRon.Arena
 
@@ -6162,7 +6162,7 @@ theorem EStore.internAt_wf_view {st : EStore} {rk : EIdx → Nat} {w : ENodeView
     (hfov : st.findBMOfView w = some mi) :
     StoreWF (st.internAt w mi).1 ∧
       (st.internAt w mi).1.view (st.internAt w mi).2 = some w := by
-  simp only [EStore.internAt]
+  simp only [EStore.internAt, EStore.persFindMaybe_eq ⟨rk, h⟩]
   split
   · rename_i i hi
     have hpf : st.persFind? w = some i := by
@@ -6203,7 +6203,7 @@ theorem EStore.internAt_isPersistent_of_off {st : EStore} {rk : EIdx → Nat}
     (hbmok : ENodeView.BMOK st.viewBM w mi)
     (hfov : st.findBMOfView w = some mi) :
     (st.internAt w mi).2.isPersistent = true := by
-  simp only [EStore.internAt]
+  simp only [EStore.internAt, EStore.persFindMaybe_eq ⟨rk, h⟩]
   split
   · rename_i i hi
     have hpf : st.persFind? w = some i := by
@@ -7965,7 +7965,7 @@ theorem EStore.find?_cases {st : EStore} {v : ENodeView} {i : EIdx}
     split at hf
     · rename_i j hp
       obtain rfl := Option.some.inj hf
-      exact Or.inl hp
+      exact Or.inl (EStore.pers_find_of_persFindMaybe hp)
     · split at hf
       · exact Or.inr hf
       · exact absurd hf (by simp)

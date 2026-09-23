@@ -1519,10 +1519,63 @@ def internBMOfViewPersistent (st : EStore) (v : ENodeView) : EStore × BMIdx :=
   | .forallE _ _ m => st.internBMPersistent m
   | _ => (st, Idx.ofWord 0)
 
+/-- con-leche: none — arena infrastructure (task #97-P6-1, twinned by task
+#97-T2-LOCKSTEP D2): the Rust's `e_view_has_scratch_child`, **a tier test on
+the children, not a decode** — does any child handle of this view name the
+scratch tier?  Test for test the Rust's: the binder datum is NOT looked at
+(a view holds the datum by value), and each nested `if` is the Rust's.
+
+A persistent node's children are persistent (`StoreWF`'s `childOK`), so a
+view with a scratch child cannot be in the persistent cons table and the
+Rust does not probe it; `Arena/WFSkip.lean` proves the skip changes no probe
+at a well-formed store. -/
+def eViewHasScratchChild : ENodeView → Bool
+  | .bvar _ => false
+  | .fvar _ ty => !ty.isPersistent
+  | .sort u => !u.isPersistent
+  | .const n us => if n.isPersistent then !us.isPersistent else true
+  | .app f a => if f.isPersistent then !a.isPersistent else true
+  | .lam ty b _ => if ty.isPersistent then !b.isPersistent else true
+  | .forallE ty b _ => if ty.isPersistent then !b.isPersistent else true
+  | .letE ty val b =>
+    if ty.isPersistent then (if val.isPersistent then !b.isPersistent else true) else true
+  | .lit _ => false
+  | .proj n _ e => if n.isPersistent then !e.isPersistent else true
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the `sk` test of
+the Rust's `EStore::intern_lam_i` / `intern_forall_e_i` over the binder
+RECORD: the two expression children and then the datum HANDLE, in the
+Rust's nesting. -/
+def bindHasScratchChild (ty b : EIdx) (mi : BMIdx) : Bool :=
+  if ty.isPersistent then (if b.isPersistent then !mi.isPersistent else true) else true
+
+/-- con-leche: none — the `sk` test of the Rust's ten per-constructor
+`EStore::intern_*` paths (task #97-P6-15), over a view and the datum handle
+the node record carries: `eViewHasScratchChild` at the eight non-binder arms,
+`bindHasScratchChild` (datum included) at the two binder arms — which is
+where the record test is stronger than the view test. -/
+def eRecHasScratchChild (v : ENodeView) (mi : BMIdx) : Bool :=
+  match v with
+  | .lam ty b _ => bindHasScratchChild ty b mi
+  | .forallE ty b _ => bindHasScratchChild ty b mi
+  | .bvar _ | .fvar _ _ | .sort _ | .const _ _ | .app _ _ | .letE _ _ _ | .lit _
+  | .proj _ _ _ => eViewHasScratchChild v
+
+/-- con-leche: none — the persistent half of the two-tier probe, SKIPPED when
+the scratch tier is on and the node record has a scratch child: the Rust's
+`let sk = if scratch_on { test } else { false }; if sk { None } else
+{ pers.find }` prologue of each `EStore::intern_*` path (task #97-T2-LOCKSTEP
+D2).  `WFSkip.persFindMaybe_eq` is the equation back to the unconditional
+probe under `StoreWF`. -/
+def persFindMaybe (st : EStore) (v : ENodeView) (mi : BMIdx) : Option EIdx :=
+  let sk := if st.scratchOn then eRecHasScratchChild v mi else false
+  if sk then none else st.pers.find? v mi
+
 /-- con-leche: none — probe both tiers, persistent first (nanoda's
-`alloc_expr`, `util.rs:391-400`), at an already-probed datum handle. -/
+`alloc_expr`, `util.rs:391-400`), at an already-probed datum handle; the
+persistent half is `persFindMaybe`, skipped as the Rust skips it. -/
 def findAt (st : EStore) (v : ENodeView) (mi : BMIdx) : Option EIdx :=
-  match st.pers.find? v mi with
+  match st.persFindMaybe v mi with
   | some i => some i
   | none => if st.scratchOn then st.scr.find? v mi else none
 
@@ -1552,7 +1605,7 @@ def find? (st : EStore) (v : ENodeView) : Option EIdx :=
 datum handle: probe the persistent cons table, then the scratch one, then
 append to the tier the store is in (DESIGN §8.3; nanoda `util.rs:391-400`). -/
 def internAt (st : EStore) (v : ENodeView) (mi : BMIdx) : EStore × EIdx :=
-  match st.pers.find? v mi with
+  match st.persFindMaybe v mi with
   | some i => (st, i)
   | none =>
     if st.scratchOn then
@@ -1612,6 +1665,14 @@ the Rust's ten paths explicit. -/
 @[inline] def internProj (st : EStore) (n : NIdx) (i : Nat) (e : EIdx) : EStore × EIdx :=
   st.intern (.proj n i e)
 
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the persistent
+half of the binder probe, SKIPPED as the Rust's `intern_lam_i` /
+`intern_forall_e_i` skip it: `sk` is `bindHasScratchChild` at the record's
+three handles, datum included (task #97-T2-LOCKSTEP D2). -/
+def persFindBindMaybe (st : EStore) (tag : UInt32) (r : BindNode) : Option EIdx :=
+  let sk := if st.scratchOn then bindHasScratchChild r.ty r.body r.m else false
+  if sk then none else st.pers.findBind tag r
+
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two-tier
 cons probe at a binder record whose datum is already a HANDLE: literally
 `internBindI`'s own two `match` scrutinees, in `internBindI`'s order
@@ -1625,7 +1686,7 @@ view the datum spells out, exactly as `internBindI` is `internAt`. -/
 def findBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
     Option EIdx :=
   let r : BindNode := ⟨ty, b, mi⟩
-  match st.pers.findBind tag r with
+  match st.persFindBindMaybe tag r with
   | some hp => some hp
   | none => if st.scratchOn then st.scr.findBind tag r else none
 
@@ -1640,7 +1701,7 @@ modeller, a fresh binder — wants. -/
 def internBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
     EStore × EIdx :=
   let r : BindNode := ⟨ty, b, mi⟩
-  match st.pers.findBind tag r with
+  match st.persFindBindMaybe tag r with
   | some hp => (st, hp)
   | none =>
     if st.scratchOn then
