@@ -707,6 +707,24 @@ theorem FoldOK.toStepOK {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
   coh := h.coh
   denote := h.denote
 
+/-- con-leche: none — **`FoldOK` survives a step that only appends and leaves
+the environment alone.**  A step of an arm leaves `CheckOK` at the SAME
+environment and an `Ext`; the other four clauses are about the environment
+index and the pin handles, and both transport.
+
+(Stated in `Bridge/Checker/Arms.lean` until task #97-P3-Checker round 6, which
+needed it two modules lower, in `DeclVal.lean`'s `checkThmVal_bridge`.) -/
+theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    (h : FoldOK μ env fe s) (hck : CheckOK μ env fe s')
+    (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
+    FoldOK μ env fe s' where
+  check := hck
+  envWF := h.envWF
+  persPins := h.persPins.mono hp
+  persEnv := h.persEnv
+  coh := h.coh
+  denote := denoteFEnv_pext (PExt.of_ext hx) h.persEnv h.denote
+
 /-- con-leche: none — **every entry the index answers with is an entry of the
 list it was built from**.  `mkIFEnvGo` only ever inserts entries of its own
 list, so a hash-map hit is a list member.  (Task #97-P3-Checker round 5: this
@@ -826,6 +844,118 @@ theorem IFEnvCoh.find? {fe : IFEnv} (hcoh : IFEnvCoh fe) (n : NIdx) :
   have h3 : fe.find? n = (mkIFEnv fe.env).find? n := by
     simp only [IFEnv.find?, h1, h2]
   rw [h3, mkIFEnv_find?]
+
+/-! ## The index spec across a PUSH
+
+`StepOK.mono` and `StepOK.pmono` carry the invariant across a change of STORE
+at a fixed environment.  The three value checks change the ENVIRONMENT
+instead: each ends in `IFEnv.push`, and what it owes its caller is `StepOK` at
+the cons.  The two lemmas below are that — the third and fourth members of the
+`IFEnv.push` family, beside `Pushed.push` and `IFEnvCoh.push`
+(`Bridge/Promote/Exact.lean`).
+
+**This is task #97-P3-Checker round 5's scheduling finding, taken as one
+theorem.**  `StepOK` carries `EnvWF env`; con-leche does not prove that
+`checkDefnVal` preserves it (`Verify/BridgeWfImp.lean`'s `checkDefnVal_wfimp`
+is about the fuel family, and the model tier takes `EnvWF` as a hypothesis
+rather than re-establishing it), so the arena tier owes
+`ConstWF ⟨c :: env.consts⟩ c` at every value install.  It is owed once and
+paid once: `StepOK.push` takes it as a hypothesis and
+`Bridge/Checker/DeclVal.lean`'s three `constWF_*` discharge it from the guards
+the run has already passed. -/
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec survives a
+push.**  With `IFEnvCoh` on both sides the index is retired (round 5's move):
+`(fe.push ci).find? n` is `List.find?` on a cons, con-leche's side is
+`Env.find?_cons`, and the two negative cases are `denoteN_inj` — a handle the
+pushed key is not cannot denote the pushed constant's name, because the two
+handles would then be equal.
+
+The `proj` clause costs nothing, and that is what `hnp` buys: the pushed
+constant is a value kind, so the push creates no `.projInfo` row and every
+projection hit of the new index is a hit of the old one.  This is why the
+three value checks do NOT have to carry the tier's standing `.projInfo`
+hypothesis. -/
+theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
+    {ci : IConstantInfo} {c : ConstantInfo}
+    (h : IFEnvOK env fe s) (hst : StateOK s) (hcoh : IFEnvCoh fe)
+    (hnp : ∀ t, ci ≠ .projInfo t)
+    (hci : Frontend.denoteCI s.store ci = some c) :
+    IFEnvOK ⟨c :: env.consts⟩ (fe.push ci) s := by
+  obtain ⟨rk, hrk⟩ := hst.wf
+  have hnm : denoteN s.store.ns ci.name = some c.name :=
+    denoteCI_name_of (fun t ht => absurd ht (hnp t)) hci
+  -- the pushed index, as a `List.find?` on a cons
+  have keyE : ∀ n : NIdx, (fe.push ci).find? n
+      = if (ci.name == n) = true then some ci else fe.find? n := by
+    intro n
+    rw [(hcoh.push ci).find? n, hcoh.find? n]
+    show List.find? (fun x => x.name == n) (ci :: fe.env.consts) = _
+    cases hb : (ci.name == n) <;> simp [IEnv.find?, hb]
+  have keyT : (fe.push ci).find? ci.name = some ci := by rw [keyE]; simp
+  have keyF : ∀ n : NIdx, (ci.name == n) = false →
+      (fe.push ci).find? n = fe.find? n := by
+    intro n hb; rw [keyE, hb]; simp
+  refine ⟨?_, ?_, ?_⟩
+  · -- `hit`
+    intro n ci' hf
+    cases hb : (ci.name == n) with
+    | true =>
+      obtain rfl : ci.name = n := by simpa using hb
+      rw [keyT] at hf
+      obtain rfl : ci' = ci := (Option.some.inj hf).symm
+      exact ⟨_, _, hnm, hci, Env.find?_cons_self _ env⟩
+    | false =>
+      rw [keyF n hb] at hf
+      obtain ⟨nm, c', hd, hc', he⟩ := h.hit n ci' hf
+      refine ⟨nm, c', hd, hc', ?_⟩
+      rw [Env.find?_cons, if_neg, he]
+      intro hq
+      obtain rfl := denoteN_inj hrk.nsWF (hq ▸ hnm) hd
+      simp at hb
+  · -- `cover`
+    intro nm c₀ he
+    rw [Env.find?_cons] at he
+    by_cases hq : c.name = nm
+    · rw [if_pos hq] at he
+      obtain rfl : c₀ = c := (Option.some.inj he).symm
+      exact ⟨ci.name, ci, hq ▸ hnm, keyT, hci⟩
+    · rw [if_neg hq] at he
+      obtain ⟨n, ci', hd, hf, hc'⟩ := h.cover nm c₀ he
+      refine ⟨n, ci', hd, ?_, hc'⟩
+      cases hb : (ci.name == n) with
+      | true =>
+        obtain rfl : ci.name = n := by simpa using hb
+        rw [hnm] at hd
+        exact absurd (Option.some.inj hd) hq
+      | false => rw [keyF n hb]; exact hf
+  · -- `proj`
+    intro n t hf
+    cases hb : (ci.name == n) with
+    | true =>
+      obtain rfl : ci.name = n := by simpa using hb
+      rw [keyT] at hf
+      exact absurd (Option.some.inj hf) (hnp t)
+    | false =>
+      rw [keyF n hb] at hf
+      exact h.proj n t hf
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:452 EnvWF.cons — **`StepOK` survives
+a push**, which is what each of the three value checks concludes.  Three of
+the four clauses are push lemmas (above, and in `Bridge/Promote/Exact.lean`);
+the fourth is `EnvWF.cons`, and its `ConstWF` premise is the one thing
+con-leche does not prove about the value checks (see the section note). -/
+theorem StepOK.push {env : Env} {fe : IFEnv} {s : AState}
+    {ci : IConstantInfo} {c : ConstantInfo}
+    (h : StepOK env fe s) (hst : StateOK s)
+    (hnp : ∀ t, ci ≠ .projInfo t)
+    (hci : Frontend.denoteCI s.store ci = some c)
+    (hcw : ConstWF ⟨c :: env.consts⟩ c) :
+    StepOK ⟨c :: env.consts⟩ (fe.push ci) s where
+  ienv := h.ienv.push hst h.coh hnp hci
+  envWF := EnvWF.cons h.envWF hcw
+  coh := h.coh.push ci
+  denote := denoteFEnv_push h.denote hci
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the two `find?`s agree,
 entry by entry**: the arena's list and its denotation answer at handles and
