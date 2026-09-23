@@ -377,13 +377,15 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
     exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
       ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩⟩
 
-/-! ## 4. The three instantiated-constant caches
+/-! ## 4. The three instantiated-constant caches — CLOSED (round 4)
 
-**OPEN**, all three, and for one reason: the miss branch is `instLPFast`,
-whose callee rule is `Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` — itself
-`sorry` at task #97-P3-0's open list, and re-stated by task #97-P3-1's arm
-split while this round ran.  The insert lemmas above are written; what each
-proof needs is the one call's spec and nothing else. -/
+The miss branch is `instLPFast`, and `Bridge/ExprOps/Owed.lean`'s
+`instLPFast_spec` now carries the cache frame (a record equation naming
+`readLC`/`readNC`/`readLsC`) and `ReadNCacheOK` — task #97-P3-1 round 4, the
+answer to this tier's finding 19.  `CheckOK.ofInstLP` turns the two into
+`CheckOK` past the call; the insert is the capped one above.  This module
+imports `Bridge/ExprOps/Owed.lean` since round 4 (the derived-auxiliary wall
+of finding 18 is gone). -/
 
 /-- con-leche: none — **`CheckOK` past an `instLPFast` call**: the call's
 record equation names the three readback tables it moves and frames the other
@@ -504,8 +506,8 @@ theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
   exact hd
 
 /-- con-leche: none — **THEOREM 1 for `constValAt`** (the delta step's
-expensive half, and the reason `unfoldDefinition` is not free).  **OPEN**:
-needs `instLPFast_spec`. -/
+expensive half, and the reason `unfoldDefinition` is not free).  **CLOSED**
+(round 4). -/
 theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     (value : EIdx) (us : LsIdx) (nm : ConLeche.Name) (ls : List Level)
     (cv : ConstantVal) (val : Expr) (hint : ReducibilityHint)
@@ -577,8 +579,7 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
   exact hd
 
 /-- con-leche: none — **THEOREM 1 for `ruleRhsAt`** (an ι rule's right-hand
-side at the recursor's universe instantiation).  **OPEN**: needs
-`instLPFast_spec`. -/
+side at the recursor's universe instantiation).  **CLOSED** (round 4). -/
 theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (rhs : EIdx) (us : LsIdx) (rnv cnv : ConLeche.Name) (ls : List Level)
     (cv : ConstantVal) (mi rp : Nat) (rules : List RecRule) (rl : RecRule)

@@ -96,24 +96,21 @@ function that is not in `CheckM` at all
 `∃ F` and no fuel bookkeeping: the conclusion is an equation between the
 arena's answer and con-leche's.  They are the first four of these to write.
 
-## 2. What the TEN that are left are waiting on (round 3's reading)
+## 2. What the SIX that are left are waiting on (round 4)
+
+Round 4 closed four of round 3's ten and moved each to the module whose
+imports it needs: `unfoldDefinition` and `etaCert` to `Walks/Spine.lean`,
+`projCertAt` to `Walks/Proj.lean`, `reduceNat` to `Walks/Nat.lean`.  Left
+here:
 
 * **three on a module that does not exist** — `propIrrel`, `annotPwPi` and
   `annotPwLam` read `Arena/PropRead.lean`'s `notProofFast`, `isProofFast`,
-  `typeSortPW` and `proofPW`, and that file has no bridge spec anywhere.  It
-  is a tier, not a callee rule, and nobody had costed it;
-* **three on `instLPFast_spec`'s missing cache frame** — `unfoldDefinition`
-  through `Walks/Cached.lean`'s `constValAt_spec`, and `projCertAt` through
-  `Walks/Proj.lean`'s `projCert_spec` / `constTyAt_spec`.  DESIGN §8's
-  `### Task #97-P3-Core-2` round 3 finding 19 has the two conjuncts the
-  `ExprOps` tier owes;
-* **`etaCert`** — nothing outside this tier: its pure side is proved below
-  and so is the callee rule's answer shape;
-* **`reduceNat`** — five state-only walks of `Arena/Core.lean` and nothing
-  else, which is why round 2's §9 named it first;
+  `typeSortPW` and `proofPW`, and that file has no bridge spec anywhere
+  (DESIGN §8's `### Task #97-P3-Core` round 4 prices it);
 * **`projLitToCtor`** — `strLitSupported`, `strLitToConstructor` and
   `litMajorToCtor`;
-* **`stuckIrrel`** and **`iotaRec`**, the two towers.
+* **`stuckIrrel`** and **`iotaRec`**, the two towers (`iotaRec`'s
+  `ruleRhsAt` and `iotaCerts` legs are now closed callee rules).
 
 (Round 2's reading of this list said *"ten of the sixteen wait on an
 `ExprOps`-tier callee rule that this tier does not import"*.  That was true

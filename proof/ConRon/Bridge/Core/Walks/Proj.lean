@@ -23,8 +23,9 @@ unblocks.
 | `projTableName_spec` | the reserved name of `T`'s table, interned | **CLOSED** |
 | `IFEnv.findProj?_spec` | the indexed table lookup, at `denoteProjEntry` | **CLOSED**, modulo §2's shape hypothesis |
 | `IProjEntry.fireOk_spec` | the tower-fire guard | **CLOSED** |
-| `IProjEntry.typeAt_spec` | the `.proj` node's type | stated; waits on `ExprOps.instLPFast_spec` / `instantiateListFast_spec` |
-| `projCert_spec` | the structural projection's certificate | stated; waits on `constTyAt_spec` and `iotaCerts_spec` |
+| `IProjEntry.typeAt_spec` | the `.proj` node's type | **CLOSED** (round 4) |
+| `iotaCerts_spec` | the batched spine certificate | **CLOSED** (round 4) |
+| `projCert_spec`, `projCertAt_spec` | the structural projection's certificate | **CLOSED** (round 4) |
 
 ## 1. The one thing the exactness lemma needs that neither tier records
 
@@ -307,7 +308,7 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     simp only [ConLeche.ProjEntry.fireOk, hrb, beq_self_eq_true,
       Bool.not_true, Bool.false_or]
 
-/-! ## 5. The two that wait on another tier -/
+/-! ## 5. The two that waited on another tier — CLOSED (round 4) -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:970-979 ProjEntry.typeAt —
 **THEOREM 1 for the type of a `.proj` node at a tower-backed entry**: the
@@ -315,13 +316,10 @@ stored body, level-instantiated at the subject type's levels, with the
 subject type's arguments and the subject substituted for its `numParams + 1`
 loose variables in ONE traversal.
 
-**OPEN**, and on the `ExprOps` tier alone: the twin is `instLPFast` followed
-by `instantiateListFast` on the push-order array `targs.toArray.push pe`
-(task #97-P6-15's accumulator ruling), so it needs
-`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` and
-`Bridge/ExprOps/Inst1.lean`'s `instantiateList_spec`, plus con-leche's own
-`Expr.instantiateList` identification of `pe :: targs.reverse` with the
-pushed array.  Nothing else: the entry's denotation is now in hand. -/
+**CLOSED** (round 4): `instLPFast_spec` (with its cache frame) then
+`instantiateListFast_spec` on the push-order array `targs.toArray.push pe`
+(task #97-P6-15's accumulator ruling), whose `InstLVec` is exactly
+`pe :: targs.reverse`. -/
 theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     (targs : List EIdx) (pe : EIdx) (p : ProjEntry) (ls : List Level)
     (xs : List Expr) (x : Expr) (hok : CheckOK mode env fe s₀)
