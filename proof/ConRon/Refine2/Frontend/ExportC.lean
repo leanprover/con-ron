@@ -81,7 +81,18 @@ theorem line_err_to_check_refines {e line_no o}
     absU o.2 = absU line_no ∧
       (∀ ce, e = .Err ce → absAErrKind o.1 = absAErrKind ce) ∧
       (∀ v lv, e = .Verdict v → lVerdictKind lv = absVerdictKind v →
-        absAErrKind o.1 = lAErrKind lv.toError) := by sorry
+        absAErrKind o.1 = lAErrKind lv.toError) := by
+  rw [frontend.export_c.line_err_to_check.eq_def] at h
+  cases e with
+  | Err ce =>
+    cases Result.ok_injective h
+    exact ⟨rfl, fun ce' he => (by cases he; rfl), fun v lv he => (by cases he)⟩
+  | Verdict v =>
+    obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    refine ⟨rfl, fun ce' he => (by cases he), fun v' lv he hk => ?_⟩
+    cases he
+    exact record_verdict_to_error_refines hk hce
 
 /-! ## The message builders — fifteen functions with NO refinement claim
 
@@ -193,7 +204,12 @@ theorem scan_err_to_check_refines {e ce}
     (h : frontend.export_c.scan_err_to_check e = ok ce) :
     (absErrTag e.what = none → absAErrKind ce = none) ∧
       (∀ t, absErrTag e.what = some t → absAErrKind ce = some .internal) := by
-  sorry
+  rw [frontend.export_c.scan_err_to_check] at h
+  rcases e with ⟨off, what⟩
+  cases what <;> simp only at h <;>
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h <;>
+    simp only [kernel.core_types.internal, kernel.core_types.native, Result.ok.injEq] at h <;>
+    subst h <;> simp [absErrTag, absAErrKind]
 
 /-! ## The store fuel
 
@@ -631,7 +647,11 @@ theorem register_proj_owners_refines {pers rst lst rsd lsd tys cts rcs block o}
 (`ExportC.lean:717-719`). -/
 theorem parse_result_of_state_refines {rsd lsd p} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.parse_result_of_state rsd = ok p) :
-    ParseResultDRel p (ParseResultD.ofState lsd) := by sorry
+    ParseResultDRel p (ParseResultD.ofState lsd) := by
+  rw [frontend.export_c.parse_result_of_state] at h
+  cases Result.ok_injective h
+  exact ⟨hd.decls, hd.projRewrites, hd.inModelled, hd.genRecords, hd.genOwner,
+    hd.inModelGen, hd.inModelDeclined⟩
 
 /-- **`at_line` refines `atLine`** (`ExportC.lean:855-859`): the line number
 folded into the message.  The KIND — hence the exit code — is untouched, and

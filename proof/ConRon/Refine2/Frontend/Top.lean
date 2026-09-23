@@ -299,7 +299,71 @@ theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
       (do
         match ← applyFinalLine lmd lsd (absBytes b) (absPos i) (absU line_no) with
         | .error e => pure (.error e)
-        | .ok st => pure (.ok (st, ()))) := by sorry
+        | .ok st => pure (.ok (st, ()))) := by
+  rw [frontend.export_c.apply_final_line] at h
+  obtain ⟨sr, hsr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hS := hsc.scanLineFwd hsr
+  simp only [SimStreamD, am_run_bind']
+  cases sr with
+  | Ok p =>
+    obtain ⟨r1, j⟩ := p
+    have hscan : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i) =
+        .ok (absLineRec r1) (absPos j) := hS
+    obtain ⟨hwf, hnat⟩ := hsc.scanLineStr hsr
+    obtain ⟨⟨r2, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hA := apply_line_refines hmr hrel hinv hd hi hwf hnat hap
+    have hrun : (applyFinalLine lmd lsd (absBytes b) (absPos i) (absU line_no)).run lst =
+        (applyLine lmd lsd (absLineRec r1)).run lst >>= fun q =>
+          (match q.1 with
+           | .inr v => (pure (.error (v.toError, absU line_no)) :
+                AM (Except (Arena.CheckError × Nat) Arena.Frontend.StateD))
+           | .inl st => pure (.ok st)).run q.2 := by
+      simp only [applyFinalLine, hscan]
+      rfl
+    rw [hrun]
+    simp only [SimDV] at hA
+    cases r2 with
+    | Ok u =>
+      have ho := Result.ok_injective h; subst ho
+      obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hA
+      exact ⟨lsd', lst', by rw [hx]; rfl, hd', hi', hrel', hinv', hext'⟩
+    | Err e =>
+      obtain ⟨p1, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ho := Result.ok_injective h; subst ho
+      obtain ⟨hpos, herr, hver⟩ := line_err_to_check_refines hp1
+      show StreamErrSim p1 _
+      cases e with
+      | Err ce =>
+        intro k hk
+        rw [herr ce rfl] at hk
+        obtain ⟨le, hx, hle⟩ := hA k hk
+        exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+      | Verdict v =>
+        obtain ⟨lv, lst', hx, hkv, -⟩ := hA
+        intro k hk
+        rw [hver v lv rfl hkv] at hk
+        refine Or.inl ⟨lv.toError, lst', ?_, hk⟩
+        rw [hx, hpos]; rfl
+  | Err e =>
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ho := Result.ok_injective h; subst ho
+    obtain ⟨hnone, hsome⟩ := scan_err_to_check_refines hce
+    show StreamErrSim (ce, line_no) _
+    intro k hk
+    cases ht : absErrTag e.what with
+    | none => rw [hnone ht] at hk; cases hk
+    | some tg =>
+      rw [hsome tg ht] at hk
+      cases hk
+      have hscan : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i) =
+          .err ⟨e.offset.val, tg⟩ := by
+        have := (hS : ScanErrSim e _) ⟨e.offset.val, tg⟩ (by rw [absScanErr, ht]; rfl)
+        exact this
+      refine Or.inl ⟨.internal (ConLeche.Frontend.ScanErr.render
+        ⟨e.offset.val - (absPos i).toNat, tg⟩), lst, ?_, rfl⟩
+      simp only [applyFinalLine, hscan]
+      rfl
 
 /-- **`feed_chunk` refines `feedChunk`** (`ExportC.lean:742-765`) — every
 COMPLETE line of the chunk from `i`, applied in order.  A line a chunk cut in
