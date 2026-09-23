@@ -493,6 +493,11 @@ theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α 
     (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
   rw [bind_tc_ok]; exact h
 
+theorem ErrArm.of_ok_bind {γ δ : Type} {v : δ}
+    {k : δ → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {e : kernel.core_types.CheckError} (h : ErrArm (k v) e) : ErrArm (ok v >>= k) e := by
+  rw [bind_tc_ok]; exact h
+
 theorem errArm_of_eq {γ : Type} {e : kernel.core_types.CheckError} {st : arena.monad.AState}
     {m : Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
     (h : m = ok (.Err e, st)) : ErrArm m e := by
@@ -1031,6 +1036,8 @@ macro_rules
       | exact errSim_fail rfl
       | exact errSim_throw rfl
       | assumption
+      | exact errSim_fail (by assumption)
+      | exact errSim_throw (by assumption)
       | (simp only [lockstep_simp] at *; first | exact errSim_fail rfl | exact errSim_throw rfl))
 
 /-- The error arm of a Rust bind: the continuation fed an `Err` gives it back,
@@ -1191,7 +1198,20 @@ def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
   let rest ← runOn g do
     if let some h := hR then
       let hi := mkIdent h
-      evalT `(tactic| first | subst $hi:ident | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident) | skip)
+      -- a `TwinEq` is a rewrite for the twin side, never a substitution
+      let t? ← (← getMainGoal).withContext do
+        match (← getLCtx).findFromUserName? h with
+        | some d => return some (← instantiateMVars d.type).consumeMData
+        | none => return none
+      let isTE (e : Expr) := e.isAppOfArity ``TwinEq 3
+      match t? with
+      | some t =>
+        if isTE t then pure ()
+        else if t.isAppOfArity ``And 2 && (isTE (t.getArg! 1) || isTE (t.getArg! 0)) then
+          evalT `(tactic| obtain ⟨_, _⟩ := $hi:ident)
+        else
+          evalT `(tactic| first | subst $hi:ident | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident) | skip)
+      | none => pure ()
   rest.mapM fun g => do clearStale (← normGoal g)
 
 /-- The Rust computation's shape. -/
@@ -1211,13 +1231,23 @@ def cont (g : MVarId) (names : List Name) (hR : Option Name) : TacticM (List MVa
   let (_, g') ← g.introN names.length names
   tidy g' hR
 
+/-- An error arm through a chain of `ok v >>= k` re-packs (an inlined
+fragment's result re-matched by its caller, a swapped pair `ok (st, Err e)`),
+each link fed by `bind_tc_ok`. -/
+partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let m ← headNorm (ty.getArg! 1)
+  let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
+  if depth < 16 && m.isAppOfArity ``Bind.bind 6 then
+    let f ← headNorm (m.getArg! 4)
+    if f.isAppOfArity ``Result.ok 2 then
+      let gs ← applyRule g ``ErrArm.of_ok_bind
+      return ← errArmChain (← pick gs `h) (depth + 1)
+  runClosed g (evalT `(tactic| lockstep_errarm))
+
 def errArm (g : MVarId) (names : List Name) : TacticM Unit := do
   let (_, g') ← g.introN names.length names
-  let g' ← g'.withContext do
-    let ty ← instantiateMVars (← g'.getType)
-    let m ← headNorm (ty.getArg! 1)
-    g'.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
-  runClosed g' (evalT `(tactic| lockstep_errarm))
+  errArmChain g'
 
 /-- Drop the branches whose condition contradicts the context. -/
 def contra (gs : List MVarId) : TacticM (List MVarId) := do
@@ -1475,6 +1505,16 @@ def unfoldRust (g : MVarId) (n : Name) : MetaM MVarId := g.withContext do
   if r.expr == ty.getArg! i then throwError "lockstep_core: {n} did not unfold"
   replaceArg g i r
 
+/-- The `TwinEq` facts a hypothesis carries, through conjunctions. -/
+partial def twinEqsOf (pf t : Expr) : MetaM (List (Expr × Expr)) := do
+  let t := t.consumeMData
+  if t.isAppOfArity ``TwinEq 3 then return [(pf, t)]
+  if t.isAppOfArity ``And 2 then
+    let l ← twinEqsOf (← mkAppM ``And.left #[pf]) (t.getArg! 0)
+    let r ← twinEqsOf (← mkAppM ``And.right #[pf]) (t.getArg! 1)
+    return l ++ r
+  return []
+
 /-- The twin side rewritten with the `TwinEq` facts of the context and
 `lockstep_simp`. -/
 def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
@@ -1485,9 +1525,9 @@ def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t ← instantiateMVars d.type
-    if t.isAppOfArity ``TwinEq 3 then
-      let eqTy ← mkEq (t.getArg! 1) (t.getArg! 2)
-      thms ← thms.add (.fvar d.fvarId) #[] (← mkExpectedTypeHint d.toExpr eqTy)
+    for (pf, te) in ← twinEqsOf d.toExpr t do
+      let eqTy ← mkEq (te.getArg! 1) (te.getArg! 2)
+      thms ← thms.add (.fvar d.fvarId) #[] (← mkExpectedTypeHint pf eqTy)
       any := true
   unless any do return g
   let some ext ← getSimpExtension? `lockstep_simp | return g
@@ -1591,8 +1631,8 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
   if isLS && m.isAppOfArity ``Bind.bind 6 then
     let x := (ty.getArg! 6).headBeta
     let isProj := match (m.getArg! 4).getAppFn.constName? with
-      | some n => n != ``arena.monad.view && (`arena.monad).isPrefixOf n &&
-          (n.toString.drop "arena.monad.".length).startsWith "view_"
+      | some n => n != ``arena.monad.view && n.getPrefix == (``arena.monad.view).getPrefix &&
+          (match n with | .str _ s => s.startsWith "view_" | _ => false)
       | none => false
     if isProj && x.isAppOfArity ``Bind.bind 6 &&
         ((x.getArg! 4).headBeta.isAppOf ``Arena.view) then
@@ -1610,11 +1650,31 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
           let rest ← stepCore g'
           return some (← normAll rest)
         catch _ => s.restore
+  -- a twin `if h : c then … else …` (a `dite`), decided by the context
+  if isLS then
+    let x := (ty.getArg! 6).headBeta
+    if x.isAppOfArity ``dite 5 then
+      let cheap ← `(tactic| lockstep_side_cheap)
+      let dear ← `(tactic| lockstep_side_ite)
+      let sides := if m.isAppOfArity ``Bind.bind 6 then [cheap] else [cheap, dear]
+      for side in sides do
+        for rule in [``LS.twin_dite_pos, ``LS.twin_dite_neg] do
+          let s ← saveState
+          try
+            let gs ← applyRule g rule
+            runClosed (← pick gs `hc) (evalTactic side)
+            return some (← normAll [← pick gs `h])
+          catch _ => s.restore
   return none
 
 /-- **One lockstep step** on the main goal. -/
 elab "lockstep_step" : tactic => do
   let g ← getMainGoal
+  -- a target wrapped in `mdata` (after `generalize`, `rcases`, `have`) is
+  -- matched on its bare form
+  let g ← g.withContext do
+    let ty ← instantiateMVars (← g.getType)
+    if ty.consumeMData != ty then g.replaceTargetDefEq ty.consumeMData else pure g
   let others := (← getGoals).tail
   let s ← saveState
   try
