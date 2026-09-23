@@ -546,6 +546,151 @@ theorem check_decl_refines {pers st lst} {rf lf}
         (absIDeclaration d)) := by
   sorry
 
+/-! ### The bracketed step, composed (task #97-P5-Checker round 4)
+
+`flush_caches_refines ; enter_scratch_refines ; check_decl_refines ;
+promote_new_refines ; bracket_close_w` — the promote window entered at
+`AStateRelW.of_rel` and left at `bracket_close_w`, the one bridge
+(`Refine2/Checker/Shape.lean`).
+
+**What is still between this and `check_decl_step_refines` is ONE port fact,
+and it is not a relation fact.**  `promote_new_refines` takes
+`PersUnfrozen st.store` — the port's four `shared_on` flags down, finding
+17's first half, because at a frozen tier the port answers `Internal` where
+the twin appends.  The step is entered with the flags down (the driver thaws
+before phase A), `flush_caches` and `enter_scratch` do not move them
+(`flush_caches_store`, `enter_scratch_unfrozen` below), but whether
+`check_decl` moves them is a fact about the PORT's body that no statement of
+Theorem 2 concludes: `SimRel`'s success arm relates the post-state to the
+twin's, and the twin has no flag.  It is carried here as `KeepsUnfrozen`, a
+hypothesis in `TwinWF`'s shape (universally quantified over the state, so it
+threads through a fold), and the public leaf stays open until the round's
+report is ruled on — see DESIGN.md, task #97-P5-Checker round 4 §1. -/
+
+/-- **NAMED OBLIGATION** — the port action does not freeze the persistent
+tier.  True of every function of `arena-core` (only the driver's
+`freeze_tier` / `thaw_tier` write `shared_on`), and concluded by no
+refinement statement. -/
+def KeepsUnfrozen {α : Type}
+    (f : arena.monad.AState → Result (α × arena.monad.AState)) : Prop :=
+  ∀ st o, PersUnfrozen st.store → f st = ok o → PersUnfrozen o.2.store
+
+theorem flush_caches_store {st st' : arena.monad.AState}
+    (h : arena.core.flush_caches st = ok st') : st'.store = st.store := by
+  rw [arena.core.flush_caches] at h
+  obtain ⟨c, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+
+theorem enter_scratch_unfrozen {st st' : arena.monad.AState}
+    (hfr : PersUnfrozen st.store) (h : arena.core.enter_scratch st = ok st') :
+    PersUnfrozen st'.store := by
+  rw [arena.core.enter_scratch] at h
+  obtain ⟨m, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+  rw [arena.store.EStore.enable_scratch] at he
+  obtain ⟨ls, hls, he⟩ := ConRon.Refine.bind_eq_ok_iff.mp he
+  obtain ⟨t, -, he⟩ := ConRon.Refine.bind_eq_ok_iff.mp he
+  rw [← Result.ok_injective he]
+  rw [arena.store.LsStore.enable_scratch] at hls
+  obtain ⟨l, hl, hls⟩ := ConRon.Refine.bind_eq_ok_iff.mp hls
+  obtain ⟨t2, -, hls⟩ := ConRon.Refine.bind_eq_ok_iff.mp hls
+  rw [← Result.ok_injective hls]
+  rw [arena.store.LStore.enable_scratch] at hl
+  obtain ⟨n, hn, hl⟩ := ConRon.Refine.bind_eq_ok_iff.mp hl
+  obtain ⟨t3, -, hl⟩ := ConRon.Refine.bind_eq_ok_iff.mp hl
+  rw [← Result.ok_injective hl]
+  rw [arena.store.NStore.enable_scratch] at hn
+  obtain ⟨t4, -, hn⟩ := ConRon.Refine.bind_eq_ok_iff.mp hn
+  rw [← Result.ok_injective hn]
+  exact ⟨hfr.e, hfr.lss, hfr.ls, hfr.ns⟩
+
+/-- `check_decl_step_refines` under `KeepsUnfrozen` of its body — the whole
+composition, and the one place the promote window's bridge is consumed. -/
+theorem check_decl_step_of_keeps {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    {d : arena.env.IDeclaration} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfr : PersUnfrozen st.store)
+    (hkeep : KeepsUnfrozen (fun s => arena.checker.check_decl pers s mode pins rf d))
+    (hrun : arena.checker.check_decl_step pers st mode pins rf d = ok o) :
+    SimRel IFEnvRelI pers lst o
+      (checkDeclStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+        (absIDeclaration d)) := by
+  rw [arena.checker.check_decl_step] at hrun
+  obtain ⟨st1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨st2, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st3⟩ := q
+  -- the bracket opened
+  obtain ⟨hF, hrel1, hinv1⟩ := flush_caches_refines hrel hinv h1
+  obtain ⟨hE, hrel2, hinv2⟩ := enter_scratch_refines hrel1 hinv1 h2
+  have hfr2 : PersUnfrozen st2.store :=
+    enter_scratch_unfrozen (by rw [flush_caches_store h1]; exact hfr) h2
+  have hfr3 : PersUnfrozen st3.store := hkeep st2 (r, st3) hfr2 hq
+  -- the body
+  have hB := check_decl_refines (lf := lf) hrel2 hinv2 hfe hfinv hq
+  simp only [SimRel, AOutRel] at hB
+  -- the twin, run up to the body
+  have hrun0 : ∀ (k : IFEnv → AM IFEnv),
+      ((flushCaches : AM Unit) >>= fun _ => (enterScratch : AM Unit) >>= fun _ =>
+          checkDecl (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+            (absIDeclaration d) >>= k).run lst
+        = (checkDecl (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+            (absIDeclaration d) >>= k).run
+          { { lst with caches := Caches.empty } with
+            store := lst.store.enableScratch, memos := Memos.empty } := by
+    intro k
+    rw [am_run_bind', hF, except_ok_bind, am_run_bind', hE, except_ok_bind]
+  simp only [SimRel, AOutRel, checkDeclStep, hrun0]
+  cases r with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AErrSim.bind hB _
+  | Ok fe2 =>
+    obtain ⟨v, lst3, hx, hv, hrel3, hinv3, hext3⟩ := hB
+    obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨pm, hpm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, st4⟩ := q4
+    have hkv : absU k = v.visibleBelow - lf.visibleBelow := by
+      rw [hv.rel.visibleBelow, hfe.visibleBelow]
+      exact ConRon.Refine.HashMap.uscalar_sub_eq hk
+    have hkle : absU k ≤ fe2.env.consts.val.length := by
+      have h1 : absU k ≤ fe2.visible_below.val := by
+        have := ConRon.Refine.HashMap.uscalar_sub_eq hk
+        show k.val ≤ _
+        omega
+      exact le_trans h1 hv.inv.visBound
+    have hP := promote_new_refines (lm := PMemo.empty) (lf := v)
+      (AStateRelW.of_rel hrel3) hinv3 hfr3 (pmemo_empty_refines hpm) hv.rel hv.inv
+      hkle hq4
+    simp only [SimPMW, POutW] at hP
+    rw [am_run_bind', hx]
+    rw [core_walk_fuel_abs, hkv] at hP
+    cases r1 with
+    | Err e =>
+      have hrun' : (ok (core.result.Result.Err e, st4) : Result _) = ok o := hrun
+      have ho := Result.ok_injective hrun'
+      subst ho
+      exact AErrSim.bind hP _
+    | Ok p1 =>
+      obtain ⟨m', v', lst4, hx4, hv4, -, hrel4, hinv4, hext4⟩ := hP
+      obtain ⟨pm1, fe3⟩ := p1
+      have hrun' : (do let st5 ← arena.core.drop_scratch st4
+                       ok (core.result.Result.Ok fe3, st5)) = ok o := hrun
+      obtain ⟨st5, h5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun'
+      have ho := Result.ok_injective hrun
+      subst ho
+      obtain ⟨hD, hrel5, hinv5, hext5, -⟩ :=
+        bracket_close_w hbr hrel4 hinv4 (Ext.trans hext3 hext4) h5
+      refine ⟨v', brLeft lst4, ?_, hv4, hrel5, hinv5, hext5⟩
+      rw [except_ok_bind, am_run_bind', hx4, except_ok_bind, am_run_bind', hD]
+      rfl
+
 /-- **`check_decl_step` ⊑ `checkDeclStep`** — one step of the pure fold,
 BRACKETED: `checkDecl` inside the per-declaration scratch tier, with the
 constants it installed promoted before the tier goes.  This is where
@@ -771,20 +916,252 @@ theorem annot_step_go_refines {pers st lst} {rf lf}
 /-- `annot_step_promote` — the bracket's promotion half at a step that
 produced a `ValueGroup`: the seam promoted beside the environment and at the
 SAME memo, so that the sharing between a header's type and its value survives
-the copy. -/
-theorem annot_step_promote_refines {pers st lst} {rf lf}
+the copy — **and the tier dropped**.
+
+**Restated by task #97-P5-Checker round 4: the old statement was false.**  The
+Rust `annot_step_promote` ends in `drop_scratch` (`checker.rs:963`); the old
+twin side stopped at the promotion, so its post-states disagreed on
+`scratchOn` and `AStateRel` failed at every success.  Putting `dropScratch` in
+the twin makes the post-states agree, and then `Ext` is only true from the
+BOUNDARY the bracket was entered at (`ext_bracket`), not from the state this
+function is called at — so the statement is `AOutRel` at that boundary `lst0`,
+with `BrOK lst0` and the body's `Ext lst0.store.enableScratch lst.store` as
+hypotheses, exactly `bracket_close`'s.  `hfr` is `promote_vg_refines`' side
+condition. -/
+theorem annot_step_promote_refines {pers st lst lst0} {rf lf}
     {i vis k : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {vg : arena.checker_split.ValueGroup} {o}
+    (hbr : BrOK lst0) (hext0 : Ext lst0.store.enableScratch lst.store)
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hk : absU k ≤ rf.env.consts.val.length)
     (hrun : arena.checker.annot_step_promote pers st i vis k rf pend vg = ok o) :
-    SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = absPendingCheckL r.2) pers lst o
-      (do
+    AOutRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = (absPendingCheckL r.2).toArray)
+      pers lst0 o.1 o.2
+      ((do
         let (m, vg) ← promoteVG PMemo.empty coreWalkFuel (absValueGroup vg)
         let (_, fe) ← promoteNew m coreWalkFuel (absU k) lf
-        pure (fe, absPendingCheckL pend ++ [⟨vg, absU i, absU vis⟩])) := by
+        dropScratch
+        pure (fe, (absPendingCheckL pend).toArray.push ⟨vg, absU i, absU vis⟩)
+        : AM (IFEnv × Array PendingCheck)).run lst) := by
   sorry
+
+/-- `annot_step_promote_refines` under `KeepsUnfrozen` of `promote_vg` — the
+whole composition; `promote_new` needs the flags down AFTER `promote_vg`, and
+that is the same port fact as `check_decl_step_of_keeps`' (DESIGN.md, task
+#97-P5-Checker round 4 §1). -/
+theorem annot_step_promote_of_keeps {pers st lst lst0} {rf lf}
+    {i vis k : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {vg : arena.checker_split.ValueGroup} {o}
+    (hbr : BrOK lst0) (hext0 : Ext lst0.store.enableScratch lst.store)
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfr : PersUnfrozen st.store)
+    (hkeep : ∀ pm, KeepsUnfrozen
+      (fun s => arena.promote.promote_vg pers s pm arena.core.CORE_WALK_FUEL vg))
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hk : absU k ≤ rf.env.consts.val.length)
+    (hrun : arena.checker.annot_step_promote pers st i vis k rf pend vg = ok o) :
+    AOutRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = (absPendingCheckL r.2).toArray)
+      pers lst0 o.1 o.2
+      ((do
+        let (m, vg) ← promoteVG PMemo.empty coreWalkFuel (absValueGroup vg)
+        let (_, fe) ← promoteNew m coreWalkFuel (absU k) lf
+        dropScratch
+        pure (fe, (absPendingCheckL pend).toArray.push ⟨vg, absU i, absU vis⟩)
+        : AM (IFEnv × Array PendingCheck)).run lst) := by
+  rw [arena.checker.annot_step_promote] at hrun
+  obtain ⟨pm, hpm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st1⟩ := q1
+  have hV := promote_vg_refines (lm := PMemo.empty) (AStateRelW.of_rel hrel) hinv hfr
+    (pmemo_empty_refines hpm) hq1
+  simp only [SimPMW, POutW] at hV
+  rw [core_walk_fuel_abs] at hV
+  rw [am_run_bind']
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact AErrSim.bind hV _
+  | Ok p1 =>
+    obtain ⟨m1, v1, lst1, hx1, hv1, hm1, hrel1, hinv1, hext1⟩ := hV
+    obtain ⟨pm1, vg2⟩ := p1
+    have hfr1 : PersUnfrozen st1.store := hkeep pm st (core.result.Result.Ok (pm1, vg2), st1) hfr hq1
+    have hrun1 : (do
+        let (r1, st2) ← arena.promote.promote_new pers st1 pm1 arena.core.CORE_WALK_FUEL k rf
+        match r1 with
+        | core.result.Result.Ok p2 =>
+          let (_, fe2) := p2
+          do
+          let st3 ← arena.core.drop_scratch st2
+          let pend1 ← alloc.vec.Vec.push pend
+            ({ vg := vg2, pos := i, vis } : arena.checker.PendingCheck)
+          ok (core.result.Result.Ok (fe2, pend1), st3)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st2)) = ok o := hrun
+    obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun1
+    obtain ⟨r2, st2⟩ := q2
+    have hP := promote_new_refines (lf := lf) hrel1 hinv1 hfr1 hm1 hfe hfinv hk hq2
+    simp only [SimPMW, POutW] at hP
+    rw [core_walk_fuel_abs] at hP
+    rw [hx1, except_ok_bind, am_run_bind']
+    cases r2 with
+    | Err e =>
+      have hrun' : (ok (core.result.Result.Err e, st2) : Result _) = ok o := hrun
+      have ho := Result.ok_injective hrun'
+      subst ho
+      exact AErrSim.bind hP _
+    | Ok p2 =>
+      obtain ⟨m2, v2, lst2, hx2, hv2, -, hrel2, hinv2, hext2⟩ := hP
+      obtain ⟨pm2, fe2⟩ := p2
+      have hrun2 : (do
+          let st3 ← arena.core.drop_scratch st2
+          let pend1 ← alloc.vec.Vec.push pend
+            ({ vg := vg2, pos := i, vis } : arena.checker.PendingCheck)
+          ok (core.result.Result.Ok (fe2, pend1), st3)) = ok o := hrun
+      obtain ⟨st3, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun2
+      obtain ⟨pend1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      obtain ⟨hD, hrel3, hinv3, hext3, -⟩ :=
+        bracket_close_w hbr hrel2 hinv2 (Ext.trans hext0 (Ext.trans hext1 hext2)) h3
+      refine ⟨(v2, (absPendingCheckL pend).toArray.push ⟨v1, absU i, absU vis⟩),
+        brLeft lst2, ?_, ⟨hv2, ?_⟩, hrel3, hinv3, hext3⟩
+      · rw [hx2, except_ok_bind, am_run_bind', hD, except_ok_bind]
+        rfl
+      · simp only [absPendingCheckL, ConRon.Refine.vec_push_val hp1, List.map_append,
+          List.map_cons, List.map_nil, absPendingCheck, hv1]
+        exact List.push_toArray _ _
+
+/-- `annot_step_refines` under `KeepsUnfrozen` of its body and of
+`promote_vg` — the whole composition, both arms. -/
+theorem annot_step_of_keeps {pers st lst} {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.U64}
+    {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {pd : arena.env.IDeclaration} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfr : PersUnfrozen st.store)
+    (hkeep : KeepsUnfrozen (fun s => arena.checker.annot_step_go pers s mode pins rf pd))
+    (hkeepV : ∀ pm vg, KeepsUnfrozen
+      (fun s => arena.promote.promote_vg pers s pm arena.core.CORE_WALK_FUEL vg))
+    (hrun : arena.checker.annot_step pers st mode pins i rf pend pd = ok o) :
+    SimRel (fun r v => IFEnvRelI r.1 v.1 ∧ v.2 = (absPendingCheckL r.2).toArray)
+      pers lst o
+      (annotStep (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) (absU i) lf
+        (absPendingCheckL pend).toArray (absIDeclaration pd)) := by
+  rw [arena.checker.annot_step] at hrun
+  obtain ⟨st1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨st2, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st3⟩ := q
+  obtain ⟨hF, hrel1, hinv1⟩ := flush_caches_refines hrel hinv h1
+  obtain ⟨hE, hrel2, hinv2⟩ := enter_scratch_refines hrel1 hinv1 h2
+  have hfr2 : PersUnfrozen st2.store :=
+    enter_scratch_unfrozen (by rw [flush_caches_store h1]; exact hfr) h2
+  have hfr3 : PersUnfrozen st3.store := hkeep st2 (r, st3) hfr2 hq
+  have hB := annot_step_go_refines (lf := lf) hrel2 hinv2 hfe hfinv hq
+  simp only [SimRel, AOutRel] at hB
+  have hrun0 : ∀ (k : IFEnv × Option ValueGroup → AM (IFEnv × Array PendingCheck)),
+      ((flushCaches : AM Unit) >>= fun _ => (enterScratch : AM Unit) >>= fun _ =>
+          annotStepGo (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+            (absIDeclaration pd) >>= k).run lst
+        = (annotStepGo (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
+            (absIDeclaration pd) >>= k).run
+          { { lst with caches := Caches.empty } with
+            store := lst.store.enableScratch, memos := Memos.empty } := by
+    intro k
+    rw [am_run_bind', hF, except_ok_bind, am_run_bind', hE, except_ok_bind]
+  simp only [SimRel, AOutRel, annotStep, hrun0]
+  cases r with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st3) : Result _) = ok o := hrun
+    have ho := Result.ok_injective hrun'
+    subst ho
+    exact AErrSim.bind hB _
+  | Ok p =>
+    obtain ⟨v, lst3, hx, ⟨hv1, hv2⟩, hrel3, hinv3, hext3⟩ := hB
+    obtain ⟨fe2, vg_opt⟩ := p
+    obtain ⟨v1, v2⟩ := v
+    simp only at hv2
+    subst hv2
+    rw [am_run_bind', hx, except_ok_bind]
+    cases vg_opt with
+    | some vg =>
+      have hrun1 : (do
+          let k ← fe2.visible_below - rf.visible_below
+          arena.checker.annot_step_promote pers st3 i rf.visible_below k fe2 pend vg)
+          = ok o := hrun
+      obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun1
+      have hkv : absU k = v1.visibleBelow - lf.visibleBelow := by
+        rw [hv1.rel.visibleBelow, hfe.visibleBelow]
+        exact ConRon.Refine.HashMap.uscalar_sub_eq hk
+      have hkle : absU k ≤ fe2.env.consts.val.length := by
+        have h1 : absU k ≤ fe2.visible_below.val := by
+          have := ConRon.Refine.HashMap.uscalar_sub_eq hk
+          show k.val ≤ _
+          omega
+        exact le_trans h1 hv1.inv.visBound
+      have hA := annot_step_promote_of_keeps (lf := v1) hbr hext3 hrel3 hinv3 hfr3
+        (hkeepV · vg) hv1.rel hv1.inv hkle hrun
+      rw [hkv, ← hfe.visibleBelow] at hA
+      dsimp only [Option.map]
+      exact hA
+    | none =>
+      have hrun2 : (do
+          let k ← fe2.visible_below - rf.visible_below
+          let p1 ← arena.promote.PMemo.empty
+          let (r1, st4) ←
+            arena.promote.promote_new pers st3 p1 arena.core.CORE_WALK_FUEL k fe2
+          match r1 with
+          | core.result.Result.Ok p2 =>
+            let (_, fe3) := p2
+            let st5 ← arena.core.drop_scratch st4
+            ok (core.result.Result.Ok (fe3, pend), st5)
+          | core.result.Result.Err e => ok (core.result.Result.Err e, st4))
+          = ok o := hrun
+      obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun2
+      have hkv : absU k = v1.visibleBelow - lf.visibleBelow := by
+        rw [hv1.rel.visibleBelow, hfe.visibleBelow]
+        exact ConRon.Refine.HashMap.uscalar_sub_eq hk
+      have hkle : absU k ≤ fe2.env.consts.val.length := by
+        have h1 : absU k ≤ fe2.visible_below.val := by
+          have := ConRon.Refine.HashMap.uscalar_sub_eq hk
+          show k.val ≤ _
+          omega
+        exact le_trans h1 hv1.inv.visBound
+      obtain ⟨pm, hpm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st4⟩ := q4
+      have hP := promote_new_refines (lm := PMemo.empty) (lf := v1)
+        (AStateRelW.of_rel hrel3) hinv3 hfr3 (pmemo_empty_refines hpm) hv1.rel hv1.inv
+        hkle hq4
+      simp only [SimPMW, POutW] at hP
+      rw [core_walk_fuel_abs, hkv] at hP
+      dsimp only [Option.map]
+      rw [am_run_bind']
+      cases r1 with
+      | Err e =>
+        have hrun' : (ok (core.result.Result.Err e, st4) : Result _) = ok o := hrun
+        have ho := Result.ok_injective hrun'
+        subst ho
+        exact AErrSim.bind hP _
+      | Ok p1 =>
+        obtain ⟨m', v', lst4, hx4, hv4, -, hrel4, hinv4, hext4⟩ := hP
+        obtain ⟨pm1, fe3⟩ := p1
+        have hrun' : (do let st5 ← arena.core.drop_scratch st4
+                         ok (core.result.Result.Ok (fe3, pend), st5)) = ok o := hrun
+        obtain ⟨st5, h5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun'
+        have ho := Result.ok_injective hrun
+        subst ho
+        obtain ⟨hD, hrel5, hinv5, hext5, -⟩ :=
+          bracket_close_w hbr hrel4 hinv4 (Ext.trans hext3 hext4) h5
+        refine ⟨(v', (absPendingCheckL pend).toArray), brLeft lst4, ?_, ⟨hv4, rfl⟩,
+          hrel5, hinv5, hext5⟩
+        rw [hx4, except_ok_bind, am_run_bind', hD]
+        rfl
 
 /-- **`annot_step` ⊑ `annotStep`** — phase A's step, bracketed:
 `flushCaches; enterScratch; <the step>; promote; dropScratch`.  The twin's

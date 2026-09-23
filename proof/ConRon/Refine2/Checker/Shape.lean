@@ -879,6 +879,313 @@ theorem am_run_pure_state {α : Type} {a : α} {s s' : AState} {w : α}
   simp only [Except.ok.injEq, Prod.mk.injEq] at h
   exact h.2.symm
 
+/-! ## The promote window, closed (task #97-P5-Checker round 4)
+
+**The bridge between `AStateRelW` and `AStateRel` is `dropScratch`, and it is
+one lemma: `bracket_close_w`.**  A bracketed step runs its body at the strong
+relation, enters the promotion at the weak one (`AStateRelW.of_rel`, free),
+and leaves the promotion at the weak one — `internPersistent` breaks `fresh`
+(task #97-P5-Fresh) — so what the bracket's closing half is handed is
+`AStateRelW`, where `Refine2/Core/Bracket.lean`'s `bracket_close` asks for
+`AStateRel`.  `bracket_close` needs the strong relation for exactly two
+things, and neither of them reads `fresh`:
+
+* `drop_scratch_refines`' post-state `storeWF` — which the WEAK invariant
+  gives as well, through `StoreWF'.dropScratch_wf` (task #97-P5-Fresh §4:
+  `wf_of_scr_empty` never read the input's `fresh`);
+* `ext_bracket`'s `StoreWF b` — the tier discipline that makes a PERSISTENT
+  handle's denotation survive the drop.  Its proof reads `childOK`'s
+  persistence conjunct, the four ranks and `bmChildOK`, all of which the weak
+  invariant keeps; the four `denote*Aux_dropScratch` inductions below are the
+  strong ones with `WFAt` replaced by `WFAt'` and not a step changed.
+
+So the relation is weak exactly across the promote window and strong on both
+sides of it, and **no statement above the bracket weakens**.  The four
+inductions belong beside their strong siblings in `Arena/WFProofs.lean`;
+they are here because that file is not this tier's lane. -/
+
+theorem _root_.ConRon.Arena.NWFAt'.rank_lt {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk)
+    {i : NIdx} (hv : (st.view i).isSome = true) : rk i < st.nodeCount := by
+  by_cases hp : i.isPersistent = true
+  · have h1 := h.rankP i hp hv
+    have h2 := NStore.persCount_le st
+    omega
+  · exact h.rankS i (by simpa using hp) hv
+
+theorem _root_.ConRon.Arena.LWFAt'.rank_lt {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk)
+    {i : LIdx} (hv : (st.view i).isSome = true) : rk i < st.nodeCount := by
+  by_cases hp : i.isPersistent = true
+  · have h1 := h.rankP i hp hv
+    have h2 := LStore.persCount_le st
+    omega
+  · exact h.rankS i (by simpa using hp) hv
+
+theorem _root_.ConRon.Arena.EWFAt'.rank_lt {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk)
+    {i : EIdx} (hv : (st.view i).isSome = true) : rk i < st.nodeCount := by
+  by_cases hp : i.isPersistent = true
+  · have h1 := h.rankP i hp hv
+    have h2 := EStore.persCount_le st
+    omega
+  · exact h.rankS i (by simpa using hp) hv
+
+theorem _root_.ConRon.Arena.EWFAt'.bmPers {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) (i : EIdx)
+    (hp : i.isPersistent = true) :
+    ∀ ty b mi, st.viewBindI i = some (ty, b, mi) → mi.isPersistent = true :=
+  fun ty b mi hh => (h.bmChildOK i ty b mi hh).2.1 hp
+
+theorem denoteNAux_dropScratch' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
+    ∀ (f : Nat) (i : NIdx) (x : ConLeche.Name), i.isPersistent = true →
+      denoteNAux st f i = some x → denoteNAux st.dropScratch f i = some x := by
+  intro f
+  induction f with
+  | zero => intro i x _ hd; simp [denoteNAux] at hd
+  | succ k ih =>
+    intro i x hp hd
+    simp only [denoteNAux, Option.bind_eq_some_iff] at hd ⊢
+    obtain ⟨v, hv, hd⟩ := hd
+    refine ⟨v, by rw [NStore.view_dropScratch_pers st hp]; exact hv, ?_⟩
+    cases v with
+    | anonymous => exact hd
+    | str p s =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      exact ⟨q, ih p q ((h.childOK i _ hv p (by simp [NNodeView.children])).2.2 hp) hq, he⟩
+    | num p n =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      exact ⟨q, ih p q ((h.childOK i _ hv p (by simp [NNodeView.children])).2.2 hp) hq, he⟩
+
+theorem denoteN_dropScratch_pers' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk)
+    {i : NIdx} {x : ConLeche.Name} (hp : i.isPersistent = true)
+    (hd : denoteN st i = some x) : denoteN st.dropScratch i = some x := by
+  have h' := NStore.dropScratch_wfAt' h
+  obtain ⟨v, hv⟩ := denoteN_view hd
+  have hsome : (st.dropScratch.view i).isSome = true := by
+    rw [NStore.view_dropScratch_pers st hp, hv]; rfl
+  have hr1 : rk i < st.dropScratch.nodeCount := h'.rank_lt hsome
+  have hr2 : rk i < st.nodeCount := h.rank_lt (by rw [hv]; rfl)
+  have h1 : denoteNAux st.dropScratch (st.nodeCount + 1) i = some x :=
+    denoteNAux_dropScratch' h _ i x hp hd
+  rw [denoteN, denoteNAux_congr h' (st.dropScratch.nodeCount + 1) i
+    (st.dropScratch.nodeCount + 1) (st.nodeCount + 1) (by omega) (by omega) (by omega)]
+  exact h1
+
+theorem denoteLAux_dropScratch' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
+    ∀ (f : Nat) (i : LIdx) (x : ConLeche.Level), i.isPersistent = true →
+      denoteLAux st f i = some x → denoteLAux st.dropScratch f i = some x := by
+  obtain ⟨rkn, hn⟩ := h.ns
+  intro f
+  induction f with
+  | zero => intro i x _ hd; simp [denoteLAux] at hd
+  | succ k ih =>
+    intro i x hp hd
+    simp only [denoteLAux, Option.bind_eq_some_iff] at hd ⊢
+    obtain ⟨v, hv, hd⟩ := hd
+    refine ⟨v, by rw [LStore.view_dropScratch_pers st hp]; exact hv, ?_⟩
+    cases v with
+    | zero => exact hd
+    | succ u =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      exact ⟨q, ih u q ((h.childOK i _ hv u (by simp [LNodeView.lchildren])).2.2 hp) hq, he⟩
+    | max u w =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨a, b, ha, hb, he⟩ := hd
+      exact ⟨a, b, ih u a ((h.childOK i _ hv u (by simp [LNodeView.lchildren])).2.2 hp) ha,
+        ih w b ((h.childOK i _ hv w (by simp [LNodeView.lchildren])).2.2 hp) hb, he⟩
+    | imax u w =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨a, b, ha, hb, he⟩ := hd
+      exact ⟨a, b, ih u a ((h.childOK i _ hv u (by simp [LNodeView.lchildren])).2.2 hp) ha,
+        ih w b ((h.childOK i _ hv w (by simp [LNodeView.lchildren])).2.2 hp) hb, he⟩
+    | param n =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      refine ⟨q, ?_, he⟩
+      exact denoteN_dropScratch_pers' hn
+        ((h.nchildOK i _ hv n (by simp [LNodeView.nchildren])).2 hp) hq
+
+theorem denoteL_dropScratch_pers' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk)
+    {i : LIdx} {x : ConLeche.Level} (hp : i.isPersistent = true)
+    (hd : denoteL st i = some x) : denoteL st.dropScratch i = some x := by
+  have h' := LStore.dropScratch_wfAt' h
+  obtain ⟨v, hv⟩ := denoteL_view hd
+  have hsome : (st.dropScratch.view i).isSome = true := by
+    rw [LStore.view_dropScratch_pers st hp, hv]; rfl
+  have hr1 : rk i < st.dropScratch.nodeCount := h'.rank_lt hsome
+  have hr2 : rk i < st.nodeCount := h.rank_lt (by rw [hv]; rfl)
+  have h1 : denoteLAux st.dropScratch (st.nodeCount + 1) i = some x :=
+    denoteLAux_dropScratch' h _ i x hp hd
+  rw [denoteL, denoteLAux_congr h' (st.dropScratch.nodeCount + 1) i
+    (st.dropScratch.nodeCount + 1) (st.nodeCount + 1) (by omega) (by omega) (by omega)]
+  exact h1
+
+theorem denoteLList_dropScratch' {ls : LStore} {rk : LIdx → Nat} (h : LWFAt' ls rk) :
+    ∀ (us : List LIdx) (xs : List ConLeche.Level), (∀ c ∈ us, c.isPersistent = true) →
+      denoteLList ls us = some xs → denoteLList ls.dropScratch us = some xs := by
+  intro us
+  induction us with
+  | nil => intro xs _ hd; exact hd
+  | cons u rest ih =>
+    intro xs hp hd
+    simp only [denoteLList, opt2_eq_some_iff] at hd ⊢
+    obtain ⟨a, b, ha, hb, he⟩ := hd
+    exact ⟨a, b, denoteL_dropScratch_pers' h (hp u (by simp)) ha,
+      ih b (fun c hc => hp c (by simp [hc])) hb, he⟩
+
+theorem denoteLs_dropScratch_pers' {st : LsStore} (h : LsWF' st) {i : LsIdx}
+    {xs : List ConLeche.Level} (hp : i.isPersistent = true) (hd : denoteLs st i = some xs) :
+    denoteLs st.dropScratch i = some xs := by
+  obtain ⟨rkl, hl⟩ := h.ls
+  obtain ⟨us, hus, hlist⟩ := denoteLs_view hd
+  rw [denoteLs, LsStore.view_dropScratch_pers st hp, hus]
+  exact denoteLList_dropScratch' hl us xs
+    (fun c hc => (h.lchildOK i us hus c hc).2 hp) hlist
+
+theorem denoteEAux_dropScratch' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
+    ∀ (f : Nat) (i : EIdx) (x : ConLeche.Expr), i.isPersistent = true →
+      denoteEAux st f i = some x → denoteEAux st.dropScratch f i = some x := by
+  have hlsw : LsWF' st.lss := h.lss
+  obtain ⟨rkl, hl⟩ : LStoreWF' st.ls := hlsw.ls
+  obtain ⟨rkn, hn⟩ : NStoreWF' st.ns := hl.ns
+  intro f
+  induction f with
+  | zero => intro i x _ hd; simp [denoteEAux] at hd
+  | succ k ih =>
+    intro i x hp hd
+    simp only [denoteEAux, Option.bind_eq_some_iff] at hd ⊢
+    obtain ⟨v, hv, hd⟩ := hd
+    refine ⟨v, by rw [EStore.view_dropScratch_pers st (h.bmPers i hp) hp]; exact hv, ?_⟩
+    cases v with
+    | bvar _ => exact hd
+    | lit _ => exact hd
+    | fvar j ty =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      exact ⟨q, ih ty q ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hq, he⟩
+    | sort u =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      refine ⟨q, ?_, he⟩
+      exact denoteL_dropScratch_pers' hl
+        ((h.lchildOK i _ hv u (by simp [ENodeView.lchildren])).2 hp) hq
+    | const n us =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨a, b, ha, hb, he⟩ := hd
+      refine ⟨a, b, ?_, ?_, he⟩
+      · exact denoteN_dropScratch_pers' hn
+          ((h.nchildOK i _ hv n (by simp [ENodeView.nchildren])).2 hp) ha
+      · exact denoteLs_dropScratch_pers' hlsw
+          ((h.lschildOK i _ hv us (by simp [ENodeView.lschildren])).2 hp) hb
+    | app g a =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨p, q, hp1, hq1, he⟩ := hd
+      exact ⟨p, q, ih g p ((h.childOK i _ hv g (by simp [ENodeView.echildren])).2.2 hp) hp1,
+        ih a q ((h.childOK i _ hv a (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
+    | lam ty b m =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨p, q, hp1, hq1, he⟩ := hd
+      exact ⟨p, q, ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
+        ih b q ((h.childOK i _ hv b (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
+    | forallE ty b m =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨p, q, hp1, hq1, he⟩ := hd
+      exact ⟨p, q, ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
+        ih b q ((h.childOK i _ hv b (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
+    | letE ty val b =>
+      simp only [opt3_eq_some_iff] at hd ⊢
+      obtain ⟨p, q, r, hp1, hq1, hr1, he⟩ := hd
+      exact ⟨p, q, r,
+        ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
+        ih val q ((h.childOK i _ hv val (by simp [ENodeView.echildren])).2.2 hp) hq1,
+        ih b r ((h.childOK i _ hv b (by simp [ENodeView.echildren])).2.2 hp) hr1, he⟩
+    | proj n j e =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨p, q, hp1, hq1, he⟩ := hd
+      refine ⟨p, q, ?_, ih e q ((h.childOK i _ hv e (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
+      exact denoteN_dropScratch_pers' hn
+        ((h.nchildOK i _ hv n (by simp [ENodeView.nchildren])).2 hp) hp1
+
+theorem EStore.dropScratch_denote_pers' {st : EStore} (h : StoreWF' st)
+    {i : EIdx} {e : ConLeche.Expr} (hp : i.isPersistent = true)
+    (hd : denoteE st i = some e) : denoteE st.dropScratch i = some e := by
+  obtain ⟨rk, h⟩ := h
+  have h' := EStore.dropScratch_wfAt' h
+  obtain ⟨v, hv⟩ := denoteE_view hd
+  have hsome : (st.dropScratch.view i).isSome = true := by
+    rw [EStore.view_dropScratch_pers st (h.bmPers i hp) hp, hv]; rfl
+  have hr1 : rk i < st.dropScratch.nodeCount := h'.rank_lt hsome
+  have hr2 : rk i < st.nodeCount := h.rank_lt (by rw [hv]; rfl)
+  have h1 : denoteEAux st.dropScratch (st.nodeCount + 1) i = some e :=
+    denoteEAux_dropScratch' h _ i e hp hd
+  rw [denoteE, denoteEAux_congr h' (st.dropScratch.nodeCount + 1) i
+    (st.dropScratch.nodeCount + 1) (st.nodeCount + 1) (by omega) (by omega) (by omega)]
+  exact h1
+
+/-- `Refine2/Core/Bracket.lean`'s `ext_dropScratch` at the WEAK invariant. -/
+theorem ext_dropScratch' {a b : EStore} (hc : ScratchClosed a) (hwf : StoreWF' b)
+    (h : Ext a b) : Ext a b.dropScratch := by
+  obtain ⟨rk, hwa⟩ := hwf
+  have hwfE : StoreWF' b := ⟨rk, hwa⟩
+  have hlss : LsWF' b.lss := hwa.lss
+  obtain ⟨rkl, hls⟩ : LStoreWF' b.lss.ls := hlss.ls
+  obtain ⟨rkn, hns⟩ : NStoreWF' b.lss.ls.ns := hls.ns
+  refine ⟨⟨⟨?_, ?_⟩, ?_⟩, ?_⟩
+  · intro i n hd
+    exact denoteN_dropScratch_pers' hns (hc.lss.ls.ns.pers hd) (h.lss.ls.ns i n hd)
+  · intro i u hd
+    exact denoteL_dropScratch_pers' hls (hc.lss.ls.pers hd) (h.lss.ls.lvl i u hd)
+  · intro i us hd
+    exact denoteLs_dropScratch_pers' hlss (hc.lss.pers hd) (h.lss.lst i us hd)
+  · intro i e hd
+    exact EStore.dropScratch_denote_pers' hwfE (hc.pers hd) (h.expr i e hd)
+
+/-- `ext_bracket` at the WEAK invariant: **the bracket, as an `Ext`, across a
+promotion**. -/
+theorem ext_bracket' {a b : EStore} (hc : ScratchClosed a) (hwf : StoreWF' b)
+    (h : Ext a.enableScratch b) : Ext a b.dropScratch :=
+  ext_dropScratch' hc hwf (Ext.trans hc.ext h)
+
+/-- `drop_scratch_refines` from the promote window's relation: the WEAK
+relation in, the STRONG one out — `dropScratch` is where `fresh` comes back. -/
+theorem drop_scratch_refines_w {pers st lst st'}
+    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.drop_scratch st = ok st') :
+    (dropScratch : AM Unit).run lst = .ok ((),
+        { lst with store := lst.store.dropScratch, caches := Caches.empty }) ∧
+      AStateRel pers st'
+        { lst with store := lst.store.dropScratch, caches := Caches.empty } ∧
+      AStateInv pers st' := by
+  rw [arena.core.drop_scratch] at hrun
+  obtain ⟨s1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hst : st' = { s1 with store := e } := (Result.ok_injective hrun).symm
+  subst hst
+  rw [arena.core.flush_caches] at h1
+  obtain ⟨c, hc, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h1
+  have hs1 : s1 = { st with caches := c } := (Result.ok_injective h1).symm
+  subst hs1
+  obtain ⟨hcr, hci⟩ := caches_reset hinv.caches hc
+  obtain ⟨hsr, hsi⟩ := estore_drop hrel.store hinv.store he
+  exact ⟨rfl,
+    ⟨hsr, hrel.memos, hcr, hrel.pins, StoreWF'.dropScratch_wf hrel.storeWF⟩,
+    ⟨hsi, hinv.memos, hci⟩⟩
+
+/-- **THE BRIDGE** — `bracket_close` from the promote window: a bracket entered
+at a boundary whose body delivered `Ext` from the opened store, and whose
+promotion left the WEAK relation, closes to the STRONG relation, `Ext` from
+the boundary, and the next boundary. -/
+theorem bracket_close_w {pers st st' lst lst2}
+    (hbr : BrOK lst) (hrel : AStateRelW pers st lst2) (hinv : AStateInv pers st)
+    (hext : Ext lst.store.enableScratch lst2.store)
+    (hdrop : arena.core.drop_scratch st = ok st') :
+    (dropScratch : AM Unit).run lst2 = .ok ((), (brLeft lst2)) ∧
+      AStateRel pers st' (brLeft lst2) ∧ AStateInv pers st' ∧
+      Ext lst.store (brLeft lst2).store ∧ BrOK (brLeft lst2) := by
+  obtain ⟨hr, hrel', hinv'⟩ := drop_scratch_refines_w hrel hinv hdrop
+  exact ⟨hr, hrel', hinv', ext_bracket' hbr.closedStore hrel.storeWF hext,
+    ⟨StoreWF'.dropScratch_wf hrel.storeWF, rfl⟩⟩
+
 /-! ## The Inductives seam (task #97-P5-Checker's finding 14)
 
 **Moved down from `Refine2/Checker/Top.lean` by task #97-P5-Checker-2.**  The
