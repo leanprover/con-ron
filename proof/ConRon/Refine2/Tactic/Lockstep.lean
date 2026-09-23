@@ -739,7 +739,11 @@ def errArm (g : MVarId) (names : List Name) : TacticM Unit := do
     let ty ← instantiateMVars (← g'.getType)
     let m ← headNorm (ty.getArg! 1)
     g'.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
-  runClosed g' (evalT `(tactic| exact errArm_ok))
+  -- an `Err` fed to a continuation that rebuilds a pair first
+  -- (`let (s, r) ← (do …; ok (r, s))`) reaches its `ok` leaf only through
+  -- `bind_tc_ok`, which is not definitional (see `LS.rust_ok_bind`)
+  runClosed g' (evalT `(tactic| first | exact errArm_ok |
+    (show ErrArm (ok _ >>= _) _; rw [bind_tc_ok]; exact errArm_ok)))
 
 /-- Drop the branches whose condition contradicts the context. -/
 def contra (gs : List MVarId) : TacticM (List MVarId) := do

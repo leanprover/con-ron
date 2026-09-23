@@ -23,6 +23,8 @@ attribute [lockstep_inline] arena.core.whnf_core_proj arena.core.whnf_core_proj_
   arena.core.whnf_core_proj_fire arena.core.intern_app
   arena.core_gated.whnf_core_app_gated
 
+attribute [local lockstep_simp] whnfCoreAppGated ConRon.Refine.absBinderMeta
+
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
 @[lockstep] theorem stub_get_app_spine_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -87,7 +89,7 @@ attribute [lockstep_inline] arena.core.whnf_core_proj arena.core.whnf_core_proj_
     LS pers (fun a b => b = a)
       (arena.core.proj_cert_at pers vis st mode lane fu fe depth verified lic c us args) lst
       (projCertAt (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        verified lic (absNIdx c) (absLsIdx us) (absEIdxList args)) := by
+        verified lic (absNIdx c) (absLsIdx us) (ExprOps.absEIdxList args)) := by
   sorry
 
 @[lockstep] theorem stub_proj_entry_fire_ok_ls {pers st lst}
@@ -100,7 +102,7 @@ attribute [lockstep_inline] arena.core.whnf_core_proj arena.core.whnf_core_proj_
 @[lockstep] theorem stub_get_d_eidx_ls (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
     (d : arena.handle.EIdx) :
     LSP (arena.core.get_d_eidx xs i d)
-      (fun r => absEIdx r = (absEIdxList xs).getD (absU i) (absEIdx d)) := by
+      (fun r => absEIdx r = (ExprOps.absEIdxList xs).getD (absU i) (absEIdx d)) := by
   sorry
 
 /-! ## The batched β spine: `whnf_app` / `beta_peel`
@@ -146,20 +148,76 @@ def BetaPeelAt (f : Nat) (n : Nat) : Prop :=
         lfe (absU depth) (absEIdx t) (absEIdxArr acc) (absEIdxArr args) (absEIdxArr nodes)
         (absSz i))
 
-theorem whnf_app_step {f : Nat} (hk : KnotRel f) (n : Nat)
-    (ihA : ∀ m < n, WhnfAppAt f m) (ihB : ∀ m < n, BetaPeelAt f m) : WhnfAppAt f n := by
-  intro pers vis st mode lane fu fe lfe depth v hd vargs same args nodes i lst hx hn hrel hinv
-    hctx hf
-  rw [arena.core.whnf_app, whnfApp]
-  by_cases hi : absSz i < (absEIdxArr args).size
-  · rw [dif_pos hi]
-    lockstep_core
-    all_goals trace_state
-    all_goals sorry
-  · rw [dif_neg hi]
-    lockstep_core
-    all_goals trace_state
-    all_goals sorry
+theorem spine_ls {f : Nat} (hk : KnotRel f) : ∀ n, WhnfAppAt f n ∧ BetaPeelAt f n := by
+  intro n
+  induction n with
+  | zero =>
+    refine ⟨?_, ?_⟩
+    · intro pers vis st mode lane fu fe lfe depth v hd vargs same args nodes i lst hx hn hrel
+        hinv hctx hf
+      rw [arena.core.whnf_app, whnfApp]
+      by_cases hi : i.val < args.val.length
+      · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+        lockstep_core
+      · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+        lockstep_core
+    · intro pers vis st mode lane fu fe lfe depth t acc args nodes i lst hx hn hrel hinv hctx hf
+      rw [arena.core.beta_peel, betaPeel]
+      by_cases hi : i.val < args.val.length
+      · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+        lockstep_core
+      · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+        lockstep_core
+  | succ k ih =>
+    obtain ⟨ihA, ihB⟩ := ih
+    unfold WhnfAppAt at ihA
+    unfold BetaPeelAt at ihB
+    have hA : WhnfAppAt f (k + 1) := by
+      intro pers vis st mode lane fu fe lfe depth v hd vargs same args nodes i lst hx hn hrel
+        hinv hctx hf
+      rw [arena.core.whnf_app, whnfApp]
+      by_cases hi : i.val < args.val.length
+      · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+        lockstep_core
+      · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+        lockstep_core
+    refine ⟨hA, ?_⟩
+    unfold WhnfAppAt at hA
+    intro pers vis st mode lane fu fe lfe depth t acc args nodes i lst hx hn hrel hinv hctx hf
+    rw [arena.core.beta_peel, betaPeel]
+    by_cases hi : i.val < args.val.length
+    · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      lockstep_core
+    · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      lockstep_core
+
+/-- `arena::core::whnf_app` against `Arena.whnfApp` (`Core/Arms/Batched.lean`'s
+`whnf_app_refines`, in the lockstep form). -/
+@[lockstep] theorem whnf_app_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth v hd vargs same args nodes i lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.whnf_app pers vis st mode lane fu fe depth v hd vargs same args nodes i) lst
+      (whnfApp (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx v) (absEIdx hd) (absEIdxArr vargs) same (absEIdxArr args)
+        (absEIdxArr nodes) (absSz i)) :=
+  (spine_ls hk _).1 hx rfl hrel hinv hctx hf
+
+/-- `arena::core::beta_peel` against `Arena.betaPeel` (`beta_peel_refines`, in
+the lockstep form). -/
+@[lockstep] theorem beta_peel_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth t acc args nodes i lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.beta_peel pers vis st mode lane fu fe depth t acc args nodes i) lst
+      (betaPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx t) (absEIdxArr acc) (absEIdxArr args) (absEIdxArr nodes)
+        (absSz i)) :=
+  (spine_ls hk _).2 hx rfl hrel hinv hctx hf
 
 end spine
 
@@ -178,7 +236,38 @@ theorem whnf_core_body_ls {f : Nat} (hk : KnotRel f)
         lfe (absU depth) (absEIdx e)) := by
   rw [arena.core.whnf_core_body, whnfCoreBody]
   lockstep_core
-  all_goals trace_state
-  all_goals sorry
+
+/-! ## `whnf_core_stuck_app` -/
+
+/-- `arena::core::whnf_core_stuck_app` against `Arena.whnfCoreStuckApp`
+(`whnf_core_stuck_app_refines`, in the lockstep form). -/
+@[lockstep] theorem whnf_core_stuck_app_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth h same fp a lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.whnf_core_stuck_app pers vis st mode lane fu fe depth h same fp a) lst
+      (whnfCoreStuckApp (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx h) same (absEIdx fp) (absEIdx a)) := by
+  rw [arena.core.whnf_core_stuck_app, whnfCoreStuckApp]
+  lockstep_core
+
+/-! ## `whnf_core_body_gated` -/
+
+/-- `arena::core_gated::whnf_core_body_gated` against `Arena.whnfCoreBodyGated` —
+`BodyRel`'s `whnfCoreGated` field, in the lockstep form. -/
+theorem whnf_core_body_gated_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e) lst
+      (whnfCoreBodyGated (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absEIdx e)) := by
+  rw [arena.core_gated.whnf_core_body_gated, whnfCoreBodyGated]
+  lockstep_core
 
 end ConRon.Refine2.Lockstep
