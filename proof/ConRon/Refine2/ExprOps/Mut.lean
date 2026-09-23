@@ -490,31 +490,47 @@ has related to it.  Every `intern_e_*_res` below is its `_abs` lemma and this. -
 theorem wout_intern_tail {Q : AState → Prop} (hQ : QStable Q)
     {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hq : Q lst)
-    {w : ENodeView} (hview : lst.store.ViewOK w) (hbm : ECapBMAt lst.store w)
+    {w : ENodeView} (hview : lst.store.ViewOK w)
     {x : AM EIdx}
-    (hx : ECapAt lst.store w → x.run lst = .ok ((lst.store.intern w).2,
-      { lst with store := (lst.store.intern w).1 }))
+    (hx : ECapAt lst.store w → ECapBMAt lst.store w →
+      x.run lst = .ok ((lst.store.intern w).2,
+        { lst with store := (lst.store.intern w).1 }))
     {r : core.result.Result arena.handle.EIdx kernel.core_types.CheckError}
     {e : arena.store.EStore}
     (hok : ∀ hh, r = .Ok hh → absEIdx hh = (lst.store.intern w).2 ∧
-      StoreRel pers e (lst.store.intern w).1 ∧ StoreInv pers e ∧ ECapAt lst.store w)
-    (herr : ∀ ee, r = .Err ee → absAErrKind ee = none)
-    (hfl : e.shared_on = st.store.shared_on ∧ e.scratch_on = st.store.scratch_on) :
+      StoreRel pers e (lst.store.intern w).1 ∧ StoreInv pers e ∧ ECapAt lst.store w ∧
+      ECapBMAt lst.store w ∧
+      e.shared_on = st.store.shared_on ∧ e.scratch_on = st.store.scratch_on)
+    (herr : ∀ ee, r = .Err ee → absAErrKind ee = none) :
     WOutE Q pers st lst (r, { st with store := e }) x := by
   cases hr : r with
   | Ok hh =>
-    obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
+    obtain ⟨hhd, hrel', hinv', hcap, hbm, hfl1, hfl2⟩ := hok hh hr
     have hext : EViewExt lst.store (lst.store.intern w).1 := EViewExt.intern _ _
     refine WOutR.ok (lst' := { lst with store := (lst.store.intern w).1 })
-      (by rw [hx hcap, hhd])
+      (by rw [hx hcap hbm, hhd])
       ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
         intern_storeWF hrel.storeWF hview hcap hbm⟩
-      ⟨hinv', hinv.memos, hinv.caches⟩ (EStore.intern_ext _ _) ?_ hext hfl.1 hfl.2
+      ⟨hinv', hinv.memos, hinv.caches⟩ (EStore.intern_ext _ _) ?_ hext hfl1 hfl2
       (hQ lst _ rfl hext hq)
     show ((lst.store.intern w).1.view (absEIdx hh)).isSome = true
     rw [hhd, intern_resolves hrel.storeWF hview hcap hbm]
     rfl
   | Err ee => exact AErrSim.of_none (herr ee hr)
+
+/-- The shape `estore_intern_*_abs` concludes at a NON-binder view, into
+`wout_intern_tail`'s. -/
+theorem nb_hok {pers : arena.store.PersTier} {ls : EStore} {w : ENodeView}
+    (hnb : EStore.eViewNeedsBM w = false) {rs rs' : arena.store.EStore}
+    {r : core.result.Result arena.handle.EIdx kernel.core_types.CheckError}
+    (hok : ∀ hh, r = .Ok hh → absEIdx hh = (ls.intern w).2 ∧
+      StoreRel pers rs' (ls.intern w).1 ∧ StoreInv pers rs' ∧ ECapAt ls w)
+    (hfl : rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) :
+    ∀ hh, r = .Ok hh → absEIdx hh = (ls.intern w).2 ∧
+      StoreRel pers rs' (ls.intern w).1 ∧ StoreInv pers rs' ∧ ECapAt ls w ∧
+      ECapBMAt ls w ∧ rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on :=
+  fun hh hr => let ⟨a1, a2, a3, a4⟩ := hok hh hr
+    ⟨a1, a2, a3, a4, ECapBMAt.of_no_bm hnb, hfl.1, hfl.2⟩
 
 /-- `arena::monad::intern_e_app` at `WOutE`. -/
 theorem intern_e_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
@@ -533,9 +549,9 @@ theorem intern_e_app_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
   obtain ⟨hok, herr, hfl⟩ :=
     estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen
       (fun h => hchild_app hrel.storeWF h) hp
-  exact wout_intern_tail hQ hrel hinv hq hview (ECapBMAt.of_no_bm rfl)
-    (fun hcap => by rw [Arena.internAppE]; exact internE_run_of_cap rfl hcap)
-    hok herr hfl
+  exact wout_intern_tail hQ hrel hinv hq hview
+    (fun hcap _ => by rw [Arena.internAppE]; exact internE_run_of_cap rfl hcap)
+    (nb_hok rfl hok hfl) herr
 
 /-- `arena::monad::intern_e_bvar` at `WOutE`. -/
 theorem intern_e_bvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
@@ -551,9 +567,9 @@ theorem intern_e_bvar_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
   subst ho
   obtain ⟨hok, herr, hfl⟩ :=
     estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hp
-  exact wout_intern_tail hQ hrel hinv hq (viewOK_bvar _) (ECapBMAt.of_no_bm rfl)
-    (fun hcap => by rw [Arena.internBVarE]; exact internE_run_of_cap rfl hcap)
-    hok herr hfl
+  exact wout_intern_tail hQ hrel hinv hq (viewOK_bvar _)
+    (fun hcap _ => by rw [Arena.internBVarE]; exact internE_run_of_cap rfl hcap)
+    (nb_hok rfl hok hfl) herr
 
 /-- `arena::monad::intern_e_let_e` at `WOutE`. -/
 theorem intern_e_let_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
@@ -572,9 +588,9 @@ theorem intern_e_let_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
   obtain ⟨hok, herr, hfl⟩ :=
     estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
       (fun h => hchild_let_e hrel.storeWF h) hp
-  exact wout_intern_tail hQ hrel hinv hq hview (ECapBMAt.of_no_bm rfl)
-    (fun hcap => by rw [Arena.internLetEE]; exact internE_run_of_cap rfl hcap)
-    hok herr hfl
+  exact wout_intern_tail hQ hrel hinv hq hview
+    (fun hcap _ => by rw [Arena.internLetEE]; exact internE_run_of_cap rfl hcap)
+    (nb_hok rfl hok hfl) herr
 
 /-- `arena::monad::intern_e_proj` at `WOutE`. -/
 theorem intern_e_proj_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
@@ -593,9 +609,9 @@ theorem intern_e_proj_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
   obtain ⟨hok, herr, hfl⟩ :=
     estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store hfrozen
       (fun h => hchild_proj hrel.storeWF h) hp
-  exact wout_intern_tail hQ hrel hinv hq hview (ECapBMAt.of_no_bm rfl)
-    (fun hcap => by rw [Arena.internProjE]; exact internE_run_of_cap rfl hcap)
-    hok herr hfl
+  exact wout_intern_tail hQ hrel hinv hq hview
+    (fun hcap _ => by rw [Arena.internProjE]; exact internE_run_of_cap rfl hcap)
+    (nb_hok rfl hok hfl) herr
 
 /-! ### The binder arm at a datum HANDLE the walk read
 
@@ -704,15 +720,16 @@ theorem intern_e_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
         = lst.store.intern (eBindView (absU32 arena.handle.ETAG_LAM) (absEIdx ty)
             (absEIdx b) mm) := by
       rw [hl] at heq ⊢; exact heq
-    refine wout_intern_tail hQ hrel hinv hq hview hbm ?_ ?_ herr hfl
-    · intro hcap
+    refine wout_intern_tail hQ hrel hinv hq hview ?_ ?_ herr
+    · intro hcap _
       rw [Arena.internBindIE, if_pos (by rw [hl]; simp), ← heqL]
       exact internLamIE_run_of_cap
         (by have := EBindCapAt_of_ECapAt htag hfb hcap; rwa [hl] at this)
     · intro hh hr
       obtain ⟨a1, a2, a3, a4⟩ := hok hh hr
       rw [heqL] at a1 a2
-      exact ⟨a1, a2, a3, ECapAt_of_EBindCapAt htag hfb (by rw [hl]; exact a4)⟩
+      exact ⟨a1, a2, a3, ECapAt_of_EBindCapAt htag hfb (by rw [hl]; exact a4), hbm,
+        hfl.1, hfl.2⟩
   · rw [if_neg hc] at hrun
     have hne : absU32 tag ≠ ETag.lam := by
       rw [← etag_lam_abs]
@@ -734,15 +751,16 @@ theorem intern_e_bind_i_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
     have heqF : lst.store.internForallEI (absEIdx ty) (absEIdx b) (absBMIdx mi)
         = lst.store.intern (eBindView (absU32 tag) (absEIdx ty) (absEIdx b) mm) := by
       rw [← heq, hf]; rfl
-    refine wout_intern_tail hQ hrel hinv hq hview hbm ?_ ?_ herr hfl
-    · intro hcap
+    refine wout_intern_tail hQ hrel hinv hq hview ?_ ?_ herr
+    · intro hcap _
       rw [Arena.internBindIE, if_neg (by simp [hne]), ← heqF]
       exact internForallEIE_run_of_cap
         (by have := EBindCapAt_of_ECapAt htag hfb hcap; rwa [hf] at this)
     · intro hh hr
       obtain ⟨a1, a2, a3, a4⟩ := hok hh hr
       rw [heqF] at a1 a2
-      exact ⟨a1, a2, a3, ECapAt_of_EBindCapAt htag hfb (by rw [hf]; exact a4)⟩
+      exact ⟨a1, a2, a3, ECapAt_of_EBindCapAt htag hfb (by rw [hf]; exact a4), hbm,
+        hfl.1, hfl.2⟩
 
 /-! ## `internRebuilt` and its twelve per-constructor entries
 
@@ -1187,6 +1205,230 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
       exact intern_e_forall_e_run hrel hinv hfrozen ty body m
         (hpw rfl) (hviewF rfl hne) hrun
 
+
+
+/-! ### The binder arm at a datum VALUE the walk read
+
+A walk that reads a node with `view` (rather than `viewBindI`) gets the binder
+datum as a VALUE and puts it back with `intern_e_lam` / `intern_e_forall_e`,
+which intern the datum first.  The port's `intern_bm` wants the datum's
+`PropWhenWF` (its record's `TblRel` is `RelOn BMNodeWF`), and that is a fact
+about the PORT's store: the `bms` array's `TblInv` says every record in it is
+well formed, and `view` reads the datum out of it.  So the one new fact here
+is `view`'s: a binder view's datum is well formed. -/
+
+theorem etables_get_bm_wf {rt : arena.store.ETables} (hinv : ETablesInv rt)
+    {m : arena.handle.BMIdx} {o : Option kernel.expr.BinderMeta}
+    (h : arena.store.ETables.get_bm rt m = ok o) :
+    ∀ bm, o = some bm → ConRon.Refine.PropWhenWF bm.pw := by
+  rw [arena.store.ETables.get_bm] at h
+  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hwf := tbl_node_wf hinv.bms hp
+  cases hpc : p with
+  | none =>
+    rw [hpc] at h
+    have h2 : (none : Option kernel.expr.BinderMeta) = o := Result.ok_injective h
+    subst h2
+    intro bm hbm; cases hbm
+  | some r =>
+    rw [hpc] at h hwf
+    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h2 : some bm = o := Result.ok_injective h
+    subst h2
+    rw [ConRon.Refine.PropWhen.dup_eq hpw] at hbm
+    have h3 : bm = ⟨r.pw⟩ := by
+      rw [kernel.expr.binder_meta] at hbm
+      exact (Result.ok_injective hbm).symm
+    subst h3
+    intro bm' hbm'
+    simp only [Option.some.injEq] at hbm'
+    subst hbm'
+    exact hwf r rfl
+
+theorem estore_view_bm_wf {pers rs} (hinv : StoreInv pers rs)
+    {m : arena.handle.BMIdx} {o}
+    (h : arena.store.EStore.view_bm rs pers m = ok o) :
+    ∀ bm, o = some bm → ConRon.Refine.PropWhenWF bm.pw := by
+  rw [arena.store.EStore.view_bm] at h
+  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · rw [arena.store.EStore.pers_get_bm] at h
+    have h3 : arena.store.ETables.get_bm (rPersE pers rs) m = ok o := by
+      unfold rPersE
+      split at h <;> rename_i hs
+      · rw [if_pos hs]; exact h
+      · rw [if_neg hs]; exact h
+    exact etables_get_bm_wf hinv.perst h3
+  · split at h
+    · exact etables_get_bm_wf hinv.scrt h
+    · have h2 : (none : Option kernel.expr.BinderMeta) = o := Result.ok_injective h
+      subst h2
+      intro bm hbm; cases hbm
+
+/-- At a non-binder tag `view` is `ETables.get`, which answers no binder
+view. -/
+theorem view_nonbind_bmOf {st : EStore} {i : EIdx} (hnb : ETag.isBind i.tag = false)
+    {v : ENodeView} (hv : st.view i = some v) : v.bmOf = none := by
+  rw [EStore.view, if_neg (by rw [hnb]; simp)] at hv
+  split at hv
+  · exact ETables.bmOf_get hv
+  · split at hv
+    · exact ETables.bmOf_get hv
+    · cases hv
+
+/-- **A binder view's datum is well formed** — `bms`' `TblInv`, read through
+`view`.  The non-binder branch cannot produce a binder view, which the TWIN
+says: `ETables.get` answers no binder view (`ETables.bmOf_get`). -/
+theorem estore_view_bind_wf {pers rs ls} (hrel : StoreRel pers rs ls)
+    (hinv : StoreInv pers rs) {i : arena.handle.EIdx} {o}
+    (h : arena.store.EStore.view rs pers i = ok o) {ty b : arena.handle.EIdx}
+    {m : kernel.expr.BinderMeta}
+    (hv : o = some (.Lam ty b m) ∨ o = some (.ForallE ty b m)) :
+    ConRon.Refine.PropWhenWF m.pw := by
+  have habs := estore_view_abs hrel h
+  rw [arena.store.EStore.view] at h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have htg := eidx_tag_abs ht
+  have hib := etag_isBind_abs hbb
+  split at h <;> rename_i hbv
+  · obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases hqc : q with
+    | none =>
+      rw [hqc] at h
+      have h2 : (none : Option arena.store.ENodeView) = o := Result.ok_injective h
+      subst h2
+      rcases hv with hv | hv <;> cases hv
+    | some tt =>
+      rw [hqc] at h
+      obtain ⟨ty', bo', mm⟩ := tt
+      obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 : some ev = o := Result.ok_injective h
+      subst h2
+      have hmm : m = mm := by
+        rw [arena.store.e_bind_view] at hev
+        split at hev
+        · have := Result.ok_injective hev
+          rcases hv with hv | hv <;> rw [← this] at hv <;>
+            simp only [Option.some.injEq, reduceCtorEq] at hv
+          exact (arena.store.ENodeView.Lam.inj hv).2.2.symm
+        · have := Result.ok_injective hev
+          rcases hv with hv | hv <;> rw [← this] at hv <;>
+            simp only [Option.some.injEq, reduceCtorEq] at hv
+          exact (arena.store.ENodeView.ForallE.inj hv).2.2.symm
+      subst hmm
+      rw [hqc] at hq
+      rw [arena.store.EStore.view_bind] at hq
+      obtain ⟨o1, -, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      cases ho1 : o1 with
+      | none =>
+        rw [ho1] at hq
+        have := Result.ok_injective hq
+        cases this
+      | some t3 =>
+        rw [ho1] at hq
+        obtain ⟨e1, e2, bmi⟩ := t3
+        obtain ⟨o2, ho2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+        cases ho2c : o2 with
+        | none =>
+          rw [ho2c] at hq
+          have := Result.ok_injective hq
+          cases this
+        | some m2 =>
+          rw [ho2c] at hq ho2
+          have h3 := Result.ok_injective hq
+          simp only [Option.some.injEq, Prod.mk.injEq] at h3
+          rw [← h3.2.2]
+          exact estore_view_bm_wf hinv ho2 m2 rfl
+  · -- the non-binder branch: the twin view is `ETables.get`, which answers no
+    -- binder view
+    exfalso
+    have hnb : ETag.isBind (absEIdx i).tag = false := by
+      rw [htg, hib]; simpa using hbv
+    rcases hv with hv | hv <;> subst hv <;>
+      exact absurd (view_nonbind_bmOf hnb habs) (by simp [absENodeView, ENodeView.bmOf])
+
+/-- `arena::monad::view`'s binder answer carries a well-formed datum. -/
+theorem view_bind_wf {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {h : arena.handle.EIdx} {ev : arena.store.ENodeView}
+    (hrun : arena.monad.view pers st h = ok (.Ok ev)) {ty b : arena.handle.EIdx}
+    {m : kernel.expr.BinderMeta} (hv : ev = .Lam ty b m ∨ ev = .ForallE ty b m) :
+    ConRon.Refine.PropWhenWF m.pw := by
+  rw [arena.monad.view] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  cases hqc : q with
+  | none =>
+    rw [hqc] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    cases Result.ok_injective hrun
+  | some v =>
+    rw [hqc] at hrun hq
+    have := Result.ok_injective hrun
+    simp only [core.result.Result.Ok.injEq] at this
+    subst this
+    exact estore_view_bind_wf (ty := ty) (b := b) hrel.store hinv.store hq
+      (by rcases hv with hv | hv
+          · exact Or.inl (by rw [hv])
+          · exact Or.inr (by rw [hv]))
+
+/-- `arena::monad::intern_e_lam` at `WOutE`. -/
+theorem intern_e_lam_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw)
+    (hview : lst.store.ViewOK (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
+    {o} (hrun : arena.monad.intern_e_lam pers st ty b m = ok o) :
+    WOutE Q pers st lst o
+      (Arena.internE (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m))) := by
+  rw [arena.monad.intern_e_lam] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hfrozen hrel.storeWF hpw hp
+  refine wout_intern_tail hQ hrel hinv hq hview
+    (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
+  intro hh hr
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hok hh hr
+  have hiv := intern_lam_eq (ty := absEIdx ty) (b := absEIdx b) hrel.storeWF a4
+  rw [← hiv] at a1 a2
+  exact ⟨a1, a2, a3, a5, a4, a6, a7⟩
+
+/-- `arena::monad::intern_e_forall_e` at `WOutE`. -/
+theorem intern_e_forall_e_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw)
+    (hview : lst.store.ViewOK
+      (.forallE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
+    {o} (hrun : arena.monad.intern_e_forall_e pers st ty b m = ok o) :
+    WOutE Q pers st lst o
+      (Arena.internE (.forallE (absEIdx ty) (absEIdx b)
+        (ConRon.Refine.absBinderMeta m))) := by
+  rw [arena.monad.intern_e_forall_e] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr⟩ :=
+    estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      hrel.storeWF hpw hp
+  refine wout_intern_tail hQ hrel hinv hq hview
+    (fun hcap hbm => internE_run_of_caps hcap hbm) ?_ herr
+  intro hh hr
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hok hh hr
+  have hiv := intern_forall_e_eq (ty := absEIdx ty) (b := absEIdx b) hrel.storeWF a4
+  rw [← hiv] at a1 a2
+  exact ⟨a1, a2, a3, a5, a4, a6, a7⟩
 
 /-! ## The memoised walks' shared steps (task #97-P5-Mut round 2)
 
@@ -3193,23 +3435,680 @@ own memo triple (`liftGet`/`liftSet`/`liftClear`, `resetGet`/…, `abs1Get`/…,
 #97-P6-11 kept as the statement subject beside the executed
 `abstractRangeGo`. -/
 
-/-- `Arena/ExprOps.lean:491 liftLooseBVarsGo`. -/
+/-! ### `liftLooseBVars`' memo -/
+
+theorem lift_get_val {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {op : Option arena.handle.EIdx}
+    (hop : arena.monad.lift_get st k = ok op) :
+    lst.memos.liftC[absEIdxNat k]? = op.map absEIdx :=
+  memo_get_val (sel := Memos.liftC) (fun _ _ => rfl) (lift_get_run hrel hinv hop)
+
+theorem lift_set_store {st st' : arena.monad.AState} {k r}
+    (h : arena.monad.lift_set st k r = ok st') : st'.store = st.store := by
+  rw [arena.monad.lift_set] at h
+  obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨p, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+
+theorem wout_lift_set {pers : arena.store.PersTier} {st st3 st4 : arena.monad.AState}
+    {lst : AState} {x : AM EIdx} {k : arena.monad.EIdxNat} {r3 : arena.handle.EIdx}
+    (hstep : WOutE (MemoRes Memos.liftC) pers st lst (.Ok r3, st3) x)
+    (hset : arena.monad.lift_set st3 k r3 = ok st4) :
+    WOutE (MemoRes Memos.liftC) pers st lst (.Ok r3, st4)
+      (do let r ← x; Arena.liftSet (absEIdxNat k) r; pure r) :=
+  wout_memo_set (upd := fun m v => { m with liftC := v }) (fun _ _ => rfl)
+    (fun _ _ _ => rfl) hstep (lift_set_store hset)
+    (fun _ hr hi => lift_set_run hr hi hset)
+
+theorem lift_clear_store {st st' : arena.monad.AState}
+    (h : arena.monad.lift_clear st = ok st') : st'.store = st.store := by
+  rw [arena.monad.lift_clear] at h
+  obtain ⟨hm0, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+
+/-- The twin's `view` run, read back as the store's. -/
+theorem store_view_of_run {lst lst' : AState} {hh : EIdx} {v : ENodeView}
+    (h : (Arena.view hh).run lst = .ok (v, lst')) : lst.store.view hh = some v := by
+  rw [show (Arena.view hh).run lst
+      = (match lst.store.view hh with
+         | some w => Except.ok (w, lst)
+         | none => Except.error (Arena.CheckError.internal
+             "arena: dangling expression handle")) by
+    show ((match lst.store.view hh with
+            | some w => (pure w : AM ENodeView)
+            | none => Arena.fail
+                (.internal "arena: dangling expression handle")).run lst) = _
+    cases lst.store.view hh <;> rfl] at h
+  split at h
+  · rename_i w hw
+    simp only [Except.ok.injEq, Prod.mk.injEq] at h
+    rw [hw, h.1]
+  · simp at h
+
+/-- The derived cutoff, as the port computes it (`inst_list_cutoff`) against
+the twin's inline `bvarB < satRange && bvarB ≤ c`. -/
+theorem cutoff_val {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {h : arena.handle.EIdx} {c : Std.U64} {b : Bool}
+    (hb : arena.expr_ops.inst_list_cutoff pers st h c = ok b) :
+    ((ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat < ConLeche.satRange &&
+      (ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat ≤ absU c) = b := by
+  have h1 := (ExprOps.inst_list_cutoff_refines hrel hinv hb).apply
+  have h2 : (instListCutoff (absEIdx h) (absU c)).run lst
+      = .ok ((ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat
+          < ConLeche.satRange &&
+        (ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat ≤ absU c, lst) := rfl
+  rw [h2] at h1
+  simp only [Except.ok.injEq, Prod.mk.injEq] at h1
+  exact h1.1
+
+/-! ### `liftLooseBVarsGo` -/
+
+def LiftGoAt (n : Nat) : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    {amount fuel : Std.U64} {h : arena.handle.EIdx} {c : Std.U64} {o},
+    fuel.val = n → AStateRel pers st lst → AStateInv pers st →
+    (st.store.shared_on = true → st.store.scratch_on = true) →
+    EResolves lst (absEIdx h) → MemoRes Memos.liftC lst →
+    arena.expr_ops.lift_loose_bvars_go pers st amount fuel h c = ok o →
+    WOutE (MemoRes Memos.liftC) pers st lst o
+      (liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c))
+
+private theorem lift_loose_bvars_go_aux (n : Nat) : LiftGoAt n := by
+  induction n with
+  | zero =>
+    intro pers st lst amount fuel h c o hn hrel hinv hfrozen hh hm hrun
+    rw [arena.expr_ops.lift_loose_bvars_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨vv, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨rr, hrr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hrrv := fail_run hrr
+    have ho := Result.ok_injective hrun
+    rw [← ho, hrrv]
+    show AErrSim _ ((liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)).run lst)
+    rw [show absU fuel = 0 from hn, liftLooseBVarsGo_zero, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst amount fuel h c o hn hrel hinv hfrozen hh hm hrun
+    rw [arena.expr_ops.lift_loose_bvars_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    have hi1 : ∀ i1 : Std.U64, (fuel - 1#u64 = ok i1) → i1.val = m := by
+      intro i1 hi1
+      have h1 : i1.val = fuel.val - (1#u64 : Std.U64).val :=
+        (ConRon.Refine.Nat.usub_val hi1).2
+      rw [h1, hn]; rfl
+    show WOutR (MemoRes Memos.liftC) pers st lst o
+      ((liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)).run lst)
+    rw [show absU fuel = m + 1 from hn, liftLooseBVarsGo_succ, StateT.run_bind,
+      show (derivedE (absEIdx h)).run lst
+        = .ok (lst.store.derived (absEIdx h), lst) from rfl]
+    obtain ⟨bc, hbc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hcv := cutoff_val hrel hinv hbc
+    show WOutR (MemoRes Memos.liftC) pers st lst o
+      (((if ((ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat
+            < ConLeche.satRange &&
+          (ConLeche.bvarOfData (lst.store.derived (absEIdx h))).toNat ≤ absU c) = true
+        then pure (absEIdx h)
+        else do
+          match ← Arena.view (absEIdx h) with
+          | .bvar i =>
+            (if i ≥ absU c then internE (.bvar (i + absU amount)) else pure (absEIdx h))
+          | .fvar _ _ => pure (absEIdx h)
+          | .sort _ => pure (absEIdx h)
+          | .const _ _ => pure (absEIdx h)
+          | .lit _ => pure (absEIdx h)
+          | .app a b => liftArmApp (absU amount) m (absEIdx h) (absU c) a b
+          | .lam ty body mm => liftArmLam (absU amount) m (absEIdx h) (absU c) ty body mm
+          | .forallE ty body mm =>
+            liftArmForallE (absU amount) m (absEIdx h) (absU c) ty body mm
+          | .letE ty val body =>
+            liftArmLet (absU amount) m (absEIdx h) (absU c) ty val body
+          | .proj nn i sub => liftArmProj (absU amount) m (absEIdx h) (absU c) nn i sub)
+          : AM EIdx).run lst)
+    rw [hcv]
+    cases bc with
+    | true =>
+      rw [if_pos rfl] at hrun
+      rw [if_pos rfl]
+      exact wout_dup hrel hinv hh hm hrun
+    | false =>
+    rw [if_neg (by simp)] at hrun
+    rw [if_neg (by simp)]
+    obtain ⟨rv, hrv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hview := view_run hrel hinv hrv
+    cases hrvc : rv with
+    | Err e =>
+      rw [hrvc] at hrun hview
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact wout_err_bind hview
+    | Ok ev =>
+      rw [hrvc] at hrun hview hrv
+      obtain ⟨lst0, hx, -, -, -, -⟩ := hview
+      have hlst : lst0 = lst := view_run_state hx
+      rw [hlst] at hx
+      have hvv := store_view_of_run hx
+      rw [run_bind_of hx]
+      cases ev with
+      | BVar i =>
+        simp only [absENodeView]
+        simp only at hrun
+        by_cases hge : i ≥ c
+        · rw [if_pos hge] at hrun
+          rw [if_pos (show absU i ≥ absU c by scalar_tac)]
+          obtain ⟨i1, hi1', hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi1v : absU i1 = absU i + absU amount := by
+            have := ConRon.Refine.Nat.uadd_val hi1'; simpa using this
+          rw [← hi1v]
+          exact intern_e_bvar_res (MemoRes.stable _) hrel hinv hfrozen hm i1 hrun
+        · rw [if_neg hge] at hrun
+          rw [if_neg (show ¬ (absU i ≥ absU c) by scalar_tac)]
+          exact wout_dup hrel hinv hh hm hrun
+      | FVar _ _ => exact wout_dup hrel hinv hh hm hrun
+      | «Sort» _ => exact wout_dup hrel hinv hh hm hrun
+      | Const _ _ => exact wout_dup hrel hinv hh hm hrun
+      | Lit _ => exact wout_dup hrel hinv hh hm hrun
+      | App a b =>
+        simp only [absENodeView]
+        have haR : EResolves lst (absEIdx a) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        have hbR : EResolves lst (absEIdx b) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        rw [liftArmApp]
+        obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hkabs := eidx_nat_key_abs hk
+        obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hget := (lift_get_run hrel hinv hop).apply
+        have hgv := lift_get_val hrel hinv hop
+        rw [hkabs] at hget hgv
+        rw [run_bind_of hget]
+        cases hopc : op with
+        | some r =>
+          rw [hopc] at hrun hgv
+          have ho := Result.ok_injective hrun
+          rw [← ho]
+          exact WOutR.pure hrel hinv (hm _ _ hgv) hm
+        | none =>
+          rw [hopc] at hrun
+          simp only [Option.map_none]
+          obtain ⟨i1, hi1', hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi1v := hi1 i1 hi1'
+          obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨r1, st1⟩ := p1
+          have hrec1 := ih hi1v hrel hinv hfrozen haR hm hp1
+          rw [show absU i1 = m from hi1v] at hrec1
+          cases hr1 : r1 with
+          | Err e =>
+            rw [hr1] at hrun hrec1
+            have ho := Result.ok_injective hrun
+            rw [← ho]
+            exact wout_err_bind (hrec1.err rfl)
+          | Ok a2 =>
+            rw [hr1] at hrun hrec1
+            obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
+              hrec1.dest
+            refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+            obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            obtain ⟨r2, st2⟩ := p2
+            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            rw [show absU i1 = m from hi1v] at hrec2
+            cases hr2 : r2 with
+            | Err e =>
+              rw [hr2] at hrun hrec2
+              have ho := Result.ok_injective hrun
+              rw [← ho]
+              exact wout_err_bind (hrec2.err rfl)
+            | Ok b2 =>
+              rw [hr2] at hrun hrec2
+              obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
+                hrec2.dest
+              refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
+              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
+                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
+              obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              obtain ⟨r3, st3⟩ := p3
+              have hstep := intern_e_app_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+                a2 b2 (viewOK_app (hmono2.res hres1) hres2) hp3
+              cases hr3 : r3 with
+              | Err e =>
+                rw [hr3] at hrun hstep
+                have ho := Result.ok_injective hrun
+                rw [← ho]
+                exact wout_err_bind (hstep.err rfl)
+              | Ok r4 =>
+                rw [hr3] at hrun hstep
+                obtain ⟨st4, hst4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                have ho := Result.ok_injective hrun
+                rw [← ho]
+                have hset := wout_lift_set hstep hst4
+                rw [hkabs] at hset
+                exact hset
+      | Lam ty body mb =>
+        simp only [absENodeView]
+        have hpw := view_bind_wf hrel hinv hrv (Or.inl rfl)
+        have htyR : EResolves lst (absEIdx ty) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        have hbR : EResolves lst (absEIdx body) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        rw [liftArmLam]
+        obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hkabs := eidx_nat_key_abs hk
+        obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hget := (lift_get_run hrel hinv hop).apply
+        have hgv := lift_get_val hrel hinv hop
+        rw [hkabs] at hget hgv
+        rw [run_bind_of hget]
+        cases hopc : op with
+        | some r =>
+          rw [hopc] at hrun hgv
+          have ho := Result.ok_injective hrun
+          rw [← ho]
+          exact WOutR.pure hrel hinv (hm _ _ hgv) hm
+        | none =>
+          rw [hopc] at hrun
+          simp only [Option.map_none]
+          obtain ⟨i1, hi1', hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi1v := hi1 i1 hi1'
+          obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨r1, st1⟩ := p1
+          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          rw [show absU i1 = m from hi1v] at hrec1
+          cases hr1 : r1 with
+          | Err e =>
+            rw [hr1] at hrun hrec1
+            have ho := Result.ok_injective hrun
+            rw [← ho]
+            exact wout_err_bind (hrec1.err rfl)
+          | Ok t2 =>
+            rw [hr1] at hrun hrec1
+            obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
+              hrec1.dest
+            refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+            obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            have hi2v : absU i2 = absU c + 1 := by
+              have h1 := ConRon.Refine.Nat.uadd_val hi2
+              simpa using h1
+            obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            obtain ⟨r2, st2⟩ := p2
+            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            rw [show absU i1 = m from hi1v, hi2v] at hrec2
+            cases hr2 : r2 with
+            | Err e =>
+              rw [hr2] at hrun hrec2
+              have ho := Result.ok_injective hrun
+              rw [← ho]
+              exact wout_err_bind (hrec2.err rfl)
+            | Ok b2 =>
+              rw [hr2] at hrun hrec2
+              obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
+                hrec2.dest
+              refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
+              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
+                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
+              obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              obtain ⟨r3, st3⟩ := p3
+              have hstep := intern_e_lam_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+                t2 b2 mb hpw ⟨by
+                  intro cc hcc; simp [ENodeView.echildren] at hcc
+                  rcases hcc with rfl | rfl
+                  · exact hmono2.res hres1
+                  · exact hres2,
+                 by intro cc hcc; simp [ENodeView.nchildren] at hcc,
+                 by intro cc hcc; simp [ENodeView.lchildren] at hcc,
+                 by intro cc hcc; simp [ENodeView.lschildren] at hcc⟩ hp3
+              cases hr3 : r3 with
+              | Err e =>
+                rw [hr3] at hrun hstep
+                have ho := Result.ok_injective hrun
+                rw [← ho]
+                exact wout_err_bind (hstep.err rfl)
+              | Ok r4 =>
+                rw [hr3] at hrun hstep
+                obtain ⟨st4, hst4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                have ho := Result.ok_injective hrun
+                rw [← ho]
+                have hset := wout_lift_set hstep hst4
+                rw [hkabs] at hset
+                exact hset
+      | ForallE ty body mb =>
+        simp only [absENodeView]
+        have hpw := view_bind_wf hrel hinv hrv (Or.inr rfl)
+        have htyR : EResolves lst (absEIdx ty) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        have hbR : EResolves lst (absEIdx body) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        rw [liftArmForallE]
+        obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hkabs := eidx_nat_key_abs hk
+        obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hget := (lift_get_run hrel hinv hop).apply
+        have hgv := lift_get_val hrel hinv hop
+        rw [hkabs] at hget hgv
+        rw [run_bind_of hget]
+        cases hopc : op with
+        | some r =>
+          rw [hopc] at hrun hgv
+          have ho := Result.ok_injective hrun
+          rw [← ho]
+          exact WOutR.pure hrel hinv (hm _ _ hgv) hm
+        | none =>
+          rw [hopc] at hrun
+          simp only [Option.map_none]
+          obtain ⟨i1, hi1', hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi1v := hi1 i1 hi1'
+          obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨r1, st1⟩ := p1
+          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          rw [show absU i1 = m from hi1v] at hrec1
+          cases hr1 : r1 with
+          | Err e =>
+            rw [hr1] at hrun hrec1
+            have ho := Result.ok_injective hrun
+            rw [← ho]
+            exact wout_err_bind (hrec1.err rfl)
+          | Ok t2 =>
+            rw [hr1] at hrun hrec1
+            obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
+              hrec1.dest
+            refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+            obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            have hi2v : absU i2 = absU c + 1 := by
+              have h1 := ConRon.Refine.Nat.uadd_val hi2
+              simpa using h1
+            obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            obtain ⟨r2, st2⟩ := p2
+            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hbR) hq1 hp2
+            rw [show absU i1 = m from hi1v, hi2v] at hrec2
+            cases hr2 : r2 with
+            | Err e =>
+              rw [hr2] at hrun hrec2
+              have ho := Result.ok_injective hrun
+              rw [← ho]
+              exact wout_err_bind (hrec2.err rfl)
+            | Ok b2 =>
+              rw [hr2] at hrun hrec2
+              obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
+                hrec2.dest
+              refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
+              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
+                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
+              obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              obtain ⟨r3, st3⟩ := p3
+              have hstep := intern_e_forall_e_res (MemoRes.stable _) hrel2 hinv2 hfroz2 hq2
+                t2 b2 mb hpw ⟨by
+                  intro cc hcc; simp [ENodeView.echildren] at hcc
+                  rcases hcc with rfl | rfl
+                  · exact hmono2.res hres1
+                  · exact hres2,
+                 by intro cc hcc; simp [ENodeView.nchildren] at hcc,
+                 by intro cc hcc; simp [ENodeView.lchildren] at hcc,
+                 by intro cc hcc; simp [ENodeView.lschildren] at hcc⟩ hp3
+              cases hr3 : r3 with
+              | Err e =>
+                rw [hr3] at hrun hstep
+                have ho := Result.ok_injective hrun
+                rw [← ho]
+                exact wout_err_bind (hstep.err rfl)
+              | Ok r4 =>
+                rw [hr3] at hrun hstep
+                obtain ⟨st4, hst4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                have ho := Result.ok_injective hrun
+                rw [← ho]
+                have hset := wout_lift_set hstep hst4
+                rw [hkabs] at hset
+                exact hset
+      | LetE ty val body =>
+        simp only [absENodeView]
+        have htyR : EResolves lst (absEIdx ty) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        have hvalR : EResolves lst (absEIdx val) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        have hbR : EResolves lst (absEIdx body) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        rw [liftArmLet]
+        obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hkabs := eidx_nat_key_abs hk
+        obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hget := (lift_get_run hrel hinv hop).apply
+        have hgv := lift_get_val hrel hinv hop
+        rw [hkabs] at hget hgv
+        rw [run_bind_of hget]
+        cases hopc : op with
+        | some r =>
+          rw [hopc] at hrun hgv
+          have ho := Result.ok_injective hrun
+          rw [← ho]
+          exact WOutR.pure hrel hinv (hm _ _ hgv) hm
+        | none =>
+          rw [hopc] at hrun
+          simp only [Option.map_none]
+          obtain ⟨i1, hi1', hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi1v := hi1 i1 hi1'
+          obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨r1, st1⟩ := p1
+          have hrec1 := ih hi1v hrel hinv hfrozen htyR hm hp1
+          rw [show absU i1 = m from hi1v] at hrec1
+          cases hr1 : r1 with
+          | Err e =>
+            rw [hr1] at hrun hrec1
+            have ho := Result.ok_injective hrun
+            rw [← ho]
+            exact wout_err_bind (hrec1.err rfl)
+          | Ok t2 =>
+            rw [hr1] at hrun hrec1
+            obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
+              hrec1.dest
+            refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+            obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            obtain ⟨r2, st2⟩ := p2
+            have hrec2 := ih hi1v hrel1 hinv1 hfroz1 (hmono1.res hvalR) hq1 hp2
+            rw [show absU i1 = m from hi1v] at hrec2
+            cases hr2 : r2 with
+            | Err e =>
+              rw [hr2] at hrun hrec2
+              have ho := Result.ok_injective hrun
+              rw [← ho]
+              exact wout_err_bind (hrec2.err rfl)
+            | Ok w2 =>
+              rw [hr2] at hrun hrec2
+              obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl3, hfl4, hq2⟩ :=
+                hrec2.dest
+              refine WOutE.bind hx2 hext2 hmono2 hfl3 hfl4 ?_
+              have hfroz2 : st2.store.shared_on = true → st2.store.scratch_on = true := by
+                intro hs; rw [hfl4]; exact hfroz1 (hfl3 ▸ hs)
+              obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              have hi2v : absU i2 = absU c + 1 := by
+                have h1 := ConRon.Refine.Nat.uadd_val hi2
+                simpa using h1
+              obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              obtain ⟨r3, st3⟩ := p3
+              have hrec3 := ih hi1v hrel2 hinv2 hfroz2 (hmono2.res (hmono1.res hbR)) hq2 hp3
+              rw [show absU i1 = m from hi1v, hi2v] at hrec3
+              cases hr3 : r3 with
+              | Err e =>
+                rw [hr3] at hrun hrec3
+                have ho := Result.ok_injective hrun
+                rw [← ho]
+                exact wout_err_bind (hrec3.err rfl)
+              | Ok b2 =>
+                rw [hr3] at hrun hrec3
+                obtain ⟨lst3, hx3, hrel3, hinv3, hext3, hres3, hmono3, hfl5, hfl6, hq3⟩ :=
+                  hrec3.dest
+                refine WOutE.bind hx3 hext3 hmono3 hfl5 hfl6 ?_
+                have hfroz3 : st3.store.shared_on = true → st3.store.scratch_on = true := by
+                  intro hs; rw [hfl6]; exact hfroz2 (hfl5 ▸ hs)
+                obtain ⟨p4, hp4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                obtain ⟨r4, st4⟩ := p4
+                have hstep := intern_e_let_e_res (MemoRes.stable _) hrel3 hinv3 hfroz3 hq3
+                  t2 w2 b2 (viewOK_letE (hmono3.res (hmono2.res hres1))
+                    (hmono3.res hres2) hres3) hp4
+                cases hr4 : r4 with
+                | Err e =>
+                  rw [hr4] at hrun hstep
+                  have ho := Result.ok_injective hrun
+                  rw [← ho]
+                  exact wout_err_bind (hstep.err rfl)
+                | Ok r5 =>
+                  rw [hr4] at hrun hstep
+                  obtain ⟨st5, hst5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                  have ho := Result.ok_injective hrun
+                  rw [← ho]
+                  have hset := wout_lift_set hstep hst5
+                  rw [hkabs] at hset
+                  exact hset
+      | Proj nn i1 sub =>
+        simp only [absENodeView]
+        have hsR : EResolves lst (absEIdx sub) :=
+          EResolves.child hrel.storeWF hvv (by simp [ENodeView.echildren])
+        have hnR : (lst.store.ns.view (absNIdx nn)).isSome = true := by
+          obtain ⟨rk, hw⟩ := hrel.storeWF
+          exact (hw.nchildOK _ _ hvv _ (by simp [ENodeView.nchildren])).1
+        rw [liftArmProj]
+        obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hkabs := eidx_nat_key_abs hk
+        obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hget := (lift_get_run hrel hinv hop).apply
+        have hgv := lift_get_val hrel hinv hop
+        rw [hkabs] at hget hgv
+        rw [run_bind_of hget]
+        cases hopc : op with
+        | some r =>
+          rw [hopc] at hrun hgv
+          have ho := Result.ok_injective hrun
+          rw [← ho]
+          exact WOutR.pure hrel hinv (hm _ _ hgv) hm
+        | none =>
+          rw [hopc] at hrun
+          simp only [Option.map_none]
+          obtain ⟨i2, hi2', hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi2v := hi1 i2 hi2'
+          obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨r1, st1⟩ := p1
+          have hrec1 := ih hi2v hrel hinv hfrozen hsR hm hp1
+          rw [show absU i2 = m from hi2v] at hrec1
+          cases hr1 : r1 with
+          | Err e =>
+            rw [hr1] at hrun hrec1
+            have ho := Result.ok_injective hrun
+            rw [← ho]
+            exact wout_err_bind (hrec1.err rfl)
+          | Ok u =>
+            rw [hr1] at hrun hrec1
+            obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
+              hrec1.dest
+            refine WOutE.bind hx1 hext1 hmono1 hfl1 hfl2 ?_
+            have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+              intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+            obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            obtain ⟨r2, st2⟩ := p2
+            have hstep := intern_e_proj_res (MemoRes.stable _) hrel1 hinv1 hfroz1 hq1
+              nn i1 u (viewOK_proj (hmono1.nsres hnR) hres1) hp2
+            cases hr2 : r2 with
+            | Err e =>
+              rw [hr2] at hrun hstep
+              have ho := Result.ok_injective hrun
+              rw [← ho]
+              exact wout_err_bind (hstep.err rfl)
+            | Ok r3 =>
+              rw [hr2] at hrun hstep
+              obtain ⟨st3, hst3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              have ho := Result.ok_injective hrun
+              rw [← ho]
+              have hset := wout_lift_set hstep hst3
+              rw [hkabs] at hset
+              exact hset
+
+/-- `lift_loose_bvars_go` at `WOutE`. -/
+theorem lift_loose_bvars_go_wout {pers st lst} {amount fuel : Std.U64}
+    {h : arena.handle.EIdx} {c : Std.U64} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.liftC lst)
+    (hrun : arena.expr_ops.lift_loose_bvars_go pers st amount fuel h c = ok o) :
+    WOutE (MemoRes Memos.liftC) pers st lst o
+      (liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) :=
+  lift_loose_bvars_go_aux _ rfl hrel hinv hfrozen hh hmemo hrun
+
+/-- `lift_loose_bvars_fast` at `WOutE`: the memo fresh before and dropped after. -/
+theorem lift_loose_bvars_fast_wout {pers st lst} {fuel amount c : Std.U64}
+    {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (he : EResolves lst (absEIdx e))
+    (hrun : arena.expr_ops.lift_loose_bvars_fast pers st fuel amount c e = ok o) :
+    WOutE (MemoRes Memos.liftC) pers st lst o
+      (liftLooseBVarsFast (absU fuel) (absU amount) (absU c) (absEIdx e)) := by
+  rw [arena.expr_ops.lift_loose_bvars_fast] at hrun
+  obtain ⟨st1, hst1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, st2⟩ := q
+  have hs1 := lift_clear_store hst1
+  obtain ⟨hc1, hrel1, hinv1⟩ := wmemo_clear_step
+    (upd := fun m v => { m with liftC := v }) (twinClear := Arena.liftClear)
+    (fun _ => rfl) (lift_clear_run hrel hinv hst1)
+  have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+    rw [hs1]; exact hfrozen
+  have hgo := lift_loose_bvars_go_wout (lst := { lst with memos := { lst.memos with
+      liftC := ∅ } }) hrel1 hinv1 hfroz1 he (MemoRes.of_empty rfl) hq
+  show WOutR _ pers st lst o ((do
+    Arena.liftClear
+    let r ← liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx e) (absU c)
+    Arena.liftClear
+    pure r).run lst)
+  rw [run_bind_of hc1]
+  cases hr : r with
+  | Err ee =>
+    rw [hr] at hrun hgo
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    exact wout_err_bind (hgo.err rfl)
+  | Ok r1 =>
+    rw [hr] at hrun hgo
+    obtain ⟨lst2, hx2, hrel2, hinv2, hext2, hres2, hmono2, hfl1, hfl2, -⟩ := hgo.dest
+    obtain ⟨st3, hst3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    have hs3 := lift_clear_store hst3
+    obtain ⟨hc3, hrel3, hinv3⟩ := wmemo_clear_step
+      (upd := fun m v => { m with liftC := v }) (twinClear := Arena.liftClear)
+      (fun _ => rfl) (lift_clear_run hrel2 hinv2 hst3)
+    rw [run_bind_of hx2, run_bind_of hc3]
+    exact WOutR.ok rfl hrel3 hinv3 hext2 hres2 hmono2 (by rw [hs3, hfl1, hs1])
+      (by rw [hs3, hfl2, hs1]) (MemoRes.of_empty rfl)
+
+/-- `Arena/ExprOps.lean:491 liftLooseBVarsGo`.  **Corrected** (task #97-P5-Mut
+round 2, finding 19): `hfrozen`, the handle walked resolves, and the memo
+clause. -/
 theorem lift_loose_bvars_go_refines {pers st lst} {amount fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hh : EResolves lst (absEIdx h)) (hmemo : MemoRes Memos.liftC lst)
     (hrun : arena.expr_ops.lift_loose_bvars_go pers st amount fuel h c = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
-      (liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) := by
-  sorry
+      (liftLooseBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) :=
+  (lift_loose_bvars_go_wout hrel hinv hfrozen hh hmemo hrun).toSim
 
-/-- `Arena/ExprOps.lean:552 liftLooseBVarsFast`. -/
+/-- `Arena/ExprOps.lean:552 liftLooseBVarsFast`.  **Corrected** as the walk,
+minus the memo clause, which the fresh memo pays for. -/
 theorem lift_loose_bvars_fast_refines {pers st lst} {fuel amount c : Std.U64}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (he : EResolves lst (absEIdx e))
     (hrun : arena.expr_ops.lift_loose_bvars_fast pers st fuel amount c e = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
-      (liftLooseBVarsFast (absU fuel) (absU amount) (absU c) (absEIdx e)) := by
-  sorry
+      (liftLooseBVarsFast (absU fuel) (absU amount) (absU c) (absEIdx e)) :=
+  (lift_loose_bvars_fast_wout hrel hinv hfrozen he hrun).toSim
 
 /-- `Arena/ExprOps.lean:567 resetMetaGo`. -/
 theorem reset_meta_go_refines {pers st lst} {fuel : Std.U64}

@@ -8167,7 +8167,8 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (ConRon.Refine.absBinderMeta m)).1 ∧
         StoreInv pers rs' ∧
         ECapBMOf ls (ConRon.Refine.absBinderMeta m) ∧
-        ECapAt ls (.lam (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m))) ∧
+        ECapAt ls (.lam (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)) ∧
+        rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) ∧
       (∀ e, r = .Err e → absAErrKind e = none) := by
   rw [arena.store.EStore.intern_lam] at h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -8210,12 +8211,13 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         = (ls.internBM (ConRon.Refine.absBinderMeta m)).1.internLamI (absEIdx ty)
             (absEIdx bo) (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := rfl
     rw [htw, ← hmi]
-    obtain ⟨hok2, herr2, -⟩ := estore_intern_lam_i_abs
+    obtain ⟨hok2, herr2, hfl2⟩ := estore_intern_lam_i_abs
       (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1 hfrozen1
       (by rw [hmi]; exact hchild) h
     refine ⟨fun hh hokk => ?_, herr2⟩
     obtain ⟨a1, a2, a3, a4⟩ := hok2 hh hokk
-    exact ⟨a1, a2, a3, hcb, ECapAt_lam_of hwf hcb (by rw [← hmi]; exact a4)⟩
+    exact ⟨a1, a2, a3, hcb, ECapAt_lam_of hwf hcb (by rw [← hmi]; exact a4),
+      by rw [hfl2.1, hsh], by rw [hfl2.2, hsc]⟩
 
 /-- `EStore::intern_forall_e` against the twin's `internForallE`. -/
 theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
@@ -8235,7 +8237,8 @@ theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (ConRon.Refine.absBinderMeta m)).1 ∧
         StoreInv pers rs' ∧
         ECapBMOf ls (ConRon.Refine.absBinderMeta m) ∧
-        ECapAt ls (.forallE (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m))) ∧
+        ECapAt ls (.forallE (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)) ∧
+        rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) ∧
       (∀ e, r = .Err e → absAErrKind e = none) := by
   rw [arena.store.EStore.intern_forall_e] at h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -8278,12 +8281,13 @@ theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         = (ls.internBM (ConRon.Refine.absBinderMeta m)).1.internForallEI (absEIdx ty)
             (absEIdx bo) (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := rfl
     rw [htw, ← hmi]
-    obtain ⟨hok2, herr2, -⟩ := estore_intern_forall_e_i_abs
+    obtain ⟨hok2, herr2, hfl2⟩ := estore_intern_forall_e_i_abs
       (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1 hfrozen1
       (by rw [hmi]; exact hchild) h
     refine ⟨fun hh hokk => ?_, herr2⟩
     obtain ⟨a1, a2, a3, a4⟩ := hok2 hh hokk
-    exact ⟨a1, a2, a3, hcb, ECapAt_forallE_of hwf hcb (by rw [← hmi]; exact a4)⟩
+    exact ⟨a1, a2, a3, hcb, ECapAt_forallE_of hwf hcb (by rw [← hmi]; exact a4),
+      by rw [hfl2.1, hsh], by rw [hfl2.2, hsc]⟩
 
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
@@ -8872,7 +8876,7 @@ theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
-    obtain ⟨hhd, hrel', hinv', hbmcap, hcap⟩ := hok hh hr
+    obtain ⟨hhd, hrel', hinv', hbmcap, hcap, -⟩ := hok hh hr
     have hiv : lst.store.intern
         (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m))
         = lst.store.internLam (absEIdx ty) (absEIdx b)
@@ -8912,7 +8916,7 @@ theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
-    obtain ⟨hhd, hrel', hinv', hbmcap, hcap⟩ := hok hh hr
+    obtain ⟨hhd, hrel', hinv', hbmcap, hcap, -⟩ := hok hh hr
     have hiv : lst.store.intern
         (.forallE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m))
         = lst.store.internForallE (absEIdx ty) (absEIdx b)
