@@ -2606,7 +2606,9 @@ theorem piResultIsProp_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : 
     (ExprOps.piResult_spec Arena.coreWalkFuel s₀ e hok.state (by rw [he]; rfl))
   rw [hs1] at z1
   have hprd := hpr eP he
-  obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨v0, hv0⟩ := denoteE_view hprd
+  obtain ⟨v, s2, k2, z2⟩ := bindOk (tagIf_view_run hv0
+    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z1)
   obtain ⟨hs2, hv⟩ := view_run k2
   rw [hs2] at z2
   cases v
@@ -2645,7 +2647,9 @@ theorem piResultZ_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AStat
     (ExprOps.piResult_spec Arena.coreWalkFuel s₀ e hok.state (by rw [he]; rfl))
   rw [hs1] at z1
   have hprd := hpr eP he
-  obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨v0, hv0⟩ := denoteE_view hprd
+  obtain ⟨v, s2, k2, z2⟩ := bindOk (tagIf_view_run hv0
+    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z1)
   obtain ⟨hs2, hv⟩ := view_run k2
   rw [hs2] at z2
   cases v

@@ -963,6 +963,32 @@ theorem RunsB.ite {c c' : Prop} [Decidable c] [Decidable c'] {X Y : AM Bool}
   · rw [if_pos h, if_pos (hc.mp h)]; exact h1 h
   · rw [if_neg h, if_neg (fun h' => h (hc.mpr h'))]; exact h2 h
 
+/-- con-leche: none — a known view, read. -/
+theorem view_run_of_some {h : EIdx} {s : AState} {v : ENodeView}
+    (hv : s.store.view h = some v) : view h s = .ok (v, s) := by
+  simp only [view, bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+    pure, StateT.pure, Except.bind, Except.pure, hv]
+
+/-- con-leche: none — **the tag-first twin's test** (task #97-P5-Core round 4):
+`if h.tag == t then (view h >>= f) else e` runs as `view h >>= f` at a handle
+whose view is known, because on the `else` side the continuation's catch-all
+arm IS `e`. -/
+theorem RunsB.tagView {h : EIdx} {t : UInt32} {v : ENodeView}
+    {f : ENodeView → AM Bool} {e : AM Bool} {s : AState} {b : Bool}
+    (hv : s.store.view h = some v) (he : v.tagOf ≠ t → f v = e)
+    (hk : RunsB (view h >>= f) s b) :
+    RunsB (if h.tag == t then (view h >>= f) else e) s b := by
+  by_cases ht : (h.tag == t) = true
+  · rw [if_pos ht]; exact hk
+  · rw [if_neg ht]
+    have hne : v.tagOf ≠ t := by rw [← EStore.tagOf_of_view hv]; simpa using ht
+    intro r s' hrun
+    apply hk r s'
+    have hb : (view h >>= f) s = f v s := by
+      show StateT.bind (view h) f s = _
+      simp only [StateT.bind, view_run_of_some hv]; rfl
+    rw [hb, he hne]; exact hrun
+
 /-- a guard: `if c then pure false else Y` is `D && B` when `c` is `!D`. -/
 theorem RunsB.guard {c D B : Bool} {Y : AM Bool} {s : AState}
     (hok : StateOK s) (hc : c = !D) (hY : D = true → RunsB Y s B) :

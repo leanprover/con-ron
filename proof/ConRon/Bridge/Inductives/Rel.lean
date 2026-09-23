@@ -919,6 +919,25 @@ theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
     (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
   AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
 
+/-- con-leche: none — **the tag-first twin's test, in run form** (task
+#97-P5-Core round 4): at a handle whose view is known, `if h.tag == t then
+view h >>= f else e` ran as `view h >>= f`, because on the `else` side the
+continuation's catch-all arm IS `e`. -/
+theorem tagIf_view_run {α : Type} {h : EIdx} {t : UInt32} {v : ENodeView}
+    {f : ENodeView → AM α} {e : AM α} {s s' : AState} {r : α}
+    (hv : s.store.view h = some v) (he : v.tagOf ≠ t → f v = e)
+    (hrun : (if h.tag == t then (Arena.view h >>= f) else e) s = .ok (r, s')) :
+    (Arena.view h >>= f) s = .ok (r, s') := by
+  by_cases ht : (h.tag == t) = true
+  · rw [if_pos ht] at hrun; exact hrun
+  · rw [if_neg ht] at hrun
+    have hne : v.tagOf ≠ t := by rw [← EStore.tagOf_of_view hv]; simpa using ht
+    have hb : (Arena.view h >>= f) s = f v s := by
+      show StateT.bind (Arena.view h) f s = _
+      simp only [StateT.bind, Arena.view, bind, get, getThe, MonadStateOf.get,
+        StateT.get, pure, StateT.pure, Except.bind, Except.pure, hv]
+    rw [hb, he hne]; exact hrun
+
 /-- con-leche: none — **`viewLs`, as a run**: `view_run` at the level-list
 store.  `eqApp3?` reads a `const` node's universe arguments through it. -/
 theorem viewLs_run {s s' : AState} {u : LsIdx} {v : List LIdx}
