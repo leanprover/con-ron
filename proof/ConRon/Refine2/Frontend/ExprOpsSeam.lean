@@ -1,7 +1,7 @@
 /-
 # `ConRon.Refine2.Frontend.ExprOpsSeam` — the ExprOps lane's lockstep statements, pending
 
-**Task #97-T2-LOCKSTEP lane Frontend round 3.**  `proj_rec.rs` calls nine
+**Task #97-T2-LOCKSTEP lane Frontend round 3.**  `proj_rec.rs` calls ten
 `expr_ops` walks.  On `arena` their Theorem-2 lemmas are still in the
 pre-lockstep shape (`AStateRel` + `StoreWF` + `EResolves`), and a lockstep
 proof cannot consume them; the ExprOps lane's branch (`t2-lock-exprops-b`,
@@ -14,7 +14,7 @@ lane's names.  **When the ExprOps lane lands, this file is deleted** and its
 uses become the lane's `_ls` lemmas (the `@[lockstep]` index finds them by the
 Rust head, so the proofs that use the tactic do not change).
 
-## `sorry` count in this file: 7 (`get_app_fn`/`get_app_args` are the Core lane's `_refines₀`)
+## `sorry` count in this file: 8 (`get_app_fn`/`get_app_args` are the Core lane's `_refines₀`)
 -/
 import ConRon.Refine2.Frontend.Spec
 
@@ -85,5 +85,10 @@ open ConRon.Refine2.Lockstep
     (hinv : AStateInv pers st) (f : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.mk_app_n pers st f args) lst
       (Arena.mkAppN (absEIdx f) (absEIdxList args)) := by sorry
+
+@[lockstep] theorem pi_result_seam {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.pi_result pers st fuel h) st lst
+      (piResult (absU fuel) (absEIdx h)) := by sorry
 
 end ConRon.Refine2.Frontend

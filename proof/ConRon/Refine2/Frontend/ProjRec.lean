@@ -666,17 +666,124 @@ theorem is_proj_iota_name_refines {pers rst lst n o}
   rw [proj_prefix_spelling hsl3 hwf1 hb3]
   rfl
 
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem intern_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : kernel.name.Name) (hwf : ConRon.Refine.NameWF n) :
+    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_name pers st n) lst
+      (Arena.internName (ConRon.Refine.absName n)) :=
+  LS.ofSim₀ fun _ h => intern_name_run₀ hrel hinv hwf h
+
+open ConRon.Refine2.Lockstep in
+/-- `intern_name` at a basis name the port built (`kernel::basis_names`),
+against the twin's `internName` at the con-leche constant: the Rust-only step
+that built it answers the conjunction this premise takes. -/
+@[lockstep] theorem intern_basis_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : kernel.name.Name) (N : ConLeche.Name)
+    (hn : ConRon.Refine.absName n = N ∧ ConRon.Refine.NameWF n) :
+    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_name pers st n) lst
+      (Arena.internName N) := by
+  rw [← hn.1]; exact intern_name_ls hrel hinv n hn.2
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem punit_name_spec :
+    LSP kernel.basis_names.punit_name
+      (fun n => ConRon.Refine.absName n = ConLeche.punitName ∧ ConRon.Refine.NameWF n) :=
+  fun _ h => ConRon.Refine.BasisNames.punit_name_refines h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem punit_unit_name_spec :
+    LSP kernel.basis_names.punit_unit_name
+      (fun n => ConRon.Refine.absName n = ConLeche.punitUnitName ∧ ConRon.Refine.NameWF n) :=
+  fun _ h => ConRon.Refine.BasisNames.punit_unit_name_refines h
+
+open ConRon.Refine2.Lockstep in
+/-- `arena::monad::view_const` against `Arena.viewConst`. -/
+@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absConstT a) (arena.monad.view_const pers st h) st lst
+      (Arena.viewConst (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewConst (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by
+      have := view_const_run₀ hrel hr
+      have h2 : (Except.ok (lst.store.viewConst (absEIdx h), lst) :
+          Except Arena.CheckError _) = _ := this
+      simp only [Except.ok.injEq, Prod.mk.injEq] at h2
+      exact h2.1)
+    hrel hinv
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem eq_name_spec :
+    LSP kernel.basis_names.eq_name
+      (fun n => ConRon.Refine.absName n = ConLeche.eqName ∧ ConRon.Refine.NameWF n) :=
+  fun _ h => ConRon.Refine.BasisNames.eq_name_refines h
+
+/-- The twin's `match l with | [x] => … | _ => …` at a list that is not a
+singleton. -/
+theorem match_single_ne' {α γ : Type} (l : List α) (hl : l.length ≠ 1) (f : α → γ)
+    (g : γ) : (match l with | [x] => f x | _ => g) = g := by
+  match l, hl with
+  | [], _ => rfl
+  | [_], hl => simp at hl
+  | _ :: _ :: _, _ => rfl
+
+open ConRon.Refine2.Lockstep in
 /-- **`proj_iota_level_at`** — the port's split at the resolved view of the
-artifact's type (rule 5: the `.const` arm interns `Eq`). -/
-theorem proj_iota_level_at_refines {pers rst lst n us o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_iota_level_at pers rst n us = ok o) :
-    Sim₀ (Option.map absLIdx) pers lst o
+artifact's type, against the twin's `match ← viewLs us with` arm. -/
+@[lockstep] theorem proj_iota_level_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) :
+    LS pers (fun a b => b = Option.map absLIdx a)
+      (frontend.proj_rec.proj_iota_level_at pers st n us) lst
       (do
-        let eqN ← internName ConLeche.eqName
-        if absNIdx n == eqN then
-          pure ((← viewLs (absLsIdx us)).head?)
-        else pure none) := by sorry
+        match ← viewLs (absLsIdx us) with
+        | [l] => do
+          let eqH ← internName ConLeche.eqName
+          pure (if absNIdx n == eqH then some l else none)
+        | _ => pure none) := by
+  rw [frontend.proj_rec.proj_iota_level_at]
+  refine LSR.bind (view_lsv_ls hrel hinv us) rfl (fun _ => by lockstep_errarm)
+    (fun a b lst1 hR hrel1 hinv1 => ?_)
+  subst hR
+  by_cases hl : a.val.length = 1
+  · obtain ⟨l, hp⟩ := List.length_eq_one_iff.mp hl
+    have habs : absLsNodeView a = [absLIdx l] := by simp [absLsNodeView, hp]
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice _) a 0#usize
+        = ok l := by
+      rw [vec_index_ok_eq a 0#usize (by simp [hp])]
+      simp [hp]
+    rw [habs]
+    dsimp only
+    rw [if_neg (by scalar_tac)]
+    lockstep
+  · dsimp only
+    rw [if_pos (by scalar_tac)]
+    split
+    · rename_i x heq
+      exact absurd (by simpa [absLsNodeView] using congrArg List.length heq) hl
+    · lockstep
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem proj_iota_level_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (ty : arena.handle.EIdx) :
+    LS pers (fun a b => b = Option.map absLIdx a)
+      (frontend.proj_rec.proj_iota_level pers st fuel ty) lst
+      (projIotaLevel (absU fuel) (absEIdx ty)) := by
+  rw [frontend.proj_rec.proj_iota_level, projIotaLevel]
+  lockstep
+  all_goals first
+    | (rw [if_pos (by rw [‹Idx.tag _ = absU32 arena.handle.ETAG_CONST›, etag_const_abs]; rfl)]
+       apply LS.twin_view_const (by rw [‹Idx.tag _ = absU32 arena.handle.ETAG_CONST›, etag_const_abs])
+       refine LSV.bind (view_const_ls ‹_› ‹_› _) rfl (fun p b lst2 hR hrel2 hinv2 => ?_)
+       subst hR
+       cases p with
+       | none => lockstep
+       | some p =>
+         obtain ⟨n, us⟩ := p
+         exact proj_iota_level_at_ls hrel2 hinv2 n us)
+    | (rename_i hP hc
+       rw [if_neg (by
+         rw [hP, ← etag_const_abs]
+         simpa using fun h => hc (absU32_inj h))]
+       lockstep)
 
 /-- **`proj_iota_level` refines `projIotaLevel`** (`ProjRec.lean:100-112`):
 the field sort the artifact records. -/
@@ -684,7 +791,8 @@ theorem proj_iota_level_refines {pers rst lst fuel ty o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_iota_level pers rst fuel ty = ok o) :
     Sim₀ (Option.map absLIdx) pers lst o
-      (projIotaLevel (absU fuel) (absEIdx ty)) := by sorry
+      (projIotaLevel (absU fuel) (absEIdx ty)) :=
+  Lockstep.LS.toSim₀ (proj_iota_level_ls hrel hinv fuel ty) h
 
 /-! ## The occurrence test -/
 
@@ -1480,25 +1588,6 @@ theorem proj_rec_value_ty_refines {pers rst lst fuel o' l ty i lbs o}
     Sim₀ (Option.map absEIdx) pers lst o
       (projRecValueTy (absU fuel) (absProjRecOwner o') (absLIdx l) (absEIdx ty)
         (absU i) (absBinderPairs lbs)) := by sorry
-
-open ConRon.Refine2.Lockstep in
-@[lockstep] theorem intern_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (n : kernel.name.Name) (hwf : ConRon.Refine.NameWF n) :
-    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_name pers st n) lst
-      (Arena.internName (ConRon.Refine.absName n)) :=
-  LS.ofSim₀ fun _ h => intern_name_run₀ hrel hinv hwf h
-
-open ConRon.Refine2.Lockstep in
-@[lockstep] theorem punit_name_spec :
-    LSP kernel.basis_names.punit_name
-      (fun n => ConRon.Refine.absName n = ConLeche.punitName ∧ ConRon.Refine.NameWF n) :=
-  fun _ h => ConRon.Refine.BasisNames.punit_name_refines h
-
-open ConRon.Refine2.Lockstep in
-@[lockstep] theorem punit_unit_name_spec :
-    LSP kernel.basis_names.punit_unit_name
-      (fun n => ConRon.Refine.absName n = ConLeche.punitUnitName ∧ ConRon.Refine.NameWF n) :=
-  fun _ h => ConRon.Refine.BasisNames.punit_unit_name_refines h
 
 open ConRon.Refine2.Lockstep in
 @[lockstep] theorem one_lidx_spec (l : arena.handle.LIdx) :
