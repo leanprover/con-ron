@@ -32,6 +32,7 @@ that is not a transcription.
 -/
 import ConRon.Bridge.Checker.DeclVal
 import ConRon.Bridge.Checker.Basis
+import ConRon.Bridge.Checker.DeclWF
 
 open ConLeche ConRon.Arena
 
@@ -50,6 +51,60 @@ consumer hands back. -/
 theorem FoldOK.ofCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     (h : FoldOK μ env fe s) (hc : CoreStep μ env fe s s') :
     FoldOK μ env fe s' := h.step hc.ok hc.ext hc.pins
+
+/-! ## `DeclOut`'s two round-10 clauses, off the pure run
+
+Task #97-P3-Checker round 10.  Off the inductive route, both clauses are
+read off the PURE step the arm already proves (`DeclCore.run`): con-leche's
+run relation says the step pushed only non-table constants, each well formed
+(`checkDecl_wf_pure`, `Bridge/Checker/DeclWF.lean`), and the pushed front of
+the index denotes the pushed front of the environment, so it holds no new
+table (`projMem_of_noTower`). -/
+
+/-- con-leche: none — **a pushed front that denotes non-tables holds no
+table**: the index's new entries denote the environment's new entries, and
+`Frontend.denoteCI` keeps the constructor. -/
+theorem projMem_of_noTower {st : EStore} {fe fe' : IFEnv} {env env' : Env}
+    (hden : denoteFEnv st fe = some env) (hden' : denoteFEnv st fe' = some env')
+    (hpush : Pushed fe fe') (hnt : NoTowerPush env env') :
+    ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
+      IConstantInfo.projInfo t ∈ fe.env.consts := by
+  intro t ht
+  obtain ⟨newI, hn⟩ := hpush
+  obtain ⟨newP, hP, hnoT⟩ := hnt
+  rw [hn] at ht
+  rcases List.mem_append.mp ht with hnew | hold
+  · exfalso
+    simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hden hden'
+    obtain ⟨zs, hzs, rfl⟩ := hden
+    obtain ⟨zs', hzs', rfl⟩ := hden'
+    rw [hn] at hzs'
+    obtain ⟨za, zb, hza, hzb, heq⟩ := denoteCIList_append _ _ zs' hzs'
+    rw [hzs] at hzb
+    obtain rfl := Option.some.inj hzb
+    have hza' : za = newP := List.append_cancel_right (heq.symm.trans hP)
+    subst hza'
+    obtain ⟨z, hz, hdz⟩ := denoteCIList_mem _ _ hza _ hnew
+    exact ci_ne_proj_of_denote hdz (hnoT z hz) t rfl
+  · exact hold
+
+/-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:52 checkDeclRun_ofEnvFactsE
+— **an arm off the inductive route owes nothing more than its six clauses**:
+the two round-10 clauses follow from the pure run (`checkDecl_wf_pure`) and
+the incoming `FoldOK`'s `EnvWF`. -/
+theorem DeclCore.out {μ : CheckMode} {pinsP : List NatOpPinSet} {env : Env}
+    {d : Declaration} {s : AState} {fe fe' : IFEnv} {s' : AState}
+    (hok : FoldOK μ env fe s)
+    (hd : ∀ b nP, d = .indDecl b nP → (ConLeche.basisPinHit b).isSome = true)
+    (h : DeclCore μ pinsP env d s fe fe' s') : DeclOut μ pinsP env d s fe fe' s' := by
+  obtain ⟨env', F, hden, hF⟩ := h.run
+  obtain ⟨hwf, hnt⟩ := checkDecl_wf_pure hF hok.envWF hd
+  refine ⟨h.state, h.ext, h.pins, h.coh, h.pushed, h.run, fun e he => ?_,
+    fun t ht => Or.inl ?_⟩
+  · rw [hden] at he
+    obtain rfl := Option.some.inj he
+    exact hwf
+  · exact projMem_of_noTower (denoteFEnv_mono h.ext hok.denote) hden h.pushed hnt t ht
 
 /-! ## The pure side's step lemmas
 
@@ -368,8 +423,9 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
         (.defnDecl c x hint) = .ok env2 →
       DeclOut μ pinsP env (.defnDecl c x hint) s fe fe2 sX := by
     intro sX FX hst hx hp hden hpure
-    exact { state := hst, ext := hx, pins := hp, coh := hst2.coh,
-            pushed := hpush2, run := ⟨env2, FX, hden, hpure⟩ }
+    exact DeclCore.out hok (fun _ _ h => nomatch h)
+      { state := hst, ext := hx, pins := hp, coh := hst2.coh,
+        pushed := hpush2, run := ⟨env2, FX, hden, hpure⟩ }
   -- the `Nat.div`/`Nat.mod` gate, which both branches of the first gate end in
   have tail : ∀ (sA : AState) (FA : Nat), FoldOK μ env fe sA →
       Ext s.store sA.store → sA.pins = s.pins →
@@ -575,7 +631,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
     checkThmVal_bridge hμ hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 r1
   have hle1 : F1 ≤ max F1 F2 := Nat.le_max_left _ _
   have hle2 : F2 ≤ max F1 F2 := Nat.le_max_right _ _
-  exact
+  exact DeclCore.out hok (fun _ _ h => nomatch h)
     { state := hstep2.ok.state
       ext := hstep1.ext.trans hstep2.ext
       pins := by rw [hstep2.pins, hstep1.pins]
@@ -641,7 +697,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
     have hle2' : F2 ≤ max (max F1 F2) F4 :=
       Nat.le_trans hle2 (Nat.le_max_left _ F4)
     have hle4' : F4 ≤ max (max F1 F2) F4 := Nat.le_max_right _ F4
-    exact
+    exact DeclCore.out hok (fun _ _ h => nomatch h)
       { state := hst4
         ext := (hstep1.ext.trans hx2).trans hx4
         pins := by rw [hp4, hp2, hstep1.pins]
@@ -660,7 +716,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
       cases hb : ns.contains cvA.name with
       | false => rfl
       | true => rw [hb] at hno; exact absurd rfl hno
-    exact
+    exact DeclCore.out hok (fun _ _ h => nomatch h)
       { state := hst2
         ext := hstep1.ext.trans hx2
         pins := by rw [hp2, hstep1.pins]
@@ -732,7 +788,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
             (.axiomDecl c) = .ok env :=
           checkDecl_axiom_quotSound_pure (hqs.mp hyes) hcanon
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hg3
-        exact
+        exact DeclCore.out hok (fun _ _ h => nomatch h)
           { state := hst3
             ext := hext
             pins := hpins3
@@ -767,7 +823,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
       have hpureS := checkDecl_axiom_std_pure (pinsP := pinsP) hnmP hpure2
         (he3 ▸ hy3)
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hg3
-      exact
+      exact DeclCore.out hok (fun _ _ h => nomatch h)
         { state := hst3
           ext := hext02
           pins := hpin02
@@ -800,7 +856,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
           have hpureT := checkDecl_axiom_trust_pure (pinsP := pinsP) hnmP
             hpure2 hstdP (htc.mp hy4) (he5 ▸ hy5)
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hg5
-          exact
+          exact DeclCore.out hok (fun _ _ h => nomatch h)
             { state := hst5
               ext := hext
               pins := hpins5
@@ -842,7 +898,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
             have hpureR := checkDecl_axiom_ofReduce_pure (pinsP := pinsP) hnmP
               hpure2 hstdP htcP hor (he8 ▸ hy8)
             obtain ⟨rfl, rfl⟩ := AM.pure_ok hg8
-            exact
+            exact DeclCore.out hok (fun _ _ h => nomatch h)
               { state := hst8
                 ext := hext
                 pins := hpins8
@@ -891,7 +947,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
               have hpureA := checkDecl_axiom_sorryAx_pure (pinsP := pinsP) hnmP
                 hpure2 hstdP htcP horP hstdShape (hsa.mp hy11)
               obtain ⟨rfl, rfl⟩ := AM.pure_ok hg11
-              exact
+              exact DeclCore.out hok (fun _ _ h => nomatch h)
                 { state := hst3
                   ext := hext02
                   pins := hpin02
@@ -915,7 +971,7 @@ theorem checkDecl_bridge_basis {μ : CheckMode}
   simp only [Arena.checkDecl] at hrun
   obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
     checkBasisDecl_bridge (μ := μ) (F := 0) hok hrun
-  exact
+  exact DeclCore.out hok (fun _ _ h => nomatch h)
     { state := hst, ext := hx, pins := hp, coh := hcoh, pushed := hpush
       run := ⟨env', 0, hden, checkDecl_basis_pure hpure⟩ }
 
@@ -948,7 +1004,13 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
   | some kind =>
     obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
       checkBasisDecl_bridge (μ := μ) (F := 0) hok1 r1
-    exact
+    have hd : ∀ b' nP', Declaration.indDecl b nP = .indDecl b' nP' →
+        (ConLeche.basisPinHit b').isSome = true := by
+      intro b' nP' h
+      injection h with h1 _
+      subst h1
+      rw [← hr1]; rfl
+    exact DeclCore.out hok hd
       { state := hst
         ext := hx1.trans hx
         pins := by rw [hp, hp1]
@@ -958,13 +1020,17 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
   | none =>
     obtain ⟨hst, hx, hp, hcoh, hpush, hvis, env', F, hden, hpure⟩ :=
       hind.run (pinsP := pinsP) hok1 hb1 hr1.symm r1
+    -- the two round-10 clauses: the Inductives tier's, through `IndSpec.wf`
+    obtain ⟨hwfI, hprojI⟩ := (IndSpec.wf hμ hind).run hok1 hb1 hr1.symm r1
     exact
       { state := hst
         ext := hx1.trans hx
         pins := by rw [hp, hp1]
         coh := hcoh
         pushed := hpush
-        run := ⟨env', F, hden, hpure⟩ }
+        run := ⟨env', F, hden, hpure⟩
+        envWF := hwfI
+        proj := hprojI }
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:602-626 checkDecl (the `.quotDecl`
 arm) — the four-record quotient package, the first matching record installing
@@ -994,7 +1060,7 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
     | type =>
       obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
         checkBasisDecl_bridge (μ := μ) (F := 0) hok1 hgood
-      exact
+      exact DeclCore.out hok (fun _ _ h => nomatch h)
         { state := hst
           ext := hx1.trans hx
           pins := by rw [hp, hp1]
@@ -1004,7 +1070,7 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
     | ctor | lift | ind | sound =>
       all_goals (
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hgood
-        exact
+        exact DeclCore.out hok (fun _ _ h => nomatch h)
           { state := hst1
             ext := hx1
             pins := hp1
