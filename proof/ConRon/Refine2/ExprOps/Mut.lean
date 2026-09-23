@@ -449,17 +449,62 @@ theorem intern_rebuilt_bind_i_refines {pers st lst} {h : arena.handle.EIdx}
     exact intern_e_bind_i_run hrel hinv hfrozen tag ty body m
       (hchildL rfl) (hchildF rfl) (hcapL rfl) (hcapF rfl) (hwfL rfl) (hwfF rfl) hrun
 
-/-- `Arena/ExprOps.lean:139 internRebuilt`. -/
+/-- `Arena/ExprOps.lean:139 internRebuilt` — the view-taking cutoff, against
+`Specs.lean`'s ten-way `intern_e_run`.
+
+**Task #97-P5-Mut corrected the statement** (finding 19's first instance): as
+written it carried `hrel`/`hinv` and nothing else, and `internE`'s side
+conditions are not the port's to give — the same seven `intern_e_run` asks
+for, each guarded by `same = false` exactly as the twelve per-constructor
+siblings above guard theirs.  `hchild` is NOT among them: finding 14's
+`hchild_*` derive it from `hrel.storeWF`, which is what `intern_e_run` already
+does at six of its ten arms; what survives is `ViewOK`, the literal's
+well-formedness, the datum-array capacity, the `PropWhen` shape, the two
+persistent binder probes and `ECapAt`. -/
 theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Bool}
     {v : arena.store.ENodeView} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hview : same = false → lst.store.ViewOK (absENodeView v))
+    (hlit : same = false → ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
+    (hbmcap : same = false → lst.store.capOKBM)
+    (hpw : same = false → ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
+      ConRon.Refine.PropWhenWF m.pw)
+    (hchildL : same = false → ∀ ty b m, v = .Lam ty b m →
+      (((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.lams.find?
+        ⟨absEIdx ty, absEIdx b,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none))
+    (hchildF : same = false → ∀ ty b m, v = .ForallE ty b m →
+      (((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
+        ((lst.store.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
+      (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1.pers.foralls.find?
+        ⟨absEIdx ty, absEIdx b,
+          (lst.store.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none))
+    (hcapB : same = false → ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
+      ECapAt lst.store (absENodeView v))
     (hrun : arena.expr_ops.intern_rebuilt pers st h same v = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
       (internRebuilt (absEIdx h) same (absENodeView v)) := by
-  sorry
-
-
-
+  rw [arena.expr_ops.intern_rebuilt] at hrun
+  show AOut absEIdx (fun _ => True) pers lst o.1 o.2
+    ((internRebuilt (absEIdx h) same (absENodeView v)).run lst)
+  rw [internRebuilt]
+  by_cases hs : same = true
+  · subst hs
+    rw [if_pos rfl] at hrun
+    obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he1] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    simp only [if_true]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  · simp only [Bool.not_eq_true] at hs
+    subst hs
+    simp only [Bool.false_eq_true, if_false]
+    exact intern_e_run hrel hinv hfrozen v (hview rfl) (hlit rfl) (hbmcap rfl)
+      (hpw rfl) (hchildL rfl) (hchildF rfl) (hcapB rfl) hrun
 
 
 
