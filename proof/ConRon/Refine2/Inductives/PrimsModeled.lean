@@ -718,6 +718,30 @@ theorem get_d_eidx_abs {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.U64}
       (fun r => TwinEq ((xs.val.map absEIdx).getD i.val (absEIdx d)) (absEIdx r)) :=
   fun _ h => (get_d_eidx_abs h).symm
 
+/-- `level::name_is_proj_fn_shape` refines `Name.isProjFnShape`, at a
+well-formed name (`Refine/CoreKShapes.lean`'s lemma). -/
+@[lockstep] theorem name_is_proj_fn_shape_spec {n : kernel.name.Name}
+    (hn : ConRon.Refine.NameWF n) :
+    LSP (kernel.level.name_is_proj_fn_shape n)
+      (fun b => TwinEq ((ConRon.Refine.absName n).isProjFnShape) b) :=
+  fun _ h => (ConRon.Refine.CoreK.name_is_proj_fn_shape_refines hn h).symm
+
+/-! ### The fields of an abstracted capability record (registered locally) -/
+
+theorem absIIndCaps_eta (c : arena.env.IIndCaps) : (absIIndCaps c).eta = c.eta := rfl
+theorem absIIndCaps_etaCtor (c : arena.env.IIndCaps) :
+    (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
+theorem absIIndCaps_ruleK (c : arena.env.IIndCaps) : (absIIndCaps c).ruleK = c.rule_k := rfl
+theorem absIIndCaps_unitlike (c : arena.env.IIndCaps) :
+    (absIIndCaps c).unitlike = c.unitlike := rfl
+
+/-- `decide (x = 0)` at a `u64` is the twin's `(x : Nat) == 0`. -/
+theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := by
+  by_cases h : x = 0#u64
+  · subst h; rfl
+  · have : x.val ≠ 0 := fun hc => h (by scalar_tac)
+    simp [h, this]
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
@@ -759,6 +783,7 @@ macro_rules
     `(tactic| (ind_opt_guard
                simp only [core.option.Option.is_some, core.option.Option.is_none] at *
                simp_all [Option.isSome_iff_ne_none, Option.isNone_iff_eq_none]; done))
+
 
 
 
@@ -807,5 +832,59 @@ macro_rules | `(tactic| lockstep_mod) => `(tactic| repeat' (first
 
 /-- The same driver (kept for the proofs that name it). -/
 macro "lockstep_ite" : tactic => `(tactic| lockstep_mod)
+
+/-! ### The recursor rule's two install bits (`core::rec_rule_bits`) and the
+projection function's rule (`core::proj_fn_rule`) — Core tier functions the
+modeled route calls; proved here at the coordinator's ruling (the Core lane
+is busy). -/
+
+section RuleBits
+open Lockstep IndModeledPrims
+attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule_ctorParams
+  absIRecRule_fire absIRecRule_rhs absIRecRule_k absIRecRule_eta absIRecRule_paramsBlind
+  absIIndCaps_eta absIIndCaps_etaCtor absIIndCaps_ruleK decide_u64_eq_zero etag_const_abs
+
+@[lockstep] theorem rec_rule_k_of_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (ctor : arena.handle.NIdx) :
+    LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
+      (recRuleKOf lf (absNIdx ctor)) := by
+  rw [arena.core.rec_rule_k_of, recRuleKOf]
+  lockstep_mod
+
+@[lockstep] theorem rec_rule_eta_of_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn ctor : arena.handle.NIdx) :
+    LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf rn ctor) lst
+      (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
+  rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
+  lockstep_mod
+
+@[lockstep] theorem rec_rule_bits_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn : arena.handle.NIdx)
+    (rl : arena.env.IRecRule) :
+    LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rn rl) lst
+      (recRuleBits lf (absNIdx rn) (absIRecRule rl)) := by
+  rw [arena.core.rec_rule_bits, recRuleBits]
+  lockstep_mod
+
+@[lockstep] theorem proj_fn_rule_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (t ctor_name : arena.handle.NIdx)
+    (pty : arena.handle.EIdx) (n_p n_f i : Std.U64) (rhs_a : arena.handle.EIdx) :
+    LS pers (fun a b => b = absIRecRule a)
+      (arena.core.proj_fn_rule pers vis st rf t ctor_name pty n_p n_f i rhs_a) lst
+      (projFnRule lf (absNIdx t) (absNIdx ctor_name) (absEIdx pty) (absU n_p) (absU n_f)
+        (absU i) (absEIdx rhs_a)) := by
+  rw [arena.core.proj_fn_rule, projFnRule]
+  lockstep_mod
+  -- the rule record the port builds is the twin's literal (its `fire` by the
+  -- port's own test of `plain`)
+  all_goals
+    refine LS.tail (rec_rule_bits_ls ‹_› ‹_› hfe hvis _ _) ?_ (fun _ _ h => h)
+    simp_all [absIRecRule, absIRecRuleFire]
+
+end RuleBits
 
 end ConRon.Refine2
