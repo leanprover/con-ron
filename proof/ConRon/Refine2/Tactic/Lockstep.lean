@@ -95,6 +95,38 @@ tactics (a tuning aid).
   correspondence: one `@[lockstep_simp]` equation (`absU32_beq_app`).
 * A goal left over is either a missing lemma (the message names the Rust
   callee) or a divergence (the twin's next action is a different operation).
+
+## The moves for a port split into fragments (task #97-P5-Core round 5)
+
+`lockstep_step` first tries `coreMove`, then the zip step above.  `coreMove`
+fires only where the zip step cannot, so every lemma `lockstep` closed before
+closes the same way.  It covers the port's habit of writing one twin function
+as several Rust functions and of re-packing values between binds:
+
+* **a Rust callee that is not a call**: `ok v >>= k` is fed to `k v` by
+  REWRITING (`LS.rust_ok_bind`, `bind_tc_ok`; Aeneas's `Result` bind is not
+  definitionally `k v` for the kernel, so a `replaceTargetDefEq` there is
+  accepted by the elaborator and rejected by the kernel); a `do` block is
+  re-associated (`LS.rust_assoc`); an `if` is split (`LS.rust_ite_bind`); a
+  `match` on a variable, a tuple pattern (`uncurry`) or a `match` on a pair's
+  projection is a case split;
+* **a fragment**: a Rust function registered `@[lockstep_inline]` is unfolded
+  in place, on the Rust side only;
+* **a store-level step** (`(Result α, EStore)`, the caller rebuilding
+  `{ st with store := e }`): the judgement `LSS` and `LSS.bind`;
+* **a read in tail position** (`f >>= fun o => ok (o, st)`): `LSR.tail_ls`;
+* **a Rust-only step whose twin partner is a pure expression**: its `LSP`
+  lemma concludes `TwinEq <twin expr> <abs of the Rust value>`, and the twin
+  side is rewritten with every `TwinEq` in the context after every step;
+* **a tag-guarded projection**: the port tests a handle's tag and reads the
+  typed projection (`view_const`), the twin tests the same tag and reads the
+  whole `view`.  Under the tag the view IS the projection (`tagView_*`, no
+  `StoreWF`), and the `@[lockstep_twin]` rules (`LS.twin_view_*`) rewrite the
+  twin to `viewC h >>= danglingOr …`; a rule is kept only if the port's next
+  step then goes through.
+
+The error arm of a bind is closed through an `ok (…) >>= k'` repack too
+(`lockstep_errarm`).  `lockstep_core` is a synonym of `lockstep`.
 -/
 import ConRon.Refine2.Shape
 import ConRon.Refine2.Tactic.Attr
@@ -439,6 +471,456 @@ theorem LS.twin_get_bind {α δ : Type} {pers : arena.store.PersTier} {R : α �
   intro o st' hm
   exact h o st' hm
 
+/-! ## Task #97-P5-Core round 5: the moves for a port split into fragments
+
+`lockstep` below tries these before the zip step (`coreMove`): a Rust callee
+`ok v` (fed to its continuation by REWRITING, `bind_tc_ok`: Aeneas's `Result`
+bind is not definitionally `k v` for the kernel), a Rust callee that is itself
+a `do` block, an `if` or a `match` (a fragment unfolded in place), a fragment
+registered `@[lockstep_inline]`, a store-level step (`LSS`), a read in tail
+position (`LSR.tail_ls`), the `TwinEq` facts of Rust-only steps, and the
+tag-guarded projections (`@[lockstep_twin]`).  None fires where the zip step
+applies, so a lemma `lockstep` closed before is closed the same way. -/
+
+theorem LS.rust_ok_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {v : γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} (h : LS pers R (k v) lst x) :
+    LS pers R (ok v >>= k) lst x := by
+  rw [bind_tc_ok]; exact h
+
+theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α → Prop}
+    (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
+  rw [bind_tc_ok]; exact h
+
+theorem errArm_of_eq {γ : Type} {e : kernel.core_types.CheckError} {st : arena.monad.AState}
+    {m : Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    (h : m = ok (.Err e, st)) : ErrArm m e := by
+  subst h; exact errArm_ok
+
+/-- A Rust read in tail position: `f >>= fun o => ok (o, st)`. -/
+theorem LSR.tail_ls {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
+    {f : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x' x : AM β}
+    (hf : LSR pers R₁ f st lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
+    LS pers R (f >>= fun o => ok (o, st)) lst x := by
+  subst hx
+  intro o st' hm
+  obtain ⟨r, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h2)
+  have h := hf r h1
+  cases r with
+  | Err e => exact h
+  | Ok a =>
+    obtain ⟨b, lst', h1, h2, h3, h4⟩ := h
+    exact ⟨b, lst', h1, hR _ _ h2, h3, h4⟩
+
+/-- A read-shaped statement proved by the `LS` zip. -/
+theorem LSR.of_LS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (h : LS pers R (m >>= fun o => ok (o, st)) lst x) : LSR pers R m st lst x := by
+  intro o hm
+  exact h o st (by rw [hm, bind_tc_ok])
+
+/-! ## The store-level judgement -/
+
+/-- A Rust step over the bare expression store: its outcome, in the state the
+caller rebuilds from the returned store. -/
+def LSS {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore))
+    (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
+  ∀ o s', m = ok (o, s') → LOut pers R o { st with store := s' } (x.run lst)
+
+theorem LSS.bind {α γ β δ : Type} {pers : arena.store.PersTier}
+    {R₁ : α → β → Prop} {R : γ → δ → Prop}
+    {f : Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
+    {st : arena.monad.AState}
+    {k : core.result.Result α kernel.core_types.CheckError × arena.store.EStore →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x' x : AM β} {g : β → AM δ}
+    (hf : LSS pers R₁ f st lst x') (hx : x' = x)
+    (he : ∀ e s', ErrArm (k (.Err e, s')) e)
+    (hk : ∀ a b s' lst1, R₁ a b → AStateRel₀ pers { st with store := s' } lst1 →
+      AStateInv pers { st with store := s' } →
+      LS pers R (k (.Ok a, s')) lst1 (g b)) :
+    LS pers R (f >>= k) lst (x >>= g) := by
+  subst hx
+  intro o st' hm
+  obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have h1 := hf r s1 hf1
+  cases r with
+  | Err e =>
+    have := he e s1 o st' hk1
+    subst this
+    exact errSim_bind h1
+  | Ok a =>
+    obtain ⟨b, lst1, hx1, hR, hrel, hinv⟩ := h1
+    rw [run_bind_ok hx1]
+    exact hk a b s1 lst1 hR hrel hinv o st' hk1
+
+/-- A tail call to a store-level step. -/
+theorem LSS.tail {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
+    {f : Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
+    {st : arena.monad.AState} {lst : AState} {x' x : AM β}
+    (hf : LSS pers R₁ f st lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
+    LS pers R (f >>= fun p => ok (p.1, { st with store := p.2 })) lst x := by
+  subst hx
+  intro o st' hm
+  obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  cases Result.ok_injective hk1
+  have h := hf r s1 hf1
+  cases r with
+  | Err e => exact h
+  | Ok a =>
+    obtain ⟨b, lst', h1, h2, h3, h4⟩ := h
+    exact ⟨b, lst', h1, hR _ _ h2, h3, h4⟩
+
+/-! ## Rust-side normalisation of an inlined fragment -/
+
+theorem LS.rust_assoc {γ δ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {b : Result γ} {g : γ → Result δ}
+    {k : δ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β}
+    (h : LS pers R (b >>= fun y => g y >>= k) lst x) :
+    LS pers R ((b >>= g) >>= k) lst x := by
+  rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem LS.rust_ite_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c] {a b : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β}
+    (h₁ : c → LS pers R (a >>= k) lst x) (h₂ : ¬ c → LS pers R (b >>= k) lst x) :
+    LS pers R ((if c then a else b) >>= k) lst x := by
+  by_cases hc : c
+  · rw [if_pos hc]; exact h₁ hc
+  · rw [if_neg hc]; exact h₂ hc
+
+theorem LSP.rust_assoc {γ δ α : Type} {b : Result γ} {g : γ → Result δ}
+    {k : δ → Result α} {Q : α → Prop}
+    (h : LSP (b >>= fun y => g y >>= k) Q) : LSP ((b >>= g) >>= k) Q := by
+  rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem LSP.rust_ite_bind {γ α : Type} {c : Prop} [Decidable c] {a b : Result γ}
+    {k : γ → Result α} {Q : α → Prop}
+    (h₁ : c → LSP (a >>= k) Q) (h₂ : ¬ c → LSP (b >>= k) Q) :
+    LSP ((if c then a else b) >>= k) Q := by
+  by_cases hc : c
+  · rw [if_pos hc]; exact h₁ hc
+  · rw [if_neg hc]; exact h₂ hc
+
+/-! ## Twin-side moves -/
+
+/-- A twin fact a Rust-only step established about a twin expression: the
+twin side is rewritten left to right with it. -/
+def TwinEq {α : Type} (a b : α) : Prop := a = b
+
+theorem LS.twin_dite_pos {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : c → AM β} {y : ¬ c → AM β} (hc : c) (h : LS pers R m lst (x hc)) :
+    LS pers R m lst (if h : c then x h else y h) := by
+  rw [dif_pos hc]; exact h
+
+theorem LS.twin_dite_neg {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : c → AM β} {y : ¬ c → AM β} (hc : ¬ c) (h : LS pers R m lst (y hc)) :
+    LS pers R m lst (if h : c then x h else y h) := by
+  rw [dif_neg hc]; exact h
+
+/-! ### The tag-guarded projections -/
+
+theorem tagView_const (st : EStore) (i : EIdx) (hi : i.tag = ETag.const) :
+    st.view i = (st.viewConst i).map (fun p => ENodeView.const p.1 p.2) := by
+  have key : ∀ t : ETables,
+      t.get i = (t.getConst i).map (fun p => ENodeView.const p.1 p.2) := by
+    intro t
+    simp only [ETables.get, ETables.getConst, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewConst,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetConst]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem tagView_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort) :
+    st.view i = (st.viewSort i).map ENodeView.sort := by
+  have key : ∀ t : ETables, t.get i = (t.getSort i).map ENodeView.sort := by
+    intro t
+    simp only [ETables.get, ETables.getSort, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewSort,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetSort]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+
+
+theorem view_run_of (h : EIdx) (lst : AState) :
+    (Arena.view h).run lst = (match lst.store.view h with
+      | some v => Except.ok (v, lst)
+      | none => Except.error (Arena.CheckError.internal "arena: dangling expression handle")) := by
+  show ((match lst.store.view h with
+          | some v => (pure v : AM ENodeView)
+          | none => Arena.fail (.internal "arena: dangling expression handle")).run lst) = _
+  cases lst.store.view h <;> rfl
+
+/-- The twin's `match o with | none => failDanglingE | some p => k p`, named
+once so that every rewrite produces the same term. -/
+def danglingOr {γ δ : Type} (k : γ → AM δ) : Option γ → AM δ
+  | none => failDanglingE
+  | some p => k p
+
+@[lockstep_simp] theorem danglingOr_none {γ δ : Type} (k : γ → AM δ) :
+    danglingOr k none = failDanglingE := rfl
+@[lockstep_simp] theorem danglingOr_some {γ δ : Type} (k : γ → AM δ) (p : γ) :
+    danglingOr k (some p) = k p := rfl
+
+/-- Under a tag, the view is a projection: the generic form. -/
+theorem view_bind_of_proj {γ δ : Type} (h : EIdx) (Q : AM (Option γ)) (P : EStore → Option γ)
+    (hQ : ∀ lst : AState, Q.run lst = .ok (P lst.store, lst))
+    (C : γ → ENodeView) (hv : ∀ st : EStore, st.view h = (P st).map C)
+    (g : ENodeView → AM δ) :
+    (Arena.view h >>= g) = (Q >>= danglingOr fun p => g (C p)) := by
+  funext lst
+  show (Arena.view h >>= g).run lst = (Q >>= _).run lst
+  rw [StateT.run_bind, StateT.run_bind, view_run_of, hv, hQ]
+  cases P lst.store <;> rfl
+
+@[lockstep_twin] theorem LS.twin_view_const {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.const)
+    (hls : LS pers R m lst (viewConst h >>= danglingOr fun p => g (.const p.1 p.2))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewConst h) (fun s => s.viewConst h) (fun _ => rfl)
+    (fun p => .const p.1 p.2) (fun st => tagView_const st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_sort {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.sort)
+    (hls : LS pers R m lst (viewSort h >>= danglingOr fun p => g (.sort p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewSort h) (fun s => s.viewSort h) (fun _ => rfl)
+    ENodeView.sort (fun st => tagView_sort st h ht)]
+  exact hls
+
+theorem EStore_viewConstName_eq (st : EStore) (i : EIdx) :
+    st.viewConstName i = (st.viewConst i).map Prod.fst := by
+  rw [EStore.viewConstName, EStore.viewConst]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetConstName, EStore.persGetConst,
+      ETables.getConstName, ETables.getConst, Option.map_map]; rfl
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs, ETables.getConstName, ETables.getConst, Option.map_map]; rfl
+    · rw [if_neg hs, if_neg hs]; rfl
+
+/-- The port reads the NAME of a `const`-tagged handle, the twin its whole
+view, and uses only the name. -/
+@[lockstep_twin] theorem LS.twin_view_const_name {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.const)
+    (hg : ∀ c us, g (.const c us) = g (.const c ⟨0⟩))
+    (hls : LS pers R m lst (viewConstName h >>= danglingOr fun c => g (.const c ⟨0⟩))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  have key : (Arena.view h >>= g) = (viewConstName h >>= danglingOr fun c => g (.const c ⟨0⟩)) := by
+    funext lst
+    show (Arena.view h >>= g).run lst = (viewConstName h >>= _).run lst
+    rw [StateT.run_bind, StateT.run_bind, view_run_of, tagView_const _ h ht]
+    show _ = ((danglingOr (fun c => g (.const c ⟨0⟩)) (lst.store.viewConstName h)).run lst)
+    rw [EStore_viewConstName_eq]
+    cases lst.store.viewConst h with
+    | none => rfl
+    | some p =>
+      show (g (.const p.1 p.2)).run lst = (g (.const p.1 ⟨0⟩)).run lst
+      rw [hg]
+  rw [key]; exact hls
+
+theorem tagView_app (st : EStore) (i : EIdx) (hi : i.tag = ETag.app) :
+    st.view i = (st.viewApp i).map (fun p => ENodeView.app p.1 p.2) := by
+  have key : ∀ t : ETables, t.get i = (t.getApp i).map (fun p => ENodeView.app p.1 p.2) := by
+    intro t
+    simp only [ETables.get, ETables.getApp, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewApp,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.app])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetApp]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem tagView_lit (st : EStore) (i : EIdx) (hi : i.tag = ETag.lit) :
+    st.view i = (st.viewLit i).map ENodeView.lit := by
+  have key : ∀ t : ETables, t.get i = (t.getLit i).map ENodeView.lit := by
+    intro t
+    simp only [ETables.get, ETables.getLit, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewLit,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.lit])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetLit]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem tagView_letE (st : EStore) (i : EIdx) (hi : i.tag = ETag.letE) :
+    st.view i = (st.viewLet i).map (fun p => ENodeView.letE p.1 p.2.1 p.2.2) := by
+  have key : ∀ t : ETables, t.get i = (t.getLet i).map (fun p => ENodeView.letE p.1 p.2.1 p.2.2) := by
+    intro t
+    simp only [ETables.get, ETables.getLet, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewLet,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.letE])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetLet]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem tagView_proj (st : EStore) (i : EIdx) (hi : i.tag = ETag.proj) :
+    st.view i = (st.viewProj i).map (fun p => ENodeView.proj p.1 p.2.1 p.2.2) := by
+  have key : ∀ t : ETables, t.get i = (t.getProj i).map (fun p => ENodeView.proj p.1 p.2.1 p.2.2) := by
+    intro t
+    simp only [ETables.get, ETables.getProj, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewProj,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.proj])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetProj]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem tagView_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
+    st.view i = (st.viewBVar i).map ENodeView.bvar := by
+  have key : ∀ t : ETables, t.get i = (t.getBVar i).map ENodeView.bvar := by
+    intro t
+    simp only [ETables.get, ETables.getBVar, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewBVar,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.bvar])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetBVar]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem tagView_lam (st : EStore) (i : EIdx) (hi : i.tag = ETag.lam) :
+    st.view i = (st.viewBind i).map (fun p => ENodeView.lam p.1 p.2.1 p.2.2) := by
+  rw [EStore.view, if_pos (by rw [hi]; rfl)]
+  cases st.viewBind i with
+  | none => rfl
+  | some p => obtain ⟨ty, b, m⟩ := p; simp [eBindView, hi]
+
+theorem tagView_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
+    st.view i = (st.viewBind i).map (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) := by
+  rw [EStore.view, if_pos (by rw [hi]; rfl)]
+  cases st.viewBind i with
+  | none => rfl
+  | some p =>
+    obtain ⟨ty, b, m⟩ := p
+    simp [eBindView, hi, ETag.forallE, ETag.lam]
+
+@[lockstep_twin] theorem LS.twin_view_app {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.app)
+    (hls : LS pers R m lst (viewApp h >>= danglingOr fun p => g ((fun p => ENodeView.app p.1 p.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewApp h) (fun s => s.viewApp h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.app p.1 p.2) p) (fun st => tagView_app st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_lit {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.lit)
+    (hls : LS pers R m lst (viewLit h >>= danglingOr fun p => g (ENodeView.lit p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewLit h) (fun s => s.viewLit h) (fun _ => rfl)
+    (fun p => ENodeView.lit p) (fun st => tagView_lit st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_letE {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.letE)
+    (hls : LS pers R m lst (viewLet h >>= danglingOr fun p => g ((fun p => ENodeView.letE p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewLet h) (fun s => s.viewLet h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.letE p.1 p.2.1 p.2.2) p) (fun st => tagView_letE st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_proj {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.proj)
+    (hls : LS pers R m lst (viewProj h >>= danglingOr fun p => g ((fun p => ENodeView.proj p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewProj h) (fun s => s.viewProj h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.proj p.1 p.2.1 p.2.2) p) (fun st => tagView_proj st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_bvar {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.bvar)
+    (hls : LS pers R m lst (viewBVar h >>= danglingOr fun p => g (ENodeView.bvar p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewBVar h) (fun s => s.viewBVar h) (fun _ => rfl)
+    (fun p => ENodeView.bvar p) (fun st => tagView_bvar st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_lam {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.lam)
+    (hls : LS pers R m lst (viewBind h >>= danglingOr fun p => g ((fun p => ENodeView.lam p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewBind h) (fun s => s.viewBind h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.lam p.1 p.2.1 p.2.2) p) (fun st => tagView_lam st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_forallE {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.forallE)
+    (hls : LS pers R m lst (viewBind h >>= danglingOr fun p => g ((fun p => ENodeView.forallE p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewBind h) (fun s => s.viewBind h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) p) (fun st => tagView_forallE st h ht)]
+  exact hls
+
 /-! ## The tactic -/
 
 attribute [lockstep_simp] Aeneas.Std.uncurry_apply_pair not_false_eq_true not_true_eq_false
@@ -550,6 +1032,16 @@ macro_rules
       | exact errSim_throw rfl
       | assumption
       | (simp only [lockstep_simp] at *; first | exact errSim_fail rfl | exact errSim_throw rfl))
+
+/-- The error arm of a Rust bind: the continuation fed an `Err` gives it back,
+possibly through an `ok (…) >>= k'` repack (`bind_tc_ok`). -/
+syntax "lockstep_errarm" : tactic
+macro_rules
+  | `(tactic| lockstep_errarm) => `(tactic| first
+      | exact errArm_ok
+      | (show ErrArm (ok _ >>= _) _; rw [bind_tc_ok]; exact errArm_ok)
+      | (apply errArm_of_eq; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair])
+      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h; first | exact h.1.symm | exact h.symm))
 
 /-- Apply `rule` to `g` and return its new goals by binder name. -/
 def applyRule (g : MVarId) (rule : Name) : MetaM (Array (Name × MVarId)) := do
@@ -725,7 +1217,7 @@ def errArm (g : MVarId) (names : List Name) : TacticM Unit := do
     let ty ← instantiateMVars (← g'.getType)
     let m ← headNorm (ty.getArg! 1)
     g'.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
-  runClosed g' (evalT `(tactic| exact errArm_ok))
+  runClosed g' (evalT `(tactic| lockstep_errarm))
 
 /-- Drop the branches whose condition contradicts the context. -/
 def contra (gs : List MVarId) : TacticM (List MVarId) := do
@@ -939,13 +1431,200 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
       return ← tidy (← pick gs `h) none
   rustStep g m x
 
+/-- Is `n` registered `@[lockstep_inline]`? -/
+def isInline (n : Name) : MetaM Bool := do
+  let some ext ← getSimpExtension? `lockstep_inline | return false
+  let thms ← ext.getTheorems
+  if thms.isDeclToUnfold n then return true
+  return thms.lemmaNames.toList.any fun o => match o with
+    | .decl d .. => d.getPrefix == n
+    | _ => false
+
+/-- The registered twin-side rules. -/
+def twinRules : MetaM (List Name) := do
+  let some ext ← getSimpExtension? `lockstep_twin | return []
+  let thms ← ext.getTheorems
+  return thms.lemmaNames.toList.filterMap fun o => match o with
+    | .decl d .. => some d
+    | _ => none
+
+/-- Replace argument `i` of the judgement `ty` (the goal of `g`) by `r.expr`. -/
+def replaceArg (g : MVarId) (i : Nat) (r : Simp.Result) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let x := ty.getArg! i
+  let ty' := mkAppN ty.getAppFn (ty.getAppArgs.set! i r.expr)
+  match r.proof? with
+  | none => g.replaceTargetDefEq ty'
+  | some pf =>
+    let motive ← withLocalDeclD `z (← inferType x) fun z =>
+      mkLambdaFVars #[z] (mkAppN ty.getAppFn (ty.getAppArgs.set! i z))
+    let eq ← mkCongrArg motive pf
+    g.replaceTargetEq ty' eq
+
+/-- The Rust argument's position in a judgement. -/
+def rustPos (ty : Expr) : Option Nat :=
+  if ty.isAppOfArity ``LS 7 then some 4
+  else if ty.isAppOfArity ``LSP 3 then some 1
+  else none
+
+/-- Unfold the fragment `n` in the Rust argument only. -/
+def unfoldRust (g : MVarId) (n : Name) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let some i := rustPos ty | throwError "lockstep_core: not a judgement"
+  let r ← Meta.unfold (ty.getArg! i) n
+  if r.expr == ty.getArg! i then throwError "lockstep_core: {n} did not unfold"
+  replaceArg g i r
+
+/-- The twin side rewritten with the `TwinEq` facts of the context and
+`lockstep_simp`. -/
+def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``LS 7 do return g
+  let mut thms : SimpTheorems := {}
+  let mut any := false
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    if t.isAppOfArity ``TwinEq 3 then
+      let eqTy ← mkEq (t.getArg! 1) (t.getArg! 2)
+      thms ← thms.add (.fvar d.fvarId) #[] (← mkExpectedTypeHint d.toExpr eqTy)
+      any := true
+  unless any do return g
+  let some ext ← getSimpExtension? `lockstep_simp | return g
+  let base ← ext.getTheorems
+  let x := ty.getArg! 6
+  let ctx ← Simp.mkContext (simpTheorems := #[base, thms]) (congrTheorems := ← getSimpCongrTheorems)
+  let (r, _) ← simp x ctx
+  if r.expr == x then return g
+  replaceArg g 6 r
+
+def normAll (gs : List MVarId) : TacticM (List MVarId) :=
+  gs.mapM fun g => do
+    let g ← normGoal g
+    let g ← simpTwinEqs g
+    clearStale g
+
+/-- Apply `rule`, run `tac` on the premise named `side` (if any), and return
+the premise named `next`. -/
+def applyWith (g : MVarId) (rule : Name) (side : List Name) (next : Name)
+    (extra : List Name := []) : TacticM MVarId := do
+  let gs ← applyRule g rule
+  for s in side do
+    runClosed (← pick gs s) (evalT `(tactic| lockstep_side))
+  for s in extra do
+    runClosed (← pick gs s) (evalT `(tactic| (intros; rfl)))
+  pick gs next
+
+/-- The Core tier's extra moves; `none` when none applies. -/
+def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let some rp := rustPos ty | return none
+  let isLS := rp == 4
+  let m := (ty.getArg! rp).headBeta
+  -- a tail call to a fragment
+  if let some n := m.getAppFn.constName? then
+    if ← isInline n then
+      return some (← normAll [← unfoldRust g n])
+  if m.isAppOfArity ``Bind.bind 6 then
+    let f ← headNorm (m.getArg! 4)
+    let k := m.getArg! 5
+    if f != m.getArg! 4 then
+      let m' := mkAppN m.getAppFn (m.getAppArgs.set! 4 f)
+      let g' ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! rp m'))
+      return some [g']
+    if f.isAppOfArity ``Result.ok 2 then
+      -- `ok v >>= k` is `k v` only propositionally (`bind_tc_ok`)
+      let _ := k
+      let gs ← applyRule g (if isLS then ``LS.rust_ok_bind else ``LSP.rust_ok_bind)
+      return some (← normAll [← pick gs `h])
+    if f.isAppOfArity ``Bind.bind 6 then
+      let g' ← applyWith g (if isLS then ``LS.rust_assoc else ``LSP.rust_assoc) [] `h
+      return some [g']
+    if f.isAppOfArity ``ite 5 then
+      let gs ← applyRule g (if isLS then ``LS.rust_ite_bind else ``LSP.rust_ite_bind)
+      let g1 ← cont (← pick gs `h₁) [`hc] (some `hc)
+      let g2 ← cont (← pick gs `h₂) [`hc] none
+      return some (← normAll (g1 ++ g2))
+    -- a tuple pattern `let (x, y) := p` in bind position
+    if f.isAppOfArity ``Aeneas.Std.uncurry 5 then
+      if let .fvar fv := f.appArg! then
+        let subs ← g.cases fv
+        return some (← normAll (subs.toList.map (·.mvarId)))
+    if let some mapp ← matchMatcherApp? f then
+      if let some (.fvar fv) := mapp.discrs.find? (·.isFVar) then
+        let subs ← g.cases fv
+        return some (← normAll (subs.toList.map (·.mvarId)))
+      -- a `match` on a projection of a pair variable
+      for d in mapp.discrs do
+        let d ← instantiateMVars d
+        for fv in (Lean.collectFVars {} d).fvarIds do
+          if (← whnfR (← fv.getType)).isAppOf ``Prod then
+            let subs ← g.cases fv
+            return some (← normAll (subs.toList.map (·.mvarId)))
+    if let some n := f.getAppFn.constName? then
+      if ← isInline n then
+        return some (← normAll [← unfoldRust g n])
+    -- a read in tail position: `f >>= fun o => ok (o, st)`
+    if isLS then
+      if let .read ← classify (← inferType f).appArg! then
+        let s ← saveState
+        try
+          let gs ← applyRule g ``LSR.tail_ls
+          specCore (← pick gs `hf)
+          runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+          runClosed (← pick gs `hR)
+            (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
+          return some []
+        catch _ => s.restore
+    -- a store-level step
+    if isLS then
+      let T ← whnfR (← inferType f)
+      if T.isAppOfArity ``Result 1 then
+        let P ← whnfR T.appArg!
+        if P.isAppOfArity ``Prod 2 && (P.getArg! 1).isConstOf ``arena.store.EStore then
+          let gs ← applyRule g ``LSS.bind
+          specCore (← pick gs `hf)
+          runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+          errArm (← pick gs `he) [`e, `s']
+          return some (← normAll (← cont (← pick gs `hk) [`a, `b, `s', `lst1, `hR, `hrel, `hinv] (some `hR)))
+  -- a tag-guarded projection on the Rust side against the twin's `view`
+  if isLS && m.isAppOfArity ``Bind.bind 6 then
+    let x := (ty.getArg! 6).headBeta
+    let isProj := match (m.getArg! 4).getAppFn.constName? with
+      | some n => n != ``arena.monad.view && (`arena.monad).isPrefixOf n &&
+          (n.toString.drop "arena.monad.".length).startsWith "view_"
+      | none => false
+    if isProj && x.isAppOfArity ``Bind.bind 6 &&
+        ((x.getArg! 4).headBeta.isAppOf ``Arena.view) then
+      for rule in ← twinRules do
+        let s ← saveState
+        try
+          let gs ← applyRule g rule
+          for (n, sg) in gs do
+            if ← sg.isAssigned then continue
+            if n == `ht then runClosed sg (evalT `(tactic| lockstep_side))
+            else if n == `hg then runClosed sg (evalT `(tactic| (intros; rfl)))
+          let g' ← pick gs `hls
+          let g' ← normGoal g'
+          -- keep the rule only if the port's projection now steps
+          let rest ← stepCore g'
+          return some (← normAll rest)
+        catch _ => s.restore
+  return none
+
 /-- **One lockstep step** on the main goal. -/
 elab "lockstep_step" : tactic => do
   let g ← getMainGoal
   let others := (← getGoals).tail
   let s ← saveState
   try
+    match ← coreMove g with
+    | some rest => setGoals (rest ++ others); return
+    | none => pure ()
+  catch _ => s.restore
+  try
     let rest ← stepCore g
+    let rest ← normAll rest
     setGoals (rest ++ others)
   catch e =>
     s.restore
@@ -959,6 +1638,10 @@ elab "lockstep_step" : tactic => do
 
 /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
 macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
+
+/-- Task #97-P5-Core round 5's name for `lockstep` (the moves it added now live
+in `lockstep` itself); kept so the round's region files read unchanged. -/
+macro "lockstep_core" : tactic => `(tactic| lockstep)
 
 end Lockstep
 
