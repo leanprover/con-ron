@@ -2293,6 +2293,108 @@ theorem mapM_E_pstep {f : EIdx → AM EIdx} {F : Expr → Expr}
         refine ⟨p1.trans p2, ?_⟩
         simp only [Frontend.denoteEList, List.map_cons, denote_ext hx p2.ext, hxs]
 
+/-- con-leche: none — `List.allM` of a pure-grade test over a denoting
+handle list, with a store invariant `Q` the test may read (the name a
+`mentionsConst` looks for, say): the verdict is the pure `List.all`. -/
+theorem allM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → Prop)
+    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = F eP) :
+    ∀ (hs : List EIdx) (xs : List Expr) (s₀ s' : AState) (b : Bool),
+      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store hs = some xs →
+      hs.allM f s₀ = .ok (b, s') → PStep s₀ s' ∧ b = xs.all F := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs s₀ s' b hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro xs s₀ s' b hok hq h hrun
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+      cases hes : Frontend.denoteEList s₀.store es with
+      | none => rw [he, hes] at h; simp at h
+      | some esP =>
+        rw [he, hes] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.allM] at hrun
+        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
+        cases c with
+        | false =>
+          obtain ⟨rfl, rfl⟩ := pureOk z1
+          refine ⟨p1, ?_⟩
+          simp only [List.all_cons, ← hc, Bool.false_and]
+        | true =>
+          obtain ⟨p2, hb⟩ := ih esP s1 s' b p1.ok (hQx p1.ext hq)
+            (denoteEList_ext p1.ext _ _ hes) z1
+          refine ⟨p1.trans p2, ?_⟩
+          simp only [List.all_cons, ← hc, Bool.true_and, hb]
+
+/-- con-leche: none — `List.allM` of a pure-grade test over a list of
+representation-free keys (indices): the verdict is the pure `List.all`. -/
+theorem allM_pstep {α : Type} {f : α → AM Bool} {g : α → Bool}
+    (P : α → EStore → Prop)
+    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
+    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), StateOK s₀ → P a s₀.store →
+      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
+    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      (∀ a ∈ xs, P a s₀.store) → xs.allM f s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = xs.all g := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro s₀ s' b hok _ hrun
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons a as ih =>
+    intro s₀ s' b hok hP hrun
+    simp only [List.allM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
+    cases c with
+    | false =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      simp only [List.all_cons, ← hc, Bool.false_and]
+    | true =>
+      obtain ⟨p2, hb⟩ := ih s1 s' b p1.ok (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
+      refine ⟨p1.trans p2, ?_⟩
+      simp only [List.all_cons, ← hc, Bool.true_and, hb]
+
+/-- con-leche: none — a handle whose view is not a `.const` denotes a term
+that is not one (`Bridge/Core/Walks/Guards.lean`'s `isBoolTrue_of_not_const`
+argument, as a shape fact). -/
+theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
+    (he : denoteE st h = some e)
+    (hne : ∀ c us, v ≠ .const c us) : ∀ c us, e ≠ .const c us := by
+  cases v with
+  | bvar i => rw [denote_bvar_inv hwf hv he]; intro _ _ h; cases h
+  | fvar k t =>
+    obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; intro _ _ h; cases h
+  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; intro _ _ h; cases h
+  | const n us => exact absurd rfl (hne n us)
+  | app f a =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; intro _ _ h; cases h
+  | lam ty b m =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; intro _ _ h; cases h
+  | forallE ty b m =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; intro _ _ h; cases h
+  | letE ty w b =>
+    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; intro _ _ h; cases h
+  | lit l => rw [denote_lit_inv hwf hv he]; intro _ _ h; cases h
+  | proj n i sub =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; intro _ _ h; cases h
+
 /-- con-leche: none — `ListRel` at a handle denotation is `denoteEList`. -/
 theorem ListRel.toEList {st : EStore} :
     ∀ {bs : List EIdx} {cs : List Expr},

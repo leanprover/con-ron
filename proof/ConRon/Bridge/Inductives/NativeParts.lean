@@ -54,7 +54,72 @@ theorem recFamOk_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         Frontend.denoteNList st.ns lps = some lpsP ∧ denoteE st e = some eP)
       (Arena.recFamOk T lps nP nIdx o e)
       (RV (ConLeche.recFamOk TP lpsP nP nIdx o eP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps, he⟩ := hpre
+  simp only [Arena.recFamOk] at hrun
+  obtain ⟨us, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hus⟩ := paramLevels_spec lps lpsP s₀ s1 us hok hlps k1
+  obtain ⟨hd, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hhd⟩ := internConstE_run p1.ok (denoteN_ext hT p1.ext) hus k2
+  have q2 : PStep s₀ s2 := p1.trans p2
+  obtain ⟨fn, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, hfn⟩ := getAppFn_run q2.ok (denote_ext he q2.ext) k3
+  rw [hs3] at z3
+  obtain ⟨args, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨hs4, hargs⟩ := getAppArgs_run q2.ok (denote_ext he q2.ext) k4
+  rw [hs4] at z4
+  obtain ⟨ps, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hps⟩ := structPsAt_spec o nP s2 s5 ps q2.ok trivial k5
+  have q5 : PStep s₀ s5 := q2.trans p5
+  have e1 := beq_ehandle_eq p5.ok.wf (denote_ext hfn p5.ext) (denote_ext hhd p5.ext)
+  have e2 : args.length = eP.getAppArgs.length := (denoteEList_len hargs).symm
+  have e3 := beq_ehandleList_eq p5.ok.wf
+    (denoteEList_take (denoteEList_ext p5.ext _ _ hargs) nP) hps
+  rw [e1, e2, e3] at z5
+  split at z5
+  case isTrue hc =>
+    obtain ⟨rfl, rfl⟩ := pureOk z5
+    refine ⟨q5, ?_⟩
+    show false = ConLeche.recFamOk TP lpsP nP nIdx o eP
+    simp only [Bool.not_eq_true'] at hc
+    simp only [ConLeche.recFamOk, hc, Bool.false_and]
+  case isFalse hc =>
+    simp only [Bool.not_eq_true', Bool.not_eq_false] at hc
+    obtain ⟨p6, hr⟩ := allM_E_pstep (F := fun a => !a.mentionsConst TP)
+      (fun st => denoteN st.ns T = some TP) (fun hx h => denoteN_ext h hx)
+      (by
+        intro a aP t0 t1 b hok0 hq ha hrun0
+        obtain ⟨m, t2, q1, w1⟩ := bindOk hrun0
+        obtain ⟨o1, hm⟩ := mentionsConst_spec T TP a aP t0 t2 m hok0 ⟨hq, ha⟩ q1
+        obtain ⟨rfl, rfl⟩ := pureOk w1
+        exact ⟨o1, by rw [hm]⟩)
+      _ _ s5 s' r p5.ok (denoteN_ext hT q5.ext)
+      (denoteEList_drop (denoteEList_ext p5.ext _ _ hargs) nP) z5
+    refine ⟨q5.trans p6, ?_⟩
+    show r = ConLeche.recFamOk TP lpsP nP nIdx o eP
+    simp only [ConLeche.recFamOk, hc, Bool.true_and, hr]
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
+— **the pure side's leaf clause, selected**: at a term that is not a `∀`,
+con-leche's second equation. -/
+theorem recPositivity_leaf {TP : ConLeche.Name} {lpsP : List ConLeche.Name}
+    {nP nIdx o : Nat} {e : Expr} {k : Nat} (h : ∀ a b c, e ≠ .forallE a b c) :
+    ConLeche.recPositivity TP lpsP nP nIdx o e k =
+      (if !e.mentionsConst TP then .ordinary
+       else if e.getAppFn == Expr.const TP (lpsP.map .param) then
+         (if e.getAppArgs.length == nP + nIdx &&
+             e.getAppArgs.take nP == ConLeche.structPsAt (o + k) nP then
+           (if ConLeche.recFamOk TP lpsP nP nIdx (o + k) e then
+             (if k == 0 then .recursive else .reflexive)
+            else .negative)
+          else .negative)
+       else
+         match e.getAppFn with
+         | .const T' _ => if T' == TP then .negative else .unsupported
+         | _ => .unsupported) := by
+  cases e
+  case forallE a b c => exact absurd rfl (h a b c)
+  all_goals (rw [ConLeche.recPositivity] <;> (try rfl) <;> (intro _ _ _ h; cases h))
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
 The field domain's kind, walking under its own binders.
@@ -68,7 +133,127 @@ theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         Frontend.denoteNList st.ns lps = some lpsP ∧ denoteE st h = some hP)
       (Arena.recPositivity T lps nP nIdx o fuel h k)
       (RK (ConLeche.recPositivity TP lpsP nP nIdx o hP k)) := by
-  sorry
+  induction fuel generalizing h hP k with
+  | zero =>
+    intro s₀ s' r _ _ hrun
+    simp only [Arena.recPositivity] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hlps, hh⟩ := hpre
+    simp only [Arena.recPositivity] at hrun
+    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    have hhv : denoteEView s₀.store v = some hP := by
+      rw [← denoteE_view_eq hok.wf hv]; exact hh
+    split at z1
+    case h_1 dom body m =>
+      obtain ⟨domP, bodyP, rfl, hdom, hbody⟩ := denote_forallE_inv hok.wf hv hh
+      obtain ⟨mc, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hmc⟩ := mentionsConst_spec T TP dom domP s₀ s2 mc hok ⟨hT, hdom⟩ k2
+      have hmc' : mc = domP.mentionsConst TP := hmc
+      subst hmc'
+      cases hm : domP.mentionsConst TP with
+      | true =>
+        rw [hm] at z2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        refine ⟨p2, ?_⟩
+        show _ = ConLeche.recPositivity TP lpsP nP nIdx o (.forallE domP bodyP m) k
+        rw [ConLeche.recPositivity, hm]; rfl
+      | false =>
+        rw [hm] at z2
+        obtain ⟨p3, hr⟩ := ih body bodyP (k + 1) s2 s' r p2.ok
+          ⟨denoteN_ext hT p2.ext, denoteNListE_ext p2.ext _ _ hlps, denote_ext hbody p2.ext⟩ z2
+        refine ⟨p2.trans p3, ?_⟩
+        show _ = ConLeche.recPositivity TP lpsP nP nIdx o (.forallE domP bodyP m) k
+        rw [ConLeche.recPositivity, hm]; exact hr
+    case h_2 hne =>
+      have hns := ExprOps.denoteEView_not_forallE hhv hne
+      show PStep s₀ s' ∧ kindOf r = ConLeche.recPositivity TP lpsP nP nIdx o hP k
+      rw [recPositivity_leaf hns]
+      obtain ⟨mc, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hmc⟩ := mentionsConst_spec T TP h hP s₀ s2 mc hok ⟨hT, hh⟩ k2
+      have hmc' : mc = hP.mentionsConst TP := hmc
+      subst hmc'
+      cases hm : hP.mentionsConst TP with
+      | false =>
+        rw [hm] at z2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        exact ⟨p2, rfl⟩
+      | true =>
+      rw [hm] at z2
+      simp only [Bool.not_true, Bool.false_eq_true, if_false]
+      obtain ⟨us, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, hus⟩ := paramLevels_spec lps lpsP s2 s3 us p2.ok
+        (denoteNListE_ext p2.ext _ _ hlps) k3
+      obtain ⟨hd, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨p4, hhd⟩ := internConstE_run p3.ok (denoteN_ext hT (p2.ext.trans p3.ext)) hus k4
+      have q4 : PStep s₀ s4 := p2.trans (p3.trans p4)
+      obtain ⟨fn, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hfn⟩ := getAppFn_run q4.ok (denote_ext hh q4.ext) k5
+      rw [hs5] at z5
+      obtain ⟨args, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨hs6, hargs⟩ := getAppArgs_run q4.ok (denote_ext hh q4.ext) k6
+      rw [hs6] at z6
+      have e1 := beq_ehandle_eq q4.ok.wf hfn hhd
+      rw [e1] at z6
+      split at z6
+      case isTrue hc =>
+        rw [if_pos hc]
+        obtain ⟨ps, s7, k7, z7⟩ := bindOk z6
+        obtain ⟨p7, hps⟩ := structPsAt_spec (o + k) nP s4 s7 ps q4.ok trivial k7
+        have e2 : args.length = hP.getAppArgs.length := (denoteEList_len hargs).symm
+        have e3 := beq_ehandleList_eq p7.ok.wf
+          (denoteEList_take (denoteEList_ext p7.ext _ _ hargs) nP) hps
+        rw [e2, e3] at z7
+        split at z7
+        case isTrue hc2 =>
+          rw [if_pos hc2]
+          obtain ⟨b, s8, k8, z8⟩ := bindOk z7
+          obtain ⟨p8, hb⟩ := recFamOk_spec T TP lps lpsP nP nIdx (o + k) h hP s7 s8 b p7.ok
+            ⟨denoteN_ext hT (q4.ext.trans p7.ext),
+              denoteNListE_ext (q4.ext.trans p7.ext) _ _ hlps,
+              denote_ext hh (q4.ext.trans p7.ext)⟩ k8
+          have hb' : b = ConLeche.recFamOk TP lpsP nP nIdx (o + k) hP := hb
+          subst hb'
+          have q8 : PStep s₀ s8 := q4.trans (p7.trans p8)
+          cases hfo : ConLeche.recFamOk TP lpsP nP nIdx (o + k) hP with
+          | true =>
+            rw [hfo] at z8
+            obtain ⟨rfl, rfl⟩ := pureOk z8
+            refine ⟨q8, ?_⟩
+            simp only [if_true]
+            cases k <;> rfl
+          | false =>
+            rw [hfo] at z8
+            obtain ⟨rfl, rfl⟩ := pureOk z8
+            exact ⟨q8, rfl⟩
+        case isFalse hc2 =>
+          rw [if_neg hc2]
+          obtain ⟨rfl, rfl⟩ := pureOk z7
+          exact ⟨q4.trans p7, rfl⟩
+      case isFalse hc =>
+        rw [if_neg hc]
+        obtain ⟨fv, s7, k7, z7⟩ := bindOk z6
+        obtain ⟨hs7, hfv⟩ := view_run k7
+        rw [hs7] at z7
+        split at z7
+        case h_1 T' us' =>
+          obtain ⟨T'P, lsP, hfe, hT', -⟩ := denote_const_inv q4.ok.wf hfv hfn
+          obtain ⟨rfl, rfl⟩ := pureOk z7
+          refine ⟨q4, ?_⟩
+          rw [hfe]
+          dsimp only
+          rw [beq_handle_eq q4.ok.wf hT' (denoteN_ext hT q4.ext)]
+          cases (T'P == TP) <;> rfl
+        case h_2 hnc =>
+          have hnc' := denote_not_const q4.ok.wf hfv hfn hnc
+          obtain ⟨rfl, rfl⟩ := pureOk z7
+          refine ⟨q4, ?_⟩
+          split
+          · rename_i T' ls hfe; exact absurd hfe (hnc' T' ls)
+          · rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:113-116 recFieldKind
 The entry at `k = 0`.
@@ -80,7 +265,68 @@ theorem recFieldKind_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         Frontend.denoteNList st.ns lps = some lpsP ∧ denoteE st dom = some domP)
       (Arena.recFieldKind T lps nP nIdx o dom)
       (RK (ConLeche.recFieldKind TP lpsP nP nIdx o domP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps, hdom⟩ := hpre
+  simp only [Arena.recFieldKind] at hrun
+  obtain ⟨mc, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hmc⟩ := mentionsConst_spec T TP dom domP s₀ s1 mc hok ⟨hT, hdom⟩ k1
+  have hmc' : mc = domP.mentionsConst TP := hmc
+  subst hmc'
+  cases hm : domP.mentionsConst TP with
+  | false =>
+    rw [hm] at z1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨p1, ?_⟩
+    show _ = ConLeche.recFieldKind TP lpsP nP nIdx o domP
+    simp only [ConLeche.recFieldKind, hm]; rfl
+  | true =>
+    rw [hm] at z1
+    obtain ⟨p2, hr⟩ := recPositivity_spec T TP lps lpsP nP nIdx o _ dom domP 0 s1 s' r p1.ok
+      ⟨denoteN_ext hT p1.ext, denoteNListE_ext p1.ext _ _ hlps, denote_ext hdom p1.ext⟩ z1
+    refine ⟨p1.trans p2, ?_⟩
+    show _ = ConLeche.recFieldKind TP lpsP nP nIdx o domP
+    simp only [ConLeche.recFieldKind, hm, if_true]; exact hr
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+— the per-field kind con-leche's `let ks` maps, named so that a statement can
+mention it (a `match` in a lambda cannot be restated: every restatement is a
+new matcher). -/
+def recKindAt (TP : ConLeche.Name) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
+    (cty : Expr) (cxs : List (Expr × BinderMeta)) (i : Nat) : ConLeche.RecFieldKind :=
+  match ConLeche.recFieldKind TP lpsP nP nIdx i (cxs.getD (nP + i) default).1 with
+  | .recursive => if ConLeche.structUsedLater cty nP i then .unsupported else .recursive
+  | .reflexive => if ConLeche.structUsedLater cty nP i then .unsupported else .reflexive
+  | k => k
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+— the pure side at a peeled telescope, through `recKindAt`. -/
+theorem recCtorKinds_some {TP : ConLeche.Name} {lpsP : List ConLeche.Name}
+    {nP nIdx : Nat} {cP : ConstantVal × Nat} {cxs : List (Expr × BinderMeta)}
+    {cbody : Expr} (h : cP.1.type.stripPis (nP + cP.2) = some (cxs, cbody)) :
+    ConLeche.recCtorKinds TP lpsP nP nIdx cP =
+      if (cbody.getAppArgs.drop nP).all (fun a => !a.mentionsConst TP) then
+        some ((List.range cP.2).map (recKindAt TP lpsP nP nIdx cP.1.type cxs))
+      else some (((List.range cP.2).map (recKindAt TP lpsP nP nIdx cP.1.type cxs)).map
+        fun _ => .negative) := by
+  simp only [ConLeche.recCtorKinds, h]
+  rfl
+
+/-- con-leche: none — `ListRel` at a function of the handle side is a `map`. -/
+theorem ListRel.map_eq {β γ : Type} {f : β → γ} {st : EStore} :
+    ∀ {bs : List β} {cs : List γ}, ListRel (fun _ b c => f b = c) st bs cs →
+      bs.map f = cs := by
+  intro bs
+  induction bs with
+  | nil => intro cs h; cases cs with
+    | nil => rfl
+    | cons _ _ => exact h.elim
+  | cons b bs ih =>
+    intro cs h
+    cases cs with
+    | nil => exact h.elim
+    | cons c cs =>
+      obtain ⟨h1, h2⟩ := h
+      simp only [List.map_cons, h1, ih h2]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
 One constructor's field kinds, or `none` when its residual is not the family.
@@ -95,7 +341,101 @@ theorem recCtorKinds_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         Frontend.denoteCV st c.1 = some cP.1 ∧ c.2 = cP.2)
       (Arena.recCtorKinds T lps nP nIdx c)
       (ROp RKs (ConLeche.recCtorKinds TP lpsP nP nIdx cP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps, hcv, hc2⟩ := hpre
+  have hty := denoteCV_type hcv
+  simp only [Arena.recCtorKinds] at hrun
+  obtain ⟨q, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hq⟩ := stripPis_pstep hok hty k1
+  rw [hs1] at z1
+  rcases q with _ | ⟨cbs, cbody⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨PStep.refl hok, ?_⟩
+    show _ = none
+    simp only [ConLeche.recCtorKinds, ← hc2, stripPis_none hq]
+  obtain ⟨cxs, cbodyP, hsp, hcbs, hcb⟩ := denoteBP_someB hq
+  have hlenP : cxs.length = nP + c.2 := ConLeche.Expr.stripPis_length _ hsp
+  have hlen : cbs.length = nP + c.2 := (denoteBinders_length hcbs).trans hlenP
+  have hsp' : cP.1.type.stripPis (nP + cP.2) = some (cxs, cbodyP) := by
+    rw [← hc2]; exact hsp
+  obtain ⟨ks, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hks⟩ := mapM_pstep (β := Arena.RecFieldKind) (γ := ConLeche.RecFieldKind) _
+    (recKindAt TP lpsP nP nIdx cP.1.type cxs) (fun _ b c => kindOf b = c)
+    (fun i st => i < c.2 ∧ denoteN st.ns T = some TP ∧
+      Frontend.denoteNList st.ns lps = some lpsP ∧
+      denoteE st (cbs.getD (nP + i) default).1 = some (cxs.getD (nP + i) default).1 ∧
+      denoteE st c.1.type = some cP.1.type)
+    (fun _ h => h)
+    (fun hx h => ⟨h.1, denoteN_ext h.2.1 hx, denoteNListE_ext hx _ _ h.2.2.1,
+      denote_ext h.2.2.2.1 hx, denote_ext h.2.2.2.2 hx⟩)
+    (by
+      intro i t0 t1 b hok0 hP hrun0
+      obtain ⟨hi, hT0, hlps0, hdi, hty0⟩ := hP
+      obtain ⟨kk, t2, q1, w1⟩ := bindOk hrun0
+      obtain ⟨o1, hk⟩ := recFieldKind_spec T TP lps lpsP nP nIdx i _ _ t0 t2 kk hok0
+        ⟨hT0, hlps0, hdi⟩ q1
+      have hk' : kindOf kk = ConLeche.recFieldKind TP lpsP nP nIdx i
+          (cxs.getD (nP + i) default).1 := hk
+      show PStep t0 t1 ∧ kindOf b = recKindAt TP lpsP nP nIdx cP.1.type cxs i
+      unfold recKindAt
+      rw [← hk']
+      cases kk with
+      | recursive =>
+        obtain ⟨u, t3, q2, w2⟩ := bindOk w1
+        obtain ⟨o2, hu⟩ := structUsedLater_spec c.1.type cP.1.type nP i t2 t3 u o1.ok
+          (denote_ext hty0 o1.ext) q2
+        have hu' : u = ConLeche.structUsedLater cP.1.type nP i := hu
+        subst hu'
+        obtain ⟨rfl, rfl⟩ := pureOk w2
+        refine ⟨o1.trans o2, ?_⟩
+        cases ConLeche.structUsedLater cP.1.type nP i <;> rfl
+      | reflexive =>
+        obtain ⟨u, t3, q2, w2⟩ := bindOk w1
+        obtain ⟨o2, hu⟩ := structUsedLater_spec c.1.type cP.1.type nP i t2 t3 u o1.ok
+          (denote_ext hty0 o1.ext) q2
+        have hu' : u = ConLeche.structUsedLater cP.1.type nP i := hu
+        subst hu'
+        obtain ⟨rfl, rfl⟩ := pureOk w2
+        refine ⟨o1.trans o2, ?_⟩
+        cases ConLeche.structUsedLater cP.1.type nP i <;> rfl
+      | ordinary => obtain ⟨rfl, rfl⟩ := pureOk w1; exact ⟨o1, rfl⟩
+      | negative => obtain ⟨rfl, rfl⟩ := pureOk w1; exact ⟨o1, rfl⟩
+      | unsupported => obtain ⟨rfl, rfl⟩ := pureOk w1; exact ⟨o1, rfl⟩)
+    (List.range c.2) s₀ s2 ks hok
+    (fun i hi => by
+      have hi' := List.mem_range.mp hi
+      exact ⟨hi', hT, hlps, denoteBinders_getD hcbs (by omega), hty⟩) k2
+  have hksm := ListRel.map_eq hks
+  obtain ⟨ca, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, hca⟩ := getAppArgs_run p2.ok (denote_ext hcb p2.ext) k3
+  rw [hs3] at z3
+  obtain ⟨ro, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨p4, hro⟩ := allM_E_pstep (F := fun a => !a.mentionsConst TP)
+    (fun st => denoteN st.ns T = some TP) (fun hx h => denoteN_ext h hx)
+    (by
+      intro a aP t0 t1 b hok0 hq0 ha hrun0
+      obtain ⟨m, t2, q1, w1⟩ := bindOk hrun0
+      obtain ⟨o1, hm⟩ := mentionsConst_spec T TP a aP t0 t2 m hok0 ⟨hq0, ha⟩ q1
+      obtain ⟨rfl, rfl⟩ := pureOk w1
+      exact ⟨o1, by rw [hm]⟩)
+    _ _ s2 s4 ro p2.ok (denoteN_ext hT p2.ext) (denoteEList_drop hca nP) k4
+  rw [recCtorKinds_some hsp', ← hc2]
+  rw [hro] at z4
+  split at z4
+  case isTrue hc =>
+    obtain ⟨rfl, rfl⟩ := pureOk z4
+    refine ⟨p2.trans p4, ?_⟩
+    rw [if_pos hc]
+    exact ⟨_, rfl, hksm⟩
+  case isFalse hc =>
+    obtain ⟨rfl, rfl⟩ := pureOk z4
+    refine ⟨p2.trans p4, ?_⟩
+    rw [if_neg hc]
+    refine ⟨_, rfl, ?_⟩
+    show (ks.map _).map kindOf = _
+    rw [← hksm]
+    simp only [List.map_map]
+    rfl
 
 /-! ## The telescope readers -/
 
