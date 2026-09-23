@@ -59370,3 +59370,38 @@ conflict, both appends kept).  `scripts/gates.sh` on the merge: **all 16 OK**
 (`extract-check` 142 s).  `arena` then moved to `5453ac2e` (T2-LOCKSTEP step 1:
 the foundation, Rust and twin included); merged (`DESIGN.md` conflict only)
 and re-gated: **all 16 OK** (`extract-check` 113 s, `lake-bridge` 550 s).
+
+### Task #97-T1-OCC — the last two Theorem-1 frontier items: `clOccursConstB_eq`, `clOccursConstGo_eq` (2026-09-23, Opus under Fable)
+
+Ruling (Fable): the two con-leche-tier lemmas about con-leche's
+`occursConstB`/`occursConstGo` against the pure `occursConst`
+(`ConLeche/Frontend/ProjRec.lean:129-227`) are proved HERE, in
+`proof/ConRon/Bridge/Frontend/ProjRec.lean` — a proof about con-leche's
+definitions is not a re-derivation of them.  The docstrings keep the note that
+they are upstream candidates for `ConLeche/Verify/Frontend/ProjRec.lean`;
+con-leche is untouched.
+
+* `clOccursConstB_eq`: structural induction on the `Expr`, budget generalised;
+  per arm, case on the first child's `(Option Bool × Nat)` result — `none`
+  is vacuous, `some true` short-circuits, `some false` composes.
+* `clOccursConstGo_eq`: from the new `clOccursConstGo_inv` — for any set
+  satisfying `clOccursMemoInv n s` (*every member has `occursConst n · =
+  false`*), the walk answers `occursConst` and returns a set that still
+  satisfies it; `clOccursMemoInv_insert` is the one set fact
+  (`Std.HashSet.contains_insert` + `LawfulBEq Expr`).  `∅` satisfies it
+  trivially.  The invariant is black-only, as the twin's is (no rank needed).
+
+All ~180 lines, no `sorry`; the module builds in seconds.  Prose updated in
+`ProjRec.lean`, `ProjRecOwners.lean` and `Bridge/Frontend/Axioms.lean` (a new
+census section printing the five lemmas, `occursConstFast_run` and
+`projRecOwners_run`).  **`Bridge/Frontend/Axioms.lean` now prints no
+`sorryAx` at all** — the "resting on an open leaf" list and the frontend
+headlines are all at Lean's own three.
+
+Frontier (`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): **61 items in 16 modules, 152 tainted
+→ 59 items in 13 modules, 126 tainted**; dead weight 641 unchanged.  **No
+frontier item is in `ConRon.Bridge.*`: Theorem 1 has zero frontier items.**
+What remains is all Theorem 2 (`ConRon.Refine2.*`, top
+`reduce_nat_refines`, fan-in 4); `Bridge/Checker/Axioms.lean`'s
+`checkDeclsPure_bridge`/`model_exists` still print `sorryAx` through it.

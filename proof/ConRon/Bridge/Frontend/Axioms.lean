@@ -56,10 +56,9 @@ vocabulary and its name equations below.
 It also states the two con-leche-tier facts `occursConstFast_run` needs and
 con-leche does not have (`Bridge/Frontend/ProjRec.lean`'s `clOccursConstB_eq`
 and `clOccursConstGo_eq`, §5's finding-6 shape).  Their corollary
-`clOccursConstFast_eq` is proved on top of them and therefore carries
-`sorryAx`, so it is NOT in the list below — which is the rule working as
-intended: the census lists what is proved, and that one is proved *modulo an
-ask of con-leche*.
+`clOccursConstFast_eq` is proved on top of them and therefore carried
+`sorryAx` until task #97-T1-OCC proved the two here (see the last section
+below).
 
 **Round three** adds the INTERN direction (item 2) and the seam (item 8).  Two
 of the four named hypotheses are therefore no longer only hypotheses:
@@ -565,6 +564,23 @@ can tell the two apart.
 #print axioms mem_preparePrelude_denote
 #print axioms FoldOK_of_start
 #print axioms FoldOK_post_parse
+
+/-! ## Task #97-T1-OCC — the occurrence walks, CLOSED
+
+`Bridge/Frontend/ProjRec.lean`'s two con-leche-tier lemmas, proved here: the
+budgeted walk by induction with the budget generalised, the memoised one
+from the memo invariant `clOccursMemoInv`.  With them every declaration this
+census prints — the "resting on an open leaf" list above and the headlines
+below included — reads at Lean's own three or fewer; the section titles
+record where each stood when it was written. -/
+
+#print axioms clOccursConstB_eq
+#print axioms clOccursMemoInv_insert
+#print axioms clOccursConstGo_inv
+#print axioms clOccursConstGo_eq
+#print axioms clOccursConstFast_eq
+#print axioms occursConstFast_run
+#print axioms projRecOwners_run
 
 /-! ## The headlines, and the four named hypotheses
 
