@@ -23,7 +23,9 @@ continuation `defeqLoop … (absU n)`, no `- 1`.
 -/
 import ConRon.Refine2.Core.LS.PrimsF
 import ConRon.Refine2.Core.LS.Leaves
-import ConRon.Refine2.Core.LS.Shapes
+import ConRon.Refine2.Core.LS.PrimsA2
+import ConRon.Refine2.Core.LS.Lits
+import ConRon.Refine2.Core.LS.Certs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -189,79 +191,6 @@ macro "lockstep_contra_small" : tactic => `(tactic| (exfalso; lockstep_simp_all_
 macro "lockstep_f" : tactic =>
   `(tactic| repeat' (first | lockstep_step | lockstep_twin_ite_full | lockstep_twin_cases | lockstep_twin_assoc | lockstep_twin_tail | lockstep_contra_small))
 
-/-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-section Stubs
-
-@[lockstep] theorem stub_reduce_nat_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.core.reduce_nat pers vis st mode lane fu fe depth e) lst
-      (reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdx e)) := by
-  sorry
-
-@[lockstep] theorem stub_str_lit_supported_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
-      (strLitSupported lfe) := by
-  sorry
-
-@[lockstep] theorem stub_str_lit_to_constructor_ls {pers st s lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.str_lit_to_constructor pers st s) lst
-      (strLitToConstructor (ConRon.Refine.absString s)) := by
-  sorry
-
-@[lockstep] theorem stub_def_eq_list_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth xs ys i lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.def_eq_list pers vis st mode lane fu fe depth xs ys i) lst
-      (defEqList (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdxListFrom xs i) (absEIdxListFrom ys i)) := by
-  sorry
-
-@[lockstep] theorem stub_prop_irrel_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth a b lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.prop_irrel pers vis st mode lane fu fe depth a b) lst
-      (propIrrel (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdx a) (absEIdx b)) := by
-  sorry
-
-@[lockstep] theorem stub_stuck_irrel_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth a b lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.stuck_irrel pers vis st mode lane fu fe depth a b) lst
-      (stuckIrrel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth) (absEIdx a) (absEIdx b)) := by
-  sorry
-
-@[lockstep] theorem stub_eta_cert_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth ty1 body1 m1 b lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.eta_cert pers vis st mode lane fu fe depth ty1 body1 m1 b) lst
-      (etaCert (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth) (absEIdx ty1) (absEIdx body1) (ConRon.Refine.absBinderMeta m1)
-        (absEIdx b)) := by
-  sorry
-
-end Stubs
 
 /-! ## The batched binder descent's leaf -/
 
@@ -276,6 +205,28 @@ end Stubs
         (absU d) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) := by
   rw [arena.core.defeq_peel_leaf, defeqPeelLeaf]
   lockstep_f
+
+/-! ## Stubs (other regions' lemmas; deleted at merge)
+
+Region A2's two, from `Core/LS/Shapes.lean`, which does not build at
+`p5-core-5` 04914d11 (`tower_slots_all_go_aux` & co.); stated exactly as
+there. -/
+
+section Stubs
+
+@[lockstep] theorem stub_defeq_peel_done_ls {pers st mism mism_lam lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.defeq_peel_done mism mism_lam) st lst
+      (defeqPeelDone mism mism_lam) := by
+  sorry
+
+@[lockstep] theorem stub_defeq_no_fvars_ls {pers st a b lst} (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.defeq_no_fvars pers st a b) lst
+      (defeqNoFvars (absEIdx a) (absEIdx b)) := by
+  sorry
+
+end Stubs
 
 /-! ## The eq-true shortcut and the same-head spine -/
 
