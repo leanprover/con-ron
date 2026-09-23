@@ -7,7 +7,8 @@ each is restated in the `LS` judgement and filed under its port entry
 `lockstep_core`.  The premises `hk`, `hctx`, `hf` are closed from the context
 by `assumption`.
 -/
-import ConRon.Refine2.Core.LS.Tactic
+import ConRon.Refine2.Tactic.Prims
+import ConRon.Refine2.Core.Arms.Delta
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
