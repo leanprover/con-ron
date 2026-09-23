@@ -52,6 +52,7 @@ terms the core must run on.
 -/
 import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Decl
+import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Core.Walks.Cached
 import ConLeche.Verify.CheckerSplit
 import ConLeche.Verify.Extend.Inversions
@@ -937,6 +938,288 @@ theorem natOpDeps_run {cn : NIdx} {nm : ConLeche.Name} {ds : List NIdx}
   have nb14 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z14 (b14.mpr h)
   exact frame _ v14 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_neg nb10, if_neg nb11, if_neg nb12, if_neg nb13, if_neg nb14]; exact trivial)
 
+/-! ## The structural-`Nat` guard, link by link
+
+`natOpGuard` and `natOpStoredOk` read pins, build `constE`s and compare
+HANDLES; none of them interns a whole `ConstantInfo`.  They are read through
+`Bridge/Checker/Basis.lean`'s `RunsB` combinators, with four local helpers:
+`constE_run`, the handle comparison at expressions (`beqE_of_denote`), the
+level-parameter emptiness transfer (`lpsEmpty_of_denote`), and — for the
+two `Bool` constructor lookups — `toConstantVal_sstep` at a stored constant,
+whose `.projInfo` premise `IFEnvOK.proj` discharges. -/
+
+/-- con-leche: none — `constE n` is `.const n []`, interned. -/
+theorem constE_run {n : NIdx} {nm : ConLeche.Name} {e : EIdx} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
+    (hr : constE n s = .ok (e, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store e = some (.const nm []) := by
+  simp only [Arena.constE] at hr
+  obtain ⟨us, s1, g1, r1⟩ := AM.bind_ok hr
+  obtain ⟨rfl, hus⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ denoteLs s.store.lss r = some []) rfl g1
+    (pinEmptyLevels_spec s hp)
+  obtain ⟨ls, hv, -⟩ := denoteLs_view hus
+  obtain ⟨hs, hd⟩ := Frontend.internE_sstep hst
+    (viewOK_const (nview_isSome_of_denote hn) (by rw [hv]; rfl)) r1
+  refine ⟨hs, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteN_ext hn hs.ext, denoteLs_ext hus hs.ext, opt2]
+
+/-- con-leche: none — `sortOne` reads the pinned `Sort 1`. -/
+theorem sortOne_run {e : EIdx} {s s' : AState} (hp : PinsOK s)
+    (hr : sortOne s = .ok (e, s')) :
+    s' = s ∧ denoteE s.store e = some (.sort (.succ .zero)) :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ denoteE s.store r = some (.sort (.succ .zero)))
+    rfl hr (pinSortOne_spec s hp)
+
+/-- con-leche: none — a handle comparison at expressions IS the comparison of
+the two denotations (`denoteE_inj`). -/
+theorem beqE_of_denote {st : EStore} (hwf : StoreWF st) {a b : EIdx}
+    {x y : Expr} (ha : denoteE st a = some x) (hb : denoteE st b = some y) :
+    (a == b) = (x == y) :=
+  beq_of_denote_inj (fun h1 h2 => denoteE_inj hwf h1 h2) ha hb
+
+/-- con-leche: none — a stored constant's level parameters are empty iff its
+denotation's are (`denoteNList` preserves length). -/
+theorem lpsEmpty_of_denote {st : EStore} {v : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st v = some c) :
+    v.levelParams.isEmpty = c.levelParams.isEmpty := by
+  have hl := denoteNList_length _ _ (denoteCV_inv h).2.1
+  cases h1 : v.levelParams <;> cases h2 : c.levelParams <;> simp_all
+
+/-- con-leche: none — the frame at a caller that reads the index at a stored
+constant: `IFEnvOK.proj` makes every stored table rightly named. -/
+theorem CIProjNamed_of_find {env : Env} {fe : IFEnv} {s : AState}
+    (hie : IFEnvOK env fe s) {n : NIdx} {ci : IConstantInfo}
+    (hf : fe.find? n = some ci) : Frontend.CIProjNamed s.store ci := by
+  intro t ht
+  subst ht
+  exact (hie.proj n t hf).toNamed
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk -/
+theorem natIndOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hxy : FindRel s.store x y) :
+    RunsB (Arena.natIndOk x) s (ConLeche.natIndOk y) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hst
+  · cases ci
+    case indInfo v cap =>
+      obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      simp only [Arena.natIndOk, ConLeche.natIndOk]
+      refine RunsB.bind fun {e s1} g1 => ?_
+      obtain ⟨rfl, he⟩ := sortOne_run hp g1
+      refine ⟨Frontend.IStepS.refl hst, ?_⟩
+      rw [lpsEmpty_of_denote hv, beqE_of_denote hst.wf (denoteCV_inv hv).2.2 he]
+      exact RunsB.ret hst
+    all_goals first
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk -/
+theorem natZeroOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hxy : FindRel s.store x y) :
+    RunsB (Arena.natZeroOk x) s (ConLeche.natZeroOk y) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hst
+  · cases ci
+    case ctorInfo v nP nF =>
+      obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      simp only [Arena.natZeroOk, ConLeche.natZeroOk]
+      refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nt dnt => ?_
+      refine RunsB.bind fun {e s1} g1 => ?_
+      obtain ⟨hs1, he⟩ := constE_run hst hp dnt g1
+      refine ⟨hs1, ?_⟩
+      rw [lpsEmpty_of_denote hv, beqE_of_denote hs1.ok.wf
+        (denoteCV_inv (denoteCV_ext hv hs1.ext)).2.2 he]
+      exact RunsB.ret hs1.ok
+    all_goals first
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_ind_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — the pinned
+type test `.forallE (.const natName []) (.const natName []) _`, restated as
+two expression comparisons: that is what the arena's two handle comparisons
+against the interned `constE` decide. -/
+def natSuccTy : Expr → Bool
+  | .forallE dom body _ =>
+    dom == .const ConLeche.natName [] && body == .const ConLeche.natName []
+  | _ => false
+
+theorem natSuccOk_eq (cv : ConstantVal) (nP nF : Nat) :
+    ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) =
+      (cv.levelParams.isEmpty && natSuccTy cv.type) := by
+  simp only [ConLeche.natSuccOk]
+  congr 1
+  cases ht : cv.type with
+  | forallE dx bx m =>
+    simp only [natSuccTy]
+    cases dx <;> cases bx <;> (try simp)
+    all_goals
+      rename_i n1 ls1 n2 ls2
+      cases ls1 <;> cases ls2 <;> (try simp)
+      rw [Bool.eq_iff_iff]
+      simp [beq_iff_eq]
+  | _ => rfl
+
+theorem natSuccOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hxy : FindRel s.store x y) :
+    RunsB (Arena.natSuccOk x) s (ConLeche.natSuccOk y) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hst
+  · cases ci
+    case ctorInfo v nP nF =>
+      obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      rw [natSuccOk_eq]
+      simp only [Arena.natSuccOk]
+      refine RunsB.guard hst (by rw [lpsEmpty_of_denote hv]) fun _ => ?_
+      refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nt dnt => ?_
+      refine RunsB.bind fun {e s1} g1 => ?_
+      obtain ⟨hs1, he⟩ := constE_run hst hp dnt g1
+      refine ⟨hs1, RunsB.bind fun {vw s2} g2 => ?_⟩
+      obtain ⟨rfl, hvw⟩ := viewE_run g2
+      refine ⟨Frontend.IStepS.refl hs1.ok, ?_⟩
+      have hty := (denoteCV_inv (denoteCV_ext hv hs1.ext)).2.2
+      have hwf := hs1.ok.wf
+      cases vw
+      case forallE dom body mb =>
+        obtain ⟨dx, bx, hx, hdx, hbx⟩ := denote_forallE_inv hwf hvw hty
+        rw [hx]
+        show RunsB _ _ (dx == _ && bx == _)
+        rw [← beqE_of_denote hwf hdx he, ← beqE_of_denote hwf hbx he]
+        exact RunsB.ret hs1.ok
+      all_goals first
+        | (have hx := denote_bvar_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, hx, _⟩ := denote_fvar_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, hx, _⟩ := denote_sort_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_const_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_app_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_lam_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, _, hx, _⟩ := denote_letE_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (have hx := denote_lit_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_proj_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+    all_goals first
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_ind_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported -/
+theorem natLitSupported_run {env : Env} {fe : IFEnv} {s : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hie : IFEnvOK env fe s) :
+    RunsB (Arena.natLitSupported fe) s (ConLeche.natLitSupported env) := by
+  simp only [ConLeche.natLitSupported, Bool.and_assoc]
+  unfold Arena.natLitSupported
+  refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun n1 d1 => ?_
+  refine RunsB.bindB (natIndOk_run hst hp (hie.findRel hst d1)) fun {s1} hs1 => ?_
+  have hp1 := hp.mono hs1.ext hs1.pins
+  have hie1 := hie.mono hs1.ext
+  refine RunsB.guard hs1.ok (by simp) fun _ => ?_
+  refine RunsB.pin hs1.ok hp1 (x := ConLeche.natZeroName) (by rfl) fun n2 d2 => ?_
+  refine RunsB.bindB (natZeroOk_run hs1.ok hp1 (hie1.findRel hs1.ok d2))
+    fun {s2} hs2 => ?_
+  have hp2 := hp1.mono hs2.ext hs2.pins
+  have hie2 := hie1.mono hs2.ext
+  refine RunsB.guard hs2.ok (by simp) fun _ => ?_
+  refine RunsB.pin hs2.ok hp2 (x := ConLeche.natSuccName) (by rfl) fun n3 d3 => ?_
+  exact natSuccOk_run hs2.ok hp2 (hie2.findRel hs2.ok d3)
+
+/-- con-leche: none — `natOpDeps` reads fifteen pins and returns a literal
+list; it leaves the state alone (`natOpDeps_run` carries the frame as four
+clauses, this is the equation the `RunsB` chain needs). -/
+theorem natOpDeps_state {cn : NIdx} {ds : List NIdx} {s s' : AState}
+    (hp : PinsOK s) (hr : natOpDeps cn s = .ok (ds, s')) : s' = s := by
+  simp only [Arena.natOpDeps] at hr
+  obtain ⟨_, u0, q0, w0⟩ := AM.bind_ok hr
+  obtain ⟨p0, -⟩ := pinAt_run (x := ConLeche.natPredName) hp rfl q0
+  rw [p0] at w0
+  obtain ⟨_, u1, q1, w1⟩ := AM.bind_ok w0
+  obtain ⟨p1, -⟩ := pinAt_run (x := ConLeche.natAddName) hp rfl q1
+  rw [p1] at w1
+  obtain ⟨_, u2, q2, w2⟩ := AM.bind_ok w1
+  obtain ⟨p2, -⟩ := pinAt_run (x := ConLeche.natSubName) hp rfl q2
+  rw [p2] at w2
+  obtain ⟨_, u3, q3, w3⟩ := AM.bind_ok w2
+  obtain ⟨p3, -⟩ := pinAt_run (x := ConLeche.natMulName) hp rfl q3
+  rw [p3] at w3
+  obtain ⟨_, u4, q4, w4⟩ := AM.bind_ok w3
+  obtain ⟨p4, -⟩ := pinAt_run (x := ConLeche.natPowName) hp rfl q4
+  rw [p4] at w4
+  obtain ⟨_, u5, q5, w5⟩ := AM.bind_ok w4
+  obtain ⟨p5, -⟩ := pinAt_run (x := ConLeche.natBeqName) hp rfl q5
+  rw [p5] at w5
+  obtain ⟨_, u6, q6, w6⟩ := AM.bind_ok w5
+  obtain ⟨p6, -⟩ := pinAt_run (x := ConLeche.natBleName) hp rfl q6
+  rw [p6] at w6
+  obtain ⟨_, u7, q7, w7⟩ := AM.bind_ok w6
+  obtain ⟨p7, -⟩ := pinAt_run (x := ConLeche.natDivName) hp rfl q7
+  rw [p7] at w7
+  obtain ⟨_, u8, q8, w8⟩ := AM.bind_ok w7
+  obtain ⟨p8, -⟩ := pinAt_run (x := ConLeche.natModName) hp rfl q8
+  rw [p8] at w8
+  obtain ⟨_, u9, q9, w9⟩ := AM.bind_ok w8
+  obtain ⟨p9, -⟩ := pinAt_run (x := ConLeche.natGcdName) hp rfl q9
+  rw [p9] at w9
+  obtain ⟨_, u10, q10, w10⟩ := AM.bind_ok w9
+  obtain ⟨p10, -⟩ := pinAt_run (x := ConLeche.natLandName) hp rfl q10
+  rw [p10] at w10
+  obtain ⟨_, u11, q11, w11⟩ := AM.bind_ok w10
+  obtain ⟨p11, -⟩ := pinAt_run (x := ConLeche.natLorName) hp rfl q11
+  rw [p11] at w11
+  obtain ⟨_, u12, q12, w12⟩ := AM.bind_ok w11
+  obtain ⟨p12, -⟩ := pinAt_run (x := ConLeche.natXorName) hp rfl q12
+  rw [p12] at w12
+  obtain ⟨_, u13, q13, w13⟩ := AM.bind_ok w12
+  obtain ⟨p13, -⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp rfl q13
+  rw [p13] at w13
+  obtain ⟨_, u14, q14, w14⟩ := AM.bind_ok w13
+  obtain ⟨p14, -⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp rfl q14
+  rw [p14] at w14
+  clear hr
+  repeat' first
+    | (obtain ⟨-, rfl⟩ := AM.pure_ok w14; rfl)
+    | (rcases AM.ite_ok w14 with ⟨-, w14⟩ | ⟨-, w14⟩)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:584-600 natOpGuard — the
+dependency half: `natOpDepsStored` is con-leche's `(natOpDeps c).all …`. -/
+theorem natOpDepsStored_run {env : Env} {fe : IFEnv} :
+    ∀ (ds : List NIdx) (xs : List ConLeche.Name) {s : AState}, StateOK s →
+      IFEnvOK env fe s → denoteNL s.store ds xs →
+      RunsB (Arena.natOpDepsStored fe ds) s
+        (xs.all fun n => match env.find? n with
+          | some (.defnInfo cv _ _) => cv.levelParams.isEmpty
+          | _ => false) := by
+  intro ds
+  induction ds with
+  | nil =>
+    intro xs s hst _ hd
+    cases xs with
+    | nil => exact RunsB.ret hst
+    | cons x xs => exact absurd hd (by simp [denoteNL])
+  | cons d ds ih =>
+    intro xs s hst hie hd
+    cases xs with
+    | nil => exact absurd hd (by simp [denoteNL])
+    | cons x xs =>
+      obtain ⟨hd1, hdt⟩ := hd
+      rw [List.all_cons]
+      simp only [Arena.natOpDepsStored]
+      refine RunsB.matchDefn hst (hie.findRel hst hd1) fun v v' hv => ?_
+      exact RunsB.guardT hst (lpsEmpty_of_denote hv) fun _ => ih xs hst hie hdt
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpGuard) — the
 structural-`Nat` environment guard is con-leche's at the denoted environment.
 
@@ -948,9 +1231,11 @@ only for `StateOK`, so nothing made the handles `pinAt` hands back denote
 anything and the conclusion was not provable.  Free at the one call site
 (`Bridge/Checker/Arms.lean`'s `defn` arm, `hok4.check.pins`).
 
-`sorry`: `natLitSupported` / `natOpDepsStored` / the `Bool`-family lookups
-through `IFEnvOK`, then `natOpDeps_run`.  Task #97-P3-Checker's sorry list,
-item 23. -/
+**PROVED** (task #97-P3-Checker round 8): the `do`-block read link by link
+through `Basis.lean`'s `RunsB` combinators — `natLitSupported_run`,
+`natOpDeps_run` / `natOpDeps_state`, `natOpDepsStored_run`, and the two `Bool`
+constructor lookups through `RunsB.matchLps` (whose `.projInfo` premise
+`IFEnvOK.proj` discharges). -/
 theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
     (hp : PinsOK s)
@@ -958,7 +1243,186 @@ theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     (hr : natOpGuard fe2 cn s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧ r = ConLeche.natOpGuard env2 nm := by
-  sorry
+  suffices h : RunsB (natOpGuard fe2 cn) s (ConLeche.natOpGuard env2 nm) by
+    obtain ⟨hs, rfl⟩ := h _ _ hr
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+  simp only [ConLeche.natOpGuard, Bool.and_assoc]
+  unfold Arena.natOpGuard
+  refine RunsB.bindB (natLitSupported_run hok hp hie) fun {s1} hs1 => ?_
+  have hp1 := hp.mono hs1.ext hs1.pins
+  have hie1 := hie.mono hs1.ext
+  have hn1 := denoteN_ext hn hs1.ext
+  refine RunsB.guard hs1.ok (by simp) fun _ => ?_
+  refine RunsB.bind fun {ds s2} g2 => ?_
+  obtain rfl := natOpDeps_state hp1 g2
+  obtain ⟨-, -, -, -, hds⟩ := natOpDeps_run hs1.ok hp1 hn1 g2
+  refine ⟨Frontend.IStepS.refl hs1.ok, ?_⟩
+  refine RunsB.bindB (natOpDepsStored_run ds _ hs1.ok hie1 hds)
+    fun {s3} hs3 => ?_
+  have hp3 := hp1.mono hs3.ext hs3.pins
+  have hie3 := hie1.mono hs3.ext
+  have hn3 := denoteN_ext hn1 hs3.ext
+  have st3 := hs3.ok
+  refine RunsB.guard st3 (by first | rfl | simp) fun _ => ?_
+  refine RunsB.pin st3 hp3 (x := ConLeche.natBeqName) (by rfl) fun be dbe => ?_
+  refine RunsB.pin st3 hp3 (x := ConLeche.natBleName) (by rfl) fun bl dbl => ?_
+  refine RunsB.bind fun {dm s4} g4 => ?_
+  obtain ⟨rfl, hdm⟩ := natDivModNames_run hp3 g4
+  refine ⟨Frontend.IStepS.refl st3, ?_⟩
+  have e1 := beq_handle_iff st3.wf hn3 dbe
+  have e2 := beq_handle_iff st3.wf hn3 dbl
+  have e3 : dm.contains cn = ConLeche.natDivModNames.contains nm :=
+    denoteNList_contains st3.wf dm _ (denoteNL_toList _ _ hdm) cn nm hn3
+  refine RunsB.ite (by simp only [Bool.or_eq_true, e1, e2, e3, decide_eq_true_eq])
+    (fun _ => ?_) (fun _ => RunsB.ret st3)
+  refine RunsB.pin st3 hp3 (x := ConLeche.boolTrueName) (by rfl) fun bt dbt => ?_
+  refine RunsB.matchLpsJP st3 (hie3.findRel st3 dbt)
+    (fun ci hf => CIProjNamed_of_find hie3 hf) fun {s5} hs5 => ?_
+  have hp5 := hp3.mono hs5.ext hs5.pins
+  have hie5 := hie3.mono hs5.ext
+  refine RunsB.guard hs5.ok (by first | rfl | simp) fun _ => ?_
+  refine RunsB.pin hs5.ok hp5 (x := ConLeche.boolFalseName) (by rfl) fun bf dbf => ?_
+  exact RunsB.matchLps hs5.ok (hie5.findRel hs5.ok dbf)
+    fun ci hf => CIProjNamed_of_find hie5 hf
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:640-650 natOpCod -/
+theorem natOpCod_run {env : Env} {fe : IFEnv} {cH : NIdx} {cn : ConLeche.Name}
+    {e : EIdx} {x : Expr} {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env fe s) (hc : denoteN s.store.ns cH = some cn)
+    (he : denoteE s.store e = some x) :
+    RunsB (Arena.natOpCod fe cH e) s (ConLeche.natOpCod env cn x) := by
+  unfold Arena.natOpCod ConLeche.natOpCod
+  refine RunsB.pin hst hp (x := ConLeche.natBeqName) (by rfl) fun be dbe => ?_
+  refine RunsB.pin hst hp (x := ConLeche.natBleName) (by rfl) fun bl dbl => ?_
+  have e1 := beq_handle_iff hst.wf hc dbe
+  have e2 := beq_handle_iff hst.wf hc dbl
+  refine RunsB.ite (by simp only [Bool.or_eq_true, e1, e2, decide_eq_true_eq])
+    (fun _ => ?_) (fun _ => ?_)
+  · refine RunsB.pin hst hp (x := ConLeche.boolName) (by rfl) fun bn dbn => ?_
+    refine RunsB.bind fun {bc s1} g1 => ?_
+    obtain ⟨hs1, hbc⟩ := constE_run hst hp dbn g1
+    refine ⟨hs1, ?_⟩
+    refine RunsB.guard hs1.ok (by
+      simp only [bne, beqE_of_denote hs1.ok.wf (denote_ext he hs1.ext) hbc]) fun _ => ?_
+    exact RunsB.matchCod hs1.ok (hp.mono hs1.ext hs1.pins)
+      ((hie.mono hs1.ext).findRel hs1.ok (denoteN_ext dbn hs1.ext))
+      fun ci hf => CIProjNamed_of_find (hie.mono hs1.ext) hf
+  · refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nn dnn => ?_
+    refine RunsB.bind fun {nc s1} g1 => ?_
+    obtain ⟨hs1, hnc⟩ := constE_run hst hp dnn g1
+    refine ⟨hs1, ?_⟩
+    rw [← beqE_of_denote hs1.ok.wf (denote_ext he hs1.ext) hnc]
+    exact RunsB.ret hs1.ok
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:652-667 natOpTyPinned -/
+theorem natOpTyPinned_run {env : Env} {fe : IFEnv} {cH : NIdx}
+    {cn : ConLeche.Name} {ty : EIdx} {x : Expr} {s : AState} (hst : StateOK s)
+    (hp : PinsOK s) (hie : IFEnvOK env fe s)
+    (hc : denoteN s.store.ns cH = some cn)
+    (hty : denoteE s.store ty = some x) :
+    RunsB (Arena.natOpTyPinned fe cH ty) s (ConLeche.natOpTyPinned env cn x) := by
+  unfold Arena.natOpTyPinned ConLeche.natOpTyPinned
+  refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nn dnn => ?_
+  refine RunsB.bind fun {nc s1} g1 => ?_
+  obtain ⟨hs1, hnc⟩ := constE_run hst hp dnn g1
+  refine ⟨hs1, ?_⟩
+  have st1 := hs1.ok
+  have hwf := st1.wf
+  have hp1 := hp.mono hs1.ext hs1.pins
+  have hie1 := hie.mono hs1.ext
+  have hc1 := denoteN_ext hc hs1.ext
+  have hty1 := denote_ext hty hs1.ext
+  refine RunsB.pin st1 hp1 (x := ConLeche.natPredName) (by rfl) fun pr dpr => ?_
+  refine RunsB.ite (beq_handle_iff hwf hc1 dpr) (fun _ => ?_) (fun _ => ?_)
+  · refine RunsB.bind fun {vw s2} g2 => ?_
+    obtain ⟨rfl, hvw⟩ := viewE_run g2
+    refine ⟨Frontend.IStepS.refl st1, ?_⟩
+    cases vw
+    case forallE dom body mb =>
+      obtain ⟨dx, bx, rfl, hdx, hbx⟩ := denote_forallE_inv hwf hvw hty1
+      exact RunsB.guardT st1 (beqE_of_denote hwf hdx hnc)
+        fun _ => natOpCod_run st1 hp1 hie1 hc1 hbx
+    all_goals first
+      | (obtain rfl := denote_bvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_const_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_app_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain rfl := denote_lit_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hvw hty1; exact RunsB.ret st1)
+  · refine RunsB.bind fun {vw s2} g2 => ?_
+    obtain ⟨rfl, hvw⟩ := viewE_run g2
+    refine ⟨Frontend.IStepS.refl st1, ?_⟩
+    cases vw
+    case forallE dom rest mb =>
+      obtain ⟨dx, rx, rfl, hdx, hrx⟩ := denote_forallE_inv hwf hvw hty1
+      refine RunsB.bind fun {vr s3} g3 => ?_
+      obtain ⟨rfl, hvr⟩ := viewE_run g3
+      refine ⟨Frontend.IStepS.refl st1, ?_⟩
+      cases vr
+      case forallE dom2 body mb2 =>
+        obtain ⟨dx2, bx, rfl, hdx2, hbx⟩ := denote_forallE_inv hwf hvr hrx
+        refine RunsB.guardT st1 ?_ fun _ => natOpCod_run st1 hp1 hie1 hc1 hbx
+        rw [beqE_of_denote hwf hdx hnc, beqE_of_denote hwf hdx2 hnc]
+      all_goals first
+        | (obtain rfl := denote_bvar_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_const_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_app_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain rfl := denote_lit_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hvr hrx; exact RunsB.ret st1)
+    all_goals first
+      | (obtain rfl := denote_bvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_const_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_app_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain rfl := denote_lit_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hvw hty1; exact RunsB.ret st1)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:669-675 natOpStoredOk -/
+theorem natOpStoredOk_run {env : Env} {fe : IFEnv} {cH : NIdx}
+    {cn : ConLeche.Name} {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env fe s) (hc : denoteN s.store.ns cH = some cn) :
+    RunsB (Arena.natOpStoredOk fe cH) s (ConLeche.natOpStoredOk env cn) := by
+  unfold Arena.natOpStoredOk ConLeche.natOpStoredOk
+  refine RunsB.and_true
+    (RunsB.matchDefn hst (hie.findRel hst hc) fun v v' hv => ?_)
+  rw [Bool.and_true]
+  exact RunsB.guardT hst (lpsEmpty_of_denote hv) fun _ =>
+    natOpTyPinned_run hst hp hie hc (denoteCV_inv hv).2.2
+
+theorem natOpStoredOkAll_runs {env : Env} {fe : IFEnv} :
+    ∀ (ds : List NIdx) (xs : List ConLeche.Name) {s : AState}, StateOK s →
+      PinsOK s → IFEnvOK env fe s → denoteNL s.store ds xs →
+      RunsB (Arena.natOpStoredOkAll fe ds) s
+        (xs.all (ConLeche.natOpStoredOk env)) := by
+  intro ds
+  induction ds with
+  | nil =>
+    intro xs s hst _ _ hd
+    cases xs with
+    | nil => exact RunsB.ret hst
+    | cons x xs => exact absurd hd (by simp [denoteNL])
+  | cons d ds ih =>
+    intro xs s hst hp hie hd
+    cases xs with
+    | nil => exact absurd hd (by simp [denoteNL])
+    | cons x xs =>
+      obtain ⟨hd1, hdt⟩ := hd
+      rw [List.all_cons]
+      simp only [Arena.natOpStoredOkAll]
+      refine RunsB.bindB (natOpStoredOk_run hst hp hie hd1) fun {s1} hs1 => ?_
+      exact RunsB.guardT hs1.ok rfl fun _ =>
+        ih xs hs1.ok (hp.mono hs1.ext hs1.pins) (hie.mono hs1.ext)
+          (denoteNL_ext hs1.ext _ _ hdt)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpStoredOk) — the twin's list
 recursion answers con-leche's `List.all` (DESIGN §3.4 forbids the closure).
@@ -968,8 +1432,8 @@ is `natOpStoredOk`, which is `natOpTyPinned` on a hit, which reads the pin
 table — so this walk is a pin reader too and `StateOK` alone was not enough.
 Free at the one call site (`hok5.check.pins`).
 
-`sorry`: a list induction over `natOpStoredOk`'s own `IFEnvOK` reads.  Task
-#97-P3-Checker's sorry list, item 23. -/
+**PROVED** (task #97-P3-Checker round 8): `natOpStoredOkAll_runs`, a list
+induction over `natOpStoredOk_run` (`natOpTyPinned_run`, `natOpCod_run`). -/
 theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
     {xs : List ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
     (hp : PinsOK s)
@@ -977,7 +1441,8 @@ theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
     (hr : natOpStoredOkAll fe2 ds s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧ r = xs.all (ConLeche.natOpStoredOk env2) := by
-  sorry
+  obtain ⟨hs, rfl⟩ := natOpStoredOkAll_runs ds xs hok hp hie hd _ _ hr
+  exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpEquations) — the recurrence
 equations, interned.
