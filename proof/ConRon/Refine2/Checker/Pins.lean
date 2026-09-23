@@ -2302,4 +2302,161 @@ for the rest. -/
 /-- info: 'ConRon.Refine2.pin_sort_one_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pin_sort_one_refines
 
+
+/-! ## The pinned-name readers as `@[lockstep]` specs (task #97-T2-LOCKSTEP lane Checker round 2)
+
+Each Rust reader is one pin read with the state handed back; the twin is the
+pin reader itself (`boolName := pinBool`). -/
+
+open Lockstep in
+@[lockstep] theorem nat_shift_right_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_shift_right_name st) lst natShiftRightName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_shift_right_refines hrel hinv hr)
+    (by rw [arena.core.nat_shift_right_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_shift_left_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_shift_left_name st) lst natShiftLeftName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_shift_left_refines hrel hinv hr)
+    (by rw [arena.core.nat_shift_left_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_xor_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_xor_name st) lst natXorName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_xor_refines hrel hinv hr)
+    (by rw [arena.core.nat_xor_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_lor_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_lor_name st) lst natLorName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_lor_refines hrel hinv hr)
+    (by rw [arena.core.nat_lor_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_land_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_land_name st) lst natLandName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_land_refines hrel hinv hr)
+    (by rw [arena.core.nat_land_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_gcd_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_gcd_name st) lst natGcdName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_gcd_refines hrel hinv hr)
+    (by rw [arena.core.nat_gcd_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_mod_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_mod_name st) lst natModName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_mod_refines hrel hinv hr)
+    (by rw [arena.core.nat_mod_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_div_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_div_name st) lst natDivName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_div_refines hrel hinv hr)
+    (by rw [arena.core.nat_div_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_ble_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_ble_name st) lst natBleName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_ble_refines hrel hinv hr)
+    (by rw [arena.core.nat_ble_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_beq_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_beq_name st) lst natBeqName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_beq_refines hrel hinv hr)
+    (by rw [arena.core.nat_beq_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_pow_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_pow_name st) lst natPowName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_pow_refines hrel hinv hr)
+    (by rw [arena.core.nat_pow_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_mul_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_mul_name st) lst natMulName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_mul_refines hrel hinv hr)
+    (by rw [arena.core.nat_mul_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_sub_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_sub_name st) lst natSubName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_sub_refines hrel hinv hr)
+    (by rw [arena.core.nat_sub_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_add_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_add_name st) lst natAddName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_add_refines hrel hinv hr)
+    (by rw [arena.core.nat_add_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_pred_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_pred_name st) lst natPredName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_pred_refines hrel hinv hr)
+    (by rw [arena.core.nat_pred_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem bool_false_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.bool_false_name st) lst boolFalseName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_bool_false_refines hrel hinv hr)
+    (by rw [arena.core.bool_false_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem bool_true_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.bool_true_name st) lst boolTrueName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_bool_true_refines hrel hinv hr)
+    (by rw [arena.core.bool_true_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem bool_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.bool_name st) lst boolName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_bool_refines hrel hinv hr)
+    (by rw [arena.core.bool_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem zero_level_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_zero_level_refines hrel hinv (by rw [arena.core.zero_level] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem empty_levels_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLsIdx a) (arena.core.empty_levels st) st lst emptyLevels :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_empty_levels_refines hrel hinv (by rw [arena.core.empty_levels] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem sort_one_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absEIdx a) (arena.core.sort_one st) st lst sortOne :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_sort_one_refines hrel hinv (by rw [arena.core.sort_one] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem reserved_basis_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxL a) (arena.core.reserved_basis_names st) st lst
+      reservedBasisNames :=
+  LSR.ofSimRE hrel hinv fun _ h => reserved_basis_names_refines hrel hinv h
+
 end ConRon.Refine2
