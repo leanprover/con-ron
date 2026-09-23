@@ -60867,3 +60867,35 @@ lane's `4265c378` and the ExprOps lane) 50 items / 233 tainted / dead weight
 the two memoised guard walks `all_level_params_defined` and
 `consts_resolve_f_fast` (next slice), `ind_params_ok`, and
 `check_basis_decl_install` (the `install_basis_decls` statement gap).
+
+#### Slice 2 (worktree `_tmp/wt-t2-chk-base2`, off slice 1's `410f9c65`)
+
+**`arena::core::consts_resolve` stated and closed** (`Base`; no tier had
+stated it — the Core knot does not call it, the guard walk's leaf arms do):
+`consts_resolve_aux`, a fuel induction whose two cases are one `lockstep`
+each, filed as `Lockstep.consts_resolve_ls`.  The Rust's
+`nat_trio_stored`/`str_support_stored` split the twin's inline literal arms at
+the same pin reads in the same order, so the twin side is two transcriptions
+(`natTrioStoredSpec`, `strSupportStoredSpec`, in `Base`) and one equation
+(`constsResolve_succ`); `nat_trio_stored_ls`/`str_support_stored_ls` and
+`stored_spec` (`arena::core::stored` as a `TwinEq` probe) by `lockstep`.
+Axiom-clean (`#guard_msgs`), as are `nidx_is_proj_fn_shape_refines`,
+`name_nodup_refines`, `recs_form_suffix_refines`.
+
+**The two memoised guard walks, a Rust-shape question (ruling needed).**
+`consts_resolve_f_{go,node,two}` and `all_level_params_defined_{go,node,binder}`
+return their memo OUTSIDE the `Result` (`(Result<bool>, AState, memo)` /
+`(Result<bool>, memo)`), where every other memo walk the tactic zips
+(`expr_ops::leaves_sub_go`, `struct_parts::mentions_const_go`, …) returns it
+inside (`Result<(bool, memo)>`); so neither is an `LS`/`LSR` judgement and
+both are hand proofs (`SimBM`/`SimBR`) today.  Reshaping the two Rust walks
+to the `mentions_const_go` shape would make each a fuel induction closed by
+`lockstep`, as `consts_resolve` above.  Also found: `consts_resolve_f_node_refines`
+as stated is FALSE at the four leaf views (the Rust answers `false`, the
+twin's transcription `constsResolveFNodeSpec` calls `constsResolve`, which is
+`true` at a `bvar`); it holds only at the non-leaf views its one caller passes
+and must say so (a Rust-input hypothesis) whichever way the walk is proved.
+
+**`ind_params_ok`, module order again**: its leaf `arena::env::pi_sort_tele_len`
+is proved (`env_pi_sort_tele_len_run`) in `Frontend/ExportCInd.lean`, above
+`Checker/Base.lean`.
