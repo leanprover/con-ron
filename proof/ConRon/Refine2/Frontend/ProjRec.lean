@@ -428,13 +428,137 @@ theorem strip_pis_all_aux (n : Nat) :
     rw [frontend.proj_rec.strip_pis_all, stripPisAll, if_neg (by scalar_tac)]
     lockstep
 
+
+/-! ### The binder telescope's data are well formed (Rust-side, kind 1)
+
+`intern_e_lam_wf_ls` needs `PropWhenWF` of the datum the port re-interns.  A
+telescope `strip_pis_all` / `strip_lams` answer is read out of the store, whose
+binder data are well formed (`view_bind_meta_wf`, from `AStateInv`). -/
+
+/-- The binder telescope's data are well formed. -/
+def BindersWF (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) : Prop :=
+  ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw
+
+theorem binder_copy_from_val (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    ∀ (n : Nat) (i : Std.Usize) (out r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      xs.val.length - i.val = n →
+      arena.expr_ops.binder_copy_from xs i out = ok r → r.val = out.val ++ xs.val.drop i.val := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out r hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le (by omega)]
+    simp
+  | succ k ih =>
+    intro i out r hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    have hxi : i.val < xs.val.length := by omega
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e, bm⟩ := p
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hb, hpv⟩ := ExprOps.vecIndexAt hp
+    have hee : e1 = e := dupId_eidx e e1 he1
+    have hbb : bm1 = bm := ConRon.Refine.Expr.binder_meta_dup_eq hbm1
+    have hov : out1.val = out.val ++ [(e1, bm1)] := ConRon.Refine.vec_push_val hout1
+    have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+    rw [ih i2 out1 r (by omega) h, hi2v, hov, hee, hbb, List.drop_eq_getElem_cons hxi, hpv]
+    simp
+
+theorem cons_binder_val {ty : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    {xs r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (h : arena.expr_ops.cons_binder ty m xs = ok r) : r.val = (ty, m) :: xs.val := by
+  rw [arena.expr_ops.cons_binder] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hee : e = ty := dupId_eidx ty e he
+  have hbb : bm = m := ConRon.Refine.Expr.binder_meta_dup_eq hbm
+  have hov : out.val = [(e, bm)] := ConRon.Refine.push_new_val hout
+  rw [binder_copy_from_val xs _ 0#usize out r rfl h, hov, hee, hbb]
+  simp
+
+theorem strip_pis_all_wf {pers st} (hinv : AStateInv pers st) :
+    ∀ (n : Nat) (fuel : Std.U64) (h : arena.handle.EIdx) p, fuel.val = n →
+      frontend.proj_rec.strip_pis_all pers st fuel h = ok (.Ok p) → BindersWF p.1 := by
+  intro n
+  induction n with
+  | zero =>
+    intro fuel h p hn hr
+    rw [frontend.proj_rec.strip_pis_all, if_pos (by scalar_tac)] at hr
+    obtain ⟨sl, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    obtain ⟨v, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    cases fail_run hr
+  | succ k ih =>
+    intro fuel h p hn hr
+    rw [frontend.proj_rec.strip_pis_all, if_neg (by scalar_tac)] at hr
+    obtain ⟨t, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    split at hr
+    · obtain ⟨o, ho, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+      cases o with
+      | none =>
+        simp only at hr
+        rw [arena.monad.fail_dangling_e] at hr
+        obtain ⟨sl, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        obtain ⟨v, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        cases fail_run hr
+      | some q =>
+        obtain ⟨ty, b, m⟩ := q
+        simp only at hr
+        have hm := view_bind_meta_wf hinv ho
+        obtain ⟨i1, hi1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        obtain ⟨r, hrr, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        cases r with
+        | Err _ => cases Result.ok_injective hr
+        | Ok q =>
+          obtain ⟨v, e⟩ := q
+          simp only at hr
+          obtain ⟨v1, hv1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+          cases Result.ok_injective hr
+          have hi1v : i1.val = k := by
+            have := (ConRon.Refine.Nat.usub_val hi1).2; rw [this, hn]; rfl
+          have ihv := ih i1 b (v, e) hi1v hrr
+          intro x hx
+          rw [cons_binder_val hv1] at hx
+          rcases List.mem_cons.mp hx with rfl | hx
+          · exact hm
+          · exact ihv x hx
+    · obtain ⟨e, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+      cases Result.ok_injective hr
+      intro x hx
+      simp only [alloc.vec.Vec.new] at hx
+      cases hx
+
 open ConRon.Refine2.Lockstep in
+/-- A Rust-only fact about the answer joins the relation. -/
+theorem LSR.and_rust {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {P : α → Prop} {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (h : LSR pers R m st lst x) (hP : ∀ a, m = ok (.Ok a) → P a) :
+    LSR pers (fun a b => P a ∧ R a b) m st lst x := by
+  intro o ho
+  have := h o ho
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := this
+    exact ⟨b, lst', hx, ⟨hP a ho, hR⟩, h1, h2⟩
+
+open ConRon.Refine2.Lockstep in
+/-- `strip_pis_all` against `stripPisAll`, the telescope's data well formed. -/
 @[lockstep] theorem strip_pis_all_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = (absBinderPairs a.1, absEIdx a.2))
+    LSR pers (fun a b => BindersWF a.1 ∧ b = (absBinderPairs a.1, absEIdx a.2))
       (frontend.proj_rec.strip_pis_all pers st fuel h) st lst
       (stripPisAll (absU fuel) (absEIdx h)) :=
-  strip_pis_all_aux _ fuel h rfl hrel hinv
+  LSR.and_rust (strip_pis_all_aux _ fuel h rfl hrel hinv)
+    (fun a ha => strip_pis_all_wf hinv _ fuel h a rfl ha)
 
 open ConRon.Refine2.Lockstep in
 /-- `get_app_args_seam` / `head_is`: the port's `view_const_name`. -/
@@ -470,10 +594,6 @@ open ConRon.Refine2.Lockstep in
 @[lockstep] theorem binder_meta_dup_spec (m : kernel.expr.BinderMeta) :
     LSP (kernel.expr.binder_meta_dup m) (fun m' => m' = m) :=
   fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
-
-/-- The binder telescope's data are well formed. -/
-def BindersWF (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) : Prop :=
-  ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw
 
 theorem absBinderPairsFrom_nil (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
     (i : Std.Usize) (hi : bs.val.length ≤ i.val) : absBinderPairsFrom bs i = [] := by
@@ -571,20 +691,78 @@ theorem intern_param_levels_refines {pers rst lst ns o}
 
 /-! ## The two binder bodies -/
 
+/-- An in-bounds `Vec` index answers the element. -/
+theorem vec_index_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
+    (hi : i.val < v.val.length) :
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok v.val[i.val] := by
+  simp only [alloc.vec.Vec.index_slice_index]
+  obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec v i hi)
+  rw [hy, hyv]
+
+/-- The twin's `match bs with | [(d, m)] => … | bs => …` at a list that is not
+a singleton. -/
+theorem match_single_ne {γ : Type} (l : List (EIdx × ConLeche.BinderMeta))
+    (hl : l.length ≠ 1) (f : EIdx → ConLeche.BinderMeta → γ)
+    (g : List (EIdx × ConLeche.BinderMeta) → γ) :
+    (match l with | [(d, m)] => f d m | bs => g bs) = g l := by
+  match l, hl with
+  | [], _ => rfl
+  | [_], hl => simp at hl
+  | _ :: _ :: _, _ => rfl
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem mk_proj_motive_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pb : frontend.proj_rec.ProjBuild) (fuel : Std.U64)
+    (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (hwf : BindersWF bs) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (frontend.proj_rec.mk_proj_motive_at pers st pb fuel bs) lst
+      (mkProjMotiveAt (absProjBuild pb) (absU fuel) (absBinderPairs bs)) := by
+  rw [frontend.proj_rec.mk_proj_motive_at]
+  by_cases hl : bs.val.length = 1
+  · obtain ⟨p, hp⟩ := List.length_eq_one_iff.mp hl
+    obtain ⟨e, bm⟩ := p
+    have hpw : ConRon.Refine.PropWhenWF bm.pw := hwf (e, bm) (by simp [hp])
+    have habs : absBinderPairs bs = [(absEIdx e, ConRon.Refine.absBinderMeta bm)] := by
+      simp [absBinderPairs, hp]
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice _) bs 0#usize
+        = ok (e, bm) := by
+      rw [vec_index_eq bs 0#usize (by simp [hp])]
+      simp [hp]
+    rw [habs, mkProjMotiveAt, if_neg (by scalar_tac), hidx, bind_tc_ok]
+    refine LSR.bind (head_is_ls hrel hinv fuel pb.t e) (by simp [absProjBuild])
+      (fun _ => by lockstep_errarm) (fun a b lst1 hR hrel1 hinv1 => ?_)
+    subst hR
+    cases b <;> simp only [Bool.false_eq_true, if_true, if_false, reduceIte] <;> lockstep
+  · rw [mkProjMotiveAt.eq_2 _ _ _ (fun d m hd => hl (by
+        have := congrArg List.length hd; simpa [absBinderPairs] using this)),
+      if_pos (by scalar_tac)]
+    lockstep
+
 /-- **`mk_proj_motive_at`** — the port's split under the domain's view. -/
 theorem mk_proj_motive_at_refines {pers rst lst pb fuel bs o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst) (hwf : BindersWF bs)
     (h : frontend.proj_rec.mk_proj_motive_at pers rst pb fuel bs = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
-      (mkProjMotiveAt (absProjBuild pb) (absU fuel) (absBinderPairs bs)) := by
-  sorry
+      (mkProjMotiveAt (absProjBuild pb) (absU fuel) (absBinderPairs bs)) :=
+  Lockstep.LS.toSim₀ (mk_proj_motive_at_ls hrel hinv pb fuel bs hwf) h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem mk_proj_motive_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (pb : frontend.proj_rec.ProjBuild) (fuel : Std.U64)
+    (dom : arena.handle.EIdx) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (frontend.proj_rec.mk_proj_motive pers st pb fuel dom) lst
+      (mkProjMotive (absProjBuild pb) (absU fuel) (absEIdx dom)) := by
+  rw [frontend.proj_rec.mk_proj_motive, mkProjMotive]
+  lockstep
 
 /-- **`mk_proj_motive` refines `mkProjMotive`** (`ProjRec.lean:277-293`). -/
 theorem mk_proj_motive_refines {pers rst lst pb fuel dom o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_proj_motive pers rst pb fuel dom = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
-      (mkProjMotive (absProjBuild pb) (absU fuel) (absEIdx dom)) := by sorry
+      (mkProjMotive (absProjBuild pb) (absU fuel) (absEIdx dom)) :=
+  Lockstep.LS.toSim₀ (mk_proj_motive_ls hrel hinv pb fuel dom) h
 
 /-- **`mk_proj_minor_at`** — the port's split under the domain's view. -/
 theorem mk_proj_minor_at_refines {pers rst lst pb fuel bs major o}
