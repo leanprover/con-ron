@@ -941,6 +941,56 @@ theorem ls_cursor {α β γ δ : Type} {pers : arena.store.PersTier} {R : γ →
     rw [List.drop_eq_getElem_cons hi, List.map_cons]
     exact hstep st lst i hi hrel hinv (fun st' lst' j hj => ih j () hj st' lst')
 
+/-! ## The cursor abstractions at `0` (for the `lockstep` side tier)
+
+A caller's twin names the whole list (`absXL v`); the callee's statement is at
+the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
+
+@[lockstep_simp] theorem absNIdxLFrom_zero (v) : absNIdxLFrom v 0#usize = absNIdxL v := by
+  simp [absNIdxLFrom, absNIdxL]
+
+@[lockstep_simp] theorem absEIdxLFrom_zero (v) : absEIdxLFrom v 0#usize = absEIdxL v := by
+  simp [absEIdxLFrom, absEIdxL]
+
+@[lockstep_simp] theorem absLIdxLFrom_zero (v) : absLIdxLFrom v 0#usize = absLIdxL v := by
+  simp [absLIdxLFrom, absLIdxL]
+
+@[lockstep_simp] theorem absICILFrom_zero (v) : absICILFrom v 0#usize = absICIL v := by
+  simp [absICILFrom, absICIL]
+
+@[lockstep_simp] theorem absNatLFrom_zero (v) : absNatLFrom v 0#usize = absNatL v := by
+  simp [absNatLFrom, absNatL]
+
+@[lockstep_simp] theorem absBoolLFrom_zero (v) : absBoolLFrom v 0#usize = absBoolL v := by
+  simp [absBoolLFrom, absBoolL]
+
+@[lockstep_simp] theorem absLIdxLLFrom_zero (v) : absLIdxLLFrom v 0#usize = absLIdxLL v := by
+  simp [absLIdxLLFrom, absLIdxLL]
+
+@[lockstep_simp] theorem absBinderLFrom_zero (v) : absBinderLFrom v 0#usize = absBinderL v := by
+  simp [absBinderLFrom, absBinderL]
+
+@[lockstep_simp] theorem absCtorsLFrom_zero (v) : absCtorsLFrom v 0#usize = absCtorsL v := by
+  simp [absCtorsLFrom, absCtorsL]
+
+@[lockstep_simp] theorem absCtors3LFrom_zero (v) : absCtors3LFrom v 0#usize = absCtors3L v := by
+  simp [absCtors3LFrom, absCtors3L]
+
+@[lockstep_simp] theorem absCtors4LFrom_zero (v) : absCtors4LFrom v 0#usize = absCtors4L v := by
+  simp [absCtors4LFrom, absCtors4L]
+
+@[lockstep_simp] theorem absRecsLFrom_zero (v) : absRecsLFrom v 0#usize = absRecsL v := by
+  simp [absRecsLFrom, absRecsL]
+
+@[lockstep_simp] theorem absRenameTblFrom_zero (v) : absRenameTblFrom v 0#usize = absRenameTbl v := by
+  simp [absRenameTblFrom, absRenameTbl]
+
+@[lockstep_simp] theorem absKindLFrom_zero (v) : absKindLFrom v 0#usize = absKindL v := by
+  simp [absKindLFrom, absKindL]
+
+@[lockstep_simp] theorem absKindLLFrom_zero (v) : absKindLLFrom v 0#usize = absKindLL v := by
+  simp [absKindLLFrom, absKindLL]
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
