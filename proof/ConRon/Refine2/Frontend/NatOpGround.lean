@@ -707,7 +707,120 @@ theorem hoist_moved_names_refines {ds moved rm lm v} (hr : TargetRel rm lm)
     (hm : moved.val.map absU = (List.range (absIDeclArr ds).size).filter
       (fun k => lm.contains k))
     (h : frontend.nat_op_ground.hoist_moved_names ds moved = ok v) :
-    absNIdxArr v = movedNames (absIDeclArr ds) lm #[] 0 := by sorry
+    absNIdxArr v = movedNames (absIDeclArr ds) lm #[] 0 := by
+  rw [frontend.nat_op_ground.hoist_moved_names] at h
+  let nm : Nat → List NIdx := fun k => (((absIDeclArr ds)[k]?).map IDeclaration.names).getD []
+  -- the twin's recursion, as a list
+  have htw : ∀ (d : Nat) (k : Nat) (acc : Array NIdx), (absIDeclArr ds).size - k = d →
+      movedNames (absIDeclArr ds) lm acc k = acc ++
+        (((List.range' k ((absIDeclArr ds).size - k)).filter
+          (fun k => lm.contains k)).flatMap nm).toArray := by
+    intro d
+    induction d with
+    | zero =>
+      intro k acc hd
+      rw [movedNames, dif_neg (by omega), hd]
+      simp
+    | succ d ih =>
+      intro k acc hd
+      have hk : k < (absIDeclArr ds).size := by omega
+      rw [movedNames, dif_pos hk, ih (k + 1) _ (by omega),
+        show (absIDeclArr ds).size - k = ((absIDeclArr ds).size - (k + 1)) + 1 by omega,
+        List.range'_succ, List.filter_cons]
+      have hnm : nm k = (absIDeclArr ds)[k].names := by
+        have hk' : k < ds.val.length := by simpa [absIDeclArr] using hk
+        simp [nm, absIDeclArr, List.getElem?_eq_getElem hk']
+      by_cases hc : lm.contains k
+      · simp [hc, hnm]
+      · simp [hc]
+  -- the inner copy
+  have hin : ∀ (ns : alloc.vec.Vec arena.handle.NIdx) (j : Std.Usize)
+      (out o : alloc.vec.Vec arena.handle.NIdx),
+      frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out ns (alloc.vec.Vec.len ns) j
+        = ok o →
+      o.val.map absNIdx = out.val.map absNIdx ++ (ns.val.drop j.val).map absNIdx := by
+    intro ns
+    refine vec_cursor_copy ns absNIdx absNIdx
+      (fun j out => frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out ns
+        (alloc.vec.Vec.len ns) j) ?_ ?_
+    · intro j out o hn h
+      rw [frontend.nat_op_ground.hoist_moved_names_loop0_loop0.eq_def] at h
+      rw [if_neg (show ¬ j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      rw [← Result.ok_injective h]
+    · intro j x out o hx h
+      have hlt : j.val < ns.val.length := (List.getElem?_eq_some_iff.mp hx).1
+      rw [frontend.nat_op_ground.hoist_moved_names_loop0_loop0.eq_def] at h
+      rw [if_pos (show j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnx : n = x := by
+        have h1 := vec_index_some hn; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+      subst hnx
+      exact ⟨j1, n1, out1, absSz_add_one hj1, ConRon.Refine.vec_push_val hout1,
+        by rw [dupId_nidx _ _ hn1], h⟩
+  -- the outer loop
+  have hout : ∀ (a : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      frontend.nat_op_ground.hoist_moved_names_loop0 ds moved out (alloc.vec.Vec.len moved) a
+        = ok o →
+      o.val.map absNIdx = out.val.map absNIdx ++
+        ((moved.val.drop a.val).map absU).flatMap nm := by
+    refine cursor_induction (fun a : Std.Usize => a.val) moved.val.length
+      (fun a (out : alloc.vec.Vec arena.handle.NIdx) => ∀ o,
+        frontend.nat_op_ground.hoist_moved_names_loop0 ds moved out (alloc.vec.Vec.len moved) a
+          = ok o →
+        o.val.map absNIdx = out.val.map absNIdx ++
+          ((moved.val.drop a.val).map absU).flatMap nm) ?_ ?_
+    · intro a out hn o h
+      rw [frontend.nat_op_ground.hoist_moved_names_loop0.eq_def] at h
+      rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac)] at h
+      cases Result.ok_injective h
+      simp [List.drop_eq_nil_of_le hn]
+    · intro a out ha ih o h
+      rw [frontend.nat_op_ground.hoist_moved_names_loop0.eq_def] at h
+      rw [if_pos (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
+      obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨ns, hns, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨a1, ha1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ha1v : a1.val = a.val + 1 := by
+        have := ConRon.Refine.Nat.uadd_val ha1; simpa using this
+      have hiv : moved.val[a.val]'ha = i := by
+        have h1 := vec_index_some hi
+        rw [List.getElem?_eq_getElem ha] at h1
+        exact Option.some_injective _ h1
+      have hilt : i.val < (absIDeclArr ds).size := by
+        have hx : i.val ∈ moved.val.map absU :=
+          List.mem_map.mpr ⟨i, by rw [← hiv]; exact List.getElem_mem ha, rfl⟩
+        rw [hm, List.mem_filter, List.mem_range] at hx
+        exact hx.1
+      have hi1v : i1.val = i.val := by
+        simp only [lift, Result.ok.injEq] at hi1; subst hi1
+        rw [UScalar.cast_val_eq]
+        apply Nat.mod_eq_of_lt
+        have h2 := ds.property
+        have h3 : Std.Usize.max < 2 ^ UScalarTy.Usize.numBits := by
+          rw [Std.Usize.max_def, Std.Usize.numBits_def]
+          have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+          omega
+        simp only [absIDeclArr, List.size_toArray, List.length_map] at hilt
+        omega
+      have hi2v : ds.val[i1.val]? = some i2 := vec_index_some hi2
+      have hnm : nm i.val = ns.val.map absNIdx := by
+        simp only [nm, absIDeclArr, List.getElem?_toArray, List.getElem?_map, ← hi1v, hi2v,
+          Option.map_some, Option.getD_some]
+        exact (i_declaration_names_abs hns).symm
+      rw [ih a1 out1 ha1v o h, hin ns 0#usize out out1 hout1, ha1v,
+        List.drop_eq_getElem_cons ha, hiv, List.map_cons, List.flatMap_cons, hnm]
+      simp
+  have := hout 0#usize _ v h
+  simp only [alloc.vec.Vec.new, List.map_nil, List.nil_append, List.drop_zero,
+    show ((0#usize : Std.Usize)).val = 0 by rfl] at this
+  rw [htw _ 0 #[] rfl, absNIdxArr, this, hm]
+  simp [List.range_eq_range']
 
 /-- **`apply_hoist` refines `applyHoist`** (`NatOpGround.lean:404-408`).  Task
 #87 §5's genuine precondition is the port's own and is free at the one call
