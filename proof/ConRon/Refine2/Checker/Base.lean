@@ -200,6 +200,24 @@ theorem nidx_contains_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
     o = (absNIdxLFrom ns i).contains (absNIdx n) := by
   sorry
 
+/-- `arena::core::nat_op_names` ⊑ `natOpNames` — the seven structural `Nat`
+operations, as seven pin reads (task #97-P5-Top: a child of
+`annot_step_defn_refines`; the function is `arena::core`'s, but no tier had
+stated it). -/
+theorem nat_op_names_refines {pers st lst} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_op_names st = ok o) :
+    Sim absNIdxL (fun _ => True) pers lst o natOpNames := by
+  sorry
+
+/-- `arena::core::nat_div_mod_names` ⊑ `natDivModNames` — the eight pinned
+well-founded operations, as eight pin reads (task #97-P5-Top, as above). -/
+theorem nat_div_mod_names_refines {pers st lst} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_div_mod_names st = ok o) :
+    Sim absNIdxL (fun _ => True) pers lst o natDivModNames := by
+  sorry
+
 /-- `name_nodup_from` ⊑ `nameNodup` from the cursor on. -/
 theorem name_nodup_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize} {o : Bool}

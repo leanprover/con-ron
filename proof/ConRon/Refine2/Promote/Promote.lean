@@ -900,6 +900,41 @@ theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
       (promoteNew lm (absU fuel) (absU k) lf) := by
   sorry
 
+/-! ## The frozen-tier guard, as ONE named hypothesis (task #97-P5-Top)
+
+`promote_vg_refines` and `promote_new_refines` above carry `hfr :
+PersUnfrozen st.store` because at a frozen tier the port's persistent append
+answers `Internal(M_FROZEN)` where the twin appends (finding 17's first half),
+and `Internal` is a MIRRORED kind.  Task #97-P5-Checker round 4 §1 recommended
+making that guard `Native` — a `Native` error claims nothing — and that Rust
+commit is pending.  Once it lands, both statements hold WITHOUT `hfr`, and
+that is exactly what this structure says.
+
+It is a HYPOTHESIS, not a `sorry`, because today it is false (at a frozen,
+non-scratch tier the port declines `Internal` where the twin succeeds).  It is
+threaded, unchanged, from the two bracketed steps (`annot_step_refines`,
+`check_decl_step_refines`) through their folds to the capstones, so that the
+steps are glue today and the frozen facts (`KeepsUnfrozen` of every body, and
+`PersUnfrozen` at every step's entry) never have to be proved.  **When the
+`Native` commit lands**: drop `hfr` from the two lemmas above, prove this
+structure as `⟨promote_new_refines, promote_vg_refines⟩`, and delete the
+binder everywhere it is threaded (`Refine2/Checker/Top.lean`,
+`ConRon/Capstone.lean`). -/
+structure FrozenNative : Prop where
+  /-- `promote_vg_refines` without `hfr`. -/
+  promoteVG : ∀ {pers st lst rm lm} {fuel : Std.U64}
+    {g : arena.checker_split.ValueGroup} {o},
+    AStateRelW pers st lst → AStateInv pers st → PMemoRel rm lm →
+    arena.promote.promote_vg pers st rm fuel g = ok o →
+    SimPMFW absValueGroup pers lst o
+      (promoteVG lm (absU fuel) (absValueGroup g))
+  /-- `promote_new_refines` without `hfr`. -/
+  promoteNew : ∀ {pers st lst rm lm rf lf} {fuel k : Std.U64} {o},
+    AStateRelW pers st lst → AStateInv pers st → PMemoRel rm lm →
+    IFEnvRel rf lf → IFEnvInv rf → absU k ≤ rf.env.consts.val.length →
+    arena.promote.promote_new pers st rm fuel k rf = ok o →
+    SimPMW IFEnvRelI pers lst o (promoteNew lm (absU fuel) (absU k) lf)
+
 
 /-! ## The axiom census
 

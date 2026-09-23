@@ -1127,6 +1127,43 @@ theorem checkDecl_quotDecl (mode : CheckMode) (pins : List INatOpPinSet)
   intro b
   cases b <;> cases k <;> rfl
 
+/-! ## `annotStepGo`, arm by arm (task #97-P5-Top)
+
+The twin writes phase A's step body as one `match` with its three value arms
+inline; the port splits each into a function, and the tier states them
+against the `annotStep*Spec` transcriptions above.  These four equations are
+what makes `annot_step_go_refines` a dispatch. -/
+
+theorem annotStepGo_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
+    annotStepGo mode pins fe (.defnDecl cv value hint)
+      = annotStepDefnSpec mode pins fe (.defnDecl cv value hint) cv value hint := by
+  simp only [annotStepGo, annotStepDefnSpec, annotStepDefnInstallSpec]
+
+theorem annotStepGo_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    annotStepGo mode pins fe (.thmDecl cv value) = annotStepThmSpec mode fe cv value := by
+  simp only [annotStepGo, annotStepThmSpec]
+
+theorem annotStepGo_opaqueDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    annotStepGo mode pins fe (.opaqueDecl cv value)
+      = annotStepOpaqueSpec mode pins fe (.opaqueDecl cv value) cv value := by
+  simp only [annotStepGo, annotStepOpaqueSpec, annotStepOpaqueInstallSpec]
+
+/-- The catch-all: every kind but the three value kinds takes the ordinary
+step and records nothing. -/
+theorem annotStepGo_other (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (pd : IDeclaration)
+    (h : ∀ cv v hint, pd ≠ .defnDecl cv v hint) (h2 : ∀ cv v, pd ≠ .thmDecl cv v)
+    (h3 : ∀ cv v, pd ≠ .opaqueDecl cv v) :
+    annotStepGo mode pins fe pd = (do pure (← checkDecl mode pins fe pd, none)) := by
+  cases pd with
+  | defnDecl cv v hint => exact absurd rfl (h cv v hint)
+  | thmDecl cv v => exact absurd rfl (h2 cv v)
+  | opaqueDecl cv v => exact absurd rfl (h3 cv v)
+  | _ => rfl
+
 /-! ## The axiom census
 
 **Task #97-P5-Checker-2**: the seven `_unfold`s that closed.  They are the

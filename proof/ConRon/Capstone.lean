@@ -67,7 +67,11 @@ task #97-COMPOSE section tags each with its owning lane):
 * `hmr : Refine2.Frontend.ModellerRefines inst m inProcessModeller` — the
   Rust modeller against the twin's (the modeller seam, by design);
 * `hwf : ∀ p ∈ pins.val, NatOpPinSetWF p` — the Rust pin list is well formed
-  (its decoder lemma is the out-of-build `RefineOld/PinsWF.lean`).
+  (its decoder lemma is the out-of-build `RefineOld/PinsWF.lean`);
+* `hfn : FrozenNative` — the frozen-tier guard (`Refine2/Promote/Promote.lean`,
+  task #97-P5-Top): the two promotion lemmas without their `PersUnfrozen`
+  side condition, which is what they become once the pending Rust commit
+  makes `M_FROZEN` a `Native` decline.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -248,7 +252,7 @@ Theorem 2's six top lemmas, one per stage, and `BrOK` at the fold's entry from
 `stages_frame` (the twin's frame: the scratch tier is closed after the
 startup walk) and `AStateRel.storeWF`. -/
 theorem rust_stages
-    (hinit : InitRel)
+    (hinit : InitRel) (hfn : FrozenNative)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
     (hsc : ScanSpec)
@@ -316,7 +320,7 @@ theorem rust_stages
     (stages_frame (pins := ConRon.Refine.absPins pins) hbytes hA hB hC
       hD' hE).1
   -- 6. the fold
-  have hF := install_then_check_refines hrelE hinvE ⟨hrelE.storeWF, hoff⟩ h6
+  have hF := install_then_check_refines hrelE hinvE ⟨hrelE.storeWF, hoff⟩ hfn h6
   obtain ⟨lfe, sF, hF, hfe, hrelF, -, -⟩ := hF
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
 
@@ -344,7 +348,7 @@ the twin.  The original campaign's `absEnv e` has no counterpart.)
 Composition only: `rust_stages` (Theorem 2), `stages_model` (Theorem 1 +
 con-leche). -/
 theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-    (hinit : InitRel)
+    (hinit : InitRel) (hfn : FrozenNative)
     (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
@@ -378,7 +382,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hinit hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hinit hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨env, hden, hmod⟩ := stages_model V hk hind hbytes hA hB hC hD hE hF
   exact ⟨sF, lfe, env, hrelF, hfe, hden, hmod⟩
 
@@ -394,7 +398,7 @@ twin runs, `runPipeline_ok_of_stages` reassembles them into an accepting
 (which is con-leche's `no_proof_of_False_pure` through the bridge) refutes
 it. -/
 theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    (hinit : InitRel)
+    (hinit : InitRel) (hfn : FrozenNative)
     (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
@@ -426,7 +430,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok fe, st6)) :
     False := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hinit hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hinit hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨n, hn⟩ := runPipeline_ok_of_stages hA hB hC hD hE hF
   obtain ⟨e, he⟩ := ConRon.Bridge.Frontend.Arena.no_False_declaration_pipeline V
     hk hind hbytes (ConRon.Refine.absPins pins) (absChunks chunks) hfalse
