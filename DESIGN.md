@@ -41797,6 +41797,18 @@ axioms only**.
   else said it was closed; the loop, its one caller, runs the attempt only
   after the guard answered `true`.
 
+##### 7. The end of the round
+
+`scripts/gates.sh`: **all 16 OK** on the merge onto `arena`'s `5b2873c5`
+(`extract-check` 127 s); `Arena/Checker` T1 **stated 97/242, closed 96**
+(part 1: 88/85).  Frontier at the end: **56 items, 148 tainted, 676 dead
+weight** (the total grew from other lanes' skeletons merged meanwhile); this
+lane's items are **`IndSpec.wf`** (fan-in 8, reach 13 — the Inductives tier's
+debt, §1) and **`declResolves_of_stages`** (reach 4 — the ruling §3 asks for).
+The five items the round started with are all closed: `Arena.checkDecl_wfProj`
+(over `IndSpec.wf`), `divModEnvGuard_run`, `divModPinGuard_run`,
+`divModCertsGuard_run`, `checkDivModPinAt_bridge`.
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
