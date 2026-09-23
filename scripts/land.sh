@@ -23,6 +23,7 @@ into=$(git -C "$root" symbolic-ref --quiet --short HEAD)
 for i in 1 2 3 4 5; do
   if out=$(git -C "$root" merge --ff-only "$branch" 2>&1); then
     echo "landed $branch on $into at $(git -C "$root" rev-parse --short HEAD)"
+    cd "$root"   # the worktree is about to disappear; do not sit in it
     exec "$root/scripts/drop-worktree.sh" "$wt"
   fi
   case "$out" in
