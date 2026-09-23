@@ -1175,13 +1175,6 @@ theorem Sim₀.toSim_of_store {α β : Type} {A : α → β} {pers : arena.store
         = .ok (lst.store.viewSort (absEIdx h), lst) from rfl,
     estore_view_sort_abs hrel.store hrun]
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `view_sort_run₀`. -/
-@[grind →] theorem view_sort_run {pers st lst} (hrel : AStateRel pers st lst)
-    {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view_sort pers st h = ok o) :
-    SimR (Option.map absLIdx) lst o (Arena.viewSort (absEIdx h)) := by
-  apply view_sort_run₀ (hrel := hrel.to₀) <;> assumption
-
 /-- `arena::monad::view_const` against `Arena.viewConst`. -/
 @[grind →] theorem view_const_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     {h : arena.handle.EIdx} {o}
@@ -1192,13 +1185,6 @@ theorem Sim₀.toSim_of_store {α β : Type} {A : α → β} {pers : arena.store
   rw [show (Arena.viewConst (absEIdx h)).run lst
         = .ok (lst.store.viewConst (absEIdx h), lst) from rfl,
     estore_view_const_abs hrel.store hrun]
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `view_const_run₀`. -/
-@[grind →] theorem view_const_run {pers st lst} (hrel : AStateRel pers st lst)
-    {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view_const pers st h = ok o) :
-    SimR (Option.map absConstT) lst o (Arena.viewConst (absEIdx h)) := by
-  apply view_const_run₀ (hrel := hrel.to₀) <;> assumption
 
 /-- `arena::monad::view_const_name` against `Arena.viewConstName`. -/
 @[grind →] theorem view_const_name_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -3170,13 +3156,6 @@ theorem view_ls_len_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   rw [show (Arena.viewLsLen (absLsIdx h)).run lst
         = .ok (lst.store.lss.viewLen (absLsIdx h), lst) from rfl,
     lsstore_view_len_abs hrel.store.lss hrun]
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `view_ls_len_run₀`. -/
-theorem view_ls_len_run {pers st lst} (hrel : AStateRel pers st lst)
-    {h : arena.handle.LsIdx} {o}
-    (hrun : arena.monad.view_ls_len pers st h = ok o) :
-    SimR (Option.map absSz) lst o (Arena.viewLsLen (absLsIdx h)) := by
-  apply view_ls_len_run₀ (hrel := hrel.to₀) <;> assumption
 
 theorem view_n_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {h : arena.handle.NIdx} {o}
@@ -14109,21 +14088,6 @@ theorem intern_level_list_run'₀ {pers st lst} (hrel : AStateRel₀ pers st lst
     simp [ConRon.Refine.absLevels]
   rw [hd] at h1
   exact h1
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_level_list_run'₀`. -/
-theorem intern_level_list_run' {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    {us : alloc.vec.Vec kernel.level.Level} {o}
-    (hwf : ConRon.Refine.LevelsWF us)
-    (hrun : arena.monad.intern_level_list pers st us = ok o) :
-    Sim (fun v : alloc.vec.Vec arena.handle.LIdx => v.val.map absLIdx)
-      (fun _ => True) pers lst o
-      (Arena.internLevelList (ConRon.Refine.absLevels us)) ∧
-    FlagsEq st.store o.2.store := by
-  obtain ⟨h1, h2⟩ := intern_level_list_run'₀ hrel.to₀ hinv hwf hrun
-  exact ⟨h1.toSim (fun _ _ hx => (internLevelList_run_denote _ hrel.storeWF hx).2)
-    (fun _ _ => trivial), h2⟩
-
 
 theorem intern_levels_run'₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
