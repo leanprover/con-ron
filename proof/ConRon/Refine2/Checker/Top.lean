@@ -52,50 +52,23 @@ import every tier that discharges one.
 #97-P5-Arms, so the sixty-two binders that carried it were carrying a
 redundant hypothesis.
 
-## What this file's capstone still owes
+## What this file's capstone still owes (task #97-T2-LOCKSTEP lane Checker)
 
-**Nothing but its own leaves.**  `install_then_check_refines` and
-`check_decls_pure_refines` take `AStateRel₀`, `AStateInv` and — since task
-#97-P5-Checker round 3 — `BrOK lst`, and no more; their proofs are complete.
+**Nothing but its own leaves, and no precondition on the twin.**
+`install_then_check_refines` and `check_decls_pure_refines` take
+`AStateRel₀` and `AStateInv` and nothing else: the statements are lockstep
+(the Rust and the twin do the same operations from related states), so the
+declaration boundary `BrOK`, ruling 2's `DeclResolves` over an abstract `Good`
+and the promote window `AStateRelW` — all Theorem-1 content that had leaked
+into Theorem 2 (task #97-T2-AUDIT §2) — are deleted.  The bracket is three
+`SimS₀` lemmas (`Refine2/Core/Bracket.lean`), and a bracketed step
+(`check_decl_step`, `annot_step`, `annot_step_promote`, `check_pending`) is
+ONE `lockstep` call over its callees' `@[lockstep]` wrappers.
+
 The spine is `annot_fold_refines` / `annot_decl_step_refines` /
-`check_pending_list_refines` / `check_decls_pure_go_refines`, all closed here,
-and the `sorry`s under them are now TWO, `annot_step_refines` and
-`check_decl_step_refines`.  The axiom census at the foot of this file prints
-that, rather than hiding it.
-
-**Since task #97-P5-Checker round 4 both leaves are COMPOSED**, and since
-task #97-P5-Top they ARE the public leaves: the promote window is entered at
-`AStateRelW.of_rel` and closed by `Refine2/Checker/Shape.lean`'s
-`bracket_close_w`.  The one port fact round 4 could not discharge — that the
-persistent tier is not frozen when `promote_new`/`promote_vg` run
-(`KeepsUnfrozen`) — is gone with task #97-P5-Usize's `M_FROZEN` → `Native`
-flip: a `Native` decline claims nothing, so the promotion lemmas no longer
-carry `PersUnfrozen` and neither does anything above them.
-
-## The third binder, and why it is real (task #97-P5-Checker round 3)
-
-**`BrOK lst` is the declaration boundary** — `Refine2/Core/Bracket.lean`:
-the twin store well formed and its scratch tier closed.  Task #97-P5-Bracket
-§1 predicted the capstones would have to carry it and predicted `TwinWF`
-beside it; only the first is true, and the reason the second is not is that
-task #97-P5-Specs put `StoreWF ls.store` into `AStateRel₀` (finding 16), which
-is the half `TwinWF` was there to supply.  What is left is ONE flag, and it
-is a real precondition of the Rust `install_then_check` that the driver
-satisfies (`intern_all_pins` runs before the parse with the scratch tier
-closed).
-
-**It threads as a hypothesis and never as a conclusion.**  The three
-bracketed twins all END in `dropScratch`, which closes the tier whatever ran
-before it, so *"this action leaves the boundary"* is a fact about the TWIN
-alone — `checkPending_off` / `checkDeclStep_off` / `annotStep_off` and
-`annotFold_off` below — and a fold rebuilds its next `BrOK` from
-`AStateRel₀.storeWF` and that lemma.  No refinement shape grew a conjunct.
-
-**`check_pending_refines` closed on it**, and it is the first of the three
-leaves to go: `enter_scratch_refines`, `check_value_group_refines` at the
-PREFIX VIEW (task #97-P5-Bracket's finding 3, repaired in
-`Refine2/Core/KnotRel.lean` and `Refine2/Checker/Base.lean` the same round)
-and `bracket_close`, and nothing else.
+`check_pending_list_refines` / `check_decls_pure_go_refines` (cursor folds,
+by hand: the twin is a list recursion with a `tryCatch`, not a zip), all
+closed; the `sorry`s under them are the arms' leaves.
 -/
 import ConRon.Refine2.Checker.DeclCheck
 import ConRon.Refine2.Inductives.Top
@@ -636,10 +609,8 @@ open Lockstep in
 
 /-! ### The bracketed step, composed (task #97-P5-Checker round 4, task #97-P5-Top)
 
-`flush_caches_refines ; enter_scratch_refines ; check_decl_refines ;
-promote_new ; bracket_close_w` — the promote window entered at
-`AStateRelW.of_rel` and left at `bracket_close_w`, the one bridge
-(`Refine2/Checker/Shape.lean`).
+`flush_caches ; enter_scratch ; check_decl ; promote_new ; drop_scratch` on
+both sides — one `lockstep` call (task #97-T2-LOCKSTEP lane Checker).
 
 **No frozen-tier fact is needed.**  Round 4 composed both bracketed steps
 under `KeepsUnfrozen` of their bodies and `PersUnfrozen` at their entry — port
@@ -1060,13 +1031,11 @@ the copy — **and the tier dropped**.
 Rust `annot_step_promote` ends in `drop_scratch` (`checker.rs:963`); the old
 twin side stopped at the promotion, so its post-states disagreed on
 `scratchOn` and `AStateRel₀` failed at every success.  Putting `dropScratch` in
-the twin makes the post-states agree, and then `Ext` is only true from the
-BOUNDARY the bracket was entered at (`ext_bracket`), not from the state this
-function is called at — so the statement is `AOutRel` at that boundary `lst0`,
-with `BrOK lst0` and the body's `Ext lst0.store.enableScratch lst.store` as
-hypotheses, exactly `bracket_close`'s.  Task #97-P5-Top: with `M_FROZEN`
-`Native` the round-4 `hfr` / `KeepsUnfrozen` binders are gone and the proof is
-the composition `promote_vg ; promote_new ; bracket_close_w`. -/
+the twin makes the post-states agree.  Since task #97-T2-LOCKSTEP it is a
+plain lockstep statement at the state it is called at (the old `lst0`/`BrOK`/
+`Ext` boundary binders are gone with `Ext`), and its proof is one `lockstep`
+call: `promote_vg ; promote_new ; drop_scratch ; push`.  `hk` is finding C's
+bound, at the counter. -/
 theorem annot_step_promote_refines {pers st lst} {rf lf}
     {i vis k : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {vg : arena.checker_split.ValueGroup} {o}
@@ -1410,11 +1379,8 @@ the state there, by both sides' own design.
 
 * `AStateRel₀ pers st lst` / `AStateInv pers st` — the state, related and
   well-formed on the Rust side;
-* `BrOK lst` — the DECLARATION BOUNDARY the fold is entered at (the module
-  note's third section): the twin store's scratch tier is closed.  A real
-  precondition of the Rust, satisfied by the driver.
-
-and nothing else.  `KnotRel checkFuel` and `IndRel` were the other two until
+and nothing else (the old `BrOK` and ruling 2's `DeclResolves` are gone with
+task #97-T2-LOCKSTEP).  `KnotRel checkFuel` and `IndRel` were the other two until
 task #97-P5-Checker-2; both are theorems now (`knotRel_checkFuel'`,
 `ind_rel`) and the binders are gone.  The driver's fold above this is unverified and calls this
 per record; `scripts/holes.sh` is where that boundary is recorded. -/

@@ -326,12 +326,9 @@ twin's at the same kind and the same fold position, except the port's own
 `Native`, which claims nothing.*
 
 `install_then_check_refines`' statement with the driver's fold in place of
-`install_then_check` on both sides, and its hypotheses — `AStateRel₀`,
-`AStateInv`, `BrOK`, ruling 2's `DeclResolves` — plus ONE more about the same
-abstract invariant `Good`: `hwork`, that it survives `AState.worker` (the twin
-worker drops only scratch nodes, memos and caches, none of which a resolving
-handle of the environment can depend on; the capstone takes it from
-`declResolves_of_stages` with the rest of `Good`).  For ANY install hook: the
+`install_then_check` on both sides, and its hypotheses — `AStateRel₀` and
+`AStateInv`, nothing else (task #97-T2-LOCKSTEP lane Checker deleted `BrOK`,
+ruling 2's `DeclResolves` and its `hwork`).  For ANY install hook: the
 hook is the driver's `--progress` line, and `annot_fold_hooked_eq` says it
 cannot matter. -/
 theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook H}

@@ -56,11 +56,9 @@ the call site rather than here:
 
 1. **The entries are LOCKSTEP statements** (task #97-P5-Core round 4): over
    `AStateRel₀` (take `hrel.to₀`), with no `StoreWF` and no `EResolves`
-   premise, and a `Sim₀` conclusion without `Ext`.  A checker-tier proof that
-   still concludes `Sim` gets the twin's `StoreWF` and `Ext` from `ResolveInv`
-   (`wf`, `inferExt`, `ensureSortExt`) — Theorem 1's — and rebuilds
-   `AStateRel` with `AStateRel₀.of₀`; `check_value_group_refines` is the one
-   such site.  The old `AnswerResolves` at `ensure_sort_core` (task
+   premise, and a `Sim₀` conclusion without `Ext` — and so, since task
+   #97-T2-LOCKSTEP lane Checker, is every checker-tier statement; each entry
+   is filed below as a `@[lockstep]` spec at `checkFuel`.  The old `AnswerResolves` at `ensure_sort_core` (task
    #97-P5-Arms' finding 14) is gone: the twin tests the reduct's tag where the
    port does.
 2. **`CoreCtx vis fe lfe` replaces `IFEnvRel rf lf ∧ absU vis = lf.visibleBelow`.**

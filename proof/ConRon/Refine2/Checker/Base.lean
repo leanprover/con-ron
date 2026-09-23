@@ -1384,10 +1384,9 @@ the third blocker of round 3, is gone: task #97-T2-LOCKSTEP step 1 made the
 twin's message the Rust's constant `M_THM_NOT_PROP`, so the twin no longer
 reads the name there.)
 
-* `Good` across `lvlEq?` and `installValue` (two `ResolveInv` fields), needed
-  only because `install_value_refines` and the tail's Core front door take
-  `Good`/`EResolves` — the front doors' tag-versus-view divergence (task
-  #97-P5-0's finding 3). -/
+* (task #97-T2-LOCKSTEP) the `Good`/`EResolves` plumbing that stopped it is
+  gone with the lockstep statements; it is one `lockstep` call once
+  `install_value_refines` (a leaf) is `@[lockstep]`. -/
 theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {u : arena.handle.LIdx} {o}
@@ -1407,9 +1406,9 @@ against the declared one.
 decline became the Rust's constant `s!"type mismatch in {g.kind.word}"`: the
 old twin message read the constant's name (`readName`), a twin-only store read
 that throws `.internal` at a dangling name, and that divergence was what
-stopped task #97-P5-Top round 3 here.  Everything else composes from the
-statement's own hypotheses (`infer_type_core`, `is_def_eq_core` at the prefix
-view, `ResolveInv.infer`, `VGResolves`). -/
+stopped task #97-P5-Top round 3 here.  Since task #97-T2-LOCKSTEP lane
+Checker it is one `lockstep` call (`infer_type_core ; is_def_eq_core` at the
+prefix view), with no precondition on the twin. -/
 theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {jv : arena.handle.EIdx} {o}
@@ -1445,13 +1444,9 @@ declaration, at the environment the constant was installed at.
 through `Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
 (lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
 `checkFuel` (`knotRel_checkFuel'`).  **Since task #97-P5-Core round 4 the two
-front doors are lockstep statements** (`AStateRel₀`, no `StoreWF`, no
-`EResolves` premise, a `Sim₀` conclusion without `Ext`), so they need nothing
-of the precondition; what this proof still takes from `ResolveInv` is what
-its OWN conclusion (`Sim`, over `AStateRel₀` with `Ext`) and its callee
-`check_value_group_value_refines` need: `Good` along the twin run
-(`infer`, `ensureSort`), and the twin's own `StoreWF` (`wf`) and `Ext`
-(`inferExt`, `ensureSortExt`) — Theorem 1's, as the `ResolveInv` note says. -/
+front doors are lockstep statements**, and since task #97-T2-LOCKSTEP lane
+Checker so is this one: ruling 2's precondition is gone and the proof is one
+`lockstep` call. -/
 theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

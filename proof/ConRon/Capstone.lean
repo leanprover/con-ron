@@ -64,8 +64,10 @@ campaign), and the proof is:
 
 Every step is an existing theorem; what this file adds is glue: the Rust
 runs threaded through `Sim`/`SimStream`/`SimFold`, the twin runs reassembled
-into `runPipelineM`, and the twin frame facts (`scratchOn = false`) that
-Theorem 2's `BrOK` asks for, read off Theorem 1's stage lemmas.
+into `runPipelineM`, and the two twin-store facts the composition needs from
+Theorem 1 (`StoreWF` where a not-yet-lockstep parser statement takes
+`AStateRel`, and at the headline's `AStateRel`), read off its stage lemmas.
+Theorem 2 itself carries no fact about the twin's store (task #97-T2-AUDIT).
 
 ## The named hypotheses
 
@@ -173,8 +175,8 @@ theorem runPipeline_ok_of_stages {chunks : List ByteArray}
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **the stages' frame, up to the fold**: after the first five stages from the
-driver's start state, the scratch tier is closed (Theorem 2's `BrOK` asks for
-it at `install_then_check`), the fold's start invariant holds, and the pins
+driver's start state, the scratch tier is closed, the fold's start invariant
+holds, and the pins
 and the prepared stream denote.  `Arena.no_False_declaration_pipeline`'s own
 steps, stopped before the fold. -/
 theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
@@ -356,11 +358,12 @@ the driver's start state give six accepting twin runs from the twin's, at the
 abstracted values, with the Rust's final state related to the twin's and the
 Rust's environment related to the twin's.
 
-Theorem 2's six top lemmas, one per stage, and `BrOK` at the fold's entry from
-`stages_frame` (the twin's frame: the scratch tier is closed after the
-startup walk) and `AStateRel.storeWF`; ruling 2's `DeclResolves` at the fold's
-entry from `declResolves_of_stages` (Theorem 1's, which is why `hk` and `hind`
-are here). -/
+Theorem 2's six top lemmas, one per stage, lockstep: nothing about the twin's
+store is assumed at the fold's entry (task #97-T2-LOCKSTEP lane Checker
+deleted `BrOK` and ruling 2's `DeclResolves`).  The parser tier's statements
+still take the full `AStateRel` (their lane's migration is pending), so
+`StoreWF` after the reserved pins comes from Theorem 1's
+`internReservedPins_run`. -/
 theorem rust_stages
     (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hind : ConRon.Bridge.IndSpec .verified)

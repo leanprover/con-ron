@@ -388,9 +388,8 @@ theorem check_thm_val_witness_refines {pers st lst} {rf lf}
         (absIConstantVal cv) (absEIdx value)) := by
   sorry
 
-/-- **`check_thm_val` ⊑ `checkThmVal`**.  Ruling 2's precondition (task
-#97-P5-Top round 2): the checked constant's (annotated) type resolves here,
-and the value resolves in every `Good` state. -/
+/-- **`check_thm_val` ⊑ `checkThmVal`** (lockstep: no precondition on the
+twin since task #97-T2-LOCKSTEP lane Checker). -/
 theorem check_thm_val_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
