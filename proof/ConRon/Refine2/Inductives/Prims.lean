@@ -1606,28 +1606,6 @@ open Lockstep in
 
 
 open Lockstep in
-@[lockstep] theorem reduce_op_raw_ls
-    {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantVal a) (arena.trust_axioms.reduce_op_raw pers st c) lst
-      (reduceOpRaw (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => reduce_op_raw_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem of_reduce_raw_ls
-    {pers st lst}
-    {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantVal a) (arena.trust_axioms.of_reduce_raw pers st n) lst
-      (ofReduceRaw (absNIdx n)) :=
-  LS.ofSim₀ fun _ h => of_reduce_raw_refines hrel hinv h
-
-
-open Lockstep in
 @[lockstep] theorem reduce_nat_cv_a_ls
     {pers st lst}
     (hrel : AStateRel₀ pers st lst)

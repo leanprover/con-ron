@@ -230,13 +230,37 @@ def natVar (i : Nat) : AM EIdx := do
   let nt ← pinNat
   internE (.fvar i (← constE nt))
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — **the
-pinned characterization statements** of a pin-certified WF-recursive op, in
-*open* form over `x := fvar 0`, `y := fvar 1` (the hypotheses become
-`fvar 2, fvar 3`): per certificate, the list of hypothesis types and the
-characteristic equation `Eq Nat lhs rhs`.  The guards are spelled with the
-already-certified `Nat.ble` and the numeral `1` as `Nat.succ Nat.zero`. -/
-def divModCertStmts (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+twenty-one pinned handles the statements are built from (the port's
+`CertCtx`: a record, because a `let`-bound handle that outlives a `match` arm is
+a loan the Aeneas subset will not take; the twin follows the port's factoring,
+task #97-T2-LOCKSTEP lane Checker DeclCheck slice 2). -/
+structure CertCtxA where
+  natTy : EIdx
+  x : EIdx
+  y : EIdx
+  one : EIdx
+  bleN : NIdx
+  boolTy : EIdx
+  bT : EIdx
+  bF : EIdx
+  z : EIdx
+  two : EIdx
+  modN : NIdx
+  divN : NIdx
+  addN : NIdx
+  mulN : NIdx
+  subN : NIdx
+  gcdN : NIdx
+  slN : NIdx
+  srN : NIdx
+  landN : NIdx
+  lorN : NIdx
+  xorN : NIdx
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+context, in the port's order (`cert_ctx`). -/
+def certCtx : AM CertCtxA := do
   let nt ← pinNat
   let natTy ← constE nt
   let x ← natVar 0
@@ -260,76 +284,164 @@ def divModCertStmts (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let landN ← natLandName
   let lorN ← natLorName
   let xorN ← natXorName
-  if c == gcdN then do
-    -- `gcd`: `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`
-    let h1 ← eqAt1 boolTy (← natAp2 bleN one x) bT
-    let h2 ← eqAt1 boolTy (← natAp2 bleN one x) bF
-    let e1 ← eqAt1 natTy (← natAp2 c x y)
-      (← natAp2 c (← natAp2 modN y x) x)
-    let e2 ← eqAt1 natTy (← natAp2 c x y) y
-    pure [([h1], e1), ([h2], e2)]
-  else if c == slN then do
-    -- `1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`
-    let h1 ← eqAt1 boolTy (← natAp2 bleN one y) bT
-    let h2 ← eqAt1 boolTy (← natAp2 bleN one y) bF
-    let e1 ← eqAt1 natTy (← natAp2 c x y)
-      (← natAp2 c (← natAp2 mulN two x) (← natAp2 subN y one))
-    let e2 ← eqAt1 natTy (← natAp2 c x y) x
-    pure [([h1], e1), ([h2], e2)]
-  else if c == srN then do
-    -- `1 ≤ y → x >>> y = (x >>> (y-1)) / 2`, `y = 0 → x >>> y = x`
-    let h1 ← eqAt1 boolTy (← natAp2 bleN one y) bT
-    let h2 ← eqAt1 boolTy (← natAp2 bleN one y) bF
-    let e1 ← eqAt1 natTy (← natAp2 c x y)
-      (← natAp2 divN (← natAp2 c x (← natAp2 subN y one)) two)
-    let e2 ← eqAt1 natTy (← natAp2 c x y) x
-    pure [([h1], e1), ([h2], e2)]
-  else if c == landN then do
-    -- `1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`, `x = 0 → … = 0`
-    let h1 ← eqAt1 boolTy (← natAp2 bleN one x) bT
-    let h2 ← eqAt1 boolTy (← natAp2 bleN one x) bF
-    let rec1 ← natAp2 c (← natAp2 divN x two) (← natAp2 divN y two)
-    let e1 ← eqAt1 natTy (← natAp2 c x y)
-      (← natAp2 addN (← natAp2 mulN two rec1)
-        (← natAp2 mulN (← natAp2 modN x two) (← natAp2 modN y two)))
-    let e2 ← eqAt1 natTy (← natAp2 c x y) z
-    pure [([h1], e1), ([h2], e2)]
-  else if c == lorN then do
-    -- `1 ≤ x → x ||| y = 2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`
-    let h1 ← eqAt1 boolTy (← natAp2 bleN one x) bT
-    let h2 ← eqAt1 boolTy (← natAp2 bleN one x) bF
-    let rec1 ← natAp2 c (← natAp2 divN x two) (← natAp2 divN y two)
-    let mx ← natAp2 modN x two
-    let my ← natAp2 modN y two
-    let e1 ← eqAt1 natTy (← natAp2 c x y)
-      (← natAp2 addN (← natAp2 mulN two rec1)
-        (← natAp2 subN (← natAp2 addN mx my) (← natAp2 mulN mx my)))
-    let e2 ← eqAt1 natTy (← natAp2 c x y) y
-    pure [([h1], e1), ([h2], e2)]
-  else if c == xorN then do
-    -- `1 ≤ x → x ^^^ y = 2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`
-    let h1 ← eqAt1 boolTy (← natAp2 bleN one x) bT
-    let h2 ← eqAt1 boolTy (← natAp2 bleN one x) bF
-    let rec1 ← natAp2 c (← natAp2 divN x two) (← natAp2 divN y two)
-    let mx ← natAp2 modN x two
-    let my ← natAp2 modN y two
-    let e1 ← eqAt1 natTy (← natAp2 c x y)
-      (← natAp2 addN (← natAp2 mulN two rec1)
-        (← natAp2 modN (← natAp2 addN mx my) two))
-    let e2 ← eqAt1 natTy (← natAp2 c x y) y
-    pure [([h1], e1), ([h2], e2)]
-  else do
-    let recRhs ←
-      if c == divN then natAp1 (← pinNatSucc) (← natAp2 c (← natAp2 subN x y) y)
-      else natAp2 c (← natAp2 subN x y) y
-    let baseRhs ← if c == divN then pure z else pure x
-    let h1 ← eqAt1 boolTy (← natAp2 bleN y x) bT
-    let h2 ← eqAt1 boolTy (← natAp2 bleN one y) bT
-    let h3 ← eqAt1 boolTy (← natAp2 bleN y x) bF
-    let h4 ← eqAt1 boolTy (← natAp2 bleN one y) bF
-    let e1 ← eqAt1 natTy (← natAp2 c x y) recRhs
-    let e2 ← eqAt1 natTy (← natAp2 c x y) baseRhs
-    pure [([h1, h2], e1), ([h3], e2), ([h4], e2)]
+  pure ⟨natTy, x, y, one, bleN, boolTy, bT, bF, z, two, modN, divN, addN, mulN,
+    subN, gcdN, slN, srN, landN, lorN, xorN⟩
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+guard `ble a b = r` (`eqB (ble2 a b) r`). -/
+def certGuard (cx : CertCtxA) (a b r : EIdx) : AM EIdx := do
+  eqAt1 cx.boolTy (← natAp2 cx.bleN a b) r
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+characteristic equation `c x y = rhs` (`eqN (op2 x y) rhs`), its left side
+interned AFTER the right one, as the port does. -/
+def certEq (cx : CertCtxA) (c : NIdx) (rhs : EIdx) : AM EIdx := do
+  eqAt1 cx.natTy (← natAp2 c cx.x cx.y) rhs
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+bitwise branches' `op2 (div2 x two) (div2 y two)`. -/
+def certHalves (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let hx ← natAp2 cx.divN cx.x cx.two
+  let hy ← natAp2 cx.divN cx.y cx.two
+  natAp2 c hx hy
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+six one-hypothesis branches' two certificates. -/
+def certTwoEqs (cx : CertCtxA) (c : NIdx) (h1 h2 r1 r2 : EIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  let e1 ← certEq cx c r1
+  let e2 ← certEq cx c r2
+  pure [([h1], e1), ([h2], e2)]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`gcd`: `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`. -/
+def certGcd (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuard cx cx.one cx.x cx.bT
+  let h2 ← certGuard cx cx.one cx.x cx.bF
+  let r1 ← natAp2 c (← natAp2 cx.modN cx.y cx.x) cx.x
+  certTwoEqs cx c h1 h2 r1 cx.y
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`. -/
+def certShiftLeft (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuard cx cx.one cx.y cx.bT
+  let h2 ← certGuard cx cx.one cx.y cx.bF
+  let r1 ← natAp2 c (← natAp2 cx.mulN cx.two cx.x) (← natAp2 cx.subN cx.y cx.one)
+  certTwoEqs cx c h1 h2 r1 cx.x
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`1 ≤ y → x >>> y = (x >>> (y-1)) / 2`, `y = 0 → x >>> y = x`. -/
+def certShiftRight (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuard cx cx.one cx.y cx.bT
+  let h2 ← certGuard cx cx.one cx.y cx.bF
+  let r1 ← natAp2 cx.divN (← natAp2 c cx.x (← natAp2 cx.subN cx.y cx.one)) cx.two
+  certTwoEqs cx c h1 h2 r1 cx.x
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`, `x = 0 → … = 0`. -/
+def certLand (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuard cx cx.one cx.x cx.bT
+  let h2 ← certGuard cx cx.one cx.x cx.bF
+  let rec1 ← certHalves cx c
+  let r1 ← natAp2 cx.addN (← natAp2 cx.mulN cx.two rec1)
+    (← natAp2 cx.mulN (← natAp2 cx.modN cx.x cx.two)
+      (← natAp2 cx.modN cx.y cx.two))
+  certTwoEqs cx c h1 h2 r1 cx.z
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`|||`'s right-hand side `2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`. -/
+def certLorRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let rec1 ← certHalves cx c
+  let t2 ← natAp2 cx.mulN cx.two rec1
+  let mx ← natAp2 cx.modN cx.x cx.two
+  let my ← natAp2 cx.modN cx.y cx.two
+  natAp2 cx.addN t2 (← natAp2 cx.subN (← natAp2 cx.addN mx my)
+    (← natAp2 cx.mulN mx my))
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`|||`: `x = 0 → x ||| y = y`. -/
+def certLor (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuard cx cx.one cx.x cx.bT
+  let h2 ← certGuard cx cx.one cx.x cx.bF
+  let r1 ← certLorRhs cx c
+  certTwoEqs cx c h1 h2 r1 cx.y
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`^^^`'s right-hand side `2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`. -/
+def certXorRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let rec1 ← certHalves cx c
+  let t2 ← natAp2 cx.mulN cx.two rec1
+  let mx ← natAp2 cx.modN cx.x cx.two
+  let my ← natAp2 cx.modN cx.y cx.two
+  natAp2 cx.addN t2 (← natAp2 cx.modN (← natAp2 cx.addN mx my) cx.two)
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts —
+`^^^`: `x = 0 → x ^^^ y = y`. -/
+def certXor (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuard cx cx.one cx.x cx.bT
+  let h2 ← certGuard cx cx.one cx.x cx.bF
+  let r1 ← certXorRhs cx c
+  certTwoEqs cx c h1 h2 r1 cx.y
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+`div`/`mod` branch's recursive right-hand side: `c (x - y) y`, under
+`Nat.succ` for `div` (the successor pin read after the two interns, as the
+port's `cert_rec_rhs` does). -/
+def certRecRhs (cx : CertCtxA) (c : NIdx) : AM EIdx := do
+  let d ← natAp2 cx.subN cx.x cx.y
+  let step ← natAp2 c d cx.y
+  if c == cx.divN then natAp1 (← pinNatSucc) step else pure step
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+`div`/`mod` branch's three certificates, at the four guards. -/
+def certDivModEqs (cx : CertCtxA) (c : NIdx)
+    (h1 h2 h3 h4 recRhs baseRhs : EIdx) : AM (List (List EIdx × EIdx)) := do
+  let e1 ← certEq cx c recRhs
+  let e2 ← certEq cx c baseRhs
+  pure [([h1, h2], e1), ([h3], e2), ([h4], e2)]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+`div`/`mod` branch's four guards. -/
+def certDivModGuards (cx : CertCtxA) (c : NIdx) (recRhs baseRhs : EIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  let h1 ← certGuard cx cx.y cx.x cx.bT
+  let h2 ← certGuard cx cx.one cx.y cx.bT
+  let h3 ← certGuard cx cx.y cx.x cx.bF
+  let h4 ← certGuard cx cx.one cx.y cx.bF
+  certDivModEqs cx c h1 h2 h3 h4 recRhs baseRhs
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+`div`/`mod` branch. -/
+def certDivMod (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  let recRhs ← certRecRhs cx c
+  let baseRhs := if c == cx.divN then cx.z else cx.x
+  certDivModGuards cx c recRhs baseRhs
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
+seven-way dispatch over the operation name. -/
+def divModCertStmtsAt (cx : CertCtxA) (c : NIdx) :
+    AM (List (List EIdx × EIdx)) := do
+  if c == cx.gcdN then certGcd cx c
+  else if c == cx.slN then certShiftLeft cx c
+  else if c == cx.srN then certShiftRight cx c
+  else if c == cx.landN then certLand cx c
+  else if c == cx.lorN then certLor cx c
+  else if c == cx.xorN then certXor cx c
+  else certDivMod cx c
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — **the
+pinned characterization statements** of a pin-certified WF-recursive op, in
+*open* form over `x := fvar 0`, `y := fvar 1` (the hypotheses become
+`fvar 2, fvar 3`): per certificate, the list of hypothesis types and the
+characteristic equation `Eq Nat lhs rhs`.  The guards are spelled with the
+already-certified `Nat.ble` and the numeral `1` as `Nat.succ Nat.zero`.
+
+In the port's factoring (task #97-T2-LOCKSTEP lane Checker DeclCheck slice 2):
+the twin used to intern each equation's left side `c x y` before its right
+side, and the port (`cert_eq`) interns it after — different append order,
+different handles. -/
+def divModCertStmts (c : NIdx) : AM (List (List EIdx × EIdx)) := do
+  divModCertStmtsAt (← certCtx) c
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:224-237 divModCertApplied — the
 vendored proof applied to the statement's free variables (`x`, `y`, then one

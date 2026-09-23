@@ -39,8 +39,10 @@ definitionally equal at an opaque prefix.  **Rule 11**
 `am_bind_congr` peels the common prefix first — `congr 1` will NOT, because
 `AM α` is a function type and `congr 1` eta-expands it instead.
 
-Seven of the eight are closed; `divModCertStmts_unfold` is the exception and
-its note says why.
+All are closed.  (`divModCertStmts_unfold`, the eighth, was false: the twin
+interned in another order than the port.  The twin now has the port's
+factoring and the equation is its definition — task #97-T2-LOCKSTEP lane
+Checker DeclCheck slice 2.)
 -/
 import ConRon.Refine2.Checker.KnotHyp
 
@@ -615,36 +617,10 @@ def divModSlotSpec (c : NIdx) : AM Nat := do
   if c == (← natDivName) then pure 0
   else divModSlot1Spec c
 
-/-! ### `divModCertStmts`' context and its seven arms
+/-! ### `divModCertStmts`' context, split where the port splits it
 
-`CertCtxA` is the twin-side reading of `arena::decl_check::CertCtx` — the
-twenty-one handles the twin holds in `let`s and the port bundles in a record,
-because a `let`-bound handle that outlives a `match` arm is a loan the Aeneas
-subset will not take. -/
-
-/-- The twenty-one pinned handles `divModCertStmts` opens with. -/
-structure CertCtxA where
-  natTy : EIdx
-  x : EIdx
-  y : EIdx
-  one : EIdx
-  bleN : NIdx
-  boolTy : EIdx
-  bT : EIdx
-  bF : EIdx
-  z : EIdx
-  two : EIdx
-  modN : NIdx
-  divN : NIdx
-  addN : NIdx
-  mulN : NIdx
-  subN : NIdx
-  gcdN : NIdx
-  slN : NIdx
-  srN : NIdx
-  landN : NIdx
-  lorN : NIdx
-  xorN : NIdx
+The twin (`Arena/DeclCheck.lean`) holds the context in `CertCtxA` and builds
+it flat (`certCtx`); the port splits the build in four. -/
 
 /-- `divModCertStmts`' opening `let`s, through the `Bool` type and its two
 constructors. -/
@@ -660,169 +636,6 @@ def certCtxNumsSpec (one : EIdx) : AM (EIdx × EIdx) := do
   let z ← constE (← pinNatZero)
   let two ← natAp1 (← pinNatSucc) one
   pure (z, two)
-
-/-- … and the eleven arithmetic and bitwise names. -/
-def certCtxNamesSpec : AM (NIdx × NIdx × NIdx × NIdx × NIdx × NIdx × NIdx ×
-    NIdx × NIdx × NIdx × NIdx) := do
-  pure (← natModName, ← natDivName, ← natAddName, ← natMulName, ← natSubName,
-    ← natGcdName, ← natShiftLeftName, ← natShiftRightName, ← natLandName,
-    ← natLorName, ← natXorName)
-
-/-- **The whole context.** -/
-def certCtxSpec : AM CertCtxA := do
-  let nt ← pinNat
-  let natTy ← constE nt
-  let x ← natVar 0
-  let y ← natVar 1
-  let one ← natOne
-  let bleN ← natBleName
-  let (boolTy, bT, bF) ← certCtxBoolSpec
-  let (z, two) ← certCtxNumsSpec one
-  let (modN, divN, addN, mulN, subN, gcdN, slN, srN, landN, lorN, xorN) ←
-    certCtxNamesSpec
-  pure ⟨natTy, x, y, one, bleN, boolTy, bT, bF, z, two, modN, divN, addN, mulN,
-    subN, gcdN, slN, srN, landN, lorN, xorN⟩
-
-/-- The guard shape all seven branches are written with. -/
-def certGuardSpec (cx : CertCtxA) (a b r : EIdx) : AM EIdx := do
-  eqAt1 cx.boolTy (← natAp2 cx.bleN a b) r
-
-/-- The characteristic equation all seven branches are written with. -/
-def certEqSpec (cx : CertCtxA) (c : NIdx) (rhs : EIdx) : AM EIdx := do
-  eqAt1 cx.natTy (← natAp2 c cx.x cx.y) rhs
-
-/-- The bitwise branches' `op2 (x/2) (y/2)`. -/
-def certHalvesSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
-  let hx ← natAp2 cx.divN cx.x cx.two
-  let hy ← natAp2 cx.divN cx.y cx.two
-  natAp2 c hx hy
-
-/-- The six one-hypothesis branches' shared shape. -/
-def certTwoEqsSpec (cx : CertCtxA) (c : NIdx) (h1 h2 r1 r2 : EIdx) :
-    AM (List (List EIdx × EIdx)) := do
-  let e1 ← certEqSpec cx c r1
-  let e2 ← certEqSpec cx c r2
-  pure [([h1], e1), ([h2], e2)]
-
-/-- `gcd`: `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`. -/
-def certGcdSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
-  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
-  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
-  let r1 ← natAp2 c (← natAp2 cx.modN cx.y cx.x) cx.x
-  certTwoEqsSpec cx c h1 h2 r1 cx.y
-
-/-- `<<<`: `1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`. -/
-def certShiftLeftSpec (cx : CertCtxA) (c : NIdx) :
-    AM (List (List EIdx × EIdx)) := do
-  let h1 ← certGuardSpec cx cx.one cx.y cx.bT
-  let h2 ← certGuardSpec cx cx.one cx.y cx.bF
-  let r1 ← natAp2 c (← natAp2 cx.mulN cx.two cx.x)
-    (← natAp2 cx.subN cx.y cx.one)
-  certTwoEqsSpec cx c h1 h2 r1 cx.x
-
-/-- `>>>`: `1 ≤ y → x >>> y = (x >>> (y-1)) / 2`, `y = 0 → x >>> y = x`. -/
-def certShiftRightSpec (cx : CertCtxA) (c : NIdx) :
-    AM (List (List EIdx × EIdx)) := do
-  let h1 ← certGuardSpec cx cx.one cx.y cx.bT
-  let h2 ← certGuardSpec cx cx.one cx.y cx.bF
-  let r1 ← natAp2 cx.divN (← natAp2 c cx.x (← natAp2 cx.subN cx.y cx.one)) cx.two
-  certTwoEqsSpec cx c h1 h2 r1 cx.x
-
-/-- `&&&`: `1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`. -/
-def certLandSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
-  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
-  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
-  let rec1 ← certHalvesSpec cx c
-  let r1 ← natAp2 cx.addN (← natAp2 cx.mulN cx.two rec1)
-    (← natAp2 cx.mulN (← natAp2 cx.modN cx.x cx.two)
-      (← natAp2 cx.modN cx.y cx.two))
-  certTwoEqsSpec cx c h1 h2 r1 cx.z
-
-/-- `|||`'s right-hand side. -/
-def certLorRhsSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
-  let rec1 ← certHalvesSpec cx c
-  let t2 ← natAp2 cx.mulN cx.two rec1
-  let mx ← natAp2 cx.modN cx.x cx.two
-  let my ← natAp2 cx.modN cx.y cx.two
-  natAp2 cx.addN t2 (← natAp2 cx.subN (← natAp2 cx.addN mx my)
-    (← natAp2 cx.mulN mx my))
-
-/-- `|||`: `1 ≤ x → x ||| y = 2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`. -/
-def certLorSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
-  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
-  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
-  let r1 ← certLorRhsSpec cx c
-  certTwoEqsSpec cx c h1 h2 r1 cx.y
-
-/-- `^^^`'s right-hand side. -/
-def certXorRhsSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
-  let rec1 ← certHalvesSpec cx c
-  let t2 ← natAp2 cx.mulN cx.two rec1
-  let mx ← natAp2 cx.modN cx.x cx.two
-  let my ← natAp2 cx.modN cx.y cx.two
-  natAp2 cx.addN t2 (← natAp2 cx.modN (← natAp2 cx.addN mx my) cx.two)
-
-/-- `^^^`: `1 ≤ x → x ^^^ y = 2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`. -/
-def certXorSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
-  let h1 ← certGuardSpec cx cx.one cx.x cx.bT
-  let h2 ← certGuardSpec cx cx.one cx.x cx.bF
-  let r1 ← certXorRhsSpec cx c
-  certTwoEqsSpec cx c h1 h2 r1 cx.y
-
-/-- The `div`/`mod` branch's `c (x - y) y`. -/
-def certRecRhsSpec (cx : CertCtxA) (c : NIdx) : AM EIdx := do
-  let d ← natAp2 cx.subN cx.x cx.y
-  natAp2 c d cx.y
-
-/-- The `div`/`mod` branch's three certificates, at the four guards. -/
-def certDivModEqsSpec (cx : CertCtxA) (c : NIdx)
-    (h1 h2 h3 h4 recRhs baseRhs : EIdx) : AM (List (List EIdx × EIdx)) := do
-  let e1 ← certEqSpec cx c recRhs
-  let e2 ← certEqSpec cx c baseRhs
-  pure [([h1, h2], e1), ([h3], e2), ([h4], e2)]
-
-/-- The `div`/`mod` branch's four guards. -/
-def certDivModGuardsSpec (cx : CertCtxA) (c : NIdx) (recRhs baseRhs : EIdx) :
-    AM (List (List EIdx × EIdx)) := do
-  let h1 ← certGuardSpec cx cx.y cx.x cx.bT
-  let h2 ← certGuardSpec cx cx.one cx.y cx.bT
-  let h3 ← certGuardSpec cx cx.y cx.x cx.bF
-  let h4 ← certGuardSpec cx cx.one cx.y cx.bF
-  certDivModEqsSpec cx c h1 h2 h3 h4 recRhs baseRhs
-
-/-- The `div`/`mod` branch, whole. -/
-def certDivModSpec (cx : CertCtxA) (c : NIdx) : AM (List (List EIdx × EIdx)) := do
-  let recRhs ←
-    if c == cx.divN then natAp1 (← pinNatSucc) (← certRecRhsSpec cx c)
-    else certRecRhsSpec cx c
-  let baseRhs := if c == cx.divN then cx.z else cx.x
-  certDivModGuardsSpec cx c recRhs baseRhs
-
-/-- The seven-way dispatch over the operation name. -/
-def divModCertStmtsAtSpec (cx : CertCtxA) (c : NIdx) :
-    AM (List (List EIdx × EIdx)) := do
-  if c == cx.gcdN then certGcdSpec cx c
-  else if c == cx.slN then certShiftLeftSpec cx c
-  else if c == cx.srN then certShiftRightSpec cx c
-  else if c == cx.landN then certLandSpec cx c
-  else if c == cx.lorN then certLorSpec cx c
-  else if c == cx.xorN then certXorSpec cx c
-  else certDivModSpec cx c
-
-/-- `divModCertStmts` is its context and its dispatch.
-
-**The tier's one open `_unfold`, and it is a COST problem.**  The two sides
-are the same `do` block regrouped — twenty-one `let`s and a seven-way
-dispatch — but the single `twin_reduce` that spells out all fifteen
-`cert*Spec` definitions does not finish inside ten minutes on the resulting
-term.  The fix is to peel the twenty-one binders with `am_bind_congr` and
-`split` the dispatch, rather than to hand `simp` the whole thing at once;
-task #97-P5-Checker-2 left it rather than spend the round's last hour on
-it. -/
-theorem divModCertStmts_unfold (c : NIdx) :
-    divModCertStmts c = (do divModCertStmtsAtSpec (← certCtxSpec) c) := by
-  sorry
-
 
 /-! ### The context's four partial builders
 
@@ -865,7 +678,7 @@ def certCtxBoolFullSpec (natTy x y one : EIdx) : AM CertCtxA := do
   let (boolTy, bT, bF) ← certCtxBoolSpec
   certCtxNumsFullSpec natTy x y one bleN boolTy bT bF
 
-/-- `cert_ctx`'s subject, and `certCtxSpec` spelled through the four. -/
+/-- `cert_ctx`'s subject: the twin's `certCtx` spelled through the four. -/
 def certCtxFullSpec : AM CertCtxA := do
   let nt ← pinNat
   let natTy ← constE nt
@@ -873,6 +686,12 @@ def certCtxFullSpec : AM CertCtxA := do
   let y ← natVar 1
   let one ← natOne
   certCtxBoolFullSpec natTy x y one
+
+/-- The port's four-way split of the context is the twin's flat build. -/
+theorem certCtxFullSpec_eq : certCtxFullSpec = certCtx := by
+  simp only [certCtxFullSpec, certCtxBoolFullSpec, certCtxNumsFullSpec,
+    certCtxNamesFullSpec, certCtxNamesRestFullSpec, certCtxBoolSpec, certCtxNumsSpec,
+    certCtx, bind_assoc, pure_bind]
 
 
 /-! ## `arena::checker`'s splits
