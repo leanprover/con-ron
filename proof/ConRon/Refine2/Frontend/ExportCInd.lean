@@ -35,7 +35,7 @@ against `Refine2/Frontend/SpecInd.lean`'s transcriptions, which keep the
 twin's own `forIn` encoding so that `validateIndD_unfold` is `rfl` (ruling
 F12, task #97-T2-LOCKSTEP).
 
-## `sorry` count in this file: 4
+## `sorry` count in this file: 2
 -/
 import ConRon.Refine2.Frontend.ExportC
 import ConRon.Refine2.Frontend.SpecInd

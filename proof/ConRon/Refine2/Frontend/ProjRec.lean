@@ -43,7 +43,7 @@ threads its `seen` table as an argument-and-result pair INSIDE the `Result`
    twin's at any value.  (Task #97-P4e part 2 asks for the argument to come
    off the LEAN side too; until it does, this is where the difference lives.)
 
-## `sorry` count in this file: 55
+## `sorry` count in this file: 54
 -/
 import ConRon.Refine2.Frontend.Spec
 
