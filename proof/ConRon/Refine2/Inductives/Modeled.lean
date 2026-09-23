@@ -68,6 +68,7 @@ open ConRon.Arena
 open IndModeledPrims in
 attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule_ctorParams
   absIRecRule_fire absIRecRule_rhs absIRecRule_k absIRecRule_eta absIRecRule_paramsBlind
+  unwrapOr_some unwrapOr_none
 
 /-! ## The two helpers of the modeled route -/
 
@@ -640,7 +641,9 @@ theorem iota_stmt_open_at_refines {pers st lst} {depth : Std.U64}
     (hrun : arena.inductives.modeled.iota_stmt_open_at pers st depth tty = ok o) :
     Sim₀ (fun r => (absEIdxL r.1, absEIdxL r.2.1, absLIdx r.2.2))
       pers lst o (iotaStmtOpenAtSpec (absU depth) (absEIdx tty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.iota_stmt_open_at, iotaStmtOpenAtSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem iota_stmt_open_at_ls
@@ -1353,7 +1356,9 @@ theorem check_iota_thm_n_fields_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU m_i) (absU r_p) (absU cn_p) (absU cn_f) (absEIdx rhs_a)
         (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0)
         (absEIdxL fvs_p) (absEIdx crest_p) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_n_fields, checkIotaThmNFieldsSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_fields_ls
@@ -1627,7 +1632,9 @@ theorem check_iota_thm_n_major_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
         (absEIdx b0) (absLIdxL lvls) (absEIdxL pins) (absEIdxL pins_f)
         (absIRecRule r) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_n_major, checkIotaThmNMajorSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_major_ls
@@ -2578,7 +2585,9 @@ theorem check_proj_iota_body_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (checkProjIotaBodySpec (ConRon.Refine.absMode mode) lfS (absNIdx ctor_name)
         (absNIdxL lps) (absIConstantVal cvj) (absU n_p) (absU n_f) (absU i)
         (absNIdx pmn) (absEIdx tty) (absEIdx sbody)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_iota_body, checkProjIotaBodySpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_body_ls
@@ -2843,7 +2852,9 @@ theorem check_eta_thm_eq_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkEtaThmEqSpec (ConRon.Refine.absMode mode) (absNIdx t) (absNIdxL lps)
         (absU n_f) (absNIdx cm) (absEIdx sbody) (absEIdx tbody_m)
         (absEIdxL ps_hi) (absEIdx fam_hi)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_eta_thm_eq, checkEtaThmEqSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_eq_ls

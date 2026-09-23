@@ -457,6 +457,23 @@ theorem LS_of_twin_map {α β γ : Type} {pers : arena.store.PersTier} {R : α �
   rw [arena.env.lidx_vec_dup] at h
   exact lidx_vec_dup_eq h
 
+/-- `checker_base::unwrap_or` ⊑ `unwrapOr` — proved here (the checker tier's
+`unwrap_or_refines` is still `sorry`); the two errors' kinds agree. -/
+theorem unwrap_or_simRE {T β : Type} {A : T → β} {lst} {o : Option T}
+    {err : kernel.core_types.CheckError} {lerr : Arena.CheckError} {r}
+    (herr : absAErrKind err = lAErrKind lerr)
+    (hrun : arena.checker_base.unwrap_or o err = ok r) :
+    SimRE A lst r (unwrapOr (o.map A) lerr) := by
+  cases o with
+  | none =>
+    simp only [arena.checker_base.unwrap_or, Result.ok.injEq] at hrun
+    subst hrun
+    exact errSim_fail herr
+  | some a =>
+    simp only [arena.checker_base.unwrap_or, Result.ok.injEq] at hrun
+    subst hrun
+    rfl
+
 /-- `checker_base::unwrap_or` ⊑ `unwrapOr` in `LSR` form
 (`Checker/Base.lean`'s `unwrap_or_refines`) at a found constant, one lemma
 per error kind.  Specialised: the tactic applies a spec before it matches the
@@ -468,7 +485,7 @@ errors may be left for unification (the twin's message is free instead). -/
     LSR pers (fun a b => b = absIConstantVal a)
       (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.NotImplemented m)) st lst
       (unwrapOr (o.map absIConstantVal) (.notImplemented s)) :=
-  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_refines rfl h
+  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_simRE rfl h
 
 @[lockstep] theorem unwrap_or_cv_inv {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -476,7 +493,7 @@ errors may be left for unification (the twin's message is free instead). -/
     LSR pers (fun a b => b = absIConstantVal a)
       (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Invalid m)) st lst
       (unwrapOr (o.map absIConstantVal) (.invalid s)) :=
-  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_refines rfl h
+  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_simRE rfl h
 
 @[lockstep] theorem unwrap_or_cv_int {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -484,7 +501,7 @@ errors may be left for unification (the twin's message is free instead). -/
     LSR pers (fun a b => b = absIConstantVal a)
       (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
       (unwrapOr (o.map absIConstantVal) (.internal s)) :=
-  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_refines rfl h
+  LSR.ofSimRE hrel hinv fun _ h => unwrap_or_simRE rfl h
 
 /-- The restriction to the environment's own counter is the environment (the
 checker tier's readers are stated at `lf.restrictTo (absU vis)`, the modeled
@@ -507,6 +524,47 @@ message is not fixed by the Rust call). -/
       (arena.checker_base.unresolved_consts_error pers st e) lst
       (unresolvedConstsError "rule" (absEIdx e)) :=
   unresolved_consts_error_ls hrel hinv
+
+/-- `unwrapOr` at a constructor (the port matched the option itself). -/
+theorem unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
+    unwrapOr (some a) e = pure a := rfl
+theorem unwrapOr_none {α : Type} (e : Arena.CheckError) :
+    unwrapOr (none : Option α) e = Arena.fail e := rfl
+
+/-- `arena::env::eidx_vec_dup` copies the list (`Dup.lean`'s `eidx_vec_dup_val`). -/
+@[lockstep] theorem eidx_vec_dup_spec (es : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.env.eidx_vec_dup es) (fun r => r.val = es.val) :=
+  fun _ h => eidx_vec_dup_val h
+
+/-- `arena::core::append_eidx` is list append. -/
+theorem append_eidx_val {xs ys r : alloc.vec.Vec arena.handle.EIdx}
+    (h : arena.core.append_eidx xs ys = ok r) : r.val = xs.val ++ ys.val := by
+  rw [arena.core.append_eidx] at h
+  have key := vec_cursor_copy ys id id (fun i out => arena.core.append_eidx_from out ys i)
+    (by
+      intro i out o hn h
+      rw [arena.core.append_eidx_from.eq_def] at h
+      rw [if_pos (show i ≥ alloc.vec.Vec.len ys by scalar_tac), Result.ok.injEq] at h
+      rw [h])
+    (by
+      intro i x out o hx h
+      rw [arena.core.append_eidx_from.eq_def] at h
+      have hlt : i.val < ys.val.length := (List.getElem?_eq_some_iff.mp hx).1
+      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ys by scalar_tac)] at h
+      obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hex : e = x := by
+        have h1 := vec_index_some he; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+      exact ⟨i2, e1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+        by rw [← hex, dupId_eidx _ _ he1], h⟩)
+    0#usize xs r h
+  simpa using key
+
+@[lockstep] theorem append_eidx_spec (xs ys : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.core.append_eidx xs ys) (fun r => r.val = xs.val ++ ys.val) :=
+  fun _ h => append_eidx_val h
 
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
