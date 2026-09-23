@@ -781,7 +781,7 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
   obtain ⟨ve, hve⟩ := Option.isSome_iff_exists.mp hv
   have hb := ExprOps.instantiate1Fast_spec fuel s₀ e v d ve hok hve hden
   mvcgen [hb]
-  intro h1 h2 h3 h4 h5 h6
+  intro h1 h2 _hbm h3 h4 h5 h6
   refine ⟨h1, h2, h3, h4, h5, fun w hw => ?_⟩
   rw [hve] at hw
   obtain rfl := (Option.some.inj hw).symm

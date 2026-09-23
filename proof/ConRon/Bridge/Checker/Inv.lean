@@ -866,7 +866,7 @@ theorem denoteCIList_find? {st : EStore} (hwf : StoreWF st) :
         rw [ha, has] at hz
         obtain rfl := Option.some.inj hz.symm
         have hnm : denoteN st.ns a.name = some x.name :=
-          denoteCI_name_of (fun t ht => hproj t (by simp [ht])) ha
+          denoteCI_name_of (fun t ht => (hproj t (by simp [ht])).toNamed) ha
         obtain ⟨ihH, ihC⟩ :=
           ih xs has (fun t ht => hproj t (List.mem_cons_of_mem _ ht))
         constructor

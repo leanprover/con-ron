@@ -732,8 +732,7 @@
     25  weak.backward.isDefEq.respectTransparency = false
     26  weak.backward.do.legacy = true
 
-== scripts/gates.sh#L59-L75
-    59  # enforce by itself: `-D warnings` does.
+== scripts/gates.sh#L60-L82
     60  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
     61  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
     62  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
@@ -750,4 +749,11 @@
     73  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
     74  run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
     75  run extract-check "$root/scripts/extract.sh" --check
+    76  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
+    77  # `ConRonRefine2` is deliberately NOT a default target (a half-built P5 tier
+    78  # must not block `lake build`), which means the line above never elaborates a
+    79  # single module of `ConRon/Refine2/**`.  Until task #97-P5-Mut found this, a
+    80  # green gate run said nothing whatsoever about a Theorem-2 lane.  It is its
+    81  # own step so the OK/FAIL line names it.
+    82  run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonRefine2
 

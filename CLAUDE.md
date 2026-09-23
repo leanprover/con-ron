@@ -116,6 +116,14 @@ section for every task you land.
   supports a private destination) rather than sharing it for the campaign's
   duration, and only merge the result back through the normal commit, not
   by touching the shared directory.
+* **`lake env lean <file>` does not inherit `proof/lakefile.toml`'s
+  `weak.backward.do.legacy = true`**, so it runs a *different* `do`
+  elaborator: join points land elsewhere, and a proof that passes under
+  `lake build` can fail under it and vice versa.  It presents as a green
+  theorem in an untouched file suddenly failing, and cost one agent an hour
+  of bisection.  Iterate with `lake build <module>`, or with
+  `lake env lean -Dbackward.isDefEq.respectTransparency=false
+  -Dbackward.do.legacy=true <file>`.
 * **An agent's `cd` does not persist between tool calls.**  `cd <main tree>
   && python3 …` in one call edits the MAIN TREE, and the next call's
   `git commit` then runs back in the worktree — so the edit lands on the

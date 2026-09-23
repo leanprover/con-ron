@@ -80,6 +80,12 @@ run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS
 # green gate run said nothing whatsoever about a Theorem-2 lane.  It is its
 # own step so the OK/FAIL line names it.
 run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonRefine2
+# **And `ConRonBridge` is not a default target either** — same hole, one tier
+# over, found by task #97-P3-Ind round 5 when a green gate run was followed by
+# a broken `lake build ConRonBridge`.  Every P3 brief has had to ask for the
+# target by hand for exactly this reason; now the gate does it, so a green run
+# means Theorem 1's spec layer elaborates too.
+run lake-bridge   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonBridge
 
 echo "gates: all $n OK"
 
