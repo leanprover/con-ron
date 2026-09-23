@@ -66,6 +66,12 @@ theorem ErrArm.of_ok_bind {γ δ : Type} {v : δ}
     {e : kernel.core_types.CheckError} (h : ErrArm (k v) e) : ErrArm (ok v >>= k) e := by
   rw [bind_tc_ok]; exact h
 
+theorem ErrArm.of_assoc {γ δ ε : Type} {b : Result ε} {g : ε → Result δ}
+    {k : δ → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {e : kernel.core_types.CheckError} (h : ErrArm (b >>= fun y => g y >>= k) e) :
+    ErrArm ((b >>= g) >>= k) e := by
+  rw [Aeneas.Std.bind_assoc_eq]; exact h
+
 open Lean Meta Elab Tactic in
 /-- `ErrArm` through a chain of `ok v >>= k` (an inlined fragment's result
 re-matched by the caller), where `errArm_ok` alone sees only one link. -/
@@ -77,6 +83,9 @@ partial def errArmChain (g : MVarId) : TacticM Unit := g.withContext do
     let f ← headNorm (m.getArg! 4)
     if f.isAppOfArity ``Result.ok 2 then
       let gs ← applyRule g ``ErrArm.of_ok_bind
+      return ← errArmChain (← pick gs `h)
+    if f.isAppOfArity ``Bind.bind 6 then
+      let gs ← applyRule g ``ErrArm.of_assoc
       return ← errArmChain (← pick gs `h)
   runClosed g (evalT `(tactic| exact errArm_ok))
 
@@ -179,11 +188,60 @@ elab "c2_lslen" : tactic => do
     runClosed (← pick gs `hk) (evalT `(tactic| rfl))
     setGoals ((← normAll [← pick gs `hls]) ++ others)
 
+open Lean Meta Elab Tactic in
+/-- A twin `l[i]?` read at an index the Rust has bounds-checked (`vec_index`
+left `i < l.length` in the context): the twin read is `some l[i]`. -/
+elab "c2_getelem" : tactic => do
+  let g ← getMainGoal
+  g.withContext do
+    let mut done := false
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let t ← instantiateMVars d.type
+      if t.isAppOfArity ``LT.lt 4 && (t.getArg! 3).isAppOf ``List.length then
+        let h := mkIdent d.userName
+        try
+          evalTactic (← `(tactic| simp only [List.getElem?_eq_getElem $h:ident, Option.map_some,
+            Option.bind_some]))
+          done := true
+        catch _ => pure ()
+    unless done do throwError "c2_getelem: nothing to rewrite"
+    let g ← getMainGoal
+    let g ← g.replaceTargetDefEq ((← instantiateMVars (← g.getType)).consumeMData)
+    setGoals (← normAll [g])
+
+open Lean Meta Elab Tactic in
+/-- A Rust `match` on a non-variable discriminant (`rl.fire`) was `split`, which
+leaves `heq : rl.fire = C` in the context but does not touch the twin's own
+`match` on the same field: rewrite the goal with it. -/
+elab "c2_heq" : tactic => do
+  let g ← getMainGoal
+  g.withContext do
+    let mut done := false
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let t ← instantiateMVars d.type
+      if t.isAppOfArity ``Eq 3 && !(t.getArg! 1).isFVar then
+        let r := t.getArg! 2
+        if let some c := r.getAppFn.constName? then
+          if (← getEnv).isConstructor c then
+            let h := mkIdent d.userName
+            try
+              evalTactic (← `(tactic| simp only [$h:ident]))
+              done := true
+            catch _ => pure ()
+    unless done do throwError "c2_heq: nothing to rewrite"
+    let g ← getMainGoal
+    let g ← g.replaceTargetDefEq ((← instantiateMVars (← g.getType)).consumeMData)
+    setGoals (← normAll [g])
+
 /-- `lockstep_core` with the sound `ok`-bind step first, the chained error arm,
-the level-list length read and the cast glue as fallbacks. -/
+the level-list length read, the bounds-checked list read, the split-match
+equations and the cast glue as fallbacks. -/
 macro "lockstep_c2" : tactic =>
   `(tactic| repeat' (first
-    | c2_ok_bind | lockstep_core_step | c2_bind_state | c2_lslen | c2_cast))
+    | c2_ok_bind | c2_heq | lockstep_core_step | c2_bind_state | c2_lslen | c2_getelem
+    | c2_cast))
 
 /-! ## Local normalisation: record projections and lengths
 
@@ -330,6 +388,81 @@ attribute [local lockstep_simp] absIConstantVal_name absIConstantVal_levelParams
         (absEIdx a) (absEIdx b) (absEIdx wtb)) := by
   sorry
 
+/-- Region A1. -/
+@[lockstep] theorem stub_rec_rule_k_ls (rules : alloc.vec.Vec arena.env.IRecRule) :
+    LSP (arena.core.rec_rule_k rules) (fun b => b = recRuleK (rules.val.map absIRecRule)) := by
+  sorry
+
+/-- Region A1. -/
+@[lockstep] theorem stub_find_rule_ls (rules : alloc.vec.Vec arena.env.IRecRule)
+    (c : arena.handle.NIdx) :
+    LSP (arena.core.find_rule rules c 0#usize)
+      (fun o => TwinEq (findRule (rules.val.map absIRecRule) (absNIdx c))
+        (o.bind (fun j => (rules.val[j.val]?).map absIRecRule))) := by
+  sorry
+
+/-- Region A1. -/
+@[lockstep] theorem stub_lvls_eq_ls {pers st us vs lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.lvls_eq pers st us vs) lst
+      (lvlsEq? (absLsIdx us) (absLsIdx vs)) := by
+  sorry
+
+/-- Region A1. -/
+@[lockstep] theorem stub_lift_fueled_ls {pers st lst} (what : String) (o : Option Bool)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst (liftFueled what o) := by
+  sorry
+
+/-- Region A1. -/
+@[lockstep] theorem stub_rule_rhs_at_ls {pers st rec_name ctor lps rhs us lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.rule_rhs_at pers st rec_name ctor lps rhs us) lst
+      (ruleRhsAt (absNIdx rec_name) (absNIdx ctor) (lps.val.map absNIdx) (absEIdx rhs)
+        (absLsIdx us)) := by
+  sorry
+
+/-- Region A1. -/
+@[lockstep] theorem stub_rec_fire_comparands_ls {pers st rl lps us cvj_lps args r_p lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (absLsIdx a.1, absEIdxList a.2))
+      (arena.core.rec_fire_comparands pers st rl lps us cvj_lps args r_p) lst
+      (recFireComparands (absIRecRule rl) (lps.val.map absNIdx) (absLsIdx us)
+        (cvj_lps.val.map absNIdx) (absEIdxList args) (absU r_p)) := by
+  sorry
+
+/-- Region A1. -/
+@[lockstep] theorem stub_read_name_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.NIdx) :
+    LS pers (fun a b => ConRon.Refine.NameWF a ∧ b = ConRon.Refine.absName a)
+      (arena.monad.read_name_m pers st h) lst (Arena.readNameM (absNIdx h)) := by
+  sorry
+
+/-- Region C1. -/
+@[lockstep] theorem stub_def_eq_list_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth xs ys i lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.def_eq_list pers vis st mode lane fu fe depth xs ys i) lst
+      (defEqList (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdxListFrom xs i) (absEIdxListFrom ys i)) := by
+  sorry
+
+/-- Region C1. -/
+@[lockstep] theorem stub_iota_index_ok_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth m_i r_p cn_p ty_ctor margs idx lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.iota_index_ok pers vis st mode lane fu fe depth m_i r_p cn_p ty_ctor margs idx)
+      lst
+      (iotaIndexOk (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absU m_i) (absU r_p) (absU cn_p) (absEIdx ty_ctor) (absEIdxList margs)
+        (absEIdxList idx)) := by
+  sorry
+
 /-! ## `projCert` / `projCertAt` -/
 
 @[lockstep] theorem proj_cert_ls {f : Nat} (hk : KnotRel f)
@@ -441,5 +574,74 @@ set_option maxHeartbeats 0 in
     lockstep_c2
 
 end majorToCtor
+
+/-! ## `prepareMajor` -/
+
+set_option maxHeartbeats 0 in
+@[lockstep] theorem prepare_major_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth recName rules major lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.prepare_major pers vis st mode lane fu fe depth recName rules major) lst
+      (prepareMajor (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absNIdx recName) (rules.val.map absIRecRule) (absEIdx major)) := by
+  rw [arena.core.prepare_major, prepareMajor]
+  lockstep_c2
+
+/-! ## `iotaRecAt` / `iotaRec` -/
+
+section iota
+
+theorem absIRecRule_ctor' (r : arena.env.IRecRule) : (absIRecRule r).ctor = absNIdx r.ctor := rfl
+theorem absIRecRule_nfields (r : arena.env.IRecRule) : (absIRecRule r).nfields = r.nfields.val := rfl
+theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
+    (absIRecRule r).ctorParams = r.ctor_params.val := rfl
+theorem absIRecRule_fire (r : arena.env.IRecRule) :
+    (absIRecRule r).fire = absIRecRuleFire r.fire := rfl
+theorem absIRecRule_rhs (r : arena.env.IRecRule) : (absIRecRule r).rhs = absEIdx r.rhs := rfl
+
+attribute [local lockstep_simp] absIRecRule_ctor' absIRecRule_nfields absIRecRule_ctorParams
+  absIRecRule_fire absIRecRule_rhs absIRecRuleFire
+
+attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire
+  arena.core.iota_rec_params arena.core.iota_rec_certs arena.core.iota_rec_fam
+  arena.core.iota_rec_reduct
+
+/-- `iotaRecAt`'s one `liftFueled` site, with its message fixed (a free
+`String` argument is a goal no side tactic closes). -/
+@[lockstep] theorem lift_fueled_level_ls {pers st lst} (o : Option Bool)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
+      (liftFueled "level comparison" o) :=
+  stub_lift_fueled_ls "level comparison" o hrel hinv
+
+set_option maxHeartbeats 0 in
+@[lockstep] theorem iota_rec_at_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth hd sargs n lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.core.iota_rec_at pers vis st mode lane fu fe depth hd sargs n) lst
+      (iotaRecAt (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx hd) (absEIdxArr sargs) (absSz n)) := by
+  rw [arena.core.iota_rec_at, iotaRecAt]
+  lockstep_c2
+
+@[lockstep] theorem iota_rec_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.core.iota_rec pers vis st mode lane fu fe depth e) lst
+      (iotaRec (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx e)) := by
+  rw [arena.core.iota_rec, iotaRec]
+  lockstep_c2
+
+end iota
 
 end ConRon.Refine2.Lockstep

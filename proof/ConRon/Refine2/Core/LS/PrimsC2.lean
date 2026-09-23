@@ -20,6 +20,7 @@ files (`PA2.nidx_eq2_ls`, `PC1.certs_ls` …); the coordinator deduplicates at
 merge.
 -/
 import ConRon.Refine2.Core.LS.Prims
+import ConRon.Refine.CoreKShapes
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -660,5 +661,19 @@ theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       (Arena.internConstE (absNIdx n) (absLsIdx us)) := by
   -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
   sorry
+
+/-! ## The projection-function shape test -/
+
+@[lockstep] theorem name_is_proj_fn_shape_ls {n : kernel.name.Name} (hn : ConRon.Refine.NameWF n) :
+    LSP (kernel.level.name_is_proj_fn_shape n)
+      (fun b => b = ConLeche.Name.isProjFnShape (ConRon.Refine.absName n)) :=
+  fun _ h => ConRon.Refine.CoreK.name_is_proj_fn_shape_refines hn h
+
+@[lockstep] theorem i_rec_rule_compare_params_ls (rl : arena.env.IRecRule) :
+    LSP (arena.env.i_rec_rule_compare_params rl) (fun b => b = (absIRecRule rl).compareParams) := by
+  intro b h
+  rw [arena.env.i_rec_rule_compare_params] at h
+  cases hf : rl.fire <;> rw [hf] at h <;> cases Result.ok_injective h <;>
+    simp [IRecRule.compareParams, absIRecRule, absIRecRuleFire, hf]
 
 end ConRon.Refine2.Lockstep.PC2
