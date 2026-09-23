@@ -49233,8 +49233,8 @@ and all discharge the obligation with `hok.pins` at the site.
 
 #### Round 4 — `whnfBody_spec` sorry-free, the projection certificate closed, and three missing preconditions (2026-09-23, Opus under Fable)
 
-Branch `p3-core-4` off `arena` `7f4b4a86`, merged forward twice (`f04744f2`,
-`83f5c018`).
+Branch `p3-core-4` off `arena` `7f4b4a86`, merged forward three times
+(`f04744f2`, `83f5c018`, `c24b0b68`).
 The round was handed three unblockings — `instLPFast_spec`'s cache frame
 (task #97-P3-1 round 4), the fourteen `ENodeView` match auxiliaries owned by
 `Bridge/Specs.lean` (finding 18 closed), and the 26 `BMExt` frames — and one
@@ -49391,7 +49391,7 @@ branch point; the round adds `Walks/Nat.lean`).
 
 | | |
 |---|---|
-| branch | `p3-core-4` off `arena` `7f4b4a86`, merged forward twice: `f04744f2` (gated, §8) and `83f5c018`, which brought only `Bridge/Inductives/**`, Rust and `Refine2/` — so only the two gates that can see both were re-run on it: `lake build ConRonBridge` (619 jobs) and `ConRonCapstone` (2 710 jobs), both green |
+| branch | `p3-core-4` off `arena` `7f4b4a86`, merged forward three times: `f04744f2` (gated, §8), then `83f5c018` (`Bridge/Inductives/**`, Rust, `Refine2/`) and `c24b0b68` (`Bridge/Frontend/**`, `Arena/Main.lean`, `Capstone.lean`) — neither touches `Bridge/Core/**`, so only the two gates that see both sides were re-run on each: `lake build ConRonBridge` (619 jobs) and `ConRonCapstone` (2 710 jobs), green both times |
 | the diff | `proof/ConRon/Bridge/Core/**` (one new module, `Walks/Nat.lean`) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module |
 
 
