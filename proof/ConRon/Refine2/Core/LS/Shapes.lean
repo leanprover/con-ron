@@ -60,15 +60,39 @@ theorem annot_binder_meta_spec (pw : Option kernel.prop_when.PropWhen)
       simp only [Bool.not_eq_true] at hc
       rw [← hb', hc]; rfl
 
+/-- `annot_binder_meta`'s answer is well formed when its inputs are: it is
+either `mb` or `{ pw := p }` (a representation fact about the Rust inputs). -/
+theorem annot_binder_meta_wf (pw : Option kernel.prop_when.PropWhen)
+    (mb : kernel.expr.BinderMeta) :
+    LSP (arena.core.annot_binder_meta pw mb)
+      (fun m => ConRon.Refine.PropWhenWF mb.pw →
+        (∀ p, pw = some p → ConRon.Refine.PropWhenWF p) → ConRon.Refine.PropWhenWF m.pw) := by
+  intro r h hmb hpw
+  unfold arena.core.annot_binder_meta at h
+  cases pw with
+  | none =>
+    obtain rfl := ConRon.Refine.Expr.binder_meta_dup_eq h
+    exact hmb
+  | some p =>
+    obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    split at h
+    · obtain rfl := ConRon.Refine.Expr.binder_meta_dup_eq h
+      exact hmb
+    · rw [binder_meta_ls p r h]
+      exact hpw p rfl
+
 /-- `annot_binder_meta` in the `TwinEq` form the zip rewrites the twin with
 (region G's statement): the twin's `annotBinderMeta` of the abstracted
-arguments IS the abstraction of the port's answer. -/
+arguments IS the abstraction of the port's answer; and the answer's datum is
+well formed when the inputs' are. -/
 @[lockstep] theorem annot_binder_meta_ls (pw : Option kernel.prop_when.PropWhen)
     (mb : kernel.expr.BinderMeta) :
     LSP (arena.core.annot_binder_meta pw mb)
       (fun m => TwinEq (annotBinderMeta (ExprOps.absPwOpt pw) (ConRon.Refine.absBinderMeta mb))
-        (ConRon.Refine.absBinderMeta m)) :=
-  fun r h => (annot_binder_meta_spec pw mb r h).symm
+        (ConRon.Refine.absBinderMeta m) ∧
+        (ConRon.Refine.PropWhenWF mb.pw →
+          (∀ p, pw = some p → ConRon.Refine.PropWhenWF p) → ConRon.Refine.PropWhenWF m.pw)) :=
+  fun r h => ⟨(annot_binder_meta_spec pw mb r h).symm, annot_binder_meta_wf pw mb r h⟩
 
 @[lockstep] theorem whnf_core_stuck_tag_ls (e : arena.handle.EIdx) :
     LSP (arena.core.whnf_core_stuck_tag e) (fun b => b = whnfCoreStuckTag (absEIdx e)) := by
@@ -549,6 +573,7 @@ end tele
 #print axioms pw_written_ls
 #print axioms annot_binder_meta_ls
 #print axioms annot_binder_meta_spec
+#print axioms annot_binder_meta_wf
 #print axioms whnf_core_stuck_tag_ls
 #print axioms defeq_no_fvars_ls
 #print axioms fab_scope_ok_ls
