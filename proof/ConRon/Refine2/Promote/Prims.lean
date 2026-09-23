@@ -379,6 +379,33 @@ attribute [lockstep_simp] absNNodeView absLNodeView absLsNodeView absLIdxL absNI
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun e he => dupId_lsidx _ _ he
 
+/-! ## Rust-only copies of the value types the records carry -/
+
+@[lockstep] theorem rhint_dup_spec (h1 : kernel.env.ReducibilityHint) :
+    LSP (kernel.env.reducibility_hint_dup h1) (fun r => r = h1) := by
+  intro r h
+  cases h1 <;> simp only [kernel.env.reducibility_hint_dup, Result.ok.injEq] at h <;>
+    exact h.symm
+
+/-- `arena::env::i_ind_caps_dup` is the identity. -/
+@[lockstep] theorem i_ind_caps_dup_spec (c : arena.env.IIndCaps) :
+    LSP (arena.env.i_ind_caps_dup c) (fun o => o = c) := by
+  intro o h
+  rw [arena.env.i_ind_caps_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw]
+
+@[lockstep] theorem basis_kind_dup_spec (k : kernel.env.BasisKind) :
+    LSP (kernel.env.basis_kind_dup k) (fun r => r = k) := by
+  intro r h
+  cases k <;> simp only [kernel.env.basis_kind_dup, Result.ok.injEq] at h <;> exact h.symm
+
+@[lockstep] theorem quot_kind_dup_spec (k : kernel.env.QuotKind) :
+    LSP (kernel.env.quot_kind_dup k) (fun r => r = k) := by
+  intro r h
+  cases k <;> simp only [kernel.env.quot_kind_dup, Result.ok.injEq] at h <;> exact h.symm
+
 end Lockstep
 
 end ConRon.Refine2

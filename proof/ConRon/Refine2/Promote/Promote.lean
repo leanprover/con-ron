@@ -17,26 +17,30 @@ existentially quantified beside its post-state and `PMemoRel` relates it.
 
 ## Five Rust-only splits, and how each is stated
 
-`promote_{n,l,e}_node`, `promote_{l,e}_two` and the four `_from` cursor
+`promote_{n,l,e}_node`, `promote_{l,e}_two` and the `_from` cursor
 companions have no twin of their own — they are task #97-P6-2's extraction
 rule 5 ("a `view`'s loans must be dead at the memo's join") and DESIGN §3.4's
 standing `List`-as-cursor deviation.  The `_node` three are stated against a
-LOCAL TRANSCRIPTION of the twin's own arms (`promote{N,L,E}NodeSpec` below)
-plus an `_unfold` equation back to the twin, which is the shape
-`Refine2/ExprOps/Read.lean` wrote for `wscopedBGo`; the `_two` two and the
-`_from` four are stated against the twin's arm inline.
+LOCAL TRANSCRIPTION of the twin's own arms (`promote{N,L,E}NodeSpec`) plus an
+`_unfold` equation back to the twin; the `_two` pairs against `promote{L,E}Two`
+(the twin's two binds, named, so the port's one call has one twin action to
+zip with); the cursors against `pmapFrom` (`Promote/Prims.lean`), the cursor
+recursion over the twin's `List`; `promote_proj_table_rest` against
+`promoteProjTableRest`.
 
-## Three findings, all of them about `promote_new`
+## Lockstep (task #97-T2-LOCKSTEP lane Promote)
 
-They are in the section note there.
+Every walk is `AStateRel₀`/`AStateInv` in, `LS` out, and every case body is
+one `lockstep` call over `Promote/Prims.lean`'s pairs (the views with the
+Rust view's key predicate, the persistent interns, the memo primitives).  The
+promote window of task #97-P5-Fresh (`AStateRelW`, `StoreWF'`) is gone: the
+twin's store invariant is Theorem 1's.  The one piece that is not a zip is
+`index_promoted` (finding B below), by hand.
 
-## What these lemmas wait on
+## Findings about `promote_new`
 
-`Refine2/Specs.lean`'s `intern_persistent_{e,n,l,ls}` — the four persistent
-interns, among task #97-P5-1 §8's thirty-two still open — and `view`,
-`view_n`, `view_l`, `view_ls`, which are closed.  The shape step is the fuel
-peel of task #97-P5-0's rule 3 at `promote{N,L,E}` and a `Vec`-cursor measure
-induction at the four `_from` companions.
+In the section note there; finding D (`IFEnvKeys`) is task #97-T2-LOCKSTEP
+lane Promote's.
 -/
 import ConRon.Refine2.Promote.Intern
 
@@ -225,26 +229,6 @@ theorem pmemo_set_e_refines {rm lm} {h r : arena.handle.EIdx} {o}
   subst hst
   obtain ⟨h1, h2⟩ := memo_insert_step eidx_eq2 absEIdx_inj hm.eInv hm.eM hp
   exact { hm with eM := h1, eInv := h2 }
-
-/-- `Refine2/Specs.lean`'s `view_run_state` at the NAME store: `viewN` is a
-READER, so the existential post-state of its `AOut` collapses.  It belongs
-beside its expression sibling and is here only because this tier may not edit
-that file. -/
-private theorem viewN_run_state {lst lst' : AState} {hh : NIdx} {v : NNodeView}
-    (h : (Arena.viewN hh).run lst = .ok (v, lst')) : lst' = lst := by
-  rw [show (Arena.viewN hh).run lst
-      = (match lst.store.ns.view hh with
-         | some w => Except.ok (w, lst)
-         | none => Except.error (Arena.CheckError.internal
-             "arena: dangling name handle")) by
-    show ((match lst.store.ns.view hh with
-            | some w => (pure w : AM NNodeView)
-            | none => Arena.fail
-                (.internal "arena: dangling name handle")).run lst) = _
-    cases lst.store.ns.view hh <;> rfl] at h
-  split at h
-  · exact (congrArg Prod.snd (Except.ok.inj h)).symm
-  · exact absurd h (by simp)
 
 /-! ## The three node transcriptions
 
@@ -761,21 +745,6 @@ theorem promoteEList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
 
 /-! ### The declaration layer -/
 
-@[lockstep] theorem rhint_dup_spec (h1 : kernel.env.ReducibilityHint) :
-    LSP (kernel.env.reducibility_hint_dup h1) (fun r => r = h1) := by
-  intro r h
-  cases h1 <;> simp only [kernel.env.reducibility_hint_dup, Result.ok.injEq] at h <;>
-    exact h.symm
-
-/-- `arena::env::i_ind_caps_dup` is the identity. -/
-@[lockstep] theorem i_ind_caps_dup_spec (c : arena.env.IIndCaps) :
-    LSP (arena.env.i_ind_caps_dup c) (fun o => o = c) := by
-  intro o h
-  rw [arena.env.i_ind_caps_dup] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw]
-
 section decl
 attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absIIndCaps
   absIProjTable absIConstantInfo absIDeclaration absIRecRuleL absICIL
@@ -974,16 +943,6 @@ theorem promoteCIList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
   rw [promoteCIList_pmapFrom] at h
   simpa [arena.promote.promote_ci_list, absICIL, alloc.vec.Vec.new] using h
 
-
-@[lockstep] theorem basis_kind_dup_spec (k : kernel.env.BasisKind) :
-    LSP (kernel.env.basis_kind_dup k) (fun r => r = k) := by
-  intro r h
-  cases k <;> simp only [kernel.env.basis_kind_dup, Result.ok.injEq] at h <;> exact h.symm
-
-@[lockstep] theorem quot_kind_dup_spec (k : kernel.env.QuotKind) :
-    LSP (kernel.env.quot_kind_dup k) (fun r => r = k) := by
-  intro r h
-  cases k <;> simp only [kernel.env.quot_kind_dup, Result.ok.injEq] at h <;> exact h.symm
 
 section decl3
 attribute [local lockstep_simp] absIConstantVal absIDeclaration absICIL
@@ -1974,5 +1933,14 @@ handle type. -/
 
 /-- info: 'ConRon.Refine2.erase_installed_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms erase_installed_refines
+
+/-- info: 'ConRon.Refine2.index_promoted_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms index_promoted_refines
+
+/-- info: 'ConRon.Refine2.promote_new_refines_keyed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_new_refines_keyed
+
+/-- info: 'ConRon.Refine2.promote_new_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_new_refines
 
 end ConRon.Refine2

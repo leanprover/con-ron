@@ -346,7 +346,8 @@ the pin modules discharge from `Refine/Pins*.lean`, every subject of
 def EMemoRel (rm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)
     (lm : Std.HashMap ConLeche.Expr EIdx) : Prop :=
   RelOn ConRon.Refine.ExprWF rm lm ConRon.Refine.absExpr absEIdx ∧
-    Inv kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable rm
+    Inv kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable rm ∧
+    ConRon.Refine.HashMap2.KeysOk ConRon.Refine.ExprWF rm
 
 /-! ## The two memo-threading outcome shapes (finding 4, at this tier) -/
 
