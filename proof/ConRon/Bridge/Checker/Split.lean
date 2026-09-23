@@ -957,6 +957,118 @@ theorem PhaseA.nodup {μ : CheckMode} {pinsP : List NatOpPinSet}
   | full F h rest ih => exact fun hnd => ih (checkDecl_nodup h hnd)
   | split vg F h rest ih => exact fun hnd => ih (h.nodup hnd)
 
+/-- con-leche: none — two entries of a denoting list that denote the SAME
+constant are the same entry, when the denoted names are unique (a constant
+occurring at two positions would repeat its name). -/
+theorem denoteCIList_inj_nodup {st : EStore} :
+    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
+      Frontend.denoteCIList st cs = some zs → (zs.map (·.name)).Nodup →
+      ∀ a ∈ cs, ∀ b ∈ cs, ∀ c, Frontend.denoteCI st a = some c →
+        Frontend.denoteCI st b = some c → a = b := by
+  intro cs
+  induction cs with
+  | nil => intro _ _ _ a ha; simp at ha
+  | cons x xs ih =>
+    intro zs hz hnd a ha b hb c hac hbc
+    obtain ⟨z, zs', hx, hxs, rfl⟩ := denoteCIList_cons hz
+    simp only [List.map_cons, List.nodup_cons] at hnd
+    -- an entry of the tail denotes a constant of the tail, which is not `z`
+    have htail : ∀ y ∈ xs, Frontend.denoteCI st y = some z → False := by
+      intro y hy hyz
+      obtain ⟨w, hw, hwd⟩ := denoteCIList_mem xs zs' hxs y hy
+      rw [hyz] at hwd
+      obtain rfl := Option.some.inj hwd
+      exact hnd.1 (List.mem_map_of_mem hw)
+    rcases List.mem_cons.mp ha with ha' | ha' <;>
+      rcases List.mem_cons.mp hb with hb' | hb'
+    · rw [ha', hb']
+    · rw [ha', hx] at hac; obtain rfl := Option.some.inj hac
+      exact (htail b hb' hbc).elim
+    · rw [hb', hx] at hbc; obtain rfl := Option.some.inj hbc
+      exact (htail a ha' hac).elim
+    · exact ih zs' hxs hnd.2 a ha' b hb' c hac hbc
+
+/-- con-leche: ConLeche/Verify/Cached/StreamConsts.lean:641 find?_name_of_mem —
+a name-unique environment finds every constant it holds (con-leche's lemma,
+restated: its module is not in this tier's import closure). -/
+theorem find?_of_mem_nodupNames : ∀ {cs : List ConstantInfo},
+    (cs.map (·.name)).Nodup → ∀ {c : ConstantInfo}, c ∈ cs →
+      (⟨cs⟩ : Env).find? c.name = some c := by
+  intro cs
+  induction cs with
+  | nil => intro _ c hc; exact absurd hc List.not_mem_nil
+  | cons a t ih =>
+    intro hnd c hc
+    rw [List.map_cons, List.nodup_cons] at hnd
+    show (a :: t).find? (·.name == c.name) = some c
+    rw [List.find?_cons]
+    by_cases hb : (a.name == c.name) = true
+    · simp only [hb]
+      rcases List.mem_cons.mp hc with rfl | hc'
+      · rfl
+      · exact absurd (by rw [eq_of_beq hb]; exact List.mem_map.mpr ⟨c, hc', rfl⟩) hnd.1
+    · rw [Bool.not_eq_true] at hb
+      simp only [hb]
+      rcases List.mem_cons.mp hc with rfl | hc'
+      · simp at hb
+      · exact ih hnd.2 hc'
+
+/-- con-leche: none — **every projection table the fold's index holds is well
+shaped**, not only the ones a lookup reaches: under name uniqueness every
+entry of the list IS the answer of a lookup (the `cover` clause finds a
+handle for its denoted name, and `denoteCIList_inj_nodup` says the entry
+found is this one), so `IFEnvOK.proj` reaches it.  This is
+`IFEnvOK_restrictTo`'s membership-shaped `hproj`. -/
+theorem FoldOK.projMem {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) :
+    ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t := by
+  intro t ht
+  have hd := hok.denote
+  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
+  obtain ⟨zs, hzs, rfl⟩ := hd
+  obtain ⟨c, hcm, hcd⟩ := denoteCIList_mem _ zs hzs _ ht
+  have hfind : (⟨zs⟩ : Env).find? c.name = some c :=
+    find?_of_mem_nodupNames hnd hcm
+  obtain ⟨n, ci, -, hf, hci⟩ := hok.check.ienv.cover c.name c hfind
+  have hmem := IFEnv.find?_mem hok.coh hf
+  obtain rfl := denoteCIList_inj_nodup _ zs hzs hnd ci hmem _ ht c hci hcd
+  exact hok.check.ienv.proj n t hf
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find?_visibleBelow —
+`IFEnvOK_restrictTo` at ANY bound: past the index's size the restriction
+hides nothing and the prefix is the whole environment. -/
+theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) (k : Nat) :
+    IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
+  by_cases hk : k ≤ fe.visibleBelow
+  · exact IFEnvOK_restrictTo hok (hok.projMem hnd) hnd hk
+  · have hlen : env.consts.length = fe.env.consts.length := by
+      have hd := hok.denote
+      simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
+      obtain ⟨zs, hzs, rfl⟩ := hd
+      exact (denoteCIList_length _ _ hzs).symm
+    have hvb : fe.visibleBelow = fe.env.consts.length := hok.coh.1
+    have hpre : env.prefixTo k = env := by
+      simp only [Env.prefixTo]
+      rw [show env.consts.length - k = 0 by omega, List.drop_zero]
+    have hfind : ∀ n, (fe.restrictTo k).find? n = fe.find? n := by
+      intro n
+      simp only [IFEnv.find?, IFEnv.restrictTo]
+      cases hg : fe.idx[n]? with
+      | none => rfl
+      | some p =>
+        obtain ⟨c, ci⟩ := p
+        have hc : c < fe.env.consts.length :=
+          mkIFEnvGo_lt _ n c ci (hok.coh.2 n ▸ hg)
+        simp only [if_pos (show c < k by omega), if_pos (show c < fe.visibleBelow by omega)]
+    rw [hpre]
+    have h := hok.check.ienv
+    exact ⟨fun n ci hf => h.hit n ci (by rw [← hfind]; exact hf),
+      fun nm c hf => by
+        obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hf
+        exact ⟨n, ci, h1, by rw [hfind]; exact h2, h3⟩,
+      fun n t hf => h.proj n t (by rw [← hfind]; exact hf)⟩
+
 /-! ## The bracket's close, shared
 
 `Arena.annotStep` and `Arena.checkDeclStep` close the same way: the step body
@@ -1080,23 +1192,121 @@ theorem FoldOK.enter {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
       coh := hok.coh
       denote := denoteFEnv_pext hx hok.persEnv hok.denote }
 
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:30 installConstantVal_inv —
+**the four type clauses of an INSTALLED header** (`checkConstantVal_typeWF`'s
+argument at the install half, which skips the inference). -/
+theorem installConstantVal_typeWF {μ : CheckMode} {F : Nat} {env : Env}
+    {cv cvA : ConstantVal}
+    (h : ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok cvA) :
+    CVTypeWF env cvA := by
+  obtain ⟨-, -, -, -, hlbt, hitf, type', hann, htp, htr, rfl⟩ :=
+    ConLeche.installConstantVal_inv h
+  exact { fvar := ConLeche.Expr.not_hasFvar_of_fvarsBelow_zero
+            ((ConLeche.annotateCore_WScoped F cv.type hann
+              (ConLeche.Expr.WScoped.of_not_hasFvar hitf)).fvarsBelow)
+          lvls := htp
+          res := htr
+          bnd := ConLeche.annotateCore_looseBVars F cv.type hann hlbt }
+
+/-- con-leche: none — a denoting list whose denoted names are unique names
+pairwise different names, handle by handle (`denoteCI_name_of` at every
+entry, which needs the tables' name clause). -/
+theorem namesDistinct_of_denote {st : EStore} :
+    ∀ (l : List IConstantInfo) (zs : List ConstantInfo),
+      Frontend.denoteCIList st l = some zs → (zs.map (·.name)).Nodup →
+      (∀ t, IConstantInfo.projInfo t ∈ l → IProjNamed st t) → NamesDistinct st l := by
+  intro l
+  induction l with
+  | nil => intro _ _ _ _; exact List.Pairwise.nil
+  | cons a as ih =>
+    intro zs hz hnd hproj
+    obtain ⟨x, xs, ha, has, rfl⟩ := denoteCIList_cons hz
+    simp only [List.map_cons, List.nodup_cons] at hnd
+    refine List.pairwise_cons.mpr ⟨?_, ih xs has hnd.2
+      (fun t ht => hproj t (List.mem_cons_of_mem _ ht))⟩
+    intro b hb
+    obtain ⟨z, hzm, hzd⟩ := denoteCIList_mem as xs has b hb
+    refine ⟨x.name, z.name,
+      denoteCI_name_of (fun t ht => hproj t (by simp [ht])) ha,
+      denoteCI_name_of (fun t ht => hproj t (List.mem_cons_of_mem _ (ht ▸ hb))) hzd, ?_⟩
+    intro he
+    exact hnd.1 (he ▸ List.mem_map_of_mem hzm)
+
+/-- con-leche: none — **what the full `checkDecl` arm does NOT deliver**: the
+pushed environment is well formed, and every projection table of the pushed
+index is well shaped.
+
+`sorry` — task #97-P3-Checker round 9's finding, reported for a ruling.
+`Arena.checkDecl_bridge`'s `DeclOut` carries neither clause.  The value arms
+prove both internally (`checkDefnVal_bridge` / `checkThmVal_bridge` /
+`checkOpaqueVal_bridge` conclude `StepOK`, whose `envWF` is `EnvWF.cons` at
+`constWF_*`, and a value push creates no table); the axiom arm pushes an
+`axiomInfo` whose `ConstWF` is `checkConstantVal_typeWF`'s; the basis and
+quotient arms push the pinned blocks, whose `ConstWF` con-leche's model tier
+proves case by case (`Model/Basis*.lean`); the inductive arm's are
+`IndSpec`'s, which carries neither (`IndOut` has the tables as `ProjOut`, not
+`EnvWF`).  So this is `DeclOut` (and `IndSpec`) gaining two clauses — a change
+of the arm theorems' conclusions. -/
+theorem Arena.checkDecl_wfProj {μ : CheckMode}
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env' : Env}
+    {fe fe' : IFEnv} {pd : IDeclaration} {d : Declaration} {s s' : AState}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    (hok : FoldOK μ env fe s) (hnd : NodupNames env)
+    (hpins : PinsDenote s.store pins pinsP)
+    (hd : Frontend.denoteDecl s.store pd = some d)
+    (hrun : Arena.checkDecl μ pins fe pd s = .ok (fe', s'))
+    (hden : denoteFEnv s'.store fe' = some env') :
+    EnvWF env' ∧
+      ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts → IProjTableOK s'.store t := by
+  sorry
+
+/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC (the
+`checkDeclStepC` arm) — **the full arm of the step body**: `Arena.checkDecl`'s
+`DeclOut`, `Arena.checkDecl_wfProj`'s two clauses, and the pushed names'
+distinctness from the pure fold's (`checkDecl_nodup`). -/
+theorem Arena.annotStepGo_full {μ : CheckMode}
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
+    {fe fe1 : IFEnv} {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    (hok : FoldOK μ env fe s1) (hnd : NodupNames env)
+    (hpins : PinsDenote s1.store pins pinsP)
+    (hd : Frontend.denoteDecl s1.store pd = some d)
+    (hrun : Arena.checkDecl μ pins fe pd s1 = .ok (fe1, s2)) :
+    ∃ env', BodyOut env' fe fe1 s2 ∧ Ext s1.store s2.store ∧ s2.pins = s1.pins ∧
+      ∃ F, ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env' := by
+  have hout := Arena.checkDecl_bridge hμ hk hind hok hpins hd hrun
+  obtain ⟨env', F, hden, hF⟩ := hout.run
+  obtain ⟨hwf', hproj⟩ := Arena.checkDecl_wfProj hμ hk hind hok hnd hpins hd hrun hden
+  refine ⟨env', ⟨hout.state, hout.coh, hout.pushed, hden, hwf', hproj, ?_⟩, hout.ext,
+    hout.pins, F, hF⟩
+  -- the pushed constants: the `k` newest, denoting the pure step's new ones
+  obtain ⟨newI, hn⟩ := hout.pushed
+  have hk' : fe1.visibleBelow - fe.visibleBelow = newI.length := by
+    rw [hout.coh.1, hok.coh.1, hn, List.length_append]; omega
+  rw [hk', hn, List.take_left' rfl]
+  have hnd' : NodupNames env' := checkDecl_nodup hF hnd
+  have hden1 := hden
+  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hden1
+  obtain ⟨zs, hzs, rfl⟩ := hden1
+  rw [hn] at hzs
+  obtain ⟨za, zb, hza, -, rfl⟩ := denoteCIList_append _ _ zs hzs
+  have hndza : (za.map (·.name)).Nodup := by
+    have : ((za ++ zb).map (·.name)).Nodup := hnd'
+    rw [List.map_append] at this
+    exact this.sublist (List.sublist_append_left _ _)
+  exact namesDistinct_of_denote newI za hza hndza
+    (fun t ht => (hproj t (by rw [hn]; exact List.mem_append_left _ ht)).toNamed)
+
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
 step body, unbracketed**: `annotStepGo`'s four arms, from the state the
 bracket's opening left, deliver what the close needs (`BodyOut`) and the
 pure half the fold rebuilds `checkDecl` from — a full `checkDecl` step, or a
 split install owing the value group it returns.
 
-`sorry` (the round-9 child of `Arena.annotStep_split`, whose bracket is now
-PROVED around it, `bracketClose_foldOK`).  The arms are in hand for the pure
-half and for the store (`installConstantVal_bridge`, `installValue_bridge`,
-`Arena.checkDecl_bridge`), but **`BodyOut`'s `envWF` and `proj` clauses are
-not delivered by the full arm**: `Arena.checkDecl_bridge`'s `DeclOut` carries
-neither `EnvWF env'` nor the pushed tables' `IProjTableOK` (and `IndSpec` for
-the inductive arm carries neither either; `IndOut` has the tables as
-`ProjOut`, not `EnvWF`).  The value arms prove both internally (`StepOK`,
-`constWF_*`); the basis, axiom, quotient and inductive arms do not.  That is a
-change of `DeclOut`'s conclusion — task #97-P3-Checker round 9's finding,
-reported for a ruling. -/
+PROVED (task #97-P3-Checker round 9) for the three split arms
+(`installConstantVal_bridge`, `installValue_bridge`, `StepOK`'s push lemmas at
+one pushed constant) and, for every other arm, from `Arena.annotStepGo_full`,
+whose `Arena.checkDecl_wfProj` is the open child. -/
 theorem Arena.annotStepGo_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {vg? : Option Arena.ValueGroup}
@@ -1114,7 +1324,174 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
           Frontend.denoteCV s2.store vg.cvA = some gP.cvA ∧
           denoteE s2.store vg.jv = some gP.jv ∧
           Expr.WScoped 0 gP.cvA.type ∧ (gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)) := by
-  sorry
+  -- the full arm, whichever record reaches it
+  have full : ∀ {sA : AState}, sA = s1 →
+      ((Arena.checkDecl μ pins fe pd >>= fun fe' =>
+        (pure (fe', (none : Option Arena.ValueGroup)) : AM (IFEnv × Option Arena.ValueGroup)))
+        : AM (IFEnv × Option Arena.ValueGroup)) sA = .ok ((fe1, vg?), s2) →
+      ∃ env', BodyOut env' fe fe1 s2 ∧ Ext s1.store s2.store ∧ s2.pins = s1.pins ∧
+        ((vg? = none ∧ ∃ F,
+            ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') ∨
+          ∃ vg gP F, vg? = some vg ∧ SplitInstall μ F env d gP env' ∧
+            KindRel vg.kind gP.kind ∧
+            Frontend.denoteCV s2.store vg.cvA = some gP.cvA ∧
+            denoteE s2.store vg.jv = some gP.jv ∧
+            Expr.WScoped 0 gP.cvA.type ∧ (gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)) := by
+    intro sA hsA h
+    subst hsA
+    obtain ⟨feA, sB, gA, rA⟩ := AM.bind_ok h
+    obtain ⟨hv, rfl⟩ := AM.pure_ok rA
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    obtain ⟨env', hb, hx, hp, F, hF⟩ :=
+      Arena.annotStepGo_full hμ hk hind hok hnd hpins hd gA
+    exact ⟨env', hb, hx, hp, Or.inl ⟨rfl, F, hF⟩⟩
+  -- a split arm's shared tail: one pushed value-kind constant
+  have split : ∀ {ci : IConstantInfo} {c : ConstantInfo}, (∀ t, ci ≠ .projInfo t) →
+      StateOK s2 → Ext s1.store s2.store →
+      Frontend.denoteCI s2.store ci = some c → ConstWF ⟨c :: env.consts⟩ c →
+      BodyOut ⟨c :: env.consts⟩ fe (fe.push ci) s2 := by
+    intro ci c hnp hst hx hci hcw
+    have hso := (hok.toStepOK.mono hx).push hst hnp hci hcw
+    refine ⟨hst, hso.coh, Pushed.push fe ci, hso.denote, hso.envWF, ?_, ?_⟩
+    · intro t ht
+      rcases List.mem_cons.mp ht with h | h
+      · exact absurd h.symm (hnp t)
+      · exact (hok.projMem hnd t h).mono hx
+    · show NamesDistinct s2.store ((ci :: fe.env.consts).take (fe.visibleBelow + 1 - fe.visibleBelow))
+      rw [show fe.visibleBelow + 1 - fe.visibleBelow = 1 by omega]
+      exact List.pairwise_singleton _ _
+  cases pd with
+  | defnDecl cv value hint =>
+    simp only [Frontend.denoteDecl] at hd
+    cases hcv : Frontend.denoteCV s1.store cv with
+    | none => rw [hcv] at hd; simp at hd
+    | some c =>
+    cases hv : denoteE s1.store value with
+    | none => rw [hcv, hv] at hd; simp at hd
+    | some x =>
+    rw [hcv, hv] at hd
+    simp only [Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.annotStepGo] at hrun
+    obtain ⟨ns, t1, g1, r1⟩ := AM.bind_ok hrun
+    obtain ⟨e1, hns⟩ := natOpNames_run hok.check.pins g1
+    rw [e1] at r1
+    obtain ⟨ds, t2, g2, r2⟩ := AM.bind_ok r1
+    obtain ⟨e2, hds⟩ := natDivModNames_run hok.check.pins g2
+    rw [e2] at r2
+    have hwf1 := hok.check.state.wf
+    obtain ⟨hnm, -, -⟩ := denoteCV_inv hcv
+    have hcN := denoteNList_contains hwf1 ns _ (denoteNL_toList ns _ hns) cv.name c.name hnm
+    have hcD := denoteNList_contains hwf1 ds _ (denoteNL_toList ds _ hds) cv.name c.name hnm
+    split at r2
+    · exact full rfl r2
+    · rename_i hnat
+      obtain ⟨cvA, sa, ga, ra⟩ := AM.bind_ok r2
+      obtain ⟨hsa, cA, F1, hcA, hI⟩ := installConstantVal_bridge hμ hk hok hcv ga
+      have hoka := hok.ofCore hsa
+      obtain ⟨jv, sb, gb, rb⟩ := AM.bind_ok ra
+      obtain ⟨hsb, y, F2, hy, hV⟩ := installValue_bridge hμ hk hoka.envWF hoka.check hcA
+        (denote_ext hv hsa.ext) gb
+      obtain ⟨hvv, rfl⟩ := AM.pure_ok rb
+      simp only [Prod.mk.injEq] at hvv
+      obtain ⟨rfl, rfl⟩ := hvv
+      have hx12 : Ext s1.store s2.store := hsa.ext.trans hsb.ext
+      have hcA2 : Frontend.denoteCV s2.store cvA = some cA := denoteCV_ext hcA hsb.ext
+      have htw := installConstantVal_typeWF hI
+      obtain ⟨gf, gl, gr, gb'⟩ := installValue_valueWF hV
+      have hci : Frontend.denoteCI s2.store (.defnInfo cvA jv hint)
+          = some (.defnInfo cA y hint) := by
+        simp only [Frontend.denoteCI, hcA2, hy]
+      have hnatP : (ConLeche.natOpNames.contains c.name ||
+          ConLeche.natDivModNames.contains c.name) = false := by
+        rw [← hcN, ← hcD]; simpa using hnat
+      refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsb.ok.state hx12 hci
+          (constWF_defnInfo htw.cons gf gl (ConLeche.Expr.constsResolve_mono gr) gb'),
+        hx12, by rw [hsb.pins, hsa.pins],
+        Or.inr ⟨_, ⟨.defn, cA, y⟩, max F1 F2, rfl, Or.inl ⟨c, x, hint, rfl, hnatP, rfl,
+          ConLeche.installConstantVal_mono (Nat.le_max_left _ _) hI,
+          ConLeche.installValue_mono (Nat.le_max_right _ _) hV, rfl⟩,
+          Or.inl ⟨rfl, rfl⟩, hcA2, hy, ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar,
+          fun _ => ConLeche.Expr.WScoped.of_not_hasFvar gf⟩⟩
+  | thmDecl cv value =>
+    simp only [Frontend.denoteDecl] at hd
+    cases hcv : Frontend.denoteCV s1.store cv with
+    | none => rw [hcv] at hd; simp at hd
+    | some c =>
+    cases hv : denoteE s1.store value with
+    | none => rw [hcv, hv] at hd; simp at hd
+    | some x =>
+    rw [hcv, hv] at hd
+    simp only [Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.annotStepGo] at hrun
+    obtain ⟨cvA, sa, ga, ra⟩ := AM.bind_ok hrun
+    obtain ⟨hsa, cA, F1, hcA, hI⟩ := installConstantVal_bridge hμ hk hok hcv ga
+    obtain ⟨hvv, rfl⟩ := AM.pure_ok ra
+    simp only [Prod.mk.injEq] at hvv
+    obtain ⟨rfl, rfl⟩ := hvv
+    have hx2 : denoteE s2.store value = some x := denote_ext hv hsa.ext
+    have htw := installConstantVal_typeWF hI
+    have hci : Frontend.denoteCI s2.store (.thmInfo cvA value)
+        = some (.thmInfo cA x) := by
+      simp only [Frontend.denoteCI, hcA, hx2]
+    refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsa.ok.state hsa.ext hci
+        (constWF_thmInfo htw.cons),
+      hsa.ext, hsa.pins,
+      Or.inr ⟨_, ⟨.thm, cA, x⟩, F1, rfl, Or.inr (Or.inl ⟨c, x, rfl, rfl, hI, rfl, rfl⟩),
+        Or.inr (Or.inl ⟨rfl, rfl⟩), hcA, hx2,
+        ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar, fun h => absurd rfl h⟩⟩
+  | opaqueDecl cv value =>
+    simp only [Frontend.denoteDecl] at hd
+    cases hcv : Frontend.denoteCV s1.store cv with
+    | none => rw [hcv] at hd; simp at hd
+    | some c =>
+    cases hv : denoteE s1.store value with
+    | none => rw [hcv, hv] at hd; simp at hd
+    | some x =>
+    rw [hcv, hv] at hd
+    simp only [Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.annotStepGo] at hrun
+    obtain ⟨ns, t1, g1, r1⟩ := AM.bind_ok hrun
+    obtain ⟨e1, hns⟩ := reduceOpNames_run hok.check.pins g1
+    rw [e1] at r1
+    have hwf1 := hok.check.state.wf
+    obtain ⟨hnm, -, -⟩ := denoteCV_inv hcv
+    have hcR := denoteNList_contains hwf1 ns _ (denoteNL_toList ns _ hns) cv.name c.name hnm
+    split at r1
+    · exact full rfl r1
+    · rename_i hred
+      obtain ⟨cvA, sa, ga, ra⟩ := AM.bind_ok r1
+      obtain ⟨hsa, cA, F1, hcA, hI⟩ := installConstantVal_bridge hμ hk hok hcv ga
+      have hoka := hok.ofCore hsa
+      obtain ⟨jv, sb, gb, rb⟩ := AM.bind_ok ra
+      obtain ⟨hsb, y, F2, hy, hV⟩ := installValue_bridge hμ hk hoka.envWF hoka.check hcA
+        (denote_ext hv hsa.ext) gb
+      obtain ⟨hvv, rfl⟩ := AM.pure_ok rb
+      simp only [Prod.mk.injEq] at hvv
+      obtain ⟨rfl, rfl⟩ := hvv
+      have hx12 : Ext s1.store s2.store := hsa.ext.trans hsb.ext
+      have hcA2 : Frontend.denoteCV s2.store cvA = some cA := denoteCV_ext hcA hsb.ext
+      have htw := installConstantVal_typeWF hI
+      obtain ⟨gf, -, -, -⟩ := installValue_valueWF hV
+      have hci : Frontend.denoteCI s2.store (.axiomInfo cvA) = some (.axiomInfo cA) := by
+        simp only [Frontend.denoteCI, hcA2, Option.map_some]
+      have hredP : ConLeche.reduceOpNames.contains c.name = false := by
+        rw [← hcR]; simpa using hred
+      refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsb.ok.state hx12 hci
+          (constWF_axiomInfo htw.cons),
+        hx12, by rw [hsb.pins, hsa.pins],
+        Or.inr ⟨_, ⟨.opaque, cA, y⟩, max F1 F2, rfl, Or.inr (Or.inr ⟨c, x, rfl, hredP, rfl,
+          ConLeche.installConstantVal_mono (Nat.le_max_left _ _) hI,
+          ConLeche.installValue_mono (Nat.le_max_right _ _) hV, rfl⟩),
+          Or.inr (Or.inr ⟨rfl, rfl⟩), hcA2, hy, ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar,
+          fun _ => ConLeche.Expr.WScoped.of_not_hasFvar gf⟩⟩
+  | axiomDecl cv => exact full rfl hrun
+  | basisDecl kind => exact full rfl hrun
+  | quotDecl k cv => exact full rfl hrun
+  | indDecl block nP => exact full rfl hrun
 
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
 step with the pure half it ran**: `Arena.annotStep_bridge`'s conclusion plus
@@ -1351,118 +1728,6 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
             by_cases hnil : as = []
             · rw [hnil' hnil]; exact hc₁
             · exact hc' hnil
-
-/-- con-leche: none — two entries of a denoting list that denote the SAME
-constant are the same entry, when the denoted names are unique (a constant
-occurring at two positions would repeat its name). -/
-theorem denoteCIList_inj_nodup {st : EStore} :
-    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
-      Frontend.denoteCIList st cs = some zs → (zs.map (·.name)).Nodup →
-      ∀ a ∈ cs, ∀ b ∈ cs, ∀ c, Frontend.denoteCI st a = some c →
-        Frontend.denoteCI st b = some c → a = b := by
-  intro cs
-  induction cs with
-  | nil => intro _ _ _ a ha; simp at ha
-  | cons x xs ih =>
-    intro zs hz hnd a ha b hb c hac hbc
-    obtain ⟨z, zs', hx, hxs, rfl⟩ := denoteCIList_cons hz
-    simp only [List.map_cons, List.nodup_cons] at hnd
-    -- an entry of the tail denotes a constant of the tail, which is not `z`
-    have htail : ∀ y ∈ xs, Frontend.denoteCI st y = some z → False := by
-      intro y hy hyz
-      obtain ⟨w, hw, hwd⟩ := denoteCIList_mem xs zs' hxs y hy
-      rw [hyz] at hwd
-      obtain rfl := Option.some.inj hwd
-      exact hnd.1 (List.mem_map_of_mem hw)
-    rcases List.mem_cons.mp ha with ha' | ha' <;>
-      rcases List.mem_cons.mp hb with hb' | hb'
-    · rw [ha', hb']
-    · rw [ha', hx] at hac; obtain rfl := Option.some.inj hac
-      exact (htail b hb' hbc).elim
-    · rw [hb', hx] at hbc; obtain rfl := Option.some.inj hbc
-      exact (htail a ha' hac).elim
-    · exact ih zs' hxs hnd.2 a ha' b hb' c hac hbc
-
-/-- con-leche: ConLeche/Verify/Cached/StreamConsts.lean:641 find?_name_of_mem —
-a name-unique environment finds every constant it holds (con-leche's lemma,
-restated: its module is not in this tier's import closure). -/
-theorem find?_of_mem_nodupNames : ∀ {cs : List ConstantInfo},
-    (cs.map (·.name)).Nodup → ∀ {c : ConstantInfo}, c ∈ cs →
-      (⟨cs⟩ : Env).find? c.name = some c := by
-  intro cs
-  induction cs with
-  | nil => intro _ c hc; exact absurd hc List.not_mem_nil
-  | cons a t ih =>
-    intro hnd c hc
-    rw [List.map_cons, List.nodup_cons] at hnd
-    show (a :: t).find? (·.name == c.name) = some c
-    rw [List.find?_cons]
-    by_cases hb : (a.name == c.name) = true
-    · simp only [hb]
-      rcases List.mem_cons.mp hc with rfl | hc'
-      · rfl
-      · exact absurd (by rw [eq_of_beq hb]; exact List.mem_map.mpr ⟨c, hc', rfl⟩) hnd.1
-    · rw [Bool.not_eq_true] at hb
-      simp only [hb]
-      rcases List.mem_cons.mp hc with rfl | hc'
-      · simp at hb
-      · exact ih hnd.2 hc'
-
-/-- con-leche: none — **every projection table the fold's index holds is well
-shaped**, not only the ones a lookup reaches: under name uniqueness every
-entry of the list IS the answer of a lookup (the `cover` clause finds a
-handle for its denoted name, and `denoteCIList_inj_nodup` says the entry
-found is this one), so `IFEnvOK.proj` reaches it.  This is
-`IFEnvOK_restrictTo`'s membership-shaped `hproj`. -/
-theorem FoldOK.projMem {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) :
-    ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t := by
-  intro t ht
-  have hd := hok.denote
-  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
-  obtain ⟨zs, hzs, rfl⟩ := hd
-  obtain ⟨c, hcm, hcd⟩ := denoteCIList_mem _ zs hzs _ ht
-  have hfind : (⟨zs⟩ : Env).find? c.name = some c :=
-    find?_of_mem_nodupNames hnd hcm
-  obtain ⟨n, ci, -, hf, hci⟩ := hok.check.ienv.cover c.name c hfind
-  have hmem := IFEnv.find?_mem hok.coh hf
-  obtain rfl := denoteCIList_inj_nodup _ zs hzs hnd ci hmem _ ht c hci hcd
-  exact hok.check.ienv.proj n t hf
-
-/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find?_visibleBelow —
-`IFEnvOK_restrictTo` at ANY bound: past the index's size the restriction
-hides nothing and the prefix is the whole environment. -/
-theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (hok : FoldOK μ env fe s) (hnd : (env.consts.map (·.name)).Nodup) (k : Nat) :
-    IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
-  by_cases hk : k ≤ fe.visibleBelow
-  · exact IFEnvOK_restrictTo hok (hok.projMem hnd) hnd hk
-  · have hlen : env.consts.length = fe.env.consts.length := by
-      have hd := hok.denote
-      simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
-      obtain ⟨zs, hzs, rfl⟩ := hd
-      exact (denoteCIList_length _ _ hzs).symm
-    have hvb : fe.visibleBelow = fe.env.consts.length := hok.coh.1
-    have hpre : env.prefixTo k = env := by
-      simp only [Env.prefixTo]
-      rw [show env.consts.length - k = 0 by omega, List.drop_zero]
-    have hfind : ∀ n, (fe.restrictTo k).find? n = fe.find? n := by
-      intro n
-      simp only [IFEnv.find?, IFEnv.restrictTo]
-      cases hg : fe.idx[n]? with
-      | none => rfl
-      | some p =>
-        obtain ⟨c, ci⟩ := p
-        have hc : c < fe.env.consts.length :=
-          mkIFEnvGo_lt _ n c ci (hok.coh.2 n ▸ hg)
-        simp only [if_pos (show c < k by omega), if_pos (show c < fe.visibleBelow by omega)]
-    rw [hpre]
-    have h := hok.check.ienv
-    exact ⟨fun n ci hf => h.hit n ci (by rw [← hfind]; exact hf),
-      fun nm c hf => by
-        obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hf
-        exact ⟨n, ci, h1, by rw [hfind]; exact h2, h3⟩,
-      fun n t hf => h.proj n t (by rw [← hfind]; exact hf)⟩
 
 /-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
 B's check of one record, at the prefix environment itself**.  The form the

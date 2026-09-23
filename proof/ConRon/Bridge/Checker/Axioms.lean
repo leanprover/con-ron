@@ -435,5 +435,11 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms Arena.checkPending_prefix
 #print axioms denoteN_default_of_pinNames
 #print axioms internPinSets_run
+#print axioms bracketClose_foldOK
+#print axioms FoldOK.projMem
+-- `annotStep_split`'s bracket is proved; its one open child is
+-- `Arena.checkDecl_wfProj` (reached through `Arena.annotStepGo_full`)
+#print axioms Arena.annotStepGo_bridge
+#print axioms Arena.annotStep_split
 
 end ConRon.Bridge
