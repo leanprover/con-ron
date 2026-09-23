@@ -449,13 +449,13 @@ Registered BEFORE the `sorry` statement below, so `lockstep` tries it first. -/
       (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   LS.ofSim₀ fun _ h => intern_e_forall_e_run₀ hrel hinv t b m hpw h
 
-@[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
       (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   sorry
 
-@[lockstep] theorem intern_e_forall_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+theorem intern_e_forall_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
       (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=

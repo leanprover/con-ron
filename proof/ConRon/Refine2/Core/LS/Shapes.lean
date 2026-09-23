@@ -164,7 +164,8 @@ end
   lockstep
 
 @[lockstep] theorem infer_lam_result_ls {pers st ty bt depth mb lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hmb : ConRon.Refine.PropWhenWF mb.pw) :
     LS pers (fun a b => b = absEIdx a) (arena.core.infer_lam_result pers st ty bt depth mb) lst
       (inferLamResult (absEIdx ty) (absEIdx bt) (absU depth) (ConRon.Refine.absBinderMeta mb)) := by
   rw [arena.core.infer_lam_result, inferLamResult]

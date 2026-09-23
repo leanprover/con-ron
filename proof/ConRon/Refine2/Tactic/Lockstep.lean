@@ -977,7 +977,10 @@ def sideDear : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| (simp_all only [lockstep_simp]; done)),
     ← `(tactic| (simp_all (config := { decide := true }) only [lockstep_simp]; done)),
     ← `(tactic| (simp_all only [lockstep_simp, Bool.and_eq_true]; scalar_tac)),
-    ← `(tactic| (simp_all; done))]
+    ← `(tactic| (simp_all; done)),
+    -- a fact about an element of a list the context quantifies over (a
+    -- binder stack's datum well-formedness)
+    ← `(tactic| (solve_by_elim (maxDepth := 3) [List.getElem_mem]))]
 
 /-- Side goals: the relation and the invariant at the current state, an
 argument correspondence, a branch condition.  Cheap alternatives first. -/
