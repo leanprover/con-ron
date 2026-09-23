@@ -661,11 +661,64 @@ needs). -/
     exact estore_view_bind_abs hrel.store hbind hrun
 
 
+/-- A literal read out of well-formed tables is well formed (task #97-T2-LOCKSTEP
+lane Checker DeclCheck: `erase_pw_eq`'s literal arm compares with
+`literal_beq`, exact only under `LiteralWF`). -/
+theorem etables_get_lit_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
+    {o : Option arena.store.ENodeView}
+    (h : arena.store.ETables.get rt i = ok o) :
+    ∀ l, o = some (.Lit l) → ConRon.Refine.LiteralWF l := by
+  intro l hl
+  subst hl
+  rw [arena.store.ETables.get] at h
+  obtain ⟨t, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  repeat' (first
+    | (simp at h; done)
+    | (split at h)
+    | (obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
+  simp only [Result.ok.injEq, Option.some.injEq, arena.store.ENodeView.Lit.injEq] at h
+  subst h
+  obtain rfl := ConRon.Refine.Expr.literal_dup_eq ‹kernel.expr.literal_dup _ = ok _›
+  exact tbl_node_wf hinv.lits ‹arena.store.Tbl.node _ _ _ _ _ _ rt.lits _ = ok _› _
+    rfl
+
+/-- … and so is one read through `EStore::view`. -/
+theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx}
+    {o : Option arena.store.ENodeView}
+    (h : arena.store.EStore.view rs pers i = ok o) :
+    ∀ l, o = some (.Lit l) → ConRon.Refine.LiteralWF l := by
+  intro l hl
+  subst hl
+  rw [arena.store.EStore.view] at h
+  obtain ⟨t, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    split at h
+    · simp at h
+    · obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      simp only [Result.ok.injEq, Option.some.injEq] at h
+      subst h
+      rw [arena.store.e_bind_view] at hev
+      split at hev <;> simp at hev
+  · obtain ⟨p, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    split at h
+    · rw [arena.store.EStore.pers_get] at h
+      have hp := hinv.perst
+      rw [rPersE] at hp
+      split at h <;> rename_i hs
+      · rw [if_pos hs] at hp; exact etables_get_lit_wf hp h _ rfl
+      · rw [if_neg hs] at hp; exact etables_get_lit_wf hp h _ rfl
+    · split at h
+      · exact etables_get_lit_wf hinv.scrt h _ rfl
+      · simp at h
+
 /-- What a caller of `view` may assume of the RUST view beyond its abstraction
-(kind 1: from `AStateInv`): a binder's datum is well formed. -/
+(kind 1: from `AStateInv`): a binder's datum is well formed, and so is a literal. -/
 def EViewMetaWF : arena.store.ENodeView → Prop
   | .Lam _ _ m => ConRon.Refine.PropWhenWF m.pw
   | .ForallE _ _ m => ConRon.Refine.PropWhenWF m.pw
+  | .Lit l => ConRon.Refine.LiteralWF l
   | _ => True
 
 theorem view_meta_wf {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -674,6 +727,7 @@ theorem view_meta_wf {pers st lst} (hrel : AStateRel₀ pers st lst)
   cases v with
   | Lam ty b m => exact estore_view_bind_wf hrel.store hinv.store hq (Or.inl rfl)
   | ForallE ty b m => exact estore_view_bind_wf hrel.store hinv.store hq (Or.inr rfl)
+  | Lit l => exact estore_view_lit_wf hinv.store hq l rfl
   | _ => trivial
 
 /-- `arena::monad::view` against `Arena.view` (`view_run` over `AStateRel₀`); the

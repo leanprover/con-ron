@@ -170,6 +170,10 @@ section for every task you land.
     branches under one gate run and back one out if the batch goes red.
   * `scripts/land.sh` stays for the queue agent's own use and for when no
     queue is running.
+  * A follow-up slice's DESIGN text goes directly under the lane's own
+    `### Task …` heading (as `#### Slice N`), never appended at the end of
+    DESIGN.md — end-of-file appends from concurrent lanes land under the
+    wrong heading (found by the merge queue twice).
 * **`Refine2/Tactic/Lockstep.lean` is shared core.**  Lanes extend the
   `lockstep` tactic through its extension points — `@[lockstep]`/
   `@[lockstep_inline]` lemmas and the side-goal tier's `macro_rules` — and do

@@ -622,7 +622,7 @@ theorem checkMemberVal_unfold (mode : ConLeche.CheckMode) (blockNames : List NId
     checkMemberVal mode blockNames fe' cv = (do
       let f ← blockRenameTable blockNames
       let cvA ← checkConstantVal mode fe' cv
-      let an ← readName cvA.name
+      let an ← readNameM cvA.name
       if ConLeche.Name.isModelSuffix an then
         fail (.invalid s!"model-shaped member name {an}")
       checkMemberModelSpec f fe' cvA blockNames an) := by
@@ -1095,7 +1095,34 @@ theorem checkModeled_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
       | none => do
         let fe₂ ← checkIndMembers mode blockNames {} fe nonrecs
         checkIndRecs mode blockNames fe₂ recs) := by
-  sorry
+  have hfam : ∀ (fe : IFEnv) (T : NIdx) m i,
+      (List.range' i m).allM (fun j => do
+        pure (fe.find? (← projFnName T j)).isNone) = projFnFamilyFreeSpec fe T m i :=
+    fun fe T => range_allM_counted _ (projFnFamilyFreeSpec fe T) (fun i => rfl)
+      (by intro m i; twin_reduce [projFnFamilyFreeSpec])
+  have h1 : block.filter isRecInfo = filterRecsSpec block true := by
+    simp [filterRecsSpec]
+  have h2 : block.filter (fun ci => !isRecInfo ci) = filterRecsSpec block false := by
+    simp [filterRecsSpec]
+  have e0 : ∀ p : IConstantInfo → Bool,
+      (∀ ci, p ci = match ci with | .indInfo _ _ => true | _ => false) →
+      block.filter p = filterKindSpec block 0 := by
+    intro p hp; unfold filterKindSpec; congr 1; funext ci; rw [hp]; cases ci <;> rfl
+  have e1 : ∀ p : IConstantInfo → Bool,
+      (∀ ci, p ci = match ci with | .ctorInfo _ _ _ => true | _ => false) →
+      block.filter p = filterKindSpec block 1 := by
+    intro p hp; unfold filterKindSpec; congr 1; funext ci; rw [hp]; cases ci <;> rfl
+  rw [checkModeled, h1, h2, e0, e1]
+  rotate_left
+  · intro ci; cases ci <;> rfl
+  · intro ci; cases ci <;> rfl
+  simp only [singleIndCtorSpec, checkModeledStructSpec, checkModeledProjsSpec,
+    blockNamesOfSpec, List.range_eq_range', hfam]
+  generalize filterKindSpec block 0 = L0
+  generalize filterKindSpec block 1 = L1
+  refine if_congr Iff.rfl ?_ ?_ <;> refine am_bind_congr _ ?_ <;> intro u <;>
+  rcases L0 with _ | ⟨c0, _ | ⟨_, _⟩⟩ <;> rcases L1 with _ | ⟨c1, _ | ⟨_, _⟩⟩ <;>
+    (try cases c0) <;> (try cases c1) <;> rfl
 
 /-! ## The axiom census -/
 
@@ -1113,5 +1140,8 @@ theorem checkModeled_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
 
 /-- info: 'ConRon.Refine2.checkEtaThm_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkEtaThm_unfold
+
+/-- info: 'ConRon.Refine2.checkModeled_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkModeled_unfold
 
 end ConRon.Refine2
