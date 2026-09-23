@@ -244,6 +244,31 @@ theorem ParseStep.of_caches {s s' : AState} (hok : StateOK s')
 theorem ParseStep.of_eq {s s' : AState} (hok : StateOK s) (h : s' = s) :
     ParseStep s s' := by subst h; exact ParseStep.refl hok
 
+/-! ## The three readback invariants, threaded through the parse
+
+Task #97-P3-Frontend round 8.  The projection rewrite's `instLPFast` answers
+exactly only where `readNC`, `readLC` and `readLsC` are sound (`Bridge/ExprOps/
+Owed.lean`'s `instLPFast_spec`), so the parse carries the three invariants from
+the capstones' empty caches.  They survive every parse step through
+`ParseStep.cframe`'s implications — which is why those are implications and
+not equations. -/
+
+/-- con-leche: none — the three readback memos are sound at `s`. -/
+structure ReadCachesOK (s : AState) : Prop where
+  readL : ReadLCacheOK s.caches.readLC s.store
+  readN : ReadNCacheOK s.caches.readNC s.store
+  readLs : ReadLsCacheOK s.caches.readLsC s.store
+
+/-- con-leche: none — the invariants survive a parse step. -/
+theorem ReadCachesOK.step {s s' : AState} (h : ReadCachesOK s)
+    (hs : ParseStep s s') : ReadCachesOK s' :=
+  ⟨hs.cframe.readL h.readL, hs.cframe.readN h.readN, hs.cframe.readLs h.readLs⟩
+
+/-- con-leche: none — a state whose caches satisfy `CacheOK` has them. -/
+theorem ReadCachesOK.ofCacheOK {μ : CheckMode} {env : Env} {s : AState}
+    (h : CacheOK μ env s) : ReadCachesOK s :=
+  ⟨h.readL, h.readN, h.readLs⟩
+
 /-! ## The two generic shapes -/
 
 /-- con-leche: none — a relation lifted to `Option`: `none` relates to `none`
