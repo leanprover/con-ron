@@ -279,7 +279,7 @@ private theorem mk_ifenv_empty_refines {e f}
   subst hq'
   have hf' := (Result.ok_injective hf).symm
   subst hf'
-  refine ⟨⟨rfl, ?_, rfl⟩, hinv0, by simp, ?_⟩
+  refine ⟨⟨rfl, ?_, rfl, fun ci h => by simp [alloc.vec.Vec.new] at h⟩, hinv0, by simp, ?_⟩
   · intro n
     rw [hnone n]
     simp [mkIFEnv, mkIFEnvGo, IEnv.empty]
