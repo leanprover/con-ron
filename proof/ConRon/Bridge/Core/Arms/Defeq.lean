@@ -1748,7 +1748,8 @@ theorem dqArm_natSuccL (hμ : mode.verifiedChecks = true)
       (hG.imp fun _ h r hr => h r hr)
   | succ k' =>
     obtain ⟨vf, hvf⟩ := denoteE_view hf
-    refine view_bind_triple hvf ?_
+    refine tag_view_bind_triple hvf ?_
+      (fun hne => by cases vf <;> first | rfl | exact absurd rfl hne)
     rcases VD.of_view hwf hvf hf with _ | _ | _ | ⟨c, us, nm, ls, hc, hus⟩ | _ |
       _ | _ | _ | _ | _
     case const =>
@@ -1821,7 +1822,8 @@ theorem dqArm_natSuccR (hμ : mode.verifiedChecks = true)
       (hG.imp fun _ h r hr => h r (by cases ef <;> exact hr))
   | succ k' =>
     obtain ⟨vf, hvf⟩ := denoteE_view hf
-    refine view_bind_triple hvf ?_
+    refine tag_view_bind_triple hvf ?_
+      (fun hne => by cases vf <;> first | rfl | exact absurd rfl hne)
     rcases VD.of_view hwf hvf hf with _ | _ | _ | ⟨c, us, nm, ls, hc, hus⟩ | _ |
       _ | _ | _ | _ | _
     case const =>
@@ -1887,7 +1889,8 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
   have hwf := hok.state.wf
   have hwx : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
-  refine view_bind_triple hvf ?_
+  refine tag_view_bind_triple hvf ?_
+    (fun hne => by cases vf <;> first | rfl | exact absurd rfl hne)
   rcases VD.of_view hwf hvf hf with _ | _ | _ | ⟨c, us, nm, ls, hc, hus⟩ | _ |
     _ | _ | _ | _ | _
   case const =>
@@ -1953,7 +1956,8 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
   have hwf := hok.state.wf
   have hwy : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
-  refine view_bind_triple hvf ?_
+  refine tag_view_bind_triple hvf ?_
+    (fun hne => by cases vf <;> first | rfl | exact absurd rfl hne)
   rcases VD.of_view hwf hvf hf with _ | _ | _ | ⟨c, us, nm, ls, hc, hus⟩ | _ |
     _ | _ | _ | _ | _
   case const =>

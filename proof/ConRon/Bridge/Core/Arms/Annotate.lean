@@ -609,7 +609,8 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     subst s4
     have hdd : denoteE s3.store hd = some vte.getAppFn := hrelF vte hvte
     obtain ⟨vh, hvh⟩ := denoteE_view hdd
-    refine view_bind_triple hvh ?_
+    refine tag_view_bind_triple hvh ?_
+      (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
     cases vh
     case const T us =>
       obtain ⟨Tn, ls, hgf, hTn, _hus⟩ := denote_const_inv hwf3 hvh hdd

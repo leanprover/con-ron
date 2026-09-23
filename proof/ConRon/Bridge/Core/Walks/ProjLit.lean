@@ -62,7 +62,8 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   unfold ConRon.Arena.projLitToCtor
-  refine view_bind_triple hv ?_
+  refine tag_view_bind_triple hv ?_
+    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   -- every scrutinee but a string literal passes through
   have hpass : (∀ str, x ≠ .lit (.strVal str)) →
       ⦃fun s => ⌜s = s₀⌝⦄ (pure h : AM EIdx)

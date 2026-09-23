@@ -526,7 +526,8 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
       subst s4
       have hdd : denoteE s3.store hd = some v'.getAppFn := hrelF v' hv'3
       obtain ⟨vh, hvh⟩ := denoteE_view hdd
-      refine view_bind_triple hvh ?_
+      refine tag_view_bind_triple hvh ?_
+        (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
       cases vh
       case const c us =>
         obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf3 hvh hdd
