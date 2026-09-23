@@ -2659,7 +2659,10 @@ theorem check_eta_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     Sim₀ id pers lst o
       (checkEtaThm (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_eta_thm, checkEtaThm]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_ls
@@ -2808,7 +2811,10 @@ theorem check_unit_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     Sim₀ id pers lst o
       (checkUnitThm (ConRon.Refine.absMode mode) lf2 (absNIdx t) (absNIdxL lps)
         (absU n_p)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_unit_thm, checkUnitThm]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_unit_thm_ls

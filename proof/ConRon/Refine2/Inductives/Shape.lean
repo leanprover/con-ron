@@ -836,6 +836,46 @@ macro_rules
           | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
           | assumption | (checker_env_facts; simp_all; done)))
 
+/-! ## The port's message and name-part constants
+
+A name the port builds from a constant (`intern_n_node (Str n (code_points
+REC))`) is the twin's `.str n "rec"`: the literal is `lift (to_slice REC)` then
+`code_points`, two Rust-only steps whose specs carry the code points, and the
+side goals `absString v = "rec"` / `StrWF v` are then a computation on a
+three-element list. -/
+
+open Lockstep in
+@[lockstep] theorem lift_to_slice_spec {n : Std.Usize} (X : Array Std.U32 n) :
+    LSP (lift (Array.to_slice X)) (fun s => s.val = X.val) := by
+  intro s h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  simp
+
+open Lockstep in
+@[lockstep] theorem code_points_spec (s : Slice Std.U32) :
+    LSP (kernel.core_types.code_points s) (fun v => v.val = s.val) :=
+  fun _ h => ConRon.Refine.Env.code_points_val h
+
+open Lean Elab Tactic in
+/-- Fails unless the goal mentions a name-part string (`absString`, `StrWF`,
+`NNodeViewWF`): the string tier's `simp only [global_simps] at *` is not free. -/
+elab "ind_str_guard" : tactic => do
+  let t ← getMainTarget
+  unless t.containsConst (fun n => n == ``ConRon.Refine.absString ||
+      n == ``ConRon.Refine.StrWF || n == ``NNodeViewWF || n == ``absNNodeView) do
+    throwError "ind_str_guard: no string goal"
+
+/-- The string side goals of a constant name part. -/
+macro "ind_str_side" : tactic =>
+  `(tactic| (ind_str_guard
+             try simp only [global_simps] at *
+             simp_all [Array.make, ConRon.Refine.absString, ConRon.Refine.StrWF, NNodeViewWF, absNNodeView]
+             try decide))
+
+macro_rules
+  | `(tactic| lockstep_side_ext) => `(tactic| (ind_str_side; done))
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
