@@ -320,6 +320,124 @@ open ConRon.Refine.Nat in
     LSP (alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x) (fun y => y = x) :=
   fun _ h => (Result.ok_injective h).symm
 
+/-! ## The typed projections -/
+
+theorem etables_get_lit_abs {rt lt} (hrel : ETablesRel rt lt)
+    {i : arena.handle.EIdx} {o}
+    (h : arena.store.ETables.get_lit rt i = ok o) :
+    lt.getLit (absEIdx i) = o.map ConRon.Refine.absLiteral := by
+  rw [arena.store.ETables.get_lit] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hnode := tbl_node_abs hrel.lits hp
+  rw [ETables.getLit, eidx_idxNat hn, hnode]
+  cases hpc : p with
+  | none =>
+    rw [hpc] at h
+    have h2 : (none : Option kernel.expr.Literal) = o := Result.ok_injective h
+    subst h2
+    rfl
+  | some r =>
+    rw [hpc] at h
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h2 : some x = o := Result.ok_injective h
+    subst h2
+    rw [ConRon.Refine.Expr.literal_dup_eq hx]
+    rfl
+
+theorem etables_get_lit_wf {rt} (hinv : ETablesInv rt)
+    {i : arena.handle.EIdx} {o}
+    (h : arena.store.ETables.get_lit rt i = ok o) :
+    ∀ l, o = some l → ConRon.Refine.LiteralWF l := by
+  rw [arena.store.ETables.get_lit] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hwf := tbl_node_wf hinv.lits hp
+  cases hpc : p with
+  | none =>
+    rw [hpc] at h
+    have h2 : (none : Option kernel.expr.Literal) = o := Result.ok_injective h
+    subst h2
+    intro l hl; cases hl
+  | some r =>
+    rw [hpc] at h
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h2 : some x = o := Result.ok_injective h
+    subst h2
+    intro l hl
+    cases hl
+    rw [ConRon.Refine.Expr.literal_dup_eq hx]
+    exact hwf r (by rw [hpc])
+
+theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    {i : arena.handle.EIdx} {o}
+    (h : arena.store.EStore.view_lit rs pers i = ok o) :
+    ls.viewLit (absEIdx i) = o.map ConRon.Refine.absLiteral := by
+  rw [arena.store.EStore.view_lit] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hb2 := eidx_is_persistent_abs hb
+  rw [EStore.viewLit]
+  split at h <;> rename_i hbv
+  · rw [if_pos (show (absEIdx i).isPersistent = true by rw [hb2, hbv]), EStore.persGetLit]
+    rw [arena.store.EStore.pers_get_lit] at h
+    have h3 : arena.store.ETables.get_lit (rPersE pers rs) i = ok o := by
+      unfold rPersE
+      split at h <;> rename_i hs
+      · rw [if_pos hs]; exact h
+      · rw [if_neg hs]; exact h
+    exact etables_get_lit_abs hrel.perst h3
+  · rw [if_neg (show ¬ (absEIdx i).isPersistent = true by rw [hb2]; simpa using hbv),
+      hrel.scratchOn]
+    split at h <;> rename_i hs
+    · rw [if_pos hs]
+      exact etables_get_lit_abs hrel.scrt h
+    · rw [if_neg hs]
+      have h2 : (none : Option kernel.expr.Literal) = o := Result.ok_injective h
+      subst h2
+      rfl
+
+theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs)
+    {i : arena.handle.EIdx} {o}
+    (h : arena.store.EStore.view_lit rs pers i = ok o) :
+    ∀ l, o = some l → ConRon.Refine.LiteralWF l := by
+  rw [arena.store.EStore.view_lit] at h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · rw [arena.store.EStore.pers_get_lit] at h
+    have h3 : arena.store.ETables.get_lit (rPersE pers rs) i = ok o := by
+      unfold rPersE
+      split at h <;> rename_i hs
+      · rw [if_pos hs]; exact h
+      · rw [if_neg hs]; exact h
+    exact etables_get_lit_wf hinv.perst h3
+  · split at h
+    · exact etables_get_lit_wf hinv.scrt h
+    · have h2 : (none : Option kernel.expr.Literal) = o := Result.ok_injective h
+      subst h2
+      intro l hl; cases hl
+
+/-- `view_lit` against `viewLit`, with the stored literal's `LiteralWF`. -/
+@[lockstep] theorem view_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => (∀ l, a = some l → ConRon.Refine.LiteralWF l) ∧
+        b = a.map ConRon.Refine.absLiteral)
+      (arena.monad.view_lit pers st h) st lst (Arena.viewLit (absEIdx h)) := by
+  intro o hrun
+  rw [arena.monad.view_lit] at hrun
+  exact ⟨_, lst, rfl, ⟨estore_view_lit_wf hinv.store hrun,
+    estore_view_lit_abs hrel.store hrun⟩, hrel, hinv⟩
+
+/-- `view_const` against `viewConst`. -/
+@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = a.map absConstT)
+      (arena.monad.view_const pers st h) st lst (Arena.viewConst (absEIdx h)) := by
+  intro o hrun
+  rw [arena.monad.view_const] at hrun
+  exact ⟨_, lst, rfl, estore_view_const_abs hrel.store hrun, hrel, hinv⟩
+
+attribute [lockstep_simp] absConstT
+
 /-! ## A tactic gap: the error arm of an inlined fragment in bind position
 
 `lockstep_core` inlines a fragment (`nat_op_pins`, `bool_const`'s `if`) and

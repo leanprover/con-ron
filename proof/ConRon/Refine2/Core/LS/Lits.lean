@@ -128,4 +128,88 @@ attribute [lockstep_inline] arena.core.nat_op_pins arena.core.nat_op_pins_rest
   rw [arena.core.nat_op_deps, natOpDeps]
   lockstep_b
 
+/-! ## `natBinOpName` and `natOpStored`
+
+The port reads its fifteen names once (`nat_op_pins`), `pred` included; the
+twin's `natBinOpName` reads the fourteen it compares and not `pred`.  The
+extra read is harmless — a pin read writes nothing, and `pred`'s slot (16)
+precedes `add`'s (17), so when it declines the twin's first read declines
+too, at the same message — and `natBinOpName_pred` says so as a twin
+equation. -/
+
+theorem pinAt_run (i : Nat) (lst : AState) :
+    (pinAt i).run lst = (if h : i < lst.pins.names.size
+      then Except.ok (lst.pins.names[i], lst)
+      else Except.error (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+  by_cases h : i < lst.pins.names.size
+  · rw [dif_pos h]
+    show (Arena.pinAt i) lst = _
+    rw [Arena.pinAt]
+    simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+      Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]
+  · rw [dif_neg h]
+    show (Arena.pinAt i) lst = _
+    rw [Arena.pinAt]
+    simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+      Pure.pure, Except.pure, Except.bind, dif_neg h,
+      Arena.fail, throwThe, MonadExceptOf.throw,
+      Function.comp_apply, StateT.lift]
+
+theorem natBinOpName_pred (c : NIdx) :
+    natBinOpName c = (natPredName >>= fun _ => natBinOpName c) := by
+  apply StateT.ext
+  intro lst
+  by_cases h : PIN_NAT_PRED < lst.pins.names.size
+  · have hp : natPredName.run lst = .ok (lst.pins.names[PIN_NAT_PRED], lst) := by
+      rw [natPredName, pinNatPred, pinAt_run, dif_pos h]
+    rw [run_bind_ok hp]
+  · have herr : ∀ {γ δ : Type} (f : γ → Except Arena.CheckError δ),
+        (Except.error (Arena.CheckError.internal "arena: reserved-name pins not interned")
+          >>= f) = Except.error
+            (Arena.CheckError.internal "arena: reserved-name pins not interned") :=
+      fun _ => rfl
+    have hp : natPredName.run lst = .error
+        (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
+      rw [natPredName, pinNatPred, pinAt_run, dif_neg h]
+    have ha : natAddName.run lst = .error
+        (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
+      rw [natAddName, pinNatAdd, pinAt_run, dif_neg (by
+        simp only [PIN_NAT_PRED, PIN_NAT_ADD] at h ⊢; omega)]
+    have hl : (natBinOpName c).run lst = .error
+        (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
+      unfold natBinOpName
+      rw [StateT.run_bind, ha, herr]
+    rw [hl, StateT.run_bind, hp, herr]
+
+/-- The twin's disjunction as the port's short-circuit chain. -/
+theorem pure_or_ite (a b : Bool) :
+    (pure (a || b) : AM Bool) = if a = true then pure true else pure b := by
+  cases a <;> rfl
+
+section
+attribute [local lockstep_simp] pure_or_ite
+
+@[lockstep] theorem nat_bin_op_name_ls {pers st c lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.nat_bin_op_name st c) lst
+      (natBinOpName (absNIdx c)) := by
+  rw [arena.core.nat_bin_op_name, natBinOpName_pred, natBinOpName]
+  lockstep_b
+
+end
+
+@[lockstep] theorem nat_op_stored_ls {pers vis st fe lfe c lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    LSV pers (fun a b => b = a) (arena.core.nat_op_stored vis fe c) st lst
+      (natOpStored lfe (absNIdx c)) := by
+  intro a ha
+  rw [arena.core.nat_op_stored] at ha
+  obtain ⟨o, ho, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
+  have hf := ifenv_find_abs hctx ho
+  refine ⟨a, lst, ?_, rfl, hrel, hinv⟩
+  rw [natOpStored, ← hf]
+  rcases o with _ | ii
+  · cases Result.ok_injective ha; rfl
+  · cases ii <;> (cases Result.ok_injective ha; rfl)
+
 end ConRon.Refine2.Lockstep
