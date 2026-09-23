@@ -422,6 +422,34 @@ at Lean's own three. -/
 #print axioms lamBody_run
 #print axioms denoteNList_beq
 
+/-! ## Round eight — the target map, CLOSED
+
+`hoistTargets_run` against the round-8 twin (`hoistClosure`'s fuel counts
+marked records), and with it `hoistNatOpGround_run`, which rested on nothing
+else.  Everything here is at Lean's own three. -/
+
+#print axioms forIn_id_yield
+#print axioms loop_id_unfold
+#print axioms IdxRel.mono
+#print axioms pushOne_sim
+#print axioms arr_rev_cons
+#print axioms loop_drop
+#print axioms declAt_denote
+#print axioms hoistClosure_sim
+#print axioms isNatOpRecord_run
+#print axioms hoistDeps_sim
+#print axioms hoistTargetsGo_sim
+#print axioms forIn_id_bind_yield
+#print axioms forIn_id_ite_yield
+#print axioms loop_congr
+#print axioms clHoistTargets_eq
+#print axioms IdxRel.insertOne
+#print axioms insertNames_sim
+#print axioms nameIndex_sim
+#print axioms nameIndex_lt
+#print axioms hoistTargets_run
+#print axioms hoistNatOpGround_run
+
 /-! ## PROVED, but resting on an open leaf
 
 The campaign's rule is that a result carrying `sorryAx` is not in the census
@@ -441,13 +469,13 @@ can tell the two apart.
 * round 7's skeletons — `processLineCoreD_run`, `installIndD_run`,
   `registerProjOwners_run` and `projRewriteD_run` rest on `projRecValue_run` /
   `projRecOwners_run` (whose `ParseStep` frame is round 7's finding),
-  `hoistNatOpGround_run` on `hoistTargets_run` (whose twin is round 7's other
-  finding), `FoldOK_post_pins` on the Checker tier's `internAllPins_run`. -/
+  `FoldOK_post_pins` on the Checker tier's `internAllPins_run`.
+  (`hoistNatOpGround_run` left this list in round 8: `hoistTargets_run` is
+  closed.) -/
 
 #print axioms registerProjOwners_run
 #print axioms installIndD_run
 #print axioms processLineCoreD_run
-#print axioms hoistNatOpGround_run
 #print axioms projRewriteD_run
 #print axioms FoldOK_post_pins
 #print axioms applyLine_run

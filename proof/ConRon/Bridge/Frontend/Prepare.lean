@@ -52,6 +52,8 @@ import ConRon.Arena.Frontend.Prelude
 import ConLeche.Frontend.Prelude
 import ConLeche.Frontend.NatOpGround
 import ConLeche.Verify.Frontend.Prepare
+import ConRon.Bridge.Checker.DeclVal
+import Init.Internal.Order.While
 
 namespace ConRon.Bridge.Frontend
 
@@ -1169,6 +1171,753 @@ theorem usedConsts_run {s s' : AState} (hok : StateOK s)
     rw [usedConsts_indDecl_eq]
     exact ⟨hstep1, ha1⟩
 
+/-! ## The target map (task #97-P3-Frontend round 8)
+
+con-leche's `hoistTargets` is an `Id.run do` of two `for` loops (the name
+index), a `for i`/`for g` pair, and a worklist `while`.  Every `for` yields on
+every turn, so each is a `foldl` (`forIn_id_yield`); the `while` is a
+`Lean.Loop.forIn`, unfolded one turn at a time by
+`Lean.Loop.forIn_eq_of_monadTail` (`loop_id_unfold`) — con-leche's loop is
+never shown to terminate, the twin's accepting run supplies the turns.
+`clHoistTargets_eq` is the whole of con-leche's side; the twin's side is four
+simulations, bottom up: `hoistClosure_sim` (the worklist, against the
+round-8 twin whose fuel counts marked records), `hoistDeps_sim`,
+`hoistTargetsGo_sim` and `nameIndex_sim`. -/
+
+/-- con-leche: none — an always-yielding `forIn` in `Id` is a `foldl`. -/
+theorem forIn_id_yield {α β : Type} (l : List α) (init : β)
+    (f : α → β → Id (ForInStep β)) (F : α → β → β)
+    (hf : ∀ a b, f a b = ForInStep.yield (F a b)) :
+    forIn l init f = l.foldl (fun b a => F a b) init := by
+  induction l generalizing init with
+  | nil => rfl
+  | cons a l ih => rw [List.forIn_cons, hf]; exact ih _
+
+/-- con-leche: none — con-leche's `while` in `Id`, unfolded once. -/
+theorem loop_id_unfold {β : Type} (b : β) (B : Unit → β → Id (ForInStep β)) :
+    (forIn Lean.Loop.mk b B : Id β) =
+      match B () b with
+      | .done v => v
+      | .yield v => (forIn Lean.Loop.mk v B : Id β) := by
+  show Lean.Loop.forIn _ _ _ = _
+  rw [Lean.Loop.forIn_eq_of_monadTail]
+  cases B () b <;> rfl
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:110-136 hoistTargets — the
+name index, related to con-leche's name-keyed one: a handle looks up what its
+name looks up, and the keys of both sides denote. -/
+structure IdxRel (st : EStore) (idx : Std.HashMap NIdx Nat)
+    (idxP : Std.HashMap ConLeche.Name Nat) : Prop where
+  get : ∀ n nP, denoteN st.ns n = some nP → idx[n]? = idxP[nP]?
+  keys : ∀ n, idx.contains n = true → ∃ nP, denoteN st.ns n = some nP
+  keysP : ∀ nP, idxP.contains nP = true → ∃ n, denoteN st.ns n = some nP
+
+/-- con-leche: none — `IdxRel` survives an arena extension, by `denoteN_inj`
+at the bigger store. -/
+theorem IdxRel.mono {st st' : EStore} {idx : Std.HashMap NIdx Nat}
+    {idxP : Std.HashMap ConLeche.Name Nat} (h : IdxRel st idx idxP)
+    (hx : Ext st st') (hw : NStoreWF st'.ns) : IdxRel st' idx idxP where
+  get := by
+    intro n nP hn
+    by_cases hc : idxP.contains nP = true
+    · obtain ⟨m, hm⟩ := h.keysP nP hc
+      have hm' := hx.lss.ls.ns m nP hm
+      obtain rfl := Arena.denoteN_inj hw hn hm'
+      exact h.get _ _ hm
+    · have hnone : idxP[nP]? = none :=
+        Std.HashMap.getElem?_eq_none_of_contains_eq_false (by simpa using hc)
+      rw [hnone]
+      by_cases hk : idx.contains n = true
+      · obtain ⟨mP, hm⟩ := h.keys n hk
+        have hm' : denoteN st'.ns n = some mP := hx.lss.ls.ns n mP hm
+        rw [hn] at hm'
+        obtain rfl := Option.some.inj hm'
+        rw [h.get _ _ hm, hnone]
+      · exact Std.HashMap.getElem?_eq_none_of_contains_eq_false (by simpa using hk)
+  keys := fun n hk => by
+    obtain ⟨nP, h1⟩ := h.keys n hk
+    exact ⟨nP, hx.lss.ls.ns n nP h1⟩
+  keysP := fun nP hk => by
+    obtain ⟨n, h1⟩ := h.keysP nP hk
+    exact ⟨n, hx.lss.ls.ns n nP h1⟩
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:130-134 hoistTargets — the
+worklist's inner `for n in ds[k]!.usedConsts` loop, as a fold. -/
+def clPushDeps (idxP : Std.HashMap ConLeche.Name Nat) (i k : Nat)
+    (ns : List ConLeche.Name) (st : Array Nat) : Array Nat :=
+  ns.foldl (fun st n =>
+    match idxP[n]? with
+    | some m => if (decide (m > i) && m != k) = true then st.push m else st
+    | none => st) st
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:130-134 hoistTargets — the
+twin's `pushOne` (a list, top first) is con-leche's push loop (an array, top
+last). -/
+theorem pushOne_sim {st : EStore} {idx : Std.HashMap NIdx Nat}
+    {idxP : Std.HashMap ConLeche.Name Nat} (hr : IdxRel st idx idxP) (i k : Nat) :
+    ∀ (ns : List NIdx) (nsP : List ConLeche.Name),
+      denoteNList st.ns ns = some nsP → ∀ (arr : Array Nat) (L : List Nat),
+      arr.toList.reverse = L →
+      (clPushDeps idxP i k nsP arr).toList.reverse = hoistClosure.pushOne idx i k ns L := by
+  intro ns
+  induction ns with
+  | nil =>
+    intro nsP h arr L hL
+    simp only [denoteNList, Option.some.injEq] at h
+    subst h
+    simpa [clPushDeps, hoistClosure.pushOne] using hL
+  | cons n ns ih =>
+    intro nsP h arr L hL
+    simp only [denoteNList] at h
+    cases hn : denoteN st.ns n with
+    | none => rw [hn] at h; simp at h
+    | some nP =>
+      cases hns : denoteNList st.ns ns with
+      | none => rw [hn, hns] at h; simp at h
+      | some nsP' =>
+        rw [hn, hns] at h
+        obtain rfl := Option.some.inj h
+        have hg := hr.get n nP hn
+        simp only [clPushDeps, List.foldl_cons]
+        rw [hoistClosure.pushOne]
+        rw [← hg]
+        cases hm : idx[n]? with
+        | none => exact ih nsP' hns arr L hL
+        | some m =>
+          simp only []
+          refine ih nsP' hns _ _ ?_
+          by_cases hc : (decide (m > i) && m != k) = true
+          · rw [if_pos hc, if_pos (by simpa using hc)]
+            simp [hL]
+          · rw [if_neg hc, if_neg (by simpa using hc)]
+            exact hL
+
+/-- con-leche: none — an array read as a stack (top last) against a list (top
+first): the top, and the pop. -/
+theorem arr_rev_cons {arr : Array Nat} {k : Nat} {L : List Nat}
+    (h : arr.toList.reverse = k :: L) :
+    ∃ hsz : arr.size > 0, arr[arr.size - 1] = k ∧ arr.pop.toList.reverse = L := by
+  have ht : arr.toList = L.reverse ++ [k] := by
+    rw [← List.reverse_reverse arr.toList, h]; simp
+  have hsz : arr.size = L.length + 1 := by
+    rw [← Array.length_toList, ht]; simp
+  refine ⟨by omega, ?_, ?_⟩
+  · rw [← Array.getElem_toList]
+    simp only [ht]
+    rw [List.getElem_append_right (by simp; omega)]
+    simp
+  · rw [Array.toList_pop, ht]
+    simp
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:122-134 hoistTargets — one
+turn of con-leche's worklist `while`, as a value: pop the top, `continue` if
+its record already precedes `i`, else mark it and push its dependencies. -/
+def clCloseStep (dsP : Array Declaration) (idxP : Std.HashMap ConLeche.Name Nat)
+    (i : Nat) (tg : Std.HashMap Nat Nat) (st : Array Nat) :
+    ForInStep (Std.HashMap Nat Nat × Array Nat) :=
+  if h : st.size > 0 then
+    if hoistDone tg st[st.size - 1] i then .yield (tg, st.pop)
+    else .yield (tg.insert st[st.size - 1] i,
+      clPushDeps idxP i st[st.size - 1] (dsP[st[st.size - 1]]!.usedConsts.toList) st.pop)
+  else .done (tg, st)
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:122-134 hoistTargets — the
+`continue` pops, run in a batch: they are the twin's `hoistDropDone`. -/
+theorem loop_drop {dsP : Array Declaration} {idxP : Std.HashMap ConLeche.Name Nat}
+    {i : Nat} (B : Unit → Std.HashMap Nat Nat × Array Nat →
+      Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
+    (hB : ∀ tg st, B () (tg, st) = clCloseStep dsP idxP i tg st)
+    (target : Std.HashMap Nat Nat) :
+    ∀ (L : List Nat) (arr : Array Nat), arr.toList.reverse = L →
+      ∃ arr' : Array Nat, arr'.toList.reverse = hoistDropDone target i L ∧
+        (forIn Lean.Loop.mk (target, arr) B : Id _) =
+          forIn Lean.Loop.mk (target, arr') B := by
+  intro L
+  induction L with
+  | nil => intro arr h; exact ⟨arr, by simpa [hoistDropDone] using h, rfl⟩
+  | cons k L ih =>
+    intro arr h
+    obtain ⟨hsz, htop, hpop⟩ := arr_rev_cons h
+    by_cases hd : hoistDone target k i = true
+    · obtain ⟨arr', h1, h2⟩ := ih arr.pop hpop
+      refine ⟨arr', by rw [hoistDropDone, if_pos hd]; exact h1, ?_⟩
+      rw [loop_id_unfold, hB]
+      simp only [clCloseStep, dif_pos hsz, htop, if_pos hd]
+      exact h2
+    · refine ⟨arr, by rw [hoistDropDone, if_neg hd]; exact h, rfl⟩
+
+/-- con-leche: none — a denoting stream denotes at an in-bounds index, with
+con-leche's `ds[k]!`. -/
+theorem declAt_denote {st : EStore} {ds : Array IDeclaration} {dsP : Array Declaration}
+    (hds : denoteDeclArray st ds = some dsP) {k : Nat} (hk : k < ds.size) :
+    ConRon.Arena.Frontend.denoteDecl st ds[k] = some dsP[k]! := by
+  have hL := denoteDeclArray_iff.mp hds
+  have h := denoteDecls_getElem? ds.toList dsP.toList hL k
+  simp only [Array.getElem?_toList, Array.getElem?_eq_getElem hk] at h
+  obtain ⟨dP, h2, h3⟩ := h.some_left rfl
+  have hiP : k < dsP.size := by
+    rw [Array.getElem?_eq_some_iff] at h2; exact h2.1
+  rw [getElem!_pos dsP k hiP, (Array.getElem?_eq_some_iff.mp h2).2]
+  exact h3
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:122-134 hoistTargets — **the
+worklist**: an accepting run of the twin's fuelled `hoistClosure` answers what
+con-leche's `while` answers from the same map and the same stack.  The twin's
+batch of `continue` pops is `loop_drop`; a marking pop is one turn on both
+sides, with `usedConsts_run` for the pushed references and `pushOne_sim` for
+the push loop.  Fuel exhaustion is a `fail`, so an accepting run never meets
+it. -/
+theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
+    {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat} {i : Nat}
+    (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
+    (B : Unit → Std.HashMap Nat Nat × Array Nat →
+      Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
+    (hB : ∀ tg st, B () (tg, st) = clCloseStep dsP idxP i tg st) :
+    ∀ (fuel : Nat) (s : AState) (target : Std.HashMap Nat Nat) (L : List Nat)
+      (arr : Array Nat) (t' : Std.HashMap Nat Nat) (s' : AState),
+      StateOK s → s.store.scratchOn = false →
+      denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
+      (∀ x ∈ L, x < ds.size) → arr.toList.reverse = L →
+      hoistClosure ds idx i fuel target L s = .ok (t', s') →
+      ParseStep s s' ∧ t' = (forIn Lean.Loop.mk (target, arr) B : Id _).1 := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro s target L arr t' s' hok hoff hds hr hL harr hrun
+    obtain ⟨arr', harr', hloop⟩ := loop_drop B hB target L arr harr
+    rw [hoistClosure] at hrun
+    rw [hloop]
+    cases hdrop : hoistDropDone target i L with
+    | nil =>
+      simp only [hdrop] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      rw [hdrop] at harr'
+      have : arr' = #[] := by
+        apply Array.toList_inj.mp; simpa using harr'
+      subst this
+      rw [loop_id_unfold, hB]
+      exact ⟨ParseStep.refl hok, by simp [clCloseStep]⟩
+    | cons k rest =>
+      simp only [hdrop] at hrun
+      exact (AM.fail_ok hrun).elim
+  | succ f ih =>
+    intro s target L arr t' s' hok hoff hds hr hL harr hrun
+    obtain ⟨arr', harr', hloop⟩ := loop_drop B hB target L arr harr
+    rw [hoistClosure] at hrun
+    rw [hloop]
+    cases hdrop : hoistDropDone target i L with
+    | nil =>
+      simp only [hdrop] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      rw [hdrop] at harr'
+      have : arr' = #[] := by
+        apply Array.toList_inj.mp; simpa using harr'
+      subst this
+      rw [loop_id_unfold, hB]
+      exact ⟨ParseStep.refl hok, by simp [clCloseStep]⟩
+    | cons k rest =>
+      simp only [hdrop] at hrun
+      have hmem : ∀ x, x ∈ hoistDropDone target i L → x ∈ L :=
+        fun x hx => hoistDropDone_sub target i hx
+      have hk : k < ds.size := hL k (hmem k (by rw [hdrop]; exact List.mem_cons_self))
+      have hrest : ∀ x ∈ rest, x < ds.size := fun x hx =>
+        hL x (hmem x (by rw [hdrop]; exact List.mem_cons_of_mem k hx))
+      have hnd := hoistDropDone_head target i hdrop
+      rw [hdrop] at harr'
+      obtain ⟨hsz, htop, hpop⟩ := arr_rev_cons harr'
+      try simp only [] at hrun
+      obtain ⟨stack', s₁, hpush, hrun⟩ := AM.bind_ok hrun
+      unfold hoistClosure.pushDeps at hpush
+      rw [dif_pos hk] at hpush
+      obtain ⟨ns, s₂, hus, hpure⟩ := AM.bind_ok hpush
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hpure
+      obtain ⟨hstep, hns⟩ := usedConsts_run hok hoff (declAt_denote hds hk) hus
+      have hr1 := hr.mono hstep.ext (nsWF_of_StateOK hstep.ok)
+      have hpushP := pushOne_sim hr1 i k ns.toList _ hns arr'.pop rest hpop
+      have hoff1 : s₁.store.scratchOn = false := by rw [hstep.scratch]; exact hoff
+      obtain ⟨hstep2, hres⟩ := ih s₁ (target.insert k i) _ _ t' s' hstep.ok hoff1
+        (denoteDeclArray_ext hstep.ext hds) hr1
+        (hoistClosure_pushOne_lt hidx k _ rest hrest) hpushP hrun
+      refine ⟨hstep.trans hstep2, ?_⟩
+      rw [hres, loop_id_unfold (b := (target, arr')), hB]
+      simp only [clCloseStep, dif_pos hsz, htop, hnd]
+      rfl
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:97-104 isNatOpRecord — the
+record test reads two pinned name lists and compares handles; it leaves the
+state alone and answers the denoted name exactly when con-leche answers it
+(`denoteN_inj`, through `Bridge/Checker/Names.lean`'s `denoteNList_contains`). -/
+theorem isNatOpRecord_run {s s' : AState} (hok : StateOK s) (hpins : PinsOK s)
+    {d : IDeclaration} {dP : Declaration}
+    (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP) {r : Option NIdx}
+    (hrun : isNatOpRecord d s = .ok (r, s')) :
+    s' = s ∧ OptRel (fun (c : NIdx) (cP : ConLeche.Name) => denoteN s.store.ns c = some cP)
+      r (ConLeche.Frontend.isNatOpRecord dP) := by
+  cases d with
+  | defnDecl cv v h =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store cv with
+    | none => rw [hw] at hd; simp at hd
+    | some cvP =>
+      cases he : denoteE s.store v with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        have hn := denoteCV_name hw
+        rw [isNatOpRecord] at hrun
+        obtain ⟨l1, s₁, h1, hr1⟩ := AM.bind_ok hrun
+        obtain ⟨rfl, hl1⟩ := natDivModNames_run hpins h1
+        obtain ⟨l2, s₂, h2, hr2⟩ := AM.bind_ok hr1
+        obtain ⟨rfl, hl2⟩ := natOpNames_run hpins h2
+        have hc1 := Bridge.denoteNList_contains hok.wf _ _ (denoteNL_toList _ _ hl1) _ _ hn
+        have hc2 := Bridge.denoteNList_contains hok.wf _ _ (denoteNL_toList _ _ hl2) _ _ hn
+        simp only [ConLeche.Frontend.isNatOpRecord]
+        by_cases hq : (l1.contains cv.name || l2.contains cv.name) = true
+        · rw [if_pos hq] at hr2
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
+          rw [hc1, hc2] at hq
+          rw [if_pos hq]
+          exact ⟨rfl, hn⟩
+        · rw [if_neg hq] at hr2
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
+          rw [hc1, hc2] at hq
+          rw [if_neg hq]
+          exact ⟨rfl, trivial⟩
+  | axiomDecl cv =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨_, _, rfl⟩ := hd
+    simp only [isNatOpRecord] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, trivial⟩
+  | thmDecl cv v =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    split at hd
+    · obtain rfl := Option.some.inj hd
+      simp only [isNatOpRecord] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, trivial⟩
+    · simp at hd
+  | opaqueDecl cv v =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    split at hd
+    · obtain rfl := Option.some.inj hd
+      simp only [isNatOpRecord] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨rfl, trivial⟩
+    · simp at hd
+  | basisDecl k =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.some.injEq] at hd
+    subst hd
+    simp only [isNatOpRecord] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, trivial⟩
+  | indDecl block nP =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨_, _, rfl⟩ := hd
+    simp only [isNatOpRecord] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, trivial⟩
+  | quotDecl k cv =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨_, _, rfl⟩ := hd
+    simp only [isNatOpRecord] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, trivial⟩
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:119-134 hoistTargets — one
+turn of the `for g in natOpDeps c` loop, as a value: a ground declared after
+`i` pulls its closure (con-leche's `while`, whose body is `B i`). -/
+def clDepStep (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
+      Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
+    (idxP : Std.HashMap ConLeche.Name Nat) (i : Nat) (t : Std.HashMap Nat Nat)
+    (g : ConLeche.Name) : Std.HashMap Nat Nat :=
+  match idxP[g]? with
+  | some j => if j > i then (forIn Lean.Loop.mk (t, #[j]) (B i) : Id _).1 else t
+  | none => t
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:119-134 hoistTargets — the
+twin's `hoistDeps` is con-leche's `for g in natOpDeps c` loop. -/
+theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
+    {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat} {i : Nat}
+    (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
+    (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
+      Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
+    (hB : ∀ tg st, B i () (tg, st) = clCloseStep dsP idxP i tg st) :
+    ∀ (gs : List NIdx) (gsP : List ConLeche.Name) (s : AState)
+      (target t' : Std.HashMap Nat Nat) (s' : AState),
+      StateOK s → s.store.scratchOn = false →
+      denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
+      denoteNL s.store gs gsP →
+      hoistTargetsGo.hoistDeps ds idx target i gs s = .ok (t', s') →
+      ParseStep s s' ∧ t' = gsP.foldl (clDepStep B idxP i) target := by
+  intro gs
+  induction gs with
+  | nil =>
+    intro gsP s target t' s' hok _ _ _ hgs hrun
+    cases gsP with
+    | cons _ _ => exact hgs.elim
+    | nil =>
+      rw [hoistTargetsGo.hoistDeps] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨ParseStep.refl hok, rfl⟩
+  | cons g gs ih =>
+    intro gsP s target t' s' hok hoff hds hr hgs hrun
+    cases gsP with
+    | nil => exact hgs.elim
+    | cons gP gsP =>
+      obtain ⟨hg, hgs⟩ := hgs
+      have hget := hr.get g gP hg
+      rw [hoistTargetsGo.hoistDeps] at hrun
+      simp only [List.foldl_cons, clDepStep]
+      rw [← hget]
+      cases hj : idx[g]? with
+      | none =>
+        rw [hj] at hrun
+        exact ih gsP s target t' s' hok hoff hds hr hgs hrun
+      | some j =>
+        rw [hj] at hrun
+        simp only [] at hrun ⊢
+        by_cases hji : j > i
+        · rw [if_pos hji] at hrun
+          rw [if_pos hji]
+          obtain ⟨t1, s₁, h1, hrun⟩ := AM.bind_ok hrun
+          obtain ⟨hstep1, rfl⟩ := hoistClosure_sim hidx (B i) hB ds.size s target [j] #[j]
+            t1 s₁ hok hoff hds hr (by simpa using hidx g j hj) (by simp) h1
+          have hoff1 : s₁.store.scratchOn = false := by rw [hstep1.scratch]; exact hoff
+          obtain ⟨hstep2, hres⟩ := ih gsP s₁ _ t' s' hstep1.ok hoff1
+            (denoteDeclArray_ext hstep1.ext hds)
+            (hr.mono hstep1.ext (nsWF_of_StateOK hstep1.ok))
+            (denoteNL_ext hstep1.ext _ _ hgs) hrun
+          exact ⟨hstep1.trans hstep2, hres⟩
+        · rw [if_neg hji] at hrun
+          rw [if_neg hji]
+          exact ih gsP s target t' s' hok hoff hds hr hgs hrun
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:117-134 hoistTargets — one
+turn of the outer `for i in [0:ds.size]` loop, as a value. -/
+def clOuterStep (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
+      Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
+    (dsP : Array Declaration) (idxP : Std.HashMap ConLeche.Name Nat)
+    (t : Std.HashMap Nat Nat) (i : Nat) : Std.HashMap Nat Nat :=
+  match ConLeche.Frontend.isNatOpRecord dsP[i]! with
+  | some c => (ConLeche.natOpDeps c).foldl (clDepStep B idxP i) t
+  | none => t
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:117-134 hoistTargets — the
+twin's `hoistTargetsGo` (a tail recursion from `i`) is con-leche's outer loop
+over the rest of the index range. -/
+theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
+    {idx : Std.HashMap NIdx Nat} {idxP : Std.HashMap ConLeche.Name Nat}
+    (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size)
+    (B : Nat → Unit → Std.HashMap Nat Nat × Array Nat →
+      Id (ForInStep (Std.HashMap Nat Nat × Array Nat)))
+    (hB : ∀ i tg st, B i () (tg, st) = clCloseStep dsP idxP i tg st) :
+    ∀ (n i : Nat) (s : AState) (target t' : Std.HashMap Nat Nat) (s' : AState),
+      ds.size - i = n →
+      StateOK s → s.store.scratchOn = false → PinsOK s →
+      denoteDeclArray s.store ds = some dsP → IdxRel s.store idx idxP →
+      hoistTargetsGo ds idx target i s = .ok (t', s') →
+      ParseStep s s' ∧ t' = (List.range' i n).foldl (clOuterStep B dsP idxP) target := by
+  intro n
+  induction n with
+  | zero =>
+    intro i s target t' s' hn hok _ _ _ _ hrun
+    rw [hoistTargetsGo, dif_neg (by omega)] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨ParseStep.refl hok, rfl⟩
+  | succ n ih =>
+    intro i s target t' s' hn hok hoff hpins hds hr hrun
+    have hi : i < ds.size := by omega
+    rw [hoistTargetsGo, dif_pos hi] at hrun
+    obtain ⟨r, s₁, h1, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hopt⟩ := isNatOpRecord_run hok hpins (declAt_denote hds hi) h1
+    rw [hs1] at hrun
+    simp only [List.range'_succ, List.foldl_cons]
+    cases r with
+    | none =>
+      simp only [] at hrun
+      have hcl : ConLeche.Frontend.isNatOpRecord dsP[i]! = none := by
+        cases h : ConLeche.Frontend.isNatOpRecord dsP[i]! with
+        | none => rfl
+        | some _ => rw [h] at hopt; exact hopt.elim
+      have := ih (i + 1) s target t' s' (by omega) hok hoff hpins hds hr hrun
+      simpa [clOuterStep, hcl] using this
+    | some c =>
+      simp only [] at hrun
+      cases h : ConLeche.Frontend.isNatOpRecord dsP[i]! with
+      | none => rw [h] at hopt; exact hopt.elim
+      | some cP =>
+        rw [h] at hopt
+        obtain ⟨gs, s₂, h2, hrun⟩ := AM.bind_ok hrun
+        obtain ⟨-, -, -, -, hgs⟩ := natOpDeps_run hok hpins hopt h2
+        have hs2 := natOpDeps_state hpins h2
+        rw [hs2] at hrun hgs
+        obtain ⟨t1, s₃, h3, hrun⟩ := AM.bind_ok hrun
+        obtain ⟨hstep1, rfl⟩ := hoistDeps_sim hidx B (hB i) gs _ s target t1 s₃ hok hoff hds hr
+          hgs h3
+        have hoff1 : s₃.store.scratchOn = false := by rw [hstep1.scratch]; exact hoff
+        obtain ⟨hstep2, hres⟩ := ih (i + 1) s₃ _ t' s' (by omega) hstep1.ok hoff1
+          (hpins.mono hstep1.ext hstep1.pins) (denoteDeclArray_ext hstep1.ext hds)
+          (hr.mono hstep1.ext (nsWF_of_StateOK hstep1.ok)) hrun
+        refine ⟨hstep1.trans hstep2, ?_⟩
+        rw [hres]
+        simp [clOuterStep, h]
+
+/-- con-leche: none — an always-yielding `forIn` in `Id` whose body is a
+`bind` into `yield` is a `foldl`. -/
+theorem forIn_id_bind_yield {α β : Type} (l : List α) (init : β)
+    (g : α → β → Id β) :
+    forIn l init (fun a b => (g a b >>= fun s => pure (ForInStep.yield s)) : α → β → Id (ForInStep β))
+      = l.foldl (fun b a => g a b) init :=
+  forIn_id_yield l init _ _ (fun _ _ => rfl)
+
+/-- con-leche: none — an always-yielding `forIn` in `Id` whose body is an
+`if` of two yields is a `foldl`. -/
+theorem forIn_id_ite_yield {α β : Type} (l : List α) (init : β)
+    (p : α → β → Prop) [∀ a b, Decidable (p a b)] (X Y : α → β → β) :
+    forIn l init (fun a b => (if p a b then pure (ForInStep.yield (X a b))
+        else pure (ForInStep.yield (Y a b))) : α → β → Id (ForInStep β))
+      = l.foldl (fun b a => if p a b then X a b else Y a b) init :=
+  forIn_id_yield l init _ _ (fun a b => by by_cases h : p a b <;> simp [h] <;> rfl)
+
+/-- con-leche: none — two `while` bodies that agree pointwise run alike. -/
+theorem loop_congr {β : Type} (b : β) (f g : Unit → β → Id (ForInStep β))
+    (h : ∀ u x, f u x = g u x) :
+    (forIn Lean.Loop.mk b f : Id β) = forIn Lean.Loop.mk b g := by
+  have : f = g := funext fun u => funext (h u)
+  rw [this]
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:112-116 hoistTargets — the
+name index, as con-leche computes it (its two `for` loops, as folds). -/
+def clIdx (dsP : Array Declaration) : Std.HashMap ConLeche.Name Nat :=
+  List.foldl (fun b a => List.foldl (fun b a_1 => if (!b.contains a_1) = true then
+    b.insert a_1 a else b) b dsP[a]!.names) ∅ (List.range' 0 dsP.size)
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:122-134 hoistTargets —
+con-leche's `while` body, at the index `I`, as the function `clCloseStep`. -/
+def clB (dsP : Array Declaration) (I : Std.HashMap ConLeche.Name Nat) (i : Nat) :
+    Unit → Std.HashMap Nat Nat × Array Nat →
+      Id (ForInStep (Std.HashMap Nat Nat × Array Nat)) :=
+  fun _ p => clCloseStep dsP I i p.1 p.2
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:110-136 hoistTargets —
+**con-leche's `hoistTargets`, as folds**: the name index is `clIdx`, the outer
+loop a fold of `clOuterStep`, and the worklist `while` the `Loop` at the body
+`clB` (`clCloseStep`).  Every `for` of the definition yields on every turn,
+so each is a `foldl`; the `while` stays a `Loop.forIn`. -/
+theorem clHoistTargets_eq (dsP : Array Declaration) :
+    ConLeche.Frontend.hoistTargets dsP =
+      List.foldl (clOuterStep (clB dsP (clIdx dsP)) dsP (clIdx dsP)) ∅
+        (List.range' 0 dsP.size) := by
+  symm
+  unfold ConLeche.Frontend.hoistTargets
+  simp only [Std.Legacy.Range.forIn_eq_forIn_range', Id.run_bind, Id.run_pure, forIn_id_ite_yield,
+    forIn_id_bind_yield]
+  rw [show [:dsP.size].size = dsP.size by simp [Std.Legacy.Range.size]]
+  simp only [Id.run]
+  refine Eq.trans ?_ (forIn_id_yield _ _ _
+    (fun a b => clOuterStep (clB dsP (clIdx dsP)) dsP (clIdx dsP) b a) ?hF).symm
+  · rfl
+  · intro a b
+    unfold clOuterStep
+    cases hrec : ConLeche.Frontend.isNatOpRecord dsP[a]! with
+    | none => rfl
+    | some c =>
+      refine congrArg ForInStep.yield (forIn_id_yield _ _ _
+        (fun g t => clDepStep (clB dsP (clIdx dsP)) (clIdx dsP) a t g) ?_)
+      intro g t
+      unfold clDepStep
+      split
+      · rename_i j heq
+        have hj' : (clIdx dsP)[g]? = some j := heq
+        rw [hj']
+        by_cases hj : j > a
+        · simp only [hj, if_true]
+          refine congrArg (fun p : Std.HashMap Nat Nat × Array Nat => ForInStep.yield p.1)
+            (loop_congr _ _ _ ?_)
+          intro u x
+          obtain ⟨tg, st⟩ := x
+          simp only [clB, clCloseStep, hoistDone]
+          by_cases hsz : st.size > 0
+          · rw [dif_pos hsz, dif_pos hsz]
+            cases hk : tg[st[st.size - 1]]? with
+            | some t =>
+              by_cases ht : t ≤ a
+              · simp only [ht, if_true, decide_true]; rfl
+              · simp only [ht, if_false, decide_false]
+                refine congrArg (fun s => ForInStep.yield (tg.insert st[st.size - 1] a, s)) ?_
+                rw [← Array.forIn_toList]
+                refine forIn_id_yield _ _ _ _ ?_
+                intro n s'
+                split
+                · rename_i m heq
+                  have hm' : (clIdx dsP)[n]? = some m := heq
+                  by_cases hc : (decide (m > a) && m != st[st.size - 1]) = true
+                  · simp only [hc, if_true, hm']; rfl
+                  · simp only [hc, hm']; rfl
+                · rename_i heq
+                  have hm' : (clIdx dsP)[n]? = none := by
+                    cases h : (clIdx dsP)[n]? with
+                    | none => rfl
+                    | some j => exact absurd h (heq j)
+                  simp only [hm']; rfl
+            | none =>
+              simp only [Bool.false_eq_true, if_false]
+              refine congrArg (fun s => ForInStep.yield (tg.insert st[st.size - 1] a, s)) ?_
+              rw [← Array.forIn_toList]
+              refine forIn_id_yield _ _ _ _ ?_
+              intro n s'
+              split
+              · rename_i m heq
+                have hm' : (clIdx dsP)[n]? = some m := heq
+                by_cases hc : (decide (m > a) && m != st[st.size - 1]) = true
+                · simp only [hc, if_true, hm']; rfl
+                · simp only [hc, hm']; rfl
+              · rename_i heq
+                have hm' : (clIdx dsP)[n]? = none := by
+                  cases h : (clIdx dsP)[n]? with
+                  | none => rfl
+                  | some j => exact absurd h (heq j)
+                simp only [hm']; rfl
+          · rw [dif_neg hsz, dif_neg hsz]
+            rfl
+        · simp only [hj, if_false]
+          rfl
+      · rename_i heq
+        have hj' : (clIdx dsP)[g]? = none := by
+          cases h : (clIdx dsP)[g]? with
+          | none => rfl
+          | some j => exact absurd h (heq j)
+        rw [hj']
+        rfl
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:112-116 hoistTargets — one
+name of the index loop: the first record declaring a name wins, on both
+sides, and the relation survives (`denoteN_inj` for a different name). -/
+theorem IdxRel.insertOne {st : EStore} {idx : Std.HashMap NIdx Nat}
+    {idxP : Std.HashMap ConLeche.Name Nat} (h : IdxRel st idx idxP)
+    (hw : NStoreWF st.ns) {n : NIdx} {nP : ConLeche.Name} (hn : denoteN st.ns n = some nP)
+    (i : Nat) :
+    IdxRel st (if idx.contains n then idx else idx.insert n i)
+      (if (!idxP.contains nP) = true then idxP.insert nP i else idxP) := by
+  have hc : idx.contains n = idxP.contains nP := by
+    rw [Std.HashMap.contains_eq_isSome_getElem?, Std.HashMap.contains_eq_isSome_getElem?,
+      h.get n nP hn]
+  by_cases hk : idx.contains n = true
+  · rw [if_pos hk, if_neg (by rw [← hc, hk]; decide)]
+    exact h
+  · rw [if_neg hk, if_pos (by rw [← hc]; simpa using hk)]
+    refine ⟨?_, ?_, ?_⟩
+    · intro m mP hm
+      rw [Std.HashMap.getElem?_insert, Std.HashMap.getElem?_insert]
+      by_cases hmn : n = m
+      · subst hmn
+        rw [hn] at hm
+        obtain rfl := Option.some.inj hm
+        simp
+      · have hne : nP ≠ mP := fun he => hmn (Arena.denoteN_inj hw hn (he ▸ hm))
+        rw [beq_eq_false_iff_ne.mpr hmn, beq_eq_false_iff_ne.mpr hne]
+        exact h.get m mP hm
+    · intro m hm
+      rw [Std.HashMap.contains_insert] at hm
+      rcases Bool.or_eq_true_iff.mp hm with he | he
+      · have : n = m := by simpa using he
+        subst this; exact ⟨nP, hn⟩
+      · exact h.keys m he
+    · intro mP hm
+      rw [Std.HashMap.contains_insert] at hm
+      rcases Bool.or_eq_true_iff.mp hm with he | he
+      · have : nP = mP := by simpa using he
+        subst this; exact ⟨n, hn⟩
+      · exact h.keysP mP he
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:112-116 hoistTargets — the
+inner `for n in ds[i]!.names` loop. -/
+theorem insertNames_sim {st : EStore} (hw : NStoreWF st.ns) (i : Nat) :
+    ∀ (ns : List NIdx) (nsP : List ConLeche.Name) (idx : Std.HashMap NIdx Nat)
+      (idxP : Std.HashMap ConLeche.Name Nat),
+      denoteNList st.ns ns = some nsP → IdxRel st idx idxP →
+      IdxRel st (insertNames idx i ns)
+        (nsP.foldl (fun b a_1 => if (!b.contains a_1) = true then b.insert a_1 i else b) idxP) := by
+  intro ns
+  induction ns with
+  | nil =>
+    intro nsP idx idxP h hr
+    simp only [denoteNList, Option.some.injEq] at h
+    subst h; exact hr
+  | cons n ns ih =>
+    intro nsP idx idxP h hr
+    simp only [denoteNList] at h
+    cases hn : denoteN st.ns n with
+    | none => rw [hn] at h; simp at h
+    | some nP =>
+      cases hns : denoteNList st.ns ns with
+      | none => rw [hn, hns] at h; simp at h
+      | some nsP' =>
+        rw [hn, hns] at h
+        obtain rfl := Option.some.inj h
+        rw [insertNames, List.foldl_cons]
+        exact ih nsP' _ _ hns (hr.insertOne hw hn i)
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:112-116 hoistTargets — **the
+name index**: the twin's `nameIndex` is con-leche's, name for handle. -/
+theorem nameIndex_sim {st : EStore} (hw : NStoreWF st.ns) {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDeclArray st ds = some dsP)
+    (hnds : DeclsProjNamed st ds) :
+    ∀ (n k : Nat) (idx : Std.HashMap NIdx Nat) (idxP : Std.HashMap ConLeche.Name Nat),
+      ds.size - k = n → IdxRel st idx idxP →
+      IdxRel st (nameIndex ds idx k)
+        ((List.range' k n).foldl (fun b a => List.foldl (fun b a_1 =>
+          if (!b.contains a_1) = true then b.insert a_1 a else b) b dsP[a]!.names) idxP) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k idx idxP hn hr
+    rw [nameIndex, dif_neg (by omega)]
+    exact hr
+  | succ n ih =>
+    intro k idx idxP hn hr
+    have hk : k < ds.size := by omega
+    rw [nameIndex, dif_pos hk, List.range'_succ, List.foldl_cons]
+    refine ih (k + 1) _ _ (by omega) ?_
+    exact insertNames_sim hw k _ _ _ _
+      (declNames_denote (hnds _ (Array.getElem_mem hk)) (declAt_denote hds hk)) hr
+
+/-- con-leche: none — the twin's name index holds record positions. -/
+theorem nameIndex_lt (ds : Array IDeclaration) :
+    ∀ (n k : Nat) (idx : Std.HashMap NIdx Nat), ds.size - k = n →
+      (∀ (x : NIdx) m, idx[x]? = some m → m < ds.size) →
+      ∀ (x : NIdx) m, (nameIndex ds idx k)[x]? = some m → m < ds.size := by
+  have hins : ∀ (i : Nat), i < ds.size → ∀ (ns : List NIdx) (idx : Std.HashMap NIdx Nat),
+      (∀ (x : NIdx) m, idx[x]? = some m → m < ds.size) →
+      ∀ (x : NIdx) m, (insertNames idx i ns)[x]? = some m → m < ds.size := by
+    intro i hi ns
+    induction ns with
+    | nil => intro idx h; simpa [insertNames] using h
+    | cons n ns ih =>
+      intro idx h
+      rw [insertNames]
+      refine ih _ ?_
+      split
+      · exact h
+      · intro x m hm
+        rw [Std.HashMap.getElem?_insert] at hm
+        split at hm
+        · obtain rfl := Option.some.inj hm; exact hi
+        · exact h x m hm
+  intro n
+  induction n with
+  | zero =>
+    intro k idx hn h
+    rw [nameIndex, dif_neg (by omega)]
+    exact h
+  | succ n ih =>
+    intro k idx hn h
+    have hk : k < ds.size := by omega
+    rw [nameIndex, dif_pos hk]
+    exact ih (k + 1) _ (by omega) (hins k hk _ _ h)
+
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:110 hoistTargets — **the
 hoist's index, and where `denoteN_inj` is load-bearing**: the stream is
 indexed by declared name, and two handles denoting one name would make the
@@ -1179,11 +1928,14 @@ twin move a record con-leche does not move.
 `ds[k].names`, and `usedConsts` moves the store at a projection table.  The
 frame is `ParseStep` and the name exactness is `DeclsProjNamed`'s.
 
-`sorry`: `usedConsts_run` and `isNatOpRecord_run` at the
-fold, with `denoteN_inj` for the `Std.HashMap NIdx Nat` keyed by handle
-against con-leche's `Std.HashMap Nat Nat` keyed by stream position — the two
-maps are equal as functions of the position, which is what `applyHoist`
-reads.  Task #97-P3-Frontend's sorry list, item 21. -/
+**CLOSED** (round 8), against the round-8 twin (`hoistClosure`'s fuel counts
+marked records, `pushOne` has con-leche's `m != k`).  The target maps are
+EQUAL, not merely related: both sides perform the same inserts in the same
+order, so the simulations carry the map literally.  `denoteN_inj` is where it
+is load-bearing: the name index is keyed by handle on the twin's side and by
+name on con-leche's (`IdxRel`), and a handle a later `usedConsts` interned
+must not look up a name the index holds under another handle
+(`IdxRel.mono`). -/
 theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     {ds : Array IDeclaration} {dsP : Array Declaration}
@@ -1191,7 +1943,21 @@ theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     (hds : denoteDeclArray s.store ds = some dsP)
     {target : Std.HashMap Nat Nat} (hrun : hoistTargets ds s = .ok (target, s')) :
     ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets dsP := by
-  sorry
+  have hnw := nsWF_of_StateOK hok
+  have hsz : ds.size = dsP.size := by
+    have := denoteDecls_length _ _ (denoteDeclArray_iff.mp hds); simpa using this
+  rw [hoistTargets] at hrun
+  have hempty : IdxRel s.store (∅ : Std.HashMap NIdx Nat) (∅ : Std.HashMap ConLeche.Name Nat) :=
+    ⟨fun _ _ _ => by simp, fun _ h => by simp at h, fun _ h => by simp at h⟩
+  have hr0 : IdxRel s.store (nameIndex ds ∅ 0) (clIdx dsP) := by
+    have := nameIndex_sim hnw hds hnds ds.size 0 ∅ ∅ (by simp) hempty
+    rw [clIdx, ← hsz]; exact this
+  have hidx := nameIndex_lt ds ds.size 0 ∅ (by simp) (by simp)
+  obtain ⟨hstep, hres⟩ := hoistTargetsGo_sim hidx (clB dsP (clIdx dsP)) (fun _ _ _ => rfl)
+    ds.size 0 s ∅ target s' (by simp) hok hoff hpins hds hr0 hrun
+  refine ⟨hstep, ?_⟩
+  rw [hres, clHoistTargets_eq, hsz]
+
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
 twin's `reorder` fold, as a `filterMap` over the index list. -/
