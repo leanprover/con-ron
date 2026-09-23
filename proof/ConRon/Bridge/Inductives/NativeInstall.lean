@@ -95,7 +95,7 @@ theorem nativeCaps_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts) :
 The SYNTACTIC reading of `is_rec` off the declared constructor types, before
 anything is normalised (task #268's first pass runs at this verdict).
 
-`sorry`: `mentionsConst_spec` under the constructors' telescopes. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem nativeRawRec_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts) :
     PSpec (fun st => PartsRel st p q)
       (Arena.nativeRawRec p) (RV (ConLeche.nativeRawRec q)) := by
@@ -177,8 +177,7 @@ inside the walk's invariant step. -/
 The memoised walk; note the `fvar` arm answers on the LEVEL and does not
 descend into the variable's type, which is con-leche's own clause.
 
-`sorry`: a fuel induction with the memo threaded, in
-`Bridge/ExprOps/Walks.lean`'s shape. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem mentionsFvarGo_spec (q : Nat) (memo : Std.HashMap EIdx Bool)
     (fuel : Nat) (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteE st h = some hP ∧ FvarMemoOK q memo st)
@@ -359,7 +358,7 @@ theorem mentionsFvarGo_spec (q : Nat) (memo : Std.HashMap EIdx Bool)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:379-381 Expr.mentionsFvarFast
 The entry at an empty memo.
 
-`sorry`: `mentionsFvarGo_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem mentionsFvar_spec (q : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
       (Arena.mentionsFvar q e) (RV (Expr.mentionsFvar q eP)) := by
@@ -583,7 +582,7 @@ theorem recCtorKindsAll_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
 The kinds classified on the stored constructors, with the two declines
 (`negative`, `unsupported`) raised.
 
-`sorry`: `recCtorKindsAll_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem classifyFixKinds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx : Nat)

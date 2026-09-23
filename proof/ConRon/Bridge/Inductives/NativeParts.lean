@@ -46,8 +46,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 Is `e` the family at the parameter variables followed by `nIdx` index
 expressions none of which mentions the block?  Official's `is_valid_ind_app`.
 
-`sorry`: `Bridge/ExprOps/Spine.lean`'s `getAppSpine` spec, `structFam_spec`
-and `mentionsConst_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem recFamOk_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx o : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧
@@ -124,8 +123,7 @@ theorem recPositivity_leaf {TP : ConLeche.Name} {lpsP : List ConLeche.Name}
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
 The field domain's kind, walking under its own binders.
 
-`sorry`: a fuel induction whose `.forallE` arm is `Bridge/Rel.lean`'s
-`forallE` inversion and whose leaf arm is `recFamOk_spec` + `mentionsConst_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx o fuel : Nat) (h : EIdx) (hP : Expr)
     (k : Nat) :
@@ -258,7 +256,7 @@ theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:113-116 recFieldKind
 The entry at `k = 0`.
 
-`sorry`: `recPositivity_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem recFieldKind_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx o : Nat) (dom : EIdx) (domP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧
@@ -331,8 +329,7 @@ theorem ListRel.map_eq {β γ : Type} {f : β → γ} {st : EStore} :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
 One constructor's field kinds, or `none` when its residual is not the family.
 
-`sorry`: the telescope peel (`Bridge/ExprOps/TelescopeF.lean`) and
-`recFieldKind_spec` at each domain. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem recCtorKinds_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx : Nat) (c : IConstantVal × Nat)
     (cP : ConstantVal × Nat) :
@@ -689,7 +686,7 @@ theorem structIdxAt_spec (nF o i l m : Nat) (e : EIdx) (eP : Expr) :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:246-252 structTeleAt
 A field's telescope relocated, with a fresh `PropWhen` on each binder.
 
-`sorry`: `structIdxAt_spec` at each domain, a list map. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structTeleAt_spec (nF o i l : Nat) (pw : PropWhen)
     (tele : List (EIdx × BinderMeta)) (teleP : List (Expr × BinderMeta)) :
     PSpec (fun st => denoteBinders st tele = some teleP)
@@ -852,8 +849,7 @@ theorem structIdxAt_mapM (nF o i l m : Nat) :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:265-277 structIhApp
 The inductive-hypothesis application inside a minor premise.
 
-`sorry`: `structRecPrefixAt_spec`, `structTeleVars_spec`, `structIdxAt_spec`
-and `mkAppN`'s spec. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structIhApp_spec (recC : NIdx) (recCP : ConLeche.Name) (rlvls : LsIdx)
     (rlvlsP : List Level) (pw : PropWhen) (nP n nF i : Nat)
     (tele : List (EIdx × BinderMeta)) (teleP : List (Expr × BinderMeta))
@@ -911,8 +907,7 @@ takes `teleOf`/`idxOf` as FUNCTIONS and the twin takes the constructor type and
 calls the two readers itself, so the statement compares the twin with
 con-leche at those two readers — which is what discharges the deviation.
 
-`sorry`: `structFieldTeleOf_spec`, `structFieldIdxOf_spec`, `structIhApp_spec`
-and `mkAppN`'s spec. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structRuleBodyR_spec (recC : NIdx) (recCP : ConLeche.Name)
     (rlvls : LsIdx) (rlvlsP : List Level) (pw : PropWhen) (nP n nF j : Nat)
     (recIdx : List Nat) (cty : EIdx) (ctyP : Expr)
@@ -970,8 +965,7 @@ The inductive-hypothesis binders in front of a minor premise's body.  The same
 deviation, the same instantiation; note con-leche's `nP` is not a parameter of
 its version (it reads it through `teleOf`).
 
-`sorry`: a list induction over `structTeleAt_spec`, `structIhApp_spec` and
-`mkPisOf_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structIhPis_spec (nF o nP : Nat) (pw : PropWhen) (cty : EIdx)
     (ctyP : Expr) (is : List Nat) (l : Nat) (body : EIdx) (bodyP : Expr)
     (his : ∀ i ∈ is, i < nF) :
@@ -1037,8 +1031,7 @@ theorem structIhPis_spec (nF o nP : Nat) (pw : PropWhen) (cty : EIdx)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
 One minor premise's type.
 
-`sorry`: `replacePisPw_spec`, `structIhPis_spec`, `structCtorSpineAt_spec`
-and `structRecPrefixAt_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structMinorTyR_spec (C : NIdx) (CP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF o : Nat) (pw : PropWhen) (cty : EIdx)
     (ctyP : Expr) (recIdx : List Nat) (hri : ∀ i ∈ recIdx, i < nF) :
@@ -1103,7 +1096,7 @@ theorem structMinorTyR_spec (C : NIdx) (CP : ConLeche.Name) (lps : List NIdx)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
 All the minor premises as Π binders in front of a body.
 
-`sorry`: a list induction over `structMinorTyR_spec` and `internE_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structMinorsPisR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
     (nP : Nat) (pw : PropWhen) (cs : List (NIdx × Nat × EIdx × List Nat))
     (csP : List (ConLeche.Name × Nat × Expr × List Nat)) (o : Nat)
@@ -1174,7 +1167,7 @@ theorem structMinorsPisR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:332-339 structMinorsLamsR
 The same as λ binders.
 
-`sorry`: `structMinorsPisR_spec`'s argument with `.lam`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structMinorsLamsR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
     (nP : Nat) (pw : PropWhen) (cs : List (NIdx × Nat × EIdx × List Nat))
     (csP : List (ConLeche.Name × Nat × Expr × List Nat)) (o : Nat)
@@ -1247,8 +1240,7 @@ theorem structMinorsLamsR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
 recursor against, so this statement is what makes "the recursor is the
 generated one" mean the same on both sides.
 
-`sorry`: `structMotiveTyI_spec`, `structMinorsPisR_spec`,
-`structElimLevel_spec`, `structFamI_spec` and `replacePisPw_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structRecTyR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (elim : NIdx) (elimP : ConLeche.Name)
     (large : Bool) (nP nIdx : Nat) (tty : EIdx) (ttyP : Expr)
@@ -1361,8 +1353,7 @@ theorem structRecTyR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:364-386 structRecRhsR
 **THE GENERATED RULE'S RIGHT-HAND SIDE**, constructor `j`'s.
 
-`sorry`: `structRecTyR_spec`'s pieces plus `structMinorsLamsR_spec`,
-`structRuleBodyR_spec` and `pisToLamsPw_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structRecRhsR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (elim : NIdx) (elimP : ConLeche.Name)
     (large : Bool) (nP nIdx : Nat) (tty : EIdx) (ttyP : Expr)
@@ -1487,8 +1478,9 @@ theorem structRecRhsR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
 The generators' input: each constructor's name, field count, type and
 recursive-field positions.  Pure on both sides.
 
-`sorry`: a list zip induction over `recIdxOf_spec` (closed above) and the
-`denoteCtors`/`denoteCtors4` clauses. -/
+**CLOSED**: a list zip induction over `recIdxOf_spec` and the
+`denoteCtors`/`denoteCtors4` clauses (the stale `sorry` note this carried was
+removed in task #97-P3-Ind round 6). -/
 theorem nativeCtors4_spec {st : EStore} :
     ∀ (ctorsA : List (IConstantVal × Nat)) (ctorsAP : List (ConstantVal × Nat))
       (kinds : List (List Arena.RecFieldKind)),
@@ -1529,8 +1521,7 @@ theorem nativeCtors4_spec {st : EStore} :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
 The stream rule's λ prefix is the generated one.
 
-`sorry`: `stripLams`' spec and the structural comparison through
-`denoteE_inj`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem nativeRulePrefixOk_spec (recTy : EIdx) (recTyP : Expr)
     (nP n j nF : Nat) (rhs : EIdx) (rhsP : Expr) :
     PSpec (fun st => denoteE st recTy = some recTyP ∧
@@ -1690,8 +1681,7 @@ theorem nativeRulePrefixOk_spec (recTy : EIdx) (recTyP : Expr)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
 **The stream's rules are the generated ones**, constructor by constructor.
 
-`sorry`: `structRecRhsR_spec`, `nativeRulePrefixOk_spec` and
-`nativeCtors4_spec`, over a list induction. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem nativeRulesOk_spec (recC : NIdx) (recCP : ConLeche.Name)
     (rlvls : LsIdx) (rlvlsP : List Level) (pw : PropWhen) (nP n : Nat)
     (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))

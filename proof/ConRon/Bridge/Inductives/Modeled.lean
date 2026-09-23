@@ -472,8 +472,7 @@ theorem domsMatchAux_succ (g : Nat → Expr → Expr) (bs₁ bs₂ : List (Expr 
 instantiated at `fun _ e => e.renameConsts fP`, which is `checkProjIota`'s own
 instance of it.
 
-`sorry`: a `Nat` recursion over `Bridge/ExprOps/Reset.lean`'s
-`renameConstsFast_spec` (closed) and `denoteE_inj`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem domsMatchRenamed_spec (tbl : List (NIdx × NIdx))
     (fP : ConLeche.Name → ConLeche.Name) (bs₁ bs₂ : List (EIdx × BinderMeta))
     (bs₁P bs₂P : List (Expr × BinderMeta)) (o₁ o₂ k : Nat) :

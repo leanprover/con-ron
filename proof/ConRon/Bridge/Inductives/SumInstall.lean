@@ -463,8 +463,7 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:142-145 consSumCtorsF
 The constructors pushed into the index.  PURE on both sides.
 
-`sorry`: a list induction over `IFEnv.push`'s `denoteFEnv` clause; the
-`IFEnvCoh` and `Pushed` halves are `push`'s own two lemmas. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem consSumCtors_spec (st : EStore) (nP : Nat)
     (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
     (fe : IFEnv) (env : Env) (hcs : denoteCtors st cs = some csP)
@@ -740,9 +739,7 @@ The recursor's rules, one per constructor, with their firing bits.  **Task
 ConstantInfo` and the twin takes the index `fe`, so the statement compares
 them at `find? := env.find?` — which is what `IFEnvOK` says the index is.
 
-`sorry`: `Bridge/ExprOps/TelescopeF.lean`'s `recRulePlain_spec` (closed) and
-`Arena/Env.lean`'s `recRuleBits` against con-leche's, whose nested case needs
-`nestedRuleShape`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem sumRules_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (recName : NIdx) (recNameP : ConLeche.Name) (nP mI rP : Nat)
     (recTy : EIdx) (recTyP : Expr) (cs : List (IConstantVal × Nat))

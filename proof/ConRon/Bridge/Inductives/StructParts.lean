@@ -1552,8 +1552,7 @@ theorem instPisAtLift_pstep {fuel : Nat} {args : List EIdx} {argsP : List Expr}
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:347-354 structProjResidP
 The constructor type's residual after `i` projections have been substituted.
 
-`sorry`: `Bridge/ExprOps/Owed.lean`'s `instPisAtLift_spec` — still open on
-that tier's own list — plus `structProjPs_spec` and `structProjArgP_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structProjResidP_spec (T : NIdx) (TP : ConLeche.Name) (nP : Nat)
     (cty : EIdx) (ctyP : Expr) (i : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
@@ -2131,8 +2130,7 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
 Peel `k` field binders, substituting the projection of the structure variable
 for each.
 
-`sorry`: a `Nat` recursion over `instantiate1LiftFast_spec`
-(`Bridge/ExprOps/Subst.lean`) and `structProjArgP_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP)
@@ -2194,7 +2192,7 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:768-771 structProjBodies
 The entry, after `nP` parameter binders.
 
-`sorry`: `structProjBodiesGo_spec` and `structProjResidP_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
     (cty : EIdx) (ctyP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
