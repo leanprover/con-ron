@@ -314,7 +314,71 @@ theorem ctor_names_of_refines {rsd lsd lst cts o} (hd : StateDRel rsd lsd)
 /-- **`flatten_listed`** — the twin's `listed.flatten`. -/
 theorem flatten_listed_refines {listed v}
     (h : frontend.export_c.flatten_listed listed = ok v) :
-    absNIdxL v = (listed.val.map absNIdxL).flatten := by sorry
+    absNIdxL v = (listed.val.map absNIdxL).flatten := by
+  rw [frontend.export_c.flatten_listed] at h
+  -- the inner loop: one listed vector, from `j`
+  have hin : ∀ (i : Std.Usize) (w : alloc.vec.Vec arena.handle.NIdx),
+      listed.val[i.val]? = some w →
+      ∀ (k : Nat) (j : Std.Usize) out o, w.val.length - j.val = k →
+      frontend.export_c.flatten_listed_loop0_loop0 listed out i (alloc.vec.Vec.len w) j = ok o →
+      o.val = out.val ++ w.val.drop j.val := by
+    intro i w hw k
+    induction k using Nat.strong_induction_on with
+    | _ k ih =>
+      intro j out o hk h
+      rw [frontend.export_c.flatten_listed_loop0_loop0.eq_def] at h
+      by_cases hj : j < alloc.vec.Vec.len w
+      · rw [if_pos hj] at h
+        have hj' : j.val < w.val.length := by scalar_tac
+        obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hv' := vec_index_some hv
+        rw [hw] at hv'
+        cases hv'
+        obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn' := vec_index_eq hj' hn
+        obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn1v : n1 = n := dupId_nidx _ _ hn1
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have e1 := ConRon.Refine.vec_push_val hout1
+        have hj1v := ConRon.Refine.Nat.uadd_val hj1
+        have := ih (w.val.length - j1.val) (by simp at hj1v; omega) j1 out1 o rfl h
+        rw [this, e1, show j1.val = j.val + 1 by simp at hj1v; omega,
+          List.drop_eq_getElem_cons hj', hn', hn1v]
+        simp
+      · rw [if_neg hj] at h
+        cases Result.ok_injective h
+        rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
+  -- the outer loop
+  have hout : ∀ (k : Nat) (i : Std.Usize) out o, listed.val.length - i.val = k →
+      frontend.export_c.flatten_listed_loop0 listed out (alloc.vec.Vec.len listed) i = ok o →
+      absNIdxL o = absNIdxL out ++ ((listed.val.drop i.val).map absNIdxL).flatten := by
+    intro k
+    induction k using Nat.strong_induction_on with
+    | _ k ih =>
+      intro i out o hk h
+      rw [frontend.export_c.flatten_listed_loop0.eq_def] at h
+      by_cases hi : i < alloc.vec.Vec.len listed
+      · rw [if_pos hi] at h
+        have hi' : i.val < listed.val.length := by scalar_tac
+        obtain ⟨w, hw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hw' := vec_index_some hw
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have e1 := hin i w hw' _ 0#usize out out1 rfl hout1
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v := ConRon.Refine.Nat.uadd_val hi1
+        have := ih (listed.val.length - i1.val) (by simp at hi1v; omega) i1 out1 o rfl h
+        rw [this, show i1.val = i.val + 1 by simp at hi1v; omega,
+          List.drop_eq_getElem_cons hi']
+        have hw'' : listed.val[i.val]'hi' = w := by
+          rw [List.getElem?_eq_getElem hi'] at hw'; exact Option.some_injective _ hw'
+        rw [hw'']
+        simp [absNIdxL, e1]
+      · rw [if_neg hi] at h
+        cases Result.ok_injective h
+        rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
+  have := hout _ 0#usize _ v rfl h
+  simpa [absNIdxL] using this
 
 /-- **`names_have_dup`** — the twin's `flat.Nodup`, complemented.  The port's
 algorithm is a handle-keyed SET PASS and not the quadratic scan, because
@@ -323,7 +387,79 @@ obvious spelling (extraction rule 4); the two decide the same predicate, which
 is what this says. -/
 theorem names_have_dup_refines {flat v}
     (h : frontend.export_c.names_have_dup flat = ok v) :
-    v = !(absNIdxL flat).Nodup := by sorry
+    v = !(absNIdxL flat).Nodup := by
+  rw [frontend.export_c.names_have_dup] at h
+  obtain ⟨seen, hseen, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i0, -, n0⟩ := ConRon.Refine.HashMap2.with_capacity_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hseen
+  have H : ∀ (k : Nat) (i : Std.Usize) (seen : ron.hashmap2.HashMap2 arena.handle.NIdx Bool) v,
+      flat.val.length - i.val = k →
+      ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable seen →
+      (∀ x, (ConRon.Refine.HashMap2.toFun seen x).isSome = decide (absNIdx x ∈ (absNIdxL flat).take i.val)) →
+      ((absNIdxL flat).take i.val).Nodup →
+      frontend.export_c.names_have_dup_loop flat seen (alloc.vec.Vec.len flat) i = ok v →
+      v = !(absNIdxL flat).Nodup := by
+    intro k
+    induction k using Nat.strong_induction_on with
+    | _ k ih =>
+      intro i seen v hk hinv hS hnd h
+      rw [frontend.export_c.names_have_dup_loop.eq_def] at h
+      by_cases hi : i < alloc.vec.Vec.len flat
+      · rw [if_pos hi] at h
+        have hi' : i.val < flat.val.length := by scalar_tac
+        have hiL : i.val < (absNIdxL flat).length := by simpa [absNIdxL] using hi'
+        obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn1' := vec_index_eq hi' hn1
+        have hL : (absNIdxL flat)[i.val]'hiL = absNIdx n1 := by simp [absNIdxL, hn1']
+        obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hbv := ConRon.Refine.HashMap2.contains_key_refines_wf nidx_eq2 hinv
+          (anyNKeysOk _) trivial hb
+        rw [hS n1] at hbv
+        have hsplit : absNIdxL flat = (absNIdxL flat).take i.val ++
+            (absNIdx n1 :: (absNIdxL flat).drop (i.val + 1)) := by
+          rw [← hL, ← List.drop_eq_getElem_cons hiL, List.take_append_drop]
+        by_cases hbt : b = true
+        · rw [if_pos hbt] at h
+          cases Result.ok_injective h
+          have hmem : absNIdx n1 ∈ (absNIdxL flat).take i.val := by
+            rw [hbt] at hbv; exact of_decide_eq_true hbv.symm
+          have : ¬ (absNIdxL flat).Nodup := by
+            rw [hsplit, List.nodup_append]
+            rintro ⟨-, -, hd⟩
+            exact hd _ hmem _ List.mem_cons_self rfl
+          rw [decide_eq_false this]; rfl
+        · rw [if_neg hbt] at h
+          have hnm : absNIdx n1 ∉ (absNIdxL flat).take i.val := by
+            intro hm; apply hbt; rw [hbv]; exact decide_eq_true hm
+          obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hn2v : n2 = n1 := dupId_nidx _ _ hn2
+          rw [hn2v] at h
+          obtain ⟨⟨old, seen1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨hinv1, -, hupd, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2
+            hinv (anyNKeysOk _) trivial hins
+          obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi1v := ConRon.Refine.Nat.uadd_val hi1
+          have htake : (absNIdxL flat).take i1.val = (absNIdxL flat).take i.val ++ [absNIdx n1] := by
+            rw [show i1.val = i.val + 1 by simp at hi1v; omega, List.take_add_one,
+              List.getElem?_eq_getElem hiL, hL]; rfl
+          refine ih (flat.val.length - i1.val) (by simp at hi1v; omega) i1 seen1 v rfl hinv1
+            (fun x => ?_) ?_ h
+          · rw [hupd, htake]
+            by_cases hx : x = n1
+            · rw [hx]; simp
+            · rw [Function.update_of_ne hx, hS x]
+              have : absNIdx x ≠ absNIdx n1 := fun e => hx (absNIdx_inj e)
+              simp [this]
+          · rw [htake, List.nodup_append]
+            refine ⟨hnd, List.nodup_singleton _, ?_⟩
+            intro a ha b hb' hab
+            simp only [List.mem_singleton] at hb'
+            subst hb'; subst hab; exact hnm ha
+      · rw [if_neg hi] at h
+        cases Result.ok_injective h
+        rw [List.take_of_length_le (by simp [absNIdxL]; scalar_tac)] at hnd
+        rw [decide_eq_true hnd]; rfl
+  exact H _ 0#usize seen v rfl i0 (fun x => by simp [n0 x]) (by simp) h
 
 /-- **`ctor_index_of`** — the twin's `ctorNames.foldl` into `ctorIx`.  Task
 #87 §20's port bug — *"`ctor_index_of` was first-wins"* — is a fact about the
@@ -333,7 +469,70 @@ theorem ctor_index_of_refines {ns m}
     (h : frontend.export_c.ctor_index_of ns = ok m) :
     NameIdxRel m
       ((((absNIdxL ns).foldl (fun (mi : Std.HashMap NIdx Nat × Nat) n =>
-        (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0))).1) := by sorry
+        (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0))).1) := by
+  rw [frontend.export_c.ctor_index_of] at h
+  obtain ⟨m0, hm0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i0, -, n0⟩ := ConRon.Refine.HashMap2.with_capacity_refines
+    (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hm0
+  have hrel0 : NameIdxRel m0 ∅ := ⟨ConRon.Refine.HashMap2.RelOn_empty n0, i0⟩
+  have H : ∀ (k : Nat) (i : Std.Usize) (m1 : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64)
+      lm o, ns.val.length - i.val = k → NameIdxRel m1 lm →
+      frontend.export_c.ctor_index_of_loop ns m1 (alloc.vec.Vec.len ns) i = ok o →
+      NameIdxRel o (((absNIdxL ns).drop i.val).foldl
+        (fun (mi : Std.HashMap NIdx Nat × Nat) n => (mi.1.insert n mi.2, mi.2 + 1))
+        (lm, i.val)).1 := by
+    intro k
+    induction k using Nat.strong_induction_on with
+    | _ k ih =>
+      intro i m1 lm o hk hr h
+      rw [frontend.export_c.ctor_index_of_loop.eq_def] at h
+      by_cases hi : i < alloc.vec.Vec.len ns
+      · rw [if_pos hi] at h
+        have hi' : i.val < ns.val.length := by scalar_tac
+        obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn1' := vec_index_eq hi' hn1
+        obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hn2v : n2 = n1 := dupId_nidx _ _ hn2
+        rw [hn2v] at h
+        obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hcv : c.val = i.val := by
+          simp only [lift, Result.ok.injEq] at hc; subst hc; exact usize_cast_u64_val' i
+        obtain ⟨⟨old, m2⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+          (fun a b _ _ e => absNIdx_inj e) hr.2 (anyNKeysOk _) hr.1 trivial hins
+        obtain ⟨hI, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hr.2
+          (anyNKeysOk _) trivial hins
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v := ConRon.Refine.Nat.uadd_val hi2
+        have := ih (ns.val.length - i2.val) (by simp at hi2v; omega) i2 m2 _ o rfl ⟨hR, hI⟩ h
+        rw [show i2.val = i.val + 1 by simp at hi2v; omega] at this
+        rw [show (absNIdxL ns).drop i.val = absNIdx n1 :: (absNIdxL ns).drop (i.val + 1) by
+          simp only [absNIdxL, ← List.map_drop, List.drop_eq_getElem_cons hi', hn1',
+            List.map_cons], List.foldl_cons]
+        have hcu : absU c = i.val := hcv
+        rw [hcu] at this
+        exact this
+      · rw [if_neg hi] at h
+        cases Result.ok_injective h
+        rw [List.drop_eq_nil_of_le (by simp [absNIdxL]; scalar_tac)]
+        exact hr
+  have := H _ 0#usize m0 ∅ m rfl hrel0 h
+  simpa using this
+
+/-- `ctorIx`'s range: every index it holds is a position of the names it was
+folded from. -/
+theorem ctorIx_lt : ∀ (L : List NIdx) (m : Std.HashMap NIdx Nat) (c : Nat),
+    (∀ (x : NIdx) k, m[x]? = some k → k < c) →
+    ∀ (x : NIdx) k, (L.foldl (fun (mi : Std.HashMap NIdx Nat × Nat) n =>
+        (mi.1.insert n mi.2, mi.2 + 1)) (m, c)).1[x]? = some k → k < c + L.length
+  | [], m, c, hm, x, k, hx => by simpa using hm x k hx
+  | n :: L, m, c, hm, x, k, hx => by
+    have := ctorIx_lt L (m.insert n c) (c + 1) (fun y k' hy => by
+      rw [Std.HashMap.getElem?_insert] at hy
+      split at hy
+      · cases hy; omega
+      · have := hm y k' hy; omega) x k hx
+    simp only [List.length_cons]; omega
 
 /-- **`show_name`** — a handle read back for a message.  The port's readback
 is `denoteN`'s (`env::read_name`); messages are never compared, so what is
