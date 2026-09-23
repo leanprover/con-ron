@@ -170,7 +170,7 @@ p.nP cA.2 sorts` and passes it beside `cA.2` — discharges it from
 `projTableOK_of_install` is the same statement at the same hypothesis, stated
 there so that `IFEnvOK`'s new field has one named debtor; this is its site.
 
-`sorry`: `structProjBodies_spec` (`Bridge/Inductives/StructParts.lean`), the
+**CLOSED** (task #97-P3-Ind round 8), over `structProjBodies_spec` (`Bridge/Inductives/StructParts.lean`), the
 `IProjTable` record's denotation (`Bridge/Rel.lean`'s `denoteProjTable`), and
 `IFEnv.push`'s own two lemmas — `IFEnvCoh` is preserved by `push` and `Pushed`
 is `⟨[ci], rfl⟩`.  The `denoteFEnv` clause is the push's `denoteCI` at the new

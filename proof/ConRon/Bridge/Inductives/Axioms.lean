@@ -247,6 +247,52 @@ namespace ConRon.Bridge.Inductives
 #print axioms projFwd_specW
 #print axioms checkProjTy_spec
 
+-- round 8 (task #97-P3-Ind): the install frame, the two routes composed, and
+-- the route's pure `EnvWF`
+#print axioms InstStep.trans
+#print axioms ReadOK.flush
+#print axioms ReadOK.push
+#print axioms ReadOK.consSumCtors
+#print axioms ProjOut.push_table
+#print axioms InstRel.impD
+#print axioms allM_E_ckQ
+#print axioms constsResolveFFast_runR
+#print axioms checkSumTele_spec
+#print axioms checkSumInd_spec
+#print axioms normCtorVal_spec
+#print axioms checkSumCtor_spec
+#print axioms checkSumCtors_spec
+#print axioms checkStructProjTable_run
+#print axioms checkNativeTable_run
+#print axioms checkNativeRules_run
+#print axioms checkNativeRec_spec
+#print axioms checkNativePass_spec
+#print axioms checkNativeTail_spec
+#print axioms checkNative_spec
+#print axioms checkNative_envWF
+#print axioms checkMemberVal_spec
+#print axioms checkIndMember_spec
+#print axioms checkIndMembers_spec
+#print axioms provisionRecs_spec
+#print axioms eqBasisStored_run
+#print axioms foldIndMember_envWF
+#print axioms checkIndRecs_envWF
+#print axioms checkModeled_envWF
+#print axioms indDecl_envWF
+
+/-! ## Group 1½ — closed compositions over the five open leaves (round 8)
+
+Each is proved, but prints `sorryAx` through the modeled route's five open
+statements (`checkIotaThm_spec`, `checkIotaThmN_spec`, `nestedRuleShape_spec`,
+`checkProjIota_spec`, `checkProjFn_spec`). -/
+
+#print axioms checkIotaRules_spec
+#print axioms installIndRecs_spec
+#print axioms checkIndRecs_spec
+#print axioms installProjFnStep_spec
+#print axioms installProjFns_spec
+#print axioms checkModeled_spec
+
 /-! ## Group 2 — the two headline theorems -/
 
 #print axioms checkIndDecl_bridge

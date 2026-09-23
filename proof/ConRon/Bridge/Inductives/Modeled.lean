@@ -1346,7 +1346,7 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
 One rule certified and its firing mode written in.
 
-`sorry`: `checkIotaThm_spec`, `checkIotaThmN_spec` and `IFEnvOK` at the
+**CLOSED** (task #97-P3-Ind round 8), over `checkIotaThm_spec`, `checkIotaThmN_spec` and `IFEnvOK` at the
 constructor's lookup. -/
 theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
@@ -1589,7 +1589,7 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:362-371 checkIotaRules
 The whole rule list.
 
-`sorry`: a list induction over `checkIotaRule_spec`. -/
+**CLOSED** (task #97-P3-Ind round 8), over a list induction over `checkIotaRule_spec`. -/
 theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
@@ -1658,7 +1658,7 @@ theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
 A member's header checked against its `_model` counterpart.
 
-`sorry`: `blockRenameTable_spec`, `checkConstantVal_bridge`
+**CLOSED** (task #97-P3-Ind round 8), over `blockRenameTable_spec`, `checkConstantVal_bridge`
 (`Bridge/Checker/Base.lean`, item 11 of task #97-P3-Checker's list — the whole
 tier's single highest-value remaining proof), and `CoreSpec.knot`'s `defeq`. -/
 theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
@@ -1876,7 +1876,7 @@ theorem checkIndMember_push {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps}
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
 One member checked and installed at its real inductive kind.
 
-`sorry`: `checkMemberVal_spec` and `IFEnv.push`'s two lemmas. -/
+**CLOSED** (task #97-P3-Ind round 8), over `checkMemberVal_spec` and `IFEnv.push`'s two lemmas. -/
 theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (hcoh : IFEnvCoh fe') (blockNames : List NIdx)
@@ -1948,7 +1948,7 @@ theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 `checkIndMembers` is task #97d-2's explicit recursion for con-leche's
 `foldlM` over the non-recursor members (deviation 3's fifth item).
 
-`sorry`: a list induction over `checkIndMember_spec` and `InstRel.trans`
+**CLOSED** (task #97-P3-Ind round 8), over a list induction over `checkIndMember_spec` and `InstRel.trans`
 (closed, `Bridge/Inductives/Rel.lean`). -/
 theorem checkIndMembers_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
@@ -2116,7 +2116,7 @@ theorem provisionRecs_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name} 
 The recursors' headers checked and PROVISIONALLY installed (their rules may
 mention each other, so they install as a group).
 
-`sorry`: `checkMemberVal_spec` and `IFEnv.push`, over a list induction. -/
+**CLOSED** (task #97-P3-Ind round 8), over `checkMemberVal_spec` and `IFEnv.push`, over a list induction. -/
 theorem provisionRecs_spec {μ : CheckMode} {env : Env} (feAcc : IFEnv)
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (hcoh : IFEnvCoh feAcc) (blockNames : List NIdx)
@@ -2204,7 +2204,7 @@ theorem provisionRecs_spec {μ : CheckMode} {env : Env} (feAcc : IFEnv)
 `installIndRecs` is the twin's explicit recursion for con-leche's inner fold:
 each provisioned recursor's rules certified and the record installed.
 
-`sorry`: `checkIotaRules_spec` and `IFEnv.push`, over a list induction. -/
+**CLOSED** (task #97-P3-Ind round 8), over `checkIotaRules_spec` and `IFEnv.push`, over a list induction. -/
 theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
     (env₂ envSelf envAcc : Env) (hk : CoreSpec μ Arena.checkFuel)
     (henvSelf : EnvWF envSelf) (hcoh : IFEnvCoh acc)
@@ -2317,7 +2317,7 @@ theorem provisionRecs_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
 The recursor group: the pinned `Eq` basis, the provisioning, the rename table
 and the certified installs.
 
-`sorry`: `eqBasisStored_spec`, `provisionRecs_spec`, `blockRenameTable_spec`
+**CLOSED** (task #97-P3-Ind round 8), over `eqBasisStored_spec`, `provisionRecs_spec`, `blockRenameTable_spec`
 and `installIndRecs_spec`. -/
 theorem checkIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ : IFEnv)
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
@@ -3673,7 +3673,7 @@ theorem foldProjFnI_up {μ : CheckMode} {F G : Nat} {T C : ConLeche.Name}
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
 One projection install, with its duplicate guard.
 
-`sorry`: `checkProjFn_spec` and `IFEnvOK`'s `miss` clause. -/
+**CLOSED** (task #97-P3-Ind round 8), over `checkProjFn_spec` and `IFEnvOK`'s `miss` clause. -/
 theorem installProjFnStep_spec {μ : CheckMode} {env : Env} (e : IFEnv)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh e)
     (T ctorName : NIdx)
@@ -3727,7 +3727,7 @@ theorem installProjFnStep_spec {μ : CheckMode} {env : Env} (e : IFEnv)
 `installProjFns` is the twin's explicit recursion for con-leche's third
 `foldlM` (deviation 3).
 
-`sorry`: a `Nat` recursion over `installProjFnStep_spec` and `InstRel.trans`. -/
+**CLOSED** (task #97-P3-Ind round 8), over a `Nat` recursion over `installProjFnStep_spec` and `InstRel.trans`. -/
 theorem installProjFns_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
     (T ctorName : NIdx)
@@ -4350,7 +4350,7 @@ theorem denoteCaps_empty {s : AState} (hp : PinsOK s) :
 member checked against its `_model` counterpart, the recursors installed as a
 group, and — at a structure-like block — the projection functions.
 
-`sorry`: `indBlockCaps_spec`, `checkIndMembers_spec`, `checkIndRecs_spec`,
+**CLOSED** (task #97-P3-Ind round 8), over `indBlockCaps_spec`, `checkIndMembers_spec`, `checkIndRecs_spec`,
 `ctorResidualOk_spec`, `ctorTargetsFam_spec`, `installProjFns_spec`, and
 `recsFormSuffix`/`isRecInfo`'s exactness (both tag reads, so both are
 `Frontend.denoteCI`'s case split). -/

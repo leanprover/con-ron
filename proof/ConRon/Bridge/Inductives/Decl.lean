@@ -256,18 +256,20 @@ theorem checkDecl_ind_route {μ : CheckMode} {ops : CheckerOps CheckM}
 `.indDecl` arm's `wf` half) — **a checked inductive block leaves a
 well-formed environment**, V-free.
 
-**This is an ASK of con-leche, stated here so that the arm can cite it.**
-con-leche establishes `EnvWF env₂` for an inductive block only INSIDE the
-model construction (`Model/Inductives/DeclNative.lean`'s `declNative`,
-`Interp/DeclIndP.lean`'s `declInd`: the new environment's `EnvModelM`
-carries `toEnvFacts.wf`), and every stage lemma on the way takes the input
-model.  The facts it reads are all syntactic and V-free — the former's cons
-(`Verify/Inductives/SumWF.lean`'s `direct_sum_ind_wf`), the constructors'
-(`envWF_consSumCtors`), the recursor's (`FixWF.lean`'s `direct_fix_rec_wf`),
-the projection table's and the modeled route's members, recursors and
-projection functions (`BridgeWfImp.lean`'s `…_wfimp` family) — so the
-statement is the V-free extraction of what `declStep_preserves` already
-proves.  **Owner: con-leche** (`Verify/Inductives/*WF.lean`); open here. -/
+Round 7 stated this as an ask of con-leche: con-leche establishes `EnvWF env₂`
+for an inductive block only inside its model construction and its cached
+bridge (`Verify/Cached/BridgeCSDecl.lean`'s `checkNativeS_run`/
+`checkIndDeclSF_run`).  **CLOSED here** (task #97-P3-Ind round 8) from the
+V-free lemmas con-leche already exports, assembled along the pure route the
+way its cached bridge assembles them: `checkNative_envWF`
+(`direct_sum_ind_wf`, `envWF_consSumCtors`, `direct_fix_rec_wf`,
+`direct_table_wf`) and `checkModeled_envWF` (`checkIndMember_inv` +
+`indCapsWF_of_pins` at `etaPins_of_indBlockCaps`, `provisionRecs_facts` /
+`rulesFold_inv` / `chains_swapSh` for the recursor group, `checkProjFn_inv`
+for the projection functions).  **No `EtaFamiliesClosed` is needed**: every
+step reads only the syntactic facts of the pure run.  Two of con-leche's
+helpers are private (`constWF_le'`, `cvA_type_facts'`); they are replicated
+locally, which is the only upstream wish left (make them public). -/
 theorem indDecl_envWF {μ : CheckMode} {F : Nat} {pinsP : List NatOpPinSet} {env env' : Env}
     {b : List ConstantInfo} {nP : Nat} (henv : EnvWF env)
     (hpin : ConLeche.basisPinHit b = none)
@@ -289,7 +291,7 @@ arm) — **THEOREM 1 AT THE INDUCTIVE ROUTE**: an accepting run of
 refines con-leche's `.indDecl` arm at some fuel, with the state invariant, the
 append, the untouched pin table and the environment's three clauses.
 
-`sorry`: the composition itself is four `AM.bind_ok` inversions over
+**CLOSED** (task #97-P3-Ind round 8), over the composition itself is four `AM.bind_ok` inversions over
 `indParamsOk_spec`, `nativeParts?_spec`, `checkNative_spec` and
 `checkModeled_spec`, closed by `checkDecl_ind_route` above; what it waits on
 is those four, each of which waits in turn on the tier's leaf walks and on

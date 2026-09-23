@@ -242,7 +242,7 @@ theorem closeTelescope_spec (bs : List (EIdx × BinderMeta))
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-30 checkSumTeleF
 The type former's stage: the telescope checked and the result sort measured.
 
-`sorry`: `whnfTelescope_spec` and `closeTelescope_spec`, plus `CoreSpec.knot`'s
+**CLOSED** (task #97-P3-Ind round 8), over `whnfTelescope_spec` and `closeTelescope_spec`, plus `CoreSpec.knot`'s
 `defeq` slot for the stored type's comparison. -/
 theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
@@ -437,7 +437,7 @@ con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-43 checkSumIndF
 The type former checked and installed, and the shape record completed with the
 sort its telescope measured.  **Deviation 3's `capsOf`** is instantiated here.
 
-`sorry`: `checkSumTele_spec`, `withSort_spec` (`Bridge/Inductives/SumParts.lean`),
+**CLOSED** (task #97-P3-Ind round 8), over `checkSumTele_spec`, `withSort_spec` (`Bridge/Inductives/SumParts.lean`),
 `nativeCapsAt_spec`, and `IFEnv.push`'s two lemmas for the `InstRel`. -/
 theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
@@ -1510,7 +1510,7 @@ theorem denoteBinders_append {st : EStore} :
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF
 The constructor's stored type rebuilt from the normalised domains.
 
-`sorry`: `normFieldDoms_spec`, `zipFvarDoms_spec` and `closeTelescope_spec`. -/
+**CLOSED** (task #97-P3-Ind round 8), over `normFieldDoms_spec`, `zipFvarDoms_spec` and `closeTelescope_spec`. -/
 theorem normCtorVal_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
@@ -1642,7 +1642,7 @@ con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:97-128 checkSumCtorF
 One constructor checked: its telescope, its parameter domains, its residual,
 its field sorts and its normalised stored value.
 
-`sorry`: `checkSumTele_spec`, `checkStructDomsAt_spec`
+**CLOSED** (task #97-P3-Ind round 8), over `checkSumTele_spec`, `checkStructDomsAt_spec`
 (`Bridge/Inductives/StructInstall.lean`), `checkStructFieldSortsI_spec`,
 `normCtorVal_spec` and `structCtorResidOk_spec`. -/
 theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
@@ -1859,7 +1859,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:130-140 checkSumCtorsF
 The whole constructor list.
 
-`sorry`: a list induction over `checkSumCtor_spec`. -/
+**CLOSED** (task #97-P3-Ind round 8), over a list induction over `checkSumCtor_spec`. -/
 theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)

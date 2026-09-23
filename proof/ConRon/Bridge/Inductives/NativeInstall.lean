@@ -1033,7 +1033,7 @@ theorem classifyFixKinds_hcs {T : ConLeche.Name} {lps : List ConLeche.Name} {nP 
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115 checkNativeRecF
 **The recursor generated, annotated and compared with the stream's.**
 
-`sorry`: `structRecTyR_spec`, `checkNativeRules_spec`, `nativeCtors4_spec`
+**CLOSED** (task #97-P3-Ind round 8), over `structRecTyR_spec`, `checkNativeRules_spec`, `nativeCtors4_spec`
 and `CoreSpec.knot`'s `annotate`/`defeq` slots. -/
 theorem checkNativeRec_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
@@ -1663,7 +1663,7 @@ theorem checkStructFieldSortsI_up {μ : CheckMode} {F G : Nat} {env : Env}
 **One pass over the former and the constructors** at a given `is_rec` verdict,
 with the flag that says whether the classification confirms it.
 
-`sorry`: `checkSumInd_spec`, `complete_spec`, `flushCaches_spec`
+**CLOSED** (task #97-P3-Ind round 8), over `checkSumInd_spec`, `complete_spec`, `flushCaches_spec`
 (`Bridge/Specs.lean`, closed, with `CacheOK.of_empty`), `checkSumCtors_spec`,
 `classifyFixKinds_spec`, `withKinds_spec`, `nativeCaps_spec` and
 `nativeCapsAt_spec`. -/
@@ -1771,7 +1771,7 @@ binders' sorts, the kinds re-checked, the stream's rules against the generated
 ones, the constructors consed, the recursor with its rules, and the projection
 table.
 
-`sorry`: `readLevel`'s spec (`Bridge/Specs.lean`, closed),
+**CLOSED** (task #97-P3-Ind round 8), over `readLevel`'s spec (`Bridge/Specs.lean`, closed),
 `openPisAtFvars`' spec, `checkStructFieldSortsI_spec`, `nativeFieldsOk_spec`,
 `paramLevels_spec`, `nativeRulesOk_spec`, `consSumCtors_spec`,
 `checkNativeRec_spec`, `sumRules_spec` and `checkNativeTable_spec` — the
@@ -2081,7 +2081,7 @@ theorem denoteCtors_nodup {st : EStore} (hwf : StoreWF st) :
 distinct names, the pass at the syntactic `is_rec`, and — where that reading
 overshot — a second pass at the classification's verdict.
 
-`sorry`: `nativeRawRec_spec`, `checkNativePass_spec` twice,
+**CLOSED** (task #97-P3-Ind round 8), over `nativeRawRec_spec`, `checkNativePass_spec` twice,
 `nativeIsRec_spec` (closed), `checkNativeTail_spec`, and the `Nodup` guard,
 which is `denoteN_inj` at the constructor names (`Bridge/Rel.lean`). -/
 theorem checkNative_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
