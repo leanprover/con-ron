@@ -395,34 +395,9 @@ theorem etaCertFueled_yes {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
     bind, Except.bind, if_true]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
-`etaCert`**: η at a λ against a non-λ.
-
-**OPEN, and the cheapest of the ten** (round 3): its whole PURE side is
-proved above (`etaCertFueled_nf`, `_dom`, `_body`, `_yes`) and so is the one
-callee rule whose published shape it cannot use
-(`instantiate1Fast_specE`, `Bridge/Core/Walks/Spine.lean`).  What is left is
-twenty-three verification conditions on the arena side — the three knot calls
-in their primed shape, two `internE`s with their `ViewOK` obligations, one
-`instantiate1Fast`, and the well-scopedness of the opened body at `d + 1`
-(con-leche's `WScoped.instantiate1` and `WScoped.mono` are exactly it).  The
-statement's FOUR subjects are the λ's two children, its binder datum and the
-comparand — `Bridge/Rel.lean`'s `RelE.lam` shape, at the level of a whole
-walk. -/
-theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (ty₁ body₁ b : EIdx) (m₁ : BinderMeta)
-    (t x y : Expr) (hok : CheckOK mode env fe s₀)
-    (hdt : denoteE s₀.store ty₁ = some t)
-    (hdx : denoteE s₀.store body₁ = some x)
-    (hdy : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d (.lam t x m₁)) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₁ body₁ m₁ b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.etaCertFueled mode env F d t x m₁ y)
-          r⌝⦄ := by
-  sorry
+/-! `etaCert_spec` **moved to `Bridge/Core/Walks/Spine.lean`** in round 4
+and is CLOSED there, beside `instantiate1Fast_specE`, the one callee rule
+whose answer shape it needs. -/
 
 /-! ### `defEqList`, the tier's first `List` recursion
 

@@ -585,6 +585,27 @@ theorem denote_not_app {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
+/-- con-leche: none — a handle whose VIEW is not a `.forallE` denotes an
+expression that is not a `.forallE` (the binder meta is carried verbatim, so
+the two shapes coincide).  `etaCert`'s not-a-∀ exit. -/
+theorem denote_not_forallE {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
+    (he : denoteE st h = some e)
+    (hne : ∀ ty b m, v = .forallE ty b m → False) :
+    ∀ p q m, e ≠ .forallE p q m := by
+  cases v with
+  | bvar i => rw [denote_bvar_inv hwf hv he]; simp
+  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; simp
+  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
+  | const n us => obtain ⟨p, q, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
+  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
+  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b m => exact absurd rfl (hne ty b m)
+  | letE ty w b =>
+    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
+  | lit l => rw [denote_lit_inv hwf hv he]; simp
+  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
+
 /-- con-leche: none — DESIGN §8.3's "index inequality IS structural
 inequality" at the NAME store, as a `Bool` equation: `denoteN`'s
 functionality one way, `denoteN_inj` the other. -/
@@ -905,6 +926,173 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
   exact h6
 
 
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
+`etaCert`**: η at a λ against a non-λ.
+
+**OPEN, and the cheapest of the ten** (round 3): its whole PURE side is
+proved above (`etaCertFueled_nf`, `_dom`, `_body`, `_yes`) and so is the one
+callee rule whose published shape it cannot use
+(`instantiate1Fast_specE`, `Bridge/Core/Walks/Spine.lean`).  What is left is
+twenty-three verification conditions on the arena side — the three knot calls
+in their primed shape, two `internE`s with their `ViewOK` obligations, one
+`instantiate1Fast`, and the well-scopedness of the opened body at `d + 1`
+(con-leche's `WScoped.instantiate1` and `WScoped.mono` are exactly it).  The
+statement's FOUR subjects are the λ's two children, its binder datum and the
+comparand — `Bridge/Rel.lean`'s `RelE.lam` shape, at the level of a whole
+walk. -/
+theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (ty₁ body₁ b : EIdx) (m₁ : BinderMeta)
+    (t x y : Expr) (hok : CheckOK mode env fe s₀)
+    (hdt : denoteE s₀.store ty₁ = some t)
+    (hdx : denoteE s₀.store body₁ = some x)
+    (hdy : denoteE s₀.store b = some y)
+    (hwa : Expr.WScoped d (.lam t x m₁)) (hwb : Expr.WScoped d y) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₁ body₁ m₁ b
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimBOp (fun F => ConLeche.etaCertFueled mode env F d t x m₁ y)
+          r⌝⦄ := by
+  obtain ⟨hwt, hwx⟩ : Expr.WScoped d t ∧ Expr.WScoped d x := by
+    simpa only [Expr.WScoped] using hwa
+  have hio := hsim.inferIO'
+  have hwh := hsim.whnf'
+  have hdq := hsim.defeq'
+  have hi1 := instantiate1Fast_specE coreWalkFuel
+  mvcgen [ConRon.Arena.etaCert, hio, hwh, hdq, hi1]
+  all_goals (bridge_peel; subst_vars)
+  -- the seventeen callee preconditions
+  case vc1.hok => exact hok
+  case vc2.hdw => exact ⟨y, hdy, hwb⟩
+  case vc3.hok => rename_i hck _ _ _; exact hck
+  case vc4.hdw =>
+    rename_i hsio
+    obtain ⟨v, hv, hw, _⟩ := hsio y hdy
+    exact ⟨v, hv, hw⟩
+  case vc5.hok => rename_i hck _ _ _ _; exact hck
+  case vc6.hda =>
+    rename_i hsio hck2 hview _ _ hswh
+    obtain ⟨vtb, hvtb, _, _⟩ := hsio y hdy
+    obtain ⟨vw, hvw, hwvw, _⟩ := hswh vtb hvtb
+    obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
+    simp only [Expr.WScoped] at hwvw
+    exact ⟨p, hp, hwvw.1⟩
+  case vc7.hdb =>
+    rename_i hx01 _ _ _ _ hx12 _ _
+    exact ⟨t, denote_ext hdt (hx01.trans hx12), hwt⟩
+  case vc8.hwf => rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hck2 hview hx12 hp21 hswh hsdq1; exact hck3.state.wf
+  case vc9.hv =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hck2 hview hx12 hp21 hswh hsdq1
+    exact viewOK_fvar (by rw [denote_ext hdt ((hx01.trans hx12).trans hx23)]; rfl)
+  case vc10.hok => rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32 _ _ hc43 hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1; exact ⟨hwf4⟩
+  case vc11.hv =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32 _ _ hc43 hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1
+    rw [hfv, denoteEView, denote_ext hdt (((hx01.trans hx12).trans hx23).trans hx34)]
+    rfl
+  case vc12.hden =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32 _ _ hc43 hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1
+    rw [denote_ext hdx (((hx01.trans hx12).trans hx23).trans hx34)]; rfl
+  case vc13.hwf => rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 hck1 hck3 hwf4 hst5 hx01 hx23 hx34 hx45 hp10 hsio hp32 _ hc54 _ hp54 hc43 _ hinst hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1; exact hst5.wf
+  case vc14.hv =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 hck1 hck3 hwf4 hst5 hx01 hx23 hx34 hx45 hp10 hsio hp32 _ hc54 _ hp54 hc43 _ hinst hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1
+    have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
+    rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
+    exact viewOK_app (by rw [denote_ext hdy (hx04.trans hx45)]; rfl)
+      (by rw [denote_ext hfv hx45]; rfl)
+  case vc15.hok =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23 hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+    exact ((hck3.mono ⟨hwf4⟩ hx34 hc43 hp43).mono hst5 hx45 hc54 hp54).mono
+      ⟨hwf6⟩ hx56 hc65 hp65
+  case vc16.hda =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23 hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+    have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
+    rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
+    exact ⟨_, denote_ext (hinst _ hfv x (denote_ext hdx hx04)) hx56,
+      Expr.WScoped.instantiate1 hwt 0 hwx⟩
+  case vc17.hdb =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23 hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+    have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
+    rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
+    simp only [denoteEView, denote_ext hdy ((hx04.trans hx45).trans hx56),
+      denote_ext hfv (hx45.trans hx56), opt2] at hrhs
+    refine ⟨_, hrhs, ?_⟩
+    simp only [Expr.WScoped]
+    exact ⟨hwb.mono (Nat.le_succ d), Nat.lt_succ_self d, hwt⟩
+  -- the opened bodies DISAGREE
+  case vc18 =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 rb hnb s7 hck1 hck3 hwf4 hst5 hwf6 hck7 hx01 hx23 hx34 hx45 hx56 hx67 hp10 hsio hp32 _ hc54 _ hp76 hsdq2 _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+    obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
+    obtain ⟨vw, hvw, hwvw, F2, hF2⟩ := hswh vtb hvtb
+    obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
+    have ht2 := denote_ext hdt (hx01.trans hx12)
+    obtain ⟨F3, hF3⟩ := hsdq1 p t hp ht2
+    have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
+    rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
+    have hlhs := hinst _ hfv x (denote_ext hdx hx04)
+    have hx06 := (hx04.trans hx45).trans hx56
+    simp only [denoteEView, denote_ext hdy hx06,
+      denote_ext hfv (hx45.trans hx56), opt2] at hrhs
+    obtain ⟨F4, hF4⟩ := hsdq2 _ _ (denote_ext hlhs hx56) hrhs
+    have hck7' : CheckOK mode env fe _ := hck7
+    refine ⟨hck7', (hx06.trans hx67), ?_, ?_⟩
+    · rw [hp76, hp65, hp54, hp43, hp32, hp21, hp10]
+    · obtain rfl : rb = false := by simpa using hnb
+      exact ⟨F1 + F2 + F3 + F4, etaCertFueled_body
+        (ConLeche.inferTypeIO_mono (by omega) hF1)
+        (ConLeche.whnf_mono (by omega) hF2)
+        (ConLeche.isDefEqCore_mono (by omega) hF3)
+        (ConLeche.isDefEqCore_mono (by omega) hF4)⟩
+  -- the regime mismatch: a `fail`, so the partial-correctness triple holds
+  case vc19 => intro h; exact h.elim
+  -- the CERTIFICATE
+  case vc20 =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 rb hnb hpw s7 hck1 hck3 hwf4 hst5 hwf6 hck7 hx01 hx23 hx34 hx45 hx56 hx67 hp10 hsio hp32 _ hc54 _ hp76 hsdq2 _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+    obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
+    obtain ⟨vw, hvw, hwvw, F2, hF2⟩ := hswh vtb hvtb
+    obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
+    have ht2 := denote_ext hdt (hx01.trans hx12)
+    obtain ⟨F3, hF3⟩ := hsdq1 p t hp ht2
+    have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
+    rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
+    have hlhs := hinst _ hfv x (denote_ext hdx hx04)
+    have hx06 := (hx04.trans hx45).trans hx56
+    simp only [denoteEView, denote_ext hdy hx06,
+      denote_ext hfv (hx45.trans hx56), opt2] at hrhs
+    obtain ⟨F4, hF4⟩ := hsdq2 _ _ (denote_ext hlhs hx56) hrhs
+    have hck7' : CheckOK mode env fe _ := hck7
+    refine ⟨hck7', (hx06.trans hx67), ?_, ?_⟩
+    · rw [hp76, hp65, hp54, hp43, hp32, hp21, hp10]
+    · obtain rfl : rb = true := by simpa using hnb
+      exact ⟨F1 + F2 + F3 + F4, etaCertFueled_yes
+        (ConLeche.inferTypeIO_mono (by omega) hF1)
+        (ConLeche.whnf_mono (by omega) hF2)
+        (ConLeche.isDefEqCore_mono (by omega) hF3)
+        (ConLeche.isDefEqCore_mono (by omega) hF4) (by simpa using hpw)⟩
+  -- the domains DISAGREE
+  case vc21 =>
+    rename_i s0 _ s1 _ ty2 bd2 m2 s2 rb hnb s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hsdq1 hck2 hview hx12 hp21 hswh
+    obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
+    obtain ⟨vw, hvw, hwvw, F2, hF2⟩ := hswh vtb hvtb
+    obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
+    have ht2 := denote_ext hdt (hx01.trans hx12)
+    obtain ⟨F3, hF3⟩ := hsdq1 p t hp ht2
+    obtain rfl : rb = false := by simpa using hnb
+    refine ⟨hck3, ((hx01.trans hx12).trans hx23), by rw [hp32, hp21, hp10], ?_⟩
+    exact ⟨F1 + F2 + F3, etaCertFueled_dom
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.whnf_mono (by omega) hF2)
+      (ConLeche.isDefEqCore_mono (by omega) hF3)⟩
+  -- the comparand's type does not reduce to a ∀
+  case vc22 =>
+    rename_i s0 _ s1 _ _ hnf s2 hck1 hx01 hp10 hsio hck2 _ hx12 hp21 hswh
+    obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
+    obtain ⟨vw, hvw, _, F2, hF2⟩ := hswh vtb hvtb
+    refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], ?_⟩
+    exact ⟨F1 + F2, etaCertFueled_nf
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.whnf_mono (by omega) hF2)
+      (denote_not_forallE hck2.state.wf ‹_› hvw hnf)⟩
+
 /-! ## 5. `isPropType` — here for the import reason, not the subject
 
 The walk needs `lvlEq?_spec` (`Walks/Cached.lean`) and nothing of the
@@ -1045,6 +1233,10 @@ section Census
 #print axioms sameConstHeads_spec
 #print axioms defeqSpine_spec
 #print axioms isPropType_spec
+#print axioms view_len_of_denoteLs
+#print axioms denote_not_forallE
+#print axioms unfoldDefinition_spec
+#print axioms etaCert_spec
 
 end Census
 

@@ -393,6 +393,7 @@ section Census
 
 #print axioms projTableName_spec
 #print axioms readNamesM_eq
+#print axioms IProjEntry.typeAt_spec
 
 end Census
 

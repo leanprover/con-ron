@@ -829,10 +829,16 @@ have written". -/
 #print axioms CacheFrame.ofReadLevelM
 #print axioms lvlEq?_frame
 
-/-! The three that are `sorry` — `sorryAx` is EXPECTED on exactly these
-(DESIGN §8's `### Task #97-P3-CoreWalks` §7). -/
+/-! The three instantiated-constant caches — CLOSED in round 4, on
+`instLPFast_spec`'s cache frame. -/
+#print axioms CheckOK.ofInstLP
+#print axioms denoteCV_inv
+#print axioms CacheOK.insertConstTy
+#print axioms CacheOK.insertConstVal
+#print axioms CacheOK.insertRuleRhs
 #print axioms constTyAt_spec
 #print axioms constValAt_spec
+#print axioms constValAt_spec'
 #print axioms ruleRhsAt_spec
 
 end Census
