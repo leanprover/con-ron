@@ -1364,7 +1364,227 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (fun st x => ∃ F rl, ConLeche.checkIotaRule μ (ConLeche.fueledOps μ F)
         env' envSelf fP cvNameP lpsP tyAP mI rP j rP' = .ok rl ∧
         Frontend.denoteRule st x = some rl) := by
-  sorry
+  intro s₀ s' x hck hpre hrun
+  obtain ⟨hren, hcn, hlps, hty, hr, hfe', hfeS, hok'⟩ := hpre
+  have hknot := hk.knot envSelf feSelf henv
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  have hnever2 : ∀ {α β γ : Type} {y : AM α} {f : α → Arena.CheckError}
+      {g : γ → AM β}, AM.Never (y >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
+    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
+  have hienv₀ : IFEnvOK env' fe' s₀ := hok' s₀ rfl
+  simp only [Frontend.denoteRule] at hr
+  cases hc1 : denoteN s₀.store.ns r.ctor with
+  | none => rw [hc1] at hr; simp at hr
+  | some ctorP =>
+  cases hc2 : Frontend.denoteFire s₀.store r.fire with
+  | none => rw [hc1, hc2] at hr; simp at hr
+  | some fireP =>
+  cases hc3 : denoteE s₀.store r.rhs with
+  | none => rw [hc1, hc2, hc3] at hr; simp at hr
+  | some rhsP =>
+  rw [hc1, hc2, hc3] at hr
+  obtain rfl := (Option.some.inj hr).symm
+  simp only [Arena.checkIotaRule] at hrun
+  -- the rule's name, for the messages
+  obtain ⟨nm, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, -⟩ := Frontend.readName_run k1
+  rw [hs1] at z1
+  -- the stored constructor, at `fe'`
+  cases hf : fe'.find? r.ctor with
+  | none =>
+    rw [hf] at z1
+    exact absurd z1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | some ci =>
+  rw [hf] at z1
+  obtain ⟨nm', cP, hnm', hcP, henvC⟩ := hienv₀.hit r.ctor ci hf
+  obtain rfl : ctorP = nm' := Option.some.inj (hc1.symm.trans hnm')
+  cases ci
+  case ctorInfo cvj cnP cnF =>
+    obtain ⟨cvjP, rfl, hcvj⟩ := denoteCI_ctor_inv hcP
+    dsimp only at z1
+    obtain ⟨hnf, z2⟩ := AM.dunless_ok hnever z1
+    replace z2 := AM.pure_bind_ok z2
+    -- the raw right-hand side's scoping
+    obtain ⟨b1, s₂, k2, z3⟩ := bindOk z2
+    obtain ⟨h21, h22, h23, hb1⟩ := AM.of_run (P := fun u => u = s₀) rfl k2
+      (ExprOps.looseBVarsBoundedFast_spec Arena.coreWalkFuel 0 s₀ r.rhs hck.state
+        (by rw [hc3]; rfl))
+    have c2 := CoreStep.of_readonly hck h21 h22 h23
+    obtain ⟨hlb, z4⟩ := AM.dunless_ok hnever z3
+    replace z4 := AM.pure_bind_ok z4
+    rw [hb1 rhsP hc3] at hlb
+    have hc3' : denoteE s₂.store r.rhs = some rhsP := by rw [h21]; exact hc3
+    obtain ⟨b2, s₃, k3, z5⟩ := bindOk z4
+    obtain ⟨h31, h32, h33, hb2⟩ := AM.of_run (P := fun u => u = s₂) rfl k3
+      (ExprOps.hasFvarFast_spec Arena.coreWalkFuel s₂ r.rhs c2.ok.state (by rw [hc3']; rfl))
+    have c3 := c2.trans (CoreStep.of_readonly c2.ok h31 h32 h33)
+    have hc3'' : denoteE s₃.store r.rhs = some rhsP := by rw [h31]; exact hc3'
+    rw [hb2 rhsP hc3'] at z5
+    split at z5
+    · exact absurd z5 (hnever _ _ _)
+    rename_i hnofv
+    replace z5 := AM.pure_bind_ok z5
+    have hwsR : Expr.WScoped 0 rhsP := Expr.WScoped.of_not_hasFvar (by simpa using hnofv)
+    -- annotated at the provisioned index
+    obtain ⟨rhsA, s₄, k4, z6⟩ := bindOk z5
+    obtain ⟨ok4, x4, p4, ⟨rhsAP, hrhsA, hwsA, F₁, hF₁⟩⟩ := AM.of_run (P := fun u => u = s₃)
+      (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s₃.store u.store ∧
+        u.pins = s₃.pins ∧ Core.SimE (ConLeche.annotateCore μ envSelf) 0 rhsP u.store r)
+      rfl k4 (hknot.annotate s₃ 0 r.rhs rhsP c3.ok hc3'' hwsR)
+    have c4 := c3.trans ⟨ok4, x4, p4⟩
+    -- its level parameters and constants
+    obtain ⟨b3, s₅, k5, z7⟩ := bindOk z6
+    obtain ⟨h51, h52, h53, hb3⟩ := allLevelParamsDefined_run c4.ok.state
+      (denoteNListE_ext c4.ext _ _ hlps) hrhsA k5
+    have c5 := c4.trans (CoreStep.of_readonly c4.ok h51 h52 h53)
+    have hrhsA5 : denoteE s₅.store rhsA = some rhsAP := by rw [h51]; exact hrhsA
+    obtain ⟨hlp, z8⟩ := AM.dunless_ok hnever z7
+    replace z8 := AM.pure_bind_ok z8
+    rw [hb3] at hlp
+    obtain ⟨b4, s₆, k6, z9⟩ := bindOk z8
+    obtain ⟨h61, h62, h63, hb4⟩ := constsResolveFFast_run c5.ok hrhsA5 k6
+    have c6 := c5.trans (CoreStep.of_readonly c5.ok h61 h62 h63)
+    have hrhsA6 : denoteE s₆.store rhsA = some rhsAP := by rw [h61]; exact hrhsA5
+    obtain ⟨hres, z10⟩ := AM.dunless_ok hnever2 z9
+    replace z10 := AM.pure_bind_ok z10
+    rw [hb4] at hres
+    -- the λ-telescope shape
+    obtain ⟨sl, s₇, k7, z11⟩ := bindOk z10
+    obtain ⟨hs7, hsl⟩ := stripLams_pstep c6.ok.state hrhsA6 k7
+    rw [hs7] at z11
+    obtain ⟨hshape, z12⟩ := AM.dunless_ok hnever z11
+    replace z12 := AM.pure_bind_ok z12
+    have hshapeP : (rhsAP.stripLams (rP + cnF)).isSome = true := by
+      rcases sl with _ | ⟨bs, e⟩
+      · exact absurd hshape (by simp)
+      · obtain ⟨xs, x', hx, -, -⟩ := denoteBP_someB' hsl
+        rw [hx]; rfl
+    -- its type, inferred
+    obtain ⟨rty, s₈, k8, z13⟩ := bindOk z12
+    obtain ⟨ok8, x8, p8, ⟨rtyP, hrty, -, F₂, hF₂⟩⟩ := AM.of_run (P := fun u => u = s₆)
+      (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s₆.store u.store ∧
+        u.pins = s₆.pins ∧ Core.SimE (ConLeche.inferTypeCore μ envSelf) 0 rhsAP u.store r)
+      rfl k8 (hknot.infer s₆ 0 rhsA rhsAP c6.ok hrhsA6 hwsA)
+    have c8 := c6.trans ⟨ok8, x8, p8⟩
+    have x0_8 : Ext s₀.store s₈.store := c8.ext
+    have hty8 := denote_ext hty x0_8
+    -- the firing mode
+    obtain ⟨b5, s₉, k9, z14⟩ := bindOk z13
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := AM.of_run (P := fun t => t = s₈) rfl k9
+      (ExprOps.recRulePlain_spec Arena.coreWalkFuel s₈ tyA mI rP cnP c8.ok.state
+        (by rw [hty8]; rfl))
+    have p9 : PStep s₈ s₉ := PStep.of_caches h1 h2 h3 h5 h6
+    have hb5 : b5 = Expr.recRulePlain tyAP mI rP cnP := h7 tyAP hty8
+    have c9 := c8.trans (p9.toCore c8.ok)
+    have x0_9 := c9.ext
+    have x4_9 : Ext s₄.store s₉.store :=
+      (CoreStep.of_readonly c4.ok h51 h52 h53).ext.trans
+        ((CoreStep.of_readonly c5.ok h61 h62 h63).ext.trans (x8.trans p9.ext))
+    have hrP9 : Frontend.denoteRule s₉.store r = some ⟨ctorP, r.nfields, r.ctorParams, fireP,
+        rhsP, r.k, r.eta, r.paramsBlind⟩ := by
+      simp only [Frontend.denoteRule, denoteN_ext hc1 x0_9, denoteFire_ext hc2 x0_9,
+        denote_ext hc3 x0_9]
+    have hpre9 : RenameRelW s₉.store tbl fP ∧ denoteN s₉.store.ns cvName = some cvNameP ∧
+        Frontend.denoteNList s₉.store.ns lps = some lpsP ∧ denoteE s₉.store tyA = some tyAP ∧
+        Frontend.denoteRule s₉.store r = some ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP,
+          r.k, r.eta, r.paramsBlind⟩ ∧
+        Frontend.denoteCV s₉.store cvj = some cvjP ∧ denoteE s₉.store rhsA = some rhsAP ∧
+        denoteFEnv s₉.store fe' = some env' ∧ denoteFEnv s₉.store feSelf = some envSelf ∧
+        IFEnvOKS env' fe' s₉.store :=
+      ⟨hren.mono x0_9, denoteN_ext hcn x0_9, denoteNListE_ext x0_9 _ _ hlps,
+        denote_ext hty x0_9, hrP9, denoteCV_ext hcvj x0_9, denote_ext hrhsA x4_9,
+        denoteFEnv_ext x0_9 hfe', denoteFEnv_ext x0_9 hfeS, hok'.mono x0_9⟩
+    -- the rescue bits, read at `fe'`, after either certificate
+    have tail : ∀ (fire : IRecRuleFire) (fireP' : RecRuleFire) (s₁₀ : AState),
+        CoreStep μ envSelf feSelf s₉ s₁₀ → Frontend.denoteFire s₁₀.store fire = some fireP' →
+        Arena.recRuleBits fe' cvName ⟨r.ctor, r.nfields, cnP, fire, rhsA, r.k, r.eta, false⟩ s₁₀
+          = .ok (x, s') →
+        CoreStep μ envSelf feSelf s₀ s' ∧ Frontend.denoteRule s'.store x = some
+          (ConLeche.recRuleBits env'.find? cvNameP ⟨ctorP, r.nfields, cnP, fireP', rhsAP, r.k,
+            r.eta, false⟩) := by
+      intro fire fireP' s₁₀ c10 hfire hrb
+      have c10' := c9.trans c10
+      have x0_10 := c10'.ext
+      have hrl : Frontend.denoteRule s₁₀.store
+          ⟨r.ctor, r.nfields, cnP, fire, rhsA, r.k, r.eta, false⟩ =
+          some ⟨ctorP, r.nfields, cnP, fireP', rhsAP, r.k, r.eta, false⟩ := by
+        simp only [Frontend.denoteRule, denoteN_ext hc1 x0_10, hfire,
+          denote_ext hrhsA (x4_9.trans c10.ext)]
+      obtain ⟨hfr, hrl'⟩ := recRuleBits_runX c10'.ok (hok'.mono x0_10 s₁₀ rfl)
+        (denoteN_ext hcn x0_10) hrl hrb
+      exact ⟨c10'.trans ⟨Core.CheckOK.ofReadbackFrame c10'.ok hfr, hfr.ext, hfr.pins⟩, hrl'⟩
+    -- the pure side, up to the certificate
+    have hnf' : r.nfields = cnF := by simpa using hnf
+    have pure_pre : ∀ G, F₁ ≤ G → F₂ ≤ G → ∀ (fireP' : RecRuleFire),
+        (if Expr.recRulePlain tyAP mI rP cnP = true then do
+            ConLeche.checkIotaThm μ (ConLeche.fueledOps μ G) env' envSelf fP cvNameP lpsP tyAP
+              mI rP j ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta, r.paramsBlind⟩
+              cvjP cnP cnF rhsAP
+            pure RecRuleFire.plain
+          else ConLeche.checkIotaThmN μ (ConLeche.fueledOps μ G) env' envSelf fP cvNameP lpsP
+            tyAP mI rP j ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta,
+              r.paramsBlind⟩ cvjP cnP cnF rhsAP) = .ok fireP' →
+        ConLeche.checkIotaRule μ (ConLeche.fueledOps μ G) env' envSelf fP cvNameP lpsP tyAP mI
+          rP j ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta, r.paramsBlind⟩ =
+          .ok (ConLeche.recRuleBits env'.find? cvNameP ⟨ctorP, r.nfields, cnP, fireP', rhsAP,
+            r.k, r.eta, false⟩) := by
+      intro G hG1 hG2 fireP' hcertG
+      have g₁ := ConLeche.annotateCore_mono hG1 hF₁
+      have g₂ := ConLeche.inferTypeCore_mono hG2 hF₂
+      have hnofv' : ¬ rhsP.hasFvar = true := by simpa using hnofv
+      simp only [ConLeche.checkIotaRule, henvC]
+      rw [if_pos hnf', if_pos hlb, if_neg hnofv']
+      have g₁' : (ConLeche.fueledOps μ G).annotate envSelf 0 rhsP = .ok rhsAP := g₁
+      have g₂' : (ConLeche.fueledOps μ G).inferType envSelf 0 rhsAP = .ok rtyP := g₂
+      simp only [bind, Except.bind, g₁']
+      rw [if_pos hlp, if_pos hres, if_pos hshapeP]
+      simp only [g₂']
+      by_cases hpl : Expr.recRulePlain tyAP mI rP cnP = true
+      · rw [if_pos hpl] at hcertG ⊢
+        obtain ⟨u, hu, hpu⟩ := ConLeche.exceptBind_ok hcertG
+        simp only [pure, Except.pure, Except.ok.injEq] at hpu
+        subst hpu
+        simp only [hu, pure, Except.pure]
+      · rw [if_neg hpl] at hcertG ⊢
+        simp only [hcertG, pure, Except.pure]
+    -- the two certificates
+    cases hb : b5
+    · rw [hb] at z14
+      simp only [Bool.false_eq_true, if_false] at z14
+      obtain ⟨fire, s₁₀, k10, z15⟩ := bindOk z14
+      obtain ⟨c10, F₃, fireP', hF₃, hfire⟩ := checkIotaThmN_spec fe' feSelf env' envSelf hk
+        henv tbl fP cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP
+        s₉ s₁₀ fire c9.ok hpre9 k10
+      obtain ⟨cfin, hrfin⟩ := tail fire fireP' s₁₀ c10 hfire z15
+      refine ⟨cfin, max (max F₁ F₂) F₃, _, pure_pre _ (by omega) (by omega) fireP' ?_, hrfin⟩
+      have hpl : ¬ Expr.recRulePlain tyAP mI rP cnP = true := by rw [← hb5, hb]; simp
+      rw [if_neg hpl]
+      rw [← ConLeche.checkIotaThmN_datF] at hF₃ ⊢
+      exact (ConLeche.checkIotaThmN μ (ConLeche.fueledOpsM μ) env' envSelf fP cvNameP lpsP
+        tyAP mI rP j ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta,
+          r.paramsBlind⟩ cvjP cnP cnF rhsAP).property (by omega) hF₃
+    · rw [hb] at z14
+      simp only [if_true] at z14
+      obtain ⟨u, s₁₀, k10, z15⟩ := bindOk z14
+      obtain ⟨c10, F₃, hF₃⟩ := checkIotaThm_spec fe' feSelf env' envSelf hk henv tbl fP
+        cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP
+        s₉ s₁₀ u c9.ok hpre9 k10
+      replace z15 := AM.pure_bind_ok z15
+      obtain ⟨cfin, hrfin⟩ := tail .plain .plain s₁₀ c10 rfl z15
+      refine ⟨cfin, max (max F₁ F₂) F₃, _, pure_pre _ (by omega) (by omega) .plain ?_, hrfin⟩
+      have hpl : Expr.recRulePlain tyAP mI rP cnP = true := by rw [← hb5, hb]
+      rw [if_pos hpl]
+      have hu' : ConLeche.checkIotaThm μ (ConLeche.fueledOps μ (max (max F₁ F₂) F₃)) env'
+          envSelf fP cvNameP lpsP tyAP mI rP j
+          ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta, r.paramsBlind⟩
+          cvjP cnP cnF rhsAP = .ok () := by
+        rw [← ConLeche.checkIotaThm_datF] at hF₃ ⊢
+        exact (ConLeche.checkIotaThm μ (ConLeche.fueledOpsM μ) env' envSelf fP cvNameP lpsP
+          tyAP mI rP j ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta,
+            r.paramsBlind⟩ cvjP cnP cnF rhsAP).property (by omega) hF₃
+      simp only [bind, Except.bind, hu', pure, Except.pure]
+  all_goals exact absurd z1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:362-371 checkIotaRules
 The whole rule list.

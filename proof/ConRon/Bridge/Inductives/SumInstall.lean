@@ -2000,9 +2000,9 @@ theorem ctorHead_facts {s s1 s2 s3 : AState} {ty pr fn : EIdx} {tyP : Expr}
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:821-830 recRuleKOf — the K bit at
 install, in run form: read-only, and con-leche's verdict at `env.find?`. -/
-theorem recRuleKOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+theorem recRuleKOf_runX {env : Env} {fe : IFEnv} {s s' : AState}
     {ctor : NIdx} {ctorP : ConLeche.Name} {r : Bool}
-    (hok : CheckOK μ env fe s) (hc : denoteN s.store.ns ctor = some ctorP)
+    (hst : StateOK s) (hi : IFEnvOK env fe s) (hc : denoteN s.store.ns ctor = some ctorP)
     (hrun : Arena.recRuleKOf fe ctor s = .ok (r, s')) :
     s' = s ∧ r = ConLeche.recRuleKOf env.find? ctorP := by
   simp only [Arena.recRuleKOf] at hrun
@@ -2011,9 +2011,9 @@ theorem recRuleKOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     rw [hf] at hrun
     obtain ⟨rfl, rfl⟩ := pureOk hrun
     refine ⟨rfl, ?_⟩
-    simp only [ConLeche.recRuleKOf, IFEnvOK.miss hok.state hok.ienv hc hf]
+    simp only [ConLeche.recRuleKOf, IFEnvOK.miss hst hi hc hf]
   | some ci =>
-  obtain ⟨nm, c, hnm, hci, henv⟩ := hok.ienv.hit ctor ci hf
+  obtain ⟨nm, c, hnm, hci, henv⟩ := hi.hit ctor ci hf
   obtain rfl : nm = ctorP := Option.some.inj (hnm.symm.trans hc)
   rw [hf] at hrun
   simp only [ConLeche.recRuleKOf, henv]
@@ -2033,17 +2033,17 @@ theorem recRuleKOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
   obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨fn, s2, k2, z2⟩ := bindOk z1
   obtain ⟨v, s3, k3, z3⟩ := bindOk z2
-  obtain ⟨rfl, rfl, rfl, hv, hfn⟩ := ctorHead_facts hok.state (denoteCV_type hcvj) k1 k2 k3
+  obtain ⟨rfl, rfl, rfl, hv, hfn⟩ := ctorHead_facts hst (denoteCV_type hcvj) k1 k2 k3
   cases v
   all_goals try
     (obtain ⟨rfl, rfl⟩ := pureOk z3
      refine ⟨rfl, ?_⟩
-     have hnc := denote_not_const hok.state.wf hv hfn (by intro _ _ h; cases h)
+     have hnc := denote_not_const hst.wf hv hfn (by intro _ _ h; cases h)
      split
      · rename_i T us heq; exact absurd heq (hnc _ _)
      · rfl)
   rename_i T us
-  obtain ⟨TP, usP, hfe, hT, -⟩ := denote_const_inv hok.state.wf hv hfn
+  obtain ⟨TP, usP, hfe, hT, -⟩ := denote_const_inv hst.wf hv hfn
   rw [hfe]
   dsimp only at z3 ⊢
   cases hfT : fe.find? T with
@@ -2051,9 +2051,9 @@ theorem recRuleKOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     rw [hfT] at z3
     obtain ⟨rfl, rfl⟩ := pureOk z3
     refine ⟨rfl, ?_⟩
-    simp only [IFEnvOK.miss hok.state hok.ienv hT hfT]
+    simp only [IFEnvOK.miss hst hi hT hfT]
   | some ciT =>
-  obtain ⟨nmT, cT, hnmT, hciT, henvT⟩ := hok.ienv.hit T ciT hfT
+  obtain ⟨nmT, cT, hnmT, hciT, henvT⟩ := hi.hit T ciT hfT
   obtain rfl : nmT = TP := Option.some.inj (hnmT.symm.trans hT)
   rw [hfT] at z3
   rw [henvT]
@@ -2085,9 +2085,9 @@ theorem recRuleKOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:846-858 recRuleEtaOf — the
 η-rescue bit at install, in run form.  The recursor's name is read back
 (`readNameM`), so the frame is a `ReadbackFrame`. -/
-theorem recRuleEtaOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+theorem recRuleEtaOf_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
     {recName ctor : NIdx} {recNameP ctorP : ConLeche.Name} {r : Bool}
-    (hok : CheckOK μ env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
+    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
     (hc : denoteN s.store.ns ctor = some ctorP)
     (hrun : Arena.recRuleEtaOf fe recName ctor s = .ok (r, s')) :
     Core.ReadbackFrame s s' ∧ r = ConLeche.recRuleEtaOf env.find? recNameP ctorP := by
@@ -2097,9 +2097,9 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AStat
     rw [hf] at hrun
     obtain ⟨rfl, rfl⟩ := pureOk hrun
     refine ⟨Core.ReadbackFrame.refl _, ?_⟩
-    simp only [ConLeche.recRuleEtaOf, IFEnvOK.miss hok.state hok.ienv hc hf]
+    simp only [ConLeche.recRuleEtaOf, IFEnvOK.miss hok.state hi hc hf]
   | some ci =>
-  obtain ⟨nm, c, hnm, hci, henv⟩ := hok.ienv.hit ctor ci hf
+  obtain ⟨nm, c, hnm, hci, henv⟩ := hi.hit ctor ci hf
   obtain rfl : nm = ctorP := Option.some.inj (hnm.symm.trans hc)
   rw [hf] at hrun
   simp only [ConLeche.recRuleEtaOf, henv]
@@ -2137,9 +2137,9 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AStat
     rw [hfT] at z3
     obtain ⟨rfl, rfl⟩ := pureOk z3
     refine ⟨Core.ReadbackFrame.refl _, ?_⟩
-    simp only [IFEnvOK.miss hok.state hok.ienv hT hfT]
+    simp only [IFEnvOK.miss hok.state hi hT hfT]
   | some ciT =>
-  obtain ⟨nmT, cT, hnmT, hciT, henvT⟩ := hok.ienv.hit T ciT hfT
+  obtain ⟨nmT, cT, hnmT, hciT, henvT⟩ := hi.hit T ciT hfT
   obtain rfl : nmT = TP := Option.some.inj (hnmT.symm.trans hT)
   rw [hfT] at z3
   rw [henvT]
@@ -2179,9 +2179,9 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AStat
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:860-870 recRuleBits — the two
 bits stamped, in run form: the rule denotes con-leche's stamped rule. -/
-theorem recRuleBits_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+theorem recRuleBits_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
     {recName : NIdx} {recNameP : ConLeche.Name} {rl rl' : IRecRule} {rlP : RecRule}
-    (hok : CheckOK μ env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
+    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
     (hrl : Frontend.denoteRule s.store rl = some rlP)
     (hrun : Arena.recRuleBits fe recName rl s = .ok (rl', s')) :
     Core.ReadbackFrame s s' ∧
@@ -2189,10 +2189,10 @@ theorem recRuleBits_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState
   obtain ⟨hctor, -⟩ := denoteRule_ctor hrl
   simp only [Arena.recRuleBits] at hrun
   obtain ⟨k, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨hs1, hk⟩ := recRuleKOf_run hok hctor k1
+  obtain ⟨hs1, hk⟩ := recRuleKOf_runX hok.state hi hctor k1
   rw [hs1] at z1
   obtain ⟨e, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨hfr, he⟩ := recRuleEtaOf_run hok hrn hctor k2
+  obtain ⟨hfr, he⟩ := recRuleEtaOf_runX hok hi hrn hctor k2
   obtain ⟨rfl, rfl⟩ := pureOk z2
   refine ⟨hfr, ?_⟩
   rw [hfr.store]
@@ -2209,6 +2209,32 @@ theorem recRuleBits_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState
   rw [h1, h2, h3] at hrl
   obtain rfl := (Option.some.inj hrl).symm
   simp only [ConLeche.recRuleBits, hk, he]
+
+
+/-- con-leche: none — the three at one index (the form their first callers use). -/
+theorem recRuleKOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    {ctor : NIdx} {ctorP : ConLeche.Name} {r : Bool}
+    (hok : CheckOK μ env fe s) (hc : denoteN s.store.ns ctor = some ctorP)
+    (hrun : Arena.recRuleKOf fe ctor s = .ok (r, s')) :
+    s' = s ∧ r = ConLeche.recRuleKOf env.find? ctorP :=
+  recRuleKOf_runX hok.state hok.ienv hc hrun
+
+theorem recRuleEtaOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    {recName ctor : NIdx} {recNameP ctorP : ConLeche.Name} {r : Bool}
+    (hok : CheckOK μ env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
+    (hc : denoteN s.store.ns ctor = some ctorP)
+    (hrun : Arena.recRuleEtaOf fe recName ctor s = .ok (r, s')) :
+    Core.ReadbackFrame s s' ∧ r = ConLeche.recRuleEtaOf env.find? recNameP ctorP :=
+  recRuleEtaOf_runX hok hok.ienv hrn hc hrun
+
+theorem recRuleBits_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    {recName : NIdx} {recNameP : ConLeche.Name} {rl rl' : IRecRule} {rlP : RecRule}
+    (hok : CheckOK μ env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
+    (hrl : Frontend.denoteRule s.store rl = some rlP)
+    (hrun : Arena.recRuleBits fe recName rl s = .ok (rl', s')) :
+    Core.ReadbackFrame s s' ∧
+      Frontend.denoteRule s'.store rl' = some (ConLeche.recRuleBits env.find? recNameP rlP) :=
+  recRuleBits_runX hok hok.ienv hrn hrl hrun
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:274-290 sumRules
 The recursor's rules, one per constructor, with their firing bits.  **Task
