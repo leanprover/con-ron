@@ -55218,6 +55218,181 @@ private `p5top/` subdirectory) `design.md` at its top level, the last of which
 another agent was also using.  Agents should keep scratch files in a
 per-task subdirectory.
 
+#### Round 2 — the two rulings executed, and the one-round leaves (2026-09-23, Opus under Fable)
+
+Branch `p5-top-2` off `arena` `5facde4c`, merged with `arena` once (at
+`79321ffb`: task #97-P3-Frontend round 8, task #97-P5-Front's `ScanSpec`
+theorem — the one conflict was `Capstone.lean`'s two `rust_stages` calls,
+which lost `hsc` there and gained `hk hind` here).  Lane
+`Refine2/{Checker,Promote}/**`, plus what the two rulings forced:
+`Arena/{Checker,DeclCheck,TrustAxioms}.lean`, `Bridge/Checker/Basis.lean` and
+`Capstone.lean`.  `Refine2` still imports nothing of `Bridge`; no Rust, no
+`Generated/**`.
+
+##### 1. Ruling (a): the twin interns the raw pins — `intern_all_pins_refines` proved
+
+**Con-leche first.**  con-leche has no startup walk: `internAllPins` is arena
+infrastructure (DESIGN §8.6 P2d) and Theorem 1 relates it to nothing of
+con-leche's — `internAllPins_run` is a FRAME lemma (thirty-six value-agnostic
+`IStepS` links: `internCI_fresh`, `internCV_fresh`, …).  Where Theorem 1 DOES
+relate the pins to con-leche is at check time, through `matchesPin`
+(`stdAxiomOk`, `ofReduceAxOk`), and there the raw pin and con-leche's
+annotated one give the same verdict: `matchesPin` compares types up to
+`erasePw`, and annotation writes only the binders' `pw`.  So raw pins square
+with Theorem 1, and the edit went ahead.
+
+**The `Arena/` edit** (three files, no declaration moved — every `Lean twin:`
+citation still resolves, so no Rust doc comment changed either):
+
+* `Arena/Checker.lean` `internAllPins`: `iffA … choiceA` → `iffRaw …
+  choiceRaw` (the eight standard-axiom pins; `iffA = iffRaw` and `nonemptyA =
+  nonemptyRaw` as values, the other six differ);
+* `Arena/DeclCheck.lean` `stdAxiomOk`: the same eight comparands — the check
+  time interns must be lookups in both lanes, or `StoreRel` fails there
+  instead;
+* `Arena/TrustAxioms.lean`: `ofReduceNatA` / `ofReduceBoolA` now hold
+  `internCV (ofReduceRaw …)`, exactly as the port's `of_reduce_{nat,bool}_a`
+  (`ofReducePinA`, which selects between them, follows).  The note at the end
+  of the file says why the slots keep their names.
+
+**`Bridge/**` forced:** `Bridge/Checker/Basis.lean` only — the nine
+`*_matchesPin_raw` congruences (`matchesPin_congr rfl rfl rfl`, restated from
+`Refine/{StdAxioms,TrustAxioms}.lean` because `Bridge` does not import
+`Refine`), `ofReducePinRaw` and `ofReducePinA_run` concluding it,
+`stdAxiomOk_run` / `ofReduceAxOk_run` rewriting con-leche's side with the
+congruences before the walk.  **`internAllPins_run` and its callers
+(`Bridge/Frontend/Capstone.lean`, `Capstone.lean`'s `stages_frame`) needed no
+change.**
+
+**`Refine2`:** the check-time transcriptions (`iffPinnedSpec` …
+`stdAxiomOkChoiceRestSpec`) compare against the raw pins;
+`ofReduceNatRawSpec`/`ofReduceBoolRawSpec` are gone (they are
+`ofReduceNatA`/`ofReduceBoolA` now), `of_reduce_{nat,bool}_a_refines` are back
+at `ofReduceNatA`/`ofReduceBoolA` (the same term); `internAllPinsPortSpec_eq :
+internAllPinsPortSpec ps = internAllPins ps` is the monad laws, and
+**`intern_all_pins_refines` is `intern_all_pins_port_refines` through it** —
+the port lemma kept as the route.
+
+##### 2. Ruling 2: `DeclResolves` — where it lives and where it is discharged
+
+**The form.**  A universally quantified "every Core answer resolves" is FALSE
+(the Rust invariant does not constrain cache contents, so a related state can
+hold a dangling cached answer), and the fact is Theorem 1's.  So Theorem 2
+states it over Theorem 1's invariant, abstract (`Refine2/Checker/Base.lean`):
+
+* `ResolveInv mode Good` — what Theorem 2 consumes of an invariant `Good :
+  IFEnv → AState → Prop`, every field a TWIN-only statement over `Good`
+  states: `infer` / `whnf` answer resolving handles, `ensureSort`,
+  `enterScratch`, `flushEnter`, `checkPending`, `annotDeclStep`,
+  `checkDeclStep`, `installConstantVal`, `checkConstantVal` keep `Good`
+  (`checkConstantVal` also: the annotated type resolves);
+* `ResolvesAt Good fe hs` / `HandlesResolve Good hs` (every `fe`) /
+  `VGResolves Good fe g` — handles resolve in every `Good` state;
+  `declHandles` / `ciHandles` list a record's expression handles;
+* `view_of_rel` / `EResolves.of_rel` — **two twin states related to one Rust
+  state view every handle alike** (`TblRel.nodes` pins the node arrays and
+  `EStore.view` reads nothing else; `estore_view_skel` is `rfl`).  This is
+  what turns the twin's "the answer resolves" into the Core entries'
+  `AnswerResolves`, which quantifies over every related twin state.
+
+**The statements that carry it** (all as ruled): `check_value_group`,
+`check_value_group_value`, `check_value_group_tail`, `install_constant_val`,
+`install_value`, `check_constant_val`, `check_thm_val`, the arms
+`check_{quot,ind,axiom,axiom_decl_std,quot_sound_record,opaque,thm,defn}_decl`
+and `check_decl` — `(hR : ResolveInv μ Good) (hg : Good lf lst)` plus the
+record's handles.  `check_basis_decl` and the three axiom sub-arms that call
+no Core entry (`rest`, `of_reduce`, `trust`) do not.
+
+**`check_value_group_refines` is PROVED** from it: `EResolves` of the type is
+`VGResolves` at entry, the inferred type resolves by `ResolveInv.infer` at the
+twin run `infer_type_core_refines` produced, and `ensure_sort_core`'s
+`AnswerResolves` of the whnf answer is `ResolveInv.whnf` at the twin run
+`KnotRel.whnf` produces, carried to every related twin state by
+`EResolves.of_rel`.  `check_value_group_of_resolves` is folded into it.
+
+**Threaded up** through every glue lemma on both folds — the only new tool is
+`SimRel.of_sim_bind_run` (the continuation also gets the twin's run, which a
+`Good`-carrying step needs) and `AMReads` (`natOpNames`, `natDivModNames`,
+`reduceOpNames` write nothing): `annot_step_{other,opaque_install,opaque,thm,
+defn_install,defn,go}`, `annot_step`, `annot_decl_step`, `annot_fold`,
+`check_decl_step`, `check_decls_pure_go`, `check_decls_pure`,
+`check_pending`, `check_pending_list`, `install_then_check`.
+`annotFold_good` carries `Good` across the twin's whole phase A.
+
+**Where it is discharged.**  Nothing of it is dischargeable inside
+`Refine2`: the parse specs conclude views of what they intern, but
+`parse_chunks_refines` is still a whole-statement `sorry` that concludes no
+resolve fact, and every `ResolveInv` field is about the twin run.  So
+**`install_then_check_refines` takes one hypothesis, `DeclResolves mode pins ds
+lst Good`** (`Refine2/Checker/Top.lean`: `inv`, `entry`, `decls`, `pending`),
+and **`Capstone.lean`'s `declResolves_of_stages` discharges it — `sorry`, and
+Theorem 1's to close**, stated from the five twin stage runs plus `hk`/`hind`
+(which is why `rust_stages` now takes them).  Its docstring names the witness
+(`Good fe s := ∃ env, FoldOK .verified env fe s ∧ …`) and the Theorem-1 run
+lemma behind each field.  It is one frontier item where §4's ruling was nine.
+
+##### 3. The one-round leaves
+
+| leaf | how |
+|---|---|
+| `pin_names` | forty-nine name lemmas of the old tier (`Refine/{BasisNames,CoreKNames,StdAxioms,TrustAxioms}`, now imported by `Checker/Pins.lean`), pushed; peeled with `bind_eq_ok_iff.mp` one bind at a time (a `simp only [bind_eq_ok_iff]` over the 97 binds took five minutes) |
+| `nat_op_names`, `nat_div_mod_names` | seven / eight pin reads through `pin_ok` / `pin_err` (`Checker/Pins.lean`), `push_nidx_val` |
+| `reduce_op_names` | the same, and **the fifteen name readers of `Checker/Axioms.lean`** (`propext_name` … `of_reduce_bool_name`, all `sorry` before) through `name_read_sim` |
+| `nidx_contains_from` | the cursor's measure induction |
+| `promote_vg` | `promote_cv ; promote_e` |
+| `promote_new` | the `k = 0` arm; the decline arm refuted by finding C's `hk`; `erase_installed ; index_promoted`, whose twin side at `j = n`, `start = n - k` IS `promoteNew`'s body after destructuring the environment |
+
+**The accumulator pattern** (§5.1): every walk statement touched here was
+checked — `nidx_contains_from` has no accumulator; `promote_rules_from` /
+`promote_ci_list_from` state `absXL out ++ vs` with `vs` the twin's walk of the
+REST, which is right.
+
+##### 4. Counts and the frontier
+
+| file | `sorry` (was) |
+|---|---:|
+| `Checker/Axioms.lean` | 43 (59) |
+| `Checker/Base.lean` | 59 (63) |
+| `Checker/Pins.lean` | 4 (5) |
+| `Checker/Top.lean` | 26 (27) |
+| `Promote/Promote.lean` | 29 (31) |
+| `Capstone.lean` | 1 (0) — `declResolves_of_stages` |
+
+`lake build ConRonRefine2`: 807 `declaration uses sorry` warnings (831).
+
+`scripts/frontier.sh ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`:
+
+| | items | modules | tainted | dead weight |
+|---|---:|---:|---:|---:|
+| start (`5facde4c`) | 31 | 12 | 79 | 884 |
+| end (after the `arena` merge) | 34 | 14 | 106 | 778 |
+
+**Left the frontier (this lane):** `check_value_group`, `intern_all_pins`,
+`pin_names`, `nat_op_names`, `nat_div_mod_names`, `reduce_op_names`,
+`nidx_contains_from`, `promote_vg`, `promote_new`.  **Entered, as their
+children:** `promote_cv`, `promote_e`, `erase_installed`, `index_promoted`
+(under the two promotions); `check_value_group_value` and `bodyRel_of_knot`
+(the Core knot, reached now that `check_value_group` is glue);
+`intern_all_{basis,axiom_pins,names}` and `intern_pin_sets` (under the startup
+walk); and `Capstone.declResolves_of_stages` (ruling 2, Theorem 1's).  The rest
+of the growth is the merged `arena`'s (`Frontend.apply_line`,
+`i_declaration_dup_abs`, `state_d_init`, `hoist_nat_op_ground`,
+`builtin_prelude_text`, `Bridge.Frontend.clOccursConst*`).  No non-standard
+axiom.
+
+**Next in this lane:** the promotion walks (`promote_cv`, `promote_e`,
+`erase_installed`, `index_promoted`), the startup walk's four children, and
+`check_value_group_value` (whose `ResolveInv` fields may need to grow:
+`installValue`, `isDefEqCore` — a missing precondition, repairable).
+
+##### 5. The gates
+
+`scripts/gates.sh` after the `arena` merge (`08bbb91b` + this section): **all
+16 OK** — `extract-check` 99 s, `lake-build` 34 s.  `lake build ConRonCapstone`
+after the merge: 2 759 jobs, green (25 min, the merge re-elaborating
+`Bridge/**`).  Before the merge: `ConRonRefine2` 2 253 jobs, 807 `declaration
+uses sorry` warnings (was 831), `ConRonBridge` and `ConRonCapstone` green.
+
 ### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
 
 Lane: `proof/ConRon/Bridge/Promote/**`, untouched since task #97-P3-Checker
