@@ -848,6 +848,104 @@ route grows the environment by `IFEnv.push` alone.  Like task #97-P5-0's
 finding 3 and task #97-P5-1's findings 7–8, **it is Theorem 1's clause to
 carry**, not this tier's to re-derive. -/
 
+/-- `eraseInstalled` reads back as a membership test.  Copied from
+`Bridge/Promote/Coh.lean`'s `eraseInstalled_getElem?_eq` (`Refine2` may not
+import `Bridge`). -/
+theorem eraseInstalled_getElem?_eq' (n : NIdx) : ∀ (cs : List IConstantInfo)
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)),
+    (eraseInstalled idx cs)[n]? = if (∃ c ∈ cs, c.name = n) then none else idx[n]? := by
+  intro cs
+  induction cs with
+  | nil => intro idx; simp [eraseInstalled]
+  | cons c cs ih =>
+    intro idx
+    simp only [eraseInstalled, ih, Std.HashMap.getElem?_erase]
+    by_cases h1 : ∃ c' ∈ cs, c'.name = n
+    · rw [if_pos h1, if_pos ⟨_, List.mem_cons_of_mem _ h1.choose_spec.1, h1.choose_spec.2⟩]
+    · rw [if_neg h1]
+      by_cases h2 : c.name = n
+      · rw [if_pos (beq_iff_eq.mpr h2), if_pos ⟨c, by simp, h2⟩]
+      · rw [if_neg (by simpa using h2), if_neg]
+        rintro ⟨c', hc', hn⟩
+        rcases List.mem_cons.mp hc' with rfl | hc'
+        · exact h2 hn
+        · exact h1 ⟨c', hc', hn⟩
+
+/-- `erase_installed`'s loop, read back at the port's own index: the rows
+keyed by a name of slots `i..n` are gone, the rest untouched, the environment
+and the counter do not move. -/
+private theorem erase_installed_aux (m : Nat) :
+    ∀ {rf : arena.env.IFEnv} {i : Std.Usize} {o},
+      rf.env.consts.val.length - i.val = m → IFEnvInv rf →
+      arena.promote.erase_installed rf i = ok o →
+      o.env = rf.env ∧ o.visible_below = rf.visible_below ∧ IFEnvInv o ∧
+      ∀ k, ConRon.Refine.HashMap2.toFun o.idx k =
+        if (∃ c ∈ rf.env.consts.val.drop i.val, (absIConstantInfo c).name = absNIdx k)
+        then none else ConRon.Refine.HashMap2.toFun rf.idx k := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro rf i o hm hfinv hrun
+    rw [arena.promote.erase_installed.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val rf.env.consts
+    by_cases hge : i ≥ alloc.vec.Vec.len rf.env.consts
+    · have hle : rf.env.consts.val.length ≤ i.val := by scalar_tac
+      rw [if_pos hge] at hrun
+      obtain rfl := (Result.ok_injective hrun).symm
+      refine ⟨rfl, rfl, hfinv, fun k => ?_⟩
+      rw [List.drop_eq_nil_of_le hle]
+      simp
+    · have hlt : i.val < rf.env.consts.val.length := by scalar_tac
+      rw [if_neg hge] at hrun
+      obtain ⟨ci, hci, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hci' := vec_index_some hci
+      rw [List.getElem?_eq_getElem hlt] at hci'
+      obtain rfl := (Option.some_inj.mp hci').symm
+      obtain ⟨nn, hnn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨old, hm'⟩ := q
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      have hname : absNIdx nn = (absIConstantInfo rf.env.consts.val[i.val]).name :=
+        i_constant_info_name_abs hnn
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True) nidx_eq2
+          hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      have hfinv1 : IFEnvInv { rf with idx := hm' } := by
+        refine ⟨hinv', hfinv.2.1, fun k p hp => ?_⟩
+        simp only at hp
+        rw [hupd, Function.update_apply] at hp
+        split at hp
+        · cases hp
+        · exact hfinv.2.2 k p hp
+      obtain ⟨he, hv, hI, hidx⟩ :=
+        ih (rf.env.consts.val.length - i2.val) (by omega) (rf := { rf with idx := hm' })
+          rfl hfinv1 hrun
+      refine ⟨he, hv, hI, fun k => ?_⟩
+      rw [hidx k]
+      simp only
+      rw [hupd, Function.update_apply, hi2v, List.drop_eq_getElem_cons hlt]
+      by_cases hr : ∃ c ∈ rf.env.consts.val.drop (i.val + 1),
+          (absIConstantInfo c).name = absNIdx k
+      · rw [if_pos hr, if_pos (by
+          obtain ⟨c, hc, h⟩ := hr; exact ⟨c, List.mem_cons_of_mem _ hc, h⟩)]
+      · rw [if_neg hr]
+        by_cases hk : k = nn
+        · rw [if_pos hk, if_pos ⟨_, List.mem_cons_self, by rw [hk]; exact hname.symm⟩]
+        · rw [if_neg hk, if_neg]
+          rintro ⟨c, hc, h⟩
+          rcases List.mem_cons.mp hc with rfl | hc
+          · exact hk (absNIdx_inj (h.symm.trans hname.symm))
+          · exact hr ⟨c, hc, h⟩
+
+private theorem take_rev_mem {α β : Type} (f : α → β) (v : List α) (i : Nat) (c : β) :
+    c ∈ ((v.map f).reverse.take (v.length - i)) ↔ c ∈ (v.drop i).map f := by
+  rw [List.take_reverse, List.mem_reverse, List.length_map, ← List.map_drop]
+  by_cases h : i ≤ v.length
+  · rw [Nat.sub_sub_self h]
+  · rw [show v.length - (v.length - i) = v.length by omega, List.drop_length,
+      List.drop_eq_nil_of_le (by omega)]
+
 /-- `erase_installed` forgets the index rows of the constants at slots `i..n`,
 which over the twin's newest-first list is `eraseInstalled` at its first
 `n - i`.  A stale row under a scratch key is not merely useless:
@@ -862,7 +960,26 @@ theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
                    ((absIEnv rf.env).consts.take
                      (rf.env.consts.val.length - i.val)) })
       ∧ IFEnvInv o := by
-  sorry
+  obtain ⟨he, hv, hI, hidx⟩ := erase_installed_aux _ rfl hfinv hrun
+  refine ⟨⟨?_, ?_, ?_⟩, hI⟩
+  · show lf.env = absIEnv o.env
+    rw [he]; exact hfe.env
+  · intro k
+    show _ = (eraseInstalled lf.idx _)[absNIdx k]?
+    rw [eraseInstalled_getElem?_eq', hidx k, he]
+    have hmem : (∃ c ∈ (absIEnv rf.env).consts.take (rf.env.consts.val.length - i.val),
+          c.name = absNIdx k) ↔
+        (∃ c ∈ rf.env.consts.val.drop i.val, (absIConstantInfo c).name = absNIdx k) := by
+      simp only [absIEnv, take_rev_mem, List.mem_map]
+      constructor
+      · rintro ⟨c, ⟨a, ha, rfl⟩, h⟩; exact ⟨a, ha, h⟩
+      · rintro ⟨a, ha, h⟩; exact ⟨_, ⟨a, ha, rfl⟩, h⟩
+    by_cases hr : ∃ c ∈ rf.env.consts.val.drop i.val, (absIConstantInfo c).name = absNIdx k
+    · rw [if_pos hr, if_pos (hmem.mpr hr)]; rfl
+    · rw [if_neg hr, if_neg (fun h => hr (hmem.mp h))]
+      exact hfe.idx k
+  · show lf.visibleBelow = absU o.visible_below
+    rw [hv]; exact hfe.visibleBelow
 
 /-- `index_promoted` ⊑ `promoteCIList` followed by `indexPromoted`, on the
 slice `start..j` (finding B).  The promoted records are written back into
