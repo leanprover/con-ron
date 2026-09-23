@@ -114,6 +114,7 @@ import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.ExprOps.Subst
 import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.ExprOps.TelescopeF
 
 namespace ConRon.Bridge.Inductives
 
