@@ -907,6 +907,39 @@ open Lockstep in
   have h' := recs_form_suffix_refines h
   simpa [TwinEq, absICILFrom, absICIL] using h'.symm
 
+/-! ## The environment index's readers, as `TwinEq`s
+
+`ifenv_find`/`find_ci` read the Rust index; the twin's `find?` is the same
+lookup (`ifenv_find_abs`, `Refine2/Core/Arms/Delta.lean`).  The twin
+environment is fixed by the `CoreCtx` side goal, which the tier's side
+extension discharges from `IFEnvRelI` (and the split counter). -/
+
+open Lockstep in
+@[lockstep] theorem ifenv_find_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.ifenv_find vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
+  fun _ h => (ifenv_find_abs hctx h).symm
+
+open Lockstep in
+@[lockstep] theorem find_ci_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.find_ci vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) := by
+  intro o h
+  rw [arena.env.find_ci] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx hr
+  cases r with
+  | none =>
+    obtain rfl := (Result.ok_injective h).symm
+    exact hf.symm
+  | some ci =>
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := (Result.ok_injective h).symm
+    rw [← hf]
+    simp [TwinEq, i_constant_info_dup_abs hii]
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/

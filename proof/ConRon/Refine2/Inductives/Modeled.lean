@@ -2116,7 +2116,10 @@ theorem check_proj_lookups_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       pers lst o
       (checkProjLookups lf2 (absNIdx t) (absNIdx ctor_name) (absNIdxL lps)
         (absU n_p) (absU n_f) (absU i)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_lookups, checkProjLookups_unfold]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_lookups_ls
