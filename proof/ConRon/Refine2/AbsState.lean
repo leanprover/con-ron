@@ -294,7 +294,10 @@ structure PinsRel (rp : arena.pins.Pins) (lp : Pins) : Prop where
 
 /-! ## The whole state -/
 
-/-- **`absState`**, as a relation: `(pers, st)` against the twin's `AState`.
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): Theorem 2's relation is
+`AStateRel₀` below; `storeWF` is Theorem 1's invariant and leaves Theorem 2
+lane by lane.  **`absState`**, as a relation: `(pers, st)` against the twin's
+`AState`.
 
 **`storeWF` — finding 16's clause, task #97-P5-Specs.**  Task #97-P5-3 round 3
 measured that an interning walk's every step needs `StoreWF` at the store it
@@ -331,6 +334,39 @@ structure AStateRel (pers : arena.store.PersTier) (rs : arena.monad.AState)
   /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,
   carried by Theorem 2's relation. -/
   storeWF : StoreWF ls.store
+
+/-- **The lockstep relation**: `AStateRel` without `storeWF` (task
+#97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
+is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
+made a knot statement false at a state both programs handle alike: the port
+and the twin both intern `app d a` over a dangling `d` without looking at it,
+their stores stay equal field for field, and only `StoreWF` fails.  The Core
+tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
+it later (tier-wide migration, scheduled separately), and until then
+`AStateRel` keeps its five fields and these two lemmas convert. -/
+structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
+    (ls : AState) : Prop where
+  store : StoreRel pers rs.store ls.store
+  memos : MemosRel rs.memos ls.memos
+  caches : CachesRel rs.caches ls.caches
+  pins : PinsRel rs.pins ls.pins
+
+/-- The projection a consumer of the lockstep relation takes. -/
+theorem AStateRel.to₀ {pers : arena.store.PersTier} {rs : arena.monad.AState}
+    {ls : AState} (h : AStateRel pers rs ls) : AStateRel₀ pers rs ls :=
+  ⟨h.store, h.memos, h.caches, h.pins⟩
+
+/-- Back again, given the twin's own invariant. -/
+theorem AStateRel₀.of₀ {pers : arena.store.PersTier} {rs : arena.monad.AState}
+    {ls : AState} (h : AStateRel₀ pers rs ls) (hwf : StoreWF ls.store) :
+    AStateRel pers rs ls :=
+  ⟨h.store, h.memos, h.caches, h.pins, hwf⟩
+
+/-- `AStateRel` is the lockstep relation and the twin's invariant, and nothing
+else. -/
+theorem AStateRel_iff {pers : arena.store.PersTier} {rs : arena.monad.AState}
+    {ls : AState} : AStateRel pers rs ls ↔ AStateRel₀ pers rs ls ∧ StoreWF ls.store :=
+  ⟨fun h => ⟨h.to₀, h.storeWF⟩, fun h => h.1.of₀ h.2⟩
 
 /-- The Rust-side invariant of the whole state. -/
 structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
