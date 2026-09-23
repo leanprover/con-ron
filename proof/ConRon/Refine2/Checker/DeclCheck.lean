@@ -3157,12 +3157,6 @@ theorem check_div_mod_pin_loop_aux (n : Nat) :
           LS.toSim₀ (ih (mode := mode) (c := c) (value2 := value2) v i' _ _ (by omega)
             h3 h4 hfe hvis) h5
     lockstep
-    all_goals
-      have ha : a.val = i.val + 1 := by simpa using hP
-      unfold absINatOpPinSetLFrom at ih
-      rw [← ha]
-      exact ih (mode := mode) (c := c) (value2 := value2) v a tried _ (by omega)
-        hrel hinv hfe hvis
 
 /-- `check_div_mod_pin_loop` ⊑ `checkDivModPinLoop` at the cursor. -/
 theorem check_div_mod_pin_loop_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -3181,21 +3175,22 @@ theorem check_div_mod_pin_loop_refines {pers st lst} {vis : Std.U64} {rf lf}
     (check_div_mod_pin_loop_aux _ variants i tried ltried rfl hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
 
 open Lockstep in
-/-- The loop's entry, as `checkDivModPin` calls it: no variant tried yet (the
-twin's message list is `[]`, the port's is the decline text it will extend;
-the messages are not compared, DESIGN §3.1). -/
-@[lockstep] theorem check_div_mod_pin_loop_nil_ls {pers st lst} {vis : Std.U64} {rf lf}
+/-- The loop, for any twin message list `ltried` (the port's `tried` is the
+decline text it extends; the messages are not compared, DESIGN §3.1): the
+tactic fixes `ltried` from the goal's twin (`[]` at `checkDivModPin`'s entry),
+task #97-T2-TACTIC round 2. -/
+@[lockstep] theorem check_div_mod_pin_loop_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx}
     {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
-    {tried : alloc.vec.Vec Std.U32}
+    {tried : alloc.vec.Vec Std.U32} {ltried : List String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
     LS pers (fun a b => b = (fun _ : Unit => ()) a)
       (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2
         variants i tried) lst
       (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
-        (absEIdx value2) (absINatOpPinSetLFrom variants i) []) :=
+        (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) :=
   LS.ofSim₀ fun _ h => check_div_mod_pin_loop_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- `bool_ctor_typed` — is this `Bool` constructor stored at the pinned type? -/
