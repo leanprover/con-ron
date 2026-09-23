@@ -41629,7 +41629,7 @@ ConRon.Capstone.no_False_declaration`:
 | run | tree | items | tainted | dead weight | this lane's items |
 |---|---|---:|---:|---:|---|
 | start | `f240dd91` (arena, clean) | 14 | 45 | 927 | `denoteN_default_of_pinNames`, `internPinSets_run`, `checkDecl_nodup`, `Arena.annotStep_split`, `Arena.checkPending_prefix` (fan-in 1 each) |
-| end | `checker-r9` merged onto `arena`'s `43958f6c` | 33 | 99 | 803 | `checkDivModPinAt_bridge`, `divModCertsGuard_run`, `divModPinGuard_run` (reach 14), `divModEnvGuard_run` (13), `Arena.checkDecl_wfProj` (10); fan-in 0 each |
+| end | `checker-r9` merged onto `arena`'s `43958f6c` (32 / 101 / 801 on the later merge onto `79321ffb`) | 33 | 99 | 803 | `checkDivModPinAt_bridge`, `divModCertsGuard_run`, `divModPinGuard_run` (reach 14), `divModEnvGuard_run` (13), `Arena.checkDecl_wfProj` (10); fan-in 0 each |
 
 The total grew from other lanes' skeletons merged meanwhile (the Theorem 2
 tops under `Refine2/**` now fan out); this lane went from five items to five
