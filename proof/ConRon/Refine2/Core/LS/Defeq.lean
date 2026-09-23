@@ -83,9 +83,39 @@ elab "lockstep_bool_cases" : tactic => do
         return
     throwError "no Bool fvar"
 
-/-- `lockstep_core` with the twin-tail move as a fallback. -/
+open Lean Meta Elab Tactic in
+/-- `simp_all` on a small side goal: first clear every hypothesis that is a
+statement about programs or states (the knot, the `ExprOps` bundle, the
+context, the relation, the invariant, an induction hypothesis) — `simp_all`
+would otherwise try to simplify them all with each other. -/
+elab "lockstep_simp_all_small" : tactic => do
+  let g ← getMainGoal
+  let g ← g.withContext do
+    let mut g := g
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let t ← instantiateMVars d.type
+      let big := t.isForall || [``KnotRel, ``ExprOpsHyp, ``CoreCtx, ``AStateRel₀,
+        ``AStateInv, ``LS].any (t.isAppOf ·)
+      if big then
+        g ← (try g.clear d.fvarId catch _ => pure g)
+    pure g
+  replaceMainGoal [g]
+  evalTactic (← `(tactic| simp_all))
+
+/-- A twin `if` the side tiers of `lockstep_core` could not decide, decided
+by the full `simp_all` on the small facts (the Rust's tag tests are in
+`!=`/`decide` form and need `decide_eq_false_iff_not`, which blows the
+recursion depth when added to `lockstep_simp`, whose `simpTwin` runs over the
+whole twin program). -/
+macro "lockstep_twin_ite_full" : tactic =>
+  `(tactic| first
+    | (apply LS.twin_ite_neg (hc := by lockstep_simp_all_small) ; skip)
+    | (apply LS.twin_ite_pos (hc := by lockstep_simp_all_small) ; skip))
+
+/-- `lockstep_core` with the local moves as fallbacks. -/
 macro "lockstep_f" : tactic =>
-  `(tactic| repeat' (first | lockstep_core_step | lockstep_twin_tail | lockstep_bool_cases))
+  `(tactic| repeat' (first | lockstep_core_step | lockstep_twin_ite_full | lockstep_twin_tail | lockstep_bool_cases))
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
@@ -263,5 +293,84 @@ set_option maxHeartbeats 2000000 in
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_spine, defeqSpine]
   lockstep_f
+
+/-! ## The batched binder descent: induction on the port's `peel` -/
+
+/-! The twin's own equations at `0` and at a successor, by `rfl` with smart
+unfolding off.  Lean's generated `defeqPeel.eq_1`/`eq_def` time out (their
+generation runs at the default heartbeat budget whatever the file sets), and
+with smart unfolding ON the recursive call's `match peel` sits under the
+monad's binders, so `rfl` cannot see through the structural recursion. -/
+
+set_option smartUnfolding false in
+theorem defeqPeel_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (d : Nat) (a b : EIdx) (k : Nat)
+    (fvs : Array EIdx) (mism mismLam : Bool) :
+    defeqPeel mode r d 0 a b k fvs mism mismLam
+      = if a == b then defeqPeelDone mism mismLam
+        else defeqPeelLeaf r d a b k fvs mism mismLam := by
+  rfl
+
+set_option smartUnfolding false in
+theorem defeqPeel_succ (mode : ConLeche.CheckMode) (r : CoreFnsA) (d m : Nat) (a b : EIdx) (k : Nat)
+    (fvs : Array EIdx) (mism mismLam : Bool) :
+    defeqPeel mode r d (m + 1) a b k fvs mism mismLam
+      = (do
+    let ta := a.tag
+    if a == b then defeqPeelDone mism mismLam
+    else if ta != b.tag || !(ETag.isBind ta) then
+      defeqPeelLeaf r d a b k fvs mism mismLam
+    else
+      match ← viewBindI a with
+      | none => failDanglingE
+      | some (da, ba, ma) =>
+        match ← viewBindI b with
+        | none => failDanglingE
+        | some (db, bb, mb) => do
+          let sameDom := da == db
+          let t1 ← instantiateListFast coreWalkFuel da fvs 0
+          let t2 ← if sameDom then pure t1
+                   else instantiateListFast coreWalkFuel db fvs 0
+          let dq ← if sameDom then pure true else r.defeq (d + k) t1 t2
+          if !dq then pure false
+          else do
+            let fv ← internFVarE (d + k) t2
+            let mm := mode.verifiedChecks && !(ma == mb)
+            let m2 := mism || mm
+            let ml2 := if mm then ta == ETag.lam else mismLam
+            defeqPeel mode r d m ba bb (k + 1) (fvs.push fv) m2 ml2 : AM Bool) := by
+  rfl
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
+    (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
+    (hf : absU fu = f) (d : Std.U64) (n : Nat) :
+    ∀ {st : arena.monad.AState} {lst : AState} (peel : Std.U64) (a b : arena.handle.EIdx)
+      (k : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx) (mism mismLam : Bool),
+      peel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.core.defeq_peel pers vis st mode lane fu fe d peel a b k fvs mism mismLam) lst
+        (defeqPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+          (absU d) n (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) := by
+  induction n with
+  | zero =>
+    intro st lst peel a b k fvs mism mismLam hn hrel hinv
+    rw [arena.core.defeq_peel, defeqPeel_zero]
+    lockstep_f
+  | succ m ih =>
+    intro st lst peel a b k fvs mism mismLam hn hrel hinv
+    rw [arena.core.defeq_peel, defeqPeel_succ]
+    sorry
+
+@[lockstep] theorem defeq_peel_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe d peel a b k fvs mism mismLam lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_peel pers vis st mode lane fu fe d peel a b k fvs mism mismLam) lst
+      (defeqPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        (absU d) (absU peel) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) :=
+  defeq_peel_aux hk hx hctx hf d _ peel a b k fvs mism mismLam rfl hrel hinv
 
 end ConRon.Refine2.Lockstep
