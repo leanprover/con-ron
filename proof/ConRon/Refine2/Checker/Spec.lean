@@ -514,12 +514,7 @@ def divModCertGuardRestSpec (fe : IFEnv) (c : NIdx) (annVal : EIdx)
   else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
 
 /-- One `Bool` constructor stored at the type `Bool` itself. -/
-def boolCtorTypedSpec (fe2 : IFEnv) (n : NIdx) : AM Bool := do
-  let bn ← boolName
-  let boolTy ← constE bn
-  match fe2.find? n with
-  | some ci => pure ((← ci.toConstantVal).type == boolTy)
-  | none => pure false
+abbrev boolCtorTypedSpec (fe2 : IFEnv) (n : NIdx) : AM Bool := boolCtorTyped fe2 n
 
 /-- `divModEnvGuard`'s tail past the operation's own dependencies: the pinned
 `Eq` basis and the two `Bool` constructors stored at the type `Bool`. -/
@@ -528,6 +523,24 @@ def divModEnvGuardRestSpec (fe2 : IFEnv) : AM Bool := do
   if fe2.find? en != some (← eqA) then pure false
   else if !(← boolCtorTypedSpec fe2 (← boolTrueName)) then pure false
   else boolCtorTypedSpec fe2 (← boolFalseName)
+
+/-- `divModEnvGuardRestSpec` with its `Eq` test named, as the Rust's
+`div_mod_env_guard_rest` calls `eq_basis_pinned`. -/
+theorem divModEnvGuardRestSpec_split (fe2 : IFEnv) :
+    divModEnvGuardRestSpec fe2 = (do
+      if ← eqBasisPinnedSpec fe2 then
+        if ← boolCtorTypedSpec fe2 (← boolTrueName) then
+          boolCtorTypedSpec fe2 (← boolFalseName)
+        else pure false
+      else pure false) := by
+  unfold divModEnvGuardRestSpec eqBasisPinnedSpec
+  simp only [bind_assoc, pure_bind]
+  refine ConRon.Refine2.am_bind_congr _ fun en => ConRon.Refine2.am_bind_congr _ fun ea => ?_
+  by_cases h : (fe2.find? en == some ea) = true
+  · simp only [h, bne, Bool.not_true, Bool.false_eq_true, if_false, if_true]
+    refine ConRon.Refine2.am_bind_congr _ fun t => ConRon.Refine2.am_bind_congr _ fun b => ?_
+    cases b <;> rfl
+  · simp [h, bne]
 
 /-- `checkDivModCerts`' tail at one certificate, past the applied proof. -/
 def checkDivModCertTailSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)

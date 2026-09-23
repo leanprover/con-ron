@@ -911,6 +911,19 @@ theorem consts_resolve_f_fast_refines {pers st lst} {vis : Std.U64} {rf lf}
       (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem consts_resolve_f_fast_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.consts_resolve_f_fast pers vis st rf e) lst
+      (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => consts_resolve_f_fast_refines hrel hinv hfe.rel hfe.inv h
+
 /-- `all_params_defined_list` is `ls.all (Level.allParamsDefined params)` from
 the cursor on — a PURE test on con-leche values, so it carries their WF. -/
 theorem all_params_defined_list_refines
@@ -995,6 +1008,17 @@ theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {o
       (unresolvedConstsError w (absEIdx e)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem unresolved_consts_error_ls {pers st lst}
+    {e : arena.handle.EIdx}
+    {w : String}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (unresolvedConstsError w (absEIdx e)) :=
+  LS.ofSimRel₀ fun _ h => unresolved_consts_error_refines hrel hinv h
+
 /-! ### Twin readers leave the state alone
 
 The twin's pin reads (`natOpNames`, `natDivModNames`, `reduceOpNames`) read
@@ -1069,6 +1093,16 @@ theorem check_constant_val_guards_rest_refines {pers st lst}
       (checkConstantValGuardsRestSpec (absIConstantVal cv)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_constant_val_guards_rest_ls {pers st lst}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_base.check_constant_val_guards_rest pers st cv) lst
+      (checkConstantValGuardsRestSpec (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => check_constant_val_guards_rest_refines hrel hinv h
+
 /-- `check_constant_val_guards` is `installConstantVal`'s guard prefix — the
 syntactic tests before the annotation. -/
 theorem check_constant_val_guards_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -1080,6 +1114,20 @@ theorem check_constant_val_guards_refines {pers st lst} {vis : Std.U64} {rf lf}
       (checkConstantValGuardsSpec lf (absIConstantVal cv)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_constant_val_guards_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_base.check_constant_val_guards pers vis st rf cv) lst
+      (checkConstantValGuardsSpec lf (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => check_constant_val_guards_refines hrel hinv hfe.rel hfe.inv hvis h
+
 /-- `install_constant_val_tail` is `installConstantVal`'s tail past the
 annotation: the level-parameter test and the constant-resolution test. -/
 theorem install_constant_val_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -1090,6 +1138,21 @@ theorem install_constant_val_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absIConstantVal pers lst o
       (installConstantValTailSpec lf (absIConstantVal cv) (absEIdx ty)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem install_constant_val_tail_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {cv : arena.env.IConstantVal}
+    {ty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.install_constant_val_tail pers vis st rf cv ty) lst
+      (installConstantValTailSpec lf (absIConstantVal cv) (absEIdx ty)) :=
+  LS.ofSim₀ fun _ h => install_constant_val_tail_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- `check_constant_val_after_annot` is `checkConstantVal`'s tail: the
 install-side tail plus the type's own inference and sort check. -/
@@ -1103,7 +1166,29 @@ theorem check_constant_val_after_annot_refines {pers st lst} {vis : Std.U64}
     Sim₀ absIConstantVal pers lst o
       (checkConstantValAfterAnnotSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx ty)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.check_constant_val_after_annot]
+  try unfold checkConstantValAfterAnnotSpec
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_constant_val_after_annot_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal}
+    {ty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.check_constant_val_after_annot pers vis st mode rf cv ty) lst
+      (checkConstantValAfterAnnotSpec (ConRon.Refine.absMode mode) lf
+        (absIConstantVal cv) (absEIdx ty)) :=
+  LS.ofSim₀ fun _ h => check_constant_val_after_annot_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- **`check_constant_val` ⊑ `checkConstantVal`** — the common per-declaration
 constant check, whole. -/
@@ -1143,6 +1228,18 @@ theorem open_pis_at_fvars_refines {pers st lst} {n : Std.U64}
       pers lst o (openPisAtFvars (absU n) (absEIdx h) (absU i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem open_pis_at_fvars_ls {pers st lst}
+    {n : Std.U64}
+    {h : arena.handle.EIdx}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
+      (arena.checker_base.open_pis_at_fvars pers st n h i) lst
+      (openPisAtFvars (absU n) (absEIdx h) (absU i)) :=
+  LS.ofSim₀ fun _ h => open_pis_at_fvars_refines hrel hinv h
+
 /-- `open_pis_at_fvars_f_go` ⊑ `openPisAtFvarsFGo` — `acc` holds the
 already-created fvars, innermost binder first; one `instantiateList` pass per
 domain instead of one whole-telescope `instantiate1` pass per binder. -/
@@ -1156,6 +1253,19 @@ theorem open_pis_at_fvars_f_go_refines {pers st lst}
       (openPisAtFvarsFGo (absEIdxL acc).toArray (absU n) (absEIdx h) (absU i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem open_pis_at_fvars_f_go_ls {pers st lst}
+    {acc : alloc.vec.Vec arena.handle.EIdx}
+    {n : Std.U64}
+    {h : arena.handle.EIdx}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
+      (arena.checker_base.open_pis_at_fvars_f_go pers st acc n h i) lst
+      (openPisAtFvarsFGo (absEIdxL acc).toArray (absU n) (absEIdx h) (absU i)) :=
+  LS.ofSim₀ fun _ h => open_pis_at_fvars_f_go_refines hrel hinv h
+
 /-- `open_pis_at_fvars_f` ⊑ `openPisAtFvarsF` — the one-pass form, with the
 fallback that covers telescopes whose binders only appear after
 substitution. -/
@@ -1165,7 +1275,22 @@ theorem open_pis_at_fvars_f_refines {pers st lst} {n : Std.U64}
     (hrun : arena.checker_base.open_pis_at_fvars_f pers st n e i = ok o) :
     Sim₀ (Option.map (fun p => (absEIdxL p.1, absEIdx p.2)))
       pers lst o (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.open_pis_at_fvars_f]
+  try unfold openPisAtFvarsF
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem open_pis_at_fvars_f_ls {pers st lst}
+    {n : Std.U64}
+    {e : arena.handle.EIdx}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) a)
+      (arena.checker_base.open_pis_at_fvars_f pers st n e i) lst
+      (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) :=
+  LS.ofSim₀ fun _ h => open_pis_at_fvars_f_refines hrel hinv h
 
 /-- `fvar_type_ds` ⊑ `fvarTypeDs` at the cursor — `xs.map Expr.fvarTypeD`,
 with DESIGN §3.4's closure-free `List` recursion. -/
@@ -1188,6 +1313,16 @@ theorem is_eq_head_refines {pers st lst} {h : arena.handle.EIdx} {o}
     Sim₀ id pers lst o (isEqHead (absEIdx h)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem is_eq_head_ls {pers st lst}
+    {h : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.is_eq_head pers st h) lst
+      (isEqHead (absEIdx h)) :=
+  LS.ofSim₀ fun _ h => is_eq_head_refines hrel hinv h
+
 /-- `eq_head_level_at` is `eq_head_level`'s tail at the universe-argument list
 (extraction rule 5). -/
 theorem eq_head_level_at_refines {pers st lst} {us : arena.handle.LsIdx} {o}
@@ -1200,6 +1335,19 @@ theorem eq_head_level_at_refines {pers st lst} {us : arena.handle.LsIdx} {o}
         | _ => zeroLevel) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem eq_head_level_at_ls {pers st lst}
+    {us : arena.handle.LsIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absLIdx a)
+      (arena.checker_base.eq_head_level_at pers st us) lst
+      (do
+        match ← viewLs (absLsIdx us) with
+        | [l] => pure l
+        | _ => zeroLevel) :=
+  LS.ofSim₀ fun _ h => eq_head_level_at_refines hrel hinv h
+
 /-- `eq_head_level` ⊑ `eqHeadLevel` — off shape it is `.zero`, which
 `isEqHead` has already rejected wherever the result is used. -/
 theorem eq_head_level_refines {pers st lst} {h : arena.handle.EIdx} {o}
@@ -1207,6 +1355,16 @@ theorem eq_head_level_refines {pers st lst} {h : arena.handle.EIdx} {o}
     (hrun : arena.checker_base.eq_head_level pers st h = ok o) :
     Sim₀ absLIdx pers lst o (eqHeadLevel (absEIdx h)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem eq_head_level_ls {pers st lst}
+    {h : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absLIdx a)
+      (arena.checker_base.eq_head_level pers st h) lst
+      (eqHeadLevel (absEIdx h)) :=
+  LS.ofSim₀ fun _ h => eq_head_level_refines hrel hinv h
 
 /-! ## The three list checks -/
 
@@ -1223,6 +1381,24 @@ theorem check_typed_list_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absEIdxLFrom xs i) (absEIdxLFrom ts i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_typed_list_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {depth : Std.U64}
+    {xs ts : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_base.check_typed_list pers vis st mode rf depth xs ts i) lst
+      (checkTypedList (ConRon.Refine.absMode mode) lf (absU depth)
+        (absEIdxLFrom xs i) (absEIdxLFrom ts i)) :=
+  LS.ofSim₀ fun _ h => check_typed_list_refines hrel hinv hfe.rel hfe.inv hvis h
+
 /-- `check_annot_list` ⊑ `checkAnnotList` at the cursor. -/
 theorem check_annot_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
@@ -1236,6 +1412,24 @@ theorem check_annot_list_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absEIdxLFrom xs i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_annot_list_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {depth : Std.U64}
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_base.check_annot_list pers vis st mode rf depth xs i) lst
+      (checkAnnotList (ConRon.Refine.absMode mode) lf (absU depth)
+        (absEIdxLFrom xs i)) :=
+  LS.ofSim₀ fun _ h => check_annot_list_refines hrel hinv hfe.rel hfe.inv hvis h
+
 /-- `check_def_eq_list` ⊑ `checkDefEqList` at the cursor. -/
 theorem check_def_eq_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
@@ -1248,6 +1442,24 @@ theorem check_def_eq_list_refines {pers st lst} {vis : Std.U64} {rf lf}
       (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
         (absEIdxLFrom xs i) (absEIdxLFrom ys i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_def_eq_list_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {depth : Std.U64}
+    {xs ys : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i) lst
+      (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
+        (absEIdxLFrom xs i) (absEIdxLFrom ys i)) :=
+  LS.ofSim₀ fun _ h => check_def_eq_list_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-! ## `unwrapOr`, the environment lookup and the pi result sort -/
 
@@ -1270,6 +1482,20 @@ theorem ifenv_find_cv_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (Option.map absIConstantVal) pers lst o
       (lf.findCV? (absNIdx n)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem ifenv_find_cv_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (Option.map absIConstantVal) a)
+      (arena.checker_base.ifenv_find_cv pers vis st rf n) lst
+      (lf.findCV? (absNIdx n)) :=
+  LS.ofSim₀ fun _ h => ifenv_find_cv_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- `pi_result_sort` ⊑ `piResultSort`. -/
 theorem pi_result_sort_refines {pers st lst} {e : arena.handle.EIdx} {o}
@@ -1347,6 +1573,25 @@ theorem proj_rule_wf_refines {pers st lst} {vis : Std.U64} {rf lf}
           !(← hasFvarFast coreWalkFuel (absEIdx rhs_a)))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem proj_rule_wf_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {rhs_a : arena.handle.EIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.proj_rule_wf pers vis st rf rhs_a lps) lst
+      (do
+        pure ((← allLevelParamsDefined (absNIdxL lps) (absEIdx rhs_a)) &&
+          (← constsResolveFFast lf (absEIdx rhs_a)) &&
+          (← looseBVarsBoundedFast coreWalkFuel 0 (absEIdx rhs_a)) &&
+          !(← hasFvarFast coreWalkFuel (absEIdx rhs_a)))) :=
+  LS.ofSim₀ fun _ h => proj_rule_wf_refines hrel hinv hfe.rel hfe.inv hvis h
+
 /-- `check_proj_rule_frame` is stage 3's parameter-frame check: the type's
 telescope opened at fresh free variables, the constructor's domains
 instantiated at them and compared. -/
@@ -1363,6 +1608,25 @@ theorem check_proj_rule_frame_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absEIdxL fvs_p) (absEIdx crest_p) (absEIdx rhs_a)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_rule_frame_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {n_p n_f : Std.U64}
+    {fvs_p : alloc.vec.Vec arena.handle.EIdx}
+    {crest_p rhs_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_base.check_proj_rule_frame pers vis st mode rf n_p n_f
+      fvs_p crest_p rhs_a) lst
+      (checkProjRuleFrameSpec (ConRon.Refine.absMode mode) lf (absU n_p) (absU n_f)
+        (absEIdxL fvs_p) (absEIdx crest_p) (absEIdx rhs_a)) :=
+  LS.ofSim₀ fun _ h => check_proj_rule_frame_refines hrel hinv hfe.rel hfe.inv hvis h
+
 /-- `check_proj_rule_certs` is stage 3's certificate tail. -/
 theorem check_proj_rule_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {pty : arena.handle.EIdx}
@@ -1376,6 +1640,26 @@ theorem check_proj_rule_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
       (checkProjRuleCertsSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
         (absIConstantVal cvj) (absU n_p) (absU n_f) (absEIdx rhs_a)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_proj_rule_certs_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pty : arena.handle.EIdx}
+    {cvj : arena.env.IConstantVal}
+    {n_p n_f : Std.U64}
+    {rhs_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_base.check_proj_rule_certs pers vis st mode rf pty cvj
+      n_p n_f rhs_a) lst
+      (checkProjRuleCertsSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
+        (absIConstantVal cvj) (absU n_p) (absU n_f) (absEIdx rhs_a)) :=
+  LS.ofSim₀ fun _ h => check_proj_rule_certs_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- `check_proj_rule_shape` is stage 3's λ-telescope shape check. -/
 theorem check_proj_rule_shape_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -1392,6 +1676,27 @@ theorem check_proj_rule_shape_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absEIdx rhs_a)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_rule_shape_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pty : arena.handle.EIdx}
+    {cvj : arena.env.IConstantVal}
+    {n_p n_f : Std.U64}
+    {bv rhs_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_base.check_proj_rule_shape pers vis st mode rf pty cvj
+      n_p n_f bv rhs_a) lst
+      (checkProjRuleShapeSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
+        (absIConstantVal cvj) (absU n_p) (absU n_f) (absEIdx bv)
+        (absEIdx rhs_a)) :=
+  LS.ofSim₀ fun _ h => check_proj_rule_shape_refines hrel hinv hfe.rel hfe.inv hvis h
+
 /-- `check_proj_rule_wf` is stage 3 past the annotation. -/
 theorem check_proj_rule_wf_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {pty : arena.handle.EIdx}
@@ -1406,6 +1711,28 @@ theorem check_proj_rule_wf_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absEIdx bv)
         (absEIdx rhs_a)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_proj_rule_wf_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pty : arena.handle.EIdx}
+    {cvj : arena.env.IConstantVal}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {bv rhs_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_base.check_proj_rule_wf pers vis st mode rf pty cvj lps
+      n_p n_f bv rhs_a) lst
+      (checkProjRuleWfSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
+        (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absEIdx bv)
+        (absEIdx rhs_a)) :=
+  LS.ofSim₀ fun _ h => check_proj_rule_wf_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-- `check_proj_rule_scoped` is stage 3 past the scoping test. -/
 theorem check_proj_rule_scoped_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -1422,6 +1749,28 @@ theorem check_proj_rule_scoped_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absEIdx rhs)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_proj_rule_scoped_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pty : arena.handle.EIdx}
+    {cvj : arena.env.IConstantVal}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {bv rhs : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_base.check_proj_rule_scoped pers vis st mode rf pty cvj lps
+      n_p n_f bv rhs) lst
+      (checkProjRuleScopedSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
+        (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absEIdx bv)
+        (absEIdx rhs)) :=
+  LS.ofSim₀ fun _ h => check_proj_rule_scoped_refines hrel hinv hfe.rel hfe.inv hvis h
+
 /-- **`check_proj_rule` ⊑ `checkProjRule`** — stage 3, whole: λ over the
 constructor telescope returning field `i`, annotated; its λ-domains stay the
 constructor's. -/
@@ -1437,6 +1786,26 @@ theorem check_proj_rule_refines {pers st lst} {vis : Std.U64} {rf lf}
       (checkProjRule (ConRon.Refine.absMode mode) lf (absEIdx pty)
         (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_proj_rule_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {pty : arena.handle.EIdx}
+    {cvj : arena.env.IConstantVal}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_f i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_base.check_proj_rule pers vis st mode rf pty cvj lps
+      n_p n_f i) lst
+      (checkProjRule (ConRon.Refine.absMode mode) lf (absEIdx pty)
+        (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) :=
+  LS.ofSim₀ fun _ h => check_proj_rule_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-! ## The block's partition and its declared parameter count -/
 
@@ -1475,6 +1844,17 @@ theorem ind_params_ok_at_refines {pers st lst} {n_p : Std.U64}
       (indParamsOkAtSpec (absU n_p) (absIConstantInfo ci)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem ind_params_ok_at_ls {pers st lst}
+    {n_p : Std.U64}
+    {ci : arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.ind_params_ok_at pers st n_p ci) lst
+      (indParamsOkAtSpec (absU n_p) (absIConstantInfo ci)) :=
+  LS.ofSim₀ fun _ h => ind_params_ok_at_refines hrel hinv h
+
 /-- `ind_params_ok` ⊑ `indParamsOk` from the cursor on — **the stream's
 declared parameter count, checked as official checks it** (con-leche's task
 #228).  Both halves are one-sided on purpose: `false` means official
@@ -1486,6 +1866,18 @@ theorem ind_params_ok_refines {pers st lst} {n_p : Std.U64}
     Sim₀ id pers lst o
       (indParamsOk (absU n_p) (absICILFrom block i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem ind_params_ok_ls {pers st lst}
+    {n_p : Std.U64}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.ind_params_ok pers st n_p block i) lst
+      (indParamsOk (absU n_p) (absICILFrom block i)) :=
+  LS.ofSim₀ fun _ h => ind_params_ok_refines hrel hinv h
 
 /-! ## `arena::core::lvl_eq` — the cached level comparison (task #97-P5-Top round 3)
 
@@ -1635,6 +2027,16 @@ theorem lvl_eq_refines {pers st lst} (hrel : AStateRel₀ pers st lst)
     { hrel2 with caches := { hrel2.caches with lvlEqC := h1 } }
     { hinv2 with caches := { hinv2.caches with lvlEqC := h2 } }
 
+open Lockstep in
+@[lockstep] theorem lvl_eq_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    {u v : arena.handle.LIdx} :
+    LS pers (fun a b => b = id a)
+      (arena.core.lvl_eq pers st u v) lst
+      (lvlEq? (absLIdx u) (absLIdx v)) :=
+  LS.ofSim₀ fun _ h => lvl_eq_refines hrel hinv h
+
 /-! ## `arena::checker_split` — the install/check seam of a value declaration
 
 DESIGN §8.3's per-declaration bracket lives here: the install half writes the
@@ -1682,6 +2084,21 @@ theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
       (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
         (absEIdx value_a)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem install_value_tail_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {cv : arena.env.IConstantVal}
+    {value_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_split.install_value_tail pers vis st rf cv value_a) lst
+      (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
+        (absEIdx value_a)) :=
+  LS.ofSim₀ fun _ h => install_value_tail_refines hrel hinv hfe.rel hfe.inv h
 
 /-- **`install_value` ⊑ `installValue`** — the value half of
 `check{Defn,Thm,Opaque}Val` minus its inference. -/
@@ -1747,6 +2164,22 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.checker_split.check_value_group_tail, checkValueGroupTailSpec]
   lockstep
+
+open Lockstep in
+@[lockstep] theorem check_value_group_tail_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {g : arena.checker_split.ValueGroup}
+    {jv : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_split.check_value_group_tail pers vis st mode rf g jv) lst
+      (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) :=
+  LS.ofSim₀ fun _ h => check_value_group_tail_refines hrel hinv hfe.rel hfe.inv h
 
 open Lockstep in
 @[lockstep] theorem check_value_group_value_ls {pers st lst} {vis : Std.U64} {rf lf}
