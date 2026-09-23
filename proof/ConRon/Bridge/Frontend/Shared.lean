@@ -2251,6 +2251,21 @@ theorem internDecls_istep : ∀ (ds : List Declaration) {s s' : AState}
   exact ⟨hst.toIStep hoff, PersDecls_of_denote hst.ok.wf (hst.off hoff) hn hd,
     hd, hm', hn⟩
 
+/-- con-leche: none — the same at a fresh memo and with no flag: what a caller
+INSIDE the per-declaration scratch bracket can use.  `internExprGo_sstep` at
+`∅`. -/
+theorem internExpr_sstep {s s' : AState} (hok : StateOK s) {e : Expr}
+    {h : EIdx} (hrun : ConRon.Arena.Frontend.internExpr e s = .ok (h, s')) :
+    IStepS s s' ∧ denoteE s'.store h = some e := by
+  rw [ConRon.Arena.Frontend.internExpr] at hrun
+  obtain ⟨p, s₁, hgo, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨m1, hh⟩ := p
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+  subst hst; subst hv
+  obtain ⟨hstep, hden, -⟩ :=
+    internExprGo_sstep e hok (EMemoOK.empty s.store) hgo
+  exact ⟨hstep, hden⟩
+
 /-- con-leche: none — **the intern is the readback's inverse**: what
 `internExpr` returns denotes what it was given, in the store the call leaves
 behind, and it is persistent when the scratch tier is closed.

@@ -466,26 +466,337 @@ theorem clOccursConstFast_eq {n : ConLeche.Name} {e : ConLeche.Expr} :
   | none => exact clOccursConstGo_eq
   | some r => exact clOccursConstB_eq h
 
+/-! ### The occurrence walk's memo, and why it is NOT gray
+
+`occursConstGo`'s `seen` is a **black-only** memo: the twin inserts a node only
+once every child has answered `false` (`Arena/Frontend/ProjRec.lean:148-187` —
+the `seen.insert h` is in the all-`false` branch and nowhere else), so a key of
+the set is a handle whose subtree is ALREADY known not to mention the name.
+Nothing is ever marked on the way down.
+
+That is the whole difference from `Bridge/ExprOps/Leaves.lean`'s
+`fvarLeavesGo`, which marks a node BEFORE descending and therefore needs the
+gray disjunct and `StoreWF`'s rank to say what a gray key is.  Round 5's note
+here called this walk the same gray shape; **it is not**, and that is why the
+induction below is a plain fuel induction with one invariant, no rank and no
+second parameter.  DESIGN #97-P3-Frontend round 6. -/
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:182-227 occursConstGo — the
+memo's invariant: every key denotes a term that does not mention `nP`. -/
+def OccSeen (st : EStore) (nP : ConLeche.Name) (seen : Std.HashSet EIdx) : Prop :=
+  ∀ k, seen.contains k = true → ∀ e, denoteE st k = some e →
+    ConLeche.Frontend.occursConst nP e = false
+
+/-- con-leche: none — the walk starts at the empty set. -/
+theorem OccSeen.empty {st : EStore} {nP : ConLeche.Name} :
+    OccSeen st nP (∅ : Std.HashSet EIdx) := by
+  intro k hk; simp at hk
+
+/-- con-leche: none — a node joins the memo once its children have all said
+no, which is the only place the twin inserts. -/
+theorem OccSeen.insert {st : EStore} {nP : ConLeche.Name}
+    {seen : Std.HashSet EIdx} {h : EIdx} {e : Expr}
+    (hs : OccSeen st nP seen) (he : denoteE st h = some e)
+    (hb : ConLeche.Frontend.occursConst nP e = false) :
+    OccSeen st nP (seen.insert h) := by
+  intro k hk e' he'
+  rw [Std.HashSet.contains_insert] at hk
+  rcases Bool.or_eq_true .. |>.mp hk with hk1 | hk2
+  · have hhk : h = k := eq_of_beq hk1
+    subst hhk
+    obtain rfl : e = e' := Option.some.inj (he.symm.trans he')
+    exact hb
+  · exact hs k hk2 e' he'
+
+/-- con-leche: none — the six views the walk answers `false` at outright
+(`bvar`, `fvar`, `sort`, `lit`), and the memo HIT.  con-leche's `occursConst`
+falls through to its catch-all at each of the four. -/
+theorem occSeen_stop {s s' : AState} {seen seen' : Std.HashSet EIdx}
+    {b : Bool} (hrest : (pure (false, seen) : AM (Bool × Std.HashSet EIdx)) s
+      = .ok ((b, seen'), s')) : s' = s ∧ b = false ∧ seen' = seen := by
+  obtain ⟨hv, hs⟩ := AM.pure_ok hrest
+  injection hv with e1 e2
+  exact ⟨hs, e1, e2⟩
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:182-227 occursConstGo — **the
+arena side of the memoised occurrence test**: the twin's walk over handles
+answers con-leche's pure `occursConst` over the denoted tree, and hands back a
+memo that still says only true things.
+
+A fuel induction, ten arms, the inversion layer of `Bridge/Rel.lean` read once
+each.  The `const` arm is the only one that compares anything, and it is exact
+in BOTH directions: a handle equality gives a name equality because `denoteN`
+is a function, and a name equality gives a handle equality because `denoteN` is
+INJECTIVE (DESIGN §8.3's soundness obligation).  Read-only: no intern, so the
+state does not move. -/
+theorem occursConstGo_run {s : AState} (hok : StateOK s) {n : NIdx}
+    {nP : ConLeche.Name} (hn : denoteN s.store.ns n = some nP) :
+    ∀ (fuel : Nat) {seen seen' : Std.HashSet EIdx} {h : EIdx} {e : Expr}
+      {b : Bool} {s' : AState}, OccSeen s.store nP seen →
+      denoteE s.store h = some e →
+      occursConstGo n seen fuel h s = .ok ((b, seen'), s') →
+      s' = s ∧ b = ConLeche.Frontend.occursConst nP e ∧
+        OccSeen s.store nP seen' := by
+  have hwf : StoreWF s.store := hok.wf
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro seen seen' h e b s' _ _ hrun
+    rw [ConRon.Arena.Frontend.occursConstGo] at hrun
+    exact absurd (AM.fail_ok hrun) (by simp)
+  | succ fuel ih =>
+    intro seen seen' h e b s' hseen he hrun
+    rw [ConRon.Arena.Frontend.occursConstGo] at hrun
+    obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hview⟩ := view_run hv
+    match v, hview with
+    | .const m us, hview =>
+      obtain ⟨mP, ls, rfl, hm, -⟩ := denote_const_inv hwf hview he
+      simp only [] at hrest
+      obtain ⟨hvv, hs⟩ := AM.pure_ok hrest
+      subst hs
+      injection hvv with e1 e2
+      subst e1; subst e2
+      refine ⟨rfl, ?_, hseen⟩
+      rw [ConLeche.Frontend.occursConst]
+      by_cases hmn : m = n
+      · subst hmn
+        rw [hm] at hn
+        obtain rfl := Option.some.inj hn
+        simp
+      · have hne : mP ≠ nP := by
+          intro heq
+          subst heq
+          exact hmn (Arena.denoteN_inj (nsWF_of_StateOK hok) hm hn)
+        rw [beq_eq_false_iff_ne.mpr hmn, beq_eq_false_iff_ne.mpr hne]
+    | .bvar i, hview =>
+      obtain rfl := denote_bvar_inv hwf hview he
+      simp only [] at hrest
+      obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+      exact ⟨hs, rfl, hseen⟩
+    | .fvar k ty, hview =>
+      obtain ⟨t, rfl, -⟩ := denote_fvar_inv hwf hview he
+      simp only [] at hrest
+      obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+      exact ⟨hs, rfl, hseen⟩
+    | .sort u, hview =>
+      obtain ⟨l, rfl, -⟩ := denote_sort_inv hwf hview he
+      simp only [] at hrest
+      obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+      exact ⟨hs, rfl, hseen⟩
+    | .lit l, hview =>
+      obtain rfl := denote_lit_inv hwf hview he
+      simp only [] at hrest
+      obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+      exact ⟨hs, rfl, hseen⟩
+    | .app f a, hview =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hview he
+      simp only [] at hrest
+      by_cases hc : seen.contains h = true
+      · rw [if_pos hc] at hrest
+        obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+        exact ⟨hs, (hseen h hc _ he).symm, hseen⟩
+      · rw [if_neg hc] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨b1, sn1⟩ := p1
+        obtain ⟨rfl, hb1, hs1⟩ := ih hseen hf hg1
+        cases b1 with
+        | true =>
+          simp only [] at hr1
+          obtain ⟨hvv, hs⟩ := AM.pure_ok hr1
+          subst hs; injection hvv with e1 e2; subst e1; subst e2
+          exact ⟨rfl, by rw [ConLeche.Frontend.occursConst, ← hb1]; simp, hs1⟩
+        | false =>
+          simp only [] at hr1
+          obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+          obtain ⟨b2, sn2⟩ := p2
+          obtain ⟨rfl, hb2, hs2⟩ := ih hs1 ha hg2
+          cases b2 with
+          | true =>
+            simp only [] at hr2
+            obtain ⟨hvv, hs⟩ := AM.pure_ok hr2
+            subst hs; injection hvv with e1 e2; subst e1; subst e2
+            exact ⟨rfl, by
+              rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2]; simp, hs2⟩
+          | false =>
+            simp only [] at hr2
+            obtain ⟨hvv, hs⟩ := AM.pure_ok hr2
+            subst hs; injection hvv with e1 e2; subst e1; subst e2
+            have hz : ConLeche.Frontend.occursConst nP (Expr.app ef ea) = false := by
+              rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2]; simp
+            exact ⟨rfl, hz.symm, hs2.insert he hz⟩
+    | .lam ty body mt, hview =>
+      obtain ⟨et, eb, rfl, hf, ha⟩ := denote_lam_inv hwf hview he
+      simp only [] at hrest
+      by_cases hc : seen.contains h = true
+      · rw [if_pos hc] at hrest
+        obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+        exact ⟨hs, (hseen h hc _ he).symm, hseen⟩
+      · rw [if_neg hc] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨b1, sn1⟩ := p1
+        obtain ⟨rfl, hb1, hs1⟩ := ih hseen hf hg1
+        cases b1 with
+        | true =>
+          simp only [] at hr1
+          obtain ⟨hvv, hs⟩ := AM.pure_ok hr1
+          subst hs; injection hvv with e1 e2; subst e1; subst e2
+          exact ⟨rfl, by rw [ConLeche.Frontend.occursConst, ← hb1]; simp, hs1⟩
+        | false =>
+          simp only [] at hr1
+          obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+          obtain ⟨b2, sn2⟩ := p2
+          obtain ⟨rfl, hb2, hs2⟩ := ih hs1 ha hg2
+          cases b2 with
+          | true =>
+            simp only [] at hr2
+            obtain ⟨hvv, hs⟩ := AM.pure_ok hr2
+            subst hs; injection hvv with e1 e2; subst e1; subst e2
+            exact ⟨rfl, by
+              rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2]; simp, hs2⟩
+          | false =>
+            simp only [] at hr2
+            obtain ⟨hvv, hs⟩ := AM.pure_ok hr2
+            subst hs; injection hvv with e1 e2; subst e1; subst e2
+            have hz : ConLeche.Frontend.occursConst nP (Expr.lam et eb mt)
+                = false := by
+              rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2]; simp
+            exact ⟨rfl, hz.symm, hs2.insert he hz⟩
+    | .forallE ty body mt, hview =>
+      obtain ⟨et, eb, rfl, hf, ha⟩ := denote_forallE_inv hwf hview he
+      simp only [] at hrest
+      by_cases hc : seen.contains h = true
+      · rw [if_pos hc] at hrest
+        obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+        exact ⟨hs, (hseen h hc _ he).symm, hseen⟩
+      · rw [if_neg hc] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨b1, sn1⟩ := p1
+        obtain ⟨rfl, hb1, hs1⟩ := ih hseen hf hg1
+        cases b1 with
+        | true =>
+          simp only [] at hr1
+          obtain ⟨hvv, hs⟩ := AM.pure_ok hr1
+          subst hs; injection hvv with e1 e2; subst e1; subst e2
+          exact ⟨rfl, by rw [ConLeche.Frontend.occursConst, ← hb1]; simp, hs1⟩
+        | false =>
+          simp only [] at hr1
+          obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+          obtain ⟨b2, sn2⟩ := p2
+          obtain ⟨rfl, hb2, hs2⟩ := ih hs1 ha hg2
+          cases b2 with
+          | true =>
+            simp only [] at hr2
+            obtain ⟨hvv, hs⟩ := AM.pure_ok hr2
+            subst hs; injection hvv with e1 e2; subst e1; subst e2
+            exact ⟨rfl, by
+              rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2]; simp, hs2⟩
+          | false =>
+            simp only [] at hr2
+            obtain ⟨hvv, hs⟩ := AM.pure_ok hr2
+            subst hs; injection hvv with e1 e2; subst e1; subst e2
+            have hz : ConLeche.Frontend.occursConst nP (Expr.forallE et eb mt)
+                = false := by
+              rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2]; simp
+            exact ⟨rfl, hz.symm, hs2.insert he hz⟩
+    | .letE ty w body, hview =>
+      obtain ⟨et, ew, eb, rfl, h1d, h2d, h3d⟩ := denote_letE_inv hwf hview he
+      simp only [] at hrest
+      by_cases hc : seen.contains h = true
+      · rw [if_pos hc] at hrest
+        obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+        exact ⟨hs, (hseen h hc _ he).symm, hseen⟩
+      · rw [if_neg hc] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨b1, sn1⟩ := p1
+        obtain ⟨rfl, hb1, hs1⟩ := ih hseen h1d hg1
+        cases b1 with
+        | true =>
+          simp only [] at hr1
+          obtain ⟨hvv, hs⟩ := AM.pure_ok hr1
+          subst hs; injection hvv with e1 e2; subst e1; subst e2
+          exact ⟨rfl, by rw [ConLeche.Frontend.occursConst, ← hb1]; simp, hs1⟩
+        | false =>
+          simp only [] at hr1
+          obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+          obtain ⟨b2, sn2⟩ := p2
+          obtain ⟨rfl, hb2, hs2⟩ := ih hs1 h2d hg2
+          cases b2 with
+          | true =>
+            simp only [] at hr2
+            obtain ⟨hvv, hs⟩ := AM.pure_ok hr2
+            subst hs; injection hvv with e1 e2; subst e1; subst e2
+            exact ⟨rfl, by
+              rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2]; simp, hs2⟩
+          | false =>
+            simp only [] at hr2
+            obtain ⟨p3, s₄, hg3, hr3⟩ := AM.bind_ok hr2
+            obtain ⟨b3, sn3⟩ := p3
+            obtain ⟨rfl, hb3, hs3⟩ := ih hs2 h3d hg3
+            cases b3 with
+            | true =>
+              simp only [] at hr3
+              obtain ⟨hvv, hs⟩ := AM.pure_ok hr3
+              subst hs; injection hvv with e1 e2; subst e1; subst e2
+              exact ⟨rfl, by
+                rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2, ← hb3]; simp,
+                hs3⟩
+            | false =>
+              simp only [] at hr3
+              obtain ⟨hvv, hs⟩ := AM.pure_ok hr3
+              subst hs; injection hvv with e1 e2; subst e1; subst e2
+              have hz : ConLeche.Frontend.occursConst nP (Expr.letE et ew eb)
+                  = false := by
+                rw [ConLeche.Frontend.occursConst, ← hb1, ← hb2, ← hb3]; simp
+              exact ⟨rfl, hz.symm, hs3.insert he hz⟩
+    | .proj nn i sub, hview =>
+      obtain ⟨nm, es, rfl, -, hsub⟩ := denote_proj_inv hwf hview he
+      simp only [] at hrest
+      by_cases hc : seen.contains h = true
+      · rw [if_pos hc] at hrest
+        obtain ⟨hs, rfl, rfl⟩ := occSeen_stop hrest
+        exact ⟨hs, (hseen h hc _ he).symm, hseen⟩
+      · rw [if_neg hc] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨b1, sn1⟩ := p1
+        obtain ⟨rfl, hb1, hs1⟩ := ih hseen hsub hg1
+        cases b1 with
+        | true =>
+          simp only [] at hr1
+          obtain ⟨hvv, hs⟩ := AM.pure_ok hr1
+          subst hs; injection hvv with e1 e2; subst e1; subst e2
+          exact ⟨rfl, by rw [ConLeche.Frontend.occursConst, ← hb1], hs1⟩
+        | false =>
+          simp only [] at hr1
+          obtain ⟨hvv, hs⟩ := AM.pure_ok hr1
+          subst hs; injection hvv with e1 e2; subst e1; subst e2
+          have hz : ConLeche.Frontend.occursConst nP (Expr.proj nm i es)
+              = false := by
+            rw [ConLeche.Frontend.occursConst, ← hb1]
+          exact ⟨rfl, hz.symm, hs1.insert he hz⟩
+
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:228 occursConstFast — the
 memoised occurrence test.  A `Bool` answer names no handle, so task
 #97-P3-0 §5's finding 1 applies: this is a `RelV` and the closer takes every
 arm.
 
-**What is left after round 5's two con-leche-tier lemmas above**: the
-con-leche side is now the pure `occursConst` (`clOccursConstFast_eq`), so the
-only thing open here is the ARENA side — the twin's `occursConstGo` over
-handles against `occursConst` over the denoted tree.
-
-`sorry`: the fuel induction with the `seen` set's invariant — the same GRAY
-shape `Bridge/ExprOps/Leaves.lean`'s `fvarLeavesGo_spec` is open on, and it
-is open here for the same reason.  Task #97-P3-Frontend's sorry list,
-item 11. -/
+**CLOSED** (round 6).  Round 5's two con-leche-tier lemmas put the con-leche
+side at the pure `occursConst` (`clOccursConstFast_eq`), and the arena side is
+`occursConstGo_run` above — a plain fuel induction, because the memo is
+black-only and there is no gray phase to account for.  What remains under this
+theorem is the two con-leche-tier `sorry`s and nothing of this tier's. -/
 theorem occursConstFast_run {s s' : AState} (hok : StateOK s) {fuel : Nat}
     {n : NIdx} {nP : ConLeche.Name} (hn : denoteN s.store.ns n = some nP)
     {h : EIdx} {e : Expr} (he : denoteE s.store h = some e) {b : Bool}
     (hrun : occursConstFast fuel n h s = .ok (b, s')) :
     s' = s ∧ b = ConLeche.Frontend.occursConstFast nP e := by
-  sorry
+  rw [ConRon.Arena.Frontend.occursConstFast] at hrun
+  obtain ⟨p, s₁, hgo, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨b1, sn1⟩ := p
+  obtain ⟨rfl, hb, -⟩ := occursConstGo_run hok hn fuel OccSeen.empty he hgo
+  obtain ⟨hvv, hs⟩ := AM.pure_ok hrest
+  subst hs
+  exact ⟨rfl, by rw [hvv, hb, clOccursConstFast_eq]⟩
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:241 stripPisAll — the walk's
 STOP arm, once for the nine non-`forallE` constructors: the twin answers
