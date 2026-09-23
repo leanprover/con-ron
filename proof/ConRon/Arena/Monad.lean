@@ -204,6 +204,15 @@ def internE (v : ENodeView) : AM EIdx := do
     -- itself makes — and a NON-binder view answers `some (Idx.ofWord 0)`
     -- there, so the one disjunct covers both the eight arms that never touch
     -- the datum array and the two that touch it only on a datum miss.
+    --
+    -- **What is left, and why it is not the old note again.**  On a datum
+    -- MISS the twin tests the NODE array too, where the port would skip that
+    -- test if its node probe — made after the datum append, at the fresh
+    -- handle — hit.  It cannot hit: `consP`/`consS` say every cons key's
+    -- datum handle decodes in the datum table, and this one was just pushed
+    -- past its end.  So unlike the corner above, this one is unreachable at
+    -- a well-formed store for a REASON the invariant states, and the twin
+    -- and the port agree on every input a checker can build.
     let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
     if n < Idx.idxCap && ((s.store.findBMOfView v).isSome || nbm < Idx.idxCap) then
       let st := s.store
