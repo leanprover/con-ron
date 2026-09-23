@@ -51005,6 +51005,18 @@ and no `bv_decide` axiom.
 
 `ConRon.Refine2.ExprOps.Mut` rebuilds in **7 s** on top of a warm `Read.lean`.
 
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **all 13 OK**, twice — at the merge (`extract-check` 93 s, `lake-build` 109 s) and again after the census rows (`extract-check` 139 s under a load average of 86, `lake-build` 3 s) |
+| `cd proof && lake build ConRonRefine2` | **green, 2 221 jobs, 0 errors, 403 `sorry`** (the tier's, of which 41 are this file's) |
+
+**`lake build`'s default targets do not cover this tier.**  `proof/lakefile.toml`
+makes `ConRonRefine2` a library root of its own *"so that a P5 agent's
+half-built tier never blocks `lake build`'s default targets"* (task #97-P5-0),
+so `gates.sh`'s `lake-build` step never elaborates `Refine2/**` and the
+explicit `lake build ConRonRefine2` is not optional — a green gate run says
+nothing about this lane.
+
 #### 8. What the next round should take, in order
 
 1. **The twin's datum-capacity test** (§2), which is one `if` and a frozen
