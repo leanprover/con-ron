@@ -332,7 +332,45 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  have hce := fun (s : AState) (n : NIdx) =>
+    constE_spec' (mode := mode) (env := env) (fe := fe) s n
+  cases v
+  case lit l =>
+    obtain rfl := denote_lit_inv hwf hv hden
+    cases l with
+    | natVal n =>
+      have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn, ConRon.Arena.pinNat, hce]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (apply CheckOK.pins; assumption)
+        | (intro s hs _; subst hs; assumption)
+        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
+        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
+           intro hck hx hp hd
+           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
+             by unfold Expr.WScoped; trivial, 1, inferIO_natLit hsup.symm⟩)
+    | strVal str =>
+      have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn, ConRon.Arena.pinString, hce]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (apply CheckOK.pins; assumption)
+        | (intro s hs _; subst hs; assumption)
+        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
+        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
+           intro hck hx hp hd
+           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
+             by unfold Expr.WScoped; trivial, 1, inferIO_strLit hsup.symm⟩)
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — **the `.proj`
 clause**, `inferBody`'s verbatim at the io grade. -/

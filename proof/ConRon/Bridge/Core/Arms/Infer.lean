@@ -36,7 +36,7 @@ a twin SUCCESS is what each success lemma is the licence for.
    `Bridge/StateOK.lean`'s `IFEnvOK` absorbs with no clause of its own here.
 -/
 import ConRon.Bridge.Core.Memo
-import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Core.Walks.StrLit
 
 namespace ConRon.Bridge.Core
 
@@ -282,53 +282,6 @@ theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
   sorry
 
 
-/-! ### The constant lookup's two facts (task #97-P3-Core round 5)
-
-The `.const` clause of both inference bodies reads a stored constant off the
-environment index and, behind the tower-entry guard, projects its common
-data.  At a non-tower entry that projection is `pure` (only a projection
-table BUILDS its value), and the stored constant denotes one whose value is
-the projection's denotation. -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:639-651 ConstantInfo.toConstantVal /
-isTowerEntry — a stored non-tower constant projects its value purely, and
-denotes a non-tower constant with that value. -/
-theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
-    {c : ConstantInfo} (h : Frontend.denoteCI st ci = some c)
-    (ht : ci.isTowerEntry = false) :
-    c.isTowerEntry = false ∧ ∃ v, ci.toConstantVal = (pure v : AM _) ∧
-      Frontend.denoteCV st v = some c.toConstantVal := by
-  cases ci with
-  | projInfo t => simp [IConstantInfo.isTowerEntry] at ht
-  | axiomInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, v, rfl, hcv⟩
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h
-    exact ⟨rfl, v, rfl, hcv⟩
-  | defnInfo v e hh =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
-    · simp at h
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
-    · simp at h
-  | indInfo v caps =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
-    · simp at h
-  | recInfo v mI rP rs =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
-    · simp at h
-
 /-! ### The dispatch's children (task #97-P3-Core round 5)
 
 `inferBody_spec` below is a case split on the tag and nothing else: one
@@ -442,7 +395,45 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  have hce := fun (s : AState) (n : NIdx) =>
+    constE_spec' (mode := mode) (env := env) (fe := fe) s n
+  cases v
+  case lit l =>
+    obtain rfl := denote_lit_inv hwf hv hden
+    cases l with
+    | natVal n =>
+      have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn, ConRon.Arena.pinNat, hce]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (apply CheckOK.pins; assumption)
+        | (intro s hs _; subst hs; assumption)
+        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
+        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
+           intro hck hx hp hd
+           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
+             by unfold Expr.WScoped; trivial, 1, infer_natLit hsup.symm⟩)
+    | strVal str =>
+      have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn, ConRon.Arena.pinString, hce]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (apply CheckOK.pins; assumption)
+        | (intro s hs _; subst hs; assumption)
+        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
+        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
+           intro hck hx hp hd
+           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
+             by unfold Expr.WScoped; trivial, 1, infer_strLit hsup.symm⟩)
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1229-1264 inferBody — **the `.proj`
 clause**: `KnotSpec.infer`, `KnotSpec.whnf'`, `getAppFn`/`getAppArgs`,

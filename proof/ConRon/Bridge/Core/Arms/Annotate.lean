@@ -357,7 +357,35 @@ theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case lit l =>
+    obtain rfl := denote_lit_inv hwf hv hden
+    cases l with
+    | natVal n =>
+      have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (rename_i s1 s0 ck_s0 x_s1_s0 p_s0_s1 hsup
+           exact ⟨ck_s0, x_s1_s0, p_s0_s1, _, denote_ext hden x_s1_s0, hw, 1,
+             annot_natLit hsup.symm⟩)
+    | strVal str =>
+      have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (rename_i s1 s0 ck_s0 x_s1_s0 p_s0_s1 hsup
+           exact ⟨ck_s0, x_s1_s0, p_s0_s1, _, denote_ext hden x_s1_s0, hw, 1,
+             annot_strLit hsup.symm⟩)
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1852-1881 annotateBody — **the `.letE`
 clause** (con-leche's task #217): `KnotSpec.annotate`, `ensureSort`,
