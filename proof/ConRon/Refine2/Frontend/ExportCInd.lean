@@ -28,14 +28,14 @@ statement of this file and the helpers exist to feed it.
 Eleven of the helpers are PURE or read only the index tables, and their
 statement is an equation against the twin's own expression, written inline —
 `any_ty_unsafe` is `tys.any (·.isUnsafe)`, `flatten_listed` is
-`listed.flatten`, and so on.  The four `check_*` ones and the two `order_*`
-ones are the two `for` loops' bodies and have no twin expression of their own;
-they are stated against a named reading in the doc comment and **their
-transcriptions are what `Refine2/Frontend/Spec.lean` still owes** — the one
-group of this tier where the statement is about the port's own arm rather
-than about a twin clause.  DESIGN.md's section lists them.
+`listed.flatten`, and so on.  The `check_*` and `order_*` ones are the two
+`for` loops' bodies and the loops themselves; they are stated with `SimLV`
+(a `SimLR` whose `LineErr::Verdict` arm is a twin verdict of the same kind)
+against `Refine2/Frontend/SpecInd.lean`'s transcriptions, which keep the
+twin's own `forIn` encoding so that `validateIndD_unfold` is `rfl` (ruling
+F12, task #97-T2-LOCKSTEP).
 
-## `sorry` count in this file: 25
+## `sorry` count in this file: 4
 -/
 import ConRon.Refine2.Frontend.ExportC
 import ConRon.Refine2.Frontend.SpecInd
