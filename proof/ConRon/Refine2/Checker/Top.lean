@@ -63,6 +63,16 @@ and the `sorry`s under them are now TWO, `annot_step_refines` and
 `check_decl_step_refines`.  The axiom census at the foot of this file prints
 that, rather than hiding it.
 
+**Since task #97-P5-Checker round 4 both leaves are COMPOSED**
+(`check_decl_step_of_keeps`, `annot_step_of_keeps`): the promote window is
+entered at `AStateRelW.of_rel` and closed by `Refine2/Checker/Shape.lean`'s
+`bracket_close_w`, the one bridge between the weak and the strong relation.
+What keeps the public leaves open is one PORT fact no refinement statement
+concludes — `KeepsUnfrozen`, *"the body does not freeze the persistent
+tier"*, which `promote_new`/`promote_vg` need after the body ran — and
+DESIGN.md's round-4 section puts the shape of its discharge to the
+coordinator.
+
 ## The third binder, and why it is real (task #97-P5-Checker round 3)
 
 **`BrOK lst` is the declaration boundary** — `Refine2/Core/Bracket.lean`:
@@ -544,7 +554,34 @@ theorem check_decl_refines {pers st lst} {rf lf}
     SimRel IFEnvRelI pers lst o
       (checkDecl (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIDeclaration d)) := by
-  sorry
+  cases d with
+  | AxiomDecl cv =>
+    rw [absIDeclaration, checkDecl_axiomDecl]
+    exact check_axiom_decl_refines hrel hinv hfe hfinv hrun
+  | DefnDecl cv value hint =>
+    -- **the one arm that is not an equation** (`Refine2/Checker/Spec.lean`,
+    -- `checkDecl`'s section note): `checkStructuralNatPinCertifySpec` declines
+    -- with the RUST's message, the twin with `readName cv.name`, which THROWS
+    -- `internal` at a dangling name — so `check_defn_decl_refines` is against a
+    -- transcription that is not the twin's, and closing this arm needs the
+    -- transcription corrected and "the declaration's name decodes" carried
+    -- (DESIGN.md, task #97-P5-Checker round 4 §4).
+    sorry
+  | ThmDecl cv value =>
+    rw [absIDeclaration, checkDecl_thmDecl]
+    exact check_thm_decl_refines hrel hinv hfe hfinv hrun
+  | OpaqueDecl cv value =>
+    rw [absIDeclaration, checkDecl_opaqueDecl]
+    exact check_opaque_decl_refines hrel hinv hfe hfinv hrun
+  | BasisDecl kind =>
+    rw [absIDeclaration, checkDecl_basisDecl]
+    exact check_basis_decl_refines hrel hinv hfe hfinv hrun
+  | IndDecl block n_p =>
+    rw [absIDeclaration, checkDecl_indDecl]
+    exact check_ind_decl_refines hrel hinv hfe hfinv hrun
+  | QuotDecl k cv =>
+    rw [absIDeclaration, checkDecl_quotDecl]
+    exact check_quot_decl_refines hrel hinv hfe hfinv hrun
 
 /-! ### The bracketed step, composed (task #97-P5-Checker round 4)
 
@@ -1678,6 +1715,18 @@ keeps *"the spine is closed and its leaves are not"* visible. -/
 
 /-- info: 'ConRon.Refine2.check_decls_pure_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_decls_pure_refines
+
+/-! **Task #97-P5-Checker round 4.**  The two bracketed leaves' compositions
+are complete and read `sorryAx` through their BODIES (`check_decl_refines`,
+`annot_step_go_refines`, `promote_new_refines`, `promote_vg_refines`) and
+nothing else; the public leaves stay `sorry` for the `KeepsUnfrozen` port fact
+alone. -/
+
+/-- info: 'ConRon.Refine2.check_decl_step_of_keeps' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_decl_step_of_keeps
+
+/-- info: 'ConRon.Refine2.annot_step_of_keeps' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms annot_step_of_keeps
 
 /-- info: 'ConRon.Refine2.at_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms at_decl_refines

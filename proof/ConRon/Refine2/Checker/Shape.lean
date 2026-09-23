@@ -1341,4 +1341,10 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 /-- info: 'ConRon.Refine2.openPisAtFvarsF_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms openPisAtFvarsF_length
 
+/-- info: 'ConRon.Refine2.ext_bracket'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ext_bracket'
+
+/-- info: 'ConRon.Refine2.bracket_close_w' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bracket_close_w
+
 end ConRon.Refine2
