@@ -97,9 +97,15 @@ at the branch's own hypothesis is what kills it — so the four outcomes are
 `abs*_inj` (`Refine2/AbsStore.lean`) is what turns the `Eq2`'s word
 comparison into the twin's `DecidableEq` at the abstraction: `Eq2Fwd` one way
 and injectivity the other, which is task #97-P5-0's rule 4 met at a handle
-rather than at a cons key. -/
+rather than at a cons key.
 
-theorem eidx_eq2_abs {e e1 : arena.handle.EIdx} {b1 : Bool}
+The three `*_eq2_abs` are PRIVATE because `Refine2/Inductives/Shape.lean`
+declares `nidx_eq2_abs` and `eidx_eq2_abs` of its own, and that file is ABOVE
+this one — neither can see the other, and `Refine2/Checker/Top.lean` imports
+both.  They should become one pair the next time the two tiers are touched
+together, in `Refine2/Checker/Shape.lean` where both can reach them. -/
+
+private theorem eidx_eq2_abs {e e1 : arena.handle.EIdx} {b1 : Bool}
     (h : arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e e1 = ok b1) :
     b1 = decide (absEIdx e = absEIdx e1) := by
   rw [arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
@@ -177,7 +183,7 @@ private theorem eidx_vec_beq_aux (n : Nat) :
             List.drop_eq_getElem_cons hbl, List.map_cons, List.cons.injEq]
           simp [hne]
 
-theorem lidx_eq2_abs {e e1 : arena.handle.LIdx} {b1 : Bool}
+private theorem lidx_eq2_abs {e e1 : arena.handle.LIdx} {b1 : Bool}
     (h : arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e e1 = ok b1) :
     b1 = decide (absLIdx e = absLIdx e1) := by
   rw [arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
@@ -255,7 +261,7 @@ private theorem lidx_vec_beq_aux (n : Nat) :
             List.drop_eq_getElem_cons hbl, List.map_cons, List.cons.injEq]
           simp [hne]
 
-theorem nidx_eq2_abs {e e1 : arena.handle.NIdx} {b1 : Bool}
+private theorem nidx_eq2_abs {e e1 : arena.handle.NIdx} {b1 : Bool}
     (h : arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e e1 = ok b1) :
     b1 = decide (absNIdx e = absNIdx e1) := by
   rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
