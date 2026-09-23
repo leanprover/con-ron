@@ -51,6 +51,10 @@ theorem vec_len_abs {α : Type} (v : alloc.vec.Vec α) :
     absSz (alloc.vec.Vec.len v) = v.val.length := by
   simp [absSz]
 
+theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v).val = v.val.length := by
+  simp
+
 @[lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
     (ConRon.Refine.absBinderMeta m).pw = ConRon.Refine.absPropWhen m.pw := rfl
 
@@ -68,7 +72,14 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
   show _ = _
   simp [absStk, hb, ← hx]
 
+@[lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
+  rw [arena.core.PEEL_FUEL, Arena.peelFuel]; rfl
+
 /-! ## Rust-only steps -/
+
+@[lockstep] theorem dup2_nidx (n : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n) (fun m => m = n) :=
+  fun _ hm => dupId_nidx _ _ hm
 
 @[lockstep] theorem prop_when_dup_spec (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
@@ -105,7 +116,7 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
 
 @[lockstep] theorem nidx_eq2_spec (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun c => c = (absNIdx a == absNIdx b)) := by
+      (fun c => c = decide (absNIdx a = absNIdx b)) := by
   intro c h
   rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
   cases Result.ok_injective h
@@ -214,12 +225,16 @@ the Rust store, `read_level_m_wf`). -/
   sorry
 
 /-- `arena::env::ifenv_find_proj` (a store-level step: it interns the
-reserved projection-table name) against `IFEnv.findProj?`. -/
+reserved projection-table name) against `IFEnv.findProj?`.  The Rust store
+argument `s` is named apart from the state `st` the caller rebuilds from
+(`hs`), so that a second lookup on the store the first one returned
+(`annotate_proj_at`) matches without unifying `?st.store` with a store. -/
 @[lockstep] theorem ifenv_find_proj_ls {pers vis st fe lfe lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (t : arena.handle.NIdx) (i : Std.U64) :
+    (hctx : CoreCtx vis fe lfe) (s : arena.store.EStore) (hs : st.store = s)
+    (t : arena.handle.NIdx) (i : Std.U64) :
     LSS pers (fun a b => b = Option.map absIProjEntry a)
-      (arena.env.ifenv_find_proj pers vis st.store fe t i) st lst
+      (arena.env.ifenv_find_proj pers vis s fe t i) st lst
       (lfe.findProj? (absNIdx t) (absU i)) := by
   -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
   sorry

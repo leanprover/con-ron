@@ -122,9 +122,12 @@ elab "lockstep_g_sbind" : tactic => do
     let rest ← cont (← pick gs `hk) [`a, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
     setGoals ((← normAll rest) ++ others)
 
+macro "lockstep_g1" : tactic =>
+  `(tactic| (first | lockstep_g_okfeed | lockstep_core_step | lockstep_g_sbind))
+
 /-- `lockstep_core` with region G's two moves. -/
 macro "lockstep_g" : tactic =>
-  `(tactic| repeat' (first | lockstep_g_okfeed | lockstep_core_step | lockstep_g_sbind))
+  `(tactic| repeat' lockstep_g1)
 
 /-! ## The datum computations -/
 
@@ -279,6 +282,28 @@ theorem annotate_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
       (annotateLams (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU d) (absU peel)
         (absEIdx t) (absU k) (absEIdxArr fvs) (absStk stk)) :=
   annotate_lams_aux hk _ d peel t k fvs stk hx rfl hrel hinv hctx hf
+
+
+/-! ## The body -/
+
+attribute [lockstep_inline] arena.core.annotate_binder arena.core.annotate_let
+  arena.core.annotate_proj arena.core.annotate_proj_at
+attribute [local lockstep_simp] annotateBinder absIProjEntry bne_iff_ne ExprOps.absEIdxList
+  vec_len_val'
+
+/-- **`BodyRel.annotate` in lockstep**: `arena::core::annotate_body` against
+`Arena.annotateBody`. -/
+@[lockstep] theorem annotate_body_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.annotate_body pers vis st mode lane fu fe depth e) lst
+      (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx e)) := by
+  rw [arena.core.annotate_body, annotateBody]
+  lockstep_g
 
 end loops
 
