@@ -140,6 +140,138 @@ theorem divModEnvGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
   exact RunsB.matchTy hs6.ok (hie6.findRel hs6.ok dbf)
     (fun ci hf => CIProjNamed_of_find hie6 hf) (denote_ext hbty hs6.ext)
 
+/-! ## The certificate guards' walks -/
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:627-638 Expr.substConstAll — the
+full substitution of a level-monomorphic constant, under binders too, at any
+fuel that succeeds. -/
+theorem substConstAll_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr} :
+    ∀ (fuel : Nat) {h h' : EIdx} {e : Expr} {s s' : AState}, StateOK s →
+      PinsOK s → denoteN s.store.ns cn = some nm → denoteE s.store rh = some x →
+      denoteE s.store h = some e →
+      Arena.substConstAll cn rh fuel h s = .ok (h', s') →
+      Frontend.IStepS s s' ∧
+        denoteE s'.store h' = some (Expr.substConstAll nm x e) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h h' e s s' _ _ _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro h h' e s s' hst hp hn hx he hrun
+    have hwf := hst.wf
+    have hwf' := hwf
+    obtain ⟨rk, hrk⟩ := hwf'
+    -- one recursive call, transported
+    have step : ∀ {t : AState} {a a' : EIdx} {ea : Expr} {t' : AState},
+        Frontend.IStepS s t → denoteE s.store a = some ea →
+        Arena.substConstAll cn rh fuel a t = .ok (a', t') →
+        Frontend.IStepS t t' ∧ denoteE t'.store a' = some (Expr.substConstAll nm x ea) :=
+      fun ht ha g => ih ht.ok (hp.mono ht.ext ht.pins) (denoteN_ext hn ht.ext)
+        (denote_ext hx ht.ext) (denote_ext ha ht.ext) g
+    simp only [Arena.substConstAll] at hrun
+    obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨e1s, hv⟩ := viewE_run g1
+    rw [e1s] at k1
+    cases v
+    case const c us =>
+      obtain ⟨cN, ls, rfl, hcN, hls⟩ := denote_const_inv hwf hv he
+      obtain ⟨el, s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨e2s, hel⟩ := AM.of_run (P := fun t => t = s)
+        (Q := fun r t => t = s ∧ denoteLs s.store.lss r = some []) rfl g2
+        (pinEmptyLevels_spec s hp)
+      rw [e2s] at k2
+      have e1 := beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hcN hn
+      have e2 := beq_of_denote_inj (fun h1 h2 => denoteLs_inj hrk.lss h1 h2) hls hel
+      rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
+        refine ⟨Frontend.IStepS.refl hst, ?_⟩
+        simp only [Expr.substConstAll, hc, and_self, if_true]
+        exact hx
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
+        refine ⟨Frontend.IStepS.refl hst, ?_⟩
+        simp only [Expr.substConstAll, if_neg hc]
+        exact he
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hv he
+      obtain ⟨f', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, hf'⟩ := step (Frontend.IStepS.refl hst) hf g2
+      obtain ⟨a', s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨hs3, ha'⟩ := step hs2 ha g3
+      have hf3 := denote_ext hf' hs3.ext
+      obtain ⟨hs4, hd⟩ := Frontend.internE_sstep hs3.ok
+        (viewOK_app (by rw [hf3]; rfl) (by rw [ha']; rfl)) k3
+      refine ⟨(hs2.trans hs3).trans hs4, ?_⟩
+      rw [hd]
+      simp only [denoteEView, denote_ext hf3 hs4.ext, denote_ext ha' hs4.ext, opt2,
+        Expr.substConstAll]
+    case lam ty b m =>
+      obtain ⟨et, eb, rfl, ht, hb⟩ := denote_lam_inv hwf hv he
+      obtain ⟨t', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, ht'⟩ := step (Frontend.IStepS.refl hst) ht g2
+      obtain ⟨b', s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨hs3, hb'⟩ := step hs2 hb g3
+      have ht3 := denote_ext ht' hs3.ext
+      obtain ⟨hs4, hd⟩ := Frontend.internE_sstep hs3.ok
+        (viewOK_lam (by rw [ht3]; rfl) (by rw [hb']; rfl)) k3
+      refine ⟨(hs2.trans hs3).trans hs4, ?_⟩
+      rw [hd]
+      simp only [denoteEView, denote_ext ht3 hs4.ext, denote_ext hb' hs4.ext, opt2,
+        Expr.substConstAll]
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, ht, hb⟩ := denote_forallE_inv hwf hv he
+      obtain ⟨t', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, ht'⟩ := step (Frontend.IStepS.refl hst) ht g2
+      obtain ⟨b', s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨hs3, hb'⟩ := step hs2 hb g3
+      have ht3 := denote_ext ht' hs3.ext
+      obtain ⟨hs4, hd⟩ := Frontend.internE_sstep hs3.ok
+        (viewOK_forallE (by rw [ht3]; rfl) (by rw [hb']; rfl)) k3
+      refine ⟨(hs2.trans hs3).trans hs4, ?_⟩
+      rw [hd]
+      simp only [denoteEView, denote_ext ht3 hs4.ext, denote_ext hb' hs4.ext, opt2,
+        Expr.substConstAll]
+    case letE ty w b =>
+      obtain ⟨et, ew, eb, rfl, ht, hw, hb⟩ := denote_letE_inv hwf hv he
+      obtain ⟨t', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, ht'⟩ := step (Frontend.IStepS.refl hst) ht g2
+      obtain ⟨w', s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨hs3, hw'⟩ := step hs2 hw g3
+      obtain ⟨b', s4, g4, k4⟩ := AM.bind_ok k3
+      obtain ⟨hs4, hb'⟩ := step (hs2.trans hs3) hb g4
+      have ht4 := denote_ext (denote_ext ht' hs3.ext) hs4.ext
+      have hw4 := denote_ext hw' hs4.ext
+      obtain ⟨hs5, hd⟩ := Frontend.internE_sstep hs4.ok
+        (viewOK_letE (by rw [ht4]; rfl) (by rw [hw4]; rfl) (by rw [hb']; rfl)) k4
+      refine ⟨((hs2.trans hs3).trans hs4).trans hs5, ?_⟩
+      rw [hd]
+      simp only [denoteEView, denote_ext ht4 hs5.ext, denote_ext hw4 hs5.ext,
+        denote_ext hb' hs5.ext, Expr.substConstAll]
+      rfl
+    case proj sn i sub =>
+      obtain ⟨snm, es, rfl, hsn, hsub⟩ := denote_proj_inv hwf hv he
+      obtain ⟨sub', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, hsub'⟩ := step (Frontend.IStepS.refl hst) hsub g2
+      have hsn2 := denoteN_ext hsn hs2.ext
+      obtain ⟨hs3, hd⟩ := Frontend.internE_sstep hs2.ok
+        (viewOK_proj (nview_isSome_of_denote hsn2) (by rw [hsub']; rfl)) k2
+      refine ⟨hs2.trans hs3, ?_⟩
+      rw [hd]
+      simp only [denoteEView, denoteN_ext hsn2 hs3.ext, denote_ext hsub' hs3.ext,
+        Expr.substConstAll]
+      rfl
+    all_goals first
+      | (obtain rfl := denote_bvar_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain rfl := denote_lit_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:122-130 divModDeclPin — one
 variant's pinned defining expression: seven pin reads and handle tests, each
 con-leche's name test (`beq_handle_iff`), and the variant's field. -/
