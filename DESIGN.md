@@ -42590,11 +42590,22 @@ capstones still print `sorryAx` through §4's two remaining leaves, which is the
 honest reading and is unchanged.  Still no `bv_decide` axiom anywhere in
 `Refine2/`.
 
-#### 9. The gates
+#### 9. The merge, and the gates
+
+`arena` moved **once** under this branch, to `a80ea04d` (task #97-P3-Checker
+round 5), and is merged with **no `.lean` conflict** — the only shared file is
+DESIGN.md's task log, which is append-both.  What moved is `Bridge/**` and
+DESIGN.md: no Rust file, no `Generated/**`, nothing of `Refine2/**` or
+`Arena/**`.  So the twelve gates that change cannot reach (`cargo`, the lints,
+the provenance census, the extraction) were not re-run, and the one it can —
+`lake build`, whose default targets include `ConRonBridge` — was:
+**green, 2 209 jobs**, with `lake build ConRonRefine2` green at 2 221 jobs and
+the same 817 `sorry`.
 
 | gate | result |
 |---|---|
-| `scripts/gates.sh` | **13 of 13 OK** — `cargo-build`, `cargo-test`, `lint-rust`, `provenance`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 93 s**, `lake-build` 131 s |
+| `scripts/gates.sh` | **13 of 13 OK** — `cargo-build`, `cargo-test`, `lint-rust`, `provenance`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 93 s**, `lake-build` 131 s (run at `9181ea7a`, before the merge) |
+| `cd proof && lake build` | **green, 2 209 jobs** (at the merge) |
 | `cd proof && lake build ConRonRefine2` | **green, 2 221 jobs**, 0 errors, **817 `sorry`** |
 | the diff | `proof/ConRon/Refine2/{Checker,Promote}/**`, `proof/ConRon/Refine2/Core/KnotRel.lean` (§2) and one line of `proof/ConRon/Refine2/Core/Arms/Delta.lean` (§2's rename), plus this section.  **No Rust file, no generated model, nothing under `Arena/`, `Refine/`, `RefineOld/`, `Bridge/` or `Specs.lean`** |
 
