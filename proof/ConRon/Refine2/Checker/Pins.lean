@@ -62,6 +62,25 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF StrWF)
 
+
+namespace Lockstep
+
+/-- A reader that can fail (`SimRE`) is an `LSR`.  Moved here from
+`Checker/KnotHyp.lean` (task #97-T2-LOCKSTEP lane Checker round 2) so the pin
+readers below can be filed as `@[lockstep]` specs. -/
+theorem LSR.ofSimRE {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (h : ∀ o, m = ok o → SimRE A lst o x) : LSR pers (fun a b => b = A a) m st lst x := by
+  intro o hm
+  have := h _ hm
+  cases o with
+  | Err e => exact this
+  | Ok a => exact ⟨A a, lst, this, rfl, hrel, hinv⟩
+
+end Lockstep
+
 /-! ## One pin read inside a name walk (task #97-P5-Top round 2)
 
 `arena::core::nat_op_names` and its siblings are chains of pin reads
@@ -429,6 +448,15 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
   exact ⟨hrel6.store, hrel6.memos, hrel6.caches,
     ⟨by simp [absNIdxL], rfl, rfl, rfl, rfl⟩⟩
 
+open Lockstep in
+@[lockstep] theorem intern_reserved_pins_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.pins.intern_reserved_pins pers st) lst
+      internReservedPins :=
+  LS.ofSim₀ fun _ h => intern_reserved_pins_refines hrel hinv h
+
 /-- `pins_ready` ⊑ `pinsReady` — a length test, because an unfilled table is
 EMPTY and not a sentinel handle. -/
 theorem pins_ready_refines {pers st lst} {o : Bool}
@@ -517,6 +545,16 @@ theorem pin_at_refines {pers st lst} {i : Std.Usize} {o}
     rw [Array.getElem?_eq_getElem hlt3] at hsome
     rw [Option.some_inj.mp hsome]
 
+open Lockstep in
+@[lockstep] theorem pin_at_ls {pers st lst}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_at st i) st lst
+      (pinAt (absSz i)) :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_at_refines hrel hinv h
+
 /-- `pin_reserved` ⊑ `pinReserved` — the nineteen reserved basis names, off
 the table.  `arena::core`'s `reserved_basis_names` used to build and intern
 all nineteen on every call, which task #97-P6-4a's profile put at 1.1 % of
@@ -562,6 +600,15 @@ theorem pin_reserved_refines {pers st lst} {o}
     subst h2
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
     rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
+
+open Lockstep in
+@[lockstep] theorem pin_reserved_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxL a)
+      (arena.pins.pin_reserved st) st lst
+      pinReserved :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_reserved_refines hrel hinv h
 
 /-- `arena::core::reserved_basis_names` ⊑ `reservedBasisNames` — both are the
 pin-table read, `pin_reserved` against `pinReserved` (twin fix D5 of task
@@ -616,6 +663,15 @@ theorem pin_empty_levels_refines {pers st lst} {o}
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
     rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
+open Lockstep in
+@[lockstep] theorem pin_empty_levels_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLsIdx a)
+      (arena.pins.pin_empty_levels st) st lst
+      pinEmptyLevels :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_empty_levels_refines hrel hinv h
+
 /-- `pin_zero_level` ⊑ `pinZeroLevel`. -/
 theorem pin_zero_level_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -658,6 +714,15 @@ theorem pin_zero_level_refines {pers st lst} {o}
     subst h2
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
     rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
+
+open Lockstep in
+@[lockstep] theorem pin_zero_level_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLIdx a)
+      (arena.pins.pin_zero_level st) st lst
+      pinZeroLevel :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_zero_level_refines hrel hinv h
 
 /-- `pin_sort_one` ⊑ `pinSortOne`. -/
 theorem pin_sort_one_refines {pers st lst} {o}
@@ -702,6 +767,15 @@ theorem pin_sort_one_refines {pers st lst} {o}
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
     rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
+open Lockstep in
+@[lockstep] theorem pin_sort_one_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absEIdx a)
+      (arena.pins.pin_sort_one st) st lst
+      pinSortOne :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_sort_one_refines hrel hinv h
+
 /-! ## The forty-nine named readers, one per slot
 
 Each is `pin_at` at its own constant, and each lemma is `pin_at_refines` after
@@ -722,6 +796,15 @@ theorem pin_eq_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_eq_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_eq st) st lst
+      pinEq :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_eq_refines hrel hinv h
+
 /-- `pin_punit` ⊑ `pinPUnit`, at slot `PIN_PUNIT`. -/
 theorem pin_punit_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -735,6 +818,15 @@ theorem pin_punit_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_punit_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_punit st) st lst
+      pinPUnit :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_punit_refines hrel hinv h
 
 /-- `pin_punit_rec` ⊑ `pinPUnitRec`, at slot `PIN_PUNIT_REC`. -/
 theorem pin_punit_rec_refines {pers st lst} {o}
@@ -750,6 +842,15 @@ theorem pin_punit_rec_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_punit_rec_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_punit_rec st) st lst
+      pinPUnitRec :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_punit_rec_refines hrel hinv h
+
 /-- `pin_nat` ⊑ `pinNat`, at slot `PIN_NAT`. -/
 theorem pin_nat_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -763,6 +864,15 @@ theorem pin_nat_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat st) st lst
+      pinNat :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_refines hrel hinv h
 
 /-- `pin_nat_zero` ⊑ `pinNatZero`, at slot `PIN_NAT_ZERO`. -/
 theorem pin_nat_zero_refines {pers st lst} {o}
@@ -778,6 +888,15 @@ theorem pin_nat_zero_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_zero_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_zero st) st lst
+      pinNatZero :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_zero_refines hrel hinv h
+
 /-- `pin_nat_succ` ⊑ `pinNatSucc`, at slot `PIN_NAT_SUCC`. -/
 theorem pin_nat_succ_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -791,6 +910,15 @@ theorem pin_nat_succ_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_succ_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_succ st) st lst
+      pinNatSucc :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_succ_refines hrel hinv h
 
 /-- `pin_quot_sound` ⊑ `pinQuotSound`, at slot `PIN_QUOT_SOUND`. -/
 theorem pin_quot_sound_refines {pers st lst} {o}
@@ -820,6 +948,15 @@ theorem pin_string_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_string_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_string st) st lst
+      pinString :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_string_refines hrel hinv h
+
 /-- `pin_string_of_list` ⊑ `pinStringOfList`, at slot `PIN_STRING_OF_LIST`. -/
 theorem pin_string_of_list_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -833,6 +970,15 @@ theorem pin_string_of_list_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_string_of_list_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_string_of_list st) st lst
+      pinStringOfList :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_string_of_list_refines hrel hinv h
 
 /-- `pin_list` ⊑ `pinList`, at slot `PIN_LIST`. -/
 theorem pin_list_refines {pers st lst} {o}
@@ -848,6 +994,15 @@ theorem pin_list_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_list_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_list st) st lst
+      pinList :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_list_refines hrel hinv h
+
 /-- `pin_list_nil` ⊑ `pinListNil`, at slot `PIN_LIST_NIL`. -/
 theorem pin_list_nil_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -861,6 +1016,15 @@ theorem pin_list_nil_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_list_nil_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_list_nil st) st lst
+      pinListNil :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_list_nil_refines hrel hinv h
 
 /-- `pin_list_cons` ⊑ `pinListCons`, at slot `PIN_LIST_CONS`. -/
 theorem pin_list_cons_refines {pers st lst} {o}
@@ -876,6 +1040,15 @@ theorem pin_list_cons_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_list_cons_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_list_cons st) st lst
+      pinListCons :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_list_cons_refines hrel hinv h
+
 /-- `pin_char` ⊑ `pinChar`, at slot `PIN_CHAR`. -/
 theorem pin_char_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -889,6 +1062,15 @@ theorem pin_char_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_char_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_char st) st lst
+      pinChar :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_char_refines hrel hinv h
 
 /-- `pin_and` ⊑ `pinAnd`, at slot `PIN_AND`. -/
 theorem pin_and_refines {pers st lst} {o}
@@ -904,6 +1086,15 @@ theorem pin_and_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_and_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_and st) st lst
+      pinAnd :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_and_refines hrel hinv h
+
 /-- `pin_char_of_nat` ⊑ `pinCharOfNat`, at slot `PIN_CHAR_OF_NAT`. -/
 theorem pin_char_of_nat_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -917,6 +1108,15 @@ theorem pin_char_of_nat_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_char_of_nat_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_char_of_nat st) st lst
+      pinCharOfNat :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_char_of_nat_refines hrel hinv h
 
 /-- `pin_sorry_ax` ⊑ `pinSorryAx`, at slot `PIN_SORRY_AX`. -/
 theorem pin_sorry_ax_refines {pers st lst} {o}
@@ -932,6 +1132,15 @@ theorem pin_sorry_ax_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_sorry_ax_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_sorry_ax st) st lst
+      pinSorryAx :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_sorry_ax_refines hrel hinv h
+
 /-- `pin_nat_pred` ⊑ `pinNatPred`, at slot `PIN_NAT_PRED`. -/
 theorem pin_nat_pred_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -945,6 +1154,15 @@ theorem pin_nat_pred_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_pred_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_pred st) st lst
+      pinNatPred :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_pred_refines hrel hinv h
 
 /-- `pin_nat_add` ⊑ `pinNatAdd`, at slot `PIN_NAT_ADD`. -/
 theorem pin_nat_add_refines {pers st lst} {o}
@@ -960,6 +1178,15 @@ theorem pin_nat_add_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_add_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_add st) st lst
+      pinNatAdd :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_add_refines hrel hinv h
+
 /-- `pin_nat_sub` ⊑ `pinNatSub`, at slot `PIN_NAT_SUB`. -/
 theorem pin_nat_sub_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -973,6 +1200,15 @@ theorem pin_nat_sub_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_sub_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_sub st) st lst
+      pinNatSub :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_sub_refines hrel hinv h
 
 /-- `pin_nat_mul` ⊑ `pinNatMul`, at slot `PIN_NAT_MUL`. -/
 theorem pin_nat_mul_refines {pers st lst} {o}
@@ -988,6 +1224,15 @@ theorem pin_nat_mul_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_mul_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_mul st) st lst
+      pinNatMul :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_mul_refines hrel hinv h
+
 /-- `pin_nat_pow` ⊑ `pinNatPow`, at slot `PIN_NAT_POW`. -/
 theorem pin_nat_pow_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1001,6 +1246,15 @@ theorem pin_nat_pow_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_pow_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_pow st) st lst
+      pinNatPow :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_pow_refines hrel hinv h
 
 /-- `pin_nat_beq` ⊑ `pinNatBeq`, at slot `PIN_NAT_BEQ`. -/
 theorem pin_nat_beq_refines {pers st lst} {o}
@@ -1016,6 +1270,15 @@ theorem pin_nat_beq_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_beq_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_beq st) st lst
+      pinNatBeq :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_beq_refines hrel hinv h
+
 /-- `pin_nat_ble` ⊑ `pinNatBle`, at slot `PIN_NAT_BLE`. -/
 theorem pin_nat_ble_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1029,6 +1292,15 @@ theorem pin_nat_ble_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_ble_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_ble st) st lst
+      pinNatBle :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_ble_refines hrel hinv h
 
 /-- `pin_nat_div` ⊑ `pinNatDiv`, at slot `PIN_NAT_DIV`. -/
 theorem pin_nat_div_refines {pers st lst} {o}
@@ -1044,6 +1316,15 @@ theorem pin_nat_div_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_div_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_div st) st lst
+      pinNatDiv :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_div_refines hrel hinv h
+
 /-- `pin_nat_mod` ⊑ `pinNatMod`, at slot `PIN_NAT_MOD`. -/
 theorem pin_nat_mod_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1057,6 +1338,15 @@ theorem pin_nat_mod_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_mod_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_mod st) st lst
+      pinNatMod :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_mod_refines hrel hinv h
 
 /-- `pin_nat_gcd` ⊑ `pinNatGcd`, at slot `PIN_NAT_GCD`. -/
 theorem pin_nat_gcd_refines {pers st lst} {o}
@@ -1072,6 +1362,15 @@ theorem pin_nat_gcd_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_gcd_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_gcd st) st lst
+      pinNatGcd :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_gcd_refines hrel hinv h
+
 /-- `pin_nat_land` ⊑ `pinNatLand`, at slot `PIN_NAT_LAND`. -/
 theorem pin_nat_land_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1085,6 +1384,15 @@ theorem pin_nat_land_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_land_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_land st) st lst
+      pinNatLand :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_land_refines hrel hinv h
 
 /-- `pin_nat_lor` ⊑ `pinNatLor`, at slot `PIN_NAT_LOR`. -/
 theorem pin_nat_lor_refines {pers st lst} {o}
@@ -1100,6 +1408,15 @@ theorem pin_nat_lor_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_lor_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_lor st) st lst
+      pinNatLor :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_lor_refines hrel hinv h
+
 /-- `pin_nat_xor` ⊑ `pinNatXor`, at slot `PIN_NAT_XOR`. -/
 theorem pin_nat_xor_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1113,6 +1430,15 @@ theorem pin_nat_xor_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_xor_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_xor st) st lst
+      pinNatXor :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_xor_refines hrel hinv h
 
 /-- `pin_nat_shift_left` ⊑ `pinNatShiftLeft`, at slot `PIN_NAT_SHIFT_LEFT`. -/
 theorem pin_nat_shift_left_refines {pers st lst} {o}
@@ -1128,6 +1454,15 @@ theorem pin_nat_shift_left_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nat_shift_left_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_shift_left st) st lst
+      pinNatShiftLeft :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_shift_left_refines hrel hinv h
+
 /-- `pin_nat_shift_right` ⊑ `pinNatShiftRight`, at slot `PIN_NAT_SHIFT_RIGHT`. -/
 theorem pin_nat_shift_right_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1141,6 +1476,15 @@ theorem pin_nat_shift_right_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nat_shift_right_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nat_shift_right st) st lst
+      pinNatShiftRight :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nat_shift_right_refines hrel hinv h
 
 /-- `pin_bool` ⊑ `pinBool`, at slot `PIN_BOOL`. -/
 theorem pin_bool_refines {pers st lst} {o}
@@ -1156,6 +1500,15 @@ theorem pin_bool_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_bool_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_bool st) st lst
+      pinBool :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_bool_refines hrel hinv h
+
 /-- `pin_bool_true` ⊑ `pinBoolTrue`, at slot `PIN_BOOL_TRUE`. -/
 theorem pin_bool_true_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1169,6 +1522,15 @@ theorem pin_bool_true_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_bool_true_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_bool_true st) st lst
+      pinBoolTrue :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_bool_true_refines hrel hinv h
 
 /-- `pin_bool_false` ⊑ `pinBoolFalse`, at slot `PIN_BOOL_FALSE`. -/
 theorem pin_bool_false_refines {pers st lst} {o}
@@ -1184,6 +1546,15 @@ theorem pin_bool_false_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_bool_false_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_bool_false st) st lst
+      pinBoolFalse :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_bool_false_refines hrel hinv h
+
 /-- `pin_propext` ⊑ `pinPropext`, at slot `PIN_PROPEXT`. -/
 theorem pin_propext_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1197,6 +1568,15 @@ theorem pin_propext_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_propext_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_propext st) st lst
+      pinPropext :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_propext_refines hrel hinv h
 
 /-- `pin_choice` ⊑ `pinChoice`, at slot `PIN_CHOICE`. -/
 theorem pin_choice_refines {pers st lst} {o}
@@ -1212,6 +1592,15 @@ theorem pin_choice_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_choice_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_choice st) st lst
+      pinChoice :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_choice_refines hrel hinv h
+
 /-- `pin_iff` ⊑ `pinIff`, at slot `PIN_IFF`. -/
 theorem pin_iff_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1225,6 +1614,15 @@ theorem pin_iff_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_iff_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_iff st) st lst
+      pinIff :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_iff_refines hrel hinv h
 
 /-- `pin_iff_intro` ⊑ `pinIffIntro`, at slot `PIN_IFF_INTRO`. -/
 theorem pin_iff_intro_refines {pers st lst} {o}
@@ -1240,6 +1638,15 @@ theorem pin_iff_intro_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_iff_intro_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_iff_intro st) st lst
+      pinIffIntro :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_iff_intro_refines hrel hinv h
+
 /-- `pin_iff_rec` ⊑ `pinIffRec`, at slot `PIN_IFF_REC`. -/
 theorem pin_iff_rec_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1253,6 +1660,15 @@ theorem pin_iff_rec_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_iff_rec_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_iff_rec st) st lst
+      pinIffRec :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_iff_rec_refines hrel hinv h
 
 /-- `pin_nonempty` ⊑ `pinNonempty`, at slot `PIN_NONEMPTY`. -/
 theorem pin_nonempty_refines {pers st lst} {o}
@@ -1268,6 +1684,15 @@ theorem pin_nonempty_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nonempty_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nonempty st) st lst
+      pinNonempty :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nonempty_refines hrel hinv h
+
 /-- `pin_nonempty_intro` ⊑ `pinNonemptyIntro`, at slot `PIN_NONEMPTY_INTRO`. -/
 theorem pin_nonempty_intro_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1281,6 +1706,15 @@ theorem pin_nonempty_intro_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_nonempty_intro_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nonempty_intro st) st lst
+      pinNonemptyIntro :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nonempty_intro_refines hrel hinv h
 
 /-- `pin_nonempty_rec` ⊑ `pinNonemptyRec`, at slot `PIN_NONEMPTY_REC`. -/
 theorem pin_nonempty_rec_refines {pers st lst} {o}
@@ -1296,6 +1730,15 @@ theorem pin_nonempty_rec_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_nonempty_rec_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_nonempty_rec st) st lst
+      pinNonemptyRec :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_nonempty_rec_refines hrel hinv h
+
 /-- `pin_true` ⊑ `pinTrue`, at slot `PIN_TRUE`. -/
 theorem pin_true_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1309,6 +1752,15 @@ theorem pin_true_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_true_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_true st) st lst
+      pinTrue :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_true_refines hrel hinv h
 
 /-- `pin_true_intro` ⊑ `pinTrueIntro`, at slot `PIN_TRUE_INTRO`. -/
 theorem pin_true_intro_refines {pers st lst} {o}
@@ -1324,6 +1776,15 @@ theorem pin_true_intro_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_true_intro_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_true_intro st) st lst
+      pinTrueIntro :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_true_intro_refines hrel hinv h
+
 /-- `pin_trust_compiler` ⊑ `pinTrustCompiler`, at slot `PIN_TRUST_COMPILER`. -/
 theorem pin_trust_compiler_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1337,6 +1798,15 @@ theorem pin_trust_compiler_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_trust_compiler_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_trust_compiler st) st lst
+      pinTrustCompiler :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_trust_compiler_refines hrel hinv h
 
 /-- `pin_reduce_nat` ⊑ `pinReduceNat`, at slot `PIN_REDUCE_NAT`. -/
 theorem pin_reduce_nat_refines {pers st lst} {o}
@@ -1352,6 +1822,15 @@ theorem pin_reduce_nat_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_reduce_nat_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_reduce_nat st) st lst
+      pinReduceNat :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_reduce_nat_refines hrel hinv h
+
 /-- `pin_reduce_bool` ⊑ `pinReduceBool`, at slot `PIN_REDUCE_BOOL`. -/
 theorem pin_reduce_bool_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1365,6 +1844,15 @@ theorem pin_reduce_bool_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_reduce_bool_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_reduce_bool st) st lst
+      pinReduceBool :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_reduce_bool_refines hrel hinv h
 
 /-- `pin_of_reduce_nat` ⊑ `pinOfReduceNat`, at slot `PIN_OF_REDUCE_NAT`. -/
 theorem pin_of_reduce_nat_refines {pers st lst} {o}
@@ -1380,6 +1868,15 @@ theorem pin_of_reduce_nat_refines {pers st lst} {o}
   rw [hc] at h
   exact h
 
+open Lockstep in
+@[lockstep] theorem pin_of_reduce_nat_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_of_reduce_nat st) st lst
+      pinOfReduceNat :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_of_reduce_nat_refines hrel hinv h
+
 /-- `pin_of_reduce_bool` ⊑ `pinOfReduceBool`, at slot `PIN_OF_REDUCE_BOOL`. -/
 theorem pin_of_reduce_bool_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1393,6 +1890,15 @@ theorem pin_of_reduce_bool_refines {pers st lst} {o}
     rfl
   rw [hc] at h
   exact h
+
+open Lockstep in
+@[lockstep] theorem pin_of_reduce_bool_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a)
+      (arena.pins.pin_of_reduce_bool st) st lst
+      pinOfReduceBool :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_of_reduce_bool_refines hrel hinv h
 
 /-! ## `arena::nat_op_pin_set` — the `Nat`-operation pin variants
 
@@ -1525,6 +2031,30 @@ theorem intern_pin_set_proofs_refines {pers st lst}
   subst ho
   exact AOut₀.ok rfl hrel8 hinv8
 
+open Lockstep in
+@[lockstep] theorem intern_pin_set_proofs_ls {pers st lst}
+    {ps : kernel.nat_op_pins.NatOpPinSet}
+    {dp mp gp lap lop xp slp srp : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hwf : NatOpPinSetWF ps) :
+    LS pers (fun a b => b = absINatOpPinSet a)
+      (arena.nat_op_pin_set.intern_pin_set_proofs pers st ps dp mp gp lap
+      lop xp slp srp) lst
+      (do
+        let dc ← internExprList (ConRon.Refine.absExprs ps.div_proofs)
+        let mc ← internExprList (ConRon.Refine.absExprs ps.mod_proofs)
+        let gc ← internExprList (ConRon.Refine.absExprs ps.gcd_proofs)
+        let lac ← internExprList (ConRon.Refine.absExprs ps.land_proofs)
+        let loc ← internExprList (ConRon.Refine.absExprs ps.lor_proofs)
+        let xc ← internExprList (ConRon.Refine.absExprs ps.xor_proofs)
+        let slc ← internExprList (ConRon.Refine.absExprs ps.shift_left_proofs)
+        let src ← internExprList (ConRon.Refine.absExprs ps.shift_right_proofs)
+        pure ⟨ConRon.Refine.absString ps.toolchain, absEIdx dp, absEIdx mp,
+          absEIdx gp, absEIdx lap, absEIdx lop, absEIdx xp, absEIdx slp,
+          absEIdx srp, dc, mc, gc, lac, loc, xc, slc, src⟩) :=
+  LS.ofSim₀ fun _ h => intern_pin_set_proofs_refines hrel hinv hwf h
+
 /-- `intern_pin_set` ⊑ `internPinSet` — one variant, sixteen terms. -/
 theorem intern_pin_set_refines {pers st lst}
     {ps : kernel.nat_op_pins.NatOpPinSet} {o}
@@ -1629,6 +2159,17 @@ theorem intern_pin_set_refines {pers st lst}
   rw [run_bind_ok hx8]
   exact intern_pin_set_proofs_refines hrel8 hinv8 hwf hrun
 
+open Lockstep in
+@[lockstep] theorem intern_pin_set_ls {pers st lst}
+    {ps : kernel.nat_op_pins.NatOpPinSet}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hwf : NatOpPinSetWF ps) :
+    LS pers (fun a b => b = absINatOpPinSet a)
+      (arena.nat_op_pin_set.intern_pin_set pers st ps) lst
+      (internPinSet (ConRon.Refine.absNatOpPinSet ps)) :=
+  LS.ofSim₀ fun _ h => intern_pin_set_refines hrel hinv hwf h
+
 /-- `internPinSets` of a cons behind an accumulated prefix, re-bracketed so
 that the head's intern is the first step and the prefix grows by it. -/
 private theorem internPinSets_cons_acc (L : List INatOpPinSet)
@@ -1710,6 +2251,20 @@ theorem intern_pin_sets_refines {pers st lst}
   exact intern_pin_sets_aux hwf _ rfl hrel hinv hrun
 
 
+open Lockstep in
+@[lockstep] theorem intern_pin_sets_ls {pers st lst}
+    {pss : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hwf : ∀ p ∈ pss.val, NatOpPinSetWF p) :
+    LS pers (fun a b => b = absINatOpPinSetL a)
+      (arena.nat_op_pin_set.intern_pin_sets pers st pss i out) lst
+      (do pure (absINatOpPinSetL out ++
+        (← internPinSets ((pss.val.drop i.val).map ConRon.Refine.absNatOpPinSet)))) :=
+  LS.ofSim₀ fun _ h => intern_pin_sets_refines hrel hinv hwf h
+
 /-! ## The axiom census
 
 DESIGN.md §8.2's own discipline (task #97-P5-0 §8, task #97-P5-1 §7): every
@@ -1746,5 +2301,331 @@ for the rest. -/
 
 /-- info: 'ConRon.Refine2.pin_sort_one_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pin_sort_one_refines
+
+
+/-! ## The pinned-name readers as `@[lockstep]` specs (task #97-T2-LOCKSTEP lane Checker round 2)
+
+Each Rust reader is one pin read with the state handed back; the twin is the
+pin reader itself (`boolName := pinBool`). -/
+
+open Lockstep in
+@[lockstep] theorem nat_shift_right_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_shift_right_name st) lst natShiftRightName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_shift_right_refines hrel hinv hr)
+    (by rw [arena.core.nat_shift_right_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_shift_left_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_shift_left_name st) lst natShiftLeftName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_shift_left_refines hrel hinv hr)
+    (by rw [arena.core.nat_shift_left_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_xor_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_xor_name st) lst natXorName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_xor_refines hrel hinv hr)
+    (by rw [arena.core.nat_xor_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_lor_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_lor_name st) lst natLorName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_lor_refines hrel hinv hr)
+    (by rw [arena.core.nat_lor_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_land_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_land_name st) lst natLandName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_land_refines hrel hinv hr)
+    (by rw [arena.core.nat_land_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_gcd_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_gcd_name st) lst natGcdName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_gcd_refines hrel hinv hr)
+    (by rw [arena.core.nat_gcd_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_mod_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_mod_name st) lst natModName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_mod_refines hrel hinv hr)
+    (by rw [arena.core.nat_mod_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_div_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_div_name st) lst natDivName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_div_refines hrel hinv hr)
+    (by rw [arena.core.nat_div_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_ble_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_ble_name st) lst natBleName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_ble_refines hrel hinv hr)
+    (by rw [arena.core.nat_ble_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_beq_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_beq_name st) lst natBeqName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_beq_refines hrel hinv hr)
+    (by rw [arena.core.nat_beq_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_pow_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_pow_name st) lst natPowName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_pow_refines hrel hinv hr)
+    (by rw [arena.core.nat_pow_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_mul_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_mul_name st) lst natMulName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_mul_refines hrel hinv hr)
+    (by rw [arena.core.nat_mul_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_sub_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_sub_name st) lst natSubName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_sub_refines hrel hinv hr)
+    (by rw [arena.core.nat_sub_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_add_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_add_name st) lst natAddName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_add_refines hrel hinv hr)
+    (by rw [arena.core.nat_add_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem nat_pred_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.nat_pred_name st) lst natPredName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_nat_pred_refines hrel hinv hr)
+    (by rw [arena.core.nat_pred_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem bool_false_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.bool_false_name st) lst boolFalseName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_bool_false_refines hrel hinv hr)
+    (by rw [arena.core.bool_false_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem bool_true_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.bool_true_name st) lst boolTrueName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_bool_true_refines hrel hinv hr)
+    (by rw [arena.core.bool_true_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem bool_name_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdx a) (arena.core.bool_name st) lst boolName :=
+  LS.ofSim₀ fun _ h => name_read_sim hrel hinv (fun _ hr => pin_bool_refines hrel hinv hr)
+    (by rw [arena.core.bool_name] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem zero_level_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_zero_level_refines hrel hinv (by rw [arena.core.zero_level] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem empty_levels_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLsIdx a) (arena.core.empty_levels st) st lst emptyLevels :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_empty_levels_refines hrel hinv (by rw [arena.core.empty_levels] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem sort_one_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absEIdx a) (arena.core.sort_one st) st lst sortOne :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_sort_one_refines hrel hinv (by rw [arena.core.sort_one] at h; exact h)
+
+open Lockstep in
+@[lockstep] theorem reserved_basis_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxL a) (arena.core.reserved_basis_names st) st lst
+      reservedBasisNames :=
+  LSR.ofSimRE hrel hinv fun _ h => reserved_basis_names_refines hrel hinv h
+
+
+namespace Lockstep
+
+@[lockstep] theorem nidx_eq2_spec (a b : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun o => o = (absNIdx a == absNIdx b)) :=
+  fun _ h => nidx_eq2_abs h
+
+@[lockstep] theorem eidx_eq2_spec (a b : arena.handle.EIdx) :
+    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun o => o = (absEIdx a == absEIdx b)) :=
+  fun _ h => eidx_eq2_abs h
+
+@[lockstep] theorem i_constant_val_dup_spec (cv : arena.env.IConstantVal) :
+    LSP (arena.env.i_constant_val_dup cv)
+      (fun o => absIConstantVal o = absIConstantVal cv) :=
+  fun _ h => i_constant_val_dup_abs h
+
+@[lockstep] theorem reducibility_hint_dup_spec (h1 : kernel.env.ReducibilityHint) :
+    LSP (kernel.env.reducibility_hint_dup h1) (fun r => r = h1) := by
+  intro r h
+  cases h1 <;> simp only [kernel.env.reducibility_hint_dup, Result.ok.injEq] at h <;>
+    exact h.symm
+
+end Lockstep
+
+
+/-! ## `arena::core`'s small interning builders as `@[lockstep]` specs (task
+#97-T2-LOCKSTEP lane Checker round 2) -/
+
+namespace Lockstep
+
+@[lockstep] theorem const_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.const_e pers st n) lst
+      (constE (absNIdx n)) := by
+  rw [arena.core.const_e, constE]
+  lockstep
+
+@[lockstep] theorem nat_ap1_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (a : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.nat_ap1 pers st n a) lst
+      (natAp1 (absNIdx n) (absEIdx a)) := by
+  rw [arena.core.nat_ap1, natAp1]
+  lockstep
+
+@[lockstep] theorem nat_ap2_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (a b : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.nat_ap2 pers st n a b) lst
+      (natAp2 (absNIdx n) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.nat_ap2, natAp2]
+  lockstep
+
+end Lockstep
+
+
+/-- **`arena::env::i_constant_info_to_constant_val` refines
+`IConstantInfo.toConstantVal`** (`Arena/Env.lean:222-229`): six arms are a
+copy, the `.projInfo` arm interns `Sort 1` in both, in the same order. -/
+theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (h : arena.env.i_constant_info_to_constant_val pers rst.store c = ok o) :
+    Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
+      (absIConstantInfo c).toConstantVal := by
+  have plain : ∀ v iv, arena.env.i_constant_val_dup v = ok iv →
+      o = (.Ok iv, rst.store) →
+      (absIConstantInfo c).toConstantVal = pure (absIConstantVal v) →
+      Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
+        (absIConstantInfo c).toConstantVal := by
+    intro v iv hiv ho hx
+    subst ho
+    refine AOut₀.ok (lst' := lst) ?_ hrel hinv
+    rw [hx, i_constant_val_dup_abs hiv]; rfl
+  cases c with
+  | AxiomInfo v =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | DefnInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ThmInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | IndInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | CtorInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | RecInfo v _ _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ProjInfo tbl =>
+    clear plain
+    simp only [arena.env.i_constant_info_to_constant_val] at h
+    show AOut₀ _ _ _ _ _
+    simp only [absIConstantInfo, IConstantInfo.toConstantVal]
+    -- 1. the level `0`
+    obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS1 := intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
+      (o := (r1, withStore rst ar1))
+      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode LNodeView.zero
+        = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
+    cases r1 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut₀.errBind hS1
+    | Ok z =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+    rw [run_bind_ok hx1]
+    -- 2. the level `1`
+    obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS2 := intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
+      (o := (r2, withStore rst ar2))
+      (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode (.succ (absLIdx z))
+        = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
+    cases r2 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut₀.errBind hS2
+    | Ok one =>
+    obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+    rw [run_bind_ok hx2]
+    -- 3. the expression `Sort 1`
+    obtain ⟨⟨r3, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS3 := intern_e_sort_run₀ hrel2 hinv2 one
+      (o := (r3, withStore rst ar3))
+      (by rw [arena.monad.intern_e_sort]
+          rw [show arena.store.EStore.intern_sort (withStore rst ar2).store pers one
+              = arena.store.EStore.intern ar2 pers (arena.store.ENodeView.Sort one) from rfl,
+            h3]
+          simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
+    cases r3 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut₀.errBind hS3
+    | Ok ty =>
+    obtain ⟨lst3, hx3, hrel3, hinv3⟩ := Sim₀.apply hS3
+    rw [run_bind_ok hx3]
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ho := Result.ok_injective h
+    subst ho
+    refine AOut₀.ok (lst' := lst3) ?_ hrel3 hinv3
+    show Except.ok _ = _
+    simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
+
+open Lockstep in
+@[lockstep] theorem Lockstep.i_constant_info_to_constant_val_lss {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (c : arena.env.IConstantInfo) :
+    LSS pers (fun a b => b = absIConstantVal a)
+      (arena.env.i_constant_info_to_constant_val pers st.store c) st lst
+      (absIConstantInfo c).toConstantVal := by
+  intro o s' h
+  have := i_constant_info_to_constant_val_refines (o := (o, s')) hrel hinv h
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨lst', hx, hrel', hinv'⟩ := Sim₀.apply this
+    exact ⟨_, lst', hx, rfl, hrel', hinv'⟩
+
 
 end ConRon.Refine2

@@ -167,46 +167,11 @@ private theorem mk_ifenv_empty_refines {e f}
 
 /-! ## The basis and quotient arms -/
 
-/-! ## The arms' `decl_check` callees in the judgements `lockstep` zips with
+/-! ## The arms' remaining callees in the judgements `lockstep` zips with
 
-`Refine2/Checker/DeclCheck.lean`'s leaf statements, filed here (under `top_`
-names, so a later `_ls` in that file cannot collide) because this file is
-where the arms that call them are. -/
+`DeclCheck.lean` files the `*_ok` gates' `_ls`; the Rust-only copy is here. -/
 
 namespace Lockstep
-
-@[lockstep] theorem top_std_axiom_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
-    {cv_a : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a) (arena.decl_check.std_axiom_ok pers vis st rf cv_a) lst
-      (stdAxiomOk lf (absIConstantVal cv_a)) :=
-  LS.ofSim₀ fun _ h => std_axiom_ok_refines hrel hinv hfe.rel hfe.inv hvis h
-
-@[lockstep] theorem top_trust_compiler_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
-    {cv_a : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a)
-      (arena.decl_check.trust_compiler_ok pers vis st rf cv_a) lst
-      (trustCompilerOk lf (absIConstantVal cv_a)) :=
-  LS.ofSim₀ fun _ h => trust_compiler_ok_refines hrel hinv hfe.rel hfe.inv hvis h
-
-@[lockstep] theorem top_of_reduce_ax_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
-    {cv_a : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a)
-      (arena.decl_check.of_reduce_ax_ok pers vis st rf cv_a) lst
-      (ofReduceAxOk lf (absIConstantVal cv_a)) :=
-  LS.ofSim₀ fun _ h => of_reduce_ax_ok_refines hrel hinv hfe.rel hfe.inv hvis h
-
-@[lockstep] theorem top_eq_basis_pinned_ls {pers st lst} {vis : Std.U64} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a) (arena.decl_check.eq_basis_pinned pers vis st rf) lst
-      (eqBasisPinnedSpec lf) :=
-  LS.ofSim₀ fun _ h => eq_basis_pinned_refines hrel hinv hfe.rel hfe.inv hvis h
 
 @[lockstep] theorem top_i_constant_info_dup_spec (c : arena.env.IConstantInfo) :
     LSP (arena.env.i_constant_info_dup c)
@@ -300,10 +265,11 @@ theorem check_quot_decl_refines {pers st lst} {rf lf}
     SimRel₀ IFEnvRelI pers lst o
       (checkQuotDeclSpec lf (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
   have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
   refine Lockstep.LS.toSimRel₀ ?_ hrun
-  cases k <;>
-    (simp only [arena.checker.check_quot_decl, checkQuotDeclSpec, ConRon.Refine.absQuotKind]
-     chk_lockstep)
+  rw [arena.checker.check_quot_decl]
+  try unfold checkQuotDeclSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_quot_decl_ls {pers st lst}
@@ -373,9 +339,11 @@ theorem check_axiom_decl_rest_refines {pers st lst} {rf lf}
     SimRel₀ IFEnvRelI pers lst o
       (checkAxiomDeclRestSpec lf (absIConstantVal cv_a)) := by
   have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
   refine Lockstep.LS.toSimRel₀ ?_ hrun
-  rw [arena.checker.check_axiom_decl_rest, checkAxiomDeclRestSpec]
-  chk_lockstep
+  rw [arena.checker.check_axiom_decl_rest]
+  try unfold checkAxiomDeclRestSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_axiom_decl_rest_ls {pers st lst} {rf lf}
@@ -774,6 +742,12 @@ theorem check_defn_pins_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_defn_pins, checkDefnPinsSpec]
+  -- The Rust's structural gate is a state bind right after the `contains`
+  -- test, so the tactic moves the Rust first and wraps the undecided twin
+  -- `if` as `if … >>= pure`; the test is the Rust's, decided here.
+  lockstep
+  rw [am_ite_bind, if_pos (by simpa [absNIdxLFrom, absNIdxL] using hc)]
+  simp only [bind_pure]
   lockstep
 
 open Lockstep in

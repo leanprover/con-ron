@@ -60149,6 +60149,85 @@ items on the frontier are now leaves: `certify_nat_eqs`,
 **Rulings needed:** none for this slice.  `check_div_mod_pin_try_refines` /
 `ScratchFrame` and the `IFEnvRel` fields remain the coordinator's.
 
+
+#### Slice 2 — the frontier leaves (worktree `_tmp/wt-t2-checker4`)
+
+**One more divergence, fixed in the twin: `bool_ctor_typed`.**  The twin's
+`divModEnvGuard` interned `.const Bool []` ONCE, before looking up the two
+`Bool` constructors; the Rust (`bool_ctor_typed`) looks the constructor up
+first and interns `Bool` only on a hit, per constructor.  On a miss the twin
+wrote the store where the Rust did not.  The twin now has
+`Arena.boolCtorTyped` in the Rust's order; Theorem 1's repair is one
+`RunsB` lemma (`Bridge/Checker/DivMod.lean`'s `boolCtorTyped_runsB`) and a
+four-line change to `divModEnvGuard_run`.
+
+**Transcriptions corrected to the Rust's split points** (`Checker/Spec.lean`;
+no twin change): `divModSlotSpec`/`divModSlot1Spec` (the Rust's `div_mod_slot_1`
+starts at `gcd`), `installConstantValTailSpec`/`installValueTailSpec` (explicit
+binds: the `unless` join point made the tactic stop), `boolCtorTypedSpec` (now
+the twin's function), and new split equations `checkThmVal_split`,
+`checkReducePin_split`, `checkDivModPin_split`,
+`checkStructuralNatPinEqsSpec_split`, `divModEnvGuardRestSpec_split`.
+
+**Closed, all by `lockstep`** (≈55 statements): `certify_nat_eqs` (cursor
+induction), `check_div_mod_pin_loop` (cursor induction; after the D4c merge the
+try step takes the loop at `i + 1` as `hloop`, which the induction hypothesis
+supplies, and the attempt as `hat`, which `check_div_mod_pin_at_refines`
+supplies — so the loop, the try and the seam are one closed recursion modulo
+their leaves), `check_constant_val{,_guards,_after_annot}`,
+`install_constant_val{,_tail}`, `install_value_tail`,
+`check_{defn,thm,opaque}_val`, `check_thm_val_witness`,
+`check_value_group_value`, `ifenv_find_cv`, `bool_ctor_typed`,
+`div_mod_env_guard`, `div_mod_pin_guard`, `div_mod_certs_guard`,
+`check_div_mod_pin_{certs,at}`, `check_reduce_pin_{pre,value}`,
+`check_reduce_identity`, `reduce_{stored,pin_guard,elem_ok_bool}`,
+`{iff,nonempty,true}_pinned`, `matches_pin_of_ci`, `eq_at1{,_app}`, `nat_one`,
+`nat_var`, the certificate readers `cert_{guard,eq,halves,lor,xor,lor_rhs,
+xor_rhs,shift_left,shift_right,land,div_mod_guards}`, `cert_ctx{,_names,
+_names_rest}`, `div_mod_cert_{stmts_at,applied}`, `div_mod_slot`, the Axioms
+pin readers `of_reduce_op`, `reduce_elem_{name,ty}`, `reduce_op_cv_a`,
+`of_reduce_pin_a`, `reduce_decl_pin`, `reduce_cert_var`, and the Top arms
+`check_quot_decl`, `check_axiom_decl_rest`, `open_pis_at_fvars_f`.
+
+**Extension points only** (no edit to `Tactic/Lockstep.lean`): `@[lockstep]`
+wrappers for every `_refines` statement of `Checker/{Axioms,Pins,Base,
+DeclCheck}.lean` (generated, `_tmp/t2c4-scratch/genls.py`, now also for
+`SimRE` → `LSR`); specs for the pinned-name readers, `ifenv_find` (a `TwinEq`
+rewrite), `ifenv_push` (now also concludes the counter grows),
+`lift_fueled`, `nidx_vec_dup`, `is_thm`, `eidx eq2`, `const_e`/`nat_ap1`/
+`nat_ap2`, `i_constant_info_to_constant_val` (`LSS`), `install_value` at a
+split scalar, `unresolved_consts_error` at its two subjects; `@[lockstep_simp]`
+`ite_true`/`ite_false`, `Option.isSome_map`, `IFEnv.restrictTo_visibleBelow`.
+Moves: `LSR.ofSimRE` from `KnotHyp` to `Checker/Pins` (so the pin readers can
+be filed there); `i_constant_info_to_constant_val_refines` and `withStore`
+from the Frontend tier down to `Checker/{Pins,Shape}` (the checker's lookups
+need them); on merging `arena`, the Inductives lane's duplicate `lvl_eq_ls`/
+`zero_level_ls` (`Inductives/Prims.lean`) removed in favour of the Checker
+tier's, and this lane's `basis_pin_hit_ls` removed in favour of `Top.lean`'s.
+
+**Two tactic limits met, worked around per proof** (for the tactic's owner):
+a lemma whose twin carries a parameter the Rust does not determine (`liftFueled
+what`, `unresolvedConstsError what`, the loop's `tried` list) is never picked —
+its free argument becomes a side goal — so such lemmas are filed at their
+call sites' constants; and when the Rust binds while the twin tests an `if`,
+the Rust step wins through `LS.twin_bind_pure` and the twin `if` is left
+wrapped as `(if …) >>= pure` (`install_value_tail` finishes with one
+`rw [bind_pure, if_neg]`).
+
+**Blocked on other lanes:** `install_value`, `check_constant_val_guards_rest`,
+`ground_guards`, `proj_rule_wf` call the ExprOps walks
+`loose_bvars_bounded_fast`/`has_fvar_fast`, whose statements are still on the
+old `AStateRel`; `check_div_mod_pin_attempt` is the D4c seam.
+
+**Lane split** (coordinator, mid-slice): `Checker/Base.lean` and
+`Checker/Top.lean` pass to a new agent from this commit on; this lane keeps
+`Checker/{DeclCheck,Axioms}.lean`.
+
+Frontier (`model_exists` + `no_False_declaration`), before the `arena` merge:
+**41 / 145 / 550 → 42 items / 198 tainted / 487 dead weight**; the item count
+holds because each closed arm exposes its leaves, and the dead weight (the
+direct `sorry`s off the frontier) fell by 63.
+
 ### Task #97-T2-LOCKSTEP lane Inductives round 3 — the tier wired into the capstone; fan-in by `lockstep` (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind3`, branch `t2-ind-3` off `arena` `ef5e1eec`.  The
@@ -60476,87 +60555,69 @@ Gates: `scripts/gates.sh` on the branch after merging `arena` (`924e25b4`):
 ConRonRefine2 ConRonCapstone` green (2 826 jobs) before the merge.  Shared
 Lake cache seeded from this state.
 
-### Task #97-T2-LOCKSTEP lane Checker Base/Top — the constant check, the value install and the `Top` arms by `lockstep` (2026-09-23, Opus under Fable)
+### Task #97-T2-LOCKSTEP lane Checker Base/Top — the `Top` arms, the name/cursor leaves, the constant check's blocked tails as `_of` lemmas (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-chk-base` off `arena` `70ea5a33`.  Lane: `Refine2/Checker/
-{Base,Top}.lean` only (`DeclCheck.lean`/`Axioms.lean` are another agent's).
+{Base,Top}.lean` only (`DeclCheck.lean`/`Axioms.lean` are the Checker lane's).
 Under the lockstep rule; no Rust change, no twin change, no new Theorem-2
 invariant, no edit to `Tactic/Lockstep.lean`.
 
 #### Slice 1
 
-**Closed by `lockstep`** (each `refine LS.toSim₀/toSimRel₀ ?_ hrun; rw [rust,
-twin]; lockstep`, some with `simp only [am_fail_bind]` first):
-* `Base`: `check_constant_val`, `install_constant_val` (was fan-in 2),
-  `check_constant_val_guards`, `install_constant_val_tail`,
-  `check_constant_val_after_annot`, `install_value_tail`,
-  `check_value_group_value` (with `cases g.kind`; the one contradicted
-  `is_thm` branch closed by `simp_all`);
-* `Top`: `check_basis_decl` (per kind; `checkBasisDecl_quotK`/`_ne`, two
-  twin-side equations in `Top`), `check_quot_decl` (per kind),
-  `check_quot_sound_record` (`checkQuotSoundRecordSpec_split`: the Rust's
-  length test, then slot 4), `check_axiom_decl_{std,trust,of_reduce,rest}`.
-* **Closed modulo a hypothesis another lane owns**, proved as `_of` lemmas
-  whose public form passes `sorry` for exactly that hypothesis:
-  `check_constant_val_guards_rest_of`, `install_value_of`
-  (`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`, ExprOps lane, branch
-  `t2-lock-exprops-b`, not on `arena` yet: one line each when it lands);
-  `unresolved_consts_error_of` (`mentions_const_ls`, which lives in
-  `Inductives/StructParts.lean`, a module ABOVE `Checker/Base.lean`, and is
-  itself `sorry` there).
-* **Closed by hand** (state-free cursors, task #97-T2-TACTIC §4's exception):
-  `name_nodup(_from)`, `all_rec_info`, `recs_form_suffix`; and
-  `nidx_is_proj_fn_shape` (a `SimRE` reader: two tag tests, two `view_n`,
-  two literal `str_eq`s; new `viewN_run`, `view_n_simre`, `lit_abs`).
+**Merged `t2-checker-4` `4265c378`** (the Checker lane's round-2 slice 2, which
+had closed much of `Base`/`Top` before the lane split) mid-slice, at the
+coordinator's word.  Where both branches had proved the same statement
+(`check_constant_val{,_guards,_after_annot}`, `install_constant_val{,_tail}`,
+`install_value_tail`, `check_value_group_value`, `check_quot_decl`,
+`check_axiom_decl_rest`), `4265c378`'s proof and wrappers were kept and this
+branch's dropped; `Base.lean`/`Top.lean` were taken from `4265c378` whole and
+this branch's other work re-applied on top.
 
-**`@[lockstep]` lemmas added** (extension points only): in `Base`, the guard
-callees under `chk_` names where a copy exists ABOVE this module
-(`chk_ifenv_find_spec`, `chk_reserved_basis_names_ls`,
-`chk_nidx_contains_from_zero_spec`, `chk_nidx_vec_dup_spec`,
-`chk_zero_level_ls`, `chk_lvl_eq_ls` — `Inductives/{Shape,Prims}.lean` have
-the same pairs and import this file, so those copies could now be deleted),
-`nidx_is_proj_fn_shape_ls`, `name_nodup_spec`, `all_level_params_defined_ls`,
-`consts_resolve_f_fast_ls`, `is_thm_spec`, and the `_ls` of every piece
-above; `@[lockstep_simp]` `option_isSome_map_is_some`,
-`absIConstantVal_{mk,levelParams}` (and `absIConstantVal_{name,type}` and the
-`absValueGroup` attribute line moved up the file so the pieces see them).  In
-`Top`: `top_{std_axiom_ok,trust_compiler_ok,of_reduce_ax_ok,eq_basis_pinned}_ls`
-(DeclCheck's leaves, `top_` so a later `_ls` in DeclCheck cannot collide),
-`top_i_constant_info_dup_spec`, `absICIL_length`.  **Not** `@[lockstep]`, taken
-as local hypotheses instead: `unresolved_consts_error_ls w` and
-`lift_fueled_ls what` (the twin's message word is not determined by the Rust
-call, so a global lemma leaves an unassignable metavariable), and
-`install_value_at_ls` (beside `install_value_ls` the tactic tries it at every
-phase-A call, and its `lf.restrictTo _ = lf` side goal sends the side tier into
-a recursion: `annot_step_opaque_install` hit `maxRecDepth`).
+**Closed by `lockstep`** (`Top`): `check_basis_decl` (per kind; twin-side
+equations `checkBasisDecl_quotK`/`_ne` in `Top`), `check_quot_sound_record`
+(`checkQuotSoundRecordSpec_split`: the Rust's length test, then slot 4),
+`check_axiom_decl_{std,trust,of_reduce}` and the `_ls` of the last two.
 
-**A tactic issue, worked around locally (`chk_lockstep`, a macro in `Base`),
-not fixed in `Tactic/Lockstep.lean`.**  When the twin's head is an `if` that
-the LAST Rust test already decided (`hc` in context) and the Rust's next step
-is a state bind, `stepCore` moves the Rust first; that bind's spec does not
-match (its twin partner is inside the `if`), and `rustStep`'s fallback
-`LS.twin_bind_pure` then SUCCEEDS on the `if`, burying it under `>>= pure`
-where it is never decided.  Every guard chain whose failing branch calls a
-state function hits it (`unresolved_consts_error`, the axiom arms' `*_ok`
-gates, the twin's `a || b` against the Rust's two nested tests).
-`chk_lockstep` tries `LS.twin_ite_neg/pos` decided from the context
-(`assumption`, the `||` split, `lockstep_side_cheap`, `lockstep_side_ite`)
-before each `lockstep_step`.  Round 2's manual `if` decision in
-`check_defn_pins_refines` was the same issue; it now closes by plain
-`lockstep` (the new `chk_nidx_contains_from_zero_spec` answers its test as a
-`TwinEq`), and the workaround there is deleted.  **Suggested shared fix**
-(for whoever owns `Tactic/Lockstep.lean`): in `rustStep`'s catch, do not
-apply `LS.twin_bind_pure` when the twin is an `ite`/`dite`; or in `stepCore`,
-try `tryIte cheap` before the Rust bind when `hc` decides it.
+**Closed by hand** (`Base`; state-free cursors, task #97-T2-TACTIC §4's
+exception, and one `SimRE` reader): `name_nodup(_from)`, `all_rec_info`,
+`recs_form_suffix`, `nidx_is_proj_fn_shape` (two tag tests, two `view_n`, two
+literal `str_eq`s; new `viewN_run`, `view_n_simre`, `lit_abs`).
 
-**Statement gap found (DeclCheck's, reported, not edited):**
+**Closed modulo a hypothesis another lane owns**, each an `_of` lemma proved
+by `lockstep` whose public form passes `sorry` for exactly that hypothesis:
+`check_constant_val_guards_rest_of`, `install_value_of`
+(`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`, ExprOps lane, branch
+`t2-lock-exprops-b`: one line each when it lands); `unresolved_consts_error_of`
+(`mentions_const_ls`, which lives in `Inductives/StructParts.lean`, a module
+ABOVE `Checker/Base.lean`, and is itself `sorry` there — the Inductives tier's
+statement should move below `Checker/Base.lean`, or the checker's call take it
+as a parameter up to `Top`; **ruling needed** on which).
+
+**Extension points added**: `@[lockstep]` `nidx_is_proj_fn_shape_ls`,
+`name_nodup_spec`, `top_i_constant_info_dup_spec`, `check_basis_decl_install_ls`;
+`@[lockstep_simp]` `absIConstantVal_levelParams`, `absICIL_length`.
+
+**The tactic issue** (the Checker lane met it too: its "two tactic limits"):
+when the twin's head is an `if` the LAST Rust test decided (`hc` in context)
+and the Rust's next step is a state bind, `stepCore` moves the Rust first,
+that bind's spec does not match (its partner is inside the `if`), and
+`rustStep`'s fallback `LS.twin_bind_pure` then SUCCEEDS on the `if`, burying it
+under `>>= pure`.  Worked around by `chk_lockstep` (a macro in `Base`: try
+`LS.twin_ite_neg/pos` decided from the context — `assumption`, the twin's
+`a || b` against the Rust's two nested tests, `lockstep_side_cheap`,
+`lockstep_side_ite` — before each `lockstep_step`).  **Suggested shared fix**
+for the tactic's owner: in `rustStep`'s catch, do not apply
+`LS.twin_bind_pure` when the twin is an `ite`/`dite`; or in `stepCore`, try the
+cheap `if` decision before the Rust bind when an `hc` decides it.
+
+**Statement gap (DeclCheck's, reported, not edited):**
 `install_basis_decls_refines` concludes `SimRelR (fun r v => IFEnvRel r v)`,
-without `IFEnvInv` of the result; `check_basis_decl_install_refines` (and so
-`check_basis_decl`) must answer `IFEnvRelI`.  It is the one `Top` item left
-`sorry`; it needs that leaf to carry `IFEnvRelI` (as `ifenv_push_refines`
-does) — the `IFEnvRel`-fields work the coordinator holds.
+without `IFEnvInv` of the result, and `check_basis_decl_install_refines` must
+answer `IFEnvRelI`; it is the one `Top` item left `sorry` on the path.  The
+leaf needs to carry `IFEnvRelI` as `ifenv_push_refines` does — the
+`IFEnvRel`-fields work the coordinator holds.
 
-**No twin/Rust divergence found** on any of these paths.
+**No twin/Rust divergence found** on these paths.
 
 Frontier (`scripts/frontier.sh ConRon.Capstone.model_exists
 ConRon.Capstone.no_False_declaration`): **start** (`70ea5a33`) 48 items / 175
