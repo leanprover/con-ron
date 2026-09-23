@@ -64,7 +64,7 @@ The open leaves under them: `apply_line_refines` (the line layer),
 `hoist_nat_op_ground_refines` (`NatOpGround.lean`'s tier) and
 `Prepare.lean`'s `i_declaration_dup_abs`.
 
-## `sorry` count in this file: 5
+## `sorry` count in this file: 2
 -/
 import ConRon.Refine2.Frontend.ExportCInd
 import ConRon.Refine2.Frontend.Scan.Spec
@@ -83,18 +83,20 @@ open ConLeche.Frontend (LineRec DeclRec)
 
 /-! ## The line layer -/
 
-/-- **`process_line_core_d` refines `processLineCoreD`**
-(`ExportC.lean:600-658`) — the record's own semantics: the declaration kinds,
-producing `IDeclaration` records.  The `safety` and `kind` spellings are
-compared against con-leche `String` LITERALS, which is why this is the one
-line-layer statement that carries `DeclRecStrWF`. -/
-theorem process_line_core_d_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd d o}
-    (hmr : ModellerRefines inst m lmd)
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : DeclRecStrWF d)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd d = ok o) :
-    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec d)) := by sorry
+/-! ### `process_line_core_d`, arm by arm (task #97-P5-Front round 2)
+
+The record's seven arms, each composed from the readers and writers of
+`ExportC.lean` / `ExportCInd.lean`.  `SimDV.of_run_eq` moves a claim between
+two twin actions with the same run. -/
+
+theorem SimDV.of_run_eq {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result Unit frontend.export_c.LineErr ×
+      arena.monad.AState × frontend.export_c.StateD}
+    {x y : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)}
+    (h : SimDV pers lst o x) (hxy : y.run lst = x.run lst) : SimDV pers lst o y := by
+  rcases o with ⟨r, rst', rsd'⟩
+  unfold SimDV at h ⊢
+  rw [hxy]; exact h
 
 /-- **A table-entry writer inside the line layer**: the twin's
 `do pure (.inl (← x))` over a `SimD` step. -/
@@ -113,6 +115,424 @@ theorem SimD.toSimDV_inl {pers : arena.store.PersTier} {lst : AState}
   | Err e =>
     exact SimDV.of_bind (f := fun p => (pure (Sum.inl p.1) : AM _).run p.2) h
       (by simp only [am_run_bind'])
+
+/-- A twin prefix that answers `a` at a state the store only grew to. -/
+theorem SimDV.bind_ok {α : Type} {pers : arena.store.PersTier} {lst lst1 : AState}
+    {o : core.result.Result Unit frontend.export_c.LineErr ×
+      arena.monad.AState × frontend.export_c.StateD}
+    {x : AM α} {f : α → AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)} {a : α}
+    (hx : x.run lst = .ok (a, lst1)) (hext : Ext lst.store lst1.store)
+    (h : SimDV pers lst1 o (f a)) : SimDV pers lst o (x >>= f) := by
+  rcases o with ⟨r, rst', rsd'⟩
+  have hrun : (x >>= f).run lst = (f a).run lst1 := by
+    simp only [am_run_bind', hx, except_ok_bind]
+  unfold SimDV at h ⊢
+  rw [hrun]
+  cases r with
+  | Ok u =>
+    obtain ⟨lsd', lst', hx', hd, hi, hrel, hinv, hext'⟩ := h
+    exact ⟨lsd', lst', hx', hd, hi, hrel, hinv, Ext.trans hext hext'⟩
+  | Err e =>
+    cases e with
+    | Err ce => exact h
+    | Verdict v =>
+      obtain ⟨lv, lst', hx', hk, hext'⟩ := h
+      exact ⟨lv, lst', hx', hk, Ext.trans hext hext'⟩
+
+/-- The port's `declined` at a message built from a constant: a `DECLINE`
+verdict, whatever the twin's message. -/
+theorem plc_declined {n : Std.Usize} {M : Std.Array Std.U32 n} {pers lst rst rsd msg o}
+    (h : (do
+        let s ← lift (Std.Array.to_slice M)
+        let v1 ← kernel.core_types.code_points s
+        let r1 ← frontend.export_c.declined Unit v1
+        ok (r1, rst, rsd)) = ok o) :
+    SimDV pers lst o (pure (Sum.inr (RecordVerdict.declined msg))) := by
+  simp only [lift, bind_tc_ok] at h
+  obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨m', rfl⟩ := declined_refines hr1
+  exact SimDV.verdict rfl rfl (Ext.refl _)
+
+/-- A `push_decl` at the tail of an arm. -/
+theorem plc_push {pers rst lst rsd lsd d o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (h : (do
+        let (r1, e, st1) ← frontend.export_c.push_decl pers rst.store rsd d
+        ok (r1, { rst with store := e }, st1)) = ok o) :
+    SimDV pers lst o (do pure (Sum.inl (← pushDecl lsd (absIDeclaration d)))) := by
+  obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  exact SimD.toSimDV_inl (push_decl_refines hrel hinv hd hi h1)
+
+/-- `StateDRel` at a pushed projection rewrite. -/
+theorem StateDRel.push_projRewrite {rsd lsd} (hd : StateDRel rsd lsd)
+    {n : arena.handle.NIdx} {v2 : alloc.vec.Vec arena.handle.NIdx}
+    (hv : v2.val = rsd.proj_rewrites.val ++ [n]) :
+    StateDRel { rsd with proj_rewrites := v2 }
+      { lsd with projRewrites := lsd.projRewrites.push (absNIdx n) } :=
+  { hd with
+    projRewrites := by
+      show lsd.projRewrites.push (absNIdx n) = absNIdxArr v2
+      rw [hd.projRewrites]; simp [absNIdxArr, hv] }
+
+theorem StateDInv.set_projRewrites {rsd} (hi : StateDInv rsd)
+    {v2 : alloc.vec.Vec arena.handle.NIdx} :
+    StateDInv { rsd with proj_rewrites := v2 } :=
+  ⟨hi.projOwners, hi.projLevels, hi.constTypes, hi.heights, hi.genOwner, hi.indBlocks⟩
+
+/-- **The projection rewrite and the push**, the shared tail of the `defn`
+and `thm` arms: the port's `match proj_rewrite_d … with` against the twin's
+`match ← projRewriteD … with`, at either declaration constructor. -/
+theorem plc_proj_tail {pers rst lst rsd lsd o} {v : arena.env.IConstantVal}
+    {v1 : arena.handle.EIdx} {mkR : arena.handle.EIdx → arena.env.IDeclaration}
+    {mkL : EIdx → IDeclaration}
+    (hmk : ∀ e, absIDeclaration (mkR e) = mkL (absEIdx e))
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (h : (do
+        let (r2, ar1) ← frontend.export_c.proj_rewrite_d pers rst rsd v v1
+        match r2 with
+        | core.result.Result.Ok o =>
+          match o with
+          | none =>
+            let (r3, e, st1) ←
+              frontend.export_c.push_decl pers ar1.store rsd (mkR v1)
+            ok (r3, { ar1 with store := e }, st1)
+          | some vl2 =>
+            let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 v.name
+            let (r3, e, st1) ←
+              frontend.export_c.push_decl pers ar1.store rsd (mkR vl2)
+            match r3 with
+            | core.result.Result.Ok _ =>
+              let v2 ← alloc.vec.Vec.push st1.proj_rewrites n
+              ok (core.result.Result.Ok (), { ar1 with store := e },
+                { st1 with proj_rewrites := v2 })
+            | core.result.Result.Err _ => ok (r3, { ar1 with store := e }, st1)
+        | core.result.Result.Err e =>
+          let r3 ← frontend.export_c.fail Unit e
+          ok (r3, ar1, rsd)) = ok o) :
+    SimDV pers lst o (do
+      match ← projRewriteD lsd (absIConstantVal v) (absEIdx v1) with
+      | some vl' =>
+        let st ← pushDecl lsd (mkL vl')
+        pure (Sum.inl { st with projRewrites := st.projRewrites.push (absIConstantVal v).name })
+      | none => pure (Sum.inl (← pushDecl lsd (mkL (absEIdx v1))))) := by
+  obtain ⟨⟨r2, ar1⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := proj_rewrite_d_refines hrel hinv hd hi h2
+  simp only [Sim] at hP
+  cases r2 with
+  | Err e =>
+    obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    obtain ⟨e', rfl, hk⟩ := fail_refines hr3
+    have hE : AErrSim e _ := AOut.destErr hP
+    show AErrSim e' _
+    intro k hk'
+    rw [hk] at hk'
+    obtain ⟨le, hle, hlk⟩ := hE k hk'
+    exact ⟨le, by simp only [am_run_bind', hle]; rfl, hlk⟩
+  | Ok ov =>
+    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hP
+    refine SimDV.bind_ok hx1 hext1 ?_
+    cases ov with
+    | none =>
+      simp only [Option.map_none]
+      rw [← hmk]
+      exact plc_push hrel1 hinv1 hd hi h
+    | some vl2 =>
+      simp only [Option.map_some]
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨⟨r3, e, st1⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hS := push_decl_refines hrel1 hinv1 hd hi h3
+      rw [hmk] at hS
+      simp only [SimD] at hS
+      have hnv : n = v.name := dupId_nidx _ _ hn
+      subst hnv
+      cases r3 with
+      | Ok u =>
+        obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases Result.ok_injective h
+        obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hS
+        refine SimDV.mk
+          (lsd' := { lsd' with projRewrites := (lsd'.projRewrites.push (absIConstantVal v).name) })
+          ?_
+          (StateDRel.push_projRewrite hd' (ConRon.Refine.vec_push_val hv2))
+          hi'.set_projRewrites hrel' hinv' hext'
+        simp only [am_run_bind', hx, except_ok_bind]; rfl
+      | Err e3 =>
+        cases Result.ok_injective h
+        exact SimDV.of_bind hS rfl
+
+theorem plc_ax {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr u o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+      (.Ax cvr u) = ok o) :
+    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Ax cvr u))) := by
+  rw [frontend.export_c.process_line_core_d] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := parse_cv_d_refines (lst := lst) hd hr
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact SimDV.of_bind hP rfl
+  | Ok v =>
+    simp only [absDeclRec, processLineCoreD]
+    refine SimDV.bind_ok hP (Ext.refl _) ?_
+    cases u with
+    | true => exact plc_declined h
+    | false =>
+      simp only [Bool.false_eq_true, if_false, pure_bind]
+      exact plc_push hrel hinv hd hi h
+
+theorem plc_opaq {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr value u o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+      (.Opaq cvr value u) = ok o) :
+    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Opaq cvr value u))) := by
+  rw [frontend.export_c.process_line_core_d] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := parse_cv_d_refines (lst := lst) hd hr
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact SimDV.of_bind hP rfl
+  | Ok v =>
+    simp only [absDeclRec, processLineCoreD]
+    refine SimDV.bind_ok hP (Ext.refl _) ?_
+    cases u with
+    | true => exact plc_declined h
+    | false =>
+      simp only [Bool.false_eq_true, if_false, pure_bind]
+      obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hG := get_decl_d_refines (lst := lst) hd hr1
+      cases r1 with
+      | Err e =>
+        cases Result.ok_injective h
+        exact SimDV.of_bind hG rfl
+      | Ok v1 =>
+        refine SimDV.bind_ok hG (Ext.refl _) ?_
+        exact plc_push hrel hinv hd hi h
+
+theorem plc_thm {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr value o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+      (.Thm cvr value) = ok o) :
+    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Thm cvr value))) := by
+  rw [frontend.export_c.process_line_core_d] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := parse_cv_d_refines (lst := lst) hd hr
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact SimDV.of_bind hP rfl
+  | Ok v =>
+    simp only [absDeclRec, processLineCoreD]
+    refine SimDV.bind_ok hP (Ext.refl _) ?_
+    obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hG := get_decl_d_refines (lst := lst) hd hr1
+    cases r1 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact SimDV.of_bind hG rfl
+    | Ok v1 =>
+      refine SimDV.bind_ok hG (Ext.refl _) ?_
+      exact plc_proj_tail (mkR := fun e => .ThmDecl v e) (fun _ => rfl) hrel hinv hd hi h
+
+theorem plc_defn {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr value hints safety o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : ConRon.Refine.StrWF safety)
+    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+      (.Defn cvr value hints safety) = ok o) :
+    SimDV pers lst o
+      (processLineCoreD lmd lsd (absDeclRec (.Defn cvr value hints safety))) := by
+  rw [frontend.export_c.process_line_core_d.eq_def] at h
+  dsimp only at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := parse_cv_d_refines (lst := lst) hd hr
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact SimDV.of_bind hP rfl
+  | Ok v =>
+    simp only [absDeclRec, processLineCoreD]
+    refine SimDV.bind_ok hP (Ext.refl _) ?_
+    simp only [lift, bind_tc_ok] at h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hsafe := safe_spelling_refines hs (by simp only [lift, bind_tc_ok]; exact hb)
+    split
+    · rename_i hsv
+      have hbt : b = true := hsafe.mpr hsv
+      subst hbt
+      simp only [if_true] at h
+      obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hG := get_decl_d_refines (lst := lst) hd hr1
+      cases r1 with
+      | Err e =>
+        cases Result.ok_injective h
+        exact SimDV.of_bind hG rfl
+      | Ok v1 =>
+        refine SimDV.bind_ok hG (Ext.refl _) ?_
+        cases hints with
+        | Abbrev =>
+          obtain ⟨hh, hhh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases Result.ok_injective hhh
+          exact plc_proj_tail (mkR := fun e => .DefnDecl v e .Abbrev)
+            (mkL := fun e => .defnDecl (absIConstantVal v) e .abbrev) (fun _ => rfl)
+            hrel hinv hd hi h
+        | Opaque =>
+          obtain ⟨hh, hhh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases Result.ok_injective hhh
+          exact plc_proj_tail (mkR := fun e => .DefnDecl v e .Opaque)
+            (mkL := fun e => .defnDecl (absIConstantVal v) e .opaque) (fun _ => rfl)
+            hrel hinv hd hi h
+        | Regular n =>
+          obtain ⟨hh, hhh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases Result.ok_injective hhh
+          exact plc_proj_tail (mkR := fun e => .DefnDecl v e (.Regular n))
+            (mkL := fun e => .defnDecl (absIConstantVal v) e (.regular n.val)) (fun _ => rfl)
+            hrel hinv hd hi h
+    · rename_i hsv
+      have hbf : b = false := by
+        cases b
+        · rfl
+        · exact absurd (hsafe.mp rfl) hsv
+      subst hbf
+      simp only [Bool.false_eq_true, if_false] at h
+      obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      obtain ⟨m', rfl⟩ := declined_refines hr1
+      exact SimDV.verdict rfl rfl (Ext.refl _)
+
+theorem plc_quot {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr kind o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : ConRon.Refine.StrWF kind)
+    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+      (.Quot cvr kind) = ok o) :
+    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Quot cvr kind))) := by
+  rw [frontend.export_c.process_line_core_d] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := parse_cv_d_refines (lst := lst) hd hr
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact SimDV.of_bind hP rfl
+  | Ok v =>
+    simp only [absDeclRec, processLineCoreD]
+    refine SimDV.bind_ok hP (Ext.refl _) ?_
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hQ := quot_kind_of_refines hs hq
+    cases q with
+    | none =>
+      obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      obtain ⟨msg, rfl⟩ := merr_refines hr1
+      split
+      next heq => rw [heq] at hQ; simp at hQ
+      next heq => rw [heq] at hQ; simp at hQ
+      next heq => rw [heq] at hQ; simp at hQ
+      next heq => rw [heq] at hQ; simp at hQ
+      next =>
+        intro k hk
+        simp only [absAErrKind, Option.some.injEq] at hk
+        subst hk
+        exact ⟨_, rfl, rfl⟩
+    | some qk =>
+      have hpush := plc_push hrel hinv hd hi h
+      simp only [absIDeclaration] at hpush
+      split
+      next heq =>
+        rw [heq] at hQ; simp only [Option.map_some, Option.some.injEq] at hQ
+        simp only [pure_bind]; rw [← hQ]; exact hpush
+      next heq =>
+        rw [heq] at hQ; simp only [Option.map_some, Option.some.injEq] at hQ
+        simp only [pure_bind]; rw [← hQ]; exact hpush
+      next heq =>
+        rw [heq] at hQ; simp only [Option.map_some, Option.some.injEq] at hQ
+        simp only [pure_bind]; rw [← hQ]; exact hpush
+      next heq =>
+        rw [heq] at hQ; simp only [Option.map_some, Option.some.injEq] at hQ
+        simp only [pure_bind]; rw [← hQ]; exact hpush
+      next => split at hQ <;> simp_all
+
+/-- `StateDRel` at the `indCount` bump. -/
+theorem StateDRel.set_indCount {rsd lsd} (hd : StateDRel rsd lsd) {i : Std.U64}
+    (hi : i.val = rsd.ind_count.val + 1) :
+    StateDRel { rsd with ind_count := i } { lsd with indCount := lsd.indCount + 1 } :=
+  { hd with
+    indCount := by
+      show lsd.indCount + 1 = absU i
+      rw [hd.indCount]; simp only [absU, hi] }
+
+theorem StateDInv.set_indCount {rsd} (hi : StateDInv rsd) {i : Std.U64} :
+    StateDInv { rsd with ind_count := i } :=
+  ⟨hi.projOwners, hi.projLevels, hi.constTypes, hi.heights, hi.genOwner, hi.indBlocks⟩
+
+theorem plc_ind {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd tys cts rcs o}
+    (hmr : ModellerRefines inst m lmd)
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+      (.Ind tys cts rcs) = ok o) :
+    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Ind tys cts rcs))) := by
+  rw [frontend.export_c.process_line_core_d] at h
+  obtain ⟨i, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hiv : i.val = rsd.ind_count.val + 1 := ConRon.Refine.Nat.uadd_val hi1
+  have hd' := hd.set_indCount hiv
+  have hi' := hi.set_indCount (i := i)
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hOk, hErr⟩ := validate_ind_d_refines hrel hinv hd' hi' hr
+  simp only [absDeclRec, processLineCoreD]
+  cases r with
+  | Ok p =>
+    obtain ⟨cts2, n_pd⟩ := p
+    have hx := hOk _ rfl
+    refine SimDV.bind_ok hx (Ext.refl _) ?_
+    exact install_ind_d_refines hmr hrel hinv hd' hi' h
+  | Err e =>
+    cases Result.ok_injective h
+    obtain ⟨hE, hV⟩ := hErr e rfl
+    cases e with
+    | Err ce =>
+      have := hE ce rfl
+      exact AErrSim.bind this _
+    | Verdict vd =>
+      obtain ⟨lv, hx, hk⟩ := hV vd rfl
+      refine SimDV.bind_ok hx (Ext.refl _) ?_
+      exact SimDV.verdict rfl hk (Ext.refl _)
+
+/-- **`process_line_core_d` refines `processLineCoreD`**
+(`ExportC.lean:600-658`) — the record's own semantics: the declaration kinds,
+producing `IDeclaration` records.  The `safety` and `kind` spellings are
+compared against con-leche `String` LITERALS, which is why this is the one
+line-layer statement that carries `DeclRecStrWF`. -/
+theorem process_line_core_d_refines {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd d o}
+    (hmr : ModellerRefines inst m lmd)
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : DeclRecStrWF d)
+    (h : frontend.export_c.process_line_core_d inst pers m rst rsd d = ok o) :
+    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec d)) := by
+  cases d with
+  | Ax cvr u => exact plc_ax hrel hinv hd hi h
+  | Defn cvr value hints safety => exact plc_defn hrel hinv hd hi hs h
+  | Thm cvr value => exact plc_thm hrel hinv hd hi h
+  | Opaq cvr value u => exact plc_opaq hrel hinv hd hi h
+  | Quot cvr kind => exact plc_quot hrel hinv hd hi hs h
+  | Ind tys cts rcs => exact plc_ind hmr hrel hinv hd hi h
 
 /-- **`apply_decl_d` refines `applyDeclD`** (`ExportC.lean:662-664`): the
 twin's and the port's are both `process_line_core_d` itself. -/
