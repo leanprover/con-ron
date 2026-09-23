@@ -38807,16 +38807,37 @@ listed in §2 so the next reader knows which `grind` to write.  The other
 components were already complete after round 4 (no spec writes a cache table
 without framing it; every memoised walk frames its own table).
 
-#### 7. Gates
+#### 7. OVERVIEW §12 was one gate behind
 
-`scripts/gates.sh` on the merged tip, once: **all 13 OK**.  `ConRonBridge` is
-not a default target, so it was built separately: **617 jobs, green**, with
-`Bridge/ExprOps/**` at **0 `sorry` across all thirteen modules**.
+The first gate run of this round failed at `overview-links`, and not on
+anything of this round's: `c87b3ee6` (task #97-P5-Mut, on `arena`) added
+**step 14, `lake build ConRonRefine2`**, updated `gates.sh`'s own header
+comment, and left OVERVIEW §12 saying *"the thirteen steps"* over an anchor
+(`gates.sh#L59-L75`) that no longer spans the block.  Fixed here because it
+blocks every landing until someone does: §12's list gains item 14 (with the
+sentence that says WHY it is its own step — step 13 elaborates not one module
+of `ConRon/Refine2/**`), the anchor becomes `#L60-L82`, and
+`scripts/overview-links.sh --update` regenerates the committed expectation
+(48 links, 31 files; the `gates.sh` block is the only one that moved).
+
+#### 8. Gates
+
+`scripts/gates.sh` on the merged tip: **all 14 OK** (`cargo-build` 0 s,
+`cargo-test` 4 s, `lint-rust` 2 s, `provenance` 0 s, `provenance-self` 1 s,
+`twin-lines` 0 s, `overview-links` 0 s, `holes` 0 s, `gen-pins` 1 s,
+`gen-prelude` 0 s, `gen-prelude-lean` 0 s, `extract-check` 93 s, `lake-build`
+110 s, `lake-refine2` 104 s) — the first `all 14 OK` line in this log, §7
+being why.  `ConRonBridge` is not a default target, so it was built
+separately: **617 jobs, green**, with `Bridge/ExprOps/**` at **0 `sorry`
+across all thirteen modules**, as it was before the round.
+
+`scripts/arena-census.py`, in the gate's own progress block: `Arena/ExprOps`
+**92/92 T1 stated, 92 closed** — unchanged, which is again the point.
 
 | | |
 |---|---|
 | branch | `p3-exprops-5` off `arena` `b0d3fb18`, merged forward once (`c87b3ee6`) |
-| the diff | `proof/ConRon/Bridge/ExprOps/{Abs,Inst1,Spine,TelescopeF,Owed}.lean`, `proof/lakefile.toml`, one token in `proof/ConRon/Bridge/Core/Walks/Spine.lean`, and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, and **no `Bridge/Specs.lean`** |
+| the diff | `proof/ConRon/Bridge/ExprOps/{Abs,Inst1,Spine,TelescopeF,Owed}.lean`, `proof/lakefile.toml`, one token in `proof/ConRon/Bridge/Core/Walks/Spine.lean`, `OVERVIEW.md` §12 with `scripts/overview-links-expected.txt` (§7), and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, and **no `Bridge/Specs.lean`** |
 | `#print axioms` | every theorem this round touched: `[propext, Classical.choice, Quot.sound]` |
 
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
