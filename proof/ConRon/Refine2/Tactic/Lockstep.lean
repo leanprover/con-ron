@@ -1856,8 +1856,9 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
         -- decided (or split) by `stepCore` once the Rust cannot move — taking
         -- it whole as the partner would bury it under the `>>= pure` (task
         -- #97-T2-TACTIC round 2, the Checker Base/Top lane's `chk_lockstep`).
+        -- Nor at a twin `pure` (task #97-P5-Core round 5's same guard).
         if !(x.isAppOfArity ``Bind.bind 6) && !(x.isAppOfArity ``ite 5) &&
-            !(x.isAppOfArity ``dite 5) then
+            !(x.isAppOfArity ``dite 5) && !(x.isAppOfArity ``Pure.pure 4) then
           try
             let gs ← applyRule g ``LS.twin_bind_pure
             let g' ← pick gs `h
@@ -2297,7 +2298,12 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
           for (n, sg) in gs do
             if ← sg.isAssigned then continue
             if n == `ht then runClosed sg (evalT `(tactic| lockstep_side))
-            else if n == `hg then runClosed sg (evalT `(tactic| (intros; rfl)))
+            -- `hg`: the twin's continuation ignores the levels.  Checked at
+            -- reducible transparency: a default `rfl` unfolds whatever the
+            -- continuation calls on the levels, without bound (the Inductives
+            -- Modeled lane's `nested_rule_shape_at` hung)
+            else if n == `hg then
+              runClosed sg (evalT `(tactic| (intros; first | with_reducible rfl | (dsimp only; done))))
           let g' ← pick gs `hls
           let g' ← normGoal g'
           -- keep the rule only if the port's projection now steps
