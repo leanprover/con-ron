@@ -48,6 +48,7 @@ side enters only at `whnfCoreBody_spec`.
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Owed
+import ConRon.Bridge.Core.Walks.Iota
 import ConRon.Bridge.Core.Walks.ProjLit
 import ConRon.Bridge.Core.Walks.Proj
 
