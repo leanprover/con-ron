@@ -982,8 +982,8 @@ def checkDefnPinsSpec (mode : CheckMode) (pins : List INatOpPinSet)
     (fe fe2 : IFEnv) (n : NIdx) : AM IFEnv := do
   if (← natOpNames).contains n then
     let _ ← checkStructuralNatPinSpec mode fe fe2 n
-    pure ()
-  checkDefnDivModPinSpec mode pins fe fe2 n
+    checkDefnDivModPinSpec mode pins fe fe2 n
+  else checkDefnDivModPinSpec mode pins fe fe2 n
 
 /-- `checkDecl`'s `.defnDecl` arm, whole. -/
 def checkDefnDeclSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
@@ -1165,6 +1165,22 @@ theorem checkDivModPin_split (mode : CheckMode) (pins : List INatOpPinSet)
     | none => rfl
     | some ci => cases ci <;> rfl
   · rfl
+
+/-- `checkStructuralNatPinEqsSpec` with its stored-value lookup named
+`defnValueOf`, as the Rust's `check_structural_nat_pin_eqs` calls
+`defn_value`. -/
+theorem checkStructuralNatPinEqsSpec_split (mode : CheckMode) (fe fe2 : IFEnv)
+    (n : NIdx) :
+    checkStructuralNatPinEqsSpec mode fe fe2 n =
+      match defnValueOf fe2 n with
+      | some v => (do
+          let eqs ← natOpEquations 0 n
+          checkStructuralNatPinCertifySpec mode fe fe2 (← substConst0Pairs n v eqs))
+      | none => fail (.internal "structural Nat operation not stored") := by
+  unfold checkStructuralNatPinEqsSpec defnValueOf
+  cases fe2.find? n with
+  | none => rfl
+  | some ci => cases ci <;> rfl
 
 /-- `checkReducePin` is the stored guard at the post-insertion index, then
 `checkReducePinPreSpec` at the pre-insertion one — the Rust's

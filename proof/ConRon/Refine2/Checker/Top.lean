@@ -44,7 +44,9 @@ be declared HERE and proved in `Refine2/Inductives/Top.lean`, which imports
 this file — so no proof here could reach `ind_rel`.  The structure now lives
 in `Refine2/Checker/Shape.lean` (the base both tiers already import), that
 file's `import ConRon.Refine2.Checker.Top` is gone, and this file imports the
-Inductives tier instead.  A capstone with no hypotheses must transitively
+Inductives tier instead.  (Task #97-T2-LOCKSTEP lane Checker round 2 deleted `IndRel` itself:
+its old `AStateRel`/`SimRel` shape had no consumer once the Inductives lane
+retired `ind_rel`, and `check_ind_decl_refines` is called directly.)  A capstone with no hypotheses must transitively
 import every tier that discharges one.
 
 `KnotRel checkFuel` went the same way and needed nothing:
@@ -391,7 +393,25 @@ theorem check_opaque_reduce_pin_refines {pers st lst} {rf2 lf2}
             checkReducePin (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)
               (absEIdx value)
           pure lf2) := by
-  sorry
+  have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_opaque_reduce_pin]
+  simp only [pure_bind]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_opaque_reduce_pin_ls {pers st lst} {rf2 lf2}
+    {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx}
+    {value : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
+    LS pers IFEnvRelI
+      (arena.checker.check_opaque_reduce_pin pers st mode rf2 k_pre n value) lst
+      (do if (← reduceOpNames).contains (absNIdx n) then
+            checkReducePin (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
+              (absNIdx n) (absEIdx value)
+          pure lf2) :=
+  LS.ofSimRel₀ fun _ h => check_opaque_reduce_pin_refines hrel hinv hfe.rel hfe.inv hk h
 
 /-- **`check_opaque_decl` ⊑ `checkDecl`'s `.opaqueDecl` arm**. -/
 theorem check_opaque_decl_refines {pers st lst} {rf lf}
@@ -403,7 +423,10 @@ theorem check_opaque_decl_refines {pers st lst} {rf lf}
     SimRel₀ IFEnvRelI pers lst o
       (checkOpaqueDeclSpec (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_opaque_decl, checkOpaqueDeclSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_opaque_decl_ls {pers st lst}
@@ -468,7 +491,23 @@ theorem check_structural_nat_pin_certify_refines {pers st lst} {rf2 lf2}
     SimRel₀ (fun r _ => IFEnvRelI r lf2) pers lst o
       (checkStructuralNatPinCertifySpec (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
         (absEqPairs seqs)) := by
-  sorry
+  have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_structural_nat_pin_certify, checkStructuralNatPinCertifySpec]
+  simp only [pure_bind, am_fail_bind]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_structural_nat_pin_certify_ls {pers st lst} {rf2 lf2}
+    {mode : kernel.env.CheckMode} {k_pre : Std.U64}
+    {seqs : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
+    LS pers (fun r _ => IFEnvRelI r lf2)
+      (arena.checker.check_structural_nat_pin_certify pers st mode rf2 k_pre seqs) lst
+      (checkStructuralNatPinCertifySpec (ConRon.Refine.absMode mode)
+        (lf2.restrictTo (absU k_pre)) lf2 (absEqPairs seqs)) :=
+  LS.ofSimRel₀ fun _ h => check_structural_nat_pin_certify_refines hrel hinv hfe.rel hfe.inv hk h
 
 /-- `check_structural_nat_pin_eqs` — the operation's own equations, built. -/
 theorem check_structural_nat_pin_eqs_refines {pers st lst} {rf2 lf2}
@@ -481,7 +520,21 @@ theorem check_structural_nat_pin_eqs_refines {pers st lst} {rf2 lf2}
     SimRel₀ (fun r _ => IFEnvRelI r lf2) pers lst o
       (checkStructuralNatPinEqsSpec (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
         (absNIdx n)) := by
-  sorry
+  have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_structural_nat_pin_eqs, checkStructuralNatPinEqsSpec_split]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_structural_nat_pin_eqs_ls {pers st lst} {rf2 lf2}
+    {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
+    LS pers (fun r _ => IFEnvRelI r lf2)
+      (arena.checker.check_structural_nat_pin_eqs pers st mode rf2 k_pre n) lst
+      (checkStructuralNatPinEqsSpec (ConRon.Refine.absMode mode)
+        (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) :=
+  LS.ofSimRel₀ fun _ h => check_structural_nat_pin_eqs_refines hrel hinv hfe.rel hfe.inv hk h
 
 /-- `check_structural_nat_pin` — the fast-path ops must be the standard
 structural recursions. -/
@@ -494,7 +547,22 @@ theorem check_structural_nat_pin_refines {pers st lst} {rf2 lf2}
     SimRel₀ (fun r _ => IFEnvRelI r lf2) pers lst o
       (checkStructuralNatPinSpec (ConRon.Refine.absMode mode) (lf2.restrictTo (absU k_pre)) lf2
         (absNIdx n)) := by
-  sorry
+  have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_structural_nat_pin, checkStructuralNatPinSpec]
+  simp only [pure_bind, am_fail_bind]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_structural_nat_pin_ls {pers st lst} {rf2 lf2}
+    {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
+    LS pers (fun r _ => IFEnvRelI r lf2)
+      (arena.checker.check_structural_nat_pin pers st mode rf2 k_pre n) lst
+      (checkStructuralNatPinSpec (ConRon.Refine.absMode mode)
+        (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) :=
+  LS.ofSimRel₀ fun _ h => check_structural_nat_pin_refines hrel hinv hfe.rel hfe.inv hk h
 
 /-- `check_defn_div_mod_pin` — the `Nat.div`/`Nat.mod` gate at a definition. -/
 theorem check_defn_div_mod_pin_refines {pers st lst} {rf2 lf2}
@@ -509,7 +577,23 @@ theorem check_defn_div_mod_pin_refines {pers st lst} {rf2 lf2}
     SimRel₀ IFEnvRelI pers lst o
       (checkDefnDivModPinSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
         (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) := by
-  sorry
+  have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_defn_div_mod_pin, checkDefnDivModPinSpec]
+  simp only [pure_bind]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_defn_div_mod_pin_ls {pers st lst} {rf2 lf2}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {k_pre : Std.U64} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
+    LS pers IFEnvRelI
+      (arena.checker.check_defn_div_mod_pin pers st mode pins rf2 k_pre n) lst
+      (checkDefnDivModPinSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+        (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) :=
+  LS.ofSimRel₀ fun _ h => check_defn_div_mod_pin_refines hrel hinv hfe.rel hfe.inv hk h
 
 /-- `check_defn_pins` — both pin gates, in the twin's order. -/
 theorem check_defn_pins_refines {pers st lst} {rf2 lf2}
@@ -523,7 +607,28 @@ theorem check_defn_pins_refines {pers st lst} {rf2 lf2}
     SimRel₀ IFEnvRelI pers lst o
       (checkDefnPinsSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
         (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) := by
-  sorry
+  have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_defn_pins, checkDefnPinsSpec]
+  -- The Rust's structural gate is a state bind right after the `contains`
+  -- test, so the tactic moves the Rust first and wraps the undecided twin
+  -- `if` as `if … >>= pure`; the test is the Rust's, decided here.
+  lockstep
+  rw [am_ite_bind, if_pos (by simpa [absNIdxLFrom, absNIdxL] using hc)]
+  simp only [bind_pure]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_defn_pins_ls {pers st lst} {rf2 lf2}
+    {mode : kernel.env.CheckMode}
+    {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {k_pre : Std.U64} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf2 lf2) (hk : k_pre.val ≤ rf2.visible_below.val) :
+    LS pers IFEnvRelI
+      (arena.checker.check_defn_pins pers st mode pins rf2 k_pre n) lst
+      (checkDefnPinsSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+        (lf2.restrictTo (absU k_pre)) lf2 (absNIdx n)) :=
+  LS.ofSimRel₀ fun _ h => check_defn_pins_refines hrel hinv hfe.rel hfe.inv hk h
 
 /-- **`check_defn_decl` ⊑ `checkDecl`'s `.defnDecl` arm**. -/
 theorem check_defn_decl_refines {pers st lst} {rf lf}
@@ -537,7 +642,10 @@ theorem check_defn_decl_refines {pers st lst} {rf lf}
     SimRel₀ IFEnvRelI pers lst o
       (checkDefnDeclSpec (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf
         (absIConstantVal cv) (absEIdx value) (ConRon.Refine.absHint hint)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_defn_decl, checkDefnDeclSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_defn_decl_ls {pers st lst}
