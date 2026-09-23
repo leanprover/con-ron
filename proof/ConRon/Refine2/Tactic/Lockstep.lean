@@ -1487,12 +1487,29 @@ def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
   runClosed (← pick gs `hPQ) (evalT `(tactic| (intro _ hP; lockstep_side)))
   return []
 
+/-- The term a twin `match` on `t` is cased on: `t` itself, or — when `t` is a
+constructor application, which `cases` would only rebuild — the first of its
+fields, left to right, that is not one (recursively). -/
+partial def caseTarget? (t : Expr) : MetaM (Option Expr) := do
+  let t ← instantiateMVars t
+  if t.isLit then return none
+  if let .const n _ := t.getAppFn then
+    if let some (.ctorInfo ci) := (← getEnv).find? n then
+      for f in t.getAppArgs.extract ci.numParams t.getAppNumArgs do
+        if let some r ← caseTarget? f then return some r
+      return none
+  return some t
+
 /-- The Rust side moves: a bind, a leaf, or a tail call. -/
 partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
   if m.isAppOfArity ``Bind.bind 6 then
     let f := m.getArg! 4
     let kind ← classify (← inferType f).appArg!
     let s ← saveState
+    -- the judgement-specific attempt's failure: for a read it is the one to
+    -- report, not the `LSP` fallback's "no @[lockstep] lemma" (task
+    -- #97-T2-TACTIC round 2, the Inductives Modeled lane)
+    let firstErr ← IO.mkRef (none : Option Exception)
     try
       match kind with
       | .state =>
@@ -1519,6 +1536,7 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
         return ← cont (← pick gs `hk) [`a, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
     catch e =>
       s.restore
+      firstErr.set (some e)
       match kind with
       | .state | .write =>
         -- the twin ends in the partner action where the Rust still binds.
@@ -1547,7 +1565,7 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
     catch e =>
       s.restore
       match kind with
-      | .read => throw e
+      | .read => throw ((← firstErr.get).getD e)
       | _ => pure ()
     -- a Rust call that reads the state must have a twin partner
     for arg in f.getAppArgs do
@@ -1678,8 +1696,12 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
     -- of its own: case on the term; the branch the Rust's test rules out closes
     -- by `lockstep_contra`
     if let some mapp ← matchMatcherApp? x then
-      if let some t := mapp.discrs[0]? then
-        if !t.isFVar then
+      if let some t0 := mapp.discrs[0]? then
+        -- a constructor application (`some (absIConstantInfo v)`) is not
+        -- cased on — `cases` would rebuild it and this move would never end
+        -- (task #97-T2-TACTIC round 2, the Inductives Modeled lane's
+        -- `check_eta_thm`); its first field that is not one is
+        if !t0.isFVar then if let some t ← caseTarget? t0 then
           let stx ← Lean.Elab.Term.exprToSyntax t
           let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
           let mut out := []
