@@ -2253,6 +2253,166 @@ def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K
   exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with ruleRhsC := h1 } },
     { hinv with caches := { hinv.caches with ruleRhsC := h2 } }⟩
 
+/-! ## Vector copies and cursors (Rust-only steps) -/
+
+@[lockstep] theorem lidx_vec_dup_ls (us : alloc.vec.Vec arena.handle.LIdx) :
+    LSP (arena.env.lidx_vec_dup us) (fun r => r = us) := by
+  intro r h
+  rw [arena.env.lidx_vec_dup] at h
+  show r = us
+  exact alloc.vec.Vec.ext _ _ (lidx_vec_dup_eq h)
+
+@[lockstep] theorem eidx_vec_dup_ls (es : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.env.eidx_vec_dup es) (fun r => r = es) := by
+  intro r h
+  show r = es
+  exact alloc.vec.Vec.ext _ _ (eidx_vec_dup_val h)
+
+@[lockstep] theorem sub_nat_ls (a b : Std.U64) :
+    LSP (kernel.expr_ops.sub_nat a b) (fun r => absU r = absU a - absU b) :=
+  fun _ h => sub_nat_val h
+
+theorem take_eidx_n_from_val (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ k (n : Std.U64) (i : Std.Usize) (out r : alloc.vec.Vec arena.handle.EIdx),
+      xs.length - i.val ≤ k →
+      arena.expr_ops.take_eidx_n_from xs n i out = ok r →
+      r.val = out.val ++ (xs.val.drop i.val).take n.val := by
+  intro k
+  induction k with
+  | zero =>
+    intro n i out r hk h
+    rw [arena.expr_ops.take_eidx_n_from] at h
+    rw [List.drop_eq_nil_of_le (by scalar_tac)]
+    split at h
+    · cases Result.ok_injective h; simp
+    · rw [if_pos (by scalar_tac)] at h
+      cases Result.ok_injective h; simp
+  | succ k ih =>
+    intro n i out r hk h
+    rw [arena.expr_ops.take_eidx_n_from] at h
+    split at h
+    · rename_i hn
+      cases Result.ok_injective h; simp [hn]
+    · rename_i hn
+      simp only [] at h
+      split at h
+      · cases Result.ok_injective h
+        rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
+      · rename_i hlt
+        obtain ⟨e, he, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e1, he1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h1
+        obtain ⟨out1, hout1, h3⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+        obtain ⟨n1, hn1, h4⟩ := ConRon.Refine.bind_eq_ok_iff.mp h3
+        obtain ⟨i1, hi1, h5⟩ := ConRon.Refine.bind_eq_ok_iff.mp h4
+        obtain ⟨hb, hev⟩ := ConRon.Refine2.ExprOps.vecIndexAt he
+        rw [dupId_eidx _ _ he1, ← hev] at hout1
+        have ho := ConRon.Refine.vec_push_val hout1
+        have hn1v := ConRon.Refine.Nat.usub_val hn1
+        have hi1v : i1.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi1
+        have := ih n1 i1 out1 r (by scalar_tac) h5
+        rw [this, ho, hi1v]
+        have hnpos : n.val ≠ 0 := by
+          intro hc; apply hn; exact Aeneas.Std.UScalar.eq_imp _ _ (by simpa using hc)
+        obtain ⟨m, hm⟩ : ∃ m, n.val = m + 1 := ⟨n.val - 1, by omega⟩
+        rw [List.drop_eq_getElem_cons hb, hm, List.take_succ_cons]
+        simp only [List.append_assoc, List.singleton_append]
+        congr 3
+        simp at hn1v; omega
+
+@[lockstep] theorem take_eidx_n_ls (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.expr_ops.take_eidx_n xs n)
+      (fun r => TwinEq ((absEIdxList xs).take (absU n)) (absEIdxList r)) := by
+  intro r h
+  rw [arena.expr_ops.take_eidx_n] at h
+  have := take_eidx_n_from_val xs _ n 0#usize _ r (Nat.le_refl _) h
+  show _ = r.val.map absEIdx
+  rw [this]
+  simp [absEIdxList, List.map_take]
+
+/-! ## The recursor-rule lookups (pure on both sides) -/
+
+attribute [lockstep_simp] absIRecRule absIRecRuleFire
+
+@[lockstep] theorem rec_rule_k_ls (rules : alloc.vec.Vec arena.env.IRecRule) :
+    LSP (arena.core.rec_rule_k rules) (fun b => b = recRuleK (rules.val.map absIRecRule)) := by
+  intro b h
+  rw [arena.core.rec_rule_k] at h
+  split at h
+  · rename_i hl
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hb, rfl⟩ := ConRon.Refine2.ExprOps.vecIndexAt hx
+    cases Result.ok_injective h
+    have hl' : rules.val.length = 1 := by
+      have := congrArg (fun u : Std.Usize => u.val) hl
+      simpa [alloc.vec.Vec.len_val] using this
+    obtain ⟨y, hy⟩ := List.length_eq_one_iff.mp hl'
+    simp only [hy, List.map_cons, List.map_nil, recRuleK]
+    simp [hy, absIRecRule]
+  · rename_i hl
+    cases Result.ok_injective h
+    have hl' : rules.val.length ≠ 1 := by
+      intro hc; apply hl; apply Aeneas.Std.UScalar.eq_imp
+      simpa [alloc.vec.Vec.len_val] using hc
+    unfold recRuleK
+    split
+    · rename_i r heq
+      have := congrArg List.length heq
+      simp at this; exact absurd this hl'
+    · rfl
+
+/-- `find_rule` answers the INDEX of the first rule at `c` from `i` on; the
+twin's `findRule` answers the rule itself. -/
+theorem find_rule_from (rules : alloc.vec.Vec arena.env.IRecRule) (c : arena.handle.NIdx) :
+    ∀ k (i : Std.Usize), rules.length - i.val ≤ k → ∀ o,
+      arena.core.find_rule rules c i = ok o →
+      findRule ((rules.val.drop i.val).map absIRecRule) (absNIdx c)
+        = o.bind (fun j => (rules.val[j.val]?).map absIRecRule) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i hk o h
+    rw [arena.core.find_rule] at h
+    rw [if_pos (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (by scalar_tac)]; rfl
+  | succ k ih =>
+    intro i hk o h
+    rw [arena.core.find_rule] at h
+    split at h
+    · cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by scalar_tac)]; rfl
+    · rename_i hlt
+      have hb : i.val < rules.val.length := by scalar_tac
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨_, rfl⟩ := ConRon.Refine2.ExprOps.vecIndexAt hx
+      obtain ⟨b, hbq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbv := (eq2_nidx _ _) b hbq
+      rw [List.drop_eq_getElem_cons hb, List.map_cons, findRule]
+      simp only [absIRecRule] at hbv ⊢
+      split at h
+      · rename_i hbt
+        cases Result.ok_injective h
+        rw [hbv] at hbt
+        simp [hbt, List.getElem?_eq_getElem hb, absIRecRule]
+      · rename_i hbf
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi2
+        have := ih i2 (by scalar_tac) o h
+        rw [hi2v] at this
+        rw [hbv] at hbf
+        simp only [hbf, if_false, Bool.false_eq_true]
+        simpa [absIRecRule] using this
+
+@[lockstep] theorem find_rule_ls (rules : alloc.vec.Vec arena.env.IRecRule)
+    (c : arena.handle.NIdx) :
+    LSP (arena.core.find_rule rules c 0#usize)
+      (fun o => TwinEq (findRule (rules.val.map absIRecRule) (absNIdx c))
+        (o.bind (fun j => (rules.val[j.val]?).map absIRecRule))) := by
+  intro o h
+  have := find_rule_from rules c _ 0#usize (Nat.le_refl _) o h
+  show _ = _
+  simpa using this
+
 /-! ## Interns — pending the foundation's intern slice -/
 
 @[lockstep] theorem intern_e_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
