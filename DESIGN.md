@@ -41683,7 +41683,11 @@ clauses from the pure run the arm already proves:
   `Verify/Cached/BridgeCS4.lean`'s private `constWF_le'`) moves them to the
   installed environment.  **Upstream asks, added to the `ConstWF` list beside
   `cvA_type_facts'` and `constWF_intro'`: make `constWF_le'` public, and
-  export a `declBasisRun_envWF` beside `DeclBasisRun`.**
+  export a `declBasisRun_envWF` beside `DeclBasisRun`.**  (Task #97-P3-Ind round 8: the
+  inductive route's `EnvWF` — round 7's `indDecl_envWF` ask — needs NOTHING
+  more exported: it is closed from con-leche's public V-free lemmas, with
+  `constWF_le'` and `cvA_type_facts'` replicated; the same two lines above
+  are the whole wish.)
 * `projMem_of_noTower`: the index's pushed front denotes the environment's
   pushed front, and `denoteCI` keeps the constructor, so it holds no table.
 
@@ -51141,6 +51145,239 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
+
+#### Round 8 — the capstone takes `indSpec_of_bridge`, the install frame, both routes composed, and `indDecl_envWF` closed here (2026-09-23, Opus under Fable)
+
+Branch `ind-r8` off `arena` `6cfd995d`, merged forward to `b7c84da1` (which
+brought task #97-P3-Checker round 10's restated `checkConstantVal_bridge`
+and task #97-P3-Core round 6's `CoreSpec.of_core`).  The diff is
+`Bridge/Inductives/**`, `Capstone.lean` (the authorised edit, R8.1) and this
+section.  No Rust, no generated model; `Bridge/Checker/**` untouched.
+
+Gates on the merged tip: GATES_PENDING.
+
+**The tier went from 28 open statements to 5**, all five in `Modeled.lean`
+and all five under the modeled route's iota and projection certificates:
+
+| module | open (r7 → r8) |
+|---|---:|
+| `Rel.lean`, `StructParts.lean`, `SumParts.lean`, `NativeParts.lean` | 0 → **0** |
+| `Decl.lean` | 1 → **0** (`indDecl_envWF`, R8.4) |
+| `StructInstall.lean` | 1 → **0** |
+| `SumInstall.lean` | 5 → **0** |
+| `NativeInstall.lean` | 5 → **0** |
+| `Modeled.lean` | 16 → **5** |
+| **the tier** | **28 → 5** |
+
+The five: `checkIotaThm_spec`, `checkIotaThmN_spec`, `nestedRuleShape_spec`,
+`checkProjIota_spec` (the certificates) and `checkProjFn_spec` (whose pieces
+`checkProjShape`, `checkProjRule`, `projFnRule` — `Arena/CheckerBase.lean` /
+`Arena/Core.lean` twins — have no Theorem 1 anywhere yet).  **The whole
+fixpoint route is closed**: `checkNative_spec` prints
+`[propext, Classical.choice, Quot.sound]`.  The modeled route is closed as a
+composition (`checkModeled_spec`, `checkIndMembers_spec`, `checkIndRecs_spec`,
+`provisionRecs_spec`, `installIndRecs_spec`, `checkIotaRules_spec`,
+`checkIotaRule_spec`, `installProjFns_spec`, `installProjFnStep_spec` are
+proved) and inherits `sorryAx` from the five only.  `Axioms.lean` gained a
+round-8 block and a "group 1½" for the compositions over the five.
+
+##### R8.0 The frontier, before and after
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+* before (`6cfd995d`, `hind` still a hypothesis): **34 items in 14 modules,
+  109 tainted, dead weight 756**; top `Refine2.Frontend.apply_line_refines`
+  (fan-in 7, reach 14); no item of this lane (it was not in the closure).
+* just after the `Capstone.lean` edit (R8.1, before any proof): the lane
+  entered the closure with six items (`checkSumCtors_spec`,
+  `checkSumInd_spec`, `checkNativePass_spec`, `checkNativeTail_spec`,
+  `checkModeled_spec`, `indDecl_envWF`).
+* after (the landing tip, over `arena` `b7c84da1`): **59 items in 15 modules,
+  160 tainted, dead weight 641**; top **`Bridge.IndSpec.wf`** (fan-in 8,
+  reach 13 — the Checker tier's statement owed by this tier, R8.5).  This
+  lane's own items: `checkProjFn_spec` (fan-in 2, reach 9),
+  `checkIotaThm_spec`, `checkIotaThmN_spec`.  The growth of the total is
+  other lanes' work landed in between (T2 lock-step, Core round 6).
+* the lane's own root, `frontier.sh ConRon.Bridge.Inductives.indSpec_of_bridge`:
+  **3 items in 1 module, 12 tainted, dead weight 7** (round 7 ended at 3
+  items / 43).
+
+##### R8.1 `Capstone.lean`: `hind` discharged
+
+`model_exists` and `no_False_declaration` no longer take
+`hind : IndSpec .verified`: `stages_model`, `declResolves_of_stages` and
+`rust_stages` lost the parameter, and the one use (`installThenCheck_bridge`,
+`no_False_declaration_pipeline`) passes
+`Bridge.Inductives.indSpec_of_bridge rfl hk` — after the merge,
+`indSpec_of_bridge rfl (CoreSpec.of_core rfl)`, since Core round 6 discharged
+`hk` the same way.  The merge conflict was exactly that: both hypotheses gone.
+
+##### R8.2 The install frame (ruling 2 executed)
+
+`Rel.lean` gained the frame the ruling asked for and three companions:
+
+* `InstStep s s'` — `StateOK s' ∧ Ext ∧ pins`; `ISpec P c R`, the statement
+  shape with a STATE precondition and a state-level answer relation (so `R`
+  can name `CheckOK` at the index the run ended on).
+* `ReadOK env fe s` — `CheckOK` less its cache clause: what a state satisfies
+  at an index its caches were not computed for.  `ReadOK.flush` turns it
+  into `CheckOK` (the flush empties the caches, `CacheOK.of_empty`);
+  `ReadOK.push` carries it over a non-table push (`IFEnvOK.push`).  Every
+  flush-first twin (`checkIndMember`, `provisionRecs`' step,
+  `installProjFnStep`) now takes `ReadOK` at entry.
+* `IFEnvOKS env fe st` — `IFEnvOK` as a store predicate, so a `CSpec` can
+  name the index spec at an index OTHER than the one its caches serve.
+* `RenameRelW` — `RenameRel` at every well-formed extension (R7.5's lesson);
+  `blockRenameTable_specW` supplies it.
+
+The restatements.  **Authorised (ruling 2):** `checkNativePass` (ISpec;
+concludes `CheckOK μ qP.env₁ r.1.env₁` at the end — the pass flushes after
+the former, so its caches serve `env₁`), `checkNativeTail` (ISpec; entry
+`CheckOK` at `env₁`, `ReadOK` at the entry index for `nativeFieldsOk`),
+`checkNative` (ISpec); the iota family `checkIotaThm`, `checkIotaThmN`,
+`checkIotaRule`, `checkIotaRules`, `nestedRuleShape`, `checkProjIota` are
+now `CSpec μ envSelf feSelf` with `IFEnvOKS env' fe'` in the precondition
+(their knot calls run at `feSelf`, their lookups at `fe'`) — `CoreStep` at
+`feSelf` IS the install frame plus `CheckOK` at the index the run ended on;
+`installIndRecs` (also: its old conclusion `InstRel acc (fun _ => csP.length
+= cs.length)` with `csP` unconstrained was **false** — it now takes
+`denoteRecs st cs = some csP` and concludes the pure fold, plus
+`IFEnvOKS` at the answer), `checkIndRecs`, `checkModeled` (ISpec).
+**The same defect, same fix, beyond the ruling's list — please confirm:**
+`checkIndMembers`, `provisionRecs` and `installProjFns` (and the entry of
+`installProjFnStep`) switch index between steps exactly as the listed ones
+do (each member / recursor / projection function is checked at the index the
+previous one pushed), so `CoreStep` at the entry index was false for any
+block with two members; they are ISpec now, concluding `ReadOK` at the
+answer (what the next stage reads).  **`CheckOK` at the final index is NOT
+concluded where it is false**: after `checkNativeTail` and `checkIndRecs` the
+caches serve the index BEFORE the last push (`feR`, `feSelf`), and nothing
+proves a cache row survives an environment extension (con-leche flushes for
+exactly this reason); the consumer (`Decl.lean`) reads `.state/.ext/.pins`
+only.
+
+##### R8.3 Preconditions repaired (hypothesis changes only)
+
+* `hμ : μ.verifiedChecks = true` on every statement that reaches
+  `checkConstantVal_bridge` (`checkSumTele`, `checkSumInd`, `normCtorVal`,
+  `checkSumCtor(s)`, `checkNativeRec`, `checkMemberVal`, …).
+* `IFEnvCoh` of the index an install pushes onto: `checkSumInd`,
+  `checkNativeRec`, `checkIndMember(s)`, `provisionRecs`, `checkIndRecs`,
+  `checkProjFn`, `installProjFn(s|Step)`, `checkNativeTable`,
+  `checkStructProjTable` (ruling 3) — `InstRel.coh` and `ProjOut.push` need it.
+* `IFEnvOKS env₀ fe₀` on `checkSumCtor(s)` (the pre-block resolution reads
+  `fe₀`), on `checkStructProjTable_run`/`checkNativeTable_run` (the twin reads
+  the index for the name family and the table name).
+* `hkcs` (every recursive-field index below its field count) on
+  `checkNativeRec` and `checkNativeTail` — `structRecTyR_spec`'s own; the
+  caller derives it from the pass's classification (`classifyFixKinds_hcs`).
+* `EnvWF` of the intermediate environments (`henv₁`, `henv₂`, `hTf` on the
+  tail; `EnvWF envSelf` on the iota family and `installIndRecs`), derived by
+  the callers from con-leche's pure lemmas (R8.4).
+* `hpins` (the block's `EtaPins`) on `checkIndMembers` — `indCapsWF_of_pins`
+  needs it for the former's `EnvWF`; `checkModeled` gets it from
+  `etaPins_of_indBlockCaps`.
+* `nativeFieldsOk`/`nativeOpenedOk`/`checkNativeRules` and their helpers
+  weakened from `CheckOK` to `ReadOK` (they read no cache); the old `CSpec`
+  forms are corollaries.
+
+##### R8.4 `indDecl_envWF` CLOSED — no con-leche export needed, no `EtaFamiliesClosed`
+
+Round 7 left `indDecl_envWF` as an ask of con-leche.  It is closed here from
+what con-leche already exports, assembled along the pure route exactly as
+its cached bridge assembles it (`checkNativeS_run`, `checkIndDeclSF_run`):
+`checkNative_envWF` (`checkNativePass_inv`, `direct_sum_ind_wf`,
+`checkSumCtors_inv` + `direct_sum_ctor_typeWF` + `envWF_consSumCtors`,
+`direct_fix_rec_wf`, `direct_table_wf`) and `checkModeled_envWF`
+(`checkIndMember_inv` + `indCapsWF_of_pins` at `etaPins_of_indBlockCaps` +
+`EtaPins.step`; `provisionRecs_facts`, `rulesFold_inv`, `chains_swapSh`,
+`swapSh_find?_corr`, `rulesChain_mem`, `checkIotaRules_inv` for the recursor
+group; `checkProjFn_inv`/`checkProjTy_inv`/`checkProjRule_inv` for the
+projection functions).  **`EtaFamiliesClosed env` is not needed**: every step
+reads only syntactic facts of the pure run.  The upstream list (R8.8) gets
+one line: the two private helpers replicated locally.  The same lemmas give
+the routes their intermediate `EnvWF` (R8.3).
+
+##### R8.5 FINDING — `IndSpec.wf` (the capstone frontier's top) needs `IndSpec.run` to carry a membership-shaped table clause
+
+Task #97-P3-Checker round 10 added `Bridge/Checker/Hyp.lean`'s
+`IndSpec.wf : μ.verifiedChecks = true → IndSpec μ → IndWFSpec μ` (`sorry`,
+owed by this tier; fan-in 8 on the capstone frontier).  `IndWFSpec.run` has
+two clauses: `EnvWF` at the pushed denotation — which `IndSpec.run` already
+concludes (R7.6) and which is now proved (R8.4) — and the RELATIVE
+MEMBERSHIP-shaped table clause `∀ t, .projInfo t ∈ fe'.env.consts →
+.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t`.  From an arbitrary
+`IndSpec` the second clause is not derivable: `IndSpec.run` does not state
+it.  The tier CAN supply it (every install pushes explicitly; the one table
+push, `checkStructProjTable_run`, has `IProjTableOK` of the table it pushes
+in hand — `ProjOut.push_table`), by adding a membership-form clause to
+`InstRel`/`IndOut` and one conjunct to `IndSpec.run`.  **That is a conclusion
+change to `IndSpec` (strengthening), not authorised this round — ruling
+requested.**  With it, `IndSpec.wf` is a projection.
+
+##### R8.6 What closed, by stage
+
+* **SumInstall (5):** `checkSumTele` (the slow arm: `whnfTelescope_spec`,
+  `internSortE_run`, `closeTelescope_spec`, `checkConstantVal_bridge`),
+  `checkSumInd`, `normCtorVal` (with `zipFvarDoms_run`, which names the
+  zipped list `zipFvarDoms_spec` only measured), `checkSumCtor` (≈120 steps:
+  two openings, the domain pins, the residual spine, the two pre-block
+  resolutions at `fe₀`, the field sorts; `open_fvar_scope` gives every
+  opened variable's domain its scope), `checkSumCtors`.
+* **NativeInstall (5):** `checkNativeRec` (the recursor pin, the generated
+  type, its four guards, infer/ensureSort/defeq, the rule-less push, the
+  rules at `ReadOK envR feR`), `checkNativeTable_run`, `checkNativePass`,
+  `checkNativeTail`, `checkNative`.
+* **StructInstall (1):** `checkStructProjTable_run` (+ `ProjOut.push_table`).
+* **Modeled (11):** `checkMemberVal`, `checkIndMember(s)`, `provisionRecs`,
+  `checkIndRecs` (+ `eqBasisStored_run` at `ReadOK`), `installIndRecs`,
+  `checkIotaRules`, `checkIotaRule` (the rescue bits read at `fe'` with the
+  caches at `feSelf`: `recRuleBits_runX`), `installProjFnStep`,
+  `installProjFns`, `checkModeled` (the four list reads by tag are exact on a
+  denoting block: `denoteCIList_filter`, `recsFormSuffix_denote`,
+  `blockRecSuffixDec_decide`, `denoteCIList_names` after
+  `checkIndMembers_kind` rules projection tables out), `checkIndRecs_envWF`.
+* **Decl (1):** `indDecl_envWF`.
+
+##### R8.7 Lessons worth keeping
+
+* **`subst`/`obtain rfl` keeps the LEFT variable**: `h : a = b` with both
+  locals eliminates `b`.  `pureOk`'s `r = a ∧ s' = s` therefore renames the
+  OLDER state to the newer one's name — every later reference to the old
+  name breaks.  Write `obtain ⟨hq, hs⟩ := pureOk k; subst hq; rw [hs] at z`
+  to keep the names you planned.
+* **A `match` inside `do` over the ARENA is applied to the state**, so
+  `split at h` fails ("could not find discriminants").  `generalize hI :
+  List.filter (fun ci => match ci with …) block = LI at z1` works — `kabstract`
+  compares up to defeq, so a restated matcher lambda matches the twin's — and
+  `rcases LI` then reduces the `match` by `exact z1`.
+* **`erw` where `rw` refuses a restated matcher**: con-leche's
+  `block.filter (fun ci => match ci with …)` and a proof's own spelling are
+  different auxiliary matchers; `erw [heqI]` rewrites across them.
+* **Pure-side inversions: peel with `ConLeche.exceptBind_ok`, never `simp only
+  [bind, Except.bind]`** (con-leche's own advice in `Verify/ExceptBind.lean`):
+  the do-block duplicates its continuation into every `if` branch, and
+  `simp`/`split` then drown.
+* **A lemma quantified over `fueledOps μ G` loses its match after
+  `simp only [ConLeche.fueledOps]`** (the record is unfolded inside every
+  argument); state the one slot you need as a `have` at the folded form
+  (`(fueledOps μ G).annotate … = .ok …`) and `simp only` with that.
+
+##### R8.8 What the next round should do
+
+0. **R8.5's ruling** — then `IndSpec.wf` is a projection and the capstone
+   frontier's top item goes.
+1. **Confirm R8.2's extension** (`checkIndMembers`, `provisionRecs`,
+   `installProjFns`).
+2. `checkProjFn`: state and prove `checkProjShape_spec` (small), `projFnRule`'s
+   run form (small: `recRulePlain` + `projFnName` + `recRuleBits_runX`) and
+   `checkProjRule_spec` (a Checker-tier twin with no Theorem 1: `pisToLams`,
+   `instPisAtF`, `instLamsAtF`, `checkDefEqList_bridge`) — owner arguably the
+   Checker tier.
+3. The certificates: `checkIotaThm`, `nestedRuleShape`, `checkIotaThmN`,
+   `checkProjIota` — the round's remaining mathematics (their con-leche
+   `_wfimp` lemmas in `Verify/BridgeWfImp.lean` give the scope side).
 
 #### Round 7 — the precondition repairs, the capability theorems, the opener, and a frame defect at every index switch (2026-09-23, Opus under Fable)
 
