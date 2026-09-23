@@ -573,16 +573,59 @@ what makes that composition survive an append (`IFEnvInv.idxRange`). -/
 
 /-- `arena::env::i_constant_info_name` is the twin's `IConstantInfo.name`.
 
-**A private duplicate of `Refine2/Inductives/Shape.lean`'s
-`i_constant_info_name_abs`**, which is declared ABOVE this file and so cannot
-be used here.  The two should become one the next time the two tiers are
-touched together; the statement is character for character the same. -/
-private theorem ci_name_abs {c : arena.env.IConstantInfo}
+**Moved down from `Refine2/Inductives/Shape.lean` by task #97-P5-Checker
+round 4**, where it was public and this file had a private copy (this file is
+below that one, so neither could see the other).  One lemma now, here, where
+both tiers reach it. -/
+theorem i_constant_info_name_abs {c : arena.env.IConstantInfo}
     {o : arena.handle.NIdx} (h : arena.env.i_constant_info_name c = ok o) :
     absNIdx o = (absIConstantInfo c).name := by
   rw [arena.env.i_constant_info_name.eq_def] at h
   cases c <;> simp only [absIConstantInfo, IConstantInfo.name, absIConstantVal,
     absIProjTable, dupId_nidx _ _ h]
+
+/-- **A handle comparison IS the abstraction's.**  `eq2` on an `NIdx` is word
+equality and `absNIdx` is injective, so the port's test and the twin's `==`
+agree at both signs.  Moved down from `Refine2/Inductives/Shape.lean` (task
+#97-P5-Checker round 4); `Refine2/Checker/Canon.lean` had a private copy in
+`decide` form, which `nidx_eq2_abs_decide` now is. -/
+theorem nidx_eq2_abs {a b : arena.handle.NIdx} {o : Bool}
+    (h : arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
+    o = (absNIdx a == absNIdx b) := by
+  rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
+  rw [← Result.ok_injective h]
+  by_cases hab : a = b
+  · subst hab; simp
+  · have h1 : a.word ≠ b.word := by
+      intro hc; exact hab (by cases a; cases b; simp_all)
+    have h2 : absNIdx a ≠ absNIdx b := fun hc => hab (absNIdx_inj hc)
+    simp [h1, h2]
+
+/-- The same at an `EIdx`. -/
+theorem eidx_eq2_abs {a b : arena.handle.EIdx} {o : Bool}
+    (h : arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
+    o = (absEIdx a == absEIdx b) := by
+  rw [arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
+  rw [← Result.ok_injective h]
+  by_cases hab : a = b
+  · subst hab; simp
+  · have h1 : a.word ≠ b.word := by
+      intro hc; exact hab (by cases a; cases b; simp_all)
+    have h2 : absEIdx a ≠ absEIdx b := fun hc => hab (absEIdx_inj hc)
+    simp [h1, h2]
+
+/-- `nidx_eq2_abs` in `decide` form — the spelling `Refine2/Checker/Canon.lean`'s
+record comparisons consume. -/
+theorem nidx_eq2_abs_decide {a b : arena.handle.NIdx} {o : Bool}
+    (h : arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
+    o = decide (absNIdx a = absNIdx b) := by
+  rw [nidx_eq2_abs h]; exact beq_eq_decide _ _
+
+/-- `eidx_eq2_abs` in `decide` form. -/
+theorem eidx_eq2_abs_decide {a b : arena.handle.EIdx} {o : Bool}
+    (h : arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
+    o = decide (absEIdx a = absEIdx b) := by
+  rw [eidx_eq2_abs h]; exact beq_eq_decide _ _
 
 /-- **`ifenv_push` ⊑ `IFEnv.push`, relation and invariant together.**
 
@@ -627,7 +670,7 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
   have hrf' : rf' = { env := { consts := v }, idx := q.2, visible_below := c1 } :=
     (Result.ok_injective h).symm
   subst hrf'
-  have hname : absNIdx n = (absIConstantInfo ci).name := ci_name_abs hn
+  have hname : absNIdx n = (absIConstantInfo ci).name := i_constant_info_name_abs hn
   refine ⟨⟨?_, ?_, ?_⟩, hinv', ?_, ?_⟩
   · -- the constant list
     show (lf.push (absIConstantInfo ci)).env = absIEnv _
