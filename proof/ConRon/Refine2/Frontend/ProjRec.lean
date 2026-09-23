@@ -295,11 +295,96 @@ theorem occurs_const_fast_refines {pers rst lst fuel n h' o}
 
 /-! ## The telescope helpers -/
 
-/-- **`lam_body` refines `lamBody`** (`ProjRec.lean:200-205`). -/
+/-- Under a binder tag the whole `view` is the binder projection: the twin's
+`view` reads `viewBind` there (`EStore.view`'s first arm). -/
+theorem view_of_bind_tag {st : EStore} {i : EIdx} (hb : ETag.isBind i.tag = true) :
+    st.view i = (st.viewBind i).map fun p => eBindView i.tag p.1 p.2.1 p.2.2 := by
+  simp only [EStore.view, hb, if_true]
+  cases st.viewBind i with
+  | none => rfl
+  | some p => obtain ⟨ty, b, m⟩ := p; rfl
+
+/-- **`lam_body` refines `lamBody`** (`ProjRec.lean:200-205`).  Round 3's D1:
+the port reads the tag before the store and answers `h` itself off the `lam`
+tag; the twin does too since task #97-T2-LOCKSTEP lane Frontend. -/
 theorem lam_body_refines {pers rst lst fuel h' o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.lam_body pers rst fuel h' = ok o) :
-    SimRE absEIdx lst o (lamBody (absU fuel) (absEIdx h')) := by sorry
+    SimRE absEIdx lst o (lamBody (absU fuel) (absEIdx h')) := by
+  suffices H : ∀ (n : Nat) (fuel : Std.U64) (h' : arena.handle.EIdx) {o}, fuel.val = n →
+      frontend.proj_rec.lam_body pers rst fuel h' = ok o →
+      SimRE absEIdx lst o (lamBody (absU fuel) (absEIdx h')) from H _ fuel h' rfl h
+  intro n
+  induction n with
+  | zero =>
+    intro fuel h' o hn h
+    rw [frontend.proj_rec.lam_body] at h
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl))] at h
+    obtain ⟨sl, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases fail_run h
+    rw [show absU fuel = 0 from hn]
+    exact AErrSim.internal rfl
+  | succ k ih =>
+    intro fuel h' o hn h
+    rw [frontend.proj_rec.lam_body] at h
+    rw [if_neg (by intro hc; rw [hc] at hn; simp at hn)] at h
+    obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have htag := eidx_tag_abs ht
+    rw [show absU fuel = k + 1 from hn, lamBody]
+    by_cases hc : t = arena.handle.ETAG_LAM
+    · subst hc
+      rw [if_pos rfl] at h
+      have hlam : (absEIdx h').tag = ETag.lam := by rw [htag, etag_lam_abs]
+      have hbind : ETag.isBind (absEIdx h').tag = true := by rw [hlam]; decide
+      obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hqa : lst.store.viewBind (absEIdx h') = q.map absBindM := by
+        have := view_bind_run₀ hrel hbind hq
+        have h2 : (Except.ok (lst.store.viewBind (absEIdx h'), lst) :
+            Except Arena.CheckError _) = Except.ok (q.map absBindM, lst) := this
+        simp only [Except.ok.injEq, Prod.mk.injEq] at h2
+        exact h2.1
+      have hv := view_of_bind_tag (st := lst.store) hbind
+      rw [hqa, hlam] at hv
+      rw [if_pos (by rw [hlam]; rfl)]
+      show SimRE absEIdx lst o (Arena.view (absEIdx h') >>= _)
+      unfold SimRE
+      have hvr : (Arena.view (absEIdx h')).run lst = (match lst.store.view (absEIdx h') with
+          | some v => Except.ok (v, lst)
+          | none => Except.error (.internal "arena: dangling expression handle")) := by
+        show ((match lst.store.view (absEIdx h') with
+          | some v => (pure v : AM ENodeView)
+          | none => Arena.fail (.internal "arena: dangling expression handle")).run lst) = _
+        cases lst.store.view (absEIdx h') <;> rfl
+      rw [am_run_bind', hvr, hv]
+      cases q with
+      | none =>
+        rw [arena.monad.fail_dangling_e] at h
+        obtain ⟨sl, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases fail_run h
+        exact AErrSim.internal rfl
+      | some p =>
+        obtain ⟨ty, b, m⟩ := p
+        simp only at h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v : i1.val = k := by
+          have := (ConRon.Refine.Nat.usub_val hi1).2
+          rw [this, hn]; rfl
+        have := ih i1 b hi1v h
+        simp only [Option.map_some, absBindM, eBindView, beq_self_eq_true, if_true,
+          except_ok_bind]
+        rw [show absU i1 = k from hi1v] at this
+        exact this
+    · rw [if_neg hc] at h
+      obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      have hne : ((absEIdx h').tag == ETag.lam) = false := by
+        rw [htag, ← etag_lam_abs]
+        simpa using fun he' => hc (absU32_inj he')
+      rw [if_neg (by rw [hne]; simp)]
+      show Except.ok _ = _
+      rw [dupId_eidx _ _ he]
 
 /-- **`strip_pis_all` refines `stripPisAll`** (`ProjRec.lean:209-217`). -/
 theorem strip_pis_all_refines {pers rst lst fuel h' o}

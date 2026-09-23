@@ -1497,8 +1497,9 @@ theorem blockRecOf_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   have htys : ∀ (ts : List ConLeche.Frontend.IndTypeRec)
       {out : List MIndTypeRec} {t : AState},
       (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
+        let ctors ← x.ctors.mapM sd.name
         pure { cv := ← parseCVD sd x.cv, nP := x.numParams, nIdx := x.numIndices,
-               ctors := ← x.ctors.mapM sd.name, isRec := x.isRec,
+               ctors := ctors, isRec := x.isRec,
                isReflexive := x.isReflexive,
                numNested := x.numNested : MIndTypeRec }) s = .ok (out, t) →
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
@@ -1520,11 +1521,11 @@ theorem blockRecOf_run {s s' : AState} (hok : StateOK s) {sd : StateD}
       intro out t hrun
       simp only [List.mapM_cons] at hrun
       obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
-      obtain ⟨cv, s₂, hcv, hone2⟩ := AM.bind_ok hone
-      obtain ⟨hs2, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      obtain ⟨cs, s₂, hcs, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, csP, hclcs, hdcs⟩ := StateD_names_run hrel x.ctors hcs
       rw [hs2] at hone2
-      obtain ⟨cs, s₃, hcs, hone3⟩ := AM.bind_ok hone2
-      obtain ⟨hs3, csP, hclcs, hdcs⟩ := StateD_names_run hrel x.ctors hcs
+      obtain ⟨cv, s₃, hcv, hone3⟩ := AM.bind_ok hone2
+      obtain ⟨hs3, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
       rw [hs3] at hone3
       obtain ⟨hv1, hst1⟩ := AM.pure_ok hone3
       rw [hst1] at hrest

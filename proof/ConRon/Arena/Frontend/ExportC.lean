@@ -388,11 +388,15 @@ def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
 shape data of an inductive record, for the in-process modeller. -/
 def blockRecOf (st : StateD) (types : List IndTypeRec) (ctors : List IndCtorRec)
     (recs : List IndRecRec) : AM BlockRec := do
+  -- the listed constructors are read BEFORE the declaration's common data, in
+  -- the port's order (`export_c::block_rec_types`; task #97-T2-LOCKSTEP lane
+  -- Frontend): both are table reads, and the first failure is the one reported
   let types ← types.mapM fun t => do
+    let ctors ← t.ctors.mapM st.name
     pure { cv := ← parseCVD st t.cv
            nP := t.numParams
            nIdx := t.numIndices
-           ctors := ← t.ctors.mapM st.name
+           ctors := ctors
            isRec := t.isRec
            isReflexive := t.isReflexive
            numNested := t.numNested : MIndTypeRec }
