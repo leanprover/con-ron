@@ -1571,6 +1571,30 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
   obtain ⟨v19, u19, q19, w19⟩ := AM.bind_ok w18
   obtain ⟨p19, d19⟩ := pinAt_run (x := ConLeche.natBleName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q19
   rw [p19] at w19
+  obtain ⟨vx0, ux0, qx0, wx0⟩ := AM.bind_ok w19
+  obtain ⟨px0, -⟩ := pinAt_run (x := ConLeche.natDivName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx0
+  rw [px0] at wx0
+  obtain ⟨vx1, ux1, qx1, wx1⟩ := AM.bind_ok wx0
+  obtain ⟨px1, -⟩ := pinAt_run (x := ConLeche.natModName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx1
+  rw [px1] at wx1
+  obtain ⟨vx2, ux2, qx2, wx2⟩ := AM.bind_ok wx1
+  obtain ⟨px2, -⟩ := pinAt_run (x := ConLeche.natGcdName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx2
+  rw [px2] at wx2
+  obtain ⟨vx3, ux3, qx3, wx3⟩ := AM.bind_ok wx2
+  obtain ⟨px3, -⟩ := pinAt_run (x := ConLeche.natLandName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx3
+  rw [px3] at wx3
+  obtain ⟨vx4, ux4, qx4, wx4⟩ := AM.bind_ok wx3
+  obtain ⟨px4, -⟩ := pinAt_run (x := ConLeche.natLorName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx4
+  rw [px4] at wx4
+  obtain ⟨vx5, ux5, qx5, wx5⟩ := AM.bind_ok wx4
+  obtain ⟨px5, -⟩ := pinAt_run (x := ConLeche.natXorName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx5
+  rw [px5] at wx5
+  obtain ⟨vx6, ux6, qx6, wx6⟩ := AM.bind_ok wx5
+  obtain ⟨px6, -⟩ := pinAt_run (x := ConLeche.natShiftLeftName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx6
+  rw [px6] at wx6
+  obtain ⟨vx7, ux7, qx7, wx7⟩ := AM.bind_ok wx6
+  obtain ⟨px7, -⟩ := pinAt_run (x := ConLeche.natShiftRightName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl qx7
+  rw [px7] at wx7
   have b_pr := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d13
   have b_ad := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d14
   have b_su := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d15
@@ -1578,7 +1602,7 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
   have b_po := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d17
   have b_be := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d18
   have b_bl := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d19
-  rcases AM.ite_ok w19 with ⟨hc_pr, k_pr⟩ | ⟨hn_pr, k_pr⟩
+  rcases AM.ite_ok wx7 with ⟨hc_pr, k_pr⟩ | ⟨hn_pr, k_pr⟩
   · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_pr
     obtain ⟨hs20, e20⟩ := natAp1_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
     obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
