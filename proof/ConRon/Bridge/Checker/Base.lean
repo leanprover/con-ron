@@ -42,6 +42,7 @@ That is a tier of its own and this round states it.
 -/
 import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.ExprOps.Ranges
 import ConLeche.Verify.BridgeDecl
 
@@ -885,36 +886,6 @@ theorem viewN_run {h : NIdx} {s s' : AState} {v : NNodeView}
     (hr : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v :=
   AM.of_run (P := fun t => t = s)
     (Q := fun r t => t = s ∧ s.store.ns.view h = some r) rfl hr (viewN_spec s h)
-
-/-- con-leche: none — `Frontend.denoteCIList`'s indexed inversion. -/
-theorem denoteCIList_get {st : EStore} :
-    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo) (i : Nat)
-      (ci : IConstantInfo),
-      Frontend.denoteCIList st cs = some xs → cs[i]? = some ci →
-        ∃ x, xs[i]? = some x ∧ Frontend.denoteCI st ci = some x := by
-  intro cs
-  induction cs with
-  | nil => intro xs i ci _ h2; simp at h2
-  | cons a as ih =>
-    intro xs i ci h1 h2
-    simp only [Frontend.denoteCIList] at h1
-    cases ha : Frontend.denoteCI st a with
-    | none => rw [ha] at h1; simp at h1
-    | some y =>
-      cases has : Frontend.denoteCIList st as with
-      | none => rw [ha, has] at h1; simp at h1
-      | some ys =>
-        rw [ha, has] at h1
-        simp only [Option.some.injEq] at h1
-        subst h1
-        cases i with
-        | zero =>
-          simp only [List.getElem?_cons_zero, Option.some.injEq] at h2 ⊢
-          subst h2
-          exact ⟨y, rfl, ha⟩
-        | succ k =>
-          simp only [List.getElem?_cons_succ] at h2 ⊢
-          exact ih ys k ci has h2
 
 /-- con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup — the handle test
 is the name test, by `denoteNList_contains` at every tail. -/

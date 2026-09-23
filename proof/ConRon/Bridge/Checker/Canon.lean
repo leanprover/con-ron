@@ -2282,6 +2282,57 @@ theorem denoteCIList_cons {st : EStore} {a : IConstantInfo}
       simp only [Option.some.injEq] at h
       exact ⟨x, xs, rfl, rfl, h.symm⟩
 
+/-! `denoteCIList_get` and `denoteCIList_length` live here rather than in
+`Base.lean` and `Split.lean`, where they were first written: both are plain
+list inversions of the readback, and `Basis.lean` — which is BELOW both of
+those — needs them for the quotient pin's slot read.  Task #97-P3-Checker
+round 7; `Base.lean` gained one import line and reads them unchanged. -/
+
+/-- con-leche: none — `Frontend.denoteCIList`'s indexed inversion. -/
+theorem denoteCIList_get {st : EStore} :
+    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo) (i : Nat)
+      (ci : IConstantInfo),
+      Frontend.denoteCIList st cs = some xs → cs[i]? = some ci →
+        ∃ x, xs[i]? = some x ∧ Frontend.denoteCI st ci = some x := by
+  intro cs
+  induction cs with
+  | nil => intro xs i ci _ h2; simp at h2
+  | cons a as ih =>
+    intro xs i ci h1 h2
+    simp only [Frontend.denoteCIList] at h1
+    cases ha : Frontend.denoteCI st a with
+    | none => rw [ha] at h1; simp at h1
+    | some y =>
+      cases has : Frontend.denoteCIList st as with
+      | none => rw [ha, has] at h1; simp at h1
+      | some ys =>
+        rw [ha, has] at h1
+        simp only [Option.some.injEq] at h1
+        subst h1
+        cases i with
+        | zero =>
+          simp only [List.getElem?_cons_zero, Option.some.injEq] at h2 ⊢
+          subst h2
+          exact ⟨y, rfl, ha⟩
+        | succ k =>
+          simp only [List.getElem?_cons_succ] at h2 ⊢
+          exact ih ys k ci has h2
+
+/-- con-leche: none — the readback preserves length. -/
+theorem denoteCIList_length {st : EStore} : ∀ (cs : List IConstantInfo)
+    (zs : List ConstantInfo), Frontend.denoteCIList st cs = some zs →
+    cs.length = zs.length := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro zs h
+    simp only [Frontend.denoteCIList, Option.some.injEq] at h
+    subst h; rfl
+  | cons a as ih =>
+    intro zs h
+    obtain ⟨x, xs, -, has, rfl⟩ := denoteCIList_cons h
+    simp only [List.length_cons, ih xs has]
+
 /-- con-leche: ConLeche/Kernel/Canon.lean:291-293 canonEqList — the same at a
 block.
 

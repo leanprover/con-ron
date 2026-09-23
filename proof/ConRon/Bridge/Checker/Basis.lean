@@ -26,6 +26,7 @@ place in the checker where a step installs more than one constant outside the
 inductive route, and the fold's counter arithmetic has to survive it.
 -/
 import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Frontend.Shared
 
 open ConLeche ConRon.Arena
 
@@ -45,7 +46,15 @@ theorem BasisKind.decls_run {k : BasisKind} {r : List IConstantInfo}
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
       Frontend.denoteCIList s'.store r = some k.decls := by
-  sorry
+  simp only [ConRon.Arena.BasisKind.decls, ConRon.Arena.internCIList] at hrun
+  obtain ⟨p, s₁, hgo, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨m1, cis⟩ := p
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+  subst hv; subst hst
+  obtain ⟨hstep, hden, -, -⟩ :=
+    Frontend.internCIList_sstep (ConLeche.BasisKind.decls k) hok
+      (Frontend.EMemoOK.empty s.store) hgo
+  exact ⟨hstep.ok, hstep.ext, hstep.caches, hstep.pins, hden⟩
 
 /-- con-leche: ConLeche/Kernel/BasisA.lean:51-57 BasisKind.declsA — the
 ANNOTATED pinned block denotes con-leche's.  This is the one the install
@@ -59,7 +68,175 @@ theorem BasisKind.declsA_run {k : BasisKind} {r : List IConstantInfo}
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
       Frontend.denoteCIList s'.store r = some k.declsA := by
-  sorry
+  simp only [ConRon.Arena.BasisKind.declsA, ConRon.Arena.internCIList] at hrun
+  obtain ⟨p, s₁, hgo, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨m1, cis⟩ := p
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+  subst hv; subst hst
+  obtain ⟨hstep, hden, -, -⟩ :=
+    Frontend.internCIList_sstep (ConLeche.BasisKind.declsA k) hok
+      (Frontend.EMemoOK.empty s.store) hgo
+  exact ⟨hstep.ok, hstep.ext, hstep.caches, hstep.pins, hden⟩
+
+/-- con-leche: none — the same walk's fourth conjunct, kept as its own
+theorem so that `BasisKind.decls_run`'s conclusion stays the five clauses its
+consumers read: every member of the interned block is rightly named, which is
+what `toConstantVal_sstep` asks of a `.projInfo` member (there is none, but
+the theorem below does not know that). -/
+theorem BasisKind.decls_proj {k : BasisKind} {r : List IConstantInfo}
+    {s s' : AState} (hok : StateOK s)
+    (hrun : BasisKind.decls k s = .ok (r, s')) :
+    ∀ ci ∈ r, Frontend.CIProjNamed s'.store ci := by
+  simp only [ConRon.Arena.BasisKind.decls, ConRon.Arena.internCIList] at hrun
+  obtain ⟨p, s₁, hgo, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨m1, cis⟩ := p
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+  subst hv; subst hst
+  obtain ⟨-, -, -, hnamed⟩ :=
+    Frontend.internCIList_sstep (ConLeche.BasisKind.decls k) hok
+      (Frontend.EMemoOK.empty s.store) hgo
+  exact hnamed
+
+/-! ## The common data of a pinned constant
+
+`IConstantInfo.toConstantVal` is pure on six of its seven arms and interns a
+`Sort 1` on the seventh (`Arena/Env.lean`: `denoteProjTable` drops
+`tableName`, so the table's common data is rebuilt rather than stored).  That
+makes it the tier's FIFTH `.projInfo` site, and it is stated here in the
+scratch-agnostic frame — `Frontend.IStepS`, not `IStep` — because every
+consumer of it inside the checker (`quotPinHit`, `natOpGuard`) runs inside the
+per-declaration bracket, where the scratch tier is open and no `hoff` exists.
+`Bridge/Frontend/Lines.lean`'s `toConstantVal_run` is the same theorem at the
+parse's own frame, where `hoff` is available and the `Pers…` half is wanted. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
+**the common data of a stored constant denotes con-leche's**, with no
+assumption about the scratch tier. -/
+theorem toConstantVal_sstep {s s' : AState} (hok : StateOK s)
+    {ci : IConstantInfo} {c : ConstantInfo}
+    (hn : Frontend.CIProjNamed s.store ci)
+    (hd : Frontend.denoteCI s.store ci = some c) {v : IConstantVal}
+    (hrun : IConstantInfo.toConstantVal ci s = .ok (v, s')) :
+    Frontend.IStepS s s' ∧
+      Frontend.denoteCV s'.store v = some c.toConstantVal := by
+  have hpure : ∀ (w : IConstantVal) (cw : ConstantVal),
+      Frontend.denoteCV s.store w = some cw →
+      (pure w : AM IConstantVal) s = .ok (v, s') →
+      Frontend.IStepS s s' ∧ Frontend.denoteCV s'.store v = some cw := by
+    intro w cw hw hr
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hr
+    subst hvv; subst hss
+    exact ⟨Frontend.IStepS.refl hok, hw⟩
+  cases ci with
+  | axiomInfo w =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    exact hpure w cw hw hrun
+  | ctorInfo w nP nF =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    exact hpure w cw hw hrun
+  | defnInfo w e hh =>
+    simp only [Frontend.denoteCI] at hd
+    cases hw : Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | thmInfo w e =>
+    simp only [Frontend.denoteCI] at hd
+    cases hw : Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | indInfo w cps =>
+    simp only [Frontend.denoteCI] at hd
+    cases hw : Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases hc : Frontend.denoteCaps s.store cps with
+      | none => rw [hw, hc] at hd; simp at hd
+      | some x =>
+        rw [hw, hc] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | recInfo w mI rP rs =>
+    simp only [Frontend.denoteCI] at hd
+    cases hw : Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases hr : Frontend.denoteRules s.store rs with
+      | none => rw [hw, hr] at hd; simp at hd
+      | some x =>
+        rw [hw, hr] at hd
+        obtain rfl := Option.some.inj hd
+        exact hpure w cw hw hrun
+  | projInfo tbl =>
+    obtain ⟨sn, hsn, htn⟩ := hn tbl rfl
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨pt, hpt, rfl⟩ := hd
+    have hlps : Frontend.denoteNList s.store.ns tbl.levelParams
+        = some pt.levelParams ∧ pt.structName = sn := by
+      simp only [Frontend.denoteProjTable, hsn] at hpt
+      cases hl : Frontend.denoteNList s.store.ns tbl.levelParams with
+      | none => rw [hl] at hpt; simp at hpt
+      | some lps =>
+        cases hc : denoteN s.store.ns tbl.ctor with
+        | none => rw [hl, hc] at hpt; simp at hpt
+        | some cn =>
+          cases hss : denoteL s.store.ls tbl.structSort with
+          | none => rw [hl, hc, hss] at hpt; simp at hpt
+          | some ss =>
+            cases hbs : Frontend.denoteEArray s.store tbl.bodies with
+            | none => rw [hl, hc, hss, hbs] at hpt; simp at hpt
+            | some bs =>
+              cases hgs : denoteLList s.store.ls tbl.guards with
+              | none => rw [hl, hc, hss, hbs, hgs] at hpt; simp at hpt
+              | some gs =>
+                rw [hl, hc, hss, hbs, hgs] at hpt
+                obtain rfl := Option.some.inj hpt
+                exact ⟨rfl, rfl⟩
+    obtain ⟨hdlps, hstruct⟩ := hlps
+    rw [ConRon.Arena.IConstantInfo.toConstantVal] at hrun
+    obtain ⟨z, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hdz⟩ :=
+      Frontend.internLNode_sstep hok
+        ⟨by intro c hc; simp only [LNodeView.lchildren] at hc; exact absurd hc (by simp),
+         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h1
+    have hdz' : denoteL s₁.store.ls z = some .zero := by
+      rw [hdz]; rfl
+    obtain ⟨one, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hdo⟩ :=
+      Frontend.internLNode_sstep hstep1.ok
+        ⟨by intro c hc
+            simp only [LNodeView.lchildren, List.mem_singleton] at hc
+            subst hc; exact lview_isSome_of_denote hdz',
+         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h2
+    have hdo' : denoteL s₂.store.ls one = some (.succ .zero) := by
+      rw [hdo]
+      simp only [denoteLView, denoteL_ext hdz' hstep2.ext, Option.map_some]
+    obtain ⟨ty, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨hstep3, hdty⟩ :=
+      Frontend.internE_sstep hstep2.ok (viewOK_sort (lview_isSome_of_denote hdo')) h3
+    have hdty' : denoteE s₃.store ty = some (.sort (.succ .zero)) := by
+      rw [hdty]
+      simp only [denoteEView, denoteL_ext hdo' hstep3.ext, Option.map_some]
+    have hx : Ext s.store s₃.store :=
+      (hstep1.ext.trans hstep2.ext).trans hstep3.ext
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hrest3
+    subst hss; subst hvv
+    refine ⟨(hstep1.trans hstep2).trans hstep3, ?_⟩
+    simp only [Frontend.denoteCV, ConstantInfo.toConstantVal, hstruct,
+      denoteN_ext htn hx, denoteNListE_ext hx _ _ hdlps, hdty']
 
 /-! ## The recognisers -/
 
@@ -90,7 +267,38 @@ theorem quotPinHit_run {k : QuotKind} {cv : IConstantVal} {c : ConstantVal}
     (hrun : quotPinHit k cv s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧ r = ConLeche.quotPinHit k c := by
-  sorry
+  simp only [ConRon.Arena.quotPinHit] at hrun
+  obtain ⟨blk, s₁, hgo, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hok1, hx1, hc1, hp1, hden1⟩ := BasisKind.decls_run hok hgo
+  have hnamed := BasisKind.decls_proj hok hgo
+  have hlen : blk.length = (ConLeche.BasisKind.decls .quotK).length :=
+    denoteCIList_length blk _ hden1
+  have hslot : k.slot < blk.length := by
+    rw [hlen]; cases k <;> decide
+  cases hb : blk[k.slot]? with
+  | none =>
+    exact absurd (List.getElem?_eq_none_iff.mp hb) (by omega)
+  | some ci =>
+    rw [hb] at hrest
+    simp only [] at hrest
+    obtain ⟨pcv, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨x, hx, hdci⟩ := denoteCIList_get blk _ k.slot ci hden1 hb
+    have hmem : ci ∈ blk := by
+      obtain ⟨hlt, he⟩ := List.getElem?_eq_some_iff.mp hb
+      exact he ▸ List.getElem_mem hlt
+    obtain ⟨hstep2, hdpcv⟩ :=
+      toConstantVal_sstep hok1 (hnamed ci hmem) hdci h2
+    obtain ⟨hok3, hx3, hc3, hp3, he⟩ :=
+      IConstantVal.canonEq_run hstep2.ok
+        (denoteCV_ext (denoteCV_ext hcv hx1) hstep2.ext) hdpcv hrest2
+    refine ⟨hok3, (hx1.trans hstep2.ext).trans hx3, ?_, ?_, ?_⟩
+    · rw [hc3, hstep2.caches, hc1]
+    · rw [hp3, hstep2.pins, hp1]
+    · rw [he]
+      have hgetD : (ConLeche.BasisKind.decls .quotK).getD k.slot
+          (.axiomInfo default) = x := by
+        rw [List.getD_eq_getElem?_getD, hx]; rfl
+      simp only [ConLeche.quotPinHit, hgetD]
 
 /-! ## The install -/
 

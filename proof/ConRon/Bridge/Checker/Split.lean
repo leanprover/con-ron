@@ -607,21 +607,6 @@ theorem denoteCIList_drop {st : EStore} : ∀ (m : Nat) (cs : List IConstantInfo
       simp only [List.drop_succ_cons]
       exact ih as xs has
 
-/-- con-leche: none — the readback preserves length. -/
-theorem denoteCIList_length {st : EStore} : ∀ (cs : List IConstantInfo)
-    (zs : List ConstantInfo), Frontend.denoteCIList st cs = some zs →
-    cs.length = zs.length := by
-  intro cs
-  induction cs with
-  | nil =>
-    intro zs h
-    simp only [Frontend.denoteCIList, Option.some.injEq] at h
-    subst h; rfl
-  | cons a as ih =>
-    intro zs h
-    obtain ⟨x, xs, -, has, rfl⟩ := denoteCIList_cons h
-    simp only [List.length_cons, ih xs has]
-
 /-- con-leche: none — **name uniqueness transports to HANDLE uniqueness**:
 `denoteN` is injective and each entry's handle denotes its constant's name, so
 two entries with the same handle would be two constants with the same name.
