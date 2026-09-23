@@ -24,7 +24,7 @@ each is a `do`-block equation in `StateT AState (Except CheckError)`, which
 needs that section's rule-10 reduction discipline.  They are open here for the
 same reason they were open there.
 
-## `sorry` count in this file: 8
+## `sorry` count in this file: 6
 -/
 import ConRon.Refine2.Frontend.NatOpGround
 

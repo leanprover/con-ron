@@ -43,7 +43,7 @@ threads its `seen` table as an argument-and-result pair INSIDE the `Result`
    twin's at any value.  (Task #97-P4e part 2 asks for the argument to come
    off the LEAN side too; until it does, this is where the difference lives.)
 
-## `sorry` count in this file: 56
+## `sorry` count in this file: 55
 -/
 import ConRon.Refine2.Frontend.Spec
 
@@ -135,13 +135,90 @@ theorem occurs_seen_refines {rm ls h' v} (hs : HSetRel rm ls)
 
 /-! ## The artifact name and its pre-filter -/
 
+/-- A code-point literal, copied out of its `const` array. -/
+theorem lit_cps {k : Std.Usize} {M : Std.Array Std.U32 k} {sl : Slice Std.U32}
+    (hs : lift (Std.Array.to_slice M) = ok sl) {v : alloc.vec.Vec Std.U32}
+    (hv : kernel.core_types.code_points sl = ok v) : v.val = M.val := by
+  simp only [lift, Result.ok.injEq] at hs
+  subst hs
+  rw [ConRon.Refine.Env.code_points_val hv, Std.Array.val_to_slice]
+
 /-- **`proj_iota_name` refines `projIotaName`** (`ProjRec.lean:77-81`): the
-rewrite's artifact name `T._model.proj_i.iota`. -/
+rewrite's artifact name `T._model.proj_i.iota`, three interns in the same
+order.  Round 3's F11: false only while `AStateRel` carried `storeWF` (`t`
+need not resolve; neither side checks); lockstep, it is the three interns and
+the two literals' and the index rendering's spelling (`Text.lean`). -/
 theorem proj_iota_name_refines {pers rst lst t i o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_iota_name pers rst t i = ok o) :
-    Sim₀ absNIdx pers lst o
-      (projIotaName (absNIdx t) (absU i)) := by sorry
+    Sim₀ absNIdx pers lst o (projIotaName (absNIdx t) (absU i)) := by
+  rw [frontend.proj_rec.proj_iota_name] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hnt : n = t := dupId_nidx _ _ hn
+  rw [hnt] at h
+  clear hn hnt
+  obtain ⟨sl, hsl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hvv := lit_cps hsl hv
+  obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hS1 := intern_n_node_run₀ hrel hinv (.Str t v)
+    (by show ConRon.Refine.StrWF v; intro c hc; rw [hvv] at hc
+        simp only [frontend.proj_rec.M_MODEL, Std.Array.make] at hc
+        revert c; decide) h1
+  have ha1 : absNNodeView (.Str t v) = .str (absNIdx t) "_model" := by
+    simp only [absNNodeView, ConRon.Refine.absString, hvv, frontend.proj_rec.M_MODEL,
+      Std.Array.make]
+    rfl
+  rw [ha1] at hS1
+  unfold Sim₀
+  rw [projIotaName, am_run_bind']
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact AErrSim.bind (Sim₀.apply_err hS1) _
+  | Ok a =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+    rw [hx1, except_ok_bind]
+    obtain ⟨sl1, hsl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hv1v := lit_cps hsl1 hv1
+    obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hv2s, hv2w⟩ := u64_str_refines hv2
+    obtain ⟨s2, hs2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hs2v := cat_val hs2
+    obtain ⟨⟨r1, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hv1w : ConRon.Refine.StrWF v1 := by
+      intro c hc; rw [hv1v] at hc
+      simp only [frontend.proj_rec.M_PROJ, Std.Array.make] at hc
+      revert c; decide
+    have hS2 := intern_n_node_run₀ hrel1 hinv1 (.Str a s2)
+      (by show ConRon.Refine.StrWF s2; exact cat_wf hv1w hv2w hs2) h2
+    have ha2 : absNNodeView (.Str a s2) = .str (absNIdx a) s!"proj_{absU i}" := by
+      simp only [absNNodeView, absString_eq_codesF, hs2v, absCodesF_append, hv2s, hv1v,
+        frontend.proj_rec.M_PROJ, Std.Array.make]
+      rfl
+    rw [ha2] at hS2
+    rw [am_run_bind']
+    cases r1 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact AErrSim.bind (Sim₀.apply_err hS2) _
+    | Ok b =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+      rw [hx2, except_ok_bind]
+      obtain ⟨sl3, hsl3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v3, hv3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hv3v := lit_cps hsl3 hv3
+      have hS3 := intern_n_node_run₀ hrel2 hinv2 (.Str b v3)
+        (by show ConRon.Refine.StrWF v3; intro c hc; rw [hv3v] at hc
+            simp only [frontend.proj_rec.M_IOTA, Std.Array.make] at hc
+            revert c; decide) h
+      have ha3 : absNNodeView (.Str b v3) = .str (absNIdx b) "iota" := by
+        simp only [absNNodeView, ConRon.Refine.absString, hv3v, frontend.proj_rec.M_IOTA,
+          Std.Array.make]
+        rfl
+      rw [ha3] at hS3
+      exact hS3
 
 /-- **`is_proj_iota_pre`** — the port's split of the two inner `viewN`s
 (extraction rule 5: the outer view's loan must be dead where the next is

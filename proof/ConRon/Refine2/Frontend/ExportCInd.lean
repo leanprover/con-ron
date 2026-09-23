@@ -35,7 +35,7 @@ transcriptions are what `Refine2/Frontend/Spec.lean` still owes** — the one
 group of this tier where the statement is about the port's own arm rather
 than about a twin clause.  DESIGN.md's section lists them.
 
-## `sorry` count in this file: 26
+## `sorry` count in this file: 25
 -/
 import ConRon.Refine2.Frontend.ExportC
 
