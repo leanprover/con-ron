@@ -53554,3 +53554,134 @@ Tag: owning lane; **P** = precondition (cheap, the tier may repair),
     Rust stages as the binary does, and T1's `_pipeline` needs nothing about
     the start state (it is `AState.init EStore.empty`, which is exactly what
     `InitRel` relates the Rust start to).
+
+### Task #97-FRONTIER — the `sorry` frontier of the capstone (2026-09-23, Opus under Fable)
+
+The campaign closes `sorry`s **top-down from one root** now (task
+#97-COMPOSE's `ConRon.Capstone.{model_exists,no_False_declaration}`), and
+neither standing ledger can say what that root is waiting on: `sorry` tokens
+per file and task #97-CENSUS's per-twin table both count statements nothing on
+the path needs.  This task is the tool that reads the answer off the
+elaborated environment instead of the source text.
+
+#### 1. What it computes
+
+`proof/ConRon/Tools/Frontier.lean` (new library `ConRonTools`, a default
+target; imports `Lean` only, so every library can use it):
+
+* **closure** — the one `#print axioms` walks: every constant mentioned by a
+  type or value, transitively, inductives through their constructors;
+* **frontier** — the closure declarations whose OWN type/value mentions
+  `sorryAx`, grouped by **owner** (the nearest name with a source range, so a
+  `decreasing_by sorry` in `f._unary`/`f.proof_3` is reported as `f`), with
+  file and line;
+* **fan-in** of an item — how many owner-level closure declarations reach
+  `sorryAx` ONLY through it (closing it alone clears them) — and **reach**,
+  how many reach it at all (itself included).  The report is sorted by
+  fan-in, then reach;
+* **non-standard axioms** — anything but `propext`/`Classical.choice`/
+  `Quot.sound`/`sorryAx`, each with its direct users; printed with `!!!`
+  (and a frontier item outside `ConRon.*`/`ConLeche.*` likewise);
+* **dead weight** — direct-`sorry` declarations of the scope modules
+  (`ConRon.Bridge`/`ConRon.Refine2`, every module of the tier imported, not
+  just the root's closure) that are NOT on the frontier;
+* per frontier item, **its module's size and the dead weight of its module
+  and lane** (lane = the module's parent, `Refine2/Checker`).  This is the
+  coordinator's addition, and it is what makes a small frontier readable: a
+  frontier item that is a whole top-level statement proved by `sorry` hides
+  the entire subtree its eventual proof will use — those lemmas exist, carry
+  `sorry`s, and are not in the closure yet.  A large `dead_in_lane` next to a
+  frontier item says "unskeletonised top", a small one "nearly done".
+
+**Pruning** is what makes it cheap.  The traversal opens a constant only when
+its axiom set — Lean's own `collectAxioms`, which for an imported constant is
+a lookup in the table Lean writes into each `.olean` — contains `sorryAx` or
+a non-standard axiom.  Mathlib, Aeneas and every clean lemma are dismissed by
+one lookup.  On the capstone it opens **37 constants** and takes **17 ms**.
+
+Fan-in/reach are one bitset per opened constant (one bit per frontier owner)
+in a post-order over the tainted graph, then OR-ed per owner; an
+inductive↔constructor cycle edge contributes nothing.
+
+#### 2. How to run it
+
+* `#sorry_frontier T₁ … Tₙ` in any file (no dead weight: that needs the whole
+  tier imported);
+* `scripts/frontier.sh [--summary] [--scope P,…] [--top N] [--tag T] <root>…`
+  — locates each root's module by grep (or `Module:Name`), writes a scratch
+  file importing it plus every module of the scope, builds what it imports,
+  and runs the analysis.  Output under `_tmp/frontier-<checkout key>/`:
+  `<tag>.frontier.tsv` (`fan_in reach module_lines dead_in_module
+  dead_in_lane owner file line members`), `<tag>.dead.tsv`,
+  `<tag>.summary.txt`;
+* **the series over time**: every run appends one row (date, commit, branch,
+  clean/dirty, items, tainted, dead, non-standard axioms, top item) to the
+  SHARED `_tmp/frontier-history.tsv`, so gate runs on every branch add to one
+  series; `scripts/frontier.sh --history` prints it.  The skeletonisation
+  now under way should make `items` GROW before it shrinks, and `dead` fall
+  as statements are pulled into the closure;
+* `scripts/gates.sh` prints the capstone's `--summary` line after the arena
+  census (a report, `|| true`).
+* `ConRon/Tools/FrontierTest.lean` is the calibration fixture: a closure
+  whose frontier, fan-ins and reaches are known by hand, under `#guard_msgs`.
+
+#### 3. The numbers at `ebb06567` (arena `00ab9e63` + this task)
+
+| root | frontier | modules | tainted | dead weight (scope) | top item (fan-in / reach) |
+|---|---:|---:|---:|---:|---|
+| **`ConRon.Capstone.{model_exists,no_False_declaration}`** | **12** | 9 | 37 | 977 (Bridge+Refine2) | `Bridge.Frontend.processLineCoreD_run` (11 / 18) |
+| `ConRon.Bridge.Arena.model_exists` (T1) | 1 | 1 | 4 | 141 (Bridge) | `Bridge.Arena.checkDeclStep_bridge` (3 / 4) |
+| `ConRon.Bridge.Frontend.Arena.no_False_declaration` (T1) | 3 | 3 | 15 | 139 | `processLineCoreD_run` (10 / 12) |
+| `ConRon.Refine2.install_then_check_refines` (T2) | 2 | 2 | 9 | 845 (Refine2) | `annot_step_refines`, `check_value_group_refines` (3 / 5 each) |
+| `ConRon.Refine2.check_decls_pure_refines` (T2) | 1 | 1 | 4 | 846 | `check_decl_step_refines` (3 / 4) |
+
+The capstone's 12 agree with the count #97-COMPOSE made by hand.  **No
+non-standard axioms** anywhere: every closure is `propext`, `sorryAx`,
+`Classical.choice`, `Quot.sound`.  The capstone frontier with its context:
+
+| fan-in | reach | module lines | dead in module | dead in lane | item |
+|---:|---:|---:|---:|---:|---|
+| 11 | 18 | 1803 | 2 | 9 | `Bridge/Frontend/Lines.lean:1685` `processLineCoreD_run` |
+| 3 | 8 | 1779 | 35 | 274 | `Refine2/Checker/Top.lean:1244` `annot_step_refines` |
+| 3 | 8 | 932 | 60 | 274 | `Refine2/Checker/Base.lean:904` `check_value_group_refines` |
+| 1 | 8 | 1336 | 1 | 9 | `Bridge/Frontend/Prepare.lean:1222` `hoistNatOpGround_run` |
+| 0 | 7 | 121 | 1 | 15 | `Bridge/Checker/Pins.lean:86` `internAllPins_run` |
+| 0 | 7 | 121 | 1 | 15 | `Bridge/Checker/Pins.lean:50` `internReservedPins_run` |
+| 0 | 5 | 842 | 2 | 15 | `Bridge/Checker/Split.lean:808` `installThenCheck_bridge` |
+| 0 | 4 | 1779 | 35 | 274 | `Refine2/Checker/Top.lean:1728` `intern_all_pins_refines` |
+| 0 | 4 | 1092 | 5 | 274 | `Refine2/Checker/Pins.lean:69` `intern_reserved_pins_refines` |
+| 0 | 4 | 286 | 13 | 201 | `Refine2/Frontend/Top.lean:262` `builtin_prelude_e_refines` |
+| 0 | 4 | 286 | 13 | 201 | `Refine2/Frontend/Top.lean:233` `parse_chunks_refines` |
+| 0 | 4 | 188 | 11 | 201 | `Refine2/Frontend/Prepare.lean:177` `prepare_prelude_refines` |
+
+**Read it as the coordinator warned**: 12 is not "nearly done".  The T2
+items sit in lanes with 201–274 off-frontier `sorry` declarations each
+(`Refine2/Checker`, `Refine2/Frontend`).  The tool cannot tell which of the
+977 dead-weight declarations are the future subtree of a sorried top and which
+are statements nothing will ever need — that needs the tops skeletonised, and
+the series in `_tmp/frontier-history.tsv` is where the split will show (dead
+weight pulled into the closure moves from `dead` to `tainted`/`items`).  Per module the dead weight leads with
+`Refine2/Checker/DeclCheck` 92, `Refine2/Inductives/Modeled` 84,
+`Refine2/Checker/Base` 60, `Refine2/Checker/Axioms` 59,
+`Refine2/Frontend/ExportC` 57, `Refine2/Frontend/ProjRec` 56; Bridge's
+largest are `Bridge/Inductives/Modeled` 24 and `NativeParts` 18.
+
+#### 4. Cost
+
+Capstone, the root module plus all 141 `Bridge/**`+`Refine2/**` modules imported together (it
+works: no auxiliary clash across the two tiers): `perf stat` over the Lean
+run, three runs, **110.59 G instructions:u** (spread < 0.001 %),
+35.3–36.0 G cycles:u, 8.6–8.9 s wall.  Of the analysis's 6.7–7.0 s, the
+frontier is **17 ms**; the rest is the dead-weight scan (a direct
+`Expr.find?` for `sorryAx` over every constant of those modules);
+the rest of the wall time is the import.  One fix on the way:
+`EnvironmentHeader.moduleNames` is COMPUTED (an `Array.map` over every
+module) on each call, and looking up a constant's module through it cost
+16 s over a Mathlib-sized environment; the tool now computes it once.  A
+`collectAxioms` pre-filter for the dead-weight scan was measured and is
+SLOWER (16 s vs 5 s over `Refine2/**`'s 6 888 constants): outside the
+closure there is no shared cache to exploit.
+
+The per-root runs: T1 roots 2.5 s wall each, T2 roots 7.5 s (Mathlib in the
+import).  The gate's report line costs one capstone run, ~12 s including the
+`lake build` no-op.
