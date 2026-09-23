@@ -177,44 +177,97 @@ def optPwWF : Option kernel.prop_when.PropWhen → Prop
 
 attribute [lockstep_simp] optBindWF viewWF optPwWF ExprOps.absPwOpt
 
+/-- A `view_bind` answer's datum is well formed (`bms`' `TblInv`). -/
+theorem estore_view_bind_optWF {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx} {o}
+    (h : arena.store.EStore.view_bind rs pers i = ok o) : optBindWF o := by
+  rw [arena.store.EStore.view_bind] at h
+  obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases q with
+  | none => cases Result.ok_injective h; trivial
+  | some tt =>
+    obtain ⟨ty, bo, mi⟩ := tt
+    obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases u with
+    | none => cases Result.ok_injective h; trivial
+    | some mm =>
+      cases Result.ok_injective h
+      exact estore_view_bm_wf hinv hu mm rfl
+
 theorem view_bind_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx)
     (hbind : ETag.isBind (absEIdx h).tag = true) :
     LSV pers (fun a b => optBindWF a ∧ b = Option.map absBindM a)
       (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h)) := by
-  sorry
+  intro o hrun
+  obtain ⟨b, lst', hx, hR, h1, h2⟩ := view_bind_ls hrel hinv h hbind o hrun
+  rw [arena.monad.view_bind] at hrun
+  exact ⟨b, lst', hx, ⟨estore_view_bind_optWF hinv.store hrun, hR⟩, h1, h2⟩
 
 theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSR pers (fun a b => viewWF a ∧ b = absENodeView a) (arena.monad.view pers st h) st lst
       (Arena.view (absEIdx h)) := by
-  sorry
+  intro o hrun
+  have H := view_ls hrel hinv h o hrun
+  cases o with
+  | Err e => exact H
+  | Ok ev =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := H
+    refine ⟨b, lst', hx, ⟨?_, hR⟩, h1, h2⟩
+    have hwf : ∀ {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta},
+        ev = .Lam ty b m ∨ ev = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw := by
+      intro ty b m hv
+      rw [arena.monad.view] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases hqc : q with
+      | none =>
+        rw [hqc] at hrun
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [arena.monad.fail] at hrun
+        cases Result.ok_injective hrun
+      | some v =>
+        rw [hqc] at hrun hq
+        have := Result.ok_injective hrun
+        simp only [core.result.Result.Ok.injEq] at this
+        subst this
+        exact estore_view_bind_wf (ty := ty) (b := b) hrel.store hinv.store hq
+          (by rcases hv with hv | hv
+              · exact Or.inl (by rw [hv])
+              · exact Or.inr (by rw [hv]))
+    cases ev with
+    | Lam ty b m => exact hwf (Or.inl rfl)
+    | ForallE ty b m => exact hwf (Or.inr rfl)
+    | _ => trivial
 
 theorem lam_pw_wf_ls {pers} (hx : ExprOpsHyp pers) {st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h) :
     LSR pers (fun a b => optPwWF a ∧ b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h)
       st lst (lamPw (absEIdx h)) := by
-  sorry
-
-theorem lam_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {x : arena.handle.EIdx × kernel.expr.BinderMeta} (h : stk1.val = stk.val ++ [x])
-    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw) (hx : ConRon.Refine.PropWhenWF x.2.pw) :
-    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2.pw := by
-  intro p hp
-  rw [h, List.mem_append, List.mem_singleton] at hp
-  rcases hp with hp | rfl
-  · exact hs p hp
-  · exact hx
-
-theorem pi_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)}
-    {x : arena.handle.LIdx × kernel.prop_when.PropWhen} (h : stk1.val = stk.val ++ [x])
-    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2) (hx : ConRon.Refine.PropWhenWF x.2) :
-    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2 := by
-  intro p hp
-  rw [h, List.mem_append, List.mem_singleton] at hp
-  rcases hp with hp | rfl
-  · exact hs p hp
-  · exact hx
+  intro o hrun
+  have H := lam_pw_ls hx hrel hinv h o hrun
+  cases o with
+  | Err e => exact H
+  | Ok ev =>
+    obtain ⟨b, lst', hxr, hR, h1, h2⟩ := H
+    refine ⟨b, lst', hxr, ⟨?_, hR⟩, h1, h2⟩
+    rw [arena.expr_ops.lam_pw] at hrun
+    obtain ⟨t, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    split at hrun
+    · obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      rw [arena.monad.view_bind] at hq
+      have hw := estore_view_bind_optWF hinv.store hq
+      cases q with
+      | none =>
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [arena.monad.fail] at hrun
+        cases Result.ok_injective hrun
+      | some p =>
+        obtain ⟨ty, bo, m⟩ := p
+        cases Result.ok_injective hrun
+        exact hw
+    · cases Result.ok_injective hrun; trivial
 
 /-! ## Reads -/
 
