@@ -525,24 +525,11 @@ construction, whereas `bodies.size = numFields` would have to be imported from
 con-leche's `ProjTable`, which nothing states.  See DESIGN #97-P3-Frontend
 round 5. -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName —
-`Bridge/StateOK.lean:507-511`'s `IProjTableOK.named`, standing alone: the
-stored `tableName` decodes to the name con-leche recomputes from the
-structure's. -/
-def IProjNamed (st : EStore) (t : IProjTable) : Prop :=
-  ∃ sn, denoteN st.ns t.structName = some sn ∧
-    denoteN st.ns t.tableName = some (ConLeche.projTableName sn)
-
-/-- con-leche: none — the environment invariant implies it, so a site that
-holds the stronger fact never has to re-prove this one. -/
-theorem IProjTableOK.toNamed {st : EStore} {t : IProjTable}
-    (h : IProjTableOK st t) : IProjNamed st t := h.named
-
-/-- con-leche: none — both halves are `denoteN`s, so an append keeps them. -/
-theorem IProjNamed.mono {st st' : EStore} {t : IProjTable}
-    (h : IProjNamed st t) (hx : Ext st st') : IProjNamed st' t := by
-  obtain ⟨sn, h1, h2⟩ := h
-  exact ⟨sn, denoteN_ext h1 hx, denoteN_ext h2 hx⟩
+/-! `IProjNamed`, `IProjTableOK.toNamed` and `IProjNamed.mono` are in
+`Bridge/StateOK.lean` beside `IProjTableOK` since task #97-P3-Ind round 5 —
+the maintainer's ruling on this round's finding, so that
+`denoteCI_name_proj` can take the name clause alone.  They are in this
+namespace's parent, so every use below reads unchanged. -/
 
 /-- con-leche: none — a stored constant that is rightly named: the clause has
 content at a `.projInfo` and nowhere else. -/

@@ -8,7 +8,7 @@ the fold carries:
 
 | | |
 |---|---|
-| `PinsOK s` | the forty-nine `PIN_*` slots denote `pinNames`, the reserved list denotes `reservedBasisNameValues`, the three nullary values denote (`Bridge/StateOK.lean`) |
+| `PinsOK s` | the forty-nine `PIN_*` slots denote `pinNames`, the reserved list denotes `reservedBasisNameValues`, the three nullary values denote, and **the zero name handle decodes to `.anonymous`** (`Bridge/StateOK.lean`; the last clause is task #97-P3-Ind round 5's, and this theorem is its debtor — see `PinsOK.anon`) |
 | `PersPins s` | **every pin handle is persistent** — task #97-P3-0 §7's "one more clause", the one that makes `PinsOK` survive `dropScratch` (`Bridge/Checker/Inv.lean`'s `PinsOK.pmono`) |
 | `PinsDenote s.store pins pinsP` | the interned `Nat`-operation pin variants denote con-leche's (`Bridge/Checker/Decl.lean`) |
 
@@ -43,7 +43,11 @@ tier closed leaves the table denoting and persistent.
 
 `sorry`: `internNameList` over `Bridge/StoreNested.lean`'s
 `EStore.internName` spec (49 + 19 interns), then `internLsNode` / `internLNode`
-/ `internSortE` over `Bridge/Specs.lean`'s.  The persistence half is the
+/ `internSortE` over `Bridge/Specs.lean`'s.  **`PinsOK.anon` is one more
+obligation here** (task #97-P3-Ind round 5): every pin name is a `.str`/`.num`
+chain bottoming out at `.anonymous`, so interning the first of them interns
+`.anonymous` into the persistent `anons` table, whose only slot is 0 — and
+`Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0.  The persistence half is the
 `scratchOn = false` branch of `intern`, which `Arena/WFProofs.lean`'s
 `intern_view_spec` already exposes.  Task #97-P3-Checker's sorry list,
 item 13. -/

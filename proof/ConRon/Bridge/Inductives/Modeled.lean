@@ -139,25 +139,284 @@ theorem blockRenameTable_spec (blockNames : List NIdx)
           rw [hct]
           exact hrec
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName — the run
+form: `(TP.str "_model").str ("proj_" ++ toString i)`, two interns. -/
+theorem projModelName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
+    {i : Nat} {h : NIdx} (hok : StateOK s)
+    (hT : denoteN s.store.ns T = some TP)
+    (hrun : Arena.projModelName T i s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = some (ConLeche.projModelName TP i) := by
+  simp only [Arena.projModelName] at hrun
+  obtain ⟨m, s1, k1, h2⟩ := bindOk hrun
+  obtain ⟨p1, hm⟩ := internStrN_run hok hT k1
+  obtain ⟨p2, hr⟩ := internStrN_run p1.ok hm h2
+  exact ⟨p1.trans p2, hr⟩
+
+/-- con-leche: ConLeche/Kernel/Env.lean:629 projFnName — the run form:
+`(TP.str "proj").num i`, two interns. -/
+theorem projFnName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
+    {i : Nat} {h : NIdx} (hok : StateOK s)
+    (hT : denoteN s.store.ns T = some TP)
+    (hrun : Arena.projFnName T i s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = some (ConLeche.projFnName TP i) := by
+  simp only [Arena.projFnName] at hrun
+  obtain ⟨m, s1, k1, h2⟩ := bindOk hrun
+  obtain ⟨p1, hm⟩ := internStrN_run hok hT k1
+  obtain ⟨p2, hr⟩ := internNumN_run p1.ok hm h2
+  exact ⟨p1.trans p2, hr⟩
+
+/-- con-leche: none — the rename table's lookup at the empty table. -/
+theorem renameBy_nil (n : NIdx) : Arena.renameBy [] n = n := rfl
+
+/-- con-leche: none — and at a cons: `renameBy` is a `List.find?` on the
+key, so one entry is one `if`.  The two table builders below are read through
+this. -/
+theorem renameBy_cons (a b n : NIdx) (rest : List (NIdx × NIdx)) :
+    Arena.renameBy ((a, b) :: rest) n =
+      if a == n then b else Arena.renameBy rest n := by
+  cases h : (a == n) <;> simp [Arena.renameBy, h]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:457-464 projBack —
+**the projection half of the rename, as the RECURSION the arena runs**.
+con-leche writes it as a `List.find?` over `List.range nF`; the arena's
+`projBack.go` builds the table one field at a time, from `j` upwards, so the
+induction wants this shape and `projBackTail_eq` identifies the two. -/
+def projBackTail (TP : ConLeche.Name) : Nat → Nat → ConLeche.Name → ConLeche.Name
+  | 0, _, nm => nm
+  | k + 1, j, nm =>
+    if nm == ConLeche.projModelName TP j then ConLeche.projFnName TP j
+    else projBackTail TP k (j + 1) nm
+
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:466-473 projFwd —
+the same the other way. -/
+def projFwdTail (TP : ConLeche.Name) : Nat → Nat → ConLeche.Name → ConLeche.Name
+  | 0, _, nm => nm
+  | k + 1, j, nm =>
+    if nm == ConLeche.projFnName TP j then ConLeche.projModelName TP j
+    else projFwdTail TP k (j + 1) nm
+
+/-- con-leche: none — the recursion IS con-leche's `List.find?`, generalised
+over the starting index so the induction goes through (`List.range n` is
+`List.range' 0 n`). -/
+theorem projBackTail_eq (TP : ConLeche.Name) :
+    ∀ (k j : Nat) (nm : ConLeche.Name),
+      projBackTail TP k j nm =
+        (match (List.range' j k).find?
+            (fun i => nm == ConLeche.projModelName TP i) with
+         | some i => ConLeche.projFnName TP i
+         | none => nm) := by
+  intro k
+  induction k with
+  | zero => intro j nm; simp [projBackTail, List.range']
+  | succ k ih =>
+    intro j nm
+    rw [show List.range' j (k + 1) = j :: List.range' (j + 1) k by simp [List.range']]
+    simp only [projBackTail, List.find?_cons, ih (j + 1) nm]
+    split
+    · rename_i h; rw [h]
+    · rename_i h
+      simp only [Bool.not_eq_true] at h
+      rw [h]
+
+/-- con-leche: none — the same for `projFwd`. -/
+theorem projFwdTail_eq (TP : ConLeche.Name) :
+    ∀ (k j : Nat) (nm : ConLeche.Name),
+      projFwdTail TP k j nm =
+        (match (List.range' j k).find?
+            (fun i => nm == ConLeche.projFnName TP i) with
+         | some i => ConLeche.projModelName TP i
+         | none => nm) := by
+  intro k
+  induction k with
+  | zero => intro j nm; simp [projFwdTail, List.range']
+  | succ k ih =>
+    intro j nm
+    rw [show List.range' j (k + 1) = j :: List.range' (j + 1) k by simp [List.range']]
+    simp only [projFwdTail, List.find?_cons, ih (j + 1) nm]
+    split
+    · rename_i h; rw [h]
+    · rename_i h
+      simp only [Bool.not_eq_true] at h
+      rw [h]
+
+/-- con-leche: none — `projBack`'s inner loop: the table it builds renames
+every handle that denotes by `projBackTail`. -/
+theorem projBackGo_run (T : NIdx) (TP : ConLeche.Name) :
+    ∀ (k j : Nat) {s s' : AState} {r : List (NIdx × NIdx)},
+      StateOK s → denoteN s.store.ns T = some TP →
+      Arena.projBack.go T k j s = .ok (r, s') →
+      PStep s s' ∧ ∀ (n : NIdx) (nm : ConLeche.Name),
+        denoteN s'.store.ns n = some nm →
+        denoteN s'.store.ns (Arena.renameBy r n) =
+          some (projBackTail TP k j nm) := by
+  intro k
+  induction k with
+  | zero =>
+    intro j s s' r hok hT hrun
+    simp only [Arena.projBack.go] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, fun n nm hn => by
+      simpa only [renameBy_nil, projBackTail] using hn⟩
+  | succ k ih =>
+    intro j s s' r hok hT hrun
+    simp only [Arena.projBack.go] at hrun
+    obtain ⟨a, s1, k1, h2⟩ := bindOk hrun
+    obtain ⟨p1, ha⟩ := projModelName_run hok hT k1
+    obtain ⟨b, s2, k2, h3⟩ := bindOk h2
+    obtain ⟨p2, hb⟩ := projFnName_run p1.ok (denoteN_ext hT p1.ext) k2
+    obtain ⟨x, s3, k3, h4⟩ := bindOk h3
+    obtain ⟨p3, hx⟩ := ih (j + 1) p2.ok (denoteN_ext hT (p1.ext.trans p2.ext)) k3
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨p1.trans (p2.trans p3), ?_⟩
+    intro n nm hn
+    have ha' : denoteN s'.store.ns a = some (ConLeche.projModelName TP j) :=
+      denoteN_ext (denoteN_ext ha p2.ext) p3.ext
+    have hb' : denoteN s'.store.ns b = some (ConLeche.projFnName TP j) :=
+      denoteN_ext hb p3.ext
+    rw [renameBy_cons, beq_handle_eq' p3.ok.wf ha' hn]
+    simp only [projBackTail]
+    split
+    · exact hb'
+    · exact hx n nm hn
+
+/-- con-leche: none — the same for `projFwd`'s inner loop. -/
+theorem projFwdGo_run (T : NIdx) (TP : ConLeche.Name) :
+    ∀ (k j : Nat) {s s' : AState} {r : List (NIdx × NIdx)},
+      StateOK s → denoteN s.store.ns T = some TP →
+      Arena.projFwd.go T k j s = .ok (r, s') →
+      PStep s s' ∧ ∀ (n : NIdx) (nm : ConLeche.Name),
+        denoteN s'.store.ns n = some nm →
+        denoteN s'.store.ns (Arena.renameBy r n) =
+          some (projFwdTail TP k j nm) := by
+  intro k
+  induction k with
+  | zero =>
+    intro j s s' r hok hT hrun
+    simp only [Arena.projFwd.go] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, fun n nm hn => by
+      simpa only [renameBy_nil, projFwdTail] using hn⟩
+  | succ k ih =>
+    intro j s s' r hok hT hrun
+    simp only [Arena.projFwd.go] at hrun
+    obtain ⟨a, s1, k1, h2⟩ := bindOk hrun
+    obtain ⟨p1, ha⟩ := projFnName_run hok hT k1
+    obtain ⟨b, s2, k2, h3⟩ := bindOk h2
+    obtain ⟨p2, hb⟩ := projModelName_run p1.ok (denoteN_ext hT p1.ext) k2
+    obtain ⟨x, s3, k3, h4⟩ := bindOk h3
+    obtain ⟨p3, hx⟩ := ih (j + 1) p2.ok (denoteN_ext hT (p1.ext.trans p2.ext)) k3
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨p1.trans (p2.trans p3), ?_⟩
+    intro n nm hn
+    have ha' : denoteN s'.store.ns a = some (ConLeche.projFnName TP j) :=
+      denoteN_ext (denoteN_ext ha p2.ext) p3.ext
+    have hb' : denoteN s'.store.ns b = some (ConLeche.projModelName TP j) :=
+      denoteN_ext hb p3.ext
+    rw [renameBy_cons, beq_handle_eq' p3.ok.wf ha' hn]
+    simp only [projFwdTail]
+    split
+    · exact hb'
+    · exact hx n nm hn
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:457-464 projBack
 The projection-function names mapped BACK to the model's field projections.
 
-`sorry`: `internNNode_spec` at `projFnName`/`projModelName`, `nF` times. -/
+**CLOSED** (task #97-P3-Ind round 5): `projModelName_run`/`projFnName_run` at
+each field, `renameBy_cons` for the two head entries, and `beq_handle_eq'` —
+the flipped handle comparison — at every lookup.  `projBackTail_eq` is what
+turns the loop's own recursion into con-leche's `List.find?` over
+`List.range nF`. -/
 theorem projBack_spec (T ctor : NIdx) (TP ctorP : ConLeche.Name) (nF : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteN st.ns ctor = some ctorP)
       (Arena.projBack T ctor nF)
       (fun st r => RenameRel st r (ConLeche.projBack TP ctorP nF)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hct⟩ := hpre
+  simp only [Arena.projBack] at hrun
+  obtain ⟨tm, s1, k1, h2⟩ := bindOk hrun
+  obtain ⟨p1, htm⟩ := internStrN_run hok hT k1
+  obtain ⟨cm, s2, k2, h3⟩ := bindOk h2
+  obtain ⟨p2, hcm⟩ := internStrN_run p1.ok (denoteN_ext hct p1.ext) k2
+  obtain ⟨x, s3, k3, h4⟩ := bindOk h3
+  obtain ⟨p3, hx⟩ := projBackGo_run T TP nF 0 p2.ok
+    (denoteN_ext hT (p1.ext.trans p2.ext)) k3
+  obtain ⟨rfl, rfl⟩ := pureOk h4
+  refine ⟨p1.trans (p2.trans p3), ?_⟩
+  intro n nm hn
+  have htm' : denoteN s'.store.ns tm = some (TP.str "_model") :=
+    denoteN_ext (denoteN_ext htm p2.ext) p3.ext
+  have hcm' : denoteN s'.store.ns cm = some (ctorP.str "_model") :=
+    denoteN_ext hcm p3.ext
+  have hT' : denoteN s'.store.ns T = some TP :=
+    denoteN_ext hT (p1.ext.trans (p2.ext.trans p3.ext))
+  have hct' : denoteN s'.store.ns ctor = some ctorP :=
+    denoteN_ext hct (p1.ext.trans (p2.ext.trans p3.ext))
+  show denoteN s'.store.ns (Arena.renameBy _ n) =
+    some (ConLeche.projBack TP ctorP nF nm)
+  rw [renameBy_cons, renameBy_cons,
+    beq_handle_eq' p3.ok.wf htm' hn, beq_handle_eq' p3.ok.wf hcm' hn]
+  simp only [ConLeche.projBack]
+  by_cases hc1 : nm = TP.str "_model"
+  · subst hc1
+    simp only [beq_self_eq_true, if_pos]
+    exact hT'
+  · rw [if_neg hc1, beq_eq_false_iff_ne.mpr hc1, if_neg (by simp)]
+    by_cases hc2 : nm = ctorP.str "_model"
+    · subst hc2
+      simp only [beq_self_eq_true, if_pos]
+      exact hct'
+    · rw [if_neg hc2, beq_eq_false_iff_ne.mpr hc2, if_neg (by simp)]
+      rw [hx n nm hn, projBackTail_eq TP nF 0 nm, List.range_eq_range']
+      rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:466-473 projFwd
 The same map the other way.
 
-`sorry`: `projBack_spec`'s argument. -/
+**CLOSED** (task #97-P3-Ind round 5): `projBack_spec`'s argument, with the
+two head entries keyed on `T`/`ctor` rather than on their `_model`
+companions. -/
 theorem projFwd_spec (T ctor : NIdx) (TP ctorP : ConLeche.Name) (nF : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteN st.ns ctor = some ctorP)
       (Arena.projFwd T ctor nF)
       (fun st r => RenameRel st r (ConLeche.projFwd TP ctorP nF)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hct⟩ := hpre
+  simp only [Arena.projFwd] at hrun
+  obtain ⟨tm, s1, k1, h2⟩ := bindOk hrun
+  obtain ⟨p1, htm⟩ := internStrN_run hok hT k1
+  obtain ⟨cm, s2, k2, h3⟩ := bindOk h2
+  obtain ⟨p2, hcm⟩ := internStrN_run p1.ok (denoteN_ext hct p1.ext) k2
+  obtain ⟨x, s3, k3, h4⟩ := bindOk h3
+  obtain ⟨p3, hx⟩ := projFwdGo_run T TP nF 0 p2.ok
+    (denoteN_ext hT (p1.ext.trans p2.ext)) k3
+  obtain ⟨rfl, rfl⟩ := pureOk h4
+  refine ⟨p1.trans (p2.trans p3), ?_⟩
+  intro n nm hn
+  have htm' : denoteN s'.store.ns tm = some (TP.str "_model") :=
+    denoteN_ext (denoteN_ext htm p2.ext) p3.ext
+  have hcm' : denoteN s'.store.ns cm = some (ctorP.str "_model") :=
+    denoteN_ext hcm p3.ext
+  have hT' : denoteN s'.store.ns T = some TP :=
+    denoteN_ext hT (p1.ext.trans (p2.ext.trans p3.ext))
+  have hct' : denoteN s'.store.ns ctor = some ctorP :=
+    denoteN_ext hct (p1.ext.trans (p2.ext.trans p3.ext))
+  show denoteN s'.store.ns (Arena.renameBy _ n) =
+    some (ConLeche.projFwd TP ctorP nF nm)
+  rw [renameBy_cons, renameBy_cons,
+    beq_handle_eq' p3.ok.wf hT' hn, beq_handle_eq' p3.ok.wf hct' hn]
+  simp only [ConLeche.projFwd]
+  by_cases hc1 : nm = TP
+  · subst hc1
+    simp only [beq_self_eq_true, if_pos]
+    exact htm'
+  · rw [if_neg hc1, beq_eq_false_iff_ne.mpr hc1, if_neg (by simp)]
+    by_cases hc2 : nm = ctorP
+    · subst hc2
+      simp only [beq_self_eq_true, if_pos]
+      exact hcm'
+    · rw [if_neg hc2, beq_eq_false_iff_ne.mpr hc2, if_neg (by simp)]
+      rw [hx n nm hn, projFwdTail_eq TP nF 0 nm, List.range_eq_range']
+      rfl
 
 /-! ## Two helpers the modeled route owns -/
 
@@ -775,7 +1034,12 @@ theorem indBlockCaps_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:744-779 ctorResidualOk
 The eta capability's constructor returns the family (task #136).
 
-`sorry`: `ctorTargetsFam_spec` and `IFEnvOK`'s `hit` clause. -/
+**CLOSED** (task #97-P3-Ind round 5): the capability guard, `IFEnvOK`'s
+`hit`/`miss` pair at the stored constructor — the check reads the constant the
+way its consumers do, which is what makes the `find?` load-bearing —
+`stripPis_pstep`, `structFam_spec` and `beq_ehandle_eq`.  The six
+non-constructor kinds close on `denoteCI_not_ctor`: `denoteCI` preserves the
+kind, so the arena's fallthrough arm and con-leche's are the same arm. -/
 theorem ctorResidualOk_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     (T ctorName : NIdx) (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF : Nat) (eta : Bool) :
@@ -786,7 +1050,66 @@ theorem ctorResidualOk_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         denoteFEnv st fe' = some env)
       (Arena.ctorResidualOk μ fe' T ctorName lps nP nF eta)
       (RV (ConLeche.ctorResidualOk μ env TP ctorNameP lpsP nP nF eta)) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hct, hlps, _⟩ := hpre
+  simp only [Arena.ctorResidualOk] at hrun
+  split at hrun
+  case isTrue hg =>
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨CoreStep.refl hck, ?_⟩
+    show (true : Bool) = _
+    simp only [ConLeche.ctorResidualOk, hg]
+    simp
+  case isFalse hg =>
+    have hg' : (!μ.ttChecks || !eta) = false := by
+      simp only [Bool.not_eq_true] at hg; exact hg
+    cases hf : fe'.find? ctorName with
+    | none =>
+      rw [hf] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨CoreStep.refl hck, ?_⟩
+      show (false : Bool) = _
+      have hmiss : env.find? ctorNameP = none :=
+        IFEnvOK.miss hck.state hck.ienv hct hf
+      simp only [ConLeche.ctorResidualOk, hg', hmiss]
+      simp
+    | some ci =>
+      obtain ⟨nm, c, hnm, hci, henv⟩ := hck.ienv.hit ctorName ci hf
+      obtain rfl := Option.some.inj (hnm.symm.trans hct)
+      cases ci
+      case ctorInfo cvCA nP' nF' =>
+        simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
+        obtain ⟨cvP, hcv, rfl⟩ := hci
+        rw [hf] at hrun
+        obtain ⟨sq, s1, k1, hrun2⟩ := bindOk hrun
+        obtain ⟨hs1, hsq⟩ := stripPis_pstep hck.state (denoteCV_type hcv) k1
+        rw [hs1] at hrun2
+        rcases sq with _ | ⟨sbs, sbody⟩
+        · obtain ⟨rfl, rfl⟩ := pureOk hrun2
+          refine ⟨CoreStep.refl hck, ?_⟩
+          show (false : Bool) = _
+          simp only [ConLeche.ctorResidualOk, hg', henv, stripPis_none hsq]
+          simp
+        obtain ⟨sxs, sbodyP, hsps, _, hsbody⟩ := denoteBP_someB hsq
+        obtain ⟨fam, s2, k2, hrun3⟩ := bindOk hrun2
+        obtain ⟨p2, hfam⟩ :=
+          structFam_spec T TP lps lpsP nP nF s₀ s2 fam hck.state ⟨hT, hlps⟩ k2
+        obtain ⟨rfl, rfl⟩ := pureOk hrun3
+        refine ⟨p2.toCore hck, ?_⟩
+        show (sbody == fam) = _
+        simp only [ConLeche.ctorResidualOk, hg', henv, hsps]
+        rw [beq_ehandle_eq p2.ok.wf (denote_ext hsbody p2.ext) hfam]
+        simp
+      all_goals
+        (rw [hf] at hrun
+         obtain ⟨rfl, rfl⟩ := pureOk hrun
+         refine ⟨CoreStep.refl hck, ?_⟩
+         show (false : Bool) = _
+         have hne := denoteCI_not_ctor hci (by simp)
+         simp only [ConLeche.ctorResidualOk, hg', henv]
+         cases c
+         case ctorInfo v n1 n2 => exact absurd rfl (hne v n1 n2)
+         all_goals simp)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
 **THE MODELED ROUTE**, the second of `checkIndDecl`'s two dispatches: every

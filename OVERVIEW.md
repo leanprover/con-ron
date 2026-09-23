@@ -594,7 +594,7 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 ## 12. Gates
 
 `scripts/gates.sh` runs, in order, and stops at the first failure
-([the fourteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L60-L82)):
+([the fifteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L60-L88)):
 
 1. `cargo build` with warnings denied;
 2. `cargo test`;
@@ -611,7 +611,12 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 13. `lake build` of the model and the proofs — the DEFAULT targets;
 14. `lake build ConRonRefine2` — Theorem 2's tier, which is deliberately not a
     default target (a half-built P5 tier must not block `lake build`) and was
-    therefore elaborated by no gate at all until task #97-P5-Mut found it.
+    therefore elaborated by no gate at all until task #97-P5-Mut found it;
+15. `lake build ConRonBridge` — **Theorem 1's spec layer, for the same
+    reason**: it is not a default target either, so step 13 never elaborated
+    a module of `proof/ConRon/Bridge/**`.  Task #97-P3-Ind round 5 found this
+    the way it deserved to be found — a green gate run followed by a broken
+    `lake build ConRonBridge`.
 
 It ends with the summary lines of `progress.py` and `loc.py`.  The
 differential tests of §6.4 are not in the gates, since they need the

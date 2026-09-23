@@ -329,12 +329,22 @@ theorem structRecPrefixAt_spec (nP n nF e : Nat) :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:237-244 structIdxAt
 A recursive field's index expression relocated to the rule frame.
 
-`sorry`: `Bridge/ExprOps/Subst.lean`'s `liftLooseBVarsFast_spec`, twice. -/
+**CLOSED** (task #97-P3-Ind round 5), on the conjunct round 4 §R4.4 asked the
+`ExprOps` tier for: `LiftSpec` now states `BMExt`, so a `PSpec`-grade twin
+that lifts can produce a `PStep`.  Two `liftFast_pstep`s.  **This is group 3's
+gateway** — `structTeleAt`, `structIhApp`, `structRuleBodyR`, `structIhPis`,
+`structMinorTyR`, `structMinorsPisR`, `structMinorsLamsR`, `structRecTyR` and
+`structRecRhsR` all wait on it and on nothing else of another tier. -/
 theorem structIdxAt_spec (nF o i l m : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
       (Arena.structIdxAt nF o i l m e)
       (RE (ConLeche.structIdxAt nF o i l m eP)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.structIdxAt] at hrun
+  obtain ⟨a, s1, k1, hz⟩ := bindOk hrun
+  obtain ⟨p1, ha⟩ := liftFast_pstep hok hd k1
+  obtain ⟨p2, hr⟩ := liftFast_pstep p1.ok ha hz
+  exact ⟨p1.trans p2, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:246-252 structTeleAt
 A field's telescope relocated, with a fresh `PropWhen` on each binder.
@@ -666,9 +676,67 @@ theorem nativeRulesOk_spec (recC : NIdx) (recCP : ConLeche.Name)
 /-! ## The recogniser -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:501-523 nativeCounts?
+— con-leche's `match` on the WHOLE pair re-read as a match on its second
+component, which is what the arena's `view` dispatch decides. -/
+theorem nativeCounts_eq (nPd : Nat) (cvTP : ConstantVal)
+    (csP : List (ConstantVal × Nat × Nat)) (mI rP : Nat) :
+    ConLeche.nativeCounts? nPd cvTP csP mI rP =
+      (match (cvTP.type.piBinders).2 with
+       | .sort _ =>
+         if nPd ≤ (cvTP.type.piBinders).1.length then
+           some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
+       | _ =>
+         if rP < csP.length + 1 || mI < rP then none
+         else if rP - (csP.length + 1) == nPd then some (nPd, mI - rP) else none) := by
+  simp only [ConLeche.nativeCounts?]
+  cases h : cvTP.type.piBinders with
+  | mk bs body => cases body <;> simp [h]
+
+/-- con-leche: none — `nativeCounts?`'s NON-sort tail, both sides: the
+recursor's claimed prefix against the constructor count.  Stated separately so
+the nine non-`sort` arms of the `view` dispatch close with one
+`all_goals`. -/
+theorem nativeCounts_tail {nPd : Nat} {cvTP : ConstantVal}
+    {csP : List (ConstantVal × Nat × Nat)} {mI rP : Nat}
+    {cs : List (IConstantVal × Nat × Nat)} {s s' : AState}
+    {r : Option (Nat × Nat)} (hcsl : cs.length = csP.length)
+    (hns : ∀ l, (cvTP.type.piBinders).2 ≠ .sort l)
+    (hz : (if rP < cs.length + 1 || mI < rP then (pure none : AM (Option (Nat × Nat)))
+           else if rP - (cs.length + 1) == nPd then pure (some (nPd, mI - rP))
+           else pure none) s = .ok (r, s')) :
+    s' = s ∧ r = ConLeche.nativeCounts? nPd cvTP csP mI rP := by
+  rw [nativeCounts_eq]
+  have hm : (match (cvTP.type.piBinders).2 with
+      | .sort _ =>
+        if nPd ≤ (cvTP.type.piBinders).1.length then
+          some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
+      | _ =>
+        if rP < csP.length + 1 || mI < rP then none
+        else if rP - (csP.length + 1) == nPd then some (nPd, mI - rP) else none)
+      = (if rP < csP.length + 1 || mI < rP then none
+         else if rP - (csP.length + 1) == nPd then some (nPd, mI - rP) else none) := by
+    cases hb : (cvTP.type.piBinders).2
+    case sort l => exact absurd hb (hns l)
+    all_goals rfl
+  rw [hm, ← hcsl]
+  split at hz
+  · obtain ⟨rfl, rfl⟩ := pureOk hz
+    exact ⟨rfl, by rw [if_pos ‹_›]⟩
+  · rw [if_neg ‹_›]
+    split at hz
+    · obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨rfl, by rw [if_pos ‹_›]⟩
+    · obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨rfl, by rw [if_neg ‹_›]⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:501-523 nativeCounts?
 The declared parameter and index counts, or `none`.
 
-`sorry`: `piSortTeleLen?`'s spec (`Bridge/ExprOps/TelescopeF.lean`). -/
+**CLOSED** (task #97-P3-Ind round 5): `piBinders_spec` (closed in round 2),
+the ten-way `view` dispatch at its residual, `denoteBinders_length` for the
+telescope's length and `denoteCtors3_length` for the constructor count.  Round
+1's note said `piSortTeleLen?`; the twin reads `piBinders`, whose spec was
+already in this file. -/
 theorem nativeCounts?_spec (nPd : Nat) (cvT : IConstantVal)
     (cvTP : ConstantVal) (cs : List (IConstantVal × Nat × Nat))
     (csP : List (ConstantVal × Nat × Nat)) (mI rP : Nat) :
@@ -676,28 +744,119 @@ theorem nativeCounts?_spec (nPd : Nat) (cvT : IConstantVal)
         denoteCtors3 st cs = some csP)
       (Arena.nativeCounts? nPd cvT cs mI rP)
       (RV (ConLeche.nativeCounts? nPd cvTP csP mI rP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcv, hcs⟩ := hpre
+  simp only [Arena.nativeCounts?] at hrun
+  obtain ⟨q, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨p1, hbs, hbody⟩ :=
+    piBinders_spec Arena.coreWalkFuel cvT.type cvTP.type s₀ s1 q hok
+      (denoteCV_type hcv) k1
+  obtain ⟨v, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨hs2, hview⟩ := view_run k2
+  rw [hs2] at hz2
+  have hlen : q.1.length = (cvTP.type.piBinders).1.length :=
+    denoteBinders_length hbs
+  have hcsl : cs.length = csP.length := denoteCtors3_length hcs
+  have hbv : denoteEView s1.store v = some (cvTP.type.piBinders).2 := by
+    rw [← denoteE_view_eq p1.ok.wf hview]; exact hbody
+  cases v
+  case sort u =>
+    obtain ⟨l, hEq, _⟩ := denote_sort_inv p1.ok.wf hview hbody
+    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    refine ⟨p1, ?_⟩
+    show _ = ConLeche.nativeCounts? nPd cvTP csP mI rP
+    rw [nativeCounts_eq, hEq, hlen]
+  all_goals
+    (obtain ⟨rfl, hr⟩ := nativeCounts_tail hcsl
+       (ExprOps.denoteEView_not_sort hbv (by simp)) hz2
+     exact ⟨p1, hr⟩)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
 The stream's recursor record passed the structural pin.  Pure on both sides.
 
-**MISSING HYPOTHESIS, round 4** (with `nativeRecLpsOk_spec` below, the same
-one).  Both statements compare HANDLES on the left and NAMES on the right, so
-the `false` direction is `denoteN_inj` — and injectivity is a fact about a
-WELL-FORMED store, which neither statement asked for.  As written they are not
-provable and not true: in a store with two name handles decoding to the same
-name, the twin's `==` is `false` where con-leche's is `true`.  `StoreWF st` is
-the hypothesis, and every caller has it (`StateOK.wf`).
-
-`sorry`: the block's `denoteCIList` inverted at each member, `sumSplit_spec`,
-and `beq_handle_eq` at the rule/constructor names. -/
+**CLOSED** (task #97-P3-Ind round 5), at round 4's corrected statement — see
+`nativeRecLpsOk_spec` below for the `StoreWF` hypothesis both gained and why.
+The block's `denoteCIList` inverted at the head (`denoteCI_not_ind` closes the
+six kinds that are not the type former), `sumSplit_spec` for the members after
+it, `denoteCtors_length`/`denoteRules_length` for the two counts, and — at
+each position of the rule/constructor zip — `denoteRules_getElem?` and
+`denoteCtors3_getElem?` with `beq_handle_eq` at the constructor name. -/
 theorem nativeRecPinOk_spec (st : EStore) (hwf : StoreWF st)
-    (p : Arena.InductiveShape)
-    (q : ConLeche.InductiveShape) (block : List IConstantInfo)
-    (blockP : List ConstantInfo) (hp : ShapeRel st p q)
+    (p : Arena.InductiveShape) (q : ConLeche.InductiveShape)
+    (block : List IConstantInfo) (blockP : List ConstantInfo)
+    (hp : ShapeRel st p q)
     (hb : Frontend.denoteCIList st block = some blockP) :
     Arena.nativeRecPinOk p block = ConLeche.nativeRecPinOk q blockP := by
-  sorry
+  have hctl : p.ctors.length = q.ctors.length := denoteCtors_length _ _ hp.ctors
+  cases block with
+  | nil =>
+    simp only [Frontend.denoteCIList, Option.some.injEq] at hb
+    subst hb; rfl
+  | cons c rest =>
+    simp only [Frontend.denoteCIList] at hb
+    cases hc : Frontend.denoteCI st c with
+    | none => rw [hc] at hb; simp at hb
+    | some cP =>
+      cases hr : Frontend.denoteCIList st rest with
+      | none => rw [hc, hr] at hb; simp at hb
+      | some restP =>
+        rw [hc, hr] at hb
+        obtain rfl := Option.some.inj hb
+        cases c
+        case indInfo v caps =>
+          simp only [Frontend.denoteCI] at hc
+          cases hcv : Frontend.denoteCV st v with
+          | none => rw [hcv] at hc; simp at hc
+          | some vP =>
+            cases hcp : Frontend.denoteCaps st caps with
+            | none => rw [hcv, hcp] at hc; simp at hc
+            | some capsP =>
+              rw [hcv, hcp] at hc
+              obtain rfl := Option.some.inj hc
+              have hsp := sumSplit_spec st rest restP hr
+              simp only [Arena.nativeRecPinOk, ConLeche.nativeRecPinOk]
+              cases hA : Arena.sumSplit rest with
+              | none =>
+                rw [hA] at hsp
+                simp only [ROp] at hsp
+                rw [hsp]
+              | some a =>
+                rw [hA] at hsp
+                simp only [ROp] at hsp
+                obtain ⟨b, hbq, hrel⟩ := hsp
+                rw [hbq]
+                obtain ⟨cs, cvR, mI, rP, rules⟩ := a
+                obtain ⟨csP, cvRP, mIP, rPP, rulesP⟩ := b
+                have hcts : denoteCtors3 st cs = some csP := hrel.ctors
+                have hrls : Frontend.denoteRules st rules = some rulesP :=
+                  hrel.rules
+                have hmI : mI = mIP := hrel.mI
+                have hrP : rP = rPP := hrel.rP
+                simp only [hmI, hrP, hp.nP, hp.nIdx, hctl,
+                  denoteRules_length hrls]
+                congr 1
+                congr 1
+                funext j
+                obtain ⟨hrA, hrB⟩ := denoteRules_getElem? hrls j
+                obtain ⟨hcA, hcB⟩ := denoteCtors3_getElem? hcts j
+                cases hj : rules[j]? with
+                | none => rw [hrB hj]
+                | some rule =>
+                  obtain ⟨x, hx, hd⟩ := hrA rule hj
+                  rw [hx]
+                  cases hk : cs[j]? with
+                  | none => rw [hcB hk]
+                  | some e =>
+                    obtain ⟨cvC, aa, bb⟩ := e
+                    obtain ⟨c', hc', hdcv⟩ := hcA cvC aa bb hk
+                    rw [hc']
+                    obtain ⟨hct, hnf⟩ := denoteRule_ctor hd
+                    simp only [beq_handle_eq hwf hct (denoteCV_name hdcv), hnf]
+        all_goals
+          (have hne := denoteCI_not_ind hc (by simp)
+           cases cP
+           case indInfo aa bb => exact absurd rfl (hne aa bb)
+           all_goals rfl)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:551-560 nativeRecLpsOk
 The recursor's level parameters are the block's (with the elimination

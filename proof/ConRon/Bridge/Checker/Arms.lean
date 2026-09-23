@@ -41,22 +41,9 @@ set_option autoImplicit false
 
 /-! ## Carrying the fold's invariant across a step
 
-A step of an arm leaves `CheckOK` at the SAME environment and an `Ext`; the
-other four clauses of `FoldOK` are about the environment index and the pin
-handles, and both transport. -/
-
-/-- con-leche: none — `FoldOK` survives a step that only appends and leaves
-the environment alone. -/
-theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : FoldOK μ env fe s) (hck : CheckOK μ env fe s')
-    (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
-    FoldOK μ env fe s' where
-  check := hck
-  envWF := h.envWF
-  persPins := h.persPins.mono hp
-  persEnv := h.persEnv
-  coh := h.coh
-  denote := denoteFEnv_pext (PExt.of_ext hx) h.persEnv h.denote
+`FoldOK.step` moved down to `Bridge/Checker/Inv.lean` beside `FoldOK` itself
+(task #97-P3-Checker round 6): `Bridge/Checker/DeclVal.lean`'s
+`checkThmVal_bridge` needs it, and that module is BELOW this one. -/
 
 /-- con-leche: none — the same at a `CoreStep`, which is what every core
 consumer hands back. -/
@@ -366,7 +353,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
   obtain ⟨hstep2, hpush2, env2, F2, hst2, hpure2⟩ :=
-    checkDefnVal_bridge hμ hk hok1 hcA hv1 g2
+    checkDefnVal_bridge hμ hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 g2
   have hok2 : FoldOK μ env fe s2 := hok1.ofCore hstep2
   have hcA2 : Frontend.denoteCV s2.store cvA = some cA :=
     denoteCV_ext hcA hstep2.ext
@@ -585,7 +572,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
   have hok1 : FoldOK μ env fe s1 := hok.ofCore hstep1
   have hv1 : denoteE s1.store value = some x := denote_ext hv hstep1.ext
   obtain ⟨hstep2, hpush2, env', F2, hstep, hpure2⟩ :=
-    checkThmVal_bridge hμ hk hok1 hcA hv1 r1
+    checkThmVal_bridge hμ hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 r1
   have hle1 : F1 ≤ max F1 F2 := Nat.le_max_left _ _
   have hle2 : F2 ≤ max F1 F2 := Nat.le_max_right _ _
   exact
@@ -624,7 +611,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
   -- the value check
   obtain ⟨fe2, s2, g2, r2⟩ := AM.bind_ok r1
   obtain ⟨hstep2, hpush2, env2, F2, hstepOK2, hpure2⟩ :=
-    checkOpaqueVal_bridge hμ hk hok1 hcA hv1 g2
+    checkOpaqueVal_bridge hμ hk hok1 hcA (checkConstantVal_typeWF hpure1) hv1 g2
   have hx2 : Ext s1.store s2.store := hstep2.ext
   have hp2 : s2.pins = s1.pins := hstep2.pins
   have hst2 : StateOK s2 := hstep2.ok.state

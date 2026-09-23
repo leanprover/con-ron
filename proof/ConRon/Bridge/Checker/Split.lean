@@ -228,8 +228,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
   have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p, hp2.pins]
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
-    constsResolveFFast_run ⟨hck8, hok.envWF, hok.persPins.mono hpins8,
-      hok.persEnv, hok.coh, hden8⟩ hv8 g9r
+    constsResolveFFast_run hck8 hv8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
     (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
@@ -258,135 +257,6 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   · exact installConstantVal_pure hfindP hresP hprojP hnodP hlbbP hfvP hF7
       hlpdP hcrP
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
-PURE half: five guards accepted means con-leche's install accepts with the
-annotated value. -/
-theorem installValue_pure {μ : CheckMode} {F : Nat} {env : Env}
-    {c : ConstantVal} {x ty : Expr}
-    (h5 : x.looseBVarsBounded 0 = true)
-    (h6 : x.hasFvar = false)
-    (h7 : ConLeche.annotateCore μ env F 0 x = .ok ty)
-    (h8 : ty.allLevelParamsDefined c.levelParams = true)
-    (h9 : ty.constsResolve env = true) :
-    ConLeche.installValue (ConLeche.fueledOps μ F) env c x = .ok ty := by
-  simp only [ConLeche.installValue, ConLeche.fueledOps, h5, h6, h7, h8, h9,
-    Bool.false_eq_true, if_false, if_true, bind, Except.bind, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
-value's guards and annotation.
-
-**PROVED** (task #97-P3-Checker round 4): the last five steps of
-`installConstantVal_bridge`, at the VALUE rather than the type —
-`looseBVarsBoundedFast` and `hasFvarFast` (`Bridge/ExprOps/Walks.lean`),
-`KnotSpec.annotate`, `allLevelParamsDefined_run` and
-`constsResolveFFast_run`. -/
-theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
-    {cv : IConstantVal} {c : ConstantVal} {value jv : EIdx} {x : Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
-    (hv : denoteE s.store value = some x)
-    (hrun : installValue μ fe cv value s = .ok (jv, s')) :
-    CoreStep μ env fe s s' ∧ ∃ y F, denoteE s'.store jv = some y ∧
-      ConLeche.installValue (ConLeche.fueledOps μ F) env c x = .ok y := by
-  obtain ⟨hnm, hlps, -⟩ := denoteCV_inv hcv
-  have hknot := hk.knot env fe hok.envWF
-  have hck0 : CheckOK μ env fe s := hok.check
-  have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
-  simp only [Arena.installValue] at hrun
-  -- 1. the loose-bound-variable guard
-  obtain ⟨b5, s5, g5r, r7⟩ := AM.bind_ok hrun
-  obtain ⟨h5st, h5c, h5p, h5r⟩ := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t.store = s.store ∧ t.caches = s.caches ∧
-      t.pins = s.pins ∧ RelV (Expr.looseBVarsBounded 0) s.store value r)
-    rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s
-      value hck0.state (by rw [hv]; rfl))
-  obtain ⟨hlbb, r8⟩ := AM.dunless_ok hnever r7
-  replace r8 := AM.pure_bind_ok r8
-  have hlbbP : x.looseBVarsBounded 0 = true := by
-    rw [← h5r x hv]; exact hlbb
-  have hck5 : CheckOK μ env fe s5 :=
-    hck0.mono ⟨by rw [h5st]; exact hck0.state.wf⟩ (by rw [h5st]; exact Ext.refl _)
-      h5c h5p
-  have hv5 : denoteE s5.store value = some x := by rw [h5st]; exact hv
-  have hlps5 : Frontend.denoteNList s5.store.ns cv.levelParams
-      = some c.levelParams := by rw [h5st]; exact hlps
-  -- 2. the free-variable guard
-  obtain ⟨b6, s6, g6r, r9⟩ := AM.bind_ok r8
-  obtain ⟨h6st, h6c, h6p, h6r⟩ := AM.of_run (P := fun t => t = s5)
-    (Q := fun r t => t.store = s5.store ∧ t.caches = s5.caches ∧
-      t.pins = s5.pins ∧ RelV Expr.hasFvar s5.store value r)
-    rfl g6r (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s5 value
-      hck5.state (by rw [hv5]; rfl))
-  obtain ⟨hfv, r10⟩ := AM.dguard_ok hnever r9
-  replace r10 := AM.pure_bind_ok r10
-  have hfvP : x.hasFvar = false := by
-    rw [← h6r x hv5]
-    cases hb : b6 with
-    | false => rfl
-    | true => rw [hb] at hfv; exact absurd rfl hfv
-  have hck6 : CheckOK μ env fe s6 :=
-    hck5.mono ⟨by rw [h6st]; exact hck5.state.wf⟩ (by rw [h6st]; exact Ext.refl _)
-      h6c h6p
-  have hv6 : denoteE s6.store value = some x := by rw [h6st]; exact hv5
-  have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
-      = some c.levelParams := by rw [h6st]; exact hlps5
-  have hws : Expr.WScoped 0 x := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
-  have hden6 : denoteFEnv s6.store fe = some env := by
-    rw [h6st, h5st]; exact hok.denote
-  -- 3. the annotation
-  obtain ⟨jv2, s7, g7r, r11⟩ := AM.bind_ok r10
-  obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s6.store t.store ∧
-      t.pins = s6.pins ∧
-      Core.SimE (ConLeche.annotateCore μ env) 0 x t.store r)
-    rfl g7r (hknot.annotate s6 0 value x hck6 hv6 hws)
-  obtain ⟨w, hw7, hwsw, F7, hF7⟩ := hsim7
-  have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
-      = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
-  have hden7 : denoteFEnv s7.store fe = some env :=
-    denoteFEnv_pext (PExt.of_ext hx7) hok.persEnv hden6
-  -- 4. the undeclared-universe-parameter guard
-  obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
-  obtain ⟨h8st, h8c, h8p, h8r⟩ :=
-    allLevelParamsDefined_run hck7.state hlps7 hw7 g8r
-  obtain ⟨hlpd, r13⟩ := AM.dunless_ok hnever r12
-  replace r13 := AM.pure_bind_ok r13
-  have hlpdP : w.allLevelParamsDefined c.levelParams = true := by
-    rw [← h8r]; exact hlpd
-  have hck8 : CheckOK μ env fe s8 :=
-    hck7.mono ⟨by rw [h8st]; exact hck7.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
-      h8c h8p
-  have hw8 : denoteE s8.store jv2 = some w := by rw [h8st]; exact hw7
-  have hden8 : denoteFEnv s8.store fe = some env := by rw [h8st]; exact hden7
-  -- 5. the unresolved-constant guard
-  obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
-  have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p]
-  obtain ⟨h9st, h9c, h9p, h9r⟩ :=
-    constsResolveFFast_run ⟨hck8, hok.envWF, hok.persPins.mono hpins8,
-      hok.persEnv, hok.coh, hden8⟩ hw8 g9r
-  obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
-  replace r15 := AM.pure_bind_ok r15
-  have hcrP : w.constsResolve env = true := by rw [← h9r]; exact hcr
-  have hck9 : CheckOK μ env fe s9 :=
-    hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
-      h9c h9p
-  have hw9 : denoteE s9.store jv2 = some w := by rw [h9st]; exact hw8
-  -- 6. the answer
-  obtain ⟨hjv, hs'⟩ := AM.pure_ok r15
-  subst hjv
-  subst hs'
-  have hext : Ext s.store s'.store := by
-    rw [← h5st, ← h6st]
-    refine hx7.trans ?_
-    rw [← h8st, ← h9st]
-    exact Ext.refl _
-  have hpins : s'.pins = s.pins := by rw [h9p, h8p, hp7, h6p, h5p]
-  exact ⟨⟨hck9, hext, hpins⟩, ⟨w, F7, hw9,
-    installValue_pure hlbbP hfvP hF7 hlpdP hcrP⟩⟩
-
 /-! ## The check half -/
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup —
@@ -411,14 +281,18 @@ both clauses are free at the one call site: phase A's `installConstantVal` and
 to the annotated term.  `Arena.checkPending_bridge` is where they are
 discharged.
 
-`sorry`: `KnotSpec.infer`, `EnsureSortSpec.ensureSort`, the level
-comparison (`lvlEq?` through `CacheOK.lvlEq`), `installValue_bridge` for a
-theorem's own value, and `KnotSpec.defeq`.  Task #97-P3-Checker's sorry
-list, item 17. -/
+**PROVED** (task #97-P3-Checker round 6), on
+`Bridge/Checker/DeclVal.lean`'s `checkThmVal_bridge` machinery: the same
+`KnotSpec.infer` / `EnsureSortSpec` / `pinZeroLevel_spec` / `lvlEq?_spec` /
+`installValue_bridge` / `KnotSpec.defeq` chain, with the theorem's install
+behind the kind test rather than in front of it.  The two branches are joined
+into ONE postcondition (`step3` in the proof) before the value's inference
+runs, which is round 3's rule — never carry a branch-dependent invariant along
+the rest of a do-block.  Task #97-P3-Checker's sorry list, item 17, closed. -/
 theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {g : Arena.ValueGroup} {gP : ConLeche.ValueGroup}
     {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s)
+    (henv : EnvWF env) (hck : CheckOK μ env fe s)
     (hkind : g.kind = .defn ∧ gP.kind = .defn ∨ g.kind = .thm ∧ gP.kind = .thm ∨
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cvA = some gP.cvA)
@@ -427,7 +301,136 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     (hrun : checkValueGroup μ fe g s = .ok ((), s')) :
     CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
-  sorry
+  have hknot := hk.knot env fe henv
+  have hsortS := hk.sort env fe henv
+  have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
+      {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
+    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
+  have hnever2 : ∀ {α β : Type} {z : AM α} {f : α → Arena.CheckError},
+      AM.Never (z >>= fun a => (Arena.fail (f a) : AM β)) :=
+    fun {_ _ _ _} => AM.Never.bind fun _ => AM.Never.fail _
+  obtain ⟨-, -, hty0⟩ := denoteCV_inv hcv
+  have hkeq : (g.kind == Arena.ValueKind.thm) = true ↔
+      gP.kind = ConLeche.ValueKind.thm := by
+    rcases hkind with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [h1, h2] <;> simp
+  simp only [Arena.checkValueGroup, Arena.zeroLevel] at hrun
+  -- 1. the header's inference
+  obtain ⟨stype, s1, ga, ra⟩ := AM.bind_ok hrun
+  obtain ⟨hcka, hxa, hpa, hsima⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s.store t.store ∧
+      t.pins = s.pins ∧
+      Core.SimE (ConLeche.inferTypeCore μ env) 0 gP.cvA.type t.store r)
+    rfl ga (hknot.infer s 0 g.cvA.type gP.cvA.type hck hty0 hwsty)
+  obtain ⟨sty, hsty, hwssty, Fa, hFa⟩ := hsima
+  -- 2. the sort
+  obtain ⟨u, s2, gb, rb⟩ := AM.bind_ok ra
+  obtain ⟨hckb, hxb, hpb, hsimb⟩ := AM.of_run (P := fun t => t = s1)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s1.store t.store ∧
+      t.pins = s1.pins ∧ SimL (ConLeche.ensureSortCore μ env) 0 sty t.store r)
+    rfl gb (hsortS s1 0 stype sty hcka hsty hwssty)
+  obtain ⟨uu, huu, Fb, hFb⟩ := hsimb
+  have hext2 : Ext s.store s2.store := hxa.trans hxb
+  have hpin2 : s2.pins = s.pins := by rw [hpb, hpa]
+  have hcv2 : Frontend.denoteCV s2.store g.cvA = some gP.cvA :=
+    denoteCV_ext hcv hext2
+  have hjv2 : denoteE s2.store g.jv = some gP.jv := denote_ext hjv hext2
+  -- **The kind test copies the tail into both arms**, so the tail is a local
+  -- lemma rather than a continuation: the value's inference and the
+  -- conversion, at whatever value the arm produced and whatever it knows
+  -- about it.  (Round 3's rule, at a branch instead of at a loop.)
+  have tail : ∀ (sA : AState) (jvA : EIdx) (y : Expr) (Fc : Nat),
+      CheckOK μ env fe sA → Ext s2.store sA.store → sA.pins = s2.pins →
+      denoteE sA.store jvA = some y → Expr.WScoped 0 y →
+      (gP.kind = ConLeche.ValueKind.thm →
+        ConLeche.installValue (ConLeche.fueledOps μ Fc) env gP.cvA gP.jv
+          = .ok y) →
+      (gP.kind ≠ ConLeche.ValueKind.thm → y = gP.jv) →
+      (gP.kind = ConLeche.ValueKind.thm →
+        ConLeche.Level.isEquiv uu .zero = some true) →
+      (do
+        let vtype ← Arena.inferTypeCore μ fe Arena.checkFuel 0 jvA
+        unless ← Arena.isDefEqCore μ fe Arena.checkFuel 0 vtype g.cvA.type do
+          Arena.fail (.invalid
+            s!"type mismatch in {g.kind.word} {← Arena.readName g.cvA.name}"))
+        sA = .ok ((), s') →
+      CoreStep μ env fe s s' ∧ ∃ F,
+        ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
+    intro sA jvA y Fc hckA hxA hpA hyA hwsy hIV3 hEQ3 hLV3 rc
+    obtain ⟨vtype, s7, gh, rh⟩ := AM.bind_ok rc
+    obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = sA)
+      (Q := fun r t => CheckOK μ env fe t ∧ Ext sA.store t.store ∧
+        t.pins = sA.pins ∧
+        Core.SimE (ConLeche.inferTypeCore μ env) 0 y t.store r)
+      rfl gh (hknot.infer sA 0 jvA y hckA hyA hwsy)
+    obtain ⟨vt, hvt7, hwsvt, F2, hF2⟩ := hsim7
+    have hcv7 : Frontend.denoteCV s7.store g.cvA = some gP.cvA :=
+      denoteCV_ext hcv2 (hxA.trans hx7)
+    obtain ⟨-, -, hty7⟩ := denoteCV_inv hcv7
+    obtain ⟨b8, s8, gi, ri⟩ := AM.bind_ok rh
+    obtain ⟨hck8, hx8, hp8, hsim8⟩ := AM.of_run (P := fun t => t = s7)
+      (Q := fun r t => CheckOK μ env fe t ∧ Ext s7.store t.store ∧
+        t.pins = s7.pins ∧
+        Core.SimV (ConLeche.isDefEqCore μ env) 0 vt gP.cvA.type r)
+      rfl gi (hknot.defeq s7 0 vtype g.cvA.type vt gP.cvA.type hck7 hvt7 hty7
+        hwsvt hwsty)
+    obtain ⟨F3, hF3⟩ := hsim8
+    obtain ⟨hb, rj⟩ := AM.dunless_ok hnever2 ri
+    obtain ⟨-, rfl⟩ := AM.pure_ok rj
+    subst hb
+    refine ⟨⟨hck8, hext2.trans (hxA.trans (hx7.trans hx8)),
+      by rw [hp8, hp7, hpA, hpin2]⟩,
+      max (max Fa Fb) (max Fc (max F2 F3)), ?_⟩
+    exact ConLeche.checkValueGroup_of_facts
+      (ConLeche.inferTypeCore_mono (by omega) hFa)
+      (ConLeche.ensureSortCore_mono (by omega) hFb)
+      hLV3
+      (fun hq => ConLeche.installValue_mono (by omega) (hIV3 hq))
+      hEQ3
+      (ConLeche.inferTypeCore_mono (by omega) hF2)
+      (ConLeche.isDefEqCore_mono (by omega) hF3)
+  -- 3. the value: a theorem installs its own, the other two kinds take the
+  -- record's
+  rcases AM.ite_ok rb with ⟨hthm, gd⟩ | ⟨hnthm, gd⟩
+  · -- the theorem branch: the is-a-proposition test, then the install
+    have hthmP : gP.kind = ConLeche.ValueKind.thm := hkeq.mp hthm
+    obtain ⟨z, s4, ge, rd⟩ := AM.bind_ok gd
+    obtain ⟨hs4, hz⟩ := AM.of_run (P := fun t => t = s2)
+      (Q := fun r t => t = s2 ∧ denoteL s2.store.ls r = some .zero)
+      rfl ge (pinZeroLevel_spec s2 hckb.pins)
+    rw [hs4] at rd
+    obtain ⟨o, s5, gf, re⟩ := AM.bind_ok rd
+    obtain ⟨hckd, hstd, hpd, lu, lv, hlu, hlv, hod⟩ := AM.of_run
+      (P := fun t => t = s2)
+      (Q := fun r t => CheckOK μ env fe t ∧ t.store = s2.store ∧
+        t.pins = s2.pins ∧ ∃ lu lv, denoteL s2.store.ls u = some lu ∧
+          denoteL s2.store.ls z = some lv ∧ r = ConLeche.Level.isEquiv lu lv)
+      rfl gf (Core.lvlEq?_spec s2 u z hckb)
+    rw [Option.some.inj (hlu.symm.trans huu),
+      Option.some.inj (hlv.symm.trans hz)] at hod
+    obtain ⟨b6, s6, gg, rf⟩ := AM.bind_ok re
+    obtain ⟨bb, rfl⟩ : ∃ bb, o = some bb := by
+      cases ho : o with
+      | none => rw [ho] at gg; exact absurd gg (AM.Never.fail _ _ _ _)
+      | some bb => exact ⟨bb, rfl⟩
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok gg
+    obtain ⟨hprop, rg⟩ := AM.dunless_ok hnever rf
+    replace rg := AM.pure_bind_ok rg
+    have heqv : ConLeche.Level.isEquiv uu .zero = some true := by
+      rw [← hod, hprop]
+    have hext5 : Ext s2.store s6.store := by rw [hstd]; exact Ext.refl _
+    obtain ⟨jvA, s7, gIV, rT⟩ := AM.bind_ok rg
+    obtain ⟨hstep6, y, Fc, hy6, hIV⟩ := installValue_bridge hμ hk henv hckd
+      (denoteCV_ext hcv2 hext5) (denote_ext hjv2 hext5) gIV
+    exact tail s7 jvA y Fc hstep6.ok (hext5.trans hstep6.ext)
+      (by rw [hstep6.pins, hpd]) hy6
+      (ConLeche.Expr.WScoped.of_not_hasFvar (installValue_valueWF hIV).1)
+      (fun _ => hIV) (fun hne => absurd hthmP hne) (fun _ => heqv) rT
+  · -- the other two kinds: the record's own value, and no test
+    have hnthmP : gP.kind ≠ ConLeche.ValueKind.thm := fun hq =>
+      hnthm (hkeq.mpr hq)
+    exact tail s2 g.jv gP.jv 0 hckb (Ext.refl _) rfl hjv2 hwsjv
+      (fun hq => absurd hq hnthmP) (fun _ => rfl) (fun hq => absurd hq hnthmP)
+      (AM.pure_bind_ok gd)
 
 /-! ## The prefix view
 
@@ -456,11 +459,20 @@ theorem IFEnv.restrictTo_find?_le {fe : IFEnv} {k : Nat}
     obtain ⟨c0, ci0⟩ := p
     rw [hg] at h
     dsimp only at h ⊢
+    -- **Re-ascribe before rewriting.**  `dsimp only` reduces the restricted
+    -- bound in the PROPOSITION (`c0 < k`) but leaves the `Decidable` instance
+    -- at `(fe.restrictTo k).visibleBelow`, so neither `rw [if_pos hc]` nor
+    -- `simp only [if_pos hc]` matches.  The two are defeq, so a `have` with
+    -- the type written out re-elaborates it at the canonical instance and
+    -- everything below is ordinary (task #97-P3-Checker round 6; the
+    -- fragility surfaced when `Core/Walks/Cached.lean` entered this module's
+    -- import closure).
+    have hh : (if c0 < k then some ci0 else none) = some ci := h
     by_cases hc : c0 < k
-    · rw [if_pos hc] at h
+    · rw [if_pos hc] at hh
       rw [if_pos (Nat.lt_of_lt_of_le hc hk)]
-      exact h
-    · rw [if_neg hc] at h; simp at h
+      exact hh
+    · rw [if_neg hc] at hh; simp at hh
 
 /-- con-leche: ConLeche/Verify/EnvBound.lean idxBelow_eq_some — **soundness of
 the bound**: what the restricted index finds, the suffix finds too.  The
@@ -634,10 +646,10 @@ theorem denoteCIList_nodup {st : EStore} (hwf : StoreWF st) :
     obtain ⟨b, hbm, hbn⟩ := List.mem_map.mp hmem
     obtain ⟨z, hzm, hzd⟩ := denoteCIList_mem as xs has b hbm
     have h1 : denoteN st.ns a.name = some x.name :=
-      denoteCI_name_of (fun t ht => hproj t (by simp [ht])) ha
+      denoteCI_name_of (fun t ht => (hproj t (by simp [ht])).toNamed) ha
     have h2 : denoteN st.ns b.name = some z.name :=
       denoteCI_name_of
-        (fun t ht => hproj t (List.mem_cons_of_mem _ (ht ▸ hbm))) hzd
+        (fun t ht => (hproj t (List.mem_cons_of_mem _ (ht ▸ hbm))).toNamed) hzd
     rw [hbn] at h2
     have hxz : x.name = z.name := Option.some.inj (h1.symm.trans h2)
     exact hxa (hxz ▸ List.mem_map_of_mem hzm)

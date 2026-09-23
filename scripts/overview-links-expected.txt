@@ -732,7 +732,7 @@
     25  weak.backward.isDefEq.respectTransparency = false
     26  weak.backward.do.legacy = true
 
-== scripts/gates.sh#L60-L82
+== scripts/gates.sh#L60-L88
     60  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
     61  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
     62  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
@@ -756,4 +756,10 @@
     80  # green gate run said nothing whatsoever about a Theorem-2 lane.  It is its
     81  # own step so the OK/FAIL line names it.
     82  run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonRefine2
+    83  # **And `ConRonBridge` is not a default target either** — same hole, one tier
+    84  # over, found by task #97-P3-Ind round 5 when a green gate run was followed by
+    85  # a broken `lake build ConRonBridge`.  Every P3 brief has had to ask for the
+    86  # target by hand for exactly this reason; now the gate does it, so a green run
+    87  # means Theorem 1's spec layer elaborates too.
+    88  run lake-bridge   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonBridge
 

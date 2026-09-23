@@ -111,6 +111,7 @@ import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.Subst
 
 namespace ConRon.Bridge.Inductives
 
@@ -409,6 +410,197 @@ def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
 abbrev RLLL (us : List (List Level)) : EStore → List (List LIdx) → Prop :=
   fun st r => denoteLLists st r = some us
 
+/-- con-leche: none — a denoting constructor list has con-leche's length. -/
+theorem denoteCtors_length {st : EStore} :
+    ∀ (cs : List (IConstantVal × Nat)) (xs : List (ConstantVal × Nat)),
+      denoteCtors st cs = some xs → cs.length = xs.length := by
+  intro cs
+  induction cs with
+  | nil => intro xs h; simp only [denoteCtors] at h; cases h; rfl
+  | cons a as ih =>
+    intro xs h
+    obtain ⟨cv, n⟩ := a
+    simp only [denoteCtors] at h
+    cases hc : Frontend.denoteCV st cv with
+    | none => rw [hc] at h; simp at h
+    | some c =>
+      cases has : denoteCtors st as with
+      | none => rw [hc, has] at h; simp at h
+      | some ys =>
+        rw [hc, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        simp [ih ys has]
+
+/-- con-leche: none — a three-tuple constructor list's denotation keeps its
+length; `nativeCounts?` compares `cs.length` against the recursor's claimed
+prefix. -/
+theorem denoteCtors3_length {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat × Nat)}
+      {csP : List (ConstantVal × Nat × Nat)},
+      denoteCtors3 st cs = some csP → cs.length = csP.length := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors3, Option.some.injEq] at h; simp [← h]
+  | cons a as ih =>
+    intro csP h
+    obtain ⟨cv, x, y⟩ := a
+    simp only [denoteCtors3] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some c =>
+      cases has : denoteCtors3 st as with
+      | none => rw [hcv, has] at h; simp at h
+      | some rest =>
+        rw [hcv, has] at h
+        obtain rfl := Option.some.inj h
+        simp only [List.length_cons, ih has]
+
+/-- con-leche: none — a denoting rule list has con-leche's length. -/
+theorem denoteRules_length {st : EStore} :
+    ∀ {rs : List IRecRule} {rsP : List RecRule},
+      Frontend.denoteRules st rs = some rsP → rs.length = rsP.length := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP h
+    simp only [Frontend.denoteRules, Option.some.injEq] at h; simp [← h]
+  | cons a as ih =>
+    intro rsP h
+    simp only [Frontend.denoteRules] at h
+    cases hr : Frontend.denoteRule st a with
+    | none => rw [hr] at h; simp at h
+    | some x =>
+      cases has : Frontend.denoteRules st as with
+      | none => rw [hr, has] at h; simp at h
+      | some xs =>
+        rw [hr, has] at h
+        obtain rfl := Option.some.inj h
+        simp only [List.length_cons, ih has]
+
+/-- con-leche: none — a denoting rule list reads AT AN INDEX with the
+`Option` carried, both ways: `nativeRecPinOk` pairs the recursor's rules with
+the block's constructors position by position and answers `false` as soon as
+either runs out. -/
+theorem denoteRules_getElem? {st : EStore} :
+    ∀ {rs : List IRecRule} {rsP : List RecRule},
+      Frontend.denoteRules st rs = some rsP → ∀ (j : Nat),
+        (∀ rl, rs[j]? = some rl →
+          ∃ x, rsP[j]? = some x ∧ Frontend.denoteRule st rl = some x) ∧
+        (rs[j]? = none → rsP[j]? = none) := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP h j
+    simp only [Frontend.denoteRules, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro rl hrl; simp at hrl, by intro _; simp⟩
+  | cons a as ih =>
+    intro rsP h j
+    simp only [Frontend.denoteRules] at h
+    cases hr : Frontend.denoteRule st a with
+    | none => rw [hr] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteRules st as with
+      | none => rw [hr, has] at h; simp at h
+      | some ys =>
+        rw [hr, has] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro rl hrl
+            simp only [List.getElem?_cons_zero, Option.some.injEq] at hrl
+            subst hrl
+            exact ⟨y, by simp, hr⟩
+          · intro hb; simp at hb
+        | succ j =>
+          obtain ⟨hA, hB⟩ := ih has j
+          refine ⟨?_, ?_⟩
+          · intro rl hrl
+            simp only [List.getElem?_cons_succ] at hrl
+            obtain ⟨x, hx, hd⟩ := hA rl hrl
+            exact ⟨x, by simpa using hx, hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
+
+/-- con-leche: none — the same for a three-tuple constructor list. -/
+theorem denoteCtors3_getElem? {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat × Nat)}
+      {csP : List (ConstantVal × Nat × Nat)},
+      denoteCtors3 st cs = some csP → ∀ (j : Nat),
+        (∀ cv a b, cs[j]? = some (cv, a, b) →
+          ∃ c, csP[j]? = some (c, a, b) ∧ Frontend.denoteCV st cv = some c) ∧
+        (cs[j]? = none → csP[j]? = none) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP h j
+    simp only [denoteCtors3, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro cv a b hb; simp at hb, by intro _; simp⟩
+  | cons e es ih =>
+    intro csP h j
+    obtain ⟨cv, x, y⟩ := e
+    simp only [denoteCtors3] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some c =>
+      cases has : denoteCtors3 st es with
+      | none => rw [hcv, has] at h; simp at h
+      | some rest =>
+        rw [hcv, has] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro cv' a b hb
+            simp only [List.getElem?_cons_zero, Option.some.injEq,
+              Prod.mk.injEq] at hb
+            obtain ⟨rfl, rfl, rfl⟩ := hb
+            exact ⟨c, by simp, hcv⟩
+          · intro hb; simp at hb
+        | succ j =>
+          obtain ⟨hA, hB⟩ := ih has j
+          refine ⟨?_, ?_⟩
+          · intro cv' a b hb
+            simp only [List.getElem?_cons_succ] at hb
+            obtain ⟨c', hc', hd⟩ := hA cv' a b hb
+            exact ⟨c', by simpa using hc', hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
+
+/-- con-leche: none — a denoting rule's CONSTRUCTOR handle denotes the pure
+rule's constructor name, and its field count travels verbatim. -/
+theorem denoteRule_ctor {st : EStore} {rl : IRecRule} {x : RecRule}
+    (h : Frontend.denoteRule st rl = some x) :
+    denoteN st.ns rl.ctor = some x.ctor ∧ rl.nfields = x.nfields := by
+  simp only [Frontend.denoteRule] at h
+  cases hc : denoteN st.ns rl.ctor with
+  | none => rw [hc] at h; simp at h
+  | some c =>
+    cases hf : Frontend.denoteFire st rl.fire with
+    | none => rw [hc, hf] at h; simp at h
+    | some f =>
+      cases he : denoteE st rl.rhs with
+      | none => rw [hc, hf, he] at h; simp at h
+      | some e =>
+        rw [hc, hf, he] at h
+        obtain rfl := Option.some.inj h
+        exact ⟨rfl, rfl⟩
+
+/-- con-leche: none — `denoteCI` preserves the constant's KIND at the
+inductive tag too, for the recogniser's `| _ => false` arm (see
+`denoteCI_not_ctor`). -/
+theorem denoteCI_not_ind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some c)
+    (hne : ∀ v caps, ci ≠ .indInfo v caps) :
+    ∀ v caps, c ≠ .indInfo v caps := by
+  cases ci <;>
+    simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
+
 /-! ## The field kinds
 
 `RecFieldKind` is TWINNED, not imported (task #97d-2's deviation 7), so the
@@ -546,6 +738,17 @@ theorem pureOk {α : Type} {a r : α} {s s' : AState}
   injection h' with h''
   injection h'' with h1 h2
   exact ⟨h1.symm, h2.symm⟩
+
+/-- con-leche: none — **the `do`-elaborator's `if`, lifted out of the bind**.
+`Arena/Inductives/StructParts.lean`'s `structShape` writes `let want ← if
+large then internLNode (.param elim) else internLNode .zero`, and the
+elaborator answers by DUPLICATING everything after it into both arms — the
+minor premise and the major domain included.  This equation puts the `if` back
+where the source wrote it, so the continuation is inverted once. -/
+theorem am_if_bind {α β : Type} {c : Prop} [Decidable c] (x y : AM α)
+    (k : α → AM β) :
+    (if c then (x >>= k) else (y >>= k)) = ((if c then x else y) >>= k) := by
+  split <;> rfl
 
 /-! ## The primitives, in RUN form
 
@@ -687,6 +890,20 @@ theorem internProjE_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name}
   simp only [denoteEView, denoteN_ext hn hstep.ext, denote_ext he hstep.ext,
     opt2]
 
+/-- con-leche: none — `internE` at an `.app`: `structShape`'s two assembled
+right-hand sides (`bvar 2 (bvar 0)` and the minor premise's body). -/
+theorem internAppE_run {s s' : AState} {f a : EIdx} {fP aP : Expr} {h : EIdx}
+    (hok : StateOK s) (hf : denoteE s.store f = some fP)
+    (ha : denoteE s.store a = some aP)
+    (hrun : internE (.app f a) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.app fP aP) := by
+  obtain ⟨hstep, hd⟩ :=
+    internE_run hok (viewOK_app (by rw [hf]; rfl) (by rw [ha]; rfl)) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hf hstep.ext, denote_ext ha hstep.ext,
+    opt2]
+
 /-- con-leche: none — `internE` at a binder whose datum is a VALUE
 (`replacePisPw`, `pisToLamsPw` and the recursor generators build their binders
 this way, not through the datum-handle face). -/
@@ -798,6 +1015,23 @@ theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {n p : NIdx}
     rw [hb] at hne
     exact absurd hne (by simp)
 
+/-- con-leche: none — `beq_handle_eq` with the pure side FLIPPED, which is
+the shape `Arena/Inductives/Modeled.lean`'s `renameBy` needs: its lookup
+compares `tbl.1 == n` where con-leche's rename compares `n` against the name
+the entry stands for. -/
+theorem beq_handle_eq' {st : EStore} (hwf : StoreWF st) {n p : NIdx}
+    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
+    (hp : denoteN st.ns p = some x) : (n == p) = (x == nm) := by
+  rw [beq_handle_eq hwf hn hp]
+  cases h : (nm == x) with
+  | true => obtain rfl := eq_of_beq h; simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro hc
+    subst hc
+    simp at h
+
 /-- con-leche: none — **an EXPRESSION-handle comparison is a structural
 comparison**, at both signs.  The `false` half is `denoteE_inj`
 (`Arena/WFProofs.lean`) — DESIGN §8.3's soundness obligation, which the two
@@ -817,6 +1051,30 @@ theorem beq_ehandle_eq {st : EStore} (hwf : StoreWF st) {a b : EIdx}
     intro heq
     subst heq
     have hne : (a == b) = true := beq_iff_eq.mpr (denoteE_inj hwf ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — **a LEVEL-handle comparison is a structural comparison**,
+at both signs: `beq_ehandle_eq` one store down.  The `false` half is
+`denoteL_inj` (`Arena/WFProofs.lean`).  `structShape`'s motive branch is the
+first consumer — it compares the motive codomain's level handle against the
+`Sort elim` / `Prop` it interned, where con-leche compares `Level`s. -/
+theorem beq_lhandle_eq {st : EStore} (hwf : StoreWF st) {a b : LIdx}
+    {x y : Level} (ha : denoteL st.ls a = some x)
+    (hb : denoteL st.ls b = some y) : (a == b) = (x == y) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  cases h1 : a == b with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (a == b) = true := beq_iff_eq.mpr (denoteL_inj hrk.lsWF ha hb)
     rw [h1] at hne
     exact absurd hne (by simp)
 
@@ -1045,6 +1303,49 @@ theorem denoteBP_someB {st : EStore} {k : Nat} {cP : Expr}
       · rw [denoteBinders_eq_denoteBL]; exact hb
       · first | exact he | rfl
 
+/-! ### `stripPis`, in run form
+
+`Bridge/ExprOps/Spine.lean`'s `stripPis_spec` is CLOSED; this tier's
+consumers are the three telescope readers (`structUsedLater`,
+`structUsedLaterGo` and, through them, `structProjGuards`) and — since round
+5 — `structShape_spec`, which is why these live here rather than in
+`StructParts.lean`.  Two inversions of `denoteBP` are the shape the readers
+need; `denoteBP_someB` above is the third, for the twins that read the peeled
+BINDERS. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the run form
+at this tier's frame; `stripPis` is read-only, so the state does not move at
+all. -/
+theorem stripPis_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
+    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    (hd : denoteE s₀.store c = some cP)
+    (hrun : Arena.stripPis k c s₀ = .ok (r, s')) :
+    s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripPis k cP) := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.stripPis_spec k s₀ c hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 cP hd⟩
+
+/-- con-leche: none — a `none` answer is `none` on the pure side too: the
+two-sidedness `stripPis`' dispatch needs. -/
+theorem stripPis_none {st : EStore} {k : Nat} {cP : Expr}
+    (h : ExprOps.denoteBP st none = some (Expr.stripPis k cP)) :
+    Expr.stripPis k cP = none := (Option.some.inj h).symm
+
+/-- con-leche: none — and a `some` answer names the pure residual. -/
+theorem stripPis_some {st : EStore} {k : Nat} {cP : Expr}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
+    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean getAppFn — the run form of
 `Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
 theorem getAppFn_run {fuel : Nat} {s₀ s' : AState} {h r : EIdx} {hP : Expr}
@@ -1140,6 +1441,37 @@ theorem internNNode_run {s s' : AState} {v : NNodeView} {h : NIdx}
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
   exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8, h10⟩
+
+/-- con-leche: none — `internNNode` at a `.str`: every name this tier builds
+(`N._model`, `T.proj`, `T._model.proj_i`) goes through it. -/
+theorem internStrN_run {s s' : AState} {p : NIdx} {pm : ConLeche.Name}
+    {str : String} {h : NIdx} (hok : StateOK s)
+    (hp : denoteN s.store.ns p = some pm)
+    (hrun : internNNode (.str p str) s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = some (pm.str str) := by
+  obtain ⟨hstep, hd⟩ := internNNode_run hok
+    (by intro c hc
+        simp only [NNodeView.children, List.mem_singleton] at hc
+        subst hc
+        exact nview_isSome_of_denote hp) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteNView, denoteN_ext hp hstep.ext, Option.map_some]
+
+/-- con-leche: none — and at a `.num`: `projFnName`'s last component. -/
+theorem internNumN_run {s s' : AState} {p : NIdx} {pm : ConLeche.Name}
+    {i : Nat} {h : NIdx} (hok : StateOK s)
+    (hp : denoteN s.store.ns p = some pm)
+    (hrun : internNNode (.num p i) s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = some (pm.num i) := by
+  obtain ⟨hstep, hd⟩ := internNNode_run hok
+    (by intro c hc
+        simp only [NNodeView.children, List.mem_singleton] at hc
+        subst hc
+        exact nview_isSome_of_denote hp) hrun
+  refine ⟨hstep, ?_⟩
+  rw [hd]
+  simp only [denoteNView, denoteN_ext hp hstep.ext, Option.map_some]
 
 /-- con-leche: none — a handle list's denotation splits over an append, which
 is what the two-spine generators (`structCtorSpine`, `structFamI`) need before
@@ -1254,6 +1586,56 @@ theorem denoteBinders_getD {st : EStore} :
           have hk' : k < as.length := by simpa using hk
           simpa only [List.getD_cons_succ] using ih has hk'
 
+/-- con-leche: none — **a denoting binder telescope reads at an INDEX with the
+`Option` CARRIED**, both ways.  `structShape` reads `rbs[nP]?`, `rbs[nP+1]?`
+and `rbs[nP+2]?` and dispatches on the `Option`, so the `none` answers have to
+correspond as well as the `some` ones; the `BinderMeta` travels verbatim
+(`denoteBinders` copies it), which is why the two sides share one `m`. -/
+theorem denoteBinders_getElem? {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
+      denoteBinders st bs = some xs → ∀ (k : Nat),
+        (∀ b m, bs[k]? = some (b, m) →
+          ∃ x, xs[k]? = some (x, m) ∧ denoteE st b = some x) ∧
+        (bs[k]? = none → xs[k]? = none) := by
+  intro bs
+  induction bs with
+  | nil =>
+    intro xs h k
+    simp only [denoteBinders, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro b m hb; simp at hb, by intro _; simp⟩
+  | cons a as ih =>
+    intro xs h k
+    obtain ⟨t, m⟩ := a
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some y =>
+      cases has : denoteBinders st as with
+      | none => rw [ht, has] at h; simp at h
+      | some ys =>
+        rw [ht, has] at h
+        obtain rfl := Option.some.inj h
+        cases k with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro b m' hb
+            simp only [List.getElem?_cons_zero, Option.some.injEq,
+              Prod.mk.injEq] at hb
+            obtain ⟨rfl, rfl⟩ := hb
+            exact ⟨y, by simp, ht⟩
+          · intro hb; simp at hb
+        | succ k =>
+          obtain ⟨hA, hB⟩ := ih has k
+          refine ⟨?_, ?_⟩
+          · intro b m' hb
+            simp only [List.getElem?_cons_succ] at hb
+            obtain ⟨x, hx, hd⟩ := hA b m' hb
+            exact ⟨x, by simpa using hx, hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
+
 /-- con-leche: none — a binder telescope's denotation keeps its length. -/
 theorem denoteBinders_length {st : EStore} :
     ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
@@ -1274,6 +1656,30 @@ theorem denoteBinders_length {st : EStore} :
         rw [ht, has] at h
         obtain rfl := Option.some.inj h
         simp only [List.length_cons, ih has]
+
+/-- con-leche: none — **`readLevel` in run form**: the readback IS `denoteL`
+and the state does not move.  `Bridge/Frontend/ProjRec.lean` has the same
+lemma; that module is ABOVE this tier, so it is restated here (the same
+reason `beq_handle_eq` is). -/
+theorem readLevel_run {s s' : AState} {h : LIdx} {u : Level}
+    (hrun : readLevel h s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls h = some u :=
+  AM.of_run (P := fun t => t = s) rfl hrun (readLevel_spec s h)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 liftLooseBVarsFast —
+**the lift in run form at this tier's frame**.  Round 4 §R4.4 recorded that
+`Bridge/ExprOps/Subst.lean`'s `LiftSpec` did not state `BMExt` and that this
+blocked the whole of group 3; task #97-P3-ExprOps round 4 stated it, and this
+is the lemma that cashes it.  `Bridge/Inductives/Rel.lean` gains the
+`ExprOps.Subst` import for it — nothing else in the Bridge imported that
+module. -/
+theorem liftFast_pstep {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
+    {eP : Expr} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.liftLooseBVarsFast fuel amount c e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ denoteE s'.store r = some (eP.liftLooseBVars amount c) := by
+  obtain ⟨h1, h2, h3, h4, h5, _, _, h8⟩ :=
+    ExprOps.liftLooseBVarsFast_run hok (by rw [hd]; rfl) hrun
+  exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h8 eP hd⟩
 
 /-! ## One reader on loan from the `ExprOps` tier
 
@@ -1328,6 +1734,17 @@ theorem piSortTeleLen?_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
        | (obtain ⟨x, y, _, _, rfl⟩ := opt2_eq_some_iff.mp hde; rfl)
        | (obtain ⟨x, _, rfl⟩ := Option.map_eq_some_iff.mp hde; rfl)
        | (obtain rfl := Option.some.inj hde; rfl))
+
+/-- con-leche: none — **`denoteCI` preserves the constant's KIND**: a handle
+record that is not a constructor denotes a constant that is not one.  The
+shape a twin that DISPATCHES on the stored constant's kind needs at its
+fallthrough arm (`ctorResidualOk`'s `| _ => false`). -/
+theorem denoteCI_not_ctor {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some c)
+    (hne : ∀ v n1 n2, ci ≠ .ctorInfo v n1 n2) :
+    ∀ v n1 n2, c ≠ .ctorInfo v n1 n2 := by
+  cases ci <;>
+    simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
 
 /-! ## Two transports the spec layer does not have
 

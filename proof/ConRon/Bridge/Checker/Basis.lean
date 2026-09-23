@@ -131,7 +131,7 @@ theorem installBasisDecl_bridge {μ : CheckMode} {_F : Nat} {env : Env}
     cases hf : fe.find? ci.name with
     | none => rfl
     | some d => rw [hf] at hdup; exact absurd hdup (by simp)
-  have hnm := denoteCI_name_of hproj hci
+  have hnm := denoteCI_name_of (fun t ht => (hproj t ht).toNamed) hci
   have hfindP : env.find? c.name = none :=
     IFEnvOK.miss hok.check.state hok.check.ienv hnm hfind
   refine ⟨hok.check.state, Ext.refl _, rfl, hok.coh.push ci, Pushed.push _ _,
