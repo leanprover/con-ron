@@ -32,28 +32,28 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
         if_false, Result.ok.injEq] at h
       rw [← h]; rfl
 
- theorem verified_checks_ls (mode : kernel.env.CheckMode) :
+@[lockstep] theorem verified_checks_ls (mode : kernel.env.CheckMode) :
     LSP (kernel.env.verified_checks mode)
       (fun b => b = (ConRon.Refine.absMode mode).verifiedChecks) :=
   by
     intro b h
     cases mode <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
- theorem beta_gate_ls (mode : kernel.env.CheckMode) :
+@[lockstep] theorem beta_gate_ls (mode : kernel.env.CheckMode) :
     LSP (kernel.env.beta_gate mode)
       (fun b => b = (ConRon.Refine.absMode mode).betaGate) :=
   by
     intro b h
     cases mode <;> (simp only [kernel.env.beta_gate, Result.ok.injEq] at h; rw [← h]; rfl)
 
- theorem is_never_ls (pw : kernel.prop_when.PropWhen) :
+@[lockstep] theorem is_never_ls (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.is_never pw)
       (fun b => b = (ConRon.Refine.absPropWhen pw).isNever) :=
   fun _ h => ConRon.Refine.PropWhen.is_never_refines h
 
 /-! ## Handle comparisons -/
 
- theorem eidx_eq2_ls (a b : arena.handle.EIdx) :
+@[lockstep] theorem eidx_eq2_ls (a b : arena.handle.EIdx) :
     LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun r => r = (absEIdx a == absEIdx b)) := by
   intro r h
@@ -66,7 +66,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
       have := absEIdx_inj hc; cases this; rfl)
     simp [hw, this]
 
- theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
+@[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun r => r = decide (absNIdx a = absNIdx b)) := by
   intro r h
@@ -79,11 +79,11 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
       have := absNIdx_inj hc; cases this; rfl)
     simp [hw, this]
 
- theorem dup2_nidx (h : arena.handle.NIdx) :
+@[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun e he => dupId_nidx _ _ he
 
- theorem fail_dangling_ls_spec (T : Type) :
+@[lockstep] theorem fail_dangling_ls_spec (T : Type) :
     LSP (arena.monad.fail_dangling_ls T) (fun r => ∃ v, r = .Err (.Internal v)) := by
   intro r h
   rw [arena.monad.fail_dangling_ls] at h
@@ -124,14 +124,14 @@ theorem absU_eq_val (x : Std.U64) : absU x = x.val := rfl
 
 /-! ## Store reads -/
 
- theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map absConstT a) (arena.monad.view_const pers st h) st lst
       (Arena.viewConst (absEIdx h)) := by
   intro o hrun
   exact ⟨_, lst, view_const_run₀ hrel hrun, rfl, hrel, hinv⟩
 
- theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+@[lockstep] theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
     LSV pers (fun a b => b = Option.map absSz a) (arena.monad.view_ls_len pers st h) st lst
       (Arena.viewLsLen (absLsIdx h)) := by
@@ -139,16 +139,5 @@ theorem absU_eq_val (x : Std.U64) : absU x = x.val := rfl
   exact ⟨_, lst, view_ls_len_run₀ hrel hrun, rfl, hrel, hinv⟩
 
 /-! ## The projection table -/
-
-/-- `arena::env::ifenv_find_proj` against `IFEnv.findProj?`: a store-level
-step (it interns the table's reserved name). -/
- theorem ifenv_find_proj_ls {pers st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (sn : arena.handle.NIdx) (i : Std.U64) :
-    LSS pers (fun a b => b = Option.map absIProjEntry a)
-      (arena.env.ifenv_find_proj pers vis st.store fe sn i) st lst
-      (lfe.findProj? (absNIdx sn) (absU i)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
 
 end ConRon.Refine2.Lockstep.PD

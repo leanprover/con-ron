@@ -45,7 +45,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
   fun _ h => ConRon.Refine.PropWhen.dup_eq h
 
- theorem prop_when_is_never_ls (pw : kernel.prop_when.PropWhen) :
+@[lockstep] theorem prop_when_is_never_ls (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.is_never pw)
       (fun b => b = (ConRon.Refine.absPropWhen pw).isNever) :=
   fun _ h => ConRon.Refine.PropWhen.is_never_refines h
@@ -75,7 +75,7 @@ canonical-form (`PropWhenWF`) data. -/
   | inl h => rw [h] at this; omega
   | inr h => rw [h] at this; omega
 
- theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
+@[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun o => o = (absNIdx a == absNIdx b)) := by
   intro o h
@@ -88,15 +88,15 @@ canonical-form (`PropWhenWF`) data. -/
     have h2 : absNIdx a ≠ absNIdx b := fun hc => hab (absNIdx_inj hc)
     simp [h1, h2]
 
- theorem dup2_nidx_ls (h : arena.handle.NIdx) :
+@[lockstep] theorem dup2_nidx_ls (h : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _ he => dupId_nidx _ _ he
 
- theorem dup2_lidx_ls (h : arena.handle.LIdx) :
+@[lockstep] theorem dup2_lidx_ls (h : arena.handle.LIdx) :
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _ he => dupId_lidx _ _ he
 
- theorem dup2_lsidx_ls (h : arena.handle.LsIdx) :
+@[lockstep] theorem dup2_lsidx_ls (h : arena.handle.LsIdx) :
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _ he => dupId_lsidx _ _ he
 
@@ -105,14 +105,14 @@ canonical-form (`PropWhenWF`) data. -/
       (fun r => absEIdxList r = absEIdx a :: absEIdxList xs) :=
   fun _ h => ExprOps.cons_eidx_refines h
 
- theorem snoc_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
+@[lockstep] theorem snoc_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
     LSP (arena.expr_ops.snoc_eidx_of xs y)
       (fun r => absEIdxList r = absEIdxList xs ++ [absEIdx y]) :=
   fun _ h => ExprOps.snoc_eidx_of_refines h
 
 /-! ## The pin -/
 
- theorem pin_and_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+@[lockstep] theorem pin_and_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_and st) st lst pinAnd := by
   intro o hrun
@@ -180,22 +180,5 @@ canonical-form (`PropWhenWF`) data. -/
     rw [Option.some_inj.mp hsome]
 
 /-! ## The name builders and the interns — pending the intern slice -/
-
-/-- The projection-table lookup: it interns the table's reserved name. -/
- theorem ifenv_find_proj_ls {pers vis st fe lfe lst} (t : arena.handle.NIdx)
-    (i : Std.U64) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LSS pers (fun a b => b = Option.map absIProjEntry a)
-      (arena.env.ifenv_find_proj pers vis st.store fe t i) st lst
-      (lfe.findProj? (absNIdx t) (absU i)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
-
-@[lockstep] theorem proj_fn_name_ls {pers st lst} (t : arena.handle.NIdx) (i : Std.U64)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSS pers (fun a b => b = absNIdx a) (arena.env.proj_fn_name pers st.store t i) st lst
-      (projFnName (absNIdx t) (absU i)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
 
 end ConRon.Refine2.Lockstep.PA2

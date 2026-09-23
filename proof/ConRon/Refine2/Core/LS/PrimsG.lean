@@ -72,31 +72,31 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
 
 /-! ## Rust-only steps -/
 
- theorem dup2_nidx (n : arena.handle.NIdx) :
+@[lockstep] theorem dup2_nidx (n : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n) (fun m => m = n) :=
   fun _ hm => dupId_nidx _ _ hm
 
- theorem prop_when_dup_spec (pw : kernel.prop_when.PropWhen) :
+@[lockstep] theorem prop_when_dup_spec (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
   fun _ h => ConRon.Refine.PropWhen.dup_eq h
 
- theorem binder_meta_dup_spec (m : kernel.expr.BinderMeta) :
+@[lockstep] theorem binder_meta_dup_spec (m : kernel.expr.BinderMeta) :
     LSP (kernel.expr.binder_meta_dup m) (fun r => r = m) :=
   fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
 
- theorem binder_meta_spec (pw : kernel.prop_when.PropWhen) :
+@[lockstep] theorem binder_meta_spec (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.expr.binder_meta pw) (fun r => r = { pw }) := by
   intro r h
   rw [kernel.expr.binder_meta] at h
   exact (Result.ok_injective h).symm
 
- theorem usize_cast_u64_spec (x : Std.Usize) :
+@[lockstep] theorem usize_cast_u64_spec (x : Std.Usize) :
     LSP (lift (Std.UScalar.cast .U64 x)) (fun r => r.val = x.val) := by
   intro r h
   cases Result.ok_injective h
   exact usize_cast_u64_val' x
 
- theorem eidx_eq2_spec (a b : arena.handle.EIdx) :
+@[lockstep] theorem eidx_eq2_spec (a b : arena.handle.EIdx) :
     LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun c => c = (absEIdx a == absEIdx b)) := by
   intro c h
@@ -109,7 +109,7 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
       have := absEIdx_inj he; rw [this])
     simp [hab, this]
 
- theorem nidx_eq2_spec (a b : arena.handle.NIdx) :
+@[lockstep] theorem nidx_eq2_spec (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
       (fun c => c = decide (absNIdx a = absNIdx b)) := by
   intro c h
@@ -124,7 +124,7 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
 
 /-- `level::zeroness_of` against the twin's pure `Level.zeronessOf`; the
 level is well formed (`read_level_m_ls` says so). -/
- theorem zeroness_of_spec {l : kernel.level.Level} (hl : ConRon.Refine.LevelWF l) :
+@[lockstep] theorem zeroness_of_spec {l : kernel.level.Level} (hl : ConRon.Refine.LevelWF l) :
     LSP (kernel.level.zeroness_of l)
       (fun pw => ConRon.Refine.absPropWhen pw = ConLeche.Level.zeronessOf (ConRon.Refine.absLevel l)) :=
   fun pw h => (ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).1
@@ -134,7 +134,7 @@ level is well formed (`read_level_m_ls` says so). -/
 /-- `arena::monad::read_level_m` against `Arena.readLevelM`, over
 `AStateRel₀`; the level it answers is well formed (a representation fact of
 the Rust store, `read_level_m_wf`). -/
- theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+@[lockstep] theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
     LS pers (fun a b => ConRon.Refine.LevelWF a ∧ b = ConRon.Refine.absLevel a)
       (arena.monad.read_level_m pers st h) lst (Arena.readLevelM (absLIdx h)) := by
@@ -209,22 +209,5 @@ the Rust store, `read_level_m_wf`). -/
         rfl, ⟨hdw l3 rfl, rfl⟩,
         { hrel with caches := { hrel.caches with readLC := h1 } },
         { hinv with caches := { hinv.caches with readLC := h2, readLVals := hvals } }⟩
-
-/-! ## Interns — pending the foundation's intern slice -/
-
-/-- `arena::env::ifenv_find_proj` (a store-level step: it interns the
-reserved projection-table name) against `IFEnv.findProj?`.  The Rust store
-argument `s` is named apart from the state `st` the caller rebuilds from
-(`hs`), so that a second lookup on the store the first one returned
-(`annotate_proj_at`) matches without unifying `?st.store` with a store. -/
-@[lockstep] theorem ifenv_find_proj_ls {pers vis st fe lfe lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (s : arena.store.EStore) (hs : st.store = s)
-    (t : arena.handle.NIdx) (i : Std.U64) :
-    LSS pers (fun a b => b = Option.map absIProjEntry a)
-      (arena.env.ifenv_find_proj pers vis s fe t i) st lst
-      (lfe.findProj? (absNIdx t) (absU i)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
 
 end ConRon.Refine2.Lockstep.PG
