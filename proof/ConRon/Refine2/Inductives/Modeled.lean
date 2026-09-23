@@ -1220,6 +1220,9 @@ open Lockstep in
         (absEIdx dom) (absLsIdx lvls_idx)) :=
   LS.ofSim₀ fun _ h => nested_rule_shape_args_refines hrel hinv hfe hvis h
 
+-- the core's `twin_view_const_name` rule checks its `hg` by `rfl`, which unfolds
+-- the twin's continuation when it does use the levels (it hangs otherwise)
+attribute [local irreducible] nestedRuleShapeArgsSpec in
 /-- `nested_rule_shape_at` ⊑ `nestedRuleShape`'s body past the `iota_j`
 guard. -/
 theorem nested_rule_shape_at_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -1233,7 +1236,9 @@ theorem nested_rule_shape_at_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     Sim₀ (Option.map fun q => (absLIdxL q.1, absEIdxL q.2)) pers lst o
       (nestedRuleShapeAtSpec lfS (absNIdxL lps) (absEIdx ty_a) (absU m_i)
         (absU r_p) (absU cn_p)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.nested_rule_shape_at, nestedRuleShapeAtSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem nested_rule_shape_at_ls
