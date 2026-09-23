@@ -409,6 +409,18 @@ private def chkE (c : AM EIdx) (expect : ConLeche.CheckM ConLeche.Expr) : Bool :
   | .error a, .error b => errEq a b
   | _, _ => false
 
+/-- con-leche: none — `chkE` comparing the error CONSTRUCTOR only, for a
+failure whose message the twin no longer spells like con-leche: the unknown
+constant's name is not read back since task #97-P5-Core round 4 (the port
+does not read it, and messages are never compared, DESIGN §3.1). -/
+private def chkEKind (c : AM EIdx) (expect : ConLeche.CheckM ConLeche.Expr) : Bool :=
+  match c.run S0, expect with
+  | .ok (r, s'), .ok e => denoteE s'.store r == some e
+  | .error (.notImplemented _), .error (.notImplemented _) => true
+  | .error (.invalid _), .error (.invalid _) => true
+  | .error (.internal _), .error (.internal _) => true
+  | _, _ => false
+
 /-- con-leche: none — a `Bool`-valued entry point (definitional equality)
 against con-leche's, over the whole outcome. -/
 private def chkB (c : AM Bool) (expect : ConLeche.CheckM Bool) : Bool :=
@@ -496,7 +508,7 @@ The same subjects: `whnfCore` must NOT unfold `two`, where `whnf` does. -/
 #guard chkE (inferTypeCore MU FX.fe F 1 FX.fv0)
   (ConLeche.inferTypeCore MU envCL F 1 tFv0)
 -- the two failure shapes: an unknown constant, and an out-of-scope `fvar`
-#guard chkE (inferTypeCore MU FX.fe F 0 FX.unknown)
+#guard chkEKind (inferTypeCore MU FX.fe F 0 FX.unknown)
   (ConLeche.inferTypeCore MU envCL F 0 tUnknown)
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.fv0)
   (ConLeche.inferTypeCore MU envCL F 0 tFv0)

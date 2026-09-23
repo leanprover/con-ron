@@ -23,13 +23,14 @@ It wants two clauses `CoreCtx` did not carry — the index's `HashMap2.Inv`
 `usize`" (the `pos as usize` cast).  Both are `IFEnvInv`'s and P3's; see
 `Core/KnotRel.lean`'s note.
 
-## 2. The tag/view agreement at `const`
+## 2. The tag test at `const`
 
-`unfold_definition` dispatches on `get_app_fn`'s answer's TAG and the twin
-reads its VIEW, which is task #97-P5-0's finding 3 at a callee's answer once
-more (`Core/Arms/Sort.lean`'s §2).  `EStore_view_of_tag_const` is the `sort`
-lemma of that file at the other constructor — nineteen lines, no `StoreWF` —
-and the negative direction is `EStore_view_tagOf`, already general.
+`unfold_definition` dispatches on `get_app_fn`'s answer's TAG, and since task
+#97-P5-Core round 4 the twin does too (`unfoldDefinition` tests
+`h.tag == ETag.const` before its `view`; the audit's row for this function).
+Under a `const` tag `EStore_view_of_tag_const` says the view IS the `const`
+projection — nineteen lines, no `StoreWF` — and off it both sides answer
+`none` reading nothing, so no resolution fact is needed anywhere.
 
 The same shape appears one store down: the port reads `view_ls_len` where the
 twin reads `viewLs` and takes `.length`, and `LsStore_viewLen_eq` is the
@@ -48,15 +49,16 @@ shape and what task #97-P5-Arms §9 asked for at `defeqAfterWhnf`.
 
 ## 4. What is a HYPOTHESIS and why
 
-`ExprOpsHyp` below, and every field of it is a theorem that exists elsewhere
-and is **stated by name rather than cited**, so that `#print axioms` on
-anything here shows the three standard axioms and no `sorryAx`:
-
-* `instLPFast` — `Refine2/ExprOps/Mut.lean`'s `inst_lp_fast_refines`, P5-3's;
-* `mkAppN` — `Refine2/ExprOps/Mut.lean`'s `mk_app_n_refines`, likewise;
-* `mkAppNRes` and `headRes` — task #97-P5-Arms' finding 14 at two more call
-  sites (*"the handle this callee answered resolves"*), P3's, exactly as
-  `CoreAmbient.wf` is.
+`ExprOpsHyp` below: the two interning walks the delta step borrows
+(`inst_lp_fast`, `mk_app_n`), stated at the LOCKSTEP shape the Core tier is
+stated at since task #97-P5-Core round 4 (`AStateRel₀`, `Sim₀`).
+`Refine2/ExprOps/Mut.lean` proves both over `AStateRel` with `EResolves`
+premises (their interns need the twin's `StoreWF`), which does not apply
+here; the `ExprOps` tier's migration to `AStateRel₀` owes them, and the
+audit found both in lockstep with their twins.  The two spine readers and
+the three store readers the leaf also needs are proved here at the lockstep
+relation (`get_app_fn_refines₀` …, copies of `Read.lean`'s / `Specs.lean`'s
+proofs, which never used `storeWF`).
 
 `const_val_at_refines` is NOT among them: the delta step's memo is this tier's
 own, `Core/Probes.lean` grew its probe and its write (`const_val_probe_abs`,
@@ -109,21 +111,6 @@ half the port's `else` arm needs, an instance of `EStore_view_tagOf`. -/
 theorem EStore_tag_of_view_const {st : EStore} {i : EIdx} {n : NIdx}
     {us : LsIdx} (h : st.view i = some (.const n us)) : i.tag = ETag.const :=
   EStore_view_tagOf h
-
-/-- `Arena.view`'s run, named: the store read, and the twin's `internal`
-decline where the port raises `fail_dangling_e`.  `Core/Arms/Gated.lean`
-spells this inline; it is a lemma here because three arms below want it. -/
-theorem view_run_eq (h : EIdx) (lst : AState) :
-    (Arena.view h).run lst
-      = (match lst.store.view h with
-         | some v => Except.ok (v, lst)
-         | none => Except.error
-             (Arena.CheckError.internal "arena: dangling expression handle")) := by
-  show ((match lst.store.view h with
-          | some v => (pure v : AM ENodeView)
-          | none => Arena.fail
-              (.internal "arena: dangling expression handle")).run lst) = _
-  cases lst.store.view h <;> rfl
 
 /-! ## The level-list length, as a projection of the view -/
 
@@ -266,49 +253,292 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
 -- `nidx_vec_dup_val` moved down to `Refine2/Dup.lean` (task #97-P5-Front
 -- round 2), beside the other `arena::env` copies.
 
-/-! ## The `arena::expr_ops` lemmas this tier consumes, stated by name -/
+/-! ## The three store readers, at the lockstep relation
 
-/-- The `Option EIdx` form of `Core/Arms/Sort.lean`'s `AnswerResolves`: what
-`reduce_nat` and `unfold_definition` owe about the reduct they hand back to
-the `whnf` loop. -/
-def AnswerResolvesOpt (pers : arena.store.PersTier)
-    (p : core.result.Result (Option arena.handle.EIdx)
-      kernel.core_types.CheckError × arena.monad.AState) : Prop :=
-  ∀ w, p.1 = .Ok (some w) → ∀ lst', AStateRel pers p.2 lst' →
-    EResolves lst' (absEIdx w)
+`Refine2/Specs.lean`'s `view_app_run`, `view_const_run` and `view_ls_len_run`
+take `AStateRel` and use its `store` clause alone; these are the same three
+lines over `AStateRel₀` (task #97-P5-Core round 4).  They belong in
+`Specs.lean`, which is not this lane's: the tier-wide migration to
+`AStateRel₀` retires these copies. -/
 
-/-- **What the `core` bodies borrow from the tier below**, as one structure so
-that instantiating it is one edit — see the module note. -/
+theorem view_app_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    {h : arena.handle.EIdx} {o}
+    (hrun : arena.monad.view_app pers st h = ok o) :
+    SimR (Option.map absPairE) lst o (Arena.viewApp (absEIdx h)) := by
+  rw [arena.monad.view_app] at hrun
+  show (Arena.viewApp (absEIdx h)).run lst = _
+  rw [show (Arena.viewApp (absEIdx h)).run lst
+        = .ok (lst.store.viewApp (absEIdx h), lst) from rfl,
+    estore_view_app_abs hrel.store hrun]
+
+theorem view_const_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    {h : arena.handle.EIdx} {o}
+    (hrun : arena.monad.view_const pers st h = ok o) :
+    SimR (Option.map absConstT) lst o (Arena.viewConst (absEIdx h)) := by
+  rw [arena.monad.view_const] at hrun
+  show (Arena.viewConst (absEIdx h)).run lst = _
+  rw [show (Arena.viewConst (absEIdx h)).run lst
+        = .ok (lst.store.viewConst (absEIdx h), lst) from rfl,
+    estore_view_const_abs hrel.store hrun]
+
+theorem view_ls_len_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    {h : arena.handle.LsIdx} {o}
+    (hrun : arena.monad.view_ls_len pers st h = ok o) :
+    SimR (Option.map absSz) lst o (Arena.viewLsLen (absLsIdx h)) := by
+  rw [arena.monad.view_ls_len] at hrun
+  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.store.EStore.ls_s] at hl
+  have hl2 : l = st.store.lss := (Result.ok_injective hl).symm
+  subst hl2
+  show (Arena.viewLsLen (absLsIdx h)).run lst = _
+  rw [show (Arena.viewLsLen (absLsIdx h)).run lst
+        = .ok (lst.store.lss.viewLen (absLsIdx h), lst) from rfl,
+    lsstore_view_len_abs hrel.store.lss hrun]
+
+/-! ## The two spine readers, at the lockstep relation
+
+`Refine2/ExprOps/Read.lean`'s `get_app_fn_refines` and `get_app_args_refines`,
+over `AStateRel₀` — the same proofs (they never used `storeWF`, and the state
+does not move), copied here for the reason the three readers above are. -/
+
+private theorem get_app_fn_aux₀ (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {h : arena.handle.EIdx} {o},
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      arena.expr_ops.get_app_fn pers st fuel h = ok o →
+      AOut₀ absEIdx pers o st ((getAppFn (absU fuel) (absEIdx h)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_fn] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    refine AOut₀.err ?_
+    show AErrSim _ ((getAppFn (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, getAppFn, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst fuel h o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_fn] at hrun
+    have hne : ¬ (fuel = 0#u64) := by
+      intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htag := eidx_tag_abs ht
+    rw [show absU fuel = m + 1 from hn, getAppFn]
+    by_cases hc : t = arena.handle.ETAG_APP
+    · rw [if_pos hc] at hrun
+      subst hc
+      rw [show ((absEIdx h).tag == ETag.app) = true by
+        rw [htag, etag_app_abs]; simp]
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hva := view_app_run₀ hrel hp
+      simp only [if_true]
+      rw [StateT.run_bind, hva]
+      cases hpc : p with
+      | none =>
+        rw [hpc] at hrun
+        rw [arena.monad.fail_dangling_e] at hrun
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [fail_run hrun]
+        refine AOut₀.err ?_
+        show AErrSim _ ((Arena.failDanglingE : AM EIdx).run lst)
+        exact failDanglingE_errSim lst
+      | some q =>
+        rw [hpc] at hrun
+        obtain ⟨f1, a1⟩ := q
+        obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi1v : i1.val = m := by
+          have h1 : i1.val = fuel.val - (1#u64 : Std.U64).val :=
+            (ConRon.Refine.Nat.usub_val hi1).2
+          rw [h1, hn]; rfl
+        show AOut₀ absEIdx pers o st ((getAppFn m (absEIdx f1)).run lst)
+        have := ih (fuel := i1) (h := f1) hi1v hrel hinv hrun
+        rw [show absU i1 = m from hi1v] at this
+        exact this
+    · rw [if_neg hc] at hrun
+      obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      rw [dupId_eidx _ _ he1] at hrun
+      have ho : (core.result.Result.Ok h : core.result.Result _ _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      rw [show ((absEIdx h).tag == ETag.app) = false by
+        rw [htag]
+        have : absU32 t ≠ ETag.app := by
+          rw [← etag_app_abs]
+          intro hcc; exact hc (absU32_inj hcc)
+        simp [this]]
+      simp only [Bool.false_eq_true, if_false]
+      exact AOut₀.ok rfl hrel hinv
+
+/-- `get_app_fn` ⊑ `getAppFn`, lockstep. -/
+theorem get_app_fn_refines₀ {pers : arena.store.PersTier} {st : arena.monad.AState}
+    {lst : AState} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.expr_ops.get_app_fn pers st fuel h = ok o) :
+    AOut₀ absEIdx pers o st ((getAppFn (absU fuel) (absEIdx h)).run lst) :=
+  get_app_fn_aux₀ fuel.val rfl hrel hinv hrun
+
+private theorem get_app_args_go_aux₀ (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {h : arena.handle.EIdx} {k : Std.Usize} {o},
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      arena.expr_ops.get_app_args_go pers st fuel h k = ok o →
+      AOut₀ absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel h k o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_args_go] at hrun
+    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    refine AOut₀.err ?_
+    show AErrSim _ ((getAppArgs (absU fuel) (absEIdx h)).run lst)
+    rw [show absU fuel = 0 from hn, getAppArgs, arena_fail_run]
+    exact AErrSim.internal rfl
+  | succ m ih =>
+    intro pers st lst fuel h k o hn hrel hinv hrun
+    rw [arena.expr_ops.get_app_args_go] at hrun
+    have hne : ¬ (fuel = 0#u64) := by
+      intro hc; rw [hc] at hn; simp at hn
+    rw [if_neg hne] at hrun
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htag := eidx_tag_abs ht
+    rw [show absU fuel = m + 1 from hn, getAppArgs]
+    by_cases hc : t = arena.handle.ETAG_APP
+    · rw [if_pos hc] at hrun
+      subst hc
+      rw [show ((absEIdx h).tag == ETag.app) = true by
+        rw [htag, etag_app_abs]; simp]
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hva := view_app_run₀ hrel hp
+      simp only [if_true]
+      rw [StateT.run_bind, hva]
+      cases hpc : p with
+      | none =>
+        rw [hpc] at hrun
+        rw [arena.monad.fail_dangling_e] at hrun
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [fail_run hrun]
+        refine AOut₀.err ?_
+        show AErrSim _ ((Arena.failDanglingE : AM (List EIdx)).run lst)
+        exact failDanglingE_errSim lst
+      | some q =>
+        rw [hpc] at hrun
+        obtain ⟨f1, a1⟩ := q
+        obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨i2, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi1v : i1.val = m := by
+          have h1 : i1.val = fuel.val - (1#u64 : Std.U64).val :=
+            (ConRon.Refine.Nat.usub_val hi1).2
+          rw [h1, hn]; rfl
+        have hrec := ih (fuel := i1) (h := f1) (k := i2) hi1v hrel hinv hr
+        rw [show absU i1 = m from hi1v] at hrec
+        show AOut₀ absEIdxList pers o st
+          ((do let qs ← getAppArgs m (absEIdx f1); pure (qs ++ [absEIdx a1])).run lst)
+        cases hrc : r with
+        | Err e =>
+          rw [hrc] at hrun hrec
+          have ho : (core.result.Result.Err e :
+              core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
+            Result.ok_injective hrun
+          rw [← ho]
+          refine AOut₀.err ?_
+          rw [StateT.run_bind]
+          intro kk hk
+          obtain ⟨le, hle, hlk⟩ := hrec kk hk
+          exact ⟨le, by rw [hle]; rfl, hlk⟩
+        | Ok args =>
+          rw [hrc] at hrun hrec
+          obtain ⟨lst', hx, hrel', hinv'⟩ := hrec
+          obtain ⟨args1, ha1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have ho : (core.result.Result.Ok args1 :
+              core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
+            Result.ok_injective hrun
+          rw [← ho]
+          refine AOut₀.ok ?_ hrel' hinv'
+          rw [StateT.run_bind, hx]
+          show Except.ok _ = _
+          rw [show absEIdxList args1 = absEIdxList args ++ [absEIdx a1] by
+            unfold absEIdxList
+            rw [ConRon.Refine.vec_push_val ha1, List.map_append]
+            rfl]
+    · rw [if_neg hc] at hrun
+      have ho : (core.result.Result.Ok
+          (alloc.vec.Vec.with_capacity arena.handle.EIdx k) :
+          core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      rw [show ((absEIdx h).tag == ETag.app) = false by
+        rw [htag]
+        have : absU32 t ≠ ETag.app := by
+          rw [← etag_app_abs]
+          intro hcc; exact hc (absU32_inj hcc)
+        simp [this]]
+      simp only [Bool.false_eq_true, if_false]
+      refine AOut₀.ok ?_ hrel hinv
+      show Except.ok ([], lst) = _
+      rfl
+
+/-- `get_app_args` ⊑ `getAppArgs`, lockstep. -/
+theorem get_app_args_refines₀ {pers : arena.store.PersTier}
+    {st : arena.monad.AState} {lst : AState} {fuel : Std.U64}
+    {h : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.expr_ops.get_app_args pers st fuel h = ok o) :
+    AOut₀ absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
+  rw [arena.expr_ops.get_app_args] at hrun
+  exact get_app_args_go_aux₀ fuel.val rfl hrel hinv hrun
+
+/-! ## The two interning walks this tier consumes, stated by name
+
+**`ExprOpsHyp` is the delta leaf's bundle, restated at the lockstep shape**
+(task #97-P5-Core round 4).  Round 3 found its four fields false or
+unsuppliable as written: `headRes` and `mkAppNRes` were resolution claims
+with no premise on the input (a dangling non-`app` handle, an empty argument
+vector over a dangling head), and `instLPFast`/`mkAppN` were STRONGER than
+`ExprOps/Mut.lean`'s closed lemmas, which take `EResolves` of their inputs.
+Ruling 2 asked for the fields to be restated to what `Mut.lean` proves and the
+bundle filled from it; the coordinator's later ruling (i) moved `KnotRel`
+and `BodyRel` — and with them this leaf — to `AStateRel₀`, where `Mut.lean`'s
+lemmas (over `AStateRel`, and needing `StoreWF` for their interns) do not
+apply, so:
+
+* `headRes` and `mkAppNRes` are GONE: the twin's `unfoldDefinition` now tests
+  the head's TAG where the port does (round 4's audit), so no resolution fact
+  is consumed, and the `AnswerResolvesOpt` conjunct they fed is gone with the
+  `Sim₀` conclusion;
+* `instLPFast` and `mkAppN` are the lockstep statements the `ExprOps` tier's
+  migration to `AStateRel₀` owes — no premise beyond the relation and the
+  invariant.  Round 4's audit found `inst_lp_fast` and `mk_app_n` in lockstep
+  with their twins (neither reads a view where the port reads a tag), so they
+  are expected TRUE; they are not yet proved at this shape, and this bundle is
+  the named seam until they are. -/
 structure ExprOpsHyp (pers : arena.store.PersTier) : Prop where
-  /-- `Refine2/ExprOps/Mut.lean`'s `inst_lp_fast_refines`. -/
+  /-- `Refine2/ExprOps/Mut.lean`'s `inst_lp_fast_refines`, at the lockstep
+  relation. -/
   instLPFast : ∀ {st lst} {fuel : Std.U64}
     {lps : alloc.vec.Vec arena.handle.NIdx} {us : arena.handle.LsIdx}
     {value : arena.handle.EIdx} {o},
-    AStateRel pers st lst → AStateInv pers st →
+    AStateRel₀ pers st lst → AStateInv pers st →
     arena.expr_ops.inst_lp_fast pers st fuel lps us value = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (instLPFast (absU fuel) (lps.val.map absNIdx) (absLsIdx us)
         (absEIdx value))
-  /-- `Refine2/ExprOps/Mut.lean`'s `mk_app_n_refines`. -/
+  /-- `Refine2/ExprOps/Mut.lean`'s `mk_app_n_refines`, at the lockstep
+  relation. -/
   mkAppN : ∀ {st lst} {f : arena.handle.EIdx}
     {args : alloc.vec.Vec arena.handle.EIdx} {o},
-    AStateRel pers st lst → AStateInv pers st →
+    AStateRel₀ pers st lst → AStateInv pers st →
     arena.expr_ops.mk_app_n pers st f args = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.mkAppN (absEIdx f) (absEIdxList args))
-  /-- Finding 14 at the node `mk_app_n` INTERNED: the handle it answered
-  resolves in any related twin state.  P3's, from `StoreWF` and the intern
-  lemmas. -/
-  mkAppNRes : ∀ {st} {f : arena.handle.EIdx}
-    {args : alloc.vec.Vec arena.handle.EIdx} {p},
-    arena.expr_ops.mk_app_n pers st f args = ok p → AnswerResolves pers p
-  /-- Finding 14 at `get_app_fn`: **the head of a handle this run reaches
-  resolves**.  `StoreWF`'s `childOK` is what proves it, and that is
-  Theorem 1's. -/
-  headRes : ∀ {st lst'} {fuel : Std.U64} {h w : arena.handle.EIdx},
-    AStateRel pers st lst' →
-    arena.expr_ops.get_app_fn pers st fuel h = ok (.Ok w) →
-    EResolves lst' (absEIdx w)
 
 /-! ## `const_val_at` — the delta step's memo
 
@@ -358,9 +588,9 @@ theorem const_val_at_refines {pers st lst} {n : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {value : arena.handle.EIdx}
     {us : arena.handle.LsIdx} {o}
     (hx : ExprOpsHyp pers)
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.const_val_at pers st n lps value us = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (constValAt (absNIdx n) (lps.val.map absNIdx) (absEIdx value)
         (absLsIdx us)) := by
   have hfuel := core_walk_fuel_abs
@@ -374,8 +604,7 @@ theorem const_val_at_refines {pers st lst} {n : arena.handle.NIdx}
     rw [hoc] at hrun hprobe
     have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
     rw [← ho]
-    exact AOut.ok (constValAt_hit _ _ _ _ _ _ hprobe.symm) hrel hinv
-      (Ext.refl _) trivial
+    exact AOut₀.ok (constValAt_hit _ _ _ _ _ _ hprobe.symm) hrel hinv
   | none =>
     rw [hoc] at hrun hprobe
     obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -390,15 +619,15 @@ theorem const_val_at_refines {pers st lst} {n : arena.handle.NIdx}
     | Err er =>
       have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
       rw [← ho]
-      exact AOut.err (AErrSim.of_eq (AErrSim.bind (Sim.apply_err hbody) _) htw)
+      exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
     | Ok r1 =>
-      obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hbody
+      obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
       obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
       rw [← ho]
       obtain ⟨hrel2, hinv2⟩ := const_val_set_rel hrel1 hinv1 hs2
       rw [nls_key_abs hk] at hrel2
-      refine AOut.ok ?_ hrel2 hinv2 hext1 trivial
+      refine AOut₀.ok ?_ hrel2 hinv2
       rw [htw, hb1]
       rfl
 
@@ -432,9 +661,11 @@ def unfoldDefConst (fe : IFEnv) (e : EIdx) (n : NIdx) (us : LsIdx) :
 /-- `unfoldDefinition`'s tail from the head handle on — the port's own split
 point (`unfold_definition` tests the TAG of `get_app_fn`'s answer). -/
 def unfoldDefAt (fe : IFEnv) (e h : EIdx) : AM (Option EIdx) := do
-  match ← Arena.view h with
-  | .const n us => unfoldDefConst fe e n us
-  | _ => pure none
+  if h.tag == ETag.const then
+    match ← Arena.view h with
+    | .const n us => unfoldDefConst fe e n us
+    | _ => pure none
+  else pure none
 
 /-- The `_unfold` equation back to the twin. -/
 theorem unfoldDefinition_unfold (fe : IFEnv) (e : EIdx) :
@@ -532,22 +763,41 @@ theorem unfoldDefConst_run (fe : IFEnv) (e : EIdx) (n : NIdx) (us : LsIdx)
     | recInfo _ _ _ _ => rfl
     | projInfo _ => rfl
 
-theorem unfoldDefAt_run (fe : IFEnv) (e h : EIdx) (lst : AState) :
+/-- `unfoldDefAt` at a `const`-tagged head: the one `view` read. -/
+theorem unfoldDefAt_run (fe : IFEnv) (e h : EIdx) (lst : AState)
+    (htag : h.tag = ETag.const) :
     (unfoldDefAt fe e h).run lst
       = (match lst.store.view h with
          | none => Except.error
              (Arena.CheckError.internal "arena: dangling expression handle")
          | some (.const n us) => (unfoldDefConst fe e n us).run lst
          | some _ => Except.ok (none, lst)) := by
-  show ((do
-      let v ← Arena.view h
-      match v with
-      | .const n us => unfoldDefConst fe e n us
-      | _ => pure none) : AM (Option EIdx)).run lst = _
-  rw [am_run_bind, view_run_eq]
+  show ((if h.tag == ETag.const then
+      (do
+        let v ← Arena.view h
+        match v with
+        | .const n us => unfoldDefConst fe e n us
+        | _ => pure none)
+    else pure none) : AM (Option EIdx)).run lst = _
+  rw [if_pos (by rw [htag]; rfl), am_run_bind, view_run_eq]
   cases hv : lst.store.view h with
   | none => rfl
   | some v => cases v <;> rfl
+
+/-- `unfoldDefAt` at any other head: `none`, off the tag, no store read — the
+port's `else` arm (task #97-P5-Core round 4's twin fix). -/
+theorem unfoldDefAt_run_ne (fe : IFEnv) (e h : EIdx) (lst : AState)
+    (htag : ¬ h.tag = ETag.const) :
+    (unfoldDefAt fe e h).run lst = Except.ok (none, lst) := by
+  show ((if h.tag == ETag.const then
+      (do
+        let v ← Arena.view h
+        match v with
+        | .const n us => unfoldDefConst fe e n us
+        | _ => pure none)
+    else pure none) : AM (Option EIdx)).run lst = _
+  rw [if_neg (by simpa using htag)]
+  rfl
 
 /-- **`arena::core::unfold_definition` against `Arena.unfoldDefinition`** — one
 delta step, and the `whnf` loop's second leaf.  Closed modulo `ExprOpsHyp`
@@ -555,12 +805,11 @@ delta step, and the `whnf` loop's second leaf.  Closed modulo `ExprOpsHyp`
 call sites) and `CoreCtx`'s two index clauses; no `sorry`. -/
 theorem unfold_definition_refines {pers vis st fe lfe e lst o}
     (hx : ExprOpsHyp pers)
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe)
     (hrun : arena.core.unfold_definition pers vis st fe e = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
-      (unfoldDefinition lfe (absEIdx e))
-    ∧ AnswerResolvesOpt pers o := by
+    Sim₀ (Option.map absEIdx) pers lst o
+      (unfoldDefinition lfe (absEIdx e)) := by
   have hfuel := core_walk_fuel_abs
   rw [arena.core.unfold_definition] at hrun
   obtain ⟨rh, hrh, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -569,18 +818,16 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
           (unfoldDefAt lfe (absEIdx e) p.1).run p.2 := by
     rw [unfoldDefinition_unfold]
     exact am_run_bind _ _ lst
-  have hfn := ExprOps.get_app_fn_refines hrel hinv hrh
+  have hfn := get_app_fn_refines₀ hrel hinv hrh
   rw [hfuel] at hfn
   cases rh with
   | Err er =>
     have ho : (core.result.Result.Err (T := Option arena.handle.EIdx) er, st) = o :=
       Result.ok_injective hrun
-    refine ⟨?_, ?_⟩
-    · rw [← ho]
-      exact AOut.err (AErrSim.of_eq (AErrSim.bind (AOut.destErr hfn) _) htw0)
-    · intro w hw; rw [← ho] at hw; simp at hw
+    rw [← ho]
+    exact AOut₀.err (AErrSim.of_eq (AErrSim.bind hfn _) htw0)
   | Ok h =>
-    obtain ⟨lst0, hb0, hrel0, hinv0, hext0, -⟩ := AOut.dest hfn
+    obtain ⟨lst0, hb0, hrel0, hinv0⟩ := hfn
     have htw1 : (unfoldDefinition lfe (absEIdx e)).run lst
         = (unfoldDefAt lfe (absEIdx e) (absEIdx h)).run lst0 := by
       rw [htw0, hb0]; rfl
@@ -592,7 +839,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
         rw [hta, hts]; exact etag_const_abs
       obtain ⟨oc, hoc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hvc : lst0.store.viewConst (absEIdx h) = oc.map absConstT := by
-        have h2 := SimR.apply (view_const_run hrel0 hoc)
+        have h2 := SimR.apply (view_const_run₀ hrel0 hoc)
         rw [show (Arena.viewConst (absEIdx h)).run lst0
               = Except.ok (lst0.store.viewConst (absEIdx h), lst0) from rfl] at h2
         exact congrArg (fun z => z.1) (Except.ok.inj h2)
@@ -610,19 +857,17 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
           (T := Option arena.handle.EIdx)
           (kernel.core_types.CheckError.Internal cps), st) = o :=
           Result.ok_injective hrun
-        refine ⟨?_, ?_⟩
-        · rw [← ho]
-          refine AOut.err (AErrSim.internal
-            (s := "arena: dangling expression handle") ?_)
-          rw [htw1, unfoldDefAt_run, hvw]
-          rfl
-        · intro w hw; rw [← ho] at hw; simp at hw
+        rw [← ho]
+        refine AOut₀.err (AErrSim.internal
+          (s := "arena: dangling expression handle") ?_)
+        rw [htw1, unfoldDefAt_run _ _ _ _ htag, hvw]
+        rfl
       | some p =>
         obtain ⟨n, us⟩ := p
         rw [hocc] at hrun hvw
         have htw2 : (unfoldDefinition lfe (absEIdx e)).run lst
             = (unfoldDefConst lfe (absEIdx e) (absNIdx n) (absLsIdx us)).run lst0 := by
-          rw [htw1, unfoldDefAt_run, hvw]
+          rw [htw1, unfoldDefAt_run _ _ _ _ htag, hvw]
           rfl
         obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hfind := ifenv_find_abs hctx ho1
@@ -631,12 +876,10 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
           rw [ho1c] at hrun hfind
           have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
               = o := Result.ok_injective hrun
-          refine ⟨?_, ?_⟩
-          · rw [← ho]
-            refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-            rw [htw2, unfoldDefConst_run, ← hfind]
-            rfl
-          · intro w hw; rw [← ho] at hw; simp at hw
+          rw [← ho]
+          refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+          rw [htw2, unfoldDefConst_run, ← hfind]
+          rfl
         | some ii =>
           rw [ho1c] at hrun hfind
           cases ii with
@@ -647,7 +890,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
             have hlpsv := nidx_vec_dup_val hlps
             have hvalv := dupId_eidx _ _ hval
             have hvl : lst0.store.lss.viewLen (absLsIdx us) = o2.map absSz := by
-              have h2 := SimR.apply (view_ls_len_run hrel0 ho2)
+              have h2 := SimR.apply (view_ls_len_run₀ hrel0 ho2)
               rw [show (Arena.viewLsLen (absLsIdx us)).run lst0
                     = Except.ok (lst0.store.lss.viewLen (absLsIdx us), lst0)
                   from rfl] at h2
@@ -682,12 +925,10 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                 cases hq : lst0.store.lss.view (absLsIdx us) with
                 | none => rfl
                 | some l => rw [hq] at hvl; simp at hvl
-              refine ⟨?_, ?_⟩
-              · rw [← ho]
-                refine AOut.err (AErrSim.internal
-                  (s := "arena: dangling level-list handle") ?_)
-                rw [htw3, hvn]
-              · intro w hw; rw [← ho] at hw; simp at hw
+              rw [← ho]
+              refine AOut₀.err (AErrSim.internal
+                (s := "arena: dangling level-list handle") ?_)
+              rw [htw3, hvn]
             | some usl =>
               rw [ho2c] at hrun hvl
               dsimp only at hrun
@@ -723,33 +964,29 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                   have ho : (core.result.Result.Err
                     (T := Option arena.handle.EIdx) er, st1) = o :=
                     Result.ok_injective hrun
-                  refine ⟨?_, ?_⟩
-                  · rw [← ho]
-                    exact AOut.err (AErrSim.of_eq
-                      (AErrSim.bind (Sim.apply_err hcva) _) htw4)
-                  · intro w hw; rw [← ho] at hw; simp at hw
+                  rw [← ho]
+                  exact AOut₀.err (AErrSim.of_eq
+                    (AErrSim.bind (Sim₀.apply_err hcva) _) htw4)
                 | Ok v =>
-                  obtain ⟨lst1, hb1, hrel1, hinv1, hext1, -⟩ := Sim.apply hcva
+                  obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hcva
                   have htw5 : (unfoldDefinition lfe (absEIdx e)).run lst
                       = ((getAppArgs coreWalkFuel (absEIdx e)).run lst1) >>= fun q =>
                           ((Arena.mkAppN (absEIdx v) q.1).run q.2) >>= fun r =>
                             Except.ok (some r.1, r.2) := by
                     rw [htw4, hb1]; rfl
                   obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-                  have hga := ExprOps.get_app_args_refines hrel1 hinv1 hr2
+                  have hga := get_app_args_refines₀ hrel1 hinv1 hr2
                   rw [hfuel] at hga
                   cases r2 with
                   | Err er =>
                     have ho : (core.result.Result.Err
                       (T := Option arena.handle.EIdx) er, st1) = o :=
                       Result.ok_injective hrun
-                    refine ⟨?_, ?_⟩
-                    · rw [← ho]
-                      exact AOut.err (AErrSim.of_eq
-                        (AErrSim.bind (AOut.destErr hga) _) htw5)
-                    · intro w hw; rw [← ho] at hw; simp at hw
+                    rw [← ho]
+                    exact AOut₀.err (AErrSim.of_eq
+                      (AErrSim.bind hga _) htw5)
                   | Ok args =>
-                    obtain ⟨lst2, hb2, hrel2, hinv2, hext2, -⟩ := AOut.dest hga
+                    obtain ⟨lst2, hb2, hrel2, hinv2⟩ := hga
                     have htw6 : (unfoldDefinition lfe (absEIdx e)).run lst
                         = ((Arena.mkAppN (absEIdx v)
                             (absEIdxList args)).run lst2) >>= fun r =>
@@ -763,28 +1000,17 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                       have ho : (core.result.Result.Err
                         (T := Option arena.handle.EIdx) er, st2) = o :=
                         Result.ok_injective hrun
-                      refine ⟨?_, ?_⟩
-                      · rw [← ho]
-                        exact AOut.err (AErrSim.of_eq
-                          (AErrSim.bind (Sim.apply_err hmk) _) htw6)
-                      · intro w hw; rw [← ho] at hw; simp at hw
+                      rw [← ho]
+                      exact AOut₀.err (AErrSim.of_eq
+                        (AErrSim.bind (Sim₀.apply_err hmk) _) htw6)
                     | Ok r4 =>
-                      obtain ⟨lst3, hb3, hrel3, hinv3, hext3, -⟩ := Sim.apply hmk
+                      obtain ⟨lst3, hb3, hrel3, hinv3⟩ := Sim₀.apply hmk
                       have ho : (core.result.Result.Ok
                         (T := Option arena.handle.EIdx) (some r4), st2) = o :=
                         Result.ok_injective hrun
-                      refine ⟨?_, ?_⟩
-                      · rw [← ho]
-                        refine AOut.ok (lst' := lst3) ?_ hrel3 hinv3 ?_ trivial
-                        · rw [htw6, hb3]; rfl
-                        · exact Ext.trans hext0 (Ext.trans hext1
-                            (Ext.trans hext2 hext3))
-                      · intro w hw lst' hrel'
-                        rw [← ho] at hw hrel'
-                        have hw2 : r4 = w := by
-                          simpa using hw
-                        rw [← hw2]
-                        exact hx.mkAppNRes hq3 r4 rfl lst' hrel'
+                      rw [← ho]
+                      refine AOut₀.ok (lst' := lst3) ?_ hrel3 hinv3
+                      rw [htw6, hb3]; rfl
               · rw [if_neg hb] at hrun
                 have ho : (core.result.Result.Ok
                   (T := Option arena.handle.EIdx) none, st) = o :=
@@ -795,87 +1021,63 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                   apply hb
                   apply Aeneas.Std.UScalar.eq_imp
                   exact hx2
-                refine ⟨?_, ?_⟩
-                · rw [← ho]
-                  refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-                  rw [htw3, hl]
-                  dsimp only
-                  rw [if_neg hlt]
-                  rfl
-                · intro w hw; rw [← ho] at hw; simp at hw
+                rw [← ho]
+                refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+                rw [htw3, hl]
+                dsimp only
+                rw [if_neg hlt]
+                rfl
           | AxiomInfo cv =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
-            refine ⟨?_, ?_⟩
-            · rw [← ho]
-              refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-              rw [htw2, unfoldDefConst_run, ← hfind]
-              rfl
-            · intro w hw; rw [← ho] at hw; simp at hw
+            rw [← ho]
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+            rw [htw2, unfoldDefConst_run, ← hfind]
+            rfl
           | ThmInfo cv v =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
-            refine ⟨?_, ?_⟩
-            · rw [← ho]
-              refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-              rw [htw2, unfoldDefConst_run, ← hfind]
-              rfl
-            · intro w hw; rw [← ho] at hw; simp at hw
+            rw [← ho]
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+            rw [htw2, unfoldDefConst_run, ← hfind]
+            rfl
           | IndInfo cv caps =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
-            refine ⟨?_, ?_⟩
-            · rw [← ho]
-              refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-              rw [htw2, unfoldDefConst_run, ← hfind]
-              rfl
-            · intro w hw; rw [← ho] at hw; simp at hw
+            rw [← ho]
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+            rw [htw2, unfoldDefConst_run, ← hfind]
+            rfl
           | CtorInfo cv np nf =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
-            refine ⟨?_, ?_⟩
-            · rw [← ho]
-              refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-              rw [htw2, unfoldDefConst_run, ← hfind]
-              rfl
-            · intro w hw; rw [← ho] at hw; simp at hw
+            rw [← ho]
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+            rw [htw2, unfoldDefConst_run, ← hfind]
+            rfl
           | RecInfo cv mi rp rules =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
-            refine ⟨?_, ?_⟩
-            · rw [← ho]
-              refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-              rw [htw2, unfoldDefConst_run, ← hfind]
-              rfl
-            · intro w hw; rw [← ho] at hw; simp at hw
+            rw [← ho]
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+            rw [htw2, unfoldDefConst_run, ← hfind]
+            rfl
           | ProjInfo tbl =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
-            refine ⟨?_, ?_⟩
-            · rw [← ho]
-              refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-              rw [htw2, unfoldDefConst_run, ← hfind]
-              rfl
-            · intro w hw; rw [← ho] at hw; simp at hw
-    · rw [if_neg hts] at hrun
+            rw [← ho]
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+            rw [htw2, unfoldDefConst_run, ← hfind]
+            rfl
+    · -- the port's `else` arm, off the tag: the twin tests the same tag
+      rw [if_neg hts] at hrun
       have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
           = o := Result.ok_injective hrun
-      have hres0 : EResolves lst0 (absEIdx h) := hx.headRes hrel0 hrh
-      obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hres0
-      have htagv := EStore_view_tagOf hv
-      refine ⟨?_, ?_⟩
-      · rw [← ho]
-        refine AOut.ok (lst' := lst0) ?_ hrel0 hinv0 hext0 trivial
-        rw [htw1, unfoldDefAt_run, hv]
-        cases v with
-        | const n us =>
-          exfalso
-          apply hts
-          apply absU32_inj
-          rw [etag_const_abs, ← hta, htagv]
-          rfl
-        | _ => rfl
-      · intro w hw; rw [← ho] at hw; simp at hw
+      rw [← ho]
+      refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
+      rw [htw1, unfoldDefAt_run_ne _ _ _ _ (fun hx2 => hts (absU32_inj (by
+        rw [← hta, hx2, etag_const_abs])))]
+      rfl
 
 section Axioms
 

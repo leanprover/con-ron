@@ -860,6 +860,13 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
           ?_⟩
         exact recRulePlain_canonical hok.wf hrecTy (by arm_hyp) (by arm_hyp)
           (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by grind))
+     -- the tag-first `else` arm (task #97-P5-Core round 4): the residual's
+     -- view is recovered from its denotation
+     | (obtain ⟨v, hv⟩ := view_of_denote_isSome (RelBP.snd_isSome (by arm_hyp) hrecTy)
+        exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+          recRulePlain_notPi hok.wf hrecTy (by arm_hyp) hv
+            (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
+              (by rw [hh]; rfl))⟩)
      | grind)
 
 /-! ## The axiom check -/

@@ -826,6 +826,24 @@ theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
   exact h _ rfl
 
 
+/-- con-leche: none — **`view_bind_triple` behind the tag-first twin's test**
+(task #97-P5-Core round 4): the twin tests the handle's TAG before it reads
+the node wherever the Rust does, `if i.tag == t then (view i >>= f) else e`.
+At a handle whose view is known the test is decided by the view's own tag
+(`EStore.tagOf_of_view`), and on the `else` side the continuation's
+catch-all arm IS `e`, so a proof of the view-first form carries over. -/
+theorem tag_view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
+    {t : UInt32} (hv : s₀.store.view i = some v) {f : ENodeView → AM α}
+    {e : AM α} {Q : α → AState → Prop}
+    (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄)
+    (he : v.tagOf ≠ t → f v = e) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (if i.tag == t then (view i >>= f) else e)
+      ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+  by_cases ht : (i.tag == t) = true
+  · rw [if_pos ht]; exact view_bind_triple hv h
+  · rw [if_neg ht, ← he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)]
+    exact h
+
 /-- con-leche: none — **sequencing at a pinned state**: a triple for `x`
 whose postcondition names its facts, and one for the continuation at every
 state those facts hold of, make a triple for `x >>= f`.  This is what lets

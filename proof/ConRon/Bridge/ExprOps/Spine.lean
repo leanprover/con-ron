@@ -950,13 +950,21 @@ theorem piResult_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
     -- Ten verification conditions remain: the `forallE` arm's postcondition
     -- and the nine fallthrough constructors.  `RelE` is a `def`, so the
     -- closer cannot unfold it; both shapes are one step lemma.
+    -- The twin tests the tag and reads `viewBindI` since task #97-P5-Core
+    -- round 4, as the Rust does: the `forallE` arm recovers the view from the
+    -- binder projection, the `else` arm from the denotation and the tag.
     all_goals
       (arm_pre
        first
-       | exact ⟨rfl, RelE.body_step hok.wf (by arm_hyp) (fun _ _ => rfl)
-           (by arm_hyp)⟩
-       | exact ⟨rfl, RelE.self_of_view hok.wf (by arm_hyp) (fun e he =>
-           piResult_of_not_forallE (denoteEView_not_forallE he (by grind)))⟩)
+       | (obtain ⟨_, hv⟩ := view_forallE_of_viewBindI hok.wf (by arm_hyp)
+            (by arm_hyp)
+          exact ⟨rfl, RelE.body_step hok.wf hv (fun _ _ => rfl) (by arm_hyp)⟩)
+       | (obtain ⟨v, hv⟩ := view_of_denote_isSome (by arm_hyp)
+          exact ⟨rfl, RelE.self_of_view hok.wf hv (fun e he =>
+            piResult_of_not_forallE (denoteEView_not_forallE he
+              (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
+                (by rw [hh]; rfl))))⟩)
+       | exact isSome_body_of_viewBindI hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp))
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — **THEOREM 1**
 for `fvarTypeD`: the type annotation of a free-variable leaf, the expression
@@ -1062,7 +1070,13 @@ theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
            (by arm_hyp)⟩
        | exact ⟨rfl, RelBP.none_of_view hok.wf (by arm_hyp) (fun e he =>
            stripPis_of_not_forallE
-             (denoteEView_not_forallE he (by grind)))⟩)
+             (denoteEView_not_forallE he (by grind)))⟩
+       -- the tag-first `else` arm (task #97-P5-Core round 4)
+       | (obtain ⟨v, hv⟩ := view_of_denote_isSome (by arm_hyp)
+          exact ⟨rfl, RelBP.none_of_view hok.wf hv (fun e he =>
+            stripPis_of_not_forallE (denoteEView_not_forallE he
+              (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
+                (by rw [hh]; rfl))))⟩))
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams —
 **THEOREM 1** for `stripLams`, `stripPis`' λ twin. -/

@@ -1087,10 +1087,13 @@ theorem natSuccOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
       refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nt dnt => ?_
       refine RunsB.bind fun {e s1} g1 => ?_
       obtain ⟨hs1, he⟩ := constE_run hst hp dnt g1
-      refine ⟨hs1, RunsB.bind fun {vw s2} g2 => ?_⟩
+      have hty := (denoteCV_inv (denoteCV_ext hv hs1.ext)).2.2
+      obtain ⟨v0, hv0⟩ := denoteE_view hty
+      refine ⟨hs1, RunsB.tagView hv0
+        (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne)
+        (RunsB.bind fun {vw s2} g2 => ?_)⟩
       obtain ⟨rfl, hvw⟩ := viewE_run g2
       refine ⟨Frontend.IStepS.refl hs1.ok, ?_⟩
-      have hty := (denoteCV_inv (denoteCV_ext hv hs1.ext)).2.2
       have hwf := hs1.ok.wf
       cases vw
       case forallE dom body mb =>
@@ -1338,8 +1341,11 @@ theorem natOpTyPinned_run {env : Env} {fe : IFEnv} {cH : NIdx}
   have hc1 := denoteN_ext hc hs1.ext
   have hty1 := denote_ext hty hs1.ext
   refine RunsB.pin st1 hp1 (x := ConLeche.natPredName) (by rfl) fun pr dpr => ?_
+  obtain ⟨v0, hv0⟩ := denoteE_view hty1
   refine RunsB.ite (beq_handle_iff hwf hc1 dpr) (fun _ => ?_) (fun _ => ?_)
-  · refine RunsB.bind fun {vw s2} g2 => ?_
+  · refine RunsB.tagView hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) ?_
+    refine RunsB.bind fun {vw s2} g2 => ?_
     obtain ⟨rfl, hvw⟩ := viewE_run g2
     refine ⟨Frontend.IStepS.refl st1, ?_⟩
     cases vw
@@ -1357,12 +1363,17 @@ theorem natOpTyPinned_run {env : Env} {fe : IFEnv} {cH : NIdx}
       | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hvw hty1; exact RunsB.ret st1)
       | (obtain rfl := denote_lit_inv hwf hvw hty1; exact RunsB.ret st1)
       | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hvw hty1; exact RunsB.ret st1)
-  · refine RunsB.bind fun {vw s2} g2 => ?_
+  · refine RunsB.tagView hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) ?_
+    refine RunsB.bind fun {vw s2} g2 => ?_
     obtain ⟨rfl, hvw⟩ := viewE_run g2
     refine ⟨Frontend.IStepS.refl st1, ?_⟩
     cases vw
     case forallE dom rest mb =>
       obtain ⟨dx, rx, rfl, hdx, hrx⟩ := denote_forallE_inv hwf hvw hty1
+      obtain ⟨v1, hv1⟩ := denoteE_view hrx
+      refine RunsB.tagView hv1
+        (fun hne => by cases v1 <;> first | rfl | exact absurd rfl hne) ?_
       refine RunsB.bind fun {vr s3} g3 => ?_
       obtain ⟨rfl, hvr⟩ := viewE_run g3
       refine ⟨Frontend.IStepS.refl st1, ?_⟩

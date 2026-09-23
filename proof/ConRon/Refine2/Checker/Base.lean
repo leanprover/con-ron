@@ -755,6 +755,30 @@ structure ResolveInv (mode : ConLeche.CheckMode) (Good : IFEnv → AState → Pr
   ensureSort : ∀ {fe : IFEnv} {v d : Nat} {e : EIdx} {u : LIdx} {s s' : AState},
     Good fe s → ExprOps.EResolves s e →
     ensureSortCore mode (fe.restrictTo v) checkFuel d e s = .ok (u, s') → Good fe s'
+  /-- **A `Good` state's store is well formed** (task #97-P5-Core round 4).
+  The Core tier's front doors are LOCKSTEP statements now — over
+  `AStateRel₀`, with no `Ext` — so a consumer that still wants `AStateRel`
+  and `Ext` takes the twin's own two facts from here (`Sim₀.toSim`), and they
+  are Theorem 1's (`StateOK`). -/
+  wf : ∀ {fe : IFEnv} {s : AState}, Good fe s → StoreWF s.store
+  /-- `inferTypeCore` only extends the store (Theorem 1's run lemma). -/
+  inferExt : ∀ {fe : IFEnv} {v d : Nat} {e w : EIdx} {s s' : AState}, Good fe s →
+    ExprOps.EResolves s e →
+    inferTypeCore mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
+    Ext s.store s'.store
+  /-- `ensureSortCore` only extends the store (Theorem 1's run lemma). -/
+  ensureSortExt : ∀ {fe : IFEnv} {v d : Nat} {e : EIdx} {u : LIdx} {s s' : AState},
+    Good fe s → ExprOps.EResolves s e →
+    ensureSortCore mode (fe.restrictTo v) checkFuel d e s = .ok (u, s') →
+    Ext s.store s'.store
+  /-- `isDefEqCore` ends at a well-formed store extending its start
+  (Theorem 1's run lemma; task #97-P5-Core round 4, for
+  `check_value_group_tail_refines`, whose `Sim` conclusion still wants
+  `AStateRel` and `Ext` after the lockstep front door). -/
+  defeqWF : ∀ {fe : IFEnv} {v d : Nat} {a b : EIdx} {r : Bool} {s s' : AState},
+    Good fe s → ExprOps.EResolves s a → ExprOps.EResolves s b →
+    Arena.isDefEqCore mode (fe.restrictTo v) checkFuel d a b s = .ok (r, s') →
+    StoreWF s'.store ∧ Ext s.store s'.store
   /-- `enterScratch` (phase B's bracket opened) keeps `Good`. -/
   enterScratch : ∀ {fe : IFEnv} {s : AState}, Good fe s →
     Good fe { s with store := s.store.enableScratch, memos := Memos.empty }
@@ -1616,32 +1640,37 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     show (absValueGroup g).cvA.type = absEIdx g.cv_a.ty from rfl]
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := q1
-  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hrel.storeWF
-    hjv check_fuel_abs hq1
+  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel.to₀ hinv hctx
+    check_fuel_abs hq1
   rw [h0] at hS1
   cases r1 with
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.errBind hS1
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS1) _)
   | Ok vtype =>
-  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  -- the lockstep front doors give `AStateRel₀`; `StoreWF` and `Ext` are the
+  -- twin's own, from `ResolveInv` (task #97-P5-Core round 4)
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
   obtain ⟨hres1, hg1⟩ := hR.infer hg hjv hx1
+  have hext1 := hR.inferExt hg hjv hx1
   have hty1 : ExprOps.EResolves lst1 (absEIdx g.cv_a.ty) := (hvg lst1 hg1).1
   rw [run_bind_ok hx1]
   refine AOut.rebase hext1 ?_
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r2, st2⟩ := q2
-  have hS2 := is_def_eq_core_refines knotRel_checkFuel' hrel1 hinv1 hctx hrel1.storeWF
-    hres1 hty1 check_fuel_abs hq2
+  have hS2 := is_def_eq_core_refines knotRel_checkFuel' hrel1 hinv1 hctx
+    check_fuel_abs hq2
   rw [h0] at hS2
   cases r2 with
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.errBind hS2
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS2) _)
   | Ok b =>
-  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  obtain ⟨lst2, hx2, hrel2₀, hinv2⟩ := Sim₀.apply hS2
+  obtain ⟨hwf2, hext2⟩ := hR.defeqWF hg1 hres1 hty1 hx2
+  have hrel2 := hrel2₀.of₀ hwf2
   rw [run_bind_ok hx2]
   refine AOut.rebase hext2 ?_
   cases b with
@@ -1666,13 +1695,14 @@ declaration, at the environment the constant was installed at.
 `infer_type_core ; ensure_sort_core ; check_value_group_value`, the first two
 through `Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
 (lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
-`checkFuel` (`knotRel_checkFuel'`).  The Core entries' own side conditions
-come from the precondition: `EResolves` of the declared type (task #97-P5-0's
-finding 3) is `VGResolves` at the entry state; the inferred type resolves by
-`ResolveInv.infer` at the twin's own run; and `ensure_sort_core`'s
-`AnswerResolves` of the whnf answer (task #97-P5-Arms' finding 14) is
-`ResolveInv.whnf` at the twin run `KnotRel.whnf` produces, carried to every
-twin state related to the Rust post-state by `EResolves.of_rel`. -/
+`checkFuel` (`knotRel_checkFuel'`).  **Since task #97-P5-Core round 4 the two
+front doors are lockstep statements** (`AStateRel₀`, no `StoreWF`, no
+`EResolves` premise, a `Sim₀` conclusion without `Ext`), so they need nothing
+of the precondition; what this proof still takes from `ResolveInv` is what
+its OWN conclusion (`Sim`, over `AStateRel` with `Ext`) and its callee
+`check_value_group_value_refines` need: `Good` along the twin run
+(`infer`, `ensureSort`), and the twin's own `StoreWF` (`wf`) and `Ext`
+(`inferExt`, `ensureSortExt`) — Theorem 1's, as the `ResolveInv` note says. -/
 theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
     {Good : IFEnv → AState → Prop}
@@ -1693,48 +1723,40 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
   have h0 : absU (0#u64) = 0 := rfl
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := q1
-  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hrel.storeWF
-    hres check_fuel_abs hq1
+  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel.to₀ hinv hctx
+    check_fuel_abs hq1
   rw [h0] at hS1
   cases r1 with
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.errBind hS1
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS1) _)
   | Ok stype =>
-  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  -- the lockstep front door gives `AStateRel₀`; `StoreWF` and `Ext` are the
+  -- twin's own, from `ResolveInv` (task #97-P5-Core round 4)
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
   obtain ⟨hres1, hg1⟩ := hR.infer hg hres hx1
-  -- the whnf answer `ensure_sort_core` dispatches on resolves: the twin's does
-  -- (`ResolveInv.whnf`), and every twin state related to the Rust's views alike
-  have hwhnf : ∀ p, arena.core.knot_whnf pers vis st1 mode arena.core.LANE_FULL
-      arena.core.CHECK_FUEL rf 0#u64 stype = ok p → AnswerResolves pers p := by
-    intro p hp w hw lst' hrel'
-    have hW := knotRel_checkFuel'.whnf hrel1 hinv1 hctx hrel1.storeWF hres1
-      check_fuel_abs hp
-    rw [laneKnot_full, h0] at hW
-    obtain ⟨p1, p2⟩ := p
-    simp only at hw
-    subst hw
-    obtain ⟨lst2, hx2, hrel2, -, -, -⟩ := Sim.apply hW
-    exact EResolves.of_rel hrel2 hrel' (hR.whnf hg1 hres1 hx2)
+  have hext1 := hR.inferExt hg hres hx1
   rw [run_bind_ok hx1]
   refine AOut.rebase hext1 ?_
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r2, st2⟩ := q2
-  have hS2 := ensure_sort_core_refines knotRel_checkFuel' hrel1 hinv1 hctx hrel1.storeWF
-    hres1 check_fuel_abs hwhnf hq2
+  have hS2 := ensure_sort_core_refines knotRel_checkFuel' hrel1 hinv1 hctx
+    check_fuel_abs hq2
   rw [h0] at hS2
   cases r2 with
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.errBind hS2
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS2) _)
   | Ok u =>
-  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
   have hg2 := hR.ensureSort hg1 hres1 hx2
+  have hext2 := hR.ensureSortExt hg1 hres1 hx2
   rw [run_bind_ok hx2]
   refine AOut.rebase hext2 ?_
-  exact check_value_group_value_refines hrel2 hinv2 hfe hfinv hR hg2 hvg hrun
+  exact check_value_group_value_refines (hrel2.of₀ (hR.wf hg2)) hinv2 hfe hfinv hR
+    hg2 hvg hrun
 
 
 /-! ## The axiom census -/

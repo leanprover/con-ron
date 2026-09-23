@@ -36,7 +36,8 @@ theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
   subst s1
   have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
   obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine view_bind_triple hvh ?_
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
   cases vh
   case const c us =>
     obtain ⟨cn, ls, hgf, hcn, _⟩ := denote_const_inv hwf hvh hdd
@@ -128,7 +129,8 @@ theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hda
   unfold ConRon.Arena.litToCtorIfNat
-  refine view_bind_triple hv ?_
+  refine tag_view_bind_triple hv ?_
+    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   have hpass : ConLeche.litToCtorIfNat env x = x →
       ⦃fun s => ⌜s = s₀⌝⦄ (pure h : AM EIdx)
       ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧

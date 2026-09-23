@@ -250,7 +250,7 @@ section Probes
 variable {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
 
 /-- `arena::core::whnf_core_probe` against `lst.caches.whnfCoreC[·]?`. -/
-theorem whnf_core_probe_abs (hrel : AStateRel pers st lst)
+theorem whnf_core_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e : arena.handle.EIdx}
     {o : Option arena.handle.EIdx}
     (hrun : arena.core.whnf_core_probe st e = ok o) :
@@ -274,7 +274,7 @@ theorem whnf_core_probe_abs (hrel : AStateRel pers st lst)
     rw [dupId_eidx _ _ hx]
 
 /-- `arena::core::whnf_probe` against `lst.caches.whnfC[·]?`. -/
-theorem whnf_probe_abs (hrel : AStateRel pers st lst)
+theorem whnf_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e : arena.handle.EIdx}
     {o : Option arena.handle.EIdx}
     (hrun : arena.core.whnf_probe st e = ok o) :
@@ -298,7 +298,7 @@ theorem whnf_probe_abs (hrel : AStateRel pers st lst)
     rw [dupId_eidx _ _ hx]
 
 /-- `arena::core::infer_probe` against `lst.caches.inferC[·]?`. -/
-theorem infer_probe_abs (hrel : AStateRel pers st lst)
+theorem infer_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e : arena.handle.EIdx}
     {o : Option arena.handle.EIdx}
     (hrun : arena.core.infer_probe st e = ok o) :
@@ -323,7 +323,7 @@ theorem infer_probe_abs (hrel : AStateRel pers st lst)
 
 /-- `arena::core::infer_io_probe` against `lst.caches.inferIOC[·]?` — the io
 grade's OWN table (DESIGN §8.3 lesson 9). -/
-theorem infer_io_probe_abs (hrel : AStateRel pers st lst)
+theorem infer_io_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e : arena.handle.EIdx}
     {o : Option arena.handle.EIdx}
     (hrun : arena.core.infer_io_probe st e = ok o) :
@@ -347,7 +347,7 @@ theorem infer_io_probe_abs (hrel : AStateRel pers st lst)
     rw [dupId_eidx _ _ hx]
 
 /-- `arena::core::annot_probe` against `lst.caches.annotC[·]?`. -/
-theorem annot_probe_abs (hrel : AStateRel pers st lst)
+theorem annot_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e : arena.handle.EIdx}
     {o : Option arena.handle.EIdx}
     (hrun : arena.core.annot_probe st e = ok o) :
@@ -385,7 +385,7 @@ theorem eidx_pair_abs {a b : arena.handle.EIdx} {k : arena.core_state.EIdxPair}
 
 /-- `arena::core::defeq_probe` against `lst.caches.defeqC[·]?` — the verdict
 table, both signs (con-leche's `defeqC` stores the `Bool`). -/
-theorem defeq_probe_abs (hrel : AStateRel pers st lst)
+theorem defeq_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {k : arena.core_state.EIdxPair} {o : Option Bool}
     (hrun : arena.core.defeq_probe st k = ok o) :
     o = lst.caches.defeqC[absEIdxPair k]? := by
@@ -421,7 +421,7 @@ theorem nls_key_abs {n : arena.handle.NIdx} {us : arena.handle.LsIdx}
 
 /-- `arena::core::const_val_probe` against `lst.caches.constValC[·]?` — the
 delta step's memo, the seventh probe of the tier (task #97-P5-Core-2). -/
-theorem const_val_probe_abs (hrel : AStateRel pers st lst)
+theorem const_val_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {k : arena.core_state.NLsKey}
     {o : Option arena.handle.EIdx}
     (hrun : arena.core.const_val_probe st k = ok o) :
@@ -449,8 +449,8 @@ end Probes
 /-! ## The six memo writes
 
 `Specs.lean`'s `inst1_set_run` with the capacity branch in front of it, which
-is `cache_insert_step`.  `SimS` is the shape: the writes cannot fail and the
-store is untouched, so `Ext.refl` closes the last component and the
+is `cache_insert_step`.  `SimS₀` is the shape (task #97-P5-Core round 4: the
+lockstep relation, no `Ext`): the writes cannot fail and the
 twenty-six other clauses of `AStateRel` / `AStateInv` ride along by the
 structure-instance UPDATE idiom task #97-P5-1 §2 named. -/
 
@@ -459,10 +459,10 @@ section Writes
 variable {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
 
 /-- `arena::core::whnf_core_set` against `Arena.whnfCoreSet`. -/
-theorem whnf_core_set_run (hrel : AStateRel pers st lst)
+theorem whnf_core_set_run (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
     (hrun : arena.core.whnf_core_set st e r = ok st') :
-    SimS pers lst st' (Arena.whnfCoreSet (absEIdx e) (absEIdx r)) := by
+    SimS₀ pers lst st' (Arena.whnfCoreSet (absEIdx e) (absEIdx r)) := by
   rw [arena.core.whnf_core_set] at hrun
   obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -476,17 +476,17 @@ theorem whnf_core_set_run (hrel : AStateRel pers st lst)
   subst hst
   obtain ⟨h1, h2⟩ := cache_insert_step eidx_eq2 absEIdx_surj absEIdx_inj
     hinv.caches.whnfCoreC hrel.caches.whnfCoreC hn hfit hp
-  exact SimS.mk (lst' := { lst with caches := { lst.caches with
+  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
       whnfCoreC := (if lst.caches.whnfCoreC.size < cacheCap then
         lst.caches.whnfCoreC else ∅).insert (absEIdx e) (absEIdx r) } })
     rfl { hrel with caches := { hrel.caches with whnfCoreC := h1 } }
-    { hinv with caches := { hinv.caches with whnfCoreC := h2 } } (Ext.refl _)
+    { hinv with caches := { hinv.caches with whnfCoreC := h2 } }
 
 /-- `arena::core::whnf_set` against `Arena.whnfSet`. -/
-theorem whnf_set_run (hrel : AStateRel pers st lst)
+theorem whnf_set_run (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
     (hrun : arena.core.whnf_set st e r = ok st') :
-    SimS pers lst st' (Arena.whnfSet (absEIdx e) (absEIdx r)) := by
+    SimS₀ pers lst st' (Arena.whnfSet (absEIdx e) (absEIdx r)) := by
   rw [arena.core.whnf_set] at hrun
   obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -500,17 +500,17 @@ theorem whnf_set_run (hrel : AStateRel pers st lst)
   subst hst
   obtain ⟨h1, h2⟩ := cache_insert_step eidx_eq2 absEIdx_surj absEIdx_inj
     hinv.caches.whnfC hrel.caches.whnfC hn hfit hp
-  exact SimS.mk (lst' := { lst with caches := { lst.caches with
+  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
       whnfC := (if lst.caches.whnfC.size < cacheCap then
         lst.caches.whnfC else ∅).insert (absEIdx e) (absEIdx r) } })
     rfl { hrel with caches := { hrel.caches with whnfC := h1 } }
-    { hinv with caches := { hinv.caches with whnfC := h2 } } (Ext.refl _)
+    { hinv with caches := { hinv.caches with whnfC := h2 } }
 
 /-- `arena::core::infer_set` against `Arena.inferSet`. -/
-theorem infer_set_run (hrel : AStateRel pers st lst)
+theorem infer_set_run (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
     (hrun : arena.core.infer_set st e r = ok st') :
-    SimS pers lst st' (Arena.inferSet (absEIdx e) (absEIdx r)) := by
+    SimS₀ pers lst st' (Arena.inferSet (absEIdx e) (absEIdx r)) := by
   rw [arena.core.infer_set] at hrun
   obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -524,17 +524,17 @@ theorem infer_set_run (hrel : AStateRel pers st lst)
   subst hst
   obtain ⟨h1, h2⟩ := cache_insert_step eidx_eq2 absEIdx_surj absEIdx_inj
     hinv.caches.inferC hrel.caches.inferC hn hfit hp
-  exact SimS.mk (lst' := { lst with caches := { lst.caches with
+  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
       inferC := (if lst.caches.inferC.size < cacheCap then
         lst.caches.inferC else ∅).insert (absEIdx e) (absEIdx r) } })
     rfl { hrel with caches := { hrel.caches with inferC := h1 } }
-    { hinv with caches := { hinv.caches with inferC := h2 } } (Ext.refl _)
+    { hinv with caches := { hinv.caches with inferC := h2 } }
 
 /-- `arena::core::infer_io_set` against `Arena.inferIOSet`. -/
-theorem infer_io_set_run (hrel : AStateRel pers st lst)
+theorem infer_io_set_run (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
     (hrun : arena.core.infer_io_set st e r = ok st') :
-    SimS pers lst st' (Arena.inferIOSet (absEIdx e) (absEIdx r)) := by
+    SimS₀ pers lst st' (Arena.inferIOSet (absEIdx e) (absEIdx r)) := by
   rw [arena.core.infer_io_set] at hrun
   obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -548,17 +548,17 @@ theorem infer_io_set_run (hrel : AStateRel pers st lst)
   subst hst
   obtain ⟨h1, h2⟩ := cache_insert_step eidx_eq2 absEIdx_surj absEIdx_inj
     hinv.caches.inferIOC hrel.caches.inferIOC hn hfit hp
-  exact SimS.mk (lst' := { lst with caches := { lst.caches with
+  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
       inferIOC := (if lst.caches.inferIOC.size < cacheCap then
         lst.caches.inferIOC else ∅).insert (absEIdx e) (absEIdx r) } })
     rfl { hrel with caches := { hrel.caches with inferIOC := h1 } }
-    { hinv with caches := { hinv.caches with inferIOC := h2 } } (Ext.refl _)
+    { hinv with caches := { hinv.caches with inferIOC := h2 } }
 
 /-- `arena::core::annot_set` against `Arena.annotSet`. -/
-theorem annot_set_run (hrel : AStateRel pers st lst)
+theorem annot_set_run (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
     (hrun : arena.core.annot_set st e r = ok st') :
-    SimS pers lst st' (Arena.annotSet (absEIdx e) (absEIdx r)) := by
+    SimS₀ pers lst st' (Arena.annotSet (absEIdx e) (absEIdx r)) := by
   rw [arena.core.annot_set] at hrun
   obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -572,18 +572,18 @@ theorem annot_set_run (hrel : AStateRel pers st lst)
   subst hst
   obtain ⟨h1, h2⟩ := cache_insert_step eidx_eq2 absEIdx_surj absEIdx_inj
     hinv.caches.annotC hrel.caches.annotC hn hfit hp
-  exact SimS.mk (lst' := { lst with caches := { lst.caches with
+  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
       annotC := (if lst.caches.annotC.size < cacheCap then
         lst.caches.annotC else ∅).insert (absEIdx e) (absEIdx r) } })
     rfl { hrel with caches := { hrel.caches with annotC := h1 } }
-    { hinv with caches := { hinv.caches with annotC := h2 } } (Ext.refl _)
+    { hinv with caches := { hinv.caches with annotC := h2 } }
 
 /-- `arena::core::defeq_set` against `Arena.defeqSet` — the ORDERED pair key,
 built by `eidx_pair` on the port's side and written inline by the twin. -/
-theorem defeq_set_run (hrel : AStateRel pers st lst)
+theorem defeq_set_run (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {a b : arena.handle.EIdx} {v : Bool} {st'}
     (hrun : arena.core.defeq_set st a b v = ok st') :
-    SimS pers lst st' (Arena.defeqSet (absEIdx a) (absEIdx b) v) := by
+    SimS₀ pers lst st' (Arena.defeqSet (absEIdx a) (absEIdx b) v) := by
   rw [arena.core.defeq_set] at hrun
   obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -596,11 +596,11 @@ theorem defeq_set_run (hrel : AStateRel pers st lst)
   obtain ⟨h1, h2⟩ := cache_insert_step eidxPair_eq2 absEIdxPair_surj
     absEIdxPair_inj hinv.caches.defeqC hrel.caches.defeqC hn hfit hp
   rw [eidx_pair_abs hk] at h1
-  exact SimS.mk (lst' := { lst with caches := { lst.caches with
+  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
       defeqC := (if lst.caches.defeqC.size < cacheCap then
         lst.caches.defeqC else ∅).insert (absEIdx a, absEIdx b) v } })
     rfl { hrel with caches := { hrel.caches with defeqC := h1 } }
-    { hinv with caches := { hinv.caches with defeqC := h2 } } (Ext.refl _)
+    { hinv with caches := { hinv.caches with defeqC := h2 } }
 
 /-- **`arena::core::const_val_set`, as a STATE equation** (task
 #97-P5-Core-2).  The other six writes have a named twin (`Arena.whnfCoreSet`
@@ -608,11 +608,11 @@ and its five siblings); the delta step's memo does not — the twin writes it
 INLINE in `constValAt` — so this one is stated as the pair of facts a caller
 actually consumes, and `const_val_at_refines` spells the twin's `do` block
 itself. -/
-theorem const_val_set_rel (hrel : AStateRel pers st lst)
+theorem const_val_set_rel (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {k : arena.core_state.NLsKey}
     {r : arena.handle.EIdx} {st'}
     (hrun : arena.core.const_val_set st k r = ok st') :
-    AStateRel pers st'
+    AStateRel₀ pers st'
         { lst with caches := { lst.caches with
           constValC := (if lst.caches.constValC.size < cacheCap then
             lst.caches.constValC else ∅).insert (absNLsKey k) (absEIdx r) } }

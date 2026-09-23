@@ -155,7 +155,8 @@ theorem isUnitLikeTy_spec (s₀ : AState) (h : EIdx) (x : Expr)
   have hwf := hok.state.wf
   obtain ⟨rk, hrk⟩ := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
-  refine view_bind_triple hv ?_
+  refine tag_view_bind_triple hv ?_
+    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   cases v
   case const c us =>
     obtain ⟨cn, ls, rfl, hcn, _⟩ := denote_const_inv hwf hv hden
@@ -478,7 +479,8 @@ theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
   subst s1
   have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
   obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine view_bind_triple hvh ?_
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
   cases vh
   case const c us =>
     obtain ⟨cn, ls, hgf, hcn, _⟩ := denote_const_inv hwf hvh hdd
@@ -814,7 +816,8 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   subst s1
   have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
   obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine view_bind_triple hvh ?_
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
   cases vh
   case const c us =>
     obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf hvh hdd
@@ -840,7 +843,8 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         subst s3
         have hdw' : denoteE s₀.store hw' = some w.getAppFn := hrelW w hdw
         obtain ⟨vw, hvw⟩ := denoteE_view hdw'
-        refine view_bind_triple hvw ?_
+        refine tag_view_bind_triple hvw ?_
+          (fun hne => by cases vw <;> first | rfl | exact absurd rfl hne)
         cases vw
         case const T us' =>
           obtain ⟨Tn, ls', hgw, hTn, hus'⟩ := denote_const_inv hwf hvw hdw'
@@ -1282,7 +1286,8 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   subst s3
   have hdd : denoteE s2.store hd = some vwta.getAppFn := hrelF vwta hvwta
   obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine view_bind_triple hvh ?_
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
   cases vh
   case const T us =>
     obtain ⟨Tn, ls, hgf, hTn, hus⟩ := denote_const_inv hwf2 hvh hdd
@@ -1496,7 +1501,8 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       refine ⟨ConLeche.inferTypeIO_mono ?_ hF1, ConLeche.whnf_mono ?_ hF2,
         ConLeche.inferTypeIO_mono ?_ hF3, ConLeche.whnf_mono ?_ hF4⟩ <;> omega
     obtain ⟨vv, hvv⟩ := denoteE_view hvw
-    refine view_bind_triple hvv ?_
+    refine tag_view_bind_triple hvv ?_
+      (fun hne => by cases vv <;> first | rfl | exact absurd rfl hne)
     cases vv
     case sort uT =>
       obtain ⟨lT, rfl, hlT⟩ := denote_sort_inv hwf5 hvv hvw
@@ -1539,7 +1545,8 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           (Nat.le_max_left _ _)
       obtain ⟨k1, k2, k3⟩ := hH _ (Nat.le_refl _)
       obtain ⟨vv2, hvv2⟩ := denoteE_view hvw2
-      refine view_bind_triple hvv2 ?_
+      refine tag_view_bind_triple hvv2 ?_
+        (fun hne => by cases vv2 <;> first | rfl | exact absurd rfl hne)
       cases vv2
       case sort vT =>
         obtain ⟨lV, rfl, hlV⟩ := denote_sort_inv hwf11 hvv2 hvw2

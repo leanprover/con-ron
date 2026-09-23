@@ -238,14 +238,18 @@ def ruleRhsAt (recName ctor : NIdx) (lps : List NIdx) (rhs : EIdx)
 /-- con-leche: ConLeche/Kernel/Core.lean:82-102 unknownConstError — **the
 verdict at a constant the environment does not know**: `sorryAx` is a
 positively detected unsupported feature and DECLINES, every other
-unresolved name is a malformed stream and REJECTS.  The name is read back
-for the message (DESIGN §8.3: readback happens only for error text). -/
+unresolved name is a malformed stream and REJECTS.
+
+**No readback for the message** (task #97-P5-Core round 4's audit): the name
+used to be read back with `readNameM` for the text, which the port does not do
+— its message drops the interpolation (§3.1) — so at a dangling name handle
+the twin failed `internal` where the port answers `Invalid`, and on a live one
+it wrote `readNC`, a cache the port's run leaves alone.  Messages are never
+compared (DESIGN §3.1), so the text is constant. -/
 def unknownConstError (n : NIdx) : AM CheckError := do
   let sa ← pinSorryAx
   if n == sa then pure (.notImplemented "use of the sorryAx axiom")
-  else do
-    let x ← readNameM n
-    pure (.invalid s!"unknown constant {x}")
+  else pure (.invalid "unknown constant")
 
 /-! ## The record of mutually recursive entry points -/
 
@@ -287,42 +291,54 @@ def projModelName (T : NIdx) (i : Nat) : AM NIdx := do
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp — is the
 expression headed by a stored constructor? -/
 def isCtorApp (fe : IFEnv) (e : EIdx) : AM Bool := do
-  match ← view (← getAppFn coreWalkFuel e) with
-  | .const c _ =>
-    match fe.find? c with
-    | some (.ctorInfo _ _ _) => pure true
+  let h ← getAppFn coreWalkFuel e
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const c _ =>
+      match fe.find? c with
+      | some (.ctorInfo _ _ _) => pure true
+      | _ => pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:55-62 piResultIsProp — does the
 syntactic pi telescope end in a (normalized) `Prop`? -/
 def piResultIsProp (e : EIdx) : AM Bool := do
-  match ← view (← piResult coreWalkFuel e) with
-  | .sort u => do
-    let z ← zeroLevel
-    pure ((← lvlEq? u z) == some true)
-  | _ => pure false
+  let h ← piResult coreWalkFuel e
+  if h.tag == ETag.sort then
+    match ← view h with
+    | .sort u => do
+      let z ← zeroLevel
+      pure ((← lvlEq? u z) == some true)
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:64-72 piResultZ — **the
 result-sort zero-ness datum of an inductive's type** (`IndCaps.sortZ`). -/
 def piResultZ (e : EIdx) : AM PropWhen := do
-  match ← view (← piResult coreWalkFuel e) with
-  | .sort u => do
-    let l ← readLevelM u
-    pure (Level.zeronessOf l)
-  | _ => pure (.ifAllZero [])
+  let h ← piResult coreWalkFuel e
+  if h.tag == ETag.sort then
+    match ← view h with
+    | .sort u => do
+      let l ← readLevelM u
+      pure (Level.zeronessOf l)
+    | _ => pure (.ifAllZero [])
+  else pure (.ifAllZero [])
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:74-82 piResultNeverZero — is the
 result sort of a stored inductive's type, instantiated at the given levels,
 provably nonzero (official `is_never_zero`)? -/
 def piResultNeverZero (lps : List NIdx) (us : LsIdx) (e : EIdx) : AM Bool := do
-  match ← view (← piResult coreWalkFuel e) with
-  | .sort u => do
-    let ks ← readNamesM lps
-    let vs ← readLevelsM us
-    let l ← readLevelM u
-    pure (Level.subst ks vs l).isNeverZero
-  | _ => pure false
+  let h ← piResult coreWalkFuel e
+  if h.tag == ETag.sort then
+    match ← view h with
+    | .sort u => do
+      let ks ← readNamesM lps
+      let vs ← readLevelsM us
+      let l ← readLevelM u
+      pure (Level.subst ks vs l).isNeverZero
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:84-95 capsNeverZero — the same
 question read off the STORED datum, which is what the checker runs. -/
@@ -337,80 +353,101 @@ def capsNeverZero (lps : List NIdx) (us : LsIdx) (caps : IIndCaps) :
 item C1: the head-name comparison against `PUnit` comes FIRST and
 short-circuits after one comparison at every other head. -/
 def isUnitLikeTy (fe : IFEnv) (h : EIdx) : AM Bool := do
-  match ← view h with
-  | .const c _ => do
-    let pu ← pinPUnit
-    if c != pu then pure false
-    else
-      match fe.find? pu with
-      | some (.indInfo _ _) => do
-        let pr ← pinPUnitRec
-        match fe.find? pr with
-        | some (.recInfo _ mI rP [r]) => pure (mI == rP && r.nfields == 0)
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const c _ => do
+      let pu ← pinPUnit
+      if c != pu then pure false
+      else
+        match fe.find? pu with
+        | some (.indInfo _ _) => do
+          let pr ← pinPUnitRec
+          match fe.find? pr with
+          | some (.recInfo _ mI rP [r]) => pure (mI == rP && r.nfields == 0)
+          | _ => pure false
         | _ => pure false
-      | _ => pure false
-  | _ => pure false
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition — unfold
 the (application of a) definition at the head, one step.  The stored value
 is instantiated through `constValAt`, so a constant unfolded twice at the
 same levels pays the substitution once. -/
 def unfoldDefinition (fe : IFEnv) (e : EIdx) : AM (Option EIdx) := do
-  match ← view (← getAppFn coreWalkFuel e) with
-  | .const n us =>
-    match fe.find? n with
-    | some (.defnInfo cv value _) => do
-      let usl ← viewLs us
-      if usl.length = cv.levelParams.length then do
-        let v ← constValAt n cv.levelParams value us
-        let args ← getAppArgs coreWalkFuel e
-        let r ← mkAppN v args
-        pure (some r)
-      else pure none
+  let hh ← getAppFn coreWalkFuel e
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const n us =>
+      match fe.find? n with
+      | some (.defnInfo cv value _) => do
+        let usl ← viewLs us
+        if usl.length = cv.levelParams.length then do
+          let v ← constValAt n cv.levelParams value us
+          let args ← getAppArgs coreWalkFuel e
+          let r ← mkAppN v args
+          pure (some r)
+        else pure none
+      | _ => pure none
     | _ => pure none
-  | _ => pure none
+  else pure none
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead — may the
 delta step unfold `e`'s head (the official kernel's `is_delta`)?  The
 DECISION, taken before the unfolding is materialized. -/
 def unfoldableHead (fe : IFEnv) (e : EIdx) : AM Bool := do
-  match ← view (← getAppFn coreWalkFuel e) with
-  | .const n us =>
-    match fe.find? n with
-    | some (.defnInfo cv _ _) => do
-      match ← viewLsLen us with
-      | none => failDanglingLs
-      | some usl =>
-      pure (usl == cv.levelParams.length)
+  let hh ← getAppFn coreWalkFuel e
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const n us =>
+      match fe.find? n with
+      | some (.defnInfo cv _ _) => do
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+        pure (usl == cv.levelParams.length)
+      | _ => pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — the
 reducibility hint of the constant at the head of `e`. -/
 def headHint (fe : IFEnv) (e : EIdx) : AM ReducibilityHint := do
-  match ← view (← getAppFn coreWalkFuel e) with
-  | .const n _ =>
-    match fe.find? n with
-    | some (.defnInfo _ _ hint) => pure hint
+  let hh ← getAppFn coreWalkFuel e
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const n _ =>
+      match fe.find? n with
+      | some (.defnInfo _ _ hint) => pure hint
+      | _ => pure .opaque
     | _ => pure .opaque
-  | _ => pure .opaque
+  else pure .opaque
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — are `a`
 and `b` applications of the *same* constant (the lazy delta same-head
 short-circuit)?  Both sides must actually be applications. -/
 def sameConstHeads (a b : EIdx) : AM Bool := do
-  match ← view a with
-  | .app f₁ _ =>
-    match ← view b with
-    | .app f₂ _ => do
-      match ← view (← getAppFn coreWalkFuel f₁) with
-      | .const n₁ _ =>
-        match ← view (← getAppFn coreWalkFuel f₂) with
-        | .const n₂ _ => pure (n₁ == n₂)
+  if a.tag == ETag.app then
+    match ← view a with
+    | .app f₁ _ =>
+      if b.tag == ETag.app then
+        match ← view b with
+        | .app f₂ _ => do
+          let hh ← getAppFn coreWalkFuel f₁
+          if hh.tag == ETag.const then
+            match ← view hh with
+            | .const n₁ _ =>
+              let hh ← getAppFn coreWalkFuel f₂
+              if hh.tag == ETag.const then
+                match ← view hh with
+                | .const n₂ _ => pure (n₁ == n₂)
+                | _ => pure false
+              else pure false
+            | _ => pure false
+          else pure false
         | _ => pure false
-      | _ => pure false
+      else pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:194-200 natLitToConstructor — the
 constructor form of a `Nat` literal, one layer. -/
@@ -449,9 +486,11 @@ def natSuccOk : Option IConstantInfo → AM Bool
     if !cv.levelParams.isEmpty then pure false else do
       let nt ← pinNat
       let nc ← constE nt
-      match ← view cv.type with
-      | .forallE dom body _mb => pure (dom == nc && body == nc)
-      | _ => pure false
+      if cv.type.tag == ETag.forallE then
+        match ← view cv.type with
+        | .forallE dom body _mb => pure (dom == nc && body == nc)
+        | _ => pure false
+      else pure false
   | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported
@@ -517,10 +556,12 @@ def constsResolve (fe : IFEnv) : Nat → EIdx → AM Bool
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:262-267 litToCtorIfNat — convert a
 `Nat`-literal major premise to constructor form, one layer. -/
 def litToCtorIfNat (fe : IFEnv) (h : EIdx) : AM EIdx := do
-  match ← view h with
-  | .lit (.natVal n) => do
-    if ← natLitSupported fe then natLitToConstructor n else pure h
-  | _ => pure h
+  if h.tag == ETag.lit then
+    match ← view h with
+    | .lit (.natVal n) => do
+      if ← natLitSupported fe then natLitToConstructor n else pure h
+    | _ => pure h
+  else pure h
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — a `Nat`
 literal reading of a whnf'd expression (the official kernel's
@@ -600,9 +641,11 @@ def listTyOk : Option IConstantInfo → AM Bool
       let pl ← internLNode (.param p)
       let sp ← internLNode (.succ pl)
       let sort ← internE (.sort sp)
-      match ← view cv.type with
-      | .forallE d b _mb => pure (d == sort && b == sort)
-      | _ => pure false
+      if cv.type.tag == ETag.forallE then
+        match ← view cv.type with
+        | .forallE d b _mb => pure (d == sort && b == sort)
+        | _ => pure false
+      else pure false
     | _ => pure false
   | none => pure false
 
@@ -618,19 +661,27 @@ def listNilTyOk : Option IConstantInfo → AM Bool
       let sort ← internE (.sort sp)
       let ps ← internLsNode [pl]
       let li ← pinList
-      match ← view cv.type with
-      | .forallE d b _mb => do
-        if d != sort then pure false else
-        match ← view b with
-        | .app f a =>
-          match ← view f with
-          | .const l1 us1 =>
-            match ← view a with
-            | .bvar 0 => pure (l1 == li && us1 == ps)
+      if cv.type.tag == ETag.forallE then
+        match ← view cv.type with
+        | .forallE d b _mb => do
+          if d != sort then pure false else
+          if b.tag == ETag.app then
+            match ← view b with
+            | .app f a =>
+              if f.tag == ETag.const then
+                match ← view f with
+                | .const l1 us1 =>
+                  if a.tag == ETag.bvar then
+                    match ← view a with
+                    | .bvar 0 => pure (l1 == li && us1 == ps)
+                    | _ => pure false
+                  else pure false
+                | _ => pure false
+              else pure false
             | _ => pure false
-          | _ => pure false
+          else pure false
         | _ => pure false
-      | _ => pure false
+      else pure false
     | _ => pure false
   | none => pure false
 
@@ -652,17 +703,23 @@ def listConsTyOk : Option IConstantInfo → AM Bool
       let l1 ← internE (.const li ps)
       let dom3 ← internE (.app l1 b1)
       let cod3 ← internE (.app l1 b2)
-      match ← view cv.type with
-      | .forallE d1 r1 _mb1 => do
-        if d1 != sort then pure false else
-        match ← view r1 with
-        | .forallE d2 r2 _mb2 => do
-          if d2 != b0 then pure false else
-          match ← view r2 with
-          | .forallE d3 c3 _mb3 => pure (d3 == dom3 && c3 == cod3)
-          | _ => pure false
+      if cv.type.tag == ETag.forallE then
+        match ← view cv.type with
+        | .forallE d1 r1 _mb1 => do
+          if d1 != sort then pure false else
+          if r1.tag == ETag.forallE then
+            match ← view r1 with
+            | .forallE d2 r2 _mb2 => do
+              if d2 != b0 then pure false else
+              if r2.tag == ETag.forallE then
+                match ← view r2 with
+                | .forallE d3 c3 _mb3 => pure (d3 == dom3 && c3 == cod3)
+                | _ => pure false
+              else pure false
+            | _ => pure false
+          else pure false
         | _ => pure false
-      | _ => pure false
+      else pure false
     | _ => pure false
   | none => pure false
 
@@ -676,9 +733,11 @@ def charOfNatTyOk : Option IConstantInfo → AM Bool
       let nc ← constE nt
       let ch ← pinChar
       let cc ← constE ch
-      match ← view cv.type with
-      | .forallE d b _mb => pure (d == nc && b == cc)
-      | _ => pure false
+      if cv.type.tag == ETag.forallE then
+        match ← view cv.type with
+        | .forallE d b _mb => pure (d == nc && b == cc)
+        | _ => pure false
+      else pure false
   | none => pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:373-383 stringOfListTyOk — the
@@ -697,9 +756,11 @@ def stringOfListTyOk : Option IConstantInfo → AM Bool
       let dom ← internE (.app lc cc)
       let st ← pinString
       let sc ← constE st
-      match ← view cv.type with
-      | .forallE d b _mb => pure (d == dom && b == sc)
-      | _ => pure false
+      if cv.type.tag == ETag.forallE then
+        match ← view cv.type with
+        | .forallE d b _mb => pure (d == dom && b == sc)
+        | _ => pure false
+      else pure false
   | none => pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-403 strLitSupported
@@ -773,13 +834,15 @@ def boolFalseName : AM NIdx := pinBoolFalse
 constant `Bool.true` (the official kernel's `is_constant(e, Bool.true)`):
 the name, no universe levels. -/
 def isBoolTrue (h : EIdx) : AM Bool := do
-  match ← view h with
-  | .const c us => do
-    let el ← emptyLevels
-    if us != el then pure false else do
-      let bt ← boolTrueName
-      pure (c == bt)
-  | _ => pure false
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const c us => do
+      let el ← emptyLevels
+      if us != el then pure false else do
+        let bt ← boolTrueName
+        pure (c == bt)
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:459-471 Expr.quickPair — the pairs
 official's `quick_is_def_eq` decides by itself: two sorts, two literals, two
@@ -1075,18 +1138,24 @@ def natOpTyPinned (fe : IFEnv) (c : NIdx) (ty : EIdx) : AM Bool := do
   let nc ← constE nn
   let pr ← natPredName
   if c == pr then do
-    match ← view ty with
-    | .forallE dom body _mb =>
-      if dom == nc then natOpCod fe c body else pure false
-    | _ => pure false
-  else do
-    match ← view ty with
-    | .forallE dom rest _mb => do
-      match ← view rest with
-      | .forallE dom2 body _mb2 =>
-        if dom == nc && dom2 == nc then natOpCod fe c body else pure false
+    if ty.tag == ETag.forallE then
+      match ← view ty with
+      | .forallE dom body _mb =>
+        if dom == nc then natOpCod fe c body else pure false
       | _ => pure false
-    | _ => pure false
+    else pure false
+  else do
+    if ty.tag == ETag.forallE then
+      match ← view ty with
+      | .forallE dom rest _mb => do
+        if rest.tag == ETag.forallE then
+          match ← view rest with
+          | .forallE dom2 body _mb2 =>
+            if dom == nc && dom2 == nc then natOpCod fe c body else pure false
+          | _ => pure false
+        else pure false
+      | _ => pure false
+    else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:669-675 natOpStoredOk — op `n` is
 stored as a level-monomorphic definition with the pinned type. -/
@@ -1127,50 +1196,54 @@ FIRST argument is head-normalised and, unless it is a literal, the step
 fails WITHOUT touching the second. -/
 def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
     AM (Option EIdx) := do
-  match ← view e with
-  | .app f b => do
-    match ← view f with
-    | .const c us => do
-      -- con-leche's `.app (.const c []) a`: `b` is its `a`
-      let el ← emptyLevels
-      if us != el then pure none else do
-        let ns ← pinNatSucc
-        if c == ns && (← natLitSupported fe) then do
-          match ← rawNatLit? (← r.whnf depth b) with
-          | some n => do
-            let x ← internE (.lit (.natVal (n + 1)))
-            pure (some x)
-          | none => pure none
-        else pure none
-    | .app g a => do
-      -- con-leche's `.app (.app (.const c []) a) b`
-      match ← view g with
+  if e.tag == ETag.app then
+    match ← view e with
+    | .app f b => do
+      match ← view f with
       | .const c us => do
+        -- con-leche's `.app (.const c []) a`: `b` is its `a`
         let el ← emptyLevels
         if us != el then pure none else do
-          if (← natBinOpName c) && (← natOpStored fe c) then do
-            match ← rawNatLit? (← r.whnf depth a) with
-            | some n₁ => do
-              match ← rawNatLit? (← r.whnf depth b) with
-              | some n₂ => natOpResult c n₁ n₂
-              | none => pure none
+          let ns ← pinNatSucc
+          if c == ns && (← natLitSupported fe) then do
+            match ← rawNatLit? (← r.whnf depth b) with
+            | some n => do
+              let x ← internE (.lit (.natVal (n + 1)))
+              pure (some x)
             | none => pure none
-          else do
-            let wf ← natOpWfNames
-            if wf.contains c && (← natLitSupported fe) then do
-              match ← rawNatLit? (← r.whnf depth a) with
-              | some _ => do
-                match ← rawNatLit? (← r.whnf depth b) with
-                | some _ => do
-                  let nm ← readNameM c
-                  fail (.notImplemented
-                    s!"native Nat computation on literals ({nm})")
+          else pure none
+      | .app g a => do
+        -- con-leche's `.app (.app (.const c []) a) b`
+        if g.tag == ETag.const then
+          match ← view g with
+          | .const c us => do
+            let el ← emptyLevels
+            if us != el then pure none else do
+              if (← natBinOpName c) && (← natOpStored fe c) then do
+                match ← rawNatLit? (← r.whnf depth a) with
+                | some n₁ => do
+                  match ← rawNatLit? (← r.whnf depth b) with
+                  | some n₂ => natOpResult c n₁ n₂
+                  | none => pure none
                 | none => pure none
-              | none => pure none
-            else pure none
+              else do
+                let wf ← natOpWfNames
+                if wf.contains c && (← natLitSupported fe) then do
+                  match ← rawNatLit? (← r.whnf depth a) with
+                  | some _ => do
+                    match ← rawNatLit? (← r.whnf depth b) with
+                    | some _ => do
+                      -- no readback for the message: the port has none
+                      -- (round 4's audit)
+                      fail (.notImplemented "native Nat computation on literals")
+                    | none => pure none
+                  | none => pure none
+                else pure none
+          | _ => pure none
+        else pure none
       | _ => pure none
     | _ => pure none
-  | _ => pure none
+  else pure none
 
 
 /-! ## The certification helpers
@@ -1232,11 +1305,13 @@ def iotaCerts (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (lic : Bool)
 def piResidual : EIdx → List EIdx → AM (Option EIdx)
   | e, [] => pure (some e)
   | h, a :: as => do
-    match ← view h with
-    | .forallE _ b _ => do
-      let b' ← instantiate1Fast coreWalkFuel b a 0
-      piResidual b' as
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE _ b _ => do
+        let b' ← instantiate1Fast coreWalkFuel b a 0
+        piResidual b' as
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — pairwise
 definitional equality of two spines. -/
@@ -1270,17 +1345,23 @@ def proofIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
     let tb ← r.inferIO depth b
     if ← isUnitLikeTy fe (← r.whnf depth tb) then pure true else pure false
   else do
-    match ← view (← r.whnf depth (← r.inferIO depth ta)) with
-    | .sort uT => do
-      let z ← zeroLevel
-      let okA ← liftFueled "level comparison" (← lvlEq? uT z)
-      let tb ← r.inferIO depth b
-      match ← view (← r.whnf depth (← r.inferIO depth tb)) with
-      | .sort vT => do
-        let okB ← liftFueled "level comparison" (← lvlEq? vT z)
-        pure (okA && okB)
+    let hh ← r.whnf depth (← r.inferIO depth ta)
+    if hh.tag == ETag.sort then
+      match ← view hh with
+      | .sort uT => do
+        let z ← zeroLevel
+        let okA ← liftFueled "level comparison" (← lvlEq? uT z)
+        let tb ← r.inferIO depth b
+        let hh ← r.whnf depth (← r.inferIO depth tb)
+        if hh.tag == ETag.sort then
+          match ← view hh with
+          | .sort vT => do
+            let okB ← liftFueled "level comparison" (← lvlEq? vT z)
+            pure (okA && okB)
+          | _ => pure false
+        else pure false
       | _ => pure false
-    | _ => pure false
+    else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — **the hoisted
 proof-irrelevance test** (con-leche's task #168, Option U): the `Prop`
@@ -1295,17 +1376,23 @@ def propIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
     pure true
   else do
     let ta ← r.inferIO depth a
-    match ← view (← r.whnf depth (← r.inferIO depth ta)) with
-    | .sort uT => do
-      let z ← zeroLevel
-      let okA ← liftFueled "level comparison" (← lvlEq? uT z)
-      let tb ← r.inferIO depth b
-      match ← view (← r.whnf depth (← r.inferIO depth tb)) with
-      | .sort vT => do
-        let okB ← liftFueled "level comparison" (← lvlEq? vT z)
-        pure (okA && okB)
+    let hh ← r.whnf depth (← r.inferIO depth ta)
+    if hh.tag == ETag.sort then
+      match ← view hh with
+      | .sort uT => do
+        let z ← zeroLevel
+        let okA ← liftFueled "level comparison" (← lvlEq? uT z)
+        let tb ← r.inferIO depth b
+        let hh ← r.whnf depth (← r.inferIO depth tb)
+        if hh.tag == ETag.sort then
+          match ← view hh with
+          | .sort vT => do
+            let okB ← liftFueled "level comparison" (← lvlEq? vT z)
+            pure (okA && okB)
+          | _ => pure false
+        else pure false
       | _ => pure false
-    | _ => pure false
+    else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:351-374 structEtaProjCerts — the
 per-projection telescope certificates of a structural eta certification at a
@@ -1396,86 +1483,95 @@ structure-eta certificate against a *given* weak-head-normal type of the
 stuck side. -/
 def structEtaCertWith (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
     (depth : Nat) (a b wtb : EIdx) : AM Bool := do
-  match ← view (← getAppFn coreWalkFuel a) with
-  | .const c us =>
-    match fe.find? c with
-    | some (.ctorInfo cvc cnP cnF) => do
-      let aargs ← getAppArgs coreWalkFuel a
-      if aargs.length = cnP + cnF then do
-        match ← view (← getAppFn coreWalkFuel wtb) with
-        | .const T us' =>
-          match fe.find? T with
-          | some (.indInfo cvT caps) => do
-            let targs ← getAppArgs coreWalkFuel wtb
-            let reserved ← reservedBasisNames
-            match ← viewLsLen us' with
-            | none => failDanglingLs
-            | some uslen =>
-            let slots ←
-              if ← towerSlotsAll fe T caps.etaFields then pure true
-              else recSlotsAll fe T caps.etaFields
-            if caps.eta = true ∧ caps.etaCtor = c ∧
-                reserved.contains T = false ∧ reserved.contains c = false ∧
-                targs.length = caps.etaParams ∧
-                uslen = cvT.levelParams.length ∧
-                cvc.levelParams = cvT.levelParams ∧ slots = true then do
-              if ← liftFueled "level comparison" (← lvlsEq? us us') then do
-                -- the type-former telescope certificate and the per-slot
-                -- ones are certificate FAMILIES (official's
-                -- `try_eta_struct_core` runs neither), so `mode.certs` gates
-                -- them both: `Cached/CoreC.lean:437` and `:440`
-                let famT ←
-                  if mode.certs then
-                    iotaCerts r fe depth false (← constTyAt cvT us') targs
-                  else pure true
-                if famT then do
-                  -- the per-slot certificates are the projection-function
-                  -- kind's; a tabled family has none
-                  let percerts ←
-                    if !mode.certs then pure true
-                    else if ← towerSlotsAll fe T caps.etaFields then pure true
-                    else
-                      structEtaProjCerts r fe depth T us' targs b
-                        cvT.levelParams (List.range caps.etaFields)
-                  if percerts then do
-                    if ← defEqList r fe depth (aargs.take caps.etaParams) targs then do
-                      -- synthetic-spine certification (con-leche's task
-                      -- #137); a TT-lane check, skipped unless
-                      -- `mode.ttChecks`
-                      let tt ←
-                        if mode.ttChecks then do
-                          let tyC ← constTyAt cvc us
-                          let projs ← etaProjs fe T us' targs b caps.etaFields
-                          iotaCerts r fe depth false tyC (targs ++ projs)
-                        else pure true
-                      if tt then do
-                        let projs ← etaProjs fe T us' targs b caps.etaFields
-                        defEqList r fe depth (aargs.drop caps.etaParams) projs
+  let hh ← getAppFn coreWalkFuel a
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const c us =>
+      match fe.find? c with
+      | some (.ctorInfo cvc cnP cnF) => do
+        let aargs ← getAppArgs coreWalkFuel a
+        if aargs.length = cnP + cnF then do
+          let hh ← getAppFn coreWalkFuel wtb
+          if hh.tag == ETag.const then
+            match ← view hh with
+            | .const T us' =>
+              match fe.find? T with
+              | some (.indInfo cvT caps) => do
+                let targs ← getAppArgs coreWalkFuel wtb
+                let reserved ← reservedBasisNames
+                match ← viewLsLen us' with
+                | none => failDanglingLs
+                | some uslen =>
+                let slots ←
+                  if ← towerSlotsAll fe T caps.etaFields then pure true
+                  else recSlotsAll fe T caps.etaFields
+                if caps.eta = true ∧ caps.etaCtor = c ∧
+                    reserved.contains T = false ∧ reserved.contains c = false ∧
+                    targs.length = caps.etaParams ∧
+                    uslen = cvT.levelParams.length ∧
+                    cvc.levelParams = cvT.levelParams ∧ slots = true then do
+                  if ← liftFueled "level comparison" (← lvlsEq? us us') then do
+                    -- the type-former telescope certificate and the per-slot
+                    -- ones are certificate FAMILIES (official's
+                    -- `try_eta_struct_core` runs neither), so `mode.certs` gates
+                    -- them both: `Cached/CoreC.lean:437` and `:440`
+                    let famT ←
+                      if mode.certs then
+                        iotaCerts r fe depth false (← constTyAt cvT us') targs
+                      else pure true
+                    if famT then do
+                      -- the per-slot certificates are the projection-function
+                      -- kind's; a tabled family has none
+                      let percerts ←
+                        if !mode.certs then pure true
+                        else if ← towerSlotsAll fe T caps.etaFields then pure true
+                        else
+                          structEtaProjCerts r fe depth T us' targs b
+                            cvT.levelParams (List.range caps.etaFields)
+                      if percerts then do
+                        if ← defEqList r fe depth (aargs.take caps.etaParams) targs then do
+                          -- synthetic-spine certification (con-leche's task
+                          -- #137); a TT-lane check, skipped unless
+                          -- `mode.ttChecks`
+                          let tt ←
+                            if mode.ttChecks then do
+                              let tyC ← constTyAt cvc us
+                              let projs ← etaProjs fe T us' targs b caps.etaFields
+                              iotaCerts r fe depth false tyC (targs ++ projs)
+                            else pure true
+                          if tt then do
+                            let projs ← etaProjs fe T us' targs b caps.etaFields
+                            defEqList r fe depth (aargs.drop caps.etaParams) projs
+                          else pure false
+                        else pure false
                       else pure false
                     else pure false
                   else pure false
                 else pure false
-              else pure false
-            else pure false
-          | _ => pure false
-        | _ => pure false
-      else pure false
+              | _ => pure false
+            | _ => pure false
+          else pure false
+        else pure false
+      | _ => pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:738-749 etaCtorShape — the
 constructor shape official's `try_eta_struct_core` tests before inferring
 anything: the candidate's head is a stored constructor applied to exactly
 its parameters and fields. -/
 def etaCtorShape (fe : IFEnv) (a : EIdx) : AM Bool := do
-  match ← view (← getAppFn coreWalkFuel a) with
-  | .const c _ =>
-    match fe.find? c with
-    | some (.ctorInfo _ cnP cnF) => do
-      let args ← getAppArgs coreWalkFuel a
-      pure (args.length == cnP + cnF)
+  let hh ← getAppFn coreWalkFuel a
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const c _ =>
+      match fe.find? c with
+      | some (.ctorInfo _ cnP cnF) => do
+        let args ← getAppArgs coreWalkFuel a
+        pure (args.length == cnP + cnF)
+      | _ => pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:450-473 structEtaCert —
 structural eta certification for a stored eta-capable structure.  The
@@ -1495,49 +1591,55 @@ def structUnitCert (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
     (depth : Nat) (a b : EIdx) : AM Bool := do
   let ta ← r.inferIO depth a
   let wta ← r.whnf depth ta
-  match ← view (← getAppFn coreWalkFuel wta) with
-  | .const T us' =>
-    match fe.find? T with
-    | some (.indInfo cvT caps) => do
-      let targs ← getAppArgs coreWalkFuel wta
-      let reserved ← reservedBasisNames
-      match ← viewLsLen us' with
-      | none => failDanglingLs
-      | some uslen =>
-      if caps.unitlike = true ∧ reserved.contains T = false ∧
-          targs.length = caps.unitParams ∧
-          uslen = cvT.levelParams.length then do
-        let tb ← r.inferIO depth b
-        let wtb ← r.whnf depth tb
-        if ← r.defeq depth wta wtb then do
-          -- the type-former telescope certificate is a certificate FAMILY
-          -- (official's `is_def_eq_unit_like` stops at the defeq above), so
-          -- `mode.certs` gates it: `Cached/CoreC.lean:508`
-          if mode.certs then
-            iotaCerts r fe depth false (← constTyAt cvT us') targs
-          else pure true
+  let hh ← getAppFn coreWalkFuel wta
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const T us' =>
+      match fe.find? T with
+      | some (.indInfo cvT caps) => do
+        let targs ← getAppArgs coreWalkFuel wta
+        let reserved ← reservedBasisNames
+        match ← viewLsLen us' with
+        | none => failDanglingLs
+        | some uslen =>
+        if caps.unitlike = true ∧ reserved.contains T = false ∧
+            targs.length = caps.unitParams ∧
+            uslen = cvT.levelParams.length then do
+          let tb ← r.inferIO depth b
+          let wtb ← r.whnf depth tb
+          if ← r.defeq depth wta wtb then do
+            -- the type-former telescope certificate is a certificate FAMILY
+            -- (official's `is_def_eq_unit_like` stops at the defeq above), so
+            -- `mode.certs` gates it: `Cached/CoreC.lean:508`
+            if mode.certs then
+              iotaCerts r fe depth false (← constTyAt cvT us') targs
+            else pure true
+          else pure false
         else pure false
-      else pure false
+      | _ => pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — eta
 certification for a one-sided λ against a stuck term `b`. -/
 def etaCert (mode : CheckMode) (r : CoreFnsA) (_fe : IFEnv) (depth : Nat)
     (ty₁ body₁ : EIdx) (m₁ : BinderMeta) (b : EIdx) : AM Bool := do
   let tb ← r.inferIO depth b
-  match ← view (← r.whnf depth tb) with
-  | .forallE ty₂ _ m₂ => do
-    if ← r.defeq depth ty₂ ty₁ then do
-      let fv ← internE (.fvar depth ty₁)
-      let lhs ← instantiate1Fast coreWalkFuel body₁ fv 0
-      let rhs ← internE (.app b fv)
-      if !(← r.defeq (depth + 1) lhs rhs) then pure false else do
-        if mode.verifiedChecks && !(m₁.pw == m₂.pw) then
-          fail (.notImplemented "sort-annotation mismatch (eta)")
-        else pure true
-    else pure false
-  | _ => pure false
+  let hh ← r.whnf depth tb
+  if hh.tag == ETag.forallE then
+    match ← view hh with
+    | .forallE ty₂ _ m₂ => do
+      if ← r.defeq depth ty₂ ty₁ then do
+        let fv ← internE (.fvar depth ty₁)
+        let lhs ← instantiate1Fast coreWalkFuel body₁ fv 0
+        let rhs ← internE (.app b fv)
+        if !(← r.defeq (depth + 1) lhs rhs) then pure false else do
+          if mode.verifiedChecks && !(m₁.pw == m₂.pw) then
+            fail (.notImplemented "sort-annotation mismatch (eta)")
+          else pure true
+      else pure false
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the fallback
 for structurally distinct stuck terms: structural eta in either direction,
@@ -1646,118 +1748,130 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   | [rl] =>
     match fe.find? rl.ctor with
     | some (.ctorInfo cvj cnP _cnF) => do
-      match ← view (← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)) with
-      | .const T _ =>
-        match fe.find? T with
-        | some (.indInfo cvT caps) => do
-          if rl.k = true then do
-            -- io grade (lean4lean `toCtorWhenK`'s `inferType`)
-            let tmaj ← r.whnf depth (← r.inferIO depth major)
-            match ← view (← getAppFn coreWalkFuel tmaj) with
-            | .const T' ust => do
-              let ustl ← viewLs ust
-              if T' = T ∧ cvj.levelParams.length = ustl.length then do
-                let targs ← getAppArgs coreWalkFuel tmaj
-                if cnP ≤ targs.length then do
-                  let hd ← internE (.const rl.ctor ust)
-                  let fab ← mkAppN hd (targs.take cnP)
-                  if ← fabScopeOk depth fab major then do
-                    -- synthetic-spine certification (con-leche's task #71):
-                    -- a certificate FAMILY, gated on `mode.certs`
-                    -- (`Cached/CoreC.lean:576`)
-                    let famK ←
-                      if mode.certs then
-                        iotaCerts r fe depth false (← constTyAt cvj ust)
-                          (targs.take cnP)
-                      else pure true
-                    if famK then do
-                      -- the official `to_cnstr_when_K` type check, both modes
-                      if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
-                        -- `proofIrrel` is the soundness certificate here
-                        -- (official stops at the type check): a family, gated
-                        -- (`Cached/CoreC.lean:588`)
-                        let irK ←
-                          if mode.certs then proofIrrel r fe depth fab major
-                          else pure true
-                        if irK then pure fab else pure major
-                      else pure major
-                    else pure major
-                  else pure major
-                else pure major
-              else pure major
-            | _ => pure major
-          else if rl.eta = true then do
-            let tmaj ← r.whnf depth (← r.inferIO depth major)
-            match ← view (← getAppFn coreWalkFuel tmaj) with
-            | .const T' ust => do
-              let ustl ← viewLs ust
-              let targs ← getAppArgs coreWalkFuel tmaj
-              -- the *instantiated* non-Prop test (con-leche's task #61)
-              let nz ← capsNeverZero cvT.levelParams ust caps
-              if T' = T ∧ targs.length = caps.etaParams ∧
-                  ustl.length = cvT.levelParams.length ∧ nz = true then do
-                let fabArgs ← etaFabArgsE fe T ust targs major caps.etaFields
-                let hd ← internE (.const caps.etaCtor ust)
-                let fab ← mkAppN hd fabArgs
-                if ← fabScopeOk depth fab major then do
-                  -- the synthetic-spine certificate, a family
-                  -- (`Cached/CoreC.lean:621`)
-                  let famE ←
-                    if mode.certs then
-                      iotaCerts r fe depth false (← constTyAt cvj ust) fabArgs
-                    else pure true
-                  if famE then do
-                    if ← structEtaCertWith mode r fe depth fab major tmaj then
-                      pure fab
-                    -- 0-field rescue for the pinned basis `PUnit`
-                    else if caps.etaFields = 0 then do
-                      if ← proofIrrel r fe depth fab major then pure fab
-                      else pure major
-                    else pure major
-                  else pure major
-                else pure major
-              else pure major
-            | _ => pure major
-          else do
-            let an ← pinAnd
-            if T = an then do
-              -- THE `And`-ONLY η RESCUE (user ruling: `And` and nothing else)
+      let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const T _ =>
+          match fe.find? T with
+          | some (.indInfo cvT caps) => do
+            if rl.k = true then do
+              -- io grade (lean4lean `toCtorWhenK`'s `inferType`)
               let tmaj ← r.whnf depth (← r.inferIO depth major)
-              match ← view (← getAppFn coreWalkFuel tmaj) with
-              | .const T' ust => do
-                match ← viewLsLen ust with
-                | none => failDanglingLs
-                | some ustl =>
-                let targs ← getAppArgs coreWalkFuel tmaj
-                let ars ← andRescueSlots fe rl.ctor cnP ust
-                if T' = T ∧ targs.length = cnP ∧
-                    cvj.levelParams.length = ustl ∧ ars = true then do
-                  let p0 ← internE (.proj T 0 major)
-                  let p1 ← internE (.proj T 1 major)
-                  let fabArgs := targs ++ [p0, p1]
-                  let hd ← internE (.const rl.ctor ust)
-                  let fab ← mkAppN hd fabArgs
-                  if ← fabScopeOk depth fab major then do
-                    -- the synthetic-spine certificate and the irrelevance
-                    -- one, both families (`Cached/CoreC.lean:654`, `:658`)
-                    let famA ←
-                      if mode.certs then
-                        iotaCerts r fe depth false (← constTyAt cvj ust) fabArgs
-                      else pure true
-                    if famA then do
-                      if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
-                        let irA ←
-                          if mode.certs then proofIrrel r fe depth fab major
+              let hh ← getAppFn coreWalkFuel tmaj
+              if hh.tag == ETag.const then
+                match ← view hh with
+                | .const T' ust => do
+                  let ustl ← viewLs ust
+                  if T' = T ∧ cvj.levelParams.length = ustl.length then do
+                    let targs ← getAppArgs coreWalkFuel tmaj
+                    if cnP ≤ targs.length then do
+                      let hd ← internE (.const rl.ctor ust)
+                      let fab ← mkAppN hd (targs.take cnP)
+                      if ← fabScopeOk depth fab major then do
+                        -- synthetic-spine certification (con-leche's task #71):
+                        -- a certificate FAMILY, gated on `mode.certs`
+                        -- (`Cached/CoreC.lean:576`)
+                        let famK ←
+                          if mode.certs then
+                            iotaCerts r fe depth false (← constTyAt cvj ust)
+                              (targs.take cnP)
                           else pure true
-                        if irA then pure fab else pure major
+                        if famK then do
+                          -- the official `to_cnstr_when_K` type check, both modes
+                          if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
+                            -- `proofIrrel` is the soundness certificate here
+                            -- (official stops at the type check): a family, gated
+                            -- (`Cached/CoreC.lean:588`)
+                            let irK ←
+                              if mode.certs then proofIrrel r fe depth fab major
+                              else pure true
+                            if irK then pure fab else pure major
+                          else pure major
+                        else pure major
                       else pure major
                     else pure major
                   else pure major
+                | _ => pure major
+              else pure major
+            else if rl.eta = true then do
+              let tmaj ← r.whnf depth (← r.inferIO depth major)
+              let hh ← getAppFn coreWalkFuel tmaj
+              if hh.tag == ETag.const then
+                match ← view hh with
+                | .const T' ust => do
+                  let ustl ← viewLs ust
+                  let targs ← getAppArgs coreWalkFuel tmaj
+                  -- the *instantiated* non-Prop test (con-leche's task #61)
+                  let nz ← capsNeverZero cvT.levelParams ust caps
+                  if T' = T ∧ targs.length = caps.etaParams ∧
+                      ustl.length = cvT.levelParams.length ∧ nz = true then do
+                    let fabArgs ← etaFabArgsE fe T ust targs major caps.etaFields
+                    let hd ← internE (.const caps.etaCtor ust)
+                    let fab ← mkAppN hd fabArgs
+                    if ← fabScopeOk depth fab major then do
+                      -- the synthetic-spine certificate, a family
+                      -- (`Cached/CoreC.lean:621`)
+                      let famE ←
+                        if mode.certs then
+                          iotaCerts r fe depth false (← constTyAt cvj ust) fabArgs
+                        else pure true
+                      if famE then do
+                        if ← structEtaCertWith mode r fe depth fab major tmaj then
+                          pure fab
+                        -- 0-field rescue for the pinned basis `PUnit`
+                        else if caps.etaFields = 0 then do
+                          if ← proofIrrel r fe depth fab major then pure fab
+                          else pure major
+                        else pure major
+                      else pure major
+                    else pure major
+                  else pure major
+                | _ => pure major
+              else pure major
+            else do
+              let an ← pinAnd
+              if T = an then do
+                -- THE `And`-ONLY η RESCUE (user ruling: `And` and nothing else)
+                let tmaj ← r.whnf depth (← r.inferIO depth major)
+                let hh ← getAppFn coreWalkFuel tmaj
+                if hh.tag == ETag.const then
+                  match ← view hh with
+                  | .const T' ust => do
+                    match ← viewLsLen ust with
+                    | none => failDanglingLs
+                    | some ustl =>
+                    let targs ← getAppArgs coreWalkFuel tmaj
+                    let ars ← andRescueSlots fe rl.ctor cnP ust
+                    if T' = T ∧ targs.length = cnP ∧
+                        cvj.levelParams.length = ustl ∧ ars = true then do
+                      let p0 ← internE (.proj T 0 major)
+                      let p1 ← internE (.proj T 1 major)
+                      let fabArgs := targs ++ [p0, p1]
+                      let hd ← internE (.const rl.ctor ust)
+                      let fab ← mkAppN hd fabArgs
+                      if ← fabScopeOk depth fab major then do
+                        -- the synthetic-spine certificate and the irrelevance
+                        -- one, both families (`Cached/CoreC.lean:654`, `:658`)
+                        let famA ←
+                          if mode.certs then
+                            iotaCerts r fe depth false (← constTyAt cvj ust) fabArgs
+                          else pure true
+                        if famA then do
+                          if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
+                            let irA ←
+                              if mode.certs then proofIrrel r fe depth fab major
+                              else pure true
+                            if irA then pure fab else pure major
+                          else pure major
+                        else pure major
+                      else pure major
+                    else pure major
+                  | _ => pure major
                 else pure major
-              | _ => pure major
-            else pure major
+              else pure major
+          | _ => pure major
         | _ => pure major
-      | _ => pure major
+      else pure major
     | _ => pure major
   | _ => pure major
 
@@ -1766,25 +1880,29 @@ literal major premise to constructor form: a `Nat` literal one layer, a
 `String` literal to its *reduced* constructor form. -/
 def litMajorToCtor (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (h : EIdx) :
     AM EIdx := do
-  match ← view h with
-  | .lit (.strVal s) => do
-    if ← strLitSupported fe then do
-      let c ← strLitToConstructor s
-      r.whnf depth c
-    else pure h
-  | _ => litToCtorIfNat fe h
+  if h.tag == ETag.lit then
+    match ← view h with
+    | .lit (.strVal s) => do
+      if ← strLitSupported fe then do
+        let c ← strLitToConstructor s
+        r.whnf depth c
+      else pure h
+    | _ => litToCtorIfNat fe h
+  else litToCtorIfNat fe h
 
 /-- con-leche: ConLeche/Kernel/Core.lean:742-756 projLitToCtor — convert a
 string-literal projection scrutinee to its *reduced* constructor form. -/
 def projLitToCtor (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (h : EIdx) :
     AM EIdx := do
-  match ← view h with
-  | .lit (.strVal s) => do
-    if ← strLitSupported fe then do
-      let c ← strLitToConstructor s
-      r.whnf depth c
-    else pure h
-  | _ => pure h
+  if h.tag == ETag.lit then
+    match ← view h with
+    | .lit (.strVal s) => do
+      if ← strLitSupported fe then do
+        let c ← strLitToConstructor s
+        r.whnf depth c
+      else pure h
+    | _ => pure h
+  else pure h
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:815-830 recRuleKOf — **the K bit
 at install** (`RecRule.k`): the rule's constructor has no fields and belongs
@@ -1792,12 +1910,15 @@ to an inductive stored with the K capability. -/
 def recRuleKOf (fe : IFEnv) (ctor : NIdx) : AM Bool := do
   match fe.find? ctor with
   | some (.ctorInfo cvj _ cnF) => do
-    match ← view (← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)) with
-    | .const T _ =>
-      match fe.find? T with
-      | some (.indInfo _ caps) => pure (caps.ruleK && cnF == 0)
+    let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)
+    if hh.tag == ETag.const then
+      match ← view hh with
+      | .const T _ =>
+        match fe.find? T with
+        | some (.indInfo _ caps) => pure (caps.ruleK && cnF == 0)
+        | _ => pure false
       | _ => pure false
-    | _ => pure false
+    else pure false
   | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:832-858 recRuleEtaOf — **the
@@ -1807,15 +1928,18 @@ an install-time path, never a reduction-time one. -/
 def recRuleEtaOf (fe : IFEnv) (recName ctor : NIdx) : AM Bool := do
   match fe.find? ctor with
   | some (.ctorInfo cvj _ _) => do
-    match ← view (← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)) with
-    | .const T _ =>
-      match fe.find? T with
-      | some (.indInfo cvT caps) => do
-        let rn ← readNameM recName
-        pure (caps.eta && caps.etaCtor == ctor && !Name.isProjFnShape rn &&
-          cvj.levelParams == cvT.levelParams)
+    let hh ← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)
+    if hh.tag == ETag.const then
+      match ← view hh with
+      | .const T _ =>
+        match fe.find? T with
+        | some (.indInfo cvT caps) => do
+          let rn ← readNameM recName
+          pure (caps.eta && caps.etaCtor == ctor && !Name.isProjFnShape rn &&
+            cvj.levelParams == cvT.levelParams)
+        | _ => pure false
       | _ => pure false
-    | _ => pure false
+    else pure false
   | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:860-870 recRuleBits — **stamp a
@@ -1956,68 +2080,71 @@ def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         if args.length = mI + 1 ∧ usl = cv.levelParams.length then do
           let b0 ← internE (.bvar 0)
           let major ← prepareMajor mode r fe depth c rules (args.getD mI b0)
-          match ← view (← getAppFn coreWalkFuel major) with
-          | .const cj usj =>
-            match fe.find? cj with
-            | some (.ctorInfo cvj _ _) =>
-              match findRule rules cj with
-              | some rl => do
-                let margs ← getAppArgs coreWalkFuel major
-                if margs.length = rl.ctorParams + rl.nfields then do
-                  -- a matched *inert* rule is a positive detection of an
-                  -- unsupported feature
-                  if rl.fire = .inert then
-                    fail (.notImplemented
-                      "iota reduction over a nested auxiliary recursor rule")
-                  else do
-                    let cmp ← recFireComparands rl cv.levelParams us
-                      cvj.levelParams args rP
-                    if ← liftFueled "level comparison" (← lvlsEq? usj cmp.1) then do
-                      -- the parameter comparison is verdict-relevant for a
-                      -- nested rule (the comparands ARE the pins) and for a
-                      -- projection-function rule, and a certificate family for
-                      -- every other plain rule: `Cached/CoreC.lean:797`'s
-                      -- `certUnlessI` with exactly that `keep`
-                      let pOk ←
-                        if rl.compareParams then do
-                          let keep ←
-                            match rl.fire with
-                            | .nested _ _ => pure true
-                            | _ => do pure (Name.isProjFnShape (← readNameM c))
-                          if mode.certs || keep then
-                            defEqList r fe depth (margs.take rl.ctorParams) cmp.2
+          let hh ← getAppFn coreWalkFuel major
+          if hh.tag == ETag.const then
+            match ← view hh with
+            | .const cj usj =>
+              match fe.find? cj with
+              | some (.ctorInfo cvj _ _) =>
+                match findRule rules cj with
+                | some rl => do
+                  let margs ← getAppArgs coreWalkFuel major
+                  if margs.length = rl.ctorParams + rl.nfields then do
+                    -- a matched *inert* rule is a positive detection of an
+                    -- unsupported feature
+                    if rl.fire = .inert then
+                      fail (.notImplemented
+                        "iota reduction over a nested auxiliary recursor rule")
+                    else do
+                      let cmp ← recFireComparands rl cv.levelParams us
+                        cvj.levelParams args rP
+                      if ← liftFueled "level comparison" (← lvlsEq? usj cmp.1) then do
+                        -- the parameter comparison is verdict-relevant for a
+                        -- nested rule (the comparands ARE the pins) and for a
+                        -- projection-function rule, and a certificate family for
+                        -- every other plain rule: `Cached/CoreC.lean:797`'s
+                        -- `certUnlessI` with exactly that `keep`
+                        let pOk ←
+                          if rl.compareParams then do
+                            let keep ←
+                              match rl.fire with
+                              | .nested _ _ => pure true
+                              | _ => do pure (Name.isProjFnShape (← readNameM c))
+                            if mode.certs || keep then
+                              defEqList r fe depth (margs.take rl.ctorParams) cmp.2
+                            else pure true
                           else pure true
-                        else pure true
-                      if pOk then do
-                        -- ONE certificate family: the two *licensed* telescope
-                        -- runs and the canonical-index comparison.  Nothing
-                        -- here is read outside the family, so the whole block
-                        -- is what `.trusted` omits, the two type lookups
-                        -- included (`Cached/CoreC.lean:814`)
-                        let fam ←
-                          if mode.certs then do
-                            let tyR ← constTyAt cv us
-                            if ← iotaCerts r fe depth mode.betaGate tyR
-                                (args.take mI ++ [major]) then do
-                              let tyC ← constTyAt cvj usj
-                              if ← iotaCerts r fe depth mode.betaGate tyC margs then
-                                iotaIndexOk r fe depth mI rP rl.ctorParams tyC
-                                  margs ((args.take mI).drop rP)
+                        if pOk then do
+                          -- ONE certificate family: the two *licensed* telescope
+                          -- runs and the canonical-index comparison.  Nothing
+                          -- here is read outside the family, so the whole block
+                          -- is what `.trusted` omits, the two type lookups
+                          -- included (`Cached/CoreC.lean:814`)
+                          let fam ←
+                            if mode.certs then do
+                              let tyR ← constTyAt cv us
+                              if ← iotaCerts r fe depth mode.betaGate tyR
+                                  (args.take mI ++ [major]) then do
+                                let tyC ← constTyAt cvj usj
+                                if ← iotaCerts r fe depth mode.betaGate tyC margs then
+                                  iotaIndexOk r fe depth mI rP rl.ctorParams tyC
+                                    margs ((args.take mI).drop rP)
+                                else pure false
                               else pure false
-                            else pure false
-                          else pure true
-                        if fam then do
-                          let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
-                          let x ← mkAppN rhs
-                            (args.take rP ++ margs.drop rl.ctorParams)
-                          pure (some x)
+                            else pure true
+                          if fam then do
+                            let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
+                            let x ← mkAppN rhs
+                              (args.take rP ++ margs.drop rl.ctorParams)
+                            pure (some x)
+                          else pure none
                         else pure none
                       else pure none
-                    else pure none
-                else pure none
-              | none => pure none
+                  else pure none
+                | none => pure none
+              | _ => pure none
             | _ => pure none
-          | _ => pure none
+          else pure none
         else pure none
       | _ => pure none
   else pure none
@@ -2298,24 +2425,27 @@ def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       let e' ← projLitToCtor r fe depth e0
       match ← fe.findProj? sn i with
       | some entry => do
-        match ← view (← getAppFn coreWalkFuel e') with
-        | .const c us => do
-          let args ← getAppArgs coreWalkFuel e'
-          match ← viewLsLen us with
-          | none => failDanglingLs
-          | some usl =>
-          let fok ← entry.fireOk us
-          if c = entry.ctor ∧ i < entry.numFields ∧
-              args.length = entry.numParams + entry.numFields ∧
-              usl = entry.levelParams.length ∧ fok = true then do
-            let b0 ← internE (.bvar 0)
-            let arg := args.getD (entry.numParams + i) b0
-            if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
-                args then
-              r.whnfCore depth arg
+        let hh ← getAppFn coreWalkFuel e'
+        if hh.tag == ETag.const then
+          match ← view hh with
+          | .const c us => do
+            let args ← getAppArgs coreWalkFuel e'
+            match ← viewLsLen us with
+            | none => failDanglingLs
+            | some usl =>
+            let fok ← entry.fireOk us
+            if c = entry.ctor ∧ i < entry.numFields ∧
+                args.length = entry.numParams + entry.numFields ∧
+                usl = entry.levelParams.length ∧ fok = true then do
+              let b0 ← internE (.bvar 0)
+              let arg := args.getD (entry.numParams + i) b0
+              if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
+                  args then
+                r.whnfCore depth arg
+              else internE (.proj sn i e')
             else internE (.proj sn i e')
-          else internE (.proj sn i e')
-        | _ => internE (.proj sn i e')
+          | _ => internE (.proj sn i e')
+        else internE (.proj sn i e')
       | none => internE (.proj sn i e')
     | .letE _ _ _ =>
       -- **Unreachable by construction** (con-leche's task #241): annotate
@@ -2367,9 +2497,12 @@ def whnfBody (r : CoreFnsA) (fe : IFEnv) : Nat → EIdx → AM EIdx :=
 (the type of some expression) is a sort, returning its level. -/
 def ensureSort (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (e : EIdx) :
     AM LIdx := do
-  match ← view (← r.whnf depth e) with
-  | .sort u => pure u
-  | _ => fail (.invalid "expected a sort")
+  let hh ← r.whnf depth e
+  if hh.tag == ETag.sort then
+    match ← view hh with
+    | .sort u => pure u
+    | _ => fail (.invalid "expected a sort")
+  else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody — the λ clause's
 result, `.forallE ty (bt.abstract1 depth) mb`.  con-leche writes it once at
@@ -2478,11 +2611,18 @@ def inferLams (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
         let tyo ← instantiateListFast coreWalkFuel ty fvs 0
         let tty ← r.infer (d + k) tyo
         let w ← r.whnf (d + k) tty
-        -- The codomain sort itself is not read: the `.lam` case wants only
-        -- that the type's whnf IS a sort, which the handle's own tag says.
+        -- The codomain sort's LEVEL is not used — the `.lam` case wants only
+        -- that the type's whnf IS a sort, which the handle's own tag says —
+        -- but the port's loop does read the node (`view_sort`, failing
+        -- `internal` at a dangling sort-tagged handle), where its first
+        -- binder (`inferLam`) does not.  The twin reads it too (task
+        -- #97-P5-Core round 4's audit), so the two decline alike.
         if w.tag == ETag.sort then do
-          let fv ← internFVarE (d + k) tyo
-          inferLams mode r fe d peel body (k + 1) (fvs.push fv) (stk.push (tyo, mb))
+          match ← viewSort w with
+          | none => failDanglingE
+          | some _ => do
+            let fv ← internFVarE (d + k) tyo
+            inferLams mode r fe d peel body (k + 1) (fvs.push fv) (stk.push (tyo, mb))
         else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1230-1254 inferPisOutI — the ∀
@@ -2689,14 +2829,13 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       | some ci => do
         -- a projection table is not a term (con-leche's task #175 W4c)
         if ci.isTowerEntry then do
-          let x ← readNameM n
-          fail (.invalid s!"projection table entry used as a constant {x}")
+          -- no readback for the message: the port has none (round 4's audit)
+          fail (.invalid "projection table entry used as a constant")
         else do
           let cv ← ci.toConstantVal
           let usl ← viewLs us
           if usl.length != cv.levelParams.length then do
-            let x ← readNameM n
-            fail (.invalid s!"incorrect number of universe levels for {x}")
+            fail (.invalid "incorrect number of universe levels")
           else constTyAt cv us
     | .lit (.natVal _) => do
       if ← natLitSupported fe then do
@@ -2719,31 +2858,34 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     | .app _ _ => inferApp mode r fe depth e
     | .proj sn i pe => do
       let te ← r.whnf depth (← r.infer depth pe)
-      match ← view (← getAppFn coreWalkFuel te) with
-      | .const T us => do
-        match ← fe.findProj? T i with
-        | some entry => do
-          let targs ← getAppArgs coreWalkFuel te
-          match ← viewLsLen us with
-          | none => failDanglingLs
-          | some usl =>
-          -- con-leche's task #175 wiring W5: the node's struct name must be
-          -- the subject type's head
-          if T = sn ∧ targs.length = entry.numParams ∧
-              usl = entry.levelParams.length then do
-            let z ← zeroLevel
-            if (← lvlEq? entry.structSort z) == some true then do
-              let ks ← readNamesM entry.levelParams
-              let vs ← readLevelsM us
-              let fs ← readLevelM entry.fieldSort
-              if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
-                fail (.invalid
-                  "projection from a propositional structure must be a proposition")
+      let hh ← getAppFn coreWalkFuel te
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const T us => do
+          match ← fe.findProj? T i with
+          | some entry => do
+            let targs ← getAppArgs coreWalkFuel te
+            match ← viewLsLen us with
+            | none => failDanglingLs
+            | some usl =>
+            -- con-leche's task #175 wiring W5: the node's struct name must be
+            -- the subject type's head
+            if T = sn ∧ targs.length = entry.numParams ∧
+                usl = entry.levelParams.length then do
+              let z ← zeroLevel
+              if (← lvlEq? entry.structSort z) == some true then do
+                let ks ← readNamesM entry.levelParams
+                let vs ← readLevelsM us
+                let fs ← readLevelM entry.fieldSort
+                if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
+                  fail (.invalid
+                    "projection from a propositional structure must be a proposition")
+                else entry.typeAt us targs pe
               else entry.typeAt us targs pe
-            else entry.typeAt us targs pe
-          else fail (.notImplemented "projection without a native entry")
-        | none => fail (.notImplemented "projection without a native entry")
-      | _ => fail (.notImplemented "projection without a native entry")
+            else fail (.notImplemented "projection without a native entry")
+          | none => fail (.notImplemented "projection without a native entry")
+        | _ => fail (.notImplemented "projection without a native entry")
+      else fail (.notImplemented "projection without a native entry")
     | .letE _ _ _ =>
       fail (.internal "inferType: `let` in an annotated expression")
     | .bvar _ =>
@@ -2771,16 +2913,15 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         fail err
       | some ci => do
         if ci.isTowerEntry then do
-          let x ← readNameM n
-          fail (.invalid s!"projection table entry used as a constant {x}")
+          -- no readback for the message: the port has none (round 4's audit)
+          fail (.invalid "projection table entry used as a constant")
         else do
           let cv ← ci.toConstantVal
           match ← viewLsLen us with
           | none => failDanglingLs
           | some usl =>
           if usl != cv.levelParams.length then do
-            let x ← readNameM n
-            fail (.invalid s!"incorrect number of universe levels for {x}")
+            fail (.invalid "incorrect number of universe levels")
           else constTyAt cv us
     | .lit (.natVal _) => do
       if ← natLitSupported fe then do
@@ -2794,22 +2935,25 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       else fail (.notImplemented
         "string literals before the String support declarations")
     | .forallE ty body mb => do
-      match ← view (← r.whnf depth (← r.infer depth ty)) with
-      | .sort u => do
-        let fv ← internE (.fvar depth ty)
-        let ob ← instantiate1Fast coreWalkFuel body fv 0
-        let v ← ensureSort r fe (depth + 1) (← r.infer (depth + 1) ob)
-        let ok ←
-          if mode.verifiedChecks then do
-            let lv ← readLevelM v
-            pure (Level.zeronessOf lv == mb.pw)
-          else pure true
-        if !ok then
-          fail (.notImplemented "sort-annotation mismatch (forall-cod)")
-        else do
-          let iu ← internLNode (.imax u v)
-          internE (.sort iu)
-      | _ => fail (.invalid "expected a sort")
+      let hh ← r.whnf depth (← r.infer depth ty)
+      if hh.tag == ETag.sort then
+        match ← view hh with
+        | .sort u => do
+          let fv ← internE (.fvar depth ty)
+          let ob ← instantiate1Fast coreWalkFuel body fv 0
+          let v ← ensureSort r fe (depth + 1) (← r.infer (depth + 1) ob)
+          let ok ←
+            if mode.verifiedChecks then do
+              let lv ← readLevelM v
+              pure (Level.zeronessOf lv == mb.pw)
+            else pure true
+          if !ok then
+            fail (.notImplemented "sort-annotation mismatch (forall-cod)")
+          else do
+            let iu ← internLNode (.imax u v)
+            internE (.sort iu)
+        | _ => fail (.invalid "expected a sort")
+      else fail (.invalid "expected a sort")
     | .lam ty body mb => do
       -- con-leche's task #168 stage 2: no domain-sort run at the io grade
       let fv ← internE (.fvar depth ty)
@@ -2837,29 +2981,32 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     | .app _ _ => inferAppIOAt mode r fe depth e
     | .proj sn i pe => do
       let te ← r.whnf depth (← r.infer depth pe)
-      match ← view (← getAppFn coreWalkFuel te) with
-      | .const T us => do
-        match ← fe.findProj? T i with
-        | some entry => do
-          let targs ← getAppArgs coreWalkFuel te
-          match ← viewLsLen us with
-          | none => failDanglingLs
-          | some usl =>
-          if T = sn ∧ targs.length = entry.numParams ∧
-              usl = entry.levelParams.length then do
-            let z ← zeroLevel
-            if (← lvlEq? entry.structSort z) == some true then do
-              let ks ← readNamesM entry.levelParams
-              let vs ← readLevelsM us
-              let fs ← readLevelM entry.fieldSort
-              if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
-                fail (.invalid
-                  "projection from a propositional structure must be a proposition")
+      let hh ← getAppFn coreWalkFuel te
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const T us => do
+          match ← fe.findProj? T i with
+          | some entry => do
+            let targs ← getAppArgs coreWalkFuel te
+            match ← viewLsLen us with
+            | none => failDanglingLs
+            | some usl =>
+            if T = sn ∧ targs.length = entry.numParams ∧
+                usl = entry.levelParams.length then do
+              let z ← zeroLevel
+              if (← lvlEq? entry.structSort z) == some true then do
+                let ks ← readNamesM entry.levelParams
+                let vs ← readLevelsM us
+                let fs ← readLevelM entry.fieldSort
+                if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
+                  fail (.invalid
+                    "projection from a propositional structure must be a proposition")
+                else entry.typeAt us targs pe
               else entry.typeAt us targs pe
-            else entry.typeAt us targs pe
-          else fail (.notImplemented "projection without a native entry")
-        | none => fail (.notImplemented "projection without a native entry")
-      | _ => fail (.notImplemented "projection without a native entry")
+            else fail (.notImplemented "projection without a native entry")
+          | none => fail (.notImplemented "projection without a native entry")
+        | _ => fail (.notImplemented "projection without a native entry")
+      else fail (.notImplemented "projection without a native entry")
     | .letE _ _ _ =>
       fail (.internal "inferType: `let` in an annotated expression")
     | .bvar _ =>
@@ -2883,19 +3030,25 @@ constant (the lazy delta same-head short-circuit, official's
 `try_eq_const_app`). -/
 def defeqSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
     AM Bool := do
-  match ← view (← getAppFn coreWalkFuel a) with
-  | .const n us =>
-    match ← view (← getAppFn coreWalkFuel b) with
-    | .const n' us' => do
-      let aa ← getAppArgs coreWalkFuel a
-      let bb ← getAppArgs coreWalkFuel b
-      if n = n' ∧ aa.length = bb.length then
-        match ← lvlsEq? us us' with
-        | some true => defEqList r fe depth aa bb
+  let hh ← getAppFn coreWalkFuel a
+  if hh.tag == ETag.const then
+    match ← view hh with
+    | .const n us =>
+      let hh ← getAppFn coreWalkFuel b
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const n' us' => do
+          let aa ← getAppArgs coreWalkFuel a
+          let bb ← getAppArgs coreWalkFuel b
+          if n = n' ∧ aa.length = bb.length then
+            match ← lvlsEq? us us' with
+            | some true => defEqList r fe depth aa bb
+            | _ => pure false
+          else pure false
         | _ => pure false
       else pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep — the
 literal-acceleration guard: *both* sides free of free variables, mirroring
@@ -3137,50 +3290,58 @@ def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     | .lit (.natVal nn), .app f x => do
       match nn with
       | k' + 1 => do
-        match ← view f with
-        | .const c us => do
-          let el ← emptyLevels
-          let ns ← pinNatSucc
-          if c = ns ∧ us = el then do
-            let l ← internE (.lit (.natVal k'))
-            r.defeq depth l x
-          else stuckIrrel mode r fe depth a' b'
-        | _ => stuckIrrel mode r fe depth a' b'
+        if f.tag == ETag.const then
+          match ← view f with
+          | .const c us => do
+            let el ← emptyLevels
+            let ns ← pinNatSucc
+            if c = ns ∧ us = el then do
+              let l ← internE (.lit (.natVal k'))
+              r.defeq depth l x
+            else stuckIrrel mode r fe depth a' b'
+          | _ => stuckIrrel mode r fe depth a' b'
+        else stuckIrrel mode r fe depth a' b'
       | _ => stuckIrrel mode r fe depth a' b'
     | .app f x, .lit (.natVal nn) => do
       match nn with
       | k' + 1 => do
-        match ← view f with
-        | .const c us => do
-          let el ← emptyLevels
-          let ns ← pinNatSucc
-          if c = ns ∧ us = el then do
-            let l ← internE (.lit (.natVal k'))
-            r.defeq depth x l
-          else stuckIrrel mode r fe depth a' b'
-        | _ => stuckIrrel mode r fe depth a' b'
+        if f.tag == ETag.const then
+          match ← view f with
+          | .const c us => do
+            let el ← emptyLevels
+            let ns ← pinNatSucc
+            if c = ns ∧ us = el then do
+              let l ← internE (.lit (.natVal k'))
+              r.defeq depth x l
+            else stuckIrrel mode r fe depth a' b'
+          | _ => stuckIrrel mode r fe depth a' b'
+        else stuckIrrel mode r fe depth a' b'
       | _ => stuckIrrel mode r fe depth a' b'
     -- a string literal against a unary `String.ofList` application
     | .lit (.strVal st), .app fo _ => do
-      match ← view fo with
-      | .const cO usO => do
-        let el ← emptyLevels
-        let sl ← pinStringOfList
-        if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
-          let c ← strLitToConstructor st
-          r.defeq depth c b'
-        else stuckIrrel mode r fe depth a' b'
-      | _ => stuckIrrel mode r fe depth a' b'
+      if fo.tag == ETag.const then
+        match ← view fo with
+        | .const cO usO => do
+          let el ← emptyLevels
+          let sl ← pinStringOfList
+          if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+            let c ← strLitToConstructor st
+            r.defeq depth c b'
+          else stuckIrrel mode r fe depth a' b'
+        | _ => stuckIrrel mode r fe depth a' b'
+      else stuckIrrel mode r fe depth a' b'
     | .app fo _, .lit (.strVal st) => do
-      match ← view fo with
-      | .const cO usO => do
-        let el ← emptyLevels
-        let sl ← pinStringOfList
-        if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
-          let c ← strLitToConstructor st
-          r.defeq depth a' c
-        else stuckIrrel mode r fe depth a' b'
-      | _ => stuckIrrel mode r fe depth a' b'
+      if fo.tag == ETag.const then
+        match ← view fo with
+        | .const cO usO => do
+          let el ← emptyLevels
+          let sl ← pinStringOfList
+          if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+            let c ← strLitToConstructor st
+            r.defeq depth a' c
+          else stuckIrrel mode r fe depth a' b'
+        | _ => stuckIrrel mode r fe depth a' b'
+      else stuckIrrel mode r fe depth a' b'
     | .fvar i _, .fvar j _ =>
       if i == j then pure true else stuckIrrel mode r fe depth a' b'
     | .const n us, .const n' us' => do
@@ -3459,27 +3620,30 @@ def annotateBody (r : CoreFnsA) (fe : IFEnv) : Nat → EIdx → AM EIdx :=
     | .proj sn i pe => do
       let e' ← r.annotate depth pe
       let te ← r.whnf depth (← r.inferIO depth e')
-      match ← view (← getAppFn coreWalkFuel te) with
-      | .const T _ => do
-        match ← fe.findProj? T i with
-        | some entry => do
-          -- con-leche's task #271 (issue #7): the node's OWN structure name
-          -- is official's `infer_proj` premise, checked HERE
-          if T != sn then
-            fail (.invalid
-              "invalid projection: the node names another structure")
-          else do
-            let targs ← getAppArgs coreWalkFuel te
-            if targs.length != entry.numParams then
-              fail (.invalid "projection parameter mismatch")
-            else internE (.proj T i e')
-        | none => do
-          let p0 ← fe.findProj? T 0
-          fail (if p0.isSome then
-              CheckError.invalid "projection index out of range"
-            else .notImplemented
-              "projection on a non-structure-like type")
-      | _ => fail (.notImplemented "projection on a non-structure type")
+      let hh ← getAppFn coreWalkFuel te
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const T _ => do
+          match ← fe.findProj? T i with
+          | some entry => do
+            -- con-leche's task #271 (issue #7): the node's OWN structure name
+            -- is official's `infer_proj` premise, checked HERE
+            if T != sn then
+              fail (.invalid
+                "invalid projection: the node names another structure")
+            else do
+              let targs ← getAppArgs coreWalkFuel te
+              if targs.length != entry.numParams then
+                fail (.invalid "projection parameter mismatch")
+              else internE (.proj T i e')
+          | none => do
+            let p0 ← fe.findProj? T 0
+            fail (if p0.isSome then
+                CheckError.invalid "projection index out of range"
+              else .notImplemented
+                "projection on a non-structure-like type")
+        | _ => fail (.notImplemented "projection on a non-structure type")
+      else fail (.notImplemented "projection on a non-structure type")
 
 /-! ## The knot
 

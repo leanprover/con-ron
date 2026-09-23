@@ -456,7 +456,20 @@ theorem lamPw_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
     ⦃fun s => ⌜s = s₀⌝⦄ lamPw h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV Expr.lamPw s₀.store h r⌝⦄ := by
   mvcgen [lamPw]
-  all_goals bridge_vcs [Expr.lamPw, RelV]
+  all_goals first
+    | bridge_vcs [Expr.lamPw, RelV]
+    -- the tag-first `else` arm (task #97-P5-Core round 4): the view comes
+    -- back from the denotation, and its tag is not `lam`
+    | (bridge_peel
+       subst_vars
+       obtain ⟨v, hv⟩ := view_of_denote_isSome (by assumption)
+       have hne := view_tagOf_ne hv (t := ETag.lam) (by assumption)
+       refine ⟨rfl, fun e he => ?_⟩
+       rw [denoteE_view_eq hok.wf hv] at he
+       cases v <;> first
+         | exact absurd rfl hne
+         | grind [denoteEView, Expr.lamPw, opt2_eq_some_iff, opt3_eq_some_iff,
+             Option.map_eq_some_iff])
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:887-894 lamPw — the run form. -/
 theorem lamPw_run {s₀ s' : AState} {h : EIdx} {r : Option PropWhen}

@@ -508,6 +508,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
       mvcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
+      all_goals clear_tag_hyps
       case vc1.isTrue =>
         rename_i hne _
         refine ⟨hok, Ext.refl _, rfl, ?_⟩
@@ -542,6 +543,19 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         rename_i hne _ _ _ _ hnf _ _ hck hview hx hp' _
         refine ⟨hck, hx, hp', ?_⟩
         have hnot := denote_not_forallE hck.state.wf hview (denote_ext hty hx) hnf
+        simp only [ConLeche.natSuccOk]
+        split
+        · rename_i heq; exact absurd heq (hnot _ _ _)
+        · simp
+      -- the type does not carry the `forallE` TAG (round 4's tag-first arm)
+      case vc7 =>
+        rename_i hne _ _ _ htg _ hck hx hp' _ _
+        refine ⟨hck, hx, hp', ?_⟩
+        have hty' := denote_ext hty hx
+        obtain ⟨vt, hview⟩ := denoteE_view hty'
+        have hnot := denote_not_forallE hck.state.wf hview hty'
+          (fun ty b m hh => view_tagOf_ne hview (t := ETag.forallE) htg
+            (by rw [hh]; rfl))
         simp only [ConLeche.natSuccOk]
         split
         · rename_i heq; exact absurd heq (hnot _ _ _)
@@ -915,6 +929,10 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   mvcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels,
     ConRon.Arena.pinNatSucc, hwh, hraw, hlit, hbin, hsto, hwfn, hres]
   all_goals (bridge_peel; subst_vars)
+  -- the twin's two tag tests (task #97-P5-Core round 4) add a hypothesis to
+  -- every `then` arm that no arm's proof needs; clear them so the contexts are
+  -- the view-first twin's again (the two new `else` arms are vc48 and vc51)
+  all_goals clear_tag_hyps
   -- the plain preconditions
   all_goals first
     | exact hp
@@ -1149,7 +1167,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain ⟨w, hw, _, _⟩ := hwb bx (denote_ext hb (hx01.trans hx12))
     exact ⟨w, hw⟩
   -- the safety net: the second argument is not a literal
-  case vc45 =>
+  case vc44 =>
     rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ n s2 _ s3 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa hck3 hr2 hx23 hp32 hwb
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
@@ -1177,7 +1195,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ← hr₂]
     rfl
   -- the safety net: the first argument is not a literal
-  case vc46 =>
+  case vc45 =>
     rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ s2 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
@@ -1200,7 +1218,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     rw [reduceNatFueled_wf hncond hwcond hF₁, ← hr₁]
     rfl
   -- neither guard
-  case vc47 =>
+  case vc46 =>
     rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hnwg
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
@@ -1218,7 +1236,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     exact ⟨none, rfl, by simp, 0, reduceNatFueled_bin_no hncond hnw⟩
   -- the three shapes that are not an operation at all
-  case vc48 =>
+  case vc47 =>
     rename_i _ _ _ _ _ hnc s0 hvx hvf2 hve
     obtain ⟨fx, bx, rfl, hf, _⟩ := denote_app_inv hwf hve hden
     obtain ⟨gx, ax, rfl, hg, _⟩ := denote_app_inv hwf hvf2 hf
@@ -1247,6 +1265,33 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   case vc50 =>
     rename_i _ hna s0 hve
     have hna' := denote_not_app hwf hve hden (fun f a h => hna f a h)
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩
+    · intro c' a' h'; exact hna' _ _ h'
+    · intro c' a' b' h'; exact hna' _ _ h'
+  -- the tag-first `else` arms (round 4): the `app` arm's head `g` does not
+  -- carry the `const` tag, and `e` does not carry the `app` tag; the views
+  -- come back from the denotations
+  case vc48 =>
+    rename_i _ _ _ _ htg s0 hvf2 hve
+    obtain ⟨fx, bx, rfl, hf, _⟩ := denote_app_inv hwf hve hden
+    obtain ⟨gx, ax, rfl, hg, _⟩ := denote_app_inv hwf hvf2 hf
+    obtain ⟨vx, hvx⟩ := denoteE_view hg
+    have hnc' := denote_not_const hwf hvx hg
+      (fun c us hh => view_tagOf_ne hvx (t := ETag.const) htg (by rw [hh]; rfl))
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩
+    · intro c' a' h'; simp at h'
+    · intro c' a' b' h'
+      simp only [Expr.app.injEq] at h'
+      exact hnc' c' [] h'.1.1
+  case vc51 =>
+    rename_i hta s0
+    obtain ⟨vx, hve⟩ := denoteE_view hden
+    have hna' := denote_not_app hwf hve hden
+      (fun f a hh => view_tagOf_ne hve (t := ETag.app) hta (by rw [hh]; rfl))
     refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     refine ⟨none, rfl, by simp, 0, reduceNatFueled_none_of ?_ ?_⟩

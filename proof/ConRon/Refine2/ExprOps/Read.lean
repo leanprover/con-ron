@@ -2667,16 +2667,17 @@ theorem lam_pw_refines {pers : arena.store.PersTier} {st : arena.monad.AState}
   have htag := eidx_tag_abs ht
   obtain ⟨v, hv⟩ := EResolves.dest hres
   have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
-  rw [show lamPw (absEIdx h) = (do
+  -- the twin tests the tag first since task #97-P5-Core round 4, as the port
+  rw [show lamPw (absEIdx h) = (if (absEIdx h).tag == ETag.lam then (do
         let w ← Arena.view (absEIdx h)
         match w with
         | .lam _ _ m => (pure (some m.pw) : AM (Option ConLeche.PropWhen))
-        | _ => pure none) from rfl,
-    view_bind_run_some hv]
+        | _ => pure none) else pure none) from rfl]
   by_cases hc : t = arena.handle.ETAG_LAM
   · subst hc
     rw [if_pos rfl] at hrun
     have hlam : (absEIdx h).tag = ETag.lam := by rw [htag, etag_lam_abs]
+    rw [if_pos (by rw [hlam]; rfl), view_bind_run_some hv]
     have hbind : ETag.isBind (absEIdx h).tag = true := by
       rw [hlam]; simp [ETag.isBind]
     obtain ⟨ty0, b0, m0, hvb, hveq⟩ := estore_view_bind_parts hbind hv
@@ -2709,10 +2710,8 @@ theorem lam_pw_refines {pers : arena.store.PersTier} {st : arena.monad.AState}
     have hne : v.tagOf ≠ ETag.lam := by
       rw [← htv, htag, ← etag_lam_abs]
       intro hcc; exact hc (absU32_inj hcc)
-    cases v <;>
-      first
-        | (exact absurd rfl hne)
-        | exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+    rw [if_neg (by rw [htv]; simpa using hne)]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
 
 theorem forall_pw_refines {pers : arena.store.PersTier} {st : arena.monad.AState}
     {lst : AState} {h : arena.handle.EIdx} {o}
@@ -2910,12 +2909,14 @@ private theorem pi_result_aux (n : Nat) :
     have htag := eidx_tag_abs ht
     obtain ⟨v, hv⟩ := EResolves.dest hres
     have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
-    rw [show absU fuel = m + 1 from hn, piResult, StateT.run_bind,
-      arena_view_run_some hv]
+    rw [show absU fuel = m + 1 from hn, piResult]
     by_cases hc : t = arena.handle.ETAG_FORALL_E
     · subst hc
       rw [if_pos rfl] at hrun
       have hfa : (absEIdx h).tag = ETag.forallE := by rw [htag, etag_forallE_abs]
+      -- the twin tests the tag, then reads `viewBindI` (task #97-P5-Core
+      -- round 4), as the port does
+      rw [if_pos (by rw [hfa]; rfl)]
       have hbind : ETag.isBind (absEIdx h).tag = true := by
         rw [hfa]; simp [ETag.isBind, ETag.lam, ETag.forallE]
       obtain ⟨ty0, b0, m0, hvb, hveq⟩ := estore_view_bind_parts hbind hv
@@ -2926,6 +2927,8 @@ private theorem pi_result_aux (n : Nat) :
       have hqa := reader_eq (view_bind_i_run hrel hbind hq)
       obtain ⟨mi, hbi⟩ := estore_viewBindI_of_viewBind hvb
       rw [hbi] at hqa
+      rw [StateT.run_bind, show (Arena.viewBindI (absEIdx h)).run lst
+        = Except.ok (lst.store.viewBindI (absEIdx h), lst) from rfl, hbi]
       cases hqc : q with
       | none => rw [hqc] at hqa; simp at hqa
       | some p =>
@@ -2952,10 +2955,8 @@ private theorem pi_result_aux (n : Nat) :
       have hnef : v.tagOf ≠ ETag.forallE := by
         rw [← htv, htag, ← etag_forallE_abs]
         intro hcc; exact hc (absU32_inj hcc)
-      cases v <;>
-        first
-          | (exact absurd rfl hnef)
-          | exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      rw [if_neg (by rw [htv]; simpa using hnef)]
+      exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
 
 theorem pi_result_refines {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {fuel : Std.U64}
@@ -3230,12 +3231,13 @@ private theorem strip_pis_aux (n : Nat) :
     have htag := eidx_tag_abs ht
     obtain ⟨v, hv⟩ := EResolves.dest hres
     have htv : (absEIdx h).tag = v.tagOf := EStore_view_tagOf hv
-    rw [show absU k = m + 1 from hn, stripPis, StateT.run_bind,
-      arena_view_run_some hv]
+    rw [show absU k = m + 1 from hn, stripPis]
     by_cases hc : t = arena.handle.ETAG_FORALL_E
     · subst hc
       rw [if_pos rfl] at hrun
       have hla : (absEIdx h).tag = ETag.forallE := by rw [htag, etag_forallE_abs]
+      -- the twin tests the tag first since task #97-P5-Core round 4
+      rw [if_pos (by rw [hla]; rfl), StateT.run_bind, arena_view_run_some hv]
       have hbind : ETag.isBind (absEIdx h).tag = true := by
         rw [hla]; simp [ETag.isBind, ETag.lam, ETag.forallE]
       obtain ⟨ty0, b0, m0, hvb, hveq⟩ := estore_view_bind_parts hbind hv
@@ -3313,10 +3315,8 @@ private theorem strip_pis_aux (n : Nat) :
       have hnef : v.tagOf ≠ ETag.forallE := by
         rw [← htv, htag, ← etag_forallE_abs]
         intro hcc; exact hc (absU32_inj hcc)
-      cases v <;>
-        first
-          | (exact absurd rfl hnef)
-          | exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+      rw [if_neg (by rw [htv]; simpa using hnef)]
+      exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
 
 theorem strip_pis_refines {pers : arena.store.PersTier}
     {st : arena.monad.AState} {lst : AState} {k : Std.U64}

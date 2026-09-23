@@ -1773,9 +1773,11 @@ def isLam (h : EIdx) : AM Bool := do
 prop-ness annotation, `none` off λs.  `PropWhen` is a value and not a term,
 so it crosses the signature unchanged. -/
 def lamPw (h : EIdx) : AM (Option PropWhen) := do
-  match ← view h with
-  | .lam _ _ m => pure (some m.pw)
-  | _ => pure none
+  if h.tag == ETag.lam then
+    match ← view h with
+    | .lam _ _ m => pure (some m.pw)
+    | _ => pure none
+  else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:896-902 forallPw — the ∀ twin of
 `lamPw`. -/
@@ -2062,21 +2064,28 @@ leading `∀`s. -/
 def stripPis : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
   | 0, h => pure (some ([], h))
   | k + 1, h => do
-    match ← view h with
-    | .forallE ty b m => do
-      match ← stripPis k b with
-      | some p => pure (some ((ty, m) :: p.1, p.2))
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE ty b m => do
+        match ← stripPis k b with
+        | some p => pure (some ((ty, m) :: p.1, p.2))
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the body of a
 syntactic `∀`-telescope. -/
 def piResult : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: piResult")
   | fuel + 1, h => do
-    match ← view h with
-    | .forallE _ b _ => piResult fuel b
-    | _ => pure h
+    -- tag first, then the binder projection that stops at the datum HANDLE:
+    -- the port's `pi_result` reads `view_bind_i` and never decodes the datum
+    -- (task #97-P5-Core round 4's audit)
+    if h.tag == ETag.forallE then
+      match ← viewBindI h with
+      | none => failDanglingE
+      | some (_, b, _) => piResult fuel b
+    else pure h
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis — instantiate a
 `∀`-telescope with arguments, in order.  Structural on the argument list; the
@@ -2205,12 +2214,14 @@ def recRulePlain (fuel : Nat) (recTy : EIdx) (mI rP cnP : Nat) : AM Bool := do
   else
     match ← stripPis mI recTy with
     | some p => do
-      match ← view p.2 with
-      | .forallE dom _ _ => do
-        let args ← getAppArgs fuel dom
-        let want ← bvarRange mI cnP 0
-        pure (args.take cnP == want)
-      | _ => pure false
+      if p.2.tag == ETag.forallE then
+        match ← view p.2 with
+        | .forallE dom _ _ => do
+          let args ← getAppArgs fuel dom
+          let want ← bvarRange mI cnP 0
+          pure (args.take cnP == want)
+        | _ => pure false
+      else pure false
     | none => pure false
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — convert the

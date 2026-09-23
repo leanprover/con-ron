@@ -531,7 +531,8 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     subst s3
     have hdd : denoteE s2.store hd = some vte.getAppFn := hrelF vte hvte
     obtain ⟨vh, hvh⟩ := denoteE_view hdd
-    refine view_bind_triple hvh ?_
+    refine tag_view_bind_triple hvh ?_
+      (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
     cases vh
     case const T us =>
       obtain ⟨Tn, ls, hgf, hTn, hus⟩ := denote_const_inv hwf2 hvh hdd

@@ -344,9 +344,10 @@ theorem annotateBody_app {fe : IFEnv} {fuel : Nat}
         (hd : denoteE s.store a = some ea) => hsim.annotate s d a ea hck hd hwa
     mvcgen [h1, h2]
     all_goals (bridge_peel; subst_vars)
+    all_goals clear_tag_hyps
     case vc2.hck => rename_i _ _ _ hck1 _ _ _; exact hck1
     case vc3.hd => rename_i _ _ _ _ _ hx1 _; exact denote_ext hda hx1
-    case vc4.post.success.post.success.post.success =>
+    case vc4 =>
       rename_i _ r1 _ r2 _ _ _ hck1 hck2 hx12 hs1 hp21 hs2 hx01 hp10
       intro hwf3 hx3 _ _ hc3 hp3 _ _ hd3
       obtain ⟨v1, hd1, hw1, F1, hF1⟩ := hs1
@@ -405,6 +406,7 @@ theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
         s₀ hok
       mvcgen [hn]
       all_goals (bridge_peel; subst_vars)
+      all_goals clear_tag_hyps
       all_goals first
         | exact fun h => h.elim
         | (rename_i s1 s0 ck_s0 x_s1_s0 p_s0_s1 hsup
@@ -415,6 +417,7 @@ theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
         s₀ hok
       mvcgen [hn]
       all_goals (bridge_peel; subst_vars)
+      all_goals clear_tag_hyps
       all_goals first
         | exact fun h => h.elim
         | (rename_i s1 s0 ck_s0 x_s1_s0 p_s0_s1 hsup
@@ -471,6 +474,7 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
     have h7 := hsim.annotate'
     mvcgen [ConRon.Arena.ensureSort, h1, hi, hn, h4, hdq, hin, h7]
     all_goals (bridge_peel; subst_vars)
+    all_goals clear_tag_hyps
     case vc2.hdw => exact ⟨et, hdt, hwt⟩
     case vc4.hdw =>
       rename_i s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 hse
@@ -515,7 +519,7 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
         p_s2_s3 hse_3 p_s1_s2 hse_4 p_s0_s1 hsv ck_s3 v_r3_s3 x_s4_s3 p_s3_s4 hse_5
       rw [denote_ext hdb (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
         (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))]; rfl
-    case vc18.post.success.post.success.post.success.post.success.h_1.post.success.post.success.post.success.isFalse.post.success.post.success =>
+    case vc18 =>
       rename_i s8 r7 s7 r6 s6 r5 u0 s5 r4 s4 r3 s3 bq hneg0 s2 r1 s1 r0 s0 ck_s7
         ck_s6 ck_s4 ck_s3 ck_s2 sok x_s8_s7 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2
         x_s2_s1 p_s7_s8 hse p_s6_s7 hse_2 p_s4_s5 hse_3 p_s3_s4 hse_4 p_s2_s3 hsv
@@ -640,7 +644,8 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     subst s4
     have hdd : denoteE s3.store hd = some vte.getAppFn := hrelF vte hvte
     obtain ⟨vh, hvh⟩ := denoteE_view hdd
-    refine view_bind_triple hvh ?_
+    refine tag_view_bind_triple hvh ?_
+      (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
     cases vh
     case const T us =>
       obtain ⟨Tn, ls, hgf, hTn, _hus⟩ := denote_const_inv hwf3 hvh hdd

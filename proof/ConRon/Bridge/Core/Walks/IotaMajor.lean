@@ -49,7 +49,8 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   unfold ConRon.Arena.litMajorToCtor
-  refine view_bind_triple hv ?_
+  refine tag_view_bind_triple hv ?_
+    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   -- every major but a string literal: the `Nat` conversion
   have hnat : (∀ str, x ≠ .lit (.strVal str)) →
       ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.litToCtorIfNat fe h
@@ -356,34 +357,37 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     ⦃fun s => ⌜s = s₁⌝⦄ (do
       let tmaj ← (coreKnot mode fe id fuel).whnf d
         (← (coreKnot mode fe id fuel).inferIO d major)
-      match ← view (← getAppFn coreWalkFuel tmaj) with
-      | .const T' ust => do
-        let ustl ← viewLs ust
-        if T' = T ∧ icvj.levelParams.length = ustl.length then do
-          let targs ← getAppArgs coreWalkFuel tmaj
-          if cnP ≤ targs.length then do
-            let hd ← internE (.const rl.ctor ust)
-            let fab ← mkAppN hd (targs.take cnP)
-            if ← fabScopeOk d fab major then do
-              let famK ←
-                if mode.certs then
-                  ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d false
-                    (← constTyAt icvj ust) (targs.take cnP)
-                else pure true
-              if famK then do
-                if ← (coreKnot mode fe id fuel).defeq d tmaj
-                    (← (coreKnot mode fe id fuel).inferIO d fab) then do
-                  let irK ←
-                    if mode.certs then
-                      ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
-                    else pure true
-                  if irK then pure fab else pure major
+      let hh ← getAppFn coreWalkFuel tmaj
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const T' ust => do
+          let ustl ← viewLs ust
+          if T' = T ∧ icvj.levelParams.length = ustl.length then do
+            let targs ← getAppArgs coreWalkFuel tmaj
+            if cnP ≤ targs.length then do
+              let hd ← internE (.const rl.ctor ust)
+              let fab ← mkAppN hd (targs.take cnP)
+              if ← fabScopeOk d fab major then do
+                let famK ←
+                  if mode.certs then
+                    ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d false
+                      (← constTyAt icvj ust) (targs.take cnP)
+                  else pure true
+                if famK then do
+                  if ← (coreKnot mode fe id fuel).defeq d tmaj
+                      (← (coreKnot mode fe id fuel).inferIO d fab) then do
+                    let irK ←
+                      if mode.certs then
+                        ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
+                      else pure true
+                    if irK then pure fab else pure major
+                  else pure major
                 else pure major
               else pure major
             else pure major
           else pure major
-        else pure major
-      | _ => pure major : AM EIdx)
+        | _ => pure major
+      else pure major : AM EIdx)
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
         SimEOp (fun F => mtcK mode env F d rl' dcvj cnP Tn x) d s'.store r⌝⦄ := by
@@ -410,7 +414,8 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   subst s4
   have hdd := hrelF vtmaj hvtmaj
   obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine view_bind_triple hvh ?_
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
   cases vh
   case const T' ust =>
     obtain ⟨Tn', lsu, hgf, hTn', hlsu⟩ := denote_const_inv hwf3 hvh hdd
@@ -761,35 +766,38 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     ⦃fun s => ⌜s = s₁⌝⦄ (do
       let tmaj ← (coreKnot mode fe id fuel).whnf d
         (← (coreKnot mode fe id fuel).inferIO d major)
-      match ← view (← getAppFn coreWalkFuel tmaj) with
-      | .const T' ust => do
-        let ustl ← viewLs ust
-        let targs ← getAppArgs coreWalkFuel tmaj
-        let nz ← capsNeverZero icvT.levelParams ust icaps
-        if T' = T ∧ targs.length = icaps.etaParams ∧
-            ustl.length = icvT.levelParams.length ∧ nz = true then do
-          let fabArgs ← etaFabArgsE fe T ust targs major icaps.etaFields
-          let hd ← internE (.const icaps.etaCtor ust)
-          let fab ← mkAppN hd fabArgs
-          if ← fabScopeOk d fab major then do
-            let famE ←
-              if mode.certs then
-                ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d false
-                  (← constTyAt icvj ust) fabArgs
-              else pure true
-            if famE then do
-              if ← ConRon.Arena.structEtaCertWith mode (coreKnot mode fe id fuel) fe d
-                  fab major tmaj then
-                pure fab
-              else if icaps.etaFields = 0 then do
-                if ← ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
-                then pure fab
+      let hh ← getAppFn coreWalkFuel tmaj
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const T' ust => do
+          let ustl ← viewLs ust
+          let targs ← getAppArgs coreWalkFuel tmaj
+          let nz ← capsNeverZero icvT.levelParams ust icaps
+          if T' = T ∧ targs.length = icaps.etaParams ∧
+              ustl.length = icvT.levelParams.length ∧ nz = true then do
+            let fabArgs ← etaFabArgsE fe T ust targs major icaps.etaFields
+            let hd ← internE (.const icaps.etaCtor ust)
+            let fab ← mkAppN hd fabArgs
+            if ← fabScopeOk d fab major then do
+              let famE ←
+                if mode.certs then
+                  ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d false
+                    (← constTyAt icvj ust) fabArgs
+                else pure true
+              if famE then do
+                if ← ConRon.Arena.structEtaCertWith mode (coreKnot mode fe id fuel) fe d
+                    fab major tmaj then
+                  pure fab
+                else if icaps.etaFields = 0 then do
+                  if ← ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
+                  then pure fab
+                  else pure major
                 else pure major
               else pure major
             else pure major
           else pure major
-        else pure major
-      | _ => pure major : AM EIdx)
+        | _ => pure major
+      else pure major : AM EIdx)
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
         SimEOp (fun F => mtcEta mode env F d dcvj dcvT dcaps Tn x) d s'.store r⌝⦄ := by
@@ -814,7 +822,8 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   subst s4
   have hdd := hrelF vtmaj hvtmaj
   obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine view_bind_triple hvh ?_
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
   cases vh
   case const T' ust =>
     obtain ⟨Tn', lsu, hgf, hTn', hlsu⟩ := denote_const_inv hwf3 hvh hdd
@@ -1075,39 +1084,42 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     ⦃fun s => ⌜s = s₁⌝⦄ (do
       let tmaj ← (coreKnot mode fe id fuel).whnf d
         (← (coreKnot mode fe id fuel).inferIO d major)
-      match ← view (← getAppFn coreWalkFuel tmaj) with
-      | .const T' ust => do
-        match ← viewLsLen ust with
-        | none => failDanglingLs
-        | some ustl =>
-        let targs ← getAppArgs coreWalkFuel tmaj
-        let ars ← andRescueSlots fe rl.ctor cnP ust
-        if T' = T ∧ targs.length = cnP ∧
-            icvj.levelParams.length = ustl ∧ ars = true then do
-          let p0 ← internE (.proj T 0 major)
-          let p1 ← internE (.proj T 1 major)
-          let fabArgs := targs ++ [p0, p1]
-          let hd ← internE (.const rl.ctor ust)
-          let fab ← mkAppN hd fabArgs
-          if ← fabScopeOk d fab major then do
-            let famA ←
-              if mode.certs then
-                ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d false
-                  (← constTyAt icvj ust) fabArgs
-              else pure true
-            if famA then do
-              if ← (coreKnot mode fe id fuel).defeq d tmaj
-                  (← (coreKnot mode fe id fuel).inferIO d fab) then do
-                let irA ←
-                  if mode.certs then
-                    ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
-                  else pure true
-                if irA then pure fab else pure major
+      let hh ← getAppFn coreWalkFuel tmaj
+      if hh.tag == ETag.const then
+        match ← view hh with
+        | .const T' ust => do
+          match ← viewLsLen ust with
+          | none => failDanglingLs
+          | some ustl =>
+          let targs ← getAppArgs coreWalkFuel tmaj
+          let ars ← andRescueSlots fe rl.ctor cnP ust
+          if T' = T ∧ targs.length = cnP ∧
+              icvj.levelParams.length = ustl ∧ ars = true then do
+            let p0 ← internE (.proj T 0 major)
+            let p1 ← internE (.proj T 1 major)
+            let fabArgs := targs ++ [p0, p1]
+            let hd ← internE (.const rl.ctor ust)
+            let fab ← mkAppN hd fabArgs
+            if ← fabScopeOk d fab major then do
+              let famA ←
+                if mode.certs then
+                  ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d false
+                    (← constTyAt icvj ust) fabArgs
+                else pure true
+              if famA then do
+                if ← (coreKnot mode fe id fuel).defeq d tmaj
+                    (← (coreKnot mode fe id fuel).inferIO d fab) then do
+                  let irA ←
+                    if mode.certs then
+                      ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
+                    else pure true
+                  if irA then pure fab else pure major
+                else pure major
               else pure major
             else pure major
           else pure major
-        else pure major
-      | _ => pure major : AM EIdx)
+        | _ => pure major
+      else pure major : AM EIdx)
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
         SimEOp (fun F => mtcAnd mode env F d rl' dcvj cnP Tn x) d s'.store r⌝⦄ := by
@@ -1132,7 +1144,8 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   subst s4
   have hdd := hrelF vtmaj hvtmaj
   obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine view_bind_triple hvh ?_
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
   cases vh
   case const T' ust =>
     obtain ⟨Tn', lsu, hgf, hTn', hlsu⟩ := denote_const_inv hwf3 hvh hdd
@@ -1442,7 +1455,8 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         subst s3
         have hph := hrelF _ hpr
         obtain ⟨vh, hvh⟩ := denoteE_view hph
-        refine view_bind_triple hvh ?_
+        refine tag_view_bind_triple hvh ?_
+          (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
         cases vh
         case const T lus =>
           obtain ⟨Tn, lusv, hgf, hTn, _⟩ := denote_const_inv hwf hvh hph

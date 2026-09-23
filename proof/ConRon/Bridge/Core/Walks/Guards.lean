@@ -137,6 +137,15 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
     exact ⟨hok, rfl, rfl,
       (isBoolTrue_of_not_const hok.state.wf hview hden
         (fun c us hc => hne c us hc)).symm⟩
+  -- the tag-first `else` arm (task #97-P5-Core round 4): no view read, so it
+  -- is recovered from the denotation, and its tag is not `const`
+  all_goals
+    bridge_peel; subst_vars
+    obtain ⟨v, hv⟩ := denoteE_view hden
+    exact ⟨hok, rfl, rfl,
+      (isBoolTrue_of_not_const hok.state.wf hv hden
+        (fun c us hh => view_tagOf_ne hv (t := ETag.const) (by assumption)
+          (by rw [hh]; rfl))).symm⟩
 
 
 /-! ## The axiom census -/

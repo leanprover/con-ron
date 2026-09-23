@@ -363,7 +363,8 @@ theorem piResidual_spec : ∀ (as : List EIdx) (s₀ : AState) (h : EIdx) (e : E
     obtain ⟨x, xs', hx, hxs', rfl⟩ := denoteEList_cons_inv hxs
     obtain ⟨v, hv⟩ := denoteE_view he
     unfold ConRon.Arena.piResidual
-    refine view_bind_triple hv ?_
+    refine tag_view_bind_triple hv ?_
+      (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
     cases v
     case forallE ty b m =>
       obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hwf hv he
@@ -1111,7 +1112,8 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             subst s5
             have hmh := hrelF vmaj hvmaj
             obtain ⟨vh, hvh⟩ := denoteE_view hmh
-            refine view_bind_triple hvh ?_
+            refine tag_view_bind_triple hvh ?_
+              (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
             cases vh
             case const cj usj =>
               obtain ⟨cjn, lsj, hgfm, hcjn, hlsj⟩ := denote_const_inv hwf4 hvh hmh

@@ -36,6 +36,23 @@ at `f`"* — and the two compose:
     BodyRel f → KnotRel (f + 1)        `Core/Induction.lean`'s `knotRel_succ`
     KnotRel f → BodyRel f              `Core/Arms/*`, the tier's real work
 
+## Lockstep statements (task #97-P5-Core round 4)
+
+Both relations are stated over `AStateRel₀` — the port/twin relation WITHOUT
+the twin's own `StoreWF` — with no `EResolves` premise on the argument and a
+`Sim₀` conclusion (no `Ext`).  Round 3 found the older statements false for
+`f ≥ 1`/`f ≥ 2`: a cache value that dangles (the caches are related KEY for
+key and say nothing of the values' resolution) is answered by the knot's hit,
+and the next step read its TAG in the port and its VIEW in the twin.  Round 4's
+audit found that split at ≈ 60 sites of the knot and its `ExprOps` helpers and
+made the twin test the tag first wherever the port does (`Arena/Core.lean`,
+`Arena/CoreGated.lean`, `Arena/ExprOps.lean`); and the coordinator's ruling
+(i) moved `StoreWF` (and `Ext`, a statement about denotation) out of the
+relation into Theorem 1, because the port and the twin both intern over a
+dangling child without looking at it and their stores stay equal field for
+field — only the twin's DAG invariant fails there.  Nothing about resolution
+is premised or concluded any more.
+
 ## The three ambient arguments
 
 Every port function of this tier carries `pers : &PersTier`, `vis : u64` and
@@ -191,10 +208,10 @@ refines the corresponding slot of the lane's twin knot.  Established once by
 knot_infer` and `Core/Induction.lean`'s `KnotRel.inferAt` derives it. -/
 structure KnotRel (f : Nat) : Prop where
   whnfCore : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.knot_whnf_core pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnfCore
         (absU depth) (absEIdx e))
   /-- **No fuel side condition, at any lane** (task #97-P5-Core-2, which made
@@ -215,39 +232,38 @@ structure KnotRel (f : Nat) : Prop where
     `fuel = 0` arm is.  The two now agree at every fuel and the condition is
     gone from both fields. -/
   whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.knot_whnf pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnf
         (absU depth) (absEIdx e))
   infer : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.knot_infer pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).infer
         (absU depth) (absEIdx e))
   inferIO : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.knot_infer_io pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).inferIO
         (absU depth) (absEIdx e))
   defeq : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx a) → EResolves lst (absEIdx b) →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
     arena.core.knot_defeq pers vis st mode lane fu fe depth a b = ok o →
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeq
         (absU depth) (absEIdx a) (absEIdx b))
   annotate : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.knot_annotate pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).annotate
         (absU depth) (absEIdx e))
 
@@ -256,12 +272,11 @@ against `(laneKnotAt … io f).infer`, which is `r.inferIO` under the io view
 and `r.infer` without it — the two halves of `CoreFnsA.ioView` by iota. -/
 theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
     {pers vis st mode lane io fu fe lfe depth e lst o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hwf : StoreWF lst.store)
-    (hres : EResolves lst (absEIdx e)) (hf : absU fu = f)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.knot_infer_at pers vis st mode lane io fu fe depth e
       = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       ((laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f).infer
         (absU depth) (absEIdx e)) := by
   rw [arena.core.knot_infer_at] at hrun
@@ -269,11 +284,11 @@ theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
   | true =>
     rw [if_pos rfl] at hrun
     rw [laneKnotAt_true]
-    exact h.inferIO hrel hinv hctx hwf hres hf hrun
+    exact h.inferIO hrel hinv hctx hf hrun
   | false =>
     rw [if_neg (by decide)] at hrun
     rw [laneKnotAt_false]
-    exact h.infer hrel hinv hctx hwf hres hf hrun
+    exact h.infer hrel hinv hctx hf hrun
 
 /-- **`BodyRel f`** — the six bodies at fuel `f`, against the twin's bodies
 tied to the lane's knot at `f`.  This is what `Core/Arms/*` owes and what
@@ -299,59 +314,58 @@ of the two is nonetheless TRUE and stays proved, as a fact about the twin, in
 `1 ≤ f` for it, has no consumer and is not restated. -/
 structure BodyRel (f : Nat) : Prop where
   whnfCore : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.whnf_core_body pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
   whnfCoreGated : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e
       = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfCoreBodyGated (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
   whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.whnf_body pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
   infer : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.infer_body pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (inferBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
   inferIO : ∀ {pers vis st mode lane io fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (inferBodyIO (ConRon.Refine.absMode mode)
         (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe
         (absU depth) (absEIdx e))
   defeq : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx a) → EResolves lst (absEIdx b) →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
     arena.core.defeq_body pers vis st mode lane fu fe depth a b = ok o →
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (defeqBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b))
   annotate : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    StoreWF lst.store → EResolves lst (absEIdx e) → absU fu = f →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    absU fu = f →
     arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o →
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
 

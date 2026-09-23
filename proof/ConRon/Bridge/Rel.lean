@@ -742,6 +742,52 @@ theorem EStore.tagOf_of_view {st : EStore} {i : EIdx} {v : ENodeView}
       · simp only [Bool.not_eq_true] at hon
         rw [hon] at h; simp at h
 
+/-! ### The tag-first twin's two arms (task #97-P5-Core round 4)
+
+Round 4 made the twin test a handle's TAG before it reads the node wherever
+the Rust does.  A Theorem-1 proof then meets two new shapes: the `else` arm,
+where it has the tag test's negation and the handle's denotation but no view,
+and the binder arms that read `viewBindI` where the old twin read `view`.
+These three lemmas are the whole of what those shapes need. -/
+
+/-- con-leche: none — a handle that denotes has a view. -/
+theorem view_of_denote_isSome {st : EStore} {h : EIdx}
+    (hd : (denoteE st h).isSome = true) : ∃ v, st.view h = some v := by
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hd
+  exact denoteE_view he
+
+/-- con-leche: none — **the `else` arm**: a handle whose tag is not `t`
+views to a node whose tag is not `t`. -/
+theorem view_tagOf_ne {st : EStore} {h : EIdx} {v : ENodeView} {t : UInt32}
+    (hv : st.view h = some v) (ht : ¬ (h.tag == t) = true) : v.tagOf ≠ t := by
+  rw [← EStore.tagOf_of_view hv]
+  simpa using ht
+
+/-- con-leche: none — **a `forallE`-tagged handle's `viewBindI` is its view**,
+on a well-formed store (the datum decodes: `EWFAt.bmChildOK`). -/
+theorem view_forallE_of_viewBindI {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
+    {mi : BMIdx} (htg : (h.tag == ETag.forallE) = true)
+    (h1 : st.viewBindI h = some (ty, b, mi)) :
+    ∃ m, st.view h = some (.forallE ty b m) := by
+  have hb : ETag.isBind h.tag = true := by
+    have : h.tag = ETag.forallE := by simpa using htg
+    rw [this]; rfl
+  obtain ⟨m, _, _, hv⟩ := view_of_viewBindI_wf hwf hb h1
+  refine ⟨m, ?_⟩
+  rw [hv, eBindView, show h.tag = ETag.forallE by simpa using htg]
+  rfl
+
+/-- con-leche: none — the body of a `forallE`-tagged handle read through
+`viewBindI` denotes when the handle does. -/
+theorem isSome_body_of_viewBindI {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
+    {mi : BMIdx} (htg : (h.tag == ETag.forallE) = true)
+    (h1 : st.viewBindI h = some (ty, b, mi)) (hd : (denoteE st h).isSome = true) :
+    (denoteE st b).isSome = true := by
+  obtain ⟨m, hv⟩ := view_forallE_of_viewBindI hwf htg h1
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hd
+  obtain ⟨_, eb, _, _, hb⟩ := denote_forallE_inv hwf hv he
+  rw [hb]; rfl
+
 /-- con-leche: none — the catch-all arm's content, once: a handle whose tag is
 none of the six the substituting walks dispatch on decodes to one of the four
 LEAF constructors, and its denotation is that leaf. -/

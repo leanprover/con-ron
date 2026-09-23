@@ -206,4 +206,33 @@ section Census
 
 end Census
 
+
+/-! ## The tag-first twin's positive tag hypotheses (task #97-P5-Core round 4)
+
+Round 4 made the twin test a handle's TAG before it reads the node wherever the
+Rust does.  In a walk's `then` arms that adds one hypothesis per test,
+`(Idx.tag h == ETag.C) = true`, which the arm's proof never needs (the view it
+reads already fixes the constructor) but which shifts the positional
+`rename_i` lists the walk proofs are written with.  `clear_tag_hyps` removes
+exactly those, so a proof written against the view-first twin reads the same
+context again; the NEGATIVE ones (the new `else` arms) are kept. -/
+
+open Lean Elab Tactic Meta in
+/-- con-leche: none — clear every `(Idx.tag _ == _) = true` hypothesis. -/
+elab "clear_tag_hyps" : tactic => do
+  let g ← getMainGoal
+  let g' ← g.withContext do
+    let mut g := g
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let ty ← instantiateMVars d.type
+      if ty.isAppOfArity ``Eq 3 then
+        let lhs := ty.getArg! 1
+        if lhs.isAppOfArity ``BEq.beq 4 then
+          let a := (lhs.getArg! 2).getAppFn
+          if a.isConstOf ``ConRon.Arena.Idx.tag then
+            g ← g.tryClear d.fvarId
+    pure g
+  replaceMainGoal [g']
+
 end ConRon.Bridge.Core

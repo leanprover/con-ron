@@ -281,7 +281,8 @@ theorem ensureSortK_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   refine triple_seq (hsim.whnf s₀ d i e hok hden hw) ?_
   rintro w s1 ⟨hok1, hx1, hp1, wx, hwx, -, F, hF⟩
   obtain ⟨v, hv⟩ := denoteE_view hwx
-  refine view_bind_triple hv ?_
+  refine tag_view_bind_triple hv ?_
+    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   cases v
   case sort u =>
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hok1.state.wf hv hwx
@@ -626,39 +627,47 @@ theorem inferLams_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         rintro w s3 ⟨hok3, hx3, hp3, wx, hwx, -, F2, hF2⟩
         split
         next hsort =>
-          obtain ⟨l, rfl⟩ := denote_sort_of_tag hok3.state.wf hwx hsort
-          have hx03 := hx1.trans (hx2.trans hx3)
-          have htyo3 := denote_ext htyo (hx2.trans hx3)
-          -- stage 4: the free variable
-          refine triple_seq (internFVarE_spec s3 (d + k) tyo hok3.state.wf
-            (by rw [htyo3]; rfl)) ?_
-          rintro fv s4 ⟨hwf4, hx4, -, -, -, -, hc4, hp4, -, hd4⟩
-          have hok4 := hok3.mono ⟨hwf4⟩ hx4 hc4 hp4
-          have hfv : denoteE s4.store fv =
-              some (.fvar (d + k) (tyx.instantiateList ws)) := by
-            rw [hd4]; simp [denoteEView, denote_ext htyo3 hx4]
-          have hx04 := hx03.trans hx4
-          -- stage 5: the rest of the chain
-          refine triple_mono (inferLams_carry hsim d peel s4 body (k + 1)
-            (fvs.push fv) (stk.push (tyo, mb)) bodyx
-            (Expr.fvar (d + k) (tyx.instantiateList ws) :: ws)
-            ((tyx.instantiateList ws, mb) :: stkx) hok4
-            (denote_ext hbody hx04)
-            (InstLVec.push (hvec.ext hx04) hfv)
-            (StkRel.push (StkRel.imp (LamR.ext hx04) hstk)
-              ⟨denote_ext htyo (hx2.trans (hx3.trans hx4)), rfl⟩)
-            (by simp [hk])
-            (by rw [show d + (k + 1) = d + k + 1 by omega]
-                exact wscoped_open_cons hwc.1 hwc.2)) ?_
-          rintro r s' ⟨hok', hx', hp', v, hv', F3, hF3⟩
-          refine ⟨hok', hx04.trans hx', hp'.trans (hp4.trans (hp3.trans
-            (hp2.trans hp1))), v, hv', max (max F1 F2) F3, ?_⟩
-          rw [ConLeche.inferLams_succ_lam, infer_def,
-            ConLeche.inferTypeCore_mono (Nat.le_trans (Nat.le_max_left F1 F2)
-              (Nat.le_max_left _ F3)) hF1, ConLeche.okB_bind, whnf_def,
-            ConLeche.whnf_mono (Nat.le_trans (Nat.le_max_right F1 F2)
-              (Nat.le_max_left _ F3)) hF2, ConLeche.okB_bind]
-          exact mInferLams_mono (Nat.le_max_right _ _) hF3
+          refine triple_seq (viewSort_spec s3 w) ?_
+          rintro ou s3' ⟨hs3', hou⟩
+          subst s3'
+          cases ou with
+          | none => exact triple_failDanglingE
+          | some u =>
+            dsimp only
+            have hvw := view_of_viewSort_tag hsort hou.symm
+            obtain ⟨l, rfl, -⟩ := denote_sort_inv hok3.state.wf hvw hwx
+            have hx03 := hx1.trans (hx2.trans hx3)
+            have htyo3 := denote_ext htyo (hx2.trans hx3)
+            -- stage 4: the free variable
+            refine triple_seq (internFVarE_spec s3 (d + k) tyo hok3.state.wf
+              (by rw [htyo3]; rfl)) ?_
+            rintro fv s4 ⟨hwf4, hx4, -, -, -, -, hc4, hp4, -, hd4⟩
+            have hok4 := hok3.mono ⟨hwf4⟩ hx4 hc4 hp4
+            have hfv : denoteE s4.store fv =
+                some (.fvar (d + k) (tyx.instantiateList ws)) := by
+              rw [hd4]; simp [denoteEView, denote_ext htyo3 hx4]
+            have hx04 := hx03.trans hx4
+            -- stage 5: the rest of the chain
+            refine triple_mono (inferLams_carry hsim d peel s4 body (k + 1)
+              (fvs.push fv) (stk.push (tyo, mb)) bodyx
+              (Expr.fvar (d + k) (tyx.instantiateList ws) :: ws)
+              ((tyx.instantiateList ws, mb) :: stkx) hok4
+              (denote_ext hbody hx04)
+              (InstLVec.push (hvec.ext hx04) hfv)
+              (StkRel.push (StkRel.imp (LamR.ext hx04) hstk)
+                ⟨denote_ext htyo (hx2.trans (hx3.trans hx4)), rfl⟩)
+              (by simp [hk])
+              (by rw [show d + (k + 1) = d + k + 1 by omega]
+                  exact wscoped_open_cons hwc.1 hwc.2)) ?_
+            rintro r s' ⟨hok', hx', hp', v, hv', F3, hF3⟩
+            refine ⟨hok', hx04.trans hx', hp'.trans (hp4.trans (hp3.trans
+              (hp2.trans hp1))), v, hv', max (max F1 F2) F3, ?_⟩
+            rw [ConLeche.inferLams_succ_lam, infer_def,
+              ConLeche.inferTypeCore_mono (Nat.le_trans (Nat.le_max_left F1 F2)
+                (Nat.le_max_left _ F3)) hF1, ConLeche.okB_bind, whnf_def,
+              ConLeche.whnf_mono (Nat.le_trans (Nat.le_max_right F1 F2)
+                (Nat.le_max_left _ F3)) hF2, ConLeche.okB_bind]
+            exact mInferLams_mono (Nat.le_max_right _ _) hF3
         next => exact triple_fail
 
 /-! ### 2.6 The `.lam` clause -/

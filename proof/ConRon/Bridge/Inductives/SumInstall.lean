@@ -1981,6 +1981,21 @@ their run forms are here, **on loan from the Core tier** (their module is
 `Bridge/Core/**`, beside the other `CoreDefs` twins).  Each lookup is
 `IFEnvOK`'s `hit`/`miss` pair and each comparison `denoteN_inj`. -/
 
+/-- con-leche: none — a constructor type's result head, two steps deep
+(`piResult`, `getAppFn`), both read-only: the half of `ctorHead_facts` that
+precedes the tag-first twin's `view` (task #97-P5-Core round 4). -/
+theorem ctorHead_facts₂ {s s1 s2 : AState} {ty pr fn : EIdx} {tyP : Expr}
+    (hok : StateOK s) (hd : denoteE s.store ty = some tyP)
+    (k1 : Arena.piResult Arena.coreWalkFuel ty s = .ok (pr, s1))
+    (k2 : Arena.getAppFn Arena.coreWalkFuel pr s1 = .ok (fn, s2)) :
+    s = s1 ∧ s = s2 ∧ denoteE s.store fn = some tyP.piResult.getAppFn := by
+  obtain ⟨hs1, hpr⟩ := AM.of_run (P := fun t => t = s) rfl k1
+    (ExprOps.piResult_spec Arena.coreWalkFuel s ty hok (by rw [hd]; rfl))
+  subst hs1
+  obtain ⟨hs2, hfn⟩ := getAppFn_run hok (hpr _ hd) k2
+  subst hs2
+  exact ⟨rfl, rfl, hfn⟩
+
 /-- con-leche: none — a constructor type's result head, read three steps
 deep (`piResult`, `getAppFn`, `view`), all read-only. -/
 theorem ctorHead_facts {s s1 s2 s3 : AState} {ty pr fn : EIdx} {tyP : Expr}
@@ -2032,8 +2047,13 @@ theorem recRuleKOf_runX {env : Env} {fe : IFEnv} {s s' : AState}
   dsimp only at hrun ⊢
   obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨fn, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨v, s3, k3, z3⟩ := bindOk z2
-  obtain ⟨rfl, rfl, rfl, hv, hfn⟩ := ctorHead_facts hst (denoteCV_type hcvj) k1 k2 k3
+  obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts₂ hst (denoteCV_type hcvj) k1 k2
+  subst s1; subst s2
+  obtain ⟨v0, hv0⟩ := denoteE_view hfn
+  obtain ⟨v, s3, k3, z3⟩ := bindOk (tagIf_view_run hv0
+    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z2)
+  obtain ⟨hs3, hv⟩ := view_run k3
+  subst s3
   cases v
   all_goals try
     (obtain ⟨rfl, rfl⟩ := pureOk z3
@@ -2118,8 +2138,13 @@ theorem recRuleEtaOf_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s 
   dsimp only at hrun ⊢
   obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨fn, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨v, s3, k3, z3⟩ := bindOk z2
-  obtain ⟨rfl, rfl, rfl, hv, hfn⟩ := ctorHead_facts hok.state (denoteCV_type hcvj) k1 k2 k3
+  obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts₂ hok.state (denoteCV_type hcvj) k1 k2
+  subst s1; subst s2
+  obtain ⟨v0, hv0⟩ := denoteE_view hfn
+  obtain ⟨v, s3, k3, z3⟩ := bindOk (tagIf_view_run hv0
+    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z2)
+  obtain ⟨hs3, hv⟩ := view_run k3
+  subst s3
   cases v
   all_goals try
     (obtain ⟨rfl, rfl⟩ := pureOk z3
