@@ -752,7 +752,12 @@ theorem check_defn_val_refines {pers st lst} {rf lf}
       pers lst o
       (checkDefnVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value) (ConRon.Refine.absHint hint)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.decl_check.check_defn_val]
+  try unfold checkDefnVal
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_defn_val_ls {pers st lst}
@@ -837,7 +842,12 @@ theorem check_opaque_val_refines {pers st lst} {rf lf}
       pers lst o
       (checkOpaqueVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.decl_check.check_opaque_val]
+  try unfold checkOpaqueVal
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_opaque_val_ls {pers st lst}
@@ -1198,7 +1208,10 @@ theorem eq_at1_refines {pers st lst} {ty a b : arena.handle.EIdx} {o}
     (hrun : arena.decl_check.eq_at1 pers st ty a b = ok o) :
     Sim₀ absEIdx pers lst o
       (eqAt1 (absEIdx ty) (absEIdx a) (absEIdx b)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.eq_at1]
+  try unfold eqAt1
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem eq_at1_ls {pers st lst}
@@ -1507,28 +1520,6 @@ open Lockstep in
       (certXorSpec (absCertCtx cx) (absNIdx c)) :=
   LS.ofSim₀ fun _ h => cert_xor_refines hrel hinv h
 
-/-- `cert_div_mod_guards` — the `div`/`mod` branch's four guards. -/
-theorem cert_div_mod_guards_refines {pers st lst} {cx : arena.decl_check.CertCtx}
-    {c : arena.handle.NIdx} {rec_rhs base_rhs : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.cert_div_mod_guards pers st cx c rec_rhs base_rhs
-      = ok o) :
-    Sim₀ absStmts pers lst o
-      (certDivModGuardsSpec (absCertCtx cx) (absNIdx c) (absEIdx rec_rhs) (absEIdx base_rhs)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem cert_div_mod_guards_ls {pers st lst}
-    {cx : arena.decl_check.CertCtx}
-    {c : arena.handle.NIdx}
-    {rec_rhs base_rhs : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absStmts a)
-      (arena.decl_check.cert_div_mod_guards pers st cx c rec_rhs base_rhs) lst
-      (certDivModGuardsSpec (absCertCtx cx) (absNIdx c) (absEIdx rec_rhs) (absEIdx base_rhs)) :=
-  LS.ofSim₀ fun _ h => cert_div_mod_guards_refines hrel hinv h
-
 /-- `cert_div_mod_eqs` — the `div`/`mod` branch's three certificates, at the
 four guards already built. -/
 theorem cert_div_mod_eqs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
@@ -1554,6 +1545,31 @@ open Lockstep in
       (certDivModEqsSpec (absCertCtx cx) (absNIdx c) (absEIdx h1) (absEIdx h2)
         (absEIdx h3) (absEIdx h4) (absEIdx rec_rhs) (absEIdx base_rhs)) :=
   LS.ofSim₀ fun _ h => cert_div_mod_eqs_refines hrel hinv h
+/-- `cert_div_mod_guards` — the `div`/`mod` branch's four guards. -/
+theorem cert_div_mod_guards_refines {pers st lst} {cx : arena.decl_check.CertCtx}
+    {c : arena.handle.NIdx} {rec_rhs base_rhs : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.decl_check.cert_div_mod_guards pers st cx c rec_rhs base_rhs
+      = ok o) :
+    Sim₀ absStmts pers lst o
+      (certDivModGuardsSpec (absCertCtx cx) (absNIdx c) (absEIdx rec_rhs) (absEIdx base_rhs)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_div_mod_guards]
+  try unfold certDivModGuardsSpec
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem cert_div_mod_guards_ls {pers st lst}
+    {cx : arena.decl_check.CertCtx}
+    {c : arena.handle.NIdx}
+    {rec_rhs base_rhs : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absStmts a)
+      (arena.decl_check.cert_div_mod_guards pers st cx c rec_rhs base_rhs) lst
+      (certDivModGuardsSpec (absCertCtx cx) (absNIdx c) (absEIdx rec_rhs) (absEIdx base_rhs)) :=
+  LS.ofSim₀ fun _ h => cert_div_mod_guards_refines hrel hinv h
+
 
 /-- `cert_div_mod` — the `div`/`mod` branch, whole. -/
 theorem cert_div_mod_refines {pers st lst} {cx : arena.decl_check.CertCtx}
@@ -1644,34 +1660,6 @@ open Lockstep in
         (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f)) :=
   LS.ofSim₀ fun _ h => cert_ctx_nums_refines hrel hinv h
 
-/-- `cert_ctx_names` — the context, through the six arithmetic names. -/
-theorem cert_ctx_names_refines {pers st lst}
-    {nat_ty x y one : arena.handle.EIdx} {ble_n : arena.handle.NIdx}
-    {bool_ty b_t b_f z two : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.cert_ctx_names st nat_ty x y one ble_n bool_ty b_t
-      b_f z two = ok o) :
-    Sim₀ absCertCtx pers lst o
-      (certCtxNamesFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y) (absEIdx one)
-        (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f) (absEIdx z)
-        (absEIdx two)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem cert_ctx_names_ls {pers st lst}
-    {nat_ty x y one : arena.handle.EIdx}
-    {ble_n : arena.handle.NIdx}
-    {bool_ty b_t b_f z two : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absCertCtx a)
-      (arena.decl_check.cert_ctx_names st nat_ty x y one ble_n bool_ty b_t
-      b_f z two) lst
-      (certCtxNamesFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y) (absEIdx one)
-        (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f) (absEIdx z)
-        (absEIdx two)) :=
-  LS.ofSim₀ fun _ h => cert_ctx_names_refines hrel hinv h
-
 /-- `cert_ctx_names_rest` — the context, through the five bitwise names. -/
 theorem cert_ctx_names_rest_refines {pers st lst}
     {nat_ty x y one : arena.handle.EIdx} {ble_n : arena.handle.NIdx}
@@ -1685,7 +1673,10 @@ theorem cert_ctx_names_rest_refines {pers st lst}
         (absEIdx one) (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t)
         (absEIdx b_f) (absEIdx z) (absEIdx two) (absNIdx mod_n) (absNIdx div_n)
         (absNIdx add_n) (absNIdx mul_n) (absNIdx sub_n) (absNIdx gcd_n)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_ctx_names_rest]
+  try unfold certCtxNamesRestFullSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem cert_ctx_names_rest_ls {pers st lst}
@@ -1703,6 +1694,37 @@ open Lockstep in
         (absEIdx b_f) (absEIdx z) (absEIdx two) (absNIdx mod_n) (absNIdx div_n)
         (absNIdx add_n) (absNIdx mul_n) (absNIdx sub_n) (absNIdx gcd_n)) :=
   LS.ofSim₀ fun _ h => cert_ctx_names_rest_refines hrel hinv h
+/-- `cert_ctx_names` — the context, through the six arithmetic names. -/
+theorem cert_ctx_names_refines {pers st lst}
+    {nat_ty x y one : arena.handle.EIdx} {ble_n : arena.handle.NIdx}
+    {bool_ty b_t b_f z two : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.decl_check.cert_ctx_names st nat_ty x y one ble_n bool_ty b_t
+      b_f z two = ok o) :
+    Sim₀ absCertCtx pers lst o
+      (certCtxNamesFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y) (absEIdx one)
+        (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f) (absEIdx z)
+        (absEIdx two)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.cert_ctx_names]
+  try unfold certCtxNamesFullSpec
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem cert_ctx_names_ls {pers st lst}
+    {nat_ty x y one : arena.handle.EIdx}
+    {ble_n : arena.handle.NIdx}
+    {bool_ty b_t b_f z two : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absCertCtx a)
+      (arena.decl_check.cert_ctx_names st nat_ty x y one ble_n bool_ty b_t
+      b_f z two) lst
+      (certCtxNamesFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y) (absEIdx one)
+        (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f) (absEIdx z)
+        (absEIdx two)) :=
+  LS.ofSim₀ fun _ h => cert_ctx_names_refines hrel hinv h
+
 
 /-- `cert_ctx` — the twenty-one pinned handles `divModCertStmts` opens with,
 bundled because a `let`-bound handle that outlives a `match` arm is a loan the
@@ -1854,6 +1876,25 @@ open Lockstep in
         (absEIdx eq_e) (absEIdx proof)) :=
   LS.ofSim₀ fun _ h => div_mod_cert_guard_refines hrel hinv hfe.rel hfe.inv hvis h
 
+/-- `div_mod_cert_proofs` ⊑ `divModCertProofs`. -/
+theorem div_mod_cert_proofs_refines {pers st lst}
+    {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.decl_check.div_mod_cert_proofs st ps c = ok o) :
+    Sim₀ absEIdxL pers lst o
+      (divModCertProofs (absINatOpPinSet ps) (absNIdx c)) := by
+  sorry
+
+open Lockstep in
+@[lockstep] theorem div_mod_cert_proofs_ls {pers st lst}
+    {ps : arena.nat_op_pin_set.INatOpPinSet}
+    {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.decl_check.div_mod_cert_proofs st ps c) lst
+      (divModCertProofs (absINatOpPinSet ps) (absNIdx c)) :=
+  LS.ofSim₀ fun _ h => div_mod_cert_proofs_refines hrel hinv h
 /-- `div_mod_certs_guard_go` ⊑ `divModCertsGuardGo` at the cursor. -/
 theorem div_mod_certs_guard_go_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {ann_val : arena.handle.EIdx}
@@ -1897,7 +1938,12 @@ theorem div_mod_certs_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.div_mod_certs_guard pers vis st ps rf c ann_val = ok o) :
     Sim₀ id pers lst o
       (divModCertsGuard (absINatOpPinSet ps) lf (absNIdx c) (absEIdx ann_val)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.div_mod_certs_guard]
+  try unfold divModCertsGuard
+  lockstep
 
 /-- `div_mod_slot` / `_1` / `_2` — the operation's index in the pin record's
 eight-slot family, which the twin spells as a chain of handle comparisons
@@ -1950,25 +1996,6 @@ open Lockstep in
       (divModSlot2Spec (absNIdx c)) :=
   LS.ofSim₀ fun _ h => div_mod_slot_2_refines hrel hinv h
 
-/-- `div_mod_cert_proofs` ⊑ `divModCertProofs`. -/
-theorem div_mod_cert_proofs_refines {pers st lst}
-    {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.div_mod_cert_proofs st ps c = ok o) :
-    Sim₀ absEIdxL pers lst o
-      (divModCertProofs (absINatOpPinSet ps) (absNIdx c)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem div_mod_cert_proofs_ls {pers st lst}
-    {ps : arena.nat_op_pin_set.INatOpPinSet}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdxL a)
-      (arena.decl_check.div_mod_cert_proofs st ps c) lst
-      (divModCertProofs (absINatOpPinSet ps) (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => div_mod_cert_proofs_refines hrel hinv h
 
 /-- `div_mod_decl_pin` ⊑ `divModDeclPin`. -/
 theorem div_mod_decl_pin_refines {pers st lst}
