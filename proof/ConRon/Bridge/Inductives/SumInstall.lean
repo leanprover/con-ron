@@ -471,7 +471,31 @@ theorem consSumCtors_spec (st : EStore) (nP : Nat)
     (hfe : denoteFEnv st fe = some env) (hcoh : IFEnvCoh fe) :
     InstRel fe (fun e => e = ConLeche.consSumCtors nP csP env) st
       (Arena.consSumCtors nP cs fe) := by
-  sorry
+  induction cs generalizing csP fe env with
+  | nil =>
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    subst hcs
+    exact ⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩, ProjOut.refl _ _⟩
+  | cons c cs ih =>
+    obtain ⟨cv, n⟩ := c
+    simp only [denoteCtors] at hcs
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at hcs; simp at hcs
+    | some cP =>
+    cases hrest : denoteCtors st cs with
+    | none => rw [hcv, hrest] at hcs; simp at hcs
+    | some restP =>
+    rw [hcv, hrest] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    have hci : Frontend.denoteCI st (.ctorInfo cv nP n) = some (.ctorInfo cP nP n) := by
+      simp only [Frontend.denoteCI, hcv, Option.map_some]
+    have hpush := denoteFEnv_push hfe hci
+    have h1 : InstRel fe (fun _ => True) st (fe.push (.ctorInfo cv nP n)) :=
+      ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hpush, trivial⟩,
+        ProjOut.push hcoh st (fun t h => by cases h)⟩
+    have h2 := ih restP (fe.push (.ctorInfo cv nP n)) ⟨.ctorInfo cP nP n :: env.consts⟩
+      hrest hpush (hcoh.push _)
+    exact InstRel.trans (Ext.refl _) h1 h2
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:274-290 sumRules
 The recursor's rules, one per constructor, with their firing bits.  **Task
