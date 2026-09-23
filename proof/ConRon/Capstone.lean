@@ -3,6 +3,7 @@ import ConRon.Refine2.Checker.Top
 import ConRon.Refine2.Frontend.Top
 import ConRon.Refine2.Frontend.Prepare
 import ConRon.Refine2.Checker.Pins
+import ConRon.Refine2.Checker.Init
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -57,8 +58,8 @@ Beyond the `sorry`s of the tiers, the composition carries these, and they
 are the campaign's remaining obligations that are NOT `sorry`s (DESIGN.md's
 task #97-COMPOSE section tags each with its owning lane):
 
-* `InitRel` — the Rust start state is related to the twin's (a missing
-  Theorem-2 lemma; nothing states it);
+* ~~`InitRel`~~ — the Rust start state is related to the twin's: a theorem
+  since task #97-P5-Top (`Refine2/Checker/Init.lean`'s `init_rel`);
 * `hk : CoreSpec .verified Arena.checkFuel`, `hind : IndSpec .verified` —
   Theorem 1's two tier specs (as on `Arena.no_False_declaration_pipeline`);
 * `hbytes` — the prelude gate (`scripts/gen-prelude-lean.sh --check`);
@@ -228,13 +229,12 @@ section Rust
 
 open ConRon.Refine2 ConRon.Refine2.Frontend
 
-/-- **NAMED HYPOTHESIS — the start state.**  The Rust driver's
-`AState::init(EStore::empty())`, read through `PersTier::empty()`, is
-related to the twin driver's `AState.init EStore.empty`, and satisfies the
-Rust-side invariant.  Every Theorem-2 lemma takes `AStateRel`/`AStateInv` as
-a precondition and concludes them for the post-state; nothing concludes them
-for the START state.  OWNER: `Refine2/` (a new lemma beside
-`Refine2/AbsState.lean`'s `AStateRel`; no statement changes). -/
+/-- **The start state** (task #97-COMPOSE's mismatch 2, a named hypothesis
+until task #97-P5-Top).  The Rust driver's `AState::init(EStore::empty())`,
+read through `PersTier::empty()`, is related to the twin driver's
+`AState.init EStore.empty` and satisfies the Rust-side invariant —
+`Refine2/Checker/Init.lean`'s `init_rel`, which also gives the two flag facts
+the first stage needs (`PersUnfrozen`, scratch closed). -/
 def InitRel : Prop :=
   ∀ (pers : arena.store.PersTier) (est : arena.store.EStore)
     (st : arena.monad.AState),
@@ -242,6 +242,9 @@ def InitRel : Prop :=
     arena.monad.AState.init est = ok st →
     AStateRel pers st (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) ∧
       AStateInv pers st
+
+theorem initRel : InitRel := fun _ _ _ _ hest hst =>
+  ⟨(init_rel hest hst).1, (init_rel hest hst).2.1⟩
 
 /-- **The Rust pipeline, walked into the twin.**  Six accepting Rust runs from
 the driver's start state give six accepting twin runs from the twin's, at the
@@ -252,7 +255,7 @@ Theorem 2's six top lemmas, one per stage, and `BrOK` at the fold's entry from
 `stages_frame` (the twin's frame: the scratch tier is closed after the
 startup walk) and `AStateRel.storeWF`. -/
 theorem rust_stages
-    (hinit : InitRel) (hfn : FrozenNative)
+    (hfn : FrozenNative)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
     (hsc : ScanSpec)
@@ -294,10 +297,10 @@ theorem rust_stages
       ConRon.Arena.installThenCheck .verified (absINatOpPinSetL ipins)
           (absIDeclL ds).toArray sE = .ok (.ok lfe, sF) ∧
       AStateRel pers st6 sF ∧ IFEnvRel fe lfe := by
-  obtain ⟨hrel0, hinv0⟩ := hinit pers est st0 hpers hest hst0
+  obtain ⟨hrel0, hinv0, hfr0, -⟩ := init_rel (pers := pers) hest hst0
   -- 1. the reserved pins
   obtain ⟨sA, hA, hrelA, hinvA, -, -⟩ :=
-    (intern_reserved_pins_refines hrel0 hinv0 h1).dest
+    (intern_reserved_pins_refines hrel0 hinv0 hfr0 h1).dest
   -- 2. the prelude
   obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB, -⟩ :=
     builtin_prelude_e_refines hsc hmr hrelA hinvA h2
@@ -348,7 +351,7 @@ the twin.  The original campaign's `absEnv e` has no counterpart.)
 Composition only: `rust_stages` (Theorem 2), `stages_model` (Theorem 1 +
 con-leche). -/
 theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-    (hinit : InitRel) (hfn : FrozenNative)
+    (hfn : FrozenNative)
     (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
@@ -382,7 +385,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hinit hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨env, hden, hmod⟩ := stages_model V hk hind hbytes hA hB hC hD hE hF
   exact ⟨sF, lfe, env, hrelF, hfe, hden, hmod⟩
 
@@ -398,7 +401,7 @@ twin runs, `runPipeline_ok_of_stages` reassembles them into an accepting
 (which is con-leche's `no_proof_of_False_pure` through the bridge) refutes
 it. -/
 theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    (hinit : InitRel) (hfn : FrozenNative)
+    (hfn : FrozenNative)
     (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
@@ -430,7 +433,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok fe, st6)) :
     False := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hinit hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨n, hn⟩ := runPipeline_ok_of_stages hA hB hC hD hE hF
   obtain ⟨e, he⟩ := ConRon.Bridge.Frontend.Arena.no_False_declaration_pipeline V
     hk hind hbytes (ConRon.Refine.absPins pins) (absChunks chunks) hfalse
