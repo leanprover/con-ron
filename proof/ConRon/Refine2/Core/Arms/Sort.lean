@@ -166,7 +166,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.ensure_sort pers vis st mode lane fu fe depth e = ok o) :
-    Sim₀ absLIdx pers lst o
+    KSim absLIdx pers lst o
       (ensureSort (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   rw [arena.core.ensure_sort] at hrun
@@ -179,9 +179,9 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
   | Err er =>
     have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
     rw [← ho]
-    exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hw) _) htw)
+    exact KOut.err (AErrSim.of_eq (AErrSim.bind (KSim.apply_err hw) _) htw)
   | Ok w =>
-    obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hw
+    obtain ⟨lst1, hb1, hrel1, hinv1⟩ := KSim.apply hw
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hta := eidx_tag_abs ht
     by_cases hts : t = arena.handle.ETAG_SORT
@@ -219,7 +219,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
           (kernel.core_types.CheckError.Internal v), st1) = o :=
           Result.ok_injective hrun
         rw [← ho]
-        refine AOut₀.err (AErrSim.internal
+        refine KOut.err (AErrSim.internal
           (s := "arena: dangling expression handle") ?_)
         rw [htw2, hvw]
         rfl
@@ -227,7 +227,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
         rw [hqc] at hrun hvw
         have ho : (core.result.Result.Ok u, st1) = o := Result.ok_injective hrun
         rw [← ho]
-        refine AOut₀.ok (lst' := lst1) ?_ hrel1 hinv1
+        refine KOut.ok (lst' := lst1) ?_ hrel1 hinv1
         rw [htw2, hvw]
         rfl
     · -- the non-`sort` arm: both decline as `Invalid`, off the tag alone
@@ -240,7 +240,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
         (kernel.core_types.CheckError.Invalid v), st1) = o :=
         Result.ok_injective hrun
       rw [← ho]
-      refine AOut₀.err (AErrSim.invalid (s := "expected a sort") ?_)
+      refine KOut.err (AErrSim.invalid (s := "expected a sort") ?_)
       rw [htw, hb1]
       show (if (absEIdx w).tag == ETag.sort then _ else _) = _
       rw [if_neg (fun hx => hts (absU32_inj (by
@@ -256,7 +256,7 @@ theorem ensure_sort_core_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.ensure_sort_core pers vis st mode fe fu depth e = ok o) :
-    Sim₀ absLIdx pers lst o
+    KSim absLIdx pers lst o
       (ensureSortCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.ensure_sort_core] at hrun

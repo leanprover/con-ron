@@ -758,7 +758,7 @@ structure ResolveInv (mode : ConLeche.CheckMode) (Good : IFEnv → AState → Pr
   /-- **A `Good` state's store is well formed** (task #97-P5-Core round 4).
   The Core tier's front doors are LOCKSTEP statements now — over
   `AStateRel₀`, with no `Ext` — so a consumer that still wants `AStateRel`
-  and `Ext` takes the twin's own two facts from here (`Sim₀.toSim`), and they
+  and `Ext` takes the twin's own two facts from here (`KSim.toSim`), and they
   are Theorem 1's (`StateOK`). -/
   wf : ∀ {fe : IFEnv} {s : AState}, Good fe s → StoreWF s.store
   /-- `inferTypeCore` only extends the store (Theorem 1's run lemma). -/
@@ -1463,7 +1463,7 @@ through `Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
 (lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
 `checkFuel` (`knotRel_checkFuel'`).  **Since task #97-P5-Core round 4 the two
 front doors are lockstep statements** (`AStateRel₀`, no `StoreWF`, no
-`EResolves` premise, a `Sim₀` conclusion without `Ext`), so they need nothing
+`EResolves` premise, a `KSim` conclusion without `Ext`), so they need nothing
 of the precondition; what this proof still takes from `ResolveInv` is what
 its OWN conclusion (`Sim`, over `AStateRel` with `Ext`) and its callee
 `check_value_group_value_refines` need: `Good` along the twin run
@@ -1496,11 +1496,11 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS1) _)
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (KSim.apply_err hS1) _)
   | Ok stype =>
   -- the lockstep front door gives `AStateRel₀`; `StoreWF` and `Ext` are the
   -- twin's own, from `ResolveInv` (task #97-P5-Core round 4)
-  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := KSim.apply hS1
   obtain ⟨hres1, hg1⟩ := hR.infer hg hres hx1
   have hext1 := hR.inferExt hg hres hx1
   rw [run_bind_ok hx1]
@@ -1514,9 +1514,9 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS2) _)
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (KSim.apply_err hS2) _)
   | Ok u =>
-  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := KSim.apply hS2
   have hg2 := hR.ensureSort hg1 hres1 hx2
   have hext2 := hR.ensureSortExt hg1 hres1 hx2
   rw [run_bind_ok hx2]
