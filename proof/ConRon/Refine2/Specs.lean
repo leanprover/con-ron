@@ -9353,6 +9353,32 @@ are probe-first like every other `internE` and `hcap` is the miss path's own
 which test capacity BEFORE the probe and therefore keep `hcap` as a
 hypothesis: this round's **finding 15**. -/
 
+/-! ### No lockstep form yet: the binder dispatchers (task #97-T2-LOCKSTEP slice 3)
+
+`intern_e_lam_run`, `intern_e_forall_e_run` and the dispatcher `intern_e_run`
+have no `₀` version, because their proofs need `StoreWF` on the twin store in
+two places, and each is a twin/Rust divergence rather than a proof artefact:
+
+* **the node-array test on a datum MISS** (`ECapAt_lam_of`, via
+  `findBindI_none_of_viewBM_none`).  The Rust interns the datum first and
+  probes the binder array at the FRESH datum handle, testing `full` only if
+  that probe misses; the twin's `internE` tests the node array whenever
+  `find?` missed.  A cons key `⟨ty, b, mi⟩` in `lams` whose `mi` equals the
+  datum array's current length (a stale key, which `intern_e_lam_i` with a
+  raw handle can make) at a FULL `lams` array: the Rust answers `Ok h`, the
+  twin throws `native`.
+* **the derived word on a datum HIT** (`intern_lam_eq`, via `bmDer_internBM`).
+  The Rust's `intern_lam_i` reads the datum's STORED derived pair at `mi`
+  (`derOfBindAtI`); the twin's `intern (.lam ty b m)` recomputes it from `m`
+  (`derOfBindAt`).  A datum row whose stored `has_params` bit is not
+  `m.pw.hasParams` makes the two new nodes' observed derived words differ.
+  `TblInv` states neither "the row at a cons hit is the key" nor "a row's
+  derived pair is its node's", so it is not a Rust-side invariant either.
+
+The fix is in the twin: its binder `internE` arm should be the Rust's order,
+`internBM` then `internLamIE`/`internForallEIE` at the handle (as D3 did for
+`internPersistentE`). -/
+
 /-- `arena::monad::intern_e_lam` against `Arena.internLamE`. -/
 theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
