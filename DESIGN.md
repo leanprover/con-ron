@@ -61285,3 +61285,78 @@ closure through the closed bodies.  At the submitted tip (`arena`
 `check_iota_rule_fire` is closed), dead weight 33 + 1.
 
 `scripts/gates.sh` after the one final `arena` merge: **all 16 OK**.
+
+#### Slice 2 — the iota checks, the Core/Checker callees written here, `Checker/Canon.lean`'s record comparisons
+
+Branch `t2-ind-mod2` (worktree `_tmp/wt-t2-ind-mod2`) off slice 1's tip,
+`arena` merged once slice 1 had landed.  At the coordinator's ruling the lane
+writes the callees the Core and Checker lanes have no time for, and owns
+`Checker/Canon.lean` for this slice.
+
+**Closed by `lockstep_mod`** X: the iota
+statement checks end to end — `check_iota_thm`, `check_iota_thm_n_at`,
+`iota_stmt_open(_at)`, `check_iota_major`, `check_iota_thm_{ctor,frames,
+prefix,lams,rhs}`, `check_iota_thm_n_{fields,frames,prefix,major,ctor}`,
+`check_iota_rule_bits`, `check_proj_iota_{body,field}`, `check_proj_fn_rule`,
+`check_eta_thm_eq`, `nested_rule_shape_at`.  The hand steps slice 1 needed
+for twin-only spec arguments (`iota_stmt_open`, `check_member_val`) are gone:
+task #97-T2-TACTIC round 2 made them one `lockstep`.
+
+**Written here** (`Inductives/PrimsModeled.lean` unless noted):
+* Core: `rec_rule_k_of_ls`, `rec_rule_eta_of_ls`, `rec_rule_bits_ls`,
+  `proj_fn_rule_ls` (each `rw […]; lockstep_mod`; the rule record by one
+  `LS.tail`).
+* Checker: `fvar_type_ds` (the cursor induction, `fvar_type_ds_aux`, and the
+  twin's `mapM` form `fvar_type_ds_mapM_ls`) and `unwrap_or` (`unwrap_or_simRE`)
+  — proved, where `Checker/Base.lean`'s `fvar_type_ds_refines`/
+  `unwrap_or_refines` are still `sorry` (not this lane's file).
+* Handle-level, in `Tactic/Prims.lean`: `view_const_ls`, `view_const_name_ls`
+  (the targets `LS.twin_view_const(_name)` bring the twin's `view` to).
+* Value specs: `eidx_vec_dup`, `append_eidx`, `drop_eidx`, `drop_eidx_n`,
+  `get_d_eidx` (`TwinEq`), `name_is_proj_fn_shape`; `take_list_of_arr` and a
+  side extension for `take_eidx_n_spec`'s `Array` form against a list prefix;
+  a side extension for an `ifenv_push` answer against the twin's field-wise
+  record; the `absIIndCaps` field projections, `unwrapOr` at a constructor,
+  `decide (x = 0)`, `etag_const_abs` (registered locally).
+
+**`Checker/Canon.lean`**: `i_proj_table_beq_refines`, `i_ind_caps_beq_refines`
+and `i_constant_info_beq_refines` proved (axiom-clean).  **The last two were
+false as stated**: `prop_when::beq` compares two `PropWhen`s by
+representation (`equiv_r`), the twin's `==` by value, and they agree exactly
+at canonical data (`PropWhen.beq_iff` needs `WFShape`): `Many [p]` and
+`One p` abstract to the same `PropWhen` and compare unequal.  Both now take
+`IIndCapsWF`/`IConstantInfoCapsWF` of their arguments (a representation fact
+about the Rust inputs, as `NNodeViewWF` is).
+
+**Ruling needed.**  `eq_basis_stored` compares the constant the environment
+stores under `Eq` with `eq_a` by `i_constant_info_beq`, so its proof needs
+`IConstantInfoCapsWF` of the STORED constant — a fact about the Rust
+environment no relation states (`IFEnvRelI` is representation plus the index's
+hash invariant).  It is back to `sorry` (the `lockstep` proof goes through
+given the fact).  The choices: an `IFEnvInv` clause "every stored `IndInfo`'s
+`sort_z` is canonical" (an environment invariant — maintainer's call), or a
+Rust change so `i_constant_info_beq` compares `sort_z` by value.  The other two
+callers of `i_constant_info_beq` (checker pins, `Generated/Funs.lean:14019`,
+`55253`) meet the same question.
+
+**Tactic findings** (reported, core untouched): `LS.twin_view_const_name`'s
+`hg` premise is tried by `rfl`, which unfolds the twin's continuation when it
+DOES use the levels and never returns (`nested_rule_shape_at`: worked around
+by `attribute [local irreducible] nestedRuleShapeArgsSpec`; a
+`with_reducible rfl` would fix it).  `etag_const_abs` is the one tag
+correspondence missing from `Tactic/Prims.lean`'s `lockstep_simp` list.
+
+**Frontier** (`model_exists` + `no_False_declaration`): at the branch's
+`arena` merge (`9b8cc34e`, slice 1 landed) **58 items in 17 modules, 333
+tainted, dead weight 299** (`i_constant_info_beq_refines` the top item,
+fan-in 7); at the submitted tip **58 / 17 / 331 / 297**, with
+`i_constant_info_beq_refines` off it.  The lane's items now:
+`check_iota_thm(_n)_idx` (the list-form side goals of `check_def_eq_list`
+at a saturating `u64 → usize` cast), `nested_rule_shape_args`
+(`monad::read_names`, no lemma), `eq_basis_stored` (ruling above),
+`check_proj_iota_doms` (`doms_match_renamed`), `iota_lhs_prefix_ok`,
+`inst_spine_list_renamed`, `ind_block_caps` (the other Inductives lane's
+`pi_result_*`), `checkIotaThm(N)_unfold`; Canon's
+`i_constant_info_canon_eq` (the canonical-form walks, all `sorry`).
+
+`scripts/gates.sh` on the tip (with `arena` merged): **all 16 OK**.
