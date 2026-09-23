@@ -1423,6 +1423,89 @@ theorem zipFvarDoms_spec (xs : List EIdx) (xsP : List Expr)
                 omega
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
+(its `zipWith`) — `zipFvarDoms_spec` with the answer named, not only
+measured: the twin's list IS con-leche's `List.zipWith` of the variables'
+domains and the binders' metadata (task #97-P3-Ind round 8). -/
+theorem zipFvarDoms_run (xs : List EIdx) (xsP : List Expr)
+    (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)) :
+    PSpec (fun st => Frontend.denoteEList st xs = some xsP ∧
+        denoteBinders st bs = some bsP)
+      (Arena.zipFvarDoms xs bs)
+      (RB (List.zipWith (fun (x : Expr) (b : Expr × BinderMeta) => (x.fvarTypeD, b.2))
+        xsP bsP)) := by
+  induction xs generalizing xsP bs bsP with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hx, hb⟩ := hpre
+    simp only [Frontend.denoteEList, Option.some.injEq] at hx
+    subst hx
+    simp only [Arena.zipFvarDoms] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, by show denoteBinders _ _ = _; simp [denoteBinders]⟩
+  | cons x xs ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hx, hb⟩ := hpre
+    cases bs with
+    | nil =>
+      simp only [denoteBinders, Option.some.injEq] at hb
+      subst hb
+      simp only [Arena.zipFvarDoms] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨PStep.refl hok, by show denoteBinders _ _ = _; simp [denoteBinders]⟩
+    | cons b bs =>
+      obtain ⟨bt, bm⟩ := b
+      simp only [Frontend.denoteEList] at hx
+      cases hx1 : denoteE s₀.store x with
+      | none => rw [hx1] at hx; simp at hx
+      | some xP =>
+        cases hxs : Frontend.denoteEList s₀.store xs with
+        | none => rw [hx1, hxs] at hx; simp at hx
+        | some xsP' =>
+          rw [hx1, hxs] at hx
+          obtain rfl := Option.some.inj hx
+          simp only [denoteBinders] at hb
+          cases hb1 : denoteE s₀.store bt with
+          | none => rw [hb1] at hb; simp at hb
+          | some btP =>
+            cases hbs : denoteBinders s₀.store bs with
+            | none => rw [hb1, hbs] at hb; simp at hb
+            | some bsP' =>
+              rw [hb1, hbs] at hb
+              obtain rfl := Option.some.inj hb
+              simp only [Arena.zipFvarDoms] at hrun
+              obtain ⟨t, s₁, h1, h2⟩ := bindOk hrun
+              obtain ⟨rfl, ht⟩ := fvarTypeD_run hok hx1 h1
+              obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+              obtain ⟨hstep, hts⟩ := ih xsP' bs bsP' _ s₂ rest hok ⟨hxs, hbs⟩ h3
+              obtain ⟨rfl, rfl⟩ := pureOk h4
+              refine ⟨hstep, ?_⟩
+              show denoteBinders _ _ = _
+              simp only [denoteBinders, denote_ext ht hstep.ext]
+              rw [show denoteBinders s'.store rest = _ from hts]
+              rfl
+
+/-- con-leche: none — binder lists denote across an append. -/
+theorem denoteBinders_append {st : EStore} :
+    ∀ {as bs : List (EIdx × BinderMeta)} {asP bsP : List (Expr × BinderMeta)},
+      denoteBinders st as = some asP → denoteBinders st bs = some bsP →
+      denoteBinders st (as ++ bs) = some (asP ++ bsP)
+  | [], bs, asP, bsP, ha, hb => by
+    simp only [denoteBinders, Option.some.injEq] at ha
+    subst ha; simpa using hb
+  | (t, m) :: as, bs, asP, bsP, ha, hb => by
+    simp only [denoteBinders] at ha
+    cases ht : denoteE st t with
+    | none => rw [ht] at ha; simp at ha
+    | some x =>
+    cases has : denoteBinders st as with
+    | none => rw [ht, has] at ha; simp at ha
+    | some rest =>
+    rw [ht, has] at ha
+    obtain rfl := (Option.some.inj ha).symm
+    simp only [List.cons_append, denoteBinders, ht, denoteBinders_append has hb,
+      List.cons_append]
+
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF
 The constructor's stored type rebuilt from the normalised domains.
 
@@ -1441,7 +1524,90 @@ theorem normCtorVal_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun st r => ∃ F v,
         ConLeche.normCtorVal (ConLeche.fueledOps μ F) env TP nP nF cvCP cvCaP
           = .ok v ∧ Frontend.denoteCV st r = some v) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hcvC, hcvCa, hfe⟩ := hpre
+  simp only [Arena.normCtorVal] at hrun
+  -- the parameter binders
+  obtain ⟨o1, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, ho1⟩ := stripPis_pstep hck.state (denoteCV_type hcvCa) k1
+  rw [hs1] at z1
+  obtain ⟨q1, s₂, k2, z2⟩ := bindOk z1
+  cases o1 with
+  | none => simp only [Arena.unwrapOr] at k2; exact absurd k2 (fun h => failOk h)
+  | some o1' =>
+  simp only [Arena.unwrapOr] at k2
+  obtain ⟨hq1, hs2⟩ := pureOk k2
+  subst hq1
+  rw [hs2] at z2
+  obtain ⟨cbs, cb⟩ := q1
+  obtain ⟨cbsP, cbP, hsp, hcbs, -⟩ := denoteBP_someB ho1
+  dsimp only at z2
+  -- the opened telescope
+  obtain ⟨o2, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨p3, ho2⟩ := openPisAtFvarsF_run hck.state (denoteCV_type hcvCa) k3
+  obtain ⟨q2, s₄, k4, z4⟩ := bindOk z3
+  cases o2 with
+  | none => simp only [Arena.unwrapOr] at k4; exact absurd k4 (fun h => failOk h)
+  | some o2' =>
+  simp only [Arena.unwrapOr] at k4
+  obtain ⟨hq2, hs4⟩ := pureOk k4
+  subst hq2
+  rw [hs4] at z4
+  obtain ⟨fvs, crest⟩ := q2
+  obtain ⟨fvsP, crestP, hop, hfvs, hcrest⟩ := denoteOpen_some_inv ho2
+  dsimp only at z4
+  have hwsC : Expr.WScoped nP crestP := by
+    have := (ConLeche.openPisAtFvars_WScoped _ _ _ hop hws).2
+    simpa using this
+  generalize hpbsP : List.zipWith (fun (x : Expr) (b : Expr × BinderMeta) =>
+    (x.fvarTypeD, b.2)) fvsP cbsP = pbsP
+  -- the parameters' domains, read off the opened variables
+  obtain ⟨pbs, s₅, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hpbs⟩ := zipFvarDoms_run fvs fvsP cbs cbsP s₃ s₅ pbs p3.ok
+    ⟨hfvs, denoteBinders_ext p3.ext _ _ hcbs⟩ k5
+  rw [hpbsP] at hpbs
+  have c5 : CoreStep μ env fe s₀ s₅ := (p3.trans p5).toCore hck
+  -- the fields' domains, normalised
+  obtain ⟨fr, s₆, k6, z6⟩ := bindOk z5
+  obtain ⟨c6, F₁, fbsP, residP, hF₁, hfbs, hres⟩ := normFieldDoms_spec fe hk henv T TP nP nF
+    crest crestP hwsC s₅ s₆ fr c5.ok
+    ⟨denoteN_ext hT c5.ext, denote_ext hcrest p5.ext, denoteFEnv_ext c5.ext hfe⟩ k6
+  obtain ⟨fbs, resid⟩ := fr
+  simp only at hfbs hres z6
+  -- the telescope closed again
+  obtain ⟨ty', s₇, k7, z7⟩ := bindOk z6
+  obtain ⟨p7, hty'⟩ := closeTelescope_spec (pbs ++ fbs) (pbsP ++ fbsP) 0 resid residP s₆ s₇ ty'
+    c6.ok.state ⟨denoteBinders_append (denoteBinders_ext c6.ext _ _ hpbs) hfbs, hres⟩ k7
+  have c7 := (c5.trans c6).trans (p7.toCore (c5.trans c6).ok)
+  have hbeq := beq_ehandle_eq c7.ok.state.wf hty' (denote_ext (denoteCV_type hcvCa) c7.ext)
+  generalize hty'P : ConLeche.closeTelescope (pbsP ++ fbsP) 0 residP = tyP at hty' hbeq
+  have hpure : ∀ F, F₁ ≤ F →
+      ConLeche.normCtorVal (ConLeche.fueledOps μ F) env TP nP nF cvCP cvCaP =
+        (if tyP == cvCaP.type then pure cvCaP
+         else ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env
+           { cvCP with type := tyP }) := by
+    intro F hle
+    have g₁ := normFieldDoms_mono (μ := μ) (env := env) hle hF₁
+    rw [← hty'P, ← hpbsP]
+    simp only [ConLeche.normCtorVal, hsp, hop, ConLeche.unwrapOr, pure, Except.pure, bind,
+      Except.bind, g₁]
+  split at z7
+  · rename_i heq
+    obtain ⟨rfl, rfl⟩ := pureOk z7
+    rw [hbeq] at heq
+    refine ⟨c7, F₁, cvCaP, ?_, denoteCV_ext hcvCa c7.ext⟩
+    rw [hpure F₁ (Nat.le_refl _), if_pos heq]
+    rfl
+  · rename_i hne
+    rw [hbeq] at hne
+    have hcvT : Frontend.denoteCV s₇.store { cvC with type := ty' } =
+        some { cvCP with type := tyP } := by
+      obtain ⟨hn, hl, -⟩ := denoteCV_inv hcvC
+      simp only [Frontend.denoteCV, denoteN_ext hn c7.ext, denoteNListE_ext c7.ext _ _ hl, hty']
+    obtain ⟨c8, cAP, F₂, hcA, hF₂⟩ := checkConstantVal_bridge hμ hk c7.ok henv hcvT z7
+    refine ⟨c7.trans c8, max F₁ F₂, cAP, ?_, hcA⟩
+    rw [hpure (max F₁ F₂) (Nat.le_max_left _ _), if_neg hne]
+    exact checkConstantVal_mono (Nat.le_max_right _ _) hF₂
 
 /-! ## The constructors' stage -/
 
