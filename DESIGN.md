@@ -59089,4 +59089,6 @@ pool rows, and `scripts/overview-links-expected.txt` (the pool anchor is now
 
 `arena` merged at `4f6f3961` (task #97-PERF-FRESH, DESIGN only; a `DESIGN.md`
 conflict, both appends kept).  `scripts/gates.sh` on the merge: **all 16 OK**
-(`extract-check` 142 s).
+(`extract-check` 142 s).  `arena` then moved to `5453ac2e` (T2-LOCKSTEP step 1:
+the foundation, Rust and twin included); merged (`DESIGN.md` conflict only)
+and re-gated: **all 16 OK** (`extract-check` 113 s, `lake-bridge` 550 s).
