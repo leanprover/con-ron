@@ -170,51 +170,101 @@ off the derived column. -/
   let s ← get
   pure (s.store.derived h)
 
-/-- con-leche: none — hash-cons an expression node.  DESIGN §8.3: "the Rust
-raises `Native` at the limit, the Lean `throw`s the same kind" — the capacity
-test lives HERE, at the monadic wrapper, so that `EStore.intern` stays total
-and `EStore.intern_spec`'s `capOK` hypothesis is discharged by this branch.
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — hash-cons a
+binder DATUM, the Rust's `EStore::intern_bm` clause for clause (task
+#97-T2-LOCKSTEP D6): the persistent probe, the scratch probe when the scratch
+tier is open, and the capacity test only where the datum is APPENDED — on the
+datum miss, at the tier the append goes to (`EStore.capOKBM`).  The probe is
+`EStore.findBM`, the same one `internBM` makes; on a hit the store does not
+move.  (The Rust's `shared_on` / `M_FROZEN` arm is a `Native`, which claims
+nothing, and has no twin — task #97-P5-Unfreeze.) -/
+def internBME (m : ConLeche.BinderMeta) : AM BMIdx := do
+  let s ← get
+  match s.store.findBM m with
+  | some i => pure i
+  | none =>
+    let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
+    if nbm < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, i) := st.internBM m
+      set { s with store := st }
+      pure i
+    else
+      fail (.native "arena: expression constructor array full")
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
+`lam` constructor with the binder datum already a HANDLE (task #97-P6-16).
+The capacity test is `internE`'s own, at the binder array.
+
+**PROBE FIRST**, as `internE` does (task #97-P5-1's finding 9; at this family
+task #97-P5-3 round 3's **finding 15**, fixed at task #97-P5-Twin): the Rust's
+`intern_lam_i` probes `pers.lams` and then `scr.lams` and tests `Tbl::full`
+only where it is about to APPEND, so on a cons HIT at a full `lams` array it
+answers `Ok`.  A datum handle needs no room of its own on either path — it is
+already interned, it is the cons key — so the only test left is the node
+array's, on the miss, **at the tier the append goes to**, which is the
+`if scratchOn` the Rust's own `if self.scratch_on` branch makes.  (The test
+used to be a conjunction over both tiers, which declined on the strength of a
+tier the append never touches.)  The probe is `EStore.findBindI`, the same one
+`internBindI` makes; on a hit the store does not move and the handle is the
+one the cons table already holds. -/
+def internLamIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
+  let s ← get
+  match s.store.findBindI ETag.lam ty b mi with
+  | some h => pure h
+  | none =>
+    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.lam
+             else s.store.pers.bindSizeOf ETag.lam
+    if n < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internLamI ty b mi
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: expression constructor array full")
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
+`forallE` constructor with the binder datum already a HANDLE.  Probe first,
+for `internLamIE`'s reason and at the other array. -/
+def internForallEIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
+  let s ← get
+  match s.store.findBindI ETag.forallE ty b mi with
+  | some h => pure h
+  | none =>
+    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.forallE
+             else s.store.pers.bindSizeOf ETag.forallE
+    if n < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internForallEI ty b mi
+      set { s with store := st }
+      pure h
+    else
+      fail (.native "arena: expression constructor array full")
+
+/-- con-leche: none — hash-cons a NON-binder expression node: the eight arms of
+the Rust's `EStore::intern` other than `intern_lam` / `intern_forall_e`
+(`intern_bvar` … `intern_proj`).  DESIGN §8.3: "the Rust raises `Native` at
+the limit, the Lean `throw`s the same kind" — the capacity test lives HERE, at
+the monadic wrapper, so that `EStore.intern` stays total and
+`EStore.intern_spec`'s `capOK` hypothesis is discharged by this branch.
 
 **PROBE FIRST** (task #97-P5-1's finding 9, fixed in the twin at #97-P3-1):
 the Rust tests `Tbl::full` only where it is about to APPEND — inside the
 cons-table miss path — so on a cons HIT at a full constructor array it answers
-`Ok`.  Testing the capacity before probing made the twin throw `native` on an
-input the Rust accepts, which is a divergence the refinement cannot absorb.
-The probe is `EStore.find?`, the same one `intern` makes; on a hit the store
-does not move and the handle is the one the cons table already holds
-(`EStore.view_of_find`). -/
-def internE (v : ENodeView) : AM EIdx := do
+`Ok`.  The probe is `EStore.find?`, the same one `intern` makes; on a hit the
+store does not move and the handle is the one the cons table already holds
+(`EStore.view_of_find`).  A non-binder view names no datum, so the datum array
+is not part of the test. -/
+def internNodeE (v : ENodeView) : AM EIdx := do
   let s ← get
   match s.store.find? v with
   | some h => pure h
   | none =>
     let n := if s.store.scratchOn then s.store.scr.sizeOf v else s.store.pers.sizeOf v
-    -- **The binder datum's own array is part of the test** (task #97-P6-16):
-    -- a `lam`/`forallE` view interns a `BMNode` too, and a `BMIdx` past
-    -- `idxCap` would wrap into the tier bit.  Only the two binder arms reach
-    -- the datum store, so only they are tested — which is where the Rust's
-    -- `intern_bm` makes the same test, and raises the same `Native`.
-    --
-    -- **…and only where the datum is APPENDED** (task #97-P5-Twin round 2,
-    -- closing the note task #97-P3-1 left here).  `intern_bm` tests `full`
-    -- only inside its own miss arm, so a node-cons MISS whose DATUM is a cons
-    -- hit needs no room in `bms` at all; testing it anyway made the twin
-    -- throw `native` where the port answers `Ok`, which is a divergence, not
-    -- a proof artefact.  The guard is `findBMOfView`, the probe `internBM`
-    -- itself makes — and a NON-binder view answers `some (Idx.ofWord 0)`
-    -- there, so the one disjunct covers both the eight arms that never touch
-    -- the datum array and the two that touch it only on a datum miss.
-    --
-    -- **What is left, and why it is not the old note again.**  On a datum
-    -- MISS the twin tests the NODE array too, where the port would skip that
-    -- test if its node probe — made after the datum append, at the fresh
-    -- handle — hit.  It cannot hit: `consP`/`consS` say every cons key's
-    -- datum handle decodes in the datum table, and this one was just pushed
-    -- past its end.  So unlike the corner above, this one is unreachable at
-    -- a well-formed store for a REASON the invariant states, and the twin
-    -- and the port agree on every input a checker can build.
-    let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
-    if n < Idx.idxCap && ((s.store.findBMOfView v).isSome || nbm < Idx.idxCap) then
+    if n < Idx.idxCap then
       let st := s.store
       let s := { s with store := EStore.empty }
       let (st, h) := st.intern v
@@ -222,6 +272,39 @@ def internE (v : ENodeView) : AM EIdx := do
       pure h
     else
       fail (.native "arena: expression constructor array full")
+
+/-- con-leche: none — hash-cons an expression node: the Rust's
+`EStore::intern`, a dispatch on the view.
+
+**The two BINDER arms are the Rust's `intern_lam` / `intern_forall_e`, step for
+step** (task #97-T2-LOCKSTEP D6): the datum first (`internBME`, the port's
+`intern_bm`, whose capacity test is on the datum miss only), then the binder
+node at the datum HANDLE that step answered (`internLamIE` /
+`internForallEIE`, the port's `intern_lam_i` / `intern_forall_e_i`: the node
+probe at that handle, the node array's test on the node miss only, the derived
+word read off the datum's stored row).  The twin used to probe `find?` over
+the whole view, test BOTH arrays on the miss and then run `EStore.intern`,
+which recomputes the derived word from the datum's VALUE — equal to the port at
+a `StoreWF` store (`Refine2/Specs.lean`'s `intern_lam_eq`), but not in
+lockstep: on a datum miss it tested the node array where the port first probes
+at the fresh handle, and it read the derived word off `m` where the port reads
+the stored row.  The eight other arms are `internNodeE`. -/
+def internE (v : ENodeView) : AM EIdx :=
+  match v with
+  | .lam ty b m => do
+    let mi ← internBME m
+    internLamIE ty b mi
+  | .forallE ty b m => do
+    let mi ← internBME m
+    internForallEIE ty b mi
+  | .bvar i => internNodeE (.bvar i)
+  | .fvar idx ty => internNodeE (.fvar idx ty)
+  | .sort u => internNodeE (.sort u)
+  | .const n us => internNodeE (.const n us)
+  | .app f a => internNodeE (.app f a)
+  | .letE ty val b => internNodeE (.letE ty val b)
+  | .lit l => internNodeE (.lit l)
+  | .proj n i e => internNodeE (.proj n i e)
 
 /-! ### The dangling-handle declines, named once
 
@@ -340,57 +423,6 @@ owes is `internCE (fields) = internE (.C fields)`, `rfl`. -/
 /-- con-leche: none — `internE` at the `proj` constructor. -/
 @[inline] def internProjE (n : NIdx) (i : Nat) (e : EIdx) : AM EIdx :=
   internE (.proj n i e)
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
-`lam` constructor with the binder datum already a HANDLE (task #97-P6-16).
-The capacity test is `internE`'s own, at the binder array.
-
-**PROBE FIRST**, as `internE` does (task #97-P5-1's finding 9; at this family
-task #97-P5-3 round 3's **finding 15**, fixed at task #97-P5-Twin): the Rust's
-`intern_lam_i` probes `pers.lams` and then `scr.lams` and tests `Tbl::full`
-only where it is about to APPEND, so on a cons HIT at a full `lams` array it
-answers `Ok`.  A datum handle needs no room of its own on either path — it is
-already interned, it is the cons key — so the only test left is the node
-array's, on the miss, **at the tier the append goes to**, which is the
-`if scratchOn` the Rust's own `if self.scratch_on` branch makes.  (The test
-used to be a conjunction over both tiers, which declined on the strength of a
-tier the append never touches.)  The probe is `EStore.findBindI`, the same one
-`internBindI` makes; on a hit the store does not move and the handle is the
-one the cons table already holds. -/
-def internLamIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
-  let s ← get
-  match s.store.findBindI ETag.lam ty b mi with
-  | some h => pure h
-  | none =>
-    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.lam
-             else s.store.pers.bindSizeOf ETag.lam
-    if n < Idx.idxCap then
-      let st := s.store
-      let s := { s with store := EStore.empty }
-      let (st, h) := st.internLamI ty b mi
-      set { s with store := st }
-      pure h
-    else
-      fail (.native "arena: expression constructor array full")
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — `internE` at the
-`forallE` constructor with the binder datum already a HANDLE.  Probe first,
-for `internLamIE`'s reason and at the other array. -/
-def internForallEIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
-  let s ← get
-  match s.store.findBindI ETag.forallE ty b mi with
-  | some h => pure h
-  | none =>
-    let n := if s.store.scratchOn then s.store.scr.bindSizeOf ETag.forallE
-             else s.store.pers.bindSizeOf ETag.forallE
-    if n < Idx.idxCap then
-      let st := s.store
-      let s := { s with store := EStore.empty }
-      let (st, h) := st.internForallEI ty b mi
-      set { s with store := st }
-      pure h
-    else
-      fail (.native "arena: expression constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two binder
 arms at a tag the caller carries and a datum it holds as a handle: the shape
