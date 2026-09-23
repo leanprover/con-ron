@@ -351,7 +351,10 @@ def checkNativeTail (mode : CheckMode) (fe : IFEnv) (q : NativePass) : AM IFEnv 
   let _isorts ← checkStructFieldSortsI mode q.env₁ true false p.resSort p.nP
     (tq.1.drop p.nP) [] p.nIdx
   -- the kinds, re-checked on the stored (normalised) constructors
-  unless ← nativeFieldsOk fe p.cvT.name p.cvT.levelParams p.nP p.nIdx q.ctorsA p.kinds do
+  -- at the pass's environment with the former hidden (the port lowers the
+  -- visibility bound by one; the former is the one row at or above it)
+  unless ← nativeFieldsOk (q.env₁.restrictTo (q.env₁.visibleBelow - 1)) p.cvT.name
+      p.cvT.levelParams p.nP p.nIdx q.ctorsA p.kinds do
     fail (.internal "direct rec: field kinds")
   -- the stream's rules are the generated ones
   let rlvls ← paramLevels p.cvR.levelParams
@@ -375,6 +378,9 @@ def checkNative (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) : AM IFEnv 
     fail (.invalid "direct rec: duplicate constructor")
   -- con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
   flushCaches
+  -- the former's raw index row before the pass pushes over it, for the retry
+  let former := p₀.cvT.name
+  let prev := fe.idx[former]?
   -- THE CAPABILITY RECORD'S VERDICT (task #268): the pass runs at the
   -- syntactic reading of `is_rec`, which the classification of the
   -- constructors it stored confirms at every block but one whose declared
@@ -384,7 +390,10 @@ def checkNative (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) : AM IFEnv 
   else do
     -- con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
     flushCaches
-    let (q', settled') ← checkNativePass mode fe p₀ (nativeIsRec q.p.kinds)
+    -- the retry runs at the pass's environment with the former popped (the
+    -- port's `ifenv_pop_temp`), which answers the entry index's `find?`
+    let (q', settled') ← checkNativePass mode (q.env₁.popTemp former prev) p₀
+      (nativeIsRec q.p.kinds)
     unless settled' do
       fail (.internal "direct rec: the capability record did not settle")
     checkNativeTail mode fe q'

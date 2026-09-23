@@ -1441,8 +1441,8 @@ def checkNativeTailInstallSpec (mode : ConLeche.CheckMode) (q : NativePass) :
 def checkNativeTailKindsSpec (mode : ConLeche.CheckMode) (fe : IFEnv)
     (q : NativePass) : AM IFEnv := do
   let p := q.p
-  unless ← nativeFieldsOk fe p.cvT.name p.cvT.levelParams p.nP p.nIdx q.ctorsA
-      p.kinds do
+  unless ← nativeFieldsOk (q.env₁.restrictTo (q.env₁.visibleBelow - 1)) p.cvT.name
+      p.cvT.levelParams p.nP p.nIdx q.ctorsA p.kinds do
     fail (.internal "direct rec: field kinds")
   let rlvls ← paramLevels p.cvR.levelParams
   unless ← nativeRulesOk p.cvR.name rlvls .never p.nP p.ctors.length q.ctorsA
