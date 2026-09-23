@@ -609,6 +609,135 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     bridge_peel; subst_vars
     exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _, hres _ (Nat.le_refl _)⟩
 
+/-- con-leche: none — a denoted capability record's fields. -/
+theorem denoteCaps_fields {st : EStore} {c : IIndCaps} {dc : IndCaps}
+    (h : Frontend.denoteCaps st c = some dc) :
+    dc.eta = c.eta ∧ denoteN st.ns c.etaCtor = some dc.etaCtor ∧
+      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧
+      dc.sortZ = c.sortZ := by
+  simp only [Frontend.denoteCaps] at h
+  split at h
+  · rename_i ct hct; cases h; exact ⟨rfl, hct, rfl, rfl, rfl⟩
+  · simp at h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:618-658 majorToCtor — the η branch
+past its guards, as a function of the three verdicts. -/
+theorem mtcEta_fire {F d : Nat} {cvj cvT : ConstantVal} {caps : IndCaps}
+    {T T' : ConLeche.Name} {x tm tmaj : Expr} {ust : List Level}
+    {b3 b4 b5 : Bool}
+    (e1 : ConLeche.inferTypeIO mode env F d x = .ok tm)
+    (e2 : ConLeche.whnf mode env F d tm = .ok tmaj)
+    (hgf : tmaj.getAppFn = .const T' ust)
+    (hg : T' = T ∧ tmaj.getAppArgs.length = caps.etaParams ∧
+      ust.length = cvT.levelParams.length ∧
+      ConLeche.capsNeverZero cvT.levelParams ust caps = true)
+    (hgd : ((Expr.mkAppN (.const caps.etaCtor ust)
+        (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)).wscopedB d &&
+      (Expr.mkAppN (.const caps.etaCtor ust)
+        (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)).looseBVarsBounded 0 &&
+      (Expr.mkAppN (.const caps.etaCtor ust)
+        (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)).fvarLeaves.all
+        (fun l => x.fvarLeaves.contains l)) = true)
+    (h3 : ConLeche.iotaCertsFueled mode env F d false
+      (cvj.type.instantiateLevelParams cvj.levelParams ust)
+      (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields) = .ok b3)
+    (h4 : b3 = true → ConLeche.structEtaCertWithFueled mode env F d
+      (Expr.mkAppN (.const caps.etaCtor ust)
+        (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x tmaj
+      = .ok b4)
+    (h5 : b3 = true → b4 = false → caps.etaFields = 0 →
+      ConLeche.proofIrrelFueled mode env F d
+        (Expr.mkAppN (.const caps.etaCtor ust)
+          (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x
+        = .ok b5) :
+    mtcEta mode env F d cvj cvT caps T x = .ok
+      (if b3 && (b4 || (decide (caps.etaFields = 0) && b5)) then
+        Expr.mkAppN (.const caps.etaCtor ust)
+          (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)
+      else x) := by
+  have e1' : (ConLeche.pureFns mode env F).inferIO d x = .ok tm := e1
+  have e2' : (ConLeche.pureFns mode env F).whnf d tm = .ok tmaj := e2
+  have h3' : ConLeche.iotaCerts (ConLeche.pureFns mode env F) env d false
+      (cvj.type.instantiateLevelParams cvj.levelParams ust)
+      (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields) = .ok b3 := h3
+  simp only [mtcEta, e1', e2', bind, Except.bind, hgf]
+  rw [if_pos hg]
+  simp only [hgd, if_true, h3']
+  cases b3
+  · rfl
+  · have h4' : ConLeche.structEtaCertWith mode (ConLeche.pureFns mode env F) env d
+        (Expr.mkAppN (.const caps.etaCtor ust)
+          (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x tmaj
+        = .ok b4 := h4 rfl
+    simp only [if_true, h4']
+    cases b4
+    · simp only [Bool.false_eq_true, if_false]
+      by_cases hz : caps.etaFields = 0
+      · have h5' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d
+            (Expr.mkAppN (.const caps.etaCtor ust)
+              (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x
+            = .ok b5 := h5 rfl rfl hz
+        rw [if_pos hz]
+        simp only [h5']
+        cases b5 <;> simp [hz, pure, Except.pure]
+      · rw [if_neg hz]
+        simp [hz, pure, Except.pure]
+    · simp [pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:659-721 majorToCtor — the `And`
+branch past its guards, as a function of the three verdicts. -/
+theorem mtcAnd_fire {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
+    {T T' : ConLeche.Name} {x tm tmaj tf : Expr} {ust : List Level}
+    {b3 b5 b6 : Bool}
+    (e1 : ConLeche.inferTypeIO mode env F d x = .ok tm)
+    (e2 : ConLeche.whnf mode env F d tm = .ok tmaj)
+    (hgf : tmaj.getAppFn = .const T' ust)
+    (hg : T' = T ∧ tmaj.getAppArgs.length = cnP ∧
+      cvj.levelParams.length = ust.length ∧
+      ConLeche.andRescueSlots env rl.ctor cnP ust = true)
+    (hgd : ((Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])).wscopedB d &&
+      (Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])).looseBVarsBounded 0 &&
+      (Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])).fvarLeaves.all
+        (fun l => x.fvarLeaves.contains l)) = true)
+    (h3 : ConLeche.iotaCertsFueled mode env F d false
+      (cvj.type.instantiateLevelParams cvj.levelParams ust)
+      (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x]) = .ok b3)
+    (h4 : b3 = true → ConLeche.inferTypeIO mode env F d
+      (Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) = .ok tf)
+    (h5 : b3 = true → ConLeche.isDefEqCore mode env F d tmaj tf = .ok b5)
+    (h6 : b3 = true → b5 = true → ConLeche.proofIrrelFueled mode env F d
+      (Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) x = .ok b6) :
+    mtcAnd mode env F d rl cvj cnP T x = .ok (if b3 && b5 && b6 then
+      Expr.mkAppN (.const rl.ctor ust)
+        (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x]) else x) := by
+  have e1' : (ConLeche.pureFns mode env F).inferIO d x = .ok tm := e1
+  have e2' : (ConLeche.pureFns mode env F).whnf d tm = .ok tmaj := e2
+  have h3' : ConLeche.iotaCerts (ConLeche.pureFns mode env F) env d false
+      (cvj.type.instantiateLevelParams cvj.levelParams ust)
+      (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x]) = .ok b3 := h3
+  simp only [mtcAnd, e1', e2', bind, Except.bind, hgf]
+  rw [if_pos hg]
+  simp only [hgd, if_true, h3']
+  cases b3
+  · rfl
+  · have h4' : (ConLeche.pureFns mode env F).inferIO d
+        (Expr.mkAppN (.const rl.ctor ust)
+          (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) = .ok tf := h4 rfl
+    have h5' : (ConLeche.pureFns mode env F).defeq d tmaj tf = .ok b5 := h5 rfl
+    simp only [if_true, h4', h5']
+    cases b5
+    · rfl
+    · have h6' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d
+          (Expr.mkAppN (.const rl.ctor ust)
+            (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) x = .ok b6 := h6 rfl rfl
+      simp only [if_true, h6']
+      cases b6 <;> rfl
+
 /-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — **THEOREM 1
 for `majorToCtor`**, the stuck-major rescue: K, η, and the pinned `And`.
 The recursor's name is unused on both sides (`_recName`). -/
