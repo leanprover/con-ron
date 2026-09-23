@@ -61034,6 +61034,37 @@ and must say so (a Rust-input hypothesis) whichever way the walk is proved.
 is proved (`env_pi_sort_tele_len_run`) in `Frontend/ExportCInd.lean`, above
 `Checker/Base.lean`.
 
+#### Slice 3 (worktree `_tmp/wt-t2-chk-base3`, off slice 2; `arena` `ddb4acdb` merged)
+
+Coordinator's rulings on slice 2: (1) no Rust reshape of the two guard walks —
+they wait for `LSM` (Promote's memo-outside judgement) to become a shape of the
+shared tactic; (2)+(3) move the leaf statements down, do not thread
+hypotheses; (4) `install_basis_decls`'s `IFEnvRelI` is the DeclCheck lane's,
+`check_basis_decl_install` stays open; the not-a-leaf hypothesis on
+`consts_resolve_f_node_refines` approved.
+
+* **The move, its own commit** (`Move leaf statements below Checker/Base`):
+  new `Refine2/Checker/Leaves.lean` (imported by `Checker/Base.lean` and
+  `Refine2.lean`) holds, unchanged, `mentions_const_refines`/`_ls` (from
+  `Inductives/StructParts.lean`, still `sorry`) and
+  `Frontend.env_pi_sort_tele_len_run` (from `Frontend/ExportCInd.lean`, proved)
+  with its two helpers `Frontend.env_view_e_run`/`view_bind_run` (from
+  `Frontend/ExportC.lean`).  Full names kept; the three old modules only lost
+  those declarations (their imports reach `Leaves` through `Checker/Base`).
+  When `mentions_const` is proved, its arm lemmas (`mentions_const_go`/`_node`)
+  and their shapes (`LOutRel`, `mentionsConstNodeSpec`) must follow it down.
+* `unresolved_consts_error_refines` now `unresolved_consts_error_of` at
+  `mentions_const_ls`: its only `sorry` is that walk's.
+* `ind_params_ok_at` (per kind, `lockstep`; new `pi_sort_tele_len_ls`,
+  `@[lockstep_simp]` `absU_beq_u64`/`absU_le_u64`) and `ind_params_ok` (cursor
+  induction, each step one `lockstep`, `indParamsOk_unfold`): closed.
+* `consts_resolve_f_node_refines` takes `hnl` (the view is not a leaf).
+
+Frontier: `arena` `ddb4acdb` 50 / 244 / 389 → this branch 49 items /
+244 tainted / dead weight 387.  This lane's items on it: `mentions_const`
+(now in `Leaves`, Inductives' walk), the two guard walks (waiting on `LSM`),
+`check_basis_decl_install` (DeclCheck's statement).
+
 ### Task #97-T2-TACTIC round 2 — twin-only spec arguments, and a twin `if` against a Rust bind (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-tactic`, branch `t2-tactic` off `arena` `b5f0d431` (the
@@ -61095,33 +61126,17 @@ per-module build time (one run each, noisy): 466 s → 428 s.
 workaround cleanups follow as slice 2 (their sites are in the Checker round-2
 slice-2 branch, still in the queue when this was submitted).
 
-#### Slice 3 (worktree `_tmp/wt-t2-chk-base3`, off slice 2; `arena` `ddb4acdb` merged)
+#### Slice 1b — `twin_bind_pure` skips a twin `if` (core, one commit)
 
-Coordinator's rulings on slice 2: (1) no Rust reshape of the two guard walks —
-they wait for `LSM` (Promote's memo-outside judgement) to become a shape of the
-shared tactic; (2)+(3) move the leaf statements down, do not thread
-hypotheses; (4) `install_basis_decls`'s `IFEnvRelI` is the DeclCheck lane's,
-`check_basis_decl_install` stays open; the not-a-leaf hypothesis on
-`consts_resolve_f_node_refines` approved.
-
-* **The move, its own commit** (`Move leaf statements below Checker/Base`):
-  new `Refine2/Checker/Leaves.lean` (imported by `Checker/Base.lean` and
-  `Refine2.lean`) holds, unchanged, `mentions_const_refines`/`_ls` (from
-  `Inductives/StructParts.lean`, still `sorry`) and
-  `Frontend.env_pi_sort_tele_len_run` (from `Frontend/ExportCInd.lean`, proved)
-  with its two helpers `Frontend.env_view_e_run`/`view_bind_run` (from
-  `Frontend/ExportC.lean`).  Full names kept; the three old modules only lost
-  those declarations (their imports reach `Leaves` through `Checker/Base`).
-  When `mentions_const` is proved, its arm lemmas (`mentions_const_go`/`_node`)
-  and their shapes (`LOutRel`, `mentionsConstNodeSpec`) must follow it down.
-* `unresolved_consts_error_refines` now `unresolved_consts_error_of` at
-  `mentions_const_ls`: its only `sorry` is that walk's.
-* `ind_params_ok_at` (per kind, `lockstep`; new `pi_sort_tele_len_ls`,
-  `@[lockstep_simp]` `absU_beq_u64`/`absU_le_u64`) and `ind_params_ok` (cursor
-  induction, each step one `lockstep`, `indParamsOk_unfold`): closed.
-* `consts_resolve_f_node_refines` takes `hnl` (the view is not a leaf).
-
-Frontier: `arena` `ddb4acdb` 50 / 244 / 389 → this branch 49 items /
-244 tainted / dead weight 387.  This lane's items on it: `mentions_const`
-(now in `Leaves`, Inductives' walk), the two guard walks (waiting on `LSM`),
-`check_basis_decl_install` (DeclCheck's statement).
+Reported by the Checker Base/Top lane through the coordinator (its local
+`chk_lockstep` wrapper in `Checker/Base.lean`): when the twin's next step is
+an `if` the last Rust test already decided and the Rust's next step is a
+state bind whose partner is INSIDE the branch, the `rustStep` fallback
+`LS.twin_bind_pure` could take the whole `if` as the partner and bury it under
+`>>= pure`.  The fallback now does not fire at a twin `ite`/`dite`; `stepCore`
+then decides the `if` (cheap tier, then dear) or, failing that, splits it
+(slice 1).  New test in `Tactic/Tests.lean` (a twin `if b then … else
+unresolvedConstsError …` with `¬ b = true` in context against the Rust's
+`unresolved_consts_error` bind).  `lake build ConRonRefine2` green.  The lane's
+`chk_lockstep` can become `lockstep` once this and its branch are both on
+`arena`.
