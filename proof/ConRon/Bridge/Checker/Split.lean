@@ -55,6 +55,7 @@ punchline lands on `Bridge/Checker/Fold.lean`'s `checkDeclsPure` statement, so
 -/
 import ConRon.Bridge.Checker.Fold
 import ConLeche.Verify.EnvBound
+import ConRon.Bridge.Checker.Nodup
 
 open ConLeche ConRon.Arena
 
@@ -914,18 +915,9 @@ theorem PendRel.prefix {st : EStore} {envF : Env} {pc : PendingCheck}
   rw [h.vis]
   exact Env.prefixTo_of_extends hn
 
-/-- con-leche: ConLeche/Verify/Cached/InstalledC.lean installRun_trace — **the
-pure fold keeps names unique**: every install is guarded by a `find?` miss
-(`checkConstantVal`, `installBasisDecl`, the inductive install), which is
-what con-leche's `PushChain` carries through its cached fold.
-
-`sorry`: a case split over `checkDecl`'s arms, reading the duplicate guard
-off each (con-leche proves it for the cached fold only). -/
-theorem checkDecl_nodup {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
-    {env env' : Env} {d : Declaration}
-    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env')
-    (hnd : NodupNames env) : NodupNames env' := by
-  sorry
+/-! `checkDecl_nodup` — the pure fold keeps names unique — is
+`Bridge/Checker/Nodup.lean`'s (task #97-P3-Checker round 9: PROVED off
+con-leche's `DeclRun`, arm by arm). -/
 
 /-- con-leche: ConLeche/Verify/CheckerSplit.lean installConstantVal_inv — a
 split install pushes one constant whose name the environment did not have.
