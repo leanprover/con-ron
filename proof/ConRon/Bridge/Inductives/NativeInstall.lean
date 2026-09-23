@@ -1534,7 +1534,7 @@ theorem checkNativePass_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨t1, s₁, k1, z1⟩ := bindOk hrun
   obtain ⟨caps, hpush⟩ := checkSumInd_push k1
   obtain ⟨c1, F₁, envP, cvTaP, qP₁, hF₁, hinst₁, hcv₁, hsh₁⟩ :=
-    checkSumInd_spec fe hμ hk henv p₀.toInductiveShape q₀.toInductiveShape isRec
+    checkSumInd_spec fe hμ hk henv hcoh p₀.toInductiveShape q₀.toInductiveShape isRec
       s₀ s₁ t1 hck ⟨hp.shape, hfe⟩ k1
   obtain ⟨fe₁, cvTa, p₁⟩ := t1
   simp only at hpush hinst₁ hcv₁ hsh₁ z1

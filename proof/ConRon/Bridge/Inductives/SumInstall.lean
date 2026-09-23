@@ -27,6 +27,7 @@ calls `inferTypeCore` and `ensureSort`, `normPosDom` calls `whnf`,
 import ConRon.Bridge.Inductives.StructInstall
 import ConLeche.Verify.FastOps
 import ConRon.Bridge.Checker.Base
+import ConLeche.Verify.BridgeWfImp
 
 namespace ConRon.Bridge.Inductives
 
@@ -256,7 +257,91 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ConLeche.checkSumTele (ConLeche.fueledOps μ F) env cvP n cvTa₀P
           = .ok (cvAP, sP) ∧
         Frontend.denoteCV st r.1 = some cvAP ∧ denoteL st.ls r.2 = some sP) := by
-  sorry
+  have slow : ∀ (s₁ s'' : AState) (r : IConstantVal × LIdx), CheckOK μ env fe s₁ →
+      Frontend.denoteCV s₁.store cv = some cvP →
+      Frontend.denoteCV s₁.store cvTa₀ = some cvTa₀P →
+      denoteFEnv s₁.store fe = some env →
+      Arena.checkSumTele.checkSumTeleSlow μ fe cv n cvTa₀ s₁ = .ok (r, s'') →
+      CoreStep μ env fe s₁ s'' ∧ ∃ F bsP sP cvAP,
+        ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env 0 n cvTa₀P.type
+          = .ok (bsP, sP) ∧
+        ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env
+          { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } = .ok cvAP ∧
+        Frontend.denoteCV s''.store r.1 = some cvAP ∧ denoteL s''.store.ls r.2 = some sP := by
+    intro s₁ s'' r hck hcv hcv0 hfe hrun
+    simp only [Arena.checkSumTele.checkSumTeleSlow] at hrun
+    obtain ⟨bs, s₂, k2, z2⟩ := bindOk hrun
+    obtain ⟨c2, F₁, bsP, sP, hF₁, hbs, hsP⟩ := whnfTelescope_spec fe hk henv 0 n cvTa₀.type
+      cvTa₀P.type hws s₁ s₂ bs hck ⟨denoteCV_type hcv0, hfe⟩ k2
+    obtain ⟨bsI, sI⟩ := bs
+    simp only at hbs hsP z2
+    obtain ⟨sortS, s₃, k3, z3⟩ := bindOk z2
+    obtain ⟨p3, hsort⟩ := internSortE_run c2.ok.state hsP k3
+    obtain ⟨ty, s₄, k4, z4⟩ := bindOk z3
+    obtain ⟨p4, hty⟩ := closeTelescope_spec bsI bsP 0 sortS (.sort sP) s₃ s₄ ty p3.ok
+      ⟨denoteBinders_ext p3.ext _ _ hbs, hsort⟩ k4
+    have c4 := c2.trans ((p3.trans p4).toCore c2.ok)
+    have x14 : Ext s₁.store s₄.store := c4.ext
+    obtain ⟨cvA, s₅, k5, z5⟩ := bindOk z4
+    have hcvT : Frontend.denoteCV s₄.store { cv with type := ty } =
+        some { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } := by
+      obtain ⟨hn, hl, -⟩ := denoteCV_inv hcv
+      simp only [Frontend.denoteCV, denoteN_ext hn x14, denoteNListE_ext x14 _ _ hl, hty]
+    obtain ⟨c5, cAP, F₂, hcA, hF₂⟩ := checkConstantVal_bridge hμ hk c4.ok henv hcvT k5
+    obtain ⟨rfl, rfl⟩ := pureOk z5
+    refine ⟨c4.trans c5, max F₁ F₂, bsP, sP, cAP,
+      whnfTelescope_mono (Nat.le_max_left F₁ F₂) hF₁,
+      checkConstantVal_mono (Nat.le_max_right F₁ F₂) hF₂, hcA,
+      denoteL_ext hsP (p3.ext.trans (p4.ext.trans c5.ext))⟩
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hcv, hcv0, hfe⟩ := hpre
+  simp only [Arena.checkSumTele] at hrun
+  obtain ⟨sq, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hsq⟩ := stripPis_pstep hck.state (denoteCV_type hcv0) k1
+  rw [hs1] at z1
+  -- the slow arm, on both sides
+  have finish : Arena.checkSumTele.checkSumTeleSlow μ fe cv n cvTa₀ s₀ = .ok (r, s') →
+      (∀ bsP sP, ¬ cvTa₀P.type.stripPis n = some (bsP, .sort sP)) →
+      CoreStep μ env fe s₀ s' ∧ ∃ F cvAP sP,
+        ConLeche.checkSumTele (ConLeche.fueledOps μ F) env cvP n cvTa₀P = .ok (cvAP, sP) ∧
+        Frontend.denoteCV s'.store r.1 = some cvAP ∧ denoteL s'.store.ls r.2 = some sP := by
+    intro hz hns
+    obtain ⟨c, F, bsP, sP, cvAP, hF₁, hF₂, hcA, hsP⟩ := slow s₀ s' r hck hcv hcv0 hfe hz
+    refine ⟨c, F, cvAP, sP, ?_, hcA, hsP⟩
+    have tail : (do
+        let (bs, s) ← ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env 0 n cvTa₀P.type
+        let cvTa ← ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env
+          { cvP with type := ConLeche.closeTelescope bs 0 (.sort s) }
+        pure (cvTa, s) : CheckM (ConstantVal × Level)) = .ok (cvAP, sP) := by
+      simp only [bind, Except.bind, hF₁, hF₂, pure, Except.pure]
+    unfold ConLeche.checkSumTele
+    rcases hsp : cvTa₀P.type.stripPis n with _ | ⟨bs, b⟩
+    · exact tail
+    · cases b
+      case sort u => exact absurd hsp (hns bs u)
+      all_goals exact tail
+  cases sq with
+  | none =>
+    exact finish z1 (fun bsP sP h => by rw [stripPis_none hsq] at h; exact nomatch h)
+  | some q =>
+  obtain ⟨bs, body⟩ := q
+  obtain ⟨xs, x, hxs, hbody⟩ := stripPis_some hsq
+  dsimp only at z1
+  obtain ⟨v, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hv⟩ := view_run k2
+  rw [hs2] at z2
+  cases v
+  case sort u =>
+    obtain ⟨uP, rfl, hu⟩ := denote_sort_inv hck.state.wf hv hbody
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨CoreStep.refl hck, 0, cvTa₀P, uP, ?_, hcv0, hu⟩
+    simp only [ConLeche.checkSumTele, hxs, pure, Except.pure]
+  all_goals
+    (refine finish z2 (fun bsP sP h => ?_)
+     rw [hxs] at h
+     obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+     rw [denoteE_view_eq hck.state.wf hv] at hbody
+     simp [denoteEView] at hbody)
 
 /-! ## The capability record -/
 
@@ -355,7 +440,8 @@ sort its telescope measured.  **Deviation 3's `capsOf`** is instantiated here.
 `nativeCapsAt_spec`, and `IFEnv.push`'s two lemmas for the `InstRel`. -/
 theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (p : Arena.InductiveShape)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
+    (p : Arena.InductiveShape)
     (q : ConLeche.InductiveShape) (isRec : Bool) :
     CSpec μ env fe
       (fun st => ShapeRel st p q ∧ denoteFEnv st fe = some env)
@@ -365,7 +451,74 @@ theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
             (fun x => ConLeche.nativeCapsAt x isRec) = .ok (envP, cvTaP, qP) ∧
         InstRel fe (fun e => e = envP) st r.1 ∧
         Frontend.denoteCV st r.2.1 = some cvTaP ∧ ShapeRel st r.2.2 qP) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hsh, hfe⟩ := hpre
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  simp only [Arena.checkSumInd] at hrun
+  -- the former's own check
+  obtain ⟨cvTa₀, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨c1, cA₀, F₁, hcA₀, hF₁⟩ := checkConstantVal_bridge hμ hk hck henv hsh.cvT k1
+  have hws : Expr.WScoped 0 cA₀.type :=
+    Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hF₁).1
+  -- the telescope
+  obtain ⟨t2, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, F₂, cvTaP, sP, hF₂, hcvTa, hsP⟩ := checkSumTele_spec fe hμ hk henv p.cvT q.cvT
+    (p.nP + p.nIdx) cvTa₀ cA₀ hws s₁ s₂ t2 c1.ok
+    ⟨denoteCV_ext hsh.cvT c1.ext, hcA₀, denoteFEnv_ext c1.ext hfe⟩ k2
+  obtain ⟨cvTa, so⟩ := t2
+  simp only at hcvTa hsP z2
+  have c12 := c1.trans c2
+  -- the result sort
+  obtain ⟨o, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, ho⟩ := stripPis_pstep c12.ok.state (denoteCV_type hcvTa) k3
+  rw [hs3] at z3
+  obtain ⟨bt, s₄, k4, z4⟩ := bindOk z3
+  cases o with
+  | none => simp only [Arena.unwrapOr] at k4; exact absurd k4 (fun h => failOk h)
+  | some o' =>
+  simp only [Arena.unwrapOr] at k4
+  obtain ⟨rfl, rfl⟩ := pureOk k4
+  obtain ⟨bs, tbody⟩ := bt
+  obtain ⟨xs, tbodyP, htq, htb⟩ := stripPis_some ho
+  dsimp only at z4
+  obtain ⟨sortS, s₅, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hsort⟩ := internSortE_run c12.ok.state hsP k5
+  have c15 := c12.trans (p5.toCore c12.ok)
+  have hbeq := beq_ehandle_eq c15.ok.state.wf (denote_ext htb p5.ext) hsort
+  obtain ⟨hg, z6⟩ := AM.dunless_ok hnever z5
+  replace z6 := AM.pure_bind_ok z6
+  rw [hbeq] at hg
+  -- the completed record and the capability record
+  obtain ⟨p', s₆, k6, z7⟩ := bindOk z6
+  have x15 : Ext s₀.store s₅.store := c15.ext
+  obtain ⟨c6, hp'⟩ := withSort_spec fe p q so sP s₅ s₆ p' c15.ok
+    ⟨hsh.ext x15, denoteL_ext hsP p5.ext⟩ k6
+  have c16 := c15.trans c6
+  obtain ⟨caps, s₇, k7, z8⟩ := bindOk z7
+  obtain ⟨p7, hcaps⟩ := nativeCapsAt_spec p' (q.withSort sP) isRec s₆ s₇ caps c16.ok.state
+    c16.ok.pins hp' k7
+  obtain ⟨rfl, rfl⟩ := pureOk z8
+  have c17 := c16.trans (p7.toCore c16.ok)
+  have x7 : Ext s₄.store s'.store := p5.ext.trans (c6.ext.trans p7.ext)
+  have hci : Frontend.denoteCI s'.store (.indInfo cvTa caps) =
+      some (.indInfo cvTaP (ConLeche.nativeCapsAt (q.withSort sP) isRec)) := by
+    simp only [Frontend.denoteCI, denoteCV_ext hcvTa x7, hcaps]
+  refine ⟨c17, max F₁ F₂, _, cvTaP, q.withSort sP, ?_,
+    ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _,
+      ⟨_, denoteFEnv_push (denoteFEnv_ext c17.ext hfe) hci, rfl⟩,
+      ProjOut.push hcoh _ (fun t h => IConstantInfo.noConfusion h)⟩,
+    denoteCV_ext hcvTa x7, hp'.ext p7.ext⟩
+  have g₁ := checkConstantVal_mono (Nat.le_max_left F₁ F₂) hF₁
+  have g₂ : ConLeche.checkSumTele (ConLeche.fueledOps μ (max F₁ F₂)) env q.cvT
+      (p.nP + p.nIdx) cA₀ = .ok (cvTaP, sP) := by
+    rw [← ConLeche.checkSumTele_datF] at hF₂ ⊢
+    exact (ConLeche.checkSumTele (ConLeche.fueledOpsM μ) env q.cvT (p.nP + p.nIdx)
+      cA₀).property (Nat.le_max_right F₁ F₂) hF₂
+  rw [hsh.nP, hsh.nIdx] at g₂ htq
+  simp only [ConLeche.checkSumInd, bind, Except.bind, g₁, g₂, htq, ConLeche.unwrapOr,
+    pure, Except.pure]
+  rw [if_pos hg]
 
 /-! ## The fields' universe bound -/
 
