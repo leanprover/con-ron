@@ -29,7 +29,7 @@ is what every body theorem of this tier already has in hand
 (`certs_of_verifiedChecks`, con-leche's `Verify/BetaGate.lean:126`).
 -/
 import ConRon.Bridge.Core.Walks.PropRead
-import ConRon.Bridge.Checker.Names
+import ConRon.Bridge.Core.Walks.Reserved
 
 namespace ConRon.Bridge.Core
 
@@ -334,8 +334,8 @@ theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
     mvcgen [ConRon.Arena.liftFueled]
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-the reserved list in triple form: `Bridge/Checker/Names.lean`'s
-`reservedBasisNames_run` (six pin reads, thirteen name interns) read through
+the reserved list in triple form: `Walks/Reserved.lean`'s
+`reservedBasisNames_runC` (a copy of `Bridge/Checker/Names.lean`'s) (six pin reads, thirteen name interns) read through
 `triple_of_run`. -/
 theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.reservedBasisNames
@@ -344,10 +344,10 @@ theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
         Frontend.denoteNList s'.store.ns hs =
           some ConLeche.reservedBasisNames⌝⦄ :=
   triple_of_run fun hs s' hr => by
-    obtain ⟨hps, hd⟩ := reservedBasisNames_run hok.state.wf hok.pins hr
+    obtain ⟨hps, hd⟩ := reservedBasisNames_runC hok.state.wf hok.pins hr
     refine ⟨hok.mono ⟨hps.wf⟩ hps.ext hps.caches hps.pins, hps.ext, hps.pins, ?_⟩
-    rw [← reservedBasisNameValues_eq]
-    exact denoteNL_toList _ _ hd
+    show Frontend.denoteNList s'.store.ns hs = some reservedBasisNameValues
+    exact denoteNL_toListC _ _ hd
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at
 an inductive. -/
@@ -682,7 +682,7 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             ConLeche.reservedBasisNames.contains Tn = false ∧
             vwta.getAppArgs.length = dcaps.unitParams ∧
             ls.length = dcv.levelParams.length) := by
-        rw [denoteNList_contains hwf5 res _ hres T Tn (denoteN_ext hTn hx5),
+        rw [denoteNList_containsC hwf5 res _ hres T Tn (denoteN_ext hTn hx5),
           hcaps.1, hcaps.2, ← denoteEList_len hargs, denoteNList_len hlps]
       split
       next hg =>
