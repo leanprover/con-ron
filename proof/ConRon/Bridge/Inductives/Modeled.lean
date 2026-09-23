@@ -728,6 +728,90 @@ theorem eqApp3?_spec (h : EIdx) (hP : Expr) :
     (obtain ⟨rfl, rfl⟩ := pureOk k1
      exact ⟨PStep.refl hok, by intro a b cc d e hh; simp at hh⟩)
 
+/-- con-leche: none — **`eqApp3?`'s `none` half** (task #97-P3-Ind round 7):
+a `none` answer means the subject is NOT an `Eq`-shaped triple application,
+so con-leche's `match` falls through to its `_` arm too.  `eqApp3?_spec` is
+the `some` half; the capability theorems read both. -/
+theorem eqApp3?_none (h : EIdx) (hP : Expr) :
+    PSpec (fun st => denoteE st h = some hP)
+      (Arena.eqApp3? h)
+      (fun _ r => r = none → ∀ c u ty l rr,
+        hP ≠ .app (.app (.app (.const c [u]) ty) l) rr) := by
+  intro s₀ s' r hok hd hrun
+  have hwf := hok.wf
+  simp only [Arena.eqApp3?] at hrun
+  obtain ⟨v1, s1, g1, k1⟩ := bindOk hrun
+  obtain ⟨rfl, hw1⟩ := view_run g1
+  cases v1
+  case app f1 rr =>
+    obtain ⟨efP, errP, rfl, hf1, hrr⟩ := denote_app_inv hwf hw1 hd
+    obtain ⟨v2, s2, g2, k2⟩ := bindOk k1
+    obtain ⟨rfl, hw2⟩ := view_run g2
+    cases v2
+    case app f2 l =>
+      obtain ⟨ef2P, elP, rfl, hf2, hl⟩ := denote_app_inv hwf hw2 hf1
+      obtain ⟨v3, s3, g3, k3⟩ := bindOk k2
+      obtain ⟨rfl, hw3⟩ := view_run g3
+      cases v3
+      case app f3 ty =>
+        obtain ⟨ef3P, etyP, rfl, hf3, hty⟩ := denote_app_inv hwf hw3 hf2
+        obtain ⟨v4, s4, g4, k4⟩ := bindOk k3
+        obtain ⟨rfl, hw4⟩ := view_run g4
+        cases v4
+        case const c us =>
+          obtain ⟨cP, lsP, rfl, hc, hus⟩ := denote_const_inv hwf hw4 hf3
+          obtain ⟨vs, s5, g5, k5⟩ := bindOk k4
+          obtain ⟨rfl, hw5⟩ := viewLs_run g5
+          have hvs := denoteLs_of_view hw5 hus
+          refine ⟨?_, ?_⟩
+          · cases vs with
+            | nil => obtain ⟨rfl, rfl⟩ := pureOk k5; exact PStep.refl hok
+            | cons a t =>
+              cases t with
+              | nil => obtain ⟨rfl, rfl⟩ := pureOk k5; exact PStep.refl hok
+              | cons _ _ => obtain ⟨rfl, rfl⟩ := pureOk k5; exact PStep.refl hok
+          · intro hr c' u ty' l' rr' heq
+            simp only [Expr.app.injEq, Expr.const.injEq] at heq
+            obtain ⟨⟨⟨⟨-, rfl⟩, -⟩, -⟩, -⟩ := heq
+            cases vs with
+            | nil =>
+              simp [denoteLList] at hvs
+            | cons a t =>
+              cases t with
+              | nil =>
+                obtain ⟨rfl, rfl⟩ := pureOk k5
+                simp at hr
+              | cons b t' =>
+                have := denoteLList_length _ _ hvs
+                simp at this
+        all_goals
+          (obtain ⟨rfl, rfl⟩ := pureOk k4
+           refine ⟨PStep.refl hok, fun _ c' u ty' l' rr' heq => ?_⟩
+           simp only [Expr.app.injEq] at heq
+           obtain ⟨⟨⟨rfl, -⟩, -⟩, -⟩ := heq
+           rw [denoteE_view_eq hwf hw4] at hf3
+           simp [denoteEView] at hf3)
+      all_goals
+        (obtain ⟨rfl, rfl⟩ := pureOk k3
+         refine ⟨PStep.refl hok, fun _ c' u ty' l' rr' heq => ?_⟩
+         simp only [Expr.app.injEq] at heq
+         obtain ⟨⟨rfl, -⟩, -⟩ := heq
+         rw [denoteE_view_eq hwf hw3] at hf2
+         simp [denoteEView] at hf2)
+    all_goals
+      (obtain ⟨rfl, rfl⟩ := pureOk k2
+       refine ⟨PStep.refl hok, fun _ c' u ty' l' rr' heq => ?_⟩
+       simp only [Expr.app.injEq] at heq
+       obtain ⟨rfl, -⟩ := heq
+       rw [denoteE_view_eq hwf hw2] at hf1
+       simp [denoteEView] at hf1)
+  all_goals
+    (obtain ⟨rfl, rfl⟩ := pureOk k1
+     refine ⟨PStep.refl hok, fun _ c' u ty' l' rr' heq => ?_⟩
+     subst heq
+     rw [denoteE_view_eq hwf hw1] at hd
+     simp [denoteEView] at hd)
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:31-53 checkIotaSidesTy
 The two sides of a model iota theorem have the certified type.
 
