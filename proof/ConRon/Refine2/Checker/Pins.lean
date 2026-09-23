@@ -50,6 +50,7 @@ import ConRon.Refine.BasisNames
 import ConRon.Refine.CoreKNames
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms
+import ConRon.Refine2.Core.Arms.Delta
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -561,7 +562,43 @@ theorem pin_reserved_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_reserved st = ok o) :
     SimRE absNIdxL lst o pinReserved := by
-  sorry
+  rw [arena.pins.pin_reserved] at hrun
+  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hbr := pins_ready_refines hrel hinv hb
+  have hrun2 : (Arena.pinReserved).run lst
+      = (if Arena.pinsReady lst
+         then Except.ok (lst.pins.reserved, lst)
+         else Except.error
+           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+    by_cases h : Arena.pinsReady lst = true
+    · rw [if_pos h]
+      show (Arena.pinReserved) lst = _
+      rw [Arena.pinReserved]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+    · simp only [Bool.not_eq_true] at h
+      rw [if_neg (by simp [h])]
+      show (Arena.pinReserved) lst = _
+      rw [Arena.pinReserved]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
+  split at hrun
+  case isTrue hbt =>
+    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    show (Arena.pinReserved).run lst = _
+    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.reserved]
+    simp only [absNIdxL, nidx_vec_dup_val hv]
+  case isFalse hbf =>
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
+    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
 /-- `pin_empty_levels` ⊑ `pinEmptyLevels`. -/
 theorem pin_empty_levels_refines {pers st lst} {o}
@@ -1415,7 +1452,113 @@ theorem intern_pin_set_proofs_refines {pers st lst}
         pure ⟨ConRon.Refine.absString ps.toolchain, absEIdx dp, absEIdx mp,
           absEIdx gp, absEIdx lap, absEIdx lop, absEIdx xp, absEIdx slp,
           absEIdx srp, dc, mc, gc, lac, loc, xc, slc, src⟩) := by
-  sorry
+  rw [arena.nat_op_pin_set.intern_pin_set_proofs] at hrun
+  unfold Sim
+  obtain ⟨htc, -, -, -, -, -, -, -, -, hdc, hmc, hgc, hlac, hloc, hxc, hslc, hsrc⟩ := hwf
+  have hrel0 := hrel
+  have hinv0 := hinv
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := intern_expr_list_refines hrel0 hinv0 hdc hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := intern_expr_list_refines hrel1 hinv1 hmc hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := intern_expr_list_refines hrel2 hinv2 hgc hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r4, st4⟩ := q4
+  have hS4 := intern_expr_list_refines hrel3 hinv3 hlac hq4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS4
+  | Ok u4 =>
+  obtain ⟨lst4, hx4, hrel4, hinv4, hext4, -⟩ := Sim.apply hS4
+  rw [run_bind_ok hx4]
+  refine AOut.rebase hext4 ?_
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r5, st5⟩ := q5
+  have hS5 := intern_expr_list_refines hrel4 hinv4 hloc hq5
+  cases r5 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS5
+  | Ok u5 =>
+  obtain ⟨lst5, hx5, hrel5, hinv5, hext5, -⟩ := Sim.apply hS5
+  rw [run_bind_ok hx5]
+  refine AOut.rebase hext5 ?_
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r6, st6⟩ := q6
+  have hS6 := intern_expr_list_refines hrel5 hinv5 hxc hq6
+  cases r6 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS6
+  | Ok u6 =>
+  obtain ⟨lst6, hx6, hrel6, hinv6, hext6, -⟩ := Sim.apply hS6
+  rw [run_bind_ok hx6]
+  refine AOut.rebase hext6 ?_
+  obtain ⟨q7, hq7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r7, st7⟩ := q7
+  have hS7 := intern_expr_list_refines hrel6 hinv6 hslc hq7
+  cases r7 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS7
+  | Ok u7 =>
+  obtain ⟨lst7, hx7, hrel7, hinv7, hext7, -⟩ := Sim.apply hS7
+  rw [run_bind_ok hx7]
+  refine AOut.rebase hext7 ?_
+  obtain ⟨q8, hq8, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r8, st8⟩ := q8
+  have hS8 := intern_expr_list_refines hrel7 hinv7 hsrc hq8
+  cases r8 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS8
+  | Ok u8 =>
+  obtain ⟨lst8, hx8, hrel8, hinv8, hext8, -⟩ := Sim.apply hS8
+  rw [run_bind_ok hx8]
+  refine AOut.rebase hext8 ?_
+  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hv' := ConRon.Refine.Expr.str_copy_eq hv
+  subst hv'
+  have ho := Result.ok_injective hrun
+  subst ho
+  exact AOut.ok rfl hrel8 hinv8 (Ext.refl _) trivial
 
 /-- `intern_pin_set` ⊑ `internPinSet` — one variant, sixteen terms. -/
 theorem intern_pin_set_refines {pers st lst}
@@ -1425,7 +1568,176 @@ theorem intern_pin_set_refines {pers st lst}
     (hrun : arena.nat_op_pin_set.intern_pin_set pers st ps = ok o) :
     Sim absINatOpPinSet (fun _ => True) pers lst o
       (internPinSet (ConRon.Refine.absNatOpPinSet ps)) := by
-  sorry
+  rw [arena.nat_op_pin_set.intern_pin_set] at hrun
+  unfold Sim
+  simp only [internPinSet, ConRon.Refine.absNatOpPinSet]
+  obtain ⟨-, hdp, hmp, hgp, hlap, hlop, hxp, hslp, hsrp, -⟩ := id hwf
+  have hrel0 := hrel
+  have hinv0 := hinv
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := intern_expr_refines hrel0 hinv0 hdp hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := intern_expr_refines hrel1 hinv1 hmp hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := intern_expr_refines hrel2 hinv2 hgp hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r4, st4⟩ := q4
+  have hS4 := intern_expr_refines hrel3 hinv3 hlap hq4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS4
+  | Ok u4 =>
+  obtain ⟨lst4, hx4, hrel4, hinv4, hext4, -⟩ := Sim.apply hS4
+  rw [run_bind_ok hx4]
+  refine AOut.rebase hext4 ?_
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r5, st5⟩ := q5
+  have hS5 := intern_expr_refines hrel4 hinv4 hlop hq5
+  cases r5 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS5
+  | Ok u5 =>
+  obtain ⟨lst5, hx5, hrel5, hinv5, hext5, -⟩ := Sim.apply hS5
+  rw [run_bind_ok hx5]
+  refine AOut.rebase hext5 ?_
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r6, st6⟩ := q6
+  have hS6 := intern_expr_refines hrel5 hinv5 hxp hq6
+  cases r6 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS6
+  | Ok u6 =>
+  obtain ⟨lst6, hx6, hrel6, hinv6, hext6, -⟩ := Sim.apply hS6
+  rw [run_bind_ok hx6]
+  refine AOut.rebase hext6 ?_
+  obtain ⟨q7, hq7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r7, st7⟩ := q7
+  have hS7 := intern_expr_refines hrel6 hinv6 hslp hq7
+  cases r7 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS7
+  | Ok u7 =>
+  obtain ⟨lst7, hx7, hrel7, hinv7, hext7, -⟩ := Sim.apply hS7
+  rw [run_bind_ok hx7]
+  refine AOut.rebase hext7 ?_
+  obtain ⟨q8, hq8, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r8, st8⟩ := q8
+  have hS8 := intern_expr_refines hrel7 hinv7 hsrp hq8
+  cases r8 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS8
+  | Ok u8 =>
+  obtain ⟨lst8, hx8, hrel8, hinv8, hext8, -⟩ := Sim.apply hS8
+  rw [run_bind_ok hx8]
+  refine AOut.rebase hext8 ?_
+  exact intern_pin_set_proofs_refines hrel8 hinv8 hwf hrun
+
+/-- `internPinSets` of a cons behind an accumulated prefix, re-bracketed so
+that the head's intern is the first step and the prefix grows by it. -/
+private theorem internPinSets_cons_acc (L : List INatOpPinSet)
+    (a : ConLeche.NatOpPinSet) (rest : List ConLeche.NatOpPinSet) :
+    (do pure (L ++ (← internPinSets (a :: rest))) : AM (List INatOpPinSet))
+      = (do
+          let h ← internPinSet a
+          (do pure ((L ++ [h]) ++ (← internPinSets rest)) : AM (List INatOpPinSet))) := by
+  simp only [internPinSets, bind_assoc, pure_bind, List.append_assoc,
+    List.singleton_append]
+
+/-- The cursor's measure induction behind `intern_pin_sets_refines`. -/
+private theorem intern_pin_sets_aux {pers : arena.store.PersTier}
+    {pss : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+    (hwf : ∀ p ∈ pss.val, NatOpPinSetWF p) (m : Nat) :
+    ∀ {st lst} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {o},
+      pss.val.length - i.val = m →
+      AStateRel pers st lst → AStateInv pers st →
+      arena.nat_op_pin_set.intern_pin_sets pers st pss i out = ok o →
+      Sim absINatOpPinSetL (fun _ => True) pers lst o
+        (do pure (absINatOpPinSetL out ++
+          (← internPinSets ((pss.val.drop i.val).map ConRon.Refine.absNatOpPinSet)))) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro st lst i out o hm hrel hinv hrun
+    rw [arena.nat_op_pin_set.intern_pin_sets.eq_def] at hrun
+    dsimp only at hrun
+    unfold Sim
+    have hl := alloc.vec.Vec.len_val pss
+    by_cases hge : i ≥ pss.len
+    · have hle : pss.val.length ≤ i.val := by scalar_tac
+      rw [if_pos hge] at hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      rw [List.drop_eq_nil_of_le hle]
+      refine AOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _) trivial
+      simp only [List.map_nil, internPinSets, List.append_nil, pure_bind]
+      rfl
+    · have hlt : i.val < pss.val.length := by scalar_tac
+      rw [if_neg hge] at hrun
+      obtain ⟨nops, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hlt', rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn
+      rw [List.drop_eq_getElem_cons hlt, List.map_cons, internPinSets_cons_acc]
+      obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st1⟩ := q1
+      have hS1 := intern_pin_set_refines hrel hinv
+        (hwf _ (List.getElem_mem hlt)) hq1
+      cases r1 with
+      | Err e =>
+        have ho := Result.ok_injective hrun
+        subst ho
+        exact AOut.errBind hS1
+      | Ok h =>
+      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+      rw [run_bind_ok hx1]
+      refine AOut.rebase hext1 ?_
+      obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      have hrec := ih (pss.val.length - i2.val) (by omega) rfl hrel1 hinv1 hrun
+      have hacc : absINatOpPinSetL out1 = absINatOpPinSetL out ++ [absINatOpPinSet h] := by
+        simp only [absINatOpPinSetL, ConRon.Refine.vec_push_val hout1, List.map_append,
+          List.map_cons, List.map_nil]
+      rw [hacc, hi2v] at hrec
+      exact hrec
 
 /-- `intern_pin_sets` ⊑ `internPinSets` at the cursor — the variant LIST, in
 the order the install gate tries them. -/
@@ -1439,7 +1751,7 @@ theorem intern_pin_sets_refines {pers st lst}
       pers lst o
       (do pure (absINatOpPinSetL out ++
         (← internPinSets ((pss.val.drop i.val).map ConRon.Refine.absNatOpPinSet)))) := by
-  sorry
+  exact intern_pin_sets_aux hwf _ rfl hrel hinv hrun
 
 
 /-! ## The axiom census
