@@ -54,24 +54,149 @@ open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec PwRec CVRec HintsRec Ru
 
 /-! ## The block's own fields -/
 
+/-- **An early-exit `any` loop.**  The port's `while` that answers `bf` at the
+first element satisfying `p` and `!bf` at the end is the twin's `any` (at
+`bf = true`) or `all` of the complement (at `bf = false`). -/
+theorem any_loop_gen {X : Type} {xs : List X} {p : X → Bool} {bf : Bool}
+    {loop : Std.Usize → Result Bool}
+    (hend : ∀ i v, xs.length ≤ i.val → loop i = ok v → v = !bf)
+    (hstep : ∀ i v, (hi : i.val < xs.length) → loop i = ok v →
+      (p (xs[i.val]'hi) = true ∧ v = bf) ∨
+      (p (xs[i.val]'hi) = false ∧ ∃ i1 : Std.Usize, i1.val = i.val + 1 ∧ loop i1 = ok v)) :
+    ∀ i v, loop i = ok v → v = (if (xs.drop i.val).any p then bf else !bf) := by
+  suffices H : ∀ (k : Nat) i v, xs.length - i.val = k → loop i = ok v →
+      v = (if (xs.drop i.val).any p then bf else !bf) from fun i v h => H _ i v rfl h
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+    intro i v hk h
+    by_cases hi : i.val < xs.length
+    · rw [List.drop_eq_getElem_cons hi, List.any_cons]
+      rcases hstep i v hi h with ⟨hp, rfl⟩ | ⟨hp, i1, hi1, h1⟩
+      · simp [hp]
+      · have := ih (xs.length - i1.val) (by omega) i1 v rfl h1
+        rw [hi1] at this
+        simpa [hp] using this
+    · rw [List.drop_eq_nil_of_le (by omega)]
+      simpa using hend i v (by omega) h
+
 /-- **`any_ty_unsafe`** — the twin's `tys.any (·.isUnsafe)`: an `unsafe
 inductive` is DECLINED, not an error. -/
 theorem any_ty_unsafe_refines {tys v}
     (h : frontend.export_c.any_ty_unsafe tys = ok v) :
-    v = (absIndTypeRecs tys).any (·.isUnsafe) := by sorry
+    v = (absIndTypeRecs tys).any (·.isUnsafe) := by
+  rw [frontend.export_c.any_ty_unsafe] at h
+  have H := any_loop_gen (xs := absIndTypeRecs tys) (p := (·.isUnsafe)) (bf := true)
+    (loop := fun i => frontend.export_c.any_ty_unsafe_loop tys (alloc.vec.Vec.len tys) i)
+    (fun i v hn h => by
+      rw [frontend.export_c.any_ty_unsafe_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun i v hi h => by
+      have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
+      rw [frontend.export_c.any_ty_unsafe_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hx' := vec_index_eq hi' hx
+      have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
+        simp [absIndTypeRecs, ← hx']
+      rw [hxs]
+      by_cases hu : x.is_unsafe = true
+      · rw [if_pos hu] at h
+        exact Or.inl ⟨hu, (Result.ok_injective h).symm⟩
+      · rw [if_neg hu] at h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ConRon.Refine.Nat.uadd_val hi1
+        exact Or.inr ⟨by simpa [absIndTypeRec] using hu, i1, by simp at this; omega, h⟩)
+    0#usize v h
+  simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at H
+  rw [H]; cases (absIndTypeRecs tys).any (·.isUnsafe) <;> rfl
 
 /-- **`any_ty_nested`** — the twin's `tys.any (·.numNested != 0)`, the flag
 that turns the recursor checks off. -/
 theorem any_ty_nested_refines {tys v}
     (h : frontend.export_c.any_ty_nested tys = ok v) :
-    v = (absIndTypeRecs tys).any (·.numNested != 0) := by sorry
+    v = (absIndTypeRecs tys).any (·.numNested != 0) := by
+  rw [frontend.export_c.any_ty_nested] at h
+  have H := any_loop_gen (xs := absIndTypeRecs tys) (p := (·.numNested != 0)) (bf := true)
+    (loop := fun i => frontend.export_c.any_ty_nested_loop tys (alloc.vec.Vec.len tys) i)
+    (fun i v hn h => by
+      rw [frontend.export_c.any_ty_nested_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun i v hi h => by
+      have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
+      rw [frontend.export_c.any_ty_nested_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hx' := vec_index_eq hi' hx
+      have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
+        simp [absIndTypeRecs, ← hx']
+      rw [hxs]
+      by_cases hu : (x.num_nested != 0#u64) = true
+      · rw [if_pos hu] at h
+        refine Or.inl ⟨?_, (Result.ok_injective h).symm⟩
+        simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hu
+        simpa [absIndTypeRec, absU64] using hu
+      · rw [if_neg hu] at h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ConRon.Refine.Nat.uadd_val hi1
+        refine Or.inr ⟨?_, i1, by simp at this; omega, h⟩
+        simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hu
+        simpa [absIndTypeRec, absU64] using hu)
+    0#usize v h
+  simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at H
+  rw [H]; cases (absIndTypeRecs tys).any (·.numNested != 0) <;> rfl
 
 /-- **`all_num_params`** — the twin's `nPs.all (· == nPd)`: the declared
 parameter count is well defined for the block exactly when its type records
 agree on it. -/
 theorem all_num_params_refines {tys n_pd v}
     (h : frontend.export_c.all_num_params tys n_pd = ok v) :
-    v = ((absIndTypeRecs tys).map (·.numParams)).all (· == absU n_pd) := by sorry
+    v = ((absIndTypeRecs tys).map (·.numParams)).all (· == absU n_pd) := by
+  rw [frontend.export_c.all_num_params] at h
+  have H := any_loop_gen (xs := absIndTypeRecs tys) (p := (·.numParams != absU n_pd))
+    (bf := false)
+    (loop := fun i => frontend.export_c.all_num_params_loop tys n_pd (alloc.vec.Vec.len tys) i)
+    (fun i v hn h => by
+      rw [frontend.export_c.all_num_params_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun i v hi h => by
+      have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
+      rw [frontend.export_c.all_num_params_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hx' := vec_index_eq hi' hx
+      have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
+        simp [absIndTypeRecs, ← hx']
+      rw [hxs]
+      by_cases hu : (x.num_params != n_pd) = true
+      · rw [if_pos hu] at h
+        refine Or.inl ⟨?_, (Result.ok_injective h).symm⟩
+        simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hu
+        simpa [absIndTypeRec, absU64, absU] using hu
+      · rw [if_neg hu] at h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ConRon.Refine.Nat.uadd_val hi1
+        refine Or.inr ⟨?_, i1, by simp at this; omega, h⟩
+        simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hu
+        simpa [absIndTypeRec, absU64, absU] using hu)
+    0#usize v h
+  simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at H
+  rw [H, List.all_map]
+  cases hany : (absIndTypeRecs tys).any (·.numParams != absU n_pd)
+  · simp only [Bool.not_false, Bool.false_eq_true, ↓reduceIte]
+    symm
+    rw [List.all_eq_true]
+    intro x hx
+    have := List.any_eq_false.mp hany x hx
+    simpa using this
+  · simp only [↓reduceIte]
+    symm
+    rw [List.all_eq_false]
+    obtain ⟨x, hx, hp⟩ := List.any_eq_true.mp hany
+    exact ⟨x, hx, by simpa using hp⟩
 
 /-- **`ty_names_of`** — the twin's `tys.mapM fun t => st.name t.cv.name`. -/
 theorem ty_names_of_refines {rsd lsd lst tys o} (hd : StateDRel rsd lsd)
