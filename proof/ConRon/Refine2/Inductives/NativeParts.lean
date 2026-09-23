@@ -2424,7 +2424,10 @@ theorem native_parts_refines {pers st lst} {n_pd : Std.U64}
     (hrun : arena.inductives.native_parts.native_parts pers st n_pd block = ok o) :
     Sim₀ (Option.map absNativeParts) pers lst o
       (nativeParts? (absU n_pd) (absICIL block)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_parts, nativeParts?]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_parts_ls {pers st lst} {n_pd : Std.U64}

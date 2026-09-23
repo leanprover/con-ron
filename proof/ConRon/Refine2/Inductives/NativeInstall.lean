@@ -168,7 +168,10 @@ theorem native_caps_refines {pers st lst}
     (hrun : arena.inductives.native_install.native_caps pers st p = ok o) :
     Sim₀ absIIndCaps pers lst o
       (nativeCaps (absNativeParts p)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_install.native_caps, nativeCaps]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_caps_ls
