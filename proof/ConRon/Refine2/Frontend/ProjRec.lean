@@ -1842,51 +1842,147 @@ theorem proj_rec_value_refines {pers rst lst fuel o' l ty val i o}
 
 /-! ## The owner census -/
 
-/-- **`occurs_any_of_from`** — the cursor companion. -/
-theorem occurs_any_of_from_refines {pers rst lst fuel ns d i o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.occurs_any_of_from pers rst fuel ns d i = ok o) :
-    SimRE id lst o (occursAnyOf (absU fuel) (absNIdxLFrom ns i) (absEIdx d)) := by
-  sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem hashmap2_new_eidx_spec :
+    LSP (ron.hashmap2.HashMap2.new arena.handle.EIdx Bool)
+      (fun m => HSetRel m (∅ : Std.HashSet EIdx)) := by
+  intro m h
+  obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) h
+  exact ⟨fun k => by rw [hnone k]; simp, hinv⟩
 
-/-- **`occurs_any_of` refines `occursAnyOf`** (`ProjRec.lean:407-412`). -/
-theorem occurs_any_of_refines {pers rst lst fuel ns d o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.occurs_any_of pers rst fuel ns d = ok o) :
-    SimRE id lst o (occursAnyOf (absU fuel) (absNIdxL ns) (absEIdx d)) := by sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem occurs_const_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx)
+    {seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool} {ls : Std.HashSet EIdx}
+    (hs : HSetRel seen ls) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => a.1 = b.1 ∧ HSetRel a.2 b.2)
+      (frontend.proj_rec.occurs_const_go pers st n seen fuel h) st lst
+      (occursConstGo (absNIdx n) ls (absU fuel) (absEIdx h)) :=
+  occurs_const_go_aux _ n seen ls fuel h rfl hs hrel hinv
 
-/-- **`doms_mention_any_from`** — the cursor companion. -/
-theorem doms_mention_any_from_refines {pers rst lst fuel ns bs i o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.doms_mention_any_from pers rst fuel ns bs i = ok o) :
-    SimRE id lst o
-      (domsMentionAny (absU fuel) (absNIdxL ns) (absBinderPairsFrom bs i)) := by
-  sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem occurs_const_fast_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (n : arena.handle.NIdx) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => a = b) (frontend.proj_rec.occurs_const_fast pers st fuel n h) st lst
+      (occursConstFast (absU fuel) (absNIdx n) (absEIdx h)) := by
+  apply LSR.of_LS
+  rw [frontend.proj_rec.occurs_const_fast, occursConstFast]
+  lockstep
 
-/-- **`doms_mention_any` refines `domsMentionAny`** (`ProjRec.lean:416-421`). -/
-theorem doms_mention_any_refines {pers rst lst fuel ns bs o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.doms_mention_any pers rst fuel ns bs = ok o) :
-    SimRE id lst o
-      (domsMentionAny (absU fuel) (absNIdxL ns) (absBinderPairs bs)) := by sorry
+open ConRon.Refine2.Lockstep in
+theorem occurs_any_of_from_aux (N : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (fuel : Std.U64) (ns : alloc.vec.Vec arena.handle.NIdx) (d : arena.handle.EIdx)
+      (i : Std.Usize),
+      ns.val.length - i.val = N → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => a = b) (frontend.proj_rec.occurs_any_of_from pers st fuel ns d i)
+        st lst (occursAnyOf (absU fuel) (absNIdxLFrom ns i) (absEIdx d)) := by
+  induction N with
+  | zero =>
+    intro pers st lst fuel ns d i hn hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.occurs_any_of_from, absNIdxLFrom_nil ns i (by omega), occursAnyOf,
+      if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst fuel ns d i hn hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.occurs_any_of_from, absNIdxLFrom_cons ns i (by omega), occursAnyOf,
+      if_neg (by scalar_tac)]
+    lockstep
 
-/-- **`ctors_mention_block_from`** — the cursor companion. -/
-theorem ctors_mention_block_from_refines {pers rst lst fuel ns ctors i o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.ctors_mention_block_from pers rst fuel ns ctors i
-      = ok o) :
-    SimRE id lst o
-      (ctorsMentionBlock (absU fuel) (absNIdxL ns)
-        (absProjCtorRecLFrom ctors i)) := by sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem occurs_any_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (ns : alloc.vec.Vec arena.handle.NIdx)
+    (d : arena.handle.EIdx) :
+    LSR pers (fun a b => a = b) (frontend.proj_rec.occurs_any_of pers st fuel ns d) st lst
+      (occursAnyOf (absU fuel) (absNIdxL ns) (absEIdx d)) := by
+  have := occurs_any_of_from_aux _ fuel ns d 0#usize rfl hrel hinv
+  rw [frontend.proj_rec.occurs_any_of]
+  simpa [absNIdxLFrom, absNIdxL] using this
 
-/-- **`ctors_mention_block` refines `ctorsMentionBlock`**
-(`ProjRec.lean:425-432`). -/
-theorem ctors_mention_block_refines {pers rst lst fuel ns ctors o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.ctors_mention_block pers rst fuel ns ctors = ok o) :
-    SimRE id lst o
-      (ctorsMentionBlock (absU fuel) (absNIdxL ns) (absProjCtorRecL ctors)) := by
-  sorry
+open ConRon.Refine2.Lockstep in
+theorem doms_mention_any_from_aux (N : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (fuel : Std.U64) (ns : alloc.vec.Vec arena.handle.NIdx)
+      (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize),
+      bs.val.length - i.val = N → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => a = b) (frontend.proj_rec.doms_mention_any_from pers st fuel ns bs i)
+        st lst (domsMentionAny (absU fuel) (absNIdxL ns) (absBinderPairsFrom bs i)) := by
+  induction N with
+  | zero =>
+    intro pers st lst fuel ns bs i hn hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.doms_mention_any_from, absBinderPairsFrom_nil bs i (by omega),
+      domsMentionAny, if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst fuel ns bs i hn hrel hinv
+    apply LSR.of_LS
+    have hi : i.val < bs.val.length := by omega
+    rw [frontend.proj_rec.doms_mention_any_from, absBinderPairsFrom_cons bs i hi,
+      domsMentionAny, if_neg (by scalar_tac), vec_index_ok_eq bs i hi, bind_tc_ok]
+    rcases hx : bs.val[i.val] with ⟨e, m⟩
+    try dsimp only
+    lockstep
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem doms_mention_any_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (ns : alloc.vec.Vec arena.handle.NIdx)
+    (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    LSR pers (fun a b => a = b) (frontend.proj_rec.doms_mention_any pers st fuel ns bs) st lst
+      (domsMentionAny (absU fuel) (absNIdxL ns) (absBinderPairs bs)) := by
+  have := doms_mention_any_from_aux _ fuel ns bs 0#usize rfl hrel hinv
+  rw [frontend.proj_rec.doms_mention_any]
+  simpa [absBinderPairsFrom, absBinderPairs] using this
+
+theorem absProjCtorRecLFrom_nil (v : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx))
+    (i : Std.Usize) (hi : v.val.length ≤ i.val) : absProjCtorRecLFrom v i = [] := by
+  simp only [absProjCtorRecLFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
+
+theorem absProjCtorRecLFrom_cons (v : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx))
+    (i : Std.Usize) (hi : i.val < v.val.length) :
+    absProjCtorRecLFrom v i = absProjCtorRec v.val[i.val] :: (v.val.drop (i.val + 1)).map absProjCtorRec := by
+  simp only [absProjCtorRecLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+
+attribute [local lockstep_simp] absProjCtorRec
+
+open ConRon.Refine2.Lockstep in
+theorem ctors_mention_block_from_aux (N : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (fuel : Std.U64) (ns : alloc.vec.Vec arena.handle.NIdx)
+      (ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)) (i : Std.Usize),
+      ctors.val.length - i.val = N → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => a = b)
+        (frontend.proj_rec.ctors_mention_block_from pers st fuel ns ctors i)
+        st lst (ctorsMentionBlock (absU fuel) (absNIdxL ns) (absProjCtorRecLFrom ctors i)) := by
+  induction N with
+  | zero =>
+    intro pers st lst fuel ns ctors i hn hrel hinv
+    apply LSR.of_LS
+    rw [frontend.proj_rec.ctors_mention_block_from, absProjCtorRecLFrom_nil ctors i (by omega),
+      ctorsMentionBlock, if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst fuel ns ctors i hn hrel hinv
+    apply LSR.of_LS
+    have hi : i.val < ctors.val.length := by omega
+    rw [frontend.proj_rec.ctors_mention_block_from, absProjCtorRecLFrom_cons ctors i hi,
+      ctorsMentionBlock, if_neg (by scalar_tac), vec_index_ok_eq ctors i hi, bind_tc_ok]
+    rcases hx : ctors.val[i.val] with ⟨c, nf, e⟩
+    try dsimp only
+    lockstep
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem ctors_mention_block_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (ns : alloc.vec.Vec arena.handle.NIdx)
+    (ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)) :
+    LSR pers (fun a b => a = b) (frontend.proj_rec.ctors_mention_block pers st fuel ns ctors)
+      st lst (ctorsMentionBlock (absU fuel) (absNIdxL ns) (absProjCtorRecL ctors)) := by
+  have := ctors_mention_block_from_aux _ fuel ns ctors 0#usize rfl hrel hinv
+  rw [frontend.proj_rec.ctors_mention_block]
+  simpa [absProjCtorRecLFrom, absProjCtorRecL] using this
 
 /-- **`find_ctor_rec_from`** — the cursor companion.  Deviation 2: the port
 answers the INDEX. -/
