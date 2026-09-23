@@ -2340,13 +2340,17 @@ theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
     (h : frontend.export_c.ind_pi_tele_len pers rst.store fuel h' = ok o) :
     SimLR absU lst o (indPiTeleLen (absU fuel) (absEIdx h')) := by sorry
 
-/-- **`pi_result`** — three lines of spine walk, spelled locally in its one
-frontend caller (`k_expected_of`) rather than left as a hole; the twin's is
-`Arena/ExprOps.lean`'s `piResult`. -/
+/-- **`pi_result` refines `piResultD`** — three lines of spine walk, spelled
+locally in its one frontend caller (`k_expected_of`).  Its twin is the
+frontend's own `piResultD` (full `view` at each step), not `Arena/ExprOps.lean`'s
+`piResult` (`viewBindI`, which never decodes a binder's datum): at a `∀` over a
+dangling datum the port's `env::view_e` fails where that one walks on — a
+twin/Rust divergence, fixed in the twin by task #97-T2-LOCKSTEP lane
+Frontend. -/
 theorem pi_result_refines {pers rst lst fuel h' o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.pi_result pers rst.store fuel h' = ok o) :
-    SimLR absEIdx lst o (piResult (absU fuel) (absEIdx h')) := by sorry
+    SimLR absEIdx lst o (piResultD (absU fuel) (absEIdx h')) := by sorry
 
 /-! ## The recursor rules and the block record -/
 

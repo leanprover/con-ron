@@ -196,7 +196,7 @@ theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
     SimLR (Option.map id) lst o
       (match absEIdxL ty_types, listed.val.map absNIdxL, absIndCtorRecs cts with
        | [ty], [[_]], [c] => do
-         let r ← piResult (absU fuel) ty
+         let r ← piResultD (absU fuel) ty
          match ← view r with
          | .sort s =>
            pure (some (c.numFields == 0 &&
