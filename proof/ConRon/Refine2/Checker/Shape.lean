@@ -756,7 +756,7 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     (Result.ok_injective h).symm
   subst hrf'
   have hname : absNIdx n = (absIConstantInfo ci).name := i_constant_info_name_abs hn
-  refine ⟨⟨?_, ?_, ?_⟩, hinv', ?_, ?_⟩
+  refine ⟨⟨?_, ?_, ?_, ?_⟩, hinv', ?_, ?_⟩
   · -- the constant list
     show (lf.push (absIConstantInfo ci)).env = absIEnv _
     simp only [IFEnv.push, absIEnv, hvv, List.map_append, List.reverse_append]
@@ -789,6 +789,13 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     simp only [IFEnv.push]
     rw [hfe.visibleBelow]
     simp [absU, hc1v]
+  · -- the stored constants stay canonical (`IFEnvRel.envWF`; the pushed one
+    -- is the routed seam `ifenvRel_envWF_push`)
+    intro c hc
+    rw [hvv] at hc
+    rcases List.mem_append.mp hc with h1 | h1
+    · exact hfe.envWF c h1
+    · rw [List.mem_singleton.mp h1]; exact ifenvRel_envWF_push ci
   · -- the counter is still a bound
     rw [hvv, hc1v]
     have := hfinv.visBound
@@ -1453,7 +1460,7 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 /-- info: 'ConRon.Refine2.SimRel.mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms SimRel.mono
 
-/-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_push_refines
 
 /-- info: 'ConRon.Refine2.openPisAtFvarsF_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/

@@ -465,4 +465,13 @@ structure IFEnvRel (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
   Rust environment represents a twin one only when it is. -/
   envWF : ∀ ci ∈ rf.env.consts.val, IConstantInfoWF ci
 
+/-- **SEAM, routed to the Checker lane** (task #97-P5-Core round 5, ruling
+(d)): a constant the checker PUSHES onto the environment is canonical Rust
+data.  As stated — for an arbitrary `ci` — this is false; it stands for the
+premise every `ifenv_push` site owes (the constant was built by the checker's
+own smart constructors, so its `PropWhen` is canonical), and
+`ifenv_push_refines` is its one consumer.  Replace it by that premise. -/
+theorem ifenvRel_envWF_push (ci : arena.env.IConstantInfo) : IConstantInfoWF ci := by
+  sorry
+
 end ConRon.Refine2

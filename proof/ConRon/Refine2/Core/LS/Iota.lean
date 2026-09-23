@@ -18,6 +18,7 @@ import ConRon.Refine2.Core.LS.PrimsC2
 import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
+import ConRon.Refine2.Core.LS.Certs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -250,68 +251,6 @@ attribute [local lockstep_simp] absIConstantVal_name absIConstantVal_levelParams
   absIIndCaps_etaFields absLsNodeView_length absEIdxList_length vec_len_eq_iff List.length_map
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-/-- Region C1. -/
-@[lockstep] theorem stub_iota_certs_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth lic h args lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.iota_certs pers vis st mode lane fu fe depth lic h args 0#usize) lst
-      (iotaCerts (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) lic
-        (absEIdx h) (absEIdxList args)) := by
-  sorry
-
-/-- Region C1. -/
-@[lockstep] theorem stub_proof_irrel_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth a b lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.proof_irrel pers vis st mode lane fu fe depth a b) lst
-      (proofIrrel (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdx a) (absEIdx b)) := by
-  sorry
-
-/-- Region C1. -/
-@[lockstep] theorem stub_struct_eta_cert_with_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth a b wtb lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.struct_eta_cert_with pers vis st mode lane fu fe depth a b wtb) lst
-      (structEtaCertWith (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdx a) (absEIdx b) (absEIdx wtb)) := by
-  sorry
-
-/-- Region C1. -/
-@[lockstep] theorem stub_def_eq_list_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth xs ys i lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.def_eq_list pers vis st mode lane fu fe depth xs ys i) lst
-      (defEqList (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdxListFrom xs i) (absEIdxListFrom ys i)) := by
-  sorry
-
-/-- Region C1. -/
-@[lockstep] theorem stub_iota_index_ok_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth m_i r_p cn_p ty_ctor margs idx lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.iota_index_ok pers vis st mode lane fu fe depth m_i r_p cn_p ty_ctor margs idx)
-      lst
-      (iotaIndexOk (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absU m_i) (absU r_p) (absU cn_p) (absEIdx ty_ctor) (absEIdxList margs)
-        (absEIdxList idx)) := by
-  sorry
 
 /-! ## `projCert` / `projCertAt` -/
 

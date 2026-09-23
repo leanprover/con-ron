@@ -115,7 +115,18 @@ theorem ifenv_find_mem {vis : Std.U64} {fe : arena.env.IFEnv} {n : arena.handle.
   | none => cases Result.ok_injective h
   | some p =>
     obtain ⟨c, pos⟩ := p
-    dsimp only at h
+    replace h : (if c < vis then
+        (do
+          let i2 ← lift (Std.UScalar.cast .Usize pos)
+          if i2 < alloc.vec.Vec.len fe.env.consts then
+            (do
+              let i4 ← lift (Std.UScalar.cast .Usize pos)
+              let ii ← alloc.vec.Vec.index
+                (core.slice.index.SliceIndexUsizeSlice arena.env.IConstantInfo)
+                fe.env.consts i4
+              ok (some ii))
+          else ok none)
+      else (ok none : Result (Option arena.env.IConstantInfo))) = ok (some ci) := h
     split at h
     · obtain ⟨i2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h
@@ -440,6 +451,117 @@ theorem intern_n_node_of_estore {pers : arena.store.PersTier} {st : arena.monad.
       exact ⟨_, lst2, hx2, rfl, hrel2, hinv2⟩
 
 
+theorem proj_table_name_str_abs {v : alloc.vec.Vec Std.U32}
+    (h : kernel.core_types.code_points (Array.to_slice arena.env.proj_table_name.S) = ok v) :
+    ConRon.Refine.absString v = "projTable" ∧ ConRon.Refine.StrWF v := by
+  have hv : v.val = [112#u32, 114#u32, 111#u32, 106#u32, 84#u32, 97#u32, 98#u32, 108#u32,
+      101#u32] := by
+    rw [code_points_val' h, Array.val_to_slice, arena.env.proj_table_name.S, Array.make_val]
+  refine ⟨?_, ?_⟩
+  · rw [ConRon.Refine.absString, hv]; rfl
+  · intro c hc; rw [hv] at hc; fin_cases hc <;> decide
+
+/-- `arena::env::proj_table_name` (two name interns on the bare store) against
+`projTableName`. -/
+theorem proj_table_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t : arena.handle.NIdx) :
+    LSS pers (fun a b => b = absNIdx a) (arena.env.proj_table_name pers st.store t) st lst
+      (projTableName (absNIdx t)) := by
+  intro o s' hm
+  rw [arena.env.proj_table_name] at hm
+  obtain ⟨n, hn, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨sl, hsl, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨v, hv, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨⟨r1, ar1⟩, h1, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  simp only [lift, Result.ok.injEq] at hsl
+  subst hsl
+  have hnt : n = t := dupId_nidx _ _ hn
+  subst hnt
+  obtain ⟨hstr, hwf⟩ := proj_table_name_str_abs hv
+  have sim1 := intern_n_node_run₀ hrel hinv _ (by exact hwf) (intern_n_node_of_estore h1)
+  have htw : projTableName (absNIdx n)
+      = (Arena.internNNode (absNNodeView (.Str n v)) >>= fun s =>
+          Arena.internNNode (.num s (absU (0#u64)))) := by
+    rw [projTableName, absNNodeView, hstr]; rfl
+  rw [htw]
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hm
+    cases ho
+    exact errSim_bind sim1
+  | Ok s1 =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := sim1.apply
+    rw [run_bind_ok hx1]
+    have sim2 := intern_n_node_run₀ (st := { st with store := ar1 }) hrel1 hinv1
+      (.Num s1 0#u64) trivial (intern_n_node_of_estore hm)
+    show LOut pers _ o { st with store := s' } _
+    cases o with
+    | Err e => exact sim2
+    | Ok a =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := sim2.apply
+      exact ⟨_, lst2, hx2, rfl, hrel2, hinv2⟩
+
+theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
+    {ie : arena.env.IProjEntry} (h : arena.env.i_proj_table_entry tbl i = ok ie) :
+    absIProjEntry ie = (absIProjTable tbl).entry (absU i) := by
+  rw [arena.env.i_proj_table_entry] at h
+  obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hi2v : i2.val = tbl.bodies.val.length := by
+    simp only [lift, Result.ok.injEq] at hi2; subst hi2
+    simp [alloc.vec.Vec.len_val]
+  obtain ⟨body, hbody, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hi4v : i4.val = tbl.guards.val.length := by
+    simp only [lift, Result.ok.injEq] at hi4; subst hi4
+    simp [alloc.vec.Vec.len_val]
+  obtain ⟨fs, hfs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [dupId_nidx _ _ hn, dupId_nidx _ _ hn1, dupId_lidx _ _ hl]
+  have hvv := nidx_vec_dup_val hv
+  have hb : absEIdx body = (tbl.bodies.val.map absEIdx).toArray.getD i.val default := by
+    split at hbody
+    · rename_i hlt
+      obtain ⟨j, hj, hbody⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
+      obtain ⟨e, he, hbody⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
+      have hjv : j.val = i.val := by
+        simp only [lift, Result.ok.injEq] at hj; subst hj
+        have hlen := tbl.bodies.property
+        exact ConRon.Refine.ExprOps.u64_cast_usize_val_of_lt (n := tbl.bodies.val.length)
+          hlen (by scalar_tac)
+      obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt he
+      rw [dupId_eidx _ _ hbody]
+      subst hx
+      have : i.val < tbl.bodies.val.length := by scalar_tac
+      simp [Array.getD, this, hjv]
+    · rename_i hge
+      rw [← Result.ok_injective hbody]
+      have : ¬ i.val < tbl.bodies.val.length := by scalar_tac
+      simp [Array.getD, this]; rfl
+  have hg : absLIdx fs = (tbl.guards.val.map absLIdx).getD i.val default := by
+    split at hfs
+    · rename_i hlt
+      obtain ⟨j, hj, hfs⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfs
+      obtain ⟨e, he, hfs⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfs
+      have hjv : j.val = i.val := by
+        simp only [lift, Result.ok.injEq] at hj; subst hj
+        have hlen := tbl.guards.property
+        exact ConRon.Refine.ExprOps.u64_cast_usize_val_of_lt (n := tbl.guards.val.length)
+          hlen (by scalar_tac)
+      obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt he
+      rw [dupId_lidx _ _ hfs]
+      subst hx
+      have : i.val < tbl.guards.val.length := by scalar_tac
+      simp [List.getD, this, hjv]
+    · rename_i hge
+      rw [← Result.ok_injective hfs]
+      have : ¬ i.val < tbl.guards.val.length := by scalar_tac
+      simp [List.getD, this]; rfl
+  simp only [absIProjEntry, absIProjTable, IProjTable.entry, hb, hg, hvv]
+
 /-- The projection-table lookup (`ifenv_find_proj`): it interns the table's
 reserved name (`proj_table_name`), then reads the environment.  The Rust store
 argument `s` is named apart from the state `st` the caller rebuilds (`hs`),
@@ -452,6 +574,55 @@ unifying `?st.store` with a store (region G's form). -/
     LSS pers (fun a b => b = Option.map absIProjEntry a)
       (arena.env.ifenv_find_proj pers vis s fe t i) st lst
       (lfe.findProj? (absNIdx t) (absU i)) := by
-  sorry
+  subst hs
+  intro o s' hm
+  rw [arena.env.ifenv_find_proj] at hm
+  obtain ⟨⟨r, ar1⟩, h1, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have sim1 := proj_table_name_ls hrel hinv t r ar1 h1
+  show LOut pers _ o _ ((projTableName (absNIdx t) >>= fun n =>
+      match lfe.find? n with
+      | some (.projInfo tbl) =>
+        pure (if absU i < tbl.numFields then some (tbl.entry (absU i)) else none)
+      | _ => pure none).run lst)
+  cases r with
+  | Err e =>
+    cases Result.ok_injective hm
+    exact errSim_bind sim1
+  | Ok tn =>
+    obtain ⟨b, lst1, hx1, hb, hrel1, hinv1⟩ := sim1
+    subst hb
+    rw [run_bind_ok hx1]
+    obtain ⟨oc, hoc, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+    rw [← ifenv_find_abs hctx hoc]
+    cases oc with
+    | none =>
+      simp only at hm
+      cases Result.ok_injective hm
+      exact ⟨_, lst1, rfl, rfl, hrel1, hinv1⟩
+    | some ci =>
+      cases ci with
+      | ProjInfo tbl =>
+        simp only at hm
+        simp only [Option.map_some, absIConstantInfo]
+        split at hm
+        · rename_i hlt
+          obtain ⟨ie, hie, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+          cases Result.ok_injective hm
+          have hlt' : absU i < (absIProjTable tbl).numFields := by
+            simp only [absIProjTable, absU]; exact hlt
+          refine ⟨_, lst1, rfl, ?_, hrel1, hinv1⟩
+          dsimp only
+          rw [if_pos hlt', Option.map_some, i_proj_table_entry_abs hie]
+        · rename_i hge
+          cases Result.ok_injective hm
+          have hge' : ¬ absU i < (absIProjTable tbl).numFields := by
+            simp only [absIProjTable, absU]; exact hge
+          refine ⟨_, lst1, rfl, ?_, hrel1, hinv1⟩
+          dsimp only
+          rw [if_neg hge']; rfl
+      | _ =>
+        simp only at hm
+        cases Result.ok_injective hm
+        exact ⟨_, lst1, rfl, rfl, hrel1, hinv1⟩
 
 end ConRon.Refine2.Lockstep

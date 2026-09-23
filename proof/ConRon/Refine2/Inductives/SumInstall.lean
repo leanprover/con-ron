@@ -488,7 +488,7 @@ theorem sum_rules_refines {pers st lst} {vis : Std.U64} {rf lf}
 `Refine2/Checker/Shape.lean`'s `ifenv_push_refines` landed in round 4's second
 `arena` merge, and this is the fold that was waiting on it. -/
 
-/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms cons_sum_ctors_refines
 
 end ConRon.Refine2

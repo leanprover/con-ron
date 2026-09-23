@@ -961,7 +961,7 @@ theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
                      (rf.env.consts.val.length - i.val)) })
       ∧ IFEnvInv o := by
   obtain ⟨he, hv, hI, hidx⟩ := erase_installed_aux _ rfl hfinv hrun
-  refine ⟨⟨?_, ?_, ?_⟩, hI⟩
+  refine ⟨⟨?_, ?_, ?_, by rw [he]; exact hfe.envWF⟩, hI⟩
   · show lf.env = absIEnv o.env
     rw [he]; exact hfe.env
   · intro k
