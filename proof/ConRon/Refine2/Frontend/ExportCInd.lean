@@ -35,7 +35,7 @@ transcriptions are what `Refine2/Frontend/Spec.lean` still owes** — the one
 group of this tier where the statement is about the port's own arm rather
 than about a twin clause.  DESIGN.md's section lists them.
 
-## `sorry` count in this file: 27
+## `sorry` count in this file: 26
 -/
 import ConRon.Refine2.Frontend.ExportC
 
@@ -243,22 +243,30 @@ theorem check_rec_records_refines
 
 /-- **`validate_ind_d` refines `validateIndD`** (`ExportC.lean:442-539`) — the
 load-bearing statement of this file: the eleven verdicts, at the same kind and
-in the same order. -/
+in the same order.
+
+A READER on both sides: the port takes the store by shared reference and
+returns no state, and every twin call it makes (`st.name`, `getDeclD`,
+`storeFuel`, `view`, `viewN`, `readName`, `readLevel`, `indPiTeleLen`,
+`piResult`, `piSortTeleLen?`) reads.  So the two answering arms end at the
+state they started in — task #97-P5-Front round 2 strengthened them from
+`∃ lst'`, which left `process_line_core_d`'s `ind` arm no `AStateRel` for
+`install_ind_d` and no `Ext` for its verdict. -/
 theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.validate_ind_d pers rst.store rsd tys cts rcs = ok o) :
     (∀ v, o = .Ok v →
-      ∃ lst', (validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
+      (validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
           (absIndRecRecs rcs)).run lst
-        = .ok (.inr (absIndCtorRecs v.1, absU v.2), lst')) ∧
+        = .ok (.inr (absIndCtorRecs v.1, absU v.2), lst)) ∧
     (∀ e, o = .Err e →
       (∀ ce, e = .Err ce → AErrSim ce
         ((validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
           (absIndRecRecs rcs)).run lst)) ∧
-      (∀ vd, e = .Verdict vd → ∃ lv lst',
+      (∀ vd, e = .Verdict vd → ∃ lv,
         (validateIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
-          (absIndRecRecs rcs)).run lst = .ok (.inl lv, lst') ∧
+          (absIndRecRecs rcs)).run lst = .ok (.inl lv, lst) ∧
         lVerdictKind lv = absVerdictKind vd)) := by sorry
 
 /-! ## The block's constants -/
@@ -337,7 +345,58 @@ theorem quot_kind_of_refines {k o} (hs : ConRon.Refine.StrWF k)
        | "ctor" => some ConLeche.QuotKind.ctor
        | "lift" => some ConLeche.QuotKind.lift
        | "ind" => some ConLeche.QuotKind.ind
-       | _ => none) := by sorry
+       | _ => none) := by
+  rw [frontend.export_c.quot_kind_of] at h
+  simp only [lift, bind_tc_ok] at h
+  have tst : ∀ {n : Std.Usize} (K : Std.Array Std.U32 n) (L : List Std.U32) (w : String),
+      K.to_slice.val = L → (∀ c ∈ L, Nat.isValidChar c.val) →
+      String.ofList (L.map fun c => Char.ofNat c.val) = w →
+      ∀ b, frontend.text.cps_beq k K.to_slice = ok b →
+        (b = true ↔ ConRon.Refine.absString k = w) := by
+    intro n K L w hK hL hw b hb
+    rw [cps_beq_str hs (by rw [hK]; exact hL) hb, hK, hw]
+  have eT := tst frontend.export_c.quot_kind_of.K_TYPE [116#u32, 121#u32, 112#u32, 101#u32]
+    "type" (by unfold frontend.export_c.quot_kind_of.K_TYPE; rfl) (by decide) rfl
+  have eC := tst frontend.export_c.quot_kind_of.K_CTOR [99#u32, 116#u32, 111#u32, 114#u32]
+    "ctor" (by unfold frontend.export_c.quot_kind_of.K_CTOR; rfl) (by decide) rfl
+  have eL := tst frontend.export_c.quot_kind_of.K_LIFT [108#u32, 105#u32, 102#u32, 116#u32]
+    "lift" (by unfold frontend.export_c.quot_kind_of.K_LIFT; rfl) (by decide) rfl
+  have eI := tst frontend.export_c.quot_kind_of.K_IND [105#u32, 110#u32, 100#u32]
+    "ind" (by unfold frontend.export_c.quot_kind_of.K_IND; rfl) (by decide) rfl
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hT := eT _ hb
+  split at h
+  · rename_i hb1
+    cases Result.ok_injective h
+    rw [hT.mp hb1]; rfl
+  · rename_i hb1
+    have nT : ConRon.Refine.absString k ≠ "type" := fun e => hb1 (hT.mpr e)
+    obtain ⟨b1, hb1', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hC := eC _ hb1'
+    split at h
+    · rename_i hc
+      cases Result.ok_injective h
+      rw [hC.mp hc]; rfl
+    · rename_i hc
+      have nC : ConRon.Refine.absString k ≠ "ctor" := fun e => hc (hC.mpr e)
+      obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hL := eL _ hb2
+      split at h
+      · rename_i hl
+        cases Result.ok_injective h
+        rw [hL.mp hl]; rfl
+      · rename_i hl
+        have nL : ConRon.Refine.absString k ≠ "lift" := fun e => hl (hL.mpr e)
+        obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hI := eI _ hb3
+        split at h
+        · rename_i hi
+          cases Result.ok_injective h
+          rw [hI.mp hi]; rfl
+        · rename_i hi
+          have nI : ConRon.Refine.absString k ≠ "ind" := fun e => hi (hI.mpr e)
+          cases Result.ok_injective h
+          split <;> simp_all
 
 /-- **`install_gen`** — the modeller arm of `installIndD`, split for the
 loop-exit reason.  It is where `ModellerRefines` is consumed: the port's
