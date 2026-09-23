@@ -60960,3 +60960,34 @@ per-module build time (one run each, noisy): 466 s → 428 s.
 (`extract-check` 100 s, `lake-bridge` 552 s).  Submitted as slice 1; the
 workaround cleanups follow as slice 2 (their sites are in the Checker round-2
 slice-2 branch, still in the queue when this was submitted).
+
+#### Slice 3 (worktree `_tmp/wt-t2-chk-base3`, off slice 2; `arena` `ddb4acdb` merged)
+
+Coordinator's rulings on slice 2: (1) no Rust reshape of the two guard walks —
+they wait for `LSM` (Promote's memo-outside judgement) to become a shape of the
+shared tactic; (2)+(3) move the leaf statements down, do not thread
+hypotheses; (4) `install_basis_decls`'s `IFEnvRelI` is the DeclCheck lane's,
+`check_basis_decl_install` stays open; the not-a-leaf hypothesis on
+`consts_resolve_f_node_refines` approved.
+
+* **The move, its own commit** (`Move leaf statements below Checker/Base`):
+  new `Refine2/Checker/Leaves.lean` (imported by `Checker/Base.lean` and
+  `Refine2.lean`) holds, unchanged, `mentions_const_refines`/`_ls` (from
+  `Inductives/StructParts.lean`, still `sorry`) and
+  `Frontend.env_pi_sort_tele_len_run` (from `Frontend/ExportCInd.lean`, proved)
+  with its two helpers `Frontend.env_view_e_run`/`view_bind_run` (from
+  `Frontend/ExportC.lean`).  Full names kept; the three old modules only lost
+  those declarations (their imports reach `Leaves` through `Checker/Base`).
+  When `mentions_const` is proved, its arm lemmas (`mentions_const_go`/`_node`)
+  and their shapes (`LOutRel`, `mentionsConstNodeSpec`) must follow it down.
+* `unresolved_consts_error_refines` now `unresolved_consts_error_of` at
+  `mentions_const_ls`: its only `sorry` is that walk's.
+* `ind_params_ok_at` (per kind, `lockstep`; new `pi_sort_tele_len_ls`,
+  `@[lockstep_simp]` `absU_beq_u64`/`absU_le_u64`) and `ind_params_ok` (cursor
+  induction, each step one `lockstep`, `indParamsOk_unfold`): closed.
+* `consts_resolve_f_node_refines` takes `hnl` (the view is not a leaf).
+
+Frontier: `arena` `ddb4acdb` (see the history file) → this branch 49 items /
+244 tainted / dead weight 387.  This lane's items on it: `mentions_const`
+(now in `Leaves`, Inductives' walk), the two guard walks (waiting on `LSM`),
+`check_basis_decl_install` (DeclCheck's statement).
