@@ -610,6 +610,114 @@ theorem fvar_type_ds_aux (n : Nat) :
   have h := fvar_type_ds_aux (hs := hs) (i := 0#usize) (out := alloc.vec.Vec.new _) _ rfl hrel hinv
   simpa [absEIdxL, absEIdxLFrom, alloc.vec.Vec.new] using h
 
+/-- `arena::core::drop_eidx_from` appends the suffix from the cursor. -/
+theorem drop_eidx_from_val {xs : alloc.vec.Vec arena.handle.EIdx} :
+    ∀ (k : Std.Usize) (out r : alloc.vec.Vec arena.handle.EIdx),
+      arena.core.drop_eidx_from xs k out = ok r → r.val = out.val ++ xs.val.drop k.val := by
+  intro k out r h
+  have key := vec_cursor_copy xs id id (fun i out => arena.core.drop_eidx_from xs i out)
+    (by
+      intro i out o hn h
+      rw [arena.core.drop_eidx_from.eq_def] at h
+      rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      rw [h])
+    (by
+      intro i x out o hx h
+      rw [arena.core.drop_eidx_from.eq_def] at h
+      have hlt : i.val < xs.val.length := (List.getElem?_eq_some_iff.mp hx).1
+      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+      obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hex : e = x := by
+        have h1 := vec_index_some he; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+      exact ⟨i2, e1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+        by rw [← hex, dupId_eidx _ _ he1], h⟩)
+    k out r h
+  simpa using key
+
+/-- `arena::core::drop_eidx` is `List.drop`. -/
+@[lockstep] theorem drop_eidx_spec (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
+    LSP (arena.core.drop_eidx xs k) (fun r => r.val = xs.val.drop k.val) := by
+  intro r h
+  rw [arena.core.drop_eidx] at h
+  simpa [alloc.vec.Vec.new] using drop_eidx_from_val k _ r h
+
+/-- `arena::core::drop_eidx_n_from` drops `n` more after the cursor. -/
+theorem drop_eidx_n_from_val {xs : alloc.vec.Vec arena.handle.EIdx} (m : Nat) :
+    ∀ (n : Std.U64) (i : Std.Usize) (r : alloc.vec.Vec arena.handle.EIdx),
+      n.val = m → arena.core.drop_eidx_n_from xs n i = ok r →
+      r.val = xs.val.drop (i.val + n.val) := by
+  induction m with
+  | zero =>
+    intro n i r hn h
+    rw [arena.core.drop_eidx_n_from.eq_def, if_pos (by scalar_tac)] at h
+    have := drop_eidx_from_val i _ r h
+    simpa [alloc.vec.Vec.new, hn] using this
+  | succ m ih =>
+    intro n i r hn h
+    rw [arena.core.drop_eidx_n_from.eq_def, if_neg (by scalar_tac)] at h
+    by_cases hc : i.val ≥ xs.val.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      subst h
+      simp [alloc.vec.Vec.new, List.drop_eq_nil_of_le (by omega : xs.val.length ≤ i.val + n.val)]
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+      obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hn2v : n2.val = n.val - 1 := by
+        obtain ⟨-, hv⟩ := ConRon.Refine.Nat.usub_val hn2; simpa using hv
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih n2 i2 r (by omega) h, hn2v, hi2v]
+      congr 1; omega
+
+/-- `arena::core::drop_eidx_n` is `List.drop` at a `u64` count. -/
+@[lockstep] theorem drop_eidx_n_spec (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.core.drop_eidx_n xs n) (fun r => r.val = xs.val.drop n.val) := by
+  intro r h
+  rw [arena.core.drop_eidx_n] at h
+  simpa using drop_eidx_n_from_val _ n 0#usize r rfl h
+
+/-- `arena::core::get_d_eidx` is `getD` on the abstracted list. -/
+theorem get_d_eidx_abs {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.U64}
+    {d r : arena.handle.EIdx} (h : arena.core.get_d_eidx xs i d = ok r) :
+    absEIdx r = (xs.val.map absEIdx).getD i.val (absEIdx d) := by
+  rw [arena.core.get_d_eidx] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [lift, Result.ok.injEq] at hn
+  subst hn
+  have hnv := ConRon.Refine.ExprOps.usize_cast_u64_val (alloc.vec.Vec.len xs)
+  by_cases hc : i < UScalar.cast .U64 (alloc.vec.Vec.len xs)
+  · rw [if_pos hc] at h
+    obtain ⟨j, hj, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp only [lift, Result.ok.injEq] at hj
+    subst hj
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [dupId_eidx _ _ h]
+    have hlt : i.val < xs.val.length := by
+      have : i.val < (UScalar.cast .U64 (alloc.vec.Vec.len xs)).val := hc
+      rw [hnv] at this; simpa using this
+    have hjv : (UScalar.cast UScalarTy.Usize i).val = i.val := by
+      apply UScalar.cast_val_mod_pow_of_inBounds_eq
+      have := xs.property; scalar_tac
+    have h1 := vec_index_some he
+    rw [hjv] at h1
+    rw [List.getD_eq_getElem?_getD, List.getElem?_map, h1]
+    rfl
+  · rw [if_neg hc] at h
+    rw [dupId_eidx _ _ h]
+    have hge : xs.val.length ≤ i.val := by
+      have : ¬ i.val < (UScalar.cast .U64 (alloc.vec.Vec.len xs)).val := hc
+      rw [hnv] at this; simp at this; omega
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by simpa using hge)]
+    rfl
+
+@[lockstep] theorem get_d_eidx_twin (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
+    (d : arena.handle.EIdx) :
+    LSP (arena.core.get_d_eidx xs i d)
+      (fun r => TwinEq ((xs.val.map absEIdx).getD i.val (absEIdx d)) (absEIdx r)) :=
+  fun _ h => (get_d_eidx_abs h).symm
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=

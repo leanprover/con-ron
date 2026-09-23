@@ -1071,7 +1071,9 @@ theorem check_iota_thm_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
         (absEIdx rhs_a)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm, checkIotaThm_unfold]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_ls
@@ -1701,7 +1703,9 @@ theorem check_iota_thm_n_at_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
         (absEIdx rhs_a) (absLIdxL lvls) (absEIdxL pins)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_n_at, checkIotaThmNAtSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_at_ls
