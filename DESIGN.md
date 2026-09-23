@@ -42134,6 +42134,274 @@ DESIGN.md's task log, which is append-both.
 * **`divModCertStmts_unfold` wants the binder peel, not a bigger simp set**
   (§2).  It is 21 `am_bind_congr`s and a seven-way `split`, and it is the last
   `_unfold` of either tier.
+#### Round 3 — the three named obligations, the split scalar repaired, and the first leaf (2026-09-23, Opus under Fable)
+
+Branch `p5-checker-3` off `arena`'s tip `b0d3fb18`.  `arena` did not move
+under it, so there is no merge.  The round's brief was three obligations
+other tiers had named plus whatever of the walk below `check_decl_step`
+followed from them; all three landed, the split-scalar repair paid for
+itself immediately (it is what makes `check_pending_refines` provable), and
+one of task #97-P5-Checker-2 §5's three leaves is closed.
+
+#### 1. `ifenv_push_refines`, and the index clause it needed
+
+The Inductives tier asked for
+
+    IFEnvRel rf lf → IFEnvInv rf → ifenv_push rf ci = ok rf' →
+      IFEnvRel rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf'
+
+— the step every `cons_*` fold of the install routes iterates.  **It is not
+provable from `IFEnvInv` as task #97-P5-Checker-2 §3 wrote it, and the
+counterexample is one row.**
+
+`IFEnvRel.idx` reads the port's index through `consts[p.2]?`, so a row whose
+stored position is OUT OF RANGE answers `none`, and the relation matches that
+against a twin index with no entry at that name.  Append one constant and the
+same row is suddenly IN range and answers `some ci` — against a twin index
+that still has nothing there.  So `IFEnvRel rf' (lf.push ci)` is **false**
+unless the index is known to store no position at or past the end, and
+`IFEnvInv`'s third clause said only *"the stored position fits a `usize`"*.
+
+The clause is strengthened to **`p.2.val < rf.env.consts.val.length`**, which
+
+* is true of all four writers, for the reason the weaker one was: `mk_ifenv_go`
+  stores its `Vec` cursor `i < len`, `ifenv_push`/`ifenv_push_temp` store the
+  length BEFORE the `push` that makes it an index, `index_promoted` stores
+  `j - 1` for a cursor `j ≥ 1`, and `ifenv_pop_temp` puts back a row it took
+  out — **no Rust test is missing**, exactly as task #97-P5-Checker-2 §4
+  concluded for the weaker clause; and
+* SUBSUMES the old one through `Vec.property`, so `IFEnvInv.idxPos` survives
+  as a derived accessor and **no consumer moved**.  The only lemma that
+  concludes `IFEnvInv` concretely is `mk_ifenv_empty_refines`, where the
+  clause is vacuous.
+
+`ifenv_push_refines` is then three clauses and the invariant: the appended
+constant is the twin's HEAD (`absIEnv` reverses), the pushed row reads back as
+`(visibleBelow, ci)` and every other row is unmoved by the append
+(`IFEnvInv.idxRange`), and both counters advance by one.  It is in
+`Refine2/Checker/Shape.lean` because both halves are that file's.
+
+**One duplicate it left**: the proof needs *"`i_constant_info_name` is the
+twin's `.name`"*, which `Refine2/Inductives/Shape.lean` has as
+`i_constant_info_name_abs` — a file ABOVE this one.  It is a `private`
+five-line copy here, marked as such; the two should become one when the tiers
+are next touched together.
+
+#### 2. `CoreCtx`'s split scalar — task #97-P5-Bracket's finding 3, repaired
+
+That round found `CoreCtx vis fe lfe` satisfiable only at
+`vis = fe.visible_below`: it pairs `IFEnvRel fe lfe`, whose third clause is
+`lfe.visibleBelow = absU fe.visible_below`, with `absU vis = lfe.visibleBelow`.
+`arena::checker::check_pending` (`checker.rs:1229`) passes `pc.vis` against the
+whole environment phase A ended with, and that difference is the entire point
+of phase B — so every Core entry and every checker statement above them was
+unusable at exactly the call site the campaign needs.
+
+**The repair is to move the restriction from the hypothesis to the
+conclusion**, in three places:
+
+* `Refine2/Core/KnotRel.lean` — `CoreCtx.fenv` becomes
+  `IFEnvRel fe (lfe.restrictTo (absU fe.visible_below))`: the environment's
+  DATA, with `IFEnvRel`'s counter clause discharged by the restriction and the
+  counter left to the `vis` clause alone.  This is equivalent to
+  `∃ lfe₀, IFEnvRel fe lfe₀ ∧ lfe = lfe₀.restrictTo (absU vis)` (structure eta
+  both ways) and is the spelling a consumer can project.  `CoreCtx.env` and
+  `CoreCtx.idx` restate the two data clauses at `lfe` itself — `IFEnv.restrictTo`
+  moves `visibleBelow` alone, so they are the same statements, but the
+  restriction in `fenv`'s type is not SYNTACTICALLY `lfe` and `ifenv_find_abs`
+  rewrites with it.  **One line of `Refine2/Core/Arms/Delta.lean` follows the
+  rename** (`hctx.fenv.idx n` → `hctx.idx n`), and nothing else in `Core/**`
+  moves.
+* `Refine2/Checker/KnotHyp.lean` — **`IFEnvInv.coreCtxAt`** is the new
+  constructor, with no hypothesis tying the two counters:
+  `CoreCtx vis rf (lf.restrictTo (absU vis))`.  `IFEnvInv.coreCtx` is derived
+  from it and its statement is unchanged.
+* `Refine2/Checker/Base.lean` — **nine statements** drop `hvis` and conclude at
+  `lf.restrictTo (absU vis)`.
+
+**Which nine, and why not all seventy-one.**  The defect is not *"a hypothesis
+that pins `vis`"*; it is *"a hypothesis no CALL SITE satisfies"*, and phase A's
+call sites all pass `fe.visible_below`, where `hvis` is true and free.  The
+statements that need the general form are exactly the port functions reachable
+from `check_value_group` while still threading that `vis`, which is a question
+about the Rust call graph and was computed from it: `check_value_group`,
+`check_value_group_value`, `check_value_group_tail`, `install_value`,
+`install_value_tail` (`arena::checker_split`) and
+`consts_resolve_f_{go,node,two,fast}` (`arena::checker_base`).  The rest of the
+closure is `arena::core`'s, where the repair is `CoreCtx` itself.
+
+**Two places outside this tier will meet the same thing**: `arena::prop_read`'s
+`type_sort_pw` / `proof_pw` / `not_proof_fast` / `is_proof_fast` and
+`arena::env::ifenv_find_proj` are in the closure and have no `Refine2` tier
+yet.  They must take the general form when they get one.
+
+#### 3. `openPisAtFvarsF_length`
+
+`Arena/Inductives/NativeInstall.lean`'s `nativeOpenedOk` dispatches its
+per-field walk on TWO scrutinees, `match xFvs[i]?, ks.getD i .ordinary`, over
+`i ∈ List.range nF`, answering `false` past the end of `xFvs`;
+`Refine2/Inductives/Spec.lean`'s transcription dispatches on the kind alone and
+reads the variable totally.  They agree exactly under `xFvs.length = nF`, and
+`openPisAtFvarsF n e i` returning `some (fvs, _)` gives `fvs.length = n`.
+
+Three inductions (`openPisAtFvars`, `openPisAtFvarsFGo`, `openPisAtFvarsF`) and
+one peel they all run on, **`am_run_bind_ok`** — the `ok` half of
+`Refine2/Core/Induction.lean`'s `am_run_bind`, which is a SIBLING of
+`Refine2/Checker/Shape.lean` rather than below it, hence the second spelling.
+It lives in `Checker/Shape.lean` because `Arena/**` carries definitions and no
+theorems (DESIGN §8.4) and that file is the base both tiers import.
+
+#### 4. `check_pending_refines` — the first of the three leaves
+
+    enter_scratch_refines ; check_value_group_refines ; bracket_close
+
+and nothing else.  **This is what §2 was for**: `checkPending` is
+`enterScratch; checkValueGroup mode (fe.restrictTo pc.vis) pc.vg; dropScratch`,
+and the repaired `check_value_group_refines` concludes about exactly
+`lf.restrictTo (absU vis)`.  Forty lines, as task #97-P5-Bracket §5 priced it.
+
+**`BrOK lst` is the capstones' third binder — and `TwinWF` is not needed.**
+That round predicted both.  The first holds: the boundary is a real
+precondition of the Rust `install_then_check`, satisfied by the driver
+(`intern_all_pins` runs before the parse with the scratch tier closed).  The
+second does not, and the reason is that task #97-P5-Specs put
+`StoreWF ls.store` into `AStateRel` (finding 16) — which is the half `TwinWF`
+was introduced to supply.  `bracket_close`'s `hwf` is `hrel.storeWF` at the
+call site, and what is left of `BrOK` is ONE flag.
+
+**The flag threads as a hypothesis and never as a conclusion**, which is the
+round's one design decision and it is free.  The three bracketed twins all END
+in `dropScratch`, which closes the tier whatever ran before it, so *"this
+action leaves the boundary"* is a fact about the TWIN alone, quantified over
+the state — `Refine2/Core/Bracket.lean`'s `TwinWF` shape and it threads through
+a fold for the same reason.  `checkPending_off`, `checkDeclStep_off`,
+`annotStep_off`, `annotDeclStep_off` and `annotFold_off` are those facts, and a
+fold rebuilds its next `BrOK` from `AStateRel.storeWF` and the `_off` lemma of
+what it just ran.  **No refinement shape grew a conjunct**, and the five closed
+fold proofs (`check_pending_list_aux`, `check_decls_pure_go_aux`,
+`annot_fold_aux`, `annot_decl_step_refines`, both capstones) took one line each.
+
+A `SimRelBr` shape (`SimRel` + the boundary on the success arm) was written
+first and then deleted: it works, but it makes every fold above a bracketed
+step carry a wider shape, where the twin-side fact costs nothing.
+
+`annot_step_refines` and `check_decl_step_refines` are the two leaves still
+open.  Both are `bracket_open` / body / `bracket_close` in the same way; what
+stops them is not the bracket but `promote_new_refines`, which is stated at
+`AStateRelW` with a `PersUnfrozen` side condition (`Refine2/Promote/Promote.lean`)
+where the bracket's body has `AStateRel`, and that seam has no bridge yet.
+**That is the next round's first item** and it is a statement question, not a
+proof one.
+
+#### 5. `arena::canon`'s pure group, eight of ten
+
+The group that waits on nothing, taken once `Refine2/Specs.lean` reached zero
+and the file became workable.  Two templates carry all eight:
+
+| template | what it is | used by |
+|---|---|---|
+| `*_vec_beq_aux` | the cursor recursion at a handle vector, measure `\|a\| - i`, leaf `Eq2` + `abs*_inj` | `eidx`, `lidx`, `nidx`, `i_rec_rules` (leaf `i_rec_rule_beq`) |
+| `beq_chain` / `beq_chain'` | ONE link of the port's short-circuit conjunction against the twin's `∧` | `i_constant_val`, `i_rec_rule_eq_but_rhs`, `i_rec_rule`, and the three still open |
+
+A record comparison is `beq_chain` folded over the fields with `mk.injEq`
+turning the twin's derived `DecidableEq` into the conjunction; `beq_chain`
+takes a `Bool` test with its abstraction equation and `beq_chain'` a decidable
+PROPOSITION with an `Iff` to the twin's form (`absU_iff` for a scalar field).
+
+**The one place the two conjunctions are not in the same ORDER** is
+`i_rec_rule_beq`: the port compares `rhs` LAST (it is `i_rec_rule_eq_but_rhs`
+and then the right-hand side) where the twin's record has it fifth, so that
+proof ends in `decide_eq_decide` and `tauto` over the same set of conjuncts.
+
+What is left of the group is `i_ind_caps_beq`, `i_proj_table_beq` and
+`i_constant_info_beq` — the same fold; `i_ind_caps_beq`'s last link wants
+`kernel::prop_when::beq` against `absPropWhen`, which this file does not have.
+
+#### 6. What closed, and the tier's count
+
+| group | file | closed |
+|---|---|---:|
+| `ifenv_push_refines`, `IFEnvInv.idxRange` (§1) | `Checker/Shape.lean` | **2** |
+| `openPisAtFvars{,FGo,F}_length` and `am_run_bind{',_ok}`, `am_run_pure_{state,val}` (§3) | `Checker/Shape.lean` | **7** |
+| `dropScratch_{run,off,bind_off}` (§4) | `Checker/Shape.lean` | **3** |
+| `CoreCtx.env` / `CoreCtx.idx` (§2) | `Core/KnotRel.lean` | **2** |
+| `IFEnvInv.coreCtxAt` (§2) | `Checker/KnotHyp.lean` | **1** |
+| **`check_pending_refines`** and the five `_off` lemmas (§4) | `Checker/Top.lean` | **6** |
+| the eight comparisons and their two templates (§5) | `Checker/Canon.lean` | **8** |
+| **the round** | | **29** |
+
+`ConRonRefine2` stands at **817 `sorry`** and 2 221 jobs, green.  The two
+tiers' own open count is **340** (was 349): `Promote/Intern.lean` 24,
+`Promote/Promote.lean` 35, `Checker/Axioms.lean` 59, `Checker/Canon.lean` 22,
+`Checker/Pins.lean` 6, `Checker/Spec.lean` 1, `Checker/Base.lean` 61,
+`Checker/DeclCheck.lean` 92, `Checker/Top.lean` 40, `Checker/Shape.lean` 0,
+`Checker/KnotHyp.lean` 0.
+
+**Nine statements of `Checker/Base.lean` changed and none weakened**: §2's
+repair makes each of them satisfiable at strictly more call sites than before,
+and the phase-A form is recovered by rewriting with `IFEnvRel.visibleBelow`
+(`lf.restrictTo lf.visibleBelow = lf`).
+
+#### 7. Elaboration
+
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, two runs; the baseline is a
+file holding that file's own `import` lines, measured the same way (1.9 s for
+every one of them).
+
+| file | lines | raw (2 runs) | net |
+|---|---:|---|---:|
+| `Checker/Shape.lean` | 994 | 3.72 / 4.06 s | **≈ 2.0 s** |
+| `Checker/Canon.lean` | 882 | 3.33 / 2.86 s | **≈ 1.2 s** |
+| `Checker/Top.lean` | 1 311 | 2.76 / 2.82 s | **≈ 0.9 s** |
+| `Checker/Base.lean` | 931 | 2.14 / 2.26 s | **≈ 0.3 s** |
+| `Checker/KnotHyp.lean` | 150 | 1.95 / 2.03 s | **≈ 0.1 s** |
+| `Core/KnotRel.lean` | 358 | 11.46 / 11.47 s | **≈ 9.6 s** |
+
+**`Core/KnotRel.lean`'s 9.6 s is not this round's** and was checked rather than
+assumed: the same measurement on `arena`'s copy of the file is 11.47 / 11.58 s,
+so §2's change costs nothing.  It is the six-clause `KnotRel` and `BodyRel`
+records, and it is the one file of either tier above one second before this
+round.  `Checker/Shape.lean` went 0.29 s → 2.0 s for §§1, 3 and 4's fourteen
+theorems (the three telescope inductions are most of it) and `Checker/Canon.lean`
+0.08 s → 1.2 s for §5's eight, which is what `decide`-heavy record comparisons
+cost.
+
+#### 8. The axiom census
+
+**Three more `#print axioms` rows under `#guard_msgs`** — `ifenv_push_refines`
+and `openPisAtFvarsF_length` in `Checker/Shape.lean`, `IFEnvInv.coreCtxAt` in
+`Checker/KnotHyp.lean` — all `[propext, Classical.choice, Quot.sound]`.  The two
+capstones still print `sorryAx` through §4's two remaining leaves, which is the
+honest reading and is unchanged.  Still no `bv_decide` axiom anywhere in
+`Refine2/`.
+
+#### 9. The gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` | **13 of 13 OK** — `cargo-build`, `cargo-test`, `lint-rust`, `provenance`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 93 s**, `lake-build` 131 s |
+| `cd proof && lake build ConRonRefine2` | **green, 2 221 jobs**, 0 errors, **817 `sorry`** |
+| the diff | `proof/ConRon/Refine2/{Checker,Promote}/**`, `proof/ConRon/Refine2/Core/KnotRel.lean` (§2) and one line of `proof/ConRon/Refine2/Core/Arms/Delta.lean` (§2's rename), plus this section.  **No Rust file, no generated model, nothing under `Arena/`, `Refine/`, `RefineOld/`, `Bridge/` or `Specs.lean`** |
+
+#### 10. What the next round needs
+
+1. **`promote_new_refines`'s seam** (§4).  It is stated at `AStateRelW` with
+   `PersUnfrozen st.store`; the bracket's body has `AStateRel`.  Until the two
+   are bridged — or the statement restated — `annot_step_refines` and
+   `check_decl_step_refines` cannot close, and with them the capstones' last
+   two `sorryAx`es stay.
+2. **`checkDecl_unfold`**, the eighth `_unfold` of `Checker/Spec.lean`'s kind:
+   the twin's `checkDecl` writes its seven arms inline and the tier's
+   statements are against `check{Axiom,Defn,Thm,Opaque,Basis,Quot}DeclSpec`.
+   With it, `check_decl_refines` is a seven-way `cases` and nothing else.
+3. **`Checker/Canon.lean`'s last three comparisons** (§5) and then its
+   `canon_*` walks, which now wait only on `Specs.lean`'s `intern_n_node`
+   (closed).
+4. **Move the duplicates down.**  `i_constant_info_name_abs` (§1) and
+   `eidx_eq2_abs`/`nidx_eq2_abs` (§5) each exist twice, once here and once in
+   `Refine2/Inductives/Shape.lean`, because neither file can see the other.
+   `Refine2/Checker/Shape.lean` is where both can reach them.
+
 ### Task #97-P5-Bracket — Theorem 2: the per-declaration bracket (2026-09-22, Opus under Fable)
 
 Branch `p5-bracket` off `arena`'s tip `0b79feae`.  The brief: close
