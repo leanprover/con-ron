@@ -3029,8 +3029,7 @@ pub fn e_bind_view(tag: u32, ty: EIdx, body: EIdx, m: BinderMeta) -> ENodeView {
 
 /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
 /// `proof/ConRon/Arena/Store.lean:1532-1543 EStore.eViewHasScratchChild` —
-/// **a tier test on the children, not a decode**: does any child handle of
-/// this view name the scratch tier?
+/// **a tier test on the children, not a decode**: is a child scratch?
 ///
 /// A persistent node's children are persistent.  That is not an accident of
 /// the code but a clause `StoreWF` cannot do without: a persistent handle
@@ -3964,10 +3963,9 @@ impl EStore {
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
     /// `proof/ConRon/Arena/Store.lean:90-91 EStore.find?` — **the
     /// persistent half of the probe**, skipped when the view has a scratch
-    /// child, which `e_view_has_scratch_child`'s note argues it may be.  The
-    /// twin skips too since task #97-T2-LOCKSTEP (divergence D2):
-    /// `EStore.persFindMaybe`/`persFindBindMaybe`, and Theorem 1 owns the
-    /// equation that the skip changes nothing under `StoreWF`
+    /// child (`e_view_has_scratch_child`'s note).  The twin skips too since
+    /// task #97-T2-LOCKSTEP (D2): `EStore.persFindMaybe`, and Theorem 1 owns
+    /// the equation that the skip changes nothing under `StoreWF`
     /// (`Arena/WFSkip.lean`).
     pub fn pers_find_maybe(&self, pers: &PersTier, v: &ENodeView, mi: &BMIdx) -> Option<EIdx> {
         if self.scratch_on {
