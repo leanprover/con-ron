@@ -328,6 +328,7 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
       instantiate1Fast_specE coreWalkFuel s b fv 0 hs hvs hbs
     mvcgen [ConRon.Arena.ensureSort, hi, hn, hin]
     all_goals (bridge_peel; subst_vars)
+    all_goals clear_tag_hyps
     case vc2.a => exact ⟨et, hdt, hwt⟩
     case vc4.a =>
       rename_i s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 hse
@@ -396,7 +397,7 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
         · exact lview_isSome_of_denote hU1'
         · exact lview_isSome_of_denote dl_u0_s1
       · intro c hc; simp [LNodeView.nchildren] at hc
-    case vc18.post.success.post.success.post.success.h_1.post.success.post.success.post.success.post.success.post.success.h_1.isTrue.post.success.isFalse.post.success.post.success =>
+    case vc18 =>
       rename_i s9 r8 s8 r7 u1 s7 r6 s6 r5 s5 r4 s4 r3 u0 s3 _ hμ2 r2 s2 hbeq0 r1 s1
         r0 s0 ck_s8 wf_s6 sok ck_s4 hst23 wf_s1 x_s9_s8 x_s7_s6 x_s6_s5 x_s5_s4
         hm23 x_s2_s1 p_s8_s9 hse _ c_s5_s6 p_s4_s5 hse_2 p_s2_s3 _ _ p_s5_s6 hc23
@@ -495,6 +496,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     | none =>
       mvcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
       all_goals (bridge_peel; subst_vars)
+      all_goals clear_tag_hyps
       all_goals first
         | exact hok.pins
         | exact hok.caches.readN
@@ -513,6 +515,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
         simp only [hcv_eq, Bool.false_eq_true, if_false]
         mvcgen [hcta]
         all_goals (bridge_peel; subst_vars)
+        all_goals clear_tag_hyps
         all_goals first
           | exact hok.pins
           | exact hok.caches.readN
@@ -529,6 +532,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
           1, inferIO_const hfind hct hl⟩
       · mvcgen
         all_goals (bridge_peel; subst_vars)
+        all_goals clear_tag_hyps
         all_goals first
           | exact hok.caches.readN
           | exact fun h => h.elim
@@ -564,6 +568,7 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
         s₀ hok
       mvcgen [hn, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
+      all_goals clear_tag_hyps
       all_goals first
         | exact fun h => h.elim
         | (apply CheckOK.pins; assumption)
@@ -578,6 +583,7 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
         s₀ hok
       mvcgen [hn, ConRon.Arena.pinString, hce]
       all_goals (bridge_peel; subst_vars)
+      all_goals clear_tag_hyps
       all_goals first
         | exact fun h => h.elim
         | (apply CheckOK.pins; assumption)
@@ -808,6 +814,7 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
     mvcgen [internLNode_spec, internE_spec]
     all_goals (bridge_peel; subst_vars)
+    all_goals clear_tag_hyps
     case vc1.hwf => exact hwf
     case vc2.hv =>
       exact ⟨fun c hc => by

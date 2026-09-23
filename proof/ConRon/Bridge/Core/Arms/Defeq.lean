@@ -986,50 +986,58 @@ def dqCongrA (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Na
   | .lit (.natVal nn), .app f x => do
     match nn with
     | k' + 1 => do
-      match ← view f with
-      | .const c us => do
-        let el ← emptyLevels
-        let ns ← pinNatSucc
-        if c = ns ∧ us = el then do
-          let l ← internE (.lit (.natVal k'))
-          r.defeq depth l x
-        else stuckIrrel mode r fe depth a' b'
-      | _ => stuckIrrel mode r fe depth a' b'
+      if f.tag == ETag.const then
+        match ← view f with
+        | .const c us => do
+          let el ← emptyLevels
+          let ns ← pinNatSucc
+          if c = ns ∧ us = el then do
+            let l ← internE (.lit (.natVal k'))
+            r.defeq depth l x
+          else stuckIrrel mode r fe depth a' b'
+        | _ => stuckIrrel mode r fe depth a' b'
+      else stuckIrrel mode r fe depth a' b'
     | _ => stuckIrrel mode r fe depth a' b'
   | .app f x, .lit (.natVal nn) => do
     match nn with
     | k' + 1 => do
-      match ← view f with
-      | .const c us => do
-        let el ← emptyLevels
-        let ns ← pinNatSucc
-        if c = ns ∧ us = el then do
-          let l ← internE (.lit (.natVal k'))
-          r.defeq depth x l
-        else stuckIrrel mode r fe depth a' b'
-      | _ => stuckIrrel mode r fe depth a' b'
+      if f.tag == ETag.const then
+        match ← view f with
+        | .const c us => do
+          let el ← emptyLevels
+          let ns ← pinNatSucc
+          if c = ns ∧ us = el then do
+            let l ← internE (.lit (.natVal k'))
+            r.defeq depth x l
+          else stuckIrrel mode r fe depth a' b'
+        | _ => stuckIrrel mode r fe depth a' b'
+      else stuckIrrel mode r fe depth a' b'
     | _ => stuckIrrel mode r fe depth a' b'
   -- a string literal against a unary `String.ofList` application
   | .lit (.strVal st), .app fo _ => do
-    match ← view fo with
-    | .const cO usO => do
-      let el ← emptyLevels
-      let sl ← pinStringOfList
-      if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
-        let c ← strLitToConstructor st
-        r.defeq depth c b'
-      else stuckIrrel mode r fe depth a' b'
-    | _ => stuckIrrel mode r fe depth a' b'
+    if fo.tag == ETag.const then
+      match ← view fo with
+      | .const cO usO => do
+        let el ← emptyLevels
+        let sl ← pinStringOfList
+        if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+          let c ← strLitToConstructor st
+          r.defeq depth c b'
+        else stuckIrrel mode r fe depth a' b'
+      | _ => stuckIrrel mode r fe depth a' b'
+    else stuckIrrel mode r fe depth a' b'
   | .app fo _, .lit (.strVal st) => do
-    match ← view fo with
-    | .const cO usO => do
-      let el ← emptyLevels
-      let sl ← pinStringOfList
-      if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
-        let c ← strLitToConstructor st
-        r.defeq depth a' c
-      else stuckIrrel mode r fe depth a' b'
-    | _ => stuckIrrel mode r fe depth a' b'
+    if fo.tag == ETag.const then
+      match ← view fo with
+      | .const cO usO => do
+        let el ← emptyLevels
+        let sl ← pinStringOfList
+        if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+          let c ← strLitToConstructor st
+          r.defeq depth a' c
+        else stuckIrrel mode r fe depth a' b'
+      | _ => stuckIrrel mode r fe depth a' b'
+    else stuckIrrel mode r fe depth a' b'
   | .fvar i _, .fvar j _ =>
     if i == j then pure true else stuckIrrel mode r fe depth a' b'
   | .const n us, .const n' us' => do
@@ -1726,16 +1734,17 @@ theorem dqArm_natSuccL (hμ : mode.verifiedChecks = true)
     ⦃fun s => ⌜s = s₁⌝⦄
       (match nn with
         | k' + 1 => do
-          let v ← view f
-          match v with
-          | .const c us => do
-            let el ← emptyLevels
-            let ns ← pinNatSucc
-            if c = ns ∧ us = el then do
-              let l ← internE (.lit (.natVal k'))
-              (coreKnot mode fe id fuel).defeq d l x
-            else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+          if f.tag == ETag.const then
+            match ← view f with
+            | .const c us => do
+              let el ← emptyLevels
+              let ns ← pinNatSucc
+              if c = ns ∧ us = el then do
+                let l ← internE (.lit (.natVal k'))
+                (coreKnot mode fe id fuel).defeq d l x
+              else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+            | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+          else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
         | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
     ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
   have hwf := hok.state.wf
@@ -1800,16 +1809,17 @@ theorem dqArm_natSuccR (hμ : mode.verifiedChecks = true)
     ⦃fun s => ⌜s = s₁⌝⦄
       (match nn with
         | k' + 1 => do
-          let v ← view f
-          match v with
-          | .const c us => do
-            let el ← emptyLevels
-            let ns ← pinNatSucc
-            if c = ns ∧ us = el then do
-              let l ← internE (.lit (.natVal k'))
-              (coreKnot mode fe id fuel).defeq d x l
-            else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
-          | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+          if f.tag == ETag.const then
+            match ← view f with
+            | .const c us => do
+              let el ← emptyLevels
+              let ns ← pinNatSucc
+              if c = ns ∧ us = el then do
+                let l ← internE (.lit (.natVal k'))
+                (coreKnot mode fe id fuel).defeq d x l
+              else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+            | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+          else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
         | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
     ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
   have hwf := hok.state.wf
@@ -1874,17 +1884,18 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
       (.lit (.strVal st)) (.app ef ex) = .ok r → G F r)) :
     ⦃fun s => ⌜s = s₁⌝⦄
       (do
-        let v ← view fo
-        match v with
-        | .const cO usO => do
-          let el ← emptyLevels
-          let sl ← pinStringOfList
-          let sup ← ConRon.Arena.strLitSupported fe
-          if cO = sl ∧ usO = el ∧ sup = true then do
-            let c ← ConRon.Arena.strLitToConstructor st
-            (coreKnot mode fe id fuel).defeq d c b'
-          else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
-        | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
+        if fo.tag == ETag.const then
+          match ← view fo with
+          | .const cO usO => do
+            let el ← emptyLevels
+            let sl ← pinStringOfList
+            let sup ← ConRon.Arena.strLitSupported fe
+            if cO = sl ∧ usO = el ∧ sup = true then do
+              let c ← ConRon.Arena.strLitToConstructor st
+              (coreKnot mode fe id fuel).defeq d c b'
+            else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
     ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
   have hwf := hok.state.wf
   have hwx : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
@@ -1941,17 +1952,18 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
       (.app ef ex) (.lit (.strVal st)) = .ok r → G F r)) :
     ⦃fun s => ⌜s = s₁⌝⦄
       (do
-        let v ← view fo
-        match v with
-        | .const cO usO => do
-          let el ← emptyLevels
-          let sl ← pinStringOfList
-          let sup ← ConRon.Arena.strLitSupported fe
-          if cO = sl ∧ usO = el ∧ sup = true then do
-            let c ← ConRon.Arena.strLitToConstructor st
-            (coreKnot mode fe id fuel).defeq d a' c
-          else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
-        | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
+        if fo.tag == ETag.const then
+          match ← view fo with
+          | .const cO usO => do
+            let el ← emptyLevels
+            let sl ← pinStringOfList
+            let sup ← ConRon.Arena.strLitSupported fe
+            if cO = sl ∧ usO = el ∧ sup = true then do
+              let c ← ConRon.Arena.strLitToConstructor st
+              (coreKnot mode fe id fuel).defeq d a' c
+            else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+          | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
+        else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
     ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
   have hwf := hok.state.wf
   have hwy : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
