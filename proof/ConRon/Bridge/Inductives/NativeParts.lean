@@ -921,7 +921,102 @@ theorem structRecTyR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         denoteCtors4 st ctors = some ctorsP)
       (Arena.structRecTyR T lps elim large nP nIdx tty ctors)
       (ROp RE (ConLeche.structRecTyR TP lpsP elimP large nP nIdx ttyP ctorsP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps, helim, htty, hcs4⟩ := hpre
+  have hn : ctors.length = ctorsP.length := denoteCtors4_length hcs4
+  simp only [Arena.structRecTyR] at hrun
+  obtain ⟨l, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hl⟩ := structElimLevel_spec elim elimP large s₀ s1 l hok helim k1
+  obtain ⟨u, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hu⟩ := readLevel_run k2
+  rw [hs2] at z2
+  have hu' : u = ConLeche.structElimLevel elimP large := by
+    rw [hl] at hu; exact (Option.some.inj hu).symm
+  subst hu'
+  obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, hq⟩ := stripPis_pstep p1.ok (denote_ext htty p1.ext) k3
+  rw [hs3] at z3
+  rcases q with _ | ⟨qbs, q2⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨p1, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecTyR, stripPis_none hq, Option.bind_none]
+  obtain ⟨qxs, q2P, hq1, -, hq2⟩ := denoteBP_someB hq
+  obtain ⟨mt, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨p4, hmt⟩ := structMotiveTyI_spec T TP lps lpsP nP nIdx l _ q2 q2P s1 s4 mt p1.ok
+    ⟨denoteN_ext hT p1.ext, denoteNListE_ext p1.ext _ _ hlps, hl, hq2⟩ k4
+  cases mt with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk z4
+    refine ⟨p1.trans p4, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecTyR, hq1, Option.bind_some,
+      show ConLeche.structMotiveTyI TP lpsP nP nIdx (ConLeche.structElimLevel elimP large) q2P
+        = none from hmt, Option.bind_none]
+  | some motiveTy =>
+  obtain ⟨mtP, hmP, hmd⟩ := hmt
+  have q4 : PStep s₀ s4 := p1.trans p4
+  obtain ⟨fam, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hfam⟩ := structFamI_spec T TP lps lpsP nP nIdx (ctors.length + 1) 0 s4 s5 fam
+    p4.ok ⟨denoteN_ext hT q4.ext, denoteNListE_ext q4.ext _ _ hlps⟩ k5
+  obtain ⟨mv, s6, k6, z6⟩ := bindOk z5
+  obtain ⟨p6, hmv⟩ := internBVarE_run p5.ok k6
+  obtain ⟨iv, s7, k7, z7⟩ := bindOk z6
+  obtain ⟨p7, hiv⟩ := structPsAt_spec 1 nIdx s6 s7 iv p6.ok trivial k7
+  obtain ⟨b0, s8, k8, z8⟩ := bindOk z7
+  obtain ⟨p8, hb0⟩ := internBVarE_run p7.ok k8
+  obtain ⟨cc, s9, k9, z9⟩ := bindOk z8
+  have hargs := denoteEList_append (denoteEList_ext p8.ext _ _ hiv)
+    (show Frontend.denoteEList s8.store [b0] = some [_] by
+      simp only [Frontend.denoteEList, hb0]; rfl)
+  obtain ⟨p9, hcc⟩ := mkAppN_run _ _ p8.ok (denote_ext hmv (p7.ext.trans p8.ext)) hargs k9
+  obtain ⟨mb, s10, k10, z10⟩ := bindOk z9
+  obtain ⟨p10, hmb⟩ := internForallEE_run p9.ok
+    (denote_ext hfam (p6.ext.trans (p7.ext.trans (p8.ext.trans p9.ext)))) hcc k10
+  have q10 : PStep s₀ s10 := q4.trans (p5.trans (p6.trans (p7.trans (p8.trans
+    (p9.trans p10)))))
+  have x110 : Ext s1.store s10.store := p4.ext.trans (p5.ext.trans (p6.ext.trans
+    (p7.ext.trans (p8.ext.trans (p9.ext.trans p10.ext)))))
+  obtain ⟨lf, s11, k11, z11⟩ := bindOk z10
+  obtain ⟨p11, hlf⟩ := liftFast_pstep p10.ok (denote_ext hq2 x110) k11
+  obtain ⟨mj, s12, k12, z12⟩ := bindOk z11
+  obtain ⟨p12, hmj⟩ := replacePisPw_spec _ nIdx lf mb _ _ s11 s12 mj p11.ok
+    ⟨hlf, denote_ext hmb p11.ext⟩ k12
+  have q12 : PStep s₀ s12 := q10.trans (p11.trans p12)
+  cases mj with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk z12
+    simp only [ROp] at hmj
+    refine ⟨q12, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecTyR, hq1, hmP, Option.bind_some, ← hn, hmj,
+      Option.bind_none]
+  | some major =>
+  obtain ⟨majP, hmjP, hmjd⟩ := hmj
+  obtain ⟨mn, s13, k13, z13⟩ := bindOk z12
+  obtain ⟨p13, hmn⟩ := structMinorsPisR_spec lps lpsP nP _ ctors ctorsP 1 major majP hcs
+    s12 s13 mn p12.ok ⟨denoteNListE_ext q12.ext _ _ hlps, denoteCtors4_ext q12.ext _ _ hcs4,
+      hmjd⟩ k13
+  cases mn with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk z13
+    simp only [ROp] at hmn
+    refine ⟨q12.trans p13, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecTyR, hq1, hmP, Option.bind_some, ← hn, hmjP, hmn,
+      Option.bind_none]
+  | some minors =>
+  obtain ⟨mnP, hmnP, hmnd⟩ := hmn
+  obtain ⟨bd, s14, k14, z14⟩ := bindOk z13
+  have x413 : Ext s4.store s13.store := p5.ext.trans (p6.ext.trans (p7.ext.trans
+    (p8.ext.trans (p9.ext.trans (p10.ext.trans (p11.ext.trans (p12.ext.trans p13.ext)))))))
+  obtain ⟨p14, hbd⟩ := internForallEE_run p13.ok (denote_ext hmd x413) hmnd k14
+  have q14 : PStep s₀ s14 := q12.trans (p13.trans p14)
+  obtain ⟨p15, hr⟩ := replacePisPw_spec _ nP tty bd ttyP _ s14 s' r p14.ok
+    ⟨denote_ext htty q14.ext, hbd⟩ z14
+  refine ⟨q14.trans p15, ?_⟩
+  simp only [ConLeche.structRecTyR, hq1, hmP, Option.bind_some, ← hn, hmjP, hmnP]
+  exact hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:364-386 structRecRhsR
 **THE GENERATED RULE'S RIGHT-HAND SIDE**, constructor `j`'s.
@@ -943,7 +1038,108 @@ theorem structRecRhsR_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
       (Arena.structRecRhsR T lps elim large nP nIdx tty ctors recC rlvls j)
       (ROp RE (ConLeche.structRecRhsR TP lpsP elimP large nP nIdx ttyP ctorsP
         recCP rlvlsP j)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hlps, helim, htty, hcs4, hrc, hrl⟩ := hpre
+  have hn : ctors.length = ctorsP.length := denoteCtors4_length hcs4
+  simp only [Arena.structRecRhsR] at hrun
+  obtain ⟨l, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hl⟩ := structElimLevel_spec elim elimP large s₀ s1 l hok helim k1
+  obtain ⟨u, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hu⟩ := readLevel_run k2
+  rw [hs2] at z2
+  have hu' : u = ConLeche.structElimLevel elimP large := by
+    rw [hl] at hu; exact (Option.some.inj hu).symm
+  subst hu'
+  obtain ⟨hgn, hgs⟩ := denoteCtors4_getElem? hcs4 j
+  cases hcj : ctors[j]? with
+  | none =>
+    rw [hcj] at z2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecRhsR, hgn.mp hcj]
+  | some cj =>
+  obtain ⟨Cj, nF, cty, recIdx⟩ := cj
+  obtain ⟨CjP, ctyP, hcjP, -, hcty⟩ := hgs Cj nF cty recIdx hcj
+  have hri : ∀ i ∈ recIdx, i < nF :=
+    hcs (CjP, nF, ctyP, recIdx) (List.mem_of_getElem? hcjP)
+  rw [hcj] at z2
+  dsimp only at z2
+  obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, hq⟩ := stripPis_pstep p1.ok (denote_ext htty p1.ext) k3
+  rw [hs3] at z3
+  rcases q with _ | ⟨qbs, q2⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨p1, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecRhsR, hcjP, stripPis_none hq, Option.bind_none]
+  obtain ⟨qxs, q2P, hq1, -, hq2⟩ := denoteBP_someB hq
+  obtain ⟨mt, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨p4, hmt⟩ := structMotiveTyI_spec T TP lps lpsP nP nIdx l _ q2 q2P s1 s4 mt p1.ok
+    ⟨denoteN_ext hT p1.ext, denoteNListE_ext p1.ext _ _ hlps, hl, hq2⟩ k4
+  cases mt with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk z4
+    simp only [ROp] at hmt
+    refine ⟨p1.trans p4, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecRhsR, hcjP, hq1, Option.bind_some, hmt, Option.bind_none]
+  | some motiveTy =>
+  obtain ⟨mtP, hmP, hmd⟩ := hmt
+  have q4 : PStep s₀ s4 := p1.trans p4
+  obtain ⟨cq, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨hs5, hcq⟩ := stripPis_pstep p4.ok (denote_ext hcty q4.ext) k5
+  rw [hs5] at z5
+  rcases cq with _ | ⟨cbs, c2⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z5
+    refine ⟨q4, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecRhsR, hcjP, hq1, hmP, stripPis_none hcq, Option.bind_some,
+      Option.bind_none]
+  obtain ⟨cxs, c2P, hc1, -, hc2⟩ := denoteBP_someB hcq
+  obtain ⟨bd, s6, k6, z6⟩ := bindOk z5
+  obtain ⟨p6, hbd⟩ := structRuleBodyR_spec recC recCP rlvls rlvlsP _ nP ctors.length nF j
+    recIdx cty ctyP hri s4 s6 bd p4.ok
+    ⟨denoteN_ext hrc q4.ext, denoteLs_ext hrl q4.ext, denote_ext hcty q4.ext⟩ k6
+  obtain ⟨lf, s7, k7, z7⟩ := bindOk z6
+  obtain ⟨p7, hlf⟩ := liftFast_pstep p6.ok (denote_ext hc2 p6.ext) k7
+  obtain ⟨inn, s8, k8, z8⟩ := bindOk z7
+  obtain ⟨p8, hinn⟩ := pisToLamsPw_spec _ nF lf bd _ _ s7 s8 inn p7.ok
+    ⟨hlf, denote_ext hbd p7.ext⟩ k8
+  have q8 : PStep s₀ s8 := q4.trans (p6.trans (p7.trans p8))
+  cases inn with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk z8
+    simp only [ROp] at hinn
+    refine ⟨q8, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecRhsR, hcjP, hq1, hmP, hc1, Option.bind_some, ← hn, hinn,
+      Option.bind_none]
+  | some inner =>
+  obtain ⟨innP, hinP, hind⟩ := hinn
+  obtain ⟨mn, s9, k9, z9⟩ := bindOk z8
+  obtain ⟨p9, hmn⟩ := structMinorsLamsR_spec lps lpsP nP _ ctors ctorsP 1 inner innP hcs
+    s8 s9 mn p8.ok ⟨denoteNListE_ext q8.ext _ _ hlps, denoteCtors4_ext q8.ext _ _ hcs4,
+      hind⟩ k9
+  cases mn with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk z9
+    simp only [ROp] at hmn
+    refine ⟨q8.trans p9, ?_⟩
+    show _ = none
+    simp only [ConLeche.structRecRhsR, hcjP, hq1, hmP, hc1, Option.bind_some, ← hn, hinP,
+      hmn, Option.bind_none]
+  | some minors =>
+  obtain ⟨mnP, hmnP, hmnd⟩ := hmn
+  obtain ⟨lm, s10, k10, z10⟩ := bindOk z9
+  obtain ⟨p10, hlm⟩ := internLamE_run p9.ok
+    (denote_ext hmd (p6.ext.trans (p7.ext.trans (p8.ext.trans p9.ext)))) hmnd k10
+  have q10 : PStep s₀ s10 := q8.trans (p9.trans p10)
+  obtain ⟨p11, hr⟩ := pisToLamsPw_spec _ nP tty lm ttyP _ s10 s' r p10.ok
+    ⟨denote_ext htty q10.ext, hlm⟩ z10
+  refine ⟨q10.trans p11, ?_⟩
+  simp only [ConLeche.structRecRhsR, hcjP, hq1, hmP, hc1, Option.bind_some, ← hn, hinP, hmnP]
+  exact hr
 
 /-! ## The four-tuple and the rule checks -/
 

@@ -394,6 +394,72 @@ theorem denoteCtors4_ext {st st' : EStore} (hx : Ext st st') :
           rw [denoteN_ext h1 hx, denote_ext h2 hx, ih rest h3]
           exact h
 
+/-- con-leche: none — the four-tuple list's length survives the denotation. -/
+theorem denoteCtors4_length {st : EStore} :
+    ∀ {cs : List (NIdx × Nat × EIdx × List Nat)}
+      {csP : List (ConLeche.Name × Nat × Expr × List Nat)},
+      denoteCtors4 st cs = some csP → cs.length = csP.length := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors4, Option.some.injEq] at h; subst h; rfl
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨n, k, ty, idx⟩ := c
+    simp only [denoteCtors4] at h
+    cases h1 : denoteN st.ns n with
+    | none => rw [h1] at h; simp at h
+    | some nm =>
+      cases h2 : denoteE st ty with
+      | none => rw [h1, h2] at h; simp at h
+      | some t =>
+        cases h3 : denoteCtors4 st cs with
+        | none => rw [h1, h2, h3] at h; simp at h
+        | some rest =>
+          rw [h1, h2, h3] at h
+          obtain rfl := (Option.some.inj h).symm
+          simp only [List.length_cons, ih h3]
+
+/-- con-leche: none — and it reads at an index with the `Option` carried. -/
+theorem denoteCtors4_getElem? {st : EStore} :
+    ∀ {cs : List (NIdx × Nat × EIdx × List Nat)}
+      {csP : List (ConLeche.Name × Nat × Expr × List Nat)},
+      denoteCtors4 st cs = some csP → ∀ (j : Nat),
+      (cs[j]? = none ↔ csP[j]? = none) ∧
+      ∀ n k ty idx, cs[j]? = some (n, k, ty, idx) →
+        ∃ nm t, csP[j]? = some (nm, k, t, idx) ∧ denoteN st.ns n = some nm ∧
+          denoteE st ty = some t := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP h j
+    simp only [denoteCtors4, Option.some.injEq] at h; subst h
+    simp
+  | cons c cs ih =>
+    intro csP h j
+    obtain ⟨n, k, ty, idx⟩ := c
+    simp only [denoteCtors4] at h
+    cases h1 : denoteN st.ns n with
+    | none => rw [h1] at h; simp at h
+    | some nm =>
+      cases h2 : denoteE st ty with
+      | none => rw [h1, h2] at h; simp at h
+      | some t =>
+        cases h3 : denoteCtors4 st cs with
+        | none => rw [h1, h2, h3] at h; simp at h
+        | some rest =>
+          rw [h1, h2, h3] at h
+          obtain rfl := (Option.some.inj h).symm
+          cases j with
+          | zero =>
+            refine ⟨by simp, ?_⟩
+            intro n' k' ty' idx' he
+            simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq] at he
+            obtain ⟨rfl, rfl, rfl, rfl⟩ := he
+            exact ⟨nm, t, rfl, h1, h2⟩
+          | succ j =>
+            simp only [List.getElem?_cons_succ]
+            exact ih h3 j
+
 abbrev RCs (cs : List (ConstantVal × Nat)) :
     EStore → List (IConstantVal × Nat) → Prop :=
   fun st r => denoteCtors st r = some cs
