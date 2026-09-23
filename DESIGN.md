@@ -58798,6 +58798,7 @@ shared machine, so it is not reported.
 Scratch (binaries, patches, profiles) was in `_tmp/perf-fresh/`, deleted
 after this section.  All the patches are local to the task worktree and none
 was committed.  No gates were run: the change is to DESIGN.md only.
+
 ### Task #97-P5-POOL — the pool's claim made structural; stage 6 is the pool (2026-09-23, Opus under Fable)
 
 **The brief** was to prove the pool claim's clause (2), task #97-P5-Driver
