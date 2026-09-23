@@ -2495,7 +2495,36 @@ theorem native_shape_refines {pers st lst} {n_pd : Std.U64}
     (hrun : arena.inductives.native_parts.native_shape pers st n_pd block = ok o) :
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShape? (absU n_pd) (absICIL block)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_shape, nativeShape_unfold]
+  -- the tail copy from `1`, at the twin's list tail
+  have hdup : ∀ ci rest, block.val = ci :: rest → ∀ (n : Std.Usize),
+      Lockstep.LSP (arena.env.i_constant_infos_dup_from block 1#usize
+        (alloc.vec.Vec.with_capacity arena.env.IConstantInfo n))
+        (fun o => Lockstep.TwinEq (rest.map absIConstantInfo) (absICIL o)) := by
+    intro ci rest hcr n o h
+    have := i_constant_infos_dup_from_abs h
+    rw [hcr] at this
+    simpa [Lockstep.TwinEq, absICIL, alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using
+      this.symm
+  rcases hb : block.val with _ | ⟨ci, rest⟩
+  · have hlen : alloc.vec.Vec.len block = 0#usize := by
+      have : (alloc.vec.Vec.len block).val = 0 := by simp [alloc.vec.Vec.len, hb]
+      scalar_tac
+    simp only [hlen, if_true, absICIL, hb, List.map_nil]
+    lockstep
+  · have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IConstantInfo) block 0#usize = ok ci := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      simp [hb]
+    have hlen : ¬ (alloc.vec.Vec.len block = 0#usize) := by
+      intro h0
+      have : (alloc.vec.Vec.len block).val = 0 := by rw [h0]; rfl
+      simp [alloc.vec.Vec.len, hb] at this
+    have hdup' := hdup ci rest hb
+    rw [if_neg hlen, hidx]
+    simp only [absICIL, hb, List.map_cons]
+    cases ci <;> simp only [absIConstantInfo] <;> lockstep
 
 open Lockstep in
 @[lockstep] theorem native_shape_ls
