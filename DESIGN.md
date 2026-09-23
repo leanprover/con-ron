@@ -51150,12 +51150,13 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 Branch `ind-r8` off `arena` `6cfd995d`, merged forward to `b7c84da1` (which
 brought task #97-P3-Checker round 10's restated `checkConstantVal_bridge`
-and task #97-P3-Core round 6's `CoreSpec.of_core`).  The diff is
+and task #97-P3-Core round 6's `CoreSpec.of_core`) and then to `b1961867`
+(task #97-P5-Driver's phased pipeline).  The diff is
 `Bridge/Inductives/**`, `Capstone.lean` (the authorised edit, R8.1) and this
 section.  No Rust, no generated model; `Bridge/Checker/**` untouched.
 
-Gates on the merged tip: **all 16 OK** (`extract-check` 97 s,
-`lake-refine2` 211 s, `lake-bridge` 4 s, `lake-capstone` 8 s).
+Gates on the merged tip (`b1961867`): **all 16 OK** (`extract-check` 106 s,
+`lake-refine2` 112 s, `lake-bridge` 40 s, `lake-capstone` 3 s).
 
 **The tier went from 28 open statements to 5**, all five in `Modeled.lean`
 and all five under the modeled route's iota and projection certificates:
@@ -51194,9 +51195,9 @@ ConRon.Capstone.no_False_declaration`:
   entered the closure with six items (`checkSumCtors_spec`,
   `checkSumInd_spec`, `checkNativePass_spec`, `checkNativeTail_spec`,
   `checkModeled_spec`, `indDecl_envWF`).
-* after (the landing tip, over `arena` `b7c84da1`): **59 items in 15 modules,
-  160 tainted, dead weight 641**; top **`Bridge.IndSpec.wf`** (fan-in 8,
-  reach 13 — the Checker tier's statement owed by this tier, R8.5).  This
+* after (the landing tip, over `arena` `b1961867`): **59 items in 15 modules,
+  162 tainted, dead weight 641**; top **`Bridge.IndSpec.wf`** (fan-in 9,
+  reach 15 — the Checker tier's statement owed by this tier, R8.5).  This
   lane's own items: `checkProjFn_spec` (fan-in 2, reach 9),
   `checkIotaThm_spec`, `checkIotaThmN_spec`.  The growth of the total is
   other lanes' work landed in between (T2 lock-step, Core round 6).
@@ -51305,7 +51306,7 @@ the routes their intermediate `EnvWF` (R8.3).
 
 Task #97-P3-Checker round 10 added `Bridge/Checker/Hyp.lean`'s
 `IndSpec.wf : μ.verifiedChecks = true → IndSpec μ → IndWFSpec μ` (`sorry`,
-owed by this tier; fan-in 8 on the capstone frontier).  `IndWFSpec.run` has
+owed by this tier; fan-in 9 on the capstone frontier).  `IndWFSpec.run` has
 two clauses: `EnvWF` at the pushed denotation — which `IndSpec.run` already
 concludes (R7.6) and which is now proved (R8.4) — and the RELATIVE
 MEMBERSHIP-shaped table clause `∀ t, .projInfo t ∈ fe'.env.consts →
