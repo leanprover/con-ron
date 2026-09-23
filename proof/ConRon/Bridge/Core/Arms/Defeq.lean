@@ -28,11 +28,11 @@ paid or recorded.
 
 **Round 5 (DefeqStep sub-lane):** `defeqStep_spec` is PROVED, staged
 (`defeqStep_at`, §8), over the entry and literal groups inline and the tail
-as `dqTailA_spec` / `dqCongrA_spec`.  Its `sorryAx` comes from five named
-children only: `defeqPeel_chain` (§5), `stuckIrrel_spec` (`Walks/Owed.lean`,
-through `dq_stuck_exit`) and the three string-literal placeholders
-`strLitSupported_spec_dq`, `strLitToConstructor_spec_dq`,
-`strLitToConstructor_WScoped_dq` (§7).  §4's `defeqLoop_forallE` /
+as `dqTailA_spec` / `dqCongrA_spec`.  After the round's merge its `sorryAx`
+comes from two named children only: `defeqPeel_chain` (§5) and
+`stuckIrrel_spec` (`Walks/Stuck.lean`, through `dq_stuck_exit`, itself proved
+there over `structEtaCertWith_spec`); the three string-literal rules are the
+closed `Walks/StrLit.lean` / `Walks/StrCtor.lean` ones.  §4's `defeqLoop_forallE` /
 `defeqLoop_lam` are kept: they are the chain's arm, which
 `isDefEqCore_binder` now reaches through `dqCongr` instead.
 
@@ -55,6 +55,8 @@ annotation test, and the memo/fuel accounting.
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.PropRead
+import ConRon.Bridge.Core.Walks.Stuck
+import ConRon.Bridge.Core.Walks.ProjLit
 import ConRon.Bridge.Core.Walks.Guards
 import ConRon.Bridge.ExprOps.Ranges
 
@@ -1215,7 +1217,7 @@ theorem dq_defeq_exit {fe : IFEnv} {fuel d : Nat}
 fallback** as the verdict, over `stuckIrrel_spec` (`Walks/Owed.lean`,
 OPEN).  The one call site of that rule in this module. -/
 theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
-    (_hμ : mode.verifiedChecks = true) (_henv : ConLeche.EnvWF env)
+    (hμ : mode.verifiedChecks = true) (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel) {s₀ s : AState}
     {G : Nat → Bool → Prop} (p q : EIdx) (u w : Expr)
     (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
@@ -1227,7 +1229,7 @@ theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
     ⦃fun s' => ⌜s' = s⌝⦄
       ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d p q
     ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
-  refine triple_mono (stuckIrrel_spec hsim s d p q u w hok hp hq hwu hww) ?_
+  refine triple_mono (stuckIrrel_spec hμ henv hsim s d p q u w hok hp hq hwu hww) ?_
   rintro r s' ⟨hok', hx', hp', hr⟩
   exact ⟨hok', hxs.trans hx', hp'.trans hps,
     Ev.finish (hG.imp fun _ h => h r)
@@ -1271,40 +1273,10 @@ replace at merge (`Walks/StrLit.lean`'s `strLitSupported_spec`,
 `Walks/StrCtor.lean`'s `strLitToConstructor_spec` and
 `strLitToConstructor_WScoped`), each with the statement those rules have. -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-403 strLitSupported —
-**OPEN** here: the `String`-literal guard is an EQUATION with con-leche's,
-in `natLitSupported_spec`'s shape (`Walks/Nat.lean`).  The walk is
-`natLitSupported` plus seven stored-type tests against the pins, the same
-kind of read `natLitSupported_spec` closes; another helper of this round is
-writing it as `strLitSupported_spec` in `Walks/StrLit.lean`, and this name is
-the placeholder that is renamed onto it at merge. -/
-theorem strLitSupported_spec_dq {fe : IFEnv} (s₀ : AState)
-    (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.strLitSupported fe
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.strLitSupported env⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor —
-**OPEN** here: the constructor form of a `String` literal, interned, denotes
-con-leche's.  PROVED on the round-5 Core branch as `strLitToConstructor_spec`
-(`Walks/StrCtor.lean`), with exactly this statement; this placeholder is
-replaced by it at merge. -/
-theorem strLitToConstructor_spec_dq {fe : IFEnv} (s₀ : AState) (str : String)
-    (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.strLitToConstructor str
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (ConLeche.strLitToConstructor str)⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor —
-**OPEN** here: the constructor form is closed.  PROVED on the round-5 Core
-branch as `strLitToConstructor_WScoped` (`Walks/StrCtor.lean`); this
-placeholder is replaced by it at merge. -/
-theorem strLitToConstructor_WScoped_dq (str : String) (d : Nat) :
-    Expr.WScoped d (ConLeche.strLitToConstructor str) := by
-  sorry
+/-! (Round-5 merge: the three placeholders that stood here are gone; the
+arms below call `Walks/StrLit.lean`'s `strLitSupported_spec` and
+`Walks/StrCtor.lean`'s `strLitToConstructor_spec` / `strLitToConstructor_WScoped`
+directly, whose statements they were copies of.) -/
 
 /-! ### The congruence arms
 
@@ -1927,7 +1899,7 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
     subst s3
     have hiff : (c = sl ∧ us = el) ↔ (nm = ConLeche.stringOfListName ∧ ls = []) := by
       rw [n_eq_iff_pin hwf hc (hsl _ rfl), ls_eq_iff_nil hwf hus hel]
-    refine triple_seq (strLitSupported_spec_dq s₁ hok) ?_
+    refine triple_seq (strLitSupported_spec s₁ hok) ?_
     rintro sup s4 ⟨hok4, hx4, hp4, rfl⟩
     have hx04 := hx₁.trans hx4
     have hp04 : s4.pins = s₀.pins := hp4.trans hp₁
@@ -1935,10 +1907,10 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
     · rename_i h
       obtain ⟨rfl, rfl⟩ := hiff.mp ⟨h.1, h.2.1⟩
       have hsup := h.2.2
-      refine triple_seq (strLitToConstructor_spec_dq s4 st hok4) ?_
+      refine triple_seq (strLitToConstructor_spec s4 st hok4) ?_
       rintro cc s5 ⟨hok5, hx5, hp5, hd5⟩
       exact dq_defeq_exit hsim cc b' _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
-        hd5 (denote_ext hy (hx4.trans hx5)) (strLitToConstructor_WScoped_dq st d)
+        hd5 (denote_ext hy (hx4.trans hx5)) (strLitToConstructor_WScoped st d)
         hwy (hG.imp fun _ hh r hr => hh r ((if_pos (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
           ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
@@ -1993,7 +1965,7 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
     subst s3
     have hiff : (c = sl ∧ us = el) ↔ (nm = ConLeche.stringOfListName ∧ ls = []) := by
       rw [n_eq_iff_pin hwf hc (hsl _ rfl), ls_eq_iff_nil hwf hus hel]
-    refine triple_seq (strLitSupported_spec_dq s₁ hok) ?_
+    refine triple_seq (strLitSupported_spec s₁ hok) ?_
     rintro sup s4 ⟨hok4, hx4, hp4, rfl⟩
     have hx04 := hx₁.trans hx4
     have hp04 : s4.pins = s₀.pins := hp4.trans hp₁
@@ -2001,10 +1973,10 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
     · rename_i h
       obtain ⟨rfl, rfl⟩ := hiff.mp ⟨h.1, h.2.1⟩
       have hsup := h.2.2
-      refine triple_seq (strLitToConstructor_spec_dq s4 st hok4) ?_
+      refine triple_seq (strLitToConstructor_spec s4 st hok4) ?_
       rintro cc s5 ⟨hok5, hx5, hp5, hd5⟩
       exact dq_defeq_exit hsim a' cc _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
-        (denote_ext hx (hx4.trans hx5)) hd5 hwx (strLitToConstructor_WScoped_dq st d)
+        (denote_ext hx (hx4.trans hx5)) hd5 hwx (strLitToConstructor_WScoped st d)
         (hG.imp fun _ hh r hr => hh r ((if_pos (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
           ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
@@ -2706,13 +2678,10 @@ for one step of the lazy-delta loop**, at a continuation that refines the
 loop one budget down.
 
 **PROVED** (round 5, DefeqStep sub-lane) from `defeqStep_at`.  Its
-`sorryAx` is inherited from five named children, none in this proof:
-`defeqPeel_chain` (the batched binder descent's identification, §5),
-`stuckIrrel_spec` (`Walks/Owed.lean`, the stuck fallback's walk, reached
-through `dq_stuck_exit`), and `strLitSupported_spec_dq`,
-`strLitToConstructor_spec_dq`, `strLitToConstructor_WScoped_dq` (the two
-string-literal congruence exits' walks, §7 — placeholders for another
-helper's rules). -/
+`sorryAx` is inherited from named children, none in this proof:
+`defeqPeel_chain` (the batched binder descent's identification, §5) and,
+through `stuckIrrel_spec` (`Walks/Stuck.lean`, reached through
+`dq_stuck_exit`), `structEtaCertWith_spec`. -/
 theorem defeqStep_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) (d n : Nat)
