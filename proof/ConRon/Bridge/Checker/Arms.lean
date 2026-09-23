@@ -726,6 +726,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
       obtain ⟨hst3, hx3, hc3, hp3, he3⟩ :=
         IConstantInfo.canonEq_run (ci := .axiomInfo cv)
           (c := ConstantInfo.axiomInfo c) hst2
+          (by intro t t' ht _; exact absurd ht (by simp))
           (by simp only [Frontend.denoteCI, hcv2, Option.map_some]) hd4 g3
       rcases AM.ite_ok r3 with ⟨hy3, hg3⟩ | ⟨_, hbad3⟩
       · have hext : Ext s.store s3.store := hx2.trans hx3

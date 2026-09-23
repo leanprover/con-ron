@@ -874,7 +874,7 @@ theorem CheckOK.monoF {mode : CheckMode} {env : Env} {fe : IFEnv}
 Task #97-P3-Ind round 3 found and proved these five, in
 `Bridge/Inductives/Rel.lean`, and named this module as where they belong:
 the lowest one that has both `Frontend.denoteCI` and `IProjTableOK`, and the
-one below the Checker tier — whose `IFEnvOK_of_denote`, `denoteFEnv_restrictTo`
+one below the Checker tier — whose `IFEnvOK_of_denote`, `IFEnvOK_restrictTo`
 and `installBasisDecl_bridge` were the three sites stuck on them and cannot
 see `Bridge/Inductives/**`.  Round 4 moved them here unchanged.
 
@@ -956,7 +956,7 @@ theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
 `denoteN st.ns ci.name = some c.name` at a `.projInfo`: the handle side is the
 STORED `t.tableName` and the pure side is the RECOMPUTED
 `projTableName t.structName`.  Three sites above this tier have hit the same
-wall — `IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and (task #97-P3-Checker
+wall — `IFEnvOK_of_denote`, `IFEnvOK_restrictTo` and (task #97-P3-Checker
 round 2) `installBasisDecl_bridge` — and the fix is NOT to add a hypothesis to
 any of them, nor to make `denoteProjTable` read `tableName` (the denotation is
 deliberately forgetful; `tableName` is the arena's own redundancy, kept so the
