@@ -60820,15 +60820,18 @@ exception, and one `SimRE` reader): `name_nodup(_from)`, `all_rec_info`,
 `recs_form_suffix`, `nidx_is_proj_fn_shape` (two tag tests, two `view_n`, two
 literal `str_eq`s; new `viewN_run`, `view_n_simre`, `lit_abs`).
 
-**Closed modulo a hypothesis another lane owns**, each an `_of` lemma proved
-by `lockstep` whose public form passes `sorry` for exactly that hypothesis:
-`check_constant_val_guards_rest_of`, `install_value_of`
-(`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`, ExprOps lane, branch
-`t2-lock-exprops-b`: one line each when it lands); `unresolved_consts_error_of`
-(`mentions_const_ls`, which lives in `Inductives/StructParts.lean`, a module
-ABOVE `Checker/Base.lean`, and is itself `sorry` there — the Inductives tier's
-statement should move below `Checker/Base.lean`, or the checker's call take it
-as a parameter up to `Top`; **ruling needed** on which).
+**Closed by `lockstep` once the ExprOps lane landed** (`arena` `b047603a`,
+`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`): `check_constant_val_guards_rest`
+and `install_value` (both were written first as `_of` lemmas taking those two
+walks as hypotheses; the hypotheses are gone).
+
+**Closed modulo one hypothesis, module order:** `unresolved_consts_error_of`
+(`lockstep`) takes `mentions_const_ls` as a hypothesis; that statement lives in
+`Inductives/StructParts.lean`, a module ABOVE `Checker/Base.lean`, and is
+itself `sorry` there, so `unresolved_consts_error_refines` passes `sorry` for
+it.  **Ruling needed:** move the Inductives tier's `mentions_const` statements
+below `Checker/Base.lean` (they need only `Checker/Shape`-level shapes), or
+thread the hypothesis up to `Top`.
 
 **Extension points added**: `@[lockstep]` `nidx_is_proj_fn_shape_ls`,
 `name_nodup_spec`, `top_i_constant_info_dup_spec`, `check_basis_decl_install_ls`;
@@ -60857,11 +60860,10 @@ leaf needs to carry `IFEnvRelI` as `ifenv_push_refines` does — the
 **No twin/Rust divergence found** on these paths.
 
 Frontier (`scripts/frontier.sh ConRon.Capstone.model_exists
-ConRon.Capstone.no_False_declaration`): **start** (`70ea5a33`) 48 items / 175
-tainted / dead weight 465; **after slice 1** 51 / 213 / 443.  Items grew
-because the closed arms reach their leaves: DeclCheck's `std_axiom_ok`,
-`trust_compiler_ok`, `of_reduce_ax_ok`, `eq_basis_pinned`; Canon's
-`i_constant_info_canon_eq`; Axioms' `quot_pin_hit`; and this lane's own next
-leaves (`all_level_params_defined`, `consts_resolve_f_fast`: the two memoised
-guard walks; `ind_params_ok`; the three `_of` hypotheses above;
-`check_basis_decl_install`).
+ConRon.Capstone.no_False_declaration`): `arena` `b047603a` (with the Checker
+lane's `4265c378` and the ExprOps lane) 50 items / 233 tainted / dead weight
+401; **this branch** 50 / 246 / 389.  This lane's items left on the frontier:
+`unresolved_consts_error` (fan-in 3; the module-order hypothesis above),
+the two memoised guard walks `all_level_params_defined` and
+`consts_resolve_f_fast` (next slice), `ind_params_ok`, and
+`check_basis_decl_install` (the `install_basis_decls` statement gap).
