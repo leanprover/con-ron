@@ -608,38 +608,19 @@ theorem is_rec_info_abs {ci : arena.env.IConstantInfo} {o : Bool}
   rw [arena.checker_base.is_rec_info.eq_def] at h
   cases ci <;> (rw [← Result.ok_injective h]; rfl)
 
-/-! ## The STATEFUL cursor recursion, once (round 4)
+/-! ## The STATEFUL cursor recursion, once (round 4; lockstep since task #97-T2-LOCKSTEP)
 
 Round 3 factored the state-free cursor out (`vec_cursor_copy`); the stateful
 half of the tier is the same recursion with the store threaded through it —
-`if <past the bound> then ok out else <a Sim callee>; push; recurse` — and
-`Refine2/Specs.lean`'s intern family is what the callee usually is.  The
-three declarations below are that recursion factored out, so an instance owes
-only its own two arms and its own side condition.
+`if <past the bound> then ok out else <a Sim₀ callee>; push; recurse`.  The
+two declarations below are that recursion factored out, so an instance owes
+only its own two arms.
 
-`Q` is the interning family's side condition carried across the step
-(**finding 8's `hfrozen`**, at whichever tier the step appends to): the step
-receives it at `st` and must return it at `st1`, which
-`Refine2/Specs.lean`'s `intern_*_flags` lemmas give in one line.
+Under the lockstep shapes (`AStateRel₀`/`Sim₀`, task #97-T2-LOCKSTEP) there is
+nothing to carry across the step: round 4's side condition `Q` (the frozen
+tier flag) and its `Ext` re-basing (`AOut.ext_left`) are both gone. -/
 
-`AOut.ext_left` is what makes the induction compose: the recursive call's
-`Ext` is measured from the state the STEP left, and the conclusion wants it
-measured from the state the call STARTED in. -/
-
-/-- An `AOut` re-based at an EARLIER twin state. -/
-theorem AOut.ext_left {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst lst0 : AState}
-    {o : core.result.Result α kernel.core_types.CheckError}
-    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
-    (h : AOut A WF pers lst0 o st' x) (hext : Ext lst.store lst0.store) :
-    AOut A WF pers lst o st' x := by
-  cases o with
-  | Ok r =>
-    obtain ⟨l', hx, h1, h2, h3, h4⟩ := h
-    exact ⟨l', hx, h1, h2, Ext.trans hext h3, h4⟩
-  | Err e => exact h
-
-/-- **The tier's stateful copier, once.**  `F` runs one `Sim` step at the
+/-- **The tier's stateful copier, once.**  `F` runs one `Sim₀` step at the
 cursor, pushes its answer and recurses; the answer, READ THROUGH THE
 ABSTRACTION, is the accumulator followed by the twin's remaining list action.
 The twin side is given as `step`/`rest` indexed by the cursor's VALUE, because
@@ -647,7 +628,7 @@ half of this tier's stateful cursors count (`struct_ps_at_from` counts `k` up
 to `n_p`) rather than index a `Vec`; `sim_vec_cursor_copy` below is the `Vec`
 specialisation. -/
 theorem sim_cursor_copy {ι β δ : Type} {pers : arena.store.PersTier}
-    (val : ι → Nat) (n : Nat) (f : β → δ) (Q : arena.monad.AState → Prop)
+    (val : ι → Nat) (n : Nat) (f : β → δ)
     (step : Nat → AM δ) (rest : Nat → AM (List δ))
     (F : arena.monad.AState → ι → alloc.vec.Vec β →
       Result ((core.result.Result (alloc.vec.Vec β) kernel.core_types.CheckError)
@@ -658,40 +639,40 @@ theorem sim_cursor_copy {ι β δ : Type} {pers : arena.store.PersTier}
     (hstop : ∀ st i out o, n ≤ val i → F st i out = ok o →
       o = (core.result.Result.Ok out, st))
     (hstep : ∀ st lst (i : ι) out o, val i < n →
-      AStateRel pers st lst → AStateInv pers st → Q st → F st i out = ok o →
+      AStateRel₀ pers st lst → AStateInv pers st → F st i out = ok o →
       ∃ (r : core.result.Result β kernel.core_types.CheckError)
         (st1 : arena.monad.AState),
-        Sim f (fun _ => True) pers lst (r, st1) (step (val i)) ∧
+        Sim₀ f pers lst (r, st1) (step (val i)) ∧
         (∀ u, r = core.result.Result.Ok u →
           ∃ (j : ι) (out1 : alloc.vec.Vec β),
-          val j = val i + 1 ∧ out1.val = out.val ++ [u] ∧ Q st1 ∧
+          val j = val i + 1 ∧ out1.val = out.val ++ [u] ∧
             F st1 j out1 = ok o) ∧
         (∀ e, r = core.result.Result.Err e →
           o = (core.result.Result.Err e, st1))) :
     ∀ (i : ι) (out : alloc.vec.Vec β) (st : arena.monad.AState)
       (lst : AState) o,
-      AStateRel pers st lst → AStateInv pers st → Q st → F st i out = ok o →
-      Sim (fun v : alloc.vec.Vec β => v.val.map f) (fun _ => True) pers lst o
+      AStateRel₀ pers st lst → AStateInv pers st → F st i out = ok o →
+      Sim₀ (fun v : alloc.vec.Vec β => v.val.map f) pers lst o
         (do pure (out.val.map f ++ (← rest (val i)))) := by
   refine cursor_induction val n
-    (fun i out => ∀ st lst o, AStateRel pers st lst → AStateInv pers st → Q st →
+    (fun i out => ∀ st lst o, AStateRel₀ pers st lst → AStateInv pers st →
       F st i out = ok o →
-      Sim (fun v : alloc.vec.Vec β => v.val.map f) (fun _ => True) pers lst o
+      Sim₀ (fun v : alloc.vec.Vec β => v.val.map f) pers lst o
         (do pure (out.val.map f ++ (← rest (val i))))) ?_ ?_
-  · intro i out hn st lst o hrel hinv hQ h
+  · intro i out hn st lst o hrel hinv h
     rw [hstop st i out o hn h]
-    refine Sim.mk (AOut.ok ?_ hrel hinv (Ext.refl _) trivial)
+    refine Sim₀.mk (AOut₀.ok ?_ hrel hinv)
     simp only [hnil _ hn, am_run_bind]
     simp
     rfl
-  · intro i out hi ih st lst o hrel hinv hQ h
-    obtain ⟨r, st1, hsim, hok, herr⟩ := hstep st lst i out o hi hrel hinv hQ h
+  · intro i out hi ih st lst o hrel hinv h
+    obtain ⟨r, st1, hsim, hok, herr⟩ := hstep st lst i out o hi hrel hinv h
     cases r with
     | Ok u =>
-      obtain ⟨lst1, hrun, hrel1, hinv1, hext1, -⟩ := Sim.apply hsim
-      obtain ⟨j, out1, hj, hout1, hQ1, hF⟩ := hok u rfl
-      have hih := ih j out1 hj st1 lst1 o hrel1 hinv1 hQ1 hF
-      refine Sim.mk ?_
+      obtain ⟨lst1, hrun, hrel1, hinv1⟩ := Sim₀.apply hsim
+      obtain ⟨j, out1, hj, hout1, hF⟩ := hok u rfl
+      have hih := ih j out1 hj st1 lst1 o hrel1 hinv1 hF
+      refine Sim₀.mk ?_
       have key : (do pure (out.val.map f ++ (← rest (val i))) : AM (List δ)).run lst
           = (do pure (out1.val.map f ++ (← rest (val j))) : AM (List δ)).run lst1 := by
         rw [hcons _ hi, hj]
@@ -700,13 +681,13 @@ theorem sim_cursor_copy {ι β δ : Type} {pers : arena.store.PersTier}
           List.nil_append]
         rfl
       rw [key]
-      exact AOut.ext_left (Sim.dest hih) hext1
+      exact Sim₀.dest hih
     | Err e =>
       rw [herr e rfl]
-      refine AOut.err ?_
+      refine AOut₀.err ?_
       rw [hcons _ hi]
       simp only [am_run_bind]
-      exact AErrSim.bind (AErrSim.bind (Sim.apply_err hsim) _) _
+      exact AErrSim.bind (AErrSim.bind (Sim₀.apply_err hsim) _) _
 
 /-- `sim_cursor_copy` at a `Vec` cursor: the step reads `xs` at the cursor and
 the twin's remaining action is `G` at the abstracted suffix.  `dflt` is only
@@ -714,7 +695,6 @@ the `getD` witness the `Nat`-indexed `step` needs off the end; no conclusion
 mentions it. -/
 theorem sim_vec_cursor_copy {α α' β δ : Type} {pers : arena.store.PersTier}
     (xs : alloc.vec.Vec α) (dflt : α) (a : α → α') (f : β → δ)
-    (Q : arena.monad.AState → Prop)
     (g : α' → AM δ) (G : List α' → AM (List δ))
     (F : arena.monad.AState → Std.Usize → alloc.vec.Vec β →
       Result ((core.result.Result (alloc.vec.Vec β) kernel.core_types.CheckError)
@@ -724,22 +704,22 @@ theorem sim_vec_cursor_copy {α α' β δ : Type} {pers : arena.store.PersTier}
     (hstop : ∀ st (i : Std.Usize) out o, xs.val.length ≤ i.val → F st i out = ok o →
       o = (core.result.Result.Ok out, st))
     (hstep : ∀ st lst (i : Std.Usize) x out o, xs.val[i.val]? = some x →
-      AStateRel pers st lst → AStateInv pers st → Q st → F st i out = ok o →
+      AStateRel₀ pers st lst → AStateInv pers st → F st i out = ok o →
       ∃ (r : core.result.Result β kernel.core_types.CheckError)
         (st1 : arena.monad.AState),
-        Sim f (fun _ => True) pers lst (r, st1) (g (a x)) ∧
+        Sim₀ f pers lst (r, st1) (g (a x)) ∧
         (∀ u, r = core.result.Result.Ok u →
           ∃ (j : Std.Usize) (out1 : alloc.vec.Vec β),
-          j.val = i.val + 1 ∧ out1.val = out.val ++ [u] ∧ Q st1 ∧
+          j.val = i.val + 1 ∧ out1.val = out.val ++ [u] ∧
             F st1 j out1 = ok o) ∧
         (∀ e, r = core.result.Result.Err e →
           o = (core.result.Result.Err e, st1))) :
     ∀ (i : Std.Usize) (out : alloc.vec.Vec β) (st : arena.monad.AState)
       (lst : AState) o,
-      AStateRel pers st lst → AStateInv pers st → Q st → F st i out = ok o →
-      Sim (fun v : alloc.vec.Vec β => v.val.map f) (fun _ => True) pers lst o
+      AStateRel₀ pers st lst → AStateInv pers st → F st i out = ok o →
+      Sim₀ (fun v : alloc.vec.Vec β => v.val.map f) pers lst o
         (do pure (out.val.map f ++ (← G ((xs.val.drop i.val).map a)))) := by
-  refine sim_cursor_copy (fun i : Std.Usize => i.val) xs.val.length f Q
+  refine sim_cursor_copy (fun i : Std.Usize => i.val) xs.val.length f
     (fun m => g (a (xs.val.getD m dflt)))
     (fun m => G ((xs.val.drop m).map a)) F ?_ ?_ hstop ?_
   · intro m hm
@@ -749,13 +729,31 @@ theorem sim_vec_cursor_copy {α α' β δ : Type} {pers : arena.store.PersTier}
     rw [List.drop_eq_getElem_cons hb]
     simp only [List.map_cons, hcons, List.getD_eq_getElem?_getD,
       List.getElem?_eq_getElem hb, Option.getD_some]
-  · intro st lst i out o hi hrel hinv hQ h
+  · intro st lst i out o hi hrel hinv h
     obtain ⟨x, hx⟩ : ∃ x, xs.val[i.val]? = some x :=
       ⟨xs.val[i.val], List.getElem?_eq_getElem hi⟩
     have hxv : xs.val.getD i.val dflt = x := by
       simp [List.getD_eq_getElem?_getD, hx]
     rw [hxv]
-    exact hstep st lst i x out o hx hrel hinv hQ h
+    exact hstep st lst i x out o hx hrel hinv h
+
+/-! ## The two memo-threading walks' answer relations (task #97-T2-LOCKSTEP)
+
+The tier's three memoised walks (`hasLooseBVarBGo`, `mentionsConstGo`,
+`mentionsFvarGo`) answer `(Bool × memo)` on both sides.  Their lockstep
+statement is `SimRel₀` at the relation below — the answer bit equal and the two
+memos related — which is `ExprOps/Read.lean`'s `WOut`/`LOut` without the
+`Ext`/`StoreWF` those carried. -/
+
+/-- The `(handle, depth)`-keyed memo walk's answer relation. -/
+def WOutRel (r : Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+    (v : Bool × Std.HashMap (EIdx × Nat) Bool) : Prop :=
+  r.1 = v.1 ∧ ExprOps.WMemoRel r.2 v.2
+
+/-- The handle-keyed memo walk's answer relation. -/
+def LOutRel (r : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (v : Bool × Std.HashMap EIdx Bool) : Prop :=
+  r.1 = v.1 ∧ ExprOps.LMemoRel r.2 v.2
 
 attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFrom
   absBinderL absBinderLFrom absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom
