@@ -29,6 +29,7 @@ import ConRon.Bridge.Inductives.NativeInstall
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Frontend.Shared
 import ConLeche.Verify.Extend.Iota
+import ConLeche.Verify.Extend.Modeled
 
 namespace ConRon.Bridge.Inductives
 
@@ -1278,6 +1279,131 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         Frontend.denoteCV st x = some cvA) := by
   sorry
 
+/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:164 checkIndMemberS_run
+(its `EnvWF` half, pure) — **one member step leaves a well-formed environment
+and conses a fresh constant.**  The member is `checkMemberVal`'s checked
+constant (`checkIndMember_inv`), its type closed and resolving
+(`checkConstantVal_typeWF`); a former's capability arities are
+`indCapsWF_of_pins` at the block's pins. -/
+theorem checkIndMember_wf {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
+    {caps : IndCaps} {env e : Env} {ci : ConstantInfo} (henv : EnvWF env)
+    (hpins : ∀ cv caps₀, ci = .indInfo cv caps₀ →
+      ConLeche.EtaPins μ env cv.name cv.levelParams caps)
+    (h : ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps env ci = .ok e) :
+    EnvWF e ∧ ∃ c, e = ⟨c :: env.consts⟩ ∧ env.find? c.name = none := by
+  obtain ⟨cvA, cvm, mval, hint, hccv, -, hfm, -, hty, hkind⟩ := ConLeche.checkIndMember_inv h
+  obtain ⟨htf, htp, htr, htb⟩ := ConLeche.checkConstantVal_typeWF hccv
+  obtain ⟨hfresh, -, -, -, -, -, type, -, -, -, -, -, -, -, hcvA⟩ :=
+    ConLeche.checkConstantVal_inv hccv
+  rcases hkind with ⟨⟨cv, caps', rfl⟩, rfl⟩ | ⟨cv, nP, nF, rfl, rfl⟩
+  · have hicw : ConLeche.IndCapsWF (.indInfo cvA caps) := by
+      refine ConLeche.indCapsWF_of_pins (μ := μ) ?_ hfm hty
+      rw [hcvA]
+      exact hpins cv caps' rfl
+    refine ⟨ConLeche.EnvWF.cons henv ⟨htf, htp, Expr.constsResolve_mono htr, htb,
+      (fun _ _ _ heq => nomatch heq), (fun _ _ _ _ heq => nomatch heq),
+      (fun _ heq => nomatch heq), hicw⟩, _, rfl, ?_⟩
+    show env.find? cvA.name = none
+    rw [hcvA]
+    exact hfresh
+  · refine ⟨ConLeche.EnvWF.cons henv ⟨htf, htp, Expr.constsResolve_mono htr, htb,
+      (fun _ _ _ heq => nomatch heq), (fun _ _ _ _ heq => nomatch heq),
+      (fun _ heq => nomatch heq), (fun _ _ heq => nomatch heq)⟩, _, rfl, ?_⟩
+    show env.find? cvA.name = none
+    rw [hcvA]
+    exact hfresh
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:232 foldIndMemberS_run
+(its `EnvWF` half, pure) — **the member fold leaves a well-formed
+environment**: `checkIndMember_wf` at each step, the block's pins carried
+over each fresh cons by `EtaPins.step`. -/
+theorem foldIndMember_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
+    {caps : IndCaps} :
+    ∀ {cis : List ConstantInfo} {env e : Env}, EnvWF env →
+      (∀ ci ∈ cis, ∀ cv caps₀, ci = .indInfo cv caps₀ →
+        ConLeche.EtaPins μ env cv.name cv.levelParams caps) →
+      cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps) env = .ok e →
+      EnvWF e
+  | [], env, e, henv, _, h => by
+    simp only [List.foldlM, pure, Except.pure, Except.ok.injEq] at h
+    subst h; exact henv
+  | ci :: cis, env, e, henv, hpins, h => by
+    rw [List.foldlM_cons] at h
+    simp only [bind, Except.bind] at h
+    split at h
+    · exact nomatch h
+    · rename_i e₁ h₁
+      obtain ⟨henv₁, c, rfl, hfresh⟩ := checkIndMember_wf henv (hpins ci List.mem_cons_self) h₁
+      exact foldIndMember_envWF henv₁
+        (fun x hx cv c0 hceq => (hpins x (List.mem_cons_of_mem _ hx) cv c0 hceq).step hfresh) h
+
+theorem foldIndMember_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name}
+    {caps : IndCaps} {cis : List ConstantInfo} {env e : Env} (hle : F ≤ G)
+    (h : cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps) env = .ok e) :
+    cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ G) bn caps) env = .ok e := by
+  have e1 : ∀ F, cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps) env
+      = (cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOpsM μ) bn caps) env).val F := by
+    intro F
+    rw [ConLeche.foldlM_atF]
+    simp only [ConLeche.checkIndMember_datF]
+  rw [e1] at h ⊢
+  exact (cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOpsM μ) bn caps) env).property hle h
+
+theorem checkIndRecs_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name}
+    {env₂ e : Env} {recs : List ConstantInfo} (hle : F ≤ G)
+    (h : ConLeche.checkIndRecs μ (ConLeche.fueledOps μ F) bn env₂ recs = .ok e) :
+    ConLeche.checkIndRecs μ (ConLeche.fueledOps μ G) bn env₂ recs = .ok e := by
+  rw [← ConLeche.checkIndRecs_datF] at h ⊢
+  exact (ConLeche.checkIndRecs μ (ConLeche.fueledOpsM μ) bn env₂ recs).property hle h
+
+theorem foldProjFn_up {μ : CheckMode} {F G : Nat} {T C : ConLeche.Name}
+    {lps : List ConLeche.Name} {nP nF : Nat} {xs : List Nat} {env e : Env} (hle : F ≤ G)
+    (h : xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps nP nF) env
+      = .ok e) :
+    xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOps μ G) T C lps nP nF) env
+      = .ok e := by
+  have e1 : ∀ F, xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps nP nF)
+      env = (xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOpsM μ) T C lps nP nF)
+        env).val F := by
+    intro F
+    rw [ConLeche.foldlM_atF]
+    simp only [ConLeche.installProjFnStep_datF]
+  rw [e1] at h ⊢
+  exact (xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOpsM μ) T C lps nP nF)
+    env).property hle h
+
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean:493 checkIndMember_datF. -/
+theorem checkIndMember_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name}
+    {caps : IndCaps} {env e : Env} {ci : ConstantInfo} (hle : F ≤ G)
+    (h : ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps env ci = .ok e) :
+    ConLeche.checkIndMember (ConLeche.fueledOps μ G) bn caps env ci = .ok e := by
+  rw [← ConLeche.checkIndMember_datF] at h ⊢
+  exact (ConLeche.checkIndMember (ConLeche.fueledOpsM μ) bn caps env ci).property hle h
+
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
+(its shape) — **an accepted member step pushes one constant, which is not a
+projection table.**  Structural. -/
+theorem checkIndMember_push {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps}
+    {fe : IFEnv} {ci : IConstantInfo} {s s' : AState} {r : IFEnv}
+    (h : Arena.checkIndMember μ bn caps fe ci s = .ok (r, s')) :
+    ∃ ci', r = fe.push ci' ∧ ∀ t, ci' ≠ .projInfo t := by
+  simp only [Arena.checkIndMember] at h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨_, _, _, h⟩ := bindOk h
+  obtain ⟨cvA, _, _, h⟩ := bindOk h
+  cases ci with
+  | indInfo v c =>
+    obtain ⟨rfl, rfl⟩ := pureOk h
+    exact ⟨_, rfl, fun t h => IConstantInfo.noConfusion h⟩
+  | ctorInfo v a b =>
+    obtain ⟨rfl, rfl⟩ := pureOk h
+    exact ⟨_, rfl, fun t h => IConstantInfo.noConfusion h⟩
+  | axiomInfo v => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | defnInfo v e hint => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | thmInfo v e => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | recInfo v a b c => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | projInfo t => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
 One member checked and installed at its real inductive kind.
 
@@ -1296,7 +1422,58 @@ theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       (fun s r => CheckOK μ env fe' s ∧
         InstRel fe' (fun e => ∃ F, ConLeche.checkIndMember
           (ConLeche.fueledOps μ F) blockNamesP capsP env ciP = .ok e) s.store r) := by
-  sorry
+  intro s₀ s' r hpre hrun
+  obtain ⟨hread, hbn, hcaps, hci, hfe⟩ := hpre
+  simp only [Arena.checkIndMember] at hrun
+  -- the flush, at this member's index
+  obtain ⟨u, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨hck₁, hi₁, hst₁⟩ := hread.flush (μ := μ) k1
+  have hx₁ : Ext s₀.store s₁.store := hi₁.ext
+  obtain ⟨cv, s₂, k2, z2⟩ := bindOk z1
+  -- only a former or a constructor gets past the twin's last match
+  have hkind : (∃ v c, ci = .indInfo v c) ∨ (∃ v a b, ci = .ctorInfo v a b) := by
+    obtain ⟨cvA, _, _, h⟩ := bindOk z2
+    cases ci with
+    | indInfo v c => exact Or.inl ⟨v, c, rfl⟩
+    | ctorInfo v a b => exact Or.inr ⟨v, a, b, rfl⟩
+    | axiomInfo v => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    | defnInfo v e hint => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    | thmInfo v e => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    | recInfo v a b c => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    | projInfo t => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  rcases hkind with ⟨v, c, rfl⟩ | ⟨v, a, b, rfl⟩
+  · obtain ⟨vP, cP, rfl, hv, hc⟩ := denoteCI_ind_inv hci
+    obtain ⟨rfl, rfl⟩ := pureOk k2
+    obtain ⟨cvA, s₃, k3, z3⟩ := bindOk z2
+    obtain ⟨c3, F, cvAP, hF, hcvA⟩ := checkMemberVal_spec fe' env hμ hk henv blockNames
+      blockNamesP cv vP s₂ s₃ cvA hck₁
+      ⟨denoteNListE_ext hx₁ _ _ hbn, denoteCV_ext hv hx₁, denoteFEnv_ext hx₁ hfe,
+        denoteFEnv_ext hx₁ hfe⟩ k3
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    have hx₃ : Ext s₀.store s'.store := hx₁.trans c3.ext
+    have hdci : Frontend.denoteCI s'.store (.indInfo cvA caps) = some (.indInfo cvAP capsP) := by
+      simp only [Frontend.denoteCI, hcvA, denoteCaps_ext hcaps hx₃]
+    refine ⟨hi₁.trans c3.toInst, c3.ok, hcoh.push _, Pushed.push _ _, Nat.le_succ _,
+      ⟨_, denoteFEnv_push (denoteFEnv_ext hx₃ hfe) hdci, F, ?_⟩,
+      ProjOut.push hcoh _ (fun t h => IConstantInfo.noConfusion h)⟩
+    simp only [ConLeche.checkIndMember, bind, Except.bind, hF, pure, Except.pure,
+      ConstantInfo.toConstantVal]
+  · obtain ⟨vP, rfl, hv⟩ := denoteCI_ctor_inv hci
+    obtain ⟨rfl, rfl⟩ := pureOk k2
+    obtain ⟨cvA, s₃, k3, z3⟩ := bindOk z2
+    obtain ⟨c3, F, cvAP, hF, hcvA⟩ := checkMemberVal_spec fe' env hμ hk henv blockNames
+      blockNamesP cv vP s₂ s₃ cvA hck₁
+      ⟨denoteNListE_ext hx₁ _ _ hbn, denoteCV_ext hv hx₁, denoteFEnv_ext hx₁ hfe,
+        denoteFEnv_ext hx₁ hfe⟩ k3
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    have hx₃ : Ext s₀.store s'.store := hx₁.trans c3.ext
+    have hdci : Frontend.denoteCI s'.store (.ctorInfo cvA a b) = some (.ctorInfo cvAP a b) := by
+      simp only [Frontend.denoteCI, hcvA, Option.map_some]
+    refine ⟨hi₁.trans c3.toInst, c3.ok, hcoh.push _, Pushed.push _ _, Nat.le_succ _,
+      ⟨_, denoteFEnv_push (denoteFEnv_ext hx₃ hfe) hdci, F, ?_⟩,
+      ProjOut.push hcoh _ (fun t h => IConstantInfo.noConfusion h)⟩
+    simp only [ConLeche.checkIndMember, bind, Except.bind, hF, pure, Except.pure,
+      ConstantInfo.toConstantVal]
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
 `checkIndMembers` is task #97d-2's explicit recursion for con-leche's
@@ -1320,7 +1497,53 @@ theorem checkIndMembers_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun s r => InstRel fe (fun e => (∃ F,
         cisP.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F)
           blockNamesP capsP) env = .ok e) ∧ ReadOK e r s) s.store r) := by
-  sorry
+  induction cis generalizing fe env cisP with
+  | nil =>
+    intro s₀ s' r hpre hrun
+    obtain ⟨hread, hbn, hcaps, hcis, hfe⟩ := hpre
+    simp only [Frontend.denoteCIList, Option.some.injEq] at hcis
+    subst hcis
+    simp only [Arena.checkIndMembers] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨InstStep.refl hread.state, hcoh, Pushed.refl _, Nat.le_refl _,
+      ⟨env, hfe, ⟨0, rfl⟩, hread⟩, ProjOut.refl _ _⟩
+  | cons ci rest ih =>
+    intro s₀ s' r hpre hrun
+    obtain ⟨hread, hbn, hcaps, hcis, hfe⟩ := hpre
+    simp only [Frontend.denoteCIList] at hcis
+    cases hc : Frontend.denoteCI s₀.store ci with
+    | none => rw [hc] at hcis; simp at hcis
+    | some ciP =>
+    cases hr : Frontend.denoteCIList s₀.store rest with
+    | none => rw [hc, hr] at hcis; simp at hcis
+    | some restP =>
+    rw [hc, hr] at hcis
+    obtain rfl := (Option.some.inj hcis).symm
+    simp only [Arena.checkIndMembers] at hrun
+    obtain ⟨fe₁, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨i1, hck₁, hinst₁⟩ := checkIndMember_spec fe hμ hk henv hcoh blockNames
+      blockNamesP caps capsP ci ciP s₀ s₁ fe₁ ⟨hread, hbn, hcaps, hc, hfe⟩ k1
+    obtain ⟨env₁, hden₁, F₁, hF₁⟩ := hinst₁.denote
+    obtain ⟨henv₁, c₁, rfl, hfresh⟩ := checkIndMember_wf henv
+      (hpins ciP List.mem_cons_self) hF₁
+    obtain ⟨ci', hpush, hnp⟩ := checkIndMember_push k1
+    have hx₁ := i1.ext
+    have hread₁ : ReadOK ⟨c₁ :: env.consts⟩ fe₁ s₁ := by
+      rw [hpush] at hden₁ ⊢
+      exact hck₁.toR.push hcoh hnp (denoteFEnv_ext hx₁ hfe) hden₁
+    obtain ⟨i2, hinst₂⟩ := ih (fe := fe₁) (env := ⟨c₁ :: env.consts⟩) (cisP := restP) henv₁
+      hinst₁.coh
+      (fun x hx cv c0 hceq => (hpins x (List.mem_cons_of_mem _ hx) cv c0 hceq).step hfresh)
+      s₁ s' r ⟨hread₁, denoteNListE_ext hx₁ _ _ hbn, denoteCaps_ext hcaps hx₁,
+        denoteCIList_ext hx₁ _ _ hr, hden₁⟩ z1
+    refine ⟨i1.trans i2, (InstRel.trans i2.ext hinst₁ hinst₂).imp ?_⟩
+    rintro e ⟨⟨F₂, hF₂⟩, hre⟩
+    refine ⟨⟨max F₁ F₂, ?_⟩, hre⟩
+    have g₁ := checkIndMember_up (Nat.le_max_left F₁ F₂) hF₁
+    have g₂ := foldIndMember_up (Nat.le_max_right F₁ F₂) hF₂
+    rw [List.foldlM_cons]
+    simp only [bind, Except.bind, g₁]
+    exact g₂
 
 /-! ## The recursors -/
 
@@ -3033,22 +3256,6 @@ theorem checkIndMembers_kind {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps}
     · exact checkIndMember_kind k1
     · exact checkIndMembers_kind z1 x hx
 
-/-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:232 foldIndMemberS_run
-(its `EnvWF` half) — **the member fold leaves a well-formed environment**,
-V-free: each member is `checkMemberVal`'s checked constant, closed and
-resolving (`checkConstantVal_typeWF`), and a former's capability arities are
-`indCapsWF_of_pins` at the block's pins.  con-leche proves exactly this
-inside its cached bridge; the pure extraction is part of the ask
-`Decl.lean`'s `indDecl_envWF` records. -/
-theorem foldIndMember_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
-    {caps : IndCaps} :
-    ∀ {cis : List ConstantInfo} {env e : Env}, EnvWF env →
-      (∀ ci ∈ cis, ∀ cv caps₀, ci = .indInfo cv caps₀ →
-        ConLeche.EtaPins μ env cv.name cv.levelParams caps) →
-      cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps) env = .ok e →
-      EnvWF e := by
-  sorry
-
 /-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:459 checkIndRecsS_run (its
 `EnvWF` half) — **the recursor group leaves a well-formed environment**, V-free.
 Part of the same ask. -/
@@ -3058,41 +3265,6 @@ theorem checkIndRecs_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
     (h : ConLeche.checkIndRecs μ (ConLeche.fueledOps μ F) bn env₂ recs = .ok e) :
     EnvWF e := by
   sorry
-
-theorem foldIndMember_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name}
-    {caps : IndCaps} {cis : List ConstantInfo} {env e : Env} (hle : F ≤ G)
-    (h : cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps) env = .ok e) :
-    cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ G) bn caps) env = .ok e := by
-  have e1 : ∀ F, cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOps μ F) bn caps) env
-      = (cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOpsM μ) bn caps) env).val F := by
-    intro F
-    rw [ConLeche.foldlM_atF]
-    simp only [ConLeche.checkIndMember_datF]
-  rw [e1] at h ⊢
-  exact (cis.foldlM (ConLeche.checkIndMember (ConLeche.fueledOpsM μ) bn caps) env).property hle h
-
-theorem checkIndRecs_up {μ : CheckMode} {F G : Nat} {bn : List ConLeche.Name}
-    {env₂ e : Env} {recs : List ConstantInfo} (hle : F ≤ G)
-    (h : ConLeche.checkIndRecs μ (ConLeche.fueledOps μ F) bn env₂ recs = .ok e) :
-    ConLeche.checkIndRecs μ (ConLeche.fueledOps μ G) bn env₂ recs = .ok e := by
-  rw [← ConLeche.checkIndRecs_datF] at h ⊢
-  exact (ConLeche.checkIndRecs μ (ConLeche.fueledOpsM μ) bn env₂ recs).property hle h
-
-theorem foldProjFn_up {μ : CheckMode} {F G : Nat} {T C : ConLeche.Name}
-    {lps : List ConLeche.Name} {nP nF : Nat} {xs : List Nat} {env e : Env} (hle : F ≤ G)
-    (h : xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps nP nF) env
-      = .ok e) :
-    xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOps μ G) T C lps nP nF) env
-      = .ok e := by
-  have e1 : ∀ F, xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOps μ F) T C lps nP nF)
-      env = (xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOpsM μ) T C lps nP nF)
-        env).val F := by
-    intro F
-    rw [ConLeche.foldlM_atF]
-    simp only [ConLeche.installProjFnStep_datF]
-  rw [e1] at h ⊢
-  exact (xs.foldlM (ConLeche.installProjFnStep μ (ConLeche.fueledOpsM μ) T C lps nP nF)
-    env).property hle h
 
 /-- con-leche: none — a one-element block list denotes one constant. -/
 theorem denoteCIList_single {st : EStore} {ci : IConstantInfo} {L : List ConstantInfo}
