@@ -19,7 +19,7 @@ state by shared reference and return a value or a `LineErr`; `note_decl`,
 `&mut StateD` is Aeneas's return value, so the second family's outcome is
 `(Result () LineErr) × AState × StateD`, which is `SimD`.
 
-## `sorry` count in this file: 57
+## `sorry` count in this file: 54
 -/
 import ConRon.Refine2.Frontend.ProjRec
 
@@ -81,7 +81,18 @@ theorem line_err_to_check_refines {e line_no o}
     absU o.2 = absU line_no ∧
       (∀ ce, e = .Err ce → absAErrKind o.1 = absAErrKind ce) ∧
       (∀ v lv, e = .Verdict v → lVerdictKind lv = absVerdictKind v →
-        absAErrKind o.1 = lAErrKind lv.toError) := by sorry
+        absAErrKind o.1 = lAErrKind lv.toError) := by
+  rw [frontend.export_c.line_err_to_check.eq_def] at h
+  cases e with
+  | Err ce =>
+    cases Result.ok_injective h
+    exact ⟨rfl, fun ce' he => (by cases he; rfl), fun v lv he => (by cases he)⟩
+  | Verdict v =>
+    obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    refine ⟨rfl, fun ce' he => (by cases he), fun v' lv he hk => ?_⟩
+    cases he
+    exact record_verdict_to_error_refines hk hce
 
 /-! ## The message builders — fifteen functions with NO refinement claim
 
@@ -193,7 +204,12 @@ theorem scan_err_to_check_refines {e ce}
     (h : frontend.export_c.scan_err_to_check e = ok ce) :
     (absErrTag e.what = none → absAErrKind ce = none) ∧
       (∀ t, absErrTag e.what = some t → absAErrKind ce = some .internal) := by
-  sorry
+  rw [frontend.export_c.scan_err_to_check] at h
+  rcases e with ⟨off, what⟩
+  cases what <;> simp only at h <;>
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h <;>
+    simp only [kernel.core_types.internal, kernel.core_types.native, Result.ok.injEq] at h <;>
+    subst h <;> simp [absErrTag, absAErrKind]
 
 /-! ## The store fuel
 
@@ -212,14 +228,20 @@ theorem store_fuel_refines {pers rst lst v}
 of the name table is the format's implicit `Name.anonymous` and index 0 of the
 level table its `Level.zero`, and over handles that means the handles those
 two nodes intern at — in the PERSISTENT tier, which is the tier the whole
-parse appends to. -/
+parse appends to.
+
+Both arms (task #97-P5-Front restated it from a success-only statement, which
+left `parse_bytes`/`parse_chunks` nothing to say about their `(e, 0)` arm).
+The two interns are `Specs.lean`'s `estore_intern_name_abs` /
+`estore_intern_level_abs` (no frozen hypothesis since task #97-P5-Unfreeze);
+what is left is the nineteen-field `StateDRel` at the fresh record —
+`IdTableRel` at a singleton and at `id_table_empty`, `RelOn` at six
+`HashMap2::new`s (`Refine/HashMap2.lean`'s `new_refines`), and `StateDInv`. -/
 theorem state_d_init_refines {pers rst lst in_model census o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.state_d_init pers rst.store in_model census = ok o) :
-    ∀ rsd, o.1 = .Ok rsd → ∃ lsd lst',
-      (StateD.init in_model census).run lst = .ok (lsd, lst') ∧ StateDRel rsd lsd ∧
-      StateDInv rsd ∧ AStateRel pers (withStore rst o.2) lst' ∧
-      AStateInv pers (withStore rst o.2) ∧ Ext lst.store lst'.store := by sorry
+    SimRel (fun rsd lsd => StateDRel rsd lsd ∧ StateDInv rsd) pers lst
+      (o.1, withStore rst o.2) (StateD.init in_model census) := by sorry
 
 /-- **`state_model_ctx`** — the three tables the modeller reads, borrowed off
 the state (`types::ModelCtx`'s deviation).  The twin builds the three closures
@@ -626,7 +648,11 @@ theorem register_proj_owners_refines {pers rst lst rsd lsd tys cts rcs block o}
 (`ExportC.lean:717-719`). -/
 theorem parse_result_of_state_refines {rsd lsd p} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.parse_result_of_state rsd = ok p) :
-    ParseResultDRel p (ParseResultD.ofState lsd) := by sorry
+    ParseResultDRel p (ParseResultD.ofState lsd) := by
+  rw [frontend.export_c.parse_result_of_state] at h
+  cases Result.ok_injective h
+  exact ⟨hd.decls, hd.projRewrites, hd.inModelled, hd.genRecords, hd.genOwner,
+    hd.inModelGen, hd.inModelDeclined⟩
 
 /-- **`at_line` refines `atLine`** (`ExportC.lean:855-859`): the line number
 folded into the message.  The KIND — hence the exit code — is untouched, and

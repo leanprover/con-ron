@@ -429,7 +429,7 @@ theorem subst_const0_list_refines {pers st lst} {n : arena.handle.NIdx}
     {i : Std.Usize} {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.subst_const0_list pers st n r hs i out = ok o) :
-    Sim (fun v => absEIdxL out ++ absEIdxL v) (fun _ => True) pers lst o
+    Sim absEIdxL (fun _ => True) pers lst o
       (do pure (absEIdxL out ++
         (← substConst0List (absNIdx n) (absEIdx r) (absEIdxLFrom hs i)))) := by
   sorry
