@@ -30,7 +30,7 @@
 use crate::arena::canon::i_constant_info_beq;
 use crate::arena::checker_base::{
     all_level_params_defined, attempt_restore, attempt_snapshot, consts_resolve_f_fast,
-    or_else_attempt, AttemptSnapshot, OrElseStep,
+    or_else_attempt, OrElseStep,
 };
 use crate::arena::checker_split::{
     install_value, M_THM_NOT_PROP, M_TYPE_MISMATCH_DEFN, M_TYPE_MISMATCH_OPAQUE,
@@ -2476,14 +2476,14 @@ pub fn check_div_mod_pin_loop(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// con-leche: ConLeche/Kernel/Checker.lean:338-360 checkDivModPinLoop
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:159-191 orElseAttempt` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:134-163 orElseAttempt` —
 /// **`orElseAttempt (checkDivModPinAt …)`, the one recovering seam, as one
 /// function** (task #97-T2-LOCKSTEP D4): snapshot, the variant's attempt, the
 /// four-way step, and on `Recovered` the restore.  The twin gets the
 /// pre-attempt state free from its state function; here `attempt_snapshot`
-/// copies the memos, the caches and the four scratch tiers, and
-/// `attempt_restore` moves them back, so a recovered attempt resumes at the
-/// state the twin resumes at (`arena::checker_base`'s module note 6).
+/// copies the whole `AState` (task #97-T2-LOCKSTEP D4b) and `attempt_restore`
+/// moves the copy back, so a recovered attempt resumes at the state the twin
+/// resumes at (`arena::checker_base`'s module note 6).
 /// Deviation: `Failed` (a `Native` error only) is returned as that error
 /// rather than as a step, which the twin's caller then `fail`s with — the
 /// same outcome one call earlier.
@@ -2498,7 +2498,7 @@ pub fn check_div_mod_pin_attempt(
     value2: &EIdx,
     ps: &INatOpPinSet,
 ) -> Result<OrElseStep, CheckError> {
-    let snapshot: AttemptSnapshot = attempt_snapshot(st);
+    let snapshot: AState = attempt_snapshot(st);
     let attempt: Result<bool, CheckError> =
         check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, ps);
     match or_else_attempt(attempt) {

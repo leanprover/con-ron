@@ -60132,3 +60132,82 @@ now are the tier's `native_parts_refines`, `check_native_refines`,
 `check_modeled_refines` and the checker tier's `ind_params_ok_refines`,
 `basis_pin_hit_refines` (reached for the first time).  The item count going
 UP is the point: the tier is on the capstone's path.
+
+### Task #97-T2-LOCKSTEP D4b — a failed div/mod-pin attempt restores the WHOLE state from a full copy (2026-09-23, Opus under Fable)
+
+Maintainer's decision after the Checker lane priced D4's `ScratchFrame` (the
+frame over the attempt's 1 187-function closure, "several rounds"): the Rust
+takes a full copy of the checker state before a `Nat.div`/`Nat.mod` pin
+attempt and moves it back on `Recovered`, exactly as the twin's
+`orElseAttempt` keeps the old state.  Performance explicitly not a concern.
+Worktree `_tmp/wt-d4b` off `arena` `a2f8fd64`.
+
+#### 1. The Rust
+
+* `attempt_snapshot(st) -> AState` is a full copy: `EStore::dup` (new, with
+  `LsStore`/`LStore`/`NStore::dup`: both tiers by the existing `Tbl::dup`
+  and `HashMap2::dup`, both flags), `memos_dup`, `caches_dup`, and the new
+  `pins_dup` (two `vec_dup`s, three handle copies).  `attempt_restore` is
+  `*st = snap`.  `AttemptSnapshot` is gone.  Every copy is a halved
+  recursion (`log2 n` deep), so task #97-P4d's stack overflow (a recursion
+  one frame per node) does not recur.  `checker_base`'s module note 6
+  rewritten (history kept).
+* Twin: `AttemptSnapshot` gone; `attemptSnapshot st := st`,
+  `attemptRestore _ snap := snap` (`attemptRestore_self` still `rfl`,
+  `Bridge/Checker/Base.lean`'s `orElseAttempt_run` unchanged, docs updated).
+* Re-extracted (`Types.lean`, `Funs.lean`); `twin-lines.py update` relocated
+  49 citations.
+
+#### 2. Theorem 2
+
+`Refine2/Checker/Base.lean`: new `vec_dup_range_spec`/`vec_dup_eq`,
+`pins_dup_eq`, `{n,l,ls,e}store_dup_eq` and **`attempt_snapshot_eq`** (the
+copy is the identity in the model); `attempt_snapshot_refines₀` and
+`attempt_restore_refines₀` restated on `AStateRel₀` directly (no
+hypothesis about the attempt).  `vec_dup_refines` (was `sorry`) closed as a
+corollary.  **Deleted**: `SnapRel`, `ScratchFrame`, `attempt_restore_frame`,
+`attempt_recover_refines₀`, and the six `*_dup_refines` wrappers that only fed
+`SnapRel` (their `*_dup_eq` cores stay).
+
+`Refine2/Checker/DeclCheck.lean`: `check_div_mod_pin_attempt_refines₀` loses
+`hframe`; **`check_div_mod_pin_try_refines` proved**, restated with its two
+callees as hypotheses so the loop/step mutual recursion can be closed by an
+induction on the cursor: `hat` (the attempt, `Sim₀`) and `hloop` (the loop
+at cursor `i+1`, from any related state, any `tried`).  All axiom-clean
+(standard three, `#guard_msgs`).  `check_div_mod_pin_loop_refines` itself
+stays `sorry` (the checker lane's; it now has everything it needs).
+
+Observation, no ruling needed: the Rust passes `tried` on unchanged after
+`Continued` and replaces it by the one reason after `Recovered`, where the
+twin appends.  The list reaches only the `NotImplemented` message text, which
+`AErrSim` does not compare, so it is not a lockstep divergence.
+
+#### 3. `Init`
+
+`perf stat -e instructions:u,cycles:u` of `--verified` on
+`_tmp/corpus/init.ndjson`, before (`a2f8fd64`) / after interleaved,
+`timeout 900`, `ulimit -v 8388608` at `--jobs=1`, `27000000` at the default;
+peak RSS by GNU `time`.  Every run accepts 57 977.
+
+| binary | `--jobs=1` instructions | peak RSS (`--jobs=1`) | default jobs instructions | peak RSS (default) |
+|---|---|---|---|---|
+| before | 211 961 216 620 / 211 961 111 729 | 645 / 611 MB | 214.59 G | 942 MB |
+| after | 225 573 227 436 / 225 573 215 940 (**+13.6 G, +6.4 %**) | 835 / 835 MB (**+~200 MB**) | 228.17 G (+13.6 G) | 983 MB |
+
+The eight attempts each copy the whole persistent tier (the `Init`
+store is most of it by then), hence ~1.7 G instructions per copy and one
+extra store's worth of peak memory at `--jobs=1`.  Wall (secondary, two
+runs): 23.4/22.9 s → 29.9/24.9 s.
+
+#### 4. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `crates/con-ron-core/src/arena/{store,checker_base,decl_check}.rs` | the full copy |
+| `Arena/CheckerBase.lean`, `Bridge/Checker/Base.lean`, `Refine2/Shape.lean` | twin mirror; docs |
+
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`5901271c`):
+**all 16 OK** (`extract-check` 104 s).  `lake build ConRon ConRonBridge
+ConRonRefine2 ConRonCapstone` green (2 825 jobs) before the merge.  The
+shared Lake cache was seeded from this state (`ConRonCapstone ConRonRefine2
+ConRonBridge` + default targets).
