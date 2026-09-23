@@ -60423,3 +60423,20 @@ No Rust change.
   core/install grade: the reads take `CacheOK.readL` and give a `CoreStep`.
 Six theorems touched in `Bridge/Inductives/{Rel,NativeParts,SumInstall,
 NativeInstall}.lean`; no `sorry` added.
+
+#### Slice 2 — three Core readers in `Inductives/Prims.lean` (submitted early, for the Modeled lane too)
+
+* **`proj_model_name_refines` — closed**: one `lockstep` call, plus the
+  second name part by hand (`proj_name_part`: the port concatenates the
+  literal `PROJ_` and `nat_to_dec i`, the twin writes `"proj_" ++ toString i`;
+  `absCodes_append` splits it).  New `LSP` specs `nat_to_dec_spec`,
+  `code_points_from_zero_spec`; the constant-name-part specs
+  (`lift_to_slice_spec`, `code_points_spec`, `ind_str_side`) moved from
+  `Inductives/Shape.lean` to `Prims.lean`, which the Modeled lane's files also
+  see.  `proj_model_name_ls` filed.
+* **`pi_result_is_prop_refines`, `pi_result_z_refines` — stated, `sorry`,
+  with `@[lockstep]` companions**: both open with `expr_ops::pi_result`, whose
+  lockstep lemma is on the ExprOps lane's branch (arena's
+  `ExprOps.pi_result_refines` is still at `AStateRel`+`StoreWF`+`EResolves`).
+  Every other callee is filed (`tag`, `view_sort`, `zero_level`, `lvl_eq`,
+  `read_level_m`), so each is one `lockstep` call once that lemma lands.
