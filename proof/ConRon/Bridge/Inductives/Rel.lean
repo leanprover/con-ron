@@ -369,6 +369,31 @@ def denoteCtors4 (st : EStore) :
     | some nm, some t, some rest => some ((nm, k, t, idx) :: rest)
     | _, _, _ => none
 
+/-- con-leche: none — `nativeCtors4`'s four-tuple list survives an append. -/
+theorem denoteCtors4_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ (cs : List (NIdx × Nat × EIdx × List Nat))
+      (csP : List (ConLeche.Name × Nat × Expr × List Nat)),
+      denoteCtors4 st cs = some csP → denoteCtors4 st' cs = some csP := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; exact h
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨n, k, ty, idx⟩ := c
+    simp only [denoteCtors4] at h ⊢
+    cases h1 : denoteN st.ns n with
+    | none => rw [h1] at h; simp at h
+    | some nm =>
+      cases h2 : denoteE st ty with
+      | none => rw [h1, h2] at h; simp at h
+      | some t =>
+        cases h3 : denoteCtors4 st cs with
+        | none => rw [h1, h2, h3] at h; simp at h
+        | some rest =>
+          rw [h1, h2, h3] at h
+          rw [denoteN_ext h1 hx, denote_ext h2 hx, ih rest h3]
+          exact h
+
 abbrev RCs (cs : List (ConstantVal × Nat)) :
     EStore → List (IConstantVal × Nat) → Prop :=
   fun st r => denoteCtors st r = some cs
@@ -2162,6 +2187,45 @@ theorem mapM_pstep {α β γ : Type} (f : α → AM β) (g : α → γ)
       (fun x hx => hPx p1.ext (hP x (by simp [hx]))) k2
     obtain ⟨rfl, rfl⟩ := pureOk hz2
     exact ⟨p1.trans p2, hRx p2.ext hb, hcs⟩
+
+/-- con-leche: none — `List.mapM` of a pure-grade expression map over a
+denoting handle list: the answer denotes the pure map. -/
+theorem mapM_E_pstep {f : EIdx → AM EIdx} {F : Expr → Expr}
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (r : EIdx), StateOK s₀ →
+      denoteE s₀.store e = some eP → f e s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ denoteE s'.store r = some (F eP)) :
+    ∀ (idx : List EIdx) (idxP : List Expr) (s₀ s' : AState) (r : List EIdx),
+      StateOK s₀ → Frontend.denoteEList s₀.store idx = some idxP →
+      idx.mapM f s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ Frontend.denoteEList s'.store r = some (idxP.map F) := by
+  intro idx
+  induction idx with
+  | nil =>
+    intro idxP s₀ s' r hok h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro idxP s₀ s' r hok h hrun
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+      cases hes : Frontend.denoteEList s₀.store es with
+      | none => rw [he, hes] at h; simp at h
+      | some esP =>
+        rw [he, hes] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.mapM_cons] at hrun
+        obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hx⟩ := hf e eP s₀ s1 x hok he k1
+        obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+        obtain ⟨p2, hxs⟩ := ih esP s1 s2 xs p1.ok (denoteEList_ext p1.ext _ _ hes) k2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        refine ⟨p1.trans p2, ?_⟩
+        simp only [Frontend.denoteEList, List.map_cons, denote_ext hx p2.ext, hxs]
 
 /-- con-leche: none — `ListRel` at a handle denotation is `denoteEList`. -/
 theorem ListRel.toEList {st : EStore} :

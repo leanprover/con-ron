@@ -641,7 +641,58 @@ theorem structIhPis_spec (nF o nP : Nat) (pw : PropWhen) (cty : EIdx)
       (RE (ConLeche.structIhPis nF o pw
         (fun i => ConLeche.structFieldTeleOf ctyP nP nF i)
         (fun i => ConLeche.structFieldIdxOf ctyP nP nF i) is l bodyP)) := by
-  sorry
+  induction is generalizing l with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    simp only [Arena.structIhPis] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, hpre.2⟩
+  | cons i is ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hcty, hbody⟩ := hpre
+    have hi : i < nF := his i (by simp)
+    simp only [Arena.structIhPis] at hrun
+    obtain ⟨te, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hte⟩ := structFieldTeleOf_spec cty ctyP nP nF i hi s₀ s1 te hok hcty k1
+    have hlen : te.length = (ConLeche.structFieldTeleOf ctyP nP nF i).length :=
+      denoteBinders_length hte
+    obtain ⟨ix, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hix⟩ := structFieldIdxOf_spec cty ctyP nP nF i hi s1 s2 ix p1.ok
+      (denote_ext hcty p1.ext) k2
+    obtain ⟨mo, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨p3, hmo⟩ := internBVarE_run p2.ok k3
+    obtain ⟨ix', s4, k4, z4⟩ := bindOk z3
+    obtain ⟨p4, hix'⟩ := structIdxAt_mapM nF o i l te.length ix _ s3 s4 ix' p3.ok
+      (denoteEList_ext p3.ext _ _ hix) k4
+    obtain ⟨fv, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨p5, hfv⟩ := internBVarE_run p4.ok k5
+    obtain ⟨tv, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨p6, htv⟩ := structTeleVars_spec te.length s5 s6 tv p5.ok trivial k6
+    obtain ⟨fa, s7, k7, z7⟩ := bindOk z6
+    obtain ⟨p7, hfa⟩ := mkAppN_run tv _ p6.ok (denote_ext hfv p6.ext) htv k7
+    obtain ⟨cc, s8, k8, z8⟩ := bindOk z7
+    have hargs := denoteEList_append
+      (denoteEList_ext (p5.ext.trans (p6.ext.trans p7.ext)) _ _ hix')
+      (show Frontend.denoteEList s7.store [fa] = some [_] by
+        simp only [Frontend.denoteEList, hfa]; rfl)
+    obtain ⟨p8, hcc⟩ := mkAppN_run _ _ p7.ok
+      (denote_ext hmo (p4.ext.trans (p5.ext.trans (p6.ext.trans p7.ext)))) hargs k8
+    obtain ⟨tl, s9, k9, z9⟩ := bindOk z8
+    obtain ⟨p9, htl⟩ := structTeleAt_spec nF o i l pw te _ s8 s9 tl p8.ok
+      (denoteBinders_ext (p2.ext.trans (p3.ext.trans (p4.ext.trans (p5.ext.trans
+        (p6.ext.trans (p7.ext.trans p8.ext)))))) _ _ hte) k9
+    obtain ⟨dm, s10, k10, z10⟩ := bindOk z9
+    obtain ⟨p10, hdm⟩ := mkPisOf_spec tl _ cc _ s9 s10 dm p9.ok
+      ⟨htl, denote_ext hcc p9.ext⟩ k10
+    have q10 : PStep s₀ s10 := p1.trans (p2.trans (p3.trans (p4.trans (p5.trans
+      (p6.trans (p7.trans (p8.trans (p9.trans p10))))))))
+    obtain ⟨rs, s11, k11, z11⟩ := bindOk z10
+    obtain ⟨p11, hrs⟩ := ih (l + 1) (fun j hj => his j (by simp [hj])) s10 s11 rs q10.ok
+      ⟨denote_ext hcty q10.ext, denote_ext hbody q10.ext⟩ k11
+    obtain ⟨p12, hr⟩ := internForallEE_run p11.ok (denote_ext hdm p11.ext) hrs z11
+    refine ⟨q10.trans (p11.trans p12), ?_⟩
+    show denoteE _ r = _
+    rw [hr, ConLeche.structIhPis, ← hlen]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
 One minor premise's type.
@@ -656,7 +707,58 @@ theorem structMinorTyR_spec (C : NIdx) (CP : ConLeche.Name) (lps : List NIdx)
         denoteE st cty = some ctyP)
       (Arena.structMinorTyR C lps nP nF o pw cty recIdx)
       (ROp RE (ConLeche.structMinorTyR CP lpsP nP nF o pw ctyP recIdx)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hC, hlps, hcty⟩ := hpre
+  simp only [Arena.structMinorTyR] at hrun
+  obtain ⟨q, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hq⟩ := stripPis_pstep hok hcty k1
+  rw [hs1] at z1
+  rcases q with _ | ⟨qbs, q2⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨PStep.refl hok, ?_⟩
+    show _ = none
+    simp only [ConLeche.structMinorTyR, stripPis_none hq, Option.bind_none]
+  obtain ⟨qxs, q2P, hq1, -, hq2⟩ := denoteBP_someB hq
+  obtain ⟨rq, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hrq⟩ := stripPis_pstep hok hq2 k2
+  rw [hs2] at z2
+  rcases rq with _ | ⟨rbs, r2⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨PStep.refl hok, ?_⟩
+    show _ = none
+    simp only [ConLeche.structMinorTyR, hq1, stripPis_none hrq, Option.bind_some,
+      Option.bind_none]
+  obtain ⟨rxs, r2P, hr1, -, hr2⟩ := denoteBP_someB hrq
+  obtain ⟨mo, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨p3, hmo⟩ := internBVarE_run hok k3
+  obtain ⟨ra, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨hs4, hra⟩ := getAppArgs_run p3.ok (denote_ext hr2 p3.ext) k4
+  rw [hs4] at z4
+  obtain ⟨ix, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hix⟩ := mapM_E_pstep (F := fun e => e.liftLooseBVars o nF)
+    (fun e eP t0 t1 x hok0 he hx => liftFast_pstep hok0 he hx)
+    _ _ s3 s5 ix p3.ok (denoteEList_drop hra nP) k5
+  obtain ⟨sp, s6, k6, z6⟩ := bindOk z5
+  obtain ⟨p6, hsp⟩ := structCtorSpineAt_spec C CP lps lpsP o nP nF s5 s6 sp p5.ok
+    ⟨denoteN_ext hC (p3.ext.trans p5.ext), denoteNListE_ext (p3.ext.trans p5.ext) _ _ hlps⟩ k6
+  obtain ⟨c0, s7, k7, z7⟩ := bindOk z6
+  have hargs := denoteEList_append (denoteEList_ext p6.ext _ _ hix)
+    (show Frontend.denoteEList s6.store [sp] = some [_] by
+      simp only [Frontend.denoteEList, hsp]; rfl)
+  obtain ⟨p7, hc0⟩ := mkAppN_run _ _ p6.ok (denote_ext hmo (p5.ext.trans p6.ext)) hargs k7
+  obtain ⟨c1, s8, k8, z8⟩ := bindOk z7
+  obtain ⟨p8, hc1⟩ := liftFast_pstep p7.ok hc0 k8
+  have q8 : PStep s₀ s8 := p3.trans (p5.trans (p6.trans (p7.trans p8)))
+  obtain ⟨inn, s9, k9, z9⟩ := bindOk z8
+  obtain ⟨p9, hinn⟩ := structIhPis_spec nF o nP pw cty ctyP recIdx 0 c1 _ hri s8 s9 inn
+    p8.ok ⟨denote_ext hcty q8.ext, hc1⟩ k9
+  obtain ⟨lf, s10, k10, z10⟩ := bindOk z9
+  obtain ⟨p10, hlf⟩ := liftFast_pstep p9.ok (denote_ext hq2 (q8.ext.trans p9.ext)) k10
+  obtain ⟨p11, hr⟩ := replacePisPw_spec pw nF lf inn _ _ s10 s' r p10.ok
+    ⟨hlf, denote_ext hinn p10.ext⟩ z10
+  refine ⟨q8.trans (p9.trans (p10.trans p11)), ?_⟩
+  simp only [ConLeche.structMinorTyR, hq1, hr1, Option.bind_some]
+  exact hr
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
 All the minor premises as Π binders in front of a body.
@@ -671,7 +773,63 @@ theorem structMinorsPisR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
         denoteCtors4 st cs = some csP ∧ denoteE st body = some bodyP)
       (Arena.structMinorsPisR lps nP pw cs o body)
       (ROp RE (ConLeche.structMinorsPisR lpsP nP pw csP o bodyP)) := by
-  sorry
+  induction cs generalizing csP o with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨_, hcs4, hbody⟩ := hpre
+    simp only [denoteCtors4, Option.some.injEq] at hcs4
+    subst hcs4
+    simp only [Arena.structMinorsPisR] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, _, rfl, hbody⟩
+  | cons c cs ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hlps, hcs4, hbody⟩ := hpre
+    obtain ⟨C, nF, cty, recIdx⟩ := c
+    simp only [denoteCtors4] at hcs4
+    cases hC : denoteN s₀.store.ns C with
+    | none => rw [hC] at hcs4; simp at hcs4
+    | some CP =>
+    cases hcty : denoteE s₀.store cty with
+    | none => rw [hC, hcty] at hcs4; simp at hcs4
+    | some ctyP =>
+    cases hrest : denoteCtors4 s₀.store cs with
+    | none => rw [hC, hcty, hrest] at hcs4; simp at hcs4
+    | some restP =>
+    rw [hC, hcty, hrest] at hcs4
+    obtain rfl := (Option.some.inj hcs4).symm
+    have hri : ∀ i ∈ recIdx, i < nF := hcs (CP, nF, ctyP, recIdx) (by simp)
+    simp only [Arena.structMinorsPisR] at hrun
+    obtain ⟨mq, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hmq⟩ := structMinorTyR_spec C CP lps lpsP nP nF o pw cty ctyP recIdx hri
+      s₀ s1 mq hok ⟨hC, hlps, hcty⟩ k1
+    cases mq with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      show _ = none
+      simp only [ConLeche.structMinorsPisR, show ConLeche.structMinorTyR CP lpsP nP nF o pw ctyP recIdx
+        = none from hmq, Option.bind_none]
+    | some mty =>
+    obtain ⟨mtyP, hmP, hmty⟩ := hmq
+    obtain ⟨rq, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hrq⟩ := ih restP (o + 1) (fun c hc => hcs c (by simp [hc])) s1 s2 rq p1.ok
+      ⟨denoteNListE_ext p1.ext _ _ hlps, denoteCtors4_ext p1.ext _ _ hrest,
+        denote_ext hbody p1.ext⟩ k2
+    cases rq with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨p1.trans p2, ?_⟩
+      show _ = none
+      simp only [ConLeche.structMinorsPisR, hmP, Option.bind_some,
+        show ConLeche.structMinorsPisR lpsP nP pw restP (o + 1) bodyP = none from hrq, Option.map_none]
+    | some rest =>
+    obtain ⟨restP', hrP, hrd⟩ := hrq
+    obtain ⟨x, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨p3, hx⟩ := internForallEE_run p2.ok (denote_ext hmty p2.ext) hrd k3
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨p1.trans (p2.trans p3), _, ?_, hx⟩
+    simp only [ConLeche.structMinorsPisR, hmP, hrP, Option.bind_some, Option.map_some]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:332-339 structMinorsLamsR
 The same as λ binders.
@@ -686,7 +844,63 @@ theorem structMinorsLamsR_spec (lps : List NIdx) (lpsP : List ConLeche.Name)
         denoteCtors4 st cs = some csP ∧ denoteE st body = some bodyP)
       (Arena.structMinorsLamsR lps nP pw cs o body)
       (ROp RE (ConLeche.structMinorsLamsR lpsP nP pw csP o bodyP)) := by
-  sorry
+  induction cs generalizing csP o with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨_, hcs4, hbody⟩ := hpre
+    simp only [denoteCtors4, Option.some.injEq] at hcs4
+    subst hcs4
+    simp only [Arena.structMinorsLamsR] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, _, rfl, hbody⟩
+  | cons c cs ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hlps, hcs4, hbody⟩ := hpre
+    obtain ⟨C, nF, cty, recIdx⟩ := c
+    simp only [denoteCtors4] at hcs4
+    cases hC : denoteN s₀.store.ns C with
+    | none => rw [hC] at hcs4; simp at hcs4
+    | some CP =>
+    cases hcty : denoteE s₀.store cty with
+    | none => rw [hC, hcty] at hcs4; simp at hcs4
+    | some ctyP =>
+    cases hrest : denoteCtors4 s₀.store cs with
+    | none => rw [hC, hcty, hrest] at hcs4; simp at hcs4
+    | some restP =>
+    rw [hC, hcty, hrest] at hcs4
+    obtain rfl := (Option.some.inj hcs4).symm
+    have hri : ∀ i ∈ recIdx, i < nF := hcs (CP, nF, ctyP, recIdx) (by simp)
+    simp only [Arena.structMinorsLamsR] at hrun
+    obtain ⟨mq, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hmq⟩ := structMinorTyR_spec C CP lps lpsP nP nF o pw cty ctyP recIdx hri
+      s₀ s1 mq hok ⟨hC, hlps, hcty⟩ k1
+    cases mq with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      show _ = none
+      simp only [ConLeche.structMinorsLamsR, show ConLeche.structMinorTyR CP lpsP nP nF o pw ctyP recIdx
+        = none from hmq, Option.bind_none]
+    | some mty =>
+    obtain ⟨mtyP, hmP, hmty⟩ := hmq
+    obtain ⟨rq, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hrq⟩ := ih restP (o + 1) (fun c hc => hcs c (by simp [hc])) s1 s2 rq p1.ok
+      ⟨denoteNListE_ext p1.ext _ _ hlps, denoteCtors4_ext p1.ext _ _ hrest,
+        denote_ext hbody p1.ext⟩ k2
+    cases rq with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨p1.trans p2, ?_⟩
+      show _ = none
+      simp only [ConLeche.structMinorsLamsR, hmP, Option.bind_some,
+        show ConLeche.structMinorsLamsR lpsP nP pw restP (o + 1) bodyP = none from hrq, Option.map_none]
+    | some rest =>
+    obtain ⟨restP', hrP, hrd⟩ := hrq
+    obtain ⟨x, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨p3, hx⟩ := internLamE_run p2.ok (denote_ext hmty p2.ext) hrd k3
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨p1.trans (p2.trans p3), _, ?_, hx⟩
+    simp only [ConLeche.structMinorsLamsR, hmP, hrP, Option.bind_some, Option.map_some]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:341-362 structRecTyR
 **THE GENERATED RECURSOR'S TYPE** — the term the install compares the stream's
