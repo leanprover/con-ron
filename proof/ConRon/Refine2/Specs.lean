@@ -10385,6 +10385,32 @@ theorem internNNode_run_of_cap {lst : AState} {v : NNodeView}
     | mk st1 h1 => rfl
 
 /-- `arena::monad::intern_n_node` against `Arena.internNNode`. -/
+theorem intern_n_node_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (v : arena.store.NNodeView) (hvwf : NNodeViewWF v)
+    (hrun : arena.monad.intern_n_node pers st v = ok o) :
+    Sim₀ absNIdx pers lst o (Arena.internNNode (absNNodeView v)) := by
+  rw [arena.monad.intern_n_node] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr, -⟩ :=
+    estore_intern_name_abs (ls := lst.store) hrel.store hinv.store hvwf hp
+  show AOut₀ absNIdx pers r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
+    refine AOut₀.ok
+      (lst' := { lst with store := (lst.store.internName (absNNodeView v)).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+    rw [internNNode_run_of_cap hcap, hhd]
+  | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_n_node_run₀`.
+ `arena::monad::intern_n_node` against `Arena.internNNode`. -/
 theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (v : arena.store.NNodeView) (hvwf : NNodeViewWF v)
@@ -10983,6 +11009,32 @@ theorem internLNode_run_of_cap {lst : AState} {v : LNodeView}
     | mk st1 h1 => rfl
 
 /-- `arena::monad::intern_l_node` against `Arena.internLNode`. -/
+theorem intern_l_node_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (v : arena.store.LNodeView)
+    (hrun : arena.monad.intern_l_node pers st v = ok o) :
+    Sim₀ absLIdx pers lst o (Arena.internLNode (absLNodeView v)) := by
+  rw [arena.monad.intern_l_node] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr, -⟩ :=
+    estore_intern_level_abs (ls := lst.store) hrel.store hinv.store hp
+  show AOut₀ absLIdx pers r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
+    refine AOut₀.ok
+      (lst' := { lst with store := (lst.store.internLevel (absLNodeView v)).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+    rw [internLNode_run_of_cap hcap, hhd]
+  | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_l_node_run₀`.
+ `arena::monad::intern_l_node` against `Arena.internLNode`. -/
 theorem intern_l_node_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (v : arena.store.LNodeView)
@@ -11391,6 +11443,33 @@ theorem internLsNode_run_of_cap {lst : AState} {v : LsNodeView}
     | mk st1 h1 => rfl
 
 /-- `arena::monad::intern_ls_node` against `Arena.internLsNode`. -/
+theorem intern_ls_node_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (v : alloc.vec.Vec arena.handle.LIdx)
+    (hrun : arena.monad.intern_ls_node pers st v = ok o) :
+    Sim₀ absLsIdx pers lst o
+      (Arena.internLsNode (absLsNodeView v)) := by
+  rw [arena.monad.intern_ls_node] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr, -⟩ :=
+    estore_intern_levels_abs (ls := lst.store) hrel.store hinv.store hp
+  show AOut₀ absLsIdx pers r { st with store := e } _
+  cases hr : r with
+  | Ok hh =>
+    obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
+    refine AOut₀.ok
+      (lst' := { lst with store := (lst.store.internLevels (absLsNodeView v)).1 }) ?_
+      ⟨hrel', hrel.memos, hrel.caches, hrel.pins⟩
+      ⟨hinv', hinv.memos, hinv.caches⟩
+    rw [internLsNode_run_of_cap hcap, hhd]
+  | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_ls_node_run₀`.
+ `arena::monad::intern_ls_node` against `Arena.internLsNode`. -/
 theorem intern_ls_node_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     (v : alloc.vec.Vec arena.handle.LIdx)
@@ -13485,6 +13564,116 @@ theorem AOut.rebase {γ δ : Type} {AC : γ → δ} {pers : arena.store.PersTier
     obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := h
     exact AOut.ok hy hrel2 hinv2 (Ext.trans hext hext2) trivial
 
+/-- The error arm travels through a bind (the lockstep form). -/
+theorem AOut₀.errBind {β γ δ : Type} {A : γ → β} {C : Type} {AC : C → δ}
+    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
+    {lstA : AState} {stA stB : arena.monad.AState}
+    {x : AM β} {f : β → AM δ}
+    (h : AOut₀ A pers (.Err e) stA (x.run lstA)) :
+    AOut₀ AC pers (.Err e) stB ((do let v ← x; f v).run lstA) := by
+  refine AOut₀.err ?_
+  rw [StateT.run_bind]
+  exact AErrSim.bind h _
+
+
+theorem intern_name_run'₀ :
+    ∀ (n : kernel.name.Name) (_hwf : ConRon.Refine.NameWF n)
+      {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} {o},
+      AStateRel₀ pers st lst → AStateInv pers st →
+      arena.monad.intern_name pers st n = ok o →
+      Sim₀ absNIdx pers lst o
+        (Arena.internName (ConRon.Refine.absName n)) ∧
+      FlagsEq st.store o.2.store := by
+  intro n hwf
+  induction n, hwf using ConRon.Refine.NameWF.ind_node with
+  | anonymous hh w =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_name, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : arena.monad.intern_n_node pers st arena.store.NNodeView.Anonymous
+        = ok o := hrun
+    refine ⟨?_, intern_n_node_flags hrun⟩
+    have hsim := intern_n_node_run₀ hrel hinv arena.store.NNodeView.Anonymous
+      trivial hrun
+    exact hsim
+  | str hh pre s w ih =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_name, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : (do
+        let (r, st1) ← arena.monad.intern_name pers st pre
+        match r with
+        | .Ok hp => do
+            let v ← kernel.expr.str_copy s
+            arena.monad.intern_n_node pers st1 (arena.store.NNodeView.Str hp v)
+        | .Err _ => ok (r, st1)) = ok o := hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, st1⟩ := p1
+    obtain ⟨hsim1, hfl1⟩ := ih w.str_kids.1 hrel hinv hp1
+    cases hr : r1 with
+    | Err e =>
+      simp only [hr] at hrun
+      obtain rfl : ((core.result.Result.Err e :
+          core.result.Result arena.handle.NIdx kernel.core_types.CheckError), st1) = o :=
+        Result.ok_injective hrun
+      refine ⟨?_, hfl1⟩
+      show AOut₀ absNIdx pers _ _ _
+      rw [show ConRon.Refine.absName
+            (kernel.name.Name.mk (kernel.name.NameNode.mk hh (.Str pre s)))
+          = ConLeche.Name.str (ConRon.Refine.absName pre) (ConRon.Refine.absString s)
+        from rfl, Arena.internName]
+      exact AOut₀.errBind (hr ▸ hsim1)
+    | Ok hp =>
+      simp only [hr] at hrun
+      obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      rw [ConRon.Refine.Expr.str_copy_eq hv] at hrun
+      obtain ⟨lst1, hy1, hrel1, hinv1⟩ :=
+        (hr ▸ hsim1 : AOut₀ _ _ (.Ok hp) _ _)
+      have hsim2 := intern_n_node_run₀ hrel1 hinv1
+        (arena.store.NNodeView.Str hp s) w.str_kids.2 hrun
+      refine ⟨?_, hfl1.trans (intern_n_node_flags hrun)⟩
+      show AOut₀ absNIdx pers _ _ _
+      rw [show ConRon.Refine.absName
+            (kernel.name.Name.mk (kernel.name.NameNode.mk hh (.Str pre s)))
+          = ConLeche.Name.str (ConRon.Refine.absName pre) (ConRon.Refine.absString s)
+        from rfl, Arena.internName, run_bind_ok hy1]
+      exact hsim2
+  | num hh pre m w ih =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_name, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : (do
+        let (r, st1) ← arena.monad.intern_name pers st pre
+        match r with
+        | .Ok hp => arena.monad.intern_n_node pers st1 (arena.store.NNodeView.Num hp m)
+        | .Err _ => ok (r, st1)) = ok o := hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, st1⟩ := p1
+    obtain ⟨hsim1, hfl1⟩ := ih w.num_kids hrel hinv hp1
+    cases hr : r1 with
+    | Err e =>
+      simp only [hr] at hrun
+      obtain rfl : ((core.result.Result.Err e :
+          core.result.Result arena.handle.NIdx kernel.core_types.CheckError), st1) = o :=
+        Result.ok_injective hrun
+      refine ⟨?_, hfl1⟩
+      show AOut₀ absNIdx pers _ _ _
+      rw [show ConRon.Refine.absName
+            (kernel.name.Name.mk (kernel.name.NameNode.mk hh (.Num pre m)))
+          = ConLeche.Name.num (ConRon.Refine.absName pre) m.val from rfl, Arena.internName]
+      exact AOut₀.errBind (hr ▸ hsim1)
+    | Ok hp =>
+      simp only [hr] at hrun
+      obtain ⟨lst1, hy1, hrel1, hinv1⟩ :=
+        (hr ▸ hsim1 : AOut₀ _ _ (.Ok hp) _ _)
+      have hsim2 := intern_n_node_run₀ hrel1 hinv1
+        (arena.store.NNodeView.Num hp m) trivial hrun
+      refine ⟨?_, hfl1.trans (intern_n_node_flags hrun)⟩
+      show AOut₀ absNIdx pers _ _ _
+      rw [show ConRon.Refine.absName
+            (kernel.name.Name.mk (kernel.name.NameNode.mk hh (.Num pre m)))
+          = ConLeche.Name.num (ConRon.Refine.absName pre) m.val from rfl,
+        Arena.internName, run_bind_ok hy1]
+      exact hsim2
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_name_run'₀`. -/
 theorem intern_name_run' :
     ∀ (n : kernel.name.Name) (_hwf : ConRon.Refine.NameWF n)
       {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} {o},
@@ -13599,6 +13788,211 @@ theorem intern_name_run' :
       exact AOut.rebase hext1 hsim2
 
 
+theorem intern_level_run'₀ :
+    ∀ (l : kernel.level.Level) (_hwf : ConRon.Refine.LevelWF l)
+      {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} {o},
+      AStateRel₀ pers st lst → AStateInv pers st →
+      arena.monad.intern_level pers st l = ok o →
+      Sim₀ absLIdx pers lst o
+        (Arena.internLevel (ConRon.Refine.absLevel l)) ∧
+      FlagsEq st.store o.2.store := by
+  intro l hwf
+  induction l, hwf using ConRon.Refine.LevelWF.ind_node with
+  | zero hh w =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : arena.monad.intern_l_node pers st arena.store.LNodeView.Zero
+        = ok o := hrun
+    refine ⟨?_, intern_l_node_flags hrun⟩
+    exact intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero hrun
+  | succ hh a w ih =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : (do
+        let (r, st1) ← arena.monad.intern_level pers st a
+        match r with
+        | .Ok hu => arena.monad.intern_l_node pers st1 (arena.store.LNodeView.Succ hu)
+        | .Err _ => ok (r, st1)) = ok o := hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, st1⟩ := p1
+    obtain ⟨hsim1, hfl1⟩ := ih (ConRon.Refine.Level.LevelWF.succ_inv w) hrel hinv hp1
+    cases hr : r1 with
+    | Err e =>
+      simp only [hr] at hrun
+      obtain rfl : ((core.result.Result.Err e :
+          core.result.Result arena.handle.LIdx kernel.core_types.CheckError), st1) = o :=
+        Result.ok_injective hrun
+      refine ⟨?_, hfl1⟩
+      show AOut₀ absLIdx pers _ _ _
+      rw [show ConRon.Refine.absLevel
+            (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Succ a)))
+          = ConLeche.Level.succ (ConRon.Refine.absLevel a) from rfl, Arena.internLevel]
+      exact AOut₀.errBind (hr ▸ hsim1)
+    | Ok hu =>
+      simp only [hr] at hrun
+      obtain ⟨lst1, hy1, hrel1, hinv1⟩ :=
+        (hr ▸ hsim1 : AOut₀ _ _ (.Ok hu) _ _)
+      have hsim2 := intern_l_node_run₀ hrel1 hinv1
+        (arena.store.LNodeView.Succ hu) hrun
+      refine ⟨?_, hfl1.trans (intern_l_node_flags hrun)⟩
+      show AOut₀ absLIdx pers _ _ _
+      rw [show ConRon.Refine.absLevel
+            (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Succ a)))
+          = ConLeche.Level.succ (ConRon.Refine.absLevel a) from rfl,
+        Arena.internLevel, run_bind_ok hy1]
+      exact hsim2
+  | max hh a b w iha ihb =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : (do
+        let (r, st1) ← arena.monad.intern_level pers st a
+        match r with
+        | .Ok hu => do
+            let (r1, st2) ← arena.monad.intern_level pers st1 b
+            match r1 with
+            | .Ok hv => arena.monad.intern_l_node pers st2 (arena.store.LNodeView.Max hu hv)
+            | .Err _ => ok (r1, st2)
+        | .Err _ => ok (r, st1)) = ok o := hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, st1⟩ := p1
+    obtain ⟨hsim1, hfl1⟩ :=
+      iha (ConRon.Refine.Level.LevelWF.max_inv w).1 hrel hinv hp1
+    have habs : ConRon.Refine.absLevel
+        (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Max a b)))
+      = ConLeche.Level.max (ConRon.Refine.absLevel a) (ConRon.Refine.absLevel b) := rfl
+    cases hr : r1 with
+    | Err e =>
+      simp only [hr] at hrun
+      obtain rfl : ((core.result.Result.Err e :
+          core.result.Result arena.handle.LIdx kernel.core_types.CheckError), st1) = o :=
+        Result.ok_injective hrun
+      refine ⟨?_, hfl1⟩
+      show AOut₀ absLIdx pers _ _ _
+      rw [habs, Arena.internLevel]
+      exact AOut₀.errBind (hr ▸ hsim1)
+    | Ok hu =>
+      simp only [hr] at hrun
+      obtain ⟨lst1, hy1, hrel1, hinv1⟩ :=
+        (hr ▸ hsim1 : AOut₀ _ _ (.Ok hu) _ _)
+      obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r2, st2⟩ := p2
+      obtain ⟨hsim2, hfl2⟩ :=
+        ihb (ConRon.Refine.Level.LevelWF.max_inv w).2 hrel1 hinv1 hp2
+      cases hr2 : r2 with
+      | Err e =>
+        simp only [hr2] at hrun
+        obtain rfl : ((core.result.Result.Err e :
+            core.result.Result arena.handle.LIdx kernel.core_types.CheckError), st2) = o :=
+          Result.ok_injective hrun
+        refine ⟨?_, hfl1.trans hfl2⟩
+        show AOut₀ absLIdx pers _ _ _
+        rw [habs, Arena.internLevel, run_bind_ok hy1]
+        exact AOut₀.errBind (hr2 ▸ hsim2)
+      | Ok hv =>
+        simp only [hr2] at hrun
+        obtain ⟨lst2, hy2, hrel2, hinv2⟩ :=
+          (hr2 ▸ hsim2 : AOut₀ _ _ (.Ok hv) _ _)
+        have hsim3 := intern_l_node_run₀ hrel2 hinv2
+          (arena.store.LNodeView.Max hu hv) hrun
+        refine ⟨?_, (hfl1.trans hfl2).trans (intern_l_node_flags hrun)⟩
+        show AOut₀ absLIdx pers _ _ _
+        rw [habs, Arena.internLevel, run_bind_ok hy1, run_bind_ok hy2]
+        exact hsim3
+  | imax hh a b w iha ihb =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : (do
+        let (r, st1) ← arena.monad.intern_level pers st a
+        match r with
+        | .Ok hu => do
+            let (r1, st2) ← arena.monad.intern_level pers st1 b
+            match r1 with
+            | .Ok hv => arena.monad.intern_l_node pers st2 (arena.store.LNodeView.Imax hu hv)
+            | .Err _ => ok (r1, st2)
+        | .Err _ => ok (r, st1)) = ok o := hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, st1⟩ := p1
+    obtain ⟨hsim1, hfl1⟩ :=
+      iha (ConRon.Refine.Level.LevelWF.imax_inv w).1 hrel hinv hp1
+    have habs : ConRon.Refine.absLevel
+        (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Imax a b)))
+      = ConLeche.Level.imax (ConRon.Refine.absLevel a) (ConRon.Refine.absLevel b) := rfl
+    cases hr : r1 with
+    | Err e =>
+      simp only [hr] at hrun
+      obtain rfl : ((core.result.Result.Err e :
+          core.result.Result arena.handle.LIdx kernel.core_types.CheckError), st1) = o :=
+        Result.ok_injective hrun
+      refine ⟨?_, hfl1⟩
+      show AOut₀ absLIdx pers _ _ _
+      rw [habs, Arena.internLevel]
+      exact AOut₀.errBind (hr ▸ hsim1)
+    | Ok hu =>
+      simp only [hr] at hrun
+      obtain ⟨lst1, hy1, hrel1, hinv1⟩ :=
+        (hr ▸ hsim1 : AOut₀ _ _ (.Ok hu) _ _)
+      obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r2, st2⟩ := p2
+      obtain ⟨hsim2, hfl2⟩ :=
+        ihb (ConRon.Refine.Level.LevelWF.imax_inv w).2 hrel1 hinv1 hp2
+      cases hr2 : r2 with
+      | Err e =>
+        simp only [hr2] at hrun
+        obtain rfl : ((core.result.Result.Err e :
+            core.result.Result arena.handle.LIdx kernel.core_types.CheckError), st2) = o :=
+          Result.ok_injective hrun
+        refine ⟨?_, hfl1.trans hfl2⟩
+        show AOut₀ absLIdx pers _ _ _
+        rw [habs, Arena.internLevel, run_bind_ok hy1]
+        exact AOut₀.errBind (hr2 ▸ hsim2)
+      | Ok hv =>
+        simp only [hr2] at hrun
+        obtain ⟨lst2, hy2, hrel2, hinv2⟩ :=
+          (hr2 ▸ hsim2 : AOut₀ _ _ (.Ok hv) _ _)
+        have hsim3 := intern_l_node_run₀ hrel2 hinv2
+          (arena.store.LNodeView.Imax hu hv) hrun
+        refine ⟨?_, (hfl1.trans hfl2).trans (intern_l_node_flags hrun)⟩
+        show AOut₀ absLIdx pers _ _ _
+        rw [habs, Arena.internLevel, run_bind_ok hy1, run_bind_ok hy2]
+        exact hsim3
+  | param hh n w =>
+    intro pers st lst o hrel hinv hrun
+    rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
+    replace hrun : (do
+        let (r, st1) ← arena.monad.intern_name pers st n
+        match r with
+        | .Ok hn => arena.monad.intern_l_node pers st1 (arena.store.LNodeView.Param hn)
+        | .Err e => ok ((.Err e : core.result.Result arena.handle.LIdx _), st1))
+        = ok o := hrun
+    obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r1, st1⟩ := p1
+    obtain ⟨hsim1, hfl1⟩ :=
+      intern_name_run'₀ n (ConRon.Refine.Level.LevelWF.param_inv w) hrel hinv hp1
+    have habs : ConRon.Refine.absLevel
+        (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Param n)))
+      = ConLeche.Level.param (ConRon.Refine.absName n) := rfl
+    cases hr : r1 with
+    | Err e =>
+      simp only [hr] at hrun
+      obtain rfl : ((core.result.Result.Err e :
+          core.result.Result arena.handle.LIdx kernel.core_types.CheckError), st1) = o :=
+        Result.ok_injective hrun
+      refine ⟨?_, hfl1⟩
+      show AOut₀ absLIdx pers _ _ _
+      rw [habs, Arena.internLevel]
+      exact AOut₀.errBind (hr ▸ hsim1)
+    | Ok hn =>
+      simp only [hr] at hrun
+      obtain ⟨lst1, hy1, hrel1, hinv1⟩ :=
+        (hr ▸ hsim1 : AOut₀ _ _ (.Ok hn) _ _)
+      have hsim2 := intern_l_node_run₀ hrel1 hinv1
+        (arena.store.LNodeView.Param hn) hrun
+      refine ⟨?_, hfl1.trans (intern_l_node_flags hrun)⟩
+      show AOut₀ absLIdx pers _ _ _
+      rw [habs, Arena.internLevel, run_bind_ok hy1]
+      exact hsim2
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_level_run'₀`. -/
 theorem intern_level_run' :
     ∀ (l : kernel.level.Level) (_hwf : ConRon.Refine.LevelWF l)
       {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} {o},
@@ -13892,6 +14286,138 @@ theorem internLevelList_run_cons (lst : AState) (u : ConLeche.Level)
   rw [StateT.run_bind]
   congr 1
 
+theorem intern_level_list_from_run'₀ {pers} {us : alloc.vec.Vec kernel.level.Level}
+    (hwf : ConRon.Refine.LevelsWF us) :
+    ∀ k {st : arena.monad.AState} {lst : AState}, AStateRel₀ pers st lst →
+      AStateInv pers st →
+      ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.LIdx),
+      us.length - i.val ≤ k → ∀ {o},
+      arena.monad.intern_level_list_from pers st us i out = ok o →
+      AOut₀ (fun v : alloc.vec.Vec arena.handle.LIdx => v.val.map absLIdx)
+        pers o.1 o.2
+        (prependOutL (out.val.map absLIdx)
+          ((Arena.internLevelList
+            ((us.val.drop i.val).map ConRon.Refine.absLevel)).run lst)) ∧
+      FlagsEq st.store o.2.store := by
+  intro k
+  induction k with
+  | zero =>
+    intro st lst hrel hinv i out hk o hrun
+    rw [arena.monad.intern_level_list_from.eq_def] at hrun; simp only [] at hrun
+    rw [if_pos (by scalar_tac)] at hrun
+    rw [List.drop_eq_nil_of_le (by scalar_tac), List.map_nil]
+    have ho : ((core.result.Result.Ok out : core.result.Result _ _), st) = o :=
+      Result.ok_injective hrun
+    rw [← ho]
+    refine ⟨?_, FlagsEq.refl _⟩
+    refine AOut₀.ok (lst' := lst) ?_ hrel hinv
+    show prependOutL _ (Except.ok (([] : List LIdx), lst)) = _
+    show Except.ok (out.val.map absLIdx ++ [], lst) = _
+    rw [List.append_nil]
+  | succ k ih =>
+    intro st lst hrel hinv i out hk o hrun
+    rw [arena.monad.intern_level_list_from.eq_def] at hrun; simp only [] at hrun
+    split at hrun
+    · rw [List.drop_eq_nil_of_le (by scalar_tac), List.map_nil]
+      have ho : ((core.result.Result.Ok out : core.result.Result _ _), st) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      refine ⟨?_, FlagsEq.refl _⟩
+      refine AOut₀.ok (lst' := lst) ?_ hrel hinv
+      show prependOutL _ (Except.ok (([] : List LIdx), lst)) = _
+      show Except.ok (out.val.map absLIdx ++ [], lst) = _
+      rw [List.append_nil]
+    · rename_i hlt
+      have hb : i.val < us.length := by scalar_tac
+      obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hlv : us.val[i.val] = l := by
+        have h1 : us.val[i.val]? = some l := vec_index_some hl
+        rw [List.getElem?_eq_getElem hb] at h1
+        exact (Option.some.injEq _ _ ▸ h1)
+      obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r, st1⟩ := p1
+      have hlwf : ConRon.Refine.LevelWF l := by
+        rw [← hlv]; exact hwf _ (List.getElem_mem hb)
+      obtain ⟨hstep, hfl1⟩ := intern_level_run'₀ l hlwf hrel hinv hp1
+      rw [List.drop_eq_getElem_cons hb, List.map_cons, hlv, internLevelList_run_cons]
+      cases hrc : r with
+      | Err e =>
+        rw [hrc] at hstep
+        simp only [hrc] at hrun
+        have herr : AErrSim e ((Arena.internLevel (ConRon.Refine.absLevel l)).run lst) :=
+          hstep
+        have ho : ((core.result.Result.Err e : core.result.Result _ _), st1) = o :=
+          Result.ok_injective hrun
+        rw [← ho]
+        refine ⟨?_, hfl1⟩
+        refine AOut₀.err ?_
+        intro kk hkk
+        obtain ⟨le, hle, hk2⟩ := herr kk hkk
+        exact ⟨le, by rw [hle]; rfl, hk2⟩
+      | Ok x =>
+        rw [hrc] at hstep
+        simp only [hrc] at hrun
+        obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hstep
+        rw [hx1]
+        obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+        have hout1v : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
+        obtain ⟨hih, hfl2⟩ := ih hrel1 hinv1 i2 out1 (by scalar_tac) hrun
+        rw [hi2v] at hih
+        refine ⟨?_, hfl1.trans hfl2⟩
+        show AOut₀ _ pers o.1 o.2
+          (prependOutL _ (((Arena.internLevelList
+            ((us.val.drop (i.val + 1)).map ConRon.Refine.absLevel)).run lst1).bind _))
+        cases hy : (Arena.internLevelList
+            ((us.val.drop (i.val + 1)).map ConRon.Refine.absLevel)).run lst1 with
+        | error e =>
+          rw [hy] at hih
+          cases hoc : o.1 with
+          | Ok v =>
+            rw [hoc] at hih
+            obtain ⟨lst2, hcontra, -⟩ := hih
+            exact absurd hcontra (by simp [prependOutL])
+          | Err e2 =>
+            rw [hoc] at hih
+            have herr : AErrSim e2 (prependOutL (out1.val.map absLIdx)
+              (Except.error e)) := hih
+            refine AOut₀.err ?_
+            intro kk hkk
+            obtain ⟨le, hle, hk2⟩ := herr kk hkk
+            refine ⟨le, ?_, hk2⟩
+            have hee : (Except.error e : Except Arena.CheckError (List LIdx × AState))
+                = Except.error le := by
+              have := hle; simp only [prependOutL] at this; exact this
+            simp only [Except.error.injEq] at hee
+            rw [← hee]; rfl
+        | ok q =>
+          rw [hy] at hih
+          cases hoc : o.1 with
+          | Err e2 =>
+            rw [hoc] at hih
+            have herr : AErrSim e2 (prependOutL (out1.val.map absLIdx)
+              (Except.ok q)) := hih
+            refine AOut₀.err ?_
+            intro kk hkk
+            obtain ⟨le, hle, -⟩ := herr kk hkk
+            simp only [prependOutL] at hle
+            exact absurd hle (by simp)
+          | Ok v =>
+            rw [hoc] at hih
+            obtain ⟨lst2, hv2, hrel2, hinv2⟩ := hih
+            simp only [prependOutL, Except.ok.injEq, Prod.mk.injEq] at hv2
+            refine AOut₀.ok (lst' := lst2) ?_ hrel2 hinv2
+            show Except.ok (out.val.map absLIdx ++ (absLIdx x :: q.1), q.2) = _
+            rw [← hv2.2]
+            have hq1 : out1.val.map absLIdx ++ q.1 = v.val.map absLIdx := hv2.1
+            rw [hout1v] at hq1
+            simp only [List.map_append, List.map_cons, List.map_nil,
+              List.append_assoc, List.cons_append, List.nil_append] at hq1
+            rw [hq1]
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_level_list_from_run'₀`. -/
 theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Level}
     (hwf : ConRon.Refine.LevelsWF us) :
     ∀ k {st : arena.monad.AState} {lst : AState}, AStateRel pers st lst →
@@ -14023,6 +14549,30 @@ theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Leve
               List.append_assoc, List.cons_append, List.nil_append] at hq1
             rw [hq1]
 
+theorem intern_level_list_run'₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    {us : alloc.vec.Vec kernel.level.Level} {o}
+    (hwf : ConRon.Refine.LevelsWF us)
+    (hrun : arena.monad.intern_level_list pers st us = ok o) :
+    Sim₀ (fun v : alloc.vec.Vec arena.handle.LIdx => v.val.map absLIdx)
+      pers lst o
+      (Arena.internLevelList (ConRon.Refine.absLevels us)) ∧
+    FlagsEq st.store o.2.store := by
+  rw [arena.monad.intern_level_list] at hrun
+  obtain ⟨h1, h2⟩ := intern_level_list_from_run'₀ hwf us.length hrel hinv 0#usize
+    (alloc.vec.Vec.new arena.handle.LIdx) (by simp) hrun
+  refine ⟨?_, h2⟩
+  show AOut₀ _ pers o.1 o.2 _
+  have he : (alloc.vec.Vec.new arena.handle.LIdx).val.map absLIdx = [] := by
+    simp [alloc.vec.Vec.new]
+  rw [he, prependOutL_nil] at h1
+  have hd : ((us.val.drop (0#usize).val).map ConRon.Refine.absLevel)
+      = ConRon.Refine.absLevels us := by
+    simp [ConRon.Refine.absLevels]
+  rw [hd] at h1
+  exact h1
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_level_list_run'₀`. -/
 theorem intern_level_list_run' {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     {us : alloc.vec.Vec kernel.level.Level} {o}
@@ -14047,6 +14597,39 @@ theorem intern_level_list_run' {pers st lst} (hrel : AStateRel pers st lst)
   exact h1
 
 
+theorem intern_levels_run'₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    {us : alloc.vec.Vec kernel.level.Level} {o}
+    (hwf : ConRon.Refine.LevelsWF us)
+    (hrun : arena.monad.intern_levels pers st us = ok o) :
+    Sim₀ absLsIdx pers lst o
+      (Arena.internLevels (ConRon.Refine.absLevels us)) ∧
+    FlagsEq st.store o.2.store := by
+  rw [arena.monad.intern_levels] at hrun
+  obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := p1
+  obtain ⟨hsim1, hfl1⟩ := intern_level_list_run'₀ hrel hinv hwf hp1
+  cases hr : r1 with
+  | Err e =>
+    simp only [hr] at hrun
+    obtain rfl : ((core.result.Result.Err e :
+        core.result.Result arena.handle.LsIdx kernel.core_types.CheckError), st1) = o :=
+      Result.ok_injective hrun
+    refine ⟨?_, hfl1⟩
+    show AOut₀ absLsIdx pers _ _ _
+    rw [Arena.internLevels]
+    exact AOut₀.errBind (hr ▸ hsim1)
+  | Ok hs =>
+    simp only [hr] at hrun
+    obtain ⟨lst1, hy1, hrel1, hinv1⟩ :=
+      (hr ▸ hsim1 : AOut₀ _ _ (.Ok hs) _ _)
+    have hsim2 := intern_ls_node_run₀ hrel1 hinv1 hs hrun
+    refine ⟨?_, hfl1.trans (intern_ls_node_flags hrun)⟩
+    show AOut₀ absLsIdx pers _ _ _
+    rw [Arena.internLevels, run_bind_ok hy1]
+    exact hsim2
+
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_levels_run'₀`. -/
 theorem intern_levels_run' {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
     {us : alloc.vec.Vec kernel.level.Level} {o}
@@ -14087,82 +14670,82 @@ theorem intern_levels_run' {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_name` against `Arena.internName` — a structural
 walk over a transient `Name`, so no fuel (DESIGN §8.3: "the tree is a value,
 not a DAG"). -/
-theorem intern_name_run {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_name_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {n : kernel.name.Name} {o}
     (hwf : ConRon.Refine.NameWF n)
     (hrun : arena.monad.intern_name pers st n = ok o) :
-    Sim absNIdx (fun _ => True) pers lst o
+    Sim₀ absNIdx pers lst o
       (Arena.internName (ConRon.Refine.absName n)) :=
-  (intern_name_run' n hwf hrel hinv hrun).1
+  (intern_name_run'₀ n hwf hrel hinv hrun).1
 
 /-- The name walk moves no tier flag. -/
-theorem intern_name_flags {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_name_flags₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {n : kernel.name.Name} {o}
     (hwf : ConRon.Refine.NameWF n)
     (hrun : arena.monad.intern_name pers st n = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_name_run' n hwf hrel hinv hrun).2
+  (intern_name_run'₀ n hwf hrel hinv hrun).2
 
 /-- `arena::monad::intern_level` against `Arena.internLevel`. -/
-theorem intern_level_run {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_level_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {l : kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelWF l)
     (hrun : arena.monad.intern_level pers st l = ok o) :
-    Sim absLIdx (fun _ => True) pers lst o
+    Sim₀ absLIdx pers lst o
       (Arena.internLevel (ConRon.Refine.absLevel l)) :=
-  (intern_level_run' l hwf hrel hinv hrun).1
+  (intern_level_run'₀ l hwf hrel hinv hrun).1
 
 /-- The level walk moves no tier flag. -/
-theorem intern_level_flags {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_level_flags₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {l : kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelWF l)
     (hrun : arena.monad.intern_level pers st l = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_level_run' l hwf hrel hinv hrun).2
+  (intern_level_run'₀ l hwf hrel hinv hrun).2
 
 /-- `arena::monad::intern_level_list` against `Arena.internLevelList`. -/
-theorem intern_level_list_run {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_level_list_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_level_list pers st us = ok o) :
-    Sim (fun v : alloc.vec.Vec arena.handle.LIdx => v.val.map absLIdx)
-      (fun _ => True) pers lst o
+    Sim₀ (fun v : alloc.vec.Vec arena.handle.LIdx => v.val.map absLIdx)
+      pers lst o
       (Arena.internLevelList (ConRon.Refine.absLevels us)) :=
-  (intern_level_list_run' hrel hinv hwf hrun).1
+  (intern_level_list_run'₀ hrel hinv hwf hrun).1
 
 /-- The level-list walk moves no tier flag. -/
-theorem intern_level_list_flags {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_level_list_flags₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_level_list pers st us = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_level_list_run' hrel hinv hwf hrun).2
+  (intern_level_list_run'₀ hrel hinv hwf hrun).2
 
 /-- `arena::monad::intern_levels` against `Arena.internLevels` — the list
 walk, then the list node, so all three tiers. -/
-theorem intern_levels_run {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_levels_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_levels pers st us = ok o) :
-    Sim absLsIdx (fun _ => True) pers lst o
+    Sim₀ absLsIdx pers lst o
       (Arena.internLevels (ConRon.Refine.absLevels us)) :=
-  (intern_levels_run' hrel hinv hwf hrun).1
+  (intern_levels_run'₀ hrel hinv hwf hrun).1
 
 /-- The levels walk moves no tier flag. -/
-theorem intern_levels_flags {pers st lst} (hrel : AStateRel pers st lst)
+theorem intern_levels_flags₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_levels pers st us = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_levels_run' hrel hinv hwf hrun).2
+  (intern_levels_run'₀ hrel hinv hwf hrun).2
 
 /-! ### The memo writes and the per-call clears
 
@@ -15995,17 +16578,17 @@ Finding 14's two halves and the binder composition of §2. -/
 /-- info: 'ConRon.Refine2.intern_ls_node_flags' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_ls_node_flags
 
-/-- info: 'ConRon.Refine2.intern_name_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_name_run
+/-- info: 'ConRon.Refine2.intern_name_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_name_run₀
 
-/-- info: 'ConRon.Refine2.intern_level_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_level_run
+/-- info: 'ConRon.Refine2.intern_level_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_level_run₀
 
-/-- info: 'ConRon.Refine2.intern_level_list_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_level_list_run
+/-- info: 'ConRon.Refine2.intern_level_list_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_level_list_run₀
 
-/-- info: 'ConRon.Refine2.intern_levels_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_levels_run
+/-- info: 'ConRon.Refine2.intern_levels_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_levels_run₀
 
 
 /-! ### Task #97-P5-Specs round 3: the E tier's own `intern_persistent` -/
