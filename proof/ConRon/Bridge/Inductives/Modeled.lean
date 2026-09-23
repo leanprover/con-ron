@@ -2343,12 +2343,89 @@ theorem installProjFns_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-! ## The capability record and the route -/
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:55-62 piResultIsProp — **in run
+form** (task #97-P3-Ind round 7, on loan from the Core tier): `piResult_spec`,
+one `view`, the zero pin and `lvlEq?_spec`'s verdict. -/
+theorem piResultIsProp_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AState}
+    {e : EIdx} {eP : Expr} {b : Bool} (hok : CheckOK μ env fe s₀)
+    (he : denoteE s₀.store e = some eP)
+    (hrun : Arena.piResultIsProp e s₀ = .ok (b, s')) :
+    CoreStep μ env fe s₀ s' ∧ b = ConLeche.piResultIsProp eP := by
+  simp only [Arena.piResultIsProp] at hrun
+  obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hpr⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+    (ExprOps.piResult_spec Arena.coreWalkFuel s₀ e hok.state (by rw [he]; rfl))
+  rw [hs1] at z1
+  have hprd := hpr eP he
+  obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hv⟩ := view_run k2
+  rw [hs2] at z2
+  cases v
+  case sort u =>
+    obtain ⟨uP, hPe, hu⟩ := denote_sort_inv hok.state.wf hv hprd
+    obtain ⟨z, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨hs3, hz⟩ := zeroLevel_run hok.pins k3
+    rw [hs3] at z3
+    obtain ⟨vv, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨hok4, hst4, hp4, lu, lz, hlu, hlz, hvv⟩ :=
+      AM.of_run (P := fun t => t = s₀) rfl k4 (Core.lvlEq?_spec s₀ u z hok)
+    obtain ⟨rfl, rfl⟩ := pureOk z4
+    refine ⟨⟨hok4, by rw [hst4]; exact Ext.refl _, hp4⟩, ?_⟩
+    rw [hu] at hlu; rw [hz] at hlz
+    cases hlu; cases hlz
+    simp only [ConLeche.piResultIsProp, hPe, hvv]
+  all_goals
+    (obtain ⟨rfl, rfl⟩ := pureOk z2
+     refine ⟨CoreStep.refl hok, ?_⟩
+     rw [denoteE_view_eq hok.state.wf hv] at hprd
+     simp only [ConLeche.piResultIsProp]
+     split
+     · rename_i u hPe; rw [hPe] at hprd; simp [denoteEView] at hprd
+     · rfl)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:64-72 piResultZ — **in run
+form**: `piResult_spec`, one `view` and `readLevelM` (a `ReadbackFrame`). -/
+theorem piResultZ_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AState}
+    {e : EIdx} {eP : Expr} {z : PropWhen} (hok : CheckOK μ env fe s₀)
+    (he : denoteE s₀.store e = some eP)
+    (hrun : Arena.piResultZ e s₀ = .ok (z, s')) :
+    CoreStep μ env fe s₀ s' ∧ z = ConLeche.piResultZ eP := by
+  simp only [Arena.piResultZ] at hrun
+  obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hpr⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+    (ExprOps.piResult_spec Arena.coreWalkFuel s₀ e hok.state (by rw [he]; rfl))
+  rw [hs1] at z1
+  have hprd := hpr eP he
+  obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hv⟩ := view_run k2
+  rw [hs2] at z2
+  cases v
+  case sort u =>
+    obtain ⟨uP, hPe, hu⟩ := denote_sort_inv hok.state.wf hv hprd
+    obtain ⟨l, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl k3
+      (readLevelM_spec s₀ u hok.caches.readL)
+    have hfr := Core.ReadbackFrame.ofReadL h1 h2 h3 h4 h6
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨⟨Core.CheckOK.ofReadbackFrame hok hfr, hfr.ext, hfr.pins⟩, ?_⟩
+    rw [hu] at h5; cases h5
+    simp only [ConLeche.piResultZ, hPe]
+  all_goals
+    (obtain ⟨rfl, rfl⟩ := pureOk z2
+     refine ⟨CoreStep.refl hok, ?_⟩
+     rw [denoteE_view_eq hok.state.wf hv] at hprd
+     simp only [ConLeche.piResultZ]
+     split
+     · rename_i u hPe; rw [hPe] at hprd; simp [denoteEView] at hprd
+     · rfl)
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:724-735 indBlockCaps
 The block's capability record: eta and unit-likeness off the two theorems,
 rule K off the shape.
 
-`sorry`: `checkEtaThm_spec`, `checkUnitThm_spec` and `Frontend.denoteCaps` at
-the answer. -/
+**CLOSED** (task #97-P3-Ind round 7): `checkEtaThm_spec`, `checkUnitThm_spec`,
+`piResultIsProp_run` and `piResultZ_run` (both new, on loan from the Core
+tier), and `Frontend.denoteCaps` at the answer. -/
 theorem indBlockCaps_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (cvT cvC : IConstantVal) (cvTP cvCP : ConstantVal) (nP nF : Nat) :
     CSpec μ env fe
@@ -2356,7 +2433,40 @@ theorem indBlockCaps_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         Frontend.denoteCV st cvC = some cvCP ∧ denoteFEnv st fe = some env)
       (Arena.indBlockCaps μ fe cvT cvC nP nF)
       (RCaps (ConLeche.indBlockCaps μ env cvTP cvCP nP nF)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcvT, hcvC, hfe⟩ := hpre
+  simp only [Arena.indBlockCaps] at hrun
+  obtain ⟨be, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨c1, hbe⟩ := checkEtaThm_spec fe cvT.name cvC.name cvTP.name cvCP.name
+    cvT.levelParams cvTP.levelParams nP nF s₀ s1 be hok
+    ⟨denoteCV_name hcvT, denoteCV_name hcvC, denoteCV_lps hcvT, hfe⟩ k1
+  obtain ⟨bu, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, hbu⟩ := checkUnitThm_spec fe cvT.name cvTP.name cvT.levelParams
+    cvTP.levelParams nP s1 s2 bu c1.ok
+    ⟨denoteN_ext (denoteCV_name hcvT) c1.ext, denoteNListE_ext c1.ext _ _ (denoteCV_lps hcvT),
+      denoteFEnv_ext c1.ext hfe⟩ k2
+  have c12 := c1.trans c2
+  obtain ⟨bk, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨c3, hbk⟩ := piResultIsProp_run c12.ok (denote_ext (denoteCV_type hcvT) c12.ext) k3
+  have c13 := c12.trans c3
+  obtain ⟨bz, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨c4, hbz⟩ := piResultZ_run c13.ok (denote_ext (denoteCV_type hcvT) c13.ext) k4
+  obtain ⟨rfl, rfl⟩ := pureOk z4
+  refine ⟨c13.trans c4, ?_⟩
+  have hbe' : be = ConLeche.checkEtaThm μ env cvTP.name cvCP.name cvTP.levelParams nP nF := hbe
+  have hbu' : bu = ConLeche.checkUnitThm μ env cvTP.name cvTP.levelParams nP := hbu
+  have hwf := (c13.trans c4).ok.state.wf
+  have hx := (c13.trans c4).ext
+  have hlpe : decide (cvC.levelParams = cvT.levelParams) =
+      decide (cvCP.levelParams = cvTP.levelParams) := by
+    have h := beq_nhandleList_eq hwf (denoteNListE_ext hx _ _ (denoteCV_lps hcvC))
+      (denoteNListE_ext hx _ _ (denoteCV_lps hcvT))
+    apply Bool.eq_iff_iff.mpr
+    simp only [decide_eq_true_eq]
+    rw [← beq_iff_eq, h, beq_iff_eq]
+  show Frontend.denoteCaps _ _ = _
+  simp only [Frontend.denoteCaps, denoteN_ext (denoteCV_name hcvC) hx, ConLeche.indBlockCaps,
+    hbe', hbu', hbk, hbz, hlpe]
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:744-779 ctorResidualOk
 The eta capability's constructor returns the family (task #136).
