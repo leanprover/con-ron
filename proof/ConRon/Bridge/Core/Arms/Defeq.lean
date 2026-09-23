@@ -699,6 +699,35 @@ theorem dqTail_tt_both (hua : unfoldableHead env x' = true)
         | _, _ => pure false) := by
   simp only [dqTail, hua, hub, hlt1, hlt2, hsr, Bool.false_eq_true, if_false]
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1567 defeqStep — the spine
+congruence answers `true`. -/
+theorem dqTail_tt_spine_true (hua : unfoldableHead env x' = true)
+    (hub : unfoldableHead env y' = true)
+    (hlt1 : ReducibilityHint.lt (headHint env y') (headHint env x') = false)
+    (hlt2 : ReducibilityHint.lt (headHint env x') (headHint env y') = false)
+    (hsr : (ReducibilityHint.sameRegular (headHint env x') (headHint env y') &&
+      sameConstHeads x' y') = true)
+    (hsp : defeqSpine r env d x' y' = .ok true) :
+    dqTail mode r env d k x' y' = .ok true := by
+  rw [dqTail_tt_spine hua hub hlt1 hlt2 hsr]
+  simp only [bind, Except.bind, hsp, if_true]; rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1568-1571 defeqStep — the spine
+congruence answers `false`: unfold both. -/
+theorem dqTail_tt_spine_false (hua : unfoldableHead env x' = true)
+    (hub : unfoldableHead env y' = true)
+    (hlt1 : ReducibilityHint.lt (headHint env y') (headHint env x') = false)
+    (hlt2 : ReducibilityHint.lt (headHint env x') (headHint env y') = false)
+    (hsr : (ReducibilityHint.sameRegular (headHint env x') (headHint env y') &&
+      sameConstHeads x' y') = true)
+    (hsp : defeqSpine r env d x' y' = .ok false) :
+    dqTail mode r env d k x' y' =
+      (match unfoldDefinition env x', unfoldDefinition env y' with
+        | some a₂, some b₂ => k false a₂ b₂
+        | _, _ => pure false) := by
+  rw [dqTail_tt_spine hua hub hlt1 hlt2 hsr]
+  simp only [bind, Except.bind, hsp, Bool.false_eq_true, if_false]
+
 end TailExits
 
 /-! ## 7. The step's twin side: stage rules
@@ -1108,6 +1137,172 @@ def DefeqLoopK (mode : CheckMode) (env : Env) (fe : IFEnv) (d n : Nat)
             pi x y = .ok r⌝⦄
 
 
+/-! ### The exits, once
+
+Every exit of the step's tail ends in one of four programs — a `pure`
+verdict, the continuation `k`, a knot `defeq`, or the stuck fallback — and
+each is proved here once, at an arbitrary pure goal `G` that follows
+eventually from the exit's own pure run. -/
+
+/-- con-leche: none — **a `pure` verdict** at the end of a stage. -/
+theorem dq_pure_exit {fe : IFEnv} {s₀ s : AState} {G : Nat → Bool → Prop}
+    {v : Bool} (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hG : Ev (fun F => G F v)) :
+    ⦃fun s' => ⌜s' = s⌝⦄ (pure v : AM Bool)
+    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ :=
+  triple_pure_post ⟨hok, hxs, hps, hG.exists⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1703-1708 defeqLoop — **the
+continuation**: one more lap of the loop, at the budget below. -/
+theorem dq_k_exit {fe : IFEnv} {d n : Nat}
+    {k : Bool → EIdx → EIdx → AM Bool} (hk : DefeqLoopK mode env fe d n k)
+    {s₀ s : AState} {G : Nat → Bool → Prop} (pi : Bool) (p q : EIdx)
+    (u w : Expr) (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
+    (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
+    (hww : Expr.WScoped d w)
+    (hG : Ev (fun F => ∀ r, ConLeche.defeqLoop mode
+      (ConLeche.pureFns mode env F) env d n pi u w = .ok r → G F r)) :
+    ⦃fun s' => ⌜s' = s⌝⦄ k pi p q
+    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+  refine triple_mono (hk pi p q s hok ⟨u, hp, hwu⟩ ⟨w, hq, hww⟩) ?_
+  rintro r s' ⟨hok', hx', hp', hr⟩
+  exact ⟨hok', hxs.trans hx', hp'.trans hps,
+    Ev.finish (hG.imp fun _ h => h r)
+      (Ev.of_mono (fun hle h => defeqLoopFueled_mono hle h) (hr u w hp hq))⟩
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean isDefEqCore — **a knot
+`defeq`** as the verdict. -/
+theorem dq_defeq_exit {fe : IFEnv} {fuel d : Nat}
+    (hsim : KnotSpec mode env fe fuel) {s₀ s : AState}
+    {G : Nat → Bool → Prop} (p q : EIdx) (u w : Expr)
+    (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
+    (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
+    (hww : Expr.WScoped d w)
+    (hG : Ev (fun F => ∀ r, ConLeche.isDefEqCore mode env F d u w = .ok r →
+      G F r)) :
+    ⦃fun s' => ⌜s' = s⌝⦄ (coreKnot mode fe id fuel).defeq d p q
+    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+  refine triple_mono (hsim.defeq s d p q u w hok hp hq hwu hww) ?_
+  rintro r s' ⟨hok', hx', hp', hr⟩
+  exact ⟨hok', hxs.trans hx', hp'.trans hps,
+    Ev.finish (hG.imp fun _ h => h r)
+      (Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) hr)⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **the stuck
+fallback** as the verdict, over `stuckIrrel_spec` (`Walks/Owed.lean`,
+OPEN).  The one call site of that rule in this module. -/
+theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
+    (hsim : KnotSpec mode env fe fuel) {s₀ s : AState}
+    {G : Nat → Bool → Prop} (p q : EIdx) (u w : Expr)
+    (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
+    (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
+    (hww : Expr.WScoped d w)
+    (hG : Ev (fun F => ∀ r, ConLeche.stuckIrrel mode
+      (ConLeche.pureFns mode env F) env d u w = .ok r → G F r)) :
+    ⦃fun s' => ⌜s' = s⌝⦄
+      ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d p q
+    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+  refine triple_mono (stuckIrrel_spec hsim s d p q u w hok hp hq hwu hww) ?_
+  rintro r s' ⟨hok', hx', hp', hr⟩
+  exact ⟨hok', hxs.trans hx', hp'.trans hps,
+    Ev.finish (hG.imp fun _ h => h r)
+      (Ev.of_mono (fun hle h => stuckIrrelFueled_mono hle h) hr)⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:145-155 unfoldDefinition — **an
+unfolding and what follows it**: `unfoldDefinition` at a named subject, its
+answer handed on with its denotation. -/
+theorem dq_unfold_seq {fe : IFEnv} {d : Nat} (henv : ConLeche.EnvWF env)
+    {s₀ s : AState} {G : Nat → Bool → Prop} (e : EIdx) (u : Expr)
+    (f : Option EIdx → AM Bool)
+    (hok : CheckOK mode env fe s) (he : denoteE s.store e = some u)
+    (hwu : Expr.WScoped d u)
+    (hsome : ∀ (s' : AState) (e₂ : EIdx) (u₂ : Expr),
+      CheckOK mode env fe s' → Ext s.store s'.store → s'.pins = s.pins →
+      denoteE s'.store e₂ = some u₂ → Expr.WScoped d u₂ →
+      unfoldDefinition env u = some u₂ →
+      ⦃fun t => ⌜t = s'⌝⦄ f (some e₂) ⦃⇓? r t => ⌜DqPost mode env fe s₀ G r t⌝⦄)
+    (hnone : ∀ (s' : AState), CheckOK mode env fe s' →
+      Ext s.store s'.store → s'.pins = s.pins →
+      unfoldDefinition env u = none →
+      ⦃fun t => ⌜t = s'⌝⦄ f none ⦃⇓? r t => ⌜DqPost mode env fe s₀ G r t⌝⦄) :
+    ⦃fun t => ⌜t = s⌝⦄ (ConRon.Arena.unfoldDefinition fe e >>= f)
+    ⦃⇓? r t => ⌜DqPost mode env fe s₀ G r t⌝⦄ := by
+  refine triple_seq (unfoldDefinition_spec henv s d e hok ⟨u, he, hwu⟩) ?_
+  rintro o s1 ⟨hok1, hx1, hp1, ho⟩
+  obtain ⟨hdo, hwo⟩ := ho u he
+  cases o with
+  | some e₂ =>
+    obtain ⟨u₂, hu₂, hd₂⟩ := denoteEO_some_inv hdo
+    exact hsome s1 e₂ u₂ hok1 hx1 hp1 hd₂ (hwo u₂ hu₂) hu₂
+  | none =>
+    exact hnone s1 hok1 hx1 hp1 (denoteEO_none_inv hdo)
+
+
+/-! ### The tail -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1579-1701 defeqStep — **the
+congruence half**, at head normal forms that neither unfold. -/
+theorem dqCongrA_spec {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel) (d : Nat)
+    (s₀ s₁ : AState) (a' b' : EIdx) (x' y' : Expr)
+    (hok : CheckOK mode env fe s₁) (hx₁ : Ext s₀.store s₁.store)
+    (hp₁ : s₁.pins = s₀.pins)
+    (hx : denoteE s₁.store a' = some x') (hy : denoteE s₁.store b' = some y')
+    (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y')
+    (G : Nat → Bool → Prop)
+    (hG : Ev (fun F => ∀ r, dqCongr mode (ConLeche.pureFns mode env F) env d
+      x' y' = .ok r → G F r)) :
+    ⦃fun s => ⌜s = s₁⌝⦄ dqCongrA mode (coreKnot mode fe id fuel) fe d a' b'
+    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1568-1575 defeqStep — **both sides
+unfold**, then `k` on the two unfoldings or `false`. -/
+theorem dq_both_exit {fe : IFEnv} {d n : Nat} (henv : ConLeche.EnvWF env)
+    {k : Bool → EIdx → EIdx → AM Bool} (hk : DefeqLoopK mode env fe d n k)
+    {s₀ s : AState} {G : Nat → Bool → Prop} (a' b' : EIdx) (x' y' : Expr)
+    (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins)
+    (hx : denoteE s.store a' = some x') (hy : denoteE s.store b' = some y')
+    (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y')
+    (hG : Ev (fun F => ∀ r, (match unfoldDefinition env x',
+        unfoldDefinition env y' with
+      | some a₂, some b₂ => ConLeche.defeqLoop mode
+          (ConLeche.pureFns mode env F) env d n false a₂ b₂
+      | _, _ => pure false) = .ok r → G F r)) :
+    ⦃fun t => ⌜t = s⌝⦄
+      (do
+        let o1 ← ConRon.Arena.unfoldDefinition fe a'
+        let o2 ← ConRon.Arena.unfoldDefinition fe b'
+        match o1, o2 with
+        | some a₂, some b₂ => k false a₂ b₂
+        | _, _ => pure false)
+    ⦃⇓? r t => ⌜DqPost mode env fe s₀ G r t⌝⦄ := by
+  refine dq_unfold_seq henv a' x' _ hok hx hwx ?_ ?_
+  · intro s1 e₂ u₂ hok1 hx1 hp1 hd₂ hw₂ hu₂
+    refine dq_unfold_seq henv b' y' _ hok1 (denote_ext hy hx1) hwy ?_ ?_
+    · intro s2 f₂ w₂ hok2 hx2 hp2 hf₂ hwf₂ hw₂'
+      exact dq_k_exit hk false e₂ f₂ u₂ w₂ hok2 (hxs.trans (hx1.trans hx2))
+        (hp2.trans (hp1.trans hps)) (denote_ext hd₂ hx2) hf₂ hw₂ hwf₂
+        (hG.imp fun _ h r hr => h r (by rw [hu₂, hw₂']; exact hr))
+    · intro s2 hok2 hx2 hp2 hn
+      exact dq_pure_exit hok2 (hxs.trans (hx1.trans hx2))
+        (hp2.trans (hp1.trans hps))
+        (hG.imp fun _ h => h false (by rw [hu₂, hn]; rfl))
+  · intro s1 hok1 hx1 hp1 hn
+    refine triple_seq (unfoldDefinition_spec henv s1 d b' hok1
+      ⟨y', denote_ext hy hx1, hwy⟩) ?_
+    rintro o s2 ⟨hok2, hx2, hp2, _⟩
+    exact dq_pure_exit hok2 (hxs.trans (hx1.trans hx2))
+      (hp2.trans (hp1.trans hps))
+      (hG.imp fun _ h => h false (by rw [hn]; rfl))
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1526-1701 defeqStep — **the tail**:
+lazy delta, then congruence. -/
 theorem dqTailA_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) (d n : Nat)
@@ -1123,8 +1318,114 @@ theorem dqTailA_spec {fe : IFEnv} {fuel : Nat}
       = .ok r → G F r)) :
     ⦃fun s => ⌜s = s₁⌝⦄ dqTailA mode (coreKnot mode fe id fuel) fe d k a' b'
     ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
-  sorry
-
+  unfold dqTailA
+  refine triple_seq (unfoldableHead_spec s₁ a' x' hok hx) ?_
+  rintro ua s2 ⟨hok2, hst2, hp2, hua⟩
+  refine triple_seq (unfoldableHead_spec s2 b' y' hok2 (by rw [hst2]; exact hy)) ?_
+  rintro ub s3 ⟨hok3, hst3, hp3, hub⟩
+  have hst13 : s3.store = s₁.store := hst3.trans hst2
+  have hx3 : denoteE s3.store a' = some x' := by rw [hst13]; exact hx
+  have hy3 : denoteE s3.store b' = some y' := by rw [hst13]; exact hy
+  have hx03 : Ext s₀.store s3.store := by rw [hst13]; exact hx₁
+  have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp₁)
+  cases ua <;> cases ub
+  · -- neither unfolds: congruence
+    exact dqCongrA_spec henv hμ hsim d s₀ s3 a' b' x' y' hok3 hx03 hp03 hx3 hy3
+      hwx hwy G (hG.imp fun _ h r hr =>
+        h r (by rw [dqTail_ff hua.symm hub.symm]; exact hr))
+  · -- only the right unfolds
+    refine dq_unfold_seq henv b' y' _ hok3 hy3 hwy ?_ ?_
+    · intro s' e₂ u₂ hok' hx' hp' hd₂ hw₂ hu
+      exact dq_k_exit hk false a' e₂ x' u₂ hok' (hx03.trans hx')
+        (hp'.trans hp03) (denote_ext hx3 hx') hd₂ hwx hw₂
+        (hG.imp fun _ h r hr =>
+          h r (by rw [dqTail_ft hua.symm hub.symm, hu]; exact hr))
+    · intro s' hok' hx' hp' hu
+      exact dq_pure_exit hok' (hx03.trans hx') (hp'.trans hp03)
+        (hG.imp fun _ h =>
+          h false (by rw [dqTail_ft hua.symm hub.symm, hu]; rfl))
+  · -- only the left unfolds
+    refine dq_unfold_seq henv a' x' _ hok3 hx3 hwx ?_ ?_
+    · intro s' e₂ u₂ hok' hx' hp' hd₂ hw₂ hu
+      exact dq_k_exit hk false e₂ b' u₂ y' hok' (hx03.trans hx')
+        (hp'.trans hp03) hd₂ (denote_ext hy3 hx') hw₂ hwy
+        (hG.imp fun _ h r hr =>
+          h r (by rw [dqTail_tf hua.symm hub.symm, hu]; exact hr))
+    · intro s' hok' hx' hp' hu
+      exact dq_pure_exit hok' (hx03.trans hx') (hp'.trans hp03)
+        (hG.imp fun _ h =>
+          h false (by rw [dqTail_tf hua.symm hub.symm, hu]; rfl))
+  · -- both unfold: the hints decide
+    refine triple_seq (headHint_spec s3 a' x' hok3 hx3) ?_
+    rintro ha s4 ⟨hok4, hst4, hp4, rfl⟩
+    refine triple_seq (headHint_spec s4 b' y' hok4 (by rw [hst4]; exact hy3)) ?_
+    rintro hb s5 ⟨hok5, hst5, hp5, rfl⟩
+    have hst35 : s5.store = s3.store := hst5.trans hst4
+    have hx5 : denoteE s5.store a' = some x' := by rw [hst35]; exact hx3
+    have hy5 : denoteE s5.store b' = some y' := by rw [hst35]; exact hy3
+    have hx05 : Ext s₀.store s5.store := by rw [hst35]; exact hx03
+    have hp05 : s5.pins = s₀.pins := hp5.trans (hp4.trans hp03)
+    split
+    · rename_i hlt
+      refine dq_unfold_seq henv a' x' _ hok5 hx5 hwx ?_ ?_
+      · intro s' e₂ u₂ hok' hx' hp' hd₂ hw₂ hu
+        exact dq_k_exit hk false e₂ b' u₂ y' hok' (hx05.trans hx')
+          (hp'.trans hp05) hd₂ (denote_ext hy5 hx') hw₂ hwy
+          (hG.imp fun _ h r hr =>
+            h r (by rw [dqTail_tt_left hua.symm hub.symm hlt, hu]; exact hr))
+      · intro s' hok' hx' hp' hu
+        exact dq_pure_exit hok' (hx05.trans hx') (hp'.trans hp05)
+          (hG.imp fun _ h =>
+            h false (by rw [dqTail_tt_left hua.symm hub.symm hlt, hu]; rfl))
+    rename_i hlt1
+    simp only [Bool.not_eq_true] at hlt1
+    split
+    · rename_i hlt2
+      refine dq_unfold_seq henv b' y' _ hok5 hy5 hwy ?_ ?_
+      · intro s' e₂ u₂ hok' hx' hp' hd₂ hw₂ hu
+        exact dq_k_exit hk false a' e₂ x' u₂ hok' (hx05.trans hx')
+          (hp'.trans hp05) (denote_ext hx5 hx') hd₂ hwx hw₂
+          (hG.imp fun _ h r hr =>
+            h r (by rw [dqTail_tt_right hua.symm hub.symm hlt1 hlt2, hu]
+                    exact hr))
+      · intro s' hok' hx' hp' hu
+        exact dq_pure_exit hok' (hx05.trans hx') (hp'.trans hp05)
+          (hG.imp fun _ h =>
+            h false (by rw [dqTail_tt_right hua.symm hub.symm hlt1 hlt2, hu]
+                        rfl))
+    rename_i hlt2
+    simp only [Bool.not_eq_true] at hlt2
+    refine triple_seq (sameConstHeads_spec s5 a' b' x' y' hok5 hx5 hy5) ?_
+    rintro sch s6 ⟨hok6, hst6, hp6, rfl⟩
+    have hx6 : denoteE s6.store a' = some x' := by rw [hst6]; exact hx5
+    have hy6 : denoteE s6.store b' = some y' := by rw [hst6]; exact hy5
+    have hx06 : Ext s₀.store s6.store := by rw [hst6]; exact hx05
+    have hp06 : s6.pins = s₀.pins := hp6.trans hp05
+    split
+    · rename_i hsr
+      refine triple_seq (defeqSpine_spec hsim s6 d a' b' x' y' hok6 hx6 hy6
+        hwx hwy) ?_
+      rintro sp s7 ⟨hok7, hx7, hp7, hsp⟩
+      have hspE : Ev (fun F => ConLeche.defeqSpine (ConLeche.pureFns mode env F)
+          env d x' y' = .ok sp) :=
+        Ev.of_mono (fun hle h => defeqSpineFueled_mono hle h) hsp
+      have hx07 := hx06.trans hx7
+      have hp07 : s7.pins = s₀.pins := hp7.trans hp06
+      cases sp
+      · simp only [Bool.false_eq_true, ↓reduceIte]
+        exact dq_both_exit henv hk a' b' x' y' hok7 hx07 hp07
+          (denote_ext hx6 hx7) (denote_ext hy6 hx7) hwx hwy
+          ((hG.and hspE).imp fun _ ⟨h, hs⟩ r hr => h r (by
+            rw [dqTail_tt_spine_false hua.symm hub.symm hlt1 hlt2 hsr hs]
+            exact hr))
+      · simp only [↓reduceIte]
+        exact dq_pure_exit hok7 hx07 hp07 ((hG.and hspE).imp fun _ ⟨h, hs⟩ =>
+          h true (dqTail_tt_spine_true hua.symm hub.symm hlt1 hlt2 hsr hs))
+    · rename_i hsr
+      simp only [Bool.not_eq_true] at hsr
+      exact dq_both_exit henv hk a' b' x' y' hok6 hx06 hp06 hx6 hy6 hwx hwy
+        (hG.imp fun _ h r hr => h r (by
+          rw [dqTail_tt_both hua.symm hub.symm hlt1 hlt2 hsr]; exact hr))
 /-- con-leche: ConLeche/Kernel/Core.lean:1461-1701 defeqStep — the step at
 FIXED denotations of its two subjects. -/
 theorem defeqStep_at {fe : IFEnv} {fuel : Nat}
