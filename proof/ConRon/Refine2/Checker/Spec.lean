@@ -1051,6 +1051,82 @@ def internAllBasisSpec : List BasisKind → AM Unit
     let _ ← BasisKind.declsA k
     internAllBasisSpec ks
 
+/-! ## `checkDecl`, arm by arm (task #97-P5-Checker round 4)
+
+Task #97-P5-Checker round 3 §10 item 2 named `checkDecl_unfold` as the one
+thing between `check_decl_refines` and a seven-way `cases`: the twin writes
+the seven arms inline and the tier's statements are against the
+transcriptions above.  **Six of the seven are equations and are closed here.
+The seventh is not an equation, and cannot be one.**
+
+`checkDefnDeclSpec` reaches `checkStructuralNatPinCertifySpec`, whose decline
+is the RUST's — `"nonstandard structural Nat operation"`, no name — where the
+twin's `.defnDecl` arm (`Arena/Checker.lean:117-119`) declines with
+`s!"… ({← readName cv.name})"`.  That is not a difference of text alone:
+`readName` THROWS `internal` at a dangling handle, so at a state where
+`cv.name` does not decode the twin's decline is `.internal` and the
+transcription's `.notImplemented`.  So the transcription is not the twin's,
+and `check_defn_decl_refines` (stated against it) does not compose into
+`check_decl_refines` by an equation.  The repair is the transcription's —
+take the name and decline as the twin does — and it moves the obligation to
+`check_structural_nat_pin_certify_refines`, which then needs *"the name
+decodes"*: DESIGN.md, task #97-P5-Checker round 4 §4. -/
+
+theorem checkDecl_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (cv : IConstantVal) :
+    checkDecl mode pins fe (.axiomDecl cv) = checkAxiomDeclSpec mode fe cv := by
+  -- the transcription reads `cvA.name` where the twin reads `cv.name` in its
+  -- decline messages; `checkConstantVal` answers `{ cv with type := _ }`, so
+  -- exposing that `pure` makes the two the same projection.  The `Quot.sound`
+  -- arm matches on `blk[4]?` at two different matchers, so it is peeled first.
+  simp only [checkDecl, checkAxiomDeclSpec]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro q
+  by_cases hq : (cv.name == q) = true
+  · simp only [hq, ↓reduceIte, checkQuotSoundRecordSpec]
+    refine ConRon.Refine2.am_bind_congr _ ?_
+    intro blk
+    cases blk[4]? <;> rfl
+  · simp only [hq, ↓reduceIte, Bool.false_eq_true]
+    twin_reduce [checkAxiomDeclStdSpec, checkAxiomDeclTrustSpec,
+      checkAxiomDeclOfReduceSpec, checkAxiomDeclRestSpec, checkConstantVal_unfold,
+      checkConstantValAfterAnnotSpec, installConstantValTailSpec]
+
+theorem checkDecl_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    checkDecl mode pins fe (.thmDecl cv value) = (do
+      let cvA ← checkConstantVal mode fe cv
+      checkThmVal mode fe cvA value) := by
+  twin_reduce [checkDecl]
+
+theorem checkDecl_opaqueDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    checkDecl mode pins fe (.opaqueDecl cv value)
+      = checkOpaqueDeclSpec mode fe cv value := by
+  twin_reduce [checkDecl, checkOpaqueDeclSpec]
+
+theorem checkDecl_basisDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (kind : BasisKind) :
+    checkDecl mode pins fe (.basisDecl kind) = checkBasisDecl fe kind := by
+  twin_reduce [checkDecl]
+
+theorem checkDecl_indDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (block : List IConstantInfo) (nP : Nat) :
+    checkDecl mode pins fe (.indDecl block nP)
+      = checkIndDeclArmSpec mode fe block nP := by
+  rw [checkDecl, checkIndDeclArmSpec]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro v
+  cases v <;> rfl
+
+theorem checkDecl_quotDecl (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe : IFEnv) (k : QuotKind) (cv : IConstantVal) :
+    checkDecl mode pins fe (.quotDecl k cv) = checkQuotDeclSpec fe k cv := by
+  unfold checkDecl checkQuotDeclSpec
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro b
+  cases b <;> cases k <;> rfl
+
 /-! ## The axiom census
 
 **Task #97-P5-Checker-2**: the seven `_unfold`s that closed.  They are the
@@ -1068,5 +1144,11 @@ only obligations of this file about the TWIN rather than the port, and rule
 
 /-- info: 'ConRon.Arena.checkProjRule_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkProjRule_unfold
+
+/-- info: 'ConRon.Arena.checkDecl_axiomDecl' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkDecl_axiomDecl
+
+/-- info: 'ConRon.Arena.checkDecl_quotDecl' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkDecl_quotDecl
 
 end ConRon.Arena

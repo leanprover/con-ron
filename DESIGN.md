@@ -2983,6 +2983,25 @@ denotation; a twin-ledger row of the "shape" kind.
     lake package); only term-touching algorithms get handle twins.
     Accepted by the maintainer 2026-09-20.
 
+### 8.x Deferred cleanups (after the campaign closes)
+
+Things deliberately left for the end, recorded here so they are not lost.
+
+* **Prove the `Native` guards unreachable (completeness).**  Theorem 2
+  claims nothing when the port raises `CheckError::Native`, which is what
+  makes it a *partial*-correctness statement: sound, but silent about a run
+  that declines where it should accept.  On 2026-09-22 the maintainer ruled
+  the ~20 `M_FROZEN` sites in `arena::store` (`shared_on` set during a
+  persistent intern) from `Internal` to `Native` — "fine for now, it gives
+  partial correctness; but if there is an invariant why we do not hit this
+  code path we should be able to prove this."  So, once every `sorry` is
+  gone: for each `Native` site, either prove it unreachable from the
+  checker's entry (the frozen guard should follow from the phase discipline:
+  nothing interns persistently while the tier is shared), or document why it
+  is a genuine resource limit (the capacity guards are: `u32` handles).  The
+  same pass covers the `as usize` casts task #97-P5-Usize left in class (a)
+  "bounded by an invariant" — each such citation should become a lemma.
+
 ## Task log
 
 `spikes/` was removed at publication (task #76); its contents are in the
@@ -43316,6 +43335,195 @@ the same 817 `sorry`.
    `eidx_eq2_abs`/`nidx_eq2_abs` (§5) each exist twice, once here and once in
    `Refine2/Inductives/Shape.lean`, because neither file can see the other.
    `Refine2/Checker/Shape.lean` is where both can reach them.
+
+#### Round 4 — the promote window's bridge, and the port fact behind it (2026-09-23, Opus under Fable)
+
+Branch `p5-checker-4` off `arena` `7f4b4a86`; `arena` did not move under it.
+Nothing outside `proof/ConRon/Refine2/{Checker,Promote}/**` is written except
+`Refine2/Inductives/Shape.lean` (§3, the duplicates, with the Inductives T2
+lane idle as the brief allowed).
+
+##### 1. The seam between `AStateRelW` and `AStateRel` is ONE lemma — and it is not what stops the leaves
+
+**The bridge.**  `Refine2/Checker/Shape.lean`'s **`bracket_close_w`** is
+`Refine2/Core/Bracket.lean`'s `bracket_close` with `AStateRelW` in and
+`AStateRel` out: a bracket whose promotion left the WEAK relation closes to the
+STRONG one, `Ext` from the boundary, and the next `BrOK`.  `bracket_close`
+needed the strong relation for exactly two things and neither reads `fresh`:
+
+| what `bracket_close` used | what the weak invariant gives |
+|---|---|
+| `drop_scratch_refines`' post-state `storeWF` | `StoreWF'.dropScratch_wf` (task #97-P5-Fresh §4) — `drop_scratch_refines_w` |
+| `ext_bracket`'s `StoreWF b` | `ext_bracket'` — the four `denote*Aux_dropScratch` inductions re-run at `NWFAt'`/`LWFAt'`/`LsWF'`/`EWFAt'`: they read `childOK`'s persistence conjunct, the ranks and `bmChildOK`, all of which the weak invariant keeps, and **not a step of the strong proofs changed** |
+
+So the relation is weak exactly across the promote window, entered at
+`AStateRelW.of_rel` (free) and left at `bracket_close_w`, and **no statement
+above the bracket weakens**.  The four inductions (≈ 190 lines) belong beside
+their strong siblings in `Arena/WFProofs.lean`; they are in `Checker/Shape.lean`
+because that file is this lane's.
+
+**The two leaves, composed.**  With the bridge, `check_decl_step` and
+`annot_step` are complete compositions —
+`check_decl_step_of_keeps`, `annot_step_promote_of_keeps`, `annot_step_of_keeps`
+(`Refine2/Checker/Top.lean`, both arms of `annot_step`'s `vg?` included) — and
+their `#print axioms` reads `sorryAx` through the BODIES
+(`check_decl_refines`, `annot_step_go_refines`, `promote_new_refines`,
+`promote_vg_refines`) and nothing else.  **What keeps the public
+`check_decl_step_refines` / `annot_step_refines` open is not the relation.  It
+is one PORT fact:**
+
+> `promote_new_refines` / `promote_vg_refines` take `PersUnfrozen st.store`
+> (the port's four `shared_on` flags down — finding 17's first half: at a
+> frozen tier the port answers `Internal` where the twin appends).  The step is
+> entered with the flags down and `flush_caches` / `enter_scratch` keep them
+> (`flush_caches_store`, `enter_scratch_unfrozen`, closed), but whether the
+> BODY (`check_decl`, `annot_step_go`, and `promote_vg` before `promote_new`)
+> keeps them is a fact about the port that **no statement of Theorem 2
+> concludes**: `SimRel`'s success arm relates the post-state to the twin's, and
+> the twin has no flag.
+
+The compositions carry it as **`KeepsUnfrozen f`** — *"`f` does not freeze the
+persistent tier"*, universally quantified over the state, `TwinWF`'s shape — so
+the only open step is its discharge.  **That is the shape question for the
+coordinator**, and there are three answers:
+
+| | what | cost | what it retires |
+|---|---|---|---|
+| **(A)** | **make the frozen-tier guard `Native`**: `arena::store`'s 20 `Err(CheckError::Internal(code_points(&M_FROZEN)))` become `Native` | one Rust edit per site, regenerate (`Generated/Funs.lean` moves: the ≈ 1 000 s `Core/Eqns.lean` re-derivation), and the proofs that read the `Internal` arm | **every** frozen hypothesis in `Refine2/`: ≈ 75 `hfrozen`, ≈ 35 `PersUnfrozen`, 13 `hshared` binders, `KeepsUnfrozen`, and task #97-P5-Ind round 4 §R4.1's bundle question.  Both leaves then close with their statements unchanged |
+| (B) | a flags conjunct on the success arm of every shape (`AOut`/`AOutRel`/`POut`/…), or a flags clause in `AStateInv` | tier-wide, every producer; and an `AStateInv` clause would make Theorem 2 inapplicable to phase B's frozen workers | the same, by carrying rather than retiring |
+| (C) | the capstones take `PersUnfrozen st.store` and the folds `KeepsUnfrozen` of each body as named obligations | three binders on the capstones; the obligation is a port frame over the whole checker, i.e. the size of Theorem 2 again | nothing |
+
+**This round recommends (A)**, and argues it is not a weakening but the
+ruling's own reading: `kernel/core_types.rs`' `Native` note says a `Native`
+site is *"a documented accept-direction deviation: it declines a stream
+con-leche might accept, and never accepts one con-leche declines"* — which is
+exactly the frozen guard (the twin has no frozen tier and cannot throw there;
+the guard only ever DECLINES).  The capacity guard beside it (`M_*_CAP`) is
+already `Native` for the same reason (DESIGN §3's `Native` ruling of 2026-09-13).  It is a Rust
+edit in someone else's lane and a campaign decision, so it is brought, not
+made.
+
+##### 2. `annot_step_promote_refines` was false, and is restated
+
+The Rust `annot_step_promote` ENDS in `drop_scratch` (`checker.rs:963`); the
+statement's twin side stopped at the promotion, so the two post-states
+disagreed on `scratchOn` and `AStateRel` failed at every success.  With
+`dropScratch` in the twin, `Ext` holds only from the bracket's BOUNDARY, so the
+restated lemma is `AOutRel` at that boundary `lst0`, with `BrOK lst0` and the
+body's `Ext lst0.store.enableScratch lst.store` as hypotheses (exactly
+`bracket_close`'s), `hfr` for `promote_vg`, and the pending record as the
+twin's `Array.push`.  Its one consumer (`annot_step_refines`) was `sorry`, so
+nothing moved.  **`promote_new_refines` and `index_promoted_refines` now
+conclude `IFEnvRelI`** (was `IFEnvRel`): both bracketed steps hand the promoted
+environment to the next fold step, which takes `IFEnvInv`; it is true (the
+decline arm returns `fe`, `index_promoted` stores `j - 1 < n`, `erase_installed`
+only removes rows).
+
+##### 3. The duplicates, merged
+
+`i_constant_info_name_abs`, `nidx_eq2_abs`, `eidx_eq2_abs` move from
+`Refine2/Inductives/Shape.lean` down to `Refine2/Checker/Shape.lean`;
+`Checker/Shape.lean`'s private `ci_name_abs` and `Checker/Canon.lean`'s two
+private `decide`-form copies are gone, the latter now
+`nidx_eq2_abs_decide` / `eidx_eq2_abs_decide`, one line each from the `==`
+form.  `lake build ConRon.Refine2.Inductives.Top` green — no Inductives
+statement moved.
+
+##### 4. The walk below `check_decl_step`: measured, and four statement defects
+
+**`checkDecl_unfold`, six of seven.**  `checkDecl_{axiom,thm,opaque,basis,ind,quot}Decl`
+(`Checker/Spec.lean`) are closed; `check_decl_refines` is the seven-way `cases`
+over them.  The axiom arm needed the `Quot.sound` matcher peeled with
+`am_bind_congr` (two matchers, same text) and `checkConstantVal_unfold` to
+expose `pure { cv with type := _ }`, because the transcription names `cvA.name`
+where the twin names `cv.name`.  **Two arms are composed**: `check_thm_decl`
+(`check_constant_val ; check_thm_val`) and `check_axiom_decl`
+(`pin_quot_sound ; nidx_eq2_abs ; <one of two sub-arms>`), through a new
+`SimRel.of_sim_bind` / `SimRel.of_sim_err` (`Checker/Shape.lean`) — the
+`let x ← <Sim>; <SimRel> x` composition every arm has.
+
+**What the rest actually need — measured, not assumed.**  Of the arms' call
+closure OUTSIDE the six knot entries (which `knotRel_checkFuel'` covers), every
+arm but `check_thm_decl` reaches an `intern_*`: `check_axiom_decl`,
+`check_basis_decl`, `check_quot_decl` 10 intern entries each,
+`check_opaque_decl` 12, `check_defn_decl` 16, `check_ind_decl` 19 — and
+`check_defn_decl`, `check_ind_decl` and `annot_step_go` reach the BINDER interns
+(`intern_e_lam`/`forall_e`/`bind_i`), which task #97-P5-Mut §2 found blocked on
+the twin's `hbmcap` debt.  Across the files: 72 of 95 `decl_check` functions,
+35 of 48 `checker`, 13 of 25 `std_axioms`, 17 of 27 `trust_axioms`.  No
+statement of this tier carries an intern side condition (the census is
+`hrel`/`hinv`/`hfe`/`hfinv`/`hvis` and nothing else), so **`Specs.lean` at zero
+does not unblock them, exactly as ExprOps/Inductives found**: they need
+finding 19's *"the input handles decode"* (a `DeclResolves` precondition on
+the capstones, and an environment-resolves clause in `IFEnvRelI`), `hfrozen`
+(free under (A); `scratch_on = true` inside the bracket otherwise), and the
+`hbmcap` fix for the binder walks.
+
+**Four statement defects**, all in `Checker/Top.lean`, all `sorry` today:
+
+1. **The `.defnDecl` arm is not an equation** (`checkDecl_defnDecl` is not
+   written).  `checkStructuralNatPinCertifySpec` declines with the RUST's
+   message; the twin reads `readName cv.name` there, and `readName` THROWS
+   `internal` at a dangling handle — so the transcription is not the twin's.
+   `check_decl_refines`' defn arm is the one `sorry` left in it.
+2. **The twin reads a name in a decline message where the port does not** —
+   42 `readName` sites in `Arena/{Checker,CheckerBase,CheckerSplit,DeclCheck}.lean`,
+   and the port reads a name at almost none.  At each, a port `NotImplemented`
+   claims a twin `notImplemented`, and the twin throws `internal` instead if the
+   name dangles.  So `check_axiom_decl_{trust,of_reduce,rest}_refines` and
+   `check_structural_nat_pin_refines` are **false without "the name
+   decodes"**.  It is recoverable at the call site — the twin's
+   `checkConstantVal` succeeded, so its `viewN cv.name` did, and `StoreWF`
+   turns a view into a decode — but it has to be a hypothesis of those four.
+3. **`check_opaque_reduce_pin_refines` omits the Rust's `reduce_op_names`
+   gate**: the port answers `Ok fe2` for an ordinary opaque, the stated twin
+   runs `checkReducePin`, which declines it.  False as stated.
+4. **The six `hkpre : lf = lf2.restrictTo (absU k_pre)` statements** (the
+   structural-`Nat`, `div`/`mod` and reduce pin gates) **are unsatisfiable at
+   every call site**: `lf2` is `lf.push ci`, whose `consts` has one more
+   element, and `restrictTo` moves only the counter.  Closing them would be
+   vacuous.  The port runs the gate at `restrict(fe2, k_pre)` where the twin
+   runs it at `fe`; the honest statement is at `lf2.restrictTo (absU k_pre)`,
+   and the caller then owes the twin-side fact that the gate reads its
+   environment only through `find?` — which agrees on `fe` and
+   `(fe.push ci).restrictTo fe.visibleBelow` when `ci.name` is fresh
+   (`checkConstantVal`'s duplicate test).  That is a design question of the
+   same kind as round 3 §2's split scalar, and it is reported rather than
+   restated.
+
+##### 5. The count
+
+| file | `sorry` (was) | note |
+|---|---:|---|
+| `Checker/Top.lean` | **37** (39) | `check_thm_decl`, `check_axiom_decl` composed; `check_decl_refines` down to its defn arm; `annot_step_promote_refines` restated; three `_of_keeps` compositions closed |
+| `Checker/Spec.lean` | 1 (1) | six `checkDecl_*` equations closed |
+| `Checker/Shape.lean` | 0 (0) | +bridge (§1), +`SimRel.of_sim_bind`/`_err`, +the moved duplicates |
+| `Checker/DeclCheck.lean` | 92 (92) | `check_thm_val_refines` concludes `IFEnvRelI` |
+| `Checker/Base.lean` | 61 (61) | |
+| `Checker/Axioms.lean` | 59 (59) | |
+| `Checker/Canon.lean` | 22 (22) | private duplicates gone |
+| `Checker/Pins.lean` | 6 (6) | |
+| `Promote/Promote.lean` | 31 (31) | `promote_new`/`index_promoted` conclude `IFEnvRelI` |
+| `Promote/Intern.lean` | 24 (24) | |
+| **the lane** | **333** (335) | counted as `sorry` tactic lines, the same way at both ends |
+
+**Axiom census**: four new rows under `#guard_msgs` — `ext_bracket'`,
+`bracket_close_w`, `checkDecl_axiomDecl`, `checkDecl_quotDecl` at
+`[propext, Classical.choice, Quot.sound]` — and two recorded BECAUSE they read
+`sorryAx`: `check_decl_step_of_keeps`, `annot_step_of_keeps` (through their
+bodies, §1).  The capstones still print `sorryAx`.
+
+##### 6. What the next round needs
+
+1. **The ruling on §1** — (A), (B) or (C).  Under (A) both public leaves close
+   with no statement change (the `_of_keeps` proofs lose their two hypotheses
+   and nothing else), and the capstones' last two `sorryAx` leaves are their
+   bodies.
+2. **`DeclResolves`** — finding 19 at this tier (§4): the capstones' input
+   precondition and the `IFEnvRelI` clause that threads it.  It is what the
+   §4.2 `readName` repairs discharge from, too.
+3. **§4's defects 1, 3 and 4**, which are this lane's to restate once (2) and
+   the `restrictTo` question are decided.
 
 ### Task #97-P5-Bracket — Theorem 2: the per-declaration bracket (2026-09-22, Opus under Fable)
 
