@@ -420,11 +420,6 @@ theorem proj_back_refines {pers st lst} {t ctor : arena.handle.NIdx}
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.proj_back, projBack_unfold]
   lockstep_mod
-  -- the pairs' recursion, with the two model names the twin conses in front
-  all_goals
-    refine Lockstep.LS.bind (proj_pairs_from_lsR ‹_› ‹_›) (by simp) (fun _ _ => Lockstep.errArm_ok) ?_
-    intro a b st1 lst1 hR hrel hinv
-    lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_back_ls
@@ -448,11 +443,6 @@ theorem proj_fwd_refines {pers st lst} {t ctor : arena.handle.NIdx}
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.proj_fwd, projFwd_unfold]
   lockstep_mod
-  -- the pairs' recursion, with the two model names the twin conses in front
-  all_goals
-    refine Lockstep.LS.bind (proj_pairs_from_lsR ‹_› ‹_›) (by simp) (fun _ _ => Lockstep.errArm_ok) ?_
-    intro a b st1 lst1 hR hrel hinv
-    lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_fwd_ls
@@ -1850,7 +1840,9 @@ theorem check_iota_rule_wf_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
        ) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_rule_wf, checkIotaRuleWfSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_rule_wf_ls
@@ -2184,7 +2176,8 @@ theorem provision_recs_aux (n : Nat) :
     -- the tail call: the port pushed onto its accumulator where the twin conses
     -- after the recursion
     all_goals
-      refine IndModeledPrims.LS_of_twin_eq (ih ?_ ‹_› ‹_› ‹_›) ?_
+      refine IndModeledPrims.LS_of_twin_eq
+        (ih ?_ ‹_› ‹_› (by first | assumption | exact (‹IFEnvRelI _ _ ∧ _›).1)) ?_
       · simp_all; omega
       · simp_all [absIConstantInfo, absRecsL, absICILFrom]
 
@@ -2269,12 +2262,6 @@ theorem install_ind_recs_aux (n : Nat) :
     rw [arena.inductives.modeled.install_ind_recs, if_neg (by scalar_tac), absRecsLFrom,
       vecFrom_cons _ _ _ (by omega), installIndRecs]
     lockstep
-    -- the tail call: the environment the port pushed is the twin's up to the
-    -- record copies
-    all_goals
-      refine IndModeledPrims.LS_of_twin_eq (ih ?_ ‹_› ‹_› ‹_› ‹_› ‹_›) ?_
-      · simp_all; omega
-      · simp_all [absIConstantInfo, absRecsLFrom, absIRecRuleL]
 
 /-- `install_ind_recs` ⊑ `installIndRecs` from the cursor on. -/
 theorem install_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -2429,7 +2416,9 @@ theorem check_proj_ty_wf_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       = ok o) :
     Sim₀ absEIdx pers lst o
       (checkProjTyWfSpec lf2 (absNIdxL lps) (absU n_p) (absEIdx pty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_ty_wf, checkProjTyWfSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_proj_ty_wf_ls
@@ -3003,7 +2992,9 @@ theorem fam_at_refines {pers st lst} {t_hd : arena.handle.EIdx}
     (hrun : arena.inductives.modeled.fam_at pers st t_hd ofs n_p = ok o) :
     Sim₀ absEIdx pers lst o
       (famAtSpec (absEIdx t_hd) (absU ofs) (absU n_p)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.fam_at, famAtSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem fam_at_ls
@@ -3159,7 +3150,9 @@ theorem ctor_targets_fam_refines {pers st lst} {ctor_ty : arena.handle.EIdx}
     Sim₀ id pers lst o
       (ctorTargetsFam (absEIdx ctor_ty) (absNIdx t) (absNIdxL lps) (absU n_p)
         (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.ctor_targets_fam, ctorTargetsFam]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem ctor_targets_fam_ls
@@ -3312,7 +3305,9 @@ theorem ctor_residual_ok_refines {pers st lst} {vis : Std.U64}
     Sim₀ id pers lst o
       (ctorResidualOk (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) eta) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.ctor_residual_ok, ctorResidualOk]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem ctor_residual_ok_ls

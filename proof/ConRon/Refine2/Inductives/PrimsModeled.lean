@@ -19,7 +19,7 @@ so the two lanes never edit one file.
 -/
 import ConRon.Refine2.Inductives.SpecModeled
 import ConRon.Refine.Env
-import ConRon.Refine2.Frontend.ExportC
+import ConRon.Refine2.Checker.Pins
 import ConRon.Refine2.Checker.Canon
 
 open Aeneas Aeneas.Std Result
@@ -212,22 +212,6 @@ theorem ifenv_dup_rel {rf a : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf 
     simpa [Option.map_map, Function.comp_def] using this
   · simp only [hlen]; exact hinv2
   · intro n p hp; rw [hlen]; exact hinv3 n p hp
-
-/-- `arena::env::i_constant_info_to_constant_val` ⊑ `IConstantInfo.toConstantVal`
-at the store level — `Frontend/ExportC.lean`'s `Sim₀` statement, in `LSS` form. -/
-@[lockstep] theorem i_constant_info_to_constant_val_lss {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (c : arena.env.IConstantInfo) :
-    LSS pers (fun a b => b = absIConstantVal a)
-      (arena.env.i_constant_info_to_constant_val pers st.store c) st lst
-      (absIConstantInfo c).toConstantVal := by
-  intro o s' h
-  have hs := Frontend.i_constant_info_to_constant_val_refines hrel hinv h
-  cases o with
-  | Err e => exact hs
-  | Ok a =>
-    obtain ⟨lst', hx, h1, h2⟩ := hs
-    exact ⟨_, lst', hx, rfl, h1, h2⟩
 
 /-- `arena::canon::i_constant_info_beq` is the twin's `==` on the abstraction
 (`Checker/Canon.lean`'s `i_constant_info_beq_refines`). -/
@@ -435,13 +419,6 @@ theorem absIRecRule_eta (r : arena.env.IRecRule) : (absIRecRule r).eta = r.eta :
 theorem absIRecRule_paramsBlind (r : arena.env.IRecRule) :
     (absIRecRule r).paramsBlind = r.params_blind := rfl
 
-/-- The handle comparison at an `EIdx`, the twin's `==` (the `NIdx` one is
-`Checker/Base.lean`'s `nidx_eq2_spec`). -/
-@[lockstep] theorem eidx_eq2_spec (a b : arena.handle.EIdx) :
-    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun o => o = (absEIdx a == absEIdx b)) :=
-  fun _ h => eidx_eq2_abs h
-
 /-- A lockstep statement whose twin ends by mapping its answer (`do pure (pre
 ++ (← x))`, a cursor recursion's accumulator in front) is a statement about
 `x` alone, with the map moved into the relation. -/
@@ -527,30 +504,18 @@ open Lean Elab Tactic in
 elab "ind_opt_guard" : tactic => do
   let t ← getMainTarget
   unless t.containsConst (fun n => n == ``core.option.Option.is_some ||
-      n == ``core.option.Option.is_none) do
+      n == ``core.option.Option.is_none || n == ``Option.isSome || n == ``Option.isNone) do
     throwError "ind_opt_guard: no Option test"
 
-/-- A twin test `is_none o` decided by the port's `is_some o` (or the reverse). -/
+/-- A twin test on `o.isSome`/`o.isNone` decided by the port's `is_some o` or
+`is_none o`, in either polarity. -/
 macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| (ind_opt_guard
                simp only [core.option.Option.is_some, core.option.Option.is_none] at *
                simp_all [Option.isSome_iff_ne_none, Option.isNone_iff_eq_none]; done))
 
-/-- `lockstep`, then a twin `if` left under a `>>= pure` is decided by the last
-Rust test (`hc`) and `lockstep` runs again.  The core tactic's
-`LS.twin_bind_pure` fallback fires when the Rust's next bind finds no partner
-while the twin is an undecided `if`, and it wraps the `if` in `>>= pure`, where
-the twin-`if` rule no longer sees it. -/
-syntax "lockstep_ite" : tactic
-macro_rules | `(tactic| lockstep_ite) => `(tactic| (lockstep; all_goals (try (
-  rw [bind_pure]
-  (first
-    | refine Lockstep.LS.twin_ite_pos ‹_› ?_
-    | refine Lockstep.LS.twin_ite_neg ‹_› ?_
-    | refine Lockstep.LS.twin_ite_pos (by lockstep_side_ite) ?_
-    | refine Lockstep.LS.twin_ite_neg (by lockstep_side_ite) ?_)
-  lockstep_ite))))
+
 
 /-! ## The axiom census -/
 
@@ -560,12 +525,42 @@ macro_rules | `(tactic| lockstep_ite) => `(tactic| (lockstep; all_goals (try (
 /-- info: 'ConRon.Refine2.IndModeledPrims.proj_fn_name_lss' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IndModeledPrims.proj_fn_name_lss
 
-/-- `lockstep_ite`, then a leaf the zip stopped at because the twin still
-matches on a value the port's own match lumped into a wildcard arm (`_ =>
-false` against the twin's `| some (.thmInfo …), … | _, _ => pure false`): the
-twin's `match` is split, contradicted arms dropped, and the zip resumes. -/
+open Lean Elab Tactic Meta in
+/-- A Rust LEAF (`ok …`) against a twin `match` one of whose discriminants is a
+constructor application (`some (absIConstantInfo v)`, the twin's up-front
+lookups the port makes lazily): split the twin's `match`.  The core's own
+fallback for a twin `match` on a term cases on the first discriminant, which
+for `some v` gives `some v'` back and never terminates, so this runs first. -/
+elab "ind_twin_split" : tactic => do
+  let g ← getMainGoal
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``Lockstep.LS 7 do throwError "ind_twin_split: not LS"
+  let m := (ty.getArg! 4).headBeta
+  unless m.isAppOfArity ``Result.ok 2 do throwError "ind_twin_split: not a Rust leaf"
+  let x := (ty.getArg! 6).headBeta
+  let some mapp ← matchMatcherApp? x | throwError "ind_twin_split: no twin match"
+  unless mapp.discrs.any (fun d => !d.isFVar && d.getAppFn.isConst) do
+    throwError "ind_twin_split: no constructor discriminant"
+  evalTactic (← `(tactic| split))
+
+/-- The modeled route's driver: `lockstep`'s step, with two moves in front of
+and behind it.  In front, `ind_twin_split` (a Rust leaf against a twin `match`
+the port's own match lumped into a wildcard arm).  Behind, a twin `if` the
+core left under a `>>= pure` (its `LS.twin_bind_pure` fallback fires when the
+Rust's next bind finds no partner while the twin is an undecided `if`) is
+decided by the context. -/
 syntax "lockstep_mod" : tactic
-macro_rules | `(tactic| lockstep_mod) => `(tactic| (lockstep_ite; all_goals (try (
-  split <;> (try simp_all) <;> lockstep_mod))))
+macro_rules | `(tactic| lockstep_mod) => `(tactic| repeat' (first
+  | (ind_twin_split <;> (try (simp_all; done)))
+  | lockstep_step
+  | (rw [bind_pure]
+     first
+       | refine Lockstep.LS.twin_ite_pos ‹_› ?_
+       | refine Lockstep.LS.twin_ite_neg ‹_› ?_
+       | refine Lockstep.LS.twin_ite_pos (by lockstep_side_ite) ?_
+       | refine Lockstep.LS.twin_ite_neg (by lockstep_side_ite) ?_)))
+
+/-- The same driver (kept for the proofs that name it). -/
+macro "lockstep_ite" : tactic => `(tactic| lockstep_mod)
 
 end ConRon.Refine2
