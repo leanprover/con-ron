@@ -419,7 +419,7 @@ The `k` generated right-hand sides from `j` up, each annotated and compared.
 `unwrapOr`'s spec and `CoreSpec.knot`'s `annotate` slot, over a `Nat`
 recursion. -/
 theorem checkNativeRules_spec {μ : CheckMode} {env : Env} (feR : IFEnv)
-    (envR : Env) (hk : CoreSpec μ Arena.checkFuel) (rlps : List NIdx)
+    (envR : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (rlps : List NIdx)
     (rlpsP : List ConLeche.Name) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (elim : NIdx)
     (elimP : ConLeche.Name) (large : Bool) (nP nIdx : Nat) (tty : EIdx)
@@ -450,7 +450,7 @@ con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115 checkNativeRecF
 `sorry`: `structRecTyR_spec`, `checkNativeRules_spec`, `nativeCtors4_spec`
 and `CoreSpec.knot`'s `annotate`/`defeq` slots. -/
 theorem checkNativeRec_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (p : Arena.NativeParts)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (p : Arena.NativeParts)
     (q : ConLeche.NativeParts) (cvTa : IConstantVal) (cvTaP : ConstantVal)
     (ctorsA : List (IConstantVal × Nat)) (ctorsAP : List (ConstantVal × Nat)) :
     CSpec μ env fe
@@ -654,7 +654,7 @@ with the flag that says whether the classification confirms it.
 `classifyFixKinds_spec`, `withKinds_spec`, `nativeCaps_spec` and
 `nativeCapsAt_spec`. -/
 theorem checkNativePass_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (p₀ : Arena.NativeParts)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (p₀ : Arena.NativeParts)
     (q₀ : ConLeche.NativeParts) (isRec : Bool) :
     CSpec μ env fe
       (fun st => PartsRel st p₀ q₀ ∧ denoteFEnv st fe = some env)
@@ -678,7 +678,7 @@ table.
 `checkNativeRec_spec`, `sumRules_spec` and `checkNativeTable_spec` — the
 longest single composition of the tier. -/
 theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (r : Arena.NativePass)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (r : Arena.NativePass)
     (qP : ConLeche.NativePass Env) :
     CSpec μ env fe
       (fun st => PassRel qP st r ∧ denoteFEnv st fe = some env)
@@ -696,7 +696,7 @@ overshot — a second pass at the classification's verdict.
 `nativeIsRec_spec` (closed), `checkNativeTail_spec`, and the `Nodup` guard,
 which is `denoteN_inj` at the constructor names (`Bridge/Rel.lean`). -/
 theorem checkNative_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (p₀ : Arena.NativeParts)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (p₀ : Arena.NativeParts)
     (q₀ : ConLeche.NativeParts) :
     CSpec μ env fe
       (fun st => PartsRel st p₀ q₀ ∧ denoteFEnv st fe = some env)

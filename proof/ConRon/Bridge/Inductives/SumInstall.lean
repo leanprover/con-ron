@@ -242,8 +242,9 @@ The type former's stage: the telescope checked and the result sort measured.
 `sorry`: `whnfTelescope_spec` and `closeTelescope_spec`, plus `CoreSpec.knot`'s
 `defeq` slot for the stored type's comparison. -/
 theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (cv : IConstantVal) (cvP : ConstantVal)
-    (n : Nat) (cvTa₀ : IConstantVal) (cvTa₀P : ConstantVal) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cvP : ConstantVal)
+    (n : Nat) (cvTa₀ : IConstantVal) (cvTa₀P : ConstantVal)
+    (hws : Expr.WScoped 0 cvTa₀P.type) :
     CSpec μ env fe
       (fun st => Frontend.denoteCV st cv = some cvP ∧
         Frontend.denoteCV st cvTa₀ = some cvTa₀P ∧
@@ -351,7 +352,7 @@ sort its telescope measured.  **Deviation 3's `capsOf`** is instantiated here.
 `sorry`: `checkSumTele_spec`, `withSort_spec` (`Bridge/Inductives/SumParts.lean`),
 `nativeCapsAt_spec`, and `IFEnv.push`'s two lemmas for the `InstRel`. -/
 theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (p : Arena.InductiveShape)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (p : Arena.InductiveShape)
     (q : ConLeche.InductiveShape) (isRec : Bool) :
     CSpec μ env fe
       (fun st => ShapeRel st p q ∧ denoteFEnv st fe = some env)
@@ -1271,8 +1272,9 @@ The constructor's stored type rebuilt from the normalised domains.
 
 `sorry`: `normFieldDoms_spec`, `zipFvarDoms_spec` and `closeTelescope_spec`. -/
 theorem normCtorVal_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
-    (nP nF : Nat) (cvC cvCa : IConstantVal) (cvCP cvCaP : ConstantVal) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
+    (nP nF : Nat) (cvC cvCa : IConstantVal) (cvCP cvCaP : ConstantVal)
+    (hws : Expr.WScoped 0 cvCaP.type) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteCV st cvC = some cvCP ∧
@@ -1295,11 +1297,12 @@ its field sorts and its normalised stored value.
 (`Bridge/Inductives/StructInstall.lean`), `checkStructFieldSortsI_spec`,
 `normCtorVal_spec` and `structCtorResidOk_spec`. -/
 theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
     (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
     (cvC : IConstantVal) (cvCP : ConstantVal) (nF : Nat)
-    (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env) :
+    (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
+    (hws : Expr.WScoped 0 cvTaP.type) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1321,11 +1324,12 @@ The whole constructor list.
 
 `sorry`: a list induction over `checkSumCtor_spec`. -/
 theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
     (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
     (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
-    (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)) :
+    (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
+    (hws : Expr.WScoped 0 cvTaP.type) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧

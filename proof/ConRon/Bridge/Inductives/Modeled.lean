@@ -731,11 +731,18 @@ theorem eqApp3?_spec (h : EIdx) (hP : Expr) :
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:31-53 checkIotaSidesTy
 The two sides of a model iota theorem have the certified type.
 
-`sorry`: `CoreSpec.knot`'s `infer` and `defeq` slots, and `eqApp3?_spec`. -/
+**CLOSED** (task #97-P3-Ind round 7): `CoreSpec.knot`'s `infer` and `defeq`
+slots, three and three, one fuel by `max`.
+
+**Two preconditions it was missing** (round 7, §R6.3's repair): `EnvWF env`
+and the scope of its three subjects at `depth` — the slots' own; the inferred
+types' scope is `SimE`'s. -/
 theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
-    (envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (depth : Nat)
+    (envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (depth : Nat)
     (alphaS lhsS rhsS : EIdx) (alphaSP lhsSP rhsSP : Expr) (lA : LIdx)
-    (lAP : Level) (cvName : NIdx) (cvNameP : ConLeche.Name) :
+    (lAP : Level) (cvName : NIdx) (cvNameP : ConLeche.Name)
+    (hws : Expr.WScoped depth alphaSP ∧ Expr.WScoped depth lhsSP ∧
+      Expr.WScoped depth rhsSP) :
     CSpec μ env feSelf
       (fun st => denoteE st alphaS = some alphaSP ∧
         denoteE st lhsS = some lhsSP ∧ denoteE st rhsS = some rhsSP ∧
@@ -744,7 +751,98 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
       (Arena.checkIotaSidesTy μ feSelf depth alphaS lhsS rhsS lA cvName)
       (fun _ _ => ∃ F, ConLeche.checkIotaSidesTy μ (ConLeche.fueledOps μ F)
         envSelf depth alphaSP lhsSP rhsSP lAP cvNameP = .ok ()) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hal, hl, hr, hlA, -, hfeS, hfe⟩ := hpre
+  obtain rfl : envSelf = env := Option.some.inj (hfeS.symm.trans hfe)
+  obtain ⟨hwa, hwl, hwr⟩ := hws
+  have hknot := hk.knot envSelf feSelf henv
+  have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
+      {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
+    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
+  simp only [Arena.checkIotaSidesTy] at hrun
+  -- the left side's type
+  obtain ⟨tl, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨ok1, x1, p1, ⟨tlP, htl, hwtl, F1, hF1⟩⟩ := AM.of_run (P := fun u => u = s₀)
+    (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s₀.store u.store ∧
+      u.pins = s₀.pins ∧ Core.SimE (ConLeche.inferTypeCore μ envSelf) depth lhsSP u.store r)
+    rfl k1 (hknot.infer s₀ depth lhsS lhsSP hok hl hwl)
+  obtain ⟨b1, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨ok2, x2, p2, ⟨F2, hF2⟩⟩ := AM.of_run (P := fun u => u = s1)
+    (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s1.store u.store ∧
+      u.pins = s1.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth tlP alphaSP r)
+    rfl k2 (hknot.defeq s1 depth tl alphaS tlP alphaSP ok1 htl (denote_ext hal x1) hwtl hwa)
+  obtain ⟨hb1, z3⟩ := AM.dunless_ok hnever z2
+  replace z3 := AM.pure_bind_ok z3
+  subst hb1
+  -- the right side's type
+  obtain ⟨tr, s3, k3, z4⟩ := bindOk z3
+  have x12 := x1.trans x2
+  obtain ⟨ok3, x3, p3, ⟨trP, htr, hwtr, F3, hF3⟩⟩ := AM.of_run (P := fun u => u = s2)
+    (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s2.store u.store ∧
+      u.pins = s2.pins ∧ Core.SimE (ConLeche.inferTypeCore μ envSelf) depth rhsSP u.store r)
+    rfl k3 (hknot.infer s2 depth rhsS rhsSP ok2 (denote_ext hr x12) hwr)
+  obtain ⟨b2, s4, k4, z5⟩ := bindOk z4
+  obtain ⟨ok4, x4, p4, ⟨F4, hF4⟩⟩ := AM.of_run (P := fun u => u = s3)
+    (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s3.store u.store ∧
+      u.pins = s3.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth trP alphaSP r)
+    rfl k4 (hknot.defeq s3 depth tr alphaS trP alphaSP ok3 htr
+      (denote_ext hal (x12.trans x3)) hwtr hwa)
+  obtain ⟨hb2, z6⟩ := AM.dunless_ok hnever z5
+  replace z6 := AM.pure_bind_ok z6
+  subst hb2
+  have x14 := (x12.trans x3).trans x4
+  have c4 : CoreStep μ envSelf feSelf s₀ s4 :=
+    ⟨ok4, x14, by rw [p4, p3, p2, p1]⟩
+  have e1 : ∀ F, F1 ≤ F → ConLeche.inferTypeCore μ envSelf F depth lhsSP = .ok tlP :=
+    fun F h => ConLeche.inferTypeCore_mono h hF1
+  have e2 : ∀ F, F2 ≤ F → ConLeche.isDefEqCore μ envSelf F depth tlP alphaSP = .ok true :=
+    fun F h => ConLeche.isDefEqCore_mono h hF2
+  have e3 : ∀ F, F3 ≤ F → ConLeche.inferTypeCore μ envSelf F depth rhsSP = .ok trP :=
+    fun F h => ConLeche.inferTypeCore_mono h hF3
+  have e4 : ∀ F, F4 ≤ F → ConLeche.isDefEqCore μ envSelf F depth trP alphaSP = .ok true :=
+    fun F h => ConLeche.isDefEqCore_mono h hF4
+  cases htt : μ.ttChecks with
+  | false =>
+    rw [htt] at z6
+    simp only [Bool.false_eq_true, if_false] at z6
+    obtain ⟨rfl, rfl⟩ := pureOk z6
+    refine ⟨c4, max (max F1 F2) (max F3 F4), ?_⟩
+    generalize hFm : max (max F1 F2) (max F3 F4) = Fm
+    simp only [ConLeche.checkIotaSidesTy, ConLeche.fueledOps, bind, Except.bind,
+      e1 Fm (by omega), e2 Fm (by omega), e3 Fm (by omega), e4 Fm (by omega), htt]
+    rfl
+  | true =>
+    rw [htt] at z6
+    simp only [if_true] at z6
+    obtain ⟨ta, s5, k5, z7⟩ := bindOk z6
+    obtain ⟨ok5, x5, p5, ⟨taP, hta, hwta, F5, hF5⟩⟩ := AM.of_run (P := fun u => u = s4)
+      (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s4.store u.store ∧
+        u.pins = s4.pins ∧ Core.SimE (ConLeche.inferTypeCore μ envSelf) depth alphaSP u.store r)
+      rfl k5 (hknot.infer s4 depth alphaS alphaSP ok4 (denote_ext hal x14) hwa)
+    obtain ⟨so, s6, k6, z8⟩ := bindOk z7
+    obtain ⟨p6, hso⟩ := internSortE_run ok5.state (denoteL_ext hlA (x14.trans x5)) k6
+    have ok6 := (p6.toCore ok5).ok
+    obtain ⟨b3, s7, k7, z9⟩ := bindOk z8
+    obtain ⟨ok7, x7, p7, ⟨F6, hF6⟩⟩ := AM.of_run (P := fun u => u = s6)
+      (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s6.store u.store ∧
+        u.pins = s6.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth taP (.sort lAP) r)
+      rfl k7 (hknot.defeq s6 depth ta so taP (.sort lAP) ok6 (denote_ext hta p6.ext) hso hwta
+        (by simp [Expr.WScoped]))
+    obtain ⟨hb3, z10⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) z9
+    subst hb3
+    obtain ⟨rfl, rfl⟩ := pureOk z10
+    refine ⟨⟨ok7, (x14.trans x5).trans (p6.ext.trans x7), by rw [p7, p6.pins, p5, c4.pins]⟩,
+      max (max (max F1 F2) (max F3 F4)) (max F5 F6), ?_⟩
+    have e5 : ∀ F, F5 ≤ F → ConLeche.inferTypeCore μ envSelf F depth alphaSP = .ok taP :=
+      fun F h => ConLeche.inferTypeCore_mono h hF5
+    have e6 : ∀ F, F6 ≤ F →
+        ConLeche.isDefEqCore μ envSelf F depth taP (.sort lAP) = .ok true :=
+      fun F h => ConLeche.isDefEqCore_mono h hF6
+    generalize hFm : max (max (max F1 F2) (max F3 F4)) (max F5 F6) = Fm
+    simp only [ConLeche.checkIotaSidesTy, ConLeche.fueledOps, bind, Except.bind,
+      e1 Fm (by omega), e2 Fm (by omega), e3 Fm (by omega), e4 Fm (by omega), htt,
+      e5 Fm (by omega), e6 Fm (by omega)]
+    rfl
 
 /-- con-leche: none — the name of a recursor's `j`-th model iota theorem.
 
@@ -788,7 +886,7 @@ equation, its sides the rule's own.
 `Bridge/ExprOps/Reset.lean`'s `renameConstsFast_spec`, `CoreSpec.knot`'s
 `defeq` slot, and `IFEnvOK` at the theorem's lookup. -/
 theorem checkIotaThm_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
@@ -836,7 +934,7 @@ theorem nestedRuleShape_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
 `sorry`: `nestedRuleShape_spec`, `checkIotaThm_spec`'s pieces, and
 `Frontend.denoteFire` at the answer. -/
 theorem checkIotaThmN_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
@@ -862,7 +960,7 @@ One rule certified and its firing mode written in.
 `sorry`: `checkIotaThm_spec`, `checkIotaThmN_spec` and `IFEnvOK` at the
 constructor's lookup. -/
 theorem checkIotaRule_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
@@ -884,7 +982,7 @@ The whole rule list.
 
 `sorry`: a list induction over `checkIotaRule_spec`. -/
 theorem checkIotaRules_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
@@ -910,7 +1008,7 @@ A member's header checked against its `_model` counterpart.
 (`Bridge/Checker/Base.lean`, item 11 of task #97-P3-Checker's list — the whole
 tier's single highest-value remaining proof), and `CoreSpec.knot`'s `defeq`. -/
 theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
-    (env' : Env) (hk : CoreSpec μ Arena.checkFuel) (blockNames : List NIdx)
+    (env' : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (cv : IConstantVal)
     (cvP : ConstantVal) :
     CSpec μ env fe'
@@ -928,7 +1026,7 @@ One member checked and installed at its real inductive kind.
 
 `sorry`: `checkMemberVal_spec` and `IFEnv.push`'s two lemmas. -/
 theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (blockNames : List NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (caps : IIndCaps) (capsP : IndCaps)
     (ci : IConstantInfo) (ciP : ConstantInfo) :
     CSpec μ env fe'
@@ -947,7 +1045,7 @@ theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 `sorry`: a list induction over `checkIndMember_spec` and `InstRel.trans`
 (closed, `Bridge/Inductives/Rel.lean`). -/
 theorem checkIndMembers_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (blockNames : List NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (caps : IIndCaps) (capsP : IndCaps)
     (cis : List IConstantInfo) (cisP : List ConstantInfo) :
     CSpec μ env fe
@@ -968,7 +1066,7 @@ mention each other, so they install as a group).
 
 `sorry`: `checkMemberVal_spec` and `IFEnv.push`, over a list induction. -/
 theorem provisionRecs_spec {μ : CheckMode} {env : Env} (feAcc : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (blockNames : List NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (cis : List IConstantInfo)
     (cisP : List ConstantInfo) :
     CSpec μ env feAcc
@@ -989,7 +1087,7 @@ each provisioned recursor's rules certified and the record installed.
 
 `sorry`: `checkIotaRules_spec` and `IFEnv.push`, over a list induction. -/
 theorem installIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ feSelf acc : IFEnv)
-    (env₂ envSelf envAcc : Env) (hk : CoreSpec μ Arena.checkFuel)
+    (env₂ envSelf envAcc : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cs : List (IConstantVal × Nat × Nat × List IRecRule))
     (csP : List (ConstantVal × Nat × Nat × List RecRule)) :
@@ -1008,7 +1106,7 @@ and the certified installs.
 `sorry`: `eqBasisStored_spec`, `provisionRecs_spec`, `blockRenameTable_spec`
 and `installIndRecs_spec`. -/
 theorem checkIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (blockNames : List NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (blockNames : List NIdx)
     (blockNamesP : List ConLeche.Name) (recs : List IConstantInfo)
     (recsP : List ConstantInfo) :
     CSpec μ env fe₂
@@ -1135,7 +1233,7 @@ The projection function's iota certificate.
 `sorry`: `projBack_spec`/`projFwd_spec`, `domsMatchRenamed_spec`,
 `eqApp3?_spec` and `CoreSpec.knot`'s `defeq` slot. -/
 theorem checkProjIota_spec {μ : CheckMode} {env : Env} (fe' feSelf : IFEnv)
-    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel)
+    (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (T ctorName : NIdx) (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (cvj : IConstantVal) (cvjP : ConstantVal)
     (nP nF i : Nat) :
@@ -1157,7 +1255,7 @@ One projection function checked and installed.
 `sorry`: `checkProjLookups_spec`, `checkProjTy_spec`, `checkProjIota_spec`,
 `CoreSpec.knot`'s `defeq` slot and `IFEnv.push`. -/
 theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T ctorName : NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T ctorName : NIdx)
     (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF i : Nat) :
     CSpec μ env fe'
@@ -1247,7 +1345,7 @@ One projection install, with its duplicate guard.
 
 `sorry`: `checkProjFn_spec` and `IFEnvOK`'s `miss` clause. -/
 theorem installProjFnStep_spec {μ : CheckMode} {env : Env} (e : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T ctorName : NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T ctorName : NIdx)
     (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF i : Nat) :
     CSpec μ env e
@@ -1266,7 +1364,7 @@ theorem installProjFnStep_spec {μ : CheckMode} {env : Env} (e : IFEnv)
 
 `sorry`: a `Nat` recursion over `installProjFnStep_spec` and `InstRel.trans`. -/
 theorem installProjFns_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T ctorName : NIdx)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T ctorName : NIdx)
     (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF k i : Nat) :
     CSpec μ env fe
@@ -1388,7 +1486,7 @@ group, and — at a structure-like block — the projection functions.
 `recsFormSuffix`/`isRecInfo`'s exactness (both tag reads, so both are
 `Frontend.denoteCI`'s case split). -/
 theorem checkModeled_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (block : List IConstantInfo)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (block : List IConstantInfo)
     (blockP : List ConstantInfo) :
     CSpec μ env fe
       (fun st => Frontend.denoteCIList st block = some blockP ∧
