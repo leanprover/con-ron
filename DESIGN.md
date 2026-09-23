@@ -59405,3 +59405,131 @@ frontier item is in `ConRon.Bridge.*`: Theorem 1 has zero frontier items.**
 What remains is all Theorem 2 (`ConRon.Refine2.*`, top
 `reduce_nat_refines`, fan-in 4); `Bridge/Checker/Axioms.lean`'s
 `checkDeclsPure_bridge`/`model_exists` still print `sorryAx` through it.
+
+### Task #97-T2-LOCKSTEP lane Frontend — the parser tier on the lockstep shapes; F11 closed, F10 deleted (2026-09-23, Opus under Fable)
+
+Also task #97-P5-Front round 4.  Lane `proof/ConRon/Refine2/Frontend/**`,
+worktree `_tmp/wt-t2-front` off `arena` `f216c474`, merged forward twice
+(`5453ac2e`, `18202495`: D6's `intern_e_run₀`, the extended `lockstep`
+tactic).  Frontier at the start: the history row of `f216c474` (`t2-lock1-s3`,
+clean, same commit): **65 items / 174 tainted / 647 dead weight**; this
+worktree's own start-of-round run was stopped when the first rebuild showed
+the Bridge tier had to be re-elaborated (the row is the same tree).
+
+#### Slice 1 — the shapes (`4cf0783f`)
+
+* `Frontend/Shape.lean`: `LOut`/`SimL`/`SimD`/`SimDV`/`SimStreamRel`/
+  `SimStreamD`/`SimGen`/`ModellerRefines` are lockstep — `AStateRel₀` +
+  `AStateInv`, no `Ext`, no `StoreWF`; `LOut` loses its dead pre-state
+  parameter.  **`ModellerRefines` — a named hypothesis of the capstone — is
+  restated lockstep too** (premise `AStateRel₀`, conclusion `SimGen` without
+  `Ext`): the seam says the Rust generator does what the twin's does, from
+  related states to related states.  `decline_modeller_refines` still
+  discharges it for `DeclineModeller`.
+* Every Frontend statement moved: `Sim → Sim₀`, `SimRel → SimRel₀`,
+  `front_of`'s `WF` slot into `SimRel₀`'s relation (`PlanRel`), `Ext`
+  arguments deleted from ~40 proof sites (`LOut.rebase` deleted, `SimDV.bind_ok`
+  lost its `hext`).  The interns are `Specs.lean`'s `₀` lemmas (no `hview`).
+* **F10**: `proj_rewrite_at_refines` deleted (coordinator's ruling).
+* `is_nat_op_record` reads `nat_op_names`/`nat_div_mod_names`, whose
+  `Checker/Base.lean` statements are still over `AStateRel`: lockstep copies
+  (`pin_at_refines₀`, `pin_slot₀`, `nat_{op,div_mod}_names_refines₀`) live in
+  `NatOpGround.lean` until the Checker lane moves those (the proofs read only
+  `hrel.pins`).
+* **Capstone** (out of lane, forced): stages 2–4 are now `AStateRel₀`;
+  stage 5 (`intern_all_pins_refines`, Checker lane, still `AStateRel`) takes
+  the twin's `StoreWF` from Theorem 1 through the new `stages_prep_wf`
+  (`stages_frame`'s chain stopped at `preparePrelude`) and `AStateRel₀.of₀` —
+  the twin's own invariant supplied from outside Theorem 2, as the ruling
+  says.
+
+#### Slice 2 — F11 closed
+
+Round 3's F11 said the four statements were false only because of
+`storeWF`; lockstep, all four are proved:
+
+| lemma | how |
+|---|---|
+| `parse_name_entry_d_refines` | reads, `name_entry_tail` (`intern_n_node_run₀` + `id_table_insert_rel`) |
+| `parse_level_entry_d_refines` | `parseLevelEntryD_unfold` (now proved), `parse_level_rec_d_refines` (new proof), `intern_l_node_run₀` |
+| `parse_expr_entry_d_refines` | `parseExprEntryD_unfold` (proved), `parse_expr_rec_d_refines` (all ten arms; binder arms on D6's `intern_e_run₀`, `NatVal` on `NatValSpec` + `from_decimal_wf`) |
+| `proj_iota_name_refines` | three `intern_n_node_run₀`, the literals' spelling, `text::cat`/`u64_str` ⊑ `"proj_" ++ toString i` |
+
+and on the way: `st_fresh_{name,level,expr}_refines` (restated against the
+twin's own `freshName`/`freshLevel`/`freshExpr` — con-leche's
+`IdTable.bound_eq` — instead of a transcription), `parse_pw_d_refines`
+(with the `PropWhenWF` the binder intern needs), `id_table_insert_rel`.  New
+module `Frontend/Text.lean`: `text::cat`/`u64_str` (ported from
+`RefineOld/Frontend/ProjRecR.lean`), and **`arena::env::read_name(s)` ⊑
+`denoteN`/`denoteNList`** with the names' `NameWF` — the EStore-level
+readback the frontend's messages, `pw` data and `prepare` use had no
+Theorem-2 lemma (only `arena::monad::read_name` had).
+
+#### The `lockstep` tactic and this lane
+
+Not extended to the frontend's two-state judgements.  The frontend's
+`StateD`-threading functions (`SimD`/`SimDV`/`SimStreamD`) are the parse's
+line layer — about a dozen lemmas, each a two- or three-step chain whose
+steps are already lemmas; a second judgement family with its bind rules (the
+size of `Lockstep.lean`'s rule section) would cost more than it saves.  The
+`&mut AState`-threading functions of `proj_rec.rs` and `nat_op_ground.rs`
+ARE `LS`-shaped (`Result (Result α CheckError × AState)` against an `AM`
+do-block) and can use the shared tactic as it is; the `&EStore` ones are
+`LSS`.
+
+**Landing 1** (slices 1–2): `arena` merged at `491d3f3c`; `scripts/gates.sh`
+**all 16 OK** (`extract-check` 111 s, `lake-bridge` 54 s); frontier at the
+landing tip **55 items / 122 tainted / 632 dead weight** (from 65 / 174 / 647
+at the start; most of the drop is other lanes' landings — this lane closed
+the four F11 statements and eight more, and deleted F10).  Shared Lake cache
+seeded from the landing state.  An incident on the way: at 17:20 two oleans
+of the SHARED `_tmp/aeneas-lean/.lake/packages/con-leche`
+(`ConLeche/Frontend/Scan/Fast`, `ConLeche/Semantics/Syntax`) were rewritten
+by a Lean **4.34.0** toolchain (not this lane), and every build reading them
+failed with "incompatible header"; this worktree ran on a private copy of the
+con-leche package (restored from the Lake cache's 4.33 artifacts) until the
+shared one was repaired (it was, by 17:5x); `_tmp/aeneas-lean` was not
+touched from here.
+
+### Task #97-MQ — the merge queue: lanes submit, one queue agent lands (2026-09-23, Fable)
+
+**Why.**  With seven lanes landing on `arena`, a lane's gate run was often
+stale by the time it finished: `land.sh` refused the non-fast-forward, the
+lane merged again and re-gated.  P3-Ind round 9 merged four times and ran the
+full gates three times, ~30 min of a 2.3 h round.  The maintainer's proposal:
+one dedicated agent takes gated branches and is the only one that merges, so
+merges are sequenced by construction and the merge logic lives in one context.
+
+**Mechanics.**
+* `scripts/submit.sh <worktree> [note]` (new): a lane appends
+  `time branch commit worktree base touched note` (tab-separated) to
+  `_tmp/merge-queue` under `flock _tmp/.merge-queue.lock`.  The lane merged
+  `arena` once and ran the full gates before submitting; it does not re-merge.
+* `scripts/gates.sh --only a,b,c` (new): runs the named steps, prints `SKIP`
+  for the rest, ends `gates: N OK, M SKIPPED (--only)` and skips the reports.
+  The OVERVIEW anchor moved to `gates.sh#L71-L109`.
+* The queue agent works in `_tmp/wt-mq` on branch `mq`.  Per entry: `git
+  merge --ff-only` `mq` to `arena`'s tip, `git merge <commit>`, re-gate, `git
+  -C <main> merge --ff-only mq`, `scripts/drop-worktree.sh <lane worktree>`,
+  one line to the coordinator.  Superseded entries (same branch, older
+  commit) are skipped.  The queue's processed position is recorded in
+  `_tmp/merge-queue.done` (one line per entry: status, branch, commit,
+  landed-at).
+
+**Re-gate table** (the steps a merge's delta can touch; "cheap" = the eleven
+steps before `extract-check`, ~20 s together, always run):
+
+| the merge changes (relative to `mq` before it) | steps |
+|---|---|
+| anything | cheap |
+| `crates/**`, `proof/ConRon/Generated/**`, `scripts/extract*`, `aeneas`/`charon` config | + `extract-check` + all four `lake-*` |
+| `proof/lakefile.toml`, `proof/lake-manifest.json`, `lean-toolchain` | + all four `lake-*` |
+| `proof/ConRon/Arena/**` | + all four `lake-*` |
+| `proof/ConRon/Bridge/**` | + `lake-bridge`, `lake-capstone` (+ `lake-build` if a default target imports it) |
+| `proof/ConRon/Refine2/**` | + `lake-refine2`, `lake-capstone` |
+| `proof/ConRon/Capstone.lean` | + `lake-capstone` |
+| `*.md`, `scripts/*` not above | cheap only |
+
+When unsure, run the full gates.  A landing whose merge from the lane's view
+was clean but whose union with the other queued branches breaks a proof is
+bounced to that lane with the failing log, never patched in the queue.
