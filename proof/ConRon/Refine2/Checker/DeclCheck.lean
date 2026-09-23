@@ -578,7 +578,18 @@ theorem defn_value_refines {vis : Std.U64} {rf lf} {c : arena.handle.NIdx} {o}
       (match lf.find? (absNIdx c) with
        | some (.defnInfo _ v _) => some v
        | _ => none) := by
-  sorry
+  rw [arena.decl_check.defn_value] at hrun
+  obtain ⟨ci, hci, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hf := ifenv_find_abs (IFEnvInv.coreCtx hfe hfinv hvis) hci
+  rw [← hf]
+  rcases ci with _ | ci
+  · obtain rfl := (Result.ok_injective hrun).symm; rfl
+  · cases ci <;> simp only [absIConstantInfo, Option.map_some] at hrun ⊢ <;>
+      first
+      | (obtain rfl := (Result.ok_injective hrun).symm; rfl)
+      | (obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+         obtain rfl := (Result.ok_injective hrun).symm
+         simp [dupId_eidx _ _ he])
 
 open Lockstep in
 @[lockstep] theorem defn_value_spec {vis : Std.U64} {rf lf}
