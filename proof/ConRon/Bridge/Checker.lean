@@ -8,6 +8,13 @@ In dependency order:
 
 * `Bridge/Checker/Inv.lean` — the fold-step invariant `FoldOK`, and the
   declaration layer's transport across a `dropScratch`;
+* `Bridge/Checker/Names.lean` — the reserved-name list interned
+  (`reservedBasisNames_run`), the two readers under it and the three
+  equations a consumer of its answer needs.  It sits beside `Inv.lean`
+  rather than inside `Base.lean` because **`Bridge/Inductives/Rel.lean`
+  imports it too**: `structPartsCore?` and `nativeShape?` test
+  `reserved.contains`, and the inductive tier cannot import `Base.lean`
+  (task #97-P3-Layout);
 * `Bridge/Checker/Hyp.lean` — the two named hypotheses, `KnotSpec` (the Core
   tier's) and `IndSpec` (the Inductives tier's);
 * `Bridge/Checker/Decl.lean` — what an arm concludes (`DeclOut`) and what
@@ -29,6 +36,7 @@ In dependency order:
 * `Bridge/Checker/Axioms.lean` — the trust census.
 -/
 import ConRon.Bridge.Checker.Inv
+import ConRon.Bridge.Checker.Names
 import ConRon.Bridge.Checker.Hyp
 import ConRon.Bridge.Checker.Decl
 import ConRon.Bridge.Checker.Arms
