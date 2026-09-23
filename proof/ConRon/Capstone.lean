@@ -122,7 +122,7 @@ theorem runPipeline_ok_of_stages {chunks : List ByteArray}
     ∃ n, Arena.runPipeline chunks .verified pins = .ok n := by
   rw [parseChunks] at hC
   obtain ⟨st, sB', hinit, hgo⟩ := ConRon.Bridge.AM.bind_ok hC
-  have hhead : runPipelineHead inProcessModeller (AState.init EStore.empty)
+  have hhead : runPipelineHead inProcessModeller true false (AState.init EStore.empty)
       = .ok (.ok (pre, st), sB') := by
     rw [runPipelineHead, AM.bind_of_ok hA, AM.bind_of_ok hB]
     show (StateD.init true false >>= fun x => pure (Except.ok (pre, x))) sB = _
@@ -131,9 +131,9 @@ theorem runPipeline_ok_of_stages {chunks : List ByteArray}
       = .ok (.ok (r.decls.size - r.genRecords), sF) := by
     rw [runPipelineTail, AM.bind_of_ok hD, AM.bind_of_ok hE, AM.bind_of_ok hF]
     rfl
-  have hm : (runPipelineM inProcessModeller .verified pins chunks).run
+  have hm : (runPipelineM inProcessModeller .verified pins chunks true false).run
       (AState.init EStore.empty) = .ok (.ok (r.decls.size - r.genRecords), sF) := by
-    show runPipelineM inProcessModeller .verified pins chunks
+    show runPipelineM inProcessModeller .verified pins chunks true false
       (AState.init EStore.empty) = _
     rw [runPipelineM, AM.bind_of_ok hhead]
     show (parseChunksGo inProcessModeller st .empty 0 0 chunks >>= fun x =>
@@ -171,13 +171,14 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
     internReservedPins_run hok0 hoff0 hA
   obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
-      hokA hoffA hB
+      hokA hoffA hpinsA hB
   obtain ⟨hstep2, hpersR, rc, -, hrelR⟩ :=
     parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) hC
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins) hC
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])
+      (hpinsA.mono (hstep1.trans hstep2).ext (hstep1.trans hstep2).pins)
       (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
       (hnPre.mono hstep2.ext) hrelR.decls hpersR hrelR.projNamed hD
   have hoff3 : sD.store.scratchOn = false := by

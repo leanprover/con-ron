@@ -214,7 +214,7 @@ A `cases` on `scanLineFwd`'s answer — the same value on both sides, once
 `applyLine_run` in the `.ok` arm. -/
 theorem applyFinalLine_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {b : ByteArray} {i : USize} {lineNo : Nat}
     (hrun : applyFinalLine md sd b i lineNo s = .ok (.ok sd', s')) :
@@ -229,7 +229,7 @@ theorem applyFinalLine_run {md : Modeller} (hmw : ModellerWF md)
   | ok r j =>
     rw [hsc] at hrun
     obtain ⟨x, s₁, hline, htail⟩ := AM.bind_ok hrun
-    obtain ⟨hstep, hpers, y, hy, hxy⟩ := applyLine_run hmw hmr hok hoff hrel hp hline
+    obtain ⟨hstep, hpers, y, hy, hxy⟩ := applyLine_run hmw hmr hok hoff hpins hrel hp hline
     have hcl : ConLeche.Frontend.applyFinalLine sc b i lineNo
         = (match ConLeche.Frontend.applyLine sc r with
            | .error msg => .error (.internal msg, lineNo)
@@ -264,7 +264,7 @@ item 16 — **the tier's second critical path**, after
 `processLineCoreD_run`. -/
 theorem feedChunk_run_le {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) :
-    ∀ (n : Nat) {s s' : AState}, StateOK s → s.store.scratchOn = false →
+    ∀ (n : Nat) {s s' : AState}, StateOK s → s.store.scratchOn = false → PinsOK s →
       ∀ {sd sd' : StateD} {sc : ConLeche.Frontend.StateD},
         StateDRel s.store sd sc → PersStateD sd →
       ∀ {b : ByteArray} {i : USize} {lineNo lineNo' : Nat} {tail : USize},
@@ -276,7 +276,7 @@ theorem feedChunk_run_le {md : Modeller} (hmw : ModellerWF md)
   intro n
   induction n with
   | zero =>
-    intro s s' hok hoff sd sd' sc hrel hp b i lineNo lineNo' tail hmeas hrun
+    intro s s' hok hoff hpins sd sd' sc hrel hp b i lineNo lineNo' tail hmeas hrun
     rw [feedChunk] at hrun
     have hnot : ¬ (i < b.usize) := fun hlt => by
       have := ConLeche.Frontend.usizeInBounds b i hlt; omega
@@ -290,7 +290,7 @@ theorem feedChunk_run_le {md : Modeller} (hmw : ModellerWF md)
     refine ⟨ParseStep.refl hok, hp, sc, ?_, hrel⟩
     rw [ConLeche.Frontend.feedChunk, dif_neg hnot]
   | succ n ih =>
-    intro s s' hok hoff sd sd' sc hrel hp b i lineNo lineNo' tail hmeas hrun
+    intro s s' hok hoff hpins sd sd' sc hrel hp b i lineNo lineNo' tail hmeas hrun
     rw [feedChunk] at hrun
     by_cases hlt : i < b.usize
     case neg =>
@@ -357,7 +357,7 @@ theorem feedChunk_run_le {md : Modeller} (hmw : ModellerWF md)
         simp only [hj', Bool.false_eq_true, if_false] at hrun hbase
         obtain ⟨x, s₁, hline, hrest⟩ := AM.bind_ok hrun
         obtain ⟨hstep, hpers, y, hy, hxy⟩ :=
-          applyLine_run hmw hmr hok hoff hrel hp hline
+          applyLine_run hmw hmr hok hoff hpins hrel hp hline
         cases x with
         | inr v => exact absurd (AM.pure_ok hrest).1 (by simp)
         | inl st =>
@@ -373,7 +373,8 @@ theorem feedChunk_run_le {md : Modeller} (hmw : ModellerWF md)
               have h2 := USize.lt_iff_toNat_lt.mp hij
               omega
             obtain ⟨hstep2, hpers2, sc₂, hcl2, hrel₂⟩ :=
-              ih hstep.ok (by rw [hstep.scratch, hoff]) hrel₁ (hpers st rfl)
+              ih hstep.ok (by rw [hstep.scratch, hoff]) (hpins.mono hstep.ext hstep.pins)
+                hrel₁ (hpers st rfl)
                 hmeas' hrest
             exact ⟨hstep.trans hstep2, hpers2, sc₂, by rw [hbase, hcl2], hrel₂⟩
           · rw [dif_neg hij] at hrest
@@ -386,7 +387,7 @@ sides and come out EQUAL, not merely related — they are the fold's own
 bookkeeping and the next chunk's input. -/
 theorem feedChunk_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {b : ByteArray} {i : USize} {lineNo lineNo' : Nat}
     {tail : USize}
@@ -394,7 +395,7 @@ theorem feedChunk_run {md : Modeller} (hmw : ModellerWF md)
     ParseStep s s' ∧ PersStateD sd' ∧
       ∃ sc', ConLeche.Frontend.feedChunk sc b i lineNo
           = .ok (sc', lineNo', tail) ∧ StateDRel s'.store sd' sc' :=
-  feedChunk_run_le hmw hmr (b.size - i.toNat) hok hoff hrel hp
+  feedChunk_run_le hmw hmr (b.size - i.toNat) hok hoff hpins hrel hp
     (Nat.le_refl _) hrun
 
 /-! ## The chunk drivers -/
@@ -409,7 +410,7 @@ sides), the `carry ++ buf0` concatenation (the same `ByteArray` on both sides
 — the twin does not abstract bytes) and `feedChunk_run`. -/
 theorem chunkStep_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {carry carry' : ByteArray} {lineNo total : Nat}
     {buf0 : ByteArray} {lineNo' total' : Nat}
@@ -437,7 +438,7 @@ theorem chunkStep_run {md : Modeller} (hmw : ModellerWF md)
       obtain ⟨h1, h2, h3, h4⟩ := hv
       subst h1; subst h2; subst h3; subst h4; subst hs
       obtain ⟨hstep, hpers, sc₁, hcl, hrel'⟩ :=
-        feedChunk_run hmw hmr hok hoff hrel hp hfeed
+        feedChunk_run hmw hmr hok hoff hpins hrel hp hfeed
       refine ⟨hstep, hpers, sc₁, ?_, hrel'⟩
       rw [ConLeche.Frontend.chunkStep, if_neg hsz]
       simp only [hcl]
@@ -448,7 +449,7 @@ the stream: the carried tail, if any, is its last line.
 `applyFinalLine_run` and `ParseResultRel.ofState`. -/
 theorem chunkFinish_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {carry : ByteArray} {lineNo : Nat} {r : ParseResultD}
     (hrun : chunkFinish md sd carry lineNo s = .ok (.ok r, s')) :
@@ -477,7 +478,7 @@ theorem chunkFinish_run {md : Modeller} (hmw : ModellerWF md)
       simp only [Except.ok.injEq] at hv
       subst hv; subst hs
       obtain ⟨hstep, hpers, sc₁, hcl, hrel'⟩ :=
-        applyFinalLine_run hmw hmr hok hoff hrel hp hfin
+        applyFinalLine_run hmw hmr hok hoff hpins hrel hp hfin
       refine ⟨hstep, PersParseResult.ofState hpers, _, ?_,
         ParseResultRel.ofState hrel'⟩
       rw [ConLeche.Frontend.chunkFinish, if_neg hce]
@@ -494,7 +495,7 @@ a corollary of the chunk fold.
 `StateD_init_run`, `feedChunk_run`, `applyFinalLine_run`, composed. -/
 theorem parseBytes_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {b : ByteArray} {im ce : Bool}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {b : ByteArray} {im ce : Bool}
     {r : ParseResultD} (hrun : parseBytes md b im ce s = .ok (.ok r, s')) :
     ParseStep s s' ∧ PersParseResult r ∧
       ∃ rc, ConLeche.Frontend.parseBytes b im ce = .ok rc ∧
@@ -516,7 +517,8 @@ theorem parseBytes_run {md : Modeller} (hmw : ModellerWF md)
       obtain ⟨sd₁, lineNo₁, tail₁⟩ := p
       simp only [] at hrest2
       obtain ⟨hstep1, hp1, sc₁, hcl1, hrel1⟩ :=
-        feedChunk_run hmw hmr hstep0.ok (by rw [hstep0.scratch, hoff]) hrel0
+        feedChunk_run hmw hmr hstep0.ok (by rw [hstep0.scratch, hoff])
+          (hpins.mono hstep0.ext hstep0.pins) hrel0
           hp0 hfeed
       by_cases htl : tail₁ < b.usize
       · rw [if_pos htl] at hrest2
@@ -532,7 +534,8 @@ theorem parseBytes_run {md : Modeller} (hmw : ModellerWF md)
           subst hv; subst hs
           obtain ⟨hstep2, hp2, sc₂, hcl2, hrel2⟩ :=
             applyFinalLine_run hmw hmr hstep1.ok
-              (by rw [hstep1.scratch, hstep0.scratch, hoff]) hrel1 hp1 hfin
+              (by rw [hstep1.scratch, hstep0.scratch, hoff])
+              (hpins.mono (hstep0.trans hstep1).ext (hstep0.trans hstep1).pins) hrel1 hp1 hfin
           refine ⟨(hstep0.trans hstep1).trans hstep2,
             PersParseResult.ofState hp2, _, ?_, ParseResultRel.ofState hrel2⟩
           rw [ConLeche.Frontend.parseBytes, if_neg hsz]
@@ -556,7 +559,7 @@ the end; `ParseStep.trans` carries the frame and each step's own theorem
 carries the relation past its appends. -/
 theorem parseChunksGo_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {carry : ByteArray} {lineNo total : Nat}
     {chunks : List ByteArray} {r : ParseResultD}
@@ -568,7 +571,7 @@ theorem parseChunksGo_run {md : Modeller} (hmw : ModellerWF md)
   | nil =>
     rw [parseChunksGo] at hrun
     obtain ⟨hstep, hpers, rc, hcl, hrel'⟩ :=
-      chunkFinish_run hmw hmr hok hoff hrel hp hrun
+      chunkFinish_run hmw hmr hok hoff hpins hrel hp hrun
     exact ⟨hstep, hpers, rc, hcl, hrel'⟩
   | cons c cs ih =>
     rw [parseChunksGo] at hrun
@@ -581,9 +584,10 @@ theorem parseChunksGo_run {md : Modeller} (hmw : ModellerWF md)
       obtain ⟨sd₁, carry₁, lineNo₁, total₁⟩ := q
       simp only [] at hrest
       obtain ⟨hstep1, hp1, sc₁, hcl1, hrel1⟩ :=
-        chunkStep_run hmw hmr hok hoff hrel hp hstepc
+        chunkStep_run hmw hmr hok hoff hpins hrel hp hstepc
       obtain ⟨hstep2, hp2, rc, hcl2, hrel2⟩ :=
-        ih hstep1.ok (by rw [hstep1.scratch, hoff]) hrel1 hp1 hrest
+        ih hstep1.ok (by rw [hstep1.scratch, hoff]) (hpins.mono hstep1.ext hstep1.pins)
+          hrel1 hp1 hrest
       refine ⟨hstep1.trans hstep2, hp2, rc, ?_, hrel2⟩
       rw [parseChunksC]
       simp only [hcl1, hcl2]
@@ -600,7 +604,7 @@ and `PersParseResult r` is `∀ x ∈ ds, PersDecl x`.
 `StateD_init_run` and `parseChunksGo_run` through `parseChunks_eq`. -/
 theorem parseChunks_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {chunks : List ByteArray} {im ce : Bool}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {chunks : List ByteArray} {im ce : Bool}
     {r : ParseResultD}
     (hrun : parseChunks md chunks im ce s = .ok (.ok r, s')) :
     ParseStep s s' ∧ PersParseResult r ∧
@@ -610,7 +614,8 @@ theorem parseChunks_run {md : Modeller} (hmw : ModellerWF md)
   obtain ⟨sd0, s0, hinit, hgo⟩ := AM.bind_ok hrun
   obtain ⟨hstep0, hp0, hrel0⟩ := StateD_init_run hok hoff hinit
   obtain ⟨hstep1, hp1, rc, hcl, hrel1⟩ :=
-    parseChunksGo_run hmw hmr hstep0.ok (by rw [hstep0.scratch, hoff]) hrel0
+    parseChunksGo_run hmw hmr hstep0.ok (by rw [hstep0.scratch, hoff])
+      (hpins.mono hstep0.ext hstep0.pins) hrel0
       hp0 hgo
   exact ⟨hstep0.trans hstep1, hp1, rc, by rw [parseChunks_eq]; exact hcl,
     hrel1⟩
@@ -629,14 +634,14 @@ the same for the record count / `genRecords`" is this corollary's second
 conjunct. -/
 theorem parseChunks_exact {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {chunks : List ByteArray} {im ce : Bool}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {chunks : List ByteArray} {im ce : Bool}
     {r : ParseResultD}
     (hrun : parseChunks md chunks im ce s = .ok (.ok r, s')) :
     ∃ rc, ConLeche.Frontend.parseChunks chunks im ce = .ok rc ∧
       denoteDecls s'.store r.decls.toList = some rc.decls.toList ∧
       r.decls.size = rc.decls.size ∧ r.genRecords = rc.genRecords ∧
       (∀ d ∈ r.decls, PersDecl d) := by
-  obtain ⟨-, hpers, rc, hrc, hrel⟩ := parseChunks_run hmw hmr hok hoff hrun
+  obtain ⟨-, hpers, rc, hrc, hrel⟩ := parseChunks_run hmw hmr hok hoff hpins hrun
   have h := hrel.decls
   simp only [denoteDeclArray, Option.map_eq_some_iff] at h
   obtain ⟨xs, hxs, hEq⟩ := h
