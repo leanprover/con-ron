@@ -61081,4 +61081,11 @@ ConRon.Capstone.no_False_declaration`: at the start (`arena` `70ea5a33`)
 items + 1, dead weight 68 + 2); at `fd15f7ee` (with `b047603a` merged)
 **48 / 16 / 272 / 367** (the two files: 3 items, dead weight 37 + 2).  The
 tainted count going up is the tier reaching further into the capstone's
-closure through the closed bodies.
+closure through the closed bodies.  At the submitted tip (`arena`
+`ddb4acdb` merged) **52 / 17 / 296 / 350**; the two files: 7 items
+(`nested_rule_shape_at`, `check_iota_thm_n_at`, `check_iota_rule_bits`,
+`check_iota_thm`, `check_proj_fn_rule`, `ind_block_caps`,
+`checkIotaThmN_unfold` — the iota checks are reached now that
+`check_iota_rule_fire` is closed), dead weight 33 + 1.
+
+`scripts/gates.sh` after the one final `arena` merge: **all 16 OK**.
