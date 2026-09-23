@@ -57575,3 +57575,12 @@ jobs); no Rust, `Refine2/**` or default-target module is downstream of it.
 `0c643232`: **all 16 OK** (`extract-check` 120 s); frontier **38 items in 13
 modules, 125 tainted declarations**, none in this task's modules.  The shared
 Lake cache re-seeded from this state before landing.
+
+**Fifth to seventh merges**, `arena` at `d6288114` (a `Bridge/Checker/**`
+round, `Split.lean` included), `900615df` (task #97-P5-Top round 3:
+`Refine2/Checker/{Base,Pins,Top}.lean`, `Promote.lean`) and `5b2873c5` (a
+`Refine2/Frontend/**` round): `DESIGN.md` conflicts at most.  Re-gated what
+each reaches: `overview-links` OK and `lake build ConRonBridge ConRonCapstone`
+green after the first, `lake build ConRonRefine2 ConRonCapstone` green after
+the other two; none touches Rust, the model or a default-target module.  The
+cache seeding was repeated on the landing state.
