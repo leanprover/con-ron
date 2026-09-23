@@ -241,6 +241,11 @@ namespace ConRon.Bridge.Inductives
 #print axioms piResultIsProp_run
 #print axioms piResultZ_run
 #print axioms indBlockCaps_spec
+#print axioms projBackGo_runW
+#print axioms projFwdGo_runW
+#print axioms projBack_specW
+#print axioms projFwd_specW
+#print axioms checkProjTy_spec
 
 /-! ## Group 2 — the two headline theorems -/
 
