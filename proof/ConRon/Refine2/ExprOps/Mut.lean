@@ -6474,25 +6474,6 @@ theorem inst_spine_from_refines {pers st lst} {fuel : Std.U64}
       (instSpine (absU fuel) (absEIdxListFrom args i) (absU t) (absEIdx e)) := by
   sorry
 
-/-- `Arena/ExprOps.lean:1851 instPisAtLift`. -/
-theorem inst_pis_at_lift_refines {pers st lst} {fuel : Std.U64}
-    {args : alloc.vec.Vec arena.handle.EIdx} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.inst_pis_at_lift pers st fuel args h = ok o) :
-    Sim absOptE (fun _ => True) pers lst o
-      (instPisAtLift (absU fuel) (absEIdxList args) (absEIdx h)) := by
-  sorry
-
-/-- `Arena/ExprOps.lean:1851 instPisAtLift` — the cursor companion. -/
-theorem inst_pis_at_lift_from_refines {pers st lst} {fuel : Std.U64}
-    {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
-    {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.inst_pis_at_lift_from pers st fuel args i h = ok o) :
-    Sim absOptE (fun _ => True) pers lst o
-      (instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)) := by
-  sorry
-
 /-! ## The recursor-rule and binder-surgery helpers
 
 `Specs.lean` primitives: `view`, `internE`, `internBVarE`, plus `stripPis`
@@ -11142,6 +11123,166 @@ theorem instantiate1_lift_fast_refines {pers st lst} {fuel : Std.U64}
     Sim absEIdx (fun _ => True) pers lst o
       (instantiate1LiftFast (absU fuel) (absEIdx e) (absEIdx v) (absU d)) :=
   (instantiate1_lift_fast_wout hrel hinv hfrozen he hv hrun).toSim
+
+/-! ### `instPisAtLift` — moved here from the telescope section because it
+calls `instantiate1_lift_fast`, which is proved above -/
+
+/-- The twin's `view` run at a handle whose view is known. -/
+theorem view_run_of {lst : AState} {hh : EIdx} {v : ENodeView}
+    (h : lst.store.view hh = some v) : (Arena.view hh).run lst = .ok (v, lst) := by
+  show ((match lst.store.view hh with
+          | some w => (pure w : AM ENodeView)
+          | none => Arena.fail
+              (.internal "arena: dangling expression handle")).run lst) = _
+  rw [h]; rfl
+
+private theorem inst_pis_at_lift_from_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {h : arena.handle.EIdx} {o},
+      args.val.length - i.val = n → AStateRel pers st lst → AStateInv pers st →
+      (st.store.shared_on = true → st.store.scratch_on = true) →
+      EResolves lst (absEIdx h) → (∀ x ∈ args.val, EResolves lst (absEIdx x)) →
+      arena.expr_ops.inst_pis_at_lift_from pers st fuel args i h = ok o →
+      Sim absOptE (fun _ => True) pers lst o
+        (instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel args i h o hn hrel hinv hfrozen hh hargs hrun
+    rw [arena.expr_ops.inst_pis_at_lift_from] at hrun
+    rw [if_pos (show i ≥ alloc.vec.Vec.len args from by
+      show args.val.length ≤ i.val; omega)] at hrun
+    obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [dupId_eidx _ _ he] at hrun
+    have ho := Result.ok_injective hrun
+    rw [← ho]
+    have hnil : absEIdxListFrom args i = [] := by
+      simp only [absEIdxListFrom, List.map_eq_nil_iff]
+      exact List.drop_eq_nil_of_le (by omega)
+    show AOut absOptE (fun _ => True) pers lst _ _ _
+    rw [hnil, instPisAtLift]
+    exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+  | succ m ih =>
+    intro pers st lst fuel args i h o hn hrel hinv hfrozen hh hargs hrun
+    rw [arena.expr_ops.inst_pis_at_lift_from] at hrun
+    have hlt : i.val < args.val.length := by omega
+    rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) from by
+      show ¬ (args.val.length ≤ i.val); omega)] at hrun
+    have hcons : absEIdxListFrom args i
+        = absEIdx (args.val[i.val]) :: ((args.val.drop (i.val + 1)).map absEIdx) := by
+      simp only [absEIdxListFrom]
+      rw [List.drop_eq_getElem_cons hlt]
+      rfl
+    obtain ⟨vw, hvw⟩ := EResolves.dest hh
+    show AOut absOptE (fun _ => True) pers lst o.1 o.2
+      ((instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)).run lst)
+    rw [hcons, instPisAtLift, run_bind_of (view_run_of hvw)]
+    have htv := EStore_view_tagOf hvw
+    obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have htg := eidx_tag_abs ht
+    by_cases hF : t = arena.handle.ETAG_FORALL_E
+    · rw [if_pos hF] at hrun
+      have htF : (absEIdx h).tag = ETag.forallE := by rw [htg, hF, etag_forallE_abs]
+      have hbind : ETag.isBind (absEIdx h).tag = true := by rw [htF]; decide
+      obtain ⟨ob, hob, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hvb := (view_bind_run hrel hbind hob).apply
+      have hvb' : lst.store.viewBind (absEIdx h) = ob.map absBindM := by
+        have h2 : (Arena.viewBind (absEIdx h)).run lst
+            = .ok (lst.store.viewBind (absEIdx h), lst) := rfl
+        rw [h2] at hvb
+        simp only [Except.ok.injEq, Prod.mk.injEq] at hvb
+        exact hvb.1
+      have hview2 := hvw
+      rw [EStore.view, if_pos hbind, hvb'] at hview2
+      cases hobc : ob with
+      | none =>
+        rw [hobc] at hview2; cases hview2
+      | some tt =>
+        rw [hobc] at hrun hview2
+        obtain ⟨ty0, body0, m0⟩ := tt
+        simp only [Option.map_some, absBindM, Option.some.injEq] at hview2
+        rw [htF] at hview2
+        have hvwF : vw = .forallE (absEIdx ty0) (absEIdx body0)
+            (ConRon.Refine.absBinderMeta m0) := by
+          rw [← hview2]; simp [eBindView, ETag.lam, ETag.forallE]
+        subst hvwF
+        have hbR : EResolves lst (absEIdx body0) :=
+          EResolves.child hrel.storeWF hvw (by simp [ENodeView.echildren])
+        obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨hb, hval⟩ := ExprOps.vecIndexAt he
+        obtain ⟨a, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hae : a = e := dupId_eidx e a ha
+        have haR : EResolves lst (absEIdx a) := by
+          rw [hae, ← hval]; exact hargs _ (List.getElem_mem hb)
+        obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨r1, st1⟩ := p1
+        have hstep := instantiate1_lift_fast_wout hrel hinv hfrozen hbR haR hp1
+        rw [show absEIdx a = absEIdx (args.val[i.val]) by rw [hae, hval],
+          show absU (0#u64 : Std.U64) = 0 from rfl] at hstep
+        show AOut absOptE (fun _ => True) pers lst o.1 o.2
+          ((do let b ← instantiate1LiftFast (absU fuel) (absEIdx body0)
+                (absEIdx (args.val[i.val])) 0
+               instPisAtLift (absU fuel) (((args.val.drop (i.val + 1)).map absEIdx)) b).run lst)
+        cases hr1 : r1 with
+        | Err ee =>
+          rw [hr1] at hrun hstep
+          have ho := Result.ok_injective hrun
+          rw [← ho]
+          exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (hstep.err rfl) _)
+        | Ok b =>
+          rw [hr1] at hrun hstep
+          obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, -⟩ :=
+            hstep.dest
+          rw [run_bind_of hx1]
+          obtain ⟨i3, hi3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hi3v : i3.val = i.val + 1 := by
+            have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
+          have hfroz1 : st1.store.shared_on = true → st1.store.scratch_on = true := by
+            intro hs; rw [hfl2]; exact hfrozen (hfl1 ▸ hs)
+          have hrec := ih (st := st1) (lst := lst1) (i := i3) (by omega) hrel1 hinv1 hfroz1
+            hres1 (fun x hx => hmono1.res (hargs x hx)) hrun
+          rw [show absEIdxListFrom args i3 = ((args.val.drop (i.val + 1)).map absEIdx) by
+            simp only [absEIdxListFrom, hi3v]] at hrec
+          exact aout_rebase hext1 hrec
+    · rw [if_neg hF] at hrun
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      have hnF : vw.tagOf ≠ ETag.forallE := by
+        rw [← htv, htg]; intro hc
+        exact hF (absU32_inj (by rw [hc, etag_forallE_abs]))
+      cases vw
+      case forallE => exact absurd rfl hnF
+      all_goals exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+
+/-- `Arena/ExprOps.lean:1851 instPisAtLift` — the cursor companion.
+**Corrected** (task #97-P5-Mut round 2, finding 19): `hfrozen`, and that the
+handle and every argument resolve — each step instantiates a binder body at
+an argument through `instantiate1LiftFast`, which interns. -/
+theorem inst_pis_at_lift_from_refines {pers st lst} {fuel : Std.U64}
+    {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+    {h : arena.handle.EIdx} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hh : EResolves lst (absEIdx h)) (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
+    (hrun : arena.expr_ops.inst_pis_at_lift_from pers st fuel args i h = ok o) :
+    Sim absOptE (fun _ => True) pers lst o
+      (instPisAtLift (absU fuel) (absEIdxListFrom args i) (absEIdx h)) :=
+  inst_pis_at_lift_from_aux _ rfl hrel hinv hfrozen hh hargs hrun
+
+/-- `Arena/ExprOps.lean:1851 instPisAtLift`.  **Corrected** as the cursor
+companion. -/
+theorem inst_pis_at_lift_refines {pers st lst} {fuel : Std.U64}
+    {args : alloc.vec.Vec arena.handle.EIdx} {h : arena.handle.EIdx} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+    (hh : EResolves lst (absEIdx h)) (hargs : ∀ x ∈ args.val, EResolves lst (absEIdx x))
+    (hrun : arena.expr_ops.inst_pis_at_lift pers st fuel args h = ok o) :
+    Sim absOptE (fun _ => True) pers lst o
+      (instPisAtLift (absU fuel) (absEIdxList args) (absEIdx h)) := by
+  rw [arena.expr_ops.inst_pis_at_lift] at hrun
+  have h1 := inst_pis_at_lift_from_refines hrel hinv hfrozen hh hargs hrun
+  rwa [show absEIdxListFrom args 0#usize = absEIdxList args by
+    simp [absEIdxListFrom, absEIdxList]] at h1
 
 /-! ## The level substitution
 
