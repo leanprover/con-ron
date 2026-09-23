@@ -228,8 +228,7 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
   have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p, hp2.pins]
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
-    constsResolveFFast_run ⟨hck8, hok.envWF, hok.persPins.mono hpins8,
-      hok.persEnv, hok.coh, hden8⟩ hv8 g9r
+    constsResolveFFast_run hck8 hv8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
     (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
@@ -293,7 +292,7 @@ the rest of a do-block.  Task #97-P3-Checker's sorry list, item 17, closed. -/
 theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {g : Arena.ValueGroup} {gP : ConLeche.ValueGroup}
     {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s)
+    (henv : EnvWF env) (hck : CheckOK μ env fe s)
     (hkind : g.kind = .defn ∧ gP.kind = .defn ∨ g.kind = .thm ∧ gP.kind = .thm ∨
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cvA = some gP.cvA)
@@ -302,8 +301,8 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     (hrun : checkValueGroup μ fe g s = .ok ((), s')) :
     CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
-  have hknot := hk.knot env fe hok.envWF
-  have hsortS := hk.sort env fe hok.envWF
+  have hknot := hk.knot env fe henv
+  have hsortS := hk.sort env fe henv
   have hnever : ∀ {α β γ : Type} {z : AM α} {f : α → Arena.CheckError}
       {g : γ → AM β}, AM.Never (z >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
     fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
@@ -321,7 +320,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s.store t.store ∧
       t.pins = s.pins ∧
       Core.SimE (ConLeche.inferTypeCore μ env) 0 gP.cvA.type t.store r)
-    rfl ga (hknot.infer s 0 g.cvA.type gP.cvA.type hok.check hty0 hwsty)
+    rfl ga (hknot.infer s 0 g.cvA.type gP.cvA.type hck hty0 hwsty)
   obtain ⟨sty, hsty, hwssty, Fa, hFa⟩ := hsima
   -- 2. the sort
   obtain ⟨u, s2, gb, rb⟩ := AM.bind_ok ra
@@ -332,7 +331,6 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
   obtain ⟨uu, huu, Fb, hFb⟩ := hsimb
   have hext2 : Ext s.store s2.store := hxa.trans hxb
   have hpin2 : s2.pins = s.pins := by rw [hpb, hpa]
-  have hok2 : FoldOK μ env fe s2 := hok.step hckb hext2 hpin2
   have hcv2 : Frontend.denoteCV s2.store g.cvA = some gP.cvA :=
     denoteCV_ext hcv hext2
   have hjv2 : denoteE s2.store g.jv = some gP.jv := denote_ext hjv hext2
@@ -420,9 +418,8 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     have heqv : ConLeche.Level.isEquiv uu .zero = some true := by
       rw [← hod, hprop]
     have hext5 : Ext s2.store s6.store := by rw [hstd]; exact Ext.refl _
-    have hok5 : FoldOK μ env fe s6 := hok2.step hckd hext5 hpd
     obtain ⟨jvA, s7, gIV, rT⟩ := AM.bind_ok rg
-    obtain ⟨hstep6, y, Fc, hy6, hIV⟩ := installValue_bridge hμ hk hok5
+    obtain ⟨hstep6, y, Fc, hy6, hIV⟩ := installValue_bridge hμ hk henv hckd
       (denoteCV_ext hcv2 hext5) (denote_ext hjv2 hext5) gIV
     exact tail s7 jvA y Fc hstep6.ok (hext5.trans hstep6.ext)
       (by rw [hstep6.pins, hpd]) hy6

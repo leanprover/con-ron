@@ -157,14 +157,15 @@ value's guards and annotation.
 theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cv : IConstantVal} {c : ConstantVal} {value jv : EIdx} {x : Expr}
     {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
+    (henv : EnvWF env) (hck : CheckOK μ env fe s)
+    (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : installValue μ fe cv value s = .ok (jv, s')) :
     CoreStep μ env fe s s' ∧ ∃ y F, denoteE s'.store jv = some y ∧
       ConLeche.installValue (ConLeche.fueledOps μ F) env c x = .ok y := by
   obtain ⟨hnm, hlps, -⟩ := denoteCV_inv hcv
-  have hknot := hk.knot env fe hok.envWF
-  have hck0 : CheckOK μ env fe s := hok.check
+  have hknot := hk.knot env fe henv
+  have hck0 : CheckOK μ env fe s := hck
   have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
       {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
     fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
@@ -207,8 +208,6 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
   have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
       = some c.levelParams := by rw [h6st]; exact hlps5
   have hws : Expr.WScoped 0 x := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
-  have hden6 : denoteFEnv s6.store fe = some env := by
-    rw [h6st, h5st]; exact hok.denote
   -- 3. the annotation
   obtain ⟨jv2, s7, g7r, r11⟩ := AM.bind_ok r10
   obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
@@ -219,8 +218,6 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
   obtain ⟨w, hw7, hwsw, F7, hF7⟩ := hsim7
   have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
-  have hden7 : denoteFEnv s7.store fe = some env :=
-    denoteFEnv_pext (PExt.of_ext hx7) hok.persEnv hden6
   -- 4. the undeclared-universe-parameter guard
   obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
@@ -233,13 +230,10 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     hck7.mono ⟨by rw [h8st]; exact hck7.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
   have hw8 : denoteE s8.store jv2 = some w := by rw [h8st]; exact hw7
-  have hden8 : denoteFEnv s8.store fe = some env := by rw [h8st]; exact hden7
   -- 5. the unresolved-constant guard
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
-  have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p]
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
-    constsResolveFFast_run ⟨hck8, hok.envWF, hok.persPins.mono hpins8,
-      hok.persEnv, hok.coh, hden8⟩ hw8 g9r
+    constsResolveFFast_run hck8 hw8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
     (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
@@ -430,7 +424,7 @@ theorem checkDefnVal_bridge {μ : CheckMode} {env : Env}
   simp only [Arena.checkDefnVal] at hrun
   -- 1. the install half
   obtain ⟨jv, s1, g1, r1⟩ := AM.bind_ok hrun
-  obtain ⟨hstep1, y, F1, hy1, hIV⟩ := installValue_bridge hμ hk hok hcv hv g1
+  obtain ⟨hstep1, y, F1, hy1, hIV⟩ := installValue_bridge hμ hk hok.envWF hok.check hcv hv g1
   obtain ⟨gf, gl, gr, gb⟩ := installValue_valueWF hIV
   have hwsy : ConLeche.Expr.WScoped 0 y :=
     ConLeche.Expr.WScoped.of_not_hasFvar gf
@@ -559,11 +553,11 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
   -- 6. the install half
   have hext4 : Ext s.store s5.store := by rw [hstd]; exact hxa.trans hxb
   have hpin4 : s5.pins = s.pins := by rw [hpd, hpb, hpa]
-  have hok4 : FoldOK μ env fe s5 := hok.step hckd hext4 hpin4
   have hv4 : denoteE s5.store value = some x := denote_ext hv hext4
   have hcv4 : Frontend.denoteCV s5.store cv = some c := denoteCV_ext hcv hext4
   obtain ⟨jv, s6, gf, rg⟩ := AM.bind_ok rf
-  obtain ⟨hstep6, y, F1, hy6, hIV⟩ := installValue_bridge hμ hk hok4 hcv4 hv4 gf
+  obtain ⟨hstep6, y, F1, hy6, hIV⟩ :=
+    installValue_bridge hμ hk hok.envWF hckd hcv4 hv4 gf
   obtain ⟨gfv, glv, grv, gbv⟩ := installValue_valueWF hIV
   have hwsy : ConLeche.Expr.WScoped 0 y :=
     ConLeche.Expr.WScoped.of_not_hasFvar gfv
@@ -640,7 +634,7 @@ theorem checkOpaqueVal_bridge {μ : CheckMode} {env : Env}
     fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   simp only [Arena.checkOpaqueVal] at hrun
   obtain ⟨jv, s1, g1, r1⟩ := AM.bind_ok hrun
-  obtain ⟨hstep1, y, F1, hy1, hIV⟩ := installValue_bridge hμ hk hok hcv hv g1
+  obtain ⟨hstep1, y, F1, hy1, hIV⟩ := installValue_bridge hμ hk hok.envWF hok.check hcv hv g1
   obtain ⟨gf, gl, gr, gb⟩ := installValue_valueWF hIV
   have hwsy : ConLeche.Expr.WScoped 0 y :=
     ConLeche.Expr.WScoped.of_not_hasFvar gf
