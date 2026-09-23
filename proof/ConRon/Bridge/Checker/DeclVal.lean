@@ -52,6 +52,7 @@ terms the core must run on.
 -/
 import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Decl
+import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Core.Walks.Cached
 import ConLeche.Verify.CheckerSplit
 import ConLeche.Verify.Extend.Inversions
@@ -937,6 +938,288 @@ theorem natOpDeps_run {cn : NIdx} {nm : ConLeche.Name} {ds : List NIdx}
   have nb14 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z14 (b14.mpr h)
   exact frame _ v14 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_neg nb10, if_neg nb11, if_neg nb12, if_neg nb13, if_neg nb14]; exact trivial)
 
+/-! ## The structural-`Nat` guard, link by link
+
+`natOpGuard` and `natOpStoredOk` read pins, build `constE`s and compare
+HANDLES; none of them interns a whole `ConstantInfo`.  They are read through
+`Bridge/Checker/Basis.lean`'s `RunsB` combinators, with four local helpers:
+`constE_run`, the handle comparison at expressions (`beqE_of_denote`), the
+level-parameter emptiness transfer (`lpsEmpty_of_denote`), and — for the
+two `Bool` constructor lookups — `toConstantVal_sstep` at a stored constant,
+whose `.projInfo` premise `IFEnvOK.proj` discharges. -/
+
+/-- con-leche: none — `constE n` is `.const n []`, interned. -/
+theorem constE_run {n : NIdx} {nm : ConLeche.Name} {e : EIdx} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
+    (hr : constE n s = .ok (e, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store e = some (.const nm []) := by
+  simp only [Arena.constE] at hr
+  obtain ⟨us, s1, g1, r1⟩ := AM.bind_ok hr
+  obtain ⟨rfl, hus⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ denoteLs s.store.lss r = some []) rfl g1
+    (pinEmptyLevels_spec s hp)
+  obtain ⟨ls, hv, -⟩ := denoteLs_view hus
+  obtain ⟨hs, hd⟩ := Frontend.internE_sstep hst
+    (viewOK_const (nview_isSome_of_denote hn) (by rw [hv]; rfl)) r1
+  refine ⟨hs, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denoteN_ext hn hs.ext, denoteLs_ext hus hs.ext, opt2]
+
+/-- con-leche: none — `sortOne` reads the pinned `Sort 1`. -/
+theorem sortOne_run {e : EIdx} {s s' : AState} (hp : PinsOK s)
+    (hr : sortOne s = .ok (e, s')) :
+    s' = s ∧ denoteE s.store e = some (.sort (.succ .zero)) :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ denoteE s.store r = some (.sort (.succ .zero)))
+    rfl hr (pinSortOne_spec s hp)
+
+/-- con-leche: none — a handle comparison at expressions IS the comparison of
+the two denotations (`denoteE_inj`). -/
+theorem beqE_of_denote {st : EStore} (hwf : StoreWF st) {a b : EIdx}
+    {x y : Expr} (ha : denoteE st a = some x) (hb : denoteE st b = some y) :
+    (a == b) = (x == y) :=
+  beq_of_denote_inj (fun h1 h2 => denoteE_inj hwf h1 h2) ha hb
+
+/-- con-leche: none — a stored constant's level parameters are empty iff its
+denotation's are (`denoteNList` preserves length). -/
+theorem lpsEmpty_of_denote {st : EStore} {v : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st v = some c) :
+    v.levelParams.isEmpty = c.levelParams.isEmpty := by
+  have hl := denoteNList_length _ _ (denoteCV_inv h).2.1
+  cases h1 : v.levelParams <;> cases h2 : c.levelParams <;> simp_all
+
+/-- con-leche: none — the frame at a caller that reads the index at a stored
+constant: `IFEnvOK.proj` makes every stored table rightly named. -/
+theorem CIProjNamed_of_find {env : Env} {fe : IFEnv} {s : AState}
+    (hie : IFEnvOK env fe s) {n : NIdx} {ci : IConstantInfo}
+    (hf : fe.find? n = some ci) : Frontend.CIProjNamed s.store ci := by
+  intro t ht
+  subst ht
+  exact (hie.proj n t hf).toNamed
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk -/
+theorem natIndOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hxy : FindRel s.store x y) :
+    RunsB (Arena.natIndOk x) s (ConLeche.natIndOk y) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hst
+  · cases ci
+    case indInfo v cap =>
+      obtain ⟨v', d, rfl, hv, -⟩ := denoteCI_ind_inv hd
+      simp only [Arena.natIndOk, ConLeche.natIndOk]
+      refine RunsB.bind fun {e s1} g1 => ?_
+      obtain ⟨rfl, he⟩ := sortOne_run hp g1
+      refine ⟨Frontend.IStepS.refl hst, ?_⟩
+      rw [lpsEmpty_of_denote hv, beqE_of_denote hst.wf (denoteCV_inv hv).2.2 he]
+      exact RunsB.ret hst
+    all_goals first
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk -/
+theorem natZeroOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hxy : FindRel s.store x y) :
+    RunsB (Arena.natZeroOk x) s (ConLeche.natZeroOk y) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hst
+  · cases ci
+    case ctorInfo v nP nF =>
+      obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      simp only [Arena.natZeroOk, ConLeche.natZeroOk]
+      refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nt dnt => ?_
+      refine RunsB.bind fun {e s1} g1 => ?_
+      obtain ⟨hs1, he⟩ := constE_run hst hp dnt g1
+      refine ⟨hs1, ?_⟩
+      rw [lpsEmpty_of_denote hv, beqE_of_denote hs1.ok.wf
+        (denoteCV_inv (denoteCV_ext hv hs1.ext)).2.2 he]
+      exact RunsB.ret hs1.ok
+    all_goals first
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_ind_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — the pinned
+type test `.forallE (.const natName []) (.const natName []) _`, restated as
+two expression comparisons: that is what the arena's two handle comparisons
+against the interned `constE` decide. -/
+def natSuccTy : Expr → Bool
+  | .forallE dom body _ =>
+    dom == .const ConLeche.natName [] && body == .const ConLeche.natName []
+  | _ => false
+
+theorem natSuccOk_eq (cv : ConstantVal) (nP nF : Nat) :
+    ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) =
+      (cv.levelParams.isEmpty && natSuccTy cv.type) := by
+  simp only [ConLeche.natSuccOk]
+  congr 1
+  cases ht : cv.type with
+  | forallE dx bx m =>
+    simp only [natSuccTy]
+    cases dx <;> cases bx <;> (try simp)
+    all_goals
+      rename_i n1 ls1 n2 ls2
+      cases ls1 <;> cases ls2 <;> (try simp)
+      rw [Bool.eq_iff_iff]
+      simp [beq_iff_eq]
+  | _ => rfl
+
+theorem natSuccOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
+    {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hxy : FindRel s.store x y) :
+    RunsB (Arena.natSuccOk x) s (ConLeche.natSuccOk y) := by
+  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
+  · exact RunsB.ret hst
+  · cases ci
+    case ctorInfo v nP nF =>
+      obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
+      rw [natSuccOk_eq]
+      simp only [Arena.natSuccOk]
+      refine RunsB.guard hst (by rw [lpsEmpty_of_denote hv]) fun _ => ?_
+      refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nt dnt => ?_
+      refine RunsB.bind fun {e s1} g1 => ?_
+      obtain ⟨hs1, he⟩ := constE_run hst hp dnt g1
+      refine ⟨hs1, RunsB.bind fun {vw s2} g2 => ?_⟩
+      obtain ⟨rfl, hvw⟩ := viewE_run g2
+      refine ⟨Frontend.IStepS.refl hs1.ok, ?_⟩
+      have hty := (denoteCV_inv (denoteCV_ext hv hs1.ext)).2.2
+      have hwf := hs1.ok.wf
+      cases vw
+      case forallE dom body mb =>
+        obtain ⟨dx, bx, hx, hdx, hbx⟩ := denote_forallE_inv hwf hvw hty
+        rw [hx]
+        show RunsB _ _ (dx == _ && bx == _)
+        rw [← beqE_of_denote hwf hdx he, ← beqE_of_denote hwf hbx he]
+        exact RunsB.ret hs1.ok
+      all_goals first
+        | (have hx := denote_bvar_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, hx, _⟩ := denote_fvar_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, hx, _⟩ := denote_sort_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_const_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_app_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_lam_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, _, hx, _⟩ := denote_letE_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (have hx := denote_lit_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+        | (obtain ⟨_, _, hx, _⟩ := denote_proj_inv hwf hvw hty; rw [hx]; exact RunsB.ret hs1.ok)
+    all_goals first
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_ind_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported -/
+theorem natLitSupported_run {env : Env} {fe : IFEnv} {s : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hie : IFEnvOK env fe s) :
+    RunsB (Arena.natLitSupported fe) s (ConLeche.natLitSupported env) := by
+  simp only [ConLeche.natLitSupported, Bool.and_assoc]
+  unfold Arena.natLitSupported
+  refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun n1 d1 => ?_
+  refine RunsB.bindB (natIndOk_run hst hp (hie.findRel hst d1)) fun {s1} hs1 => ?_
+  have hp1 := hp.mono hs1.ext hs1.pins
+  have hie1 := hie.mono hs1.ext
+  refine RunsB.guard hs1.ok (by simp) fun _ => ?_
+  refine RunsB.pin hs1.ok hp1 (x := ConLeche.natZeroName) (by rfl) fun n2 d2 => ?_
+  refine RunsB.bindB (natZeroOk_run hs1.ok hp1 (hie1.findRel hs1.ok d2))
+    fun {s2} hs2 => ?_
+  have hp2 := hp1.mono hs2.ext hs2.pins
+  have hie2 := hie1.mono hs2.ext
+  refine RunsB.guard hs2.ok (by simp) fun _ => ?_
+  refine RunsB.pin hs2.ok hp2 (x := ConLeche.natSuccName) (by rfl) fun n3 d3 => ?_
+  exact natSuccOk_run hs2.ok hp2 (hie2.findRel hs2.ok d3)
+
+/-- con-leche: none — `natOpDeps` reads fifteen pins and returns a literal
+list; it leaves the state alone (`natOpDeps_run` carries the frame as four
+clauses, this is the equation the `RunsB` chain needs). -/
+theorem natOpDeps_state {cn : NIdx} {ds : List NIdx} {s s' : AState}
+    (hp : PinsOK s) (hr : natOpDeps cn s = .ok (ds, s')) : s' = s := by
+  simp only [Arena.natOpDeps] at hr
+  obtain ⟨_, u0, q0, w0⟩ := AM.bind_ok hr
+  obtain ⟨p0, -⟩ := pinAt_run (x := ConLeche.natPredName) hp rfl q0
+  rw [p0] at w0
+  obtain ⟨_, u1, q1, w1⟩ := AM.bind_ok w0
+  obtain ⟨p1, -⟩ := pinAt_run (x := ConLeche.natAddName) hp rfl q1
+  rw [p1] at w1
+  obtain ⟨_, u2, q2, w2⟩ := AM.bind_ok w1
+  obtain ⟨p2, -⟩ := pinAt_run (x := ConLeche.natSubName) hp rfl q2
+  rw [p2] at w2
+  obtain ⟨_, u3, q3, w3⟩ := AM.bind_ok w2
+  obtain ⟨p3, -⟩ := pinAt_run (x := ConLeche.natMulName) hp rfl q3
+  rw [p3] at w3
+  obtain ⟨_, u4, q4, w4⟩ := AM.bind_ok w3
+  obtain ⟨p4, -⟩ := pinAt_run (x := ConLeche.natPowName) hp rfl q4
+  rw [p4] at w4
+  obtain ⟨_, u5, q5, w5⟩ := AM.bind_ok w4
+  obtain ⟨p5, -⟩ := pinAt_run (x := ConLeche.natBeqName) hp rfl q5
+  rw [p5] at w5
+  obtain ⟨_, u6, q6, w6⟩ := AM.bind_ok w5
+  obtain ⟨p6, -⟩ := pinAt_run (x := ConLeche.natBleName) hp rfl q6
+  rw [p6] at w6
+  obtain ⟨_, u7, q7, w7⟩ := AM.bind_ok w6
+  obtain ⟨p7, -⟩ := pinAt_run (x := ConLeche.natDivName) hp rfl q7
+  rw [p7] at w7
+  obtain ⟨_, u8, q8, w8⟩ := AM.bind_ok w7
+  obtain ⟨p8, -⟩ := pinAt_run (x := ConLeche.natModName) hp rfl q8
+  rw [p8] at w8
+  obtain ⟨_, u9, q9, w9⟩ := AM.bind_ok w8
+  obtain ⟨p9, -⟩ := pinAt_run (x := ConLeche.natGcdName) hp rfl q9
+  rw [p9] at w9
+  obtain ⟨_, u10, q10, w10⟩ := AM.bind_ok w9
+  obtain ⟨p10, -⟩ := pinAt_run (x := ConLeche.natLandName) hp rfl q10
+  rw [p10] at w10
+  obtain ⟨_, u11, q11, w11⟩ := AM.bind_ok w10
+  obtain ⟨p11, -⟩ := pinAt_run (x := ConLeche.natLorName) hp rfl q11
+  rw [p11] at w11
+  obtain ⟨_, u12, q12, w12⟩ := AM.bind_ok w11
+  obtain ⟨p12, -⟩ := pinAt_run (x := ConLeche.natXorName) hp rfl q12
+  rw [p12] at w12
+  obtain ⟨_, u13, q13, w13⟩ := AM.bind_ok w12
+  obtain ⟨p13, -⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp rfl q13
+  rw [p13] at w13
+  obtain ⟨_, u14, q14, w14⟩ := AM.bind_ok w13
+  obtain ⟨p14, -⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp rfl q14
+  rw [p14] at w14
+  clear hr
+  repeat' first
+    | (obtain ⟨-, rfl⟩ := AM.pure_ok w14; rfl)
+    | (rcases AM.ite_ok w14 with ⟨-, w14⟩ | ⟨-, w14⟩)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:584-600 natOpGuard — the
+dependency half: `natOpDepsStored` is con-leche's `(natOpDeps c).all …`. -/
+theorem natOpDepsStored_run {env : Env} {fe : IFEnv} :
+    ∀ (ds : List NIdx) (xs : List ConLeche.Name) {s : AState}, StateOK s →
+      IFEnvOK env fe s → denoteNL s.store ds xs →
+      RunsB (Arena.natOpDepsStored fe ds) s
+        (xs.all fun n => match env.find? n with
+          | some (.defnInfo cv _ _) => cv.levelParams.isEmpty
+          | _ => false) := by
+  intro ds
+  induction ds with
+  | nil =>
+    intro xs s hst _ hd
+    cases xs with
+    | nil => exact RunsB.ret hst
+    | cons x xs => exact absurd hd (by simp [denoteNL])
+  | cons d ds ih =>
+    intro xs s hst hie hd
+    cases xs with
+    | nil => exact absurd hd (by simp [denoteNL])
+    | cons x xs =>
+      obtain ⟨hd1, hdt⟩ := hd
+      rw [List.all_cons]
+      simp only [Arena.natOpDepsStored]
+      refine RunsB.matchDefn hst (hie.findRel hst hd1) fun v v' hv => ?_
+      exact RunsB.guardT hst (lpsEmpty_of_denote hv) fun _ => ih xs hst hie hdt
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpGuard) — the
 structural-`Nat` environment guard is con-leche's at the denoted environment.
 
@@ -948,9 +1231,11 @@ only for `StateOK`, so nothing made the handles `pinAt` hands back denote
 anything and the conclusion was not provable.  Free at the one call site
 (`Bridge/Checker/Arms.lean`'s `defn` arm, `hok4.check.pins`).
 
-`sorry`: `natLitSupported` / `natOpDepsStored` / the `Bool`-family lookups
-through `IFEnvOK`, then `natOpDeps_run`.  Task #97-P3-Checker's sorry list,
-item 23. -/
+**PROVED** (task #97-P3-Checker round 8): the `do`-block read link by link
+through `Basis.lean`'s `RunsB` combinators — `natLitSupported_run`,
+`natOpDeps_run` / `natOpDeps_state`, `natOpDepsStored_run`, and the two `Bool`
+constructor lookups through `RunsB.matchLps` (whose `.projInfo` premise
+`IFEnvOK.proj` discharges). -/
 theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
     (hp : PinsOK s)
@@ -958,7 +1243,186 @@ theorem natOpGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     (hr : natOpGuard fe2 cn s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧ r = ConLeche.natOpGuard env2 nm := by
-  sorry
+  suffices h : RunsB (natOpGuard fe2 cn) s (ConLeche.natOpGuard env2 nm) by
+    obtain ⟨hs, rfl⟩ := h _ _ hr
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+  simp only [ConLeche.natOpGuard, Bool.and_assoc]
+  unfold Arena.natOpGuard
+  refine RunsB.bindB (natLitSupported_run hok hp hie) fun {s1} hs1 => ?_
+  have hp1 := hp.mono hs1.ext hs1.pins
+  have hie1 := hie.mono hs1.ext
+  have hn1 := denoteN_ext hn hs1.ext
+  refine RunsB.guard hs1.ok (by simp) fun _ => ?_
+  refine RunsB.bind fun {ds s2} g2 => ?_
+  obtain rfl := natOpDeps_state hp1 g2
+  obtain ⟨-, -, -, -, hds⟩ := natOpDeps_run hs1.ok hp1 hn1 g2
+  refine ⟨Frontend.IStepS.refl hs1.ok, ?_⟩
+  refine RunsB.bindB (natOpDepsStored_run ds _ hs1.ok hie1 hds)
+    fun {s3} hs3 => ?_
+  have hp3 := hp1.mono hs3.ext hs3.pins
+  have hie3 := hie1.mono hs3.ext
+  have hn3 := denoteN_ext hn1 hs3.ext
+  have st3 := hs3.ok
+  refine RunsB.guard st3 (by first | rfl | simp) fun _ => ?_
+  refine RunsB.pin st3 hp3 (x := ConLeche.natBeqName) (by rfl) fun be dbe => ?_
+  refine RunsB.pin st3 hp3 (x := ConLeche.natBleName) (by rfl) fun bl dbl => ?_
+  refine RunsB.bind fun {dm s4} g4 => ?_
+  obtain ⟨rfl, hdm⟩ := natDivModNames_run hp3 g4
+  refine ⟨Frontend.IStepS.refl st3, ?_⟩
+  have e1 := beq_handle_iff st3.wf hn3 dbe
+  have e2 := beq_handle_iff st3.wf hn3 dbl
+  have e3 : dm.contains cn = ConLeche.natDivModNames.contains nm :=
+    denoteNList_contains st3.wf dm _ (denoteNL_toList _ _ hdm) cn nm hn3
+  refine RunsB.ite (by simp only [Bool.or_eq_true, e1, e2, e3, decide_eq_true_eq])
+    (fun _ => ?_) (fun _ => RunsB.ret st3)
+  refine RunsB.pin st3 hp3 (x := ConLeche.boolTrueName) (by rfl) fun bt dbt => ?_
+  refine RunsB.matchLpsJP st3 (hie3.findRel st3 dbt)
+    (fun ci hf => CIProjNamed_of_find hie3 hf) fun {s5} hs5 => ?_
+  have hp5 := hp3.mono hs5.ext hs5.pins
+  have hie5 := hie3.mono hs5.ext
+  refine RunsB.guard hs5.ok (by first | rfl | simp) fun _ => ?_
+  refine RunsB.pin hs5.ok hp5 (x := ConLeche.boolFalseName) (by rfl) fun bf dbf => ?_
+  exact RunsB.matchLps hs5.ok (hie5.findRel hs5.ok dbf)
+    fun ci hf => CIProjNamed_of_find hie5 hf
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:640-650 natOpCod -/
+theorem natOpCod_run {env : Env} {fe : IFEnv} {cH : NIdx} {cn : ConLeche.Name}
+    {e : EIdx} {x : Expr} {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env fe s) (hc : denoteN s.store.ns cH = some cn)
+    (he : denoteE s.store e = some x) :
+    RunsB (Arena.natOpCod fe cH e) s (ConLeche.natOpCod env cn x) := by
+  unfold Arena.natOpCod ConLeche.natOpCod
+  refine RunsB.pin hst hp (x := ConLeche.natBeqName) (by rfl) fun be dbe => ?_
+  refine RunsB.pin hst hp (x := ConLeche.natBleName) (by rfl) fun bl dbl => ?_
+  have e1 := beq_handle_iff hst.wf hc dbe
+  have e2 := beq_handle_iff hst.wf hc dbl
+  refine RunsB.ite (by simp only [Bool.or_eq_true, e1, e2, decide_eq_true_eq])
+    (fun _ => ?_) (fun _ => ?_)
+  · refine RunsB.pin hst hp (x := ConLeche.boolName) (by rfl) fun bn dbn => ?_
+    refine RunsB.bind fun {bc s1} g1 => ?_
+    obtain ⟨hs1, hbc⟩ := constE_run hst hp dbn g1
+    refine ⟨hs1, ?_⟩
+    refine RunsB.guard hs1.ok (by
+      simp only [bne, beqE_of_denote hs1.ok.wf (denote_ext he hs1.ext) hbc]) fun _ => ?_
+    exact RunsB.matchCod hs1.ok (hp.mono hs1.ext hs1.pins)
+      ((hie.mono hs1.ext).findRel hs1.ok (denoteN_ext dbn hs1.ext))
+      fun ci hf => CIProjNamed_of_find (hie.mono hs1.ext) hf
+  · refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nn dnn => ?_
+    refine RunsB.bind fun {nc s1} g1 => ?_
+    obtain ⟨hs1, hnc⟩ := constE_run hst hp dnn g1
+    refine ⟨hs1, ?_⟩
+    rw [← beqE_of_denote hs1.ok.wf (denote_ext he hs1.ext) hnc]
+    exact RunsB.ret hs1.ok
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:652-667 natOpTyPinned -/
+theorem natOpTyPinned_run {env : Env} {fe : IFEnv} {cH : NIdx}
+    {cn : ConLeche.Name} {ty : EIdx} {x : Expr} {s : AState} (hst : StateOK s)
+    (hp : PinsOK s) (hie : IFEnvOK env fe s)
+    (hc : denoteN s.store.ns cH = some cn)
+    (hty : denoteE s.store ty = some x) :
+    RunsB (Arena.natOpTyPinned fe cH ty) s (ConLeche.natOpTyPinned env cn x) := by
+  unfold Arena.natOpTyPinned ConLeche.natOpTyPinned
+  refine RunsB.pin hst hp (x := ConLeche.natName) (by rfl) fun nn dnn => ?_
+  refine RunsB.bind fun {nc s1} g1 => ?_
+  obtain ⟨hs1, hnc⟩ := constE_run hst hp dnn g1
+  refine ⟨hs1, ?_⟩
+  have st1 := hs1.ok
+  have hwf := st1.wf
+  have hp1 := hp.mono hs1.ext hs1.pins
+  have hie1 := hie.mono hs1.ext
+  have hc1 := denoteN_ext hc hs1.ext
+  have hty1 := denote_ext hty hs1.ext
+  refine RunsB.pin st1 hp1 (x := ConLeche.natPredName) (by rfl) fun pr dpr => ?_
+  refine RunsB.ite (beq_handle_iff hwf hc1 dpr) (fun _ => ?_) (fun _ => ?_)
+  · refine RunsB.bind fun {vw s2} g2 => ?_
+    obtain ⟨rfl, hvw⟩ := viewE_run g2
+    refine ⟨Frontend.IStepS.refl st1, ?_⟩
+    cases vw
+    case forallE dom body mb =>
+      obtain ⟨dx, bx, rfl, hdx, hbx⟩ := denote_forallE_inv hwf hvw hty1
+      exact RunsB.guardT st1 (beqE_of_denote hwf hdx hnc)
+        fun _ => natOpCod_run st1 hp1 hie1 hc1 hbx
+    all_goals first
+      | (obtain rfl := denote_bvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_const_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_app_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain rfl := denote_lit_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hvw hty1; exact RunsB.ret st1)
+  · refine RunsB.bind fun {vw s2} g2 => ?_
+    obtain ⟨rfl, hvw⟩ := viewE_run g2
+    refine ⟨Frontend.IStepS.refl st1, ?_⟩
+    cases vw
+    case forallE dom rest mb =>
+      obtain ⟨dx, rx, rfl, hdx, hrx⟩ := denote_forallE_inv hwf hvw hty1
+      refine RunsB.bind fun {vr s3} g3 => ?_
+      obtain ⟨rfl, hvr⟩ := viewE_run g3
+      refine ⟨Frontend.IStepS.refl st1, ?_⟩
+      cases vr
+      case forallE dom2 body mb2 =>
+        obtain ⟨dx2, bx, rfl, hdx2, hbx⟩ := denote_forallE_inv hwf hvr hrx
+        refine RunsB.guardT st1 ?_ fun _ => natOpCod_run st1 hp1 hie1 hc1 hbx
+        rw [beqE_of_denote hwf hdx hnc, beqE_of_denote hwf hdx2 hnc]
+      all_goals first
+        | (obtain rfl := denote_bvar_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_const_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_app_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain rfl := denote_lit_inv hwf hvr hrx; exact RunsB.ret st1)
+        | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hvr hrx; exact RunsB.ret st1)
+    all_goals first
+      | (obtain rfl := denote_bvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_const_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_app_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain rfl := denote_lit_inv hwf hvw hty1; exact RunsB.ret st1)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hvw hty1; exact RunsB.ret st1)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:669-675 natOpStoredOk -/
+theorem natOpStoredOk_run {env : Env} {fe : IFEnv} {cH : NIdx}
+    {cn : ConLeche.Name} {s : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hie : IFEnvOK env fe s) (hc : denoteN s.store.ns cH = some cn) :
+    RunsB (Arena.natOpStoredOk fe cH) s (ConLeche.natOpStoredOk env cn) := by
+  unfold Arena.natOpStoredOk ConLeche.natOpStoredOk
+  refine RunsB.and_true
+    (RunsB.matchDefn hst (hie.findRel hst hc) fun v v' hv => ?_)
+  rw [Bool.and_true]
+  exact RunsB.guardT hst (lpsEmpty_of_denote hv) fun _ =>
+    natOpTyPinned_run hst hp hie hc (denoteCV_inv hv).2.2
+
+theorem natOpStoredOkAll_runs {env : Env} {fe : IFEnv} :
+    ∀ (ds : List NIdx) (xs : List ConLeche.Name) {s : AState}, StateOK s →
+      PinsOK s → IFEnvOK env fe s → denoteNL s.store ds xs →
+      RunsB (Arena.natOpStoredOkAll fe ds) s
+        (xs.all (ConLeche.natOpStoredOk env)) := by
+  intro ds
+  induction ds with
+  | nil =>
+    intro xs s hst _ _ hd
+    cases xs with
+    | nil => exact RunsB.ret hst
+    | cons x xs => exact absurd hd (by simp [denoteNL])
+  | cons d ds ih =>
+    intro xs s hst hp hie hd
+    cases xs with
+    | nil => exact absurd hd (by simp [denoteNL])
+    | cons x xs =>
+      obtain ⟨hd1, hdt⟩ := hd
+      rw [List.all_cons]
+      simp only [Arena.natOpStoredOkAll]
+      refine RunsB.bindB (natOpStoredOk_run hst hp hie hd1) fun {s1} hs1 => ?_
+      exact RunsB.guardT hs1.ok rfl fun _ =>
+        ih xs hs1.ok (hp.mono hs1.ext hs1.pins) (hie.mono hs1.ext)
+          (denoteNL_ext hs1.ext _ _ hdt)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpStoredOk) — the twin's list
 recursion answers con-leche's `List.all` (DESIGN §3.4 forbids the closure).
@@ -968,8 +1432,8 @@ is `natOpStoredOk`, which is `natOpTyPinned` on a hit, which reads the pin
 table — so this walk is a pin reader too and `StateOK` alone was not enough.
 Free at the one call site (`hok5.check.pins`).
 
-`sorry`: a list induction over `natOpStoredOk`'s own `IFEnvOK` reads.  Task
-#97-P3-Checker's sorry list, item 23. -/
+**PROVED** (task #97-P3-Checker round 8): `natOpStoredOkAll_runs`, a list
+induction over `natOpStoredOk_run` (`natOpTyPinned_run`, `natOpCod_run`). -/
 theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
     {xs : List ConLeche.Name} {r : Bool} {s s' : AState} (hok : StateOK s)
     (hp : PinsOK s)
@@ -977,14 +1441,60 @@ theorem natOpStoredOkAll_run {env2 : Env} {fe2 : IFEnv} {ds : List NIdx}
     (hr : natOpStoredOkAll fe2 ds s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧ r = xs.all (ConLeche.natOpStoredOk env2) := by
-  sorry
+  obtain ⟨hs, rfl⟩ := natOpStoredOkAll_runs ds xs hok hp hie hd _ _ hr
+  exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, rfl⟩
+
+/-- con-leche: none — an interned `fvar` node denotes the `fvar` at its type's
+denotation. -/
+theorem internFvar_run {k : Nat} {ty h : EIdx} {t : Expr} {s s' : AState}
+    (hst : StateOK s) (hty : denoteE s.store ty = some t)
+    (hrun : internE (.fvar k ty) s = .ok (h, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store h = some (.fvar k t) := by
+  obtain ⟨hs, hd⟩ := Frontend.internE_sstep hst (viewOK_fvar (by rw [hty]; rfl)) hrun
+  refine ⟨hs, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hty hs.ext, Option.map_some]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:525-554 natOpEquations — `ap1 n a`. -/
+theorem natAp1_run {n : NIdx} {a h : EIdx} {nm : ConLeche.Name} {ea : Expr} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
+    (ha : denoteE s.store a = some ea)
+    (hrun : natAp1 n a s = .ok (h, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store h = some (.app (.const nm []) ea) := by
+  simp only [Arena.natAp1] at hrun
+  obtain ⟨f, s1, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hf⟩ := constE_run hst hp hn g1
+  have ha1 := denote_ext ha hs1.ext
+  obtain ⟨hs2, hd⟩ := Frontend.internE_sstep hs1.ok
+    (viewOK_app (by rw [hf]; rfl) (by rw [ha1]; rfl)) k1
+  refine ⟨hs1.trans hs2, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hf hs2.ext, denote_ext ha1 hs2.ext, opt2]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:525-554 natOpEquations — `ap2 n a b`. -/
+theorem natAp2_run {n : NIdx} {a b h : EIdx} {nm : ConLeche.Name} {ea eb : Expr} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
+    (ha : denoteE s.store a = some ea) (hb : denoteE s.store b = some eb)
+    (hrun : natAp2 n a b s = .ok (h, s')) :
+    Frontend.IStepS s s' ∧
+      denoteE s'.store h = some (.app (.app (.const nm []) ea) eb) := by
+  simp only [Arena.natAp2] at hrun
+  obtain ⟨f, s1, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hf⟩ := natAp1_run hst hp hn ha g1
+  have hb1 := denote_ext hb hs1.ext
+  obtain ⟨hs2, hd⟩ := Frontend.internE_sstep hs1.ok
+    (viewOK_app (by rw [hf]; rfl) (by rw [hb1]; rfl)) k1
+  refine ⟨hs1.trans hs2, ?_⟩
+  rw [hd]
+  simp only [denoteEView, denote_ext hf hs2.ext, denote_ext hb1 hs2.ext, opt2]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean (natOpEquations) — the recurrence
 equations, interned.
 
-`sorry`: the pinned-literal constructions through the frontend tier's intern
-exactness, as `Bridge/Checker/Basis.lean`'s item 15.  Task #97-P3-Checker's
-sorry list, item 23. -/
+**PROVED** (task #97-P3-Checker round 8): seventeen shared links (pin reads,
+`constE_run`, `internFvar_run`, `natAp1_run`) and one branch per operation of
+`natAp1_run` / `natAp2_run`; the proof is generated text, every denotation
+fact transported to the final state by the chain of `IStepS` behind it. -/
 theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     {eqs : List (EIdx × EIdx)} {s s' : AState} (hok : StateOK s)
     (hp : PinsOK s) (hn : denoteN s.store.ns cn = some nm)
@@ -992,7 +1502,238 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧
       EqPairsDenote s'.store eqs (ConLeche.natOpEquations d nm) := by
-  sorry
+  simp only [Arena.natOpEquations] at hr
+  obtain ⟨v0, u0, q0, w0⟩ := AM.bind_ok hr
+  obtain ⟨p0, d0⟩ := pinAt_run (x := ConLeche.natName) hp rfl q0
+  rw [p0] at w0
+  obtain ⟨v1, u1, q1, w1⟩ := AM.bind_ok w0
+  obtain ⟨hs1, e1⟩ := constE_run hok hp d0 q1
+  obtain ⟨v2, u2, q2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := internFvar_run (hs1).ok e1 q2
+  obtain ⟨v3, u3, q3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := internFvar_run ((hs1).trans hs2).ok (denote_ext e1 (hs2.ext)) q3
+  obtain ⟨v4, u4, q4, w4⟩ := AM.bind_ok w3
+  obtain ⟨p4, d4⟩ := pinAt_run (x := ConLeche.natZeroName) (hp.mono (((hs1).trans hs2).trans hs3).ext (((hs1).trans hs2).trans hs3).pins) rfl q4
+  rw [p4] at w4
+  obtain ⟨v5, u5, q5, w5⟩ := AM.bind_ok w4
+  obtain ⟨hs5, e5⟩ := constE_run (((hs1).trans hs2).trans hs3).ok (hp.mono (((hs1).trans hs2).trans hs3).ext (((hs1).trans hs2).trans hs3).pins) d4 q5
+  obtain ⟨v6, u6, q6, w6⟩ := AM.bind_ok w5
+  obtain ⟨p6, d6⟩ := pinAt_run (x := ConLeche.natSuccName) (hp.mono ((((hs1).trans hs2).trans hs3).trans hs5).ext ((((hs1).trans hs2).trans hs3).trans hs5).pins) rfl q6
+  rw [p6] at w6
+  obtain ⟨v7, u7, q7, w7⟩ := AM.bind_ok w6
+  obtain ⟨hs7, e7⟩ := natAp1_run ((((hs1).trans hs2).trans hs3).trans hs5).ok (hp.mono ((((hs1).trans hs2).trans hs3).trans hs5).ext ((((hs1).trans hs2).trans hs3).trans hs5).pins) d6 (denote_ext e2 ((hs3.ext).trans hs5.ext)) q7
+  obtain ⟨v8, u8, q8, w8⟩ := AM.bind_ok w7
+  obtain ⟨hs8, e8⟩ := natAp1_run (((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).ok (hp.mono (((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).ext (((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).pins) (denoteN_ext d6 (hs7.ext)) (denote_ext e3 ((hs5.ext).trans hs7.ext)) q8
+  obtain ⟨v9, u9, q9, w9⟩ := AM.bind_ok w8
+  obtain ⟨p9, d9⟩ := pinAt_run (x := ConLeche.boolTrueName) (hp.mono ((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).ext ((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).pins) rfl q9
+  rw [p9] at w9
+  obtain ⟨v10, u10, q10, w10⟩ := AM.bind_ok w9
+  obtain ⟨hs10, e10⟩ := constE_run ((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).ok (hp.mono ((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).ext ((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).pins) d9 q10
+  obtain ⟨v11, u11, q11, w11⟩ := AM.bind_ok w10
+  obtain ⟨p11, d11⟩ := pinAt_run (x := ConLeche.boolFalseName) (hp.mono (((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).ext (((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).pins) rfl q11
+  rw [p11] at w11
+  obtain ⟨v12, u12, q12, w12⟩ := AM.bind_ok w11
+  obtain ⟨hs12, e12⟩ := constE_run (((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).ok (hp.mono (((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).ext (((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).pins) d11 q12
+  obtain ⟨v13, u13, q13, w13⟩ := AM.bind_ok w12
+  obtain ⟨p13, d13⟩ := pinAt_run (x := ConLeche.natPredName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q13
+  rw [p13] at w13
+  obtain ⟨v14, u14, q14, w14⟩ := AM.bind_ok w13
+  obtain ⟨p14, d14⟩ := pinAt_run (x := ConLeche.natAddName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q14
+  rw [p14] at w14
+  obtain ⟨v15, u15, q15, w15⟩ := AM.bind_ok w14
+  obtain ⟨p15, d15⟩ := pinAt_run (x := ConLeche.natSubName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q15
+  rw [p15] at w15
+  obtain ⟨v16, u16, q16, w16⟩ := AM.bind_ok w15
+  obtain ⟨p16, d16⟩ := pinAt_run (x := ConLeche.natMulName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q16
+  rw [p16] at w16
+  obtain ⟨v17, u17, q17, w17⟩ := AM.bind_ok w16
+  obtain ⟨p17, d17⟩ := pinAt_run (x := ConLeche.natPowName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q17
+  rw [p17] at w17
+  obtain ⟨v18, u18, q18, w18⟩ := AM.bind_ok w17
+  obtain ⟨p18, d18⟩ := pinAt_run (x := ConLeche.natBeqName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q18
+  rw [p18] at w18
+  obtain ⟨v19, u19, q19, w19⟩ := AM.bind_ok w18
+  obtain ⟨p19, d19⟩ := pinAt_run (x := ConLeche.natBleName) (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) rfl q19
+  rw [p19] at w19
+  have b_pr := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d13
+  have b_ad := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d14
+  have b_su := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d15
+  have b_mu := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d16
+  have b_po := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d17
+  have b_be := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d18
+  have b_bl := beq_handle_iff ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok.wf (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) d19
+  rcases AM.ite_ok w19 with ⟨hc_pr, k_pr⟩ | ⟨hn_pr, k_pr⟩
+  · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_pr
+    obtain ⟨hs20, e20⟩ := natAp1_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
+    obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
+    obtain ⟨hs21, e21⟩ := natAp1_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext hn (((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e7 ((((hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) q21
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok w21
+    refine ⟨((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok, ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext, ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).caches, ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins, ?_⟩
+    simp only [ConLeche.natOpEquations, if_pos (b_pr.mp hc_pr), EqPairsDenote]
+    exact ⟨(denote_ext e20 (hs21.ext)), (denote_ext e5 ((((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)), e21, (denote_ext e2 ((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)), trivial⟩
+  rcases AM.ite_ok k_pr with ⟨hc_ad, k_ad⟩ | ⟨hn_ad, k_ad⟩
+  · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_ad
+    obtain ⟨hs20, e20⟩ := natAp2_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e2 ((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
+    obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
+    obtain ⟨hs21, e21⟩ := natAp2_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext hn (((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e2 (((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e8 (((hs10.ext).trans hs12.ext).trans hs20.ext)) q21
+    obtain ⟨v22, u22, q22, w22⟩ := AM.bind_ok w21
+    obtain ⟨hs22, e22⟩ := natAp2_run ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok (hp.mono ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins) (denoteN_ext hn ((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e2 ((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e3 (((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) q22
+    obtain ⟨v23, u23, q23, w23⟩ := AM.bind_ok w22
+    obtain ⟨hs23, e23⟩ := natAp1_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext d6 (((((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) e22 q23
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
+    refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
+    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_pos (b_ad.mp hc_ad), EqPairsDenote]
+    exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), e23, trivial⟩
+  rcases AM.ite_ok k_ad with ⟨hc_su, k_su⟩ | ⟨hn_su, k_su⟩
+  · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_su
+    obtain ⟨hs20, e20⟩ := natAp2_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e2 ((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
+    obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
+    obtain ⟨hs21, e21⟩ := natAp2_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext hn (((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e2 (((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e8 (((hs10.ext).trans hs12.ext).trans hs20.ext)) q21
+    obtain ⟨v22, u22, q22, w22⟩ := AM.bind_ok w21
+    obtain ⟨hs22, e22⟩ := natAp2_run ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok (hp.mono ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins) (denoteN_ext hn ((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e2 ((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e3 (((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) q22
+    obtain ⟨v23, u23, q23, w23⟩ := AM.bind_ok w22
+    obtain ⟨hs23, e23⟩ := natAp1_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext d13 (((hs20.ext).trans hs21.ext).trans hs22.ext)) e22 q23
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
+    refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
+    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_pos (b_su.mp hc_su), EqPairsDenote]
+    exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), e23, trivial⟩
+  rcases AM.ite_ok k_su with ⟨hc_mu, k_mu⟩ | ⟨hn_mu, k_mu⟩
+  · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_mu
+    obtain ⟨hs20, e20⟩ := natAp2_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e2 ((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
+    obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
+    obtain ⟨hs21, e21⟩ := natAp2_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext hn (((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e2 (((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e8 (((hs10.ext).trans hs12.ext).trans hs20.ext)) q21
+    obtain ⟨v22, u22, q22, w22⟩ := AM.bind_ok w21
+    obtain ⟨hs22, e22⟩ := natAp2_run ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok (hp.mono ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins) (denoteN_ext hn ((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e2 ((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e3 (((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) q22
+    obtain ⟨v23, u23, q23, w23⟩ := AM.bind_ok w22
+    obtain ⟨hs23, e23⟩ := natAp2_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext d14 (((hs20.ext).trans hs21.ext).trans hs22.ext)) e22 (denote_ext e2 (((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) q23
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
+    refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
+    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_pos (b_mu.mp hc_mu), EqPairsDenote]
+    exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e5 ((((((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), e23, trivial⟩
+  rcases AM.ite_ok k_mu with ⟨hc_po, k_po⟩ | ⟨hn_po, k_po⟩
+  · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_po
+    obtain ⟨hs20, e20⟩ := natAp2_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e2 ((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
+    obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
+    obtain ⟨hs21, e21⟩ := natAp1_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext d6 (((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e5 (((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) q21
+    obtain ⟨v22, u22, q22, w22⟩ := AM.bind_ok w21
+    obtain ⟨hs22, e22⟩ := natAp2_run ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok (hp.mono ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins) (denoteN_ext hn ((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e2 ((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e8 ((((hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) q22
+    obtain ⟨v23, u23, q23, w23⟩ := AM.bind_ok w22
+    obtain ⟨hs23, e23⟩ := natAp2_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext hn (((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e2 (((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e3 ((((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) q23
+    obtain ⟨v24, u24, q24, w24⟩ := AM.bind_ok w23
+    obtain ⟨hs24, e24⟩ := natAp2_run ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok (hp.mono ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins) (denoteN_ext d16 ((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) e23 (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) q24
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok w24
+    refine ⟨(((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ok, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ext, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).caches, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).pins, ?_⟩
+    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_pos (b_po.mp hc_po), EqPairsDenote]
+    exact ⟨(denote_ext e20 ((((hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e21 (((hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e22 ((hs23.ext).trans hs24.ext)), e24, trivial⟩
+  rcases AM.ite_ok k_po with ⟨hc_be, k_be⟩ | ⟨hn_be, k_be⟩
+  · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_be
+    obtain ⟨hs20, e20⟩ := natAp2_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
+    obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
+    obtain ⟨hs21, e21⟩ := natAp2_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext hn (((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e5 (((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e8 (((hs10.ext).trans hs12.ext).trans hs20.ext)) q21
+    obtain ⟨v22, u22, q22, w22⟩ := AM.bind_ok w21
+    obtain ⟨hs22, e22⟩ := natAp2_run ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok (hp.mono ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins) (denoteN_ext hn ((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e7 (((((hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e5 ((((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) q22
+    obtain ⟨v23, u23, q23, w23⟩ := AM.bind_ok w22
+    obtain ⟨hs23, e23⟩ := natAp2_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext hn (((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e7 ((((((hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e8 (((((hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) q23
+    obtain ⟨v24, u24, q24, w24⟩ := AM.bind_ok w23
+    obtain ⟨hs24, e24⟩ := natAp2_run ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok (hp.mono ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins) (denoteN_ext hn ((((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) (denote_ext e3 (((((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) q24
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok w24
+    refine ⟨(((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ok, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ext, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).caches, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).pins, ?_⟩
+    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_neg (fun h => hn_po (b_po.mpr h)), if_pos (b_be.mp hc_be), EqPairsDenote]
+    exact ⟨(denote_ext e20 ((((hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e10 ((((((hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e21 (((hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e12 (((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e22 ((hs23.ext).trans hs24.ext)), (denote_ext e12 (((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e23 (hs24.ext)), e24, trivial⟩
+  rcases AM.ite_ok k_be with ⟨hc_bl, k_bl⟩ | ⟨hn_bl, k_bl⟩
+  · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_bl
+    obtain ⟨hs20, e20⟩ := natAp2_run ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok (hp.mono ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins) (denoteN_ext hn ((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e5 ((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) (denote_ext e3 (((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext)) q20
+    obtain ⟨v21, u21, q21, w21⟩ := AM.bind_ok w20
+    obtain ⟨hs21, e21⟩ := natAp2_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext hn (((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e7 ((((hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e5 (((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) q21
+    obtain ⟨v22, u22, q22, w22⟩ := AM.bind_ok w21
+    obtain ⟨hs22, e22⟩ := natAp2_run ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok (hp.mono ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins) (denoteN_ext hn ((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e7 (((((hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) (denote_ext e8 ((((hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)) q22
+    obtain ⟨v23, u23, q23, w23⟩ := AM.bind_ok w22
+    obtain ⟨hs23, e23⟩ := natAp2_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext hn (((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e2 (((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e3 ((((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) q23
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
+    refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
+    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_neg (fun h => hn_po (b_po.mpr h)), if_neg (fun h => hn_be (b_be.mpr h)), if_pos (b_bl.mp hc_bl), EqPairsDenote]
+    exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e10 (((((hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), (denote_ext e12 ((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e22 (hs23.ext)), e23, trivial⟩
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k_bl
+  refine ⟨((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok, ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext, ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).caches, ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins, ?_⟩
+  simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_neg (fun h => hn_po (b_po.mpr h)), if_neg (fun h => hn_be (b_be.mpr h)), if_neg (fun h => hn_bl (b_bl.mpr h)), EqPairsDenote]
+
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:614-620 Expr.substConst0 — the
+spine substitution over handles is con-leche's: `.const n []` is a handle
+comparison against the pinned empty level list, and the `app` arm re-interns. -/
+theorem substConst0_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr} :
+    ∀ (fuel : Nat) {h h' : EIdx} {e : Expr} {s s' : AState}, StateOK s →
+      PinsOK s → denoteN s.store.ns cn = some nm → denoteE s.store rh = some x →
+      denoteE s.store h = some e →
+      Arena.substConst0 cn rh fuel h s = .ok (h', s') →
+      Frontend.IStepS s s' ∧
+        denoteE s'.store h' = some (Expr.substConst0 nm x e) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h h' e s s' _ _ _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro h h' e s s' hst hp hn hx he hrun
+    have hwf := hst.wf
+    have hwf' := hwf
+    obtain ⟨rk, hrk⟩ := hwf'
+    simp only [Arena.substConst0] at hrun
+    obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨e1s, hv⟩ := viewE_run g1
+    rw [e1s] at k1
+    cases v
+    case const c us =>
+      obtain ⟨cN, ls, rfl, hcN, hls⟩ := denote_const_inv hwf hv he
+      obtain ⟨el, s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨e2s, hel⟩ := AM.of_run (P := fun t => t = s)
+        (Q := fun r t => t = s ∧ denoteLs s.store.lss r = some []) rfl g2
+        (pinEmptyLevels_spec s hp)
+      rw [e2s] at k2
+      have e1 := beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hcN hn
+      have e2 := beq_of_denote_inj (fun h1 h2 => denoteLs_inj hrk.lss h1 h2) hls hel
+      rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
+        refine ⟨Frontend.IStepS.refl hst, ?_⟩
+        simp only [Expr.substConst0, hc, and_self, if_true]
+        exact hx
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
+        refine ⟨Frontend.IStepS.refl hst, ?_⟩
+        simp only [Expr.substConst0, if_neg hc]
+        exact he
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hv he
+      obtain ⟨f', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, hf'⟩ := ih hst hp hn hx hf g2
+      obtain ⟨a', s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨hs3, ha'⟩ := ih hs2.ok (hp.mono hs2.ext hs2.pins)
+        (denoteN_ext hn hs2.ext) (denote_ext hx hs2.ext) (denote_ext ha hs2.ext) g3
+      have hf3 := denote_ext hf' hs3.ext
+      obtain ⟨hs4, hd⟩ := Frontend.internE_sstep hs3.ok
+        (viewOK_app (by rw [hf3]; rfl) (by rw [ha']; rfl)) k3
+      refine ⟨(hs2.trans hs3).trans hs4, ?_⟩
+      rw [hd]
+      simp only [denoteEView, denote_ext hf3 hs4.ext, denote_ext ha' hs4.ext, opt2,
+        Expr.substConst0]
+    all_goals first
+      | (obtain rfl := denote_bvar_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_forallE_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain rfl := denote_lit_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean (Expr.substConst0) — the
 self-reference substitution, pair by pair.
@@ -1003,8 +1744,8 @@ universe-argument handle against it, so without the pin invariant nothing
 ties that comparison to con-leche's `us = []`.  Free at the one call site
 (`hok7.check.pins`).
 
-`sorry`: a list recursion over `Bridge/ExprOps/**`'s `substConst0` spec.  Task
-#97-P3-Checker's sorry list, item 23. -/
+**PROVED** (task #97-P3-Checker round 8): a list recursion over
+`substConst0_run`. -/
 theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
     {x : Expr} {eqs r : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
     {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
@@ -1016,7 +1757,46 @@ theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
       EqPairsDenote s'.store r
         (xs.map fun eq => (Expr.substConst0 nm x eq.1,
           Expr.substConst0 nm x eq.2)) := by
-  sorry
+  suffices h : ∀ (eqs : List (EIdx × EIdx)) (xs : List (Expr × Expr))
+      {r : List (EIdx × EIdx)} {s s' : AState}, StateOK s → PinsOK s →
+      denoteN s.store.ns cn = some nm → denoteE s.store rh = some x →
+      EqPairsDenote s.store eqs xs → substConst0Pairs cn rh eqs s = .ok (r, s') →
+      Frontend.IStepS s s' ∧ EqPairsDenote s'.store r
+        (xs.map fun eq => (Expr.substConst0 nm x eq.1,
+          Expr.substConst0 nm x eq.2)) by
+    obtain ⟨hs, hd'⟩ := h eqs xs hok hp hn hv hd hr
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, hd'⟩
+  intro eqs
+  induction eqs with
+  | nil =>
+    intro xs r s s' hst _ _ _ hd hr
+    cases xs with
+    | cons q qs => exact absurd hd (by simp [EqPairsDenote])
+    | nil =>
+      simp only [Arena.substConst0Pairs] at hr
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
+      exact ⟨Frontend.IStepS.refl hst, trivial⟩
+  | cons e es ih =>
+    intro xs r s s' hst hp hn hv hd hr
+    cases xs with
+    | nil => exact absurd hd (by simp [EqPairsDenote])
+    | cons q qs =>
+      obtain ⟨hd1, hd2, hdt⟩ := hd
+      obtain ⟨a, b⟩ := e
+      simp only [Arena.substConst0Pairs] at hr
+      obtain ⟨a', s1, g1, k1⟩ := AM.bind_ok hr
+      obtain ⟨hs1, ha⟩ := substConst0_run _ hst hp hn hv hd1 g1
+      obtain ⟨b', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, hb⟩ := substConst0_run _ hs1.ok (hp.mono hs1.ext hs1.pins)
+        (denoteN_ext hn hs1.ext) (denote_ext hv hs1.ext) (denote_ext hd2 hs1.ext) g2
+      obtain ⟨rest, s3, g3, k3⟩ := AM.bind_ok k2
+      have hs12 := hs1.trans hs2
+      obtain ⟨hs3, hrest⟩ := ih qs hs12.ok (hp.mono hs12.ext hs12.pins)
+        (denoteN_ext hn hs12.ext) (denote_ext hv hs12.ext)
+        (EqPairsDenote.mono hs12.ext hdt) g3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+      refine ⟨hs12.trans hs3, ?_⟩
+      exact ⟨denote_ext (denote_ext ha hs2.ext) hs3.ext, denote_ext hb hs3.ext, hrest⟩
 
 
 
@@ -1094,16 +1874,51 @@ theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
         = .ok true) :=
   certifyNatEqs_bridge_aux hk hok.envWF eqs xs r s s' hok.check hden hws hrun
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:614-620 Expr.substConst0 — the
+spine substitution preserves scoping at a scoped replacement. -/
+theorem substConst0_wscoped {n : ConLeche.Name} {r : Expr} {d : Nat}
+    (hr : Expr.WScoped d r) :
+    ∀ e, Expr.WScoped d e → Expr.WScoped d (Expr.substConst0 n r e) := by
+  intro e
+  induction e
+  case const c us =>
+    intro h
+    simp only [Expr.substConst0]
+    split
+    · exact hr
+    · exact h
+  case app f a ihf iha =>
+    intro h
+    simp only [Expr.substConst0]
+    unfold Expr.WScoped at h ⊢
+    exact ⟨ihf h.1, iha h.2⟩
+  all_goals (intro h; exact h)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:525-554 natOpEquations — every
+side of every equation is scoped at depth 2 (`fvar 0`, `fvar 1` at `Nat`). -/
+theorem natOpEquations_wscoped (nm : ConLeche.Name) :
+    ∀ q ∈ ConLeche.natOpEquations 0 nm,
+      Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2 := by
+  intro q hq
+  unfold ConLeche.natOpEquations at hq
+  simp only at hq
+  repeat' split at hq
+  all_goals
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hq
+    repeat' rcases hq with rfl | hq
+  all_goals first
+    | simp [Expr.WScoped]
+    | exact absurd hq (by simp)
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the
 substituted recurrence equations are well scoped at the depth the certifier
 runs them at (`isDefEq … 2`: the equations' variables are `fvar 0` and
 `fvar 1`).  A pure fact about con-leche's own pinned construction, which
 `certifyNatEqs_bridge`'s `KnotSpec.defeq` calls need as their precondition.
 
-`sorry`: `natOpEquations`' twelve literal shapes, and `Expr.substConst0`
-preserving `WScoped` at a well-scoped replacement — which the stored value is,
-by `EnvWF env2`'s own clause about a `defnInfo`'s value.  Task
-#97-P3-Checker's sorry list, item 23. -/
+**PROVED** (task #97-P3-Checker round 8): `natOpEquations_wscoped` (the
+literal shapes, by cases) and `substConst0_wscoped` at the stored value,
+which `EnvWF env2`'s `defnInfo` clause makes free of free variables. -/
 theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
     {cv' : ConstantVal} {v' : Expr} {hint' : ReducibilityHint}
     (henv : EnvWF env2)
@@ -1111,7 +1926,14 @@ theorem natOpEqs_wscoped {env2 : Env} {nm : ConLeche.Name}
     ∀ q ∈ (ConLeche.natOpEquations 0 nm).map
       (fun eq => (Expr.substConst0 nm v' eq.1, Expr.substConst0 nm v' eq.2)),
       Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2 := by
-  sorry
+  intro q hq
+  have hc := henv _ (List.mem_of_find?_eq_some hf)
+  obtain ⟨hf1, -, -, -⟩ := hc.2.2.2.2.1 cv' v' hint' rfl
+  have hv2 : Expr.WScoped 2 v' := ConLeche.Expr.WScoped.of_not_hasFvar hf1
+  simp only [List.mem_map] at hq
+  obtain ⟨eq, heq, rfl⟩ := hq
+  obtain ⟨h1, h2⟩ := natOpEquations_wscoped nm eq heq
+  exact ⟨substConst0_wscoped hv2 _ h1, substConst0_wscoped hv2 _ h2⟩
 
 /-! ## The two pinned-variant gates -/
 
@@ -1141,6 +1963,165 @@ theorem checkDivModPin_bridge {μ : CheckMode}
         = .ok () := by
   sorry
 
+/-! ## The compiler-trust gate's pieces -/
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:202-207 reduceDeclPin — the
+pinned defining expression of a reduce operation, interned. -/
+theorem reduceDeclPin_run {cH : NIdx} {cn : ConLeche.Name} {p : EIdx}
+    {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hd : denoteN s.store.ns cH = some cn)
+    (hrun : Arena.reduceDeclPin cH s = .ok (p, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store p = some (ConLeche.reduceDeclPin cn) := by
+  simp only [Arena.reduceDeclPin] at hrun
+  obtain ⟨rn, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.reduceNatName) hp (by rfl) g1
+  have hiff := beq_handle_iff hst.wf hd d1
+  rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
+  · obtain ⟨hs, hv⟩ := Frontend.internExpr_sstep hst k
+    refine ⟨hs, ?_⟩
+    rw [hv, ConLeche.reduceDeclPin, if_pos (hiff.mp hc)]
+  · obtain ⟨hs, hv⟩ := Frontend.internExpr_sstep hst k
+    refine ⟨hs, ?_⟩
+    rw [hv, ConLeche.reduceDeclPin, if_neg (fun h => hc (hiff.mpr h))]
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:215-218 reduceCertVar — the
+identity certificate's variable, `fvar 0` at the element type, interned. -/
+theorem reduceCertVar_run {cH : NIdx} {cn : ConLeche.Name} {v : EIdx}
+    {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
+    (hd : denoteN s.store.ns cH = some cn)
+    (hrun : Arena.reduceCertVar cH s = .ok (v, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store v = some (ConLeche.reduceCertVar cn) := by
+  simp only [Arena.reduceCertVar, Arena.reduceElemTy, Arena.reduceElemName]
+    at hrun
+  obtain ⟨ty, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨nm, s0, g0, r0⟩ := AM.bind_ok g1
+  obtain ⟨rn, s00, g00, r00⟩ := AM.bind_ok g0
+  obtain ⟨p00, d1⟩ := pinAt_run (x := ConLeche.reduceNatName) hp (by rfl) g00
+  rw [p00] at r00
+  have hiff := beq_handle_iff hst.wf hd d1
+  have hname : denoteN s.store.ns nm = some (ConLeche.reduceElemName cn) ∧ s0 = s := by
+    rcases AM.ite_ok r00 with ⟨hc, k⟩ | ⟨hc, k⟩
+    · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natName) hp (by rfl) k
+      refine ⟨?_, rfl⟩
+      rw [d2, ConLeche.reduceElemName, if_pos (hiff.mp hc)]
+    · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.boolName) hp (by rfl) k
+      refine ⟨?_, rfl⟩
+      rw [d2, ConLeche.reduceElemName, if_neg (fun h => hc (hiff.mpr h))]
+  obtain ⟨hnm, rfl⟩ := hname
+  obtain ⟨hs1, hty⟩ := constE_run hst hp hnm r0
+  obtain ⟨hs2, hv⟩ := Frontend.internE_sstep hs1.ok
+    (viewOK_fvar (by rw [hty]; rfl)) r1
+  refine ⟨hs1.trans hs2, ?_⟩
+  rw [hv]
+  simp only [denoteEView, denote_ext hty hs2.ext, Option.map_some]
+  have : ConLeche.reduceElemTy cn = .const (ConLeche.reduceElemName cn) [] := by
+    unfold ConLeche.reduceElemTy ConLeche.reduceElemName
+    split <;> rfl
+  rw [ConLeche.reduceCertVar, this]
+
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:209-213 reducePinGuard — the
+pin's syntactic guards are con-leche's. -/
+theorem reducePinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+    {cH : NIdx} {cn : ConLeche.Name} {r : Bool} {s s' : AState}
+    (hck : CheckOK μ env fe s) (hd : denoteN s.store.ns cH = some cn)
+    (hrun : Arena.reducePinGuard fe cH s = .ok (r, s')) :
+    CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+      r = ConLeche.reducePinGuard env cn := by
+  simp only [Arena.reducePinGuard] at hrun
+  obtain ⟨p, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hpd⟩ := reduceDeclPin_run hck.state hck.pins hd g1
+  have hck1 : CheckOK μ env fe s1 :=
+    hck.mono hs1.ok hs1.ext hs1.caches hs1.pins
+  have frame : ∀ {t : AState}, t.store = s1.store → t.caches = s1.caches →
+      t.pins = s1.pins → CheckOK μ env fe t ∧ Ext s.store t.store ∧
+        t.pins = s.pins := fun h1 h2 h3 =>
+    ⟨hck1.mono ⟨by rw [h1]; exact hck1.state.wf⟩ (by rw [h1]; exact Ext.refl _)
+      h2 h3, by rw [h1]; exact hs1.ext, by rw [h3, hs1.pins]⟩
+  simp only [ConLeche.reducePinGuard, Bool.and_assoc]
+  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨h2st, h2c, h2p, h2r⟩ := AM.of_run (P := fun t => t = s1)
+    (Q := fun r t => t.store = s1.store ∧ t.caches = s1.caches ∧
+      t.pins = s1.pins ∧ RelV (Expr.looseBVarsBounded 0) s1.store p r)
+    rfl g2 (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s1
+      p hck1.state (by rw [hpd]; rfl))
+  have e2 := h2r _ hpd
+  rcases AM.ite_ok r2 with ⟨hc2, k2⟩ | ⟨hc2, k2⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+    obtain ⟨a, b, c⟩ := frame h2st h2c h2p
+    refine ⟨a, b, c, ?_⟩
+    simp only [Bool.not_eq_true'] at hc2
+    rw [← e2, hc2, Bool.false_and]
+  have hc2' : b2 = true := by simpa using hc2
+  obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok k2
+  have hp2 : denoteE s2.store p = some (ConLeche.reduceDeclPin cn) := by
+    rw [h2st]; exact hpd
+  obtain ⟨h3st, h3c, h3p, h3r⟩ := AM.of_run (P := fun t => t = s2)
+    (Q := fun r t => t.store = s2.store ∧ t.caches = s2.caches ∧
+      t.pins = s2.pins ∧ RelV Expr.hasFvar s2.store p r)
+    rfl g3 (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s2 p
+      (frame h2st h2c h2p).1.state (by rw [hp2]; rfl))
+  have e3 := h3r _ hp2
+  have f3 : s3.store = s1.store := by rw [h3st, h2st]
+  have c3 : s3.caches = s1.caches := by rw [h3c, h2c]
+  have q3 : s3.pins = s1.pins := by rw [h3p, h2p]
+  rcases AM.ite_ok r3 with ⟨hc3, k3⟩ | ⟨hc3, k3⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+    obtain ⟨a, b, c⟩ := frame f3 c3 q3
+    refine ⟨a, b, c, ?_⟩
+    rw [← e2, hc2', ← e3, hc3]; rfl
+  have hc3' : b3 = false := by simpa using hc3
+  obtain ⟨b4, s4, g4, r4⟩ := AM.bind_ok k3
+  have hp3 : denoteE s3.store p = some (ConLeche.reduceDeclPin cn) := by
+    rw [f3]; exact hpd
+  obtain ⟨h4st, h4c, h4p, h4r⟩ :=
+    allLevelParamsDefined_run (frame f3 c3 q3).1.state rfl hp3 g4
+  have f4 : s4.store = s1.store := by rw [h4st, f3]
+  have c4 : s4.caches = s1.caches := by rw [h4c, c3]
+  have q4 : s4.pins = s1.pins := by rw [h4p, q3]
+  rcases AM.ite_ok r4 with ⟨hc4, k4⟩ | ⟨hc4, k4⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+    obtain ⟨a, b, c⟩ := frame f4 c4 q4
+    refine ⟨a, b, c, ?_⟩
+    simp only [Bool.not_eq_true'] at hc4
+    rw [← e2, hc2', ← e3, hc3', ← h4r, hc4]; rfl
+  have hc4' : b4 = true := by simpa using hc4
+  have hp4 : denoteE s4.store p = some (ConLeche.reduceDeclPin cn) := by
+    rw [f4]; exact hpd
+  obtain ⟨h5st, h5c, h5p, h5r⟩ :=
+    constsResolveFFast_run (frame f4 c4 q4).1 hp4 k4
+  obtain ⟨a, b, c⟩ := frame (by rw [h5st, f4]) (by rw [h5c, c4]) (by rw [h5p, q4])
+  refine ⟨a, b, c, ?_⟩
+  rw [← e2, hc2', ← e3, hc3', ← h4r, hc4', ← h5r]; rfl
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:407-425 checkReducePin — the pure
+side of an accepted gate, at ONE fuel. -/
+theorem checkReducePin_pure {μ : CheckMode} {env env2 : Env} {F : Nat}
+    {nm : ConLeche.Name} {x w pw : Expr}
+    (h1 : (ConLeche.reduceStoredOk env2 nm && ConLeche.reduceElemOk env nm) = true)
+    (h2 : ConLeche.reducePinGuard env nm = true)
+    (h3 : ConLeche.annotateCore μ env F 0 x = .ok w)
+    (h4 : ConLeche.annotateCore μ env F 0 (ConLeche.reduceDeclPin nm) = .ok pw)
+    (h5 : ConLeche.isDefEqCore μ env F 0 w pw = .ok true)
+    (h6 : ConLeche.isDefEqCore μ env F 1 (.app w (ConLeche.reduceCertVar nm))
+      (ConLeche.reduceCertVar nm) = .ok true) :
+    ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 nm x = .ok () := by
+  simp only [ConLeche.checkReducePin, ConLeche.fueledOps, h1, h2, h3, h4, h5, h6,
+    if_true, bind, Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:93-110 checkOpaqueVal — an
+accepted opaque's raw value has no free variable (the second guard). -/
+theorem checkOpaqueVal_noFvar {μ : CheckMode} {env env' : Env} {F : Nat}
+    {c : ConstantVal} {x : Expr}
+    (h : ConLeche.checkOpaqueVal (ConLeche.fueledOps μ F) env c x = .ok env') :
+    x.hasFvar = false := by
+  cases hb : x.hasFvar with
+  | false => rfl
+  | true =>
+    exfalso
+    simp only [ConLeche.checkOpaqueVal, hb] at h
+    cases hl : x.looseBVarsBounded 0 <;>
+      simp [hl, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at h
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:407-425 checkReducePin — the
 `Lean.reduceNat` / `Lean.reduceBool` install gate: the stored value must be
 definitionally equal to the build-time pin.
@@ -1154,11 +2135,115 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     (hk : CoreSpec μ Arena.checkFuel) (hok : FoldOK μ env fe s)
     (hok2 : StepOK env2 fe2 s)
     (hn : denoteN s.store.ns cn = some nm)
-    (hv : denoteE s.store value = some x)
+    (hv : denoteE s.store value = some x) (hws : Expr.WScoped 0 x)
     (hrun : checkReducePin μ fe fe2 cn value s = .ok ((), s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       ∃ F, ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 nm x
         = .ok () := by
-  sorry
+  have hknot := hk.knot env fe hok.envWF
+  have hck := hok.check
+  simp only [Arena.checkReducePin] at hrun
+  obtain ⟨b1, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, rfl⟩ := reduceStoredOk_run hck.state hck.pins hok2.ienv hn _ _ g1
+  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨hs2, rfl⟩ := reduceElemOk_run hs1.ok (hck.pins.mono hs1.ext hs1.pins)
+    (hck.ienv.mono hs1.ext) (denoteN_ext hn hs1.ext) _ _ g2
+  have hs12 := hs1.trans hs2
+  have hck2 : CheckOK μ env fe s2 :=
+    hck.mono hs12.ok hs12.ext hs12.caches hs12.pins
+  rcases AM.ite_ok r2 with ⟨hc1, r3⟩ | ⟨-, r3⟩
+  rotate_left
+  · exact absurd r3 AM.readFail_ne
+  obtain ⟨b3, s3, g3, r4⟩ := AM.bind_ok r3
+  obtain ⟨hck3, hx3, hp3, rfl⟩ :=
+    reducePinGuard_run hck2 (denoteN_ext hn hs12.ext) g3
+  rcases AM.ite_ok r4 with ⟨hc2, r5⟩ | ⟨-, r5⟩
+  rotate_left
+  · exact absurd r5 AM.readFail_ne
+  have hx03 : Ext s.store s3.store := hs12.ext.trans hx3
+  -- the value, annotated
+  obtain ⟨va, s4, g4, r6⟩ := AM.bind_ok r5
+  obtain ⟨hck4, hx4, hp4, hsim4⟩ := AM.of_run (P := fun t => t = s3)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s3.store t.store ∧
+      t.pins = s3.pins ∧ Core.SimE (ConLeche.annotateCore μ env) 0 x t.store r)
+    rfl g4 (hknot.annotate s3 0 value x hck3 (denote_ext hv hx03) hws)
+  obtain ⟨w, hw4, hwsw, F4, hF4⟩ := hsim4
+  have hx04 : Ext s.store s4.store := hx03.trans hx4
+  -- the pin, interned again and annotated
+  obtain ⟨p, s5, g5, r7⟩ := AM.bind_ok r6
+  obtain ⟨hs5, hpd⟩ := reduceDeclPin_run hck4.state hck4.pins
+    (denoteN_ext hn hx04) g5
+  have hck5 : CheckOK μ env fe s5 := hck4.mono hs5.ok hs5.ext hs5.caches hs5.pins
+  have hwsP : Expr.WScoped 0 (ConLeche.reduceDeclPin nm) := by
+    refine ConLeche.Expr.WScoped.of_not_hasFvar ?_
+    simp only [ConLeche.reducePinGuard, Bool.and_eq_true, Bool.not_eq_true'] at hc2
+    exact hc2.1.1.2
+  obtain ⟨pa, s6, g6, r8⟩ := AM.bind_ok r7
+  obtain ⟨hck6, hx6, hp6, hsim6⟩ := AM.of_run (P := fun t => t = s5)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s5.store t.store ∧
+      t.pins = s5.pins ∧
+      Core.SimE (ConLeche.annotateCore μ env) 0 (ConLeche.reduceDeclPin nm) t.store r)
+    rfl g6 (hknot.annotate s5 0 p _ hck5 hpd hwsP)
+  obtain ⟨pw, hpw6, hwspw, F6, hF6⟩ := hsim6
+  have hx56 : Ext s4.store s6.store := hs5.ext.trans hx6
+  -- the pin comparison
+  obtain ⟨ok1, s7, g7, r9⟩ := AM.bind_ok r8
+  obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s6.store t.store ∧
+      t.pins = s6.pins ∧ Core.SimV (ConLeche.isDefEqCore μ env) 0 w pw r)
+    rfl g7 (hknot.defeq s6 0 va pa w pw hck6 (denote_ext hw4 hx56) hpw6 hwsw hwspw)
+  obtain ⟨F7, hF7⟩ := hsim7
+  rcases AM.ite_ok r9 with ⟨hc7, r10⟩ | ⟨-, r10⟩
+  rotate_left
+  · exact absurd r10 AM.readFail_ne
+  have hc7' : ok1 = true := hc7
+  subst hc7'
+  -- the identity certificate
+  have hx47 : Ext s4.store s7.store := hx56.trans hx7
+  obtain ⟨xv, s8, g8, r11⟩ := AM.bind_ok r10
+  obtain ⟨hs8, hxv⟩ := reduceCertVar_run hck7.state hck7.pins
+    (denoteN_ext hn (hx04.trans hx47)) g8
+  have hck8 : CheckOK μ env fe s8 := hck7.mono hs8.ok hs8.ext hs8.caches hs8.pins
+  have hw8 : denoteE s8.store va = some w := denote_ext hw4 (hx47.trans hs8.ext)
+  obtain ⟨ax, s9, g9, r12⟩ := AM.bind_ok r11
+  obtain ⟨hs9, hax⟩ := Frontend.internE_sstep hck8.state
+    (viewOK_app (by rw [hw8]; rfl) (by rw [hxv]; rfl)) g9
+  have hax' : denoteE s9.store ax
+      = some (.app w (ConLeche.reduceCertVar nm)) := by
+    rw [hax]
+    simp only [denoteEView, denote_ext hw8 hs9.ext, denote_ext hxv hs9.ext, opt2]
+  have hck9 : CheckOK μ env fe s9 := hck8.mono hs9.ok hs9.ext hs9.caches hs9.pins
+  have hwsC : Expr.WScoped 1 (ConLeche.reduceCertVar nm) := by
+    unfold ConLeche.reduceCertVar ConLeche.reduceElemTy
+    split <;> simp [Expr.WScoped]
+  have hwsA : Expr.WScoped 1 (.app w (ConLeche.reduceCertVar nm)) := by
+    unfold Expr.WScoped
+    exact ⟨ConLeche.Expr.WScoped.mono (by omega) hwsw, hwsC⟩
+  obtain ⟨ok2, s10, g10, r13⟩ := AM.bind_ok r12
+  obtain ⟨hck10, hx10, hp10, hsim10⟩ := AM.of_run (P := fun t => t = s9)
+    (Q := fun r t => CheckOK μ env fe t ∧ Ext s9.store t.store ∧
+      t.pins = s9.pins ∧
+      Core.SimV (ConLeche.isDefEqCore μ env) 1 (.app w (ConLeche.reduceCertVar nm))
+        (ConLeche.reduceCertVar nm) r)
+    rfl g10 (hknot.defeq s9 1 ax xv _ _ hck9 hax' (denote_ext hxv hs9.ext)
+      hwsA hwsC)
+  obtain ⟨F10, hF10⟩ := hsim10
+  rcases AM.ite_ok r13 with ⟨hc10, r14⟩ | ⟨-, r14⟩
+  rotate_left
+  · exact absurd r14 AM.readFail_ne
+  have hc10' : ok2 = true := hc10
+  subst hc10'
+  obtain ⟨-, rfl⟩ := AM.pure_ok r14
+  refine ⟨hck10.state,
+    (((hx04.trans hx56).trans hx7).trans (hs8.ext.trans hs9.ext)).trans hx10,
+    by rw [hp10, hs9.pins, hs8.pins, hp7, hp6, hs5.pins, hp4, hp3, hs12.pins],
+    max (max F4 F6) (max F7 F10), ?_⟩
+  have l4 : F4 ≤ max (max F4 F6) (max F7 F10) := by omega
+  have l6 : F6 ≤ max (max F4 F6) (max F7 F10) := by omega
+  have l7 : F7 ≤ max (max F4 F6) (max F7 F10) := by omega
+  have l10 : F10 ≤ max (max F4 F6) (max F7 F10) := by omega
+  exact checkReducePin_pure hc1 hc2 (ConLeche.annotateCore_mono l4 hF4)
+    (ConLeche.annotateCore_mono l6 hF6) (ConLeche.isDefEqCore_mono l7 hF7)
+    (ConLeche.isDefEqCore_mono l10 hF10)
 
 end ConRon.Bridge
