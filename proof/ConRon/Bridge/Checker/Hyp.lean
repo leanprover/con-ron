@@ -230,10 +230,10 @@ round 10): the environment the route's index denotes is well formed, and
 every projection table of that index is an old one or well shaped and rightly
 named at the new store.
 
-**A named hypothesis, owed by the INDUCTIVES tier.**  `IndSpec` above carries
-neither (`Bridge/Inductives/Rel.lean`'s `IndOut` has the tables, as the
-`find?`-shaped `ProjOut`, and not `EnvWF`); the coordinator's round-10 ruling
-has the Inductives agent add `envWF` to `IndOut`/`IndSpec`.  The table clause
+**Owed by the INDUCTIVES tier, and paid** (task #97-P3-Ind rounds 7 and 9):
+`IndSpec.run` now concludes both clauses — `EnvWF` (round 7) and the
+membership-shaped table clause (round 9; `Bridge/Inductives/Rel.lean`'s
+`ProjOut` carries it beside its `find?` form as `ProjOutM`).  The table clause
 is asked for over MEMBERSHIP, not over `find?`: that is the shape the
 bracket's close consumes (`IFEnvOK_of_denote`), and turning a `find?`-shaped
 clause into it needs the index to answer for every stored table, which is
@@ -259,10 +259,9 @@ hypothesis the capstone already takes**.
 last two conjuncts are exactly `IndWFSpec.run`'s two clauses.  Owed by the
 Inductives tier since task #97-P3-Checker round 10.  It is
 stated from `IndSpec` so that no statement above this tier changes: the
-capstones take `hind : IndSpec .verified`, and once `IndSpec.run` carries
-`IndWFSpec.run`'s two clauses this is `⟨fun hok hb hpin hrun => …⟩`, a
-projection.  Nothing in the checker tier can prove it: the route lives in
-`Bridge/Inductives/**`, one tier above. -/
+capstones take `hind : IndSpec .verified`, and `IndSpec.run` carries both of
+`IndWFSpec.run`'s clauses, so this is a projection (`denoteFEnv` is a
+function, which turns the witnessed `EnvWF` into the universal one). -/
 theorem IndSpec.wf {μ : CheckMode} (_hμ : μ.verifiedChecks = true) (hind : IndSpec μ) :
     IndWFSpec μ := by
   refine ⟨fun {env fe fe' s s' block b nP} hok hb hpin hrun => ?_⟩

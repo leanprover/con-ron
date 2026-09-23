@@ -1292,9 +1292,21 @@ theorem findCV?_run {μ : CheckMode} {envC env : Env} {feC fe : IFEnv} {s s' : A
 **The plain iota certificate**: the `j`-th rule's model theorem is the stated
 equation, its sides the rule's own.
 
-`sorry`: `iotaThmName_spec`, `eqApp3?_spec`, `checkIotaSidesTy_spec`,
-`Bridge/ExprOps/Reset.lean`'s `renameConstsFast_spec`, `CoreSpec.knot`'s
-`defeq` slot, and `IFEnvOK` at the theorem's lookup. -/
+**CLOSED** (task #97-P3-Ind round 9): `iotaThmName_spec` + `findCV?_run` for
+the stored theorem, the opened telescope (`openPisAtFvarsF_run`), `isEqHead_run`,
+the redex's head and spine (`paramLevels_spec`, `internConstE_run` through the
+rename relation, `mkAppN_run`, `denoteEList_getLastD`), the renamed constructor
+and recursor telescopes (`renameConstsFast_pstep`, `instPisAtF_spec` at
+`instListSpec`), five `checkDefEqList_bridge`s, the knot's `defeq` slot, and
+`checkIotaSidesTy_spec`.  The scope of every compared list is con-leche's
+`checkIotaThm_wfimp`'s, step for step.
+
+**Four missing preconditions repaired** (round 9, hypothesis changes only):
+`EnvWF env'` (the stored theorem's statement is closed) and `hasFvar = false`
+of `tyA`, of the constructor's type and of `rhsA` — exactly the four
+`checkIotaThm_wfimp` takes.  The callers discharge them: `checkIotaRule_spec`
+from `EnvWF env'` at the constructor and the annotated side's scope,
+`installIndRecs_spec` from `provisionRecs_tys`. -/
 theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (henv' : EnvWF env')
@@ -1752,7 +1764,12 @@ type.  PURE on both sides (con-leche's is not even in `m`), and the answer is
 a level list and an expression list — task #97d-2's deviation 6 keeps the
 levels a `List LIdx`.
 
-`sorry`: `stripPis`' spec and `Bridge/ExprOps/Spine.lean`'s `getAppSpine`. -/
+**CLOSED** (task #97-P3-Ind round 9): `iotaThmName_spec` + `findCV?_run`,
+`stripPis_pstep`, the two view dispatches (`denote_not_forallE`,
+`denote_not_const`), `mapM_E_pstep` at `lowerBVarsFast_run` and
+`liftLooseBVarsFast_run`, `bvarsDesc_spec`, `readNames_run`/`readLevels_run`,
+`allM_E_cstep` for the pins' four guards, and `beq_ehandleList_eq` for the two
+spine comparisons. -/
 theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (cvName : NIdx) (cvNameP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr)
@@ -1965,8 +1982,12 @@ theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
 **The nested iota certificate**, which also decides the rule's firing mode.
 
-`sorry`: `nestedRuleShape_spec`, `checkIotaThm_spec`'s pieces, and
-`Frontend.denoteFire` at the answer. -/
+**CLOSED** (task #97-P3-Ind round 9): `nestedRuleShape_spec` for the dispatch,
+then `checkIotaThm_spec`'s pieces, plus the pins opened at the prefix
+(`mapM_E_pstepQ` over `renameConstsFast_pstep` + `instSpine_spec`), the stored
+levels (`internLsNode_run`, `instLPFast_cstep` twice), `checkAnnotList_bridge`
+and `checkTypedList_bridge`.  Same four preconditions as `checkIotaThm_spec`.
+-/
 theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
     (henv' : EnvWF env')
