@@ -201,6 +201,14 @@ theorem rename_by_from_refines
       simp only [← hbv]
       rw [dupId_nidx _ _ h]
 
+open Lockstep in
+@[lockstep] theorem rename_by_from_twin
+    {tbl : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
+    {i : Std.Usize}
+    {n : arena.handle.NIdx} :
+    LSP (arena.inductives.modeled.rename_by_from tbl i n) (fun o => TwinEq (renameBy (absRenameTblFrom tbl i) (absNIdx n)) (absNIdx o)) :=
+  fun o h => (rename_by_from_refines h).symm
+
 /-- `rename_by` ⊑ `renameBy`. -/
 theorem rename_by_refines
     {tbl : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
@@ -211,6 +219,13 @@ theorem rename_by_refines
   rw [rename_by_from_refines hrun]
   simp [absRenameTbl, absRenameTblFrom,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+open Lockstep in
+@[lockstep] theorem rename_by_twin
+    {tbl : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
+    {n : arena.handle.NIdx} :
+    LSP (arena.inductives.modeled.rename_by tbl n) (fun o => TwinEq (renameBy (absRenameTbl tbl) (absNIdx n)) (absNIdx o)) :=
+  fun o h => (rename_by_refines h).symm
 
 /-- **Finding 15, cashed.**  `RenameBy` IS the twin's partial application
 `renameBy tbl`, so the `RenameRel` hypothesis every `rename_consts` statement
@@ -482,6 +497,13 @@ theorem last_d_eidx_refines {xs : alloc.vec.Vec arena.handle.EIdx}
       List.getLast?_eq_getElem?]
     simp only [List.length_map, List.getElem?_map, hget]
     rfl
+
+open Lockstep in
+@[lockstep] theorem last_d_eidx_twin
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {dflt : arena.handle.EIdx} :
+    LSP (arena.inductives.modeled.last_d_eidx xs dflt) (fun o => TwinEq ((absEIdxL xs).getLastD (absEIdx dflt)) (absEIdx o)) :=
+  fun o h => (last_d_eidx_refines h).symm
 
 /-- `iota_stmt_open_at` ⊑ the prologue's tail: the telescope, the equation
 head and its arity (finding 20's hoisted `eqHeadLevel` among them). -/
@@ -3008,6 +3030,15 @@ theorem filter_recs_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
       have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
       rw [ih i2 out hi2v o h, hi2v, if_neg (by rw [← hbv]; simpa using hw)]
 
+open Lockstep in
+@[lockstep] theorem filter_recs_twin
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    {want : Bool}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.env.IConstantInfo} :
+    LSP (arena.inductives.modeled.filter_recs block want i out) (fun o => TwinEq (absICIL out ++ filterRecsSpec (absICILFrom block i) want) (absICIL o)) :=
+  fun o h => (filter_recs_refines h).symm
+
 /-- `block_names_of` ⊑ `block.map (·.name)` from the cursor on. -/
 theorem block_names_of_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     {i : Std.Usize} {out : alloc.vec.Vec arena.handle.NIdx} {o}
@@ -3034,6 +3065,14 @@ theorem block_names_of_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     subst hix
     exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
       i_constant_info_name_abs hn, h⟩
+
+open Lockstep in
+@[lockstep] theorem block_names_of_twin
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.handle.NIdx} :
+    LSP (arena.inductives.modeled.block_names_of block i out) (fun o => TwinEq (absNIdxL out ++ blockNamesOfSpec (absICILFrom block i)) (absNIdxL o)) :=
+  fun o h => (block_names_of_refines h).symm
 
 /-- `filter_kind` ⊑ the twin's two constructor filters, at a tag. -/
 theorem filter_kind_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
@@ -3098,6 +3137,15 @@ theorem filter_kind_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
       rw [ih i2 out1 hi2v o h, hi2v, ConRon.Refine.vec_push_val hout1]
       simp [i_constant_info_dup_abs hii1]
 
+open Lockstep in
+@[lockstep] theorem filter_kind_twin
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    {kind : Std.U64}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.env.IConstantInfo} :
+    LSP (arena.inductives.modeled.filter_kind block kind i out) (fun o => TwinEq (absICIL out ++ filterKindSpec (absICILFrom block i) (absU kind)) (absICIL o)) :=
+  fun o h => (filter_kind_refines h).symm
+
 /-- `single_ind_ctor` ⊑ the twin's two-list match
 `[.indInfo cvT _], [.ctorInfo cvC nP nF]`. -/
 theorem single_ind_ctor_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
@@ -3160,6 +3208,12 @@ theorem single_ind_ctor_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     · rcases xs with _ | ⟨x2, xs2⟩
       · exact absurd (by simp [hm]) hl1
       · simp
+
+open Lockstep in
+@[lockstep] theorem single_ind_ctor_twin
+    {block : alloc.vec.Vec arena.env.IConstantInfo} :
+    LSP (arena.inductives.modeled.single_ind_ctor block) (fun o => TwinEq (singleIndCtorSpec (absICIL block)) ((o.map fun q => (absIConstantVal q.1, absIConstantVal q.2.1, absU q.2.2.1, absU q.2.2.2)))) :=
+  fun o h => (single_ind_ctor_refines h).symm
 
 /-- `proj_fn_family_free` ⊑ the projection-function name family's freeness
 from field `j` on — the same test the direct route's table install makes. -/

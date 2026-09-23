@@ -95,6 +95,13 @@ theorem kinds_any_rec_refines
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨by simp only [← hbv, Bool.true_or], h.symm⟩
 
+open Lockstep in
+@[lockstep] theorem kinds_any_rec_twin
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.kinds_any_rec ks i) (fun o => TwinEq ((absKindLFrom ks i).any fun k => k == .recursive || k == .reflexive) (o)) :=
+  fun o h => (kinds_any_rec_refines h).symm
+
 /-- `native_is_rec_from` ⊑ `nativeIsRec`'s outer `any` from the cursor on. -/
 theorem native_is_rec_from_refines
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
@@ -131,6 +138,13 @@ theorem native_is_rec_from_refines
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
+open Lockstep in
+@[lockstep] theorem native_is_rec_from_twin
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.native_is_rec_from kinds i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any fun k => k == .recursive || k == .reflexive) (o)) :=
+  fun o h => (native_is_rec_from_refines h).symm
+
 /-- `native_is_rec` ⊑ `nativeIsRec` — official's `is_rec` off the classified
 kinds. -/
 theorem native_is_rec_refines
@@ -140,6 +154,12 @@ theorem native_is_rec_refines
   rw [arena.inductives.native_install.native_is_rec] at hrun
   rw [nativeIsRec, native_is_rec_from_refines hrun]
   simp [absKindLLFrom, absKindLL, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+open Lockstep in
+@[lockstep] theorem native_is_rec_twin
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)} :
+    LSP (arena.inductives.native_install.native_is_rec kinds) (fun o => TwinEq (nativeIsRec (absKindLL kinds)) (o)) :=
+  fun o h => (native_is_rec_refines h).symm
 
 /-- `native_caps` ⊑ `nativeCaps`. -/
 theorem native_caps_refines {pers st lst}
@@ -228,6 +248,15 @@ theorem mf_probe_refines {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     have h2 : some v = o := Result.ok_injective hrun
     subst h2
     rfl
+
+open Lockstep in
+@[lockstep] theorem mf_probe_twin
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {k : arena.handle.EIdx}
+    (hm : LMemoRel rm lm) :
+    LSP (arena.inductives.native_install.mf_probe rm k) (fun o => TwinEq (lm[absEIdx k]?) (o)) :=
+  fun o h => (mf_probe_refines hm h).symm
 
 /-- `mentions_fvar_ins` ⊑ `mentionsFvarIns` — one answer recorded. -/
 theorem mentions_fvar_ins_refines {e : arena.handle.EIdx}
@@ -879,6 +908,14 @@ theorem kinds_any_refines
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
+open Lockstep in
+@[lockstep] theorem kinds_any_twin
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
+    {k : arena.inductives.native_parts.RecFieldKind}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.kinds_any ks k i) (fun o => TwinEq ((absKindLFrom ks i).any (· == absRecFieldKind k)) (o)) :=
+  fun o h => (kinds_any_refines h).symm
+
 /-- `kindss_any` ⊑ `kinds.any fun ks => ks.any (· == k)` from the cursor on. -/
 theorem kindss_any_refines
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
@@ -914,6 +951,14 @@ theorem kindss_any_refines
     · rw [hbb] at h hbv
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
+
+open Lockstep in
+@[lockstep] theorem kindss_any_twin
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    {k : arena.inductives.native_parts.RecFieldKind}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.kindss_any kinds k i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any (· == absRecFieldKind k)) (o)) :=
+  fun o h => (kindss_any_refines h).symm
 
 /-- `classify_fix_kinds` ⊑ `classifyFixKinds` — **the fields' kinds, classified
 at install** (con-leche's task #210 Part D). -/
@@ -1158,6 +1203,14 @@ theorem ctor_name_seen_refines
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
+open Lockstep in
+@[lockstep] theorem ctor_name_seen_twin
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {i : Std.Usize}
+    {n : arena.handle.NIdx} :
+    LSP (arena.inductives.native_install.ctor_name_seen ctors i n) (fun o => TwinEq (((absCtorsLFrom ctors i).map (·.1.name)).contains (absNIdx n)) (o)) :=
+  fun o h => (ctor_name_seen_refines h).symm
+
 /-- `ctor_names_nodup` ⊑ `(p₀.ctors.map (·.1.name)).Nodup` from the cursor
 on. -/
 theorem ctor_names_nodup_refines
@@ -1209,6 +1262,13 @@ theorem ctor_names_nodup_refines
         simpa using h3
       rw [← h]
       simp [List.nodup_cons, hmem, Function.comp_def]
+
+open Lockstep in
+@[lockstep] theorem ctor_names_nodup_twin
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.ctor_names_nodup ctors i) (fun o => TwinEq (decide (((absCtorsLFrom ctors i).map (·.1.name)).Nodup)) (o)) :=
+  fun o h => (ctor_names_nodup_refines h).symm
 
 /-- `check_native` ⊑ `checkNative` — check and install a **direct recursive
 block**: the distinct names, the pass over the former and the constructors —

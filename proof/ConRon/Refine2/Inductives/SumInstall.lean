@@ -296,6 +296,14 @@ theorem eidx_contains_refines {xs : alloc.vec.Vec arena.handle.EIdx}
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
+open Lockstep in
+@[lockstep] theorem eidx_contains_twin
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {x : arena.handle.EIdx}
+    {i : Std.Usize} :
+    LSP (arena.inductives.sum_install.eidx_contains xs x i) (fun o => TwinEq ((absEIdxLFrom xs i).contains (absEIdx x)) (o)) :=
+  fun o h => (eidx_contains_refines h).symm
+
 /-- `field_sort_bound` ⊑ `checkStructFieldSortsI`'s per-field universe
 bound. -/
 theorem field_sort_bound_refines {pers st lst} {is_prop large : Bool}
