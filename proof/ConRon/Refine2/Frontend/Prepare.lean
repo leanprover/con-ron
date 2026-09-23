@@ -236,7 +236,32 @@ theorem pick_idx_refines {n ds picked k}
 
 /-- **`prepare::no_picks`** — `n` falses. -/
 theorem no_picks_refines {n v} (h : frontend.prepare.no_picks n = ok v) :
-    v.val = List.replicate n.val false := by sorry
+    v.val = List.replicate n.val false := by
+  have key : ∀ (k : Nat) (i : Std.Usize) (p : alloc.vec.Vec Bool) (v : alloc.vec.Vec Bool),
+      n.val - i.val = k →
+      frontend.prepare.no_picks_loop n p i = ok v →
+      v.val = p.val ++ List.replicate (n.val - i.val) false := by
+    intro k
+    induction k with
+    | zero =>
+      intro i p v hk h
+      rw [frontend.prepare.no_picks_loop] at h
+      rw [if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [hk]; simp
+    | succ k ih =>
+      intro i p v hk h
+      rw [frontend.prepare.no_picks_loop] at h
+      rw [if_pos (by scalar_tac)] at h
+      obtain ⟨p1, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi1v := usize_add_one_inv hi1
+      rw [ih i1 p1 v (by omega) h, ConRon.Refine.vec_push_val hp1,
+        show n.val - i.val = (n.val - i1.val) + 1 by omega, List.replicate_succ]
+      simp
+  rw [frontend.prepare.no_picks] at h
+  rw [key _ 0#usize _ v rfl h]
+  simp [alloc.vec.Vec.with_capacity]
 
 /-- The plan's abstraction: the front and the rest it stands for. -/
 def absPlan (ps ds : alloc.vec.Vec arena.env.IDeclaration)
@@ -400,13 +425,117 @@ theorem prepared_front_refines {out ps ds picks v}
     (h : frontend.prepare.prepared_front out ps ds picks = ok v) :
     absIDeclArr v = absIDeclArr out ++
       preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks.val.map (·.val)) := by
-  sorry
+  have key : ∀ (k : Nat) (j : Std.Usize) (out v : alloc.vec.Vec arena.env.IDeclaration),
+      ps.val.length - j.val = k →
+      frontend.prepare.prepared_front_loop ps ds picks out (alloc.vec.Vec.len ds)
+        (alloc.vec.Vec.len ps) j = ok v →
+      v.val.map absIDeclaration = out.val.map absIDeclaration ++
+        frontL (absIDeclArr ps) (absIDeclArr ds) ((picks.val.map (·.val)).drop j.val) j.val := by
+    intro k
+    induction k with
+    | zero =>
+      intro j out v hk h
+      rw [frontend.prepare.prepared_front_loop] at h
+      rw [if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      have : (picks.val.map (·.val)).drop j.val = [] := by
+        simp only [List.drop_eq_nil_iff, List.length_map]; omega
+      rw [this]; simp [frontL]
+    | succ k ih =>
+      intro j out v hk h
+      rw [frontend.prepare.prepared_front_loop] at h
+      rw [if_pos (by scalar_tac)] at h
+      obtain ⟨kk, hkk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hkki := vec_index_some hkk
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hj1v := usize_add_one_inv hj1
+      have hcons : (picks.val.map (·.val)).drop j.val =
+          kk.val :: (picks.val.map (·.val)).drop (j.val + 1) := by
+        rw [List.drop_eq_getElem_cons (by
+          simp only [List.length_map]; exact (List.getElem?_eq_some_iff.mp hkki).1)]
+        simp only [List.getElem_map]
+        obtain ⟨_, hx⟩ := List.getElem?_eq_some_iff.mp hkki
+        rw [hx]
+      rw [ih j1 out1 v (by omega) h, hcons, frontL, ← hj1v]
+      have hstep : out1.val.map absIDeclaration = out.val.map absIDeclaration ++
+          [(absIDeclArr ds)[kk.val]?.getD ((absIDeclArr ps).getD j.val default)] := by
+        split at hout1
+        · rename_i hlt
+          obtain ⟨d, hd, hout1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hout1
+          obtain ⟨d', hd', hout1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hout1
+          rw [ConRon.Refine.vec_push_val hout1]
+          have hdi := vec_index_some hd
+          simp [absIDeclArr, hdi, i_declaration_dup_abs hd']
+        · rename_i hge
+          obtain ⟨d, hd, hout1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hout1
+          obtain ⟨d', hd', hout1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hout1
+          rw [ConRon.Refine.vec_push_val hout1]
+          have hdi := vec_index_some hd
+          have hnone : ds.val[kk.val]? = none := List.getElem?_eq_none (by scalar_tac)
+          simp [absIDeclArr, hdi, hnone, i_declaration_dup_abs hd']
+      rw [hstep]; simp
+  rw [frontend.prepare.prepared_front] at h
+  have := key _ 0#usize out v rfl h
+  have h0 : (0#usize : Std.Usize).val = 0 := rfl
+  simp only [absIDeclArr, this, h0, List.drop_zero, preparedFront]
+  simp
 
 /-- **`prepare::prepared_rest`** against the transcription. -/
 theorem prepared_rest_refines {out ds picked v}
     (h : frontend.prepare.prepared_rest out ds picked = ok v) :
     absIDeclArr v = absIDeclArr out ++ preparedRest (absIDeclArr ds) picked.val := by
-  sorry
+  have key : ∀ (k : Nat) (i : Std.Usize) (out v : alloc.vec.Vec arena.env.IDeclaration),
+      ds.val.length - i.val = k →
+      frontend.prepare.prepared_rest_loop ds picked out (alloc.vec.Vec.len ds) i = ok v →
+      v.val.map absIDeclaration = out.val.map absIDeclaration ++
+        restL ((ds.val.map absIDeclaration).drop i.val) (picked.val.drop i.val) := by
+    intro k
+    induction k with
+    | zero =>
+      intro i out v hk h
+      rw [frontend.prepare.prepared_rest_loop] at h
+      rw [if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      have : (ds.val.map absIDeclaration).drop i.val = [] := by
+        simp only [List.drop_eq_nil_iff, List.length_map]; omega
+      rw [this]; simp [restL]
+    | succ k ih =>
+      intro i out v hk h
+      rw [frontend.prepare.prepared_rest_loop] at h
+      rw [if_pos (by scalar_tac)] at h
+      obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbbi := vec_index_some hbb
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi1v := usize_add_one_inv hi1
+      rw [ih i1 out1 v (by omega) h, hi1v]
+      have hlt : i.val < ds.val.length := by omega
+      obtain ⟨hbl, hbx⟩ := List.getElem?_eq_some_iff.mp hbbi
+      have hA : (ds.val.map absIDeclaration).drop i.val =
+          absIDeclaration ds.val[i.val] :: (ds.val.map absIDeclaration).drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (by simp only [List.length_map]; exact hlt)]
+        simp
+      have hB : picked.val.drop i.val = bb :: picked.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons hbl, hbx]
+      rw [hA, hB]
+      simp only [restL, List.headD_cons, List.tail_cons]
+      split at hout1
+      · rename_i hb
+        cases Result.ok_injective hout1
+        simp [hb]
+      · rename_i hb
+        obtain ⟨d, hd, hout1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hout1
+        obtain ⟨d', hd', hout1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hout1
+        rw [ConRon.Refine.vec_push_val hout1]
+        have hdi := vec_index_some hd
+        obtain ⟨_, hdx⟩ := List.getElem?_eq_some_iff.mp hdi
+        simp [hb, i_declaration_dup_abs hd', hdx]
+  rw [frontend.prepare.prepared_rest] at h
+  have := key _ 0#usize out v rfl h
+  have h0 : (0#usize : Std.Usize).val = 0 := rfl
+  simp only [absIDeclArr, preparedRest, this, h0, List.drop_zero, List.toList_toArray]
+  simp
 
 /-- **`prepare::prepared_stream`** against the transcription. -/
 theorem prepared_stream_refines {ps ds picks picked v}
