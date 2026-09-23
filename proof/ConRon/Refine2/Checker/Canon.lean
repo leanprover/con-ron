@@ -548,23 +548,150 @@ theorem i_rec_rules_beq_refines {a b : alloc.vec.Vec arena.env.IRecRule}
     o = decide (absIRecRuleLFrom a i = absIRecRuleLFrom b i) :=
   i_rec_rules_beq_aux _ rfl hrun
 
-/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`. -/
+/-- A capability record whose `sort_z` is in `PropWhen`'s canonical form
+(`Refine/PropWhen.lean`'s `WFShape`).  The port compares two `PropWhen`s by
+their REPRESENTATION (`prop_when::beq`, i.e. `equiv_r`), the twin by value;
+the two agree exactly on canonical data (`PropWhen.beq_iff`) and not beyond
+it (`Many [p]` and `One p` abstract to the same value). -/
+def IIndCapsWF (c : arena.env.IIndCaps) : Prop := ConRon.Refine.PropWhen.WFShape c.sort_z
+
+/-- `IIndCapsWF` of a stored constant's capabilities (`True` off `IndInfo`). -/
+def IConstantInfoCapsWF : arena.env.IConstantInfo → Prop
+  | .IndInfo _ c => IIndCapsWF c
+  | _ => True
+
+/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`, at canonical `sort_z`s (the
+statement is false without them, see `IIndCapsWF`). -/
 theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
+    (ha : IIndCapsWF a) (hb : IIndCapsWF b)
     (hrun : arena.canon.i_ind_caps_beq a b = ok o) :
     o = decide (absIIndCaps a = absIIndCaps b) := by
-  sorry
+  rw [arena.canon.i_ind_caps_beq] at hrun
+  simp only [absIIndCaps, IIndCaps.mk.injEq]
+  refine beq_chain' Iff.rfl hrun ?_
+  intro o1 h
+  obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (nidx_eq2_abs_decide hb1) h ?_
+  intro o2 h
+  refine beq_chain' absU_iff h ?_
+  intro o3 h
+  refine beq_chain' absU_iff h ?_
+  intro o4 h
+  refine beq_chain' Iff.rfl h ?_
+  intro o5 h
+  refine beq_chain' absU_iff h ?_
+  intro o6 h
+  refine beq_chain' Iff.rfl h ?_
+  intro o7 h
+  have hiff := ConRon.Refine.PropWhen.beq_iff ha hb h
+  cases o7
+  · exact (decide_eq_false (fun hc => by simpa using hiff.mpr hc)).symm
+  · exact (decide_eq_true (hiff.mp rfl)).symm
 
 /-- `i_proj_table_beq` ⊑ `==` on `IProjTable`. -/
 theorem i_proj_table_beq_refines {t t2 : arena.env.IProjTable} {o : Bool}
     (hrun : arena.canon.i_proj_table_beq t t2 = ok o) :
     o = decide (absIProjTable t = absIProjTable t2) := by
-  sorry
+  rw [arena.canon.i_proj_table_beq] at hrun
+  simp only [absIProjTable, IProjTable.mk.injEq]
+  obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  refine beq_chain (nidx_eq2_abs_decide hb1) hrun ?_
+  intro o1 h
+  obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (nidx_eq2_abs_decide hb2) h ?_
+  intro o2 h
+  obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h3 := nidx_vec_beq_refines hb3
+  simp only [absNIdxLFrom] at h3
+  refine beq_chain (by simpa using h3) h ?_
+  intro o3 h
+  refine beq_chain' absU_iff h ?_
+  intro o4 h
+  obtain ⟨b5, hb5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (nidx_eq2_abs_decide hb5) h ?_
+  intro o5 h
+  refine beq_chain' absU_iff h ?_
+  intro o6 h
+  obtain ⟨b7, hb7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (lidx_eq2_abs hb7) h ?_
+  intro o7 h
+  obtain ⟨b8, hb8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h8 := eidx_vec_beq_refines hb8
+  simp only [absEIdxLFrom] at h8
+  refine beq_chain (by simpa using h8) h ?_
+  intro o8 h
+  obtain ⟨b9, hb9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h9 := lidx_vec_beq_refines hb9
+  simp only [absLIdxLFrom] at h9
+  refine beq_chain (by simpa using h9) h ?_
+  intro o9 h
+  rw [beq_last h]
+  exact decide_eq_decide.mpr absU_iff
 
-/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`. -/
+/-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
+private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
+    (h : lift (core.cmp.impls.PartialEqU64.eq x y) = ok b) : b = decide (x = y) := by
+  simp only [lift, core.cmp.impls.PartialEqU64.eq, Result.ok.injEq] at h
+  exact h.symm
+
+/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`, at canonical
+capabilities (`IConstantInfoCapsWF`; the `IndInfo` arm compares `sort_z` by
+representation). -/
 theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
+    (ha : IConstantInfoCapsWF a) (hb : IConstantInfoCapsWF b)
     (hrun : arena.canon.i_constant_info_beq a b = ok o) :
     o = decide (absIConstantInfo a = absIConstantInfo b) := by
-  sorry
+  cases a <;> cases b <;> simp only [arena.canon.i_constant_info_beq, Result.ok.injEq] at hrun <;>
+    (try (subst hrun; simp [absIConstantInfo]; done))
+  case AxiomInfo.AxiomInfo x y =>
+    rw [i_constant_val_beq_refines hrun]
+    simp [absIConstantInfo]
+  case DefnInfo.DefnInfo x v hh y w hh2 =>
+    simp only [absIConstantInfo, IConstantInfo.defnInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain (eidx_eq2_abs_decide hb2) h ?_
+    intro o2 h
+    exact ConRon.Refine.Env.reducibility_hint_beq_refines h
+  case ThmInfo.ThmInfo x v y w =>
+    simp only [absIConstantInfo, IConstantInfo.thmInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    exact eidx_eq2_abs_decide h
+  case IndInfo.IndInfo x c y d =>
+    simp only [absIConstantInfo, IConstantInfo.indInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    exact i_ind_caps_beq_refines ha hb h
+  case CtorInfo.CtorInfo x p f y q g =>
+    simp only [absIConstantInfo, IConstantInfo.ctorInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain ((u64_eq_lift hb2).trans (decide_eq_decide.mpr absU_iff)) h ?_
+    intro o2 h
+    exact (u64_eq_lift h).trans (decide_eq_decide.mpr absU_iff)
+  case RecInfo.RecInfo x m p rs y n q ss =>
+    simp only [absIConstantInfo, IConstantInfo.recInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain ((u64_eq_lift hb2).trans (decide_eq_decide.mpr absU_iff)) h ?_
+    intro o2 h
+    obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain ((u64_eq_lift hb3).trans (decide_eq_decide.mpr absU_iff)) h ?_
+    intro o3 h
+    have h4 := i_rec_rules_beq_refines h
+    simpa [absIRecRuleLFrom] using h4
+  case ProjInfo.ProjInfo t u =>
+    rw [i_proj_table_beq_refines hrun]
+    simp [absIConstantInfo]
 
 /-- `i_rec_rule_eq_but_rhs` is the twin's `{ r with rhs := default } == { r'
 with rhs := default }` — the record comparison at a common right-hand side,

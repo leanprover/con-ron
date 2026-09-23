@@ -115,8 +115,14 @@ theorem eq_basis_stored_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hrun : arena.inductives.modeled.eq_basis_stored pers vis st rf = ok o) :
     Sim₀ id pers lst o (eqBasisStored lf) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.inductives.modeled.eq_basis_stored, eqBasisStored]
-  lockstep
+  -- RULING NEEDED (task #97-T2-LOCKSTEP lane Inductives Modeled slice 2): the
+  -- port compares the found constant with `eq_a` by `i_constant_info_beq`,
+  -- whose `IndInfo` arm compares `sort_z` by REPRESENTATION; the twin's `==`
+  -- compares values.  They agree only at canonical capabilities
+  -- (`IConstantInfoCapsWF`, `Checker/Canon.lean`), which nothing states of the
+  -- Rust environment's stored constants.  The lockstep proof (`rw […]; lockstep`)
+  -- goes through given that fact for the two compared constants.
+  sorry
 
 open Lockstep in
 @[lockstep] theorem eq_basis_stored_ls

@@ -213,12 +213,14 @@ theorem ifenv_dup_rel {rf a : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf 
   · simp only [hlen]; exact hinv2
   · intro n p hp; rw [hlen]; exact hinv3 n p hp
 
-/-- `arena::canon::i_constant_info_beq` is the twin's `==` on the abstraction
-(`Checker/Canon.lean`'s `i_constant_info_beq_refines`). -/
-@[lockstep] theorem i_constant_info_beq_spec (a b : arena.env.IConstantInfo) :
+/-- `arena::canon::i_constant_info_beq` is the twin's `==` on the abstraction,
+at canonical capabilities (`Checker/Canon.lean`'s `i_constant_info_beq_refines`:
+the port compares `sort_z` by representation). -/
+@[lockstep] theorem i_constant_info_beq_spec {a b : arena.env.IConstantInfo}
+    (ha : IConstantInfoCapsWF a) (hb : IConstantInfoCapsWF b) :
     LSP (arena.canon.i_constant_info_beq a b)
       (fun o => o = (absIConstantInfo a == absIConstantInfo b)) :=
-  fun _ h => i_constant_info_beq_refines h
+  fun _ h => (i_constant_info_beq_refines ha hb h).trans (beq_eq_decide _ _).symm
 
 /-- `arena::core::nidx_vec_beq` is `==` on the abstracted name lists
 (`Inductives/Shape.lean`'s `nidx_vec_beq_abs`). -/
