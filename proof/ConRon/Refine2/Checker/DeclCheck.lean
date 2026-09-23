@@ -653,6 +653,45 @@ theorem consts_resolve_all_refines {pers st lst} {vis : Std.U64} {rf lf}
       (constsResolveAll lf (absEIdxLFrom hs i)) := by
   sorry
 
+theorem absEqPairsFrom_cons' (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
+    (i : Std.Usize) (hi : i.val < v.val.length) :
+    absEqPairsFrom v i = (absEIdx v.val[i.val].1, absEIdx v.val[i.val].2) ::
+      (v.val.drop (i.val + 1)).map (fun p => (absEIdx p.1, absEIdx p.2)) := by
+  simp only [absEqPairsFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+
+theorem absEqPairsFrom_nil' (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
+    (i : Std.Usize) (hi : v.val.length ≤ i.val) : absEqPairsFrom v i = [] := by
+  simp only [absEqPairsFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
+
+open Lockstep in
+theorem certify_nat_eqs_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode}
+      (eqs : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) (i : Std.Usize),
+      eqs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      LS pers (fun a b => b = id a)
+        (arena.decl_check.certify_nat_eqs pers vis st mode rf eqs i) lst
+        (certifyNatEqs (ConRon.Refine.absMode mode) lf (absEqPairsFrom eqs i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf mode eqs i hn hrel hinv hfe hvis
+    rw [arena.decl_check.certify_nat_eqs, absEqPairsFrom_nil' eqs i (by omega), certifyNatEqs]
+    have hl := alloc.vec.Vec.len_val eqs
+    rw [if_pos (by scalar_tac)]
+    exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst vis rf lf mode eqs i hn hrel hinv hfe hvis
+    rw [arena.decl_check.certify_nat_eqs, absEqPairsFrom_cons' eqs i (by omega), certifyNatEqs]
+    have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv hvis
+    have hl := alloc.vec.Vec.len_val eqs
+    rw [if_neg (by scalar_tac)]
+    refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
+    subst hp
+    generalize (↑eqs : List _)[↑i] = p
+    obtain ⟨e, e1⟩ := p
+    simp only [absEqPairsFrom] at ih
+    lockstep
+
 /-- `certify_nat_eqs` ⊑ `certifyNatEqs` at the cursor. -/
 theorem certify_nat_eqs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode}
@@ -663,7 +702,7 @@ theorem certify_nat_eqs_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.certify_nat_eqs pers vis st mode rf eqs i = ok o) :
     Sim₀ id pers lst o
       (certifyNatEqs (ConRon.Refine.absMode mode) lf (absEqPairsFrom eqs i)) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (certify_nat_eqs_aux _ eqs i rfl hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem certify_nat_eqs_ls {pers st lst} {vis : Std.U64} {rf lf}
@@ -1299,6 +1338,105 @@ theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absINatOpPinSetLFrom variants i).tail ltried) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem div_mod_pin_guard_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.decl_check.div_mod_pin_guard pers vis st ps rf c) lst
+      (divModPinGuard (absINatOpPinSet ps) lf (absNIdx c)) :=
+  LS.ofSim₀ fun _ h => div_mod_pin_guard_refines hrel hinv hfe.rel hfe.inv hvis h
+
+open Lockstep in
+@[lockstep] theorem div_mod_certs_guard_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx}
+    {ann_val : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.decl_check.div_mod_certs_guard pers vis st ps rf c ann_val) lst
+      (divModCertsGuard (absINatOpPinSet ps) lf (absNIdx c) (absEIdx ann_val)) :=
+  LS.ofSim₀ fun _ h => div_mod_certs_guard_refines hrel hinv hfe.rel hfe.inv hvis h
+
+theorem pinSetFrom_cons (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (i : Std.Usize) (hi : i.val < v.val.length) :
+    absINatOpPinSetLFrom v i = absINatOpPinSet v.val[i.val] ::
+      (v.val.drop (i.val + 1)).map absINatOpPinSet := by
+  simp only [absINatOpPinSetLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+
+theorem pinSetFrom_nil (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (i : Std.Usize) (hi : v.val.length ≤ i.val) : absINatOpPinSetLFrom v i = [] := by
+  simp only [absINatOpPinSetLFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
+
+open Lockstep in
+@[lockstep] theorem check_div_mod_pin_try_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
+    {value2 : arena.handle.EIdx}
+    {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
+    {tried : alloc.vec.Vec Std.U32} {ltried : List String}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
+    (hi : i.val < variants.val.length) :
+    LS pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.decl_check.check_div_mod_pin_try pers vis st mode rf c value2
+        variants i tried) lst
+      (checkDivModPinTrySpec (ConRon.Refine.absMode mode) lf (absNIdx c)
+        (absEIdx value2) (absINatOpPinSet variants.val[i.val])
+        ((variants.val.drop (i.val + 1)).map absINatOpPinSet) ltried) := by
+  refine LS.ofSim₀ fun _ h => ?_
+  have h1 := check_div_mod_pin_try_refines (ltried := ltried) hrel hinv hfe.rel hfe.inv hvis
+    (List.getElem?_eq_getElem hi) h
+  rwa [pinSetFrom_cons variants i hi, List.tail_cons] at h1
+
+theorem checkDivModPinLoop_cons_try (mode : ConLeche.CheckMode) (fe : IFEnv) (c : NIdx)
+    (v : EIdx) (ps : INatOpPinSet) (rest : List INatOpPinSet) (tried : List String) :
+    checkDivModPinLoop mode fe c v (ps :: rest) tried = (do
+      if (← divModPinGuard ps fe c) && (← divModCertsGuard ps fe c v) then
+        checkDivModPinTrySpec mode fe c v ps rest tried
+      else
+        checkDivModPinLoop mode fe c v rest
+          (tried ++ [s!"{ps.toolchain}: pin or certificate ground constants absent"])) := by
+  rw [checkDivModPinLoop]; rfl
+
+open Lockstep in
+theorem check_div_mod_pin_loop_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode}
+      {c : arena.handle.NIdx} {value2 : arena.handle.EIdx}
+      (variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) (i : Std.Usize)
+      (tried : alloc.vec.Vec Std.U32) (ltried : List String),
+      variants.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      LS pers (fun a b => b = (fun _ : Unit => ()) a)
+        (arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2
+          variants i tried) lst
+        (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
+          (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf mode c value2 v i tried ltried hn hrel hinv hfe hvis
+    rw [arena.decl_check.check_div_mod_pin_loop, pinSetFrom_nil v i (by omega),
+      checkDivModPinLoop]
+    have hl := alloc.vec.Vec.len_val v
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst vis rf lf mode c value2 v i tried ltried hn hrel hinv hfe hvis
+    have hlt : i.val < v.val.length := by omega
+    rw [arena.decl_check.check_div_mod_pin_loop, pinSetFrom_cons v i hlt,
+      checkDivModPinLoop_cons_try]
+    have hl := alloc.vec.Vec.len_val v
+    rw [if_neg (by scalar_tac)]
+    refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
+    subst hp
+    lockstep
+    all_goals
+      have ha : a.val = i.val + 1 := by simpa using hP
+      unfold absINatOpPinSetLFrom at ih
+      rw [← ha]
+      exact ih (mode := mode) (c := c) (value2 := value2) v a tried _ (by omega)
+        hrel hinv hfe hvis
+
 /-- `check_div_mod_pin_loop` ⊑ `checkDivModPinLoop` at the cursor. -/
 theorem check_div_mod_pin_loop_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
@@ -1312,7 +1450,8 @@ theorem check_div_mod_pin_loop_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun _ : Unit => ()) pers lst o
       (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) := by
-  sorry
+  exact Lockstep.LS.toSim₀
+    (check_div_mod_pin_loop_aux _ variants i tried ltried rfl hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
 
 open Lockstep in
 /-- The loop's entry, as `checkDivModPin` calls it: no variant tried yet (the
