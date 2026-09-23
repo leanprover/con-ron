@@ -59729,3 +59729,16 @@ this lane's helper started, so this lane stood down to avoid two agents on
 
 **Shims:** `Specs.lean`'s `intern_l_node_run` (no consumer left once
 `Checker/Pins.lean` moved to `intern_l_node_run₀`) deleted.
+
+#### Frontier, gates, submission
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: **start** (`f216c474`) 65 items in 16
+modules, 174 tainted, dead weight 647; **after slice 1** (`2c05bb85`, with
+the Frontend lane's landing 1 merged) 54 / 12 / 139 / 632; **after slice 2**
+(this branch, `arena` `ecee8ea4` merged) 54 / 12 / 140 / 625.  No resolves
+hypothesis is left on either Theorem-2 capstone (`install_then_check_refines`,
+`check_decls_phased_refines`, and the binary's `pool_accepts_refines`): each
+takes `AStateRel₀` and `AStateInv` and nothing else.  `scripts/gates.sh`:
+**all 16 OK** on both slices (slice 2: `extract-check` 192 s, `lake-refine2`
+177 s).  Both submitted to the merge queue (task #97-MQ), not landed by hand.
