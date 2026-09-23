@@ -60527,3 +60527,48 @@ Gates: `scripts/gates.sh` on the branch after merging `arena` (`924e25b4`):
 **all 16 OK** (`extract-check` 100 s).  `lake build ConRon ConRonBridge
 ConRonRefine2 ConRonCapstone` green (2 826 jobs) before the merge.  Shared
 Lake cache seeded from this state.
+
+#### Slice 3 — hand recipes (Native/Struct/Sum; Modeled moved to its own lane)
+
+* **`ls_cursor`** (`Inductives/Shape.lean`): the `Vec`-cursor / list-recursion
+  induction in `LS` form, once; a caller writes the stop and step cases as
+  `rw [rust.eq_def, twin]; rw [if_pos/if_neg …]; lockstep`, the induction
+  hypothesis sitting in the context for the recursive call.  Closed with it:
+  `idx_args_resolve`, `any_dom_mentions`, `idx_free_of`.
+* **Counted recursions** (the twin recurses on a count the Rust decrements):
+  `induction hk : k.val generalizing …`, the same two lines per case —
+  `struct_proj_guards_col` closed.
+* **`native_shape_refines` (frontier) closed**: the block head by hand (the
+  twin matches the LIST head, the port indexes `block[0]` and copies from `1`;
+  a local `TwinEq` spec of the copy rewrites the twin's tail to the port's
+  copy), then `lockstep` in each of the seven constructor cases.
+* A side-tier alternative: a checker-tier statement at a split counter reads
+  `lf.restrictTo (absU vis)`; where `hvis` says the counter is `lf`'s own,
+  `IFEnv.restrictTo_of_eq` closes the congruence (`Inductives/Prims.lean`).
+* Tried and left: `rec_ctor_kind_at` (the zip times out at `isDefEq` in the
+  `struct_used_later` arms), `native_rules_ok_from` (the port tests three
+  bounds with `if`s where the twin matches three `[j]?`s — a hand step per
+  bound, not done), `check_native_table_refines` and `checkIotaThm(N)_unfold`
+  (not reached this round; the latter is the Modeled lane's now).
+* Tier `sorry`s (all files, Modeled included): **213 → 210** this slice.
+
+#### Ruling 2 — NOT done: the Rust does not hide the former
+
+The ruling was to run the twin's fields check "at `q.env1` with the counter
+decremented, as the Rust does".  **The Rust does not do that.**
+`check_native_tail_kinds` lowers `q.env1.visible_below` to `vis - 1` but
+passes the UNLOWERED `vis` to `native_fields_ok`, and every lookup under it
+(`ifenv_find(vis, …)`, `consts_resolve_f_fast(pers, vis, …)`,
+`idx_args_resolve(pers, vis, …)`, …) reads the explicit counter, never the
+record's field: the former's row (counter `vis - 1 < vis`) is VISIBLE, and the
+lowering is dead code.  So the lockstep twin is `nativeFieldsOk q.env₁` (the
+former visible), not the decremented view — and Theorem 1's `find?`-congruence
+(the Checker lane's `hkpre` approach) does not apply: `q.env₁` and `fe` differ
+at the former's name.  The comment in the Rust says the intent is to hide it.
+**Ruling needed**: either (a) a Rust change — pass `vis - 1` (the lowered
+counter) to `native_fields_ok`, after which the ruled twin fix and the
+`find?`-congruence go through as planned; or (b) the twin reads `q.env₁` and
+Theorem 1 proves `nativeFieldsOk` never looks the former up (a semantic fact,
+not a congruence).  The second pass at `ifenv_pop_temp(q.env1)` needs no Rust
+change (a twin `IFEnv.popTemp` and `IFEnv.row?`, and `find?` agreement with
+`fe`), and waits for the same round to keep ruling 2 in one piece.
