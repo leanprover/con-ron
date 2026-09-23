@@ -196,7 +196,12 @@ them:
 The edit is consumer-compatible — `Bridge/Checker/Capstone.lean` never reads
 `IndSpec`, it passes it to `checkDecl_bridge_ind` — and with it
 `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` closes with no `sorry` of
-its own. -/
+its own. 
+**`EnvWF env'`, added** (task #97-P3-Ind round 7, the coordinator's
+authorised conclusion change): the fold boundary after a declaration needs
+the pushed index's environment well formed (task #97-P3-Checker round 9's
+finding); `Bridge/Inductives/Rel.lean`'s `IndOut` carries the same clause and
+`indSpec_of_bridge` passes it through. -/
 structure IndSpec (μ : CheckMode) : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
       {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat}
@@ -208,7 +213,7 @@ structure IndSpec (μ : CheckMode) : Prop where
       IFEnvCoh fe' ∧ Pushed fe fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
         ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
-          = .ok env'
+          = .ok env' ∧ EnvWF env'
 
 /-- con-leche: ConLeche/Verify/Inductives/{SumWF,FixWF,StructWF}.lean
 direct_sum_ind_wf / direct_fix_rec_wf / direct_table_wf — **what the

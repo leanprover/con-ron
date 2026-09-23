@@ -25,6 +25,7 @@ calls `inferTypeCore` and `ensureSort`, `normPosDom` calls `whnf`,
   `hit`/`cover` pair says the index is.
 -/
 import ConRon.Bridge.Inductives.StructInstall
+import ConLeche.Verify.FastOps
 
 namespace ConRon.Bridge.Inductives
 
@@ -59,13 +60,55 @@ theorem majorIdx_spec {st : EStore} {p : Arena.InductiveShape}
 
 /-! ## The former's telescope -/
 
+/-- con-leche: none — `whnfTelescope` is monotone in the fuel of its
+`whnf`: `ConLeche.whnf_mono` at every binder. -/
+theorem whnfTelescope_mono {μ : CheckMode} {env : Env} {F F' : Nat}
+    (hle : F ≤ F') : ∀ {n i : Nat} {e : Expr} {v : List (Expr × BinderMeta) × Level},
+    ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env i n e = .ok v →
+    ConLeche.whnfTelescope (ConLeche.fueledOps μ F') env i n e = .ok v := by
+  intro n
+  induction n with
+  | zero =>
+    intro i e v h
+    simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind] at h ⊢
+    cases hw : ConLeche.whnf μ env F i e with
+    | error x => rw [hw] at h; exact nomatch h
+    | ok w => rw [hw] at h; rw [ConLeche.whnf_mono hle hw]; exact h
+  | succ n ih =>
+    intro i e v h
+    simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind] at h ⊢
+    cases hw : ConLeche.whnf μ env F i e with
+    | error x => rw [hw] at h; exact nomatch h
+    | ok w =>
+    rw [hw] at h; rw [ConLeche.whnf_mono hle hw]
+    dsimp only at h ⊢
+    cases w
+    case forallE dom body bm =>
+      dsimp only at h ⊢
+      cases hr : ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env (i + 1) n
+          (body.instantiate1 (.fvar i dom)) with
+      | error x =>
+        simp only [ConLeche.fueledOps] at hr; rw [hr] at h; exact nomatch h
+      | ok b' =>
+        have hr' := ih hr
+        simp only [ConLeche.fueledOps] at hr hr'
+        rw [hr] at h; rw [hr']; exact h
+    all_goals exact h
+
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:45-68 whnfTelescope
 Peel `n` Π binders, reducing at each step, down to the result `Sort`.
 
-`sorry`: a `Nat` recursion over `CoreSpec.knot`'s `whnf` slot and
-`Bridge/Rel.lean`'s `forallE`/`sort` inversions. -/
+**CLOSED** (task #97-P3-Ind round 7): a `Nat` recursion over
+`CoreSpec.knot`'s `whnf` slot, `Bridge/Rel.lean`'s `forallE`/`sort`
+inversions and `instantiate1Fast_run`, one fuel for the walk by
+`whnfTelescope_mono` at `max`.
+
+**Two preconditions it was missing** (round 7, §R6.3's repair): `EnvWF env`
+and `Expr.WScoped i eP` — the `whnf` slot's own; the answer's `SimE` scope
+and one `WScoped.instantiate1` carry it to the next binder. -/
 theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (i n : Nat) (e : EIdx) (eP : Expr) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (i n : Nat) (e : EIdx)
+    (eP : Expr) (hws : Expr.WScoped i eP) :
     CSpec μ env fe
       (fun st => denoteE st e = some eP ∧ denoteFEnv st fe = some env)
       (Arena.whnfTelescope μ fe i n e)
@@ -73,7 +116,77 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env i n eP
           = .ok (bsP, sP) ∧
         denoteBinders st r.1 = some bsP ∧ denoteL st.ls r.2 = some sP) := by
-  sorry
+  have hknot := hk.knot env fe henv
+  induction n generalizing i e eP with
+  | zero =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨he, hfe⟩ := hpre
+    simp only [Arena.whnfTelescope] at hrun
+    obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hok1, hx1, hp1, hsim⟩ := AM.of_run (P := fun u => u = s₀)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+        u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ env) i eP u.store r)
+      rfl k1 (hknot.whnf s₀ i e eP hok he hws)
+    obtain ⟨wP, hwP, -, F1, hF1⟩ := hsim
+    obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨hs2, hv⟩ := view_run k2
+    rw [hs2] at z2
+    cases v
+    case sort u =>
+      obtain ⟨uP, rfl, hu⟩ := denote_sort_inv hok1.state.wf hv hwP
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨⟨hok1, hx1, hp1⟩, F1, [], uP, ?_, rfl, hu⟩
+      simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind, hF1]
+      rfl
+    all_goals exact absurd z2 (fun h => failOk h)
+  | succ n ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨he, hfe⟩ := hpre
+    simp only [Arena.whnfTelescope] at hrun
+    obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hok1, hx1, hp1, hsim⟩ := AM.of_run (P := fun u => u = s₀)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+        u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ env) i eP u.store r)
+      rfl k1 (hknot.whnf s₀ i e eP hok he hws)
+    have c1 : CoreStep μ env fe s₀ s1 := ⟨hok1, hx1, hp1⟩
+    obtain ⟨wP, hwP, hwsw, F1, hF1⟩ := hsim
+    obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨hs2, hv⟩ := view_run k2
+    rw [hs2] at z2
+    cases v
+    case forallE dom body bm =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok1.state.wf hv hwP
+      have hwsdb : Expr.WScoped i domP ∧ Expr.WScoped i bodyP := by
+        simp only [Expr.WScoped] at hwsw; exact hwsw
+      obtain ⟨hwsd, hwsb⟩ := hwsdb
+      dsimp only at z2
+      obtain ⟨fv, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, hfv⟩ := internE_run hok1.state (viewOK_fvar (by rw [hd]; rfl)) k3
+      have hfv' : denoteE s3.store fv = some (.fvar i domP) := by
+        rw [hfv]; simp [denoteEView, denote_ext hd p3.ext]
+      have c3 := c1.trans (p3.toCore hok1)
+      obtain ⟨op, s4, k4, z4⟩ := bindOk z3
+      have hb3 : denoteE s3.store body = some bodyP := denote_ext hb p3.ext
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c3.ok.state hfv'
+        (by rw [hb3]; rfl) k4
+      have p4 : PStep s3 s4 := PStep.of_caches h1 h2 h3 h4 h5
+      have hop : denoteE s4.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
+        h7 _ hb3
+      have c4 := c3.trans (p4.toCore c3.ok)
+      obtain ⟨br, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨c5, F2, bsP, sP, hF2, hbs, hsP⟩ := ih (i + 1) op _
+        (Expr.WScoped.instantiate1 hwsd 0 hwsb) s4 s5 br c4.ok
+        ⟨hop, denoteFEnv_ext c4.ext hfe⟩ k5
+      obtain ⟨rfl, rfl⟩ := pureOk z5
+      refine ⟨c4.trans c5, max F1 F2, (domP, bm) :: bsP, sP, ?_, ?_, hsP⟩
+      · have hF1' := ConLeche.whnf_mono (Nat.le_max_left F1 F2) hF1
+        have hF2' := whnfTelescope_mono (Nat.le_max_right F1 F2) hF2
+        simp only [ConLeche.fueledOps] at hF2'
+        simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind, hF1']
+        rw [hF2']
+        rfl
+      · simp only [denoteBinders, denote_ext hd (p3.ext.trans (p4.ext.trans c5.ext)), hbs]
+    all_goals exact absurd z2 (fun h => failOk h)
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:70-78 closeTelescope
 Close a body under a telescope, abstracting the free variables as it goes.
@@ -129,8 +242,9 @@ The type former's stage: the telescope checked and the result sort measured.
 `sorry`: `whnfTelescope_spec` and `closeTelescope_spec`, plus `CoreSpec.knot`'s
 `defeq` slot for the stored type's comparison. -/
 theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (cv : IConstantVal) (cvP : ConstantVal)
-    (n : Nat) (cvTa₀ : IConstantVal) (cvTa₀P : ConstantVal) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cvP : ConstantVal)
+    (n : Nat) (cvTa₀ : IConstantVal) (cvTa₀P : ConstantVal)
+    (hws : Expr.WScoped 0 cvTa₀P.type) :
     CSpec μ env fe
       (fun st => Frontend.denoteCV st cv = some cvP ∧
         Frontend.denoteCV st cvTa₀ = some cvTa₀P ∧
@@ -238,7 +352,7 @@ sort its telescope measured.  **Deviation 3's `capsOf`** is instantiated here.
 `sorry`: `checkSumTele_spec`, `withSort_spec` (`Bridge/Inductives/SumParts.lean`),
 `nativeCapsAt_spec`, and `IFEnv.push`'s two lemmas for the `InstRel`. -/
 theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (p : Arena.InductiveShape)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (p : Arena.InductiveShape)
     (q : ConLeche.InductiveShape) (isRec : Bool) :
     CSpec μ env fe
       (fun st => ShapeRel st p q ∧ denoteFEnv st fe = some env)
@@ -252,19 +366,123 @@ theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-! ## The fields' universe bound -/
 
+/-- con-leche: none — a level-handle list denotes across an append. -/
+theorem denoteLList_append' {st : LStore} :
+    ∀ {a : List LIdx} {as : List Level} {b : List LIdx} {bs : List Level},
+      denoteLList st a = some as → denoteLList st b = some bs →
+      denoteLList st (a ++ b) = some (as ++ bs) := by
+  intro a
+  induction a with
+  | nil =>
+    intro as b bs ha hb
+    simp only [denoteLList, Option.some.injEq] at ha
+    subst ha; simpa using hb
+  | cons x xs ih =>
+    intro as b bs ha hb
+    simp only [denoteLList] at ha
+    cases hx : denoteL st x with
+    | none => rw [hx] at ha; simp [opt2] at ha
+    | some y =>
+      cases hxs : denoteLList st xs with
+      | none => rw [hx, hxs] at ha; simp [opt2] at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        simp only [opt2, Option.some.injEq] at ha
+        subst ha
+        simp only [List.cons_append, denoteLList, hx, ih hxs hb, opt2]
+
+/-- con-leche: none — **an expression-handle list's `contains` is the
+denotation's**, at both signs: `beq_ehandle_eq` at every element (the store is
+hash-consed, so a handle equality IS a term equality). -/
+theorem denoteEList_contains {st : EStore} (hwf : StoreWF st) :
+    ∀ {xs : List EIdx} {xsP : List Expr}, Frontend.denoteEList st xs = some xsP →
+      ∀ {h : EIdx} {hP : Expr}, denoteE st h = some hP →
+        xs.contains h = xsP.contains hP := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro xsP hxs h hP _
+    simp only [Frontend.denoteEList, Option.some.injEq] at hxs
+    subst hxs; rfl
+  | cons x xs ih =>
+    intro xsP hxs h hP hh
+    simp only [Frontend.denoteEList] at hxs
+    cases hx : denoteE st x with
+    | none => rw [hx] at hxs; simp at hxs
+    | some y =>
+      cases hr : Frontend.denoteEList st xs with
+      | none => rw [hx, hr] at hxs; simp at hxs
+      | some ys =>
+        rw [hx, hr] at hxs
+        obtain rfl := (Option.some.inj hxs).symm
+        simp only [List.contains_cons, beq_ehandle_eq hwf hh hx, ih hr hh]
+
+/-- con-leche: none — `checkStructFieldSortsI` is monotone in the fuel of its
+`inferType`/`ensureSort`. -/
+theorem checkStructFieldSortsI_mono {μ : CheckMode} {env : Env} {F F' : Nat}
+    (hle : F ≤ F') {isProp large : Bool} {sP : Level} {nP : Nat}
+    {fvsP idxArgsP : List Expr} : ∀ {j : Nat} {ls : List Level},
+    ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F) env isProp large sP nP
+      fvsP idxArgsP j = .ok ls →
+    ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F') env isProp large sP nP
+      fvsP idxArgsP j = .ok ls := by
+  intro j
+  induction j with
+  | zero => intro ls h; exact h
+  | succ j ih =>
+    intro ls h
+    simp only [ConLeche.checkStructFieldSortsI, ConLeche.fueledOps, bind, Except.bind]
+      at h ⊢
+    cases ha : fvsP[j]? with
+    | none =>
+      simp [ha, ConLeche.unwrapOr, throw, throwThe, MonadExceptOf.throw] at h
+    | some a =>
+    simp only [ha, ConLeche.unwrapOr, pure, Except.pure] at h ⊢
+    cases hi : ConLeche.inferTypeCore μ env F (nP + j) a.fvarTypeD with
+    | error x => rw [hi] at h; exact nomatch h
+    | ok t =>
+    rw [hi] at h; rw [ConLeche.inferTypeCore_mono hle hi]
+    dsimp only at h ⊢
+    cases he : ConLeche.ensureSortCore μ env F (nP + j) t with
+    | error x => rw [he] at h; exact nomatch h
+    | ok u =>
+    rw [he] at h; rw [ConLeche.ensureSortCore_mono hle he]
+    dsimp only at h ⊢
+    cases hr : ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F) env isProp
+        large sP nP fvsP idxArgsP j with
+    | error x =>
+      simp only [ConLeche.fueledOps, pure, Except.pure] at hr
+      rw [hr] at h
+      exfalso
+      revert h
+      repeat' split
+      all_goals simp_all [throw, throwThe, MonadExceptOf.throw]
+    | ok rest =>
+      have hr' := ih hr
+      simp only [ConLeche.fueledOps, pure, Except.pure] at hr hr'
+      rw [hr] at h; rw [hr']; exact h
+
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:114-139 checkStructFieldSortsI
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:45-61 checkStructFieldSortsIF
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:63-81 checkStructFieldSortsIFA
 Each field's sort, checked against the family's — official's
 subsingleton-elimination criterion at a one-constructor block.
 
-`sorry`: a `Nat` recursion over `CoreSpec.knot`'s `infer` slot,
-`CoreSpec.sort`'s `EnsureSortSpec`, and `Bridge/ExprOps/Leaves.lean`'s
-`fvarTypeD`. -/
+**CLOSED** (task #97-P3-Ind round 7): a `Nat` recursion over `CoreSpec.knot`'s
+`infer` slot, `CoreSpec.sort`'s `EnsureSortSpec`, `fvarTypeD_run`, the
+universe comparison (`readLevel` twice and `liftFueled`), `lvlEq?_spec` at the
+zero pin, and `denoteEList_contains` for the index test — one fuel for the
+walk by `checkStructFieldSortsI_mono` at `max`.
+
+**Two preconditions it was missing** (round 7, §R6.3's repair): `EnvWF env`
+and, for each field it infers, the scope of that field's type at its depth —
+`Expr.WScoped (nP + i) fvsP[i].fvarTypeD`, exactly `checkStructDomsAt_spec`'s
+hypothesis on its left column. -/
 theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (isProp large : Bool) (s : LIdx)
-    (sP : Level) (nP : Nat) (fvs idxArgs : List EIdx)
-    (fvsP idxArgsP : List Expr) (j : Nat) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (isProp large : Bool)
+    (s : LIdx) (sP : Level) (nP : Nat) (fvs idxArgs : List EIdx)
+    (fvsP idxArgsP : List Expr) (j : Nat)
+    (hws : ∀ i, i < j → ∀ a, fvsP[i]? = some a → Expr.WScoped (nP + i) a.fvarTypeD) :
     CSpec μ env fe
       (fun st => denoteL st.ls s = some sP ∧
         Frontend.denoteEList st fvs = some fvsP ∧
@@ -275,18 +493,380 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F) env isProp
           large sP nP fvsP idxArgsP j = .ok ls ∧
         denoteLList st.ls r = some ls) := by
-  sorry
+  have hknot := hk.knot env fe henv
+  have hsort := hk.sort env fe henv
+  induction j with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.checkStructFieldSortsI] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, 0, [], rfl, rfl⟩
+  | succ j ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hs, hfvs, hidx, hfe⟩ := hpre
+    simp only [Arena.checkStructFieldSortsI] at hrun
+    obtain ⟨fv, s1, k1, z1⟩ := bindOk hrun
+    cases hfv : fvs[j]? with
+    | none =>
+      rw [hfv] at k1; simp only [Arena.unwrapOr] at k1; exact absurd k1 (fun h => failOk h)
+    | some fv' =>
+    rw [hfv] at k1; simp only [Arena.unwrapOr] at k1
+    obtain ⟨rfl, hs1⟩ := pureOk k1
+    rw [hs1] at z1
+    obtain ⟨aP, haP, hda⟩ := ExprOps.denoteEList_getElem? fvs fvsP hfvs j fv hfv
+    obtain ⟨t, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨hs2, ht⟩ := fvarTypeD_run hok.state hda k2
+    rw [hs2] at z2
+    have hwsa := hws j (Nat.lt_succ_self j) aP haP
+    obtain ⟨ty, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨hok3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun u => u = s₀)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
+        u.pins = s₀.pins ∧
+        Core.SimE (ConLeche.inferTypeCore μ env) (nP + j) aP.fvarTypeD u.store r)
+      rfl k3 (hknot.infer s₀ (nP + j) t aP.fvarTypeD hok ht hwsa)
+    have c3 : CoreStep μ env fe s₀ s3 := ⟨hok3, hx3, hp3⟩
+    obtain ⟨tyP, htyP, hwsty, F1, hF1⟩ := hsim3
+    obtain ⟨u, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨hok4, hx4, hp4, hsim4⟩ := AM.of_run (P := fun u => u = s3)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s3.store u.store ∧
+        u.pins = s3.pins ∧
+        SimL (ConLeche.ensureSortCore μ env) (nP + j) tyP u.store r)
+      rfl k4 (hsort s3 (nP + j) ty tyP hok3 htyP hwsty)
+    have c4 : CoreStep μ env fe s₀ s4 := c3.trans ⟨hok4, hx4, hp4⟩
+    obtain ⟨uP, huP, F2, hF2⟩ := hsim4
+    -- the common tail: the recursive call and the snoc
+    have tail : ∀ (s5 : AState), CoreStep μ env fe s4 s5 →
+        (do let rest ← Arena.checkStructFieldSortsI μ fe isProp large s nP fvs idxArgs j
+            pure (rest ++ [u]) : AM (List LIdx)) s5 = .ok (r, s') →
+        CoreStep μ env fe s₀ s' ∧ ∃ F3 restP,
+          ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F3) env isProp
+            large sP nP fvsP idxArgsP j = .ok restP ∧
+          denoteLList s'.store.ls r = some (restP ++ [uP]) := by
+      intro s5 c5 z5
+      have c05 := c4.trans c5
+      obtain ⟨rest, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨c6, F3, restP, hF3, hrest⟩ := ih (fun i hi => hws i (Nat.lt_succ_of_lt hi))
+        s5 s6 rest c05.ok ⟨denoteL_ext hs c05.ext, denoteEList_ext c05.ext _ _ hfvs,
+          denoteEList_ext c05.ext _ _ hidx, denoteFEnv_ext c05.ext hfe⟩ k6
+      obtain ⟨rfl, rfl⟩ := pureOk z6
+      refine ⟨c05.trans c6, F3, restP, hF3, ?_⟩
+      exact denoteLList_append' hrest (by
+        simp only [denoteLList, denoteL_ext huP (c5.ext.trans c6.ext), opt2])
+    have hF1' : ∀ F, F1 ≤ F →
+        ConLeche.inferTypeCore μ env F (nP + j) aP.fvarTypeD = .ok tyP :=
+      fun F hle => ConLeche.inferTypeCore_mono hle hF1
+    have hF2' : ∀ F, F2 ≤ F → ConLeche.ensureSortCore μ env F (nP + j) tyP = .ok uP :=
+      fun F hle => ConLeche.ensureSortCore_mono hle hF2
+    cases isProp with
+    | false =>
+      simp only [Bool.not_false, if_true] at z4
+      obtain ⟨lu, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hlu⟩ := readLevel_run k5
+      rw [hs5] at z5
+      obtain ⟨ls, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨hs6, hls⟩ := readLevel_run k6
+      rw [hs6] at z6
+      obtain ⟨b, s7, k7, z7⟩ := bindOk z6
+      have hlu' : lu = uP := Option.some.inj (hlu.symm.trans huP)
+      have hls' : ls = sP := Option.some.inj (hls.symm.trans (denoteL_ext hs c4.ext))
+      subst hlu' hls'
+      cases hleq : Level.leq lu ls with
+      | none =>
+        rw [hleq] at k7; simp only [Arena.liftFueled] at k7
+        exact absurd k7 (fun h => failOk h)
+      | some bb =>
+      rw [hleq] at k7; simp only [Arena.liftFueled] at k7
+      cases bb with
+      | false =>
+        obtain ⟨rfl, rfl⟩ := pureOk k7
+        simp only [Bool.false_eq_true, if_false] at z7
+        obtain ⟨_, _, k, _⟩ := bindOk z7
+        exact absurd k (fun h => failOk h)
+      | true =>
+      obtain ⟨rfl, rfl⟩ := pureOk k7
+      simp only [if_true] at z7
+      obtain ⟨_, s8, k8, z8⟩ := bindOk z7
+      obtain ⟨-, rfl⟩ := pureOk k8
+      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (CoreStep.refl hok4) z8
+      refine ⟨c, max (max F1 F2) F3, restP ++ [lu], ?_, hr⟩
+      have e1 := hF1' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))
+      have e2 := hF2' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _))
+      have e3 := checkStructFieldSortsI_mono (Nat.le_max_right (max F1 F2) F3) hF3
+      simp only [ConLeche.fueledOps, pure, Except.pure] at e3
+      generalize max (max F1 F2) F3 = Fm at e1 e2 e3 ⊢
+      simp only [ConLeche.checkStructFieldSortsI, haP, ConLeche.unwrapOr, ConLeche.fueledOps,
+        bind, Except.bind, pure, Except.pure, e1, e2]
+      simp [ConLeche.liftFueled, hleq, e3, pure, Except.pure]
+    | true =>
+    cases large with
+    | false =>
+      simp only [Bool.not_true, Bool.false_eq_true, if_false] at z4
+      obtain ⟨_, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨-, rfl⟩ := pureOk k5
+      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (CoreStep.refl hok4) z5
+      refine ⟨c, max (max F1 F2) F3, restP ++ [uP], ?_, hr⟩
+      have e1 := hF1' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))
+      have e2 := hF2' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _))
+      have e3 := checkStructFieldSortsI_mono (Nat.le_max_right (max F1 F2) F3) hF3
+      simp only [ConLeche.fueledOps, pure, Except.pure] at e3
+      generalize max (max F1 F2) F3 = Fm at e1 e2 e3 ⊢
+      simp only [ConLeche.checkStructFieldSortsI, haP, ConLeche.unwrapOr, ConLeche.fueledOps,
+        bind, Except.bind, pure, Except.pure, e1, e2]
+      simp [e3]
+    | true =>
+      simp only [Bool.not_true, Bool.false_eq_true, if_false, if_true] at z4
+      obtain ⟨z, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hz⟩ := zeroLevel_run hok4.pins k5
+      rw [hs5] at z5
+      obtain ⟨vv, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨hok6, hst6, hp6, lu, lz, hlu, hlz, hvv⟩ :=
+        AM.of_run (P := fun t => t = s4) rfl k6 (Core.lvlEq?_spec s4 u z hok4)
+      have hlu' : lu = uP := Option.some.inj (hlu.symm.trans huP)
+      have hlz' : lz = .zero := Option.some.inj (hlz.symm.trans hz)
+      subst hlu' hlz'
+      have c6 : CoreStep μ env fe s4 s6 := ⟨hok6, by rw [hst6]; exact Ext.refl _, hp6⟩
+      have hcont : idxArgs.contains fv = idxArgsP.contains aP :=
+        denoteEList_contains hok4.state.wf (denoteEList_ext c4.ext _ _ hidx)
+          (denote_ext hda c4.ext)
+      rw [hvv, hcont] at z6
+      split at z6
+      case isFalse hn =>
+        obtain ⟨_, _, k, _⟩ := bindOk z6; exact absurd k (fun h => failOk h)
+      case isTrue hy =>
+      obtain ⟨_, s8, k8, z8⟩ := bindOk z6
+      obtain ⟨-, rfl⟩ := pureOk k8
+      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ c6 z8
+      refine ⟨c, max (max F1 F2) F3, restP ++ [lu], ?_, hr⟩
+      have e1 := hF1' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))
+      have e2 := hF2' (max (max F1 F2) F3)
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _))
+      have e3 := checkStructFieldSortsI_mono (Nat.le_max_right (max F1 F2) F3) hF3
+      simp only [ConLeche.fueledOps, pure, Except.pure] at e3
+      generalize max (max F1 F2) F3 = Fm at e1 e2 e3 ⊢
+      simp only [ConLeche.checkStructFieldSortsI, haP, ConLeche.unwrapOr, ConLeche.fueledOps,
+        bind, Except.bind, pure, Except.pure, e1, e2]
+      simp only [Bool.or_eq_true, beq_iff_eq, List.contains_iff_mem] at hy
+      simp [e3]
+      intro hn
+      exact hy.resolve_left hn
 
 /-! ## The positivity normalisation -/
+
+/-- con-leche: none — `normPosDom` is monotone in the fuel of its `whnf`:
+`ConLeche.whnf_mono` at every step. -/
+theorem normPosDom_mono {μ : CheckMode} {env : Env} {TP : ConLeche.Name}
+    {F F' : Nat} (hle : F ≤ F') : ∀ {fuel d : Nat} {e v : Expr},
+    ConLeche.normPosDom (ConLeche.fueledOps μ F) env TP d fuel e = .ok v →
+    ConLeche.normPosDom (ConLeche.fueledOps μ F') env TP d fuel e = .ok v := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro d e v h
+    simp only [ConLeche.normPosDom] at h
+    exact nomatch h
+  | succ fuel ih =>
+    intro d e v h
+    simp only [ConLeche.normPosDom] at h ⊢
+    cases hm : e.mentionsConst TP with
+    | false => simpa [hm] using h
+    | true =>
+    simp only [hm, Bool.not_true, Bool.false_eq_true, if_false] at h ⊢
+    simp only [ConLeche.fueledOps, bind, Except.bind] at h ⊢
+    cases hw : ConLeche.whnf μ env F d e with
+    | error x => rw [hw] at h; exact nomatch h
+    | ok w =>
+    rw [hw] at h
+    rw [ConLeche.whnf_mono hle hw]
+    dsimp only at h ⊢
+    cases hm2 : w.mentionsConst TP with
+    | false => simpa [hm2] using h
+    | true =>
+    simp only [hm2, Bool.not_true, Bool.false_eq_true, if_false] at h ⊢
+    cases w with
+    | forallE dom body bm =>
+      dsimp only at h ⊢
+      cases hdom : dom.mentionsConst TP with
+      | true =>
+        simp [hdom, throw, throwThe, MonadExceptOf.throw] at h
+      | false =>
+        simp only [hdom, Bool.false_eq_true, if_false] at h ⊢
+        cases hr : ConLeche.normPosDom (ConLeche.fueledOps μ F) env TP (d + 1) fuel
+            (body.instantiate1 (.fvar d dom)) with
+        | error x => simp only [ConLeche.fueledOps] at hr; rw [hr] at h; exact nomatch h
+        | ok b' =>
+          simp only [ConLeche.fueledOps] at hr
+          rw [hr] at h
+          have := ih (by simpa only [ConLeche.fueledOps] using hr)
+          simp only [ConLeche.fueledOps] at this
+          rw [this]
+          exact h
+    | _ => exact h
+
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:141-175 normPosDom
+**`normPosDom_spec` with the answer's scope**: the normalised domain is well
+scoped at the walk's depth.  This is the form a caller that feeds the answer
+into a second knot slot needs (`normFieldDoms`, `normCtorVal`), and the form
+the induction needs for its own recursive call; `normPosDom_spec` is it with
+the conjunct dropped. -/
+theorem normPosDom_run {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx)
+    (TP : ConLeche.Name) :
+    ∀ (fuel d : Nat) (e : EIdx) (eP : Expr), Expr.WScoped d eP →
+    CSpec μ env fe
+      (fun st => denoteN st.ns T = some TP ∧ denoteE st e = some eP ∧
+        denoteFEnv st fe = some env)
+      (Arena.normPosDom μ fe T d fuel e)
+      (fun st r => ∃ F v,
+        ConLeche.normPosDom (ConLeche.fueledOps μ F) env TP d fuel eP = .ok v ∧
+        denoteE st r = some v ∧ Expr.WScoped d v) := by
+  have hknot := hk.knot env fe henv
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro d e eP _ s₀ s' r _ _ hrun
+    simp only [Arena.normPosDom] at hrun
+    exact absurd hrun (fun h => failOk h)
+  | succ fuel ih =>
+    intro d e eP hws s₀ s' r hok hpre hrun
+    obtain ⟨hT, he, hfe⟩ := hpre
+    simp only [Arena.normPosDom] at hrun
+    obtain ⟨m1, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hm1⟩ := mentionsConst_spec T TP e eP s₀ s1 m1 hok.state ⟨hT, he⟩ k1
+    have c1 := p1.toCore hok
+    have hm1' : m1 = eP.mentionsConst TP := hm1
+    subst hm1'
+    cases hm : eP.mentionsConst TP with
+    | false =>
+      rw [hm] at z1
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨c1, 0, eP, ?_, denote_ext he p1.ext, hws⟩
+      simp [ConLeche.normPosDom, hm, pure, Except.pure]
+    | true =>
+    rw [hm] at z1
+    obtain ⟨w, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨hok2, hx2, hp2, hsim⟩ := AM.of_run (P := fun u => u = s1)
+      (Q := fun r u => CheckOK μ env fe u ∧ Ext s1.store u.store ∧
+        u.pins = s1.pins ∧ Core.SimE (ConLeche.whnf μ env) d eP u.store r)
+      rfl k2 (hknot.whnf s1 d e eP c1.ok (denote_ext he p1.ext) hws)
+    have c2 : CoreStep μ env fe s₀ s2 :=
+      c1.trans ⟨hok2, hx2, hp2⟩
+    obtain ⟨wP, hwP, hwsw, F1, hF1⟩ := hsim
+    obtain ⟨m2, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨p3, hm2⟩ := mentionsConst_spec T TP w wP s2 s3 m2 hok2.state
+      ⟨denoteN_ext hT c2.ext, hwP⟩ k3
+    have hm2' : m2 = wP.mentionsConst TP := hm2
+    subst hm2'
+    have c3 := c2.trans (p3.toCore hok2)
+    have hwP3 : denoteE s3.store w = some wP := denote_ext hwP p3.ext
+    cases hmw : wP.mentionsConst TP with
+    | false =>
+      rw [hmw] at z3
+      obtain ⟨rfl, rfl⟩ := pureOk z3
+      refine ⟨c3, F1, wP, ?_, hwP3, hwsw⟩
+      simp only [ConLeche.normPosDom, hm, Bool.not_true, Bool.false_eq_true, if_false,
+        ConLeche.fueledOps, bind, Except.bind, hF1]
+      simp [hmw, pure, Except.pure]
+    | true =>
+    rw [hmw] at z3
+    obtain ⟨v, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨hs4, hv⟩ := view_run k4
+    rw [hs4] at z4
+    have hwf3 := c3.ok.state.wf
+    have hF1' : ∀ F, F1 ≤ F → ConLeche.whnf μ env F d eP = .ok wP :=
+      fun F hle => ConLeche.whnf_mono hle hF1
+    cases v
+    case forallE dom body bm =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hwf3 hv hwP3
+      have hwsdb : Expr.WScoped d domP ∧ Expr.WScoped d bodyP := by
+        simp only [Expr.WScoped] at hwsw; exact hwsw
+      obtain ⟨hwsd, hwsb⟩ := hwsdb
+      dsimp only at z4
+      obtain ⟨m3, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨p5, hm3⟩ := mentionsConst_spec T TP dom domP s3 s5 m3 c3.ok.state
+        ⟨denoteN_ext hT c3.ext, hd⟩ k5
+      have hm3' : m3 = domP.mentionsConst TP := hm3
+      subst hm3'
+      have c5 := c3.trans (p5.toCore c3.ok)
+      cases hmd : domP.mentionsConst TP with
+      | true =>
+        rw [hmd] at z5
+        exact absurd z5 (fun h => failOk h)
+      | false =>
+      rw [hmd] at z5
+      obtain ⟨fv, s6, k6, z6⟩ := bindOk z5
+      have hd5 : denoteE s5.store dom = some domP := denote_ext hd p5.ext
+      obtain ⟨p6, hfv⟩ := internE_run c5.ok.state (viewOK_fvar (by rw [hd5]; rfl)) k6
+      have hfv' : denoteE s6.store fv = some (.fvar d domP) := by
+        rw [hfv]; simp [denoteEView, denote_ext hd5 p6.ext]
+      have c6 := c5.trans (p6.toCore c5.ok)
+      obtain ⟨op, s7, k7, z7⟩ := bindOk z6
+      have hb6 : denoteE s6.store body = some bodyP := denote_ext hb (p5.ext.trans p6.ext)
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c6.ok.state hfv'
+        (by rw [hb6]; rfl) k7
+      have p7 : PStep s6 s7 := PStep.of_caches h1 h2 h3 h4 h5
+      have hop : denoteE s7.store op = some (bodyP.instantiate1 (.fvar d domP) 0) := h7 _ hb6
+      have c7 := c6.trans (p7.toCore c6.ok)
+      obtain ⟨b', s8, k8, z8⟩ := bindOk z7
+      have hwsop : Expr.WScoped (d + 1) (bodyP.instantiate1 (.fvar d domP) 0) :=
+        Expr.WScoped.instantiate1 hwsd 0 hwsb
+      obtain ⟨c8, F2, v', hF2, hb', hwsv'⟩ := ih (d + 1) op _ hwsop s7 s8 b' c7.ok
+        ⟨denoteN_ext hT c7.ext, hop, denoteFEnv_ext c7.ext hfe⟩ k8
+      obtain ⟨cl, s9, k9, z9⟩ := bindOk z8
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s8) rfl k9
+        (ExprOps.abstract1Fast_spec fvarBSpec Arena.coreWalkFuel s8 b' d 0 c8.ok.state
+          (by rw [hb']; rfl))
+      have p9 : PStep s8 s9 := PStep.of_caches h1 h2 h3 h4 h5
+      have hcl := h7 _ hb'
+      have hd9 : denoteE s9.store dom = some domP :=
+        denote_ext hd5 (((p6.ext.trans p7.ext).trans c8.ext).trans p9.ext)
+      obtain ⟨p10, hr⟩ := internForallEE_run p9.ok hd9 hcl z9
+      refine ⟨c7.trans (c8.trans ((p9.trans p10).toCore c8.ok)), max F1 F2, _, ?_, hr,
+        by simp only [Expr.WScoped]; exact ⟨hwsd, ConLeche.WScoped.abstract1 0 hwsv'⟩⟩
+      have hF2' := normPosDom_mono (Nat.le_max_right F1 F2) hF2
+      simp only [ConLeche.fueledOps] at hF2'
+      rw [ConLeche.normPosDom]
+      simp only [hm, Bool.not_true, Bool.false_eq_true, if_false,
+        ConLeche.fueledOps, bind, Except.bind, hF1' _ (Nat.le_max_left F1 F2)]
+      simp only [hmw, hmd, Bool.not_true, Bool.false_eq_true, if_false]
+      rw [hF2']
+      rfl
+    all_goals
+      obtain ⟨rfl, rfl⟩ := pureOk z4
+      refine ⟨c3, F1, wP, ?_, hwP3, hwsw⟩
+      have hnot : ∀ a b m, wP ≠ .forallE a b m := by
+        intro a b m h
+        subst h
+        rw [denoteE_view_eq hwf3 hv] at hwP3
+        simp [denoteEView] at hwP3
+      rw [ConLeche.normPosDom]
+      simp only [hm, Bool.not_true, Bool.false_eq_true, if_false,
+        ConLeche.fueledOps, bind, Except.bind, hF1' _ (Nat.le_refl _)]
+      simp only [hmw, Bool.not_true, Bool.false_eq_true, if_false]
+      clear hwP3 hmw hwsw hF1 hF1'
+      cases wP
+      case forallE a b m => exact absurd rfl (hnot a b m)
+      all_goals rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:141-175 normPosDom
 Reduce a field domain until it no longer mentions the block, or give up.
 
-`sorry`: a fuel induction over `CoreSpec.knot`'s `whnf` slot and
-`mentionsConst_spec`. -/
+**CLOSED** (task #97-P3-Ind round 7): `normPosDom_run` with the scope
+conjunct dropped.
+
+**Two preconditions it was missing** (round 7, round 6's §R6.3 finding): the
+`whnf` slot is stated at a well-formed environment (`CoreSpec.knot` takes
+`EnvWF env`) and at a WELL-SCOPED subject (`Expr.WScoped d`, the walk's own
+depth).  The same repair as `checkStructDomsAt_spec`'s; no conclusion
+changed. -/
 theorem normPosDom_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
-    (d fuel : Nat) (e : EIdx) (eP : Expr) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx)
+    (TP : ConLeche.Name) (d fuel : Nat) (e : EIdx) (eP : Expr)
+    (hws : Expr.WScoped d eP) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧ denoteE st e = some eP ∧
         denoteFEnv st fe = some env)
@@ -294,16 +874,57 @@ theorem normPosDom_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun st r => ∃ F v,
         ConLeche.normPosDom (ConLeche.fueledOps μ F) env TP d fuel eP = .ok v ∧
         denoteE st r = some v) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hstep, F, v, hF, hv, -⟩ :=
+    normPosDom_run fe hk henv T TP fuel d e eP hws s₀ s' r hok hpre hrun
+  exact ⟨hstep, F, v, hF, hv⟩
+
+/-- con-leche: none — `normFieldDoms` is monotone in the fuel of its
+`whnf`: `normPosDom_mono` at every field. -/
+theorem normFieldDoms_mono {μ : CheckMode} {env : Env} {TP : ConLeche.Name}
+    {F F' : Nat} (hle : F ≤ F') : ∀ {n i : Nat} {e : Expr}
+    {v : List (Expr × BinderMeta) × Expr},
+    ConLeche.normFieldDoms (ConLeche.fueledOps μ F) env TP i n e = .ok v →
+    ConLeche.normFieldDoms (ConLeche.fueledOps μ F') env TP i n e = .ok v := by
+  intro n
+  induction n with
+  | zero => intro i e v h; simpa [ConLeche.normFieldDoms] using h
+  | succ n ih =>
+    intro i e v h
+    cases e
+    case forallE dom body bm =>
+      simp only [ConLeche.normFieldDoms, bind, Except.bind] at h ⊢
+      cases hd : ConLeche.normPosDom (ConLeche.fueledOps μ F) env TP i 1024 dom with
+      | error x => rw [hd] at h; exact nomatch h
+      | ok d' =>
+      rw [hd] at h
+      rw [normPosDom_mono hle hd]
+      dsimp only at h ⊢
+      cases hr : ConLeche.normFieldDoms (ConLeche.fueledOps μ F) env TP (i + 1) n
+          (body.instantiate1 (.fvar i dom)) with
+      | error x => rw [hr] at h; exact nomatch h
+      | ok b' =>
+        rw [hr] at h
+        rw [ih hr]
+        exact h
+    all_goals simp [ConLeche.normFieldDoms, throw, throwThe, MonadExceptOf.throw] at h
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:177-188 normFieldDoms
 The constructor's field domains, each normalised, opened at free variables.
 
-`sorry`: a `Nat` recursion over `normPosDom_spec` and
-`Bridge/ExprOps/Subst.lean`'s `instantiate1Fast_spec`. -/
+**CLOSED** (task #97-P3-Ind round 7): a `Nat` recursion over
+`normPosDom_spec` and `Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_run`,
+one fuel for the whole walk by `normFieldDoms_mono` at `max`.
+
+**Two preconditions it was missing** (round 7, §R6.3's repair): `EnvWF env`
+and the telescope's scope at its opening depth, `Expr.WScoped i hP` — each
+field domain is normalised at the depth it is opened at, which is where
+`normPosDom_spec` now asks for it, and one `WScoped.instantiate1` carries it
+under the binder. -/
 theorem normFieldDoms_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
-    (i n : Nat) (h : EIdx) (hP : Expr) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx)
+    (TP : ConLeche.Name) (i n : Nat) (h : EIdx) (hP : Expr)
+    (hws : Expr.WScoped i hP) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP ∧
         denoteFEnv st fe = some env)
@@ -312,7 +933,271 @@ theorem normFieldDoms_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ConLeche.normFieldDoms (ConLeche.fueledOps μ F) env TP i n hP
           = .ok (bsP, rP) ∧
         denoteBinders st r.1 = some bsP ∧ denoteE st r.2 = some rP) := by
-  sorry
+  induction n generalizing i h hP with
+  | zero =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨-, hh, -⟩ := hpre
+    simp only [Arena.normFieldDoms] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, 0, [], hP, by simp [ConLeche.normFieldDoms, pure,
+      Except.pure], rfl, hh⟩
+  | succ n ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hh, hfe⟩ := hpre
+    simp only [Arena.normFieldDoms] at hrun
+    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body bm =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.state.wf hv hh
+      have hwsdb : Expr.WScoped i domP ∧ Expr.WScoped i bodyP := by
+        simp only [Expr.WScoped] at hws; exact hws
+      obtain ⟨hwsd, hwsb⟩ := hwsdb
+      dsimp only at z1
+      obtain ⟨d', s2, k2, z2⟩ := bindOk z1
+      obtain ⟨c2, F1, dP', hF1, hd'⟩ := normPosDom_spec fe hk henv T TP i 1024 dom domP
+        hwsd s₀ s2 d' hok ⟨hT, hd, hfe⟩ k2
+      obtain ⟨fv, s3, k3, z3⟩ := bindOk z2
+      have hd2 : denoteE s2.store dom = some domP := denote_ext hd c2.ext
+      obtain ⟨p3, hfv⟩ := internE_run c2.ok.state (viewOK_fvar (by rw [hd2]; rfl)) k3
+      have hfv' : denoteE s3.store fv = some (.fvar i domP) := by
+        rw [hfv]; simp [denoteEView, denote_ext hd2 p3.ext]
+      have c3 := c2.trans (p3.toCore c2.ok)
+      obtain ⟨op, s4, k4, z4⟩ := bindOk z3
+      have hb3 : denoteE s3.store body = some bodyP := denote_ext hb c3.ext
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c3.ok.state hfv'
+        (by rw [hb3]; rfl) k4
+      have p4 : PStep s3 s4 := PStep.of_caches h1 h2 h3 h4 h5
+      have hop : denoteE s4.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
+        h7 _ hb3
+      have c4 := c3.trans (p4.toCore c3.ok)
+      obtain ⟨br, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨c5, F2, bsP, rP, hF2, hbs, hr⟩ := ih (i + 1) op _
+        (Expr.WScoped.instantiate1 hwsd 0 hwsb) s4 s5 br c4.ok
+        ⟨denoteN_ext hT c4.ext, hop, denoteFEnv_ext c4.ext hfe⟩ k5
+      obtain ⟨rfl, rfl⟩ := pureOk z5
+      refine ⟨c4.trans c5, max F1 F2, (dP', bm) :: bsP, rP, ?_, ?_, hr⟩
+      · have hF1' := normPosDom_mono (Nat.le_max_left F1 F2) hF1
+        have hF2' := normFieldDoms_mono (Nat.le_max_right F1 F2) hF2
+        simp only [ConLeche.normFieldDoms, bind, Except.bind, hF1']
+        rw [hF2']
+        rfl
+      · simp only [denoteBinders, denote_ext hd' (p3.ext.trans (p4.ext.trans c5.ext)), hbs]
+    all_goals exact absurd z1 (fun h => failOk h)
+
+/-! ## The telescope opener (task #97-P3-Ind round 7, on loan)
+
+`Arena/CheckerBase.lean`'s `openPisAtFvars` / `openPisAtFvarsFGo` /
+`openPisAtFvarsF` had no Theorem 1 anywhere in the Bridge; `normCtorVal`,
+`checkSumCtor` and the native install's field walks are their first
+consumers.  **Owner: the Checker tier** (`Bridge/Checker/**`, beside the
+other `CheckerBase` twins; `Arena/CheckerBase.lean:570`'s own caller will want
+it).  The one-pass form is related to con-leche's one-pass form walk for walk
+(the arena's push-order vector is `ExprOps.InstLVec` of con-leche's cons-order
+list), and con-leche's own `openPisAtFvarsF_eq` turns the answer into the
+binder-at-a-time `openPisAtFvars` that con-leche's callers read. -/
+
+/-- con-leche: none — the denotation of an opener's answer: `none` is
+`none`, a `some` denotes when its free variables and its residual do. -/
+def denoteOpen (st : EStore) :
+    Option (List EIdx × EIdx) → Option (Option (List Expr × Expr))
+  | none => some none
+  | some (fvs, e) =>
+    (Frontend.denoteEList st fvs).bind fun xs => (denoteE st e).map fun x => some (xs, x)
+
+/-- con-leche: none — `denoteOpen` at a `some`, from its two halves. -/
+theorem denoteOpen_some {st : EStore} {fvs : List EIdx} {e : EIdx}
+    {xs : List Expr} {x : Expr} (h1 : Frontend.denoteEList st fvs = some xs)
+    (h2 : denoteE st e = some x) : denoteOpen st (some (fvs, e)) = some (some (xs, x)) := by
+  simp [denoteOpen, h1, h2]
+
+/-- con-leche: none — and read back into its two halves. -/
+theorem denoteOpen_some_inv {st : EStore} {fvs : List EIdx} {e : EIdx}
+    {o : Option (List Expr × Expr)} (h : denoteOpen st (some (fvs, e)) = some o) :
+    ∃ xs x, o = some (xs, x) ∧ Frontend.denoteEList st fvs = some xs ∧
+      denoteE st e = some x := by
+  simp only [denoteOpen, Option.bind_eq_some_iff, Option.map_eq_some_iff] at h
+  obtain ⟨xs, h1, x, h2, rfl⟩ := h
+  exact ⟨xs, x, rfl, h1, h2⟩
+
+/-- con-leche: none — `denoteOpen` survives an arena extension. -/
+theorem denoteOpen_ext {st st' : EStore} (hx : Ext st st')
+    {r : Option (List EIdx × EIdx)} {o : Option (List Expr × Expr)}
+    (h : denoteOpen st r = some o) : denoteOpen st' r = some o := by
+  cases r with
+  | none => exact h
+  | some p =>
+    obtain ⟨fvs, e⟩ := p
+    obtain ⟨xs, x, rfl, h1, h2⟩ := denoteOpen_some_inv h
+    exact denoteOpen_some (denoteEList_ext hx _ _ h1) (denote_ext h2 hx)
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:130-140 openPisAtFvars — **the
+binder-at-a-time opener, as a run**: pure grade, and the answer denotes
+con-leche's. -/
+theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
+    {s₀ s' : AState} {r : Option (List EIdx × EIdx)},
+    StateOK s₀ → denoteE s₀.store h = some hP →
+    Arena.openPisAtFvars n h i s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvars n hP i) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i h hP s₀ s' r hok hh hrun
+    simp only [Arena.openPisAtFvars] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, by simp [denoteOpen, Frontend.denoteEList, hh,
+      ConLeche.openPisAtFvars]⟩
+  | succ n ih =>
+    intro i h hP s₀ s' r hok hh hrun
+    simp only [Arena.openPisAtFvars] at hrun
+    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body bm =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      dsimp only at z1
+      obtain ⟨fv, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hfv⟩ := internE_run hok (viewOK_fvar (by rw [hd]; rfl)) k2
+      have hfv' : denoteE s2.store fv = some (.fvar i domP) := by
+        rw [hfv]; simp [denoteEView, denote_ext hd p2.ext]
+      obtain ⟨op, s3, k3, z3⟩ := bindOk z2
+      have hb2 : denoteE s2.store body = some bodyP := denote_ext hb p2.ext
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run p2.ok hfv'
+        (by rw [hb2]; rfl) k3
+      have p3 : PStep s2 s3 := PStep.of_caches h1 h2 h3 h4 h5
+      have hop : denoteE s3.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
+        h7 _ hb2
+      obtain ⟨o, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨p4, ho⟩ := ih p3.ok hop k4
+      have p24 := p2.trans (p3.trans p4)
+      simp only [ConLeche.openPisAtFvars]
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        have hn : ConLeche.openPisAtFvars n (bodyP.instantiate1 (.fvar i domP)) (i + 1)
+            = none := (Option.some.inj ho).symm
+        simp [denoteOpen, hn]
+      | some q =>
+        obtain ⟨fvs, e⟩ := q
+        obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        rw [hx]
+        exact denoteOpen_some (by
+          simp only [Frontend.denoteEList, denote_ext hfv' (p3.ext.trans p4.ext),
+            h1]) h2
+    all_goals
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b m => simp [denoteEView] at hh
+      all_goals rfl
+
+/-- con-leche: none — `InstLVec` grows by a push at the front of the list. -/
+theorem InstLVec_push {st : EStore} {acc : Array EIdx} {ws : List Expr} {x : EIdx}
+    {xP : Expr} (h : ExprOps.InstLVec st acc ws) (hx : denoteE st x = some xP) :
+    ExprOps.InstLVec st (acc.push x) (xP :: ws) := by
+  simp only [ExprOps.InstLVec, Array.toList_push, List.reverse_cons]
+  exact denoteEList_append h (by simp [Frontend.denoteEList, hx])
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo — **the
+one-pass opener's core, as a run**: the arena's push-order vector is
+`InstLVec` of con-leche's cons-order list. -/
+theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr}
+    {i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState} {r : Option (List EIdx × EIdx)},
+    StateOK s₀ → ExprOps.InstLVec s₀.store acc ws → denoteE s₀.store h = some hP →
+    Arena.openPisAtFvarsFGo acc n h i s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvarsFGo ws n hP i) := by
+  intro n
+  induction n with
+  | zero =>
+    intro acc ws i h hP s₀ s' r hok hacc hh hrun
+    simp only [Arena.openPisAtFvarsFGo] at hrun
+    obtain ⟨e, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
+      (by rw [hh]; rfl) k1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨PStep.of_caches h1 h2 h3 h4 h5, ?_⟩
+    simp [denoteOpen, Frontend.denoteEList, h7 _ hh, ConLeche.openPisAtFvarsFGo]
+  | succ n ih =>
+    intro acc ws i h hP s₀ s' r hok hacc hh hrun
+    simp only [Arena.openPisAtFvarsFGo] at hrun
+    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body bm =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      dsimp only at z1
+      obtain ⟨dd, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
+        (by rw [hd]; rfl) k2
+      have p2 : PStep s₀ s2 := PStep.of_caches h1 h2 h3 h4 h5
+      have hdd : denoteE s2.store dd = some (domP.instantiateList ws 0) := h7 _ hd
+      obtain ⟨fv, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, hfv⟩ := internE_run p2.ok (viewOK_fvar (by rw [hdd]; rfl)) k3
+      have hfv' : denoteE s3.store fv = some (.fvar i (domP.instantiateList ws 0)) := by
+        rw [hfv]; simp [denoteEView, denote_ext hdd p3.ext]
+      obtain ⟨o, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨p4, ho⟩ := ih p3.ok (InstLVec_push (hacc.ext (p2.ext.trans p3.ext)) hfv')
+        (denote_ext hb (p2.ext.trans p3.ext)) k4
+      have p24 := p2.trans (p3.trans p4)
+      simp only [ConLeche.openPisAtFvarsFGo]
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        have hn : ConLeche.openPisAtFvarsFGo (.fvar i (domP.instantiateList ws) :: ws) n
+            bodyP (i + 1) = none := (Option.some.inj ho).symm
+        simp [denoteOpen, hn]
+      | some q =>
+        obtain ⟨fvs, e⟩ := q
+        obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        rw [hx]
+        exact denoteOpen_some (by
+          simp only [Frontend.denoteEList, denote_ext hfv' p4.ext, h1]) h2
+    all_goals
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b m => simp [denoteEView] at hh
+      all_goals rfl
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF — **the
+one-pass opener, as a run**, answering con-leche's binder-at-a-time
+`openPisAtFvars` (through con-leche's `openPisAtFvarsF_eq`), which is what
+con-leche's `normCtorVal` and `checkSumCtor` call. -/
+theorem openPisAtFvarsF_run {n i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState}
+    {r : Option (List EIdx × EIdx)} (hok : StateOK s₀)
+    (hh : denoteE s₀.store h = some hP)
+    (hrun : Arena.openPisAtFvarsF n h i s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvars n hP i) := by
+  rw [← ConLeche.openPisAtFvarsF_eq]
+  simp only [Arena.openPisAtFvarsF] at hrun
+  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := openPisAtFvarsFGo_run n hok
+    (show ExprOps.InstLVec s₀.store #[] [] from rfl) hh k1
+  simp only [ConLeche.openPisAtFvarsF]
+  cases o with
+  | some q =>
+    obtain ⟨fvs, e⟩ := q
+    obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨p1, ?_⟩
+    rw [hx]
+    exact denoteOpen_some h1 h2
+  | none =>
+    have hn : ConLeche.openPisAtFvarsFGo [] n hP i = none := (Option.some.inj ho).symm
+    rw [hn]
+    obtain ⟨p2, h2⟩ := openPisAtFvars_run n p1.ok (denote_ext hh p1.ext) z1
+    exact ⟨p1.trans p2, h2⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
 `zipFvarDoms` is task #97d-2's replacement for con-leche's `zipWith` inside
@@ -387,8 +1272,9 @@ The constructor's stored type rebuilt from the normalised domains.
 
 `sorry`: `normFieldDoms_spec`, `zipFvarDoms_spec` and `closeTelescope_spec`. -/
 theorem normCtorVal_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
-    (nP nF : Nat) (cvC cvCa : IConstantVal) (cvCP cvCaP : ConstantVal) :
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
+    (nP nF : Nat) (cvC cvCa : IConstantVal) (cvCP cvCaP : ConstantVal)
+    (hws : Expr.WScoped 0 cvCaP.type) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteCV st cvC = some cvCP ∧
@@ -411,11 +1297,12 @@ its field sorts and its normalised stored value.
 (`Bridge/Inductives/StructInstall.lean`), `checkStructFieldSortsI_spec`,
 `normCtorVal_spec` and `structCtorResidOk_spec`. -/
 theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
     (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
     (cvC : IConstantVal) (cvCP : ConstantVal) (nF : Nat)
-    (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env) :
+    (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
+    (hws : Expr.WScoped 0 cvTaP.type) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -437,11 +1324,12 @@ The whole constructor list.
 
 `sorry`: a list induction over `checkSumCtor_spec`. -/
 theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (T : NIdx) (TP : ConLeche.Name)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
     (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
     (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
-    (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)) :
+    (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
+    (hws : Expr.WScoped 0 cvTaP.type) :
     CSpec μ env fe
       (fun st => denoteN st.ns T = some TP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
