@@ -123,6 +123,205 @@ theorem twin_ite_bind {α β : Type} {c : Prop} [Decidable c] (a b : AM α) (g :
   split <;> rfl
 
 
+/-! ## Well-formedness carried by a read
+
+`prop_when::beq` is the twin's `==` on the abstraction only at two
+canonical-form data (`PropWhenWF`; `One p` and `Two (p, p)` abstract alike and
+compare unequal).  Every datum the inference loops compare comes out of the
+Rust store (`bms`' `TblInv`, part of `AStateInv`) or out of `zeroness_of`, so
+the reads below carry that representation fact beside the abstraction.  They
+are used as LOCAL hypotheses (`have := …`), which `specCore` tries before the
+registered `view_bind_ls` / `view_ls` / `lam_pw_ls`. -/
+
+/-- The binder datum of a `view_bind` answer is well formed. -/
+def optBindWF : Option (arena.handle.EIdx × arena.handle.EIdx × kernel.expr.BinderMeta) → Prop
+  | some (_, _, m) => ConRon.Refine.PropWhenWF m.pw
+  | none => True
+
+/-- The binder datum of a `view` answer is well formed. -/
+def viewWF : arena.store.ENodeView → Prop
+  | .Lam _ _ m => ConRon.Refine.PropWhenWF m.pw
+  | .ForallE _ _ m => ConRon.Refine.PropWhenWF m.pw
+  | _ => True
+
+/-- A `lam_pw` answer is well formed. -/
+def optPwWF : Option kernel.prop_when.PropWhen → Prop
+  | some p => ConRon.Refine.PropWhenWF p
+  | none => True
+
+attribute [lockstep_simp] optBindWF viewWF optPwWF ExprOps.absPwOpt
+
+theorem view_bind_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx)
+    (hbind : ETag.isBind (absEIdx h).tag = true) :
+    LSV pers (fun a b => optBindWF a ∧ b = Option.map absBindM a)
+      (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h)) := by
+  sorry
+
+theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => viewWF a ∧ b = absENodeView a) (arena.monad.view pers st h) st lst
+      (Arena.view (absEIdx h)) := by
+  sorry
+
+theorem lam_pw_wf_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h) :
+    LSR pers (fun a b => optPwWF a ∧ b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h)
+      st lst (lamPw (absEIdx h)) := by
+  sorry
+
+/-! ## Reads -/
+
+@[lockstep] theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
+    LSV pers (fun a b => b = Option.map absSz a) (arena.monad.view_ls_len pers st h) st lst
+      (Arena.viewLsLen (absLsIdx h)) := by
+  intro o hrun
+  exact ⟨_, lst, view_ls_len_run₀ hrel hrun, rfl, hrel, hinv⟩
+
+@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absConstT a) (arena.monad.view_const pers st h) st lst
+      (Arena.viewConst (absEIdx h)) := by
+  intro o hrun
+  exact ⟨_, lst, view_const_run₀ hrel hrun, rfl, hrel, hinv⟩
+
+/-- The memoised level readback; the tree it answers is well formed. -/
+@[lockstep] theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
+    LS pers (fun a b => ConRon.Refine.LevelWF a ∧ b = ConRon.Refine.absLevel a)
+      (arena.monad.read_level_m pers st h) lst (Arena.readLevelM (absLIdx h)) := by
+  sorry
+
+@[lockstep] theorem read_levels_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
+    LS pers (fun a b => ConRon.Refine.LevelsWF a ∧ b = ConRon.Refine.absLevels a)
+      (arena.monad.read_levels_m pers st h) lst (Arena.readLevelsM (absLsIdx h)) := by
+  sorry
+
+@[lockstep] theorem read_names_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ks : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers (fun a b => ConRon.Refine.NamesWF a ∧ b = ConRon.Refine.absNames a)
+      (arena.monad.read_names_m pers st ks) lst (Arena.readNamesM (ks.val.map absNIdx)) := by
+  sorry
+
+/-! ## Rust-only steps on levels and data -/
+
+@[lockstep] theorem zeroness_of_ls {l : kernel.level.Level} (hl : ConRon.Refine.LevelWF l) :
+    LSP (kernel.level.zeroness_of l) (fun pw => ConRon.Refine.PropWhenWF pw ∧
+      ConRon.Refine.absPropWhen pw = ConLeche.Level.zeronessOf (ConRon.Refine.absLevel l)) := by
+  intro pw h
+  have := ConRon.Refine.ExprOps.zeroness_of_refines hl pw h
+  exact ⟨this.2, this.1⟩
+
+theorem absLamStk_getElem! (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (i : Nat) (h : i < v.val.length) :
+    (absLamStk v)[i]! = (absEIdx (v.val[i]).1, ConRon.Refine.absBinderMeta (v.val[i]).2) := by
+  rw [getElem!_pos (absLamStk v) i (by simpa [absLamStk] using h)]
+  simp [absLamStk]
+
+/-- `prop_when::beq` against a λ-stack entry: the answer in the twin's own
+spelling, `(absLamStk stk)[i]!`.  Filed before the general pair, which it
+specialises. -/
+@[lockstep] theorem prop_when_beq_stk_ls
+    {stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hstk : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw)
+    {a : kernel.prop_when.PropWhen} (ha : ConRon.Refine.PropWhenWF a) (i : Nat)
+    (hi : i < stk.val.length) :
+    LSP (kernel.prop_when.beq a (stk.val[i]).2.pw)
+      (fun c => c = (ConRon.Refine.absPropWhen a == ((absLamStk stk)[i]!).2.pw)) := by
+  intro c h
+  have := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
+    (ConRon.Refine.PropWhen.wf_shape (hstk _ (List.getElem_mem hi))) h
+  rw [absLamStk_getElem! stk i hi]
+  cases c <;> simp_all [ConRon.Refine.absBinderMeta]
+
+/-- The same, with the stack entry on the left. -/
+@[lockstep] theorem prop_when_beq_stk_left_ls
+    {stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hstk : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw)
+    {b : kernel.prop_when.PropWhen} (hb : ConRon.Refine.PropWhenWF b) (i : Nat)
+    (hi : i < stk.val.length) :
+    LSP (kernel.prop_when.beq (stk.val[i]).2.pw b)
+      (fun c => c = (((absLamStk stk)[i]!).2.pw == ConRon.Refine.absPropWhen b)) := by
+  intro c h
+  have := ConRon.Refine.PropWhen.beq_iff
+    (ConRon.Refine.PropWhen.wf_shape (hstk _ (List.getElem_mem hi)))
+    (ConRon.Refine.PropWhen.wf_shape hb) h
+  rw [absLamStk_getElem! stk i hi]
+  cases c <;> simp_all [ConRon.Refine.absBinderMeta]
+
+@[lockstep] theorem prop_when_beq_ls {a b : kernel.prop_when.PropWhen}
+    (ha : ConRon.Refine.PropWhenWF a) (hb : ConRon.Refine.PropWhenWF b) :
+    LSP (kernel.prop_when.beq a b)
+      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) := by
+  intro c h
+  have := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
+    (ConRon.Refine.PropWhen.wf_shape hb) h
+  cases c <;> simp_all
+
+@[lockstep] theorem prop_when_never_ls :
+    LSP kernel.prop_when.never (fun pw => ConRon.Refine.PropWhenWF pw ∧
+      ConRon.Refine.absPropWhen pw = ConLeche.PropWhen.never) :=
+  fun _ h => ⟨ConRon.Refine.PropWhen.never_wf h, ConRon.Refine.PropWhen.never_refines h⟩
+
+/-- The λ loop's `let (_, bm) = stk[j]; bm.pw.dup()`, with the `dup` (the
+identity) dropped, so that the index step's answer feeds a plain projection. -/
+theorem stk_index_pw_eq (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (j : Std.Usize) :
+    (do
+      let (_, bm) ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.EIdx × kernel.expr.BinderMeta)) stk j
+      kernel.prop_when.dup bm.pw) =
+    (do
+      let e ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.EIdx × kernel.expr.BinderMeta)) stk j
+      ok e.2.pw) := by
+  congr 1
+  funext e
+  obtain ⟨_, bm⟩ := e
+  exact ConRon.Refine.PropWhen.dup_eq' _
+
+theorem absLamStk_last_pw (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (i : Nat) (h : i < v.val.length) (hi : i = v.val.length - 1) :
+    ((absLamStk v)[v.val.length - 1]!).2.pw = ConRon.Refine.absPropWhen (v.val[i]).2.pw := by
+  subst hi; rw [absLamStk_getElem! v _ h]; rfl
+
+@[lockstep] theorem prop_when_dup_ls (pw : kernel.prop_when.PropWhen) :
+    LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
+  fun _ h => ConRon.Refine.PropWhen.dup_eq h
+
+@[lockstep] theorem binder_meta_dup_ls (m : kernel.expr.BinderMeta) :
+    LSP (kernel.expr.binder_meta_dup m) (fun r => r = m) :=
+  fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
+
+@[lockstep] theorem lidx_dup2_ls (h : arena.handle.LIdx) :
+    LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
+  fun e he => dupId_lidx _ _ he
+
+/-! ## Interns — PENDING foundation intern slice (T2-LOCKSTEP slice 3) -/
+
+@[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (i : Std.U64) (ty : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st i ty) lst
+      (Arena.internFVarE (absU i) (absEIdx ty)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+@[lockstep] theorem intern_e_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (u : arena.handle.LIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_sort pers st u) lst
+      (Arena.internSortE (absLIdx u)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+@[lockstep] theorem intern_l_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : arena.store.LNodeView) :
+    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_l_node pers st v) lst
+      (Arena.internLNode (absLNodeView v)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
 /-! ## Local tactic moves (reported to the coordinator)
 
 1. **`ok v >>= k` is NOT definitionally `k v`** for Aeneas's `Result` (an
