@@ -3233,18 +3233,99 @@ neighbour). -/
 theorem install_basis_decl_refines {lst} {rf lf} {ci : arena.env.IConstantInfo} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.install_basis_decl rf ci = ok o) :
-    SimRelR (fun r v => IFEnvRel r v) lst o
+    SimRelR (fun r v => IFEnvRelI r v) lst o
       (installBasisDecl lf (absIConstantInfo ci)) := by
-  sorry
+  rw [arena.decl_check.install_basis_decl] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨fo, hfo, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hf := ifenv_find_abs (IFEnvInv.coreCtxSelf hfe hfinv) hfo
+  have hname := i_constant_info_name_abs hn
+  rw [hname] at hf
+  rcases fo with _ | c
+  · simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true,
+      if_false] at hrun
+    obtain ⟨rf', hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain rfl := (Result.ok_injective hrun).symm
+    obtain ⟨h1, h2⟩ := ifenv_push_refines hfe hfinv hp
+    refine ⟨_, ?_, h1, h2⟩
+    simp only [Option.map_none] at hf
+    simp [installBasisDecl, ← hf]
+    rfl
+  · simp only [core.option.Option.is_some, Option.isSome_some, if_true] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [fail_run hrun]
+    simp only [Option.map_some] at hf
+    intro k hk
+    simp only [absAErrKind_invalid, Option.some.injEq] at hk
+    subst hk
+    refine ⟨.invalid "duplicate declaration", ?_, rfl⟩
+    simp [installBasisDecl, ← hf]
+    rfl
+
+theorem install_basis_decls_aux (k : Nat) :
+    ∀ {lst} {rf lf} (decls : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize) {o},
+      decls.val.length - i.val = k → IFEnvRel rf lf → IFEnvInv rf →
+      arena.decl_check.install_basis_decls rf decls i = ok o →
+      SimRelR (fun r v => IFEnvRelI r v) lst o
+        (installBasisDecls lf (absICILFrom decls i)) := by
+  induction k with
+  | zero =>
+    intro lst rf lf decls i o hn hfe hfinv hrun
+    rw [arena.decl_check.install_basis_decls] at hrun
+    have hl := alloc.vec.Vec.len_val decls
+    rw [if_pos (by scalar_tac)] at hrun
+    obtain rfl := (Result.ok_injective hrun).symm
+    have : absICILFrom decls i = [] := by
+      simp only [absICILFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
+    rw [this]
+    exact ⟨lf, rfl, hfe, hfinv⟩
+  | succ m ih =>
+    intro lst rf lf decls i o hn hfe hfinv hrun
+    rw [arena.decl_check.install_basis_decls] at hrun
+    have hl := alloc.vec.Vec.len_val decls
+    rw [if_neg (by scalar_tac)] at hrun
+    obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨ii1, hii1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hi : i.val < decls.val.length := by omega
+    have hx : decls.val[i.val] = ii := by
+      have h1 := vec_index_some hii
+      rw [List.getElem?_eq_getElem hi] at h1
+      exact Option.some_inj.mp h1
+    have hcons : absICILFrom decls i =
+        absIConstantInfo ii :: (decls.val.drop (i.val + 1)).map absIConstantInfo := by
+      simp only [absICILFrom]; rw [List.drop_eq_getElem_cons hi, hx]; rfl
+    have hdup := i_constant_info_dup_abs hii1
+    have h1 := install_basis_decl_refines (lst := lst) hfe hfinv hr
+    rw [hdup] at h1
+    rw [hcons, installBasisDecls]
+    cases r with
+    | Ok fe2 =>
+      obtain ⟨v, hv, hrel2, hinv2⟩ := h1
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v := ConRon.Refine.Nat.uadd_val hi2
+      have ih' := ih (lst := lst) decls i2 (by simp at hi2v; omega) hrel2 hinv2 hrun
+      have e2 : absICILFrom decls i2 = (decls.val.drop (i.val + 1)).map absIConstantInfo := by
+        simp only [absICILFrom]; congr 2
+      rw [e2] at ih'
+      revert ih'
+      cases o <;> simp only [SimRelR, StateT.run_bind, hv] <;> exact id
+    | Err e =>
+      obtain rfl := (Result.ok_injective hrun).symm
+      intro k hk
+      obtain ⟨le, hle, hk2⟩ := h1 k hk
+      refine ⟨le, ?_, hk2⟩
+      rw [StateT.run_bind, hle]; rfl
 
 /-- `install_basis_decls` ⊑ `installBasisDecls` at the cursor. -/
 theorem install_basis_decls_refines {lst} {rf lf}
     {decls : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.install_basis_decls rf decls i = ok o) :
-    SimRelR (fun r v => IFEnvRel r v) lst o
-      (installBasisDecls lf (absICILFrom decls i)) := by
-  sorry
+    SimRelR (fun r v => IFEnvRelI r v) lst o
+      (installBasisDecls lf (absICILFrom decls i)) :=
+  install_basis_decls_aux _ decls i rfl hfe hfinv hrun
 
 
 /-! ## The axiom census -/
