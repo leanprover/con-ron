@@ -105,14 +105,16 @@ theorem intern_expr_refines {pers st lst} {e : kernel.expr.Expr} {o}
     Sim absEIdx (fun _ => True) pers lst o (internExpr (ConRon.Refine.absExpr e)) := by
   sorry
 
-/-- `intern_expr_list_go` ⊑ `Frontend.internExprList` at the cursor. -/
+/-- `intern_expr_list_go` ⊑ `Frontend.internExprList` at the cursor.
+**Restated by task #97-P5-Top** (the result abstracts by `absEIdxL` alone:
+the walk accumulates into `out`; see `intern_name_list_go_refines`). -/
 theorem intern_expr_list_go_refines {pers st lst rm lm}
     {es : alloc.vec.Vec kernel.expr.Expr} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ExprsWF es)
     (hrun : arena.intern.intern_expr_list_go pers st rm es i out = ok o) :
-    SimEM (fun v => absEIdxL out ++ absEIdxL v) pers lst o
+    SimEM absEIdxL pers lst o
       (do let (m, hs) ← Frontend.internExprList lm (absExprLFrom es i)
           pure (m, absEIdxL out ++ hs)) := by
   sorry
@@ -131,34 +133,141 @@ theorem intern_expr_list_refines {pers st lst}
 A name and a level are interned through `arena::monad`'s own cons tables, so
 these two are plain `Sim`s at the cursor. -/
 
-/-- `intern_name_list_go` ⊑ `Frontend.internNameList` at the cursor. -/
+/-- `Refine/ExprOps.lean`'s `vec_index_getElem?`, which this file does not
+import. -/
+private theorem vec_index_getElem?' {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
+    {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
+    v.val[i.val]? = some x := by
+  rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize] at h
+  rcases hi : v.val[i.val]? with _ | y
+  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h; simp at h
+  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h
+    exact congrArg some (Result.ok_injective h)
+
+/-- The name-list walk at the cursor, with its flag frame — the induction
+`intern_name_list_go_refines` and `intern_name_list_flags` read their halves
+off (task #97-P5-Top). -/
+private theorem intern_name_list_go_aux (n : Nat) :
+    ∀ {pers st lst} {ns : alloc.vec.Vec kernel.name.Name} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.handle.NIdx} {o},
+      ns.val.length - i.val = n →
+      AStateRel pers st lst → AStateInv pers st →
+      NamesWF ns →
+      arena.intern.intern_name_list_go pers st ns i out = ok o →
+      Sim absNIdxL (fun _ => True) pers lst o
+        (do pure (absNIdxL out ++ (← Frontend.internNameList (absNameLFrom ns i)))) ∧
+      FlagsEq st.store o.2.store := by
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro pers st lst ns i out o hn hrel hinv hwf hrun
+    rw [arena.intern.intern_name_list_go.eq_def] at hrun
+    dsimp only at hrun
+    split at hrun
+    · rename_i hge
+      have hlen : ns.val.length ≤ i.val := by
+        have := alloc.vec.Vec.len_val ns; scalar_tac
+      have ho := Result.ok_injective hrun
+      subst ho
+      refine ⟨?_, FlagsEq.refl _⟩
+      refine AOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _) trivial
+      simp [absNameLFrom, List.drop_eq_nil_of_le hlen, Frontend.internNameList]
+      rfl
+    · rename_i hge
+      have hlt : i.val < ns.val.length := by
+        have := alloc.vec.Vec.len_val ns; scalar_tac
+      obtain ⟨nm, hidx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hnm : ns.val[i.val] = nm := by
+        have hg := vec_index_getElem?' hidx
+        rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+      have hnwf : ConRon.Refine.NameWF nm := hwf nm (hnm ▸ List.getElem_mem hlt)
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r, st1⟩ := q
+      obtain ⟨hS, hF⟩ := intern_name_run' nm hnwf hrel hinv hq
+      cases r with
+      | Err e =>
+        have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+        have ho := Result.ok_injective hrun'
+        subst ho
+        refine ⟨AOut.err ?_, hF⟩
+        simp only [absNameLFrom, List.drop_eq_getElem_cons hlt, hnm, List.map_cons,
+          Frontend.internNameList, am_run_bind']
+        exact AErrSim.bind (AErrSim.bind (Sim.apply_err hS) _) _
+      | Ok h =>
+        obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS
+        obtain ⟨hS2, hF2⟩ := ih (ns.val.length - i2.val) (by omega) (out := out1)
+          rfl hrel1 hinv1 hwf hrun
+        refine ⟨?_, hF.trans hF2⟩
+        have hstep : (do pure (absNIdxL out ++
+              (← Frontend.internNameList (absNameLFrom ns i))) : AM (List NIdx)).run lst
+            = (do pure (absNIdxL out1 ++
+              (← Frontend.internNameList (absNameLFrom ns i2))) : AM (List NIdx)).run lst1 := by
+          simp only [absNameLFrom, List.drop_eq_getElem_cons hlt, hnm, List.map_cons,
+            Frontend.internNameList, hi2v, bind_assoc, pure_bind]
+          rw [run_bind_ok hx1]
+          simp only [absNIdxL, ConRon.Refine.vec_push_val hout1, List.map_append,
+            List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
+            List.nil_append]
+        show AOut _ _ _ _ _ _ _
+        rw [hstep]
+        exact AOut.rebase hext1 hS2
+
+/-- `intern_name_list_go` ⊑ `Frontend.internNameList` at the cursor.
+
+**Restated by task #97-P5-Top: the old statement was false.**  The port's
+walk ACCUMULATES — it returns `out` with the new handles pushed on — so its
+result abstracts by `absNIdxL` alone; the old `fun v => absNIdxL out ++
+absNIdxL v` counted `out` twice and failed at every call with a nonempty
+accumulator. -/
 theorem intern_name_list_go_refines {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list_go pers st ns i out = ok o) :
-    Sim (fun v => absNIdxL out ++ absNIdxL v) (fun _ => True) pers lst o
-      (do pure (absNIdxL out ++ (← Frontend.internNameList (absNameLFrom ns i)))) := by
-  sorry
+    Sim absNIdxL (fun _ => True) pers lst o
+      (do pure (absNIdxL out ++ (← Frontend.internNameList (absNameLFrom ns i)))) :=
+  (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).1
 
 /-- `intern_name_list` ⊑ `Frontend.internNameList`. -/
 theorem intern_name_list_refines {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hwf : NamesWF ns)
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hwf : NamesWF ns)
     (hrun : arena.intern.intern_name_list pers st ns = ok o) :
     Sim absNIdxL (fun _ => True) pers lst o
       (Frontend.internNameList (ConRon.Refine.absNames ns)) := by
-  sorry
+  rw [arena.intern.intern_name_list] at hrun
+  have h := (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).1
+  have h0 : absNIdxL (alloc.vec.Vec.new arena.handle.NIdx) = [] := rfl
+  have h1 : absNameLFrom ns 0#usize = ConRon.Refine.absNames ns := by
+    simp [absNameLFrom, ConRon.Refine.absNames]
+  simp only [h0, h1, List.nil_append] at h
+  simpa using h
 
-/-- `intern_level_list_go` ⊑ `Arena.internLevelList` at the cursor. -/
+/-- The name-list walk moves no tier flag. -/
+theorem intern_name_list_flags {pers st lst}
+    {ns : alloc.vec.Vec kernel.name.Name} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hwf : NamesWF ns)
+    (hrun : arena.intern.intern_name_list pers st ns = ok o) :
+    FlagsEq st.store o.2.store := by
+  rw [arena.intern.intern_name_list] at hrun
+  exact (intern_name_list_go_aux _ rfl hrel hinv hwf hrun).2
+
+/-- `intern_level_list_go` ⊑ `Arena.internLevelList` at the cursor.
+**Restated by task #97-P5-Top** (the result abstracts by `absLIdxL` alone:
+the walk accumulates into `out`; see `intern_name_list_go_refines`). -/
 theorem intern_level_list_go_refines {pers st lst}
     {us : alloc.vec.Vec kernel.level.Level} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.LIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hwf : LevelsWF us)
     (hrun : arena.intern.intern_level_list_go pers st us i out = ok o) :
-    Sim (fun v => absLIdxL out ++ absLIdxL v) (fun _ => True) pers lst o
+    Sim absLIdxL (fun _ => True) pers lst o
       (do pure (absLIdxL out ++ (← internLevelList (absLevelLFrom us i)))) := by
   sorry
 
@@ -211,7 +320,7 @@ theorem intern_rules_refines {pers st lst rm lm}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : RecRulesWF rs)
     (hrun : arena.intern.intern_rules pers st rm rs i out = ok o) :
-    SimEM (fun v => absIRecRuleL out ++ absIRecRuleL v) pers lst o
+    SimEM absIRecRuleL pers lst o
       (do let (m, hs) ← Frontend.internRules lm (absRecRuleLFrom rs i)
           pure (m, absIRecRuleL out ++ hs)) := by
   sorry
@@ -273,7 +382,7 @@ theorem intern_ci_list_go_refines {pers st lst rm lm}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ConstantInfosWF cs)
     (hrun : arena.intern.intern_ci_list_go pers st rm cs i out = ok o) :
-    SimEM (fun v => absICIL out ++ absICIL v) pers lst o
+    SimEM absICIL pers lst o
       (do let (m, hs) ← Frontend.internCIList lm (absCIListFrom cs i)
           pure (m, absICIL out ++ hs)) := by
   sorry
@@ -306,7 +415,7 @@ theorem intern_decls_go_refines {pers st lst rm lm}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ∀ d ∈ ds.val, DeclarationWF d)
     (hrun : arena.intern.intern_decls_go pers st rm ds i out = ok o) :
-    SimEM (fun v => absIDeclL out ++ absIDeclL v) pers lst o
+    SimEM absIDeclL pers lst o
       (do let (m, hs) ← Frontend.internDecls lm (absDeclLFrom ds i)
           pure (m, absIDeclL out ++ hs)) := by
   sorry
@@ -330,18 +439,6 @@ promotion walk threads a memo beside the state, and `internPersistent` breaks
 lemma relates the twin's post-state by `AStateRelW` and not `AStateRel`.
 `dropScratch` turns the weak invariant back into `StoreWF`
 (`StoreWF'.dropScratch_wf`), which is why nothing ABOVE the bracket weakens. -/
-
-/-- **The persistent tier is this state's own, not a shared frozen one.**
-Finding 17's first half as one hypothesis: at a frozen tier the port answers
-`Internal` where the twin appends, and `Internal` abstracts to
-`some .internal`, so every promote lemma needs it at all four stores.  The
-promotion phase holds its own persistent tier, which is what makes it true at
-the call sites. -/
-structure PersUnfrozen (rs : arena.store.EStore) : Prop where
-  e : rs.shared_on = false
-  lss : rs.lss.shared_on = false
-  ls : rs.lss.ls.shared_on = false
-  ns : rs.lss.ls.ns.shared_on = false
 
 /-- `POut` at the promote window's relation. -/
 def POutW {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)

@@ -54588,3 +54588,491 @@ before §3's flip, which only renames the kind of a cold error.)
 (task #97-P3-Checker round 8, #97-FRONTIER — no Rust), merged as `cace9da8`,
 and **all 16 OK** there (the new `lake-capstone` step included).  The shared
 Lake cache was not seeded from this worktree.
+
+### Task #97-P5-Unfreeze — the frozen-tier hypotheses retired from `Specs.lean` and `StructParts.lean` (2026-09-23, Opus under Fable)
+
+Branch `p5-unfreeze` off `arena` `b57cc1c6`.  Task #97-P5-Usize §3 made the
+twenty `M_FROZEN` guards of `arena::store` raise `Native`, which Theorem 2
+claims nothing about; §3's list routed 68 `Specs.lean` declarations and three
+`Inductives/StructParts.lean` ones here.
+
+**Result: zero frozen-tier binders in both files.**  Counted by pattern on the
+old and new text: `Specs.lean` had **68** binders of the shape
+`… .shared_on = true → … .scratch_on = true` (named `hfrozen`, `hfrozenN/L/Ls`,
+`hfr*`, `hu`, or anonymous in the five `∀`-stated walk lemmas) and **13** of
+the shape `… .shared_on = false` (`hshared`, the promote-tier interns);
+`StructParts.lean` had **3**.  All 84 are gone; none turned out to be needed
+for anything but the old `Internal` arm.  No statement was weakened: every
+conclusion is unchanged (the `rs'.shared_on = rs.shared_on ∧ …` frame
+conjuncts and `FlagsEq` stay — they are true frame facts, just no longer
+carrying a hypothesis).
+
+**The mechanism**, as routed: at each of the twenty sites the arm the
+hypothesis used to dismiss is now proved.  `frozen_native_arm` (new, in
+`Specs.lean` beside `der_of_bvar_obs`) takes the port's
+`lift M_FROZEN.to_slice >>= code_points >>= ok (Err (Native v), st)` to
+`r = Err (Native v) ∧ st' = st`, so each arm is `obtain ⟨⟨v1, rfl⟩, rfl⟩ :=
+frozen_native_arm h` and the conclusion's error conjunct is
+`absAErrKind_native`.  Three shapes:
+* the 11 expression-tier interns (`estore_intern_{bvar,fvar,sort,const,app,
+  proj,let_e,lit,bm,lam_i,forall_e_i}_abs`) and the 4 name/level/level-list
+  ones (`nstore_intern_{other,str}_abs`, `lstore_intern_abs`,
+  `lsstore_intern_abs`): `by_cases` on `shared_on` in the scratch-closed
+  arm, the frame conjunct from the case hypothesis;
+* the 5 promote-tier interns (`{n,l,ls}store_intern_persistent_abs`,
+  `estore_intern_bm_persistent_abs`, `estore_intern_persistent_abs`): here
+  `hshared` was ALSO used to rewrite `rPers* pers rs` to `rs.pers` at the
+  top of the proof.  That rewrite is only needed on the append path, so it
+  moved below the frozen split; the probe now goes through `rPers*`
+  generically (`estore_intern_bm_persistent_abs` takes the non-persistent
+  sibling's two-way probe proof; `estore_intern_persistent_abs`'s `pers_find`
+  is related to `rPersE` by a two-line `if_pos`/`if_neg`).  So the frozen
+  tier's HIT path is now covered too, which the old statement excluded;
+* everything else (the `_run` wrappers, the four walks and their `_flags`
+  halves, `intern_e_bvar_flags`, `estore_intern_{lam,forall_e}_abs`'s
+  `hfrozen1`) just stops passing the argument.  `FlagsEq.unfrozen{N,L,Ls}`,
+  which existed only to carry the hypothesis across a walk step, are deleted.
+
+Docstrings that explained the hypotheses (the `bvar` pattern note's item 6,
+the persistent-tier module notes, finding 17's "cheap half", the walk notes)
+now say they are retired.
+
+**Lines**: `Specs.lean` 14 984 → 14 940 (−44; 299 added, 343 deleted —
+the twenty arms cost one line each plus the 17-line helper), `StructParts.lean`
+824 → 817 (−7).
+
+**Out-of-lane edits (build-forced, minimal)**: `Refine2/ExprOps/Mut.lean`,
+**17 call sites** lose the `hfrozen` argument they passed to a `Specs.lean`
+lemma (lines 342, 393, 423, 453, 483, 513, 545, 572, 603, 648, 704, 746, 786,
+845, 853, 1450, 1451 — `estore_intern_app_abs`, `intern_e_*_run`,
+`intern_e_bvar_flags`).  Mut's own 17 `hfrozen` binders are untouched and now
+unused inside those proofs — that lane retires them.  `Promote/**` and
+`Checker/**` call no changed declaration and needed nothing.
+`StructParts.lean`'s `struct_ps_at_from_refines` hands `sim_cursor_copy` the
+invariant `fun _ => True` where it used to thread the frozen implication.
+
+**Gates**: `arena` merged at `61313dfd` (no `Refine2/` change came with it);
+**all 16 OK** on the merged branch (`extract-check` 106 s, `lake-refine2`
+120 s).  The shared Lake cache was not seeded from this worktree.
+
+### Task #97-P5-Top — Theorem 2's four frontier items, skeletonised top-down (2026-09-23, Opus under Fable)
+
+Branch `p5-top` off `arena` `00ab9e63`, merged with `arena` three times: at
+`b57cc1c6` (task #97-P5-Usize's `M_FROZEN` → `Native`) mid-task, at
+`61313dfd` (task #97-P3-Core round 4, `Bridge/**` only) and at `fe77a367`
+(task #97-P5-Unfreeze, `Specs.lean`'s `hfrozen` retired) before landing.  Lane
+`proof/ConRon/Refine2/{Checker,Promote}/**`, plus `proof/ConRon/Capstone.lean`
+(the composition's Theorem-2 hypotheses) and `proof/ConRon/Refine2.lean` (two
+new modules).  `Refine2` still imports nothing of `Bridge`.
+
+The brief: prove the four Theorem-2 items of the capstone's frontier —
+`annot_step_refines`, `check_value_group_refines`, `intern_all_pins_refines`,
+`intern_reserved_pins_refines` — from their callees' `_refines` lemmas, so that
+the `sorry`s move down to children the size of one Rust function; discharge
+`InitRel` and `hwf`; price the driver refinement.  **Two of the four became
+glue, one is false as stated, one waits on the `DeclResolves` ruling**, and
+the skeleton under each is in place.
+
+#### 1. What became glue
+
+| item | now | children it rests on (open ones in **bold**) |
+|---|---|---|
+| `annot_step_refines` | glue, two levels | `flush_caches`, `enter_scratch`, `annot_step_go` (below), **`promote_vg`**, **`promote_new`**, `bracket_close_w` |
+| `annot_step_go_refines` | glue: the four-way dispatch | `annotStepGo_{defnDecl,thmDecl,opaqueDecl,other}` (new, closed twin equations, `Checker/Spec.lean`) |
+| `annot_step_{other,thm,defn,defn_install,opaque,opaque_install}_refines` | glue, all six | **`check_decl`**, **`install_constant_val`**, **`install_value`**, `ifenv_push`, `i_constant_val_dup_abs`, **`reduce_op_names`**, **`nidx_contains_from`**, **`nat_op_names`**, **`nat_div_mod_names`** (the last two NEW statements, `Checker/Base.lean`: `arena::core`'s, which no tier had stated) |
+| `annot_step_promote_refines` | glue (was `sorry`) | **`promote_vg`**, **`promote_new`**, `bracket_close_w` |
+| `check_decl_step_refines` (the PURE fold's; off the capstone path) | glue | **`check_decl`**, **`promote_new`**, `bracket_close_w` |
+| `intern_reserved_pins_refines` | glue (no extra hypothesis) | **`pin_names`**, `reserved_basis_names_refines` (`Refine/`), `intern_name_list` (×2, closed here), `intern_ls_node_run`, `intern_l_node_run` (×2), `intern_e_sort_run` |
+| `intern_name_list{,_go}_refines`, `intern_name_list_flags` | **closed**: a measure induction over `intern_name_run'` | — |
+| `intern_all_pins_port_refines` (NEW, the true statement; §3) | glue | **`intern_all_basis`**, **`intern_all_axiom_pins`**, **`intern_all_names`**, **`intern_pin_sets`** |
+| `check_value_group_of_resolves` (NEW; §4) | glue | `infer_type_core_refines`, `ensure_sort_core_refines` (closed, Core), **`check_value_group_value`** |
+
+**The frozen-tier facts are gone, not carried.**  Round 4's compositions
+(`check_decl_step_of_keeps`, `annot_step_of_keeps`, `annot_step_promote_of_keeps`)
+needed `PersUnfrozen` at every step's entry and `KeepsUnfrozen` of every body.
+Before the merge this task carried them as ONE named hypothesis threaded to the
+capstone (`FrozenNative`: the two promotion lemmas without `hfr`); after it —
+`M_FROZEN` is `Native`, which claims nothing — the thirty
+`hfr : PersUnfrozen st.store` binders of `Promote/Promote.lean` are dropped,
+`FrozenNative`, `KeepsUnfrozen`, `enter_scratch_unfrozen`, `flush_caches_store`
+and the three `_of_keeps` lemmas are deleted, and the bracketed steps call
+`promote_new_refines` / `promote_vg_refines` directly.  After the third merge
+(task #97-P5-Unfreeze retired `Specs.lean`'s `hfrozen` binders) the last
+consumers went too: `intern_reserved_pins_refines` and
+`intern_name_list{,_go}_refines` lost the flag hypotheses they passed to
+`intern_*_run`, and the `PersUnfrozen` definition (`Promote/Intern.lean`) is
+deleted.  **No frozen-tier hypothesis is left in `Refine2/{Checker,Promote}/**`
+or in the capstone.**
+
+#### 2. Two named hypotheses of the composition retired
+
+* **`InitRel` is a theorem** (`Refine2/Checker/Init.lean`'s `init_rel`, no
+  `sorry`): `AState::init(EStore::empty())` under ANY `PersTier` (every
+  `shared_on` is down, so `rPersE` and its siblings read the store's own tier)
+  is related to the twin's `AState.init EStore.empty` — thirty-seven empty cons
+  tables through one `tbl_empty_rel` / `tbl_empty_inv`, thirteen memos,
+  fourteen caches, the unfilled pin table, `EStore.empty_wf` — and the lemma
+  also gives `scratch_on = false`.  The capstone's `hinit`
+  binder is gone (`InitRel` stays as a definition, with `initRel : InitRel`).
+* **`decode_wf` ported** (`Refine2/Checker/PinsWF.lean`): `RefineOld/PinsWF.lean`
+  verbatim.  Its only dependency on the retired tier was the two predicate
+  DEFINITIONS (`NatOpPinSetWF`, `PinsWF` — here `PinListWF`), restated
+  unchanged; 1 800 lines built at the first attempt.  `decode_wf_refine2`
+  converts to `Refine2`'s `NatOpPinSetWF`, and the capstone's `hwf` is now
+  `hdec : kernel.pins_decode.decode text = ok (.Ok pins)` — the old campaign's
+  form (`pins_for_run` choosing `text` is driver code).
+
+#### 3. FINDING — `intern_all_pins_refines` is false: the port interns eight pins RAW
+
+`arena::std_axioms` and `arena::trust_axioms` intern the RAW pins
+(`iff_raw` … `choice_raw`; `of_reduce_pin_a` = `ofReduceRaw`) — con-ron-core's
+standing ruling: `matchesPin` erases the `pw` datum, the only thing annotation
+writes.  The twin's `internAllPins` interns the ANNOTATED ones (`iffA` …
+`choiceA`, `ofReduceNatA`, `ofReduceBoolA`).  **They are different values**
+(checked by `decide`): `iffA = iffRaw` and `nonemptyA = nonemptyRaw`, but
+`iffIntroA`, `iffRecA`, `nonemptyIntroA`, `nonemptyRecA`, `propextA`,
+`choiceA`, `ofReduceNatA`, `ofReduceBoolA` each differ from their raw forms
+(`reduceNatCvA` / `reduceBoolCvA` ARE `reduceOpRaw …`).  They intern different
+`BMNode`s, and `StoreRel` is exact (`TblRel.nodes` is list equality), so after
+the startup walk the two stores differ and **every later `AStateRel` is
+unsatisfiable** — not just this statement's.  The same eight are re-interned
+at check time by the axiom checks (`of_reduce_pin_a`, the std-axiom shape
+tests), where the twin again uses the annotated ones: `of_reduce_pin_a_refines`
+and the `check_axiom_decl_*` statements inherit the defect.
+
+The fix is one of two, and it is a ruling:
+
+| | what | cost | touches |
+|---|---|---|---|
+| **(a)** | the twin interns the raw eight: `internAllPins` and the check-time comparisons call the raw twins (`iffIntroRaw` …, `ofReduceRaw`), which `Arena/{StdAxioms,TrustAxioms}.lean` already define | an `Arena/` edit; Theorem 1 re-proves the comparisons with the old campaign's `matchesPin_congr` fact (`matchesPin cv (annotate p) = matchesPin cv p`, three closed equations) and `internAllPins_run`'s frame facts, which do not depend on which values are interned | `Arena/{Checker,DeclCheck,StdAxioms,TrustAxioms}.lean`, `Bridge/Checker/{Pins,Basis,…}.lean` |
+| (b) | the port interns the annotated eight: generate them into `kernel::basis_pins` as task #22 did for `eq_a` | a Rust edit + regeneration (the ≈1 000 s `Core/Eqns.lean` re-derivation); the differential test against con-ron-core's raw pins changes | `crates/con-ron-core/src/{kernel,arena}/…`, `Generated/**` |
+
+(a) keeps the Rust and is the cheaper; it makes the twin choose, between two
+`matchesPin`-equal pins, the one the port has.  This task restated everything
+BELOW the statement to the port's truth so that the skeleton stands either
+way: `Checker/Spec.lean`'s startup-walk transcriptions intern the raw eight
+(`internAllPinsPortSpec` is the port's walk), `of_reduce_{nat,bool}_a_refines`
+are restated against `ofReduceRaw`, and `intern_all_pins_port_refines` is glue.
+**Under (a)** `internAllPinsPortSpec = internAllPins` is an unfolding and
+`intern_all_pins_refines` becomes one line; **under (b)** the four children
+change their pins back and the glue stands.  `intern_all_pins_refines` stays
+`sorry` with the finding in its docstring.
+
+**The transcriptions were also chained wrong** (independent of the above):
+the six `internAll*Spec`s were one continuation chain — `internAllReducePinsSpec`
+ran `internAllNamesSpec`, `internAllBasisSpec []` ran `internAllAxiomPinsSpec`,
+`internAllAxiomPinsRestSpec` began at `nonemptyA` — that no Rust function
+follows (`intern_all_basis` stops at the end of its cursor,
+`intern_all_reduce_pins` after the two declaration pins,
+`intern_all_axiom_pins_rest` begins at `nonempty_intro`).  Five of the six
+statements were false for that alone; all six are restated.
+
+#### 4. `check_value_group_refines` waits on `DeclResolves`
+
+`check_value_group_of_resolves` is the whole proof — `infer_type_core ;
+ensure_sort_core ; check_value_group_value` through the Core front doors at the
+prefix view (`IFEnvInv.coreCtxAt`, `knotRel_checkFuel'`, `check_fuel_abs`) —
+carrying the Core entries' own side conditions: `EResolves` of the declared
+type (task #97-P5-0's finding 3: the port dispatches on the handle's TAG, the
+twin on its VIEW) and `AnswerResolves` of the two answers (task #97-P5-Arms'
+finding 14).  None is derivable from the public statement's hypotheses — the
+`ValueGroup` is the port's data, and nothing relates its handles to the twin
+store beyond the abstraction — and threading them up means "the pending list's
+handles resolve after phase A": task #97-P5-Checker round 4's `DeclResolves`
+(a capstone precondition plus an environment-resolves clause in `IFEnvRelI`).
+That is the ruling this item waits on; no child was invented to hide it.  The
+same side conditions stand in front of `install_constant_val_refines`,
+`install_value_refines` and `check_value_group_value_refines` (all `sorry`,
+all stated without them), which the `annot_step` glue of §1 consumes — round 4
+§4 already counted the `decl_check`/`checker` walk as waiting on it.
+
+#### 5. Statement defects found (restated; none was closed)
+
+1. **The list-walk cursor statements counted the accumulator twice** — fifteen
+   of them: `Sim (fun v => absXL out ++ absXL v) … (do pure (absXL out ++ (←
+   walk rest)))`, where every one of the Rust walks returns `out` WITH the new
+   elements pushed (base case `Ok out`, checked against `Generated/Funs.lean`
+   for all fifteen).  False at every nonempty `out`.  Restated to `absXL`:
+   `intern_{name,level,expr}_list_go`, `intern_rules`, `intern_ci_list_go`,
+   `intern_decls_go` (`Promote/Intern`), `promote_{l,n,e}_list_from`,
+   `promote_rules_from`, `promote_ci_list_from` (`Promote/Promote`),
+   `intern_pin_sets` (`Checker/Pins`), `canon_names_go`, `fvar_type_ds`,
+   `subst_const0_list` (`Checker/{Canon,Base,DeclCheck}`).  **Other lanes
+   should grep for the pattern** (`fun v => abs[A-Za-z]*L out ++`).
+2. The six startup-walk transcriptions (§3).
+3. `of_reduce_{nat,bool}_a_refines` against the annotated pin (§3).
+4. `intern_name_list_refines` lacked `intern_name_run`'s `hfrozen` — added
+   mid-task, and gone again with task #97-P5-Unfreeze.
+
+#### 6. The driver: `check_decls_driver ⊑ install_then_check` — priced, not done
+
+**Is it extracted?  No.**  `check_decls_driver`, `freeze_tier`, `thaw_tier`,
+`pins_ref` (`crates/con-ron/src/driver.rs`) and all of
+`crates/con-ron/src/pool.rs` (`worker_state`, `check_one`, `check_worker`,
+`merge_results`, `collect_checks`, `check_pool`) live in `crates/con-ron`,
+which `scripts/extract.sh` does not extract, and they are outside the Aeneas
+subset by construction: a `while` loop, `std::mem::replace`, a generic
+`PhaseObserver` with `&mut` trait calls, `std::thread::scope`, three
+`AtomicUsize`s and a `Mutex`.  What the binary runs:
+
+    phase A   while i < n { annot_decl_step(pers, st, …) }        -- extracted callee
+    boundary  tier = freeze_tier(&mut st.store)                   -- driver
+    phase B   check_pool(&tier, mode, &fe, &pend, pins, workers)  -- threads:
+              collect_checks(pend, merge_results(m, results)), each result
+              check_pending(&tier, worker_state(pins), mode, &fe, &pend[k])
+    after     thaw_tier(&mut st.store, tier)
+
+Against `install_then_check` (= `annot_fold ; check_pending_list`, both
+extracted and related to the twin) the refinement splits in three:
+
+| piece | argument | cost |
+|---|---|---|
+| (i) phase A | the loop IS `annot_fold`: the same calls in the same order; the observer only reads | a paper step; ≈½ round to make it mechanical (the loop into `con-ron-core` with the hooks outside), or a trusted line as the calling order already is |
+| (ii) boundary + per-record state | Theorem 2's statements are parametric in `pers` and read the persistent tier through `rPersE`, so `AStateRel pers st lst` becomes `AStateRel tier (frozen st) lst` by unfolding: `freeze_tier` moves exactly the four tables `rPersE` reads and sets `shared_on`.  A worker's state is `AState::init(EStore::empty())` + flags + a pin copy, and the sequential lane's state at the head of EVERY `check_pending` equals it up to capacity (`drop_scratch` resets the caches and empties the scratch tier; `enter_scratch` resets the memos) — so each record's outcome is a function of `(tier, fe, pend[k])` alone, in both lanes: `init_rel`'s shape again, plus a "canonical per-record state" lemma | ≈1 Rust round (move `freeze_tier`, `thaw_tier`, `worker_state`, `merge_results`, `collect_checks` into `con-ron-core` — all sequential; `mem::replace` becomes a field move) + ≈1 Theorem-2 round (the freeze lemma, the canonical state, `collect_checks ∘ merge_results` over a table complete below the first failure = `check_pending_list`) |
+| (iii) the pool's scheduling | "the merged table holds every record below the first failing one": `limit` only ever holds `m` or a failing index and the claim counter is monotone.  An atomics argument, not expressible in Aeneas | stays trusted, but narrow: the paper proof is `pool.rs`'s module note, the test `pool_reports_the_first_failure_at_every_jobs` |
+
+So mismatch 11(c) shrinks to (iii) for **≈2–3 agent rounds**, and no further
+without a concurrency model.  A cheaper route to (ii) with the same end:
+keep the driver as is and state Theorem 2 at the worker state directly
+(`check_pending_refines` already takes any `pers`).  Not started: the ruling
+is the maintainer's.
+
+#### 7. The capstone's frontier after this task
+
+`scripts/frontier.sh ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`
+at the landing tip: **31 items in 12 modules, 79 tainted declarations** (task
+#97-FRONTIER measured 12 / 9 / 37), dead weight 884 (was 977); no
+non-standard axiom.  The growth is the point: Theorem 2's part went from seven
+statements sorried at the top to **23 children, 20 of them in this lane, each
+a single Rust function**.  (The eight `Bridge/**` rows are Theorem 1's own
+skeletonisation, merged in with `arena`.)
+
+| fan-in | reach | item |
+|---:|---:|---|
+| 3 | 8 | `Refine2/Checker/Base.lean:993` `check_value_group_refines` |
+| 2 | 21 | `Bridge/Frontend/ProjRec.lean:1172` `Bridge.Frontend.projRecOwners_run` |
+| 2 | 9 | `Bridge/Frontend/Prepare.lean:1172` `Bridge.Frontend.hoistTargets_run` |
+| 1 | 20 | `Bridge/Frontend/ProjRec.lean:937` `Bridge.Frontend.projRecValue_run` |
+| 1 | 15 | `Refine2/Checker/Base.lean:859` `install_constant_val_refines` |
+| 1 | 8 | `Bridge/Checker/Pins.lean:116` `Bridge.denoteN_default_of_pinNames` |
+| 1 | 8 | `Bridge/Checker/Pins.lean:216` `Bridge.internPinSets_run` |
+| 1 | 7 | `Bridge/Checker/Split.lean:921` `Bridge.checkDecl_nodup` |
+| 1 | 7 | `Bridge/Checker/Split.lean:971` `Bridge.Arena.annotStep_split` |
+| 1 | 7 | `Bridge/Checker/Split.lean:1124` `Bridge.Arena.checkPending_prefix` |
+| 1 | 5 | `Refine2/Checker/Pins.lean:63` `pin_names_refines` |
+| 0 | 15 | `Refine2/Checker/Top.lean:376` `check_axiom_decl_std_refines` |
+| 0 | 15 | `Refine2/Checker/Base.lean:466` `check_constant_val_refines` |
+| 0 | 15 | `Refine2/Checker/Top.lean:388` `check_quot_sound_record_refines` |
+| 0 | 15 | `Refine2/Checker/DeclCheck.lean:375` `check_thm_val_refines` |
+| 0 | 14 | `Refine2/Checker/Top.lean:303` `check_basis_decl_refines` |
+| 0 | 14 | `Refine2/Checker/Top.lean:328` `check_ind_decl_refines` |
+| 0 | 14 | `Refine2/Checker/Top.lean:458` `check_opaque_decl_refines` |
+| 0 | 14 | `Refine2/Checker/Top.lean:315` `check_quot_decl_refines` |
+| 0 | 14 | `Refine2/Checker/Base.lean:881` `install_value_refines` |
+| 0 | 13 | `Refine2/Checker/Top.lean:584` `check_decl_refines` |
+| 0 | 12 | `Refine2/Checker/Base.lean:196` `nidx_contains_from_refines` |
+| 0 | 11 | `Refine2/Checker/Base.lean:213` `nat_div_mod_names_refines` |
+| 0 | 11 | `Refine2/Checker/Base.lean:203` `nat_op_names_refines` |
+| 0 | 11 | `Refine2/Checker/Axioms.lean:396` `reduce_op_names_refines` |
+| 0 | 10 | `Refine2/Promote/Promote.lean:854` `promote_new_refines` |
+| 0 | 10 | `Refine2/Promote/Promote.lean:772` `promote_vg_refines` |
+| 0 | 4 | `Refine2/Checker/Top.lean:1915` `intern_all_pins_refines` |
+| 0 | 4 | `Refine2/Frontend/Top.lean:262` `Frontend.builtin_prelude_e_refines` |
+| 0 | 4 | `Refine2/Frontend/Top.lean:233` `Frontend.parse_chunks_refines` |
+| 0 | 4 | `Refine2/Frontend/Prepare.lean:177` `Frontend.prepare_prelude_refines` |
+
+Read by lane:
+
+* **`Refine2/Checker`, waiting on `DeclResolves`** (§4): `check_value_group`,
+  `install_constant_val`, `install_value`, `check_constant_val`,
+  `check_thm_val`, and `check_decl`'s arms (`check_{basis,ind,opaque,quot}_decl`,
+  `check_axiom_decl_std`, `check_quot_sound_record`, and `check_decl` itself
+  for its `.defnDecl` arm — round 4 §4's defect 1).
+* **`Refine2/Checker`, one round each, waiting on nothing**: `nat_op_names`,
+  `nat_div_mod_names`, `reduce_op_names` (pin reads over `pin_at_refines`'
+  wrappers), `nidx_contains_from` (a cursor walk), `pin_names` (a pure list of
+  `basis_names` calls).
+* **`Refine2/Promote`**: `promote_new`, `promote_vg` — their subtrees are the
+  file's 29 other `sorry`s, now free of `hfr`.
+* **Blocked on the §3 ruling**: `intern_all_pins_refines`.
+* **`Refine2/Frontend`** (not this lane): `parse_chunks`,
+  `builtin_prelude_e`, `prepare_prelude`, still whole statements.
+
+The capstone's named hypotheses after this task: `hk`, `hind`, `hbytes`,
+`hsc`, `hmr` (unchanged) and `hdec` (was `hwf`); `hinit` is gone.
+
+#### 8. The gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` at `f79d56b2` (after the first merge) | **all 16 OK** — `extract-check` 104 s, `lake-build` 60 s |
+| second merge (`61313dfd`: `DESIGN.md`, `Arena/Main.lean`, `Bridge/**`, two `Capstone.lean` hunks disjoint from this task's; no Rust, no `Refine2/**`) | the Lean gates re-run: `lake build`, `ConRonRefine2` (2 238 jobs), `ConRonBridge` (619 jobs), `ConRonCapstone` (2 726 jobs) all green; the Rust, lint, provenance and extraction gates cannot be reached by it and were not re-run |
+| third merge (`fe77a367`: `Specs.lean`, `ExprOps/Mut.lean`, `Inductives/StructParts.lean`, `DESIGN.md` — the one conflict, both appends kept) | this task's four `hfrozen`/`PersUnfrozen` call sites follow (above); `ConRonRefine2`, `ConRonCapstone` and `lake build` green again, `ConRonBridge` cannot see `Refine2/**`; no Rust |
+| `lake build ConRonRefine2` | 831 `declaration uses sorry` warnings |
+| the diff | `Refine2/{Checker,Promote}/**` (two new modules, `Checker/Init.lean` and `Checker/PinsWF.lean`), `Refine2.lean` (their imports), `Capstone.lean`.  No Rust, no `Generated/**`, no `Arena/**`, no `Bridge/**`, no `Specs.lean`, nothing under `ExprOps/**` |
+
+**One process note**: the session scratchpad is shared by every agent of the
+session; this task wrote `t1.lean`, `t2.lean` and (once, before moving to a
+private `p5top/` subdirectory) `design.md` at its top level, the last of which
+another agent was also using.  Agents should keep scratch files in a
+per-task subdirectory.
+
+### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
+
+Lane: `proof/ConRon/Bridge/Promote/**`, untouched since task #97-P3-Checker
+round 2.  Branch `p3-promote` off `arena` `d31b1c00`.  Priority from the
+coordinator: `promoteVG_spec` and `promoteNew_spec`, which the Checker tier's
+`Arena.annotStep_split` bracket needs, plus "`IFEnvOK` at the pushed index".
+
+#### 1. `EWFAtP`/`StoreWFP` deleted; the promote window is `StoreWF'` (authorised)
+
+Task #97-P5-Fresh §6 found three statements in this lane false as written
+(the nested `internPersistent_spec`s concluded the full invariant; `EWFAtP`
+nested the strong `LsStoreWF`; `EWFAtP.consS` was an `↔` that
+`internBMPersistent` refutes).  The authorised fix is taken: `EWFAtP`,
+`StoreWFP`, `StoreWFP.of_wf` and `StoreWFP.dropScratch_wf` are **deleted**,
+and every statement of the lane is at `Arena/WF.lean`'s `StoreWF'` (the four
+nested `internPersistent_spec`s at `NStoreWF'`/`LStoreWF'`/`LsStoreWF'`).
+The four specs are then **closed** in one term each, from the store layer's
+`…internPersistent_wf'`/`_ext`/`_view`/`_pers` (tasks #97-P5-Fresh and
+#97-P5-Specs round 3).  One edit outside the lane: `Bridge/Checker/Axioms.lean`
+loses its `#print axioms StoreWFP.of_wf` line (the constant is gone).
+`Bridge/Checker/Fold.lean`'s docstring still names `StoreWFP` in prose (lines
+217–221); left for that lane.
+
+#### 2. The walks, run forwards — every `promote*` spec closed
+
+Three new modules, all `sorry`-free:
+
+| module | lines | what |
+|---|---:|---|
+| `Promote/Weak.lean` | 497 | `WFProofs.lean`'s "fuel disappears" and `dropScratch` layers at the weak invariant: `denote{N,L,E}_unfold'`, `denote*_dropScratch_pers'`, and **`PExt.dropScratch'`** (`Fold.lean`'s note's blocker 2: `PExt` across the closing drop from `StoreWF'`) |
+| `Promote/Memo.lean` | 113 | `PMemoOK`/`PFrame` moved down from `Exact.lean` unchanged, plus `PFrame.of_aext` |
+| `Promote/Walk.lean` | 1 231 | `promote{N,L,E}_core` (fuel inductions), `promoteLList_step`, `promoteLs_step`, the four `internPersistent*_run`, `denote*_of_view` (under `StoreWF'` every handle with a view denotes), `NameKept` |
+| `Promote/WalkDecl.lean` | 717 | the declaration layer: `promote{NList,EList,CV,Fire,Rule,Rules,Caps,ProjTable,CI,CIList,VG}_step`, `PromotedTable` / `IProjTableOK.promoted` |
+| `Promote/Coh.lean` | 304 | §3's repair, proved |
+
+**The core's shape is the finding worth keeping.**  Each walk is proved once,
+with the denotation as an IMPLICATION (`∀ x, denote h = some x → denote r =
+some x`) rather than a hypothesis.  A projection table's `tableName` is
+promoted by `promoteN` but not read back by `denoteProjTable`, so the
+declaration layer must promote a handle nobody asked to denote and still keep
+the invariant and the memo; the implication form costs nothing inside the
+induction because, under `StoreWF'`, a handle with a view denotes (a rank
+induction), so every memo row the walk records is a promoted pair whether or
+not the caller cared.  `Ext` and `PFrame` are never re-proved: `Arena/
+PromoteExt.lean`'s `AExtOf` gives them for every run.  **The do-blocks**:
+`promoteL`/`promoteE` elaborate with a `have __do_jp` join point and the
+memo-insert continuation copied into every arm (`promoteN`: copied without the
+`have`); `AM.bind_ok` / `AM.pure_bind_ok` / `AM.pure_ok` read either shape
+unchanged, one arm per constructor.  Nearly every lemma went through on the
+first build.
+
+`Exact.lean`: `promote{N,L,Ls,E,CV,CI,CIList,VG}_spec` **PROVED**, each three
+lines over its core; `promoteNew_spec` **PROVED except its `IFEnvCoh fe'`
+conjunct**, which is isolated as `promoteNew_coh` (§3).  Beside it, for the
+bracket, three new lemmas (no existing statement changed):
+
+* `promoteNew_pushed` — `Pushed fe0 fe'` (`annotStep_split` concludes `Pushed fe fe'`);
+* `promoteNew_projOK` — `IFEnvOK_of_denote`'s `hproj` carried across the
+  promotion (the `tableName` half needs `PromotedTable`);
+* `promoteBracket_close` — Theorem 1's `bracket_close_w`: from a `StoreWF`
+  boundary, `Ext` from the opened store to the promoted one, and `StoreWF'`,
+  the `dropScratch` gives `StoreWF` back and `PExt` from the boundary.
+
+#### 3. THE FINDING — `promoteNew` cannot keep `IFEnvCoh`, and the repair
+
+`IFEnvCoh fe` is `fe = mkIFEnv fe.env`: an equation between `Std.HashMap`
+**values**.  A `Std.HashMap` is a bucket array whose association lists record
+insertion order, and it resizes on insert but never shrinks on erase.
+`promoteNew` builds its index as `eraseInstalled` (erase the step's old keys)
+then `indexPromoted` (insert the promoted constants NEWEST FIRST), where
+`mkIFEnv` inserts OLDEST FIRST.  Two promoted names that share a bucket
+therefore come out in opposite orders — a different value — and
+`promoteNew_spec`'s hypotheses fix only denotations, so nothing rules it out.
+**`promoteNew_spec`'s `IFEnvCoh fe'` conjunct is false for `k ≠ 0`.**  It is
+isolated as `promoteNew_coh` (`sorry`, proved at `k = 0`, docstring says
+false); `promoteNew_spec` is otherwise closed over it.
+
+There is a second, semantic difference the structural statement hid: with
+two step constants of the SAME name, `indexPromoted`'s newest-first insertion
+lets the OLDEST win, where `mkIFEnv` (and con-leche's `List.find?`) lets the
+newest win.  The checker never installs a duplicate (`checkDecl_nodup`,
+`SplitInstall.nodup`), so the repair needs that as a precondition.
+
+**The repair, proved (`Promote/Coh.lean`, `sorry`-free):**
+
+```lean
+def IFEnvCohX (fe : IFEnv) : Prop :=
+  fe.visibleBelow = fe.env.consts.length ∧
+    ∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?
+
+theorem promoteNew_cohX … (hnd : NamesDistinct s.store (fe.env.consts.take k))
+    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) : IFEnvCohX fe'
+```
+
+with `IFEnvCoh.toX`, `IFEnvCohX.find?` (the lookup is `mkIFEnv`'s, which is
+what `IFEnvCoh.find?` gives every consumer today) and `IFEnvCohX.push`.  The
+proof needed one more fact from the walks — a persistent name handle promotes
+to ITSELF (`promoteN_pers_self`, threaded as `NameKept.pers`) — because an
+erased old key that is not a promoted key must be a scratch handle, and no
+row of the persistent tail carries one.
+
+**What it takes, and whose call it is.**  `IFEnvCoh` is defined in this lane
+but is a CONCLUSION of other lanes' statements (`StepOK.coh`, `FoldOK.coh`,
+`DeclOut.coh`, `InstRel.coh`, `IndOut.coh`, `Basis.lean`, `Hyp.lean`,
+`Inductives/Decl.lean`).  Redefining `IFEnvCoh := IFEnvCohX` touches five
+PROOFS outside the lane, each a three-line edit from `congrArg IFEnv.idx
+hcoh` to `hcoh.2 n`: `Checker/Inv.lean`'s `IFEnv.find?_mem` and
+`IFEnvCoh.find?`, `Inductives/Rel.lean`'s `ProjOut.push`, `Checker/Split.lean`
+line ~690, and `Frontend/Capstone.lean`'s `coh := rfl` (becomes
+`⟨rfl, fun _ => rfl⟩`).  And `promoteNew_spec` gains `hnd` (`NamesDistinct`
+of the step's constants), which the Checker's bracket discharges from
+`NodupNames` of the post-step environment plus the name-denotation clauses
+(`denoteCI_name_of`, `IProjTableOK.named` for tables).  **Not done: it needs
+the coordinator's authorisation** (a changed definition that is a conclusion
+elsewhere).  Until then the Checker tier can write its bracket against
+`promoteNew_spec` as it stands; the one false conjunct is a named `sorry`,
+not a hole in the bracket.
+
+"`IFEnvOK` at the pushed index" is thereby reduced to: `IFEnvOK_of_denote`
+(Checker lane, proved) fed with `promoteNew_spec`'s denotation,
+`promoteNew_projOK`, `StateOK` after the drop (`promoteBracket_close`'s
+`StoreWF`) — and `IFEnvCoh fe'`, i.e. §3's authorisation.
+
+#### 4. Counts
+
+| file | lines before → after | `sorry` decls before → after |
+|---|---:|---:|
+| `Promote/StoreP.lean` | 247 → 154 | 5 → **0** (four proved, `StoreWFP.dropScratch_wf` deleted) |
+| `Promote/Exact.lean` | 389 → 681 | 9 → **1** (`promoteNew_coh`, false as stated) |
+| `Promote/Pers.lean` | 557 | 0 |
+| `Promote/{Weak,Memo,Walk,WalkDecl,Coh}.lean` | new, 2 862 | 0 |
+
+Census: `#guard_msgs`-checked `#print axioms` at the end of `Walk.lean`
+(5 cores), `Exact.lean` (11 closed specs `[propext, Classical.choice,
+Quot.sound]`, `promoteNew_spec` with `sorryAx`) and `Coh.lean` (4).
+
+**Frontier** (`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): before (`d31b1c00`, run while this
+task's first edits compiled, so `StoreP.lean`'s five were already gone) **14
+items, 45 tainted, dead weight 960**; after **14 items, 45 tainted, dead
+weight 952**.  The frontier cannot move from this lane yet: every promote
+spec sits behind `Arena.annotStep_split`'s own `sorry`.  When the Checker tier
+writes that bracket, `promoteNew_coh` enters the closure as its one item from
+this lane.
+
+Build: `lake build ConRonBridge` and `ConRonCapstone` green after each
+file; the lane's modules elaborate in ≈ 2 s each (`Walk.lean` 1.9 s).
+Two name clashes surfaced only at the `ConRonBridge` build: `viewL_run` and
+`viewLs_run` exist in `Bridge/Checker/Canon.lean` (and `viewN_run` in
+`Base.lean`), so this lane's are `view{N,L,Ls,}_ok`.  **Rule**: a
+`ConRon.Bridge`-namespace helper in a low lane must be grepped against the
+whole of `Bridge/**`, not only its importers.
+
+**Gates**: merged `arena` twice (`77dc39c2`, then `6a90ba86` at `fe77a367`,
+a `DESIGN.md`-only conflict of two appended sections); `scripts/gates.sh`
+**all 16 OK** on the merge (`extract-check` 104 s, `lake-build` 112 s,
+`lake-refine2` 147 s, `lake-bridge` 30 s).  The gate's frontier line on the
+merged tip: **15 items, 51 tainted, dead weight 898** — the moves against the
+numbers above are the other lanes' landings in `arena`, not this lane's.

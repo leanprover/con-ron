@@ -200,6 +200,24 @@ theorem nidx_contains_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
     o = (absNIdxLFrom ns i).contains (absNIdx n) := by
   sorry
 
+/-- `arena::core::nat_op_names` ⊑ `natOpNames` — the seven structural `Nat`
+operations, as seven pin reads (task #97-P5-Top: a child of
+`annot_step_defn_refines`; the function is `arena::core`'s, but no tier had
+stated it). -/
+theorem nat_op_names_refines {pers st lst} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_op_names st = ok o) :
+    Sim absNIdxL (fun _ => True) pers lst o natOpNames := by
+  sorry
+
+/-- `arena::core::nat_div_mod_names` ⊑ `natDivModNames` — the eight pinned
+well-founded operations, as eight pin reads (task #97-P5-Top, as above). -/
+theorem nat_div_mod_names_refines {pers st lst} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_div_mod_names st = ok o) :
+    Sim absNIdxL (fun _ => True) pers lst o natDivModNames := by
+  sorry
+
 /-- `name_nodup_from` ⊑ `nameNodup` from the cursor on. -/
 theorem name_nodup_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize} {o : Bool}
@@ -499,7 +517,7 @@ theorem fvar_type_ds_refines {pers st lst}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.fvar_type_ds pers st hs i out = ok o) :
-    SimRE (fun v => absEIdxL out ++ absEIdxL v) lst o
+    SimRE absEIdxL lst o
       (do pure (absEIdxL out ++ (← fvarTypeDs (absEIdxLFrom hs i)))) := by
   sorry
 
@@ -901,8 +919,83 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
         (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
   sorry
 
+/-- **`check_value_group`, composed** (task #97-P5-Top) — `infer_type_core ;
+ensure_sort_core ; check_value_group_value`, the first two through
+`Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
+(lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
+`checkFuel` (`knotRel_checkFuel'`).
+
+**It carries the Core entries' own resolve side conditions, and that is why it
+is not `check_value_group_refines`.**  `infer_type_core_refines` needs the
+declared type to resolve in the twin store (`EResolves`, task #97-P5-0's
+finding 3: the port dispatches on the handle's TAG, the twin on its VIEW) and
+`ensure_sort_core_refines` needs the whnf answer to resolve (`AnswerResolves`,
+task #97-P5-Arms' finding 14).  Neither is derivable from the public
+statement's hypotheses: the `ValueGroup` is the port's own data, and nothing
+relates its handles to the twin store beyond the abstraction.  That is task
+#97-P5-Checker round 4's `DeclResolves` question (the capstones' input
+precondition and an environment-resolves clause in `IFEnvRelI`), and
+`check_value_group_refines` below waits on its ruling; this lemma is the rest
+of its proof. -/
+theorem check_value_group_of_resolves {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hres : ExprOps.EResolves lst (absEIdx g.cv_a.ty))
+    (hinfer : ∀ p, arena.core.infer_type_core pers vis st mode rf
+      arena.core.CHECK_FUEL 0#u64 g.cv_a.ty = ok p → AnswerResolves pers p)
+    (hwhnf : ∀ st1 stype, arena.core.infer_type_core pers vis st mode rf
+      arena.core.CHECK_FUEL 0#u64 g.cv_a.ty = ok (.Ok stype, st1) →
+      ∀ p, arena.core.knot_whnf pers vis st1 mode arena.core.LANE_FULL
+        arena.core.CHECK_FUEL rf 0#u64 stype = ok p → AnswerResolves pers p)
+    (hrun : arena.checker_split.check_value_group pers vis st mode rf g = ok o) :
+    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+      (checkValueGroup (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+        (absValueGroup g)) := by
+  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+  rw [arena.checker_split.check_value_group] at hrun
+  unfold Sim
+  rw [checkValueGroup_unfold,
+    show (absValueGroup g).cvA.type = absEIdx g.cv_a.ty from rfl]
+  have h0 : absU (0#u64) = 0 := rfl
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hrel.storeWF
+    hres check_fuel_abs hq1
+  rw [h0] at hS1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok stype =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  have hres1 : ExprOps.EResolves lst1 (absEIdx stype) :=
+    hinfer _ hq1 stype rfl lst1 hrel1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := ensure_sort_core_refines knotRel_checkFuel' hrel1 hinv1 hctx hrel1.storeWF
+    hres1 check_fuel_abs (hwhnf st1 stype hq1) hq2
+  rw [h0] at hS2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  exact check_value_group_value_refines hrel2 hinv2 hfe hfinv hrun
+
 /-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
-declaration, at the environment the constant was installed at. -/
+declaration, at the environment the constant was installed at.
+
+Its proof is `check_value_group_of_resolves` above once the three resolve
+facts are available at its call site; see that lemma's note (task
+#97-P5-Top). -/
 theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
