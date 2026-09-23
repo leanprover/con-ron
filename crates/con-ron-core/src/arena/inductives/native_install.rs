@@ -1456,9 +1456,13 @@ pub fn check_native_tail_kinds(
     let mut q: NativePass = q;
     let vis: u64 = q.env1.visible_below;
     q.env1.visible_below = vis - 1;
+    // The lowered bound is the one every lookup below reads: the lookups take
+    // the counter as an argument, never from the record, so the argument is
+    // what hides the former (task #97-T2-LOCKSTEP lane Inductives round 4:
+    // passing the unlowered `vis` here left it visible).
     let fields = native_fields_ok(
         pers,
-        vis,
+        q.env1.visible_below,
         st,
         &q.env1,
         &t,
