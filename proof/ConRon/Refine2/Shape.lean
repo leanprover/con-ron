@@ -35,8 +35,8 @@ with their `AStateRel` (= `AStateRel₀ ∧ StoreWF`) and `Ext`, are
 `SimS.to₀` project a proved old statement onto the new one).  The next
 paragraph is the old shapes' rationale, kept for the record: its premise,
 that `orElseAttempt` resumes at the pre-attempt store where the port keeps the
-appends, was divergence D4, fixed in the RUST (task #97-T2-LOCKSTEP D4: the
-port restores its four scratch tiers, `Checker/Base.lean`).
+appends, was divergence D4, fixed in the RUST (task #97-T2-LOCKSTEP D4, D4b: the
+port restores a full copy of its pre-attempt state, `Checker/Base.lean`).
 
 ## Why `Ext` (historical), and why an existential state
 

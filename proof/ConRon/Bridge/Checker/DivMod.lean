@@ -1851,7 +1851,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hok2 : StepOK env2 fe2 s)
+    (hck : CheckOK μ env fe s) (henv : EnvWF env) (hok2 : StepOK env2 fe2 s)
     (hpins : PinsDenote s.store pins pinsP)
     (hn : denoteN s.store.ns cn = some nm)
     (hrun : checkDivModPin μ pins fe fe2 cn s = .ok ((), s')) :
@@ -1861,7 +1861,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
   simp only [Arena.checkDivModPin] at hrun
   obtain ⟨g, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hst1, hx1, hc1, hp1, rfl⟩ :=
-    divModEnvGuard_run hok.check.state hok.check.pins hok2.ienv hn g1
+    divModEnvGuard_run hck.state hck.pins hok2.ienv hn g1
   split at r1
   · rename_i hG
     cases hf : fe2.find? cn with
@@ -1887,9 +1887,9 @@ theorem checkDivModPin_bridge {μ : CheckMode}
       subst hci
       have hwc := hok2.envWF _ (List.mem_of_find?_eq_some hfindP)
       obtain ⟨hf1, -, -, -⟩ := hwc.2.2.2.2.1 cv' v' hint' rfl
-      have hck1 : CheckOK μ env fe s1 := hok.check.mono hst1 hx1 hc1 hp1
+      have hck1 : CheckOK μ env fe s1 := hck.mono hst1 hx1 hc1 hp1
       obtain ⟨hck', hx', hp', F, hF⟩ :=
-        checkDivModPinLoop_bridge hμ hk hok.envWF (ConLeche.Expr.WScoped.of_not_hasFvar hf1)
+        checkDivModPinLoop_bridge hμ hk henv (ConLeche.Expr.WScoped.of_not_hasFvar hf1)
           pins pinsP [] [] s1 s' hck1 (PinsDenote.mono hx1 _ _ hpins) (denoteN_ext hn hx1)
           (denote_ext hvv hx1) r1
       refine ⟨hck'.state, hx1.trans hx', by rw [hp', hp1], F, ?_⟩

@@ -43,6 +43,8 @@ this file is where the arena tower collects the interest.
 waits on an idea.
 -/
 import ConRon.Refine2.Checker.Canon
+import ConRon.Refine.BasisPins
+import ConRon.Refine.BasisRaw
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -52,6 +54,58 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
+
+/-! ## The pinned constants, interned (task #97-T2-LOCKSTEP lane Checker round 2)
+
+Each Rust pin reader is `let c ← kernel::…::pin; intern_*(c)` and each twin
+is `intern* ConLeche.pin`: the pinned-data tier (`Refine/{StdAxioms,
+TrustAxioms,BasisPins,BasisRaw,BasisTables}.lean`) says the Rust pin
+abstracts to con-leche's with its `*WF`, and `Refine2/Promote/Intern.lean`'s
+four intern entries do the rest.  These four helpers are that composition. -/
+
+theorem sim_intern_ci_of {pers st lst} {m : Result kernel.env.ConstantInfo}
+    {C : ConLeche.ConstantInfo} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ∀ c, m = ok c →
+      ConRon.Refine.absConstantInfo c = C ∧ ConRon.Refine.ConstantInfoWF c)
+    (hrun : (m >>= fun c => arena.intern.intern_ci pers st c) = ok o) :
+    Sim₀ absIConstantInfo pers lst o (internCI C) := by
+  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ha, hw⟩ := hm c hc
+  rw [← ha]; exact intern_ci_refines hrel hinv hw h
+
+theorem sim_intern_cv_of {pers st lst} {m : Result kernel.env.ConstantVal}
+    {C : ConLeche.ConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ∀ c, m = ok c →
+      ConRon.Refine.absConstantVal c = C ∧ ConRon.Refine.ConstantValWF c)
+    (hrun : (m >>= fun c => arena.intern.intern_cv pers st c) = ok o) :
+    Sim₀ absIConstantVal pers lst o (internCV C) := by
+  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ha, hw⟩ := hm c hc
+  rw [← ha]; exact intern_cv_refines hrel hinv hw h
+
+theorem sim_intern_expr_of {pers st lst} {m : Result kernel.expr.Expr}
+    {C : ConLeche.Expr} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ∀ c, m = ok c → ConRon.Refine.absExpr c = C ∧ ConRon.Refine.ExprWF c)
+    (hrun : (m >>= fun c => arena.intern.intern_expr pers st c) = ok o) :
+    Sim₀ absEIdx pers lst o (internExpr C) := by
+  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ha, hw⟩ := hm c hc
+  rw [← ha]; exact intern_expr_refines hrel hinv hw h
+
+theorem sim_intern_ci_list_of {pers st lst}
+    {m : Result (alloc.vec.Vec kernel.env.ConstantInfo)}
+    {C : List ConLeche.ConstantInfo} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ∀ c, m = ok c →
+      ConRon.Refine.absConstantInfos c = C ∧ ConRon.Refine.ConstantInfosWF c)
+    (hrun : (m >>= fun c => arena.intern.intern_ci_list pers st c) = ok o) :
+    Sim₀ absICIL pers lst o (internCIList C) := by
+  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ha, hw⟩ := hm c hc
+  rw [← ha]; exact intern_ci_list_refines hrel hinv hw h
 
 /-! ## `erase_pw_eq`'s node transcription
 
@@ -94,7 +148,8 @@ theorem basis_kind_decls_refines {pers st lst} {k : kernel.env.BasisKind} {o}
     (hrun : arena.basis.basis_kind_decls pers st k = ok o) :
     Sim₀ absICIL pers lst o
       (BasisKind.decls (ConRon.Refine.absBasisKind k)) := by
-  sorry
+  rw [arena.basis.basis_kind_decls] at hrun
+  exact sim_intern_ci_list_of hrel hinv (fun _ h => ConRon.Refine.BasisRaw.basis_kind_decls_refines h) hrun
 
 /-- `basis_kind_decls_a` ⊑ `BasisKind.declsA` — the ANNOTATED constants, which is what `checkBasisDecl` installs. -/
 theorem basis_kind_decls_a_refines {pers st lst} {k : kernel.env.BasisKind} {o}
@@ -102,7 +157,12 @@ theorem basis_kind_decls_a_refines {pers st lst} {k : kernel.env.BasisKind} {o}
     (hrun : arena.basis.basis_kind_decls_a pers st k = ok o) :
     Sim₀ absICIL pers lst o
       (BasisKind.declsA (ConRon.Refine.absBasisKind k)) := by
-  sorry
+  rw [arena.basis.basis_kind_decls_a] at hrun
+  refine sim_intern_ci_list_of hrel hinv (fun v h => ⟨?_, ConRon.Refine.BasisPins.basis_decls_a_wf h⟩) hrun
+  obtain ⟨v', hv', habs⟩ := Aeneas.Std.WP.spec_imp_exists (ConRon.Refine.basis_decls_a_refines k)
+  rw [h] at hv'
+  obtain rfl := Result.ok_injective hv'
+  exact habs
 
 /-- `block_names` ⊑ `blockNames` at the cursor — `IConstantInfo.name` is pure (task #97e), so the twin is a plain `List.map`. -/
 theorem block_names_refines  {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {out : alloc.vec.Vec arena.handle.NIdx} {o}
@@ -247,7 +307,8 @@ theorem iff_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_raw pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (iffRaw) := by
-  sorry
+  rw [arena.std_axioms.iff_raw] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.iff_raw_refines h) hrun
 
 /-- `iff_intro_raw` ⊑ `iffIntroRaw` — the con-leche constant, interned. -/
 theorem iff_intro_raw_refines {pers st lst} {o}
@@ -255,7 +316,8 @@ theorem iff_intro_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_intro_raw pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (iffIntroRaw) := by
-  sorry
+  rw [arena.std_axioms.iff_intro_raw] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.iff_intro_raw_refines h) hrun
 
 /-- `iff_rec_intro` ⊑ `iffRecIntro` — the con-leche constant, interned. -/
 theorem iff_rec_intro_refines {pers st lst} {o}
@@ -263,7 +325,8 @@ theorem iff_rec_intro_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_rec_intro pers st = ok o) :
     Sim₀ absEIdx pers lst o
       (iffRecIntro) := by
-  sorry
+  rw [arena.std_axioms.iff_rec_intro] at hrun
+  exact sim_intern_expr_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.iff_rec_intro_refines h) hrun
 
 /-- `iff_rec_raw` ⊑ `iffRecRaw` — the con-leche constant, interned. -/
 theorem iff_rec_raw_refines {pers st lst} {o}
@@ -271,7 +334,8 @@ theorem iff_rec_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_rec_raw pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (iffRecRaw) := by
-  sorry
+  rw [arena.std_axioms.iff_rec_raw] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.iff_rec_raw_refines h) hrun
 
 /-- `iff_family` ⊑ `iffFamily` — the con-leche constant, interned. -/
 theorem iff_family_refines {pers st lst} {o}
@@ -279,7 +343,8 @@ theorem iff_family_refines {pers st lst} {o}
     (hrun : arena.std_axioms.iff_family pers st = ok o) :
     Sim₀ absICIL pers lst o
       (iffFamily) := by
-  sorry
+  rw [arena.std_axioms.iff_family] at hrun
+  exact sim_intern_ci_list_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.iff_family_refines h) hrun
 
 /-- `propext_raw` ⊑ `propextRaw` — the con-leche constant, interned. -/
 theorem propext_raw_refines {pers st lst} {o}
@@ -287,7 +352,8 @@ theorem propext_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.propext_raw pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (propextRaw) := by
-  sorry
+  rw [arena.std_axioms.propext_raw] at hrun
+  exact sim_intern_cv_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.propext_raw_refines h) hrun
 
 /-- `nonempty_raw` ⊑ `nonemptyRaw` — the con-leche constant, interned. -/
 theorem nonempty_raw_refines {pers st lst} {o}
@@ -295,7 +361,8 @@ theorem nonempty_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nonempty_raw pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (nonemptyRaw) := by
-  sorry
+  rw [arena.std_axioms.nonempty_raw] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.nonempty_raw_refines h) hrun
 
 /-- `nonempty_intro_raw` ⊑ `nonemptyIntroRaw` — the con-leche constant, interned. -/
 theorem nonempty_intro_raw_refines {pers st lst} {o}
@@ -303,7 +370,8 @@ theorem nonempty_intro_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nonempty_intro_raw pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (nonemptyIntroRaw) := by
-  sorry
+  rw [arena.std_axioms.nonempty_intro_raw] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.nonempty_intro_raw_refines h) hrun
 
 /-- `nonempty_rec_raw` ⊑ `nonemptyRecRaw` — the con-leche constant, interned. -/
 theorem nonempty_rec_raw_refines {pers st lst} {o}
@@ -311,7 +379,8 @@ theorem nonempty_rec_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nonempty_rec_raw pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (nonemptyRecRaw) := by
-  sorry
+  rw [arena.std_axioms.nonempty_rec_raw] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.nonempty_rec_raw_refines h) hrun
 
 /-- `nonempty_family` ⊑ `nonemptyFamily` — the con-leche constant, interned. -/
 theorem nonempty_family_refines {pers st lst} {o}
@@ -319,7 +388,8 @@ theorem nonempty_family_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nonempty_family pers st = ok o) :
     Sim₀ absICIL pers lst o
       (nonemptyFamily) := by
-  sorry
+  rw [arena.std_axioms.nonempty_family] at hrun
+  exact sim_intern_ci_list_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.nonempty_family_refines h) hrun
 
 /-- `choice_raw` ⊑ `choiceRaw` — the con-leche constant, interned. -/
 theorem choice_raw_refines {pers st lst} {o}
@@ -327,7 +397,8 @@ theorem choice_raw_refines {pers st lst} {o}
     (hrun : arena.std_axioms.choice_raw pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (choiceRaw) := by
-  sorry
+  rw [arena.std_axioms.choice_raw] at hrun
+  exact sim_intern_cv_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.choice_raw_refines h) hrun
 
 /-- `eq_a` ⊑ `eqA` — the con-leche constant, interned. -/
 theorem eq_a_refines {pers st lst} {o}
@@ -335,7 +406,8 @@ theorem eq_a_refines {pers st lst} {o}
     (hrun : arena.std_axioms.eq_a pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (eqA) := by
-  sorry
+  rw [arena.std_axioms.eq_a] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.BasisPins.eq_a_refines h) hrun
 
 /-- `nat_a` ⊑ `natA` — the con-leche constant, interned. -/
 theorem nat_a_refines {pers st lst} {o}
@@ -343,7 +415,8 @@ theorem nat_a_refines {pers st lst} {o}
     (hrun : arena.std_axioms.nat_a pers st = ok o) :
     Sim₀ absIConstantInfo pers lst o
       (natA) := by
-  sorry
+  rw [arena.std_axioms.nat_a] at hrun
+  exact sim_intern_ci_of hrel hinv (fun _ h => ConRon.Refine.BasisPins.nat_a_refines h) hrun
 
 /-- `true_name` ⊑ `trueName`, off the pin table. -/
 theorem true_name_refines {pers st lst} {o}
@@ -466,7 +539,8 @@ theorem true_cv_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.true_cv_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (trueCvA) := by
-  sorry
+  rw [arena.trust_axioms.true_cv_a] at hrun
+  exact sim_intern_cv_of hrel hinv (fun _ h => ConRon.Refine.TrustAxioms.true_cv_a_refines h) hrun
 
 /-- `true_intro_cv_a` ⊑ `trueIntroCvA`. -/
 theorem true_intro_cv_a_refines {pers st lst} {o}
@@ -474,7 +548,8 @@ theorem true_intro_cv_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.true_intro_cv_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (trueIntroCvA) := by
-  sorry
+  rw [arena.trust_axioms.true_intro_cv_a] at hrun
+  exact sim_intern_cv_of hrel hinv (fun _ h => ConRon.Refine.TrustAxioms.true_intro_cv_a_refines h) hrun
 
 /-- `trust_compiler_a` ⊑ `trustCompilerA`. -/
 theorem trust_compiler_a_refines {pers st lst} {o}
@@ -482,7 +557,8 @@ theorem trust_compiler_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.trust_compiler_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (trustCompilerA) := by
-  sorry
+  rw [arena.trust_axioms.trust_compiler_a] at hrun
+  exact sim_intern_cv_of hrel hinv (fun _ h => ConRon.Refine.TrustAxioms.trust_compiler_a_refines h) hrun
 
 /-- `bool_cv_a` ⊑ `boolCvA`. -/
 theorem bool_cv_a_refines {pers st lst} {o}
@@ -490,7 +566,8 @@ theorem bool_cv_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.bool_cv_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (boolCvA) := by
-  sorry
+  rw [arena.trust_axioms.bool_cv_a] at hrun
+  exact sim_intern_cv_of hrel hinv (fun _ h => ConRon.Refine.TrustAxioms.bool_cv_a_refines h) hrun
 
 /-- `reduce_elem_name` ⊑ `reduceElemName`. -/
 theorem reduce_elem_name_refines {pers st lst} {c : arena.handle.NIdx} {o}
@@ -530,7 +607,14 @@ theorem reduce_nat_cv_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.reduce_nat_cv_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (reduceNatCvA) := by
-  sorry
+  rw [arena.trust_axioms.reduce_nat_cv_a] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hna, hnw⟩ := ConRon.Refine.TrustAxioms.reduce_nat_name_refines hn
+  refine sim_intern_cv_of hrel hinv (fun _ h => ?_) hrun
+  obtain ⟨ha, hw⟩ := ConRon.Refine.TrustAxioms.reduce_op_cv_a_refines hnw h
+  refine ⟨?_, hw⟩
+  rw [ha, hna]
+  rfl
 
 /-- `reduce_bool_cv_a` ⊑ `reduceBoolCvA`. -/
 theorem reduce_bool_cv_a_refines {pers st lst} {o}
@@ -538,7 +622,14 @@ theorem reduce_bool_cv_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.reduce_bool_cv_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (reduceBoolCvA) := by
-  sorry
+  rw [arena.trust_axioms.reduce_bool_cv_a] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hna, hnw⟩ := ConRon.Refine.TrustAxioms.reduce_bool_name_refines hn
+  refine sim_intern_cv_of hrel hinv (fun _ h => ?_) hrun
+  obtain ⟨ha, hw⟩ := ConRon.Refine.TrustAxioms.reduce_op_cv_a_refines hnw h
+  refine ⟨?_, hw⟩
+  rw [ha, hna]
+  rfl
 
 /-- `of_reduce_nat_a` ⊑ `ofReduceNatA` — the RAW pin `ofReduceRaw ofReduceNatName`,
 interned.
@@ -552,7 +643,14 @@ theorem of_reduce_nat_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.of_reduce_nat_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (ofReduceNatA) := by
-  sorry
+  rw [arena.trust_axioms.of_reduce_nat_a] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hna, hnw⟩ := ConRon.Refine.TrustAxioms.of_reduce_nat_name_refines hn
+  refine sim_intern_cv_of hrel hinv (fun _ h => ?_) hrun
+  obtain ⟨ha, hw⟩ := ConRon.Refine.TrustAxioms.of_reduce_pin_a_refines hnw h
+  refine ⟨?_, hw⟩
+  rw [ha, hna]
+  rfl
 
 /-- `of_reduce_bool_a` ⊑ `ofReduceBoolA` — the RAW pin `ofReduceRaw ofReduceBoolName`,
 interned.
@@ -566,7 +664,14 @@ theorem of_reduce_bool_a_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.of_reduce_bool_a pers st = ok o) :
     Sim₀ absIConstantVal pers lst o
       (ofReduceBoolA) := by
-  sorry
+  rw [arena.trust_axioms.of_reduce_bool_a] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hna, hnw⟩ := ConRon.Refine.TrustAxioms.of_reduce_bool_name_refines hn
+  refine sim_intern_cv_of hrel hinv (fun _ h => ?_) hrun
+  obtain ⟨ha, hw⟩ := ConRon.Refine.TrustAxioms.of_reduce_pin_a_refines hnw h
+  refine ⟨?_, hw⟩
+  rw [ha, hna]
+  rfl
 
 /-- `reduce_op_cv_a` ⊑ `reduceOpCvA`. -/
 theorem reduce_op_cv_a_refines {pers st lst} {c : arena.handle.NIdx} {o}
@@ -590,7 +695,8 @@ theorem reduce_bool_decl_pin_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.reduce_bool_decl_pin pers st = ok o) :
     Sim₀ absEIdx pers lst o
       (reduceBoolDeclPin) := by
-  sorry
+  rw [arena.trust_axioms.reduce_bool_decl_pin] at hrun
+  exact sim_intern_expr_of hrel hinv (fun _ h => ConRon.Refine.TrustAxioms.reduce_bool_decl_pin_refines h) hrun
 
 /-- `reduce_nat_decl_pin` ⊑ `reduceNatDeclPin`. -/
 theorem reduce_nat_decl_pin_refines {pers st lst} {o}
@@ -598,7 +704,8 @@ theorem reduce_nat_decl_pin_refines {pers st lst} {o}
     (hrun : arena.trust_axioms.reduce_nat_decl_pin pers st = ok o) :
     Sim₀ absEIdx pers lst o
       (reduceNatDeclPin) := by
-  sorry
+  rw [arena.trust_axioms.reduce_nat_decl_pin] at hrun
+  exact sim_intern_expr_of hrel hinv (fun _ h => ConRon.Refine.TrustAxioms.reduce_nat_decl_pin_refines h) hrun
 
 /-- `reduce_decl_pin` ⊑ `reduceDeclPin`. -/
 theorem reduce_decl_pin_refines {pers st lst} {c : arena.handle.NIdx} {o}

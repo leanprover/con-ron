@@ -56,6 +56,75 @@ theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
     (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
   AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
 
+/-! ### The tag-first twin (task #97-T2-LOCKSTEP lane Frontend)
+
+`Arena/Frontend/ProjRec.lean` now tests a handle's TAG before it views the
+handle wherever the port does (task #97-T2-AUDIT's D1, at the frontend).  At a
+handle that denotes, the view is known, and the `else` arm is the old
+continuation's catch-all: these two lemmas turn a run of the new program into
+a run of the old one, so the old proofs continue unchanged.  The expression
+one is `Bridge/Inductives/Rel.lean`'s `tagIf_view_run`, which this cone does
+not import. -/
+
+theorem NTables.tagOf_of_getF {t : NTables} {i : NIdx} {v : NNodeView}
+    (h : t.get i = some v) : i.tag = v.tagOf := by
+  simp only [NTables.get] at h
+  split at h
+  · rename_i hc
+    obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp h
+    simpa [NNodeView.tagOf] using hc
+  · split at h
+    · rename_i hc
+      obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp h
+      simpa [NNodeView.tagOf] using hc
+    · split at h
+      · rename_i hc
+        obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.mp h
+        simpa [NNodeView.tagOf] using hc
+      · simp at h
+
+theorem NStore.tagOf_of_viewF {st : NStore} {i : NIdx} {v : NNodeView}
+    (h : st.view i = some v) : i.tag = v.tagOf := by
+  unfold NStore.view at h
+  split at h
+  · exact NTables.tagOf_of_getF h
+  · split at h
+    · exact NTables.tagOf_of_getF h
+    · simp at h
+
+/-- `if h.tag == t then viewN h >>= f else e`, at a handle whose view is
+known, ran as `viewN h >>= f`. -/
+theorem tagIfN_viewN_run {α : Type} {h : NIdx} {t : UInt32} {v : NNodeView}
+    {f : NNodeView → AM α} {e : AM α} {s s' : AState} {r : α}
+    (hv : s.store.ns.view h = some v) (he : v.tagOf ≠ t → f v = e)
+    (hrun : (if h.tag == t then (viewN h >>= f) else e) s = .ok (r, s')) :
+    (viewN h >>= f) s = .ok (r, s') := by
+  by_cases ht : (h.tag == t) = true
+  · rw [if_pos ht] at hrun; exact hrun
+  · rw [if_neg ht] at hrun
+    have hne : v.tagOf ≠ t := by rw [← NStore.tagOf_of_viewF hv]; simpa using ht
+    have hb : (viewN h >>= f) s = f v s := by
+      show StateT.bind (viewN h) f s = _
+      simp only [StateT.bind, viewN, bind, get, getThe, MonadStateOf.get,
+        StateT.get, pure, StateT.pure, Except.bind, Except.pure, hv]
+    rw [hb, he hne]; exact hrun
+
+/-- The expression-handle form. -/
+theorem tagIf_view_runF {α : Type} {h : EIdx} {t : UInt32} {v : ENodeView}
+    {f : ENodeView → AM α} {e : AM α} {s s' : AState} {r : α}
+    (hv : s.store.view h = some v) (he : v.tagOf ≠ t → f v = e)
+    (hrun : (if h.tag == t then (Arena.view h >>= f) else e) s = .ok (r, s')) :
+    (Arena.view h >>= f) s = .ok (r, s') := by
+  by_cases ht : (h.tag == t) = true
+  · rw [if_pos ht] at hrun; exact hrun
+  · rw [if_neg ht] at hrun
+    have hne : v.tagOf ≠ t := by rw [← EStore.tagOf_of_view hv]; simpa using ht
+    have hb : (Arena.view h >>= f) s = f v s := by
+      show StateT.bind (Arena.view h) f s = _
+      simp only [StateT.bind, Arena.view, bind, get, getThe, MonadStateOf.get,
+        StateT.get, pure, StateT.pure, Except.bind, Except.pure, hv]
+    rw [hb, he hne]; exact hrun
+
 /-- con-leche: none — `viewLs` in run form, off `Bridge/Specs.lean`'s
 triple. -/
 theorem viewLs_run {s s' : AState} {h : LsIdx} {v : LsNodeView}
@@ -78,6 +147,40 @@ theorem piResult_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
   obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s) rfl hrun
     (ExprOps.piResult_spec fuel s h hok (by rw [hd]; rfl))
   exact ⟨h1, h2 e hd⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the run form
+of the frontend's own `piResultD` (the full-`view` walk `validateIndD` reads;
+task #97-T2-LOCKSTEP lane Frontend): at a denoting handle it is con-leche's
+`piResult`, as `Arena/ExprOps.lean`'s `piResult` is. -/
+theorem piResultD_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
+    (hok : StateOK s) (hd : denoteE s.store h = some e)
+    (hrun : piResultD fuel h s = .ok (r, s')) :
+    s' = s ∧ denoteE s.store r = some e.piResult := by
+  induction fuel generalizing h e with
+  | zero =>
+    rw [piResultD] at hrun
+    exact absurd (AM.fail_ok hrun) (by simp)
+  | succ n ih =>
+    rw [piResultD] at hrun
+    obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hview⟩ := view_run hv
+    rw [hs1] at hrest
+    have hde : denoteEView s.store v = some e := by
+      rw [denoteE_view_eq hok.wf hview] at hd; exact hd
+    cases v
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, -, hb⟩ := denote_forallE_inv hok.wf hview hd
+      obtain ⟨hs, hr⟩ := ih hb hrest
+      exact ⟨hs, by rw [hr]; rfl⟩
+    all_goals
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrest
+      refine ⟨rfl, ?_⟩
+      rw [hd]
+      cases e with
+      | forallE x y m =>
+        obtain ⟨_, _, hc, -, -⟩ := denoteEView_forallE hde
+        exact absurd hc (by simp)
+      | _ => rfl
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:915-918 getAppFn — the run form of
 `Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
@@ -189,20 +292,29 @@ theorem isProjIotaName_run {s s' : AState} (hok : StateOK s) {n : NIdx}
     s' = s ∧ b = ConLeche.Frontend.isProjIotaName nP := by
   obtain ⟨rk, hw⟩ := nsWF_of_StateOK hok
   rw [ConRon.Arena.Frontend.isProjIotaName] at hrun
+  obtain ⟨v0, hv0⟩ := Option.isSome_iff_exists.mp (nview_isSome_of_denote hn)
+  replace hrun := tagIfN_viewN_run hv0
+    (fun hne => by cases v0 with | str p t => exact absurd rfl hne | _ => rfl) hrun
   obtain ⟨v, s₁, hv1, hrest⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hview1⟩ := viewN_run hv1
   split at hrest
   · -- the tail component IS `"iota"`
     rename_i p1
+    obtain ⟨q1, rfl, hq1⟩ := denoteN_str_inv hw hview1 hn
+    obtain ⟨w1, hw1⟩ := Option.isSome_iff_exists.mp (nview_isSome_of_denote hq1)
+    replace hrest := tagIfN_viewN_run hw1
+      (fun hne => by cases w1 with | str p t => exact absurd rfl hne | _ => rfl) hrest
     obtain ⟨v2, s₂, hv2, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨rfl, hview2⟩ := viewN_run hv2
-    obtain ⟨q1, rfl, hq1⟩ := denoteN_str_inv hw hview1 hn
     split at hrest2
     · -- the middle component is a `.str`
       rename_i p2 t2
+      obtain ⟨q2, rfl, hq2⟩ := denoteN_str_inv hw hview2 hq1
+      obtain ⟨w2, hw2⟩ := Option.isSome_iff_exists.mp (nview_isSome_of_denote hq2)
+      replace hrest2 := tagIfN_viewN_run hw2
+        (fun hne => by cases w2 with | str p t => exact absurd rfl hne | _ => rfl) hrest2
       obtain ⟨v3, s₃, hv3, hrest3⟩ := AM.bind_ok hrest2
       obtain ⟨rfl, hview3⟩ := viewN_run hv3
-      obtain ⟨q2, rfl, hq2⟩ := denoteN_str_inv hw hview2 hq1
       split at hrest3
       · -- and the head component IS `"_model"`: both sides answer the prefix test
         rename_i p3
@@ -328,6 +440,9 @@ theorem projIotaLevel_run {s s' : AState} (hok : StateOK s)
   obtain ⟨rfl, hdr⟩ := piResult_run hok hty hpi
   obtain ⟨f, s₂, hgf, hrest2⟩ := AM.bind_ok hrest
   obtain ⟨rfl, hdf⟩ := getAppFn_run hok hdr hgf
+  obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hdf⟩)
+  replace hrest2 := tagIf_view_runF hw0
+    (fun hne => by cases w0 with | const n us => exact absurd rfl hne | _ => rfl) hrest2
   obtain ⟨v, s₃, hv, hrest3⟩ := AM.bind_ok hrest2
   obtain ⟨rfl, hview⟩ := view_run hv
   match v, hview with
@@ -1018,6 +1133,9 @@ theorem stripPisAll_run {s : AState} (hok : StateOK s) :
   | succ fuel ih =>
     intro h e he bs b s' hrun
     rw [ConRon.Arena.Frontend.stripPisAll] at hrun
+    obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, he⟩)
+    replace hrun := tagIf_view_runF hw0
+      (fun hne => by cases w0 with | forallE ty b m => exact absurd rfl hne | _ => rfl) hrun
     obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
     obtain ⟨rfl, hview⟩ := view_run hv
     match v, hview with

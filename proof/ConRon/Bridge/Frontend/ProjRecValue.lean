@@ -157,9 +157,12 @@ theorem headIs_run {s s' : AState} (hok : StateOK s) {fuel : Nat} {T : NIdx}
     s' = s ∧ b = ConLeche.Frontend.headIs TP eP := by
   rw [ConRon.Arena.Frontend.headIs] at hrun
   obtain ⟨f, s₁, h1, hr1⟩ := AM.bind_ok hrun
-  obtain ⟨v, s₂, h2, hr2⟩ := AM.bind_ok hr1
   obtain ⟨hs1, hf⟩ := Inductives.getAppFn_run hok he h1
   subst hs1
+  obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hf⟩)
+  replace hr1 := tagIf_view_runF hw0
+    (fun hne => by cases w0 with | const n us => exact absurd rfl hne | _ => rfl) hr1
+  obtain ⟨v, s₂, h2, hr2⟩ := AM.bind_ok hr1
   obtain ⟨hs2, hv⟩ := view_run h2
   subst hs2
   have hdv := hf
@@ -220,6 +223,9 @@ theorem instPisOpen_run {fuel : Nat} :
         rw [ha, has] at hargs
         obtain rfl := Option.some.inj hargs
         rw [ConRon.Arena.Frontend.instPisOpen] at hrun
+        obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hh⟩)
+        replace hrun := tagIf_view_runF hw0
+          (fun hne => by cases w0 with | forallE ty b m => exact absurd rfl hne | _ => rfl) hrun
         obtain ⟨v, s₁, h1, hr1⟩ := AM.bind_ok hrun
         obtain ⟨hs1, hv⟩ := view_run h1
         subst hs1
@@ -344,6 +350,9 @@ theorem mkProjMotive_run {s s' : AState} (hok : StateOK s) {pb : ProjBuild}
   obtain ⟨hs1, bsP, bP, hcl, hrel, hdb⟩ := stripPisAll_run hok fuel hd h1
   subst hs1
   simp only [] at hr1
+  obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hdb⟩)
+  replace hr1 := tagIf_view_runF hw0
+    (fun hne => by cases w0 with | sort u => exact absurd rfl hne | _ => rfl) hr1
   obtain ⟨v, s₂, h2, hr2⟩ := AM.bind_ok hr1
   obtain ⟨hs2, hv⟩ := view_run h2
   subst hs2
@@ -523,6 +532,9 @@ theorem buildBinders_run (kind : ProjBinderKind) (pb : ProjBuild) (fuel : Nat)
   | succ k ih =>
     intro s s' h hP r hok hpb hh hrun
     rw [buildBinders] at hrun
+    obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hh⟩)
+    replace hrun := tagIf_view_runF hw0
+      (fun hne => by cases w0 with | forallE ty b m => exact absurd rfl hne | _ => rfl) hrun
     obtain ⟨v, s₁, h1, hr1⟩ := AM.bind_ok hrun
     obtain ⟨hs1, hv⟩ := view_run h1
     subst hs1
@@ -822,6 +834,9 @@ theorem projRecValue_run {s s' : AState} (hok : StateOK s)
     obtain ⟨lbsP, bodyP, hsl, hlbs, hbody⟩ := denoteBP_some_bl hbp
     rw [hsl]
     simp only [] at hr1 ⊢
+    obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hbody⟩)
+    replace hr1 := tagIf_view_runF hw0
+      (fun hne => by cases w0 with | proj tn bi sub => exact absurd rfl hne | _ => rfl) hr1
     obtain ⟨v, s₂, h2, hr2⟩ := AM.bind_ok hr1
     obtain ⟨hs2, hv⟩ := view_run h2
     subst hs2
@@ -831,6 +846,9 @@ theorem projRecValue_run {s s' : AState} (hok : StateOK s)
     case proj tn bi sub =>
       obtain ⟨tnP, subP, rfl, htn, hsub⟩ := denote_proj_inv hok.wf hv hbody
       simp only [] at hr2
+      obtain ⟨w1, hw1⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hsub⟩)
+      replace hr2 := tagIf_view_runF hw1
+        (fun hne => by cases w1 with | bvar k => exact absurd rfl hne | _ => rfl) hr2
       obtain ⟨w, s₃, h3, hr3⟩ := AM.bind_ok hr2
       obtain ⟨hs3, hw⟩ := view_run h3
       subst hs3
@@ -978,6 +996,9 @@ theorem projRecValue_run {s s' : AState} (hok : StateOK s)
                   simp only [] at hr16 ⊢
                   have q16 := q15.trans p16
                   -- the major premise
+                  obtain ⟨w4, hw4⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hrty3⟩)
+                  replace hr16 := tagIf_view_runF hw4
+                    (fun hne => by cases w4 with | forallE ty b m => exact absurd rfl hne | _ => rfl) hr16
                   obtain ⟨w3, s₁₇, h17, hr17⟩ := AM.bind_ok hr16
                   obtain ⟨hs17, hw3⟩ := view_run h17
                   subst hs17

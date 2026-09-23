@@ -223,6 +223,14 @@ theorem sp_readLevel (b : Bool) : ∀ x0, SPb b (ConRon.Arena.readLevel x0) := b
   | (induction x0 <;> (unfold ConRon.Arena.readLevel; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_readLevel _ _)
 
+/-- con-leche: none — `readLevelM` keeps the scratch flag. -/
+theorem sp_readLevelM (b : Bool) : ∀ x0, SPb b (ConRon.Arena.readLevelM x0) := by
+  intro x0
+  first
+  | (unfold ConRon.Arena.readLevelM; sp_auto; done)
+  | (induction x0 <;> (unfold ConRon.Arena.readLevelM; sp_auto) <;> done)
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_readLevelM _ _)
+
 /-- con-leche: none — `Frontend.projRecCandidates` keeps the scratch flag. -/
 theorem sp_projRecCandidates (b : Bool) : ∀ x0 x1 x2 x3, SPb b (ConRon.Arena.Frontend.projRecCandidates x0 x1 x2 x3) := by
   intro x0 x1 x2 x3
@@ -372,14 +380,6 @@ theorem sp_zeroLevel (b : Bool) : SPb b (ConRon.Arena.zeroLevel) := by
   first
   | (unfold ConRon.Arena.zeroLevel; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_zeroLevel _)
-
-/-- con-leche: none — `readLevelM` keeps the scratch flag. -/
-theorem sp_readLevelM (b : Bool) : ∀ x0, SPb b (ConRon.Arena.readLevelM x0) := by
-  intro x0
-  first
-  | (unfold ConRon.Arena.readLevelM; sp_auto; done)
-  | (induction x0 <;> (unfold ConRon.Arena.readLevelM; sp_auto) <;> done)
-macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_readLevelM _ _)
 
 /-- con-leche: none — `lvlEq?` keeps the scratch flag. -/
 theorem sp_lvlEq? (b : Bool) : ∀ x0 x1, SPb b (ConRon.Arena.lvlEq? x0 x1) := by

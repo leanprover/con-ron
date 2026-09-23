@@ -370,6 +370,61 @@ theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
     if_false, if_neg h3, if_neg h4, if_neg h5, if_pos h6, bind, Except.bind,
     pure, Except.pure]
 
+/-! ## The pin gates' pre-insertion view (task #97-T2-LOCKSTEP lane Checker round 2)
+
+The twin runs `checkDecl`'s three pin gates at `fe2.restrictTo
+fe.visibleBelow`, as the Rust does (`restrict(fe2, k_pre)`).  Every gate lemma
+is stated at the invariant `CheckOK μ env fe`, which reads its index through
+`find?` only (`CheckOK.congr_find`), and the restricted push answers `fe`'s
+`find?` because the pushed name is fresh.  These three facts are the whole
+Theorem-1 cost of the twin change. -/
+
+/-- con-leche: none — `checkDefnVal` ends in a push of the checked constant. -/
+theorem checkDefnVal_pushed {μ : CheckMode} {fe fe2 : IFEnv}
+    {cv : IConstantVal} {value : EIdx} {hint : ReducibilityHint}
+    {s s' : AState}
+    (h : Arena.checkDefnVal μ fe cv value hint s = .ok (fe2, s')) :
+    ∃ v, fe2 = fe.push (.defnInfo cv v hint) := by
+  simp only [Arena.checkDefnVal] at h
+  obtain ⟨v, s1, -, r1⟩ := AM.bind_ok h
+  obtain ⟨t, s2, -, r2⟩ := AM.bind_ok r1
+  obtain ⟨b, s3, -, r3⟩ := AM.bind_ok r2
+  obtain ⟨-, r4⟩ := AM.dunless_ok AM.Never.fail_any r3
+  replace r4 := AM.pure_bind_ok r4
+  obtain ⟨rfl, -⟩ := AM.pure_ok r4
+  exact ⟨v, rfl⟩
+
+/-- con-leche: none — `checkOpaqueVal` ends in a push of the checked constant. -/
+theorem checkOpaqueVal_pushed {μ : CheckMode} {fe fe2 : IFEnv}
+    {cv : IConstantVal} {value : EIdx} {s s' : AState}
+    (h : Arena.checkOpaqueVal μ fe cv value s = .ok (fe2, s')) :
+    fe2 = fe.push (.axiomInfo cv) := by
+  simp only [Arena.checkOpaqueVal] at h
+  obtain ⟨v, s1, -, r1⟩ := AM.bind_ok h
+  obtain ⟨t, s2, -, r2⟩ := AM.bind_ok r1
+  obtain ⟨b, s3, -, r3⟩ := AM.bind_ok r2
+  obtain ⟨-, r4⟩ := AM.dunless_ok AM.Never.fail_any r3
+  replace r4 := AM.pure_bind_ok r4
+  obtain ⟨rfl, -⟩ := AM.pure_ok r4
+  rfl
+
+/-- con-leche: ConLeche/Verify/Extend/Inversions.lean:48 checkConstantVal_inv —
+the front door's answer names a constant the environment lacks. -/
+theorem checkConstantVal_fresh {μ : CheckMode} {F : Nat} {env : Env}
+    {c cA : ConstantVal}
+    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA) :
+    env.find? cA.name = none := by
+  obtain ⟨h1, -, -, -, -, -, _, _, _, -, -, -, -, -, rfl⟩ :=
+    ConLeche.checkConstantVal_inv h
+  exact h1
+
+/-- con-leche: none — the restricted push of a fresh constant answers the old
+index's `find?`. -/
+theorem restrict_pushed_find {fe fe2 : IFEnv} {ci : IConstantInfo}
+    (hp : fe2 = fe.push ci) (hfresh : fe.find? ci.name = none) :
+    ∀ n, (fe2.restrictTo fe.visibleBelow).find? n = fe.find? n := by
+  subst hp; exact IFEnv.find?_push_restrict fe ci hfresh
+
 /-! ## The seven arms -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl (the `.defnDecl`
@@ -416,6 +471,11 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     (denoteCV_inv hcA2).1
   have hext02 : Ext s.store s2.store := hstep1.ext.trans hstep2.ext
   have hpin02 : s2.pins = s.pins := by rw [hstep2.pins, hstep1.pins]
+  -- the pin gates' pre-insertion view answers `fe`'s `find?`
+  have hpre : ∀ n, (fe2.restrictTo fe.visibleBelow).find? n = fe.find? n := by
+    obtain ⟨v, hv⟩ := checkDefnVal_pushed g2
+    exact restrict_pushed_find hv
+      (hok2.check.ienv.find?_none hnm2 (checkConstantVal_fresh hpure1))
   -- the record every exit builds
   have mkOut : ∀ (sX : AState) (FX : Nat), StateOK sX → Ext s.store sX.store →
       sX.pins = s.pins → denoteFEnv sX.store fe2 = some env2 →
@@ -440,7 +500,8 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
           (.defnDecl c x hint) = .ok env2) →
       (Arena.natDivModNames >>= fun ds =>
         if ds.contains cvA.name = true then
-          (Arena.checkDivModPin μ pins fe fe2 cvA.name >>= fun _ =>
+          (Arena.checkDivModPin μ pins (fe2.restrictTo fe.visibleBelow) fe2
+              cvA.name >>= fun _ =>
             (pure fe2 : AM IFEnv))
         else ((pure () : AM Unit) >>= fun _ => (pure fe2 : AM IFEnv)))
         sA = .ok (fe', s') →
@@ -457,7 +518,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     rcases AM.ite_ok rB with ⟨hyD, hgD⟩ | ⟨hnD, hgD⟩
     · obtain ⟨u, sC, gC, rC⟩ := AM.bind_ok hgD
       obtain ⟨hstC, hxC, hpC, FD, hpureD⟩ :=
-        checkDivModPin_bridge hμ hk hokA hstA
+        checkDivModPin_bridge hμ hk (hokA.check.congr_find hpre) hokA.envWF hstA
           (PinsDenote.mono hextA _ _ hpins) hnmA gC
       obtain ⟨rfl, rfl⟩ := AM.pure_ok rC
       exact mkOut _ (max FA FD) hstC (hextA.trans hxC) (by rw [hpC, hpinA])
@@ -479,16 +540,18 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
   rcases AM.ite_ok r3 with ⟨hy3, hg3⟩ | ⟨hn3, hg3⟩
   · -- the structural-`Nat` gate runs
     have hnatP : ConLeche.natOpNames.contains cA.name = true := hcont3 ▸ hy3
-    obtain ⟨deps, s4, g4, r4⟩ := AM.bind_ok hg3
-    obtain ⟨hst4, hx4, hc4, hp4, hdeps⟩ :=
-      natOpDeps_run hok2.check.state hok2.check.pins hnm2 g4
+    -- the Rust's order: the guard, the dependency list, the stored test
+    obtain ⟨b4, s4, g4, r4⟩ := AM.bind_ok hg3
+    obtain ⟨hst4, hx4, hc4, hp4, he5⟩ :=
+      natOpGuard_run hok2.check.state hok2.check.pins hst2.ienv hnm2 g4
     have hok4 : FoldOK μ env fe s4 :=
       hok2.step (hok2.check.mono hst4 hx4 hc4 hp4) hx4 hp4
     have hnm4 : denoteN s4.store.ns cvA.name = some cA.name :=
       denoteN_ext hnm2 hx4
     have hie4 : StepOK env2 fe2 s4 := hst2.mono hx4
-    obtain ⟨b5, s5, g5, r5⟩ := AM.bind_ok r4
-    obtain ⟨hst5, hx5, hc5, hp5, he5⟩ := natOpGuard_run hst4 hok4.check.pins hie4.ienv hnm4 g5
+    obtain ⟨deps, s5, g5, r5⟩ := AM.bind_ok r4
+    obtain ⟨hst5, hx5, hc5, hp5, hdeps⟩ :=
+      natOpDeps_run hst4 hok4.check.pins hnm4 g5
     have hok5 : FoldOK μ env fe s5 :=
       hok4.step (hok4.check.mono hst5 hx5 hc5 hp5) hx5 hp5
     have hnm5 : denoteN s5.store.ns cvA.name = some cA.name :=
@@ -496,8 +559,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     have hie5 : StepOK env2 fe2 s5 := hie4.mono hx5
     obtain ⟨b6, s6, g6, r6⟩ := AM.bind_ok r5
     obtain ⟨hst6, hx6, hc6, hp6, he6⟩ :=
-      natOpStoredOkAll_run hst5 hok5.check.pins hie5.ienv
-        (denoteNL_ext hx5 _ _ hdeps) g6
+      natOpStoredOkAll_run hst5 hok5.check.pins hie5.ienv hdeps g6
     have hok6 : FoldOK μ env fe s6 :=
       hok5.step (hok5.check.mono hst6 hx6 hc6 hp6) hx6 hp6
     have hnm6 : denoteN s6.store.ns cvA.name = some cA.name :=
@@ -548,8 +610,9 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
               hok7.step (hok7.check.mono hst8 hx8 hc8 hp8) hx8 hp8
             obtain ⟨okb, s9, g9, r10⟩ := AM.bind_ok r9
             obtain ⟨hstepC, hcertOf⟩ :=
-              certifyNatEqs_bridge hμ hk hok8 hdps
-                (natOpEqs_wscoped hst2.envWF hfindP) g9
+              certifyNatEqs_bridge hμ hk (hok8.check.congr_find hpre) hok8.envWF
+                hdps (natOpEqs_wscoped hst2.envWF hfindP) g9
+            replace hstepC := hstepC.congr_find (fun n => (hpre n).symm)
             obtain ⟨hy10, r11⟩ :=
               AM.dunless_ok AM.Never.fail_any r10
             replace r11 := AM.pure_bind_ok r11
@@ -688,8 +751,12 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
   rcases AM.ite_ok r3 with ⟨hyes, hgood⟩ | ⟨hno, hgood⟩
   · -- the gate runs
     obtain ⟨u4, s4, g4, r4⟩ := AM.bind_ok hgood
+    have hpre : ∀ n, (fe2.restrictTo fe.visibleBelow).find? n = fe.find? n :=
+      restrict_pushed_find (checkOpaqueVal_pushed g2)
+        (hok2.check.ienv.find?_none hnm2 (checkConstantVal_fresh hpure1))
     obtain ⟨hst4, hx4, hp4, F4, hpure4⟩ :=
-      checkReducePin_bridge hμ hk hok2 hstepOK2 hnm2 hv2
+      checkReducePin_bridge hμ hk (hok2.check.congr_find hpre) hok2.envWF
+        hstepOK2 hnm2 hv2
         (ConLeche.Expr.WScoped.of_not_hasFvar (checkOpaqueVal_noFvar hpure2)) g4
     obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
     have hle1' : F1 ≤ max (max F1 F2) F4 :=
