@@ -41489,6 +41489,158 @@ Lean steps were already up to date from the edit loop); `Arena/Checker` T1
 **stated 77/242, closed 74**.
 
 
+#### Round 9 — the capstone's children closed, the bracket proved, and what `DeclOut` does not say (2026-09-23, Opus under Fable)
+
+Branch `checker-r9` off `arena`'s `d31b1c00`, merged forward three times
+(`f240dd91`, the Promote landing `a7bb3aac`/`b8e3003a`, `43958f6c`).  Besides
+`Bridge/Checker/**` the diff touches `Bridge/Promote/{Exact,Coh}.lean` and,
+under the coordinator's authorisation, one proof each in
+`Bridge/Inductives/Rel.lean` and `Bridge/Frontend/Capstone.lean` (§5).
+
+**8 open → 7**, but the seven are not the eight: every child round 8 named
+is closed or skeletonised, and what is left is precisely named.
+
+| file | round 8 | round 9 | what happened |
+|---|---:|---:|---|
+| `Pins.lean` | 2 | 0 | `denoteN_default_of_pinNames`, `internPinSets_run` closed |
+| `Split.lean` | 3 | 1 | `checkPending_prefix`, `checkDecl_nodup` closed; `annotStep_split` PROVED over its bracket and `Arena.annotStepGo_bridge`, which is PROVED except its full arm's `Arena.checkDecl_wfProj` (§4) |
+| `Nodup.lean` (new) | — | 0 | `checkDecl_nodup`, pure |
+| `DeclVal.lean` | 1 | 4 | `checkDivModPin_bridge` PROVED over four named pieces (§6) |
+| `Inv.lean` | 1 | 1 | `projTableOK_of_install` — not on the capstone frontier |
+| `Fold.lean` | 1 | 1 | `Arena.checkDeclStep_bridge` — not on the capstone frontier |
+
+##### 1. `denoteN_default_of_pinNames` and `internPinSets_run`
+
+The zero word IS the anonymous handle: the first pin name's chain reaches a
+handle viewing as `.anonymous` (a fuel induction on `denoteNAux`, no
+well-formedness needed), which is persistent (`PersN_of_view` at the closed
+store), so the persistent `anons` table is non-empty and its slot 0 is what
+`Idx.ofWord 0` reads (`decide` on the three field projections).
+`internPinSets_run` is sixteen `IStepS` links per variant
+(`internPinSet_sstep`, generated) and the list recursion; persistence off
+`Pers…_of_denote` at the closed store (`PersPinSet_of_denote`).
+
+##### 2. `checkPending_prefix`, and a sixth statement repair
+
+`IFEnvOK_prefix` is `IFEnvOK_restrictTo` at every bound (past the index's size
+the restriction hides nothing and the prefix is the whole environment), and
+its `hproj` is **`FoldOK.projMem`**: under name uniqueness every stored entry
+is the answer of a lookup — `cover` finds a handle for its denoted name, and
+`denoteCIList_inj_nodup` says the entry found is this one — so `IFEnvOK.proj`
+reaches every stored table, not only the visible ones.  (Round 8's note, "its
+`hproj` from `IFEnvOK.proj` under uniqueness", was right in spirit but not by
+`denoteCIList_nodup`, which needs `hproj` itself.)
+
+**Repair: `hckK : CacheOK μ (env.prefixTo pc.vis) s` became
+`hcE : s.caches = Caches.empty`** in `checkPending_prefix` and
+`checkPending_bridge` (a precondition, the call site's own fact:
+`checkPendingList_bridge` passed `CacheOK.of_empty hc0`).  `enterScratch`
+REPLACES the scratch tier and keeps the caches, so a row valid at `s` whose
+handles are scratch handles names nothing — or something else — after it:
+`CacheOK` at `s` does not survive the bracket's opening and the theorem was not
+provable from it.
+
+##### 3. `checkDecl_nodup` — `Bridge/Checker/Nodup.lean`, pure
+
+Read off con-leche's run relation (`checkDeclRun_ofEnvFactsE`), arm by arm:
+`ConstantValRun`'s `isNone` at the value and axiom arms, `BasisInstallRun`'s
+per constant, `MemberValRun` per member and per PROVISIONED recursor (the
+provisional environment holds the recursors before it, so the group is
+pairwise distinct — `provisionRecsRun_fresh`), `ProjFnRun`'s guard, and on the
+native route `checkSumInd_shape` / `checkSumCtors_inv` / `checkNativeRec_shape`
+through `checkConstantVal_inv`, the front guard's `Nodup` of the constructor
+names, and `checkStructProjTable_inv`.  ≈300 lines; con-leche proves the same
+for its cached driver only (`PushChain`).
+
+##### 4. `annotStep_split`: the bracket, and the finding
+
+**PROVED** over `bracketClose_foldOK` (the close shared with
+`checkDeclStep_bridge`: `promoteNew_spec`, `promoteNew_pushed`,
+`promoteNew_projOK`, `promoteBracket_close`, `IFEnvOK_of_denote` after the
+drop) and `FoldOK.enter` (the opening).  What a step body owes the close is
+`BodyOut`: the pushed index denotes a well-formed `env'`, its stored tables
+are well shaped (membership-shaped, as `IFEnvOK_of_denote` takes them), and
+the pushed constants name pairwise different names (`promoteNew_spec`'s
+`NamesDistinct`).  `Arena.annotStepGo_bridge` delivers it: the three split
+arms PROVED (`installConstantVal_bridge`, `installValue_bridge`, `StepOK.push`
+at `constWF_*`, `installConstantVal_typeWF` new), and the full arm
+(`Arena.annotStepGo_full`) from `Arena.checkDecl_bridge`'s `DeclOut`, the
+names from `checkDecl_nodup`, and ONE child:
+
+**`Arena.checkDecl_wfProj` — `DeclOut` does not carry `EnvWF env'`, nor the
+pushed tables' `IProjTableOK`.**  The value arms prove both internally
+(`StepOK`); the axiom arm's `ConstWF` is `checkConstantVal_typeWF`'s; the basis
+and quotient arms push the pinned blocks, whose `ConstWF` con-leche's model
+tier proves block by block (`Model/Basis*.lean`); the inductive arm's are
+`IndSpec`'s, which has neither (`IndOut` has the tables as `ProjOut`, not
+`EnvWF`).  con-leche itself never proves `EnvWF` along phase A
+compositionally: `installRun_model` gets it from `EnvModelOk`, which needs
+phase B's checks of the EARLIER records as a hypothesis — so the arena cannot
+borrow it.  **A ruling is needed**: `DeclOut` (and `IndSpec`) gaining
+`envWF` and a `proj` clause is a change of the seven arm theorems'
+conclusions.  `Arena.checkDeclStep_bridge` (off the frontier) needs the same
+two clauses and now has its bracket ready.
+
+Two more precondition repairs, both carried by `Arena.annotFold_bridge` from
+`installThenCheck_bridge`: **`hnd : NodupNames env`** (`FoldOK.projMem`) and
+**`hpd : PersDecl pd`** (the record's denotation across `enterScratch`,
+`checkDeclStep_bridge`'s own repair); `annotStep_bridge` likewise.
+
+##### 5. `IFEnvCoh := IFEnvCohX` (the coordinator's ruling)
+
+`IFEnvCoh` (`Bridge/Promote/Exact.lean`) is now the extensional coherence —
+the same counter and the same lookup at every key — with `IFEnvCoh.mk` for
+`mkIFEnv`.  `promoteNew_spec` moves to `Bridge/Promote/Coh.lean` beside
+`promoteNew_cohX`, gains `hnd : NamesDistinct` of the step's constants, and is
+**PROVED**; the false `promoteNew_coh` and `IFEnvCohX`'s duplicate lemmas are
+deleted.  The consumer fixes: `IFEnv.find?_mem`, `IFEnvCoh.find?`
+(`Checker/Inv.lean`), `IFEnvOK_restrictTo` (`Checker/Split.lean`),
+`ProjOut.push` (`Inductives/Rel.lean`, `hcoh.1`/`hcoh.2 n` for the two
+`congrArg`s), `FoldOK_of_start` (`Frontend/Capstone.lean`, two `rfl`s →
+`IFEnvCoh.mk _`).  `Fold.lean`'s stale `StoreWFP` prose updated.
+
+##### 6. `checkDivModPin_bridge`, skeletonised
+
+The environment guard, the stored value's lookup through `StepOK.ienv` (its
+`WScoped 0` from `EnvWF env2`) and the variant loop
+(`checkDivModPinLoop_bridge`) are PROVED.  **The loop needs only the `true`
+direction of each piece**: every arena outcome but `matched` moves on, and
+con-leche's `(fueledOps μ F).orElse` either stops at `.ok true` or recurses —
+the recursion is the induction hypothesis at the SAME fuel — so only the
+`matched` step lines the sides up.  The four pieces, `sorry`:
+`divModEnvGuard_run`, `divModPinGuard_run`, `divModCertsGuard_run`,
+`checkDivModPinAt_bridge` (round 8 §6 priced their content).
+
+##### 7. The layout move (coordinator's request)
+
+`allLevelParamsDefined_run`, `constsResolveFFast_run` and their cone
+(`LPDMemoOK`, `lpdClose`, `allLevelParamsDefinedGo_run`, the three readers,
+`IFEnvOK.find_isSome`, `constsResolve_run`, `CRMemoOK`, `crLeaf`,
+`constsResolveFGo_run`) moved verbatim from `Base.lean` to `Names.lean`, which
+now imports `Checker/Hyp.lean` for `viewE_run` (both tiers already import
+it).  A temporary `#check` from `Bridge/Inductives/Rel.lean` resolved all
+seven names probed.
+
+##### 8. The frontier, and gates
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+| run | tree | items | tainted | dead weight | this lane's items |
+|---|---|---:|---:|---:|---|
+| start | `f240dd91` (arena, clean) | 14 | 45 | 927 | `denoteN_default_of_pinNames`, `internPinSets_run`, `checkDecl_nodup`, `Arena.annotStep_split`, `Arena.checkPending_prefix` (fan-in 1 each) |
+| end | `checker-r9` merged onto `arena`'s `43958f6c` | 33 | 99 | 803 | `checkDivModPinAt_bridge`, `divModCertsGuard_run`, `divModPinGuard_run` (reach 14), `divModEnvGuard_run` (13), `Arena.checkDecl_wfProj` (10); fan-in 0 each |
+
+The total grew from other lanes' skeletons merged meanwhile (the Theorem 2
+tops under `Refine2/**` now fan out); this lane went from five items to five
+DIFFERENT items, each one level further down, and `checkDivModPin_bridge`
+— behind `annotStep_split`'s `sorry` at the start — is now in the closure and
+proved over its pieces.  `projTableOK_of_install` (`Inv.lean`) and
+`Arena.checkDeclStep_bridge` (`Fold.lean`) are NOT on the capstone frontier
+(the capstone path is the two-phase fold and reaches neither); they are left.
+
+GATES_LINE
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
