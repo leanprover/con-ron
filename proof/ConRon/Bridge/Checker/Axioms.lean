@@ -366,6 +366,28 @@ namespace ConRon.Bridge
 #print axioms installBasisDecls_bridge
 #print axioms checkBasisDecl_bridge
 
+-- task #97-P3-Checker round 8
+#print axioms erasePwEq_run
+#print axioms matchesPin_run
+#print axioms denoteCV_inj
+#print axioms denoteCI_inj_ind
+#print axioms IFEnvOK.find_beq_ind
+#print axioms reduceElemOk_run
+#print axioms reduceStoredOk_run
+#print axioms stdAxiomOk_run
+#print axioms trustCompilerOk_run
+#print axioms ofReduceAxOk_run
+#print axioms natLitSupported_run
+#print axioms natOpDepsStored_run
+#print axioms natOpGuard_run
+#print axioms natOpStoredOkAll_run
+#print axioms natOpEqs_wscoped
+#print axioms reduceDeclPin_run
+#print axioms reduceCertVar_run
+#print axioms reducePinGuard_run
+#print axioms checkReducePin_bridge
+#print axioms reservedBasisNames_sstep
+
 /-! ## Group 2 — the three headline theorems
 
 Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`
