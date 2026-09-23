@@ -1048,7 +1048,7 @@ macro_rules
       | exact errArm_ok
       | (show ErrArm (ok _ >>= _) _; rw [bind_tc_ok]; exact errArm_ok)
       | (apply errArm_of_eq; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair])
-      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h; first | exact h.1.symm | exact h.symm))
+      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h; all_goals first | exact h.1.symm | exact h.symm))
 
 /-- Apply `rule` to `g` and return its new goals by binder name. -/
 def applyRule (g : MVarId) (rule : Name) : MetaM (Array (Name × MVarId)) := do
