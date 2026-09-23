@@ -244,4 +244,31 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
       lst (notProofFast lfe (absU fuel) (absEIdx a)) :=
   LS.ofSim₀ (A := id) fun _ h => hx.notProofFast hrel hinv hctx h
 
+/-! ## The Core lemmas closed before round 5, as `@[lockstep]` -/
+
+@[lockstep] theorem ensure_sort_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absLIdx a)
+      (arena.core.ensure_sort pers vis st mode lane fu fe depth e) lst
+      (ensureSort (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => ensure_sort_refines hk hrel hinv hctx hf h
+
+@[lockstep] theorem unfold_definition_ls {pers vis st fe lfe e lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.core.unfold_definition pers vis st fe e) lst
+      (unfoldDefinition lfe (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => unfold_definition_refines hx hrel hinv hctx h
+
+@[lockstep] theorem const_val_at_ls {pers st lst n lps value us}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.const_val_at pers st n lps value us) lst
+      (constValAt (absNIdx n) (lps.val.map absNIdx) (absEIdx value) (absLsIdx us)) :=
+  LS.ofSim₀ fun _ h => const_val_at_refines hx hrel hinv h
+
 end ConRon.Refine2.Lockstep
