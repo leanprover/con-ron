@@ -127,9 +127,30 @@ specification of a WELL-FORMED table only (`Refine2/Checker/Shape.lean`'s
 belong to `IFEnvInv` and P3 supplies them; they are spelled here because the
 Core tier may not edit that file. -/
 structure CoreCtx (vis : Std.U64) (fe : arena.env.IFEnv) (lfe : IFEnv) : Prop where
-  /-- The indexed environment, field for field (`Refine2/AbsState.lean`). -/
-  fenv : IFEnvRel fe lfe
-  /-- Task #97-P6-6b's split scalar, tied back to the field it came from. -/
+  /-- **The indexed environment's DATA, field for field**
+  (`Refine2/AbsState.lean`) — `IFEnvRel` at the twin environment RESTRICTED to
+  the port record's own counter, so that its third clause
+  (`lfe.visibleBelow = absU fe.visible_below`) is discharged by the
+  restriction and says nothing.  What the counter is, is the next clause's
+  business and only the next clause's.
+
+  **Why it is not the plain `IFEnvRel fe lfe`** (task #97-P5-Bracket's
+  finding 3, repaired by task #97-P5-Checker round 3).  Paired with `vis`
+  below, the plain relation forces `absU vis = absU fe.visible_below`: it says
+  the twin's counter is the port record's field and `vis` says it is the split
+  scalar, so `CoreCtx` was satisfiable only where the split scalar is NOT
+  split.  `arena::checker::check_pending` is the one call site where it is —
+  a pending record carries the `vis` its declaration was installed at, `fe` is
+  the whole environment phase A ended with, and that difference is the entire
+  point of phase B — so every Core entry, and every checker-tier statement
+  above them, was unusable at exactly the place the campaign needs them.
+
+  `IFEnv.restrictTo` touches `visibleBelow` alone, so `.env` and `.idx` of
+  the restricted environment are `lfe`'s definitionally and every consumer of
+  those two clauses is unchanged. -/
+  fenv : IFEnvRel fe (lfe.restrictTo (absU fe.visible_below))
+  /-- Task #97-P6-6b's split scalar: the twin environment this record stands
+  for is viewed at `vis`, which need not be the port record's own field. -/
   vis : absU vis = lfe.visibleBelow
   /-- `Refine2/Checker/Shape.lean`'s `IFEnvInv`: the index is a well-formed
   `ron::HashMap2`, without which `HashMap2.get` specifies nothing. -/
@@ -144,6 +165,21 @@ structure CoreCtx (vis : Std.U64) (fe : arena.env.IFEnv) (lfe : IFEnv) : Prop wh
   `ifenv_find_abs` is the only consumer. -/
   idxPos : ∀ n p, ConRon.Refine.HashMap2.toFun fe.idx n = some p →
     p.2.val ≤ Std.Usize.max
+
+/-- `fenv`'s constant-list clause, at `lfe` itself — `IFEnv.restrictTo` moves
+`visibleBelow` alone, so the two are the same statement and this is the
+spelling a reader of `lfe` wants. -/
+theorem CoreCtx.env {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (h : CoreCtx vis fe lfe) : lfe.env = absIEnv fe.env := h.fenv.env
+
+/-- `fenv`'s index clause, at `lfe` itself.  **This is the one `ifenv_find_abs`
+consumes**, and it is stated here rather than projected through `fenv` because
+the restriction in `fenv`'s type is not syntactically `lfe`. -/
+theorem CoreCtx.idx {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (h : CoreCtx vis fe lfe) : ∀ n,
+      ((ConRon.Refine.HashMap2.toFun fe.idx n).bind fun p =>
+        (fe.env.consts.val[p.2.val]?).map fun ci => (absU p.1, absIConstantInfo ci))
+      = lfe.idx[absNIdx n]? := h.fenv.idx
 
 /-! ## The two relations -/
 
