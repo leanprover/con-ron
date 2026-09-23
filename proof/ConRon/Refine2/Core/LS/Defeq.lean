@@ -32,6 +32,10 @@ open ConRon.Generated
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
+-- `PrimsB`/`PrimsE` unfold the record abstraction only locally now (the
+-- Checker lane reads it folded); the Core region files read it unfolded
+attribute [local lockstep_simp] ConRon.Refine2.absIConstantVal
+
 namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
@@ -42,13 +46,8 @@ open ConRon.Refine2.Lockstep.PF
 `lockstep`'s bind rules want the twin to be a bind too.  When the Rust binds a
 READ (`LSR`) and then returns it — `let r ← defeq_peel_done …; ok (r, st)` —
 the twin's partner is a TAIL (`defeqPeelDone …`).  `x = x >>= pure` makes the
-twin a bind; the continuation is then `LS.pure`. -/
-
-theorem LS.twin_bind_pure {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R m lst (x >>= (Pure.pure : β → AM β))) :
-    LS pers R m lst x := by
-  rwa [bind_pure] at h
+twin a bind; the continuation is then `LS.pure` (the move is the shared
+`LS.twin_bind_pure`). -/
 
 open Lean Meta Elab Tactic in
 /-- Apply `LS.twin_bind_pure` when the Rust side is a bind and the twin side

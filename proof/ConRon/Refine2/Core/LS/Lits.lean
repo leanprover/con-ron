@@ -17,6 +17,10 @@ open ConRon.Generated
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
+-- `PrimsB`/`PrimsE` unfold the record abstraction only locally now (the
+-- Checker lane reads it folded); the Core region files read it unfolded
+attribute [local lockstep_simp] ConRon.Refine2.absIConstantVal
+
 namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
@@ -65,6 +69,10 @@ attribute [local lockstep_simp] List.map_append List.map_cons List.map_nil
   List.nil_append List.cons_append List.isEmpty_nil List.isEmpty_cons Bool.true_and
   Bool.false_and Bool.and_true Bool.and_false
 
+/- In the region's namespace: the Checker lane states the same two reads
+against `absNIdxL` in `Lockstep` (`Checker/Base.lean`). -/
+namespace PB
+
 @[lockstep] theorem nat_op_names_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absNIdxList a) (arena.core.nat_op_names st) lst natOpNames := by
@@ -86,6 +94,8 @@ lists are the same eight names in the same order. -/
       natOpWfNames := by
   rw [arena.core.nat_op_wf_names, show natOpWfNames = natDivModNames from rfl]
   exact nat_div_mod_names_ls hrel hinv
+
+end PB
 
 attribute [lockstep_inline] arena.core.nat_op_pins arena.core.nat_op_pins_rest
 

@@ -28,6 +28,10 @@ open ConRon.Generated
 
 attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
+-- `PrimsB`/`PrimsE` unfold the record abstraction only locally now (the
+-- Checker lane reads it folded); the Core region files read it unfolded
+attribute [local lockstep_simp] ConRon.Refine2.absIConstantVal
+
 namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PG

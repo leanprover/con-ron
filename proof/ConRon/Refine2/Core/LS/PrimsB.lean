@@ -651,7 +651,10 @@ intern). -/
     refine ⟨_, lst3, rfl, ?_, hrel3, hinv3⟩
     simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
 
-attribute [lockstep_simp] absLNodeView absLsNodeView absIConstantVal ConRon.Refine.absLiteral
+attribute [lockstep_simp] absLNodeView absLsNodeView ConRon.Refine.absLiteral
+
+-- local: the Checker lane reads `absIConstantVal` folded (its `absValueGroup`)
+attribute [local lockstep_simp] absIConstantVal
 
 @[lockstep_simp] theorem vec_len_eq_zero {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v = 0#usize) = (v.val = []) := by

@@ -680,7 +680,10 @@ the sort), in the same order on both sides. -/
     (¬ (a != b) = true) = (a.val = b.val) := by
   rw [usize_bne_true]; simp
 
-attribute [lockstep_simp] absIConstantVal List.length_map ExprOps.absEIdxList
+attribute [lockstep_simp] List.length_map ExprOps.absEIdxList
+
+-- local: the Checker lane reads `absIConstantVal` folded (its `absValueGroup`)
+attribute [local lockstep_simp] absIConstantVal
 
 @[lockstep_simp] theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v).val = v.val.length := by
