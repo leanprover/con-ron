@@ -51,7 +51,6 @@ namespace ConRon.Bridge
 #print axioms Pushed.refl
 #print axioms Pushed.trans
 #print axioms Pushed.push
-#print axioms StoreWFP.of_wf
 
 -- the declaration layer across a drop
 #print axioms denoteN_pext

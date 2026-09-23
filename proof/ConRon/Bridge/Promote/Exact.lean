@@ -37,8 +37,7 @@ mechanical do-notation over those four and is stated here for its consumers —
 `Bridge/Checker/Fold.lean`'s per-declaration bridge reads `promoteNew_spec`
 and `promoteVG_spec` and nothing else from this file.
 -/
-import ConRon.Bridge.Promote.StoreP
-import ConRon.Arena.PromoteExt
+import ConRon.Bridge.Promote.Walk
 
 namespace ConRon.Bridge
 
@@ -46,105 +45,15 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
-/-! ## The promotion memo -/
-
-/-- con-leche: none — arena infrastructure; a promotion memo's expression
-rows are promoted pairs: the answer is persistent and denotes what the key
-denotes. -/
-def PMemoEOK (tbl : Std.HashMap EIdx EIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersE r ∧ ∃ e, denoteE st h = some e ∧ denoteE st r = some e
-
-/-- con-leche: none — arena infrastructure; the same at a NAME handle. -/
-def PMemoNOK (tbl : Std.HashMap NIdx NIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersN r ∧ ∃ x, denoteN st.ns h = some x ∧ denoteN st.ns r = some x
-
-/-- con-leche: none — arena infrastructure; the same at a LEVEL handle. -/
-def PMemoLOK (tbl : Std.HashMap LIdx LIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersL r ∧ ∃ u, denoteL st.ls h = some u ∧ denoteL st.ls r = some u
-
-/-- con-leche: none — arena infrastructure; the same at a universe-argument
-LIST handle. -/
-def PMemoLsOK (tbl : Std.HashMap LsIdx LsIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersLs r ∧ ∃ us, denoteLs st.lss h = some us ∧ denoteLs st.lss r = some us
-
-/-- con-leche: none — arena infrastructure; **the promotion memo denotes**:
-all four tables at once, which is the record `Arena/Promote.lean` threads. -/
-structure PMemoOK (m : PMemo) (st : EStore) : Prop where
-  eM : PMemoEOK m.eM st
-  nM : PMemoNOK m.nM st
-  lM : PMemoLOK m.lM st
-  lsM : PMemoLsOK m.lsM st
-
-/-- con-leche: none — arena infrastructure; the EMPTY memo is sound, which is
-what every declaration's promotion starts from (`PMemo.empty`). -/
-theorem PMemoOK.empty (st : EStore) : PMemoOK PMemo.empty st where
-  eM := by intro h r hk; simp [PMemo.empty] at hk
-  nM := by intro h r hk; simp [PMemo.empty] at hk
-  lM := by intro h r hk; simp [PMemo.empty] at hk
-  lsM := by intro h r hk; simp [PMemo.empty] at hk
-
-/-- con-leche: none — arena infrastructure; the memo invariant transports
-across an append: a row recorded before an `internPersistent` is still a
-promoted pair after it. -/
-theorem PMemoOK.mono {m : PMemo} {st st' : EStore} (h : PMemoOK m st)
-    (hx : Ext st st') : PMemoOK m st' where
-  eM := by
-    intro k r hk
-    obtain ⟨hp, e, h1, h2⟩ := h.eM k r hk
-    exact ⟨hp, e, hx.expr _ _ h1, hx.expr _ _ h2⟩
-  nM := by
-    intro k r hk
-    obtain ⟨hp, x, h1, h2⟩ := h.nM k r hk
-    exact ⟨hp, x, hx.lss.ls.ns _ _ h1, hx.lss.ls.ns _ _ h2⟩
-  lM := by
-    intro k r hk
-    obtain ⟨hp, u, h1, h2⟩ := h.lM k r hk
-    exact ⟨hp, u, hx.lss.ls.lvl _ _ h1, hx.lss.ls.lvl _ _ h2⟩
-  lsM := by
-    intro k r hk
-    obtain ⟨hp, us, h1, h2⟩ := h.lsM k r hk
-    exact ⟨hp, us, hx.lss.lst _ _ h1, hx.lss.lst _ _ h2⟩
-
-/-! ## The four handle kinds
-
-Each spec has the same six conjuncts: the invariant survives, the arena only
-grows, the memo stays sound, the answer is persistent, the answer denotes what
-the subject denoted, and the rest of the state (the per-call memos, the
-caches, the pin table, the scratch flag) stood still.
-
-The last conjunct is the per-call memo FRAME task #97-P3-0 §7 asks for, at the
-one place it is free: a promotion touches no memo table of `Monad.lean` at
-all. -/
-
-/-- con-leche: none — arena infrastructure; a promotion leaves everything but
-the store alone.  One predicate rather than four conjuncts, so that a caller's
-composition is one `trans` per step. -/
-structure PFrame (s s' : AState) : Prop where
-  memos : s'.memos = s.memos
-  caches : s'.caches = s.caches
-  pins : s'.pins = s.pins
-  scratchOn : s'.store.scratchOn = s.store.scratchOn
-
-theorem PFrame.refl (s : AState) : PFrame s s := ⟨rfl, rfl, rfl, rfl⟩
-
-theorem PFrame.trans {a b c : AState} (h₁ : PFrame a b) (h₂ : PFrame b c) :
-    PFrame a c :=
-  ⟨by rw [h₂.memos, h₁.memos], by rw [h₂.caches, h₁.caches],
-   by rw [h₂.pins, h₁.pins], by rw [h₂.scratchOn, h₁.scratchOn]⟩
-
 /-- con-leche: none — arena infrastructure; **`promoteN` is exact.**
 
 `sorry`: the three-arm fuel induction over `internPersistentN`.  Task
 #97-P3-Checker's sorry list, item 3. -/
 theorem promoteN_spec {m m' : PMemo} {fuel : Nat} {h r : NIdx} {x : ConLeche.Name}
-    {s s' : AState} (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteN s.store.ns h = some x)
     (hrun : promoteN m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersN r ∧ denoteN s'.store.ns r = some x ∧ PFrame s s' := by
   sorry
 
@@ -153,10 +62,10 @@ theorem promoteN_spec {m m' : PMemo} {fuel : Nat} {h r : NIdx} {x : ConLeche.Nam
 `sorry`: the five-arm fuel induction, `promoteN_spec` at the `.param` arm.
 Task #97-P3-Checker's sorry list, item 3. -/
 theorem promoteL_spec {m m' : PMemo} {fuel : Nat} {h r : LIdx} {u : Level}
-    {s s' : AState} (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteL s.store.ls h = some u)
     (hrun : promoteL m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersL r ∧ denoteL s'.store.ls r = some u ∧ PFrame s s' := by
   sorry
 
@@ -165,10 +74,10 @@ theorem promoteL_spec {m m' : PMemo} {fuel : Nat} {h r : LIdx} {u : Level}
 `sorry`: the list recursion over `promoteL_spec`.  Task #97-P3-Checker's
 sorry list, item 3. -/
 theorem promoteLs_spec {m m' : PMemo} {fuel : Nat} {h r : LsIdx}
-    {us : List Level} {s s' : AState} (hwf : StoreWFP s.store)
+    {us : List Level} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : denoteLs s.store.lss h = some us)
     (hrun : promoteLs m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersLs r ∧ denoteLs s'.store.lss r = some us ∧ PFrame s s' := by
   sorry
 
@@ -181,10 +90,10 @@ is the exactness lemma P3 owes").
 `EStore.internPersistent_spec` and the three lemmas above.  Task
 #97-P3-Checker's sorry list, item 3, and the largest of them. -/
 theorem promoteE_spec {m m' : PMemo} {fuel : Nat} {h r : EIdx} {e : Expr}
-    {s s' : AState} (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteE s.store h = some e)
     (hrun : promoteE m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersE r ∧ denoteE s'.store r = some e ∧ PFrame s s' := by
   sorry
 
@@ -202,10 +111,10 @@ keeps its denotation.**
 `sorry`: three calls of `promoteN_spec`/`promoteE_spec` and the list lift.
 Task #97-P3-Checker's sorry list, item 4. -/
 theorem promoteCV_spec {m m' : PMemo} {fuel : Nat} {cv cv' : IConstantVal}
-    {c : ConstantVal} {s s' : AState} (hwf : StoreWFP s.store)
+    {c : ConstantVal} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : Frontend.denoteCV s.store cv = some c)
     (hrun : promoteCV m fuel cv s = .ok ((m', cv'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersCV cv' ∧ Frontend.denoteCV s'.store cv' = some c ∧ PFrame s s' := by
   sorry
 
@@ -215,10 +124,10 @@ keeps its denotation** — the seven `IConstantInfo` constructors.
 `sorry`: `promoteCV_spec` plus the rule / capability / projection-table
 lifts.  Task #97-P3-Checker's sorry list, item 4. -/
 theorem promoteCI_spec {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
-    {c : ConstantInfo} {s s' : AState} (hwf : StoreWFP s.store)
+    {c : ConstantInfo} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : Frontend.denoteCI s.store ci = some c)
     (hrun : promoteCI m fuel ci s = .ok ((m', ci'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersCI ci' ∧ Frontend.denoteCI s'.store ci' = some c ∧ PFrame s s' := by
   sorry
 
@@ -228,10 +137,10 @@ theorem promoteCI_spec {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
 sorry list, item 4. -/
 theorem promoteCIList_spec {m m' : PMemo} {fuel : Nat}
     {cs cs' : List IConstantInfo} {xs : List ConstantInfo} {s s' : AState}
-    (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : Frontend.denoteCIList s.store cs = some xs)
     (hrun : promoteCIList m fuel cs s = .ok ((m', cs'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersCIList cs' ∧ Frontend.denoteCIList s'.store cs' = some xs ∧
       PFrame s s' := by
   sorry
@@ -244,11 +153,11 @@ checks the same term phase A installed.
 `sorry`: `promoteCV_spec` and `promoteE_spec`.  Task #97-P3-Checker's sorry
 list, item 4. -/
 theorem promoteVG_spec {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
-    {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWFP s.store)
+    {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hcv : Frontend.denoteCV s.store g.cvA = some c)
     (hjv : denoteE s.store g.jv = some e)
     (hrun : promoteVG m fuel g s = .ok ((m', g'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersVG g' ∧ g'.kind = g.kind ∧
       Frontend.denoteCV s'.store g'.cvA = some c ∧
       denoteE s'.store g'.jv = some e ∧ PFrame s s' := by
@@ -375,13 +284,13 @@ persistent, which is the fold's own invariant one step earlier.
 give, which is what `IFEnvCoh` on both sides reduces the index clause to).
 Task #97-P3-Checker's sorry list, item 5. -/
 theorem promoteNew_spec {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
-    {env : Env} {s s' : AState} (hwf : StoreWFP s.store)
+    {env : Env} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hcoh0 : IFEnvCoh fe0) (hp0 : PersIFEnv fe0)
     (hcoh : IFEnvCoh fe) (hpush : Pushed fe0 fe)
     (hk : k = fe.visibleBelow - fe0.visibleBelow)
     (hd : denoteFEnv s.store fe = some env)
     (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersIFEnv fe' ∧ IFEnvCoh fe' ∧ denoteFEnv s'.store fe' = some env ∧
       fe'.visibleBelow = fe.visibleBelow ∧ PFrame s s' := by
   sorry
