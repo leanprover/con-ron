@@ -1249,12 +1249,21 @@ that bind's spec does not match (its twin partner is inside the `if`) it
 falls back to `LS.twin_bind_pure`, which succeeds and buries the `if` under a
 `>>= pure` where it is never decided.  That happens exactly where a guard's
 Rust test was already split (`hc` in context) and the Rust's next step is a
-state-threading call in the failing branch (`unresolved_consts_error`).  This
-wrapper tries the context's decision first; everything else is `lockstep_step`.
+state-threading call in the branch (`unresolved_consts_error`, the axiom
+arms' `*_ok` gates).  This wrapper tries the context's decision first (a test
+in context, or the twin's `a || b` against the Rust's two nested tests);
+everything else is `lockstep_step`.
 (Reported as a tactic issue for the shared `Tactic/Lockstep.lean`.) -/
 macro "chk_lockstep" : tactic => `(tactic| repeat' (first
-  | (refine Lockstep.LS.twin_ite_neg (by assumption) ?_)
-  | (refine Lockstep.LS.twin_ite_pos (by assumption) ?_)
+  | (refine Lockstep.LS.twin_ite_neg (by first
+      | assumption
+      | (simp only [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)
+      | lockstep_side_cheap | lockstep_side_ite) ?_)
+  | (refine Lockstep.LS.twin_ite_pos (by first
+      | assumption
+      | (simp only [Bool.or_eq_true]; first
+          | exact Or.inl (by assumption) | exact Or.inr (by assumption))
+      | lockstep_side_cheap | lockstep_side_ite) ?_)
   | lockstep_step))
 
 namespace Lockstep
@@ -2126,8 +2135,12 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
   install_value_of (fun _ _ => sorry) (fun _ _ => sorry) hrel hinv hfe hfinv hrun
 
 open Lockstep in
-/-- `install_value` at the restricted index (`check_value_group_value`'s call). -/
-@[lockstep] theorem install_value_at_ls {pers st lst} {vis : Std.U64} {rf lf}
+/-- `install_value` at the restricted index (`check_value_group_value`'s call).
+Not `@[lockstep]`: beside `install_value_ls` (the phase-A form, twin at `lf`)
+the tactic would try it at every phase-A call too, and its side goal
+`lf.restrictTo _ = lf` sends the side tier into a recursion; the one caller
+takes it as a local hypothesis. -/
+theorem install_value_at_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -2248,6 +2261,12 @@ theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
       Lockstep.LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
         (liftFueled "level comparison" o) :=
     fun o hrel hinv => Lockstep.lift_fueled_ls "level comparison" o hrel hinv
+  have hIV : ∀ {st lst} {cv value}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdx a)
+        (arena.checker_split.install_value pers vis st mode rf cv value) lst
+        (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+          (absIConstantVal cv) (absEIdx value)) :=
+    fun hrel hinv => install_value_at_ls hrel hinv hfeI
   rcases g with ⟨k, cva, jv⟩
   cases k <;> chk_lockstep
   -- the Rust's `is_thm` at a theorem answered `false`: ruled out by its spec

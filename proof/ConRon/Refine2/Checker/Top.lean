@@ -167,6 +167,76 @@ private theorem mk_ifenv_empty_refines {e f}
 
 /-! ## The basis and quotient arms -/
 
+/-! ## The arms' `decl_check` callees in the judgements `lockstep` zips with
+
+`Refine2/Checker/DeclCheck.lean`'s leaf statements, filed here (under `top_`
+names, so a later `_ls` in that file cannot collide) because this file is
+where the arms that call them are. -/
+
+namespace Lockstep
+
+@[lockstep] theorem top_std_axiom_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {cv_a : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.decl_check.std_axiom_ok pers vis st rf cv_a) lst
+      (stdAxiomOk lf (absIConstantVal cv_a)) :=
+  LS.ofSim₀ fun _ h => std_axiom_ok_refines hrel hinv hfe.rel hfe.inv hvis h
+
+@[lockstep] theorem top_trust_compiler_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {cv_a : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.decl_check.trust_compiler_ok pers vis st rf cv_a) lst
+      (trustCompilerOk lf (absIConstantVal cv_a)) :=
+  LS.ofSim₀ fun _ h => trust_compiler_ok_refines hrel hinv hfe.rel hfe.inv hvis h
+
+@[lockstep] theorem top_of_reduce_ax_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {cv_a : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.decl_check.of_reduce_ax_ok pers vis st rf cv_a) lst
+      (ofReduceAxOk lf (absIConstantVal cv_a)) :=
+  LS.ofSim₀ fun _ h => of_reduce_ax_ok_refines hrel hinv hfe.rel hfe.inv hvis h
+
+@[lockstep] theorem top_eq_basis_pinned_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.decl_check.eq_basis_pinned pers vis st rf) lst
+      (eqBasisPinnedSpec lf) :=
+  LS.ofSim₀ fun _ h => eq_basis_pinned_refines hrel hinv hfe.rel hfe.inv hvis h
+
+@[lockstep] theorem top_i_constant_info_dup_spec (c : arena.env.IConstantInfo) :
+    LSP (arena.env.i_constant_info_dup c)
+      (fun o => absIConstantInfo o = absIConstantInfo c) :=
+  fun _ h => i_constant_info_dup_abs h
+
+end Lockstep
+
+/-- `checkBasisDecl` at the quotient kind, in the Rust's arrangement: the
+`Eq`-basis requirement as one reader (`eqBasisPinnedSpec`), then the install. -/
+theorem checkBasisDecl_quotK (fe : IFEnv) :
+    checkBasisDecl fe ConLeche.BasisKind.quotK = (do
+      if ← eqBasisPinnedSpec fe then installBasisDecls fe (← BasisKind.declsA ConLeche.BasisKind.quotK)
+      else fail (.notImplemented "quotient basis requires the pinned Eq basis")) := by
+  simp only [checkBasisDecl, eqBasisPinnedSpec, bind_assoc, pure_bind, if_pos, beq_self_eq_true]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro en
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro ea
+  by_cases h : (fe.find? en == some ea) = true
+  · simp [h]
+  · simp [h, am_fail_bind]
+
+/-- `checkBasisDecl` at every other kind is the install alone. -/
+theorem checkBasisDecl_ne (fe : IFEnv) (k : ConLeche.BasisKind) (hk : k ≠ .quotK) :
+    checkBasisDecl fe k = (do installBasisDecls fe (← BasisKind.declsA k)) := by
+  have : (k == ConLeche.BasisKind.quotK) = false := by cases k <;> simp_all
+  simp only [checkBasisDecl, this]
+  rfl
+
 /-- `check_basis_decl_install` is `checkBasisDecl`'s tail past the `Eq`-basis
 requirement. -/
 theorem check_basis_decl_install_refines {pers st lst} {rf lf}
@@ -178,6 +248,15 @@ theorem check_basis_decl_install_refines {pers st lst} {rf lf}
       (do installBasisDecls lf (← BasisKind.declsA (ConRon.Refine.absBasisKind kind))) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_basis_decl_install_ls {pers st lst} {rf lf}
+    {kind : kernel.env.BasisKind}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.checker.check_basis_decl_install pers st rf kind) lst
+      (do installBasisDecls lf (← BasisKind.declsA (ConRon.Refine.absBasisKind kind))) :=
+  LS.ofSimRel₀ fun _ h => check_basis_decl_install_refines hrel hinv hfe.rel hfe.inv h
+
 /-- **`check_basis_decl` ⊑ `checkBasisDecl`** — the quotient block's types
 mention the pinned equality former, which is why it requires the `Eq` basis
 first. -/
@@ -188,7 +267,14 @@ theorem check_basis_decl_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_basis_decl pers st rf kind = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkBasisDecl lf (ConRon.Refine.absBasisKind kind)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  cases kind <;> rw [arena.checker.check_basis_decl.eq_def] <;> simp only
+  case QuotK =>
+    rw [ConRon.Refine.absBasisKind, checkBasisDecl_quotK]
+    have hvis := hfe.visibleBelow.symm
+    chk_lockstep
+  all_goals (rw [checkBasisDecl_ne _ _ (by simp [ConRon.Refine.absBasisKind])]; lockstep)
 
 open Lockstep in
 @[lockstep] theorem check_basis_decl_ls {pers st lst}
@@ -213,7 +299,11 @@ theorem check_quot_decl_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_quot_decl pers st rf k cv = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkQuotDeclSpec lf (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  cases k <;>
+    (simp only [arena.checker.check_quot_decl, checkQuotDeclSpec, ConRon.Refine.absQuotKind]
+     chk_lockstep)
 
 open Lockstep in
 @[lockstep] theorem check_quot_decl_ls {pers st lst}
@@ -282,7 +372,19 @@ theorem check_axiom_decl_rest_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_axiom_decl_rest st rf cv_a = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkAxiomDeclRestSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_axiom_decl_rest, checkAxiomDeclRestSpec]
+  chk_lockstep
+
+open Lockstep in
+@[lockstep] theorem check_axiom_decl_rest_ls {pers st lst} {rf lf}
+    {cv_a : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.checker.check_axiom_decl_rest st rf cv_a) lst
+      (checkAxiomDeclRestSpec lf (absIConstantVal cv_a)) :=
+  LS.ofSimRel₀ fun _ h => check_axiom_decl_rest_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `check_axiom_decl_of_reduce` — the `ofReduce*` arm. -/
 theorem check_axiom_decl_of_reduce_refines {pers st lst} {rf lf}
@@ -292,7 +394,19 @@ theorem check_axiom_decl_of_reduce_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_axiom_decl_of_reduce pers st rf cv_a = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkAxiomDeclOfReduceSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_axiom_decl_of_reduce, checkAxiomDeclOfReduceSpec]
+  chk_lockstep
+
+open Lockstep in
+@[lockstep] theorem check_axiom_decl_of_reduce_ls {pers st lst} {rf lf}
+    {cv_a : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.checker.check_axiom_decl_of_reduce pers st rf cv_a) lst
+      (checkAxiomDeclOfReduceSpec lf (absIConstantVal cv_a)) :=
+  LS.ofSimRel₀ fun _ h => check_axiom_decl_of_reduce_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `check_axiom_decl_trust` — the `Lean.trustCompiler` arm. -/
 theorem check_axiom_decl_trust_refines {pers st lst} {rf lf}
@@ -302,7 +416,19 @@ theorem check_axiom_decl_trust_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_axiom_decl_trust pers st rf cv_a = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkAxiomDeclTrustSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_axiom_decl_trust, checkAxiomDeclTrustSpec]
+  chk_lockstep
+
+open Lockstep in
+@[lockstep] theorem check_axiom_decl_trust_ls {pers st lst} {rf lf}
+    {cv_a : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.checker.check_axiom_decl_trust pers st rf cv_a) lst
+      (checkAxiomDeclTrustSpec lf (absIConstantVal cv_a)) :=
+  LS.ofSimRel₀ fun _ h => check_axiom_decl_trust_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `check_axiom_decl_std` — the axiom arm past `Quot.sound`: the common
 constant check, then the standard-axiom gate. -/
@@ -314,7 +440,11 @@ theorem check_axiom_decl_std_refines {pers st lst} {rf lf}
     SimRel₀ IFEnvRelI pers lst o
       (checkAxiomDeclStdSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_axiom_decl_std, checkAxiomDeclStdSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_axiom_decl_std_ls {pers st lst}
@@ -330,6 +460,24 @@ open Lockstep in
         (absIConstantVal cv)) :=
   LS.ofSimRel₀ fun _ h => check_axiom_decl_std_refines hrel hinv hfe.rel hfe.inv h
 
+@[lockstep_simp] theorem absICIL_length (v : alloc.vec.Vec arena.env.IConstantInfo) :
+    (absICIL v).length = v.val.length := by simp [absICIL]
+
+/-- `checkQuotSoundRecordSpec` in the Rust's arrangement: the length test, then
+the pinned record at slot 4. -/
+theorem checkQuotSoundRecordSpec_split (fe : IFEnv) (cv : IConstantVal) :
+    checkQuotSoundRecordSpec fe cv = (do
+      let blk ← BasisKind.decls ConLeche.BasisKind.quotK
+      if blk.length ≤ 4 then fail (.notImplemented "quotient soundness axiom mismatch")
+      else if ← IConstantInfo.canonEq (.axiomInfo cv) (blk.getD 4 default) then pure fe
+      else fail (.notImplemented "quotient soundness axiom mismatch")) := by
+  rw [checkQuotSoundRecordSpec]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro blk
+  by_cases h : blk.length ≤ 4
+  · rw [if_pos h, List.getElem?_eq_none h]
+  · rw [if_neg h, List.getElem?_eq_getElem (by omega), List.getD_eq_getElem _ _ (by omega)]
+
 /-- `check_quot_sound_record` — **`Quot.sound` is the pinned quotient BLOCK's
 own record**: the export writes it as an ordinary axiom record beside the four
 `#QUOT` ones, so it arrives at the axiom arm, is compared with the pin,
@@ -341,7 +489,10 @@ theorem check_quot_sound_record_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_quot_sound_record pers st rf cv = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkQuotSoundRecordSpec lf (absIConstantVal cv)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_quot_sound_record, checkQuotSoundRecordSpec_split]
+  chk_lockstep
 
 open Lockstep in
 @[lockstep] theorem check_quot_sound_record_ls {pers st lst}
@@ -623,12 +774,6 @@ theorem check_defn_pins_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_defn_pins, checkDefnPinsSpec]
-  -- The Rust's structural gate is a state bind right after the `contains`
-  -- test, so the tactic moves the Rust first and wraps the undecided twin
-  -- `if` as `if … >>= pure`; the test is the Rust's, decided here.
-  lockstep
-  rw [am_ite_bind, if_pos (by simpa [absNIdxLFrom, absNIdxL] using hc)]
-  simp only [bind_pure]
   lockstep
 
 open Lockstep in
