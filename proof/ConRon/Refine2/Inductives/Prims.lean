@@ -11,6 +11,7 @@ conversion is needed, by `attribute [lockstep]` where not — and adds the
 Rust-only specs the tier's zips need.  Nothing here restates an owner's lemma.
 -/
 import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.ExprOps.Mut
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
