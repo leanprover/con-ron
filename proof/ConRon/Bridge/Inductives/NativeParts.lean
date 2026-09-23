@@ -883,6 +883,469 @@ theorem nativeRecLpsOk_spec (st : EStore) (hwf : StoreWF st)
   | true => simpa using beq_nhandleList_eq hwf hlpsR hcons
   | false => simpa using beq_nhandleList_eq hwf hlpsR hlpsT
 
+/-! ### The recogniser's dispatch (task #97-P3-Ind round 6)
+
+`StructParts.lean`'s `structPartsCore?_run` shape: one inversion at `PStep`
+under `StateOK` + `PinsOK`, the record carried under a `CheckOK` hypothesis at
+the initial state (only `isProp` — `lvlEq?`'s verdict — needs it), feeding
+`nativeShape?_spec`, `nativeParts?_spec`'s shape half and `nativeParts?_isSome`. -/
+
+/-- con-leche: none — `sumSplit`'s constructor list survives an append. -/
+theorem denoteCtors3_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ (cs : List (IConstantVal × Nat × Nat)) (csP : List (ConstantVal × Nat × Nat)),
+      denoteCtors3 st cs = some csP → denoteCtors3 st' cs = some csP := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; exact h
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨cv, a, b⟩ := c
+    simp only [denoteCtors3] at h ⊢
+    cases h1 : Frontend.denoteCV st cv with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+      cases h2 : denoteCtors3 st cs with
+      | none => rw [h1, h2] at h; simp at h
+      | some xs =>
+        rw [h1, h2] at h
+        rw [denoteCV_ext h1 hx, ih xs h2]
+        exact h
+
+/-- con-leche: none — the shape record's constructor list, read off
+`sumSplit`'s. -/
+theorem denoteCtors3_map {st : EStore} :
+    ∀ (cs : List (IConstantVal × Nat × Nat)) (csP : List (ConstantVal × Nat × Nat)),
+      denoteCtors3 st cs = some csP →
+      denoteCtors st (cs.map fun c => (c.1, c.2.2)) =
+        some (csP.map fun c => (c.1, c.2.2)) := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors3, Option.some.injEq] at h; subst h; rfl
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨cv, a, b⟩ := c
+    simp only [denoteCtors3] at h
+    cases h1 : Frontend.denoteCV st cv with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+      cases h2 : denoteCtors3 st cs with
+      | none => rw [h1, h2] at h; simp at h
+      | some xs =>
+        rw [h1, h2] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.map_cons, denoteCtors, h1, ih xs h2]
+
+/-- con-leche: none — the rules' right-hand sides denote. -/
+theorem denoteRules_rhss {st : EStore} :
+    ∀ (rs : List IRecRule) (rsP : List RecRule),
+      Frontend.denoteRules st rs = some rsP →
+      Frontend.denoteEList st (rs.map (·.rhs)) = some (rsP.map (·.rhs)) := by
+  intro rs
+  induction rs with
+  | nil => intro rsP h; simp only [Frontend.denoteRules, Option.some.injEq] at h; subst h; rfl
+  | cons r rs ih =>
+    intro rsP h
+    simp only [Frontend.denoteRules] at h
+    cases h1 : Frontend.denoteRule st r with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+      cases h2 : Frontend.denoteRules st rs with
+      | none => rw [h1, h2] at h; simp at h
+      | some xs =>
+        rw [h1, h2] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.map_cons, Frontend.denoteEList, denoteRule_rhs h1, ih xs h2]
+
+/-- con-leche: none — the recogniser's per-constructor guard is a name-level
+guard. -/
+theorem ctors_all_eq {st : EStore} (hwf : StoreWF st) (nP : Nat)
+    {lps : List NIdx} {lpsP : List ConLeche.Name} {res : List NIdx}
+    {resP : List ConLeche.Name}
+    (hlps : Frontend.denoteNList st.ns lps = some lpsP)
+    (hres : Frontend.denoteNList st.ns res = some resP) :
+    ∀ (cs : List (IConstantVal × Nat × Nat)) (csP : List (ConstantVal × Nat × Nat)),
+      denoteCtors3 st cs = some csP →
+      (cs.all fun c => c.2.1 == nP && c.1.levelParams == lps &&
+          res.contains c.1.name == false) =
+        (csP.all fun c => c.2.1 == nP && c.1.levelParams == lpsP &&
+          resP.contains c.1.name == false) := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors3, Option.some.injEq] at h; subst h; rfl
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨cv, a, b⟩ := c
+    simp only [denoteCtors3] at h
+    cases h1 : Frontend.denoteCV st cv with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+      cases h2 : denoteCtors3 st cs with
+      | none => rw [h1, h2] at h; simp at h
+      | some xs =>
+        rw [h1, h2] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.all_cons, ih xs h2,
+          beq_nhandleList_eq hwf (denoteCV_lps h1) hlps,
+          denoteNList_contains hwf _ _ hres _ _ (denoteCV_name h1)]
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+— **the recogniser's run, inverted once**. -/
+theorem nativeShape?_run (nPd : Nat) (block : List IConstantInfo)
+    (blockP : List ConstantInfo) (s₀ s' : AState) (r : Option Arena.InductiveShape)
+    (hok : StateOK s₀) (hpin : PinsOK s₀)
+    (hb : Frontend.denoteCIList s₀.store block = some blockP)
+    (hrun : Arena.nativeShape? nPd block s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧
+      ROp (fun q st p => ∀ (μ : CheckMode) (env : Env) (fe : IFEnv),
+          CheckOK μ env fe s₀ → ShapeRel st p q)
+        (ConLeche.nativeShape? nPd blockP) s'.store r := by
+  unfold Arena.nativeShape? at hrun
+  split at hrun
+  case h_2 hne =>
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    show ConLeche.nativeShape? nPd blockP = none
+    unfold ConLeche.nativeShape?
+    split
+    · rename_i cvTP capsP rest
+      rcases block with _ | ⟨c, cs⟩
+      · simp [Frontend.denoteCIList] at hb
+      obtain ⟨x, xs, e, hc, -⟩ := denoteCIList_cons_eq hb
+      simp only [List.cons.injEq] at e; obtain ⟨rfl, rfl⟩ := e
+      obtain ⟨v, caps, rfl⟩ := denoteCI_ind_shape hc
+      exact absurd rfl (hne _ _ _)
+    · rfl
+  rename_i cvT caps rest
+  obtain ⟨x, restP, e, hc, hrest⟩ := denoteCIList_cons_eq hb
+  subst e
+  simp only [Frontend.denoteCI] at hc
+  cases hcvT : Frontend.denoteCV s₀.store cvT with
+  | none => rw [hcvT] at hc; simp at hc
+  | some cvTP =>
+  cases hcaps : Frontend.denoteCaps s₀.store caps with
+  | none => rw [hcvT, hcaps] at hc; simp at hc
+  | some capsP =>
+  rw [hcvT, hcaps] at hc
+  obtain rfl := (Option.some.inj hc).symm
+  have hT := denoteCV_name hcvT
+  have hlps := denoteCV_lps hcvT
+  have hTty := denoteCV_type hcvT
+  have hsplit := sumSplit_spec s₀.store rest restP hrest
+  cases hsp : Arena.sumSplit rest with
+  | none =>
+    rw [hsp] at hrun hsplit
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    show ConLeche.nativeShape? nPd _ = none
+    simp only [ConLeche.nativeShape?, show ConLeche.sumSplit restP = none from hsplit]
+  | some q =>
+  rw [hsp] at hrun hsplit
+  obtain ⟨qP, hqP, hrel⟩ := hsplit
+  obtain ⟨cs, cvR, mI, rP, rules⟩ := q
+  obtain ⟨csP, cvRP, mIP, rPP, rulesP⟩ := qP
+  obtain ⟨hcs, hcvR, hmI, hrP, hrules⟩ := hrel
+  simp only at hmI hrP hcs hcvR hrules
+  subst hmI hrP
+  have hR := denoteCV_name hcvR
+  have hRlps := denoteCV_lps hcvR
+  dsimp only at hrun
+  obtain ⟨cnt, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨p1, hcnt⟩ := nativeCounts?_spec nPd cvT cvTP cs csP mI rP s₀ s1 cnt hok
+    ⟨hcvT, hcs⟩ k1
+  have hcnt' : cnt = ConLeche.nativeCounts? nPd cvTP csP mI rP := hcnt
+  subst hcnt'
+  simp only [ConLeche.nativeShape?, hqP]
+  cases hcntP : ConLeche.nativeCounts? nPd cvTP csP mI rP with
+  | none =>
+    rw [hcntP] at hz1
+    obtain ⟨rfl, rfl⟩ := pureOk hz1
+    exact ⟨p1, rfl⟩
+  | some np =>
+  obtain ⟨nP, nIdx⟩ := np
+  rw [hcntP] at hz1
+  dsimp only
+  obtain ⟨reserved, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨p2, hres⟩ := reservedBasisNames_pstep p1.ok (hpin.mono p1.ext p1.pins) k2
+  have q2 : PStep s₀ s2 := p1.trans p2
+  have x2 := q2.ext
+  rw [denoteNList_contains q2.ok.wf _ _ hres _ _ (denoteN_ext hT x2),
+    denoteNList_contains q2.ok.wf _ _ hres _ _ (denoteN_ext hR x2),
+    ctors_all_eq q2.ok.wf nP (denoteNListE_ext x2 _ _ hlps) hres cs csP
+      (denoteCtors3_ext x2 _ _ hcs)] at hz2
+  split at hz2
+  case isFalse hc =>
+    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    refine ⟨q2, ?_⟩
+    show _ = none
+    rw [if_neg hc]
+  case isTrue hc =>
+  rw [if_pos hc]
+  generalize hsP : ConLeche.nativeShape?.match_1 (fun _ => Level)
+    (Expr.stripPis (nP + nIdx) cvTP.type) (fun _ s => s) (fun _ => Level.zero) = sP
+  obtain ⟨tq, s6, k6, hz6⟩ := bindOk hz2
+  obtain ⟨hs6, htq⟩ := stripPis_pstep q2.ok (denote_ext hTty q2.ext) k6
+  rw [hs6] at hz6
+  rcases tq with _ | ⟨tbs, tbody⟩
+  · have e : sP = .zero := by rw [← hsP, stripPis_none htq]
+    obtain ⟨y, s7, k7, hz7⟩ := bindOk hz6
+    obtain ⟨hs7, hy⟩ := zeroLevel_run (hpin.mono q2.ext q2.pins) k7
+    have q7 : PStep s₀ s7 := by rw [hs7]; exact q2
+    have hy7 : denoteL s7.store.ls y = some sP := by rw [hs7, e]; exact hy
+    obtain ⟨z, s8, k8, hz8⟩ := bindOk hz7
+    obtain ⟨hs8, hzl⟩ := zeroLevel_run (hpin.mono q7.ext q7.pins) k8
+    rw [hs8] at hz8
+    obtain ⟨v, s9, k9, hz9⟩ := bindOk hz8
+    have p9 := lvlEq?_pstep q7.ok k9
+    have q9 : PStep s₀ s9 := q7.trans p9
+    have hprop : ∀ (μ : CheckMode) (env : Env) (fe : IFEnv), CheckOK μ env fe s₀ →
+        v = Level.isEquiv sP .zero := by
+      intro μ env fe hc
+      have hcY := (q7.toCore hc).ok
+      obtain ⟨-, -, -, lu, lv, hlu, hlv, ha⟩ :=
+        AM.of_run (P := fun t => t = s7) rfl k9 (Core.lvlEq?_spec s7 y z hcY)
+      rw [hy7] at hlu; rw [hzl] at hlv
+      cases hlu; cases hlv; exact ha
+    have hY9 : denoteL s9.store.ls y = some sP := denoteL_ext hy7 p9.ext
+    have hctors := denoteCtors_ext q9.ext _ _ (denoteCtors3_map cs csP hcs)
+    have hrhss := denoteEList_ext q9.ext _ _ (denoteRules_rhss rules rulesP hrules)
+    cases hlp : cvR.levelParams with
+    | nil =>
+      have hlpP : cvRP.levelParams = [] := by
+        rw [hlp] at hRlps; simp [Frontend.denoteNList] at hRlps; exact hRlps
+      rw [hlp] at hz9
+      simp only [hlpP]
+      obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz9
+      obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+        (by intro c hc; simp [NNodeView.children] at hc) kA
+      have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+      obtain ⟨rfl, rfl⟩ := pureOk hzA
+      refine ⟨q9.trans pA, _, rfl, fun μ env fe hc => ?_⟩
+      exact { cvT := denoteCV_ext hcvT xA, ctors := denoteCtors_ext pA.ext _ _ hctors,
+              nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR xA,
+              elim := by rw [hanon]; rfl, resSort := denoteL_ext hY9 pA.ext,
+              rhss := denoteEList_ext pA.ext _ _ hrhss, large := rfl,
+              isProp := by rw [hprop μ env fe hc] }
+    | cons elim relps =>
+      rw [hlp] at hRlps
+      simp only [Frontend.denoteNList] at hRlps
+      cases helim : denoteN s₀.store.ns elim with
+      | none => rw [helim] at hRlps; simp at hRlps
+      | some elimP =>
+      cases hrel : Frontend.denoteNList s₀.store.ns relps with
+      | none => rw [helim, hrel] at hRlps; simp at hRlps
+      | some relpsP =>
+      rw [helim, hrel] at hRlps
+      have hlpP : cvRP.levelParams = elimP :: relpsP := (Option.some.inj hRlps).symm
+      have g8 : (relps == cvT.levelParams) = (relpsP == cvTP.levelParams) :=
+        beq_nhandleList_eq q9.ok.wf (denoteNListE_ext q9.ext _ _ hrel)
+          (denoteNListE_ext q9.ext _ _ hlps)
+      have g9 : cvT.levelParams.contains elim = cvTP.levelParams.contains elimP :=
+        denoteNList_contains q9.ok.wf _ _ (denoteNListE_ext q9.ext _ _ hlps) _ _
+          (denoteN_ext helim q9.ext)
+      rw [hlp] at hz9
+      dsimp only at hz9
+      simp only [hlpP]
+      rw [g8, g9] at hz9
+      by_cases hc2 : (relpsP == cvTP.levelParams && !cvTP.levelParams.contains elimP) = true
+      · rw [if_pos hc2] at hz9 ⊢
+        obtain ⟨rfl, rfl⟩ := pureOk hz9
+        refine ⟨q9, _, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT q9.ext, ctors := hctors,
+                nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR q9.ext,
+                elim := denoteN_ext helim q9.ext, resSort := hY9,
+                rhss := hrhss, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+      · rw [if_neg hc2] at hz9 ⊢
+        obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz9
+        obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+          (by intro c hc; simp [NNodeView.children] at hc) kA
+        have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+        obtain ⟨rfl, rfl⟩ := pureOk hzA
+        refine ⟨q9.trans pA, _, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT xA, ctors := denoteCtors_ext pA.ext _ _ hctors,
+                nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR xA,
+                elim := by rw [hanon]; rfl, resSort := denoteL_ext hY9 pA.ext,
+                rhss := denoteEList_ext pA.ext _ _ hrhss, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+
+  obtain ⟨txs, tbodyP, hspt, -, htbody⟩ := denoteBP_someB htq
+  obtain ⟨tv, s7, k7, hz7⟩ := bindOk hz6
+  obtain ⟨hs7, htv⟩ := view_run k7
+  rw [hs7] at hz7
+  have htbv : denoteEView s2.store tv = some tbodyP := by
+    rw [← denoteE_view_eq q2.ok.wf htv]; exact htbody
+  split at hz7
+  case h_1 u =>
+    obtain ⟨l, rfl, hl⟩ := denote_sort_inv q2.ok.wf htv htbody
+    have e : sP = l := by rw [← hsP, hspt]
+    obtain ⟨y, sy, ky, hz8⟩ := bindOk hz7
+    obtain ⟨hyu, hsy⟩ := pureOk ky
+    rw [hsy] at hz8
+    have hyl : denoteL s2.store.ls y = some sP := by rw [hyu, e]; exact hl
+    obtain ⟨z, s8, k8, hz8⟩ := bindOk hz8
+    obtain ⟨hs8, hzl⟩ := zeroLevel_run (hpin.mono q2.ext q2.pins) k8
+    rw [hs8] at hz8
+    obtain ⟨v, s9, k9, hz9⟩ := bindOk hz8
+    have p9 := lvlEq?_pstep q2.ok k9
+    have q9 : PStep s₀ s9 := q2.trans p9
+    have hprop : ∀ (μ : CheckMode) (env : Env) (fe : IFEnv), CheckOK μ env fe s₀ →
+        v = Level.isEquiv sP .zero := by
+      intro μ env fe hc
+      have hcY := (q2.toCore hc).ok
+      obtain ⟨-, -, -, lu, lv, hlu, hlv, ha⟩ :=
+        AM.of_run (P := fun t => t = s2) rfl k9 (Core.lvlEq?_spec s2 y z hcY)
+      rw [hyl] at hlu; rw [hzl] at hlv
+      cases hlu; cases hlv; exact ha
+    have hY9 : denoteL s9.store.ls y = some sP := denoteL_ext hyl p9.ext
+    have hctors := denoteCtors_ext q9.ext _ _ (denoteCtors3_map cs csP hcs)
+    have hrhss := denoteEList_ext q9.ext _ _ (denoteRules_rhss rules rulesP hrules)
+    cases hlp : cvR.levelParams with
+    | nil =>
+      have hlpP : cvRP.levelParams = [] := by
+        rw [hlp] at hRlps; simp [Frontend.denoteNList] at hRlps; exact hRlps
+      rw [hlp] at hz9
+      simp only [hlpP]
+      obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz9
+      obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+        (by intro c hc; simp [NNodeView.children] at hc) kA
+      have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+      obtain ⟨rfl, rfl⟩ := pureOk hzA
+      refine ⟨q9.trans pA, _, rfl, fun μ env fe hc => ?_⟩
+      exact { cvT := denoteCV_ext hcvT xA, ctors := denoteCtors_ext pA.ext _ _ hctors,
+              nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR xA,
+              elim := by rw [hanon]; rfl, resSort := denoteL_ext hY9 pA.ext,
+              rhss := denoteEList_ext pA.ext _ _ hrhss, large := rfl,
+              isProp := by rw [hprop μ env fe hc] }
+    | cons elim relps =>
+      rw [hlp] at hRlps
+      simp only [Frontend.denoteNList] at hRlps
+      cases helim : denoteN s₀.store.ns elim with
+      | none => rw [helim] at hRlps; simp at hRlps
+      | some elimP =>
+      cases hrel : Frontend.denoteNList s₀.store.ns relps with
+      | none => rw [helim, hrel] at hRlps; simp at hRlps
+      | some relpsP =>
+      rw [helim, hrel] at hRlps
+      have hlpP : cvRP.levelParams = elimP :: relpsP := (Option.some.inj hRlps).symm
+      have g8 : (relps == cvT.levelParams) = (relpsP == cvTP.levelParams) :=
+        beq_nhandleList_eq q9.ok.wf (denoteNListE_ext q9.ext _ _ hrel)
+          (denoteNListE_ext q9.ext _ _ hlps)
+      have g9 : cvT.levelParams.contains elim = cvTP.levelParams.contains elimP :=
+        denoteNList_contains q9.ok.wf _ _ (denoteNListE_ext q9.ext _ _ hlps) _ _
+          (denoteN_ext helim q9.ext)
+      rw [hlp] at hz9
+      dsimp only at hz9
+      simp only [hlpP]
+      rw [g8, g9] at hz9
+      by_cases hc2 : (relpsP == cvTP.levelParams && !cvTP.levelParams.contains elimP) = true
+      · rw [if_pos hc2] at hz9 ⊢
+        obtain ⟨rfl, rfl⟩ := pureOk hz9
+        refine ⟨q9, _, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT q9.ext, ctors := hctors,
+                nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR q9.ext,
+                elim := denoteN_ext helim q9.ext, resSort := hY9,
+                rhss := hrhss, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+      · rw [if_neg hc2] at hz9 ⊢
+        obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz9
+        obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+          (by intro c hc; simp [NNodeView.children] at hc) kA
+        have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+        obtain ⟨rfl, rfl⟩ := pureOk hzA
+        refine ⟨q9.trans pA, _, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT xA, ctors := denoteCtors_ext pA.ext _ _ hctors,
+                nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR xA,
+                elim := by rw [hanon]; rfl, resSort := denoteL_ext hY9 pA.ext,
+                rhss := denoteEList_ext pA.ext _ _ hrhss, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+
+  case h_2 hne =>
+    have hns := ExprOps.denoteEView_not_sort htbv hne
+    have e : sP = .zero := by
+      rw [← hsP, hspt]
+      cases tbodyP <;> first | rfl | exact absurd rfl (hns _)
+    obtain ⟨y, sy, ky, hz8⟩ := bindOk hz7
+    obtain ⟨hsy, hy⟩ := zeroLevel_run (hpin.mono q2.ext q2.pins) ky
+    have qy : PStep s₀ sy := by rw [hsy]; exact q2
+    have hyy : denoteL sy.store.ls y = some sP := by rw [hsy, e]; exact hy
+    obtain ⟨z, s8, k8, hz8⟩ := bindOk hz8
+    obtain ⟨hs8, hzl⟩ := zeroLevel_run (hpin.mono qy.ext qy.pins) k8
+    rw [hs8] at hz8
+    obtain ⟨v, s9, k9, hz9⟩ := bindOk hz8
+    have p9 := lvlEq?_pstep qy.ok k9
+    have q9 : PStep s₀ s9 := qy.trans p9
+    have hprop : ∀ (μ : CheckMode) (env : Env) (fe : IFEnv), CheckOK μ env fe s₀ →
+        v = Level.isEquiv sP .zero := by
+      intro μ env fe hc
+      have hcY := (qy.toCore hc).ok
+      obtain ⟨-, -, -, lu, lv, hlu, hlv, ha⟩ :=
+        AM.of_run (P := fun t => t = sy) rfl k9 (Core.lvlEq?_spec sy y z hcY)
+      rw [hyy] at hlu; rw [hzl] at hlv
+      cases hlu; cases hlv; exact ha
+    have hY9 : denoteL s9.store.ls y = some sP := denoteL_ext hyy p9.ext
+    have hctors := denoteCtors_ext q9.ext _ _ (denoteCtors3_map cs csP hcs)
+    have hrhss := denoteEList_ext q9.ext _ _ (denoteRules_rhss rules rulesP hrules)
+    cases hlp : cvR.levelParams with
+    | nil =>
+      have hlpP : cvRP.levelParams = [] := by
+        rw [hlp] at hRlps; simp [Frontend.denoteNList] at hRlps; exact hRlps
+      rw [hlp] at hz9
+      simp only [hlpP]
+      obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz9
+      obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+        (by intro c hc; simp [NNodeView.children] at hc) kA
+      have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+      obtain ⟨rfl, rfl⟩ := pureOk hzA
+      refine ⟨q9.trans pA, _, rfl, fun μ env fe hc => ?_⟩
+      exact { cvT := denoteCV_ext hcvT xA, ctors := denoteCtors_ext pA.ext _ _ hctors,
+              nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR xA,
+              elim := by rw [hanon]; rfl, resSort := denoteL_ext hY9 pA.ext,
+              rhss := denoteEList_ext pA.ext _ _ hrhss, large := rfl,
+              isProp := by rw [hprop μ env fe hc] }
+    | cons elim relps =>
+      rw [hlp] at hRlps
+      simp only [Frontend.denoteNList] at hRlps
+      cases helim : denoteN s₀.store.ns elim with
+      | none => rw [helim] at hRlps; simp at hRlps
+      | some elimP =>
+      cases hrel : Frontend.denoteNList s₀.store.ns relps with
+      | none => rw [helim, hrel] at hRlps; simp at hRlps
+      | some relpsP =>
+      rw [helim, hrel] at hRlps
+      have hlpP : cvRP.levelParams = elimP :: relpsP := (Option.some.inj hRlps).symm
+      have g8 : (relps == cvT.levelParams) = (relpsP == cvTP.levelParams) :=
+        beq_nhandleList_eq q9.ok.wf (denoteNListE_ext q9.ext _ _ hrel)
+          (denoteNListE_ext q9.ext _ _ hlps)
+      have g9 : cvT.levelParams.contains elim = cvTP.levelParams.contains elimP :=
+        denoteNList_contains q9.ok.wf _ _ (denoteNListE_ext q9.ext _ _ hlps) _ _
+          (denoteN_ext helim q9.ext)
+      rw [hlp] at hz9
+      dsimp only at hz9
+      simp only [hlpP]
+      rw [g8, g9] at hz9
+      by_cases hc2 : (relpsP == cvTP.levelParams && !cvTP.levelParams.contains elimP) = true
+      · rw [if_pos hc2] at hz9 ⊢
+        obtain ⟨rfl, rfl⟩ := pureOk hz9
+        refine ⟨q9, _, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT q9.ext, ctors := hctors,
+                nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR q9.ext,
+                elim := denoteN_ext helim q9.ext, resSort := hY9,
+                rhss := hrhss, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+      · rw [if_neg hc2] at hz9 ⊢
+        obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz9
+        obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+          (by intro c hc; simp [NNodeView.children] at hc) kA
+        have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+        obtain ⟨rfl, rfl⟩ := pureOk hzA
+        refine ⟨q9.trans pA, _, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT xA, ctors := denoteCtors_ext pA.ext _ _ hctors,
+                nP := rfl, nIdx := rfl, cvR := denoteCV_ext hcvR xA,
+                elim := by rw [hanon]; rfl, resSort := denoteL_ext hY9 pA.ext,
+                rhss := denoteEList_ext pA.ext _ _ hrhss, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+
+
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
 Read a block into the shape record, or refuse it.  **Two-sided**: the dispatch
 reads it.
@@ -894,15 +1357,49 @@ FRAME provable at `StateOK` and left the grade alone: `RShape` carries
 `ShapeRel.isProp`, so the ANSWER still needs `LvlEqCacheOK` and `StateOK` does
 not carry it.
 
-`sorry`: `sumSplit_spec` (closed), `nativeCounts?_spec`, `nativeRecPinOk_spec`,
-`nativeRecLpsOk_spec`, `lvlEq?_spec` (closed) and `internNNode_spec` at
-`T.str "rec"`. -/
+**CLOSED** (task #97-P3-Ind round 6): `nativeShape?_run` at the `CheckOK` it
+was handed. -/
 theorem nativeShape?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
     (block : List IConstantInfo) (blockP : List ConstantInfo) :
     CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.nativeShape? nPd block)
       (ROp RShape (ConLeche.nativeShape? nPd blockP)) := by
-  sorry
+  intro s₀ s' r hok hb hrun
+  obtain ⟨hstep, hrel⟩ :=
+    nativeShape?_run nPd block blockP s₀ s' r hok.state hok.pins hb hrun
+  exact ⟨hstep.toCore hok, hrel.mono (fun _ _ h => h μ env fe hok)⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:631-652 nativeParts?
+— the shared inversion of `nativeParts?_spec` and `nativeParts?_isSome`:
+`nativeShape?_run`, the placeholder kinds, and `nativeRecPinOk_spec` at the
+final store. -/
+theorem nativeParts?_run (nPd : Nat) (block : List IConstantInfo)
+    (blockP : List ConstantInfo) (s₀ s' : AState) (r : Option Arena.NativeParts)
+    (hok : StateOK s₀) (hpin : PinsOK s₀)
+    (hb : Frontend.denoteCIList s₀.store block = some blockP)
+    (hrun : Arena.nativeParts? nPd block s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧
+      ROp (fun q st p => ∀ (μ : CheckMode) (env : Env) (fe : IFEnv),
+          CheckOK μ env fe s₀ → PartsRel st p q)
+        (ConLeche.nativeParts? nPd blockP) s'.store r := by
+  simp only [Arena.nativeParts?] at hrun
+  obtain ⟨o, s1, k1, hz⟩ := bindOk hrun
+  obtain ⟨p1, hrel⟩ := nativeShape?_run nPd block blockP s₀ s1 o hok hpin hb k1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk hz
+    refine ⟨p1, ?_⟩
+    show ConLeche.nativeParts? nPd blockP = none
+    simp only [ConLeche.nativeParts?,
+      show ConLeche.nativeShape? nPd blockP = none from hrel, Option.map_none]
+  | some p =>
+    obtain ⟨q, hq, hpq⟩ := hrel
+    obtain ⟨rfl, rfl⟩ := pureOk hz
+    refine ⟨p1, _, by rw [ConLeche.nativeParts?, hq]; rfl, ?_⟩
+    intro μ env fe hc
+    have hs := hpq μ env fe hc
+    exact ⟨hs, rfl, nativeRecPinOk_spec _ p1.ok.wf p q block blockP hs
+      (denoteCIList_ext p1.ext _ _ hb)⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:631-652 nativeParts?
 **THE DISPATCH'S RECOGNISER** — `checkIndDecl` routes on this and on nothing
@@ -915,14 +1412,18 @@ tier where the defect was load-bearing rather than merely stated.  Task
 #97-P3-Frame left it at `CSpec` for the reason `nativeShape?_spec` gives: the
 answer, not the frame, is what needs the cache invariant.
 
-`sorry`: `nativeShape?_spec`, `recCtorKinds_spec` at each constructor and
-`withKinds_spec` (closed above). -/
+**CLOSED** (task #97-P3-Ind round 6): `nativeParts?_run`.  The kinds are the
+placeholder `[]` on both sides (task #210 Part D: the install fills them), so
+`recCtorKinds` is not on this statement's path at all. -/
 theorem nativeParts?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
     (block : List IConstantInfo) (blockP : List ConstantInfo) :
     CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.nativeParts? nPd block)
       (ROp RParts (ConLeche.nativeParts? nPd blockP)) := by
-  sorry
+  intro s₀ s' r hok hb hrun
+  obtain ⟨hstep, hrel⟩ :=
+    nativeParts?_run nPd block blockP s₀ s' r hok.state hok.pins hb hrun
+  exact ⟨hstep.toCore hok, hrel.mono (fun _ _ h => h μ env fe hok)⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean nativeParts? —
 **the recogniser's `isSome` half at the PURE grade**, the companion of
@@ -938,15 +1439,15 @@ cannot consume `nativeParts?_spec`'s `CSpec` — whose `RParts` carries
 names, so `PinsOK` is the licence — task #97-P3-Ind round 3's finding at
 `structProjGuards_spec`, applied here.
 
-`sorry`: `nativeShape?_spec`'s dependencies MINUS `lvlEq?` —
-`nativeCounts?_spec`, `recFamOk_spec`, `recPositivity_spec`,
-`recCtorKinds_spec` and the handle comparisons through
-`denoteN_inj`/`denoteE_inj`. -/
+**CLOSED** (task #97-P3-Ind round 6): `nativeParts?_run` through
+`ROp.isSome`. -/
 theorem nativeParts?_isSome (nPd : Nat) (block : List IConstantInfo)
     (blockP : List ConstantInfo) :
     PSpecP (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.nativeParts? nPd block)
       (fun _ r => r.isSome = (ConLeche.nativeParts? nPd blockP).isSome) := by
-  sorry
+  intro s₀ s' r hok hpin hb hrun
+  obtain ⟨hstep, hrel⟩ := nativeParts?_run nPd block blockP s₀ s' r hok hpin hb hrun
+  exact ⟨hstep, hrel.isSome⟩
 
 end ConRon.Bridge.Inductives
