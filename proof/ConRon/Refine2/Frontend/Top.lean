@@ -276,6 +276,103 @@ theorem builtin_prelude_e_refines {G : Type} {inst : frontend.types.Modeller G}
     (h : frontend.prelude.builtin_prelude_e inst pers m rst = ok o) :
     SimStream absPreludeIx pers lst o (builtinPreludeE lmd) := by sorry
 
+/-- `usize as u64`: a widening, so the value is kept. -/
+theorem cast_u64_usize {i : Std.Usize} {r : Std.U64}
+    (h : lift (UScalar.cast .U64 i) = ok r) : r.val = i.val := by
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have := i.hBounds
+  simp only [UScalarTy.numBits] at this ⊢
+  cases System.Platform.numBits_eq with
+  | inl h => rw [h] at this; omega
+  | inr h => rw [h] at this; omega
+
+/-! ## The preparation (moved here from `Prepare.lean`, task #97-P5-Front)
+
+`prepare_d` runs the hoist and `export_c::sat_sub`, so its refinement sits
+above both. -/
+
+/-- **`prepare::prepare_d` refines `prepareD`**
+(`Arena/Frontend/Prepare.lean:128-131`) — one of the tier's named
+deliverables.  Composed from `front_of_refines`, `prepared_stream_refines`,
+`hoist_nat_op_ground_refines` and `sat_sub_refines`. -/
+theorem prepare_d_refines {pers rst lst pre ds o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (h : frontend.prepare.prepare_d pers rst pre ds = ok o) :
+    Sim absPrepared (fun _ => True) pers lst o
+      (prepareD (absPreludeIx pre) (absIDeclArr ds)) := by
+  rw [frontend.prepare.prepare_d] at h
+  obtain ⟨⟨r, e⟩, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hF := front_of_refines hrel hinv hf
+  simp only [Sim] at hF ⊢
+  simp only [prepareD, absPreludeIx, am_run_bind']
+  cases r with
+  | Err e1 =>
+    have ho := Result.ok_injective h; subst ho
+    exact AErrSim.bind hF _
+  | Ok v =>
+    obtain ⟨v1, v2⟩ := v
+    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hwf1⟩ := hF
+    rw [hx1]
+    simp only at h
+    obtain ⟨all, hall, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hs := prepared_stream_refines hwf1.1 hall
+    obtain ⟨⟨r1, st1⟩, hh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hH := hoist_nat_op_ground_refines hrel1 hinv1 hh
+    simp only [Sim] at hH
+    have hfr : (absPlan pre.decls ds (v1, v2)).1 ++ (absPlan pre.decls ds (v1, v2)).2
+        = absIDeclArr all := by rw [hs]; rfl
+    simp only [except_ok_bind]
+    rw [hfr]
+    cases r1 with
+    | Err e2 =>
+      have ho := Result.ok_injective h; subst ho
+      exact AErrSim.bind hH _
+    | Ok hv =>
+      obtain ⟨v3, v4⟩ := hv
+      obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hH
+      rw [hx2]
+      try simp only at h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨syn, hsyn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ho := Result.ok_injective h; subst ho
+      have hsv := sat_sub_refines hsyn
+      refine ⟨lst2, ?_, hrel2, hinv2, Ext.trans hext1 hext2, trivial⟩
+      simp only [except_ok_bind, absPrepared]
+      have e1 := cast_u64_usize hi1
+      have e2 := cast_u64_usize hi2
+      rw [hsv, absU, absU, e1, e2]
+      simp [absIDeclArr]
+      rfl
+
+/-- **`prepare::prepare_prelude` refines `preparePrelude`**
+(`Arena/Frontend/Prepare.lean:138-140`) — the second half of what the driver
+runs after the parse, and what `Refine2/Checker/Top.lean`'s
+`install_then_check_refines` is handed. -/
+theorem prepare_prelude_refines {pers rst lst pre ds o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (h : frontend.prepare.prepare_prelude pers rst pre ds = ok o) :
+    Sim absIDeclArr (fun _ => True) pers lst o
+      (preparePrelude (absPreludeIx pre) (absIDeclArr ds)) := by
+  rw [frontend.prepare.prepare_prelude] at h
+  obtain ⟨⟨r, st1⟩, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hD := prepare_d_refines hrel hinv hd
+  simp only [Sim] at hD ⊢
+  simp only [preparePrelude, am_run_bind']
+  cases r with
+  | Err e =>
+    have ho := Result.ok_injective h; subst ho
+    exact AErrSim.bind hD _
+  | Ok p =>
+    have ho := Result.ok_injective h; subst ho
+    obtain ⟨lst', hx, hrel', hinv', hext', -⟩ := hD
+    rw [hx]
+    exact ⟨lst', rfl, hrel', hinv', hext', trivial⟩
+
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.Frontend.size_error_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/

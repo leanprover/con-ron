@@ -524,7 +524,44 @@ theorem SimDV.of_bind {γ : Type} {pers : arena.store.PersTier} {lst : AState}
 `Refine2/Checker/Top.lean`'s `SimFold` at the parse's own error pair.  The
 kind is mirrored and the position is real content and is compared; the state
 is NOT compared on the error arm, and must not be — the twin's `chunkStep`
-hands back whatever state the failing line left. -/
+hands back whatever state the failing line left.
+
+**The error arm has TWO twin shapes** (task #97-P5-Front, finding F1).  The
+port folds every failure of a line into the pair: `line_err_to_check` sends a
+`LineErr::Err e` to `(e, line)` exactly as it sends a verdict, and
+`parse_bytes`/`parse_chunks` send a `state_d_init` failure to `(e, 0)`.  The
+twin does not: a `fail` inside `applyLine` (an unknown index, a dangling
+handle, a quotient kind it does not know) or inside `StateD.init` is an `AM`
+THROW, which no `match ← …` of `feedChunk`/`parseBytes` catches, so the
+twin's run is `.error le` with no position at all.  Only the verdict arm and
+the scanner's own errors come back as the twin's `.ok (.error (le, n))`.  The
+arm therefore claims *the twin fails too, at the same kind — as a value at the
+same position, or as a throw*.  The success arm, which is the one the
+composition reads, is unchanged. -/
+/-- **What a port error PAIR claims about the twin's run**: the twin fails
+too, at the same kind — either as an error VALUE at the same position, or as
+an `AM` throw (the module note's finding F1).  A `Native` claims nothing. -/
+def StreamErrSim {γ : Type} (p : kernel.core_types.CheckError × Std.U64)
+    (x : Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)) :
+    Prop :=
+  ∀ k, absAErrKind p.1 = some k →
+    (∃ le lst', x = .ok (.error (le, absU p.2), lst') ∧ lAErrKind le = some k) ∨
+    (∃ le, x = .error le ∧ lAErrKind le = some k)
+
+theorem StreamErrSim.native {γ : Type} {n : Std.U64} (m)
+    {x : Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)} :
+    StreamErrSim (.Native m, n) x := by
+  intro k hk; simp at hk
+
+/-- A throw, carried: the port's `(e, n)` for an `AErrSim e` twin failure. -/
+theorem StreamErrSim.of_throw {γ δ : Type} {e : kernel.core_types.CheckError}
+    {n : Std.U64} {x : Except Arena.CheckError δ}
+    {f : δ → Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)}
+    (h : AErrSim e x) : StreamErrSim (e, n) (x >>= f) := by
+  intro k hk
+  obtain ⟨le, hx, hle⟩ := h k hk
+  exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+
 def SimStreamRel {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
     (lst : AState)
     (o : core.result.Result α (kernel.core_types.CheckError × Std.U64) ×
@@ -533,9 +570,7 @@ def SimStreamRel {α β : Type} (R : α → β → Prop) (pers : arena.store.Per
   match o.1 with
   | .Ok r => ∃ v lst', x.run lst = .ok (.ok v, lst') ∧ R r v ∧
       AStateRel pers o.2 lst' ∧ AStateInv pers o.2 ∧ Ext lst.store lst'.store
-  | .Err p => ∀ k, absAErrKind p.1 = some k →
-      ∃ le lst', x.run lst = .ok (.error (le, absU p.2), lst') ∧
-        lAErrKind le = some k
+  | .Err p => StreamErrSim p (x.run lst)
 
 /-- The common case: the result abstracts by a FUNCTION. -/
 abbrev SimStream {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
@@ -556,8 +591,8 @@ theorem SimStreamRel.native {α β : Type} {R : α → β → Prop}
     {pers : arena.store.PersTier}
     {lst : AState} {rst' : arena.monad.AState} {n : Std.U64} (m)
     {x : AM (Except (Arena.CheckError × Nat) β)} :
-    SimStreamRel R pers lst (.Err (.Native m, n), rst') x := by
-  intro k hk; simp at hk
+    SimStreamRel R pers lst (.Err (.Native m, n), rst') x :=
+  StreamErrSim.native m
 
 /-! ## The `StateD`-carrying variant of the stream shape
 
@@ -571,9 +606,7 @@ def SimStreamD {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst
   | .Ok r => ∃ lsd' lst', x.run lst = .ok (.ok (lsd', A r), lst') ∧
       StateDRel o.2.2 lsd' ∧ AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧
       Ext lst.store lst'.store
-  | .Err p => ∀ k, absAErrKind p.1 = some k →
-      ∃ le lst', x.run lst = .ok (.error (le, absU p.2), lst') ∧
-        lAErrKind le = some k
+  | .Err p => StreamErrSim p (x.run lst)
 
 /-! ## The modeller seam (DESIGN §8.2's `Modeller`)
 

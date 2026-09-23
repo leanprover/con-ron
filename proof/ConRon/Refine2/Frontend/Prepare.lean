@@ -56,50 +56,123 @@ attribute [simp] absPreludeIx absPrepared
 
 /-! ## The twin-side transcription of the port's plan
 
-Four definitions and one equation.  Read them against
-`Arena/Frontend/Prepare.lean:77-101` (`pick`, `frontOf`). -/
+Read against `Arena/Frontend/Prepare.lean:77-101` (`pick`, `frontOf`).  The
+transcriptions are list recursions (task #97-P5-Front): `pickL` is "the first
+unmasked record the predicate holds of, or the length", `restL` is "the
+unmasked records, in order", `frontL` is "slot `j` is the stream's own copy
+where the plan found one, the prelude's own where it did not".  The one fact
+that ties them to the twin's erase-and-recurse is `pick_preparedRest` below:
+*erasing the first hit from the unmasked records is masking it*. -/
+
+/-- The unmasked records of a stream, in order: `prepared_rest`'s meaning. -/
+def restL : List IDeclaration → List Bool → List IDeclaration
+  | [], _ => []
+  | d :: ds, m => if m.headD false then restL ds m.tail else d :: restL ds m.tail
+
+/-- The index of the first unmasked record `p` holds of, or the length:
+`pick_idx`'s meaning. -/
+def pickL (p : IDeclaration → Bool) : List IDeclaration → List Bool → Nat
+  | [], _ => 0
+  | d :: ds, m => if !m.headD false && p d then 0 else pickL p ds m.tail + 1
+
+/-- Slot by slot, the front: `prepared_front`'s meaning, from slot `j`. -/
+def frontL (ps ds : Array IDeclaration) : List Nat → Nat → List IDeclaration
+  | [], _ => []
+  | k :: ks, j => ds[k]?.getD (ps.getD j default) :: frontL ps ds ks (j + 1)
 
 /-- The twin-side reading of `prepare::pick_idx`: the index of the first
-record of `ds` that is not masked and declares `n`, or `ds.length`. -/
+record of `ds` that is not masked and declares `n`, or `ds.size`. -/
 def pickIdx (n : NIdx) (ds : Array IDeclaration) (picked : List Bool) : Nat :=
-  let rec go (i : Nat) : Nat :=
-    if h : i < ds.size then
-      if picked.getD i false = false && declares n ds[i] then i
-      else go (i + 1)
-    else ds.size
-  termination_by ds.size - i
-  decreasing_by omega
-  go 0
+  pickL (declares n) ds.toList picked
 
-/-- The twin-side reading of `prepare::prepared_front`: slot `j` is the
-stream's own copy where the plan found one, the prelude's own where it did
-not. -/
+/-- The twin-side reading of `prepare::prepared_front`. -/
 def preparedFront (ps ds : Array IDeclaration) (picks : List Nat) :
     Array IDeclaration :=
-  (picks.zipIdx.map fun (k, j) =>
-    if h : k < ds.size then ds[k] else ps.getD j default).toArray
+  (frontL ps ds picks 0).toArray
 
-/-- The twin-side reading of `prepare::prepared_rest`: the stream's records
-the mask does not carry, in the stream's order. -/
+/-- The twin-side reading of `prepare::prepared_rest`. -/
 def preparedRest (ds : Array IDeclaration) (picked : List Bool) :
     Array IDeclaration :=
-  (ds.toList.zipIdx.filterMap fun (d, i) =>
-    if picked.getD i false then none else some d).toArray
+  (restL ds.toList picked).toArray
 
 /-- The twin-side reading of `prepare::prepared_stream`. -/
 def preparedStream (ps ds : Array IDeclaration) (picks : List Nat)
     (picked : List Bool) : Array IDeclaration :=
   preparedFront ps ds picks ++ preparedRest ds picked
 
-/-- **The file's one real obligation**: the port's plan-and-mask is the
-twin's erase-and-recurse.  `RefineOld/Frontend/PrepareR.lean`'s
-`front_of_refines` is this statement for the `Expr`-tree port. -/
-theorem preparedStream_eq_frontOf {ps ds : Array IDeclaration}
-    {picks : List Nat} {picked : List Bool} {acc : Array IDeclaration}
-    {lst : AState} {out : Array IDeclaration × Array IDeclaration} {lst' : AState}
-    (h : (frontOf acc ps.toList ds).run lst = .ok (out, lst')) :
-    preparedStream ps ds picks picked = acc ++ out.1 ++ out.2 := by
-  sorry
+/-! ### The list facts -/
+
+theorem restL_pick (p : IDeclaration → Bool) :
+    ∀ (L : List IDeclaration) (M : List Bool), M.length = L.length →
+      (restL L M)[(restL L M).findIdx p]? = L[pickL p L M]? ∧
+      (restL L M).eraseIdx ((restL L M).findIdx p) =
+        restL L (M.set (pickL p L M) true)
+  | [], M, _ => by simp [restL, pickL]
+  | d :: L, [], h => by simp at h
+  | d :: L, m :: M, h => by
+    have hl : M.length = L.length := by simpa using h
+    obtain ⟨ih1, ih2⟩ := restL_pick p L M hl
+    cases m with
+    | true =>
+      simp only [restL, pickL, List.headD_cons, List.tail_cons, if_true, Bool.not_true,
+        Bool.false_and, Bool.false_eq_true, if_false, List.set_cons_succ]
+      exact ⟨by simpa using ih1, ih2⟩
+    | false =>
+      by_cases hp : p d = true
+      · simp [restL, pickL, hp, List.findIdx_cons]
+      · have hp' : p d = false := by simpa using hp
+        simp only [restL, pickL, List.headD_cons, List.tail_cons, Bool.false_eq_true,
+          if_false, Bool.not_false, Bool.true_and, hp', List.findIdx_cons, cond_false,
+          List.getElem?_cons_succ, List.set_cons_succ, List.eraseIdx_cons_succ]
+        exact ⟨ih1, by rw [ih2]⟩
+
+theorem restL_none :
+    ∀ (L : List IDeclaration) (k : Nat), k = L.length →
+      restL L (List.replicate k false) = L
+  | [], _, _ => by simp [restL]
+  | d :: L, k, hk => by
+    subst hk
+    simp only [List.length_cons, List.replicate_succ, restL, List.headD_cons,
+      Bool.false_eq_true, if_false, List.tail_cons]
+    rw [restL_none L L.length rfl]
+
+theorem pickL_le (p : IDeclaration → Bool) :
+    ∀ (L : List IDeclaration) (M : List Bool), pickL p L M ≤ L.length
+  | [], _ => by simp [pickL]
+  | d :: L, M => by
+    have := pickL_le p L M.tail
+    simp only [pickL, List.length_cons]
+    split <;> omega
+
+theorem frontL_append (ps ds : Array IDeclaration) :
+    ∀ (ks : List Nat) (k j : Nat),
+      frontL ps ds (ks ++ [k]) j =
+        frontL ps ds ks j ++ [ds[k]?.getD (ps.getD (j + ks.length) default)]
+  | [], k, j => by simp [frontL]
+  | k' :: ks, k, j => by
+    simp only [List.cons_append, frontL, List.length_cons, List.cons_inj_right]
+    rw [frontL_append ps ds ks k (j + 1), show j + 1 + ks.length = j + (ks.length + 1) by omega]
+
+/-- **The twin's `pick` on the unmasked records is the port's masked pick.**
+The first hit among the unmasked records is the record `pickIdx` names, and
+erasing it is masking it. -/
+theorem pick_preparedRest (n : NIdx) (ds : Array IDeclaration) (picked : List Bool)
+    (hlen : picked.length = ds.size) :
+    pick n (preparedRest ds picked) =
+      (ds[pickIdx n ds picked]?,
+       preparedRest ds (picked.set (pickIdx n ds picked) true)) := by
+  obtain ⟨h1, h2⟩ := restL_pick (declares n) ds.toList picked (by simpa using hlen)
+  simp only [pick, preparedRest, pickIdx]
+  refine Prod.ext ?_ ?_
+  · simp only [List.findIdx_toArray, List.getElem?_toArray]
+    rw [h1]; simp
+  · simp only [List.findIdx_toArray]
+    rw [← h2]
+    simp only [Array.eraseIdxIfInBounds, List.size_toArray, List.eraseIdx_toArray]
+    split
+    · rfl
+    · rename_i hge
+      rw [List.eraseIdx_of_length_le (by omega)]
 
 /-! ## The eleven functions -/
 
@@ -107,11 +180,36 @@ theorem preparedStream_eq_frontOf {ps ds : Array IDeclaration}
 default. -/
 theorem prelude_ix_empty_refines {p : frontend.prepare.PreludeIx}
     (h : frontend.prepare.prelude_ix_empty = ok p) :
-    absPreludeIx p = (⟨#[]⟩ : PreludeIx) := by sorry
+    absPreludeIx p = (⟨#[]⟩ : PreludeIx) := by
+  rw [frontend.prepare.prelude_ix_empty] at h
+  cases Result.ok_injective h
+  rfl
+
+/-- **`arena::env::i_declaration_dup` is the identity under the abstraction.**
+`Refine2/Inductives/Shape.lean`'s `i_constant_info_dup_abs` family is the
+proof's substance; that file is above this tier (it imports the Core knot), so
+the lemma is restated here until the family moves down. -/
+theorem i_declaration_dup_abs {d o : arena.env.IDeclaration}
+    (h : arena.env.i_declaration_dup d = ok o) :
+    absIDeclaration o = absIDeclaration d := by sorry
+
+/-- **`arena::env::i_declaration_names` is `IDeclaration.names`.**  The
+`indDecl` arm is `Refine2/Checker/Axioms.lean`'s `block_names_refines`, above
+this tier for the same reason. -/
+theorem i_declaration_names_abs {d : arena.env.IDeclaration} {v}
+    (h : arena.env.i_declaration_names d = ok v) :
+    v.val.map absNIdx = (absIDeclaration d).names := by sorry
 
 /-- **`prepare::prelude_key` refines `preludeKey`**
 (`Arena/Frontend/Prepare.lean:56-59`).  The one reason this takes the store is
-con-leche's `.anonymous` fall-through, which over handles is an intern. -/
+con-leche's `.anonymous` fall-through, which over handles is an intern.
+
+**Open on the `M_FROZEN` ruling** (task #97-P5-Front): at a frozen name tier
+(`shared_on` and not `scratch_on`) the port's intern answers
+`Internal (M_FROZEN)` where the twin appends, so the error arm is false there
+until the frozen guard turns `Native` (the pending Rust commit).  Under
+`estore_intern_name_abs`'s `hfrozen` the arm closes; the success arm holds
+either way. -/
 theorem prelude_key_refines {pers rst lst d o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.prepare.prelude_key pers rst.store d = ok o) :
@@ -134,20 +232,62 @@ theorem pick_idx_refines {n ds picked k}
 theorem no_picks_refines {n v} (h : frontend.prepare.no_picks n = ok v) :
     v.val = List.replicate n.val false := by sorry
 
-/-- **`prepare::front_of`** — the plan and the mask. -/
+/-- The plan's abstraction: the front and the rest it stands for. -/
+def absPlan (ps ds : alloc.vec.Vec arena.env.IDeclaration)
+    (p : alloc.vec.Vec Std.Usize × alloc.vec.Vec Bool) :
+    Array IDeclaration × Array IDeclaration :=
+  (preparedFront (absIDeclArr ps) (absIDeclArr ds) (p.1.val.map (·.val)),
+   preparedRest (absIDeclArr ds) p.2.val)
+
+/-- What the plan's consumers need of its shape: a slot per prelude record and
+a mask bit per stream record. -/
+def PlanWF (ps ds : alloc.vec.Vec arena.env.IDeclaration)
+    (p : alloc.vec.Vec Std.Usize × alloc.vec.Vec Bool) : Prop :=
+  p.1.val.length = ps.val.length ∧ p.2.val.length = ds.val.length
+
+/-- **`prepare::front_of`'s loop** against `frontOf`, from prelude slot `j`:
+the twin's accumulator is the front the plan so far stands for, and the
+twin's remaining stream is the records the mask does not carry. -/
+theorem front_of_loop_refines {pers ps ds} :
+    ∀ (j : Std.Usize) (picked : alloc.vec.Vec Bool) (picks : alloc.vec.Vec Std.Usize)
+      (rst : arena.monad.AState) (lst : AState) (o),
+      AStateRel pers rst lst → AStateInv pers rst →
+      picked.val.length = ds.val.length → picks.val.length = j.val →
+      frontend.prepare.front_of_loop pers rst.store ps ds (alloc.vec.Vec.len ds)
+        picked (alloc.vec.Vec.len ps) picks j = ok o →
+      Sim (absPlan ps ds) (PlanWF ps ds) pers lst (o.1, withStore rst o.2)
+        (frontOf (preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks.val.map (·.val)))
+          ((absIDeclArr ps).toList.drop j.val)
+          (preparedRest (absIDeclArr ds) picked.val)) := by sorry
+
+/-- **`prepare::front_of` refines `frontOf`** — the plan and the mask, which
+stand for the twin's front and rest (`absPlan`). -/
 theorem front_of_refines {pers rst lst ps ds o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.prepare.front_of pers rst.store ps ds = ok o) :
-    ∀ picks picked, o.1 = .Ok (picks, picked) →
-      ∃ lst' out, (frontOf #[] (absIDeclArr ps).toList (absIDeclArr ds)).run lst
-          = .ok (out, lst') ∧
-        AStateRel pers (withStore rst o.2) lst' ∧
-        AStateInv pers (withStore rst o.2) ∧ Ext lst.store lst'.store ∧
-        preparedStream (absIDeclArr ps) (absIDeclArr ds)
-            (picks.val.map (·.val)) picked.val = out.1 ++ out.2 := by sorry
+    Sim (absPlan ps ds) (PlanWF ps ds) pers lst (o.1, withStore rst o.2)
+      (frontOf #[] (absIDeclArr ps).toList (absIDeclArr ds)) := by
+  rw [frontend.prepare.front_of] at h
+  obtain ⟨picked, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hpv := no_picks_refines hp
+  have H := front_of_loop_refines 0#usize picked
+    (alloc.vec.Vec.with_capacity Std.Usize (alloc.vec.Vec.len ps)) rst lst o hrel hinv
+    (by rw [hpv]; simp) (by simp) h
+  have hfront : preparedFront (absIDeclArr ps) (absIDeclArr ds)
+      ((alloc.vec.Vec.with_capacity Std.Usize (alloc.vec.Vec.len ps)).val.map (·.val))
+      = #[] := by
+    simp [preparedFront, frontL, alloc.vec.Vec.with_capacity]
+  have hrest : preparedRest (absIDeclArr ds) picked.val = absIDeclArr ds := by
+    rw [hpv]
+    simp only [preparedRest, absIDeclArr, List.toList_toArray]
+    rw [restL_none _ _ (by simp)]
+  rw [hfront, hrest] at H
+  simpa using H
 
-/-- **`prepare::prepared_front`** against the transcription. -/
+/-- **`prepare::prepared_front`** against the transcription.  The plan has a
+slot per prelude record (`hlen`), which is what `front_of` hands it. -/
 theorem prepared_front_refines {out ps ds picks v}
+    (hlen : picks.val.length = ps.val.length)
     (h : frontend.prepare.prepared_front out ps ds picks = ok v) :
     absIDeclArr v = absIDeclArr out ++
       preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks.val.map (·.val)) := by
@@ -161,27 +301,14 @@ theorem prepared_rest_refines {out ds picked v}
 
 /-- **`prepare::prepared_stream`** against the transcription. -/
 theorem prepared_stream_refines {ps ds picks picked v}
+    (hlen : picks.val.length = ps.val.length)
     (h : frontend.prepare.prepared_stream ps ds picks picked = ok v) :
     absIDeclArr v = preparedStream (absIDeclArr ps) (absIDeclArr ds)
-      (picks.val.map (·.val)) picked.val := by sorry
-
-/-- **`prepare::prepare_d` refines `prepareD`**
-(`Arena/Frontend/Prepare.lean:128-131`) — one of the tier's named
-deliverables. -/
-theorem prepare_d_refines {pers rst lst pre ds o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.prepare.prepare_d pers rst pre ds = ok o) :
-    Sim absPrepared (fun _ => True) pers lst o
-      (prepareD (absPreludeIx pre) (absIDeclArr ds)) := by sorry
-
-/-- **`prepare::prepare_prelude` refines `preparePrelude`**
-(`Arena/Frontend/Prepare.lean:138-140`) — the second half of what the driver
-runs after the parse, and what `Refine2/Checker/Top.lean`'s
-`install_then_check_refines` is handed. -/
-theorem prepare_prelude_refines {pers rst lst pre ds o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.prepare.prepare_prelude pers rst pre ds = ok o) :
-    Sim absIDeclArr (fun _ => True) pers lst o
-      (preparePrelude (absPreludeIx pre) (absIDeclArr ds)) := by sorry
+      (picks.val.map (·.val)) picked.val := by
+  rw [frontend.prepare.prepared_stream] at h
+  obtain ⟨i2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [prepared_rest_refines h, prepared_front_refines hlen hv1]
+  simp [preparedStream, alloc.vec.Vec.with_capacity]
 
 end ConRon.Refine2.Frontend
