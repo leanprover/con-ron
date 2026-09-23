@@ -238,7 +238,10 @@ theorem check_sum_ind_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf
         v.2.2 = absInductiveShape r.2.2)
       pers lst o
       (checkSumInd (ConRon.Refine.absMode mode) lf (absInductiveShape p) is_rec) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ind, checkSumInd]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_sum_ind_ls

@@ -41,6 +41,7 @@ the Rust takes the whole `Vec` and an index.
 -/
 import ConRon.Refine2.Checker.KnotHyp
 import ConRon.Refine2.Tactic.Prims
+import ConRon.Refine2.Inductives.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

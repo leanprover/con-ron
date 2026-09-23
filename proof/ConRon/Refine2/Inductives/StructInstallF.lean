@@ -41,7 +41,10 @@ theorem check_struct_doms_at_f_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun _ => ()) pers lst o
       (checkStructDomsAtF (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
         (absEIdxL doms) (absU k)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.struct_install_f.check_struct_doms_at_f, checkStructDomsAtF]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_struct_doms_at_f_ls
@@ -75,7 +78,10 @@ theorem check_struct_doms_at_fa_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun _ => ()) pers lst o
       (checkStructDomsAtFA (ConRon.Refine.absMode mode) lf (absU off)
         (absEIdxL fvs) (absEIdxL doms) (absU k)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.struct_install_f.check_struct_doms_at_fa, checkStructDomsAtFA]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_struct_doms_at_fa_ls
@@ -109,7 +115,10 @@ theorem check_struct_proj_table_f_refines {pers st lst}
       (checkStructProjTableF (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
         (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
         (absIConstantVal cv_ca) lf) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.struct_install_f.check_struct_proj_table_f, checkStructProjTableF]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_struct_proj_table_f_ls
