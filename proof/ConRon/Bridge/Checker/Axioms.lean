@@ -441,7 +441,7 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- `Arena.checkDecl_wfProj` (reached through `Arena.annotStepGo_full`)
 #print axioms Arena.annotStepGo_bridge
 #print axioms Arena.annotStep_split
--- `checkDivModPin_bridge` skeletonised: the loop is proved, over four pieces
+-- `checkDivModPin_bridge` and its loop (round 9 skeleton, closed in round 10)
 #print axioms checkDivModPinLoop_bridge
 #print axioms checkDivModPin_bridge
 
@@ -456,5 +456,11 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- `Arena.checkDecl_wfProj` is proved; it reaches `IndSpec.wf` (the Inductives
 -- tier's debt) and the arms' own leaves
 #print axioms Arena.checkDecl_wfProj
+-- round 10, part 2: the divMod gate's last two pieces; `checkDivModPin_bridge`
+-- reaches only the Core tier's leaves now
+#print axioms divModCertStmts_run
+#print axioms divModCertsGuard_run
+#print axioms checkDivModCerts_bridge_aux
+#print axioms checkDivModPinAt_bridge
 
 end ConRon.Bridge
