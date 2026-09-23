@@ -178,6 +178,12 @@ attribute [lockstep_simp] absEIdxArr_size
     LSP kernel.expr.sat_range (fun r => r.val = ConLeche.satRange) :=
   fun _ h => ConRon.Refine.Expr.sat_range_val h
 
+end ConRon.Refine2.Lockstep
+
+namespace ConRon.Refine2
+
+open ConRon.Arena
+
 /-! ## Representation facts the `ExprOps` walks read (task #97-T2-LOCKSTEP lane ExprOps)
 
 Kind 1 of task #97-T2-AUDIT §2: well-formedness of the RUST values a read
@@ -525,6 +531,12 @@ theorem read_names_m_from_wf {pers} {ks : alloc.vec.Vec arena.handle.NIdx} :
           · exact hout nn hnn
           · rw [List.mem_singleton.mp hnn]; exact hw.1 x rfl) hrun
         exact ⟨hih.1, hih.2.trans hw.2⟩
+
+end ConRon.Refine2
+
+namespace ConRon.Refine2.Lockstep
+
+open ConRon.Arena ConRon.Refine2
 
 /-! ## Reads -/
 
