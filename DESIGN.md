@@ -60575,3 +60575,16 @@ tactic additions, Promote, Inductives round 2).  One branch now carries both
 
 `lake build ConRonRefine2` clean after the merge; `scripts/gates.sh` on the
 merged tip: **all 16 OK** (`extract-check` 129 s, `lake-bridge` 561 s).
+
+#### 8. The second bounce (`arena` `924e25b4`)
+
+Conflict with the Frontend lane's round 2 over the `lamBody` twin.  Ruling
+(coordinator): this lane's shape stands — `viewBind h` with
+`none => failDanglingE`, which is what `proj_rec.rs` `lam_body` does
+(`view_bind`, `None => fail_dangling_e`) — and so does this lane's
+`lamBody_run`.  The Frontend lane's `lam_body_refines` (Theorem 2), written
+against the `view`/`.lam` shape, is adapted: the twin's read is now
+`view_bind_run₀` directly, no `view_of_bind_tag` detour.  `export_c.rs`'s
+`pi_result` doc comment takes arena's text; `proj_rec.rs`'s 45 citations
+relocated by `twin-lines.py update`.  `nidx_dup2_spec` has no user on the
+merged tree (the Inductives rounds 3/3b included).
