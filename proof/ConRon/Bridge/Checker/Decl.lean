@@ -9,7 +9,7 @@ nothing else, which is what keeps the per-declaration theorem — the one DESIGN
 
 ## What an arm concludes, and what it deliberately does not
 
-`DeclOut` has six clauses and the last is §8.2's:
+`DeclOut` has eight clauses; the sixth is §8.2's:
 
     ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
       ConLeche.checkDecl μ (fueledOps μ F) pinsP env d = .ok env'
@@ -19,7 +19,10 @@ place that can supply: the store invariant survives, the arena only grew, the
 pin table is untouched, the index is still its list's index, and **the step
 only pushed** (`Pushed`, `Bridge/Promote/Exact.lean`) — which is what makes
 `checkDeclStep`'s promotion counter `k` mean "the constants this step
-installed".
+installed".  The two after it (task #97-P3-Checker round 10) are what the
+bracket's close needs of the pushed index and only the arm can supply: the
+environment it denotes is well formed (`envWF`), and every projection table it
+holds is either an old one or well shaped (`proj`).
 
 There is **no persistence clause**: `checkDecl` does not promote.  The
 environment it hands back names scratch handles, and it is `promoteNew`'s job
@@ -134,13 +137,39 @@ theorem PinsDenote.mono {st st' : EStore} (hx : Ext st st') :
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **the per-declaration bridge's conclusion**, at one `checkDecl` call.
-DESIGN §8.2's statement is the last clause; the five before it are what the
+DESIGN §8.2's statement is the sixth clause; the other seven are what the
 fold needs and only the arm can supply.
 
 `Ext` and not `PExt` here, deliberately: `checkDecl` appends and never drops,
 so the TOTAL extension holds, and `checkDeclStep` is where it weakens
 (`Bridge/Promote/Pers.lean`). -/
 structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
+    (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where
+  state : StateOK s'
+  ext : Ext s.store s'.store
+  pins : s'.pins = s.pins
+  coh : IFEnvCoh fe'
+  pushed : Pushed fe fe'
+  run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
+    ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env'
+  /-- **the pushed environment is well formed** (task #97-P3-Checker round 10,
+  under the coordinator's authorisation): what the bracket's close needs
+  (`Bridge/Checker/Split.lean`'s `BodyOut.envWF`) and only the arm can
+  supply.  Stated at every denotation, which `run` makes the one. -/
+  envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
+  /-- **the pushed index's projection tables** (round 10, the same
+  authorisation): every table the index now holds is one it held before, or
+  is well shaped and rightly named at the new store — `IFEnvOK.proj`'s
+  conclusion, over membership (the shape `IFEnvOK_of_denote` takes) and
+  relative to the step (the shape `Bridge/Inductives/Rel.lean`'s `ProjOut`
+  has), so that no arm needs the incoming tables' shape. -/
+  proj : ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
+    IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t
+
+/-- con-leche: none — `DeclOut`'s first six clauses, which every arm
+assembles by the same transcription; the two round-10 clauses are derived
+from them once, in `Bridge/Checker/Arms.lean`'s `DeclCore.out`. -/
+structure DeclCore (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
     (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where
   state : StateOK s'
   ext : Ext s.store s'.store

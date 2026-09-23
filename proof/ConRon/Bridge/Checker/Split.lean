@@ -1232,21 +1232,16 @@ theorem namesDistinct_of_denote {st : EStore} :
     intro he
     exact hnd.1 (he ▸ List.mem_map_of_mem hzm)
 
-/-- con-leche: none — **what the full `checkDecl` arm does NOT deliver**: the
-pushed environment is well formed, and every projection table of the pushed
-index is well shaped.
+/-- con-leche: none — **the full `checkDecl` arm's pushed environment is well
+formed, and every projection table of the pushed index is well shaped**.
 
-`sorry` — task #97-P3-Checker round 9's finding, reported for a ruling.
-`Arena.checkDecl_bridge`'s `DeclOut` carries neither clause.  The value arms
-prove both internally (`checkDefnVal_bridge` / `checkThmVal_bridge` /
-`checkOpaqueVal_bridge` conclude `StepOK`, whose `envWF` is `EnvWF.cons` at
-`constWF_*`, and a value push creates no table); the axiom arm pushes an
-`axiomInfo` whose `ConstWF` is `checkConstantVal_typeWF`'s; the basis and
-quotient arms push the pinned blocks, whose `ConstWF` con-leche's model tier
-proves case by case (`Model/Basis*.lean`); the inductive arm's are
-`IndSpec`'s, which carries neither (`IndOut` has the tables as `ProjOut`, not
-`EnvWF`).  So this is `DeclOut` (and `IndSpec`) gaining two clauses — a change
-of the arm theorems' conclusions. -/
+PROVED (task #97-P3-Checker round 10), from `DeclOut`'s two round-10 clauses
+(the coordinator's ruling on round 9's finding): `envWF` at the one
+denotation, and `proj`, whose old tables are the incoming index's —
+`FoldOK.projMem` under name uniqueness, carried across the arm's `Ext`.  The
+arms prove the two clauses off their pure run (`DeclCore.out`,
+`Bridge/Checker/Arms.lean`), except the unpinned inductive route, which is
+`IndSpec.wf` (`Bridge/Checker/Hyp.lean`), owed by the Inductives tier. -/
 theorem Arena.checkDecl_wfProj {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env env' : Env}
     {fe fe' : IFEnv} {pd : IDeclaration} {d : Declaration} {s s' : AState}
@@ -1258,7 +1253,11 @@ theorem Arena.checkDecl_wfProj {μ : CheckMode}
     (hden : denoteFEnv s'.store fe' = some env') :
     EnvWF env' ∧
       ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts → IProjTableOK s'.store t := by
-  sorry
+  have hout := Arena.checkDecl_bridge hμ hk hind hok hpins hd hrun
+  refine ⟨hout.envWF env' hden, fun t ht => ?_⟩
+  rcases hout.proj t ht with hold | hnew
+  · exact (hok.projMem hnd t hold).mono hout.ext
+  · exact hnew
 
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC (the
 `checkDeclStepC` arm) — **the full arm of the step body**: `Arena.checkDecl`'s
