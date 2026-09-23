@@ -779,7 +779,40 @@ theorem promote_vg_refines {pers st lst rm lm} {fuel : Std.U64}
     (hrun : arena.promote.promote_vg pers st rm fuel g = ok o) :
     SimPMFW absValueGroup pers lst o
       (promoteVG lm (absU fuel) (absValueGroup g)) := by
-  sorry
+  rw [arena.promote.promote_vg] at hrun
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have h1 := promote_cv_refines hrel hinv hm hq1
+  simp only [SimPMW, POutW] at h1
+  unfold SimPMFW SimPMW
+  rw [promoteVG, am_run_bind']
+  cases r1 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AErrSim.bind h1 _
+  | Ok p1 =>
+    obtain ⟨m2, cv2⟩ := p1
+    obtain ⟨m', v1, lst1, hx1, hv1, hm1, hrel1, hinv1, hext1⟩ := h1
+    obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r2, st2⟩ := q2
+    have h2 := promote_e_refines hrel1 hinv1 hm1 hq2
+    simp only [SimPMW, POutW] at h2
+    erw [hx1, except_ok_bind]
+    dsimp only
+    rw [am_run_bind']
+    cases r2 with
+    | Err e =>
+      have hrun' : (ok (core.result.Result.Err e, st2) : Result _) = ok o := hrun
+      obtain rfl := (Result.ok_injective hrun').symm
+      exact AErrSim.bind h2 _
+    | Ok p2 =>
+      obtain ⟨m3, jv2⟩ := p2
+      obtain ⟨m'', v2, lst2, hx2, hv2, hm2, hrel2, hinv2, hext2⟩ := h2
+      obtain rfl := (Result.ok_injective hrun).symm
+      erw [hx2, except_ok_bind]
+      refine ⟨m'', _, lst2, rfl, ?_, hm2, hrel2, hinv2, Ext.trans hext1 hext2⟩
+      simp only [absValueGroup, hv1, hv2]
 
 /-! ## The fold's entry
 
@@ -869,7 +902,79 @@ theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
     (hrun : arena.promote.promote_new pers st rm fuel k rf = ok o) :
     SimPMW IFEnvRelI pers lst o
       (promoteNew lm (absU fuel) (absU k) lf) := by
-  sorry
+  rw [arena.promote.promote_new] at hrun
+  by_cases hk0 : k = 0#u64
+  · rw [if_pos hk0] at hrun
+    obtain rfl := (Result.ok_injective hrun).symm
+    have h0 : absU k = 0 := by rw [hk0]; rfl
+    unfold SimPMW
+    rw [promoteNew, h0]
+    exact ⟨lm, lf, lst, rfl, ⟨hfe, hfinv⟩, hm, hrel, hinv, Ext.refl _⟩
+  · rw [if_neg hk0] at hrun
+    have hn := alloc.vec.Vec.len_val rf.env.consts
+    obtain ⟨kk, hkk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hkkv : kk.val = k.val := by
+      simp only [lift, Result.ok.injEq] at hkk
+      rw [← hkk]
+      have hkb : k.val ≤ Std.Usize.max := le_trans hk rf.env.consts.property
+      apply UScalar.cast_val_mod_pow_of_inBounds_eq
+      scalar_tac
+    have hkle : ¬ kk > alloc.vec.Vec.len rf.env.consts := by
+      have : absU k = k.val := rfl
+      scalar_tac
+    rw [if_neg hkle] at hrun
+    obtain ⟨start, hstart, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hsv : start.val = rf.env.consts.val.length - k.val := by
+      have := ConRon.Refine.HashMap.uscalar_sub_eq hstart
+      scalar_tac
+    obtain ⟨fe2, hfe2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨hR2, hI2⟩ := erase_installed_refines hfe hfinv hfe2
+    have henv : absIEnv fe2.env = absIEnv rf.env := by
+      rw [← hR2.env, ← hfe.env]
+    have hlen : fe2.env.consts.val.length = rf.env.consts.val.length := by
+      have h := congrArg (fun e : IEnv => e.consts.length) henv
+      simpa [absIEnv] using h
+    have hI := index_promoted_refines hrel hinv hm hR2 hI2
+      (by scalar_tac) (by rw [hlen]; scalar_tac) hrun
+    have hkabs : absU k = k.val := rfl
+    have hk0' : (absU k == 0) = false := by
+      have : k.val ≠ 0 := by
+        intro h; apply hk0; exact Aeneas.Std.UScalar.eq_imp _ _ (by simpa using h)
+      simpa [hkabs] using this
+    have hvb : absU rf.visible_below = lf.visibleBelow := hfe.visibleBelow.symm
+    -- the twin's two sides are one action
+    have htw : (do
+          let n := fe2.env.consts.val.length
+          let cs := (absIEnv fe2.env).consts
+          let (m, mid) ← promoteCIList lm (absU fuel)
+            ((cs.drop (n - (alloc.vec.Vec.len rf.env.consts).val)).take
+              ((alloc.vec.Vec.len rf.env.consts).val - start.val))
+          pure (m, (⟨⟨cs.take (n - (alloc.vec.Vec.len rf.env.consts).val) ++ mid ++
+            cs.drop (n - start.val)⟩,
+            indexPromoted
+              { lf with
+                idx := eraseInstalled lf.idx
+                  ((absIEnv rf.env).consts.take
+                    (rf.env.consts.val.length - start.val)) }.idx
+              (absU rf.visible_below) mid,
+            { lf with
+                idx := eraseInstalled lf.idx
+                  ((absIEnv rf.env).consts.take
+                    (rf.env.consts.val.length - start.val)) }.visibleBelow⟩ : IFEnv))
+          : AM (PMemo × IFEnv))
+        = promoteNew lm (absU fuel) (absU k) lf := by
+      have hlenA : ((absIEnv rf.env).consts).length = rf.env.consts.val.length := by
+        simp [absIEnv]
+      rw [promoteNew, hk0']
+      obtain ⟨⟨consts⟩, idx, vb⟩ := lf
+      have hcs : (absIEnv rf.env).consts = consts := by
+        have := hfe.env; simp only at this; rw [← this]
+      simp only [henv, hlen, hn, hcs, hvb, Nat.sub_self, List.drop_zero, List.take_zero,
+        List.nil_append, hsv, Bool.false_eq_true, ↓reduceIte]
+      have hkn : k.val ≤ rf.env.consts.val.length := hk
+      rw [Nat.sub_sub_self hkn, hkabs]
+    rw [← htw]
+    exact hI
 
 /-! ## The axiom census
 

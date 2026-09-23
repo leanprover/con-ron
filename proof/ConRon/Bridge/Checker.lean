@@ -31,6 +31,10 @@ In dependency order:
 * `Bridge/Checker/Base.lean`, `Canon.lean`, `Basis.lean`, `Pins.lean`,
   `DeclVal.lean` — the specs of `Arena/{CheckerBase,Canon,Basis,StdAxioms,
   TrustAxioms,Pins,NatOpPinSet,Intern,DeclCheck}.lean`;
+* `Bridge/Checker/DeclWF.lean` — the pure checker's steps keep `EnvWF` and
+  push no projection table off the inductive route (the pinned blocks'
+  `ConstWF`, by evaluation); `Bridge/Checker/DivMod.lean` — the
+  `Nat.div`/`Nat.mod` pin-variant gate.
 * `Bridge/Checker/Split.lean` — the install/check seam and
   `Arena.installThenCheck_bridge`, the binary's own fold;
 * `Bridge/Checker/Axioms.lean` — the trust census.
@@ -48,6 +52,8 @@ import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Pins
 import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.DivMod
+import ConRon.Bridge.Checker.DeclWF
 import ConRon.Bridge.Checker.Nodup
 import ConRon.Bridge.Checker.Split
 import ConRon.Bridge.Checker.Axioms

@@ -25,6 +25,7 @@ readings of the machine-word operations are all imported rather than rebuilt.
 | `Refine2/AbsState.lean` | `Memos`, `Caches`, `Pins`, `AStateRel`/`AStateInv`, and the `arena::env` declaration layer |
 | `Refine2/Shape.lean` | `AErrSim`/`AOut`/`Sim`/`SimR`/`SimS` — the shape of a Theorem-2 lemma |
 | `Refine2/Specs.lean` | the inversion layer, one `_run` lemma per primitive, keyed on the Rust equation |
+| `Refine2/Dup.lean` | the `arena::env` record copies are identities (the `*_dup_abs` family, moved down by task #97-P5-Front round 2) |
 | `Refine2/ExprOps/*.lean` | the `arena::expr_ops` tier: 120 functions, one `_refines` each |
 | `Refine2/Core/*.lean` | the `arena::core` tier: `KnotRel`, the knot's memo floor, the fuel induction and the six entry points |
 | `Refine2/Inductives/*.lean` | the `arena::inductives` tier: 306 functions, one `_refines` each, and `IndRel` |
@@ -36,6 +37,7 @@ import ConRon.Refine2.Inv
 import ConRon.Refine2.AbsState
 import ConRon.Refine2.Shape
 import ConRon.Refine2.Specs
+import ConRon.Refine2.Dup
 import ConRon.Refine2.ExprOps.Pure
 import ConRon.Refine2.ExprOps.Read
 import ConRon.Refine2.ExprOps.Mut
@@ -63,4 +65,5 @@ import ConRon.Refine2.Frontend.Spec
 import ConRon.Refine2.Frontend.ProjRec
 import ConRon.Refine2.Frontend.ExportC
 import ConRon.Refine2.Frontend.ExportCInd
+import ConRon.Refine2.Frontend.PreludeText
 import ConRon.Refine2.Frontend.Top
