@@ -118,50 +118,82 @@ official's `is_K_target`.  Twinned in `SumInstall.lean` rather than
 `NativeInstall.lean` (task #97d-2's deviation 3: `checkSumInd`'s `capsOf`
 became `isRec`, which moves this one module earlier).
 
-**STATEMENT DEFECT, round 4 — and it is NOT confined to this statement.**
-The `_` arm of both sides answers the DEFAULT capability record, and the two
-defaults do not correspond: `Arena/Env.lean`'s `IIndCaps.etaCtor` defaults to
-`(default : NIdx)`, the zero word, while `ConLeche.IndCaps.etaCtor` defaults
-to `.anonymous` — and `Arena/Env.lean`'s own comment on that field says so
-outright ("con-leche's default is `.anonymous`; the handle's is the zero word.
-Neither is a name the field ever *denotes*").  `Frontend.denoteCaps` READS
-`etaCtor` unconditionally, so `RCaps (ConLeche.nativeCapsAt q isRec)` at a
-block with zero or two-or-more constructors asks for
+**CLOSED** (task #97-P3-Ind round 5), at `PSpecP` — and the grade IS the
+round-4 finding, discharged.  The `_` arm of both sides answers the DEFAULT
+capability record and the two defaults do not correspond:
+`Arena/Env.lean`'s `IIndCaps.etaCtor` defaults to `(default : NIdx)`, the zero
+word, where `ConLeche.IndCaps.etaCtor` defaults to `.anonymous`, and
+`Frontend.denoteCaps` reads the field UNCONDITIONALLY.  So the `_` arm asks
+for `denoteN st.ns (default : NIdx) = some .anonymous`, which round 4 found no
+invariant said.  `Bridge/StateOK.lean`'s `PinsOK` now says it (`PinsOK.anon`,
+the maintainer's ruling), which is why this statement is `PSpecP` although the
+twin reads no pin: it is the ANSWER that needs the pin phase to have run, not
+the run.
 
-    denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous
+This was never one `sorry`: `checkSumInd` pushes `.indInfo cvTa caps` with
+exactly this record, so at every multi-constructor fixpoint install
+`Frontend.denoteCI` of the new row — and with it `denoteFEnv`,
+`InstRel.denote` and `FoldOK.denote` — was `none`.
 
-and **no invariant of this library says that**.  `StateOK` does not; `PinsOK`
-does not (its six clauses are the forty-nine pin slots, the reserved list and
-the three nullary values).  The zero word is tag `NTag.anonymous = 0`, tier
-`tierP`, index 0, so it decodes exactly when the persistent name store's
-`anons` table is non-empty — true in every state the checker actually reaches,
-and provable from nothing that is currently stated.
-
-**Why this is bigger than one `sorry`.**  `checkSumInd` pushes
-`.indInfo cvTa caps` with exactly this record, so at every MULTI-CONSTRUCTOR
-inductive the fixpoint route installs, `Frontend.denoteCI` of the new row —
-and therefore `denoteFEnv` of the new index, and therefore `InstRel`'s
-`denote` clause and `FoldOK.denote` above it — is `none` unless the zero name
-handle decodes.  This is a hole in the DENOTATION layer, not in this tier's
-statement layer, and it wants a decision one level up: either the pin
-invariant gains the clause (`denoteN s.store.ns default = some .anonymous`,
-which `internAllPins` establishes and which is one lemma once stated), or
-`Frontend.denoteCaps` stops reading `etaCtor` where `eta = false` — the same
-"the denotation should forget the representation's extra data" argument that
-settled `.projInfo`'s `tableName` in round 3, but here the forgetting is
-conditional and that is a Frontend-tier call.
-
-Left `sorry` rather than proved at a weakened statement: the singleton arm
-goes through today (the shape relation's fields, `readLevel_spec` — the twin
-does NOT call `lvlEq?`, so `PSpec` is the right grade — and `denoteCV_name` at
-the constructor handle), and it is the `_` arm alone that is stuck.  The same
-hole blocks `nativeCaps_spec` (`Bridge/Inductives/NativeInstall.lean`), which
-is this statement at `p.toInductiveShape`. -/
+The singleton arm is the shape relation's fields, `readLevel_run` (the twin
+does NOT call `lvlEq?`) and `denoteCV_name` at the constructor handle. -/
 theorem nativeCapsAt_spec (p : Arena.InductiveShape)
     (q : ConLeche.InductiveShape) (isRec : Bool) :
-    PSpec (fun st => ShapeRel st p q)
+    PSpecP (fun st => ShapeRel st p q)
       (Arena.nativeCapsAt p isRec) (RCaps (ConLeche.nativeCapsAt q isRec)) := by
-  sorry
+  intro s₀ s' r hok hpins hrel hrun
+  simp only [Arena.nativeCapsAt] at hrun
+  have hct : denoteCtors s₀.store p.ctors = some q.ctors := hrel.ctors
+  cases hcs : p.ctors with
+  | nil =>
+    rw [hcs] at hrun hct
+    have hqc : q.ctors = [] := (Option.some.inj hct).symm
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    show Frontend.denoteCaps _ _ = _
+    simp only [ConLeche.nativeCapsAt, hqc, Frontend.denoteCaps, hpins.anon]
+  | cons a as =>
+    obtain ⟨cv, nf⟩ := a
+    rw [hcs] at hrun hct
+    simp only [denoteCtors] at hct
+    cases hcv : Frontend.denoteCV s₀.store cv with
+    | none => rw [hcv] at hct; simp at hct
+    | some cvP =>
+      cases has : denoteCtors s₀.store as with
+      | none => rw [hcv, has] at hct; simp at hct
+      | some restP =>
+        rw [hcv, has] at hct
+        have hqc : q.ctors = (cvP, nf) :: restP := (Option.some.inj hct).symm
+        cases as with
+        | nil =>
+          simp only [denoteCtors, Option.some.injEq] at has
+          subst has
+          obtain ⟨l, s1, k1, hz⟩ := bindOk hrun
+          obtain ⟨hs1, hl⟩ := readLevel_run k1
+          rw [hs1] at hz
+          obtain rfl := Option.some.inj (hl.symm.trans hrel.resSort)
+          obtain ⟨rfl, rfl⟩ := pureOk hz
+          refine ⟨PStep.refl hok, ?_⟩
+          show Frontend.denoteCaps _ _ = _
+          simp only [ConLeche.nativeCapsAt, hqc, Frontend.denoteCaps,
+            denoteCV_name hcv, hrel.nP, hrel.nIdx, hrel.isProp]
+        | cons b bs =>
+          obtain ⟨cv2, nf2⟩ := b
+          simp only [denoteCtors] at has
+          cases hcv2 : Frontend.denoteCV s₀.store cv2 with
+          | none => rw [hcv2] at has; simp at has
+          | some cv2P =>
+            cases has2 : denoteCtors s₀.store bs with
+            | none => rw [hcv2, has2] at has; simp at has
+            | some rest2 =>
+              rw [hcv2, has2] at has
+              have hrp : restP = (cv2P, nf2) :: rest2 :=
+                (Option.some.inj has).symm
+              obtain ⟨rfl, rfl⟩ := pureOk hrun
+              refine ⟨PStep.refl hok, ?_⟩
+              show Frontend.denoteCaps _ _ = _
+              simp only [ConLeche.nativeCapsAt, hqc, hrp, Frontend.denoteCaps,
+                hpins.anon]
 
 /-! ## The former's install stage -/
 

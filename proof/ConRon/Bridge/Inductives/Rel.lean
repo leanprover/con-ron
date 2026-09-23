@@ -1656,6 +1656,15 @@ theorem denoteBinders_length {st : EStore} :
         obtain rfl := Option.some.inj h
         simp only [List.length_cons, ih has]
 
+/-- con-leche: none — **`readLevel` in run form**: the readback IS `denoteL`
+and the state does not move.  `Bridge/Frontend/ProjRec.lean` has the same
+lemma; that module is ABOVE this tier, so it is restated here (the same
+reason `beq_handle_eq` is). -/
+theorem readLevel_run {s s' : AState} {h : LIdx} {u : Level}
+    (hrun : readLevel h s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls h = some u :=
+  AM.of_run (P := fun t => t = s) rfl hrun (readLevel_spec s h)
+
 /-! ## One reader on loan from the `ExprOps` tier
 
 `Arena/Env.lean`'s `piSortTeleLen?` is the syntactic Π-telescope's length, and

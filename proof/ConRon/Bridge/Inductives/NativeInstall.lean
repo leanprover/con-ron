@@ -55,12 +55,18 @@ theorem nativeIsRec_spec (kinds : List (List Arena.RecFieldKind)) :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:105-108 nativeCaps
 The capability record the completed parts license.
 
-`sorry`: `nativeCapsAt_spec` (`Bridge/Inductives/SumInstall.lean`) at
-`nativeIsRec p.kinds`, through `nativeIsRec_spec` above. -/
+**CLOSED** (task #97-P3-Ind round 5), at `PSpecP` for the reason
+`nativeCapsAt_spec` is: `nativeCapsAt_spec` at `nativeIsRec p.kinds`, through
+`nativeIsRec_spec` above. -/
 theorem nativeCaps_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts) :
-    PSpec (fun st => PartsRel st p q)
+    PSpecP (fun st => PartsRel st p q)
       (Arena.nativeCaps p) (RCaps (ConLeche.nativeCaps q)) := by
-  sorry
+  intro s₀ s' r hok hpins hrel hrun
+  simp only [Arena.nativeCaps] at hrun
+  have h := nativeCapsAt_spec p.toInductiveShape q.toInductiveShape
+    (Arena.nativeIsRec p.kinds) s₀ s' r hok hpins hrel.shape hrun
+  rw [nativeIsRec_spec p.kinds, hrel.kinds] at h
+  simpa only [ConLeche.nativeCaps] using h
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:110-128 nativeRawRec
 The SYNTACTIC reading of `is_rec` off the declared constructor types, before
