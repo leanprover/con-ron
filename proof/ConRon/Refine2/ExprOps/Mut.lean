@@ -9363,6 +9363,271 @@ theorem loose_bvars_bounded_fast_refines {pers st lst} {fuel k : Std.U64}
 
 
 
+/-! ## The level substitution's own machinery (task #97-P5-Mut round 2)
+
+`instLPGo` is the one walk of this file that interns LEVELS as well as
+expressions, so its steps move the nested level-list / level / name stores
+too.  What a step does to the twin state there is `LssStep`: only `lss`
+moved, and every view that decoded still decodes (`EViewExt`, whose name,
+level and level-list conjuncts exist for this walk). -/
+
+/-- A step that moved only the nested `lss` store, monotonically. -/
+def LssStep (l l' : AState) : Prop :=
+  (∃ X : LsStore, l' = { l with store := { l.store with lss := X } }) ∧
+    EViewExt l.store l'.store
+
+theorem LssStep.refl (l : AState) : LssStep l l := ⟨⟨l.store.lss, rfl⟩, EViewExt.refl _⟩
+
+theorem LssStep.trans {a b c : AState} (h1 : LssStep a b) (h2 : LssStep b c) :
+    LssStep a c := by
+  obtain ⟨⟨X, hX⟩, e1⟩ := h1
+  obtain ⟨⟨Y, hY⟩, e2⟩ := h2
+  refine ⟨⟨Y, ?_⟩, EViewExt.trans e1 e2⟩
+  rw [hY, hX]
+
+theorem LssStep.of {l : AState} {X : LsStore}
+    (hns : ∀ i v, l.store.ns.view i = some v → X.ls.ns.view i = some v)
+    (hls : ∀ i v, l.store.ls.view i = some v → X.ls.view i = some v)
+    (hlss : ∀ i v, l.store.lss.view i = some v → X.view i = some v) :
+    LssStep l { l with store := { l.store with lss := X } } :=
+  ⟨⟨X, rfl⟩, fun _ _ h => h, fun _ _ h => h, hns, hls, hlss⟩
+
+theorem internNNode_lss {lst lst' : AState} {v : NNodeView} {h : NIdx}
+    (hrun : (Arena.internNNode v).run lst = .ok (h, lst')) : LssStep lst lst' := by
+  obtain ⟨-, -, rfl⟩ := internNNode_run_inv hrun
+  exact LssStep.of (X := (lst.store.lss.internName v).1)
+    (fun _ _ hh => NStore.view_intern_mono _ _ hh) (fun _ _ hh => hh) (fun _ _ hh => hh)
+
+theorem internLNode_lss {lst lst' : AState} {v : LNodeView} {h : LIdx}
+    (hrun : (Arena.internLNode v).run lst = .ok (h, lst')) : LssStep lst lst' := by
+  obtain ⟨-, -, rfl⟩ := internLNode_run_inv hrun
+  exact LssStep.of (X := (lst.store.lss.internLevel v).1)
+    (fun _ _ hh => by
+      show ((lst.store.lss.ls.intern v).1.ns).view _ = _
+      rw [LStore.ns_intern]; exact hh)
+    (fun _ _ hh => LStore.view_intern_mono _ _ hh) (fun _ _ hh => hh)
+
+theorem internLsNode_lss {lst lst' : AState} {v : LsNodeView} {h : LsIdx}
+    (hrun : (Arena.internLsNode v).run lst = .ok (h, lst')) : LssStep lst lst' := by
+  obtain ⟨-, -, rfl⟩ := internLsNode_run_inv hrun
+  exact LssStep.of (X := (lst.store.lss.intern v).1)
+    (fun _ _ hh => by
+      show ((lst.store.lss.intern v).1.ls.ns).view _ = _
+      rw [LsStore.ls_intern]; exact hh)
+    (fun _ _ hh => by
+      show ((lst.store.lss.intern v).1.ls).view _ = _
+      rw [LsStore.ls_intern]; exact hh)
+    (fun _ _ hh => LsStore.view_intern_mono _ _ hh)
+
+/-- A bind of two `LssStep` actions is one. -/
+theorem lss_bind {α β : Type} {x : AM α} {f : α → AM β} {lst lst' : AState} {b : β}
+    (hx : ∀ a l1, x.run lst = .ok (a, l1) → LssStep lst l1)
+    (hf : ∀ a l1 l2 b', (f a).run l1 = .ok (b', l2) → LssStep l1 l2)
+    (h : (x >>= f).run lst = .ok (b, lst')) : LssStep lst lst' := by
+  rw [StateT.run_bind] at h
+  cases hxr : x.run lst with
+  | error e => rw [hxr] at h; cases h
+  | ok p =>
+    obtain ⟨a, l1⟩ := p
+    rw [hxr] at h
+    exact (hx a l1 hxr).trans (hf a l1 lst' b h)
+
+theorem internName_lss : ∀ (n : ConLeche.Name) {lst lst' : AState} {h : NIdx},
+    (Arena.internName n).run lst = .ok (h, lst') → LssStep lst lst' := by
+  intro n
+  induction n with
+  | anonymous => intro lst lst' h hrun; exact internNNode_lss hrun
+  | str p s ih =>
+    intro lst lst' h hrun
+    exact lss_bind (fun _ _ hx => ih hx) (fun _ _ _ _ hy => internNNode_lss hy) hrun
+  | num p k ih =>
+    intro lst lst' h hrun
+    exact lss_bind (fun _ _ hx => ih hx) (fun _ _ _ _ hy => internNNode_lss hy) hrun
+
+theorem internLevel_lss : ∀ (u : ConLeche.Level) {lst lst' : AState} {h : LIdx},
+    (Arena.internLevel u).run lst = .ok (h, lst') → LssStep lst lst' := by
+  intro u
+  induction u with
+  | zero => intro lst lst' h hrun; exact internLNode_lss hrun
+  | succ a ih =>
+    intro lst lst' h hrun
+    exact lss_bind (fun _ _ hx => ih hx) (fun _ _ _ _ hy => internLNode_lss hy) hrun
+  | max a b iha ihb =>
+    intro lst lst' h hrun
+    exact lss_bind (fun _ _ hx => iha hx)
+      (fun _ _ _ _ hy => lss_bind (fun _ _ hz => ihb hz)
+        (fun _ _ _ _ hw => internLNode_lss hw) hy) hrun
+  | imax a b iha ihb =>
+    intro lst lst' h hrun
+    exact lss_bind (fun _ _ hx => iha hx)
+      (fun _ _ _ _ hy => lss_bind (fun _ _ hz => ihb hz)
+        (fun _ _ _ _ hw => internLNode_lss hw) hy) hrun
+  | param n =>
+    intro lst lst' h hrun
+    exact lss_bind (fun _ _ hx => internName_lss n hx)
+      (fun _ _ _ _ hy => internLNode_lss hy) hrun
+
+theorem internLevelList_lss : ∀ (us : List ConLeche.Level) {lst lst' : AState}
+    {hs : List LIdx}, (Arena.internLevelList us).run lst = .ok (hs, lst') →
+    LssStep lst lst' := by
+  intro us
+  induction us with
+  | nil =>
+    intro lst lst' hs hrun
+    rw [Arena.internLevelList] at hrun
+    have := Except.ok.inj hrun
+    simp only [Prod.mk.injEq] at this
+    rw [← this.2]; exact LssStep.refl _
+  | cons u us ih =>
+    intro lst lst' hs hrun
+    rw [Arena.internLevelList] at hrun
+    exact lss_bind (fun _ _ hx => internLevel_lss u hx)
+      (fun _ _ _ _ hy => lss_bind (fun _ _ hz => ih hz)
+        (fun _ _ _ _ hw => by
+          have := Except.ok.inj hw
+          simp only [Prod.mk.injEq] at this
+          rw [← this.2]; exact LssStep.refl _) hy) hrun
+
+theorem internLevels_lss (us : List ConLeche.Level) {lst lst' : AState} {h : LsIdx}
+    (hrun : (Arena.internLevels us).run lst = .ok (h, lst')) : LssStep lst lst' := by
+  rw [Arena.internLevels] at hrun
+  exact lss_bind (fun _ _ hx => internLevelList_lss us hx)
+    (fun _ _ _ _ hy => internLsNode_lss hy) hrun
+
+
+/-! ### The readbacks: their VALUE is well formed, and they move no store
+
+Finding 19's value half (task #97-P5-Mut §8 item 5): `read_level_m_run` /
+`read_levels_m_run` say nothing of the tree they answer, and `Level.subst` /
+`intern_level` want it well formed.  It is: a cache hit is `CachesInv`'s
+`readLVals` / `readLsVals`, a miss is `denote_l_wf` / `denote_ls_wf`.  Stated
+beside the `Sim`s rather than inside them because every other caller of those
+two reads them with `WF = fun _ => True`. -/
+
+theorem read_level_m_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LIdx}
+    {o} (hrun : arena.monad.read_level_m pers st h = ok o) :
+    (∀ l, o.1 = .Ok l → ConRon.Refine.LevelWF l) ∧ o.2.store = st.store := by
+  rw [arena.monad.read_level_m] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hto := ConRon.Refine.HashMap2.get_refines_wf lidx_eq2 hinv.caches.readLC
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  cases hrc : r with
+  | some x =>
+    rw [hrc] at hrun hto
+    obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho : (core.result.Result.Ok n, st) = o := Result.ok_injective hrun
+    rw [← ho]
+    have hne : n = x := by
+      rw [ConRon.Refine.level_dup_eq] at hn; exact (Result.ok_injective hn).symm
+    refine ⟨fun l hl => ?_, rfl⟩
+    simp only [core.result.Result.Ok.injEq] at hl
+    rw [← hl, hne]
+    exact hinv.caches.readLVals (h, x) (ConRon.Refine.HashMap.lookupK_mem hto.symm)
+  | none =>
+    rw [hrc] at hrun
+    obtain ⟨ls0, hls0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.store.EStore.ls] at hls0
+    have hls2 : ls0 = st.store.lss.ls := (Result.ok_injective hls0).symm
+    subst hls2
+    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hdw := denote_l_wf hinv.store.lss.lvl hv
+    cases hvc : v with
+    | none =>
+      rw [hvc] at hrun
+      obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨rr, hrr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hrre := fail_run hrr
+      subst hrre
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨(by intro l hl; cases hl), rfl⟩
+    | some x =>
+      rw [hvc] at hrun hdw
+      obtain ⟨k1, hk1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨l3, hl3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hl3e : l3 = x := by
+        rw [ConRon.Refine.level_dup_eq] at hl3; exact (Result.ok_injective hl3).symm
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      have hx3 : ConRon.Refine.LevelWF l3 := by rw [hl3e]; exact hdw x rfl
+      refine ⟨fun l hl => ?_, rfl⟩
+      simp only [core.result.Result.Ok.injEq] at hl
+      first | (rw [← hl]; exact hdw x rfl) | (rw [← hl]; exact hx3) | (rw [hl] at hx3; exact hx3)
+
+theorem read_levels_m_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LsIdx}
+    {o} (hrun : arena.monad.read_levels_m pers st h = ok o) :
+    (∀ l, o.1 = .Ok l → ConRon.Refine.LevelsWF l) ∧ o.2.store = st.store := by
+  rw [arena.monad.read_levels_m] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hto := ConRon.Refine.HashMap2.get_refines_wf lsidx_eq2 hinv.caches.readLsC
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  cases hrc : r with
+  | some x =>
+    rw [hrc] at hrun hto
+    obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho : (core.result.Result.Ok n, st) = o := Result.ok_injective hrun
+    rw [← ho]
+    refine ⟨fun l hl => ?_, rfl⟩
+    simp only [core.result.Result.Ok.injEq] at hl
+    rw [← hl]
+    intro u hu
+    rw [level_list_dup_val hn] at hu
+    exact hinv.caches.readLsVals (h, x) (ConRon.Refine.HashMap.lookupK_mem hto.symm) u hu
+  | none =>
+    rw [hrc] at hrun
+    obtain ⟨ls0, hls0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.store.EStore.ls_s] at hls0
+    have hls2 : ls0 = st.store.lss := (Result.ok_injective hls0).symm
+    subst hls2
+    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hdw := denote_ls_wf hinv.store.lss hv
+    cases hvc : v with
+    | none =>
+      rw [hvc] at hrun
+      obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨rr, hrr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hrre := fail_run hrr
+      subst hrre
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      exact ⟨(by intro l hl; cases hl), rfl⟩
+    | some x =>
+      rw [hvc] at hrun hdw
+      obtain ⟨k1, hk1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨l3, hl3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have ho := Result.ok_injective hrun
+      rw [← ho]
+      refine ⟨fun l hl => ?_, rfl⟩
+      simp only [core.result.Result.Ok.injEq] at hl
+      rw [← hl]; exact hdw x rfl
+
+/-- The twin readbacks move nothing but the readback cache. -/
+theorem readLevelM_frame {lst lst' : AState} {h : LIdx} {l : ConLeche.Level}
+    (hx : (Arena.readLevelM h).run lst = .ok (l, lst')) :
+    lst'.store = lst.store ∧ lst'.memos = lst.memos := by
+  rw [readLevelM_run] at hx
+  split at hx
+  · have := Except.ok.inj hx; simp only [Prod.mk.injEq] at this; rw [← this.2]; exact ⟨rfl, rfl⟩
+  · split at hx
+    · cases hx
+    · have := Except.ok.inj hx; simp only [Prod.mk.injEq] at this; rw [← this.2]
+      exact ⟨rfl, rfl⟩
+
+theorem readLevelsM_frame {lst lst' : AState} {h : LsIdx} {l : List ConLeche.Level}
+    (hx : (Arena.readLevelsM h).run lst = .ok (l, lst')) :
+    lst'.store = lst.store ∧ lst'.memos = lst.memos := by
+  rw [readLevelsM_run] at hx
+  split at hx
+  · have := Except.ok.inj hx; simp only [Prod.mk.injEq] at this; rw [← this.2]; exact ⟨rfl, rfl⟩
+  · split at hx
+    · cases hx
+    · have := Except.ok.inj hx; simp only [Prod.mk.injEq] at this; rw [← this.2]
+      exact ⟨rfl, rfl⟩
+
 /-! ## The level substitution
 
 DESIGN §8.3's lesson 4, "intern the representation, not the algorithm": the
