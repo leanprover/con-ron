@@ -308,6 +308,28 @@ namespace ConRon.Bridge
 #print axioms certifyNatEqs_bridge_aux
 #print axioms certifyNatEqs_bridge
 
+-- **ROUND 6.**  `EnvWF` at a push — the one theorem round 5 scheduled — and
+-- the three value checks that stand on it.
+
+-- the `IFEnv.push` family: the index, and the whole step invariant
+#print axioms IFEnvOK.push
+#print axioms StepOK.push
+
+-- `ConstWF` at an install: the type half (a hypothesis, read off the front
+-- door's own pure run), the value half (con-leche's `installValue_inv` plus
+-- `annotateCore`'s two preservation lemmas), and the three introductions
+#print axioms CVTypeWF.cons
+#print axioms checkConstantVal_typeWF
+#print axioms installValue_valueWF
+#print axioms constWF_defnInfo
+#print axioms constWF_thmInfo
+#print axioms constWF_axiomInfo
+
+-- the three value checks
+#print axioms checkDefnVal_bridge
+#print axioms checkThmVal_bridge
+#print axioms checkOpaqueVal_bridge
+
 /-! ## Group 2 — the three headline theorems
 
 Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`
